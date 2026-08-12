@@ -2,14 +2,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | approved |
 | Goal ID | `KOV-P0-005` |
 | 所属 Phase | Phase 0 |
 | 语言规范 | [`agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) |
-| 前置 Spec | SPEC-0001、SPEC-0003、SPEC-0004 `done` |
+| 前置 Spec | SPEC-0001、SPEC-0002、SPEC-0003、SPEC-0004 `done` |
 | 前置 ADR | 无 |
-| 关联 ADR | 无 |
-| 阻塞项 | 无；仅因前置 Spec 未完成而暂不可实施 |
+| 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` 测试、`.ko` fixtures、Architecture |
 | 语言语义变更 | 否 |
 
@@ -26,12 +26,18 @@ parser。
 
 ## 3. 范围与需求
 
-- 在真实 Cargo integration test target 中建立最小 fixture 发现与运行入口。
-- 使用 `.ko` 作为唯一目标语言源码扩展名，按路径排序后执行，拒绝未知文件类型。
-- Phase 0 至少包含一个 source-loading pass fixture；它只验证读取、source / `Span` 和人工
-  AST / 诊断接线，不声称源码已被解析。
+- 使用 `crates/lang-frontend/tests/fixtures.rs` 作为真实 Cargo integration test target，fixture
+  根固定为 `crates/lang-frontend/tests/fixtures/phase0/source-pass/`。
+- 递归枚举普通 `.ko` 文件；拒绝 symlink、未知扩展名和不能表示为 UTF-8 相对路径的条目。
+  排序键使用相对 fixture 根、统一 `/` 分隔的路径。
+- Phase 0 至少包含一个 source-loading pass fixture。每个 case 读取 UTF-8 `.ko`、加入 source
+  map、创建并切片全文件 `Span`，再用 SPEC-0004 的人工节点和 SPEC-0003 留在
+  `tests/support/`、只编译进测试 target 的共享测试目录验证 AST / 诊断模型接线；样例错误码
+  必须经该目录注册，不加入生产目录，也不由 fixture 临时拼接。fixture 不调用 renderer，
+  也不声称源码已被解析。
 - 枚举到零 fixture 时测试必须失败，并有对该保护行为自身的单元测试。
-- runner 输出 case 相对路径和结果，不包含仓库绝对路径或随机顺序。
+- runner 返回包含 case 相对路径和结果的结构化 outcome，由测试断言稳定报告；不以 Cargo
+  捕获的 `println!` 作为验收证据，也不包含仓库绝对路径或随机顺序。
 - 为后续 pass / fail fixture 保留最小目录约定，但正式错误码和期望格式由首个使用它的功能
   Spec 增量定义。
 
@@ -46,7 +52,7 @@ parser。
 - [ ] `cargo test -p lang-frontend --test fixtures`（或实施后等价真实 target）至少执行一个 `.ko` case。
 - [ ] 临时空 suite 会返回配置错误，且该保护有自动测试。
 - [ ] fixture 顺序按仓库相对路径稳定排序。
-- [ ] 未知扩展名会明确失败。
+- [ ] 未知扩展名、symlink 和非 UTF-8 相对路径会明确失败。
 - [ ] Phase 0 fixture 只断言已实现的 source / AST / 诊断能力，不调用临时 parser。
 - [ ] workspace fmt、check、Clippy 和 test 基线通过；无 ignored / filtered case 被隐瞒。
 - [ ] Architecture 记录 harness 的 Cargo target、fixture 根目录与执行路径。
@@ -54,8 +60,9 @@ parser。
 ## 6. 技术方案与边界
 
 runner 首先作为 `lang-frontend` 测试支持代码存在，因为 Phase 0–3 fixture 的共同消费者是
-frontend。保持普通文件系统枚举和明确断言，不先引入 snapshot 依赖。Codegen 运行 fixture
-在 Phase 4 出现真实需要时复用目录约定或建立自己的 target，不提前泛化。
+frontend。保持标准库文件系统枚举、结构化 case outcome 和明确断言，不先引入 tempfile 或
+snapshot 依赖。Codegen 运行 fixture 在 Phase 4 出现真实需要时复用目录约定或建立自己的
+target，不提前泛化。
 
 ## 7. 实施计划
 
@@ -79,4 +86,4 @@ frontend。保持普通文件系统枚举和明确断言，不先引入 snapshot
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 〈实施时填写〉 | 未执行 | 当前仅完成 Draft Spec |
+| 〈实施时填写〉 | 未执行 | 已批准，等待前置 Spec 完成 |
