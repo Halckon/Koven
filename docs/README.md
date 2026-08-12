@@ -5,7 +5,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.4](./agent-language-design-guide-v0.4.md)：当前语言语义及其中强制实现、
+- [语言设计指南 v0.5](./agent-language-design-guide-v0.5.md)：当前语言语义及其中强制实现、
   Phase 边界的真源。
 - [Specs 与路线图](./specs/)：单次功能或行为变更的范围、Goal、计划、依赖和验收标准。
 - [ADR](./adr/)：长期架构选择及其理由、替代方案与代价。

@@ -33,7 +33,7 @@ docs/
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
 当前语言语义真源是
-[`agent-language-design-guide-v0.4.md`](./agent-language-design-guide-v0.4.md)。它是跨功能、
+[`agent-language-design-guide-v0.5.md`](./agent-language-design-guide-v0.5.md)。它是跨功能、
 跨 Phase 的版本化规范，不属于单次实现 Spec。
 
 ---
