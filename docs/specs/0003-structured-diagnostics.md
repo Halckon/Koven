@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | done |
 | Goal ID | `KOV-P0-003` |
 | 所属 Phase | Phase 0 |
 | 语言规范 | [`agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) |
@@ -28,9 +28,9 @@
   关联 `Span` 均按 ADR-0004 自带 source identity。
 - 建立集中错误码目录 API；单元测试可使用 `cfg(test)` 目录，integration test 可使用只编译进
   测试 target 的共享 support 模块，不能为尚未定义的语言错误提前发布正式错误码。
-- 公共构造 API 强制接收严重级别、已验证错误码、非空主消息和主 `Span`，不让缺失主位置
-  成为可构造状态；对错误码格式、重复注册、空必填文本和无法由当前 source map 解析的范围
-  返回具体内部错误。
+- 公共构造 API 强制接收严重级别、已验证错误码、非空单行主消息和主 `Span`，不让缺失主
+  位置成为可构造状态；关联标签、说明和建议文本同样必须非空且单行；对错误码格式、重复
+  注册、非法必填文本和无法由当前 source map 解析的范围返回具体内部错误。
 - 提供覆盖全部可渲染字段的稳定全序，不直接使用 `HashMap` / `HashSet` 的随机迭代结果，也
   不使用 `SourceId` 数值或加载顺序作为 tie-breaker。
 - CLI 提供返回文本或具体内部错误的最小无颜色纯 renderer，不直接写 stderr，并统一复用
@@ -45,16 +45,17 @@
 
 ## 5. 验收标准
 
-- [ ] 单测覆盖完整诊断、仅主标签诊断、多标签诊断和建议文本。
-- [ ] 非 `Ldddd`、重复代码和空必填文本被明确拒绝；公共 API 无法创建缺失主 `Span` 的诊断。
-- [ ] 同一诊断集合的不同插入顺序产生逐字节一致的渲染结果；逐层覆盖主 source / 范围、
+- [x] 单测覆盖完整诊断、仅主标签诊断、多标签诊断和建议文本。
+- [x] 非 `Ldddd`、重复代码、空或多行必填文本被明确拒绝；公共 API 无法创建缺失主 `Span`
+      的诊断。
+- [x] 同一诊断集合的不同插入顺序产生逐字节一致的渲染结果；逐层覆盖主 source / 范围、
       严重级别、错误码、主消息，以及关联标签、说明、建议完整序列的 tie-breaker。
-- [ ] 跨 source 关联标签可正确渲染；无法由给定 source map 解析的主或关联 `Span` 返回内部
+- [x] 跨 source 关联标签可正确渲染；无法由给定 source map 解析的主或关联 `Span` 返回内部
       错误而不 panic。
-- [ ] Unicode、CRLF、多行与 EOF `Span` 的渲染位置正确。
-- [ ] 生产错误码目录不含为了让 Phase 0 测试通过而虚构的语言错误。
-- [ ] 受影响 crate 的窄测试及 workspace fmt、check、Clippy、test 基线通过。
-- [ ] Architecture 记录诊断从 frontend 产物到 CLI renderer 的边界。
+- [x] Unicode、CRLF、多行与 EOF `Span` 的渲染位置正确。
+- [x] 生产错误码目录不含为了让 Phase 0 测试通过而虚构的语言错误。
+- [x] 受影响 crate 的窄测试及 workspace fmt、check、Clippy、test 基线通过。
+- [x] Architecture 记录诊断从 frontend 产物到 CLI renderer 的边界。
 
 ## 6. 技术方案与边界
 
@@ -71,17 +72,18 @@ error[L0001] sample.ko:1:2-1:4: primary message
   help: suggestion text
 ```
 
-每个 label、note、help 独占一行，顺序与模型一致。renderer 原样使用 source map 中的用户
-可见名称，不自行读取文件系统路径，也不附加其他机器路径。该格式用于 Phase 0 人类可读
-验证，不是版本化机器协议。机器协议延后到 LSP 和 CLI 消费者真实出现后以 ADR 固定，避免
-过早承诺兼容格式。
+每个 label、note、help 独占一行，顺序与模型一致。renderer 使用 source map 中的用户可见
+名称，仅把反斜杠、CR、LF 分别展示为 `\\`、`\r`、`\n`，避免名称破坏单行结构或产生转义
+歧义；它不自行读取、规范化或附加机器文件系统路径。该格式用于 Phase 0 人类可读验证，
+不是版本化机器协议。机器协议延后到 LSP 和 CLI 消费者真实出现后以 ADR 固定，避免过早
+承诺兼容格式。
 
 ## 7. 实施计划
 
-1. [ ] 实现错误码与诊断数据模型及不变量 → 验证：构造 / 拒绝单测
-2. [ ] 实现确定性全序与最小 CLI renderer → 验证：同主键差异字段的乱序输入 golden
-3. [ ] 覆盖跨 source、Unicode、CRLF、多行范围和非法 source map → 验证：窄集成测试
-4. [ ] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
+1. [x] 实现错误码与诊断数据模型及不变量 → 验证：构造 / 拒绝单测
+2. [x] 实现确定性全序与最小 CLI renderer → 验证：同主键差异字段的乱序输入 golden
+3. [x] 覆盖跨 source、Unicode、CRLF、多行范围和非法 source map → 验证：窄集成测试
+4. [x] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
 
 ## 8. 提交计划
 
@@ -97,4 +99,12 @@ error[L0001] sample.ko:1:2-1:4: primary message
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 〈实施时填写〉 | 未执行 | 已批准，前置条件已满足，尚未实施 |
+| `cargo test -p lang-frontend --test diagnostic_model --locked --offline` | 通过 | 9 passed；0 failed / ignored / measured / filtered out |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 3 passed；含损坏关联标签的防御性错误路径 |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 1 compile-fail doctest passed；锁定主 `Span` 必填 |
+| `cargo test -p lang-cli --bin kovenc --locked --offline` | 通过 | 6 passed；0 failed / ignored / measured / filtered out |
+| `cargo fmt --all -- --check` | 通过 | 无格式差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 五个 member 的全部 target 检查成功 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 无 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 共 28 passed；0 failed / ignored / measured / filtered out |
+| `cargo build -p lang-cli --locked --offline` | 通过 | `kovenc` dev profile 构建成功 |

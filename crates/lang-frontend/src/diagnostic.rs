@@ -1,0 +1,607 @@
+//! 结构化诊断模型、错误码目录与确定性聚合顺序。
+
+use std::{error::Error, fmt};
+
+use crate::source::{SourceError, SourceMap, Span};
+
+/// Phase 0 的生产错误码目录。
+///
+/// 后续语言功能只能在分配正式语义错误码的 Spec 中向 [`ALL`] 增加条目。测试代码应通过
+/// [`DiagnosticCodeCatalog::try_new`] 建立自己的目录，不能在这里注册样例编号。
+pub mod codes {
+    use super::{DiagnosticCodeCatalog, DiagnosticCodeError};
+
+    /// 已发布的生产错误码。
+    pub const ALL: &[&str] = &[];
+
+    /// 由集中定义创建生产错误码目录。
+    ///
+    /// # Errors
+    ///
+    /// 当源码中的目录条目格式无效或重复时返回具体错误。
+    pub fn catalog() -> Result<DiagnosticCodeCatalog, DiagnosticCodeError> {
+        DiagnosticCodeCatalog::try_new(ALL)
+    }
+}
+
+/// 已由 [`DiagnosticCodeCatalog`] 验证的 `Ldddd` 错误码。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct DiagnosticCode(u16);
+
+impl fmt::Debug for DiagnosticCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl fmt::Display for DiagnosticCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "L{:04}", self.0)
+    }
+}
+
+/// 不可变、受检的错误码目录。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiagnosticCodeCatalog {
+    codes: Vec<DiagnosticCode>,
+}
+
+impl DiagnosticCodeCatalog {
+    /// 校验并建立错误码目录。
+    ///
+    /// # Errors
+    ///
+    /// 条目不是精确的 ASCII `Ldddd` 格式，或同一错误码出现多次时返回具体错误。
+    pub fn try_new(raw_codes: &[&str]) -> Result<Self, DiagnosticCodeError> {
+        let mut codes = Vec::with_capacity(raw_codes.len());
+        for raw in raw_codes {
+            codes.push(parse_code(raw)?);
+        }
+
+        codes.sort_unstable_by_key(|code| code.0);
+        if let Some(code) = codes
+            .windows(2)
+            .find(|pair| pair[0] == pair[1])
+            .map(|pair| pair[0])
+        {
+            return Err(DiagnosticCodeError::DuplicateCode { code });
+        }
+
+        Ok(Self { codes })
+    }
+
+    /// 从目录解析一个已注册错误码。
+    ///
+    /// # Errors
+    ///
+    /// 输入格式无效，或格式正确但未在当前目录注册时返回具体错误。
+    pub fn resolve(&self, raw: &str) -> Result<DiagnosticCode, DiagnosticCodeError> {
+        let code = parse_code(raw)?;
+        self.codes
+            .binary_search_by_key(&code.0, |candidate| candidate.0)
+            .map(|index| self.codes[index])
+            .map_err(|_| DiagnosticCodeError::UnknownCode {
+                code: raw.to_owned(),
+            })
+    }
+
+    /// 返回目录中的错误码数量。
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.codes.len()
+    }
+
+    /// 返回目录是否为空。
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.codes.is_empty()
+    }
+}
+
+/// 错误码目录校验或查询失败。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DiagnosticCodeError {
+    /// 输入不是精确的 ASCII `Ldddd` 格式。
+    InvalidFormat {
+        /// 被拒绝的原始文本。
+        code: String,
+    },
+    /// 目录中出现重复编号。
+    DuplicateCode {
+        /// 重复的已验证错误码。
+        code: DiagnosticCode,
+    },
+    /// 格式正确的编号未在目录注册。
+    UnknownCode {
+        /// 未注册的错误码文本。
+        code: String,
+    },
+}
+
+impl fmt::Display for DiagnosticCodeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidFormat { code } => {
+                write!(formatter, "diagnostic code {code:?} is not ASCII Ldddd")
+            }
+            Self::DuplicateCode { code } => {
+                write!(
+                    formatter,
+                    "diagnostic code {code} is registered more than once"
+                )
+            }
+            Self::UnknownCode { code } => {
+                write!(formatter, "diagnostic code {code:?} is not registered")
+            }
+        }
+    }
+}
+
+impl Error for DiagnosticCodeError {}
+
+/// 用户诊断的严重级别。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    /// 阻止当前编译继续产生有效产物的错误。
+    Error,
+    /// 不阻止编译但需要用户关注的警告。
+    Warning,
+}
+
+impl Severity {
+    const fn sort_rank(self) -> u8 {
+        match self {
+            Self::Error => 0,
+            Self::Warning => 1,
+        }
+    }
+}
+
+/// 已验证为非空、单行的诊断文本。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiagnosticText(String);
+
+impl DiagnosticText {
+    /// 返回未经改写的诊断文本。
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// 带源码范围的关联诊断标签。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiagnosticLabel {
+    span: Span,
+    message: DiagnosticText,
+}
+
+impl DiagnosticLabel {
+    /// 返回关联范围。
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// 返回关联标签文本。
+    #[must_use]
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+}
+
+/// 一条诊断的有序附加信息。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DiagnosticDetail {
+    /// 带关联源码范围的标签。
+    Label(DiagnosticLabel),
+    /// 补充说明。
+    Note(DiagnosticText),
+    /// 可操作建议。
+    Help(DiagnosticText),
+}
+
+/// 一条结构化用户诊断。
+///
+/// 主范围不是 `Option`，字段也不能由调用方直接修改，因此公开 API 无法构造缺失主范围、
+/// 未验证错误码或空必填文本的诊断。
+///
+/// ```compile_fail
+/// use lang_frontend::{
+///     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
+///     source::SourceMap,
+/// };
+///
+/// fn missing_primary_span(sources: &SourceMap, catalog: &DiagnosticCodeCatalog) {
+///     let code = catalog.resolve("L9000").expect("registered by the caller");
+///     let _ = Diagnostic::new(sources, Severity::Error, code, "message");
+/// }
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Diagnostic {
+    severity: Severity,
+    code: DiagnosticCode,
+    message: DiagnosticText,
+    primary_span: Span,
+    details: Vec<DiagnosticDetail>,
+}
+
+impl Diagnostic {
+    /// 创建带必填主范围的诊断。
+    ///
+    /// # Errors
+    ///
+    /// 主文本为空或包含换行，或主范围无法由给定 source map 解析时返回具体错误。
+    pub fn new(
+        sources: &SourceMap,
+        severity: Severity,
+        code: DiagnosticCode,
+        message: impl Into<String>,
+        primary_span: Span,
+    ) -> Result<Self, DiagnosticError> {
+        validate_span(sources, primary_span, SpanRole::Primary)?;
+
+        Ok(Self {
+            severity,
+            code,
+            message: checked_text(message, TextField::PrimaryMessage)?,
+            primary_span,
+            details: Vec::new(),
+        })
+    }
+
+    /// 追加带源码范围的关联标签。
+    ///
+    /// # Errors
+    ///
+    /// 当前 source map 无法解析主范围或关联范围，或标签文本为空、包含换行时返回具体错误。
+    pub fn add_label(
+        &mut self,
+        sources: &SourceMap,
+        span: Span,
+        message: impl Into<String>,
+    ) -> Result<(), DiagnosticError> {
+        validate_span(sources, self.primary_span, SpanRole::Primary)?;
+        let detail_index = self.details.len();
+        validate_span(sources, span, SpanRole::Label { detail_index })?;
+        let message = checked_text(message, TextField::LabelMessage)?;
+        self.details
+            .push(DiagnosticDetail::Label(DiagnosticLabel { span, message }));
+        Ok(())
+    }
+
+    /// 追加说明并保留生产者给出的顺序。
+    ///
+    /// # Errors
+    ///
+    /// 说明为空或包含换行时返回具体错误。
+    pub fn add_note(&mut self, text: impl Into<String>) -> Result<(), DiagnosticError> {
+        self.details
+            .push(DiagnosticDetail::Note(checked_text(text, TextField::Note)?));
+        Ok(())
+    }
+
+    /// 追加可操作建议并保留生产者给出的顺序。
+    ///
+    /// # Errors
+    ///
+    /// 建议为空或包含换行时返回具体错误。
+    pub fn add_help(&mut self, text: impl Into<String>) -> Result<(), DiagnosticError> {
+        self.details
+            .push(DiagnosticDetail::Help(checked_text(text, TextField::Help)?));
+        Ok(())
+    }
+
+    /// 返回严重级别。
+    #[must_use]
+    pub const fn severity(&self) -> Severity {
+        self.severity
+    }
+
+    /// 返回已验证错误码。
+    #[must_use]
+    pub const fn code(&self) -> DiagnosticCode {
+        self.code
+    }
+
+    /// 返回主消息。
+    #[must_use]
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+
+    /// 返回主源码范围。
+    #[must_use]
+    pub const fn primary_span(&self) -> Span {
+        self.primary_span
+    }
+
+    /// 返回生产者顺序下的附加信息。
+    #[must_use]
+    pub fn details(&self) -> &[DiagnosticDetail] {
+        &self.details
+    }
+}
+
+/// 诊断文本字段，用于定位构造错误。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextField {
+    /// 主消息。
+    PrimaryMessage,
+    /// 关联标签消息。
+    LabelMessage,
+    /// 补充说明。
+    Note,
+    /// 可操作建议。
+    Help,
+}
+
+/// 诊断范围在模型中的角色。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanRole {
+    /// 诊断主范围。
+    Primary,
+    /// 附加信息序列中的关联标签。
+    Label {
+        /// 标签在完整附加信息序列中的下标。
+        detail_index: usize,
+    },
+}
+
+/// 诊断构造或稳定排序失败。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DiagnosticError {
+    /// 必填文本为空。
+    EmptyText {
+        /// 出错字段。
+        field: TextField,
+    },
+    /// 文本包含会破坏逐行 renderer 形态的 CR 或 LF。
+    MultilineText {
+        /// 出错字段。
+        field: TextField,
+    },
+    /// 范围无法由当前 source map 解析。
+    InvalidSpan {
+        /// 出错范围在诊断中的角色。
+        role: SpanRole,
+        /// source / span 层返回的具体原因。
+        source: SourceError,
+    },
+}
+
+impl fmt::Display for DiagnosticError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyText { field } => write!(formatter, "diagnostic {field:?} is empty"),
+            Self::MultilineText { field } => {
+                write!(formatter, "diagnostic {field:?} contains a line break")
+            }
+            Self::InvalidSpan { role, source } => {
+                write!(formatter, "diagnostic {role:?} is invalid: {source}")
+            }
+        }
+    }
+}
+
+impl Error for DiagnosticError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::InvalidSpan { source, .. } => Some(source),
+            Self::EmptyText { .. } | Self::MultilineText { .. } => None,
+        }
+    }
+}
+
+/// 按全部可渲染字段返回确定性全序下的诊断引用。
+///
+/// 原切片不会被重排。排序依次使用主 source 名称、主范围、严重级别、错误码、主消息和完整
+/// 附加信息序列；不使用 `SourceId` 数值、source 加载顺序或输入下标。
+///
+/// # Errors
+///
+/// 任一主范围或关联标签范围无法由给定 source map 解析时返回具体错误，并且不返回部分结果。
+pub fn ordered_diagnostics<'diagnostic>(
+    sources: &SourceMap,
+    diagnostics: &'diagnostic [Diagnostic],
+) -> Result<Vec<&'diagnostic Diagnostic>, DiagnosticError> {
+    let mut keyed = Vec::with_capacity(diagnostics.len());
+    for diagnostic in diagnostics {
+        keyed.push((order_key(sources, diagnostic)?, diagnostic));
+    }
+
+    keyed.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    Ok(keyed
+        .into_iter()
+        .map(|(_, diagnostic)| diagnostic)
+        .collect())
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct DiagnosticOrderKey<'source, 'diagnostic> {
+    source_name: &'source str,
+    start: usize,
+    end: usize,
+    severity: u8,
+    code: u16,
+    message: &'diagnostic str,
+    details: Vec<DetailOrderKey<'source, 'diagnostic>>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum DetailOrderKey<'source, 'diagnostic> {
+    Label {
+        source_name: &'source str,
+        start: usize,
+        end: usize,
+        message: &'diagnostic str,
+    },
+    Note(&'diagnostic str),
+    Help(&'diagnostic str),
+}
+
+fn order_key<'source, 'diagnostic>(
+    sources: &'source SourceMap,
+    diagnostic: &'diagnostic Diagnostic,
+) -> Result<DiagnosticOrderKey<'source, 'diagnostic>, DiagnosticError> {
+    validate_span(sources, diagnostic.primary_span, SpanRole::Primary)?;
+    let source_name = sources
+        .source_name(diagnostic.primary_span.source_id())
+        .map_err(|source| DiagnosticError::InvalidSpan {
+            role: SpanRole::Primary,
+            source,
+        })?;
+    let mut details = Vec::with_capacity(diagnostic.details.len());
+
+    for (detail_index, detail) in diagnostic.details.iter().enumerate() {
+        match detail {
+            DiagnosticDetail::Label(label) => {
+                let role = SpanRole::Label { detail_index };
+                validate_span(sources, label.span, role)?;
+                let label_source = sources
+                    .source_name(label.span.source_id())
+                    .map_err(|source| DiagnosticError::InvalidSpan { role, source })?;
+                details.push(DetailOrderKey::Label {
+                    source_name: label_source,
+                    start: label.span.start(),
+                    end: label.span.end(),
+                    message: label.message.as_str(),
+                });
+            }
+            DiagnosticDetail::Note(text) => {
+                details.push(DetailOrderKey::Note(text.as_str()));
+            }
+            DiagnosticDetail::Help(text) => {
+                details.push(DetailOrderKey::Help(text.as_str()));
+            }
+        }
+    }
+
+    Ok(DiagnosticOrderKey {
+        source_name,
+        start: diagnostic.primary_span.start(),
+        end: diagnostic.primary_span.end(),
+        severity: diagnostic.severity.sort_rank(),
+        code: diagnostic.code.0,
+        message: diagnostic.message.as_str(),
+        details,
+    })
+}
+
+fn checked_text(
+    text: impl Into<String>,
+    field: TextField,
+) -> Result<DiagnosticText, DiagnosticError> {
+    let text = text.into();
+    if text.is_empty() {
+        return Err(DiagnosticError::EmptyText { field });
+    }
+    if text.contains('\r') || text.contains('\n') {
+        return Err(DiagnosticError::MultilineText { field });
+    }
+
+    Ok(DiagnosticText(text))
+}
+
+fn validate_span(sources: &SourceMap, span: Span, role: SpanRole) -> Result<(), DiagnosticError> {
+    sources
+        .slice(span)
+        .map(|_| ())
+        .map_err(|source| DiagnosticError::InvalidSpan { role, source })
+}
+
+fn parse_code(raw: &str) -> Result<DiagnosticCode, DiagnosticCodeError> {
+    let bytes = raw.as_bytes();
+    if bytes.len() != 5 || bytes[0] != b'L' || !bytes[1..].iter().all(u8::is_ascii_digit) {
+        return Err(DiagnosticCodeError::InvalidFormat {
+            code: raw.to_owned(),
+        });
+    }
+
+    let number = bytes[1..]
+        .iter()
+        .fold(0_u16, |value, digit| value * 10 + u16::from(*digit - b'0'));
+    Ok(DiagnosticCode(number))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DetailOrderKey, Diagnostic, DiagnosticCodeCatalog, DiagnosticDetail, DiagnosticError,
+        DiagnosticLabel, DiagnosticText, Severity, SpanRole, TextField, ordered_diagnostics,
+    };
+    use crate::source::SourceMap;
+
+    #[test]
+    fn ordering_defensively_rejects_an_invalid_internal_label() {
+        let catalog =
+            DiagnosticCodeCatalog::try_new(&["L9000"]).expect("the test diagnostic code is valid");
+        let code = catalog
+            .resolve("L9000")
+            .expect("the test diagnostic code is registered");
+        let mut primary_sources = SourceMap::new();
+        let primary_id = primary_sources
+            .add_source("primary.ko", "primary")
+            .expect("the source name is unique");
+        let primary = primary_sources
+            .span(primary_id, 0, 1)
+            .expect("the primary span is valid");
+        let mut foreign_sources = SourceMap::new();
+        let foreign_id = foreign_sources
+            .add_source("foreign.ko", "foreign")
+            .expect("the source name is unique");
+        let foreign = foreign_sources
+            .span(foreign_id, 0, 1)
+            .expect("the foreign span is valid");
+        let mut diagnostic = Diagnostic::new(
+            &primary_sources,
+            Severity::Error,
+            code,
+            "primary message",
+            primary,
+        )
+        .expect("the primary diagnostic is valid");
+
+        // Public APIs cannot create this state. Constructing it here proves the aggregation boundary
+        // still returns an internal error instead of panicking if an internal producer is defective.
+        diagnostic
+            .details
+            .push(DiagnosticDetail::Label(DiagnosticLabel {
+                span: foreign,
+                message: DiagnosticText("foreign label".to_owned()),
+            }));
+
+        assert_eq!(
+            ordered_diagnostics(&primary_sources, &[diagnostic]),
+            Err(DiagnosticError::InvalidSpan {
+                role: SpanRole::Label { detail_index: 0 },
+                source: crate::source::SourceError::InvalidSourceId {
+                    source_id: foreign_id,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn detail_key_variant_order_is_defined_in_one_place() {
+        let label = DetailOrderKey::Label {
+            source_name: "source.ko",
+            start: 0,
+            end: 0,
+            message: "label",
+        };
+
+        assert!(label < DetailOrderKey::Note("note"));
+        assert!(DetailOrderKey::Note("note") < DetailOrderKey::Help("help"));
+    }
+
+    #[test]
+    fn checked_text_rejects_line_breaks_without_rewriting_content() {
+        assert_eq!(
+            super::checked_text("line\nbreak", TextField::Note),
+            Err(DiagnosticError::MultilineText {
+                field: TextField::Note,
+            })
+        );
+    }
+}
