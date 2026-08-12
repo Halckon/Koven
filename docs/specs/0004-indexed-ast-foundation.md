@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | done |
 | Goal ID | `KOV-P0-004` |
 | 所属 Phase | Phase 0 |
 | 语言规范 | [`agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) |
@@ -45,14 +45,14 @@ parser 可直接复用而无需持有自引用树。
 
 ## 5. 验收标准
 
-- [ ] 不同节点类别的 ID 在 Rust 类型层面不可混用。
-- [ ] 测试私有 payload 构造的父子节点可按 ID 稳定读取，并保留原 `SourceId` / `Span`。
-- [ ] 节点 `Span` 的 source 与所属 AST file 一致；不一致的插入被拒绝。
-- [ ] 越界 ID 被受检 API 拒绝；同一节点类别的 ID 不承诺携带 arena identity。
-- [ ] debug / test 表示不包含机器路径、地址或随机顺序。
-- [ ] AST 模块不依赖 codegen、LLVM 或外围工具 crate。
-- [ ] 受影响 crate 的窄测试及 workspace fmt、check、Clippy、test 基线通过。
-- [ ] Architecture 记录 AST 数据所有权与阶段边界。
+- [x] 不同节点类别的 ID 在 Rust 类型层面不可混用。
+- [x] 测试私有 payload 构造的父子节点可按 ID 稳定读取，并保留原 `SourceId` / `Span`。
+- [x] 节点 `Span` 的 source 与所属 AST file 一致；不一致的插入被拒绝。
+- [x] 越界 ID 被受检 API 拒绝；同一节点类别的 ID 不承诺携带 arena identity。
+- [x] debug / test 表示不包含机器路径、地址或随机顺序。
+- [x] AST 模块不依赖 codegen、LLVM 或外围工具 crate。
+- [x] 受影响 crate 的窄测试及 workspace fmt、check、Clippy、test 基线通过。
+- [x] Architecture 记录 AST 数据所有权与阶段边界。
 
 ## 6. 技术方案与边界
 
@@ -63,10 +63,10 @@ parser 可直接复用而无需持有自引用树。
 
 ## 7. 实施计划
 
-1. [ ] 实现 typed ID、arena 和受检索引 API → 验证：编译期类型约束与边界单测
-2. [ ] 实现最小 AST file、带 Span 节点和只读遍历 → 验证：人工 AST 单测
-3. [ ] 审计依赖与确定性表示 → 验证：依赖图、golden / debug 断言
-4. [ ] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
+1. [x] 实现 typed ID、arena 和受检索引 API → 验证：编译期类型约束与边界单测
+2. [x] 实现最小 AST file、带 Span 节点和只读遍历 → 验证：人工 AST 单测
+3. [x] 审计依赖与确定性表示 → 验证：依赖图、golden / debug 断言
+4. [x] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
 
 ## 8. 提交计划
 
@@ -82,4 +82,11 @@ parser 可直接复用而无需持有自引用树。
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 〈实施时填写〉 | 未执行 | 已批准，前置条件已满足，尚未实施 |
+| `cargo test -p lang-frontend --test indexed_ast --locked --offline` | 通过 | 7 个边界与确定性测试通过，无 ignored / filtered |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 个 compile-fail doctest 通过；其中 6 个覆盖 AST ID 全部类别对 |
+| `cargo tree -p lang-frontend --edges normal --locked --offline` | 通过 | 仅列出 `lang-frontend`，无直接或传递依赖 |
+| `cargo fmt --all -- --check` | 通过 | 无格式差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 全 workspace 所有 target 检查通过 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 35 个测试通过，无失败、ignored 或 filtered |
+| `cargo build -p lang-cli --locked --offline` | 通过 | `lang-cli` 构建成功 |

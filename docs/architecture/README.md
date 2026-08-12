@@ -14,7 +14,8 @@
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
 - `lang_frontend::diagnostic` 已提供结构化诊断模型与确定性聚合顺序，`kovenc` binary 内已有
   尚未接入编译流水线的最小纯文本 renderer；
-- 尚无 lexer、parser、AST、类型检查、所有权检查或 codegen 实现；
+- `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
+- 尚无 lexer、parser、具体 Koven AST 节点、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -84,6 +85,29 @@ crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未
 renderer 当前只由同 target 测试调用；CLI 参数、编译流水线、stderr、颜色、退出码和机器
 可读诊断协议均尚未实现。人类可读 Phase 0 文本也不是版本化机器协议。
 
+## 索引式 AST 存储
+
+`lang_frontend::ast::AstFile<Item, Statement, Expression, TypeRef>` 拥有四张按插入顺序增长的
+typed table，payload 类型由后续语法阶段或测试调用方提供：
+
+- `ItemId`、`StatementId`、`ExpressionId`、`TypeRefId` 是字段私有且不能互换的下标
+  newtype，只能由对应 table 分配；API 不提供裸下标构造、unchecked lookup、`Index`、删除、
+  重排或可变节点访问，因此追加后已有 ID 保持有效；
+- 每个 `AstNode<T>` 拥有 payload 与 `Span`。`AstFile` 持有唯一的 `SourceId`，四类插入 API
+  都在修改 table 前检查 `span.source_id()` 一致；失败返回带类别、预期与实际 source 的
+  `AstError::MismatchedSource`，不占用 ID；
+- table 的 `get` 对越界 ID 返回 `AstError::InvalidNodeId`，`iter` 按确定的 ID / 插入顺序返回
+  只读节点。该顺序是存储顺序，不等同于源码顺序或顶层语义顺序；
+- ID 不携带 file / arena identity。同类 ID 在另一 AST file 中若恰好是有效下标，会读取目标
+  file 的该节点；调用方必须维持 ID 所属 file 的内部不变量；
+- `Debug` 使用 Vec 与 typed ID 的结构顺序，隐藏 SourceMap owner identity 并不展示泛型
+  payload，因此不引入 payload 中可能存在的机器路径、地址或随机集合顺序。它只供调试
+  和测试，不是序列化格式或跨构建稳定协议。
+
+生产模块没有定义临时 item / statement / expression / type-reference kind，也没有 parser、
+visitor、错误恢复节点、HIR / MIR、名称解析结果或 LLVM / codegen handle；测试使用私有
+payload 人工验证父子 ID 接线。
+
 ## 尚未实现的编译流水线
 
 现行 guide 要求的流水线仍是计划边界：
@@ -94,9 +118,9 @@ renderer 当前只由同 target 测试调用；CLI 参数、编译流水线、st
 ```
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
-索引式 AST 和 fixture harness 分别由后续 Phase 0 Spec 实现；结构化诊断基础设施已存在，
-但尚无 lexer / parser 等阶段产生真实语言诊断。`lang-std` 的 bootstrap 流程与 runtime /
-ABI 布局仍未确定。
+索引式 AST 存储骨架与结构化诊断基础设施已存在，但尚无 lexer / parser 产生具体语法节点
+或真实语言诊断；fixture harness 仍由后续 Phase 0 Spec 实现。`lang-std` 的 bootstrap 流程
+与 runtime / ABI 布局仍未确定。
 
 ## 更新要求
 
