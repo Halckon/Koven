@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) 定义。
+[`../agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md) 定义。
 
 ## 当前状态
 

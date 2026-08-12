@@ -383,7 +383,7 @@ cargo build -p lang-cli
 2. v1 `object` / `companion object` 的编译期限制是否也约束成员函数体。
 3. module / import、ABI、FFI、目标三元组、链接器、增量编译与跨平台发布策略。
 4. `Shareable`、`Transferable` 的自动推导、显式实现与泛型约束规则。`Copyable` 的 v1
-   结构化自动推导与禁止手动实现已由 v0.5 确定。
+   结构化自动推导与禁止手动实现自 v0.4 起已确定。
 5. 借用生命周期与 ASAP 析构点的精确定义，自建 SSA IR 指令集和调试映射。
 6. LLVM / `inkwell` 版本及 feature 组合、机器可读诊断协议、包清单与锁文件 schema。
 

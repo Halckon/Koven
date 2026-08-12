@@ -1,8 +1,8 @@
 # Koven Spec 路线图
 
-本目录把现行 [v0.5 语言规范](../agent-language-design-guide-v0.5.md) 拆成可独立验证、可独立
-提交的 Goal。路线图负责排序，Spec 文件负责定义一次交付；路线图条目本身不等于已批准的
-Spec，也不授权实现。
+本目录依据现行 [v0.5 语言规范](../agent-language-design-guide-v0.5.md) 维护可独立验证、可独立
+提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
+定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
 ## Goal 与提交工作流
 

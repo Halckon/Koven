@@ -1,6 +1,8 @@
 # AGENT 开发指导文档：Koven 语言设计规范 v0.4
 
-> 本文档是给开发 Agent 的现行权威规范，取代
+> **归档状态：已由
+> [`agent-language-design-guide-v0.5.md`](./agent-language-design-guide-v0.5.md) 取代，不再是现行规范。**
+> 本文档保留为 v0.4 的历史语义记录；当时它取代
 > [`agent-language-design-guide-v0.3.md`](./agent-language-design-guide-v0.3.md)。语法设计原则：
 > **尽量贴近 Kotlin 命名与语法习惯**，内存模型为 Rust 式简化所有权/借用，编译器用
 > Rust 实现，LLVM 后端。v0.3 及更早资料如与本文档冲突，以本文档为准。
