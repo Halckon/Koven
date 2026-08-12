@@ -23,9 +23,9 @@ Spec 均为 `done`、所有前置 ADR 均为 `accepted`、阻塞项已经解除�
 都引用同一 Spec 编号；最终实现提交同时包含验收记录、Architecture 更新和 `done` 状态。
 若一个 Spec 无法形成清晰的独立提交边界，应在批准前继续拆分。
 
-## 当前可起草队列
+## Phase 0 Spec 队列
 
-Phase 0 已细化为实际 Spec；它们全部保持 `draft`，等待逐项批准和执行：
+Phase 0 已细化为以下实际 Spec。状态以各 Spec 文件为准，并按前置关系依次推进：
 
 | 顺序 | Spec | Goal | 前置条件 |
 |---|---|---|---|

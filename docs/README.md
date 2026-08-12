@@ -31,5 +31,5 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库仍处于 Phase 0 之前；[架构快照](./architecture/README.md) 明确区分了当前事实与
-guide 要求但尚未实现的边界。
+当前仓库已进入 Phase 0，SPEC-0001 建立了 Cargo 工程骨架；后续编译阶段的实际状态见
+[架构快照](./architecture/README.md)。

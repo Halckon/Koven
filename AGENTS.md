@@ -3,8 +3,8 @@
 本文件约束在本仓库内工作的 AI Agent 与开发者。它描述**如何开发、验证和交付**，不是
 语言语法规范本身。规则优先于示例；如果规则、代码和文档互相冲突，不得自行折中。
 
-> 当前仓库仍处于 Phase 0 之前：尚未建立 Cargo workspace，也没有可构建的 Rust 源码。
-> 下文标为“计划”的目录和命令只有在对应文件创建后才成立，不得假装它们已经存在。
+> 当前仓库处于 Phase 0：已建立 Cargo workspace 与五个有效 target，但尚未实现编译器
+> 阶段。已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---
 
@@ -17,7 +17,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | 设计与工程骨架准备期；以版本化语言指导文档约束后续实现 |
+| 当前阶段 | Phase 0；Cargo 工程骨架已建立，source / AST / 诊断与测试 harness 待后续 Spec 实现 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -109,12 +109,12 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ---
 
-## 3. 计划中的 Cargo workspace
+## 3. Cargo workspace
 
-Phase 0 必须建立五个 workspace member：`lang-frontend`、`lang-codegen`、`lang-cli`、
-`lang-lsp`、`lang-std`。指南没有确定它们采用仓库根平铺还是 `crates/` 布局，也没有确定
-每个 package 是 library、binary 还是二者兼有；这些物理结构应在 Phase 0 开工时明确，
-不得由本文件提前定案。没有明确需求时不要额外拆出 HIR、MIR、runtime 等 crate。
+workspace 已按 [ADR-0002](./docs/adr/0002-bootstrap-workspace-layout.md) 建立五个 member：
+`lang-frontend`、`lang-codegen`、`lang-cli`、`lang-lsp`、`lang-std`。实际目录、target 和依赖
+见 [Architecture](./docs/architecture/README.md)。没有明确需求时不要额外拆出 HIR、MIR、
+runtime 等 crate。
 
 ### Workspace member 职责
 
@@ -130,16 +130,16 @@ Phase 0 必须建立五个 workspace member：`lang-frontend`、`lang-codegen`�
 codegen；frontend 永远不能反向依赖外围工具。跨 crate API 才使用 `pub`，其余保持最小
 可见性。
 
-Phase 0 还必须明确两项可执行性要求：
+Phase 0 的可执行性要求：
 
-- 每个 Cargo member 都要有有效 target；不得创建只有 `Cargo.toml`、执行 `cargo check` 会
-  报 “no targets specified” 的占位 package。`lang-std` 如何同时满足 Cargo member 与
-  目标语言源码容器的要求，必须和 bootstrap / runtime 决策一起解决。
+- 每个 Cargo member 已有有效 target；后续不得退化为只有 `Cargo.toml`、执行 `cargo check`
+  会报 “no targets specified” 的无效 package。`lang-std` 使用最小 Rust library 承载 Cargo
+  边界，标准库公共实现仍以 `koven/**/*.ko` 为唯一真源。
 - 语言 fixture 必须由某个真实的 Cargo test target 或明确的测试 runner 枚举执行；虚拟
   workspace 根目录中的 `tests/fixtures/` 不会被 Cargo 自动发现，不能把目录存在等同于
   测试已接入。
 
-workspace 建立后：
+workspace 持续遵守：
 
 - 公共 edition、MSRV、lint、共享依赖版本和发布 / license 策略应在根配置集中管理；license
   未选定时保持不可发布，不得虚构许可证标识。

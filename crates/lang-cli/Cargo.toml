@@ -1,0 +1,17 @@
+[package]
+name = "lang-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lang-codegen.workspace = true
+lang-frontend.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "kovenc"
+path = "src/main.rs"
