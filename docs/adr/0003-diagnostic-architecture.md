@@ -2,7 +2,7 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 背景
 
@@ -13,22 +13,29 @@ Lexer、parser、类型检查、所有权检查和 codegen 都会产生面向用
 机器可读公共格式目前没有真实消费者和兼容要求，不宜在 Phase 0 同时固定。需要先决定跨
 Phase 的内部诊断模型、稳定编号与 renderer 所有权，再由独立 ADR 处理公共协议。
 
-## 建议决策
+## 决策
 
 - 诊断语义模型由 `lang-frontend` 拥有。各前端阶段接收明确输入并返回阶段产物与诊断集合，
   不写隐式可变全局 sink，也不直接输出到 stderr。
-- 每条用户诊断至少含严重级别、`Ldddd` 错误码、主消息和主 `Span`；可附关联标签、说明和
-  可操作建议。source / 行列换算只使用 SPEC-0002 的公共基础设施。
+- 每条用户诊断必须在构造时提供严重级别、已验证的 `Ldddd` 错误码、非空主消息和主
+  `Span`，使缺失主位置在类型上不可表示；可附带有 `Span` 的关联标签、说明和可操作建议。
+  `Span` 自带 source identity，其不变量遵循 ADR-0004；source / 行列换算只使用 SPEC-0002
+  的公共基础设施。
 - 错误码在 frontend 的集中注册表中定义。一个已发布错误码只表示一种稳定问题，不复用，
   不由 renderer 或 fixture 临时拼接；具体编号随实现该诊断的功能 Spec 分配。
-- 内部诊断先保留产生阶段的结构化顺序；对外聚合边界使用 source 用户可见名称、主范围、
-  错误码和稳定 tie-breaker 排序。任何顺序都不能依赖随机哈希迭代。
-- 人类可读 renderer 由 `lang-cli` 拥有，消费 frontend 模型并决定颜色、文本布局和 stderr
-  策略；renderer 不反向定义诊断语义。LSP 在 Phase 6 通过适配层映射同一模型。
+- 单条诊断内部的关联标签、说明和建议保留生产者给出的语义顺序。诊断集合在对外聚合边界
+  建立全序：依次比较主 source 的稳定用户可见名称、主范围、严重级别、错误码、主消息，
+  再比较所有关联标签、说明和建议的完整有序序列。关联标签的比较包含 source 名称、范围和
+  文本；具体稳定枚举顺序只在一个实现位置定义并由测试锁定。任何顺序都不能依赖随机哈希
+  迭代、`SourceId` 数值或 source 加载顺序。
+- 人类可读 renderer 由 `lang-cli` 拥有，作为 `Diagnostic + SourceMap` 到文本或具体内部错误
+  的纯转换，不直接写 stderr。CLI 编排层后续决定 I/O、颜色和退出码策略；renderer 不反向
+  定义诊断语义。LSP 在 Phase 6 通过适配层映射同一模型。
 - Phase 0 只实现无颜色、确定性的最小 renderer。机器可读 schema、颜色自动检测、LSP 映射
   和自动修复协议等待真实消费者出现后分别由 Spec / ADR 决定。
-- 编译器内部不变量失败使用与用户诊断分离的具体内部错误类型；不得把 compiler bug 伪装成
-  `Ldddd` 用户错误，也不得因非法用户源码 panic。
+- 无法用当前 `SourceMap` 解析主或关联 `Span`、错误码目录重复等内部不变量失败使用与用户
+  诊断分离的具体内部错误类型；不得把 compiler bug 伪装成 `Ldddd` 用户错误，也不得因非法
+  用户源码 panic。
 
 ## 替代方案
 
@@ -68,5 +75,6 @@ Phase 的内部诊断模型、稳定编号与 renderer 所有权，再由独立 
 ## 关联
 
 - 相关 Spec：[SPEC-0003](../specs/0003-structured-diagnostics.md)
+- 相关 ADR：[ADR-0004](./0004-source-span-position-model.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
