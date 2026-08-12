@@ -17,7 +17,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0；Cargo 骨架、source / `Span`、诊断核心与索引式 AST 骨架已建立，测试 harness 待后续 Spec 实现 |
+| 当前阶段 | Phase 0 已完成；Cargo 骨架、source / `Span`、诊断核心、索引式 AST 骨架与语言 fixture harness 已建立，Phase 1 尚未开始 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。

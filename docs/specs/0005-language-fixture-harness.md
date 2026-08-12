@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | done |
 | Goal ID | `KOV-P0-005` |
 | 所属 Phase | Phase 0 |
 | 语言规范 | [`agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) |
@@ -49,13 +49,13 @@ parser。
 
 ## 5. 验收标准
 
-- [ ] `cargo test -p lang-frontend --test fixtures`（或实施后等价真实 target）至少执行一个 `.ko` case。
-- [ ] 临时空 suite 会返回配置错误，且该保护有自动测试。
-- [ ] fixture 顺序按仓库相对路径稳定排序。
-- [ ] 未知扩展名、symlink 和非 UTF-8 相对路径会明确失败。
-- [ ] Phase 0 fixture 只断言已实现的 source / AST / 诊断能力，不调用临时 parser。
-- [ ] workspace fmt、check、Clippy 和 test 基线通过；无 ignored / filtered case 被隐瞒。
-- [ ] Architecture 记录 harness 的 Cargo target、fixture 根目录与执行路径。
+- [x] `cargo test -p lang-frontend --test fixtures`（或实施后等价真实 target）至少执行一个 `.ko` case。
+- [x] 临时空 suite 会返回配置错误，且该保护有自动测试。
+- [x] fixture 顺序按仓库相对路径稳定排序。
+- [x] 未知扩展名、symlink 和非 UTF-8 相对路径会明确失败。
+- [x] Phase 0 fixture 只断言已实现的 source / AST / 诊断能力，不调用临时 parser。
+- [x] workspace fmt、check、Clippy 和 test 基线通过；无 ignored / filtered case 被隐瞒。
+- [x] Architecture 记录 harness 的 Cargo target、fixture 根目录与执行路径。
 
 ## 6. 技术方案与边界
 
@@ -66,10 +66,10 @@ target，不提前泛化。
 
 ## 7. 实施计划
 
-1. [ ] 建立 fixture 目录、case 枚举和确定性排序 → 验证：发现 / 排序单测
-2. [ ] 接入真实 Cargo test target 与至少一个 `.ko` source-loading case → 验证：窄集成测试
-3. [ ] 增加零 fixture 和未知文件保护 → 验证：失败路径单测
-4. [ ] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
+1. [x] 建立 fixture 目录、case 枚举和确定性排序 → 验证：发现 / 排序单测
+2. [x] 接入真实 Cargo test target 与至少一个 `.ko` source-loading case → 验证：窄集成测试
+3. [x] 增加零 fixture 和未知文件保护 → 验证：失败路径单测
+4. [x] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
 
 ## 8. 提交计划
 
@@ -86,4 +86,12 @@ target，不提前泛化。
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 〈实施时填写〉 | 未执行 | 已批准，等待前置 Spec 完成 |
+| `cargo test -p lang-frontend --test fixtures --locked --offline` | 通过 | 当前 macOS 主机执行 9 个 Rust 测试和 1 个 `.ko` case：`unicode.ko`；无 ignored / filtered |
+| 平台分支审计 | 部分执行 | macOS 已执行 Unix symlink、控制字符路径与非 UTF-8 component 校验；Linux 真实非 UTF-8 文件系统发现及 Windows surrogate 分支未在当前主机编译执行 |
+| `cargo tree -p lang-frontend --edges normal --locked --offline` | 通过 | 仅列出 `lang-frontend`，无新直接或传递依赖 |
+| `cargo fmt --all -- --check` | 通过 | 无格式差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 全 workspace 所有 target 检查通过 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 44 个测试通过，无失败、ignored 或 filtered |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 个 compile-fail doctest 通过 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | `lang-cli` 构建成功 |

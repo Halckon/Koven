@@ -15,6 +15,7 @@
 - `lang_frontend::diagnostic` 已提供结构化诊断模型与确定性聚合顺序，`kovenc` binary 内已有
   尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
+- `lang-frontend` 已有 Cargo 实际执行的 `.ko` source-loading fixture harness；
 - 尚无 lexer、parser、具体 Koven AST 节点、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -108,6 +109,24 @@ typed table，payload 类型由后续语法阶段或测试调用方提供：
 visitor、错误恢复节点、HIR / MIR、名称解析结果或 LLVM / codegen handle；测试使用私有
 payload 人工验证父子 ID 接线。
 
+## 语言 fixture harness
+
+`crates/lang-frontend/tests/fixtures.rs` 是 Cargo 自动发现的 `fixtures` integration test target。
+它的固定根目录是 `crates/lang-frontend/tests/fixtures/phase0/source-pass/`，当前提交一个
+`unicode.ko` source-loading case。
+
+- 发现器递归接受普通小写 `.ko` 文件；拒绝 symlink、未知扩展名、非 UTF-8 相对
+  路径和非普通文件类型。路径逐 component 校验后用 `/` 连接，case 与发现问题均显式
+  排序，不依赖文件系统枚举顺序；
+- 空 suite 是 `NoFixtures` 配置错误。每个 case 以严格 UTF-8 读取，以规范相对路径作为
+  `SourceMap` 名称，创建并切片全文件 `Span`，再构造测试私有 AST expression 和一条使用
+  `tests/support/fixture_codes.rs` 中 `L9000` 目录的结构化诊断；
+- runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
+  边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
+
+`source-pass` 只表示 Phase 0 基础设施接线成功；它不表示源码已词法分析、解析、类型检查
+或编译。harness 不调用 renderer，也未固定 compile-fail sidecar 或机器诊断协议。
+
 ## 尚未实现的编译流水线
 
 现行 guide 要求的流水线仍是计划边界：
@@ -118,9 +137,9 @@ payload 人工验证父子 ID 接线。
 ```
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
-索引式 AST 存储骨架与结构化诊断基础设施已存在，但尚无 lexer / parser 产生具体语法节点
-或真实语言诊断；fixture harness 仍由后续 Phase 0 Spec 实现。`lang-std` 的 bootstrap 流程
-与 runtime / ABI 布局仍未确定。
+索引式 AST 存储骨架、结构化诊断基础设施与 source-loading fixture harness 已存在，但尚无
+lexer / parser 产生具体语法节点或真实语言诊断。`lang-std` 的 bootstrap 流程与 runtime /
+ABI 布局仍未确定。
 
 ## 更新要求
 
