@@ -11,6 +11,7 @@
 - 根目录是 resolver 3 的 virtual Cargo workspace；所有 package 使用 Rust edition 2024，
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
+- `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
 - 尚无 lexer、parser、AST、诊断、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -36,6 +37,28 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 `lang-std` 的 Rust target 仅提供 Cargo 与测试边界，其单元测试验证 `.ko` 源码包存在；标准库
 公共实现仍以 `koven/**/*.ko` 为唯一真源。Phase 0 不包含 runtime crate。
 
+## Source 与 Span
+
+`lang_frontend::source::SourceMap` 按
+[ADR-0004](../adr/0004-source-span-position-model.md) 拥有已加载源码。每个内部 source entry
+持有不可变的用户可见名称、UTF-8 `String` 和集中预计算的行起始字节索引：
+
+- 同一 source map 内的用户可见名称必须唯一；重复注册返回
+  `SourceError::DuplicateSourceName`，不会替换原有源码；
+- `SourceId` 是所属 source map 分配的 map-local 身份；私有 owner identity 防止不同 map 的
+  相同索引静默串源，并从稳定 debug 表示中隐藏。它不等同于文件系统路径；追加 source 不
+  改变已有 ID，但稳定产物不得按 ID 或加载顺序排序；
+- `Span` 内含 `SourceId` 和 `[start, end)` 半开字节范围，只能由 `SourceMap::span` 受检创建；
+- source map 统一提供 span 切片和 byte offset 到 `SourcePosition` 的换算，后续 lexer、AST、
+  诊断和 LSP 不得各自重复实现；
+- 展示位置使用 1-based 行列，列按 Unicode scalar value 计数，tab 计一个 scalar；行索引在
+  `\n` 后开始新行，因此同时保留并稳定处理 LF、CRLF、空文件和 EOF；
+- 无效 `SourceId`、逆序、越界和非 UTF-8 字符边界通过具体 `SourceError` 返回，不以 panic
+  处理用户输入。
+
+行列不存入 `Span`，只在展示边界派生。source 模块不依赖 parser、类型系统、LLVM 或外围
+crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未实现。
+
 ## 尚未实现的编译流水线
 
 现行 guide 要求的流水线仍是计划边界：
@@ -46,8 +69,8 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 ```
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
-source / `Span`、索引式 AST、结构化诊断和 fixture harness 分别由后续 Phase 0 Spec 实现；
-`lang-std` 的 bootstrap 流程与 runtime / ABI 布局仍未确定。
+索引式 AST、结构化诊断和 fixture harness 分别由后续 Phase 0 Spec 实现；`lang-std` 的
+bootstrap 流程与 runtime / ABI 布局仍未确定。
 
 ## 更新要求
 
