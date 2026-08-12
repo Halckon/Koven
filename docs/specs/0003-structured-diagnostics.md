@@ -2,14 +2,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | approved |
 | Goal ID | `KOV-P0-003` |
 | 所属 Phase | Phase 0 |
 | 语言规范 | [`agent-language-design-guide-v0.4.md`](../agent-language-design-guide-v0.4.md) |
 | 前置 Spec | SPEC-0002 `done` |
-| 前置 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md) 必须为 `accepted` |
+| 前置 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) 均必须为 `accepted` |
 | 关联 ADR | 机器可读公共协议另需后续 ADR |
-| 阻塞项 | ADR-0003 尚未 `accepted`，且前置 Spec 未完成 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend`、`lang-cli`、Architecture |
 | 语言语义变更 | 否 |
 
@@ -24,12 +24,17 @@
 
 ## 3. 范围与需求
 
-- 定义诊断严重级别、稳定 `Ldddd` 错误码、主消息、主 `Span`、关联标签、说明和建议。
-- 建立集中错误码目录 API；测试可使用 `cfg(test)` 目录，不能为尚未定义的语言错误提前发布
-  正式错误码。
-- 对错误码格式、重复注册、缺失主位置和非法关联范围返回具体内部错误。
-- 提供稳定排序规则，不直接使用 `HashMap` / `HashSet` 的随机迭代结果。
-- CLI 提供最小无颜色人类可读渲染，统一复用 SPEC-0002 的行列换算。
+- 定义诊断严重级别、稳定 `Ldddd` 错误码、主消息、主 `Span`、关联标签、说明和建议；主与
+  关联 `Span` 均按 ADR-0004 自带 source identity。
+- 建立集中错误码目录 API；单元测试可使用 `cfg(test)` 目录，integration test 可使用只编译进
+  测试 target 的共享 support 模块，不能为尚未定义的语言错误提前发布正式错误码。
+- 公共构造 API 强制接收严重级别、已验证错误码、非空主消息和主 `Span`，不让缺失主位置
+  成为可构造状态；对错误码格式、重复注册、空必填文本和无法由当前 source map 解析的范围
+  返回具体内部错误。
+- 提供覆盖全部可渲染字段的稳定全序，不直接使用 `HashMap` / `HashSet` 的随机迭代结果，也
+  不使用 `SourceId` 数值或加载顺序作为 tie-breaker。
+- CLI 提供返回文本或具体内部错误的最小无颜色纯 renderer，不直接写 stderr，并统一复用
+  SPEC-0002 的行列换算。
 - 多个诊断即使从不同收集顺序进入，也产生相同排序和文本结果。
 
 ## 4. 非目标
@@ -41,8 +46,11 @@
 ## 5. 验收标准
 
 - [ ] 单测覆盖完整诊断、仅主标签诊断、多标签诊断和建议文本。
-- [ ] 非 `Ldddd`、重复代码、缺失主 `Span` 等不变量被明确拒绝。
-- [ ] 同一诊断集合的不同插入顺序产生逐字节一致的渲染结果。
+- [ ] 非 `Ldddd`、重复代码和空必填文本被明确拒绝；公共 API 无法创建缺失主 `Span` 的诊断。
+- [ ] 同一诊断集合的不同插入顺序产生逐字节一致的渲染结果；逐层覆盖主 source / 范围、
+      严重级别、错误码、主消息，以及关联标签、说明、建议完整序列的 tie-breaker。
+- [ ] 跨 source 关联标签可正确渲染；无法由给定 source map 解析的主或关联 `Span` 返回内部
+      错误而不 panic。
 - [ ] Unicode、CRLF、多行与 EOF `Span` 的渲染位置正确。
 - [ ] 生产错误码目录不含为了让 Phase 0 测试通过而虚构的语言错误。
 - [ ] 受影响 crate 的窄测试及 workspace fmt、check、Clippy、test 基线通过。
@@ -51,14 +59,28 @@
 ## 6. 技术方案与边界
 
 内部诊断模型属于 frontend 可复用 API；CLI 只负责展示策略，不拥有语义错误生成逻辑。
-默认稳定键使用 source 的用户可见名称、主范围起点/终点、错误码和消息。机器可读协议延后到
-LSP 和 CLI 消费者真实出现后以 ADR 固定，避免 Phase 0 过早承诺兼容格式。
+诊断集合依次按主 source 名称、主范围、严重级别、错误码、主消息及关联标签、说明、建议的
+完整有序序列比较；单条诊断内部保持生产者给出的顺序。
+
+Phase 0 renderer 固定以下无颜色、无代码框的内部文本形态，并始终展示半开范围的起止位置：
+
+```text
+error[L0001] sample.ko:1:2-1:4: primary message
+  label other.ko:2:1-2:3: related message
+  note: note text
+  help: suggestion text
+```
+
+每个 label、note、help 独占一行，顺序与模型一致。renderer 原样使用 source map 中的用户
+可见名称，不自行读取文件系统路径，也不附加其他机器路径。该格式用于 Phase 0 人类可读
+验证，不是版本化机器协议。机器协议延后到 LSP 和 CLI 消费者真实出现后以 ADR 固定，避免
+过早承诺兼容格式。
 
 ## 7. 实施计划
 
 1. [ ] 实现错误码与诊断数据模型及不变量 → 验证：构造 / 拒绝单测
-2. [ ] 实现确定性排序与最小 CLI renderer → 验证：乱序输入 golden
-3. [ ] 覆盖 Unicode、CRLF、多行范围并审阅 golden → 验证：窄集成测试
+2. [ ] 实现确定性全序与最小 CLI renderer → 验证：同主键差异字段的乱序输入 golden
+3. [ ] 覆盖跨 source、Unicode、CRLF、多行范围和非法 source map → 验证：窄集成测试
 4. [ ] 更新 Architecture 和 Spec 验收记录 → 验证：全 workspace 基线
 
 ## 8. 提交计划
@@ -75,4 +97,4 @@ LSP 和 CLI 消费者真实出现后以 ADR 固定，避免 Phase 0 过早承诺
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 〈实施时填写〉 | 未执行 | 当前仅完成 Draft Spec |
+| 〈实施时填写〉 | 未执行 | 已批准，前置条件已满足，尚未实施 |
