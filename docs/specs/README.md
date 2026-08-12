@@ -29,7 +29,7 @@ Phase 0 已细化为实际 Spec；它们全部保持 `draft`，等待逐项批�
 
 | 顺序 | Spec | Goal | 前置条件 |
 |---|---|---|---|
-| 1 | [SPEC-0001](./0001-bootstrap-cargo-workspace.md) | 建立可检查的五 member Cargo workspace | 接受 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) |
+| 1 | [SPEC-0001](./0001-bootstrap-cargo-workspace.md) | 建立可检查的五 member Cargo workspace | [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) accepted |
 | 2 | [SPEC-0002](./0002-source-span-foundation.md) | 建立统一 source / `Span` 基础设施 | SPEC-0001 done |
 | 3 | [SPEC-0003](./0003-structured-diagnostics.md) | 建立稳定、确定性的结构化诊断核心 | SPEC-0002 done；接受 [ADR-0003](../adr/0003-diagnostic-architecture.md) |
 | 4 | [SPEC-0004](./0004-indexed-ast-foundation.md) | 建立保留 `Span` 的索引式 AST 基础 | SPEC-0001、0002 done |
@@ -135,8 +135,6 @@ SPEC-0001
 
 | 决策 | 推荐方案 | 需要的权威文档 |
 |---|---|---|
-| workspace 物理布局 | 根使用 virtual workspace，五个 member 放在 `crates/`；frontend / codegen 为 library，CLI / LSP 为 binary，`lang-std` 用最小 Rust library 承载 `.ko` 源包与测试入口；暂不新增第六个 runtime crate | [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) `proposed` |
-| Rust 工具链 | 使用 edition 2024；ADR-0002 基于本仓库已验证的本地工具链推荐 pin / 初始 MSRV `1.96.0`，接受 ADR 时再最终确认 | [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) `proposed` |
 | `object` / `companion object` | 编译期限制只约束存储状态和初始化式；成员函数体可使用普通 v1 代码，但不能读取或修改运行时单例状态 | 新 guide |
 | `module` / `import` | 使用显式、点分层级 module 名和绝对 import；source root 到文件的映射由 package ADR 决定，不从相对路径静默推导语义 | 新 guide + ADR |
 | `Shareable` / `Transferable` | v1 与 `Copyable` 一样采用编译器已知的结构化自动推导，不开放手动实现；标准库并发类型的例外逐项写入 Spec | 新 guide |

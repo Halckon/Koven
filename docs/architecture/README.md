@@ -10,19 +10,25 @@
 
 - 尚无根 `Cargo.toml`、Cargo workspace 或 Rust target；
 - 尚无 lexer、parser、AST、诊断、类型检查、所有权检查或 codegen 实现；
-- 尚未确定 Rust edition、MSRV、LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵。
+- LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 因此，下面的结构是**现行 guide 要求的计划边界**，不是已实现架构。
 
 ## 已批准但未实现的边界
 
-计划中的 workspace member：
+已由 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 批准、但尚未创建的 workspace
+采用根 virtual workspace、`crates/` 布局、Rust edition 2024，以及 `1.96.0` toolchain pin
+和初始 MSRV。五个 member 及 target 形态为：
 
-- `lang-frontend`
-- `lang-codegen`
-- `lang-cli`
-- `lang-lsp`
-- `lang-std`
+- `crates/lang-frontend`：Rust library；
+- `crates/lang-codegen`：Rust library；
+- `crates/lang-cli`：名为 `kovenc` 的 Rust binary；
+- `crates/lang-lsp`：Rust binary；
+- `crates/lang-std`：最小 Rust library，并以 `koven/**/*.ko` 保存标准库源码真源。
+
+批准的项目内依赖方向为：codegen 依赖 frontend，CLI 依赖 frontend 与 codegen，LSP 只依赖
+frontend，`lang-std` 不依赖编译器 crate。Phase 0 不新增 runtime crate；所有 package 在许可
+与发布策略确定前保持不可发布。
 
 计划中的编译流水线：
 
@@ -31,9 +37,8 @@
      → 自建 SSA IR → LLVM IR → 目标文件 → 本机可执行文件
 ```
 
-其中 `lang-frontend` 不得依赖 LLVM / `inkwell`，LLVM 细节应收敛在 codegen 边界。member
-的物理目录、library / binary target、测试 harness、`lang-std` bootstrap 与 runtime 布局
-仍未确定。
+其中 `lang-frontend` 不得依赖 LLVM / `inkwell`，LLVM 细节应收敛在 codegen 边界。fixture
+harness、`lang-std` 后续 bootstrap 流程与 runtime / ABI 布局仍未确定。
 
 ## 更新要求
 

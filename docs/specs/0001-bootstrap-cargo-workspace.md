@@ -9,7 +9,7 @@
 | 前置 Spec | 无 |
 | 前置 ADR | [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 必须为 `accepted` |
 | 关联 ADR | 无 |
-| 阻塞项 | ADR-0002 尚未 `accepted` |
+| 阻塞项 | 无 |
 | 影响范围 | workspace 根、五个计划 member、Architecture |
 | 语言语义变更 | 否 |
 

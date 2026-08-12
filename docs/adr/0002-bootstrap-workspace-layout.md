@@ -2,7 +2,7 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 背景
 
@@ -13,7 +13,7 @@ proposed
 该选择决定整个仓库的依赖方向、构建入口和 bootstrap 演进方式，影响后续所有 Phase，属于
 长期架构决策。这里不决定尚未定义的 runtime ABI 或标准库实现。
 
-## 建议决策
+## 决策
 
 采用以下 Phase 0 基线：
 
