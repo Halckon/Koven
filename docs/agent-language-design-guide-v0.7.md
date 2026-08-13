@@ -33,6 +33,8 @@
 | 7 | 补齐独立声明的最小诊断与局部恢复，继续把完整文件和跨声明同步留给 SPEC-0011 | 🟡 诊断边界补全 |
 | 8 | 明确 SPEC-0008 不接受可见性及其他声明修饰符、类成员上下文、解构、模式实参或 block body | 🟡 分阶段边界补全 |
 | 9 | 将依赖 block / statement 载体的 SPEC-0010 明确置于 SPEC-0009 之后，SPEC-0011 只负责最终组合与跨声明恢复 | 🟡 路线图门禁补全 |
+| 10 | 统一所有声明级 consume-to-current-level 恢复的 delimiter、字符串、插值与 Lexer terminal-owner 规则，并固定单调单遍复杂度 | 🟡 恢复边界补全 |
+| 11 | 为继续构造的声明名与参数名定义 present / missing / error 三态 marker，禁止用虚构名称 token 或范围表达恢复 | 🟡 AST 契约补全 |
 
 ## v0.6 历史变更记录
 
@@ -1238,12 +1240,23 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 body 引用现有 expression ID，类型标注、返回类型、参数类型、泛型上界和调用点类型实参都
 引用现有 TypeRef ID；不得把源码片段或解析后的类型名称复制成另一套无 `Span` 字符串模型。
 
+凡错误恢复后仍继续构造的声明、type parameter 或 value parameter，名称字段必须使用以下
+三态 marker 或可证明等价的表示，而不是让调用方从任意 `Span` 猜测状态：
+
+- `Present(Span)`：只覆盖实际消费的普通 `Identifier`；
+- `Missing(Span)`：没有消费名称 token，保存当前 stop / 候选 token 起点的空 `Span`；
+- `Error(Span)`：消费了不能作为名称的 poison 或其他错误 token，只覆盖实际消费的非空区域。
+
+若恢复直接把整个 item 降为 `Item::Error` 而不再构造具体声明 payload，可以不另存名称
+marker；但该 error item 仍只能覆盖实际消费区域。任何分支都不得伪造 identifier token、拼写
+或非空范围。
+
 | 节点 | 合成范围 |
 |---|---|
 | `val` / `var` / `const val` 声明 | 从首个引导关键字起到 initializer 终；恢复时到本声明最后实际消费位置 |
 | 常量声明的 `val` marker | 正常时精确覆盖 `val` token；缺失时保存 missing / error marker，不为未消费的缺失 token 合成虚构 keyword 或非空 `Span` |
 | `fun` 声明 | 从 `fun` 起；有表达式体时到 expression 终，否则到返回 `type_ref` 终；恢复时到最后实际消费位置 |
-| 声明名称 | 精确覆盖名称 `Identifier`；缺失名称的 error node 只覆盖实际消费区域，stop / EOF 处可为空 |
+| 声明 / 参数名称 marker | present 精确覆盖 `Identifier`；missing 是 stop / 候选 token 起点的空范围；error 只覆盖实际消费区域 |
 | type annotation | 从 `:` 起到 `type_ref` 终；若不单建节点，该范围仍由声明字段的 `Span` 保留 |
 | value parameter | 从参数名起到参数 `type_ref` 终；恢复时到逗号、`)` 或本参数最后实际消费位置 |
 | type parameter | 从参数名起；有上界时到 bound `type_ref` 终，否则到名称终 |
@@ -1273,9 +1286,60 @@ SPEC-0008 在复用第 5 节既有类别外，至少区分下列稳定含义；�
 | expected list separator | 一个完整 type / value parameter 后，下一个 token 可开始同类参数但中间没有 `,` 时，在该 token 报告且不消费，把它继续作为下一项；其他非法 token 恢复到当前层 `,`、`>`、`)` 或 EOF |
 | unsupported trailing comma | type / value parameter 的 `,` 后下一个非 trivia token 是当前层 `>` / `)` 时，仅消费并覆盖该逗号，闭合符仍由所属列表消费；空 value-parameter list `()` 本身合法，不属于此类 |
 | expected generic closing delimiter | 至少完成一个 type parameter 后，若当前 token 是可作函数名的 `Identifier` 且下一非 trivia token 是 `(`，唯一解释为缺失 `>`：复用 expected closing delimiter 诊断，主 `Span` 是候选名称起点的空位置；不消费候选名称或 `(`，结束 type-parameter list 并让外层从该名称继续；该规则优先于“缺逗号”恢复 |
-| unsupported parameter default | 已完整解析 `name: type_ref` 后出现 `=` 时，从 `=` 起消费默认值错误区域，直到当前层 `,`、`)` 或 EOF 前停止并保留该 delimiter；嵌套 `()` / `[]` / `{}` 内的逗号和右括号不是同步点。即使 `=` 后没有表达式也至少消费 `=`，且不追加 expected expression、expected list separator 或 trailing-token 诊断 |
+| unsupported parameter default | 已完整解析 `name: type_ref` 后出现 `=` 时，从 `=` 起按下方统一 owner-aware 扫描规则消费默认值错误区域，直到声明当前层 `,`、`)` 或 EOF 前停止并保留该 delimiter；嵌套 `()` / `[]` / `{}`、string 或 interpolation 内的逗号和右括号不是同步点。即使 `=` 后没有表达式也至少消费 `=`，且不追加 expected expression、expected list separator 或 trailing-token 诊断 |
 | expected initializer | 简单值声明缺 `=` 时，若当前 token 可开始 `expression`，不消费并按插入 `=` 继续解析 initializer；若已到 EOF 或调用方声明 stop，则不消费并建立空 Expression error；其余情况至少消费一个 token，再同步消费到 EOF / 调用方声明 stop，建立只覆盖实际消费区域的 Expression error，且不为该区域追加 expected expression 或 unexpected trailing token。已有 `=` 但缺表达式时复用 expected expression error node |
 | expected explicit return type | 函数参数列表后缺 `:` 时，若当前 token 可开始 `type_ref`，不消费并按插入 `:` 继续解析；若是 `=`、`{`、EOF 或调用方 stop，则不消费并形成空 TypeRef error；其余情况至少消费一个 token，并同步到 `=`、`{`、EOF 或调用方 stop，形成覆盖实际消费区域的 TypeRef error。上述分支均不追加同根因的 expected type reference；保留的 `=` 继续作为 expression body，保留的 `{` 仍由 SPEC-0008 的 unsupported block-body / trailing-token 边界处理。已有 `:` 但缺类型时才复用 expected type reference |
+
+#### 声明级 consume-to-current-level 的统一扫描规则
+
+本节所有写成“继续消费”“恢复到”“同步到当前层 delimiter / stop”或“消费错误区域”的声明
+恢复，只要可能跨过一个以上 raw lexeme，都必须使用同一所有权感知扫描规则。这包括缺失的
+声明 / 参数名称、参数类型分隔符的兜底、列表空项与缺分隔符、unsupported parameter
+default、initializer 缺 `=` 的兜底、返回类型分隔符兜底及独立声明尾随输入；只消费一个已
+确定错误 token 的分支也可以调用它，但不得让每个诊断分支各写一套仅统计括号的扫描器。
+
+- 每次调用必须记录进入时的 owner baseline，并由调用方给出它仍拥有的 **hard closing stop**
+  集合：value-parameter list 至少给出 `)`，type-parameter list 给出 `>`；若恢复入口位于既有
+  string / interpolation owner 内，则相应 `StringEnd` / `InterpolationEnd` 也属于 hard closing
+  stop；具体调用方拥有的其他 closing delimiter 同样显式传入。EOF 始终是 hard stop。hard
+  closing stop 的所有权来自调用上下文，不能靠扫描器看到某个 closer 后猜测。
+- 扫描从当前 raw lexeme cursor 单调向前；trivia 被跳过作语法判断但仍只经过一次。维护本次
+  恢复局部打开的 delimiter stack，`(` / `[` / `{` 分别压入自己的 closer。处理普通 closer
+  时，若它匹配 stack 顶，先消费该 closer 并弹栈；若不匹配且当前没有比 owner baseline 更深
+  的活动 owner，但它属于调用方给出的 hard closing stop，则即使 delimiter stack 非空也必须
+  **保留该 closer 并立即停止**。此时所有未闭合的局部 delimiter 随当前恢复错误区结束，既不
+  把 hard closer 纳入 error `Span`，也不越过它寻找内层 closer。例如局部 `[` 后遇参数表的
+  `)`，以及局部 `(` 后遇 type-parameter list 的 `>`，都必须保留外层 closer。
+- `,`、声明边界等非 closer 同步点属于 **soft stop**；只有 delimiter stack 没有局部 frame，
+  且 owner stack 回到本次调用 baseline 时才保留并停止。嵌套 delimiter 或本次扫描打开的
+  string / interpolation 内出现的同形 token 一律属于错误区域，不得冒充调用方边界。
+- 另维护按真实嵌套顺序排列的 owner stack。`StringStart` 压入本次扫描打开的 string owner，
+  匹配 `StringEnd` 时先消费并只关闭该栈顶 string；该 string 内的 `InterpolationStart` 压入
+  interpolation owner，匹配 `InterpolationEnd` 时先消费并只关闭该栈顶 interpolation。插值
+  中的嵌套字符串及其插值继续按相同规则压栈。只有本次扫描打开的 owner closer 才由扫描器
+  消费；owner baseline 所属的 `StringEnd` / `InterpolationEnd` 是上条所述 hard closing stop，
+  即使局部 delimiter 尚未闭合也须保留给 owner 调用方。`InterpolationEnd` 不能冒充普通 `}`。
+- 每个 owner frame 记录进入时的 delimiter-stack 深度。正常 `StringEnd` /
+  `InterpolationEnd` 或下述 Lexer terminal recovery 关闭该 owner 时，未匹配且由该 owner
+  内部打开的 delimiter 随 owner 一同结束，不能泄漏到父 owner 或声明层；进入 owner 之前的
+  delimiter 仍保留。
+- Parser 必须从既有 lexeme / 诊断流预先关联 `L0004`–`L0006` 与其实际 opener owner：
+  `L0004` 只在规范记录的未终止字符串边界关闭对应的最内层 string；`L0005` 只在其 EOF
+  边界关闭对应的最内层 interpolation；`L0006` 只有在反斜杠后直接是 CR / LF / EOF、因而
+  终止当前字符串的形态才关闭对应 string，普通可继续的非法转义不关闭 owner。terminal
+  event 到达时其 owner 必须是当前栈顶；它只弹出自己拥有的 frame 并恢复到该 frame 的
+  delimiter 基线，不得顺带弹出父 string / interpolation，也不得把 parent owner 内后续 token
+  算入已终止 owner 的局部范围。事件若指向非栈顶 owner，属于 lexeme / recovery 关联不变量
+  破坏，不能通过越过子 owner 来“修复”。
+- 应在处理恢复边界后的下一个 lexeme 前应用 terminal event。若内层字符串在 LF 前由
+  `L0004` 结束，扫描随后仍处于它的父 interpolation / string；因此后续逗号或 `)` 只有等到
+  所有剩余 owner 正常或终止退出后才可能成为声明 stop。EOF 处已有 `L0004`–`L0006` 根因时
+  继续沿用第 5 节的 closer 诊断抑制，不另造 parser 级联。
+- 对一段含 `k` 个 lexeme 的恢复，每个 lexeme 至多检查和消费一次，每个 delimiter / owner
+  只压栈、弹栈一次；terminal event 按 source offset 预索引并用单调 event cursor 读取。
+  因而单段恢复必须是 `O(k)` 时间、`O(d)` 嵌套栈空间，不得从每个 token 重扫诊断、回看
+  opener、重启 lexer/parser 或反复切片源码。lexeme / terminal-owner 关系若违反已验证不变量，
+  属于 Parser 内部错误，不得降级为用户语法诊断。
 
 上述 list 类别只作用于已提交解析的声明侧 `type_parameter_list` 与 `value_parameter` list。
 失败的 `call_type_arguments` 仍须按第 3 节无副作用回退，不能借这些类别遗留专用 parser
@@ -1343,7 +1407,15 @@ parser 诊断。每条恢复路径必须消费输入或抵达明确 delimiter / 
 必须同时覆盖
 `f<T>()`、成员及调用链 callee、嵌套 `>>`、`>` 与 `(` 间 trivia，以及失败试探回退为比较的
 相邻反例；测试必须证明失败试探不遗留诊断 / AST 节点且 ID 和诊断顺序确定。所有反例断言
-稳定错误码和关键 UTF-8 字节 `Span`，并复跑 SPEC-0007 表达式与 TypeRef 回归。该验收不以
+稳定错误码和关键 UTF-8 字节 `Span`。名称恢复必须分别锁定 present / missing / error marker
+及其非虚构范围。所有 consume-to-current-level 路径至少以 unsupported parameter default
+覆盖 string / interpolation 内的 `,`、`)`、嵌套 string / interpolation、`L0004` 只结束内层
+string 后继续处于父 owner、terminal `L0006` 及 EOF `L0005` 不越 owner 的用例，并证明只在
+所有 owner 退出后才识别声明层 stop、没有 parser 级联。hard closing stop 还须覆盖局部 `[` 未
+闭合便遇到外层参数表 `)`、局部 `(` 未闭合便遇到外层 type-parameter `>`，断言外层 closer
+保留且错误范围在其之前结束；以 balanced nested `[...]` / `(...)` 后再遇外层 closer 作对照，
+断言匹配的局部 closer 先被消费而外层 closer 才停止扫描。长错误区域还须锁定单调单遍
+`O(k)` 扫描不发生二次回看。验收同时复跑 SPEC-0007 表达式与 TypeRef 回归。该验收不以
 完整文件、类成员、block 语句、跨声明恢复或 Phase 2 名称 / 类型正确性为成功条件。
 
 **Phase 1 最终 Parser 验收标准（SPEC-0011）**：能完整解析以下代码为 AST，语法错误有
