@@ -63,10 +63,10 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`done`） | 0002、0003、0005 `done`；v0.5 已生效 |
 | [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
-| 0008 | 解析变量、函数、泛型与函数类型声明 | 0007 |
-| 0009 | 解析控制流及 class / interface / enum / object 结构 | 0008 |
-| 0010 | 解析 lambda、命名 / 模式实参与解构 | 0007、0008 |
-| 0011 | 实现错误恢复并完整解析 Phase 1 范例 | 0009、0010 |
+| [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`draft`） | 0007 `done`；候选 v0.7 尚未生效 |
+| 0009 | 首次解析 block / statement / 函数 block body、控制流及 class-family 结构 | 0008 |
+| 0010 | 解析 lambda、命名 / 模式实参与解构 | 0007、0008、0009 |
+| 0011 | 组合完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0009、0010 |
 | 0012 | 解析 `module` / `import` | 0008；先由新 guide 定义语法 |
 
 ### Phase 2：名称与类型检查
