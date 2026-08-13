@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md) 定义。
+[`../agent-language-design-guide-v0.6.md`](../agent-language-design-guide-v0.6.md) 定义。
 
 ## 当前状态
 
@@ -16,7 +16,7 @@
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0008` 正式词法错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
-- `lang_frontend::lexer` 已提供覆盖现行 v0.5 词法契约的确定性扫描、完整 lexeme 流与
+- `lang_frontend::lexer` 已提供覆盖 v0.6 沿用词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading 以及 Phase 1 Lexer pass /
   fail fixture harness；

@@ -5,28 +5,28 @@
 | 状态 | draft |
 | Goal ID | `KOV-P1-007` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 [`agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md)（不足以授权完整 Parser）；候选 [`agent-language-design-guide-v0.6.md`](../agent-language-design-guide-v0.6.md)（尚未生效，本 Spec 的目标契约） |
-| 批准依据 | 当前持续 Goal 的“后续 Specs 和 ADR 自动确认并实施”站立授权；待 v0.6 门禁解除后生效 |
+| 语言规范 | 现行 [`agent-language-design-guide-v0.6.md`](../agent-language-design-guide-v0.6.md) |
+| 批准依据 | 当前持续 Goal 的“后续 Specs 和 ADR 自动确认并实施”站立授权；v0.6 门禁已解除 |
 | 前置 Spec | SPEC-0004、SPEC-0006 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
-| 阻塞项 | 候选 v0.6 尚未由用户明确启用 |
+| 阻塞项 | 无；用户已明确启用 v0.6 |
 | 影响范围 | `lang-frontend`、语言 fixture、Architecture |
-| 语言语义变更 | 否；只有候选 v0.6 生效后，本 Spec 才实现其中已经确定的语义 |
+| 语言语义变更 | 否；本 Spec 只实现现行 v0.6 已确定的语义 |
 
 ## 1. Goal
 
 完成后，`lang-frontend` 能从同一 `SourceMap` 的 `LexedFile` 确定性构造带精确 `Span` 的
-具体索引式 Expression / TypeRef AST，覆盖生效后 v0.6 定义的完整 Pratt 表达式入口，并把
+具体索引式 Expression / TypeRef AST，覆盖现行 v0.6 定义的完整 Pratt 表达式入口，并把
 Lexer 与 Parser 诊断合并为稳定全序；非法源码不会触发 `panic!`。这将为 SPEC-0008 至
 SPEC-0011 提供唯一表达式解析基础，而不提前实现声明、控制流、lambda 或全文件恢复。
 
 ## 2. 背景
 
 SPEC-0004 已建立四类 typed table 和源码归属检查，SPEC-0006 已提供完整、无重叠且覆盖源码
-的 lexeme 流，但仓库尚无具体语法 payload 或 Parser。现行 v0.5 只有优先级摘要，没有完整
-primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据此实施。候选 v0.6 已补齐
-这些边界，但在用户明确启用之前，本文件只能保持草案。
+的 lexeme 流，但仓库尚无具体语法 payload 或 Parser。历史 v0.5 只有优先级摘要，没有完整
+primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据此实施。现行 v0.6 已补齐
+这些边界；本 Spec 可依据有效站立授权进入实施。
 
 ## 3. 范围与需求
 
@@ -59,6 +59,9 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
   `?`、函数类型及其 `move` 标记和显式 error 节点；组成关系使用 `TypeRefId`。函数类型自身
   在 v0.6 不可空，`() -> T?` 唯一表示返回 nullable `T`。cast、`is` / `!is` 的右侧引用该表，
   不将类型名解析为表达式。
+- type arguments 的每一项必须是 `type_ref`，不得接受整数或其他值表达式。Parser 不按限定
+  类型名称检查 arity：`Array<Int, Size>` 语法上形成两个 TypeRef，内建 `Array` 只接受一个
+  类型实参的约束留给 Phase 2；`Array<Int, 4>` 则因 `4` 不是 TypeRef 在 Phase 1 诊断。
 - 所有节点使用 v0.6 的合成 `Span` 规则：叶节点保留 token 范围，prefix 从运算符起，postfix
   到后缀止，binary / cast / assignment 从左端到右端，括号 / 调用 / 索引 / string / type
   delimiter 完整时包含两端定界符。错误恢复不得制造跨过无关后续 token 的成功节点范围。
@@ -77,17 +80,19 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
   callable reference，并支持其任意合法链式组合。
 - prefix 只接受 `!`、一元 `+` 和一元 `-`，按右结合解析；`own`、`inout`、`borrow`、
   `move` 不是通用 prefix expression。
-- 完整覆盖候选 v0.6 的 14 档优先级：cast，乘法，加法，range，`to`，Elvis，成员关系 /
+- 完整覆盖 v0.6 的 14 档优先级：cast，乘法，加法，range，`to`，Elvis，成员关系 /
   类型测试，比较，相等，逻辑与 / 或及赋值。每档 binding power 只在一个实现位置定义。
 - 左结合、右结合和不结合分别由结构测试锁定。range、成员关系 / 类型测试、比较、相等各自
   是不结合组；同组第二个运算符产生诊断，不静默建立链式 AST。不同优先级仍严格按表归组。
 - 基本调用只接受逗号分隔的位置表达式（可为空且不允许 trailing comma），index 恰好接受
-  一个表达式。候选 v0.6 延后的直接 `Identifier = expression` 命名参数及 `own` / `inout` /
+  一个表达式。v0.6 延后的直接 `Identifier = expression` 命名参数及 `own` / `inout` /
   `borrow` 参数模式必须产生专用诊断，不能被误建为普通 assignment AST；显式分组的
   `f((a = b))` 仍合法。空 / 多 index、trailing lambda 和 use-site 类型实参按各自首先违反
   的现有产生式拒绝，不借本 Spec 创设后续语法。
-- Lexer 按既定规则拆出的无 trivia 相邻不支持运算符组合必须作为一个 parser 错误区域拒绝，
-  不能部分解释为两个合法运算符；合法 prefix / binary 邻接仍按语法解析。
+- Lexer 按既定规则拆出的无 trivia 相邻不支持运算符组合必须在表达式运算符位置作为一个
+  parser 错误区域拒绝，不能部分解释为两个合法运算符；合法 prefix / binary 邻接仍按语法
+  解析。TypeRef 中相邻的 `>` 可分别关闭内外层泛型，例如 `Outer<Inner<T>>` 必须合法，
+  不得被表达式上下文的 `>>` 组合检查误报。
 
 ### 3.4 稳定诊断与最小局部恢复
 
@@ -100,8 +105,8 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
 | `L0011` | 成员或 callable reference 后缺少名称 | `expected member or reference name` | `.`、`?.` 或 `::` 后的当前 token；到边界时为空范围 |
 | `L0012` | 不结合运算符组被链式使用 | `non-associative operator chain` | 同一不结合组的第二个运算符 token |
 | `L0013` | 完整根表达式后仍有输入 | `unexpected trailing token` | 第一个未消费的非 trivia token |
-| `L0014` | 需要类型引用 | `expected type reference` | cast / type-test 后的当前 token；到边界时为空范围 |
-| `L0015` | v1 不支持的相邻运算符组合 | `unsupported operator` | v0.6 定义的完整无 trivia 相邻组合 |
+| `L0014` | 需要类型引用 | `expected type reference` | cast / type-test / type-argument 位置的当前 token；到边界时为空范围 |
+| `L0015` | 表达式运算符位置不支持的相邻组合 | `unsupported operator` | v0.6 定义的完整无 trivia 相邻组合 |
 | `L0016` | 当前 Spec 不支持的调用实参形式 | `unsupported argument form` | 引入该形式的最小 token；模式实参为关键字，直接命名实参为 `=` |
 
 - 缺失 operand / type / name 只插入有明确 `Error` kind 和实际消费范围的 Expression /
@@ -136,7 +141,7 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
   index 语义、常量求值、smart cast 或所有权检查。
 - 不解析 `module` / `import`、注解、lambda、collection literal 或任何 v2+ 语法；`@` 不因
   Lexer 已有 token 就获得表达式语义。
-- 不创设可空函数类型或类型分组语法；候选 v0.6 只能给限定类型附加单个 `?`。
+- 不创设可空函数类型或类型分组语法；v0.6 只能给限定类型附加单个 `?`。
 - 不接入 CLI renderer、LSP、机器诊断协议、增量 parsing、绿色树或 formatter trivia 附着。
 
 ## 5. 验收标准
@@ -157,6 +162,8 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
       类型、`move` 函数类型及非法 / 缺失类型；`() -> T?` 的 `?` 只属于返回类型。cast 和
       `is` / `!is` 指向 `TypeRefId` 而非 ExpressionId，并拒绝 `T??`、函数类型后的 `?`、
       非末段类型实参、类型分组、projection 和 use-site 型变。
+- [ ] `Array<Int, 4>` 在 `4` 的精确 `Span` 产生 `L0014` 并从类型实参上下文恢复；
+      `Array<Int, Size>` 无 Parser 诊断并形成两个 TypeRef，内建类型 arity 明确留给 Phase 2。
 - [ ] TypeRef `Span` 分别锁定限定类型从首个名称至末段名称、泛型限定类型至匹配 `>`、
       nullable 限定类型至 `?`、普通函数类型从 `(` 至 return type、`move` 函数类型从 `move`
       至 return type；type arguments 的 `<` 至 `>` 完整纳入所属限定类型。error node 只覆盖
@@ -167,8 +174,9 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
       index、trailing comma、trailing lambda 和 use-site 类型实参由对应现有诊断拒绝。
 - [ ] `L0009`–`L0016` 一类一码，测试断言 error、固定消息、精确主 `Span`、必要关联 opener
       标签、恢复后的根 / 后续 token 和确定性顺序。
-- [ ] v0.6 列出的每个不支持运算符组合均产生唯一 `L0015`，主范围覆盖完整组合；合法的
-      prefix / binary 紧邻反例证明实现没有按字符外观过度聚合。
+- [ ] v0.6 列出的每个不支持运算符组合在表达式运算符位置均产生唯一 `L0015`，主范围覆盖
+      完整组合；合法的 prefix / binary 紧邻反例证明实现没有按字符外观过度聚合，且
+      `Outer<Inner<T>>` 的相邻 `>` 分别闭合两层泛型、不会产生 `L0015`。
 - [ ] Lexer poison 与未闭合 string / interpolation 测试证明不产生同源重复 Parser 诊断；包含
       另一处独立语法错误时，两阶段诊断仍按 SPEC-0003 全序完整保留。
 - [ ] 空文件、仅 trivia、缺 operand / closer / name / type、尾随 token 和多错误输入均不
@@ -186,7 +194,7 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
 
 ## 6. 技术方案与边界
 
-候选最小公共 API：
+最小公共 API：
 
 ```rust
 pub fn parse_expression(
@@ -233,24 +241,24 @@ AST 构建继续调用 SPEC-0004 的受检插入 API；诊断继续调用 SPEC-0
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | 候选 v0.6 guide（不含本 Spec） | `docs(guide): draft v0.6 expression grammar` |
+| 1 | v0.6 guide 草案（不含本 Spec，已完成） | `docs(guide): draft v0.6 expression grammar` |
 | 2 | 本 Spec 草案（保持阻塞） | `docs(spec): draft Pratt expression parser (SPEC-0007)` |
 | 3 | 用户启用 v0.6 后的全仓真源指针切换（不含本 Spec） | `docs(guide): activate language guide v0.6` |
 | 4 | Parser、AST payload、诊断、测试 / fixture、Architecture 与完成记录 | `feat(frontend): add Pratt expression parser (SPEC-0007)` |
 
-候选 guide 与实现保持独立提交。候选文件存在或本草案落盘均不授权实施；用户明确启用 v0.6
-后，本 Spec 依据有效站立授权按逻辑顺序进入 `approved` / `in-progress`，无需创建批准状态
-提交；最终实现提交包含 `done` 状态和全部实际验收证据。
+guide 激活与实现保持独立提交。用户已明确启用 v0.6；本 Spec 依据有效站立授权按逻辑顺序
+进入 `approved` / `in-progress`，无需创建批准状态提交；最终实现提交包含 `done` 状态和全部
+实际验收证据。
 
 ## 9. 未决问题
 
-- 候选 v0.6 是否生效；在用户明确指定前，这是阻止本 Spec 批准和实施的唯一门禁。
+无。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 未执行 | Spec 尚处于 draft，Parser 尚未实现 |
+| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 未执行 | Parser 尚未实现 |
 | `cargo test -p lang-frontend --test fixtures --locked --offline` | 未执行 | parser-expression fixture 尚未建立 |
 | `cargo tree -p lang-frontend --edges all --locked --offline` | 未执行 | 实现阶段检查依赖图及 manifest / lock diff |
 | `cargo fmt --all -- --check` | 未执行 | 实现阶段执行 |
