@@ -54,16 +54,29 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 
 - 把具体 AST 扩展为 `AstFile<Item, (), Expression, TypeRef>`；本 Spec 不创设 statement
   payload，完整文件及局部声明归属仍由后续 Spec 决定。
+- 声明、类型参数和值参数的名称统一使用恢复可见的 marker，而不是裸 `Span`：
+
+  ```rust
+  pub enum NameMarker {
+      Present(Span),
+      Missing(Span),
+      Error(Span),
+  }
+  ```
+
+  `Present` 只覆盖实际 Identifier token；`Missing` 只表示在 stop / EOF 前未消费名称，必须
+  保存该边界处的空 `Span`；`Error` 只覆盖为该名称实际消费的 invalid、reserved-word 或其他
+  poison 区域，必须为非空 `Span`。三种状态不得互相折叠，也不得为缺失名称伪造 Identifier。
 - `Item` 至少区分 `Error`、变量、常量和具名函数。变量 payload 保存 `val` / `var` 种类、
-  精确名称 `Span`、可选类型标注和必需 initializer `ExpressionId`。常量保持独立 kind，
+  名称 `NameMarker`、可选类型标注和必需 initializer `ExpressionId`。常量保持独立 kind，
   但其语法固定为不可拆分的 `const val` 前缀：保存 `const` 的精确 `Span`，并以正常 `val`
   token Span 或 missing / error marker 表示第二个关键字。缺失时不得构造虚假的 keyword token
   或非空 `Span`；只有 `const` 的输入仍是恢复后的错误常量，而不是成功常量声明。
-- 函数 payload 保存名称 `Span`、源码顺序的类型参数、值参数、显式返回 `TypeRefId` 与可选
+- 函数 payload 保存名称 `NameMarker`、源码顺序的类型参数、值参数、显式返回 `TypeRefId` 与可选
   expression body `ExpressionId`。它还必须保存可观察的 `type_parameter_list_span: Option<Span>`
   或等价字段：没有类型参数表时为 `None`，存在时覆盖 `<` 到匹配 `>`，缺 `>` 恢复时
   只到该表最后实际消费位置。无表达式体的函数签名仍构造函数 Item。
-- 类型参数保存名称 `Span` 与可选单一 bound `TypeRefId`；值参数保存名称 `Span` 与必需
+- 类型参数保存名称 `NameMarker` 与可选单一 bound `TypeRefId`；值参数保存名称 `NameMarker` 与必需
   `TypeRefId`。两类参数必须用不同 Rust payload，不能依靠调用方猜测上下文。
 - 类型标注若不单建 AST node，声明 payload 仍须保存冒号 `Span`，使 `:` 到 TypeRef 结束的
   合成范围可观察；表达式体同理保存 `=` 的 `Span`。
@@ -98,6 +111,21 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 - 试探失败必须完整回滚 cursor、递归预算、AST table 长度、诊断和任何恢复状态；更简单的
   实施方案是使用不构造 AST / 诊断的只读 trial cursor，成功后再由正式 TypeRef parser
   提交一次。不得通过 clone 整份 AST 或 Parser 掩盖回滚问题。
+- trial 的内部结果必须区分 `Match`、`NoMatch` 与 `InternalError` 或等价三态。只有
+  `NoMatch` 允许回到原 `<` 并按比较表达式继续；递归预算耗尽、无效 lexeme 流、source
+  或其他内部不变量错误必须原样传播为 `ParserInternalError`，不得伪装成试探不匹配。
+- trial 的递归预算以当前 Parser 正在使用的 `recursion_depth` 为基线，不得从零重置
+  或获得独立额度；无论 `Match`、`NoMatch` 还是 `InternalError`，退出 trial 时都不得泄漏
+  预算计数修改。
+- 一次根解析内，所有 strict trial（包括预索引 / memo 构建）的 token inspection 总数必须为
+  `O(N)`，其中 `N` 是该 `LexedFile` 的 lexeme 数；不得让每个 `<` 候选从头重扫重叠的 TypeRef
+  后缀而退化为 `O(N²)`。实现须维护“每个 lexeme 与固定 trial 状态至多求值一次”或等价的
+  可审计线性不变量；正式提交后的 TypeRef / call 解析可再线性消费其唯一所属区间。
+- 允许使用一次性预索引或只在当前根解析存活的 memo，但缓存结果除 `Match` / `NoMatch`、结束
+  ordinal 等识别信息外，还必须记录该结果相对 trial 起始基线所需的 `additional_depth`。复用
+  缓存时必须重新检查 `baseline_depth + additional_depth` 是否超过统一 1024 预算；超过时返回
+  `NestingLimitExceeded`。不得用浅层基线生成的缓存成功绕过深层调用点的预算，也不得缓存后
+  把 `InternalError` 降级为 `NoMatch`。
 - `f<T>`、`a < b > c` 与不完整 `<...` 继续从原 `<` 按普通比较语法解析，不产生专用泛型
   调用诊断；嵌套 TypeRef 的 `>>` 继续分别关闭两层泛型。
 
@@ -110,7 +138,8 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
   区域。声明整体绝不把缺失的 `val` 合成进虚构范围。
 - `fun` Item 从 `fun` 起，有表达式体时到 body expression 终，否则到返回 TypeRef 终；
   恢复时到最后实际消费位置。
-- 声明名称精确覆盖名称 token；错误名称只覆盖本次实际消费区域，在 stop / EOF 处可为空。
+- 名称的 `Present` 精确覆盖 Identifier token；`Error` 只覆盖本次实际消费区域且非空；在 stop /
+  EOF 处没有消费名称时必须是空范围的 `Missing`，不得用空 `Error` 或非空 `Missing` 代替。
 - 值参数从名称起到参数 TypeRef 终；类型参数从名称起，无 bound 时到名称终，有 bound 时
   到 bound TypeRef 终。
 - 类型参数表从 `<` 起到匹配 `>` 终；若在候选函数名处恢复缺失 `>`，则止于最后实际消费的
@@ -160,8 +189,10 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 - `L0026` 只消费并覆盖 trailing comma，保留当前层 `>` / `)` 给所属列表消费；空值参数表
   `()` 合法，不属于空项或 trailing comma。
 - 已完整解析 `name: type_ref` 后出现 `=` 时，`L0027` 从 `=` 起消费默认值错误区域，到当前层
-  `,`、`)` 或 EOF 前停止并保留 delimiter；嵌套 `()` / `[]` / `{}` 内的逗号和右括号不作
-  同步点。即使 `=` 后没有表达式也至少消费 `=`，且不追加 `L0009`、`L0025` 或 `L0013`。
+  `,`、`)` 或 EOF 前停止并保留 delimiter；平衡嵌套 `()` / `[]` / `{}` 内的逗号和匹配 closer
+  不作同步点。若未闭合嵌套的栈顶 closer 与值参数表 owner 的 `)` 不匹配，该 `)` 仍按下述
+  hard-closer 规则立即停止并保留。即使 `=` 后没有表达式也至少消费 `=`，且不追加
+  `L0009`、`L0025` 或 `L0013`。
 - 至少完成一个类型参数后，若当前 Identifier 的下一非 trivia token 是 `(`，唯一解释为缺失
   泛型 `>`：优先于缺逗号恢复，复用 `L0010`，主 Span 为候选名称起点的空范围；不消费名称
   或 `(`，结束类型参数表并让外层继续解析函数名。
@@ -178,6 +209,23 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
   trial 必须无副作用回退，不能遗留 `L0024`–`L0026` 或其他声明专用诊断。
 - Lexer 已诊断的 invalid / reserved-word token 只消费并形成相应 error payload，不在同一
   `Span` 重复 Parser 诊断。每条恢复路径必须消费输入或抵达明确 delimiter / EOF。
+- 所有会平坦跳过声明错误区域的恢复（包括 `L0020` 的非法 token 分支、`L0023` / `L0021`
+  的兜底和 `L0027` 默认值）必须复用 SPEC-0007 建立的 `LexicalRecoveryIndex`，并采用同一套
+  string / interpolation owner-local 边界；不得另扫 Lexer 诊断来猜测字符串归属。某个字符串
+  的 recovery end 只能关闭该 owner；terminal 恢复到 EOF 时按索引中登记的全部 active owners
+  退出，不能提前暴露嵌套字符串 / interpolation 内的 delimiter。
+- 对不在活动 string / interpolation owner 内、且由调用方列为 stop 的 delimiter，统一扫描器
+  必须严格按以下顺序判定：若 token 匹配 delimiter stack 的栈顶 closer，先 pop 并消费它，
+  因为它属于恢复区域自己打开的平衡嵌套；否则，若 token 是当前列表 / 构造 owner 的 hard
+  closer（值参数表的 `)`、类型参数表的 `>` 或调用方明确给出的等价边界），无论 delimiter
+  stack 是否仍有未匹配 opener，都立即停止并保留该 closer 给 owner 消费，且不弹出失配
+  opener；最后，`,` 等 soft stop 只在 delimiter stack 为空时停止并保留，仍有平衡或失配嵌套
+  时则作为错误区域内容消费。不得把这三步合并成“stack 非空就一律越过 stop”。
+- 每次声明局部恢复的 cursor 必须单调前进；设从错误起点到保留的同步 token / EOF 共经过
+  `k` 个 lexeme，该次扫描的 token inspection 与 owner-boundary 查询总量必须为 `O(k)`。
+  实现可在起点做一次有序索引定位，随后使用单调索引指针，但不得对每个 token 重扫诊断、
+  已消费前缀或全部 recovery entries。到达精确 string recovery end 后才退出相应 owner，且
+  owner-local 词法恢复不得抑制声明本身独立缺失的 closer / separator 诊断。
 - 本入口不把换行、下一声明关键字或看似合法的后续声明当同步点。根声明后仍有输入复用
   `L0013`；SPEC-0011 只增加完整文件组合、声明分隔、跨声明同步与级联抑制，不重新定义
   SPEC-0008 / SPEC-0009 的节点内部恢复。
@@ -189,6 +237,12 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 - pass case 要求 Lexer / Parser 无诊断、Item root 有效、相应 child ID 可读且完整消费 EOF。
 - fail case 沿用 `.diag` 的 `Ldddd<TAB>start_byte<TAB>end_byte` 测试 sidecar，精确核对 Lexer /
   Parser 合并诊断全序；该格式仍不是公共机器诊断协议。
+- sidecar 解析必须显式接收 suite 的 Span policy：Lexer fail suite 继续要求
+  `0 <= start_byte < end_byte <= source_len`；parser-expression 与 parser-declaration fail suite
+  仅允许 Parser 诊断在 EOF / stop 边界产生 `start_byte == end_byte`，即对该类条目要求
+  `0 <= start_byte <= end_byte <= source_len`；parser suite 合并 sidecar 中的 `L0001`–`L0008`
+  Lexer 条目仍必须非空。不得为迎合既有 sidecar helper 而把 Parser 空 Span 扩成相邻 token；
+  反向范围、越界或非 UTF-8 边界在两种 policy 下都必须拒绝。
 - 零 fixture、缺失 / 孤立 sidecar、非法行、额外或缺失诊断必须失败；现有 Phase 0、Lexer
   与 parser-expression suites 必须继续执行。
 
@@ -217,6 +271,9 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 - [ ] `val`、`var`、`const val` 覆盖有 / 无类型标注的 compile-pass；常量 AST 的 `const`
       Span 与正常 / missing / error `val` marker、kind、名称、冒号、initializer ID 及声明完整
       Span 均被锁定，缺 marker 时不伪造 keyword token 或非空 Span。
+- [ ] 变量、常量、函数、类型参数和值参数的名称结构测试分别锁定 `NameMarker::Present`、
+      `Missing`、`Error`；`Present` 只接受 Identifier，`Missing` 必为空，`Error` 必须非空且仅
+      覆盖实际消费的 poison，恢复 AST 不伪造名称 token。
 - [ ] `fun` 覆盖零 / 多参数、无 / 有表达式体、普通 / move 函数类型参数与返回类型；所有
       函数均保存显式返回 TypeRef，完整 Span 符合候选 v0.7。
 - [ ] 泛型覆盖单 / 多参数、无 bound、单一递归 TypeRef bound 和嵌套泛型；函数参数覆盖空
@@ -229,6 +286,15 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
       无 trial 副作用并按比较表达式产生既有结构 / 诊断。
 - [ ] trial 失败前后 AST table 数量、typed ID 分配、诊断顺序、cursor 与递归预算确定；不同
       SourceMap 加载顺序及重复运行得到相同结构、相对 Span 和诊断。
+- [ ] trial 三态边界测试证明只有 `NoMatch` 回退为比较；深层外层表达式中的 typed-call
+      候选从当前深度继续计数，trial 内恰好超过 1024 预算单位时原样返回
+      `NestingLimitExceeded`，且所有退出路径恢复原预算计数。
+- [ ] `cfg(test)` token-inspection 计数器或等价确定性证据覆盖密集 `<` 候选、层层嵌套泛型且
+      只在末端失败、成功 / 失败交错三类对抗输入；同族输入从 `N` 倍增到 `2N` 时，所有 strict
+      trial 的总 inspection 仍受实现记录的固定常数乘 lexeme 数约束，不出现重叠后缀反复扫描。
+- [ ] memo / 预索引路径测试锁定 `additional_depth`：同一识别结果在较浅 baseline 可成功，
+      在使 `baseline + additional_depth > 1024` 的较深 baseline 必须返回
+      `NestingLimitExceeded`；缓存命中不改变 Parser 的实际 recursion counter。
 - [ ] `const` 后缺 `val`（Identifier / `var` / delimiter / 其他 token 四类恢复）、缺名称、缺
       初始化符 / 表达式、缺参数名 / `:` / 类型、缺显式返回类型、block body、modifier、默认 /
       模式参数等反例产生候选规则对应诊断，不被静默接受。
@@ -237,6 +303,17 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
       TypeRef-start、`=` / `{` / stop 与其他非法 token，均锁定消费边界及同根因诊断抑制。
 - [ ] 参数默认值覆盖普通、空默认值和含嵌套 `()` / `[]` / `{}` 及内部逗号的错误区域；
       `L0027` 至少消费 `=`，只在当前参数层的逗号、右括号或 EOF 前同步，并保留 delimiter。
+- [ ] owned-closer 对照锁定统一扫描顺序：默认值错误区域含未闭合 `[` 时，遇值参数表 owner
+      的 `)` 必须保留该 `)`，不能因栈顶期待 `]` 而吞掉，例如
+      `fun f(x: T = [a, b): R`；类型参数错误区域含未闭合 `(` 时，遇类型参数表 owner 的 `>`
+      同样保留，例如 `fun <T (bad> f(): R`；平衡对照
+      `fun f(x: T = g([a, b]), y: U): R` 与 `fun <T (bad)> f(): R` 的匹配 closer 则逐个 pop
+      并消费，只有其后的当前层 `,` / hard closer 才成为 stop。三类都断言错误节点 Span、保留
+      delimiter、后续 cursor 与无重复 `L0010` / `L0025`。
+- [ ] 声明恢复覆盖嵌套 string interpolation 中的调用 / 下标 / delimiter、嵌套未终止字符串，
+      以及 EOF 前 terminal invalid escape；断言 `LexicalRecoveryIndex` 的精确 owner recovery end、
+      后续可恢复参数和 delimiter 保留、词法根因只出现一次，且不因内部逗号 / 右括号产生
+      `L0025`、`L0010` 或 `L0013` 级联。测试同时用 inspection 计数锁定每个恢复区间 `O(k)`。
 - [ ] 列表恢复覆盖空类型参数表、leading / repeated comma、缺逗号、trailing comma，以及
       类型参数表缺 `>` 后紧跟候选函数名和 `(`；后者优先复用 `L0010`，且列表 Span、cursor
       均不吞掉名称或 `(`。
@@ -247,7 +324,9 @@ payload、固定资源边界和两阶段诊断合并，但 `ExpressionAst` 的 i
 - [ ] 单声明后的第二个声明、换行分隔声明与 block body 均以 `L0013` 拒绝；明确由
       SPEC-0009 首次加入 block / 函数 block body，由 SPEC-0011 组合完整文件并跨声明同步。
 - [ ] parser-declaration pass / fail suite 各自真实执行至少一个 `.ko`；零用例与非法 sidecar
-      自检仍会失败，现有 parser-expression fixture 无回归。
+      自检仍会失败。sidecar helper 自检证明 Parser policy 接受 `start == end`，Lexer policy
+      仍拒绝空 Span，parser 合并 sidecar 中的 Lexer 码也不得借 Parser policy 接受空 Span；
+      两者都拒绝反向、越界和非 UTF-8 边界；现有 parser-expression fixture 无回归。
 - [ ] 深层 TypeRef、typed call、函数签名与表达式体共享固定 32 MiB worker 和 1024 递归预算；
       超预算受控返回内部错误，不 panic、不泄漏计数。
 - [ ] `cargo tree -p lang-frontend --edges all --locked --offline` 与 manifest / lock diff 证明
@@ -295,17 +374,23 @@ Parser 模块建议保持最小边界：
 typed call 应继续是 postfix `Call` payload，而不是新的根表达式。正式提交时复用现有
 TypeRef parser；trial 只验证 token 形状和匹配边界，成功后从原 cursor 进行唯一一次正式
 解析。AST 插入继续使用 `AstFile` 的 source-checked API，诊断继续使用现有 catalog 与排序。
+strict trial 的一次性预索引 / memo 与声明恢复的 `LexicalRecoveryIndex` 都只能是单次 Parser
+产物构造期间的私有辅助状态；不得进入公共 AST / API，也不得跨 `LexedFile` 复用。测试插桩
+只统计 token inspection，不成为 release API 或语言可观察行为。
 
 ## 7. 实施计划
 
-1. [ ] 在 v0.7 生效后注册 `L0017`–`L0027`，扩展共享具体 AST、Item payload 与声明产物 API
-   → 验证：diagnostic catalog、typed ID、source identity、public getter 窄测试
+1. [ ] 在 v0.7 生效后注册 `L0017`–`L0027`，扩展共享具体 AST、`NameMarker`、Item payload 与
+   声明产物 API
+   → 验证：diagnostic catalog、三态名称恢复 AST、typed ID、source identity、public getter 窄测试
 2. [ ] 实现变量 / 常量 / 函数、类型参数 / 值参数及局部恢复
-   → 验证：声明结构、Span、正反例及 poison 去重集成测试
-3. [ ] 实现无副作用 typed-call trial 与正式 postfix commit，扩展 Call payload
-   → 验证：歧义矩阵、nested TypeRef、trivia、无残留 AST / 诊断与资源计数测试
+   → 验证：声明结构、Span、LexicalRecoveryIndex owner 边界、单调扫描及 poison 去重集成测试
+3. [ ] 实现总 inspection 为 `O(N)` 的无副作用 typed-call trial 与正式 postfix commit，扩展
+   Call payload
+   → 验证：歧义矩阵、对抗倍增、nested TypeRef、trivia、缓存 depth、无残留 AST / 诊断与
+   资源计数测试
 4. [ ] 接入 parser-declaration pass / fail fixture，保持现有 suite 回归
-   → 验证：真实 fixture、零用例、sidecar 和诊断全序测试
+   → 验证：真实 fixture、零用例、Parser / Lexer 空 Span policy、sidecar 和诊断全序测试
 5. [ ] 同步 Spec 验收记录与 Architecture
    → 验证：workspace 全基线、依赖树、staged diff 与文档事实一致
 
