@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | done |
 | Goal ID | `KOV-P1-007` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [`agent-language-design-guide-v0.6.md`](../agent-language-design-guide-v0.6.md) |
@@ -36,7 +36,8 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
   校验 source identity 后跳过 trivia，并以唯一 EOF 结束；不得重新扫描源码或复制 Lexer。
 - 产物拥有 SPEC-0004 的 `AstFile`，使用具体 `Expression`、`TypeRef` payload，保存根
   `ExpressionId` 和合并后的结构化诊断。用户语法错误进入产物；source、AST、诊断目录等
-  不变量失败返回具体内部错误。
+  不变量失败返回具体内部错误。实现还须用固定隔离栈和统一递归预算保护宿主进程；超过预算
+  时返回具体资源错误，而不是触发 `panic!` 或为 Koven 语法创设未经 guide 分配的诊断码。
 - 独立入口要求恰好一个完整表达式后到 EOF。字符串插值递归使用同一 Pratt 核心，但以当前
   `InterpolationEnd` 为 stop token，不能把该 token 消费为普通 `}` 或尾随输入。
 - Parser 诊断与已有 Lexer 诊断共同通过 SPEC-0003 的全序排序。Parser 遇到已被 Lexer
@@ -146,50 +147,50 @@ primary、postfix、类型引用、局部恢复和 AST `Span` 契约，不能据
 
 ## 5. 验收标准
 
-- [ ] 公共入口验证 `SourceMap` / `LexedFile` identity；来自另一 map 的词法产物返回具体内部
-      错误，普通用户错误只进入解析产物。
-- [ ] 每种 Expression / TypeRef payload 均由结构测试构造；父子只用 typed ID，所有叶 / 合成
+- [x] 公共入口验证 `SourceMap` / `LexedFile` identity；来自另一 map 的词法产物返回具体内部
+      错误，普通用户语法错误进入解析产物；超过已记录的实现资源预算则受控返回资源错误。
+- [x] 每种 Expression / TypeRef payload 均由结构测试构造；父子只用 typed ID，所有叶 / 合成
       `Span` 与 source identity 精确匹配 v0.6，table 遍历顺序确定。
-- [ ] primary、全部 postfix 链、一元表达式、cast、14 档 operator 及所有 assignment kind
+- [x] primary、全部 postfix 链、一元表达式、cast、14 档 operator 及所有 assignment kind
       都有最小正例；字符串测试包含 text、空串、单 / 多 interpolation 和嵌套表达式。
-- [ ] 优先级测试至少逐对覆盖相邻档，并用跨三档表达式锁定整体分组；左结合和右结合检查
+- [x] 优先级测试至少逐对覆盖相邻档，并用跨三档表达式锁定整体分组；左结合和右结合检查
       AST 方向，四个不结合组分别用同类及混合组成员链产生 `L0012` 并锁定第二运算符 `Span`。
-- [ ] `to` 被解析为唯一中缀调用，普通 identifier 和软词 `infix` 不获得中缀语义；
+- [x] `to` 被解析为唯一中缀调用，普通 identifier 和软词 `infix` 不获得中缀语义；
       `own` / `inout` / `borrow` / `move` 不被通用 prefix 接受。
-- [ ] callable reference 覆盖未绑定 / 绑定形式、成员 / safe member、call / index / `!!` 的合法
+- [x] callable reference 覆盖未绑定 / 绑定形式、成员 / safe member、call / index / `!!` 的合法
       链式组合；缺失名称稳定产生 `L0011`。
-- [ ] TypeRef 测试覆盖限定路径、只在末段出现的嵌套泛型、限定类型的单个 nullable、函数
+- [x] TypeRef 测试覆盖限定路径、只在末段出现的嵌套泛型、限定类型的单个 nullable、函数
       类型、`move` 函数类型及非法 / 缺失类型；`() -> T?` 的 `?` 只属于返回类型。cast 和
       `is` / `!is` 指向 `TypeRefId` 而非 ExpressionId，并拒绝 `T??`、函数类型后的 `?`、
       非末段类型实参、类型分组、projection 和 use-site 型变。
-- [ ] `Array<Int, 4>` 在 `4` 的精确 `Span` 产生 `L0014` 并从类型实参上下文恢复；
+- [x] `Array<Int, 4>` 在 `4` 的精确 `Span` 产生 `L0014` 并从类型实参上下文恢复；
       `Array<Int, Size>` 无 Parser 诊断并形成两个 TypeRef，内建类型 arity 明确留给 Phase 2。
-- [ ] TypeRef `Span` 分别锁定限定类型从首个名称至末段名称、泛型限定类型至匹配 `>`、
+- [x] TypeRef `Span` 分别锁定限定类型从首个名称至末段名称、泛型限定类型至匹配 `>`、
       nullable 限定类型至 `?`、普通函数类型从 `(` 至 return type、`move` 函数类型从 `move`
       至 return type；type arguments 的 `<` 至 `>` 完整纳入所属限定类型。error node 只覆盖
       实际消费范围，仅在 stop / delimiter / EOF 无 token 可消费时为空；缺 `>`、函数参数
       `)`、`->` 后返回类型时不越过外层 stop token 或 delimiter。
-- [ ] 基本调用覆盖零 / 单 / 多位置实参、`f((a = b))` 及嵌套 delimiter；index 覆盖恰好一个
+- [x] 基本调用覆盖零 / 单 / 多位置实参、`f((a = b))` 及嵌套 delimiter；index 覆盖恰好一个
       任意表达式并证明 range key 不等于切片。直接命名和三种模式实参产生 `L0016`；空 / 多
       index、trailing comma、trailing lambda 和 use-site 类型实参由对应现有诊断拒绝。
-- [ ] `L0009`–`L0016` 一类一码，测试断言 error、固定消息、精确主 `Span`、必要关联 opener
+- [x] `L0009`–`L0016` 一类一码，测试断言 error、固定消息、精确主 `Span`、必要关联 opener
       标签、恢复后的根 / 后续 token 和确定性顺序。
-- [ ] v0.6 列出的每个不支持运算符组合在表达式运算符位置均产生唯一 `L0015`，主范围覆盖
+- [x] v0.6 列出的每个不支持运算符组合在表达式运算符位置均产生唯一 `L0015`，主范围覆盖
       完整组合；合法的 prefix / binary 紧邻反例证明实现没有按字符外观过度聚合，且
       `Outer<Inner<T>>` 的相邻 `>` 分别闭合两层泛型、不会产生 `L0015`。
-- [ ] Lexer poison 与未闭合 string / interpolation 测试证明不产生同源重复 Parser 诊断；包含
+- [x] Lexer poison 与未闭合 string / interpolation 测试证明不产生同源重复 Parser 诊断；包含
       另一处独立语法错误时，两阶段诊断仍按 SPEC-0003 全序完整保留。
-- [ ] 空文件、仅 trivia、缺 operand / closer / name / type、尾随 token 和多错误输入均不
+- [x] 空文件、仅 trivia、缺 operand / closer / name / type、尾随 token 和多错误输入均不
       `panic!` 或零进展；独立入口只在完整消费表达式时返回有效根，否则产生对应诊断。
-- [ ] 相同源码在不同加载顺序及重复运行下产生相同 AST kind、相对 `Span` 和诊断；实现不
+- [x] 相同源码在不同加载顺序及重复运行下产生相同 AST kind、相对 `Span` 和诊断；实现不
       依赖随机 hash 迭代、机器路径或隐式全局状态。
-- [ ] parser-expression pass / fail suite 各自真实执行至少一个 `.ko`，同时证明零用例与非法
+- [x] parser-expression pass / fail suite 各自真实执行至少一个 `.ko`，同时证明零用例与非法
       sidecar 配置会失败；Phase 0 与 Lexer fixture 继续执行。
-- [ ] `cargo tree -p lang-frontend --edges all --locked --offline` 及 manifest / lock diff 证明
+- [x] `cargo tree -p lang-frontend --edges all --locked --offline` 及 manifest / lock diff 证明
       没有新增 normal、dev 或 build 依赖。
-- [ ] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线通过，无 ignored /
+- [x] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线通过，无 ignored /
       filtered case 被隐瞒。
-- [ ] Architecture 更新为表达式 Parser、AST 所有权与诊断合并的实现事实，并继续明确
+- [x] Architecture 更新为表达式 Parser、AST 所有权与诊断合并的实现事实，并继续明确
       SPEC-0008 至 0011 尚未实现。
 
 ## 6. 技术方案与边界
@@ -227,15 +228,15 @@ AST 构建继续调用 SPEC-0004 的受检插入 API；诊断继续调用 SPEC-0
 
 ## 7. 实施计划
 
-1. [ ] 注册 `L0009`–`L0016`，建立具体 Expression / TypeRef payload 和表达式产物 API
+1. [x] 注册 `L0009`–`L0016`，建立具体 Expression / TypeRef payload 和表达式产物 API
    → 验证：目录、typed ID、source identity 与 AST `Span` 窄测试
-2. [ ] 实现 primary、string / interpolation、type ref、postfix 与局部 delimiter 恢复
+2. [x] 实现 primary、string / interpolation、type ref、postfix 与局部 delimiter 恢复
    → 验证：结构、链式访问、类型引用和局部错误窄测试
-3. [ ] 实现唯一 Pratt 表、结合性 / 不结合约束、unsupported operator 与完整消费检查
+3. [x] 实现唯一 Pratt 表、结合性 / 不结合约束、unsupported operator 与完整消费检查
    → 验证：逐档优先级、结合性及 `L0009`–`L0016` integration test
-4. [ ] 接入 parser-expression pass / fail fixture 和两阶段诊断合并
+4. [x] 接入 parser-expression pass / fail fixture 和两阶段诊断合并
    → 验证：真实 fixture target、poison 去重与 sidecar 自检
-5. [ ] 同步 Spec 验收记录与 Architecture → 验证：全 workspace 基线与 staged diff
+5. [x] 同步 Spec 验收记录与 Architecture → 验证：全 workspace 基线与 staged diff
 
 ## 8. 提交计划
 
@@ -258,11 +259,18 @@ guide 激活与实现保持独立提交。用户已明确启用 v0.6；本 Spec 
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 未执行 | Parser 尚未实现 |
-| `cargo test -p lang-frontend --test fixtures --locked --offline` | 未执行 | parser-expression fixture 尚未建立 |
-| `cargo tree -p lang-frontend --edges all --locked --offline` | 未执行 | 实现阶段检查依赖图及 manifest / lock diff |
-| `cargo fmt --all -- --check` | 未执行 | 实现阶段执行 |
-| `cargo check --workspace --all-targets --locked --offline` | 未执行 | 实现阶段执行 |
-| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 未执行 | 实现阶段执行 |
-| `cargo test --workspace --all-targets --locked --offline` | 未执行 | 实现阶段执行 |
-| `cargo build -p lang-cli --locked --offline` | 未执行 | 实现阶段执行 |
+| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 通过 | 47 passed；0 failed / ignored / filtered |
+| `cargo test -p lang-frontend --test fixtures --locked --offline` | 通过 | 18 passed；五套真实 suite 均执行，0 failed / ignored / filtered |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 compile-fail doctests passed；0 skipped |
+| `cargo tree -p lang-frontend --edges all --locked --offline` | 通过 | 仅 `lang-frontend`，manifest / lock 无差异，未新增依赖 |
+| `cargo fmt --all -- --check` | 通过 | rustfmt 无差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 全 workspace / targets 检查完成 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 全部 118 项通过；0 failed / ignored / filtered |
+| `cargo build -p lang-cli --locked --offline` | 通过 | `kovenc` debug build 完成 |
+
+验证额外覆盖 256 层 group / assignment / function type、256 个 unsupported 组合恢复、嵌套
+prefix、64 层字符串插值、10,000 项扁平表达式，以及 stop 边界、poison 去重和恢复 Error
+`Span`。Parser 使用固定 32 MiB scoped worker 隔离栈和统一 1024 个内部递归预算单位；超过
+预算会受控返回具体内部资源错误，不会按 token 总量放大栈申请。未增加 crate、manifest 或
+lockfile 变更。

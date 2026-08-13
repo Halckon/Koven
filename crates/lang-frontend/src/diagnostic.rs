@@ -19,6 +19,14 @@ pub mod codes {
     pub(crate) const INVALID_STRING_ESCAPE: &str = "L0006";
     pub(crate) const INVALID_CHAR_LITERAL: &str = "L0007";
     pub(crate) const INVALID_NUMERIC_LITERAL: &str = "L0008";
+    pub(crate) const EXPECTED_EXPRESSION: &str = "L0009";
+    pub(crate) const EXPECTED_CLOSING_DELIMITER: &str = "L0010";
+    pub(crate) const EXPECTED_MEMBER_NAME: &str = "L0011";
+    pub(crate) const NON_ASSOCIATIVE_CHAIN: &str = "L0012";
+    pub(crate) const UNEXPECTED_TRAILING_TOKEN: &str = "L0013";
+    pub(crate) const EXPECTED_TYPE_REFERENCE: &str = "L0014";
+    pub(crate) const UNSUPPORTED_OPERATOR: &str = "L0015";
+    pub(crate) const UNSUPPORTED_ARGUMENT_FORM: &str = "L0016";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -30,6 +38,14 @@ pub mod codes {
         INVALID_STRING_ESCAPE,
         INVALID_CHAR_LITERAL,
         INVALID_NUMERIC_LITERAL,
+        EXPECTED_EXPRESSION,
+        EXPECTED_CLOSING_DELIMITER,
+        EXPECTED_MEMBER_NAME,
+        NON_ASSOCIATIVE_CHAIN,
+        UNEXPECTED_TRAILING_TOKEN,
+        EXPECTED_TYPE_REFERENCE,
+        UNSUPPORTED_OPERATOR,
+        UNSUPPORTED_ARGUMENT_FORM,
     ];
 
     /// 由集中定义创建生产错误码目录。

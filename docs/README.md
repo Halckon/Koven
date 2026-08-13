@@ -31,5 +31,6 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库已完成 Phase 0 并进入 Phase 1；SPEC-0006 已建立确定性 Lexer，Parser 尚未实现。
+当前仓库已完成 Phase 0 并进入 Phase 1；SPEC-0006 已建立确定性 Lexer，SPEC-0007 已建立
+独立表达式 Parser。声明至完整文件的 Parser 仍按后续 Specs 推进。
 各编译阶段的实际状态见 [架构快照](./architecture/README.md)。

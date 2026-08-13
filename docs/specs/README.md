@@ -62,7 +62,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
 | [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`done`） | 0002、0003、0005 `done`；v0.5 已生效 |
-| [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`draft`，可按站立授权推进） | 0004、0006 `done`；v0.6 已生效 |
+| [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
 | 0008 | 解析变量、函数、泛型与函数类型声明 | 0007 |
 | 0009 | 解析控制流及 class / interface / enum / object 结构 | 0008 |
 | 0010 | 解析 lambda、命名 / 模式实参与解构 | 0007、0008 |

@@ -1,4 +1,4 @@
-//! SPEC-0005 / SPEC-0006 的语言 fixture 发现、执行与失败保护。
+//! SPEC-0005 至 SPEC-0007 的语言 fixture 发现、执行与失败保护。
 
 mod support;
 
@@ -16,6 +16,7 @@ use lang_frontend::{
     ast::AstFile,
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
     lexer::{LexedFile, LexemeKind, lex},
+    parser::parse_expression,
     source::{SourceId, SourceMap},
 };
 
@@ -77,6 +78,37 @@ enum CaseFailure {
 struct LexerCaseOutcome {
     relative_path: String,
     result: Result<LexerEvidence, LexerCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParserCaseOutcome {
+    relative_path: String,
+    result: Result<ParserEvidence, ParserCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParserEvidence {
+    byte_len: usize,
+    expression_count: usize,
+    diagnostic_count: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ParserCaseFailure {
+    ReadSource(io::ErrorKind),
+    InvalidUtf8Source,
+    ReadSidecar(io::ErrorKind),
+    InvalidUtf8Sidecar,
+    InvalidSidecar(SidecarError),
+    SourceModel,
+    LexerInternal,
+    ParserInternal,
+    RootInvariant,
+    UnexpectedDiagnostics,
+    DiagnosticModel,
+    DiagnosticSeverity,
+    DiagnosticOrder,
+    DiagnosticMismatch,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -151,6 +183,14 @@ fn lexer_pass_fixture_root() -> PathBuf {
 
 fn lexer_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/lexer-fail")
+}
+
+fn parser_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-expression-pass")
+}
+
+fn parser_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-expression-fail")
 }
 
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
@@ -576,6 +616,107 @@ fn run_lexer_fail_case(case: &LexerFailCase) -> Result<LexerEvidence, LexerCaseF
     })
 }
 
+fn run_parser_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| ParserCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_parser_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_parser_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.disk_path)?;
+    let parsed =
+        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if !parsed.diagnostics().is_empty() {
+        return Err(ParserCaseFailure::UnexpectedDiagnostics);
+    }
+    if parsed.ast().source_id() != source_id
+        || parsed.ast().expressions().get(parsed.root()).is_err()
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+
+    Ok(ParserEvidence {
+        byte_len,
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_parser_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| ParserCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_parser_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.source_path)?;
+    let parsed =
+        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if parsed.ast().source_id() != source_id
+        || parsed.ast().expressions().get(parsed.root()).is_err()
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+
+    let sidecar_bytes = fs::read(&case.sidecar_path)
+        .map_err(|error| ParserCaseFailure::ReadSidecar(error.kind()))?;
+    let sidecar =
+        String::from_utf8(sidecar_bytes).map_err(|_| ParserCaseFailure::InvalidUtf8Sidecar)?;
+    let catalog = codes::catalog().map_err(|_| ParserCaseFailure::DiagnosticModel)?;
+    let expected = parse_sidecar(&sources, source_id, &sidecar, &catalog)
+        .map_err(ParserCaseFailure::InvalidSidecar)?;
+
+    if parsed
+        .diagnostics()
+        .iter()
+        .any(|diagnostic| diagnostic.severity() != Severity::Error)
+    {
+        return Err(ParserCaseFailure::DiagnosticSeverity);
+    }
+    let actual = diagnostic_expectations(parsed.diagnostics().iter());
+    let ordered = ordered_diagnostics(&sources, parsed.diagnostics())
+        .map_err(|_| ParserCaseFailure::DiagnosticModel)?;
+    if actual != diagnostic_expectations(ordered.into_iter()) {
+        return Err(ParserCaseFailure::DiagnosticOrder);
+    }
+    if actual != expected {
+        return Err(ParserCaseFailure::DiagnosticMismatch);
+    }
+
+    Ok(ParserEvidence {
+        byte_len,
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: actual.len(),
+    })
+}
+
+fn parser_fixture_source(
+    relative_path: &str,
+    disk_path: &Path,
+) -> Result<(SourceMap, SourceId, LexedFile, usize), ParserCaseFailure> {
+    let bytes = fs::read(disk_path).map_err(|error| ParserCaseFailure::ReadSource(error.kind()))?;
+    let text = String::from_utf8(bytes).map_err(|_| ParserCaseFailure::InvalidUtf8Source)?;
+    let byte_len = text.len();
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source(relative_path.to_owned(), text)
+        .map_err(|_| ParserCaseFailure::SourceModel)?;
+    let lexed = lex(&sources, source_id).map_err(|_| ParserCaseFailure::LexerInternal)?;
+    Ok((sources, source_id, lexed, byte_len))
+}
+
 fn lex_fixture_source(
     relative_path: &str,
     disk_path: &Path,
@@ -838,6 +979,78 @@ mod tests {
                 "invalid-character.ko\tok bytes={} lexemes={} diagnostics=1",
                 fail_evidence.byte_len, fail_evidence.lexeme_count
             )
+        );
+    }
+
+    #[test]
+    fn checked_in_parser_suites_execute_real_pass_and_fail_cases() {
+        let pass = run_parser_pass_suite(&parser_pass_fixture_root())
+            .expect("the checked-in parser pass suite must be valid");
+        let fail = run_parser_fail_suite(&parser_fail_fixture_root())
+            .expect("the checked-in parser fail suite must be valid");
+
+        assert_eq!(pass.len(), 1);
+        assert_eq!(pass[0].relative_path, "precedence.ko");
+        let pass_evidence = pass[0]
+            .result
+            .as_ref()
+            .expect("the checked-in parser pass case must parse without diagnostics");
+        assert!(pass_evidence.expression_count > 1);
+        assert_eq!(pass_evidence.diagnostic_count, 0);
+
+        assert_eq!(fail.len(), 1);
+        assert_eq!(fail[0].relative_path, "trailing-token.ko");
+        let fail_evidence = fail[0]
+            .result
+            .as_ref()
+            .expect("the checked-in parser fail case must match merged diagnostics");
+        assert!(fail_evidence.expression_count > 0);
+        assert_eq!(fail_evidence.diagnostic_count, 1);
+    }
+
+    #[test]
+    fn parser_fixture_discovery_rejects_zero_and_unpaired_fail_cases() {
+        let empty_pass = TempDir::new("parser-pass-empty");
+        assert_eq!(
+            run_parser_pass_suite(empty_pass.path()),
+            Err(SuiteError::NoFixtures)
+        );
+
+        let empty_fail = TempDir::new("parser-fail-empty");
+        assert_eq!(
+            run_parser_fail_suite(empty_fail.path()),
+            Err(SuiteError::NoFixtures)
+        );
+
+        let unpaired = TempDir::new("parser-fail-unpaired");
+        write(unpaired.path(), "missing.ko", b"a b");
+        write(unpaired.path(), "orphan.diag", b"L0013\t2\t3\n");
+        assert_eq!(
+            run_parser_fail_suite(unpaired.path()),
+            Err(SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]))
+        );
+    }
+
+    #[test]
+    fn parser_fail_runner_rejects_invalid_sidecar_lines() {
+        let temp = TempDir::new("parser-invalid-sidecar");
+        write(temp.path(), "case.ko", b"a b");
+        write(temp.path(), "case.diag", b"L0013\t2\n");
+
+        let outcomes = run_parser_fail_suite(temp.path()).expect("the fixture pair is complete");
+
+        assert_eq!(
+            outcomes[0].result,
+            Err(ParserCaseFailure::InvalidSidecar(
+                SidecarError::WrongColumnCount { line: 1 }
+            ))
         );
     }
 
