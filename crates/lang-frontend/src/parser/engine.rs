@@ -12,9 +12,9 @@ use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, CastOperator, Expression, ExpressionAst, FunctionBody,
-    Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, ParsedBlock, ParsedDeclaration,
-    ParsedExpression, ParserInternalError, PrefixOperator, Statement, StringPart, TypeParameter,
-    TypePathSegment, TypeRef, ValueParameter, VariableKind,
+    FunctionForm, Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, ParsedBlock,
+    ParsedDeclaration, ParsedExpression, ParserInternalError, PrefixOperator, Statement,
+    StringPart, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;
@@ -212,7 +212,9 @@ fn validate_lexemes(
 
 struct LexicalRecoveryIndex {
     source_len: usize,
+    string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
+    lexical_poison_string_recoveries: Vec<(usize, usize)>,
     terminal_string_ends: Vec<usize>,
     unterminated_interpolation_starts: Vec<usize>,
     terminal_error_at_eof: bool,
@@ -243,6 +245,7 @@ impl LexicalRecoveryIndex {
 
         let mut string_recoveries = Vec::new();
         let mut string_exit_events = Vec::new();
+        let mut invalid_string_escape_spans = Vec::new();
         let mut terminal_escape_spans = Vec::new();
         let mut terminal_other_spans = Vec::new();
         let mut unterminated_interpolation_starts = Vec::new();
@@ -273,12 +276,15 @@ impl LexicalRecoveryIndex {
                 });
                 continue;
             }
-            if code == invalid_string_escape
-                && span.end() == span.start() + 1
-                && (span.end() == source.len() || source[span.end()..].starts_with(['\r', '\n']))
-            {
-                terminal_escape_spans.push((span.start(), span.end()));
-                terminal_error_at_eof |= span.end() == source.len();
+            if code == invalid_string_escape {
+                invalid_string_escape_spans.push((span.start(), span.end()));
+                if span.end() == span.start() + 1
+                    && (span.end() == source.len()
+                        || source[span.end()..].starts_with(['\r', '\n']))
+                {
+                    terminal_escape_spans.push((span.start(), span.end()));
+                    terminal_error_at_eof |= span.end() == source.len();
+                }
                 continue;
             }
             let terminal_other = (code == unterminated_block_comment && span.end() == source.len())
@@ -290,6 +296,7 @@ impl LexicalRecoveryIndex {
         }
 
         string_exit_events.sort_unstable();
+        invalid_string_escape_spans.sort_unstable();
         terminal_escape_spans.sort_unstable();
         terminal_other_spans.sort_unstable();
         unterminated_interpolation_starts.sort_unstable();
@@ -375,7 +382,9 @@ impl LexicalRecoveryIndex {
         if next_terminal_event != terminal_owner_events.len() {
             return Err(ParserInternalError::InvalidLexemeStream);
         }
-        let mut active_strings = Vec::new();
+        let mut active_strings: Vec<ActiveString> = Vec::new();
+        let mut string_owner_ends = Vec::new();
+        let mut lexical_poison_string_recoveries = Vec::new();
         let mut next_exit = 0usize;
         for lexeme in lexed.lexemes() {
             while string_exit_events
@@ -383,9 +392,12 @@ impl LexicalRecoveryIndex {
                 .is_some_and(|(end, _)| *end <= lexeme.span().start())
             {
                 let (_, owner) = string_exit_events[next_exit];
+                for active_owner in &mut active_strings {
+                    active_owner.lexical_poison = true;
+                }
                 if lexeme.span().start() == source.len() {
-                    for active_owner in active_strings.iter().copied() {
-                        string_recoveries.push((active_owner, source.len()));
+                    for active_owner in &active_strings {
+                        string_recoveries.push((active_owner.opener, source.len()));
                     }
                 }
                 pop_string_owner(&mut active_strings, owner)?;
@@ -394,37 +406,56 @@ impl LexicalRecoveryIndex {
 
             match lexeme.kind() {
                 LexemeKind::Token(TokenKind::StringStart) => {
-                    active_strings.push(lexeme.span().start());
+                    active_strings.push(ActiveString {
+                        opener: lexeme.span().start(),
+                        lexical_poison: false,
+                    });
                 }
                 LexemeKind::Token(TokenKind::StringEnd) => {
-                    active_strings
+                    let owner = active_strings
                         .pop()
                         .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    string_owner_ends.push((owner.opener, lexeme.span().end()));
+                    if owner.lexical_poison {
+                        lexical_poison_string_recoveries.push((owner.opener, lexeme.span().end()));
+                    }
                 }
                 LexemeKind::Token(TokenKind::InterpolationStart)
                     if unterminated_interpolation_starts
                         .binary_search(&lexeme.span().start())
                         .is_ok() =>
                 {
-                    for owner in active_strings.iter().copied() {
-                        string_recoveries.push((owner, source.len()));
+                    for owner in &active_strings {
+                        string_recoveries.push((owner.opener, source.len()));
                     }
                 }
                 LexemeKind::Invalid(_)
-                    if terminal_escape_spans
+                    if invalid_string_escape_spans
                         .binary_search(&(lexeme.span().start(), lexeme.span().end()))
                         .is_ok() =>
                 {
+                    if active_strings.is_empty() {
+                        return Err(ParserInternalError::InvalidLexemeStream);
+                    }
+                    for owner in &mut active_strings {
+                        owner.lexical_poison = true;
+                    }
+                    if terminal_escape_spans
+                        .binary_search(&(lexeme.span().start(), lexeme.span().end()))
+                        .is_err()
+                    {
+                        continue;
+                    }
                     let end = lexeme.span().end();
                     if end == source.len() {
-                        for owner in active_strings.iter().copied() {
-                            string_recoveries.push((owner, end));
+                        for owner in &active_strings {
+                            string_recoveries.push((owner.opener, end));
                         }
-                    } else if let Some(owner) = active_strings.last().copied() {
-                        string_recoveries.push((owner, end));
+                    } else if let Some(owner) = active_strings.last() {
+                        string_recoveries.push((owner.opener, end));
                     }
                     if let Some(owner) = active_strings.last().copied() {
-                        pop_string_owner(&mut active_strings, owner)?;
+                        pop_string_owner(&mut active_strings, owner.opener)?;
                     }
                 }
                 LexemeKind::Invalid(_)
@@ -432,8 +463,8 @@ impl LexicalRecoveryIndex {
                         .binary_search(&(lexeme.span().start(), lexeme.span().end()))
                         .is_ok() =>
                 {
-                    for owner in active_strings.iter().copied() {
-                        string_recoveries.push((owner, source.len()));
+                    for owner in &active_strings {
+                        string_recoveries.push((owner.opener, source.len()));
                     }
                 }
                 _ => {}
@@ -442,6 +473,10 @@ impl LexicalRecoveryIndex {
 
         string_recoveries.sort_unstable();
         string_recoveries.dedup_by_key(|(start, _)| *start);
+        string_owner_ends.sort_unstable();
+        string_owner_ends.dedup_by_key(|(start, _)| *start);
+        lexical_poison_string_recoveries.sort_unstable();
+        lexical_poison_string_recoveries.dedup_by_key(|(start, _)| *start);
         let mut terminal_string_ends = string_recoveries
             .iter()
             .map(|(_, end)| *end)
@@ -451,7 +486,9 @@ impl LexicalRecoveryIndex {
 
         Ok(Self {
             source_len: source.len(),
+            string_owner_ends,
             string_recoveries,
+            lexical_poison_string_recoveries,
             terminal_string_ends,
             unterminated_interpolation_starts,
             terminal_error_at_eof,
@@ -465,13 +502,33 @@ impl LexicalRecoveryIndex {
             .ok()
             .map(|index| self.string_recoveries[index].1)
     }
+
+    fn string_owner_end(&self, start: usize) -> Option<usize> {
+        self.string_owner_ends
+            .binary_search_by_key(&start, |(owner, _)| *owner)
+            .ok()
+            .map(|index| self.string_owner_ends[index].1)
+    }
+
+    fn lexical_poison_string_recovery_end(&self, start: usize) -> Option<usize> {
+        self.lexical_poison_string_recoveries
+            .binary_search_by_key(&start, |(owner, _)| *owner)
+            .ok()
+            .map(|index| self.lexical_poison_string_recoveries[index].1)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ActiveString {
+    opener: usize,
+    lexical_poison: bool,
 }
 
 fn pop_string_owner(
-    active_strings: &mut Vec<usize>,
+    active_strings: &mut Vec<ActiveString>,
     owner: usize,
 ) -> Result<(), ParserInternalError> {
-    if active_strings.last().copied() != Some(owner) {
+    if active_strings.last().map(|active| active.opener) != Some(owner) {
         return Err(ParserInternalError::InvalidLexemeStream);
     }
     active_strings.pop();
@@ -891,12 +948,80 @@ impl Parser<'_> {
             NameContext::Declaration,
         )?;
         let parameters = self.parse_value_parameters()?;
-        let (return_colon_span, return_type) = self.parse_required_return_type()?;
+        let parameter_end = self.previous_significant_end().max(fun_span.end());
+        let (form, end) = self.parse_function_form(parameter_end)?;
+        self.add_item(
+            self.span(fun_span.start(), end)?,
+            Item::Function {
+                name,
+                type_parameters,
+                type_parameter_list_span,
+                parameters,
+                form,
+            },
+        )
+    }
+
+    fn parse_function_form(
+        &mut self,
+        parameter_end: usize,
+    ) -> Result<(FunctionForm, usize), ParserInternalError> {
+        if self.current_is_symbol(Symbol::Colon) {
+            let colon_span = self.bump()?.span();
+            let type_ref = self.parse_type_ref(
+                TypeStops::empty()
+                    .with(TypeStops::EQUAL)
+                    .with(TypeStops::LEFT_BRACE),
+            )?;
+            return self.finish_explicit_function_form(colon_span, type_ref);
+        }
+
+        if self.current_is_symbol(Symbol::Equal) {
+            let insertion = self.empty_at(self.current()?.span().start())?;
+            self.emit(
+                codes::EXPECTED_RETURN_TYPE,
+                "expected explicit return type",
+                insertion,
+            )?;
+            let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
+            return self.finish_explicit_function_form(insertion, type_ref);
+        }
+
+        if self.current_is_symbol(Symbol::LeftBrace) {
+            let block = self.parse_block_statement(Stops::ROOT)?;
+            let end = self.statement_span(block)?.end();
+            return Ok((FunctionForm::ImplicitUnitBlock(block), end));
+        }
+
+        let current = self.current()?;
+        if self.can_start_type_ref(current) {
+            let colon_span = self.empty_at(current.span().start())?;
+            self.emit(
+                codes::EXPECTED_RETURN_TYPE,
+                "expected explicit return type",
+                current.span(),
+            )?;
+            let type_ref = self.parse_type_ref(
+                TypeStops::empty()
+                    .with(TypeStops::EQUAL)
+                    .with(TypeStops::LEFT_BRACE),
+            )?;
+            return self.finish_explicit_function_form(colon_span, type_ref);
+        }
+
+        Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
+    }
+
+    fn finish_explicit_function_form(
+        &mut self,
+        colon_span: Span,
+        type_ref: TypeRefId,
+    ) -> Result<(FunctionForm, usize), ParserInternalError> {
         let body = if self.current_is_symbol(Symbol::Equal) {
-            let equals = self.bump()?.span();
+            let equals_span = self.bump()?.span();
             let expression = self.parse_expression_bp(0, Stops::ROOT)?;
             FunctionBody::Expression {
-                equals_span: equals,
+                equals_span,
                 expression,
             }
         } else if self.current_is_symbol(Symbol::LeftBrace) {
@@ -905,23 +1030,18 @@ impl Parser<'_> {
             FunctionBody::Absent
         };
         let end = match body {
-            FunctionBody::Absent => self.type_span(return_type)?.end(),
+            FunctionBody::Absent => self.previous_significant_end(),
             FunctionBody::Expression { expression, .. } => self.expression_span(expression)?.end(),
             FunctionBody::Block(statement) => self.statement_span(statement)?.end(),
-        }
-        .max(fun_span.end());
-        self.add_item(
-            self.span(fun_span.start(), end)?,
-            Item::Function {
-                name,
-                type_parameters,
-                type_parameter_list_span,
-                parameters,
-                return_colon_span,
-                return_type,
+        };
+        Ok((
+            FunctionForm::Explicit {
+                colon_span,
+                type_ref,
                 body,
             },
-        )
+            end,
+        ))
     }
 
     fn parse_name_marker(
@@ -1012,57 +1132,6 @@ impl Parser<'_> {
         };
         let initializer = self.add_expression(error_span, Expression::Error)?;
         Ok((equals, initializer))
-    }
-
-    fn parse_required_return_type(&mut self) -> Result<(Span, TypeRefId), ParserInternalError> {
-        if self.current_is_symbol(Symbol::Colon) {
-            let colon = self.bump()?.span();
-            let type_ref = self.parse_type_ref(
-                TypeStops::empty()
-                    .with(TypeStops::EQUAL)
-                    .with(TypeStops::LEFT_BRACE),
-            )?;
-            return Ok((colon, type_ref));
-        }
-        let current = self.current()?;
-        let primary = if matches!(current.kind(), LexemeKind::Eof)
-            || self.current_is_symbol(Symbol::Equal)
-            || self.current_is_symbol(Symbol::LeftBrace)
-        {
-            self.empty_at(current.span().start())?
-        } else {
-            current.span()
-        };
-        let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
-            && self.lexical_recoveries.terminal_error_at_eof;
-        if !self.is_poison_kind(current.kind()) && !terminal_lexer_root {
-            self.emit(
-                codes::EXPECTED_RETURN_TYPE,
-                "expected explicit return type",
-                primary,
-            )?;
-        }
-        let colon = self.empty_at(current.span().start())?;
-        let type_ref = if self.can_start_type_ref(current) {
-            self.parse_type_ref(TypeStops::empty().with(TypeStops::EQUAL))?
-        } else {
-            let span = if matches!(current.kind(), LexemeKind::Eof)
-                || self.current_is_symbol(Symbol::Equal)
-                || self.current_is_symbol(Symbol::LeftBrace)
-            {
-                primary
-            } else {
-                let start = current.span().start();
-                let end = self.recover_declaration_region(
-                    DeclarationStops::EMPTY
-                        .with(DeclarationStops::EQUAL)
-                        .with(DeclarationStops::LEFT_BRACE),
-                )?;
-                self.span(start, end.max(start))?
-            };
-            self.add_type_ref(span, TypeRef::Error)?
-        };
-        Ok((colon, type_ref))
     }
 
     fn parse_type_parameters(
@@ -1510,12 +1579,21 @@ impl Parser<'_> {
         if matches!(self.current()?.kind(), LexemeKind::Eof) {
             return Ok(item);
         }
-        let first = self.current()?.span();
-        self.emit(
-            codes::UNEXPECTED_TRAILING_TOKEN,
-            "unexpected trailing token",
-            first,
-        )?;
+        let current = self.current()?;
+        let implicit_function = matches!(
+            self.ast.items().get(item)?.payload(),
+            Item::Function {
+                form: FunctionForm::ImplicitUnitAbsent,
+                ..
+            }
+        );
+        if !implicit_function || !self.is_declaration_trailing_poison(current) {
+            self.emit(
+                codes::UNEXPECTED_TRAILING_TOKEN,
+                "unexpected trailing token",
+                current.span(),
+            )?;
+        }
         self.recover_declaration_region(DeclarationStops::EMPTY)?;
         Ok(item)
     }
@@ -2549,6 +2627,21 @@ impl Parser<'_> {
         )
     }
 
+    /// 声明尾随恢复必须让 Lexer 已拥有的错误区域保持唯一根因。
+    fn is_declaration_trailing_poison(&self, lexeme: Lexeme) -> bool {
+        self.is_poison_kind(lexeme.kind())
+            || (matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringStart))
+                && self
+                    .lexical_recoveries
+                    .string_recovery_end(lexeme.span().start())
+                    .is_some())
+            || (matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringStart))
+                && self
+                    .lexical_recoveries
+                    .lexical_poison_string_recovery_end(lexeme.span().start())
+                    .is_some())
+    }
+
     fn infix_rule(&self, lexeme: Lexeme) -> Result<Option<InfixRule>, ParserInternalError> {
         let rule = match lexeme.kind() {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Star)) => InfixRule::left(
@@ -2773,12 +2866,27 @@ impl Parser<'_> {
         }
         let current = self.current()?;
         let string_start = matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart));
-        if string_start
-            && let Some(recovery_end) = self
-                .lexical_recoveries
-                .string_recovery_end(current.span().start())
-        {
-            return self.consume_segmented_string_type_poison(recovery_end);
+        if string_start {
+            let opener = current.span().start();
+            let lexical_poison_end =
+                self.lexical_recoveries
+                    .string_recovery_end(opener)
+                    .or_else(|| {
+                        self.lexical_recoveries
+                            .lexical_poison_string_recovery_end(opener)
+                    });
+            if let Some(recovery_end) = lexical_poison_end {
+                return self.consume_segmented_string_type_poison(recovery_end);
+            }
+            if let Some(owner_end) = self.lexical_recoveries.string_owner_end(opener) {
+                let span = current.span();
+                self.emit(
+                    codes::EXPECTED_TYPE_REFERENCE,
+                    "expected type reference",
+                    span,
+                )?;
+                return self.consume_segmented_string_type_poison(owner_end);
+            }
         }
         if !self.current_is_identifier() {
             if stops.contains(current) || matches!(current.kind(), LexemeKind::Eof) {
@@ -3680,6 +3788,102 @@ impl RecoveryOwner {
 mod tests {
     use super::*;
     use crate::{lexer::lex, source::SourceMap};
+
+    #[test]
+    fn lexical_recovery_indexes_only_strings_that_own_invalid_escapes() {
+        let text = r#""valid" "bad\q" "${"nested\z"}""#;
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("invalid-string-escape-owners.ko", text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let index = LexicalRecoveryIndex::new(text, &lexed).expect("recoveries must index");
+        let openers = lexed
+            .lexemes()
+            .iter()
+            .filter(|lexeme| matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringStart)))
+            .map(|lexeme| lexeme.span().start())
+            .collect::<Vec<_>>();
+        let closers = lexed
+            .lexemes()
+            .iter()
+            .filter(|lexeme| matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringEnd)))
+            .map(|lexeme| lexeme.span().end())
+            .collect::<Vec<_>>();
+
+        assert_eq!(openers.len(), 4);
+        assert_eq!(closers.len(), 4);
+        assert_eq!(index.string_owner_end(openers[0]), Some(closers[0]));
+        assert_eq!(index.string_owner_end(openers[1]), Some(closers[1]));
+        assert_eq!(index.string_owner_end(openers[2]), Some(closers[3]));
+        assert_eq!(index.string_owner_end(openers[3]), Some(closers[2]));
+        assert_eq!(index.lexical_poison_string_recovery_end(openers[0]), None);
+        assert_eq!(
+            index.lexical_poison_string_recovery_end(openers[1]),
+            Some(closers[1])
+        );
+        assert_eq!(
+            index.lexical_poison_string_recovery_end(openers[2]),
+            Some(closers[3])
+        );
+        assert_eq!(
+            index.lexical_poison_string_recovery_end(openers[3]),
+            Some(closers[2])
+        );
+    }
+
+    #[test]
+    fn function_suffix_transfers_complete_string_poison_to_the_lexer_owner() {
+        for (text, expected) in [
+            (r#"fun f() "a\q""#, vec!["L0006"]),
+            (r#"fun f() "${"bad\q"}""#, vec!["L0006"]),
+            ("fun f() \"${\"inner\n}tail\"", vec!["L0004"]),
+            (r#"fun f(): "a\q""#, vec!["L0006"]),
+            (r#"fun f(): "${"bad\q"}""#, vec!["L0006"]),
+            ("fun f(): \"${\"inner\n}tail\"", vec!["L0004"]),
+            (r#"fun f(): "ok""#, vec!["L0014"]),
+        ] {
+            let mut sources = SourceMap::new();
+            let source_id = sources
+                .add_source("function-string-suffix.ko", text)
+                .expect("test source name must be unique");
+            let lexed = lex(&sources, source_id).expect("test source must lex");
+            let parsed = parse_declaration(&sources, &lexed)
+                .expect("lexical poison must remain a user diagnostic");
+            let actual = parsed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{text:?}: {:?}", parsed.diagnostics());
+
+            let Item::Function { form, .. } = parsed
+                .ast()
+                .items()
+                .get(parsed.root())
+                .expect("function root")
+                .payload()
+            else {
+                panic!("{text:?}: function root")
+            };
+            if text.starts_with("fun f():") {
+                let FunctionForm::Explicit { type_ref, .. } = form else {
+                    panic!("{text:?}: explicit form")
+                };
+                assert!(matches!(
+                    parsed
+                        .ast()
+                        .type_refs()
+                        .get(*type_ref)
+                        .expect("return type")
+                        .payload(),
+                    TypeRef::Error
+                ));
+            } else {
+                assert!(matches!(form, FunctionForm::ImplicitUnitAbsent));
+            }
+        }
+    }
 
     fn recovery_metrics(regions: usize) -> (usize, usize, usize) {
         let region = " /* dense */ ( [ \"outer ${ [ \"bad\n next ] } tail\" ] ) // trivia\n ";

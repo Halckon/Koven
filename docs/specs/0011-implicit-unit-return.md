@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | done |
 | Goal ID | `KOV-P1-011` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md) 第一部分第 6 节、第四部分第 7 至第 9 节 |
@@ -178,37 +178,37 @@ pub enum Item {
 
 ## 5. 验收标准
 
-- [ ] compile-pass 覆盖 `fun f()`、`fun f() {}`、非空 block body、显式
+- [x] compile-pass 覆盖 `fun f()`、`fun f() {}`、非空 block body、显式
       `fun f(): Unit` / `fun f(): Unit {}` 以及显式非 `Unit` 的无体 / block body；trivia 变体
       不改变返回 marker 或 body 归属。
-- [ ] AST 测试证明省略标注只产生 `FunctionForm::ImplicitUnitAbsent` 或
+- [x] AST 测试证明省略标注只产生 `FunctionForm::ImplicitUnitAbsent` 或
       `FunctionForm::ImplicitUnitBlock`，显式或恢复分支只产生 `FunctionForm::Explicit`；
       `ImplicitUnit + Expression` 在类型上不可表示，也不存在孤儿 TypeRef、伪造
       `Unit` TypeRef、伪造 colon token 或可独立变化的双 `Option` 状态。
-- [ ] `fun f() = 1` compile-fail 恰好产生一条 `L0021`，主 `Span` 为空且位于真实 `=` 起点；
+- [x] `fun f() = 1` compile-fail 恰好产生一条 `L0021`，主 `Span` 为空且位于真实 `=` 起点；
       AST 保留空 colon、同位置 Error TypeRef、真实 `equals_span` 与 body expression，不追加
       `L0014` 或 trailing 级联。
-- [ ] `fun f(): = 1`、`fun f(): {}` 和 colon 后 EOF 只复用 expected TypeRef 诊断并保持
+- [x] `fun f(): = 1`、`fun f(): {}` 和 colon 后 EOF 只复用 expected TypeRef 诊断并保持
       `Explicit`，不产生 `L0021`、不回退 implicit Unit；后续 body opener 的所有权不丢失。
-- [ ] 缺 colon 后紧跟普通 / 泛型 / nullable / 函数 TypeRef 的恢复继续产生 `L0021`，保留真实
+- [x] 缺 colon 后紧跟普通 / 泛型 / nullable / 函数 TypeRef 的恢复继续产生 `L0021`，保留真实
       TypeRef 和随后的三种 body；其他尾随 token 归调用方 trailing 恢复而不是误报 `L0021`。
-- [ ] Item、return marker、colon / TypeRef、body 与 error node 的 UTF-8 半开 `Span` 符合本
+- [x] Item、return marker、colon / TypeRef、body 与 error node 的 UTF-8 半开 `Span` 符合本
       Spec；隐式无体 Item 精确止于 `)`，隐式 block Item 止于 block，multi-SourceMap 混用受控
       返回具体内部错误。
-- [ ] owner recovery 覆盖缺返回标注的表达式体嵌套 group、call、index 与 string
+- [x] owner recovery 覆盖缺返回标注的表达式体嵌套 group、call、index 与 string
       interpolation，以及直接函数 block body；独立声明入口的 EOF owner 与 block closer
       保留，Lexer poison / `L0004`–`L0006` 不产生同 Span 或同 owner 的 Parser 级联。
-- [ ] source、Lexer、SPEC-0007 expression / TypeRef、SPEC-0008 declaration 与 SPEC-0009
+- [x] source、Lexer、SPEC-0007 expression / TypeRef、SPEC-0008 declaration 与 SPEC-0009
       block / function-body 窄测试通过；只定向迁移本版取代的历史负例。
-- [ ] parser-implicit-unit pass / fail suite 各真实执行至少一个 `.ko`；零 suite、非法 sidecar、
+- [x] parser-implicit-unit pass / fail suite 各真实执行至少一个 `.ko`；零 suite、非法 sidecar、
       orphan pair 与空范围 policy 自检继续失败，诊断全序确定。
-- [ ] 深泛型、函数 TypeRef、block 和表达式体继续共享固定 32 MiB worker 与 1024 递归预算；
+- [x] 深泛型、函数 TypeRef、block 和表达式体继续共享固定 32 MiB worker 与 1024 递归预算；
       超预算受控返回具体内部错误，长正确 / 错误输入保持单调 `O(n)`，不 panic。
-- [ ] `cargo tree -p lang-frontend --edges all --locked --offline` 与 manifest / lock diff 证明未新增
+- [x] `cargo tree -p lang-frontend --edges all --locked --offline` 与 manifest / lock diff 证明未新增
       normal、dev 或 build 依赖。
-- [ ] frontend 窄测试及 workspace fmt、check、Clippy、test、CLI build 基线通过；实际记录
+- [x] frontend 窄测试及 workspace fmt、check、Clippy、test、CLI build 基线通过；实际记录
       passed / failed / ignored / filtered 数量，不把未执行检查写成通过。
-- [ ] Architecture 更新为实现后的 FunctionForm AST、Parser dispatch、`L0021` 新适用边界和
+- [x] Architecture 更新为实现后的 FunctionForm AST、Parser dispatch、`L0021` 新适用边界和
       fixture 事实；计划不得写成当前事实。
 
 ## 6. 技术方案与边界
@@ -232,18 +232,18 @@ pub enum Item {
 
 ## 7. 实施计划
 
-1. [ ] 引入封闭 `FunctionForm` 并迁移函数 Item、getter 与现有结构测试
+1. [x] 引入封闭 `FunctionForm` 并迁移函数 Item、getter 与现有结构测试
    → 验证：显式分支行为不变，implicit marker 无 TypeRef / Span，非法状态不可构造
-2. [ ] 重排函数 suffix dispatch，接入 implicit Unit 与 `L0021` 表达式体恢复
+2. [x] 重排函数 suffix dispatch，接入 implicit Unit 与 `L0021` 表达式体恢复
    → 验证：无体 / block pass 矩阵、expression-body fail、colon / TypeRef 恢复和精确范围
-3. [ ] 补齐 owner、Lexer terminal、SourceMap、递归预算与复杂度回归
+3. [x] 补齐 owner、Lexer terminal、SourceMap、递归预算与复杂度回归
    → 验证：调用方 closer 保留、无级联、无 panic、N→2N 同族输入保持线性
-4. [ ] 接入 parser-implicit-unit pass / fail fixture并定向迁移历史负例
+4. [x] 接入 parser-implicit-unit pass / fail fixture并定向迁移历史负例
    → 验证：真实 `.ko` / `.diag`、零用例保护、诊断全序和既有 suite 回归
-5. [ ] 同步 Spec 验收记录与 Architecture
+5. [x] 同步 Spec 验收记录与 Architecture
    → 验证：frontend 窄测试、workspace 全基线、依赖树、staged diff 与文档事实一致
 
-v0.9 已由用户明确启用；本 Spec 将在当前 SPEC-0010 Goal 完成后，依据站立授权按
+v0.9 已由用户明确启用；本 Spec 已在 SPEC-0010 Goal 完成后，依据站立授权按
 `draft → approved → in-progress` 的逻辑顺序推进，无需单独的批准状态提交。
 
 ## 8. 提交计划
@@ -264,7 +264,24 @@ v0.9 已由用户明确启用；本 Spec 将在当前 SPEC-0010 Goal 完成后�
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| v0.9 版本级启用确认 | 满足 | 用户已明确指定 v0.9 取代 v0.8；本 Spec 保持 `draft`，等待当前 SPEC-0010 Goal 完成后自动推进 |
-| Markdown 相对链接与 Spec 元数据检查 | 通过 | v0.9、ADR-0003、ADR-0004 链接存在；编号、`draft`、SPEC-0009 前置、无前置 ADR 与版本门禁一致 |
-| `git diff --no-index --check -- /dev/null docs/specs/0011-implicit-unit-return.md` | 通过 | 无 whitespace error 输出；exit 1 仅表示未跟踪草案与空文件存在内容差异 |
-| Cargo / Rust 验收 | 未执行 | 本次只创建受 guide 门禁约束的 Spec，不修改实现 |
+| v0.9 版本级启用确认 | 满足 | 用户已明确指定 v0.9 取代 v0.8；本 Spec 依站立授权完成 `draft → approved → in-progress → done` 流转 |
+| Markdown 相对链接与路线图一致性检查 | 通过 | v0.9、ADR-0003、ADR-0004 链接存在；README 的 0011 状态、前置与站立授权一致 |
+| 独立红队与终审 | 通过 | 最终 P0 = 0、P1 = 0；封闭 AST、suffix dispatch、`L0021` / `L0014`、nested lexical owner 与 trailing 归属均闭环 |
+| `cargo test -p lang-frontend --test parser_implicit_unit --locked --offline` | 通过 | 7 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test fixtures --locked --offline` | 通过 | 22 passed；0 failed / ignored / measured / filtered；十三套 suite 均有真实用例 |
+| `cargo test -p lang-frontend --test source_span --locked --offline` | 通过 | 9 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test lexer --locked --offline` | 通过 | 18 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 通过 | 52 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_declaration --locked --offline` | 通过 | 22 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_block --locked --offline` | 通过 | 20 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_lambda --locked --offline` | 通过 | 16 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 19 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 passed；0 failed / ignored / measured / filtered |
+| `cargo fmt --all -- --check` | 通过 | rustfmt 无差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | workspace 全 target 编译成功 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 208 passed；0 failed / ignored / measured / filtered；CLI 6、frontend 201、std 1，`lang-codegen` / `lang-lsp` 当前测试数为 0 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | CLI debug target 构建成功 |
+| `cargo tree -p lang-frontend --edges all --locked --offline` | 通过 | 仅 `lang-frontend`；manifest / lock 无差异，未新增 normal / dev / build 依赖 |
+| `git diff --check` | 通过 | 无空白错误 |
+| Architecture 同步 | 完成 | 已记录 `FunctionForm`、互斥 suffix dispatch、`L0021` / `L0014` 与 Lexer poison 归属，以及十三套 fixture |

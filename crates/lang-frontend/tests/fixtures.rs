@@ -16,7 +16,10 @@ use lang_frontend::{
     ast::AstFile,
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
     lexer::{LexedFile, LexemeKind, lex},
-    parser::{Expression, Statement, SyntaxAst, parse_block, parse_declaration, parse_expression},
+    parser::{
+        Expression, FunctionBody, FunctionForm, Item, Statement, SyntaxAst, TypeRef, parse_block,
+        parse_declaration, parse_expression,
+    },
     source::{SourceId, SourceMap},
 };
 
@@ -261,6 +264,14 @@ fn parser_lambda_pass_fixture_root() -> PathBuf {
 
 fn parser_lambda_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-lambda-fail")
+}
+
+fn parser_implicit_unit_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-implicit-unit-pass")
+}
+
+fn parser_implicit_unit_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-implicit-unit-fail")
 }
 
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
@@ -935,6 +946,116 @@ fn run_declaration_fail_case(
     })
 }
 
+fn validate_implicit_unit_root(
+    ast: &SyntaxAst,
+    root: lang_frontend::ast::ItemId,
+    relative_path: &str,
+) -> Result<(), ParserCaseFailure> {
+    let Item::Function { form, .. } = ast
+        .items()
+        .get(root)
+        .map_err(|_| ParserCaseFailure::RootInvariant)?
+        .payload()
+    else {
+        return Err(ParserCaseFailure::RootInvariant);
+    };
+    let valid = match relative_path {
+        "absent.ko" => matches!(form, FunctionForm::ImplicitUnitAbsent),
+        "empty-block.ko" | "nonempty-block.ko" => {
+            matches!(form, FunctionForm::ImplicitUnitBlock(_))
+        }
+        "explicit-unit.ko" | "explicit-other.ko" => matches!(
+            form,
+            FunctionForm::Explicit {
+                type_ref,
+                body: FunctionBody::Absent | FunctionBody::Block(_),
+                ..
+            } if matches!(
+                ast.type_refs()
+                    .get(*type_ref)
+                    .map_err(|_| ParserCaseFailure::RootInvariant)?
+                    .payload(),
+                TypeRef::Qualified { .. }
+            )
+        ),
+        "missing-expression-return.ko" | "missing-type.ko" => matches!(
+            form,
+            FunctionForm::Explicit {
+                type_ref,
+                body: FunctionBody::Expression { .. },
+                ..
+            } if matches!(
+                ast.type_refs()
+                    .get(*type_ref)
+                    .map_err(|_| ParserCaseFailure::RootInvariant)?
+                    .payload(),
+                TypeRef::Error
+            )
+        ),
+        _ => false,
+    };
+    valid.then_some(()).ok_or(ParserCaseFailure::RootInvariant)
+}
+
+fn run_implicit_unit_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: (|| {
+                let (sources, source_id, lexed, byte_len) =
+                    parser_fixture_source(&case.relative_path, &case.disk_path)?;
+                let parsed = parse_declaration(&sources, &lexed)
+                    .map_err(|_| ParserCaseFailure::ParserInternal)?;
+                if !parsed.diagnostics().is_empty() {
+                    return Err(ParserCaseFailure::UnexpectedDiagnostics);
+                }
+                if parsed.source_id() != source_id {
+                    return Err(ParserCaseFailure::RootInvariant);
+                }
+                validate_implicit_unit_root(parsed.ast(), parsed.root(), &case.relative_path)?;
+                Ok(DeclarationEvidence {
+                    byte_len,
+                    item_count: parsed.ast().items().len(),
+                    expression_count: parsed.ast().expressions().len(),
+                    type_ref_count: parsed.ast().type_refs().len(),
+                    diagnostic_count: 0,
+                })
+            })(),
+        })
+        .collect())
+}
+
+fn run_implicit_unit_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: (|| {
+                let (sources, source_id, lexed, byte_len) =
+                    parser_fixture_source(&case.relative_path, &case.source_path)?;
+                let parsed = parse_declaration(&sources, &lexed)
+                    .map_err(|_| ParserCaseFailure::ParserInternal)?;
+                if parsed.source_id() != source_id {
+                    return Err(ParserCaseFailure::RootInvariant);
+                }
+                validate_implicit_unit_root(parsed.ast(), parsed.root(), &case.relative_path)?;
+                let expected = load_parser_sidecar(&sources, source_id, &case.sidecar_path)?;
+                validate_parser_diagnostics(&sources, parsed.diagnostics(), &expected)?;
+                Ok(DeclarationEvidence {
+                    byte_len,
+                    item_count: parsed.ast().items().len(),
+                    expression_count: parsed.ast().expressions().len(),
+                    type_ref_count: parsed.ast().type_refs().len(),
+                    diagnostic_count: expected.len(),
+                })
+            })(),
+        })
+        .collect())
+}
+
 fn run_block_pass_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>, SuiteError> {
     let cases = discover_fixtures(root)?;
     Ok(cases
@@ -1437,6 +1558,42 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_implicit_unit_suites_execute_each_closed_ast_form() {
+        let pass = run_implicit_unit_pass_suite(&parser_implicit_unit_pass_fixture_root())
+            .expect("the implicit Unit pass suite must be valid");
+        let fail = run_implicit_unit_fail_suite(&parser_implicit_unit_fail_fixture_root())
+            .expect("the implicit Unit fail suite must be valid");
+
+        assert_eq!(
+            pass.iter()
+                .map(|case| case.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "absent.ko",
+                "empty-block.ko",
+                "explicit-other.ko",
+                "explicit-unit.ko",
+                "nonempty-block.ko",
+            ]
+        );
+        assert!(pass.iter().all(|case| case.result.is_ok()), "{pass:?}");
+        assert_eq!(
+            fail.iter()
+                .map(|case| case.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            ["missing-expression-return.ko", "missing-type.ko"]
+        );
+        assert!(
+            fail.iter().all(|case| {
+                case.result
+                    .as_ref()
+                    .is_ok_and(|evidence| evidence.diagnostic_count == 1)
+            }),
+            "{fail:?}"
+        );
+    }
+
+    #[test]
     fn parser_fixture_discovery_rejects_zero_and_unpaired_fail_cases() {
         let empty_pass = TempDir::new("parser-pass-empty");
         assert_eq!(
@@ -1468,6 +1625,25 @@ mod tests {
         assert_eq!(
             run_declaration_pass_suite(empty_pass.path()),
             Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_implicit_unit_pass_suite(empty_pass.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_implicit_unit_fail_suite(empty_fail.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_implicit_unit_fail_suite(unpaired.path()),
+            Err(SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]))
         );
         assert_eq!(
             run_declaration_fail_suite(empty_fail.path()),

@@ -220,6 +220,24 @@ pub enum FunctionBody {
     Block(StatementId),
 }
 
+/// 具名函数返回标注来源与 body 的封闭组合。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FunctionForm {
+    /// 省略返回标注且没有语法 body；返回类型固定为 `Unit`。
+    ImplicitUnitAbsent,
+    /// 省略返回标注的 block body；返回类型固定为 `Unit`。
+    ImplicitUnitBlock(StatementId),
+    /// 已提交显式返回标注（包括缺失标注的定点恢复）。
+    Explicit {
+        /// 返回类型前的真实 `:`；恢复插入时为空范围。
+        colon_span: Span,
+        /// 显式返回类型或恢复建立的错误 TypeRef。
+        type_ref: TypeRefId,
+        /// 显式分支的互斥 body 形态。
+        body: FunctionBody,
+    },
+}
+
 /// block 中按源码顺序保存的 statement payload。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Statement {
@@ -320,12 +338,8 @@ pub enum Item {
         type_parameter_list_span: Option<Span>,
         /// 源码顺序的值参数。
         parameters: Vec<ValueParameter>,
-        /// 显式返回类型前的 `:`；恢复插入时可为空范围。
-        return_colon_span: Span,
-        /// 显式返回类型或错误 TypeRef。
-        return_type: TypeRefId,
-        /// 互斥的函数 body 形态。
-        body: FunctionBody,
+        /// 返回标注来源与 body 的封闭组合。
+        form: FunctionForm,
     },
 }
 
