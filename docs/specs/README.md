@@ -64,10 +64,12 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`done`） | 0002、0003、0005 `done`；v0.5 已生效 |
 | [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
 | [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`done`） | 0007 `done`；v0.7 已生效；站立授权已记录 |
-| 0009 | 首次解析 block / statement / 函数 block body、控制流及 class-family 结构 | 0008 |
+| [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`draft`） | 0008 `done`；候选 v0.8 尚未由用户启用 |
 | 0010 | 解析 lambda、命名 / 模式实参与解构 | 0007、0008、0009 |
-| 0011 | 组合完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0009、0010 |
+| 0011 | 组合 0007–0010 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0009、0010；不是 Phase 1 全部语法终点 |
 | 0012 | 解析 `module` / `import` | 0008；先由新 guide 定义语法 |
+| 待编号 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 新 guide 明确定义；0009；不得占用既有 0012 或 Phase 2 编号 |
+| 待编号 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 新 guide 明确定义；0009；不得占用既有 0012 或 Phase 2 编号 |
 
 ### Phase 2：名称与类型检查
 
@@ -75,13 +77,13 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | 0013 | 完成单文件声明收集、作用域和名称诊断 | 0011 |
 | 0014 | 检查基础类型、局部推导、显式返回类型与 `Nothing` | 0013 |
-| 0015 | 检查泛型及 class / interface / enum / value class 名义类型 | 0014 |
-| 0016 | 实现 `when` 穷尽性与 smart cast | 0015 |
+| 0015 | 检查泛型及 class / interface / enum / value class 名义类型 | 0014；待编号 class-family Parser Spec |
+| 0016 | 实现 `when` 穷尽性与 smart cast | 0015；待编号控制流 Parser Spec |
 | 0017 | 推导条件 `Copyable` 并检查结构化解构类型 | 0014、0015 |
 | 0018 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0015、0017；v0.6 生效 |
 | 0019 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0015；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0020 | 建立多文件 module / import 名称解析 | 0012、0013；新 guide + module 映射 ADR |
-| 0021 | 检查 `object` / `companion object` | 0015；先由新 guide 明确成员函数限制 |
+| 0021 | 检查 `object` / `companion object` | 0015；待编号 class-family Parser Spec；先由新 guide 明确成员函数限制 |
 
 ### Phase 3：所有权与借用
 
