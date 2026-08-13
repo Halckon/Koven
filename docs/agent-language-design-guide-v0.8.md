@@ -1,11 +1,6 @@
-# AGENT 开发指导文档：Koven 语言设计规范 v0.8（候选）
+# AGENT 开发指导文档：Koven 语言设计规范 v0.8
 
-> **候选门禁：本文档尚未生效。** 当前权威规范仍是
-> [`agent-language-design-guide-v0.7.md`](./agent-language-design-guide-v0.7.md)。只有用户明确
-> 指定“启用 v0.8 取代 v0.7”后，本文才可成为语言语义真源；在此之前，依赖本文新增语义的
-> SPEC-0009 必须保持 `draft`，不得进入 `approved` / `in-progress`，也不得据此修改实现。
-
-> 本候选文档面向开发 Agent，拟取代
+> 本文档是给开发 Agent 的现行权威规范，取代
 > [`agent-language-design-guide-v0.7.md`](./agent-language-design-guide-v0.7.md)，并以 v0.7
 > 为完整基线；除下方 v0.8 变更记录明确修改的条款外，保留
 > v0.7 已确定语义。本文只补齐 SPEC-0009 需要的 block、statement 序列与具名函数 block
@@ -13,10 +8,10 @@
 > 完整文件或跨声明恢复。
 > 语法设计原则：
 > **尽量贴近 Kotlin 命名与语法习惯**，内存模型为 Rust 式简化所有权/借用，编译器用
-> Rust 实现，LLVM 后端。本文生效后，v0.7 及更早资料如与本文档冲突，以本文档为准。
+> Rust 实现，LLVM 后端。v0.7 及更早资料如与本文档冲突，以本文档为准。
 
-> 版本说明：候选阶段 v0.7 仍是当前现行版本；本文生效后，v0.7 才与 v0.6、v0.5、v0.4、
-> v0.3 一并作为保留的历史版本。旧版本不接收 v0.8 语义修改。
+> 版本说明：v0.7、v0.6、v0.5、v0.4 与 v0.3 为保留的历史版本。旧版本不接收 v0.8
+> 语义修改。
 > 更早的 v0.2 guide、旧技术栈/
 > 语言规格以及下文提到的审计报告尚未随当前仓库归档，仅作为历史来源，不参与现行规范
 > 优先级。
@@ -1224,7 +1219,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 ```
 
 三个 `spec_0008_` 名称只记录 SPEC-0008 已完成的独立入口、简单声明与函数声明子集及其历史
-验收边界；它们不是 v0.8 中与第 8 节并列的第二套现行入口或函数语法。本文生效后，完整
+验收边界；它们不是 v0.8 中与第 8 节并列的第二套现行入口或函数语法。完整
 `standalone_declaration`、`simple_declaration` 与 `function_declaration` 的唯一产生式以
 第 8 节为准，并保持本子集为其无体 / 表达式体分支。
 
@@ -1236,7 +1231,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
   Phase 2 检查，parser 不按表达式内容提前判定。
 - `fun` 只声明具名函数。泛型参数表若存在，位于 `fun` 与函数名之间；参数必须是
   `name: type_ref`，函数返回类型必须显式写成 `: type_ref`。在 SPEC-0008 已完成的历史子集
-  中，无表达式体的签名和 `= expression` 形式均可解析；本文生效并实施 SPEC-0009 后，现行
+  中，无表达式体的签名和 `= expression` 形式均可解析；实施 SPEC-0009 后，现行
   独立声明入口再按第 8 节接受第三种 block body。无体函数是否允许由将其放入顶层、接口或
   其他容器的后续上下文检查。函数级返回类型推导仍不存在。
 - 已出现的泛型参数表至少包含一个元素；函数参数列表可以是空列表。两类列表一旦包含元素，
@@ -1253,7 +1248,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 - `{ ... }` block body 不属于 SPEC-0008。在该已完成的历史子集 / 实现中，
   `fun f(): Unit { ... }` 先得到无体函数声明，再因 `{` 成为尾随 token 而失败，不能把大括号
   内容保存为 opaque 文本或假装已解析。**SPEC-0009 首次定义并实现 block、block 内
-  statement 序列以及函数 block body**；本文生效并实施该 Spec 后，现行独立声明入口改按
+  statement 序列以及函数 block body**；实施该 Spec 后，现行独立声明入口改按
   第 8 节接受 block body。SPEC-0011 不再发明另一套 block 语法，只组合此前已完成的结构并
   增加完整文件与跨声明恢复。
 - 独立入口只以 EOF 结束。换行、注释和其他 trivia 不终止声明；`val a = 1\nval b = 2`
@@ -1314,7 +1309,7 @@ SPEC-0008 在复用第 5 节既有类别外，至少区分下列稳定含义；�
 | expected generic closing delimiter | 至少完成一个 type parameter 后，若当前 token 是可作函数名的 `Identifier` 且下一非 trivia token 是 `(`，唯一解释为缺失 `>`：复用 expected closing delimiter 诊断，主 `Span` 是候选名称起点的空位置；不消费候选名称或 `(`，结束 type-parameter list 并让外层从该名称继续；该规则优先于“缺逗号”恢复 |
 | unsupported parameter default | 已完整解析 `name: type_ref` 后出现 `=` 时，从 `=` 起按下方统一 owner-aware 扫描规则消费默认值错误区域，直到声明当前层 `,`、`)` 或 EOF 前停止并保留该 delimiter；嵌套 `()` / `[]` / `{}`、string 或 interpolation 内的逗号和右括号不是同步点。即使 `=` 后没有表达式也至少消费 `=`，且不追加 expected expression、expected list separator 或 trailing-token 诊断 |
 | expected initializer | 简单值声明缺 `=` 时，若当前 token 可开始 `expression`，不消费并按插入 `=` 继续解析 initializer；若已到 EOF 或调用方声明 stop，则不消费并建立空 Expression error；其余情况至少消费一个 token，再同步消费到 EOF / 调用方声明 stop，建立只覆盖实际消费区域的 Expression error，且不为该区域追加 expected expression 或 unexpected trailing token。已有 `=` 但缺表达式时复用 expected expression error node |
-| expected explicit return type | 函数参数列表后缺 `:` 时，若当前 token 可开始 `type_ref`，不消费并按插入 `:` 继续解析；若是 `=`、`{`、EOF 或调用方 stop，则不消费并形成空 TypeRef error；其余情况至少消费一个 token，并同步到 `=`、`{`、EOF 或调用方 stop，形成覆盖实际消费区域的 TypeRef error。上述分支均不追加同根因的 expected type reference；保留的 `=` 继续作为 expression body。保留的 `{` 在 SPEC-0008 历史子集中进入 unsupported block-body / trailing-token 边界；本文生效并实施 SPEC-0009 后则按第 8 节继续解析为 block body。已有 `:` 但缺类型时才复用 expected type reference |
+| expected explicit return type | 函数参数列表后缺 `:` 时，若当前 token 可开始 `type_ref`，不消费并按插入 `:` 继续解析；若是 `=`、`{`、EOF 或调用方 stop，则不消费并形成空 TypeRef error；其余情况至少消费一个 token，并同步到 `=`、`{`、EOF 或调用方 stop，形成覆盖实际消费区域的 TypeRef error。上述分支均不追加同根因的 expected type reference；保留的 `=` 继续作为 expression body。保留的 `{` 在 SPEC-0008 历史子集中进入 unsupported block-body / trailing-token 边界；实施 SPEC-0009 后则按第 8 节继续解析为 block body。已有 `:` 但缺类型时才复用 expected type reference |
 
 #### 声明级 consume-to-current-level 的统一扫描规则
 
@@ -1539,7 +1534,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
 
 ### Staging、验收与后续拆分
 
-SPEC-0009 只在本候选经用户明确启用后才能批准和实施。其最小验收必须包括：
+SPEC-0009 的最小验收必须包括：
 
 - pass：空 / 单 element / 多 element block、只靠 token 结构相邻且任意插入 trivia 的 element、
   嵌套空与多层 block、局部 `val` / `var`、expression statement，以及具名函数的无体 / 表达式
@@ -1618,7 +1613,7 @@ Parser Goal 静默占用，须先更新路线图再分配新编号。
 类型、缺 separator 后直接出现 expression / type 起始、`=` / `{` / EOF 与其他非法 token、
 不支持的 parameter default、声明列表空项 / 缺逗号 / trailing comma、泛型参数表缺 `>` 后跟
 候选函数名与 `(`、多上界、`where`、声明修饰符、block body 与两个连续声明。这里把 block
-body 列为反例只记录 SPEC-0008 完成时的测试边界；本文生效并实施 SPEC-0009 后，按第 8 节
+body 列为反例只记录 SPEC-0008 完成时的测试边界；实施 SPEC-0009 后，按第 8 节
 把该用例改为正例，不能继续用历史验收覆盖现行语法。typed call
 必须同时覆盖
 `f<T>()`、成员及调用链 callee、嵌套 `>>`、`>` 与 `(` 间 trivia，以及失败试探回退为比较的

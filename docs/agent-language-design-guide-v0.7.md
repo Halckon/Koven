@@ -1,6 +1,9 @@
 # AGENT 开发指导文档：Koven 语言设计规范 v0.7
 
-> 本文档是给开发 Agent 的现行权威规范，取代
+> **历史版本：本文已由
+> [`agent-language-design-guide-v0.8.md`](./agent-language-design-guide-v0.8.md) 取代，不再是现行规范。**
+
+> 本文原取代
 > [`agent-language-design-guide-v0.6.md`](./agent-language-design-guide-v0.6.md)，并以 v0.6
 > 为完整基线；除下方 v0.7 变更记录明确修改的条款外，保留
 > v0.6 已确定语义。本文最小补齐 SPEC-0008 所需的独立声明、泛型参数和调用点类型实参

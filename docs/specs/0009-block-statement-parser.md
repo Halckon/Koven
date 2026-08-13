@@ -2,17 +2,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P1-009` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 候选 [`agent-language-design-guide-v0.8.md`](../agent-language-design-guide-v0.8.md) 第四部分第 8 节；当前真源仍为 v0.7 |
-| 批准依据 | 用户在当前持续 Goal 中授予的后续 Spec 站立授权；但站立授权不替代语言 guide 的版本级明确启用 |
+| 语言规范 | 现行 [`agent-language-design-guide-v0.8.md`](../agent-language-design-guide-v0.8.md) 第四部分第 8 节 |
+| 批准依据 | 用户在当前持续 Goal 中授予的后续 Spec 站立授权；v0.8 已由用户明确启用 |
 | 前置 Spec | SPEC-0008 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
-| 阻塞项 | 用户尚未明确启用 v0.8 取代 v0.7；阻塞解除前不得批准或实施 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend`、语言 fixture、Architecture |
-| 语言语义变更 | 否；本 Spec 只在 v0.8 生效后实现其中已经写明的增量 |
+| 语言语义变更 | 否；本 Spec 实现现行 v0.8 已写明的增量 |
 
 ## 1. Goal
 
@@ -27,9 +27,8 @@ SPEC-0008 已提供独立声明入口、简单变量与函数 Item、表达式 /
 恢复索引和固定资源边界，但生产 `SyntaxAst` 的 statement table 仍使用 `()` 占位，函数只
 能保存无体或表达式体，block body 会被独立声明入口以尾随 token 拒绝。
 
-候选 v0.8 第四部分第 8 节为 block、statement 序列、函数 block body、结构边界与局部恢复
-补齐了可执行契约。本 Spec 只承接这个单一增量；候选 guide 未经用户明确启用，因此当前仅
-能形成 `draft`，不能依据站立授权提前进入实现。
+现行 v0.8 第四部分第 8 节为 block、statement 序列、函数 block body、结构边界与局部恢复
+补齐了可执行契约。本 Spec 只承接这个单一增量，并依据当前持续 Goal 的站立授权进入实施。
 
 ## 3. 范围与需求
 
@@ -278,7 +277,7 @@ block dispatch、Pratt 和声明恢复共享一个 Parser cursor 及 `LexicalRec
 
 ## 7. 实施计划
 
-1. [ ] v0.8 经用户明确启用后，注册 `L0028`–`L0030`，扩展 Statement、FunctionBody、共享
+1. [ ] 注册 `L0028`–`L0030`，扩展 Statement、FunctionBody、共享
    SyntaxAst 与独立 block 产物 API
    → 验证：diagnostic catalog、typed ID/source identity、函数 body 三态和 public getter 窄测试
 2. [ ] 实现独立 / nested block dispatch、局部变量和 expression statement 结构边界
@@ -293,7 +292,7 @@ block dispatch、Pratt 和声明恢复共享一个 Parser cursor 及 `LexicalRec
 5. [ ] 同步 Spec 验收记录与 Architecture
    → 验证：frontend 窄测试、workspace 全基线、依赖树、staged diff 与文档事实一致
 
-实施必须串行经过 v0.8 启用门禁；门禁解除后，步骤 1 固定公共 payload，再推进后续步骤。
+v0.8 已生效；步骤 1 固定公共 payload，再推进后续步骤。
 Parser 热点、诊断目录与 fixture runner 的最终整合由单一负责人完成，避免同一 cursor / AST
 状态被并行修改。
 
@@ -308,13 +307,13 @@ Parser 热点、诊断目录与 fixture runner 的最终整合由单一负责人
 
 ## 9. 未决问题
 
-- 用户是否明确启用候选 v0.8 取代现行 v0.7。该问题是唯一实施门禁，不由站立授权代替。
+无。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| v0.8 版本级启用确认 | 未满足 | 用户尚未明确启用，Spec 保持 `draft` |
+| v0.8 版本级启用确认 | 满足 | 用户已明确启用 v0.8；本 Spec 依据站立授权进入 `in-progress` |
 | `cargo test -p lang-frontend --test parser_block --locked --offline` | 未执行 | 尚未实施 |
 | `cargo test -p lang-frontend --test parser_declaration --locked --offline` | 未执行 | 尚未实施 |
 | `cargo test -p lang-frontend --test parser_expression --locked --offline` | 未执行 | 尚未实施 |
