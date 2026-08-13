@@ -1,18 +1,17 @@
-# AGENT 开发指导文档：Koven 语言设计规范 v0.9（候选，尚未生效）
+# AGENT 开发指导文档：Koven 语言设计规范 v0.9
 
-> **候选状态警告：本文档尚未生效。现行权威规范仍是
-> [`agent-language-design-guide-v0.8.md`](./agent-language-design-guide-v0.8.md)。只有用户明确
-> 指定 v0.9 取代 v0.8 后，本文档才可作为实现依据；候选文件的存在不构成启用。**
->
-> 本候选以 v0.8 为完整基线；除下方 v0.9 变更记录明确修改的条款外，保留 v0.8 已确定语义。
-> 本版只补齐 lambda、命名 / 模式实参与局部 `val` 解构的 Phase 1 语法契约，并重排尚未物化
-> 的路线图编号；不提前定义 `if` / `when` / `super` / loop、class-family、完整文件或跨声明恢复。
+> 本文档是给开发 Agent 的现行权威规范，取代
+> [`agent-language-design-guide-v0.8.md`](./agent-language-design-guide-v0.8.md)，并以 v0.8
+> 为完整基线；除下方 v0.9 变更记录明确修改的条款外，保留 v0.8 已确定语义。
+> 本版只补齐 lambda、具名函数省略返回标注时的隐式 `Unit`、命名 / 模式实参与局部 `val`
+> 解构的 Phase 1 语法契约，并重排尚未物化的路线图编号；不提前定义 `if` / `when` /
+> `super` / loop、class-family、完整文件或跨声明恢复。
 > 语法设计原则：
 > **尽量贴近 Kotlin 命名与语法习惯**，内存模型为 Rust 式简化所有权/借用，编译器用
-> Rust 实现，LLVM 后端。本文档启用后，v0.8 及更早资料如与本文档冲突，以本文档为准。
+> Rust 实现，LLVM 后端。v0.8 及更早资料如与本文档冲突，以本文档为准。
 
-> 版本说明：v0.8、v0.7、v0.6、v0.5、v0.4 与 v0.3 为保留版本。v0.9 启用前，v0.8 仍是
-> 现行版本；旧版本不接收 v0.9 语义修改。
+> 版本说明：v0.8、v0.7、v0.6、v0.5、v0.4 与 v0.3 为保留的历史版本；旧版本不接收 v0.9
+> 语义修改。
 > 更早的 v0.2 guide、旧技术栈/
 > 语言规格以及下文提到的审计报告尚未随当前仓库归档，仅作为历史来源，不参与现行规范
 > 优先级。
@@ -20,14 +19,15 @@
 > 文档记号：示意代码和签名中的 `{ ... }`、`(...)`、`error(...)` 等省略号表示未展开内容，
 > 不是 Koven 源码 token；第三部分明确规定 v1 不支持 `...` 运算符。
 
-## 本版（v0.9 候选）变更记录
+## 本版（v0.9）变更记录
 
 | # | 变更 | 类型 |
 |---|---|---|
-| 1 | 封闭 lambda literal 的上下文判定、参数、body 值、AST、Span 与 owner 恢复 | 🟡 语法补全 |
-| 2 | 把调用实参改为 typed argument，定义命名与 `own` / `inout` / `borrow` 的唯一组合顺序 | 🟡 AST 契约补全 |
-| 3 | 只新增 block 内局部 `val` 解构，排除 `var`、`const`、占位、嵌套 pattern 与类型标注 | 🟡 分阶段边界补全 |
-| 4 | 将三类能力拆为 SPEC-0010、0011、0012，并整体顺延所有尚未物化的后续候选编号 | 🟡 路线图治理 |
+| 1 | 封闭 lambda literal 的上下文判定、参数、body 值、AST、Span 与 owner 恢复 | 🔴 语义与语法补全 |
+| 2 | 允许具名函数在无体或 block body 形态省略返回标注，并把省略语义固定为 `Unit`；表达式体仍必须显式标注 | 🔴 语义与语法变更 |
+| 3 | 把调用实参改为 typed argument，定义命名与 `own` / `inout` / `borrow` 的唯一组合顺序 | 🟡 AST 契约补全 |
+| 4 | 只新增 block / lambda body 内局部 `val` 解构，排除 `var`、`const`、占位、嵌套 pattern 与类型标注 | 🟡 分阶段边界补全 |
+| 5 | 将四类能力拆为 SPEC-0010 至 SPEC-0013，并整体顺延所有尚未物化的后续候选编号 | 🟡 路线图治理 |
 
 ## v0.8 历史变更记录
 
@@ -248,6 +248,9 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   调用实参仍须遵守 `own` / `borrow` / `inout` 的专用语法，不因类型可复制而省略参数模式。
   因此 `consume(own x)` 对 `Copyable` 的 `x` 交付一个 owned copy，对不可复制的 `x` 则移动
   原值。
+- 本文出现的“取得所有权的参数”只指本 guide 或后续标准库 Spec 已明确给出该契约的预声明
+  操作；不能从普通 `name: type_ref` 声明或函数名推断。用户函数的 callee-side 模式、函数类型
+  编码及调用匹配仍受第四部分第 9 节规定的后续 guide 门禁约束。
 - **字段访问不允许隐式部分移动**：`aggregate.field` 是一个 place。`Copyable` 字段可复制
   读取；字段 place 可以在调用实参中被 `borrow` 或（字段可变时）被 `inout` 借用。v1 禁止
   用普通字段读取或 `own aggregate.field` 从聚合中移出不可复制字段。不可复制聚合只能整体
@@ -274,18 +277,25 @@ val owned: Box<Endpoint> = Box(own endpoint) // Endpoint 不可复制；这里�
 // 此后再次使用 endpoint 是移动后使用错误
 ```
 
-## 6. 函数默认实现保留，去掉返回类型推导
+## 6. 函数默认实现保留；省略返回标注只表示 `Unit`
 
 ```kotlin
 interface Shape {
+    fun reset()
     fun area(): Double
     fun describe(): String = "a shape"   // 接口默认方法实现，保留
 }
 
+fun log(message: String) { println(message) } // block body 省略标注，固定返回 Unit
 fun add(a: Int, b: Int): Int = a + b     // 表达式体语法保留，返回类型必须显式写出
 ```
 
-**规则：所有函数签名（含表达式体 `= expr` 形式）必须显式声明返回类型，不做函数级返回类型推导。** 局部变量 `val`/`var` 的类型推导保留。
+**规则：具名函数只有在无体或 block body 形态才可省略 `: type_ref`；一旦省略，其返回类型
+精确固定为内建 `Unit`。表达式体 `= expression` 必须显式写出 `: type_ref`。** 显式
+`: Unit` 与省略标注的类型结果相同，但 AST 必须区分二者的源码形态。该规则不是返回类型
+推导：parser 不检查 body 结果，Phase 2 也不得从 body、被覆盖声明或调用上下文反推另一返回
+类型。lambda literal、函数类型、构造器和显式 `: Nothing` 不受该省略规则影响；局部变量
+`val` / `var` 的类型推导继续保留。
 
 ## 7. `public` 替代 `pub`；`enum class` 语法融合 Kotlin 命名与 Rust ADT 能力
 
@@ -615,6 +625,11 @@ fun <T> channel(): Pair<Sender<T>, Receiver<T>> { ... }
 
 val (sender, receiver) = channel<Int>()
 ```
+
+该示例说明解构一旦被相应语法上下文接纳后的类型与所有权语义，不表示本版已经开放顶层
+解构。v0.9 的 Phase 1 只由 SPEC-0013 接纳 block / lambda body 内的局部 `val` 解构；独立
+声明入口和未来完整文件顶层继续以 unsupported destructuring context 拒绝。若后续 guide
+开放其他上下文，必须复用本节“一次求值、完整分量、复制或原子消费”的语义并建立独立 Spec。
 
 `Pair<A, B>` 对任意合法的 `A`、`B` 都可以实例化，不要求类型实参满足 `Copyable`。它仅在
 `A`、`B` 都满足 `Copyable` 时自动满足 `Copyable`，因此上面的 channel 返回值合法但不可
@@ -1010,9 +1025,9 @@ index_suffix      = "[", expression, "]" ;
 解析、可见性与 callable 类型均属后续阶段。`e!!` 的既有语义不变，仍脱糖为
 `e ?: error("Non-null assertion failed")`。
 
-`call_argument` 在本候选中的完整产生式见第 9 节；basic call 与 typed call 复用同一实参语法，允许空
+`call_argument` 在本版中的完整产生式见第 9 节；basic call 与 typed call 复用同一实参语法，允许空
 参数列表但不允许 trailing comma。SPEC-0007 完成时只支持位置实参并以 L0016 拒绝命名 / 模式
-实参；实施 SPEC-0011 后，本节四种合法组合迁移为 typed argument，显式分组的
+实参；实施 SPEC-0012 后，本节四种合法组合迁移为 typed argument，显式分组的
 `f((a = b))` 仍是位置 assignment expression。
 
 索引后缀恰好包含一个表达式：不允许 `a[]`、`a[x, y]` 或 trailing comma。`arr[1..3]`
@@ -1037,7 +1052,8 @@ function_type     = [ "move" ], "(",
 最多带一个末尾 `?`，因此 `T??` 非法。函数返回类型仍递归使用 `type_ref`，所以
 `() -> T?` 唯一表示“返回 `T?` 的函数”，不表示可空函数值。本版暂不提供可空函数类型的
 写法，也不新增类型分组语法来绕过该边界。v1 不支持 star projection、声明处或使用处型变；
-不得把 `*`、`in T` 或 `out T` 塞入类型实参。`move` 只可作为函数类型前缀。
+不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 只可作为函数
+类型前缀；表达式位置的 `move { ... }` lambda 见本部分第 9 节。
 
 v1 的 `type_arguments` 每一项都必须是 `type_ref`，不接受整数常量或其他值表达式。内建
 `Array`、`List`、`MutableList` 精确只接受一个类型实参，因此 `Array<Int, Size>` 虽可先按
@@ -1132,7 +1148,7 @@ assignment 是右结合表达式。parser 只建立 AST，不在 Phase 1 判断�
 lhs 合法性由 Phase 2 验证。调用参数对未加括号的 `Identifier = ...` 另有第 2 节的上下文
 保留规则。
 
-`own` / `inout` / `borrow` 不属于通用 prefix 层级；它们只属于 SPEC-0011 的调用实参专用
+`own` / `inout` / `borrow` 不属于通用 prefix 层级；它们只属于 SPEC-0012 的调用实参专用
 语法。无 trivia 相邻的 `++`、`--`、`<<`、`>>` 和 `...` 必须由 parser 整体识别并报告
 unsupported operator，不能把它们接受为两次 prefix / binary 或 range 加 dot。若组成字符间
 有 trivia，则按各自独立合法 token 和本节普通语法处理，最终是否成立由该 token 序列决定。
@@ -1158,10 +1174,10 @@ SPEC-0007 至少区分下列语法错误含义；稳定 `L` 码、固定消息�
 | unexpected trailing token | 独立入口已得到表达式后仍有 token 时，从首个尾随 token 前进到当前 stop token，不静默成功 |
 | expected type reference | 在 cast / type 参数需要类型处消费一个非法起始 token；遇当前 delimiter / stop 时不越界 |
 | unsupported operator | 消费无 trivia 相邻的整个 `++`、`--`、`<<`、`>>` 或 `...` 组合，不把组合拆成合法 AST |
-| unsupported argument form | SPEC-0007 的历史类别；SPEC-0011 后生产 parser 不再产生 L0016，错误码目录因已发布而保留但不得复用或改变含义；仍非法的实参形态使用第 9 节专用类别 |
+| unsupported argument form | SPEC-0007 的历史类别；SPEC-0012 后生产 parser 不再产生 L0016，错误码目录因已发布而保留但不得复用或改变含义；仍非法的实参形态使用第 9 节专用类别 |
 
 这里仅要求表达式内部的最小、确定性恢复，并保证每次错误都消费输入或抵达明确 stop token；
-完整文件、跨声明同步和“单个语法错误后继续解析后续声明”的策略归 SPEC-0013。
+完整文件、跨声明同步和“单个语法错误后继续解析后续声明”的策略归 SPEC-0014。
 
 ## 6. 表达式与 TypeRef AST 的合成 `Span`
 
@@ -1230,7 +1246,8 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 三个 `spec_0008_` 名称只记录 SPEC-0008 已完成的独立入口、简单声明与函数声明子集及其历史
 验收边界；它们不是 v0.9 中与第 8 节并列的第二套现行入口或函数语法。完整
 `standalone_declaration`、`simple_declaration` 与 `function_declaration` 的唯一产生式以
-第 8 节为准，并保持本子集为其无体 / 表达式体分支。
+第 8 节为准。SPEC-0008 的历史函数子集要求显式返回标注；SPEC-0011 只迁移其中无体和
+block-body 分支的“缺失标注”边界，表达式体分支仍保持显式标注要求。
 
 ### 声明形态与分阶段边界
 
@@ -1239,10 +1256,11 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
   可以省略类型标注；省略时由 Phase 2 推导。`const val` 初始化式是否可在编译期求值也由
   Phase 2 检查，parser 不按表达式内容提前判定。
 - `fun` 只声明具名函数。泛型参数表若存在，位于 `fun` 与函数名之间；参数必须是
-  `name: type_ref`，函数返回类型必须显式写成 `: type_ref`。在 SPEC-0008 已完成的历史子集
-  中，无表达式体的签名和 `= expression` 形式均可解析；实施 SPEC-0009 后，现行
-  独立声明入口再按第 8 节接受第三种 block body。无体函数是否允许由将其放入顶层、接口或
-  其他容器的后续上下文检查。函数级返回类型推导仍不存在。
+  `name: type_ref`。SPEC-0008 已完成的历史子集要求函数返回类型显式写成 `: type_ref`；
+  SPEC-0011 后，无体函数和 block-body 函数可以省略该标注，省略时精确表示 `Unit`，而
+  `= expression` 形式仍必须显式标注。在 SPEC-0009 后，现行独立声明入口按第 8 节接受
+  block body。无体函数是否允许由将其放入顶层、接口或其他容器的后续上下文检查。任何
+  分支都不恢复函数级返回类型推导。
 - 已出现的泛型参数表至少包含一个元素；函数参数列表可以是空列表。两类列表一旦包含元素，
   都不接受空项、缺失逗号或 trailing comma。函数参数不接受默认值、解构、`vararg`、`val` /
   `var`、`own` / `inout` / `borrow` 或其他模式；这些 token 不能被 parser 静默忽略。v1 的
@@ -1254,23 +1272,26 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
   `private`、`extern`、`operator`、`override` 或软词 `infix` 等修饰符，也不定义其顺序。它不
   解析 extension receiver、匿名函数声明、class-family 成员上下文、控制流或声明自身的解构
   pattern。这里约束的是 declaration shape：SPEC-0010 后 initializer / expression body 可包含
-  lambda expression，SPEC-0011 后其中的 call 可包含命名 / 模式实参；不得继续用本条把合法
-  子表达式拒绝。局部 `val` 解构只由 SPEC-0012 的 statement dispatch 提交，不改写本独立入口。
+  lambda expression，SPEC-0012 后其中的 call 可包含命名 / 模式实参；不得继续用本条把合法
+  子表达式拒绝。局部 `val` 解构只由 SPEC-0013 的 statement dispatch 提交，不改写本独立入口。
 - `{ ... }` block body 不属于 SPEC-0008。在该已完成的历史子集 / 实现中，
   `fun f(): Unit { ... }` 先得到无体函数声明，再因 `{` 成为尾随 token 而失败，不能把大括号
   内容保存为 opaque 文本或假装已解析。**SPEC-0009 首次定义并实现 block、block 内
   statement 序列以及函数 block body**；实施该 Spec 后，现行独立声明入口改按
-  第 8 节接受 block body。SPEC-0013 不再发明另一套 block 语法，只组合此前已完成的结构并
+  第 8 节接受 block body。SPEC-0014 不再发明另一套 block 语法，只组合此前已完成的结构并
   增加完整文件与跨声明恢复。
 - 独立入口只以 EOF 结束。换行、注释和其他 trivia 不终止声明；`val a = 1\nval b = 2`
   不能作为一个独立声明成功。item / statement 的结构归属由第 8 节随 SPEC-0009 首次确定；
-  SPEC-0013 只负责把已有节点组合为完整文件、定义声明分隔及跨声明同步。
+  SPEC-0014 只负责把已有节点组合为完整文件、定义声明分隔及跨声明同步。
 
 ### 声明 AST 与 `Span`
 
 独立入口返回一个带 `SourceId` 的索引式 declaration root。声明中的 initializer / expression
-body 引用现有 expression ID，类型标注、返回类型、参数类型、泛型上界和调用点类型实参都
-引用现有 TypeRef ID；不得把源码片段或解析后的类型名称复制成另一套无 `Span` 字符串模型。
+body 引用现有 expression ID；显式类型标注、显式返回标注、参数类型、泛型上界和调用点
+类型实参都引用现有 TypeRef ID，不得把源码片段或解析后的类型名称复制成另一套无 `Span`
+字符串模型。省略返回标注必须用下文 `FunctionForm` 这类同时封闭返回来源与 body 的状态表示，
+不能伪造 `Unit` TypeRef、冒充存在的 `:`，也不能丢失“显式 `: Unit`”与“省略标注”的源码
+差异。
 
 凡错误恢复后仍继续构造的声明、type parameter 或 value parameter，名称字段必须使用以下
 三态 marker 或可证明等价的表示，而不是让调用方从任意 `Span` 猜测状态：
@@ -1287,7 +1308,7 @@ marker；但该 error item 仍只能覆盖实际消费区域。任何分支都�
 |---|---|
 | `val` / `var` / `const val` 声明 | 从首个引导关键字起到 initializer 终；恢复时到本声明最后实际消费位置 |
 | 常量声明的 `val` marker | 正常时精确覆盖 `val` token；缺失时保存 missing / error marker，不为未消费的缺失 token 合成虚构 keyword 或非空 `Span` |
-| `fun` 声明 | 从 `fun` 起；有表达式体时到 expression 终，否则到返回 `type_ref` 终；恢复时到最后实际消费位置 |
+| `fun` 声明 | 从 `fun` 起；有表达式体或 block body 时到 body 终；显式无体时到返回 `type_ref` 终；隐式 `Unit` 无体时到真实 `)` 终；恢复时到最后实际消费位置 |
 | 声明 / 参数名称 marker | present 精确覆盖 `Identifier`；missing 是 stop / 候选 token 起点的空范围；error 只覆盖实际消费区域 |
 | type annotation | 从 `:` 起到 `type_ref` 终；若不单建节点，该范围仍由声明字段的 `Span` 保留 |
 | value parameter | 从参数名起到参数 `type_ref` 终；恢复时到逗号、`)` 或本参数最后实际消费位置 |
@@ -1320,7 +1341,7 @@ SPEC-0008 在复用第 5 节既有类别外，至少区分下列稳定含义；�
 | expected generic closing delimiter | 至少完成一个 type parameter 后，若当前 token 是可作函数名的 `Identifier` 且下一非 trivia token 是 `(`，唯一解释为缺失 `>`：复用 expected closing delimiter 诊断，主 `Span` 是候选名称起点的空位置；不消费候选名称或 `(`，结束 type-parameter list 并让外层从该名称继续；该规则优先于“缺逗号”恢复 |
 | unsupported parameter default | 已完整解析 `name: type_ref` 后出现 `=` 时，从 `=` 起按下方统一 owner-aware 扫描规则消费默认值错误区域，直到声明当前层 `,`、`)` 或 EOF 前停止并保留该 delimiter；嵌套 `()` / `[]` / `{}`、string 或 interpolation 内的逗号和右括号不是同步点。即使 `=` 后没有表达式也至少消费 `=`，且不追加 expected expression、expected list separator 或 trailing-token 诊断 |
 | expected initializer | 简单值声明缺 `=` 时，若当前 token 可开始 `expression`，不消费并按插入 `=` 继续解析 initializer；若已到 EOF 或调用方声明 stop，则不消费并建立空 Expression error；其余情况至少消费一个 token，再同步消费到 EOF / 调用方声明 stop，建立只覆盖实际消费区域的 Expression error，且不为该区域追加 expected expression 或 unexpected trailing token。已有 `=` 但缺表达式时复用 expected expression error node |
-| expected explicit return type | 函数参数列表后缺 `:` 时，若当前 token 可开始 `type_ref`，不消费并按插入 `:` 继续解析；若是 `=`、`{`、EOF 或调用方 stop，则不消费并形成空 TypeRef error；其余情况至少消费一个 token，并同步到 `=`、`{`、EOF 或调用方 stop，形成覆盖实际消费区域的 TypeRef error。上述分支均不追加同根因的 expected type reference；保留的 `=` 继续作为 expression body。保留的 `{` 在 SPEC-0008 历史子集中进入 unsupported block-body / trailing-token 边界；实施 SPEC-0009 后则按第 8 节继续解析为 block body。已有 `:` 但缺类型时才复用 expected type reference |
+| expected explicit return type | SPEC-0008 的历史边界：函数参数列表后缺 `:` 时，若当前 token 可开始 `type_ref`，不消费并按插入 `:` 继续解析；若是 `=`、`{`、EOF 或调用方 stop，则不消费并形成空 TypeRef error；其余情况至少消费一个 token，并同步到 `=`、`{`、EOF 或调用方 stop，形成覆盖实际消费区域的 TypeRef error。SPEC-0011 后只保留两类用途：`=` 前省略标注仍发本诊断并构造显式 Error TypeRef；明显 `type_ref` 起点前缺 `:` 仍按插入分隔符恢复。`{`、EOF 或调用方无体 stop 直接提交 `ImplicitUnit`，不再发本诊断；其他普通 token 先结束隐式无体函数，再由调用方 trailing / boundary 恢复拥有。已有 `:` 但缺类型继续复用 expected type reference |
 
 #### 声明级 consume-to-current-level 的统一扫描规则
 
@@ -1378,7 +1399,7 @@ default、initializer 缺 `=` 的兜底、返回类型分隔符兜底及独立�
 诊断。参数、泛型参数和 TypeRef 的其他缺失闭合符继续复用 expected closing delimiter。
 Lexer 已诊断的 invalid / reserved-word token 仍只消费并放 error node，不在同一 `Span` 重复
 parser 诊断。每条恢复路径必须消费输入或抵达明确 delimiter / EOF；本入口不得把换行当同步
-点，也不得扫描到下一声明关键字后假称恢复成功。SPEC-0013 只增加完整文件组合、声明分隔、
+点，也不得扫描到下一声明关键字后假称恢复成功。SPEC-0014 只增加完整文件组合、声明分隔、
 跨声明同步与级联抑制，不重新定义 SPEC-0008/0009 的节点内部恢复。
 
 ## 8. SPEC-0009 block、statement 序列与函数 block body
@@ -1399,7 +1420,10 @@ block_element             = local_variable_statement
                           | expression_statement
                           | nested_block_statement ;
 
-local_variable_statement  = ( "val" | "var" ), Identifier,
+local_variable_statement  = ordinary_local_variable_statement
+                          | local_destructuring_statement ;
+ordinary_local_variable_statement
+                          = ( "val" | "var" ), Identifier,
                             [ type_annotation ], "=", expression ;
 expression_statement      = expression ;
 nested_block_statement    = block ;
@@ -1407,9 +1431,13 @@ nested_block_statement    = block ;
 function_declaration      = "fun", [ type_parameter_list ], Identifier,
                             "(", [ value_parameter,
                                     { ",", value_parameter } ], ")",
-                            ":", type_ref, function_body ;
+                            function_return_and_body ;
+function_return_and_body  = ":", type_ref, function_body
+                          | implicit_unit_body ;
 function_body             = /* empty */
                           | "=", expression
+                          | block ;
+implicit_unit_body        = /* empty */
                           | block ;
 ```
 
@@ -1419,7 +1447,11 @@ expression-start 不是重复边界，所以 `{ x y }` 不能由该 EBNF 拆成�
 
 这里的 `/* empty */` 是 EBNF 记号，不是要求源码包含注释。独立 block 入口一次只解析一个
 block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration` 入口解析，并复用
-第 7 节已实现的声明子结构。两者都不组合完整文件，也不以换行寻找下一顶层声明。
+第 7 节已实现的声明子结构。`local_destructuring_statement` 的唯一产生式见第 9 节，并只在
+SPEC-0013 后进入该聚合；SPEC-0009 的历史子集仅包含
+`ordinary_local_variable_statement`。两种独立入口都不组合完整文件，也不以换行寻找下一
+顶层声明。函数后缀使用互斥产生式，而不是两个独立 optional 字段，以免误接受省略返回标注
+的表达式体。
 
 ### Block element、结构边界与值语义
 
@@ -1430,10 +1462,12 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
   准确拒绝，不能将未实现结构保存为 opaque token 或错误地当作 identifier expression。
 - Koven v1 没有源码分号，换行和注释始终是 trivia；因此 element 不由分号、LF、CRLF 或
   注释终止。parser 先按适用产生式消费一个**最大合法 element**：局部声明的 initializer 和
-  expression statement 都使用既有 Pratt expression。当前 element 的显式结构 stop 精确为
-  当前 owner 的 `}`，以及不在任何 expression owner / delimiter 内的 `{`、`val`、`var` 和
-  本节 unsupported element 引导关键字；它们不属于当前 expression，留给 block dispatch
-  开始 nested block、下一局部声明或 unsupported element。例如 `{ val x = 1 val y = 2 }`
+  expression statement 都使用既有 Pratt expression。当前 owner 的 `}` 始终是 hard stop；
+  `val`、`var` 和本节 unsupported element 引导关键字在最大 expression 已完整且不在任何
+  expression owner / delimiter 内时是结构 stop，留给 block dispatch 开始下一局部声明或
+  unsupported element。`{` 只有在左侧最大 expression 已完整、parser 不再等待 operand 时才是
+  下一 nested block 的 soft stop；正在等待 primary 时，SPEC-0010 后必须把 `{` 解析为 lambda。
+  例如 `{ val x = 1 val y = 2 }`
   与把两个声明写在多行的版本具有同一 AST；
   `{ x - y }` 因 `-` 能继续当前表达式而只有一项。连续两个普通 expression-start token 之间
   若没有上述显式结构 stop，则**不能**仅凭 trivia 或“第二个 token 也能开始表达式”推断为
@@ -1441,7 +1475,9 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
   都不是 element stop；既有 expression 的 trailing-token 恢复消费余下非法区域，
   `{ x y }` 因而不是两条合法 expression statement。语法边界完全由 token 结构决定，增删
   trivia 不得改变 element 数量或归属。
-- `{}` 是合法空 block；`{{}}` 是包含一个 nested block statement 的合法 block。每个 `{`
+- `{}` 是合法空 block；`{{}}` 是包含一个 nested block statement 的合法 block。block dispatch
+  在 element 起点直接看到 `{` 时提交 nested block；只有 expression parser 正在等待 primary
+  时，同一个 token 才按 SPEC-0010 提交 lambda。每个 `{`
   都建立独立 block owner，由对应层的 `}` 关闭。block 不是 expression primary；`f({})`、
   `val x = {}` 或把 block 用在二元运算符任一侧，不能在 SPEC-0009 中作为 block expression
   成功。lambda 字面量由 SPEC-0010 定义，不能用该未来语义反向解释本节大括号。
@@ -1456,16 +1492,19 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
 
 ### 函数 body 三形态
 
-每个具名函数声明恰好具有以下三种互斥的语法形态之一：
+每个具名函数声明恰好具有以下三种互斥 body 形态之一；返回标注是否可省略由形态共同决定：
 
-1. **无体**：显式返回 `type_ref` 后立即到独立入口 EOF / 调用方 stop；
-2. **表达式体**：显式返回 `type_ref` 后为 `=` 与一个既有 expression；
-3. **block body**：显式返回 `type_ref` 后为一个本节 `block`。
+1. **无体**：显式 `: type_ref` 后，或直接在参数列表 `)` 后，到独立入口 EOF / 调用方 stop；
+   省略时返回类型固定为 `Unit`；
+2. **表达式体**：显式 `: type_ref` 后为 `=` 与一个既有 expression；此形态禁止省略返回标注；
+3. **block body**：显式 `: type_ref` 后，或直接在参数列表 `)` 后，为一个本节 `block`；省略时
+   返回类型固定为 `Unit`。
 
 `=` 已提交表达式体后不能再把随后的 `{` 改判为 block body；`{` 已提交 block body 后也不能
-追加 `= expression`。无体函数在何种顶层或成员上下文合法、block body 是否覆盖声明的返回
-类型，以及所有路径是否返回，均是后续容器 / Phase 2 规则，SPEC-0009 不猜测。所有形态继续
-要求显式返回类型，不恢复函数级返回类型推导。
+追加 `= expression`。`fun f() = expression` 必须产生 expected explicit return type，不能把
+表达式结果静默丢弃到 `Unit`。无体函数在何种顶层或成员上下文合法、block body 是否满足
+显式返回类型，以及所有路径是否返回，均是后续容器 / Phase 2 规则，Phase 1 不猜测。省略
+返回标注只产生固定 `Unit`，不恢复函数级返回类型推导，也不从被覆盖声明继承返回类型。
 
 ### Statement AST、body 表示与 `Span`
 
@@ -1479,11 +1518,14 @@ SPEC-0009 把具体 AST 扩展为有 payload 的 statement table；所有 block 
 - `Statement::Error` 只覆盖本次实际消费的错误区域。
 
 实现可采用可证明同样保持 typed ID、顺序与下述范围的等价枚举命名，但不能把 block 降为
-`Vec<ExpressionId>`。函数 item 的 body 使用 `Absent | Expression { equals_span: Span,
-expression: ExpressionId } | Block(StatementId)` 或可证明等价的封闭枚举；表达式体必须继续
-精确保存 SPEC-0008 已规定的真实 `=` token `Span`，不能因改为封闭枚举而丢失既有字段。
-不得同时填充两个 body，也不得用多个 `Option` 组合制造不可达的“双 body”状态。独立 block
-入口返回带 `SourceId` 的 statement root。
+`Vec<ExpressionId>`。函数 item 必须用一个合并的封闭 sum type 同时保存返回标注来源与 body，
+至少等价于 `ImplicitUnitAbsent | ImplicitUnitBlock(StatementId) | Explicit {
+colon_span: Span, type_ref: TypeRefId, body: FunctionBody }`；其中显式分支的 `FunctionBody` 才可为
+`Absent | Expression { equals_span: Span, expression: ExpressionId } | Block(StatementId)`。
+表达式体必须继续精确保存 SPEC-0008 已规定的真实 `=` token `Span`。不得把返回标注和 body
+暴露为可独立构造的字段，不能制造 `ImplicitUnit + Expression`、“双 body”或“半个显式标注”
+状态，也不得为隐式 `Unit` 伪造 TypeRef / `:` Span。独立 block 入口返回带 `SourceId` 的
+statement root。
 
 | 节点 | 合成范围 |
 |---|---|
@@ -1491,6 +1533,8 @@ expression: ExpressionId } | Block(StatementId)` 或可证明等价的封闭枚�
 | local-variable statement | 与其引用的第 7 节变量声明范围完全相同 |
 | expression statement | 与其引用的 expression 范围完全相同 |
 | error statement | 只覆盖实际消费的错误区域；没有消费 token 时只能是在 owner closer / EOF 的空范围，且不得插入会使循环停滞的零宽 error element |
+| 隐式 `Unit` 返回标注 | 不单独拥有虚构源码范围；无体 `fun` item 到真实 `)` 终，block-body item 继续到 block 终 |
+| 显式返回标注 | 从真实（或缺分隔符恢复时的空）`:` Span 起到真实 / Error TypeRef 终；显式 `: Unit` 不折叠为隐式状态 |
 | expression function body 的 `equals_span` | 精确覆盖真实 `=` token；恢复不得伪造或扩张该范围 |
 | 有 block body 的 `fun` item | 从真实 `fun` 起至 body block 的真实 `}` 终；缺 `}` 时至 body 最后实际消费位置 |
 
@@ -1505,7 +1549,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
 
 | 类别 | 最小局部恢复语义 |
 |---|---|
-| expected block | 独立 block 入口缺 `{` 时，诊断主 `Span` 只覆盖当前普通 token；恢复把从该 token 到 EOF 的全部剩余 lexeme（包括其间 trivia）消费为唯一 Error statement，其节点 `Span` 从当前 token 起到最后实际消费的非 trivia / invalid lexeme 终，不再追加同根因 trailing-token 诊断。EOF 的诊断与 Error root 均为空范围。若首 token 已有 Lexer invalid / reserved 根因，则不发本诊断，但仍把从该 poison token 到 EOF 的全部余量消费为同样范围的唯一 Error root。任何分支都不伪造 opener。函数返回类型后的 `{` 是 block body 的唯一提交信号；没有 `{` 时按无体函数或独立入口 trailing token 处理，不凭期待的形态追加本诊断 |
+| expected block | 独立 block 入口缺 `{` 时，诊断主 `Span` 只覆盖当前普通 token；恢复把从该 token 到 EOF 的全部剩余 lexeme（包括其间 trivia）消费为唯一 Error statement，其节点 `Span` 从当前 token 起到最后实际消费的非 trivia / invalid lexeme 终，不再追加同根因 trailing-token 诊断。EOF 的诊断与 Error root 均为空范围。若首 token 已有 Lexer invalid / reserved 根因，则不发本诊断，但仍把从该 poison token 到 EOF 的全部余量消费为同样范围的唯一 Error root。任何分支都不伪造 opener。函数参数列表后可选返回标注之后的 `{` 是 block body 的唯一提交信号；没有 `{` 时按无体函数或独立入口 trailing token 处理，不凭期待的形态追加本诊断 |
 | expected block element | 当前非 trivia token 既不能开始允许的 block element，也没有更具体的 Lexer / unsupported 类别时，至少消费一个 token 形成 error statement，再从下一 element 候选或 owner `}` / EOF 继续 |
 | unsupported block element | 当前层以本节明确延后的关键字或 `const val` 开始时，主 `Span` 覆盖该引导 token（`const val` 可覆盖固定前缀）；恢复至少消费引导部分且必须前进，不把后续内容伪装为已支持结构 |
 
@@ -1543,7 +1587,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
 
 缺 block `}` 复用 expected closing delimiter；Lexer 已诊断的未终止 owner 根因继续按第 5 节
 抑制同义 closer 诊断。独立 block 后仍有 token 复用 unexpected trailing token。跨顶层声明、
-跨成员和完整文件的同步仍属于 SPEC-0013，不能在本入口把下一个声明关键字当作隐式 EOF。
+跨成员和完整文件的同步仍属于 SPEC-0014，不能在本入口把下一个声明关键字当作隐式 EOF。
 
 ### Staging、验收与后续拆分
 
@@ -1561,31 +1605,32 @@ SPEC-0009 的最小验收必须包括：
   测试，继续锁定表达式体 `=` 的精确 `Span`，并运行 workspace 基线、同步 Architecture。
   验收不以完整文件、控制流、class-family、lambda、名称解析或类型正确性为成功条件。
 
-后续按单一 Goal 拆分：SPEC-0010、0011、0012 分别实现第 9 节三项能力，SPEC-0013 再组合
+后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
-终点。control-flow 与 class-family 分别由 SPEC-0015、0016 的后续 guide 补齐。
+终点。control-flow 与 class-family 分别由 SPEC-0016、0017 的后续 guide 补齐。
 
 ---
 
-## 9. SPEC-0010 至 SPEC-0012：lambda、typed call argument 与局部 `val` 解构
+## 9. SPEC-0010 至 SPEC-0013：lambda、隐式 `Unit`、typed call argument 与局部 `val` 解构
 
-三项能力共享既有 expression、statement 与 owner-aware 恢复基础，但不是一个实现 Goal。
-SPEC-0010 只交付 lambda，SPEC-0011 只交付命名 / 模式实参，SPEC-0012 只交付局部 `val`
-解构；每项均须独立验收和提交，后项不得反向扩大前项。
+四项能力复用既有 expression、statement 与声明基础，但不是一个实现 Goal。SPEC-0010 只交付
+lambda，SPEC-0011 只交付具名函数隐式 `Unit` 返回标注，SPEC-0012 只交付命名 / 模式实参，
+SPEC-0013 只交付局部 `val` 解构；每项均须独立验收和提交，后项不得反向扩大前项。
 
-三项 parser 都必须接收调用方的 hard stop 集合，并把自身真实 closer 作为新增 owner。恢复按
-以下固定优先级处理边界，不能用“所有局部 owner 退出后才看 hard stop”的笼统规则代替：
+lambda、typed argument 与解构三项结构 parser 都必须接收调用方的 hard stop 集合，并把自身
+真实 closer 作为新增 owner。恢复按以下固定优先级处理边界，不能用“所有局部 owner 退出后
+才看 hard stop”的笼统规则代替：
 
 1. 当前 token 匹配局部 delimiter / lexical owner 栈顶 closer 时，先消费并 pop；
 2. 否则遇 EOF 或与栈顶异形的调用方 hard closer（`)`、`]`、`}`、`InterpolationEnd` 等）时，
    无论局部 owner 是否闭合都立即停止并保留该 token；局部未闭合随当前 error region 结束，
-   不得为了寻找自己的 closer 吞掉调用方边界，例如 `f({ (x )` 中 `)` 必须留给 call owner；
+   不得为了寻找自己的 closer 吞掉调用方边界，例如 `f({ [x )` 中 `)` 必须留给 call owner；
 3. 同形 `}` 同时可关闭最内层 lambda / block owner 时，最内层 owner 优先消费。例如只有一个
    `}` 的嵌套 lambda / block 输入先关闭 lambda，外层 block 随后报告缺 closer；
 4. 逗号、下一 argument / element 候选等 soft stop 只有在局部 delimiter 与 lexical owner 回到
    进入恢复时的 baseline 后才生效。
 
-三项恢复统一复用第 7、8 节在 parser 构造时一次建立的 terminal-owner event index；遇到
+三项结构恢复统一复用第 7、8 节在 parser 构造时一次建立的 terminal-owner event index；遇到
 Lexer `L0004`–`L0006` 的开始、恢复结束及抑制事件时按 owner 栈推进，不在每个 lambda、实参
 或解构错误处重扫诊断。
 
@@ -1621,7 +1666,10 @@ trivia token 起严格匹配完整前缀 `[ Identifier { "," Identifier } ] "->"
 成功才提交。任一 token 不匹配就以零状态失败，并从 `{` 后按零参数 body 解析，不得继续搜索
 后方任意顶层 `->`。因此 `{ value as () -> Int }` 中函数类型的箭头绝不会反向把 `value as ()`
 误判为 lambda 参数，`{ x y -> z }` 也不是可恢复 header，而是带非法 body token 的零参数
-lambda。试探不分配 AST、不发诊断、不改变 cursor。
+lambda。试探 DFA 只跳过 trivia；遇到任何 delimiter / string opener 或其他不属于普通
+Identifier、参数逗号、最终 `->` 的 token 时立即永久判为 no-header，不能进入 nested owner 后
+继续搜索箭头。全流索引仍负责维护共享 delimiter / lexical-owner 栈。试探不分配 AST、不发
+诊断、不改变 cursor。
 
 Body 复用第 8 节的三种 element 和最大 element / 显式 stop 规则，但使用独立 lambda-body
 payload，不能复用静态类型固定为 `Unit` 的 `Statement::Block`。若最后一个 element 是
@@ -1633,18 +1681,36 @@ block 时尾值为 `Unit`。这里不创造隐式 statement separator：普通 e
 expression”。Phase 1 只保存该结构；参数类型、捕获、返回类型与 `move` 合法性由 Phase 2 / 3
 检查。`return` 等控制流仍不属于本节。
 
+lambda body 在最大 expression 已完整、没有子语法等待 token，且 delimiter / lexical owner
+回到 body baseline 时，额外把顶层 `,` 与 `->` 作为 body-dispatch soft stop。它们只把控制权
+交回当前 lambda body，不得泄漏成外围 call 的 argument separator。call、group、function type
+或其他 nested owner 内的 `,` / `->` 不受影响，因此 `{ value as () -> Int }` 仍是单个完整
+尾表达式。
+
 AST 至少等价保存 `move_span: Option<Span>`、有序参数名称 Span、`arrow_span: Option<Span>`、
 有序 `StatementId` body 和可判定的 tail expression。完整 lambda Span 从真实 `move`（若存在）
 或 `{` 起至匹配 `}` 终；缺 `}` 时止于最后实际消费位置。由于 header 只在严格完整匹配后
 提交，参数均为真实 Identifier，不存在 missing / error 参数 marker；header Span 从首参数
 （零参数时从 `->`）至 `->` 终。body element 沿用第 8 节范围，不为缺失 token 伪造非空 Span。
 
+`arrow_span == None` 精确表示没有 header，此时参数必须为空；参数非空时必须存在真实
+`arrow_span`，而“参数为空且有真实 `arrow_span`”唯一表示 `{ -> ... }`。lambda body ID 必须
+指向 `Statement::LambdaBody`；该 variant 不能直接成为 Block / LambdaBody 的 element，也不能
+成为孤儿。strict probe 失败时参数为空、arrow 为 `None`，失败 token 只能进入 body 的
+Expression / Error statement。
+
 SPEC-0010 从 L0031 开始分配自身专用的 expected lambda body element 与 unsupported lambda
 body form 类别，不复用声明列表的 L0024–L0026。前者只用于 `}` / 调用方 hard stop 之前真实
-存在且不能开始任何合法 element 的普通 token；后者用于严格 header 试探失败后在 lambda
-顶层遗留的 `,` / `->` 等 header-like token。`{}` 与 `{ -> }` 都是合法空 body，绝不发 body
-诊断。缺 `}` 复用通用 expected closing delimiter。body 恢复保留当前 lambda 的 `}`；nested
-block、调用、索引、字符串和插值各消费自己的 closer。
+存在且不能开始任何合法 element 的普通 token。后者由 body dispatch 发出：无论 strict header
+是否成功，当前 lambda-body baseline 的 `,` / `->`，以及 `return`、局部 `fun`、`const val`、
+控制流或 class-family 等本阶段明确延后的 element introducer，都使用 unsupported lambda body
+form；普通 token 每次精确消费一个，`const val` 可消费固定前缀，并形成同范围 Error statement。
+`L0030 unsupported block element` 只用于普通 `Statement::Block`，不能在 LambdaBody 复用；
+`move` 未后接 `{` 仍按既有 expected-expression 根因处理。`{}` 与 `{ -> }` 都是合法空 body，
+绝不发 body 诊断。缺 `}` 复用通用 expected closing delimiter。body 恢复保留当前 lambda 的
+`}`；nested block、调用、索引、字符串和插值各消费自己的 closer。同形 `}` 必须先关闭当前
+最内层 lambda / block，不能越过未闭合 lambda 交给父 block；只有局部栈顶为 `)`、`]` 等异形
+frame 时，调用方 `}` 才作为 hard closer 被保留。
 
 Header 识别不得从每个 `{` 向前或向后独立扫描。parser 构造时必须在整个 lexeme / terminal
 event 流上做一次 `O(n)` 预索引：共享 delimiter / lexical-owner 栈，并只让每个 `{` owner 的
@@ -1656,7 +1722,38 @@ lexeme 在所有 header trial 中合计只能访问常数次。缺 lambda `}` �
 要么在自身 `}`、调用方 hard stop 或 EOF
 结束，整体 `O(n)`、owner 栈 `O(d)`。
 
-### Typed call argument（SPEC-0011）
+### 具名函数隐式 `Unit` 返回标注（SPEC-0011）
+
+具名 `fun` 的参数列表闭合后按以下互斥顺序提交：真实 `:` 提交 `FunctionForm::Explicit` 并
+继续解析任意 body 形态；直接 `{` 提交 `FunctionForm::ImplicitUnitBlock`；直接到独立入口
+EOF 或调用方无体 stop 提交 `FunctionForm::ImplicitUnitAbsent`；直接 `=` 则仍发既有 expected
+explicit return type，构造显式 Error TypeRef 后保留并解析 expression body。若当前位置明显
+可开始 `type_ref` 但缺 `:`，继续使用既有缺分隔符恢复并构造显式标注；已有 `:` 但缺类型仍
+使用 expected type reference。参数表后的 Lexer invalid / reserved token 或 segmented
+string / interpolation poison 若没有真实 `:`，不得被猜成显式返回类型：parser 先提交
+`ImplicitUnitAbsent`，再由独立声明 / 未来容器的 trailing owner 消费该 poison；只保留既有
+Lexer 根因，不在同一 `Span` 追加 expected explicit return type 或 trailing-token 诊断。
+terminal Lexer 根因抵达 EOF 时同样提交 `ImplicitUnitAbsent`，不得派生 Parser 诊断。
+
+函数 item 的返回来源与 body 必须是同一个封闭状态，至少等价于：
+
+```text
+FunctionForm::ImplicitUnitAbsent
+FunctionForm::ImplicitUnitBlock(StatementId)
+FunctionForm::Explicit {
+    colon_span: Span,
+    type_ref: TypeRefId,
+    body: FunctionBody,
+}
+```
+
+两个 implicit variant 都不拥有虚构 TypeRef 或 `:` Span；Phase 2 把它们解析为内建 `Unit`。
+显式 `: Unit` 保持 `Explicit`，以便工具和诊断忠实反映源码。`FunctionBody` 只嵌在显式分支，
+因而类型上不能构造 implicit expression body。省略标注的无体 item Span 到真实 `)` 终，block
+body item Span 到 block 终。此 Spec 不改变 lambda、函数类型或构造器，不从 body 推导返回
+类型，也不放宽 `fun f() = expression`。
+
+### Typed call argument（SPEC-0012）
 
 ```ebnf
 call_suffix       = "(", [ call_argument,
@@ -1667,11 +1764,21 @@ argument_mode     = "own" | "inout" | "borrow" ;
 ```
 
 唯一源码顺序是“可选名称、可选模式、表达式”：`f(e)`、`f(name = e)`、`f(own e)` 与
-`f(name = own e)` 均成立。模式不是通用一元运算符；只有 call argument 入口可消费。模式后
+`f(name = own e)` 在 Phase 1 均可形成语法 AST。模式不是通用一元运算符；只有 call argument
+入口可消费。模式后
 直接出现顶层 `Identifier =` 是错误的逆序组合；显式分组的 `own (x = y)` 仍是以 assignment
 expression 为 operand 的模式实参。空列表合法，trailing comma 继续非法。Parser 保留源码
 顺序，但重复名称、位置实参与命名实参的混排规则、参数匹配以及 operand 是否为合法 place
 分别留给 Phase 2 / 3。
+
+本版只封闭调用点的 Phase 1 语法和 AST，**不把它误写成已经存在的 callee-side 参数模式
+契约**。第 7 节的 `value_parameter` 仍不接受 `own` / `borrow` / `inout`，现有函数类型也不编码
+这三种模式；因此“成功解析”不等于模式与被调函数匹配。进入 Phase 3 的 SPEC-0029 前，后续
+guide 必须一次定义：用户函数如何声明或获得 owned / shared-borrow / mutable-borrow 参数契约、
+函数类型是否编码该契约、临时值省略调用点模式的精确规则，以及预声明 API 是否允许例外。
+在该门禁解除前，不得按函数名、参数类型或调用点拼写猜测 callee 契约，也不得声称三态调用
+已通过所有权检查。由于该选择会反向影响 CallArgument 的长期含义，SPEC-0012 在门禁解除前
+只能保持未物化候选，不得批准或实施；这不阻塞彼此独立的 SPEC-0010、0011。
 
 `Expression::Call` 的 `arguments` 字段唯一改为 `Vec<CallArgument>`，不得再建
 `CallArgumentId`、第五张 AST table 或同时保留旧 `Vec<ExpressionId>`。`CallArgument` 是内嵌
@@ -1680,7 +1787,7 @@ payload，至少保存完整 `span`、`name_span: Option<Span>`、`equals_span: 
 否则 operand 起，到 operand 终；恢复时只到最后实际消费位置。call 与 typed call 的既有合成
 Span 不变。错误 operand 只覆盖实际消费区域，或在 call / 调用方 hard stop 处为空范围。
 
-SPEC-0011 从 SPEC-0010 末码之后至少分配 expected argument value、expected argument separator、
+SPEC-0012 从 SPEC-0010 末码之后至少分配 expected argument value、expected argument separator、
 unsupported argument empty element、unsupported argument trailing comma、invalid argument mode
 ordering 与 duplicate argument mode 六个专用稳定类别；不得复用声明列表 L0024–L0026，`)`
 缺失只复用通用 expected closing delimiter。恢复分支精确如下：
@@ -1706,11 +1813,9 @@ list 消费，所属 `)` 只由 call owner 消费，不能退化为按行同步�
 落入上表六个专用类别或通用 expected closing delimiter。每个 raw lexeme 只由所属 argument
 或 list owner 前进一次，单次 call 保持 `O(n)`。
 
-### 局部 `val` 解构（SPEC-0012）
+### 局部 `val` 解构（SPEC-0013）
 
 ```ebnf
-local_variable_statement = ordinary_local_variable_statement
-                         | local_destructuring_statement ;
 local_destructuring_statement
                        = "val", "(", destructuring_binding,
                          { ",", destructuring_binding }, ")",
@@ -1744,7 +1849,7 @@ Span 从 `val` 起到 initializer 或最后实际消费 token 终；pattern 的�
 到 `)` 终，缺 closer 时到最后一个实际消费 binding / error token 终。每个 binding marker
 遵守 present / missing / error 范围规则。
 
-SPEC-0012 从前一 Spec 末码之后分配专用的 expected destructuring binding、expected
+SPEC-0013 从前一 Spec 末码之后分配专用的 expected destructuring binding、expected
 destructuring separator、unsupported destructuring form、unsupported destructuring context、
 unsupported destructuring trailing comma、expected destructuring initializer separator 与
 expected destructuring initializer；不得复用声明列表 L0024–L0026。恢复分支精确如下：
@@ -1753,7 +1858,7 @@ expected destructuring initializer；不得复用声明列表 L0024–L0026。�
 |---|---|
 | local `val (` | 唯一提交 `Statement::LocalDestructuring`，后续错误仍保留该 variant |
 | block / lambda body 的 `var (` 或 `const val (` | unsupported destructuring form 分别覆盖真实 `var` 或 `const val` 前缀；用 owner-aware 扫描消费本错误 element，形成 `Statement::Error`，不得构造 LocalDestructuring |
-| 独立声明入口或未来文件顶层的 `val (` / `var (` / `const val (` | unsupported destructuring context 主 Span 覆盖真实 `(`；当前独立入口 owner-aware 消费到 EOF 并形成 `Item::Error`，SPEC-0013 文件入口则保留下一顶层声明 boundary |
+| 独立声明入口或未来文件顶层的 `val (` / `var (` / `const val (` | unsupported destructuring context 主 Span 覆盖真实 `(`；当前独立入口 owner-aware 消费到 EOF 并形成 `Item::Error`，SPEC-0014 文件入口则保留下一顶层声明 boundary |
 | `(` 后直接 `)` | expected destructuring binding 取 `)` 起点空 Span，追加 Missing marker 并保留 `)`；空 pattern 不成为合法形式 |
 | 期待 binding 时直接 `,` | expected destructuring binding 覆盖并消费逗号，追加位于逗号起点的 Missing marker，再继续下一项 |
 | 期待 binding 时遇 `=`、element boundary、调用方 hard stop 或 EOF | expected destructuring binding 取边界空 Span，追加 Missing marker且不消费边界；随后按缺 `)` 分支继续，但不重复 binding 诊断 |
@@ -1780,37 +1885,41 @@ token 不作同步点，Lexer poison / terminal 根因抑制同 Span 与同 clos
 ### 分阶段验收与路线图重排
 
 每个 Spec 都必须包含 pass / fail / recovery、精确 UTF-8 Span、多 SourceMap identity、AST ID
-与诊断顺序确定性、terminal Lexer owner、深嵌套与长正确 / 错误序列复杂度证据；依次复跑
-SPEC-0007 至前一 Spec 的全部回归、fixture harness 与 workspace 基线，并同步 Architecture。
+与诊断顺序确定性、terminal Lexer owner、深嵌套与长正确 / 错误序列复杂度证据；复跑所有
+已完成且适用于本次改动的历史 Spec 回归、fixture harness 与 workspace 基线，并同步
+Architecture。独立分支的草案编号顺序不构成未完成前一 Spec 的实现依赖。
 验收不以名称、类型、捕获或所有权正确性为条件。
 
 | Spec | 最小 pass | 最小 fail / recovery |
 |---|---|---|
 | 0010 | 空 / 显式零参数 / 多参数、`move`、initializer / 普通 call argument / grouped statement、嵌套 lambda、body 首项或真实 nested-block closer 后的尾 expression | 严格 header 前缀 lookalike 按零参数 body 恢复、顶层 `,` / `->`、局部声明后普通 tail 被拒绝、缺 `}`、lambda 与 nested block 同 token 串的上下文对照；空 body 不是 fail |
-| 0011 | 位置、命名、模式、命名加模式四形态，basic / typed / member / chained call，nested lambda / delimiter operand | 缺命名值、缺模式 operand、逆序或重复模式、空项 / trailing comma / 缺 `)`，并保留 outer owner closer |
-| 0012 | 单 / 多 binding、复杂 RHS、与前后 element 相邻、block 与 lambda body 内嵌套 | 空 binding、缺 separator / `)` / `=` / initializer，`var` / `const` / `_` / nested / typed pattern 均按稳定类别拒绝 |
+| 0011 | 无体 / 空或非空 block body 的隐式 `Unit`，以及三种形态的显式返回标注 | 表达式体省略标注继续发 expected explicit return type；缺 `:` 与缺 TypeRef 恢复仍区分，AST 不伪造 `Unit` TypeRef / `:` Span |
+| 0012 | 位置、命名、模式、命名加模式四形态，basic / typed / member / chained call，nested lambda / delimiter operand | 缺命名值、缺模式 operand、逆序或重复模式、空项 / trailing comma / 缺 `)`，并保留 outer owner closer |
+| 0013 | 单 / 多 binding、复杂 RHS、与前后 element 相邻、block 与 lambda body 内嵌套 | 空 binding、缺 separator / `)` / `=` / initializer，`var` / `const` / `_` / nested / typed pattern 均按稳定类别拒绝 |
 
 SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历史负例在 SPEC-0010 后
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
 SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量接受其他 golden 变化。
 
-0001–0009 已有实体文件和历史编号保持不变。其余候选尚未物化，启用本版后一次性按下表
-重排，禁止保留新旧编号别名：
+0001–0009 的历史实体文件和编号保持不变；0010、0011 已有实体 Spec，0010 已按站立授权
+进入实施，0011 保持排队中的 `draft`。其余候选尚未物化，本版按下表使用唯一编号，禁止保留
+新旧编号别名：
 
 | 新编号 | Goal / 旧候选映射 |
 |---|---|
 | 0010 | lambda literal |
-| 0011 | 命名 / 模式实参 |
-| 0012 | 局部 `val` 解构 |
-| 0013 | 完整文件、声明分隔与跨声明恢复（旧 0011） |
-| 0014 | `module` / `import`（旧 0012） |
-| 0015 | control-flow Parser（原待编号） |
-| 0016 | class-family Parser（原待编号） |
-| 0017–0025 | Phase 2 旧 0013–0021，逐项 `+4` |
-| 0026–0031 | Phase 3 旧 0022–0027，逐项 `+4` |
-| 0032–0040 | Phase 4 旧 0028–0036，逐项 `+4` |
-| 0041–0050 | Phase 5 旧 0037–0046，逐项 `+4` |
-| 0051–0060 | Phase 6 旧 0047–0056，逐项 `+4` |
+| 0011 | 具名函数省略返回标注时固定为 `Unit` |
+| 0012 | 命名 / 模式实参 |
+| 0013 | 局部 `val` 解构 |
+| 0014 | 完整文件、声明分隔与跨声明恢复（旧 0011） |
+| 0015 | `module` / `import`（旧 0012） |
+| 0016 | control-flow Parser（原待编号） |
+| 0017 | class-family Parser（原待编号） |
+| 0018–0026 | Phase 2 旧 0013–0021，逐项 `+5` |
+| 0027–0032 | Phase 3 旧 0022–0027，逐项 `+5` |
+| 0033–0041 | Phase 4 旧 0028–0036，逐项 `+5` |
+| 0042–0051 | Phase 5 旧 0037–0046，逐项 `+5` |
+| 0052–0061 | Phase 6 旧 0047–0056，逐项 `+5` |
 
 # 第五部分：开发阶段优先级路线图
 
@@ -1838,17 +1947,20 @@ SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量�
 - [x] **SPEC-0009**：只实现第四部分第 8 节的独立 block、局部 `val` / `var` 与 expression
       statement 序列、嵌套 block，以及具名函数 block body
 - [ ] **SPEC-0010（前置：SPEC-0009 `done`）**：只实现第 9 节 lambda literal
-- [ ] **SPEC-0011（前置：SPEC-0010 `done`）**：只实现 typed call argument、命名实参与
-      `own` / `inout` / `borrow` 模式实参
-- [ ] **SPEC-0012（前置：SPEC-0011 `done`）**：只实现 block / lambda body 内局部 `val` 解构
-- [ ] **SPEC-0013**：只把 SPEC-0007 至 SPEC-0012 的既有节点组合为完整文件，并实现声明
+- [ ] **SPEC-0011（前置：SPEC-0009 `done`）**：只实现具名函数无体 / block body 省略返回
+      标注时固定为 `Unit`；表达式体仍要求显式标注
+- [ ] **SPEC-0012（前置：SPEC-0010 `done`；决策门禁：后续 guide 封闭 callee-side 参数模式）**：
+      只实现 typed call argument、命名实参与 `own` / `inout` / `borrow` 模式实参
+- [ ] **SPEC-0013（前置：SPEC-0012 `done`）**：只实现 block / lambda body 内局部 `val` 解构
+- [ ] **SPEC-0014（前置：SPEC-0011、0013 `done`）**：只把 SPEC-0007 至 SPEC-0013 的既有
+      节点组合为完整文件，并实现声明
       分隔、跨声明同步与级联抑制；单个语法错误不得导致整个文件解析中断，但本 Spec 不以
       尚未定义的控制流或 class-family 范例为验收条件
-- [ ] **SPEC-0014**：解析 `module` / `import`；先由后续 guide 定义语法
-- [ ] **SPEC-0015 / SPEC-0016**：由后续 guide 分别定义并实现 control-flow 与 class-family；
-      不得把这些结构塞回 SPEC-0009 至 SPEC-0013
+- [ ] **SPEC-0015**：解析 `module` / `import`；先由后续 guide 定义语法
+- [ ] **SPEC-0016 / SPEC-0017**：由后续 guide 分别定义并实现 control-flow 与 class-family；
+      不得把这些结构塞回 SPEC-0009 至 SPEC-0014
 
-前两项 Lexer 工作以及 SPEC-0007 至 SPEC-0009 已完成；SPEC-0010 至 SPEC-0016 是本候选规定
+前两项 Lexer 工作以及 SPEC-0007 至 SPEC-0009 已完成；SPEC-0010 至 SPEC-0017 是本版规定
 的后续 Parser 边界。未勾选状态不表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立
 验收和提交。后续阶段使用第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参
@@ -1885,10 +1997,14 @@ string 后继续处于父 owner、terminal `L0006` 及 EOF `L0005` 不越 owner 
 `O(k)` 扫描不发生二次回看。验收同时复跑 SPEC-0007 表达式与 TypeRef 回归。该验收不以
 完整文件、类成员、block 语句、跨声明恢复或 Phase 2 名称 / 类型正确性为成功条件。
 
-**Phase 1 聚合 Parser 验收标准（不归 SPEC-0013 单独承担）**：在 SPEC-0013 以及后续控制流、
+其中“缺显式返回类型”同样只记录 SPEC-0008 完成时的历史边界。SPEC-0011 只把参数列表后
+直接到 EOF / 调用方无体 stop 或 `{` 的分支迁移为隐式 `Unit` 正例；参数列表后直接 `=` 仍是
+反例并继续产生 expected explicit return type，不能批量迁移表达式体负例。
+
+**Phase 1 聚合 Parser 验收标准（不归 SPEC-0014 单独承担）**：在 SPEC-0014 以及后续控制流、
 class-family 等独立 Parser Spec 全部完成后，能完整解析以下代码为 AST，语法错误有准确的
 行列号定位。该范例还依赖 lambda、命名实参、`when` 和 class-family，不能作为提前扩大
-SPEC-0009 至 SPEC-0013 范围的理由：
+SPEC-0009 至 SPEC-0014 范围的理由：
 
 ```kotlin
 value class Point(val x: Int, val y: Int)
@@ -1914,7 +2030,7 @@ fun main(): Unit {
 ## Phase 2：类型检查（不含所有权/借用）
 
 - [ ] 局部类型推导（`val`/`var`）
-- [ ] 函数签名类型检查（显式返回类型规则）
+- [ ] 函数签名类型检查（显式返回标注、隐式 `Unit` 与 `Nothing`）
 - [ ] 接口/`enum class` 变体的类型检查，`when` 穷尽性检查
 - [ ] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
 - [ ] 泛型单态化的类型层面准备（类型替换，不接编译期计算）
@@ -1957,7 +2073,8 @@ Map 不是 Phase 2 的本版实施项。在后续 guide 定义 key 等价性与�
 ## Phase 3：所有权 / 借用检查
 
 - [ ] 实现简化版单一所有者 + ASAP 析构（不做完整 NLL）
-- [ ] 三态参数语义 `borrow`/`inout`/`own` 的检查
+- [ ] 在后续 guide 先封闭 callee-side 参数模式契约后，检查调用点 `borrow` / `inout` / `own`
+      与该契约匹配；不得仅凭 Phase 1 AST 猜测模式
 - [ ] 移动后使用（use-after-move）检测
 - [ ] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用

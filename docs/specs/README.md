@@ -1,13 +1,13 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.8 语言规范](../agent-language-design-guide-v0.8.md) 维护可独立验证、可独立
+本目录依据现行 [v0.9 语言规范](../agent-language-design-guide-v0.9.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-尚未生效的 [v0.9 候选](../agent-language-design-guide-v0.9.md) 已为未物化候选给出一次性编号
-重排；下表按该候选预留 0010 及后续编号，避免继续使用即将冲突的旧编号。依赖 v0.9 的
-SPEC-0010 仍为 `draft`，只有用户明确启用 v0.9 后才能批准和实施；预留编号不表示候选语义
-已经生效。
+[v0.9](../agent-language-design-guide-v0.9.md) 已由用户明确启用，并为 0010 及后续路线给出
+一次性编号重排。SPEC-0010 已依据当前持续 Goal 的站立授权进入 `in-progress`；0011 候选
+仍在排队，待单独物化后按相同授权推进。尚未物化的条目仍只是候选 Goal，不因编号预留而
+自动获得实现授权。
 
 ## Goal 与提交工作流
 
@@ -70,85 +70,86 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
 | [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`done`） | 0007 `done`；v0.7 已生效；站立授权已记录 |
 | [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`done`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
-| [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`draft`） | 0009 `done`；v0.9 候选尚未生效，须由用户明确启用 |
-| 0011 | 解析 typed call argument、命名实参与 `own` / `inout` / `borrow` 模式实参 | 0010 `done`；v0.9 生效 |
-| 0012 | 解析 block / lambda body 内局部 `val` 解构 | 0011 `done`；v0.9 生效 |
-| 0013 | 组合 0007–0012 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0012 `done`；不是 Phase 1 全部语法终点 |
-| 0014 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
-| 0015 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
-| 0016 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
+| [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`in-progress`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
+| 0011 | 解析具名函数省略返回标注时的隐式 `Unit` | 0009 `done`；v0.9 已生效；等待物化并在 0010 Goal 完成后自动推进 |
+| 0012 | 解析 typed call argument、命名实参与 `own` / `inout` / `borrow` 模式实参 | 0010 `done`；v0.9 生效；后续 guide 封闭 callee-side 参数模式、默认与匹配规则 |
+| 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；v0.9 生效 |
+| 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；不是 Phase 1 全部语法终点 |
+| 0015 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
+| 0016 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
+| 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
 
 ### Phase 2：名称与类型检查
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0017 | 完成单文件声明收集、作用域和名称诊断 | 0013 |
-| 0018 | 检查基础类型、局部推导、显式返回类型与 `Nothing` | 0017 |
-| 0019 | 检查泛型及 class / interface / enum / value class 名义类型 | 0018、0016 |
-| 0020 | 实现 `when` 穷尽性与 smart cast | 0019、0015 |
-| 0021 | 推导条件 `Copyable` 并检查结构化解构类型 | 0018、0019 |
-| 0022 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0019、0021；v0.6 生效 |
-| 0023 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0019；新 guide 明确 key 等价关系、返回所有权与修改 API |
-| 0024 | 建立多文件 module / import 名称解析 | 0014、0017；新 guide + module 映射 ADR |
-| 0025 | 检查 `object` / `companion object` | 0019、0016；先由新 guide 明确成员函数限制 |
+| 0018 | 完成单文件声明收集、作用域和名称诊断 | 0014 |
+| 0019 | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing` | 0018 |
+| 0020 | 检查泛型及 class / interface / enum / value class 名义类型 | 0019、0017 |
+| 0021 | 实现 `when` 穷尽性与 smart cast | 0020、0016 |
+| 0022 | 推导条件 `Copyable` 并检查结构化解构类型 | 0019、0020 |
+| 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
+| 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
+| 0025 | 建立多文件 module / import 名称解析 | 0015、0018；新 guide + module 映射 ADR |
+| 0026 | 检查 `object` / `companion object` | 0020、0017；先由新 guide 明确成员函数限制 |
 
 ### Phase 3：所有权与借用
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0026 | 建立变量所有权状态并检测 use-after-move | 0018、0019 |
-| 0027 | 实现条件复制、移动与消费式解构检查 | 0021、0026 |
-| 0028 | 检查 `borrow` / `inout` / `own` 冲突并确定 ASAP 析构点 | 0027；新 guide 明确借用与析构规则 |
-| 0029 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0022、0028；v0.6 生效 |
-| 0030 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0023、0028；新 guide 明确完整 Map 契约 |
-| 0031 | 检查 move closure 与 `Shareable` / `Transferable` | 0019、0028；新 guide 明确标记能力推导 |
+| 0027 | 建立变量所有权状态并检测 use-after-move | 0019、0020 |
+| 0028 | 实现条件复制、移动与消费式解构检查 | 0022、0027 |
+| 0029 | 检查 `borrow` / `inout` / `own` 冲突并确定 ASAP 析构点 | 0028；新 guide 明确借用与析构规则 |
+| 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
+| 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
+| 0032 | 检查 move closure 与 `Shareable` / `Transferable` | 0020、0029；新 guide 明确标记能力推导 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0032 | 实现最小 typed SSA IR 与 verifier | 0020、0028；接受 SSA ADR |
-| 0033 | 把标量表达式和控制流 lower 到 LLVM | 0032；接受 LLVM / target ADR |
-| 0034 | 生成聚合、class 分配和显式 drop / free | 0033、0028；接受 runtime ABI ADR |
-| 0035 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0022、0029、0034；接受 runtime ABI ADR |
-| 0036 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0023、0030、0034；接受 runtime ABI ADR、Map 存储策略 ADR |
-| 0037 | 生成捕获闭包环境和无捕获函数指针 | 0033、0031 |
-| 0038 | 生成 object、链接 `main` 并把 `error()` 映射到 abort | 0034、0037；接受 linker 决策 |
-| 0039 | 生成 DWARF 并用首个支持平台的调试器验收 | 0038；接受 debug mapping ADR |
-| 0040 | 提供用户可见 `extern` FFI | 0038；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |
+| 0033 | 实现最小 typed SSA IR 与 verifier | 0021、0029；接受 SSA ADR |
+| 0034 | 把标量表达式和控制流 lower 到 LLVM | 0033；接受 LLVM / target ADR |
+| 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
+| 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |
+| 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；接受 runtime ABI ADR、Map 存储策略 ADR |
+| 0038 | 生成捕获闭包环境和无捕获函数指针 | 0034、0032 |
+| 0039 | 生成 object、链接 `main` 并把 `error()` 映射到 abort | 0035、0038；接受 linker 决策 |
+| 0040 | 生成 DWARF 并用首个支持平台的调试器验收 | 0039；接受 debug mapping ADR |
+| 0041 | 提供用户可见 `extern` FFI | 0039；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |
 
 ### Phase 5：最小标准库
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0041 | 用编译器构建并运行 `lang-std` 目标语言源码 | 0038；接受 bootstrap / runtime ADR |
-| 0042 | 实现 prelude、基础操作和 `error()` | 0041 |
-| 0043 | 实现条件可复制的 `Pair` 与 `Result` | 0041、0027、0034 |
-| 0044 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0041、0027、0034 |
-| 0045 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0035、0042、0044 |
-| 0046 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0036、0042、0044；新 guide 明确完整 Map 契约 |
-| 0047 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0045、0037 |
-| 0048 | 实现同步 File / BufferedReader / 标准流 | 0042、0038 |
-| 0049 | 实现 thread / channel | 0041、0031 |
-| 0050 | 实现目标语言测试发现与断言 runner | 0041；新 guide 定义最小 `@Test` 语法 |
+| 0042 | 用编译器构建并运行 `lang-std` 目标语言源码 | 0039；接受 bootstrap / runtime ADR |
+| 0043 | 实现 prelude、基础操作和 `error()` | 0042 |
+| 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035 |
+| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035 |
+| 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045 |
+| 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
+| 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
+| 0049 | 实现同步 File / BufferedReader / 标准流 | 0043、0039 |
+| 0050 | 实现 thread / channel | 0042、0032 |
+| 0051 | 实现目标语言测试发现与断言 runner | 0042；新 guide 定义最小 `@Test` 语法 |
 
 ### Phase 6：工具链
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0051 | 定义并解析最小 `project.toml` | 0024；接受 package schema ADR |
-| 0052 | 实现依赖解析与确定性 `project.lock` 核心 | 0051；接受解析 / 锁定策略 ADR |
-| 0053 | 由 package CLI 编排 manifest、解析与锁定 | 0052 |
-| 0054 | 让 LSP 发布 frontend 诊断 | 0024、0020、0003 |
-| 0055 | 让 LSP 支持跳转定义 | 0054、0024、0020 |
-| 0056 | 实现稳定、幂等的格式化器 | 0013、0006 |
-| 0057 | 提供 TextMate grammar 与回归 fixture | 0013、0014 |
-| 0058 | 提供 Tree-sitter grammar 与 corpus | 0013、0014 |
-| 0059 | 提供版本化机器可读诊断协议 | 0003、0054；接受协议 ADR |
-| 0060 | 构建首个支持平台的 compiler + stdlib 发行包 | 0039、0041–0050、0053；接受发布矩阵 ADR |
+| 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
+| 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
+| 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |
+| 0055 | 让 LSP 发布 frontend 诊断 | 0025、0021、0003 |
+| 0056 | 让 LSP 支持跳转定义 | 0055、0025、0021 |
+| 0057 | 实现稳定、幂等的格式化器 | 0014、0006 |
+| 0058 | 提供 TextMate grammar 与回归 fixture | 0014、0015 |
+| 0059 | 提供 Tree-sitter grammar 与 corpus | 0014、0015 |
+| 0060 | 提供版本化机器可读诊断协议 | 0003、0055；接受协议 ADR |
+| 0061 | 构建首个支持平台的 compiler + stdlib 发行包 | 0040、0042–0051、0054；接受发布矩阵 ADR |
 
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 module identity、package lock、SSA 和依赖
-图；推荐在 SPEC-0053 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
+图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
 ## 未决决策的推荐方向
 

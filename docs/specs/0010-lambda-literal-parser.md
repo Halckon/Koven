@@ -2,17 +2,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P1-010` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 候选 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md) 第四部分第 9 节；尚未生效 |
-| 批准依据 | 用户在当前持续 Goal 中授予的后续 Spec 站立授权；须在 v0.9 明确启用、阻塞解除后方可据此批准 |
+| 语言规范 | 现行 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md) 第四部分第 9 节 |
+| 批准依据 | 用户在当前持续 Goal 中授予的后续 Spec 站立授权；用户已明确启用 v0.9 |
 | 前置 Spec | SPEC-0009 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
-| 阻塞项 | v0.9 尚未由用户明确指定取代现行 v0.8；解除前不得进入 `approved` / `in-progress` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend`、语言 fixture、Architecture |
-| 语言语义变更 | 否；启用后只实施 v0.9 已定义的 lambda 增量 |
+| 语言语义变更 | 否；只实施现行 v0.9 已定义的 lambda 增量 |
 
 ## 1. Goal
 
@@ -24,11 +24,11 @@ lambda literal，以独立于 `Unit` block 的 typed AST 保存真实参数 `Spa
 
 SPEC-0007 至 SPEC-0009 已提供 Pratt expression、声明、block / statement table、owner-aware
 恢复及固定递归预算，但 `{` 在 expression primary 中仍被拒绝，在 block 中则充当 nested block
-起点或 soft element stop。现行 v0.8 未定义 lambda，不能依据 Kotlin 经验补齐实现。
+起点或 soft element stop。历史 v0.8 未定义 lambda，不能依据 Kotlin 经验补齐实现。
 
-候选 v0.9 第四部分第 9 节封闭了 lambda 的上下文判定、严格 header 前缀、body 尾值、AST /
+现行 v0.9 第四部分第 9 节封闭了 lambda 的上下文判定、严格 header 前缀、body 尾值、AST /
 `Span`、恢复和复杂度契约。本 Spec 只把该增量转成可执行 Goal；typed call argument 与局部
-解构分别留给 SPEC-0011、SPEC-0012。v0.9 未启用前，本草案不构成实现授权。
+解构分别留给 SPEC-0012、SPEC-0013。
 
 ## 3. 范围与需求
 
@@ -54,13 +54,21 @@ SPEC-0007 至 SPEC-0009 已提供 Pratt expression、声明、block / statement 
 - header 只能从 `{` 后第一个非 trivia token 起严格完整匹配
   `[ Identifier { "," Identifier } ] "->"`。只有完整前缀成功才提交；首个不匹配 token 立即
   以零状态失败，此 owner 永久按零参数 body 解析，不能在后方继续搜索顶层 `->`。
-- header 试探跳过 trivia，跟踪 nested delimiter、string 与 interpolation owner，不分配 AST、
-  不发诊断、不改变 cursor。失败不进入“参数恢复”；`{ x y -> z }` 与 typed / default / pattern
-  等 lookalike 都按零参数 body 恢复。
+- 全流 header 索引统一跟踪 delimiter、string 与 interpolation owner，使字符串或插值内的
+  `{` 不会冒充当前语法 owner。单个 `{` 的 header DFA 只跳过 trivia 并识别上述严格
+  前缀；任何 delimiter、string / interpolation opener 或其他不匹配 token 都是立即失败点，
+  不进入 nested owner 或跨过它继续寻找 `->`。试探不分配 AST、不发诊断、不改变
+  cursor；失败不进入“参数恢复”，`{ x y -> z }` 与 typed / default / pattern 等
+  lookalike 都按零参数 body 恢复。
 - `{}` 与 `{ -> }` 均为合法空 body。成功 header 的参数均是真实 Identifier，不存在 missing /
   error 参数状态；`parameters` 只按源码顺序保存真实 `Span`。
 - body 复用局部 `val` / `var`、expression statement 与 nested block 三种 element 及最大合法
   element 规则，但使用独立 lambda-body payload，不能降为静态类型固定为 `Unit` 的 Block。
+  在当前最大 expression 已完整、没有 operand 或子语法等待 token，且 delimiter / lexical
+  owner 回到 lambda-body baseline 时，顶层 `,` 与 `->` 是额外的 body-dispatch soft stop；
+  expression 保留它们给 lambda body 诊断，不得把逗号泄漏为外层 call 的 argument separator。
+  这两个 stop 在 nested call / group / index / function type 或 string / interpolation owner 内不生效；
+  子语法正在等待 `->` 时必须由该子语法消费，因而 `{ value as () -> Int }` 仍是单个完整尾表达式。
 - 最后一个 element 是 expression statement 时，其 expression 为尾值；空 body或最后一项为
   局部声明 / nested block 时尾值为 `Unit`，且不重复保存 tail ExpressionId。
 - 不创造隐式 statement separator：普通 expression-start 不是局部声明 initializer 的 stop，
@@ -93,9 +101,16 @@ pub enum Statement {
 
 - `LambdaBody` 与 `Block` 是语义封闭的不同 variant。有序 statement body 的最后一个
   `Statement::Expression` 提供尾值；不存在第二份 tail ID、孤儿 statement 或 Block 模式位。
+- `Expression::Lambda.body` 必须引用 `Statement::LambdaBody`；`LambdaBody` 只能由对应
+  Lambda Expression 引用，不能直接出现在 `Block.elements` 或另一个
+  `LambdaBody.elements` 中。nested lambda 通过其 Expression 节点引用自己的 LambdaBody。
 - `move_span` 精确覆盖真实 `move`；参数 `Span` 精确覆盖真实 Identifier；`arrow_span` 精确
   覆盖真实 `->`。成功 header 的范围由首参数（零参数时为 `->`）至 `arrow_span` 结束确定，
   不伪造 token、名称 marker 或源码字符串。
+- `arrow_span == None` 当且仅当 header 缺席，此时 `parameters` 必须为空；非空
+  `parameters` 必须伴随真实 `arrow_span`，空参数加真实 `arrow_span` 唯一表示显式
+  零参数 header。strict trial 失败时必须是空 `parameters` 与 `arrow_span: None`；它不得
+  为错误 header 构造部分参数、箭头或 marker。
 - 普通 Lambda Expression 从 `{` 起，`move` lambda 从真实 `move` 起，均至匹配 `}` 结束；
   LambdaBody 从真实 `{` 至匹配 `}`。缺 `}` 时止于本 owner 最后实际消费位置；空 body 仍覆盖
   真实 `{}`。body child 沿用既有 element `Span`。
@@ -109,17 +124,25 @@ pub enum Statement {
 | 错误码 | 含义 | 固定主消息 | 最小恢复 |
 |---|---|---|---|
 | `L0031` | expected lambda body element | `expected lambda body element` | `}` / 调用方 hard stop 前存在、不能开始任何合法 element 且无更具体根因的普通 token，覆盖并至少消费一个真实 token，形成 Error statement |
-| `L0032` | unsupported lambda body form | `unsupported lambda body form` | 严格 header 试探失败后，lambda 顶层遗留 `,` / `->` 等 header-like token 时覆盖实际错误区域，形成 Error statement 并恢复到下一合法 element 或当前 owner 边界 |
+| `L0032` | unsupported lambda body form | `unsupported lambda body form` | 无论 header 是否提交，lambda-body baseline 的顶层 `,` / `->` 均覆盖并只消费当前真实 token，形成同范围 Error statement；第 8 节明确延后的 body introducer 亦使用本码并复用其最小消费范围 |
 
-- 不为 header 参数、separator 或参数形态分配诊断码，不复用声明列表的 `L0024`–`L0026`，也
-  不进行 header 参数恢复。缺 `}` 复用通用 expected closing delimiter；`move` 未后接 `{` 时
-  沿用既有 expected expression / trailing 规则。
-- body、局部声明与 expression 恢复保留当前 lambda 的 `}`。同形 `}` 关闭最内层 brace owner；
-  inherited `)`、`]`、`}`、`InterpolationEnd`、StringEnd 与 EOF 等异形 hard closer 立即停止
-  当前恢复并保留给调用方，不等待局部 owner 闭合。
+- header trial 永远不发诊断；`L0032` 是 cursor 已还原后的 body-dispatch 诊断，不是
+  header 参数、separator 或参数形态诊断。不复用声明列表的 `L0024`–`L0026` 或
+  block 专用的 `L0030`，也不进行 header 参数恢复。第 8 节明确延后的 `const val`、
+  局部 `fun`、控制流与 class-family 引导形态在 lambda body 中使用 `L0032`；已有更具体的
+  Lexer / expression / local-declaration 根因优先。缺 `}` 复用通用 expected closing delimiter；
+  `move` 未后接 `{` 时沿用既有 expected expression / trailing 规则。
+- body、局部声明与 expression 恢复都按当前栈顶判定 closer。匹配当前局部 delimiter /
+  lexical owner 的 closer 先由该 owner 消费；否则遇到 inherited `)`、`]`、
+  `InterpolationEnd`、StringEnd 或 EOF 等异形 hard closer 时立即停止并保留给调用方，
+  不等待未闭合局部 owner。`}` 在栈顶是 group / index 等异形 frame 时先作为 lambda
+  owner 的 hard closer 被保留；回到 brace 栈顶后，同形 `}` 总是关闭最内层 lambda /
+  block owner。父 block 的 `}` 不能越过未闭合 lambda；只有一个 `}` 时它先关闭
+  lambda，父 block 随后报告缺 closer。
 - soft comma、下一 argument / element 候选等只在局部 delimiter 与 lexical owner 回到进入
-  恢复时的 baseline 后生效。Lexer poison 与 `L0004`–`L0006` 已有根因时只构造 error node，
-  不在同一 `Span` 追加同义 lambda / closer 诊断。
+  恢复时的 baseline 后生效。lambda 自身真实 `}` 闭合前，它内部的顶层逗号只能
+  返回 lambda-body dispatch 产生 `L0032`，不得返回外层 call。Lexer poison 与 `L0004`–`L0006`
+  已有根因时只构造 error node，不在同一 `Span` 追加同义 lambda / closer 诊断。
 - parser 构造时在完整 raw lexeme / terminal-event 流上建立一次 `O(n)` header 索引：共享
   delimiter / lexical-owner 栈，为每个 `{` owner 运行从紧随其后的首个非 trivia token 开始的
   小型 DFA；首个不匹配即永久记录 no-header，成功则记录参数 token 与 `->` raw index。
@@ -140,14 +163,14 @@ pub enum Statement {
   statement 与 block brace 对照。人工审阅 `f({})`、`val x = {}` 的历史负例定向迁移，不批量
   接受无关 golden 变化。
 - 既有 source、Lexer、expression / TypeRef、declaration / typed-call、block 与全部 fixture
-  suite 继续执行；SPEC-0011 typed argument 与 SPEC-0012 解构不得出现在本次 pass AST。
+  suite 继续执行；SPEC-0012 typed argument 与 SPEC-0013 解构不得出现在本次 pass AST。
 
 ## 4. 非目标
 
 - 不实现命名实参、`own` / `inout` / `borrow` 模式实参或 typed call argument table；这些属于
-  SPEC-0011。
+  SPEC-0012。
 - 不实现局部或顶层解构、pattern table、`componentN()` 类型 / 所有权检查；局部 `val` 解构
-  属于 SPEC-0012。
+  属于 SPEC-0013。
 - 不实现 trailing lambda、隐式 `it`、typed / 默认 / 解构 lambda 参数、参数 trailing comma、
   `return` 或其他控制流。
 - 不实现 `if` / `when` / `super`、loop / class family、完整文件、声明分隔、跨声明恢复、
@@ -172,19 +195,33 @@ pub enum Statement {
 - [ ] header 白盒矩阵证明只有 `{` 后完整严格前缀提交；typed、default、`val` / `var`、模式、
       解构、leading / repeated / trailing comma、缺 separator、nested delimiter / string /
       interpolation 箭头及 `{ x y -> z }` 全部以零状态失败并按零参数 body 恢复，不生成参数
-      marker、header 诊断或 cursor / AST / 诊断副作用。
-- [ ] body compile-fail 覆盖不能开始 element 的普通 token、失败 header 遗留的顶层 `,` / `->`、
-      expression 尾随区域、`{ val x = 1 x }` 与缺 `}`；分别锁定 `L0031`、`L0032`、既有表达式
-      诊断 / `L0010` 的边界、Error statement 及恢复后 element 顺序。
+      marker、header 诊断或 cursor / AST / 诊断副作用。白盒 inspection 还要证明单个 DFA 在首个
+      delimiter / lexical-owner opener 立即失败，不穿过 nested owner 重新寻找箭头。
+- [ ] body soft-stop 正例证明 `{ value as () -> Int }` 中的箭头由 function type 消费，
+      nested call / group / index 内的逗号均不返回 body dispatch。反例 `{ (x) -> z }`、
+      `{ , x }`、`{ -> -> }` 和 `{ x -> , }` 覆盖 header 未提交与已提交两种状态；
+      顶层 `,` / `->` 各产生一个只消费当前 token 的 `L0032` 与同范围 Error statement。
+- [ ] body compile-fail 以 `{ : }` 锁定 `L0031`，并覆盖明确延后的 `const val`、
+      局部 `fun`、控制流与 class-family 引导形态使用 `L0032`；`{ x y -> z }`
+      精确锁定表达式尾随 `L0013` 后由 body dispatch 对保留的箭头产生 `L0032`。
+      `{ val x = 1 x }`、`{ p -> val x = p x }` 与 `{ val f = { x } x }` 均必须把普通
+      expression-start 视为 initializer 尾随输入，不得因 header 或内嵌 lambda 的真实 `}`
+      改判为 tail；缺 lambda `}` 精确复用 `L0010`。所有分支断言 Error statement 及恢复后
+      element 顺序。
 - [ ] diagnostic catalog 证明只新增 `L0031 expected lambda body element` 与
       `L0032 unsupported lambda body form`，固定 error severity / 消息 / 精确主 `Span`；不复用
       `L0026`，既有错误码含义与排序不变；`{}` / `{ -> }` 不产生 body 诊断。
 - [ ] AST 测试证明 Lambda Expression、独立 LambdaBody Statement 与普通 Unit Block 的 typed
       关系；参数为有序真实 `Vec<Span>`，move / arrow / body / tail / error / 缺 closer 的 UTF-8
-      范围符合契约，无 marker、伪造 token、重复 tail 或孤儿节点。
+      范围符合契约；锁定 absent / explicit-zero / parameterized header 的 `parameters` 与
+      `arrow_span` 三种可达组合，不存在 marker、部分 header、伪造 token、重复 tail、孤儿
+      LambdaBody 或被当作直接 body element 的 LambdaBody。
 - [ ] owner recovery 覆盖 lambda 嵌套于 call、group、index、block 与 string interpolation：
       异形调用方 hard closer 即使局部 owner 未闭合也被保留，同形 `}` 关闭最内层 brace owner，
-      soft stop 只在 baseline 生效。
+      soft stop 只在 baseline 生效。`f({ [x )` 证明异形 `)` 留给 call；lambda 与父 block
+      共享单个 `}` 的用例证明它先关闭 lambda、父 block 再报缺 closer；nested block /
+      lambda 同形用例同样只关闭最内层 owner。`f({ x, y }, z)` 证明 lambda 内部逗号
+      产生 `L0032`，只有真实 lambda `}` 后的逗号才由 call owner 消费。
 - [ ] `L0004` 未终止内层 string、`L0005` EOF interpolation 与 terminal `L0006` 只关闭精确
       lexical owner，不提前结束 lambda、不吞 parent token、不产生同义 parser closer 级联。
 - [ ] multi-SourceMap identity、外部小线程栈与 1024 递归预算回归通过；深 nested lambda /
@@ -210,11 +247,15 @@ pub enum Statement {
 确定，普通 Block 不增加模式位。initializer / operand / postfix 复用同一 Pratt cursor。
 
 把 expression stop 明确分为调用方 hard closer 与“左表达式已完成后”的 block soft stop。
-`parse_primary` 在等待 operand 时允许 `{`；block dispatch 仍先识别 nested block。
+`parse_primary` 在等待 operand 时允许 `{`；block dispatch 仍先识别 nested block。lambda-body
+expression / initializer 在自身 baseline 且当前子语法已完整时额外保留顶层 `,` / `->`
+给 body dispatch，不使它们越过未闭合 owner 或泄漏到外层 call。
 
 parser 构造时建立一次全流 `LambdaHeaderIndex`（准确 Rust 名称可调整），以共享 owner stack
 为每个 `{` 运行严格前缀 DFA；失败永久缓存 no-header，成功记录真实参数 token 和 arrow raw
-index。正式解析只按 opener raw index 查询，不能从候选 `{` 独立扫描。实现继续复用
+index。共享 owner stack 只负责全流归属；单个 DFA 在首个不匹配 token 结束，不进入
+nested owner 或从后方重新寻找箭头。正式解析只按 opener raw index 查询，不能从候选 `{`
+独立扫描。实现继续复用
 `LexicalRecoveryIndex`、owner-aware scanner、固定 worker 与递归预算。
 
 `cfg(test)` inspection 统计 header-index raw visit / query、body dispatch 与 recovery visit，不
@@ -237,9 +278,9 @@ workspace 边界。
 5. [ ] 同步 Spec 验收记录与 Architecture
    → 验证：frontend 窄测试、workspace 全基线、依赖树、staged diff 与文档事实一致
 
-开始步骤 1 前必须由用户明确启用 v0.9，并把本 Spec 依据站立授权转为 `in-progress`。Parser
-cursor、AST、stop 与 header 索引热点由单一负责人整合；测试和红队审计可并行但不并发修改
-同一生产文件。
+v0.9 已由用户明确启用；本 Spec 已依据站立授权按 `draft → approved → in-progress` 的逻辑
+顺序推进，无需单独的批准状态提交。Parser cursor、AST、stop 与 header 索引热点由单一负责人
+整合；测试和红队审计可并行但不并发修改同一生产文件。
 
 ## 8. 提交计划
 
@@ -248,18 +289,18 @@ cursor、AST、stop 与 header 索引热点由单一负责人整合；测试和�
 | 1 | Lambda / LambdaBody AST、brace 判定、全流 header 索引、两类诊断、恢复、测试 / fixture、Architecture 与完成记录 | `feat(frontend): add lambda literal parser (SPEC-0010)` |
 
 实现提交只属于 SPEC-0010，不混入 typed call argument、解构、完整文件、新 guide 激活或其他
-语法。v0.9 启用必须在实施前形成独立文档边界；实现、测试、Architecture、验收与 `done` 状态
-全部满足后才能创建本表提交。
+语法。v0.9 启用已形成独立文档边界；实现、测试、Architecture、验收与 `done` 状态全部满足
+后才能创建本表提交。
 
 ## 9. 未决问题
 
-- 唯一门禁是 v0.9 尚未由用户明确启用；候选第 9 节本身未发现需要猜测的 lambda 语义。
+- 无。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| v0.9 版本级启用确认 | 未满足 | 当前权威 guide 仍是 v0.8；因此本 Spec 保持 `draft`，未实施 |
-| `git diff --no-index --check -- /dev/null docs/specs/0010-lambda-literal-parser.md` | 通过 | 无 whitespace error 输出；exit 1 仅表示未跟踪草案与空文件存在内容差异 |
-| Markdown 相对链接与路线图一致性检查 | 通过 | guide、ADR 链接存在；README 的 0010 状态、前置与 v0.9 门禁一致 |
-| Cargo / Rust 验收 | 未执行 | 本次只同步被 guide 门禁阻塞的 Spec，不修改实现 |
+| v0.9 版本级启用确认 | 满足 | 用户已明确指定 v0.9 取代 v0.8；本 Spec 依站立授权进入 `in-progress` |
+| `git diff --no-index --check -- /dev/null docs/specs/0010-lambda-literal-parser.md` | 通过 | 无 whitespace error 输出；exit 1 仅表示该文件与空文件存在内容差异 |
+| Markdown 相对链接与路线图一致性检查 | 通过 | guide、ADR 链接存在；README 的 0010 状态与前置一致 |
+| Cargo / Rust 验收 | 未执行 | 激活步骤只同步文档；实现验收将在本 Spec 完成时记录 |

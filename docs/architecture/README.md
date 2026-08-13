@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../agent-language-design-guide-v0.8.md`](../agent-language-design-guide-v0.8.md) 定义。
+[`../agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md) 定义。
 
 ## 当前状态
 
@@ -119,8 +119,8 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 - 三个入口各自只解析一个独立表达式、简单声明或 block。block element 的 hard owner closer
   与只在 delimiter 外生效的 soft structure stop 分离；局部声明、字符串 / 插值 terminal owner
   和 nested block 恢复保持单调前进，`L0028`–`L0030` 分别稳定表达缺 block、非法 element 与
-  已延后的 element。lambda 和模式实参留给 SPEC-0010，完整文件组合及跨声明恢复留给
-  SPEC-0011；
+  已延后的 element。lambda、具名函数省略返回标注、命名 / 模式实参、局部 `val` 解构，以及
+  完整文件组合与跨声明恢复均尚未实现；后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   名称 / 类型 / 所有权检查以及 CLI / LSP 接线仍属后续 Phase。
 
 ## 结构化诊断与 renderer

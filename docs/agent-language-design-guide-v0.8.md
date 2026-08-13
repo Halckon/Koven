@@ -1,6 +1,10 @@
 # AGENT 开发指导文档：Koven 语言设计规范 v0.8
 
-> 本文档是给开发 Agent 的现行权威规范，取代
+> **历史版本：本文已由
+> [`agent-language-design-guide-v0.9.md`](./agent-language-design-guide-v0.9.md) 取代，
+> 不再接收 v0.9 语义修改。**
+>
+> 本文档原为给开发 Agent 的权威规范，取代
 > [`agent-language-design-guide-v0.7.md`](./agent-language-design-guide-v0.7.md)，并以 v0.7
 > 为完整基线；除下方 v0.8 变更记录明确修改的条款外，保留
 > v0.7 已确定语义。本文只补齐 SPEC-0009 需要的 block、statement 序列与具名函数 block
