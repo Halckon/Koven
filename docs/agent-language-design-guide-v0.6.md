@@ -1,6 +1,9 @@
 # AGENT 开发指导文档：Koven 语言设计规范 v0.6
 
-> 本文档是给开发 Agent 的现行权威规范，取代
+> **历史版本：本文已由
+> [`agent-language-design-guide-v0.7.md`](./agent-language-design-guide-v0.7.md) 取代，不再是现行规范。**
+
+> 本文原取代
 > [`agent-language-design-guide-v0.5.md`](./agent-language-design-guide-v0.5.md)。本版以 v0.5
 > 为基线；除下方变更记录明确修改的条款外，保留 v0.5 已确定语义。本文补齐
 > Phase 1 表达式与类型引用的可执行语法边界，同时封闭 v1 顺序容器的长度、所有权、元素布局
