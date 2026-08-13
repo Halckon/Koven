@@ -41,6 +41,8 @@ pub mod codes {
     pub(crate) const EXPECTED_BLOCK: &str = "L0028";
     pub(crate) const EXPECTED_BLOCK_ELEMENT: &str = "L0029";
     pub(crate) const UNSUPPORTED_BLOCK_ELEMENT: &str = "L0030";
+    pub(crate) const EXPECTED_LAMBDA_BODY_ELEMENT: &str = "L0031";
+    pub(crate) const UNSUPPORTED_LAMBDA_BODY_FORM: &str = "L0032";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -74,6 +76,8 @@ pub mod codes {
         EXPECTED_BLOCK,
         EXPECTED_BLOCK_ELEMENT,
         UNSUPPORTED_BLOCK_ELEMENT,
+        EXPECTED_LAMBDA_BODY_ELEMENT,
+        UNSUPPORTED_LAMBDA_BODY_FORM,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -318,7 +318,6 @@ fn missing_initializer_preserves_each_structural_boundary() {
     for (text, expected_elements) in [
         ("{ val x = }", 1),
         ("{ val x = val y = 2 }", 2),
-        ("{ val x = {} }", 2),
         ("{ val x = return }", 2),
     ] {
         let (_, parsed) = parsed(text);
@@ -342,6 +341,9 @@ fn missing_initializer_preserves_each_structural_boundary() {
                 .any(|diagnostic| diagnostic.code().to_string() == "L0029")
         );
     }
+
+    let (_, lambda_initializer) = parsed_ok("{ val x = {} }");
+    assert_eq!(root_elements(&lambda_initializer).len(), 1);
 }
 
 #[test]

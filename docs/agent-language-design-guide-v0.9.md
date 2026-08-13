@@ -1624,7 +1624,7 @@ lambda、typed argument 与解构三项结构 parser 都必须接收调用方的
 1. 当前 token 匹配局部 delimiter / lexical owner 栈顶 closer 时，先消费并 pop；
 2. 否则遇 EOF 或与栈顶异形的调用方 hard closer（`)`、`]`、`}`、`InterpolationEnd` 等）时，
    无论局部 owner 是否闭合都立即停止并保留该 token；局部未闭合随当前 error region 结束，
-   不得为了寻找自己的 closer 吞掉调用方边界，例如 `f({ [x )` 中 `)` 必须留给 call owner；
+   不得为了寻找自己的 closer 吞掉调用方边界，例如 `f({ a[x )` 中 `)` 必须留给 call owner；
 3. 同形 `}` 同时可关闭最内层 lambda / block owner 时，最内层 owner 优先消费。例如只有一个
    `}` 的嵌套 lambda / block 输入先关闭 lambda，外层 block 随后报告缺 closer；
 4. 逗号、下一 argument / element 候选等 soft stop 只有在局部 delimiter 与 lexical owner 回到
@@ -1664,7 +1664,7 @@ lambda parser。`x { y }` 是 expression statement `x` 后接 nested block，`x 
 类型、默认值、`val` / `var`、模式、解构或 trailing comma。Header 只能从 `{` 后第一个非
 trivia token 起严格匹配完整前缀 `[ Identifier { "," Identifier } ] "->"`；只有整个前缀
 成功才提交。任一 token 不匹配就以零状态失败，并从 `{` 后按零参数 body 解析，不得继续搜索
-后方任意顶层 `->`。因此 `{ value as () -> Int }` 中函数类型的箭头绝不会反向把 `value as ()`
+后方任意顶层 `->`。因此 `{ source as () -> Int }` 中函数类型的箭头绝不会反向把 `source as ()`
 误判为 lambda 参数，`{ x y -> z }` 也不是可恢复 header，而是带非法 body token 的零参数
 lambda。试探 DFA 只跳过 trivia；遇到任何 delimiter / string opener 或其他不属于普通
 Identifier、参数逗号、最终 `->` 的 token 时立即永久判为 no-header，不能进入 nested owner 后
@@ -1684,7 +1684,7 @@ expression”。Phase 1 只保存该结构；参数类型、捕获、返回类�
 lambda body 在最大 expression 已完整、没有子语法等待 token，且 delimiter / lexical owner
 回到 body baseline 时，额外把顶层 `,` 与 `->` 作为 body-dispatch soft stop。它们只把控制权
 交回当前 lambda body，不得泄漏成外围 call 的 argument separator。call、group、function type
-或其他 nested owner 内的 `,` / `->` 不受影响，因此 `{ value as () -> Int }` 仍是单个完整
+或其他 nested owner 内的 `,` / `->` 不受影响，因此 `{ source as () -> Int }` 仍是单个完整
 尾表达式。
 
 AST 至少等价保存 `move_span: Option<Span>`、有序参数名称 Span、`arrow_span: Option<Span>`、

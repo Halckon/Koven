@@ -16,7 +16,7 @@ use lang_frontend::{
     ast::AstFile,
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
     lexer::{LexedFile, LexemeKind, lex},
-    parser::{parse_block, parse_declaration, parse_expression},
+    parser::{Expression, Statement, SyntaxAst, parse_block, parse_declaration, parse_expression},
     source::{SourceId, SourceMap},
 };
 
@@ -253,6 +253,14 @@ fn parser_block_pass_fixture_root() -> PathBuf {
 
 fn parser_block_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-block-fail")
+}
+
+fn parser_lambda_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-lambda-pass")
+}
+
+fn parser_lambda_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-lambda-fail")
 }
 
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
@@ -774,6 +782,90 @@ fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCa
         byte_len,
         expression_count: parsed.ast().expressions().len(),
         diagnostic_count: actual.len(),
+    })
+}
+
+fn validate_lambda_root(
+    ast: &SyntaxAst,
+    root: lang_frontend::ast::ExpressionId,
+) -> Result<(), ParserCaseFailure> {
+    let Expression::Lambda { body, .. } = ast
+        .expressions()
+        .get(root)
+        .map_err(|_| ParserCaseFailure::RootInvariant)?
+        .payload()
+    else {
+        return Err(ParserCaseFailure::RootInvariant);
+    };
+    if !matches!(
+        ast.statements()
+            .get(*body)
+            .map_err(|_| ParserCaseFailure::RootInvariant)?
+            .payload(),
+        Statement::LambdaBody { .. }
+    ) {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    Ok(())
+}
+
+fn run_lambda_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| ParserCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_lambda_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_lambda_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.disk_path)?;
+    let parsed =
+        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if !parsed.diagnostics().is_empty() {
+        return Err(ParserCaseFailure::UnexpectedDiagnostics);
+    }
+    if parsed.ast().source_id() != source_id {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    // 独立入口无 trailing 诊断意味着已消费全部非 trivia 输入；这里另锁定 typed child。
+    validate_lambda_root(parsed.ast(), parsed.root())?;
+    Ok(ParserEvidence {
+        byte_len,
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_lambda_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| ParserCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_lambda_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_lambda_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.source_path)?;
+    let parsed =
+        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if parsed.ast().source_id() != source_id {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    validate_lambda_root(parsed.ast(), parsed.root())?;
+    let expected = load_parser_sidecar(&sources, source_id, &case.sidecar_path)?;
+    validate_parser_diagnostics(&sources, parsed.diagnostics(), &expected)?;
+    Ok(ParserEvidence {
+        byte_len,
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: expected.len(),
     })
 }
 
@@ -1319,6 +1411,32 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_lambda_suites_execute_real_typed_ast_and_diagnostics() {
+        let pass = run_lambda_pass_suite(&parser_lambda_pass_fixture_root())
+            .expect("the lambda pass suite must be valid");
+        let fail = run_lambda_fail_suite(&parser_lambda_fail_fixture_root())
+            .expect("the lambda fail suite must be valid");
+
+        assert_eq!(pass.len(), 1);
+        assert_eq!(pass[0].relative_path, "basic.ko");
+        let pass = pass[0]
+            .result
+            .as_ref()
+            .expect("the lambda pass fixture must parse to Lambda/LambdaBody");
+        assert!(pass.expression_count >= 3);
+        assert_eq!(pass.diagnostic_count, 0);
+
+        assert_eq!(fail.len(), 1);
+        assert_eq!(fail[0].relative_path, "expected-element.ko");
+        let fail = fail[0]
+            .result
+            .as_ref()
+            .expect("the lambda fail fixture must match its sidecar");
+        assert!(fail.expression_count >= 1);
+        assert_eq!(fail.diagnostic_count, 1);
+    }
+
+    #[test]
     fn parser_fixture_discovery_rejects_zero_and_unpaired_fail_cases() {
         let empty_pass = TempDir::new("parser-pass-empty");
         assert_eq!(
@@ -1377,6 +1495,26 @@ mod tests {
         );
         assert_eq!(
             run_block_fail_suite(unpaired.path()),
+            Err(SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]))
+        );
+
+        assert_eq!(
+            run_lambda_pass_suite(empty_pass.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_lambda_fail_suite(empty_fail.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_lambda_fail_suite(unpaired.path()),
             Err(SuiteError::InvalidEntries(vec![
                 DiscoveryIssue::MissingSidecar {
                     relative_path: "missing.ko".to_owned(),

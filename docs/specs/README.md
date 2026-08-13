@@ -5,8 +5,8 @@
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
 [v0.9](../agent-language-design-guide-v0.9.md) 已由用户明确启用，并为 0010 及后续路线给出
-一次性编号重排。SPEC-0010 已依据当前持续 Goal 的站立授权进入 `in-progress`；SPEC-0011
-保持 `draft`，在当前 Goal 完成后按相同授权自动推进。尚未物化的条目仍只是候选 Goal，
+一次性编号重排。SPEC-0010 已完成；SPEC-0011 保持 `draft`，并将在该实现提交完成后按相同
+站立授权自动推进。尚未物化的条目仍只是候选 Goal，
 不因编号预留而自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -70,8 +70,8 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
 | [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`done`） | 0007 `done`；v0.7 已生效；站立授权已记录 |
 | [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`done`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
-| [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`in-progress`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
-| [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`draft`） | 0009 `done`；v0.9 已生效；等待 0010 Goal 完成后自动推进 |
+| [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
+| [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`draft`） | 0009、0010 `done`；v0.9 已生效；等待 0010 实现提交后自动推进 |
 | 0012 | 解析 typed call argument、命名实参与 `own` / `inout` / `borrow` 模式实参 | 0010 `done`；v0.9 生效；后续 guide 封闭 callee-side 参数模式、默认与匹配规则 |
 | 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；v0.9 生效 |
 | 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；不是 Phase 1 全部语法终点 |

@@ -8,6 +8,7 @@ use crate::{
 #[cfg(test)]
 use std::cell::Cell;
 
+use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, CastOperator, Expression, ExpressionAst, FunctionBody,
@@ -40,12 +41,14 @@ pub(super) fn parse(
     validate_lexemes(sources, lexed, source_len)?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
     let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
 
     let mut parser = Parser {
         sources,
         lexed,
         lexical_recoveries,
         strict_trials,
+        lambda_headers,
         index: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
@@ -56,6 +59,8 @@ pub(super) fn parse(
         declaration_recovery_event_queries_and_applications: 0,
         #[cfg(test)]
         block_dispatch_iterations: 0,
+        #[cfg(test)]
+        lambda_body_dispatch_iterations: 0,
         #[cfg(test)]
         significant_raw_visits: Cell::new(0),
     };
@@ -84,11 +89,13 @@ pub(super) fn parse_declaration(
     validate_lexemes(sources, lexed, source.len())?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
     let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
     let mut parser = Parser {
         sources,
         lexed,
         lexical_recoveries,
         strict_trials,
+        lambda_headers,
         index: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
@@ -99,6 +106,8 @@ pub(super) fn parse_declaration(
         declaration_recovery_event_queries_and_applications: 0,
         #[cfg(test)]
         block_dispatch_iterations: 0,
+        #[cfg(test)]
+        lambda_body_dispatch_iterations: 0,
         #[cfg(test)]
         significant_raw_visits: Cell::new(0),
     };
@@ -125,11 +134,13 @@ pub(super) fn parse_block(
     validate_lexemes(sources, lexed, source.len())?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
     let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
     let mut parser = Parser {
         sources,
         lexed,
         lexical_recoveries,
         strict_trials,
+        lambda_headers,
         index: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
@@ -140,6 +151,8 @@ pub(super) fn parse_block(
         declaration_recovery_event_queries_and_applications: 0,
         #[cfg(test)]
         block_dispatch_iterations: 0,
+        #[cfg(test)]
+        lambda_body_dispatch_iterations: 0,
         #[cfg(test)]
         significant_raw_visits: Cell::new(0),
     };
@@ -207,16 +220,16 @@ struct LexicalRecoveryIndex {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TerminalOwnerKind {
+pub(super) enum TerminalOwnerKind {
     String,
     Interpolation,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct TerminalOwnerEvent {
-    offset: usize,
-    kind: TerminalOwnerKind,
-    opener: usize,
+pub(super) struct TerminalOwnerEvent {
+    pub(super) offset: usize,
+    pub(super) kind: TerminalOwnerKind,
+    pub(super) opener: usize,
 }
 
 impl LexicalRecoveryIndex {
@@ -493,6 +506,7 @@ struct Parser<'source> {
     lexed: &'source LexedFile,
     lexical_recoveries: LexicalRecoveryIndex,
     strict_trials: StrictCallTrialIndex,
+    lambda_headers: LambdaHeaderIndex,
     index: usize,
     recursion_depth: usize,
     ast: ExpressionAst,
@@ -504,6 +518,8 @@ struct Parser<'source> {
     #[cfg(test)]
     block_dispatch_iterations: usize,
     #[cfg(test)]
+    lambda_body_dispatch_iterations: usize,
+    #[cfg(test)]
     significant_raw_visits: Cell<usize>,
 }
 
@@ -512,7 +528,7 @@ impl Parser<'_> {
         if !self.current_is_symbol(Symbol::LeftBrace) {
             return self.parse_missing_block_root();
         }
-        let root = self.parse_block_statement()?;
+        let root = self.parse_block_statement(Stops::ROOT)?;
         if !matches!(self.current()?.kind(), LexemeKind::Eof) {
             let first = self.current()?.span();
             self.emit(
@@ -553,18 +569,25 @@ impl Parser<'_> {
         self.add_statement(self.span(start, end)?, Statement::Error)
     }
 
-    fn parse_block_statement(&mut self) -> Result<StatementId, ParserInternalError> {
+    fn parse_block_statement(
+        &mut self,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
         self.enter_recursion()?;
-        let result = self.parse_block_statement_inner();
+        let result = self.parse_block_statement_inner(outer_stops);
         self.recursion_depth -= 1;
         result
     }
 
-    fn parse_block_statement_inner(&mut self) -> Result<StatementId, ParserInternalError> {
+    fn parse_block_statement_inner(
+        &mut self,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
         let opener = self.bump()?.span();
         let mut elements = Vec::new();
 
         while !self.current_is_symbol(Symbol::RightBrace)
+            && !outer_stops.contains_hard(self.current()?)
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
             #[cfg(test)]
@@ -572,7 +595,7 @@ impl Parser<'_> {
                 self.block_dispatch_iterations += 1;
             }
             let before = self.index;
-            let element = self.parse_block_element()?;
+            let element = self.parse_block_element(outer_stops)?;
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
@@ -594,9 +617,12 @@ impl Parser<'_> {
         )
     }
 
-    fn parse_block_element(&mut self) -> Result<StatementId, ParserInternalError> {
+    fn parse_block_element(
+        &mut self,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
         if self.current_is_symbol(Symbol::LeftBrace) {
-            return self.parse_block_statement();
+            return self.parse_block_statement(outer_stops);
         }
         if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
             let keyword = self.bump()?;
@@ -605,7 +631,11 @@ impl Parser<'_> {
                 LexemeKind::Token(TokenKind::Keyword(Keyword::Var)) => VariableKind::Var,
                 _ => return Err(ParserInternalError::InvalidLexemeStream),
             };
-            let declaration = self.parse_local_variable_declaration(keyword.span(), kind)?;
+            let declaration = self.parse_local_variable_declaration(
+                keyword.span(),
+                kind,
+                Stops::block_expression(outer_stops),
+            )?;
             let span = self.ast.items().get(declaration)?.span();
             return self.add_statement(span, Statement::LocalVariable { declaration });
         }
@@ -619,7 +649,7 @@ impl Parser<'_> {
             return self.add_statement(span, Statement::Error);
         }
         if self.can_start_expression(current) {
-            let stops = Stops::BLOCK_EXPRESSION;
+            let stops = Stops::block_expression(outer_stops);
             let expression = self.parse_expression_bp(0, stops)?;
             let expression = self.consume_expression_tail(expression, stops)?;
             let span = self.expression_span(expression)?;
@@ -717,20 +747,27 @@ impl Parser<'_> {
         &mut self,
         keyword: Span,
         kind: VariableKind,
+        initializer_stops: Stops,
     ) -> Result<ItemId, ParserInternalError> {
-        let name = self.parse_name_marker(
+        let name = self.parse_name_marker_with_stops(
             codes::EXPECTED_DECLARATION_NAME,
             "expected declaration name",
             NameContext::LocalDeclaration,
+            DeclarationStops::from_expression_hard(initializer_stops),
         )?;
         let (colon_span, type_ref) = if self.current_is_symbol(Symbol::Colon) {
             let colon = self.bump()?.span();
-            let type_ref = self.parse_type_ref(TypeStops::BLOCK_TYPE.with(TypeStops::EQUAL))?;
+            let type_ref = self.parse_type_ref(
+                TypeStops::from_expression(initializer_stops)
+                    .with(TypeStops::LEFT_BRACE)
+                    .with(TypeStops::EQUAL),
+            )?;
             (Some(colon), Some(type_ref))
         } else {
             (None, None)
         };
-        let (equals_span, initializer) = self.parse_required_block_initializer()?;
+        let (equals_span, initializer) =
+            self.parse_required_block_initializer(initializer_stops)?;
         let end = self
             .expression_span(initializer)?
             .end()
@@ -756,8 +793,8 @@ impl Parser<'_> {
 
     fn parse_required_block_initializer(
         &mut self,
+        stops: Stops,
     ) -> Result<(Span, ExpressionId), ParserInternalError> {
-        let stops = Stops::BLOCK_EXPRESSION;
         if self.current_is_symbol(Symbol::Equal) {
             let equals = self.bump()?.span();
             let initializer = self.parse_expression_bp(0, stops)?;
@@ -863,7 +900,7 @@ impl Parser<'_> {
                 expression,
             }
         } else if self.current_is_symbol(Symbol::LeftBrace) {
-            FunctionBody::Block(self.parse_block_statement()?)
+            FunctionBody::Block(self.parse_block_statement(Stops::ROOT)?)
         } else {
             FunctionBody::Absent
         };
@@ -893,6 +930,16 @@ impl Parser<'_> {
         message: &'static str,
         context: NameContext,
     ) -> Result<NameMarker, ParserInternalError> {
+        self.parse_name_marker_with_stops(code, message, context, DeclarationStops::EMPTY)
+    }
+
+    fn parse_name_marker_with_stops(
+        &mut self,
+        code: &str,
+        message: &'static str,
+        context: NameContext,
+        additional_stops: DeclarationStops,
+    ) -> Result<NameMarker, ParserInternalError> {
         if self.current_is_identifier() {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
@@ -900,7 +947,13 @@ impl Parser<'_> {
         if self.is_poison() {
             return Ok(NameMarker::Error(self.bump()?.span()));
         }
-        let boundary = matches!(current.kind(), LexemeKind::Eof) || context.is_stop(current);
+        let symbol = match current.kind() {
+            LexemeKind::Token(TokenKind::Symbol(symbol)) => Some(symbol),
+            _ => None,
+        };
+        let boundary = matches!(current.kind(), LexemeKind::Eof)
+            || context.is_stop(current)
+            || additional_stops.contains_hard(current, symbol);
         let primary = if boundary {
             self.empty_at(current.span().start())?
         } else {
@@ -911,7 +964,8 @@ impl Parser<'_> {
             Ok(NameMarker::Missing(primary))
         } else {
             let start = current.span().start();
-            let end = self.recover_declaration_region(context.recovery_stops())?;
+            let end =
+                self.recover_declaration_region(context.recovery_stops().union(additional_stops))?;
             Ok(NameMarker::Error(self.span(start, end.max(start))?))
         }
     }
@@ -1604,6 +1658,24 @@ impl Parser<'_> {
 
     fn parse_primary(&mut self, stops: Stops) -> Result<ExpressionId, ParserInternalError> {
         let current = self.current()?;
+        if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        ) {
+            return self.parse_lambda(None, stops);
+        }
+        if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Move))
+        ) && self.peek(1).is_some_and(|next| {
+            matches!(
+                next.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+            )
+        }) {
+            let move_span = self.bump()?.span();
+            return self.parse_lambda(Some(move_span), stops);
+        }
         if stops.contains(current) {
             let span = self.empty_at(current.span().start())?;
             self.emit(codes::EXPECTED_EXPRESSION, "expected expression", span)?;
@@ -1660,12 +1732,172 @@ impl Parser<'_> {
         }
     }
 
+    fn parse_lambda(
+        &mut self,
+        move_span: Option<Span>,
+        outer_stops: Stops,
+    ) -> Result<ExpressionId, ParserInternalError> {
+        self.enter_recursion()?;
+        let result = self.parse_lambda_inner(move_span, outer_stops);
+        self.recursion_depth -= 1;
+        result
+    }
+
+    fn parse_lambda_inner(
+        &mut self,
+        move_span: Option<Span>,
+        outer_stops: Stops,
+    ) -> Result<ExpressionId, ParserInternalError> {
+        let opener_raw = self.current_raw()?;
+        let header = self.lambda_headers.query(opener_raw)?.clone();
+        let opener = self.bump()?.span();
+        let start = move_span.unwrap_or(opener).start();
+
+        let (parameters, arrow_span) = match header {
+            LambdaHeaderTrial::NoHeader => (Vec::new(), None),
+            LambdaHeaderTrial::Header {
+                parameter_raw,
+                arrow_raw,
+            } => {
+                let mut parameters = Vec::with_capacity(parameter_raw.len());
+                for (ordinal, expected_raw) in parameter_raw.iter().copied().enumerate() {
+                    if self.current_raw()? != expected_raw || !self.current_is_identifier() {
+                        return Err(ParserInternalError::InvalidLexemeStream);
+                    }
+                    parameters.push(self.bump()?.span());
+                    if ordinal + 1 < parameter_raw.len() {
+                        if !self.current_is_symbol(Symbol::Comma) {
+                            return Err(ParserInternalError::InvalidLexemeStream);
+                        }
+                        self.bump()?;
+                    }
+                }
+                if self.current_raw()? != arrow_raw || !self.current_is_symbol(Symbol::Arrow) {
+                    return Err(ParserInternalError::InvalidLexemeStream);
+                }
+                let arrow = self.bump()?.span();
+                (parameters, Some(arrow))
+            }
+        };
+
+        let body = self.parse_lambda_body(opener, outer_stops)?;
+        let end = self.statement_span(body)?.end();
+        self.add_expression(
+            self.span(start, end)?,
+            Expression::Lambda {
+                move_span,
+                parameters,
+                arrow_span,
+                body,
+            },
+        )
+    }
+
+    fn parse_lambda_body(
+        &mut self,
+        opener: Span,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
+        let mut elements = Vec::new();
+        let expression_stops = Stops::lambda_expression(outer_stops);
+
+        while !self.current_is_symbol(Symbol::RightBrace)
+            && !outer_stops.contains_hard(self.current()?)
+            && !matches!(self.current()?.kind(), LexemeKind::Eof)
+        {
+            #[cfg(test)]
+            {
+                self.lambda_body_dispatch_iterations += 1;
+            }
+            let before = self.index;
+            let element = if self.current_is_symbol(Symbol::LeftBrace) {
+                self.parse_block_statement(outer_stops)?
+            } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var)
+            {
+                let keyword = self.bump()?;
+                let kind = match keyword.kind() {
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Val)) => VariableKind::Val,
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Var)) => VariableKind::Var,
+                    _ => return Err(ParserInternalError::InvalidLexemeStream),
+                };
+                let declaration =
+                    self.parse_local_variable_declaration(keyword.span(), kind, expression_stops)?;
+                let span = self.ast.items().get(declaration)?.span();
+                self.add_statement(span, Statement::LocalVariable { declaration })?
+            } else if self.is_unsupported_block_element() {
+                self.parse_unsupported_lambda_body_form()?
+            } else {
+                let current = self.current()?;
+                if self.is_poison_kind(current.kind()) {
+                    let span = self.bump()?.span();
+                    self.add_statement(span, Statement::Error)?
+                } else if self.current_is_symbol(Symbol::Comma)
+                    || self.current_is_symbol(Symbol::Arrow)
+                {
+                    self.parse_unsupported_lambda_body_form()?
+                } else if self.can_start_expression(current) {
+                    let expression = self.parse_expression_bp(0, expression_stops)?;
+                    let expression = self.consume_expression_tail(expression, expression_stops)?;
+                    let span = self.expression_span(expression)?;
+                    self.add_statement(span, Statement::Expression { expression })?
+                } else {
+                    let span = self.bump()?.span();
+                    self.emit(
+                        codes::EXPECTED_LAMBDA_BODY_ELEMENT,
+                        "expected lambda body element",
+                        span,
+                    )?;
+                    self.add_statement(span, Statement::Error)?
+                }
+            };
+            if self.index <= before {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            elements.push(element);
+        }
+
+        let end = if self.current_is_symbol(Symbol::RightBrace) {
+            self.bump()?.span().end()
+        } else {
+            let current = self.current()?;
+            if !self.lexical_recoveries.terminal_error_at_eof && !self.is_poison() {
+                self.emit_closing(self.empty_at(current.span().start())?, opener)?;
+            }
+            self.previous_significant_end().max(opener.end())
+        };
+        self.add_statement(
+            self.span(opener.start(), end)?,
+            Statement::LambdaBody { elements },
+        )
+    }
+
+    fn parse_unsupported_lambda_body_form(&mut self) -> Result<StatementId, ParserInternalError> {
+        let first_lexeme = self.bump()?;
+        let first = first_lexeme.span();
+        let mut end = first.end();
+        if self.current_is_keyword(Keyword::Val)
+            && matches!(
+                first_lexeme.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+            )
+        {
+            end = self.bump()?.span().end();
+        }
+        let span = self.span(first.start(), end)?;
+        self.emit(
+            codes::UNSUPPORTED_LAMBDA_BODY_FORM,
+            "unsupported lambda body form",
+            span,
+        )?;
+        self.add_statement(span, Statement::Error)
+    }
+
     fn parse_group(&mut self, outer_stops: Stops) -> Result<ExpressionId, ParserInternalError> {
         let opener = self.bump()?.span();
         let inner = self.parse_expression_bp(
             0,
             outer_stops
-                .without_block_elements()
+                .without_lambda_body_soft_stops()
                 .with(Stops::RIGHT_PAREN),
         )?;
         let inner_span = self.expression_span(inner)?;
@@ -1898,7 +2130,7 @@ impl Parser<'_> {
         mut end: usize,
         stops: Stops,
     ) -> Result<usize, ParserInternalError> {
-        let stops = stops.without_block_elements();
+        let stops = stops.without_lambda_body_soft_stops();
         let mut depth = 1usize;
         while depth > 0 {
             let current = self.current()?;
@@ -2000,7 +2232,7 @@ impl Parser<'_> {
         let opener = self.bump()?.span();
         let callee_span = self.expression_span(callee)?;
         let argument_stops = outer_stops
-            .without_block_elements()
+            .without_lambda_body_soft_stops()
             .with(Stops::COMMA)
             .with(Stops::RIGHT_PAREN);
         let mut arguments = Vec::new();
@@ -2211,7 +2443,7 @@ impl Parser<'_> {
         let opener = self.bump()?.span();
         let receiver_span = self.expression_span(receiver)?;
         let inner_stops = outer_stops
-            .without_block_elements()
+            .without_lambda_body_soft_stops()
             .with(Stops::RIGHT_BRACKET)
             .with(Stops::COMMA);
         let index = self.parse_expression_bp(0, inner_stops)?;
@@ -2288,9 +2520,10 @@ impl Parser<'_> {
                     | TokenKind::CharLiteral
                     | TokenKind::StringStart
             ) | LexemeKind::Token(TokenKind::Keyword(
-                Keyword::True | Keyword::False | Keyword::Null | Keyword::This
+                Keyword::True | Keyword::False | Keyword::Null | Keyword::This | Keyword::Move
             )) | LexemeKind::Token(TokenKind::Symbol(
                 Symbol::LeftParen
+                    | Symbol::LeftBrace
                     | Symbol::ColonColon
                     | Symbol::Bang
                     | Symbol::Plus
@@ -2810,6 +3043,12 @@ impl Parser<'_> {
             .ok_or(ParserInternalError::InvalidLexemeStream)
     }
 
+    fn current_raw(&self) -> Result<usize, ParserInternalError> {
+        self.significant(0)
+            .map(|(raw, _)| raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)
+    }
+
     fn peek(&self, ordinal: usize) -> Option<Lexeme> {
         self.significant(ordinal).map(|(_, lexeme)| lexeme)
     }
@@ -3035,15 +3274,31 @@ impl Stops {
         delimiters: 0,
         block_elements: false,
     };
-    const BLOCK_EXPRESSION: Self = Self {
-        delimiters: Self::RIGHT_BRACE,
-        block_elements: true,
-    };
     const RIGHT_PAREN: u8 = 1 << 0;
     const RIGHT_BRACKET: u8 = 1 << 1;
     const COMMA: u8 = 1 << 2;
     const INTERPOLATION_END: u8 = 1 << 3;
     const RIGHT_BRACE: u8 = 1 << 4;
+    const ARROW: u8 = 1 << 5;
+    const LAMBDA_COMMA: u8 = 1 << 6;
+    const HARD_DELIMITERS: u8 = Self::RIGHT_PAREN | Self::RIGHT_BRACKET | Self::INTERPOLATION_END;
+
+    const fn block_expression(outer_stops: Self) -> Self {
+        Self {
+            delimiters: (outer_stops.delimiters & Self::HARD_DELIMITERS) | Self::RIGHT_BRACE,
+            block_elements: true,
+        }
+    }
+
+    const fn lambda_expression(outer_stops: Self) -> Self {
+        Self {
+            delimiters: (outer_stops.delimiters & Self::HARD_DELIMITERS)
+                | Self::RIGHT_BRACE
+                | Self::LAMBDA_COMMA
+                | Self::ARROW,
+            block_elements: true,
+        }
+    }
 
     const fn with(self, flag: u8) -> Self {
         Self {
@@ -3052,10 +3307,26 @@ impl Stops {
         }
     }
 
-    const fn without_block_elements(self) -> Self {
+    const fn without_lambda_body_soft_stops(self) -> Self {
         Self {
-            delimiters: self.delimiters,
+            delimiters: self.delimiters & !(Self::LAMBDA_COMMA | Self::ARROW),
             block_elements: false,
+        }
+    }
+
+    fn contains_hard(self, lexeme: Lexeme) -> bool {
+        match lexeme.kind() {
+            LexemeKind::Eof => true,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen)) => {
+                self.delimiters & Self::RIGHT_PAREN != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket)) => {
+                self.delimiters & Self::RIGHT_BRACKET != 0
+            }
+            LexemeKind::Token(TokenKind::InterpolationEnd) => {
+                self.delimiters & Self::INTERPOLATION_END != 0
+            }
+            _ => false,
         }
     }
 
@@ -3072,7 +3343,10 @@ impl Stops {
                 self.delimiters & Self::RIGHT_BRACE != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => {
-                self.delimiters & Self::COMMA != 0
+                self.delimiters & (Self::COMMA | Self::LAMBDA_COMMA) != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => {
+                self.delimiters & Self::ARROW != 0
             }
             LexemeKind::Token(TokenKind::InterpolationEnd) => {
                 self.delimiters & Self::INTERPOLATION_END != 0
@@ -3155,8 +3429,6 @@ impl TypeStops {
     const LEFT_BRACE: u16 = 1 << 6;
     const RIGHT_BRACE: u16 = 1 << 7;
     const BLOCK_ELEMENT: u16 = 1 << 8;
-    const BLOCK_TYPE: Self = Self(Self::RIGHT_BRACE | Self::LEFT_BRACE | Self::BLOCK_ELEMENT);
-
     const fn empty() -> Self {
         Self(0)
     }
@@ -3169,7 +3441,7 @@ impl TypeStops {
 
     const fn from_expression(stops: Stops) -> Self {
         let mut bits = 0;
-        if stops.delimiters & Stops::COMMA != 0 {
+        if stops.delimiters & (Stops::COMMA | Stops::LAMBDA_COMMA) != 0 {
             bits |= Self::COMMA;
         }
         if stops.delimiters & Stops::RIGHT_PAREN != 0 {
@@ -3309,9 +3581,32 @@ impl DeclarationStops {
     const LEFT_PAREN: u16 = 1 << 6;
     const RIGHT_BRACE: u16 = 1 << 7;
     const BLOCK_ELEMENT: u16 = 1 << 8;
+    const RIGHT_BRACKET: u16 = 1 << 9;
+    const INTERPOLATION_END: u16 = 1 << 10;
+
+    const fn from_expression_hard(stops: Stops) -> Self {
+        let mut bits = 0;
+        if stops.delimiters & Stops::RIGHT_PAREN != 0 {
+            bits |= Self::RIGHT_PAREN;
+        }
+        if stops.delimiters & Stops::RIGHT_BRACKET != 0 {
+            bits |= Self::RIGHT_BRACKET;
+        }
+        if stops.delimiters & Stops::RIGHT_BRACE != 0 {
+            bits |= Self::RIGHT_BRACE;
+        }
+        if stops.delimiters & Stops::INTERPOLATION_END != 0 {
+            bits |= Self::INTERPOLATION_END;
+        }
+        Self(bits)
+    }
 
     const fn with(self, flag: u16) -> Self {
         Self(self.0 | flag)
+    }
+
+    const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
     }
 
     fn contains_hard(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
@@ -3327,12 +3622,20 @@ impl DeclarationStops {
         ) || matches!(
             symbol,
             Some(Symbol::RightBrace) if self.0 & Self::RIGHT_BRACE != 0
+        ) || matches!(
+            symbol,
+            Some(Symbol::RightBracket) if self.0 & Self::RIGHT_BRACKET != 0
         ) || (self.0 & Self::BLOCK_ELEMENT != 0
             && matches!(
                 lexeme.kind(),
                 LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
             ))
             || (self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(lexeme.kind()))
+            || (self.0 & Self::INTERPOLATION_END != 0
+                && matches!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::InterpolationEnd)
+                ))
     }
 
     fn contains_soft(self, symbol: Option<Symbol>) -> bool {
@@ -3398,11 +3701,15 @@ mod tests {
         let lexical_recoveries =
             LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
         let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
         let mut parser = Parser {
             sources: &sources,
             lexed: &lexed,
             lexical_recoveries,
             strict_trials,
+            lambda_headers,
             index: 0,
             recursion_depth: 0,
             ast: ExpressionAst::new(source_id),
@@ -3410,6 +3717,7 @@ mod tests {
             declaration_recovery_raw_visits: 0,
             declaration_recovery_event_queries_and_applications: 0,
             block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
             significant_raw_visits: Cell::new(0),
         };
         parser
@@ -3444,6 +3752,42 @@ mod tests {
         assert!(large_work <= small_work * 2 + 8);
     }
 
+    #[test]
+    fn lambda_local_recovery_preserves_inherited_hard_closers() {
+        for text in [
+            "f({ val + )",
+            "f({ val x: A<B )",
+            "f({ { val + )",
+            "a[{ val + ]",
+        ] {
+            let mut sources = SourceMap::new();
+            let source_id = sources
+                .add_source("lambda-local-recovery.ko", text)
+                .expect("test source name must be unique");
+            let lexed = lex(&sources, source_id).expect("test source must lex");
+            let parsed = parse(&sources, &lexed).expect("recovery must remain a user diagnostic");
+            assert!(
+                matches!(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(parsed.root())
+                        .expect("root expression")
+                        .payload(),
+                    Expression::Call { .. } | Expression::Index { .. }
+                ),
+                "{text:?} must leave the inherited closer for its caller"
+            );
+            assert!(
+                parsed.diagnostics().iter().all(|diagnostic| {
+                    !matches!(diagnostic.code().to_string().as_str(), "L0013" | "L0029")
+                }),
+                "{text:?}: {:?}",
+                parsed.diagnostics()
+            );
+        }
+    }
+
     fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
         let mut sources = SourceMap::new();
         let source_id = sources
@@ -3453,11 +3797,15 @@ mod tests {
         let lexical_recoveries =
             LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
         let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
         let mut parser = Parser {
             sources: &sources,
             lexed: &lexed,
             lexical_recoveries,
             strict_trials,
+            lambda_headers,
             index: 0,
             recursion_depth: 0,
             ast: ExpressionAst::new(source_id),
@@ -3465,6 +3813,7 @@ mod tests {
             declaration_recovery_raw_visits: 0,
             declaration_recovery_event_queries_and_applications: 0,
             block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
             significant_raw_visits: Cell::new(0),
         };
         parser.parse_block_root().expect("block must parse");
@@ -3496,6 +3845,73 @@ mod tests {
             assert_eq!(large_diagnostics, diagnostics_per_element * 64);
             assert!(small_iterations <= small_raw);
             assert!(large_iterations <= large_raw);
+            assert!(small_visits <= small_raw * 32);
+            assert!(large_visits <= large_raw * 32);
+            assert!(large_visits <= small_visits * 2 + 64);
+        }
+    }
+
+    fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("lambda-body-dispatch.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexical_diagnostics = lexed.diagnostics().len();
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            lambda_headers,
+            index: 0,
+            recursion_depth: 0,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        let root = parser
+            .parse_expression_bp(0, Stops::ROOT)
+            .expect("lambda must parse");
+        parser
+            .consume_expression_tail(root, Stops::ROOT)
+            .expect("lambda tail must parse");
+
+        (
+            lexed.lexemes().len(),
+            parser.lambda_body_dispatch_iterations,
+            parser.significant_raw_visits.get(),
+            lexical_diagnostics + parser.diagnostics.len(),
+        )
+    }
+
+    #[test]
+    fn lambda_body_legal_unsupported_and_poison_families_stay_linear() {
+        for (make, diagnostics_per_element) in [
+            (|count| format!("{{ {} }}", "{} ".repeat(count)), 0),
+            (|count| format!("{{ {} }}", "return ".repeat(count)), 1),
+            (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
+        ] as [(fn(usize) -> String, usize); 3]
+        {
+            let (small_raw, small_iterations, small_visits, small_diagnostics) =
+                lambda_body_dispatch_metrics(make(32));
+            let (large_raw, large_iterations, large_visits, large_diagnostics) =
+                lambda_body_dispatch_metrics(make(64));
+
+            assert_eq!(small_iterations, 32);
+            assert_eq!(large_iterations, 64);
+            assert_eq!(small_diagnostics, diagnostics_per_element * 32);
+            assert_eq!(large_diagnostics, diagnostics_per_element * 64);
             assert!(small_visits <= small_raw * 32);
             assert!(large_visits <= large_raw * 32);
             assert!(large_visits <= small_visits * 2 + 64);

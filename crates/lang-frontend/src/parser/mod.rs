@@ -1,6 +1,7 @@
 //! Koven v1 的 Pratt 表达式 Parser 与具体索引式 AST。
 
 mod engine;
+mod lambda_trial;
 mod trial;
 
 use std::{error::Error, fmt, thread};
@@ -229,6 +230,11 @@ pub enum Statement {
         /// 源码顺序的 block element。
         elements: Vec<StatementId>,
     },
+    /// Lambda 专用的有序 body；最后一个 expression statement 提供尾值。
+    LambdaBody {
+        /// 源码顺序的 lambda body element。
+        elements: Vec<StatementId>,
+    },
     /// 只引用既有简单变量 Item 的局部声明。
     LocalVariable {
         /// 对应的 `Item::Variable`。
@@ -343,6 +349,17 @@ pub enum Expression {
     String {
         /// 按源码顺序排列的文本与插值。
         parts: Vec<StringPart>,
+    },
+    /// 普通或显式 `move` lambda literal。
+    Lambda {
+        /// 可选的真实 `move` token 范围。
+        move_span: Option<Span>,
+        /// 严格 header 中源码顺序的真实参数名称范围。
+        parameters: Vec<Span>,
+        /// 真实 `->`；`None` 精确表示 header 缺席。
+        arrow_span: Option<Span>,
+        /// 唯一对应的 [`Statement::LambdaBody`]。
+        body: StatementId,
     },
     /// 前缀表达式。
     Prefix {
