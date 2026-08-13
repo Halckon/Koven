@@ -1,0 +1,4 @@
+fun sum(): Int {
+    left + 2
+    val left = 1
+}

@@ -5,8 +5,8 @@ use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
     lexer::lex,
     parser::{
-        Expression, Item, NameMarker, ParsedDeclaration, ParserInternalError, TypeRef,
-        VariableKind, parse_declaration,
+        Expression, FunctionBody, Item, NameMarker, ParsedDeclaration, ParserInternalError,
+        Statement, TypeRef, VariableKind, parse_declaration,
     },
     source::{SourceId, SourceMap, Span},
 };
@@ -152,7 +152,6 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
         parameters,
         return_colon_span,
         return_type,
-        body_equals_span,
         body,
     } = item(&parsed)
     else {
@@ -173,14 +172,16 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
         type_ref(&parsed, *return_type),
         TypeRef::Qualified { .. }
     ));
-    assert_eq!(
-        sources
-            .slice(body_equals_span.expect("equals"))
-            .expect("equals"),
-        "="
-    );
+    let FunctionBody::Expression {
+        equals_span,
+        expression: body,
+    } = body
+    else {
+        panic!("expression body")
+    };
+    assert_eq!(sources.slice(*equals_span).expect("equals"), "=");
     assert!(matches!(
-        expression(&parsed, body.expect("body")),
+        expression(&parsed, *body),
         Expression::Call { .. }
     ));
 
@@ -189,7 +190,6 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
         type_parameters,
         type_parameter_list_span,
         parameters,
-        body_equals_span,
         body,
         ..
     } = item(&signature)
@@ -197,7 +197,7 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
         panic!("signature")
     };
     assert!(type_parameters.is_empty() && parameters.is_empty());
-    assert!(type_parameter_list_span.is_none() && body_equals_span.is_none() && body.is_none());
+    assert!(type_parameter_list_span.is_none() && matches!(body, FunctionBody::Absent));
 }
 
 fn markers(item: &Item) -> Vec<NameMarker> {
@@ -556,10 +556,13 @@ fn missing_return_colon_fallback_preserves_the_expression_body() {
     let Item::Function { body, .. } = item(&parsed) else {
         panic!("function")
     };
-    assert!(matches!(
-        expression(&parsed, body.expect("preserved body")),
-        Expression::Literal(_)
-    ));
+    let FunctionBody::Expression {
+        expression: body, ..
+    } = body
+    else {
+        panic!("preserved expression body")
+    };
+    assert!(matches!(expression(&parsed, *body), Expression::Literal(_)));
     let codes = parsed
         .diagnostics()
         .iter()
@@ -688,15 +691,124 @@ fn unsupported_and_multi_declaration_forms_are_not_silently_accepted() {
         "fun f((x, y): T): R",
         "fun <T: A & B> f(): R",
         "fun <T> f(): R where T: A",
-        "fun f(): R { body }",
         "val x = 1\nval y = 2",
     ] {
         let (_, parsed) = parsed(text);
         assert!(!parsed.diagnostics().is_empty(), "{text:?}");
     }
-    for text in ["fun f(): R { body }", "val x = 1\nval y = 2"] {
-        assert_eq!(fingerprints(text).last().expect("diagnostic").0, "L0013");
+    assert_eq!(
+        fingerprints("val x = 1\nval y = 2")
+            .last()
+            .expect("diagnostic")
+            .0,
+        "L0013"
+    );
+}
+
+#[test]
+fn function_block_body_is_a_typed_statement_and_extends_the_item_span() {
+    let text = "fun f(): Unit { x val y = 1 }";
+    let (_, parsed) = parsed_ok(text);
+    let root = parsed.ast().items().get(parsed.root()).expect("function");
+    assert_eq!((root.span().start(), root.span().end()), (0, text.len()));
+    let Item::Function { body, .. } = root.payload() else {
+        panic!("function")
+    };
+    let FunctionBody::Block(block) = body else {
+        panic!("block body")
+    };
+    let block = parsed.ast().statements().get(*block).expect("block");
+    let Statement::Block { elements } = block.payload() else {
+        panic!("block statement")
+    };
+    assert_eq!(elements.len(), 2);
+    assert!(matches!(
+        parsed
+            .ast()
+            .statements()
+            .get(elements[0])
+            .expect("local")
+            .payload(),
+        Statement::Expression { .. }
+    ));
+    assert!(matches!(
+        parsed
+            .ast()
+            .statements()
+            .get(elements[1])
+            .expect("expression")
+            .payload(),
+        Statement::LocalVariable { .. }
+    ));
+}
+
+#[test]
+fn function_block_body_survives_missing_explicit_return_type_recovery() {
+    for (text, expected_code) in [("fun f() {}", "L0021"), ("fun f(): {}", "L0014")] {
+        let (_, parsed) = parsed(text);
+        let Item::Function {
+            return_type, body, ..
+        } = item(&parsed)
+        else {
+            panic!("function")
+        };
+        assert!(matches!(type_ref(&parsed, *return_type), TypeRef::Error));
+        let FunctionBody::Block(block) = body else {
+            panic!("block body")
+        };
+        assert!(matches!(
+            parsed
+                .ast()
+                .statements()
+                .get(*block)
+                .expect("block")
+                .payload(),
+            Statement::Block { elements } if elements.is_empty()
+        ));
+        assert_eq!(
+            parsed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            [expected_code],
+            "{text:?}: {:?}",
+            parsed.diagnostics()
+        );
     }
+}
+
+#[test]
+fn committed_function_body_shape_never_backtracks_into_a_second_body() {
+    let (_, expression) = parsed("fun f(): Unit = x {}");
+    let Item::Function { body, .. } = item(&expression) else {
+        panic!("function")
+    };
+    assert!(matches!(body, FunctionBody::Expression { .. }));
+    assert_eq!(
+        expression
+            .diagnostics()
+            .last()
+            .expect("trailing block")
+            .code()
+            .to_string(),
+        "L0013"
+    );
+
+    let (_, block) = parsed("fun f(): Unit {} = x");
+    let Item::Function { body, .. } = item(&block) else {
+        panic!("function")
+    };
+    assert!(matches!(body, FunctionBody::Block(_)));
+    assert_eq!(
+        block
+            .diagnostics()
+            .last()
+            .expect("trailing expression body")
+            .code()
+            .to_string(),
+        "L0013"
+    );
 }
 
 #[test]

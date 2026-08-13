@@ -6,14 +6,14 @@ mod trial;
 use std::{error::Error, fmt, thread};
 
 use crate::{
-    ast::{AstError, AstFile, ExpressionId, ItemId, TypeRefId},
+    ast::{AstError, AstFile, ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCodeError, DiagnosticError},
     lexer::LexedFile,
     source::{SourceError, SourceId, SourceMap, Span},
 };
 
 /// Parser 各入口共享的具体索引式 AST。
-pub type SyntaxAst = AstFile<Item, (), Expression, TypeRef>;
+pub type SyntaxAst = AstFile<Item, Statement, Expression, TypeRef>;
 
 /// 表达式解析使用的具体索引式 AST；保留旧名称作为兼容别名。
 pub type ExpressionAst = SyntaxAst;
@@ -52,6 +52,25 @@ pub fn parse_declaration(
             .name("koven-declaration-parser".to_owned())
             .stack_size(PARSER_STACK_SIZE)
             .spawn_scoped(scope, || engine::parse_declaration(sources, lexed))
+            .map_err(|error| ParserInternalError::ParserThread(error.kind()))?
+            .join()
+            .map_err(|_| ParserInternalError::ParserThreadPanicked)?
+    })
+}
+
+/// 从一份确定性词法产物解析唯一独立 block。
+///
+/// 用户语法错误保留在返回产物中；source identity、AST、诊断模型或实现资源边界失败才返回
+/// 具体内部错误。block、声明与表达式入口共享同一固定工作栈和递归预算。
+pub fn parse_block(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+) -> Result<ParsedBlock, ParserInternalError> {
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("koven-block-parser".to_owned())
+            .stack_size(PARSER_STACK_SIZE)
+            .spawn_scoped(scope, || engine::parse_block(sources, lexed))
             .map_err(|error| ParserInternalError::ParserThread(error.kind()))?
             .join()
             .map_err(|_| ParserInternalError::ParserThreadPanicked)?
@@ -130,6 +149,40 @@ impl ParsedDeclaration {
     }
 }
 
+/// 拥有具体 AST、唯一 block 根节点与两阶段有序诊断的解析产物。
+#[derive(Debug)]
+pub struct ParsedBlock {
+    pub(crate) ast: SyntaxAst,
+    pub(crate) root: StatementId,
+    pub(crate) diagnostics: Vec<Diagnostic>,
+}
+
+impl ParsedBlock {
+    /// 返回产物关联的源码身份。
+    #[must_use]
+    pub const fn source_id(&self) -> SourceId {
+        self.ast.source_id()
+    }
+
+    /// 返回只读具体 AST。
+    #[must_use]
+    pub const fn ast(&self) -> &SyntaxAst {
+        &self.ast
+    }
+
+    /// 返回独立 block 根节点 ID。
+    #[must_use]
+    pub const fn root(&self) -> StatementId {
+        self.root
+    }
+
+    /// 返回 Lexer 与 Parser 诊断的确定性合并全序。
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+}
+
 /// 恢复可见的源码名称。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NameMarker {
@@ -148,6 +201,44 @@ pub enum VariableKind {
     Val,
     /// `var`。
     Var,
+}
+
+/// 具名函数的互斥 body 形态。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FunctionBody {
+    /// 没有语法 body。
+    Absent,
+    /// `= expression` body。
+    Expression {
+        /// 真实 `=` token 范围。
+        equals_span: Span,
+        /// body 表达式。
+        expression: ExpressionId,
+    },
+    /// `{ ... }` block body。
+    Block(StatementId),
+}
+
+/// block 中按源码顺序保存的 statement payload。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Statement {
+    /// 恢复过程中显式插入的错误 statement。
+    Error,
+    /// 顺序拥有 child statement ID 的 block。
+    Block {
+        /// 源码顺序的 block element。
+        elements: Vec<StatementId>,
+    },
+    /// 只引用既有简单变量 Item 的局部声明。
+    LocalVariable {
+        /// 对应的 `Item::Variable`。
+        declaration: ItemId,
+    },
+    /// expression statement。
+    Expression {
+        /// 对应表达式。
+        expression: ExpressionId,
+    },
 }
 
 /// 一个函数类型参数。
@@ -227,10 +318,8 @@ pub enum Item {
         return_colon_span: Span,
         /// 显式返回类型或错误 TypeRef。
         return_type: TypeRefId,
-        /// 可选表达式体前的 `=`。
-        body_equals_span: Option<Span>,
-        /// 可选表达式体。
-        body: Option<ExpressionId>,
+        /// 互斥的函数 body 形态。
+        body: FunctionBody,
     },
 }
 

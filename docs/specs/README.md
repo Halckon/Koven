@@ -64,7 +64,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`done`） | 0002、0003、0005 `done`；v0.5 已生效 |
 | [0007](./0007-pratt-expression-parser.md) | Pratt parser 覆盖完整表达式优先级（`done`） | 0004、0006 `done`；v0.6 已生效；站立授权已记录 |
 | [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`done`） | 0007 `done`；v0.7 已生效；站立授权已记录 |
-| [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`in-progress`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
+| [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`done`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
 | 0010 | 解析 lambda、命名 / 模式实参与解构 | 0007、0008、0009 |
 | 0011 | 组合 0007–0010 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0009、0010；不是 Phase 1 全部语法终点 |
 | 0012 | 解析 `module` / `import` | 0008；先由新 guide 定义语法 |

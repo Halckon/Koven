@@ -1579,7 +1579,7 @@ SPEC-0009 的最小验收必须包括：
       basic call、单表达式索引、局部恢复及表达式 AST `Span`
 - [x] **SPEC-0008**：实现第四部分第 7 节的独立 `val` / `var` / `const val` / `fun` 声明、单一
       内联泛型上界与签名 `type_ref`，以及按第 2、3 节无副作用试探规则成立的调用点类型实参
-- [ ] **SPEC-0009**：只实现第四部分第 8 节的独立 block、局部 `val` / `var` 与 expression
+- [x] **SPEC-0009**：只实现第四部分第 8 节的独立 block、局部 `val` / `var` 与 expression
       statement 序列、嵌套 block，以及具名函数 block body
 - [ ] **SPEC-0010（前置：SPEC-0009 `done`）**：在既有 block / statement 载体上实现 lambda
       字面量、命名实参、`own` / `inout` / `borrow` 模式实参，以及解构声明
@@ -1591,8 +1591,8 @@ SPEC-0009 的最小验收必须包括：
       `super` / `for` / `while` / `loop` 与 `value class` / `class` / `interface` /
       `enum class` / `object` / `companion object`；不得把这些结构重新塞回 SPEC-0009
 
-前两项 Lexer 工作已经实现；SPEC-0007 与 SPEC-0008 已完成，SPEC-0009 至 SPEC-0011 及后续
-控制流 / class-family Spec 是本版规定的分阶段边界。未勾选状态不表示已经批准或已有代码；
+前两项 Lexer 工作以及 SPEC-0007 至 SPEC-0009 已完成；SPEC-0010、SPEC-0011 及后续控制流 /
+class-family Spec 是本版规定的分阶段边界。未勾选状态不表示已经批准或已有代码；
 各 Spec 必须按实际依赖顺序独立验收和提交。现有 SPEC-0012 及 Phase 2 编号不得被这些后续
 Parser Goal 静默占用，须先更新路线图再分配新编号。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参

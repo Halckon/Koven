@@ -38,6 +38,9 @@ pub mod codes {
     pub(crate) const EXPECTED_LIST_SEPARATOR: &str = "L0025";
     pub(crate) const UNSUPPORTED_TRAILING_COMMA: &str = "L0026";
     pub(crate) const UNSUPPORTED_PARAMETER_DEFAULT: &str = "L0027";
+    pub(crate) const EXPECTED_BLOCK: &str = "L0028";
+    pub(crate) const EXPECTED_BLOCK_ELEMENT: &str = "L0029";
+    pub(crate) const UNSUPPORTED_BLOCK_ELEMENT: &str = "L0030";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -68,6 +71,9 @@ pub mod codes {
         EXPECTED_LIST_SEPARATOR,
         UNSUPPORTED_TRAILING_COMMA,
         UNSUPPORTED_PARAMETER_DEFAULT,
+        EXPECTED_BLOCK,
+        EXPECTED_BLOCK_ELEMENT,
+        UNSUPPORTED_BLOCK_ELEMENT,
     ];
 
     /// 由集中定义创建生产错误码目录。

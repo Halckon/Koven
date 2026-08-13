@@ -16,7 +16,7 @@ use lang_frontend::{
     ast::AstFile,
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
     lexer::{LexedFile, LexemeKind, lex},
-    parser::{parse_declaration, parse_expression},
+    parser::{parse_block, parse_declaration, parse_expression},
     source::{SourceId, SourceMap},
 };
 
@@ -106,6 +106,21 @@ struct ParserCaseOutcome {
 struct DeclarationCaseOutcome {
     relative_path: String,
     result: Result<DeclarationEvidence, ParserCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BlockCaseOutcome {
+    relative_path: String,
+    result: Result<BlockEvidence, ParserCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BlockEvidence {
+    byte_len: usize,
+    statement_count: usize,
+    item_count: usize,
+    expression_count: usize,
+    diagnostic_count: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -230,6 +245,14 @@ fn parser_declaration_pass_fixture_root() -> PathBuf {
 
 fn parser_declaration_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-declaration-fail")
+}
+
+fn parser_block_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-block-pass")
+}
+
+fn parser_block_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-block-fail")
 }
 
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
@@ -820,6 +843,69 @@ fn run_declaration_fail_case(
     })
 }
 
+fn run_block_pass_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| BlockCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_block_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_block_pass_case(case: &FixtureCase) -> Result<BlockEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.disk_path)?;
+    let parsed = parse_block(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if !parsed.diagnostics().is_empty() {
+        return Err(ParserCaseFailure::UnexpectedDiagnostics);
+    }
+    if parsed.ast().source_id() != source_id
+        || parsed.ast().statements().get(parsed.root()).is_err()
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    Ok(BlockEvidence {
+        byte_len,
+        statement_count: parsed.ast().statements().len(),
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_block_fail_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| BlockCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_block_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_block_fail_case(case: &LexerFailCase) -> Result<BlockEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.source_path)?;
+    let parsed = parse_block(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if parsed.ast().source_id() != source_id
+        || parsed.ast().statements().get(parsed.root()).is_err()
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    let expected = load_parser_sidecar(&sources, source_id, &case.sidecar_path)?;
+    validate_parser_diagnostics(&sources, parsed.diagnostics(), &expected)?;
+    Ok(BlockEvidence {
+        byte_len,
+        statement_count: parsed.ast().statements().len(),
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        diagnostic_count: expected.len(),
+    })
+}
+
 fn load_parser_sidecar(
     sources: &SourceMap,
     source_id: SourceId,
@@ -1176,7 +1262,7 @@ mod tests {
         let fail = run_declaration_fail_suite(&parser_declaration_fail_fixture_root())
             .expect("the declaration fail suite must be valid");
 
-        assert_eq!(pass.len(), 1);
+        assert_eq!(pass.len(), 2);
         assert_eq!(pass[0].relative_path, "constant.ko");
         let pass_evidence = pass[0]
             .result
@@ -1186,6 +1272,13 @@ mod tests {
         assert!(pass_evidence.expression_count > 0);
         assert!(pass_evidence.type_ref_count > 0);
         assert_eq!(pass_evidence.diagnostic_count, 0);
+        let function_evidence = pass[1]
+            .result
+            .as_ref()
+            .expect("the function block fixture must parse without diagnostics");
+        assert_eq!(pass[1].relative_path, "function-block.ko");
+        assert!(function_evidence.item_count >= 2);
+        assert!(function_evidence.expression_count > 0);
 
         assert_eq!(fail.len(), 1);
         assert_eq!(fail[0].relative_path, "empty.ko");
@@ -1195,6 +1288,34 @@ mod tests {
             .expect("the declaration fail case must match its sidecar");
         assert_eq!(fail_evidence.item_count, 1);
         assert_eq!(fail_evidence.diagnostic_count, 1);
+    }
+
+    #[test]
+    fn checked_in_block_suites_execute_real_typed_ast_and_diagnostics() {
+        let pass = run_block_pass_suite(&parser_block_pass_fixture_root())
+            .expect("the block pass suite must be valid");
+        let fail = run_block_fail_suite(&parser_block_fail_fixture_root())
+            .expect("the block fail suite must be valid");
+
+        assert_eq!(pass.len(), 1);
+        assert_eq!(pass[0].relative_path, "sequence.ko");
+        let pass = pass[0]
+            .result
+            .as_ref()
+            .expect("the block pass fixture must parse without diagnostics");
+        assert!(pass.statement_count >= 4);
+        assert!(pass.item_count >= 2);
+        assert!(pass.expression_count >= 2);
+        assert_eq!(pass.diagnostic_count, 0);
+
+        assert_eq!(fail.len(), 1);
+        assert_eq!(fail[0].relative_path, "unsupported-return.ko");
+        let fail = fail[0]
+            .result
+            .as_ref()
+            .expect("the block fail fixture must match its sidecar");
+        assert!(fail.statement_count >= 2);
+        assert_eq!(fail.diagnostic_count, 1);
     }
 
     #[test]
@@ -1236,6 +1357,26 @@ mod tests {
         );
         assert_eq!(
             run_declaration_fail_suite(unpaired.path()),
+            Err(SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]))
+        );
+
+        assert_eq!(
+            run_block_pass_suite(empty_pass.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_block_fail_suite(empty_fail.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_block_fail_suite(unpaired.path()),
             Err(SuiteError::InvalidEntries(vec![
                 DiscoveryIssue::MissingSidecar {
                     relative_path: "missing.ko".to_owned(),

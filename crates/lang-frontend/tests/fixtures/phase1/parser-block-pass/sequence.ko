@@ -1,0 +1,6 @@
+{
+    first + second
+    val first = 1
+    var second: Int = 2
+    {}
+}

@@ -1,16 +1,19 @@
 use crate::{
-    ast::{ExpressionId, ItemId, TypeRefId},
+    ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     lexer::{Keyword, LexedFile, Lexeme, LexemeKind, Symbol, TokenKind},
     source::{SourceMap, Span},
 };
 
+#[cfg(test)]
+use std::cell::Cell;
+
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
-    AssignmentOperator, BinaryOperator, CastOperator, Expression, ExpressionAst, Item, LiteralKind,
-    MAX_RECURSION_DEPTH, NameMarker, ParsedDeclaration, ParsedExpression, ParserInternalError,
-    PrefixOperator, StringPart, TypeParameter, TypePathSegment, TypeRef, ValueParameter,
-    VariableKind,
+    AssignmentOperator, BinaryOperator, CastOperator, Expression, ExpressionAst, FunctionBody,
+    Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, ParsedBlock, ParsedDeclaration,
+    ParsedExpression, ParserInternalError, PrefixOperator, Statement, StringPart, TypeParameter,
+    TypePathSegment, TypeRef, ValueParameter, VariableKind,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;
@@ -51,6 +54,10 @@ pub(super) fn parse(
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
         declaration_recovery_event_queries_and_applications: 0,
+        #[cfg(test)]
+        block_dispatch_iterations: 0,
+        #[cfg(test)]
+        significant_raw_visits: Cell::new(0),
     };
     let root = parser.parse_expression_bp(0, Stops::ROOT)?;
     let root = parser.consume_expression_tail(root, Stops::ROOT)?;
@@ -90,6 +97,10 @@ pub(super) fn parse_declaration(
         declaration_recovery_raw_visits: 0,
         #[cfg(test)]
         declaration_recovery_event_queries_and_applications: 0,
+        #[cfg(test)]
+        block_dispatch_iterations: 0,
+        #[cfg(test)]
+        significant_raw_visits: Cell::new(0),
     };
     let root = parser.parse_declaration_root()?;
 
@@ -100,6 +111,47 @@ pub(super) fn parse_declaration(
         .cloned()
         .collect();
     Ok(ParsedDeclaration {
+        ast: parser.ast,
+        root,
+        diagnostics,
+    })
+}
+
+pub(super) fn parse_block(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+) -> Result<ParsedBlock, ParserInternalError> {
+    let source = sources.source_text(lexed.source_id())?;
+    validate_lexemes(sources, lexed, source.len())?;
+    let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
+    let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let mut parser = Parser {
+        sources,
+        lexed,
+        lexical_recoveries,
+        strict_trials,
+        index: 0,
+        recursion_depth: 0,
+        ast: ExpressionAst::new(lexed.source_id()),
+        diagnostics: Vec::new(),
+        #[cfg(test)]
+        declaration_recovery_raw_visits: 0,
+        #[cfg(test)]
+        declaration_recovery_event_queries_and_applications: 0,
+        #[cfg(test)]
+        block_dispatch_iterations: 0,
+        #[cfg(test)]
+        significant_raw_visits: Cell::new(0),
+    };
+    let root = parser.parse_block_root()?;
+
+    let mut diagnostics = lexed.diagnostics().to_vec();
+    diagnostics.extend(parser.diagnostics);
+    let diagnostics = ordered_diagnostics(sources, &diagnostics)?
+        .into_iter()
+        .cloned()
+        .collect();
+    Ok(ParsedBlock {
         ast: parser.ast,
         root,
         diagnostics,
@@ -449,9 +501,166 @@ struct Parser<'source> {
     declaration_recovery_raw_visits: usize,
     #[cfg(test)]
     declaration_recovery_event_queries_and_applications: usize,
+    #[cfg(test)]
+    block_dispatch_iterations: usize,
+    #[cfg(test)]
+    significant_raw_visits: Cell<usize>,
 }
 
 impl Parser<'_> {
+    fn parse_block_root(&mut self) -> Result<StatementId, ParserInternalError> {
+        if !self.current_is_symbol(Symbol::LeftBrace) {
+            return self.parse_missing_block_root();
+        }
+        let root = self.parse_block_statement()?;
+        if !matches!(self.current()?.kind(), LexemeKind::Eof) {
+            let first = self.current()?.span();
+            self.emit(
+                codes::UNEXPECTED_TRAILING_TOKEN,
+                "unexpected trailing token",
+                first,
+            )?;
+            self.recover_declaration_region(DeclarationStops::EMPTY)?;
+        }
+        Ok(root)
+    }
+
+    fn parse_missing_block_root(&mut self) -> Result<StatementId, ParserInternalError> {
+        let current = self.current()?;
+        let start = current.span().start();
+        if matches!(current.kind(), LexemeKind::Eof) {
+            let span = self.empty_at(start)?;
+            self.emit(codes::EXPECTED_BLOCK, "expected block", span)?;
+            return self.add_statement(span, Statement::Error);
+        }
+        if !self.is_poison_kind(current.kind()) {
+            self.emit(codes::EXPECTED_BLOCK, "expected block", current.span())?;
+        }
+
+        // 独立入口一旦缺 opener，整个剩余输入属于同一个 error root。这里按 raw lexeme 前进，
+        // 因而 trailing trivia 也被消费，但节点范围只止于最后一个实际 token / invalid。
+        let mut end = current.span().end();
+        while self.index < self.lexed.lexemes().len() {
+            let lexeme = self.lexed.lexemes()[self.index];
+            self.index += 1;
+            if !matches!(lexeme.kind(), LexemeKind::Trivia(_) | LexemeKind::Eof) {
+                end = lexeme.span().end();
+            }
+            if matches!(lexeme.kind(), LexemeKind::Eof) {
+                break;
+            }
+        }
+        self.add_statement(self.span(start, end)?, Statement::Error)
+    }
+
+    fn parse_block_statement(&mut self) -> Result<StatementId, ParserInternalError> {
+        self.enter_recursion()?;
+        let result = self.parse_block_statement_inner();
+        self.recursion_depth -= 1;
+        result
+    }
+
+    fn parse_block_statement_inner(&mut self) -> Result<StatementId, ParserInternalError> {
+        let opener = self.bump()?.span();
+        let mut elements = Vec::new();
+
+        while !self.current_is_symbol(Symbol::RightBrace)
+            && !matches!(self.current()?.kind(), LexemeKind::Eof)
+        {
+            #[cfg(test)]
+            {
+                self.block_dispatch_iterations += 1;
+            }
+            let before = self.index;
+            let element = self.parse_block_element()?;
+            if self.index <= before {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            elements.push(element);
+        }
+
+        let end = if self.current_is_symbol(Symbol::RightBrace) {
+            self.bump()?.span().end()
+        } else {
+            let current = self.current()?;
+            if !self.lexical_recoveries.terminal_error_at_eof {
+                self.emit_closing(self.empty_at(current.span().start())?, opener)?;
+            }
+            self.previous_significant_end().max(opener.end())
+        };
+        self.add_statement(
+            self.span(opener.start(), end)?,
+            Statement::Block { elements },
+        )
+    }
+
+    fn parse_block_element(&mut self) -> Result<StatementId, ParserInternalError> {
+        if self.current_is_symbol(Symbol::LeftBrace) {
+            return self.parse_block_statement();
+        }
+        if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
+            let keyword = self.bump()?;
+            let kind = match keyword.kind() {
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Val)) => VariableKind::Val,
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Var)) => VariableKind::Var,
+                _ => return Err(ParserInternalError::InvalidLexemeStream),
+            };
+            let declaration = self.parse_local_variable_declaration(keyword.span(), kind)?;
+            let span = self.ast.items().get(declaration)?.span();
+            return self.add_statement(span, Statement::LocalVariable { declaration });
+        }
+        if self.is_unsupported_block_element() {
+            return self.parse_unsupported_block_element();
+        }
+
+        let current = self.current()?;
+        if self.is_poison_kind(current.kind()) {
+            let span = self.bump()?.span();
+            return self.add_statement(span, Statement::Error);
+        }
+        if self.can_start_expression(current) {
+            let stops = Stops::BLOCK_EXPRESSION;
+            let expression = self.parse_expression_bp(0, stops)?;
+            let expression = self.consume_expression_tail(expression, stops)?;
+            let span = self.expression_span(expression)?;
+            return self.add_statement(span, Statement::Expression { expression });
+        }
+
+        let span = self.bump()?.span();
+        self.emit(
+            codes::EXPECTED_BLOCK_ELEMENT,
+            "expected block element",
+            span,
+        )?;
+        self.add_statement(span, Statement::Error)
+    }
+
+    fn parse_unsupported_block_element(&mut self) -> Result<StatementId, ParserInternalError> {
+        let first_lexeme = self.bump()?;
+        let first = first_lexeme.span();
+        let mut end = first.end();
+        if self.current_is_keyword(Keyword::Val)
+            && matches!(
+                first_lexeme.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+            )
+        {
+            end = self.bump()?.span().end();
+        }
+        let span = self.span(first.start(), end)?;
+        self.emit(
+            codes::UNSUPPORTED_BLOCK_ELEMENT,
+            "unsupported block element",
+            span,
+        )?;
+        self.add_statement(span, Statement::Error)
+    }
+
+    fn is_unsupported_block_element(&self) -> bool {
+        self.peek(0)
+            .is_some_and(|lexeme| unsupported_block_element_kind(lexeme.kind()))
+    }
+
     fn parse_declaration_root(&mut self) -> Result<ItemId, ParserInternalError> {
         let root = if self.current_is_keyword(Keyword::Val) {
             let keyword = self.bump()?.span();
@@ -502,6 +711,83 @@ impl Parser<'_> {
                 initializer,
             },
         )
+    }
+
+    fn parse_local_variable_declaration(
+        &mut self,
+        keyword: Span,
+        kind: VariableKind,
+    ) -> Result<ItemId, ParserInternalError> {
+        let name = self.parse_name_marker(
+            codes::EXPECTED_DECLARATION_NAME,
+            "expected declaration name",
+            NameContext::LocalDeclaration,
+        )?;
+        let (colon_span, type_ref) = if self.current_is_symbol(Symbol::Colon) {
+            let colon = self.bump()?.span();
+            let type_ref = self.parse_type_ref(TypeStops::BLOCK_TYPE.with(TypeStops::EQUAL))?;
+            (Some(colon), Some(type_ref))
+        } else {
+            (None, None)
+        };
+        let (equals_span, initializer) = self.parse_required_block_initializer()?;
+        let end = self
+            .expression_span(initializer)?
+            .end()
+            .max(marker_span(name).end())
+            .max(
+                type_ref
+                    .map(|id| self.type_span(id).map(Span::end))
+                    .transpose()?
+                    .unwrap_or(keyword.end()),
+            );
+        self.add_item(
+            self.span(keyword.start(), end)?,
+            Item::Variable {
+                kind,
+                name,
+                colon_span,
+                type_ref,
+                equals_span,
+                initializer,
+            },
+        )
+    }
+
+    fn parse_required_block_initializer(
+        &mut self,
+    ) -> Result<(Span, ExpressionId), ParserInternalError> {
+        let stops = Stops::BLOCK_EXPRESSION;
+        if self.current_is_symbol(Symbol::Equal) {
+            let equals = self.bump()?.span();
+            let initializer = self.parse_expression_bp(0, stops)?;
+            let initializer = self.consume_expression_tail(initializer, stops)?;
+            return Ok((equals, initializer));
+        }
+
+        let current = self.current()?;
+        let boundary = stops.contains(current);
+        let primary = if boundary {
+            self.empty_at(current.span().start())?
+        } else {
+            current.span()
+        };
+        let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
+            && self.lexical_recoveries.terminal_error_at_eof;
+        if !self.is_poison_kind(current.kind()) && !terminal_lexer_root {
+            self.emit(codes::EXPECTED_INITIALIZER, "expected initializer", primary)?;
+        }
+        let equals = self.empty_at(current.span().start())?;
+        if self.can_start_expression(current) {
+            let initializer = self.parse_expression_bp(0, stops)?;
+            let initializer = self.consume_expression_tail(initializer, stops)?;
+            return Ok((equals, initializer));
+        }
+        if boundary {
+            return Ok((equals, self.add_expression(primary, Expression::Error)?));
+        }
+        let span = self.bump()?.span();
+        Ok((equals, self.add_expression(span, Expression::Error)?))
     }
 
     fn parse_constant_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
@@ -569,18 +855,24 @@ impl Parser<'_> {
         )?;
         let parameters = self.parse_value_parameters()?;
         let (return_colon_span, return_type) = self.parse_required_return_type()?;
-        let (body_equals_span, body) = if self.current_is_symbol(Symbol::Equal) {
+        let body = if self.current_is_symbol(Symbol::Equal) {
             let equals = self.bump()?.span();
             let expression = self.parse_expression_bp(0, Stops::ROOT)?;
-            (Some(equals), Some(expression))
+            FunctionBody::Expression {
+                equals_span: equals,
+                expression,
+            }
+        } else if self.current_is_symbol(Symbol::LeftBrace) {
+            FunctionBody::Block(self.parse_block_statement()?)
         } else {
-            (None, None)
+            FunctionBody::Absent
         };
-        let end = body
-            .map(|id| self.expression_span(id).map(Span::end))
-            .transpose()?
-            .unwrap_or(self.type_span(return_type)?.end())
-            .max(fun_span.end());
+        let end = match body {
+            FunctionBody::Absent => self.type_span(return_type)?.end(),
+            FunctionBody::Expression { expression, .. } => self.expression_span(expression)?.end(),
+            FunctionBody::Block(statement) => self.statement_span(statement)?.end(),
+        }
+        .max(fun_span.end());
         self.add_item(
             self.span(fun_span.start(), end)?,
             Item::Function {
@@ -590,7 +882,6 @@ impl Parser<'_> {
                 parameters,
                 return_colon_span,
                 return_type,
-                body_equals_span,
                 body,
             },
         )
@@ -672,7 +963,11 @@ impl Parser<'_> {
     fn parse_required_return_type(&mut self) -> Result<(Span, TypeRefId), ParserInternalError> {
         if self.current_is_symbol(Symbol::Colon) {
             let colon = self.bump()?.span();
-            let type_ref = self.parse_type_ref(TypeStops::empty().with(TypeStops::EQUAL))?;
+            let type_ref = self.parse_type_ref(
+                TypeStops::empty()
+                    .with(TypeStops::EQUAL)
+                    .with(TypeStops::LEFT_BRACE),
+            )?;
             return Ok((colon, type_ref));
         }
         let current = self.current()?;
@@ -1103,7 +1398,7 @@ impl Parser<'_> {
                 continue;
             }
             let outside_owner = owners.is_empty();
-            let hard_stop = outside_owner && stops.contains_hard(symbol);
+            let hard_stop = outside_owner && stops.contains_hard(current, symbol);
             if hard_stop || (outside_owner && delimiters.is_empty() && stops.contains_soft(symbol))
             {
                 break;
@@ -1367,7 +1662,12 @@ impl Parser<'_> {
 
     fn parse_group(&mut self, outer_stops: Stops) -> Result<ExpressionId, ParserInternalError> {
         let opener = self.bump()?.span();
-        let inner = self.parse_expression_bp(0, outer_stops.with(Stops::RIGHT_PAREN))?;
+        let inner = self.parse_expression_bp(
+            0,
+            outer_stops
+                .without_block_elements()
+                .with(Stops::RIGHT_PAREN),
+        )?;
         let inner_span = self.expression_span(inner)?;
         let end = if self.current_is_symbol(Symbol::RightParen) {
             self.bump()?.span().end()
@@ -1598,6 +1898,7 @@ impl Parser<'_> {
         mut end: usize,
         stops: Stops,
     ) -> Result<usize, ParserInternalError> {
+        let stops = stops.without_block_elements();
         let mut depth = 1usize;
         while depth > 0 {
             let current = self.current()?;
@@ -1698,7 +1999,10 @@ impl Parser<'_> {
     ) -> Result<ExpressionId, ParserInternalError> {
         let opener = self.bump()?.span();
         let callee_span = self.expression_span(callee)?;
-        let argument_stops = outer_stops.with(Stops::COMMA).with(Stops::RIGHT_PAREN);
+        let argument_stops = outer_stops
+            .without_block_elements()
+            .with(Stops::COMMA)
+            .with(Stops::RIGHT_PAREN);
         let mut arguments = Vec::new();
         let mut last_consumed_end = opener.end();
 
@@ -1906,7 +2210,10 @@ impl Parser<'_> {
     ) -> Result<ExpressionId, ParserInternalError> {
         let opener = self.bump()?.span();
         let receiver_span = self.expression_span(receiver)?;
-        let inner_stops = outer_stops.with(Stops::RIGHT_BRACKET).with(Stops::COMMA);
+        let inner_stops = outer_stops
+            .without_block_elements()
+            .with(Stops::RIGHT_BRACKET)
+            .with(Stops::COMMA);
         let index = self.parse_expression_bp(0, inner_stops)?;
         let index_span = self.expression_span(index)?;
         let mut last_consumed_end = index_span.end().max(opener.end());
@@ -2326,7 +2633,10 @@ impl Parser<'_> {
         if self.current_is_symbol(Symbol::Less) {
             let opener = self.bump()?.span();
             let mut arguments = Vec::new();
-            let argument_stops = stops.with(TypeStops::COMMA).with(TypeStops::GREATER);
+            let argument_stops = stops
+                .without_block_elements()
+                .with(TypeStops::COMMA)
+                .with(TypeStops::GREATER);
             loop {
                 arguments.push(self.parse_type_ref(argument_stops)?);
                 if self.current_is_symbol(Symbol::Comma) {
@@ -2406,6 +2716,7 @@ impl Parser<'_> {
         let start = move_span.unwrap_or(opener).start();
         let mut parameters = Vec::new();
         let parameter_stops = outer_stops
+            .without_block_elements()
             .with(TypeStops::COMMA)
             .with(TypeStops::RIGHT_PAREN);
         if !self.current_is_symbol(Symbol::RightParen) {
@@ -2469,6 +2780,9 @@ impl Parser<'_> {
     fn significant(&self, ordinal: usize) -> Option<(usize, Lexeme)> {
         let mut remaining = ordinal;
         for (index, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
+            #[cfg(test)]
+            self.significant_raw_visits
+                .set(self.significant_raw_visits.get() + 1);
             if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
                 continue;
             }
@@ -2577,6 +2891,10 @@ impl Parser<'_> {
         Ok(self.ast.expressions().get(id)?.span())
     }
 
+    fn statement_span(&self, id: StatementId) -> Result<Span, ParserInternalError> {
+        Ok(self.ast.statements().get(id)?.span())
+    }
+
     fn type_span(&self, id: TypeRefId) -> Result<Span, ParserInternalError> {
         Ok(self.ast.type_refs().get(id)?.span())
     }
@@ -2587,6 +2905,14 @@ impl Parser<'_> {
         payload: Expression,
     ) -> Result<ExpressionId, ParserInternalError> {
         Ok(self.ast.add_expression(span, payload)?)
+    }
+
+    fn add_statement(
+        &mut self,
+        span: Span,
+        payload: Statement,
+    ) -> Result<StatementId, ParserInternalError> {
+        Ok(self.ast.add_statement(span, payload)?)
     }
 
     fn add_item(&mut self, span: Span, item: Item) -> Result<ItemId, ParserInternalError> {
@@ -2673,31 +2999,91 @@ impl Parser<'_> {
     }
 }
 
+fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(
+            Keyword::Const
+                | Keyword::Fun
+                | Keyword::Return
+                | Keyword::Break
+                | Keyword::Continue
+                | Keyword::If
+                | Keyword::When
+                | Keyword::Super
+                | Keyword::For
+                | Keyword::While
+                | Keyword::Loop
+                | Keyword::Value
+                | Keyword::Class
+                | Keyword::Interface
+                | Keyword::Enum
+                | Keyword::Object
+                | Keyword::Companion
+        ))
+    )
+}
+
 #[derive(Clone, Copy)]
-struct Stops(u8);
+struct Stops {
+    delimiters: u8,
+    block_elements: bool,
+}
 
 impl Stops {
-    const ROOT: Self = Self(0);
+    const ROOT: Self = Self {
+        delimiters: 0,
+        block_elements: false,
+    };
+    const BLOCK_EXPRESSION: Self = Self {
+        delimiters: Self::RIGHT_BRACE,
+        block_elements: true,
+    };
     const RIGHT_PAREN: u8 = 1 << 0;
     const RIGHT_BRACKET: u8 = 1 << 1;
     const COMMA: u8 = 1 << 2;
     const INTERPOLATION_END: u8 = 1 << 3;
+    const RIGHT_BRACE: u8 = 1 << 4;
 
     const fn with(self, flag: u8) -> Self {
-        Self(self.0 | flag)
+        Self {
+            delimiters: self.delimiters | flag,
+            block_elements: self.block_elements,
+        }
+    }
+
+    const fn without_block_elements(self) -> Self {
+        Self {
+            delimiters: self.delimiters,
+            block_elements: false,
+        }
     }
 
     fn contains(self, lexeme: Lexeme) -> bool {
         match lexeme.kind() {
             LexemeKind::Eof => true,
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen)) => {
-                self.0 & Self::RIGHT_PAREN != 0
+                self.delimiters & Self::RIGHT_PAREN != 0
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket)) => {
-                self.0 & Self::RIGHT_BRACKET != 0
+                self.delimiters & Self::RIGHT_BRACKET != 0
             }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => self.0 & Self::COMMA != 0,
-            LexemeKind::Token(TokenKind::InterpolationEnd) => self.0 & Self::INTERPOLATION_END != 0,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => {
+                self.delimiters & Self::RIGHT_BRACE != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => {
+                self.delimiters & Self::COMMA != 0
+            }
+            LexemeKind::Token(TokenKind::InterpolationEnd) => {
+                self.delimiters & Self::INTERPOLATION_END != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+            | LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+                if self.block_elements =>
+            {
+                true
+            }
+            kind if self.block_elements && unsupported_block_element_kind(kind) => true,
             _ => false,
         }
     }
@@ -2762,40 +3148,54 @@ enum NonAssociativeGroup {
 }
 
 #[derive(Clone, Copy)]
-struct TypeStops(u8);
+struct TypeStops(u16);
 
 impl TypeStops {
-    const EQUAL: u8 = 1 << 5;
+    const EQUAL: u16 = 1 << 5;
+    const LEFT_BRACE: u16 = 1 << 6;
+    const RIGHT_BRACE: u16 = 1 << 7;
+    const BLOCK_ELEMENT: u16 = 1 << 8;
+    const BLOCK_TYPE: Self = Self(Self::RIGHT_BRACE | Self::LEFT_BRACE | Self::BLOCK_ELEMENT);
 
     const fn empty() -> Self {
         Self(0)
     }
 
-    const COMMA: u8 = 1 << 0;
-    const GREATER: u8 = 1 << 1;
-    const RIGHT_PAREN: u8 = 1 << 2;
-    const RIGHT_BRACKET: u8 = 1 << 3;
-    const INTERPOLATION_END: u8 = 1 << 4;
+    const COMMA: u16 = 1 << 0;
+    const GREATER: u16 = 1 << 1;
+    const RIGHT_PAREN: u16 = 1 << 2;
+    const RIGHT_BRACKET: u16 = 1 << 3;
+    const INTERPOLATION_END: u16 = 1 << 4;
 
     const fn from_expression(stops: Stops) -> Self {
         let mut bits = 0;
-        if stops.0 & Stops::COMMA != 0 {
+        if stops.delimiters & Stops::COMMA != 0 {
             bits |= Self::COMMA;
         }
-        if stops.0 & Stops::RIGHT_PAREN != 0 {
+        if stops.delimiters & Stops::RIGHT_PAREN != 0 {
             bits |= Self::RIGHT_PAREN;
         }
-        if stops.0 & Stops::RIGHT_BRACKET != 0 {
+        if stops.delimiters & Stops::RIGHT_BRACKET != 0 {
             bits |= Self::RIGHT_BRACKET;
         }
-        if stops.0 & Stops::INTERPOLATION_END != 0 {
+        if stops.delimiters & Stops::INTERPOLATION_END != 0 {
             bits |= Self::INTERPOLATION_END;
+        }
+        if stops.delimiters & Stops::RIGHT_BRACE != 0 {
+            bits |= Self::RIGHT_BRACE;
+        }
+        if stops.block_elements {
+            bits |= Self::BLOCK_ELEMENT | Self::LEFT_BRACE;
         }
         Self(bits)
     }
 
-    const fn with(self, flag: u8) -> Self {
+    const fn with(self, flag: u16) -> Self {
         Self(self.0 | flag)
+    }
+
+    const fn without_block_elements(self) -> Self {
+        Self(self.0 & !(Self::BLOCK_ELEMENT | Self::LEFT_BRACE))
     }
 
     fn contains(self, lexeme: Lexeme) -> bool {
@@ -2811,6 +3211,20 @@ impl TypeStops {
             }
             LexemeKind::Token(TokenKind::InterpolationEnd) => self.0 & Self::INTERPOLATION_END != 0,
             LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => self.0 & Self::EQUAL != 0,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
+                self.0 & Self::LEFT_BRACE != 0
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => {
+                self.0 & Self::RIGHT_BRACE != 0
+            }
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+                if self.0 & Self::BLOCK_ELEMENT != 0 =>
+            {
+                true
+            }
+            kind if self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(kind) => {
+                true
+            }
             _ => false,
         }
     }
@@ -2819,19 +3233,29 @@ impl TypeStops {
 #[derive(Clone, Copy)]
 enum NameContext {
     Declaration,
+    LocalDeclaration,
     TypeParameter,
     ValueParameter,
 }
 
 impl NameContext {
     fn is_stop(self, lexeme: Lexeme) -> bool {
+        if matches!(self, Self::LocalDeclaration) && unsupported_block_element_kind(lexeme.kind()) {
+            return true;
+        }
         matches!(
             (self, lexeme.kind()),
             (
-                Self::Declaration,
+                Self::Declaration | Self::LocalDeclaration,
                 LexemeKind::Token(TokenKind::Symbol(
                     Symbol::Colon | Symbol::Equal | Symbol::LeftParen,
                 )),
+            ) | (
+                Self::LocalDeclaration,
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace | Symbol::RightBrace,)),
+            ) | (
+                Self::LocalDeclaration,
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var)),
             ) | (
                 Self::TypeParameter,
                 LexemeKind::Token(TokenKind::Symbol(
@@ -2852,6 +3276,13 @@ impl NameContext {
                 .with(DeclarationStops::COLON)
                 .with(DeclarationStops::EQUAL)
                 .with(DeclarationStops::LEFT_PAREN),
+            Self::LocalDeclaration => DeclarationStops::EMPTY
+                .with(DeclarationStops::COLON)
+                .with(DeclarationStops::EQUAL)
+                .with(DeclarationStops::LEFT_PAREN)
+                .with(DeclarationStops::LEFT_BRACE)
+                .with(DeclarationStops::RIGHT_BRACE)
+                .with(DeclarationStops::BLOCK_ELEMENT),
             Self::TypeParameter => DeclarationStops::EMPTY
                 .with(DeclarationStops::COLON)
                 .with(DeclarationStops::COMMA)
@@ -2876,12 +3307,14 @@ impl DeclarationStops {
     const COLON: u16 = 1 << 4;
     const EQUAL: u16 = 1 << 5;
     const LEFT_PAREN: u16 = 1 << 6;
+    const RIGHT_BRACE: u16 = 1 << 7;
+    const BLOCK_ELEMENT: u16 = 1 << 8;
 
     const fn with(self, flag: u16) -> Self {
         Self(self.0 | flag)
     }
 
-    fn contains_hard(self, symbol: Option<Symbol>) -> bool {
+    fn contains_hard(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
         matches!(
             symbol,
             Some(Symbol::RightParen) if self.0 & Self::RIGHT_PAREN != 0
@@ -2891,7 +3324,15 @@ impl DeclarationStops {
         ) || matches!(
             symbol,
             Some(Symbol::LeftBrace) if self.0 & Self::LEFT_BRACE != 0
-        )
+        ) || matches!(
+            symbol,
+            Some(Symbol::RightBrace) if self.0 & Self::RIGHT_BRACE != 0
+        ) || (self.0 & Self::BLOCK_ELEMENT != 0
+            && matches!(
+                lexeme.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+            ))
+            || (self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(lexeme.kind()))
     }
 
     fn contains_soft(self, symbol: Option<Symbol>) -> bool {
@@ -2968,6 +3409,8 @@ mod tests {
             diagnostics: Vec::new(),
             declaration_recovery_raw_visits: 0,
             declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
         };
         parser
             .parse_declaration_root()
@@ -2999,6 +3442,64 @@ mod tests {
         assert!(small_work <= small_raw * 3);
         assert!(large_work <= large_raw * 3);
         assert!(large_work <= small_work * 2 + 8);
+    }
+
+    fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("block-dispatch.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            index: 0,
+            recursion_depth: 0,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        parser.parse_block_root().expect("block must parse");
+        (
+            lexed.lexemes().len(),
+            parser.block_dispatch_iterations,
+            parser.significant_raw_visits.get(),
+            parser.diagnostics.len(),
+        )
+    }
+
+    #[test]
+    fn block_dispatch_legal_error_and_nested_families_stay_linear() {
+        for (make, diagnostics_per_element) in [
+            (|count| format!("{{ {} }}", "val x = 1 ".repeat(count)), 0),
+            (|count| format!("{{ {} }}", "return ".repeat(count)), 1),
+            (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
+            (
+                |count| format!("{}{}", "{".repeat(count), "}".repeat(count)),
+                0,
+            ),
+        ] as [(fn(usize) -> String, usize); 4]
+        {
+            let (small_raw, small_iterations, small_visits, small_diagnostics) =
+                block_dispatch_metrics(make(32));
+            let (large_raw, large_iterations, large_visits, large_diagnostics) =
+                block_dispatch_metrics(make(64));
+            assert_eq!(small_diagnostics, diagnostics_per_element * 32);
+            assert_eq!(large_diagnostics, diagnostics_per_element * 64);
+            assert!(small_iterations <= small_raw);
+            assert!(large_iterations <= large_raw);
+            assert!(small_visits <= small_raw * 32);
+            assert!(large_visits <= large_raw * 32);
+            assert!(large_visits <= small_visits * 2 + 64);
+        }
     }
 
     #[test]

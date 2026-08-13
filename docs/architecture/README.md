@@ -13,17 +13,17 @@
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0027` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0030` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.6 沿用词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断；
-- `lang_frontend::parser` 已提供独立表达式和 v0.7 独立声明入口、具体 Item / Expression /
-  TypeRef 索引式 AST、Pratt 优先级、typed call 及局部恢复，并确定性合并 Lexer / Parser 诊断；
+- `lang_frontend::parser` 已提供独立表达式、声明与 block 入口、具体 Item / Statement /
+  Expression / TypeRef 索引式 AST、Pratt 优先级、typed call、函数 block body 及局部恢复，
+  并确定性合并 Lexer / Parser 诊断；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
-  parser-expression 与 parser-declaration pass / fail fixture harness；
-- 尚无 block / statement / 控制流 / lambda / 全文件 parser、类型检查、所有权检查或 codegen
-  实现；
+  parser-expression、parser-declaration 与 parser-block pass / fail fixture harness；
+- 尚无控制流、lambda、完整文件 parser、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -93,19 +93,22 @@ crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未
 Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输入，而不是完整编译
 产物或公共机器诊断协议。
 
-## 表达式与独立声明 Parser
+## 表达式、声明与 Block Parser
 
-`lang_frontend::parser::parse_expression` 与 `parse_declaration` 都接收共享
+`lang_frontend::parser::parse_expression`、`parse_declaration` 与 `parse_block` 都接收共享
 `(&SourceMap, &LexedFile)`，校验 map-local source identity，并分别返回唯一
-`ExpressionId` / `ItemId` 根及两阶段诊断全序。两个入口共享 `SyntaxAst`、Pratt、TypeRef、
-词法恢复索引、固定 worker 与递归预算；普通语法错误进入产物，内部不变量或资源边界失败才
-返回具体错误。
+`ExpressionId` / `ItemId` / `StatementId` 根及两阶段诊断全序。三个入口共享 `SyntaxAst`、
+Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语法错误进入产物，内部不变量或
+资源边界失败才返回具体错误。
 
 - Parser 跳过 trivia，消费 v0.6 的 primary、postfix、prefix、14 档中缀 / 赋值和递归
   `type_ref`；binding power 只在 `parser::engine` 中定义，`to` 由源码 `Span` 精确识别；
 - 声明入口消费 v0.7 的 `val`、`var`、`const val` 与具名 `fun`，保存三态名称 marker、参数与
   泛型列表、显式返回类型和可选表达式体；调用点 `<type_ref, ...>(...)` 由单次 O(N) 反向
   预索引无副作用判定，查询 O(1)，成功后才由正式 TypeRef parser 提交 AST；
+- block 入口消费 v0.8 的空 / 嵌套 block、局部 `val` / `var` 与 expression statement，按源码
+  顺序保存 typed `StatementId`；函数 Item 以 `Absent`、保留真实 `=` Span 的 Expression、
+  Block 三态封闭 body 表示，并把 block body 的完整范围纳入函数范围；
 - `Expression` 与 `TypeRef` payload 只通过现有 typed ID 连接，叶与合成节点都保留同一
   `SourceId` 的 UTF-8 字节 `Span`；源码拼写继续由共享 `SourceMap` 回查；
 - Lexer invalid / reserved token 被消费为显式 Error 节点且不重复同源诊断；delimiter、插值
@@ -113,8 +116,11 @@ Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输�
 - 递归 Pratt 实现在固定 32 MiB 的 scoped worker 隔离栈上运行，并在 1024 个内部递归预算
   单位处返回具体资源错误；这避免调用线程的小栈或输入 token 数放大栈申请，也不新增未经
   guide 分配的用户诊断码；
-- 两个入口各自只解析一个独立表达式或简单声明。block / statement / 函数 block body 留给
-  SPEC-0009，lambda 和模式实参留给 SPEC-0010，完整文件组合及跨声明恢复留给 SPEC-0011；
+- 三个入口各自只解析一个独立表达式、简单声明或 block。block element 的 hard owner closer
+  与只在 delimiter 外生效的 soft structure stop 分离；局部声明、字符串 / 插值 terminal owner
+  和 nested block 恢复保持单调前进，`L0028`–`L0030` 分别稳定表达缺 block、非法 element 与
+  已延后的 element。lambda 和模式实参留给 SPEC-0010，完整文件组合及跨声明恢复留给
+  SPEC-0011；
   名称 / 类型 / 所有权检查以及 CLI / LSP 接线仍属后续 Phase。
 
 ## 结构化诊断与 renderer
@@ -125,7 +131,7 @@ Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输�
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
   `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现精确注册 `L0001`–`L0008` 八个
-  Lexer 错误码与 `L0009`–`L0027` Parser 错误码；`L9xxx` 样例编号仍只在测试 target 内注册；
+  Lexer 错误码与 `L0009`–`L0030` Parser 错误码；`L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
   生产者给出的语义顺序；
@@ -159,16 +165,17 @@ typed table，payload 类型由后续语法阶段或测试调用方提供：
   payload，因此不引入 payload 中可能存在的机器路径、地址或随机集合顺序。它只供调试
   和测试，不是序列化格式或跨构建稳定协议。
 
-生产模块已用 `SyntaxAst = AstFile<Item, (), Expression, TypeRef>` 定义共享具体 AST，并保留
-`ExpressionAst` 兼容别名；statement 仍为空占位。尚无 visitor、HIR / MIR、名称解析结果或
-LLVM / codegen handle。
+生产模块已用 `SyntaxAst = AstFile<Item, Statement, Expression, TypeRef>` 定义共享具体 AST，
+并保留 `ExpressionAst` 兼容别名。`Statement` 封闭区分 Error、Block、引用变量 Item 的
+LocalVariable 与引用表达式的 Expression；尚无 visitor、HIR / MIR、名称解析结果或 LLVM /
+codegen handle。
 
 ## 语言 fixture harness
 
 `crates/lang-frontend/tests/fixtures.rs` 是 Cargo 自动发现的 `fixtures` integration test target。
-它分别运行七个固定 suite：Phase 0 `source-pass/`，Phase 1 `lexer-pass/`、`lexer-fail/`、
-`parser-expression-pass/`、`parser-expression-fail/`、`parser-declaration-pass/` 与
-`parser-declaration-fail/`。
+它分别运行九个固定 suite：Phase 0 `source-pass/`，Phase 1 `lexer-pass/`、`lexer-fail/`、
+`parser-expression-pass/`、`parser-expression-fail/`、`parser-declaration-pass/`、
+`parser-declaration-fail/`、`parser-block-pass/` 与 `parser-block-fail/`。
 
 - 发现器递归接受普通小写 `.ko` 文件；拒绝 symlink、未知扩展名、非 UTF-8 相对
   路径和非普通文件类型。路径逐 component 校验后用 `/` 连接，case 与发现问题均显式
@@ -186,12 +193,14 @@ LLVM / codegen handle。
   case 复用同一 sidecar 契约，逐项核对合并后的 Lexer / Parser 诊断全序；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；
+- block suite 调用生产 block 入口，pass case 遍历 Statement / Item / Expression typed child，
+  fail case 逐项核对 Lexer / Parser 合并诊断；两套 suite 均有非零用例与配对守卫；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
-`source-pass` 仍只表示 Phase 0 基础设施接线成功；Phase 1 suite 分别调用扫描器、独立表达式
-和独立声明 Parser。这些 suite 不表示完整源文件已解析、类型检查或编译，harness 也不调用
-renderer 或固定公共机器诊断协议。
+`source-pass` 仍只表示 Phase 0 基础设施接线成功；Phase 1 suite 分别调用扫描器、独立表达式、
+独立声明和独立 block Parser。这些 suite 不表示完整源文件已解析、类型检查或编译，harness
+也不调用 renderer 或固定公共机器诊断协议。
 
 ## 尚未实现的编译流水线
 
@@ -203,9 +212,9 @@ renderer 或固定公共机器诊断协议。
 ```
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
-索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 Parser 与分层 fixture
-harness 已存在；block / statement 至完整文件的 Parser 阶段仍未实现。`lang-std` 的
-bootstrap 流程与 runtime / ABI 布局仍未确定。
+索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 / block Parser 与分层
+fixture harness 已存在；lambda、控制流与完整文件 Parser 仍未实现。`lang-std` 的 bootstrap
+流程与 runtime / ABI 布局仍未确定。
 
 ## 更新要求
 

@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-009` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [`agent-language-design-guide-v0.8.md`](../agent-language-design-guide-v0.8.md) 第四部分第 8 节 |
@@ -172,60 +172,60 @@ SPEC-0008 已提供独立声明入口、简单变量与函数 Item、表达式 /
 
 ## 5. 验收标准
 
-- [ ] 公共 block 入口校验 SourceMap / LexedFile identity，返回唯一 typed Statement root 与
+- [x] 公共 block 入口校验 SourceMap / LexedFile identity，返回唯一 typed Statement root 与
       两阶段诊断全序；用户语法错误进入产物，内部不变量 / 资源失败返回具体内部错误。
-- [ ] 独立入口缺 `{` 时，普通 token 从当前至 EOF 的全部剩余 lexeme（包括 trailing trivia）
+- [x] 独立入口缺 `{` 时，普通 token 从当前至 EOF 的全部剩余 lexeme（包括 trailing trivia）
       被消费为唯一 Error root，节点止于最后非 trivia / invalid lexeme 终，并抑制同根因
       `L0013`，而 `L0028` 主 `Span` 只覆盖首 token；EOF 形成空 root / 诊断；首 token 已有
       Lexer poison 根因时只保留 Lexer 诊断和同边界 Error root。三类都不伪造 opener 或范围。
-- [ ] compile-pass 覆盖空、单 / 多 element、局部 `val` / `var`、expression statement、nested
+- [x] compile-pass 覆盖空、单 / 多 element、局部 `val` / `var`、expression statement、nested
       空 block 与多层 block，typed child ID、源码顺序和所有合成 `Span` 均被结构测试锁定。
-- [ ] element 边界覆盖同一行、多行、注释及任意 trivia 变体；`{ val x = 1 val y = 2 }`
+- [x] element 边界覆盖同一行、多行、注释及任意 trivia 变体；`{ val x = 1 val y = 2 }`
       正确形成两项，而 `{ x y }` 不得形成两项并由既有 trailing 恢复消费非法余项。普通
       expression-start 永不因 trivia 成为结构 stop。
-- [ ] initializer 起点出现 `}` / `{` / `val` / `var` / unsupported 引导时产生唯一 `L0009`
+- [x] initializer 起点出现 `}` / `{` / `val` / `var` / unsupported 引导时产生唯一 `L0009`
       空 error expression 并保留边界；普通 Identifier / 字面量 initializer 不被提前截断。
-- [ ] 函数无体、表达式体、block body 三形态 compile-pass 并映射到封闭 body 枚举；结构测试
+- [x] 函数无体、表达式体、block body 三形态 compile-pass 并映射到封闭 body 枚举；结构测试
       证明不能形成双 body，表达式体保留真实 `=` Span，block 函数 Item 和 body Statement
       的完整 `Span` 正确。
-- [ ] 函数返回类型后没有 `{` 不产生 `L0028`；表达式体后 `{`、block body 后 `=` 及无体后
+- [x] 函数返回类型后没有 `{` 不产生 `L0028`；表达式体后 `{`、block body 后 `=` 及无体后
       其他 token 均由真实 token 归属产生确定诊断，不回溯改判 body 形态。
-- [ ] `fun f() {}` 产生且只产生一个 `L0021`、一个边界处空 TypeRef error 和
+- [x] `fun f() {}` 产生且只产生一个 `L0021`、一个边界处空 TypeRef error 和
       `FunctionBody::Block`；`fun f(): {}` 产生且只产生一个 `L0014`、一个边界处空 TypeRef
       error 和 `FunctionBody::Block`。两者的 `{}` 均完整解析，不产生 `L0013` / `L0028`，
       函数与 block `Span` 符合合成规则。
-- [ ] compile-fail 覆盖独立入口缺 `{`、block 缺 `}`、不完整局部名称 / 类型 / `=` /
+- [x] compile-fail 覆盖独立入口缺 `{`、block 缺 `}`、不完整局部名称 / 类型 / `=` /
       initializer、owner `}` 前缺 initializer、源码分号的 Lexer error、未知错误 token 和尾随
       token，并断言固定消息、精确 UTF-8 字节 `Span`、Error statement、保留 closer 与恢复后
       的 element 顺序。
-- [ ] `const val`、局部 `fun`、`return` / `break` / `continue`、`if` / `when` / `super` /
+- [x] `const val`、局部 `fun`、`return` / `break` / `continue`、`if` / `when` / `super` /
       `for` / `while` / `loop`，以及 `value class` / `class` / `interface` / `enum class` /
       `object` / `companion object` 均以 `L0030` 拒绝；后续 token 不被保存为 opaque node 或
       伪装成支持项。
-- [ ] block 用作调用实参、initializer、二元运算任一侧或 lambda 的相邻反例均被准确拒绝；
+- [x] block 用作调用实参、initializer、二元运算任一侧或 lambda 的相邻反例均被准确拒绝；
       nested block statement 仍成功，二者不因大括号相同而混淆。
-- [ ] `L0028`–`L0030` 在集中目录一类一码；diagnostic test 断言 error、固定消息、精确主
+- [x] `L0028`–`L0030` 在集中目录一类一码；diagnostic test 断言 error、固定消息、精确主
       `Span` 与无重复根因，生产目录连续、唯一且不混入测试码。
-- [ ] nested owner 测试证明子 closer 只关闭子 block、父 closer 被父 owner 保留，子 block
+- [x] nested owner 测试证明子 closer 只关闭子 block、父 closer 被父 owner 保留，子 block
       普通恢复不扫描越过下一 block-level `}`；`{{}` 的唯一 closer 必须关闭内层，外层到
       EOF 复用 `L0010`，不得猜测 closer 属于父层，且错误范围不虚构。
-- [ ] string / interpolation 内的大括号、`val` / `var` 和 unsupported-like token 不成为 block
+- [x] string / interpolation 内的大括号、`val` / `var` 和 unsupported-like token 不成为 block
       边界；嵌套未终止 string/interpolation、terminal `L0006` 与 EOF `L0005` 只报告词法根因，
       不提前关闭 block 或产生同义 block / closer 级联。
-- [ ] `cfg(test)` dispatch / recovery inspection 计数器或等价白盒证据覆盖长合法 element 序列、
+- [x] `cfg(test)` dispatch / recovery inspection 计数器或等价白盒证据覆盖长合法 element 序列、
       长 unsupported / poison 序列和深 nested block；同族输入从 N 到 2N 时 inspection 受固定
       常数乘 lexeme 数约束，证明 `O(n)` 且没有从每个 element 回扫起点或 Lexer 诊断。
-- [ ] parser-block pass / fail suite 各自真实执行至少一个 `.ko`；零 suite、非法 sidecar、孤立
+- [x] parser-block pass / fail suite 各自真实执行至少一个 `.ko`；零 suite、非法 sidecar、孤立
       pair 与空范围 policy 自检继续失败；现有所有 fixture suite 无回归。
-- [ ] 现有 SPEC-0007 expression / TypeRef 与 SPEC-0008 未受影响的 declaration / typed-call
+- [x] 现有 SPEC-0007 expression / TypeRef 与 SPEC-0008 未受影响的 declaration / typed-call
       窄测试全部通过；SPEC-0008 的 block-body 拒绝用例经人工审阅后迁移为 v0.8 正例 / 结构
       测试，不用旧 `L0013` 预期制造规范冲突。递归与 nested block 超预算受控返回内部错误，
       不 panic、不泄漏预算。
-- [ ] `cargo tree -p lang-frontend --edges all --locked --offline` 与 manifest / lock diff 证明
+- [x] `cargo tree -p lang-frontend --edges all --locked --offline` 与 manifest / lock diff 证明
       未新增 normal、dev 或 build 依赖。
-- [ ] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线全部通过；完成
+- [x] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线全部通过；完成
       记录写明实际 passed / ignored / filtered 数量，不把未执行检查写成通过。
-- [ ] Architecture 更新为已实现的 Statement table、block 入口、函数 body 三态、fixture 与
+- [x] Architecture 更新为已实现的 Statement table、block 入口、函数 body 三态、fixture 与
       恢复边界，并继续明确完整文件、lambda、控制流、class-family 均尚未实现。
 
 ## 6. 技术方案与边界
@@ -277,19 +277,19 @@ block dispatch、Pratt 和声明恢复共享一个 Parser cursor 及 `LexicalRec
 
 ## 7. 实施计划
 
-1. [ ] 注册 `L0028`–`L0030`，扩展 Statement、FunctionBody、共享
+1. [x] 注册 `L0028`–`L0030`，扩展 Statement、FunctionBody、共享
    SyntaxAst 与独立 block 产物 API
    → 验证：diagnostic catalog、typed ID/source identity、函数 body 三态和 public getter 窄测试
-2. [ ] 实现独立 / nested block dispatch、局部变量和 expression statement 结构边界
+2. [x] 实现独立 / nested block dispatch、局部变量和 expression statement 结构边界
    → 验证：trivia 不敏感、`{ x y }` trailing、initializer boundary、顺序与 Span 集成测试
-3. [ ] 接入函数 block body，并实现 owner-aware 局部恢复和单调复杂度保护
+3. [x] 接入函数 block body，并实现 owner-aware 局部恢复和单调复杂度保护
    → 验证：三体互斥、缺返回类型后仍接线 block、closer 所有权、Lexer terminal owner、
    无级联及 inspection 倍增测试
-4. [ ] 接入 parser-block pass / fail fixture，迁移 SPEC-0008 已被 v0.8 取代的 block-body
+4. [x] 接入 parser-block pass / fail fixture，迁移 SPEC-0008 已被 v0.8 取代的 block-body
    拒绝预期，并保持其他声明 / 表达式 fixture 回归
    → 验证：真实 fixture、人工审阅的旧负例差异、零用例、sidecar 全序及 Parser / Lexer
    空 Span policy 测试
-5. [ ] 同步 Spec 验收记录与 Architecture
+5. [x] 同步 Spec 验收记录与 Architecture
    → 验证：frontend 窄测试、workspace 全基线、依赖树、staged diff 与文档事实一致
 
 v0.8 已生效；步骤 1 固定公共 payload，再推进后续步骤。
@@ -313,16 +313,19 @@ Parser 热点、诊断目录与 fixture runner 的最终整合由单一负责人
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| v0.8 版本级启用确认 | 满足 | 用户已明确启用 v0.8；本 Spec 依据站立授权进入 `in-progress` |
-| `cargo test -p lang-frontend --test parser_block --locked --offline` | 未执行 | 尚未实施 |
-| `cargo test -p lang-frontend --test parser_declaration --locked --offline` | 未执行 | 尚未实施 |
-| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 未执行 | 尚未实施 |
-| `cargo test -p lang-frontend --test fixtures --locked --offline` | 未执行 | 尚未实施 |
-| `cargo test -p lang-frontend --lib --locked --offline` | 未执行 | 尚未实施 |
-| `cargo fmt --all -- --check` | 未执行 | 尚未实施 |
-| `cargo check --workspace --all-targets --locked --offline` | 未执行 | 尚未实施 |
-| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 未执行 | 尚未实施 |
-| `cargo test --workspace --all-targets --locked --offline` | 未执行 | 尚未实施 |
-| `cargo build -p lang-cli --locked --offline` | 未执行 | 尚未实施 |
-| `cargo tree -p lang-frontend --edges all --locked --offline` | 未执行 | 尚未实施 |
-| Architecture 同步 | 未执行 | 仅在实现完成后更新当前事实 |
+| v0.8 版本级启用确认 | 满足 | 用户已明确启用 v0.8；本 Spec 依据站立授权实施并完成 |
+| 独立红队审计 | 通过 | 最终结论 P0 = 0、P1 = 0；owner、terminal recovery、类型 delimiter 与复杂度回归均闭环 |
+| `cargo test -p lang-frontend --test parser_block --locked --offline` | 通过 | 20 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_declaration --locked --offline` | 通过 | 22 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test parser_expression --locked --offline` | 通过 | 52 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --test fixtures --locked --offline` | 通过 | 20 passed；0 failed / ignored / measured / filtered；九套 suite 均有真实用例 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 9 passed；0 failed / ignored / measured / filtered |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 passed；0 failed / ignored / measured / filtered |
+| `cargo fmt --all -- --check` | 通过 | rustfmt 无差异 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | workspace 全 target 编译成功 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 173 passed；0 failed / ignored / measured / filtered；`lang-codegen` / `lang-lsp` 当前测试数为 0 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | CLI debug target 构建成功 |
+| `cargo tree -p lang-frontend --edges all --locked --offline` | 通过 | 仅 `lang-frontend`；manifest / lock 无差异，未新增 normal / dev / build 依赖 |
+| `git diff --check` | 通过 | 无空白错误 |
+| Architecture 同步 | 完成 | 已记录 Statement table、block 入口、函数 body 三态、九套 fixture 与恢复边界 |
