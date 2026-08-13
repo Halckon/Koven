@@ -6,8 +6,9 @@
 
 ## Goal 与提交工作流
 
-只有同时满足以下条件的 Spec 才能进入 `in-progress`：状态已经是 `approved`、所有前置
-Spec 均为 `done`、所有前置 ADR 均为 `accepted`、阻塞项已经解除。
+Spec 进入 `in-progress` 前必须已有单份明确确认或有效站立授权作为批准依据，并满足所有前置
+Spec `done`、前置 ADR `accepted` 和阻塞项解除。存在有效站立授权时，可以在同一工作流中
+按逻辑顺序完成 `approved → in-progress`，不要求中间状态形成独立提交。
 
 后续使用 Goal 时固定按以下顺序推进：
 
@@ -22,6 +23,11 @@ Spec 均为 `done`、所有前置 ADR 均为 `accepted`、阻塞项已经解除�
 可构建、可测试，workspace 建立前的纯文档提交执行适用的链接、术语和 diff 检查。所有提交
 都引用同一 Spec 编号；最终实现提交同时包含验收记录、Architecture 更新和 `done` 状态。
 若一个 Spec 无法形成清晰的独立提交边界，应在批准前继续拆分。
+
+Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现提交仍必须独占一个 Spec，
+并包含 `done` 状态、实际验收记录和 Architecture 更新。新 ADR 的决策正文仍应形成独立文档
+提交，但可在首次提交时直接为 `accepted`，不得把 ADR 与依赖它的实现混入同一提交。
+简化的是人工确认和重复状态文书，不是行为验收；任何检查只有实际成功后才能记录为通过。
 
 ## Phase 0 Spec 队列
 

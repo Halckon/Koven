@@ -6,6 +6,7 @@
 | Goal ID | `KOV-P1-007` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [`agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md)（不足以授权完整 Parser）；候选 [`agent-language-design-guide-v0.6.md`](../agent-language-design-guide-v0.6.md)（尚未生效，本 Spec 的目标契约） |
+| 批准依据 | 当前持续 Goal 的“后续 Specs 和 ADR 自动确认并实施”站立授权；待 v0.6 门禁解除后生效 |
 | 前置 Spec | SPEC-0004、SPEC-0006 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
@@ -235,11 +236,11 @@ AST 构建继续调用 SPEC-0004 的受检插入 API；诊断继续调用 SPEC-0
 | 1 | 候选 v0.6 guide（不含本 Spec） | `docs(guide): draft v0.6 expression grammar` |
 | 2 | 本 Spec 草案（保持阻塞） | `docs(spec): draft Pratt expression parser (SPEC-0007)` |
 | 3 | 用户启用 v0.6 后的全仓真源指针切换（不含本 Spec） | `docs(guide): activate language guide v0.6` |
-| 4 | 解除阻塞并批准本 Spec（不含实现） | `docs(spec): approve Pratt expression parser (SPEC-0007)` |
-| 5 | Parser、AST payload、诊断、测试 / fixture、Architecture 与完成记录 | `feat(frontend): add Pratt expression parser (SPEC-0007)` |
+| 4 | Parser、AST payload、诊断、测试 / fixture、Architecture 与完成记录 | `feat(frontend): add Pratt expression parser (SPEC-0007)` |
 
-候选 guide、Spec 批准和实现必须保持独立提交。候选文件存在或本草案落盘均不授权实施；只有
-用户明确启用 v0.6 且批准提交完成后，Spec 才能进入 `in-progress`。
+候选 guide 与实现保持独立提交。候选文件存在或本草案落盘均不授权实施；用户明确启用 v0.6
+后，本 Spec 依据有效站立授权按逻辑顺序进入 `approved` / `in-progress`，无需创建批准状态
+提交；最终实现提交包含 `done` 状态和全部实际验收证据。
 
 ## 9. 未决问题
 

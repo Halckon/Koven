@@ -11,6 +11,10 @@ proposed
 
 <!-- 可选值：proposed / accepted / rejected / superseded -->
 
+## 接受依据
+
+不适用（`proposed`）；标记为 `accepted` 时记录单份明确确认或有效站立授权。
+
 ## 背景
 
 <!-- 当前约束、要解决的问题，以及为什么需要长期决策。 -->
