@@ -48,14 +48,14 @@ SPEC-0001
 
 下表预留编号、Phase、单一 Goal 和依赖门槛。没有文件链接的候选项尚不是 Spec；只在前置
 Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从模板创建文件并补齐可执行
-计划。已有链接但仍带阻塞项的文件继续保持 `draft`，不得据此实施。这能避免长期空壳 Spec
-与实现事实漂移。
+计划。已有链接但尚未批准或仍带阻塞项的文件继续保持 `draft`，不得据此实施。这能避免
+长期空壳 Spec 与实现事实漂移。
 
 ### Phase 1：Lexer / Parser
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`draft`，待批准） | 0002、0003、0005 `done`；v0.5 已生效 |
+| [0006](./0006-deterministic-lexer.md) | Lexer 覆盖字面量、标识符、关键字和 trivia（`approved`） | 0002、0003、0005 `done`；v0.5 已生效 |
 | 0007 | Pratt parser 覆盖完整表达式优先级 | 0004、0006 |
 | 0008 | 解析变量、函数、泛型与函数类型声明 | 0007 |
 | 0009 | 解析控制流及 class / interface / enum / object 结构 | 0008 |

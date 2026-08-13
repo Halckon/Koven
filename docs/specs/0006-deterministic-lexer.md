@@ -2,14 +2,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | approved |
 | Goal ID | `KOV-P1-006` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 [`v0.4`](../agent-language-design-guide-v0.4.md) 尚不足以授权完整 Lexer；候选 [`v0.5`](../agent-language-design-guide-v0.5.md) 尚未生效 |
+| 语言规范 | [`agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md) |
 | 前置 Spec | SPEC-0002、SPEC-0003、SPEC-0005 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0003](../adr/0003-diagnostic-architecture.md)、[ADR-0004](../adr/0004-source-span-position-model.md) |
-| 阻塞项 | 用户明确指定 v0.5 取代 v0.4，并同步仓库当前真源指针 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend`、语言 fixture、Architecture |
 | 语言语义变更 | 否；只实现生效后的 guide，不由本 Spec 创设语义 |
 
@@ -24,8 +24,8 @@
 
 Phase 0 已提供 source / `Span`、结构化诊断与真实 fixture target，但尚无 Lexer。现行 v0.4
 未完整定义标识符字符集、字面量、trivia、最长匹配和错误恢复，且其“完整”硬关键字表漏掉
-正文已经使用的 `move`，因此不能据此猜测实现。候选 v0.5 已收敛这些规则，但在用户明确
-启用前，本 Spec 必须保持 `draft`，不得开始实现。
+正文已经使用的 `move`，因此不能据此猜测实现。现行 v0.5 已收敛这些规则，并为本 Spec
+提供可执行的语言与恢复契约。
 
 ## 3. 范围与需求
 
@@ -33,7 +33,7 @@ Phase 0 已提供 source / `Span`、结构化诊断与真实 fixture target，�
   内部错误；非法 Koven 源码保留为产物中的用户诊断，不走内部错误路径。
 - 词法产物按源码顺序保存 token、trivia、invalid 区域和唯一 EOF。每个 lexeme 包含 kind
   与原始 `Span`，源码文本通过 `SourceMap` 回查，不复制 token 文本。
-- 完整实现生效后 v0.5 第三部分：ASCII 标识符、42 个硬关键字、2 个软关键字、11 个未来
+- 完整实现 v0.5 第三部分：ASCII 标识符、42 个硬关键字、2 个软关键字、11 个未来
   保留字、trivia、十进制整数 / 浮点、`Char`、单行 `String` / `${...}` 插值、固定符号、
   最长匹配、EOF 和逐类恢复。
 - 在生产诊断目录集中分配下列一一对应的稳定错误码：
@@ -141,18 +141,18 @@ lexeme，不另造重叠的 invalid lexeme。换行处只弹出当前字符串�
 | 2 | v0.5 生效后的 Spec 批准 | `docs(spec): approve deterministic lexer (SPEC-0006)` |
 | 3 | Lexer、错误码、测试 / fixture、Architecture 和完成记录 | `feat(frontend): add deterministic lexer (SPEC-0006)` |
 
-v0.5 激活及全仓当前真源指针同步属于本 Spec 之外的独立纯文档提交，不与 Lexer 实现提交
-混合。
+v0.5 激活及全仓当前真源指针同步已由本 Spec 之外的独立纯文档提交完成，不与 Lexer 实现
+提交混合。
 
 ## 9. 未决问题
 
-- 唯一阻塞是候选 v0.5 尚未由用户明确启用；在此之前不得批准或实施本 Spec。
+- 无。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| `cargo test -p lang-frontend --lib --locked --offline` | 未执行 | 本文件仍是阻塞中的草案，尚未实现 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 未执行 | 尚未实现 |
 | `cargo test -p lang-frontend --test lexer --locked --offline` | 未执行 | Lexer test target 尚未创建 |
 | `cargo test -p lang-frontend --test fixtures --locked --offline` | 未执行 | Phase 1 fixtures 尚未创建 |
 | `cargo test -p lang-frontend --doc --locked --offline` | 未执行 | 尚未实现 |
