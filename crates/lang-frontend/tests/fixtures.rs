@@ -16,7 +16,7 @@ use lang_frontend::{
     ast::AstFile,
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
     lexer::{LexedFile, LexemeKind, lex},
-    parser::parse_expression,
+    parser::{parse_declaration, parse_expression},
     source::{SourceId, SourceMap},
 };
 
@@ -49,6 +49,22 @@ enum SidecarError {
     InvalidCode { line: usize },
     InvalidOffset { line: usize },
     InvalidSpan { line: usize },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SidecarSpanPolicy {
+    LexerDiagnostics,
+    MergedParserDiagnostics,
+}
+
+impl SidecarSpanPolicy {
+    fn permits_empty(self, code: &str) -> bool {
+        matches!(self, Self::MergedParserDiagnostics)
+            && !matches!(
+                code,
+                "L0001" | "L0002" | "L0003" | "L0004" | "L0005" | "L0006" | "L0007" | "L0008"
+            )
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -84,6 +100,21 @@ struct LexerCaseOutcome {
 struct ParserCaseOutcome {
     relative_path: String,
     result: Result<ParserEvidence, ParserCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DeclarationCaseOutcome {
+    relative_path: String,
+    result: Result<DeclarationEvidence, ParserCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DeclarationEvidence {
+    byte_len: usize,
+    item_count: usize,
+    expression_count: usize,
+    type_ref_count: usize,
+    diagnostic_count: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -191,6 +222,14 @@ fn parser_pass_fixture_root() -> PathBuf {
 
 fn parser_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-expression-fail")
+}
+
+fn parser_declaration_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-declaration-pass")
+}
+
+fn parser_declaration_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-declaration-fail")
 }
 
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
@@ -405,6 +444,7 @@ fn parse_sidecar(
     source_id: SourceId,
     text: &str,
     catalog: &DiagnosticCodeCatalog,
+    span_policy: SidecarSpanPolicy,
 ) -> Result<Vec<ExpectedDiagnostic>, SidecarError> {
     if text.is_empty() {
         return Err(SidecarError::Empty);
@@ -439,7 +479,7 @@ fn parse_sidecar(
         let span = sources
             .span(source_id, start, end)
             .map_err(|_| SidecarError::InvalidSpan { line: line_number })?;
-        if span.is_empty() {
+        if span.is_empty() && !span_policy.permits_empty(columns[0]) {
             return Err(SidecarError::InvalidSpan { line: line_number });
         }
         diagnostics.push(ExpectedDiagnostic {
@@ -588,8 +628,14 @@ fn run_lexer_fail_case(case: &LexerFailCase) -> Result<LexerEvidence, LexerCaseF
     let sidecar =
         String::from_utf8(sidecar_bytes).map_err(|_| LexerCaseFailure::InvalidUtf8Sidecar)?;
     let catalog = codes::catalog().map_err(|_| LexerCaseFailure::DiagnosticModel)?;
-    let expected = parse_sidecar(&sources, source_id, &sidecar, &catalog)
-        .map_err(LexerCaseFailure::InvalidSidecar)?;
+    let expected = parse_sidecar(
+        &sources,
+        source_id,
+        &sidecar,
+        &catalog,
+        SidecarSpanPolicy::LexerDiagnostics,
+    )
+    .map_err(LexerCaseFailure::InvalidSidecar)?;
 
     if lexed
         .diagnostics()
@@ -675,8 +721,14 @@ fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCa
     let sidecar =
         String::from_utf8(sidecar_bytes).map_err(|_| ParserCaseFailure::InvalidUtf8Sidecar)?;
     let catalog = codes::catalog().map_err(|_| ParserCaseFailure::DiagnosticModel)?;
-    let expected = parse_sidecar(&sources, source_id, &sidecar, &catalog)
-        .map_err(ParserCaseFailure::InvalidSidecar)?;
+    let expected = parse_sidecar(
+        &sources,
+        source_id,
+        &sidecar,
+        &catalog,
+        SidecarSpanPolicy::MergedParserDiagnostics,
+    )
+    .map_err(ParserCaseFailure::InvalidSidecar)?;
 
     if parsed
         .diagnostics()
@@ -700,6 +752,115 @@ fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCa
         expression_count: parsed.ast().expressions().len(),
         diagnostic_count: actual.len(),
     })
+}
+
+fn run_declaration_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_declaration_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_declaration_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.disk_path)?;
+    let parsed =
+        parse_declaration(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if !parsed.diagnostics().is_empty() {
+        return Err(ParserCaseFailure::UnexpectedDiagnostics);
+    }
+    if parsed.ast().source_id() != source_id || parsed.ast().items().get(parsed.root()).is_err() {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+
+    Ok(DeclarationEvidence {
+        byte_len,
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        type_ref_count: parsed.ast().type_refs().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_declaration_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_declaration_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_declaration_fail_case(
+    case: &LexerFailCase,
+) -> Result<DeclarationEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.source_path)?;
+    let parsed =
+        parse_declaration(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if parsed.ast().source_id() != source_id || parsed.ast().items().get(parsed.root()).is_err() {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+
+    let expected = load_parser_sidecar(&sources, source_id, &case.sidecar_path)?;
+    validate_parser_diagnostics(&sources, parsed.diagnostics(), &expected)?;
+
+    Ok(DeclarationEvidence {
+        byte_len,
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        type_ref_count: parsed.ast().type_refs().len(),
+        diagnostic_count: expected.len(),
+    })
+}
+
+fn load_parser_sidecar(
+    sources: &SourceMap,
+    source_id: SourceId,
+    sidecar_path: &Path,
+) -> Result<Vec<ExpectedDiagnostic>, ParserCaseFailure> {
+    let sidecar_bytes =
+        fs::read(sidecar_path).map_err(|error| ParserCaseFailure::ReadSidecar(error.kind()))?;
+    let sidecar =
+        String::from_utf8(sidecar_bytes).map_err(|_| ParserCaseFailure::InvalidUtf8Sidecar)?;
+    let catalog = codes::catalog().map_err(|_| ParserCaseFailure::DiagnosticModel)?;
+    parse_sidecar(
+        sources,
+        source_id,
+        &sidecar,
+        &catalog,
+        SidecarSpanPolicy::MergedParserDiagnostics,
+    )
+    .map_err(ParserCaseFailure::InvalidSidecar)
+}
+
+fn validate_parser_diagnostics(
+    sources: &SourceMap,
+    diagnostics: &[Diagnostic],
+    expected: &[ExpectedDiagnostic],
+) -> Result<(), ParserCaseFailure> {
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity() != Severity::Error)
+    {
+        return Err(ParserCaseFailure::DiagnosticSeverity);
+    }
+    let actual = diagnostic_expectations(diagnostics.iter());
+    let ordered = ordered_diagnostics(sources, diagnostics)
+        .map_err(|_| ParserCaseFailure::DiagnosticModel)?;
+    if actual != diagnostic_expectations(ordered.into_iter()) {
+        return Err(ParserCaseFailure::DiagnosticOrder);
+    }
+    if actual != expected {
+        return Err(ParserCaseFailure::DiagnosticMismatch);
+    }
+    Ok(())
 }
 
 fn parser_fixture_source(
@@ -1009,6 +1170,34 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_declaration_suites_execute_real_pass_and_fail_cases() {
+        let pass = run_declaration_pass_suite(&parser_declaration_pass_fixture_root())
+            .expect("the declaration pass suite must be valid");
+        let fail = run_declaration_fail_suite(&parser_declaration_fail_fixture_root())
+            .expect("the declaration fail suite must be valid");
+
+        assert_eq!(pass.len(), 1);
+        assert_eq!(pass[0].relative_path, "constant.ko");
+        let pass_evidence = pass[0]
+            .result
+            .as_ref()
+            .expect("the declaration pass case must parse without diagnostics");
+        assert_eq!(pass_evidence.item_count, 1);
+        assert!(pass_evidence.expression_count > 0);
+        assert!(pass_evidence.type_ref_count > 0);
+        assert_eq!(pass_evidence.diagnostic_count, 0);
+
+        assert_eq!(fail.len(), 1);
+        assert_eq!(fail[0].relative_path, "empty.ko");
+        let fail_evidence = fail[0]
+            .result
+            .as_ref()
+            .expect("the declaration fail case must match its sidecar");
+        assert_eq!(fail_evidence.item_count, 1);
+        assert_eq!(fail_evidence.diagnostic_count, 1);
+    }
+
+    #[test]
     fn parser_fixture_discovery_rejects_zero_and_unpaired_fail_cases() {
         let empty_pass = TempDir::new("parser-pass-empty");
         assert_eq!(
@@ -1027,6 +1216,26 @@ mod tests {
         write(unpaired.path(), "orphan.diag", b"L0013\t2\t3\n");
         assert_eq!(
             run_parser_fail_suite(unpaired.path()),
+            Err(SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]))
+        );
+
+        assert_eq!(
+            run_declaration_pass_suite(empty_pass.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_declaration_fail_suite(empty_fail.path()),
+            Err(SuiteError::NoFixtures)
+        );
+        assert_eq!(
+            run_declaration_fail_suite(unpaired.path()),
             Err(SuiteError::InvalidEntries(vec![
                 DiscoveryIssue::MissingSidecar {
                     relative_path: "missing.ko".to_owned(),
@@ -1130,16 +1339,22 @@ mod tests {
     }
 
     #[test]
-    fn sidecar_parser_accepts_only_registered_nonempty_half_open_spans() {
+    fn sidecar_parser_applies_suite_specific_empty_span_policy() {
         let mut sources = SourceMap::new();
         let source_id = sources
             .add_source("case.ko", "βx")
             .expect("test source name is unique");
-        let catalog =
-            DiagnosticCodeCatalog::try_new(&["L0001", "L0002"]).expect("test codes are valid");
+        let catalog = DiagnosticCodeCatalog::try_new(&["L0001", "L0002", "L0009"])
+            .expect("test codes are valid");
 
         assert_eq!(
-            parse_sidecar(&sources, source_id, "L0001\t0\t2\r\nL0002\t2\t3", &catalog,),
+            parse_sidecar(
+                &sources,
+                source_id,
+                "L0001\t0\t2\r\nL0002\t2\t3",
+                &catalog,
+                SidecarSpanPolicy::LexerDiagnostics,
+            ),
             Ok(vec![
                 ExpectedDiagnostic {
                     code: "L0001".to_owned(),
@@ -1152,6 +1367,31 @@ mod tests {
                     end: 3,
                 },
             ])
+        );
+
+        assert_eq!(
+            parse_sidecar(
+                &sources,
+                source_id,
+                "L0009\t3\t3",
+                &catalog,
+                SidecarSpanPolicy::MergedParserDiagnostics,
+            ),
+            Ok(vec![ExpectedDiagnostic {
+                code: "L0009".to_owned(),
+                start: 3,
+                end: 3,
+            }])
+        );
+        assert_eq!(
+            parse_sidecar(
+                &sources,
+                source_id,
+                "L0001\t3\t3",
+                &catalog,
+                SidecarSpanPolicy::MergedParserDiagnostics,
+            ),
+            Err(SidecarError::InvalidSpan { line: 1 })
         );
 
         for (sidecar, expected) in [
@@ -1179,7 +1419,13 @@ mod tests {
             ("L0001\t0\t4\n", SidecarError::InvalidSpan { line: 1 }),
         ] {
             assert_eq!(
-                parse_sidecar(&sources, source_id, sidecar, &catalog),
+                parse_sidecar(
+                    &sources,
+                    source_id,
+                    sidecar,
+                    &catalog,
+                    SidecarSpanPolicy::LexerDiagnostics,
+                ),
                 Err(expected),
                 "unexpected result for sidecar {sidecar:?}",
             );

@@ -1,18 +1,22 @@
 //! Koven v1 的 Pratt 表达式 Parser 与具体索引式 AST。
 
 mod engine;
+mod trial;
 
 use std::{error::Error, fmt, thread};
 
 use crate::{
-    ast::{AstError, AstFile, ExpressionId, TypeRefId},
+    ast::{AstError, AstFile, ExpressionId, ItemId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCodeError, DiagnosticError},
     lexer::LexedFile,
     source::{SourceError, SourceId, SourceMap, Span},
 };
 
-/// 一份表达式解析使用的具体索引式 AST。
-pub type ExpressionAst = AstFile<(), (), Expression, TypeRef>;
+/// Parser 各入口共享的具体索引式 AST。
+pub type SyntaxAst = AstFile<Item, (), Expression, TypeRef>;
+
+/// 表达式解析使用的具体索引式 AST；保留旧名称作为兼容别名。
+pub type ExpressionAst = SyntaxAst;
 
 /// 从一份确定性词法产物解析唯一独立表达式。
 ///
@@ -29,6 +33,25 @@ pub fn parse_expression(
             .name("koven-expression-parser".to_owned())
             .stack_size(PARSER_STACK_SIZE)
             .spawn_scoped(scope, || engine::parse(sources, lexed))
+            .map_err(|error| ParserInternalError::ParserThread(error.kind()))?
+            .join()
+            .map_err(|_| ParserInternalError::ParserThreadPanicked)?
+    })
+}
+
+/// 从一份确定性词法产物解析唯一独立声明。
+///
+/// 用户语法错误保留在返回产物中；source identity、AST、诊断模型或实现资源边界失败才返回
+/// 具体内部错误。声明与表达式入口共享同一固定工作栈和递归预算。
+pub fn parse_declaration(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+) -> Result<ParsedDeclaration, ParserInternalError> {
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("koven-declaration-parser".to_owned())
+            .stack_size(PARSER_STACK_SIZE)
+            .spawn_scoped(scope, || engine::parse_declaration(sources, lexed))
             .map_err(|error| ParserInternalError::ParserThread(error.kind()))?
             .join()
             .map_err(|_| ParserInternalError::ParserThreadPanicked)?
@@ -71,6 +94,144 @@ impl ParsedExpression {
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
+}
+
+/// 拥有具体 AST、根声明与两阶段有序诊断的解析产物。
+#[derive(Debug)]
+pub struct ParsedDeclaration {
+    pub(crate) ast: SyntaxAst,
+    pub(crate) root: ItemId,
+    pub(crate) diagnostics: Vec<Diagnostic>,
+}
+
+impl ParsedDeclaration {
+    /// 返回产物关联的源码身份。
+    #[must_use]
+    pub const fn source_id(&self) -> SourceId {
+        self.ast.source_id()
+    }
+
+    /// 返回只读具体 AST。
+    #[must_use]
+    pub const fn ast(&self) -> &SyntaxAst {
+        &self.ast
+    }
+
+    /// 返回独立声明根节点 ID。
+    #[must_use]
+    pub const fn root(&self) -> ItemId {
+        self.root
+    }
+
+    /// 返回 Lexer 与 Parser 诊断的确定性合并全序。
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+}
+
+/// 恢复可见的源码名称。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameMarker {
+    /// 一个实际的普通 Identifier token。
+    Present(Span),
+    /// 没有消费名称 token；范围必须为空。
+    Missing(Span),
+    /// 为名称位置实际消费的非空错误区域。
+    Error(Span),
+}
+
+/// 变量声明的可变性。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VariableKind {
+    /// `val`。
+    Val,
+    /// `var`。
+    Var,
+}
+
+/// 一个函数类型参数。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeParameter {
+    /// 完整参数范围。
+    pub span: Span,
+    /// 参数名称或恢复 marker。
+    pub name: NameMarker,
+    /// 可选上界前的 `:`。
+    pub colon_span: Option<Span>,
+    /// 可选的唯一上界。
+    pub bound: Option<TypeRefId>,
+}
+
+/// 一个函数值参数。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValueParameter {
+    /// 完整参数范围。
+    pub span: Span,
+    /// 参数名称或恢复 marker。
+    pub name: NameMarker,
+    /// 名称后的 `:`；恢复插入时可为空范围。
+    pub colon_span: Span,
+    /// 参数类型或显式错误 TypeRef。
+    pub type_ref: TypeRefId,
+}
+
+/// 独立声明 payload；子节点只通过 typed ID 连接。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Item {
+    /// 恢复过程中显式插入的错误声明。
+    Error,
+    /// `val` / `var` 声明。
+    Variable {
+        /// 声明可变性。
+        kind: VariableKind,
+        /// 声明名称。
+        name: NameMarker,
+        /// 可选类型标注的 `:`。
+        colon_span: Option<Span>,
+        /// 可选显式类型。
+        type_ref: Option<TypeRefId>,
+        /// initializer 前的 `=`；恢复插入时可为空范围。
+        equals_span: Span,
+        /// initializer 或显式错误表达式。
+        initializer: ExpressionId,
+    },
+    /// 固定以 `const val` 开始的常量声明。
+    Constant {
+        /// `const` token。
+        const_span: Span,
+        /// 正常 `val` token或缺失/错误 marker。
+        val_marker: NameMarker,
+        /// 声明名称。
+        name: NameMarker,
+        /// 可选类型标注的 `:`。
+        colon_span: Option<Span>,
+        /// 可选显式类型。
+        type_ref: Option<TypeRefId>,
+        /// initializer 前的 `=`；恢复插入时可为空范围。
+        equals_span: Span,
+        /// initializer 或显式错误表达式。
+        initializer: ExpressionId,
+    },
+    /// 具名函数声明。
+    Function {
+        /// 函数名称。
+        name: NameMarker,
+        /// 源码顺序的类型参数。
+        type_parameters: Vec<TypeParameter>,
+        /// `<...>` 的合成范围；没有类型参数表时为 `None`。
+        type_parameter_list_span: Option<Span>,
+        /// 源码顺序的值参数。
+        parameters: Vec<ValueParameter>,
+        /// 显式返回类型前的 `:`；恢复插入时可为空范围。
+        return_colon_span: Span,
+        /// 显式返回类型或错误 TypeRef。
+        return_type: TypeRefId,
+        /// 可选表达式体前的 `=`。
+        body_equals_span: Option<Span>,
+        /// 可选表达式体。
+        body: Option<ExpressionId>,
+    },
 }
 
 /// 具体表达式 payload；子节点只通过 typed ID 连接。
@@ -162,6 +323,10 @@ pub enum Expression {
     Call {
         /// 被调用表达式。
         callee: ExpressionId,
+        /// 显式调用点类型实参。
+        type_arguments: Vec<TypeRefId>,
+        /// `<...>` 合成范围；普通调用为 `None`。
+        type_arguments_span: Option<Span>,
         /// 位置实参。
         arguments: Vec<ExpressionId>,
     },

@@ -85,6 +85,27 @@ fn expression(parsed: &ParsedExpression, id: ExpressionId) -> &Expression {
         .payload()
 }
 
+fn call_payload(
+    parsed: &ParsedExpression,
+    id: ExpressionId,
+) -> (
+    ExpressionId,
+    &[lang_frontend::ast::TypeRefId],
+    Option<lang_frontend::source::Span>,
+    &[ExpressionId],
+) {
+    let Expression::Call {
+        callee,
+        type_arguments,
+        type_arguments_span,
+        arguments,
+    } = expression(parsed, id)
+    else {
+        panic!("expected call")
+    };
+    (*callee, type_arguments, *type_arguments_span, arguments)
+}
+
 type ExpressionPredicate = fn(&Expression) -> bool;
 
 #[test]
@@ -121,7 +142,10 @@ fn concrete_payloads_use_typed_ids_and_exact_composite_spans() {
         panic!("expected index")
     };
     assert!(matches!(expression(&parsed, *index), Expression::Name));
-    let Expression::Call { callee, arguments } = expression(&parsed, *receiver) else {
+    let Expression::Call {
+        callee, arguments, ..
+    } = expression(&parsed, *receiver)
+    else {
         panic!("expected call")
     };
     assert_eq!(arguments.len(), 1);
@@ -140,6 +164,206 @@ fn concrete_payloads_use_typed_ids_and_exact_composite_spans() {
         expression(&parsed, *receiver),
         Expression::NonNullAssert { .. }
     ));
+}
+
+#[test]
+fn typed_and_basic_calls_expose_type_argument_ids_and_exact_spans() {
+    for text in [
+        "f<T>()",
+        "obj.f<T>()",
+        "(factory())<T>()",
+        "factory()<T>()",
+        "f<A<B<C>>>()",
+        "f<T> /* comment */ ()",
+    ] {
+        let (sources, parsed) = parsed_case(text);
+        let (_, type_arguments, type_arguments_span, arguments) =
+            call_payload(&parsed, parsed.root());
+        assert!(!type_arguments.is_empty(), "{text:?}");
+        assert!(arguments.is_empty(), "{text:?}");
+        let span = type_arguments_span.expect("typed call type-argument span");
+        let expected_start = text.find('<').expect("opener");
+        let expected_end = text.rfind('>').expect("closer") + 1;
+        assert_eq!((span.start(), span.end()), (expected_start, expected_end));
+        assert_eq!(
+            sources.slice(span).expect("type arguments"),
+            &text[expected_start..expected_end]
+        );
+        for argument in type_arguments {
+            assert_eq!(
+                parsed
+                    .ast()
+                    .type_refs()
+                    .get(*argument)
+                    .expect("typed ID")
+                    .span()
+                    .source_id(),
+                parsed.source_id()
+            );
+        }
+    }
+
+    let (_, parsed) = parsed_case("f()");
+    let (_, type_arguments, type_arguments_span, _) = call_payload(&parsed, parsed.root());
+    assert!(type_arguments.is_empty());
+    assert!(type_arguments_span.is_none());
+}
+
+#[test]
+fn typed_call_trial_commits_only_the_complete_strict_suffix() {
+    let (_, parsed) = parsed_case("a < b > (c)");
+    let (callee, type_arguments, type_arguments_span, arguments) =
+        call_payload(&parsed, parsed.root());
+    assert!(matches!(expression(&parsed, callee), Expression::Name));
+    assert_eq!(type_arguments.len(), 1);
+    assert!(type_arguments_span.is_some());
+    assert_eq!(arguments.len(), 1);
+
+    for text in ["f<T>", "a < b > c", "f<T", "f<>()", "f<,T>()", "f<T,>()"] {
+        let (_sources, parsed) = parsed_case_with_diagnostics(text);
+        assert!(
+            !matches!(expression(&parsed, parsed.root()), Expression::Call { type_arguments, .. } if !type_arguments.is_empty()),
+            "{text:?} must not commit an incomplete strict trial"
+        );
+        assert_eq!(
+            parsed.ast().type_refs().len(),
+            0,
+            "{text:?} trial must not leave TypeRef nodes"
+        );
+        assert!(
+            parsed.diagnostics().iter().all(|diagnostic| {
+                !matches!(
+                    diagnostic.code().to_string().as_str(),
+                    "L0024" | "L0025" | "L0026"
+                )
+            }),
+            "{text:?}: {:?}",
+            parsed.diagnostics()
+        );
+    }
+}
+
+#[test]
+fn strict_trial_adversarial_families_do_not_leave_ast_or_diagnostics_state() {
+    fn dense_no_match(levels: usize) -> String {
+        format!(
+            "f{}T{} + z",
+            "< /* trivia */ A".repeat(levels),
+            "> /* trivia */".repeat(levels)
+        )
+    }
+
+    for levels in [64, 128] {
+        let text = dense_no_match(levels);
+        let (_sources, first) = parsed_case_with_diagnostics(&text);
+        let (_sources, second) = parsed_case_with_diagnostics(&text);
+        assert_eq!(first.ast().type_refs().len(), 0);
+        assert_eq!(
+            first.ast().expressions().len(),
+            second.ast().expressions().len()
+        );
+        assert_eq!(
+            first
+                .diagnostics()
+                .iter()
+                .map(diagnostic_fingerprint)
+                .collect::<Vec<_>>(),
+            second
+                .diagnostics()
+                .iter()
+                .map(diagnostic_fingerprint)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    let mut mixed = String::new();
+    for index in 0..128 {
+        if index > 0 {
+            mixed.push_str(" + ");
+        }
+        if index % 2 == 0 {
+            mixed.push_str("f<A<B>>()");
+        } else {
+            mixed.push_str("f<A<B>>");
+        }
+    }
+    let (_sources, parsed) = parsed_case_with_diagnostics(&mixed);
+    assert_eq!(
+        parsed.ast().type_refs().len(),
+        128,
+        "only the 64 committed calls may allocate two TypeRefs each"
+    );
+}
+
+#[test]
+fn an_error_receiver_does_not_steal_a_less_than_comparison_as_postfix() {
+    let text = "@ < b";
+    let (_sources, parsed) = parsed_case_with_diagnostics(text);
+    assert!(
+        matches!(
+            expression(&parsed, parsed.root()),
+            Expression::Binary {
+                operator: BinaryOperator::Less,
+                ..
+            }
+        ),
+        "the `<` remains an infix operator even when its receiver is Error: {:?}",
+        parsed.ast().expressions()
+    );
+    assert_eq!(
+        parsed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0009"]
+    );
+}
+
+#[test]
+fn typed_call_trial_is_deterministic_across_source_loading_order() {
+    type ParseShape = (
+        usize,
+        usize,
+        Vec<(usize, usize)>,
+        Vec<(String, usize, usize)>,
+    );
+
+    fn shape(text: &str, add_noise_first: bool) -> ParseShape {
+        let mut sources = SourceMap::new();
+        if add_noise_first {
+            add_source(&mut sources, "noise.ko", "noise");
+        }
+        let source_id = add_source(&mut sources, "typed.ko", text);
+        let lexed = lex(&sources, source_id).expect("lex");
+        let parsed = parse_expression(&sources, &lexed).expect("parse");
+        (
+            parsed.ast().expressions().len(),
+            parsed.ast().type_refs().len(),
+            parsed
+                .ast()
+                .type_refs()
+                .iter()
+                .map(|(_, node)| (node.span().start(), node.span().end()))
+                .collect(),
+            parsed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    (
+                        diagnostic.code().to_string(),
+                        diagnostic.primary_span().start(),
+                        diagnostic.primary_span().end(),
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    for text in ["f<A<B>, C>()", "f<A<B>>", "a < b > c"] {
+        assert_eq!(shape(text, false), shape(text, true), "{text:?}");
+        assert_eq!(shape(text, false), shape(text, false), "{text:?}");
+    }
 }
 
 #[test]
@@ -540,7 +764,6 @@ fn deferred_type_and_call_forms_are_rejected_by_current_productions() {
         "x as (() -> T)?",
         "x as A<T>.B",
         "x as A<out T>",
-        "f<T>(x)",
         "f(x) { y }",
     ] {
         let diagnostics = parse_fingerprints(text);

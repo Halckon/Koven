@@ -1369,7 +1369,7 @@ parser 诊断。每条恢复路径必须消费输入或抵达明确 delimiter / 
       诊断而不 `panic!`
 - [x] **SPEC-0007**：实现第四部分独立表达式入口、全部运算符层级、`type_ref`、仅位置实参的
       basic call、单表达式索引、局部恢复及表达式 AST `Span`
-- [ ] **SPEC-0008**：实现第四部分第 7 节的独立 `val` / `var` / `const val` / `fun` 声明、单一
+- [x] **SPEC-0008**：实现第四部分第 7 节的独立 `val` / `var` / `const val` / `fun` 声明、单一
       内联泛型上界与签名 `type_ref`，以及按第 2、3 节无副作用试探规则成立的调用点类型实参
 - [ ] **SPEC-0009**：首次定义并实现 block、block statement 序列、函数 block body，及
       `if` / `when` / `super` / `for` / `while` / `loop` 和 `value class` / `class` /

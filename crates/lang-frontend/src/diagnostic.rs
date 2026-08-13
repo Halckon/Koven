@@ -27,6 +27,17 @@ pub mod codes {
     pub(crate) const EXPECTED_TYPE_REFERENCE: &str = "L0014";
     pub(crate) const UNSUPPORTED_OPERATOR: &str = "L0015";
     pub(crate) const UNSUPPORTED_ARGUMENT_FORM: &str = "L0016";
+    pub(crate) const EXPECTED_DECLARATION: &str = "L0017";
+    pub(crate) const EXPECTED_DECLARATION_NAME: &str = "L0018";
+    pub(crate) const EXPECTED_PARAMETER_NAME: &str = "L0019";
+    pub(crate) const EXPECTED_INITIALIZER: &str = "L0020";
+    pub(crate) const EXPECTED_RETURN_TYPE: &str = "L0021";
+    pub(crate) const EXPECTED_VAL_AFTER_CONST: &str = "L0022";
+    pub(crate) const EXPECTED_PARAMETER_COLON: &str = "L0023";
+    pub(crate) const EXPECTED_LIST_ELEMENT: &str = "L0024";
+    pub(crate) const EXPECTED_LIST_SEPARATOR: &str = "L0025";
+    pub(crate) const UNSUPPORTED_TRAILING_COMMA: &str = "L0026";
+    pub(crate) const UNSUPPORTED_PARAMETER_DEFAULT: &str = "L0027";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -46,6 +57,17 @@ pub mod codes {
         EXPECTED_TYPE_REFERENCE,
         UNSUPPORTED_OPERATOR,
         UNSUPPORTED_ARGUMENT_FORM,
+        EXPECTED_DECLARATION,
+        EXPECTED_DECLARATION_NAME,
+        EXPECTED_PARAMETER_NAME,
+        EXPECTED_INITIALIZER,
+        EXPECTED_RETURN_TYPE,
+        EXPECTED_VAL_AFTER_CONST,
+        EXPECTED_PARAMETER_COLON,
+        EXPECTED_LIST_ELEMENT,
+        EXPECTED_LIST_SEPARATOR,
+        UNSUPPORTED_TRAILING_COMMA,
+        UNSUPPORTED_PARAMETER_DEFAULT,
     ];
 
     /// 由集中定义创建生产错误码目录。
