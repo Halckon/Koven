@@ -1,4 +1,4 @@
-//! SPEC-0005 的语言 fixture 发现、执行与失败保护。
+//! SPEC-0005 / SPEC-0006 的语言 fixture 发现、执行与失败保护。
 
 mod support;
 
@@ -6,6 +6,7 @@ mod support;
 mod fixture_codes;
 
 use std::{
+    collections::BTreeMap,
     env, fs, io,
     path::{Component, Path, PathBuf},
 };
@@ -13,8 +14,9 @@ use std::{
 use fixture_codes::phase0_fixture_code;
 use lang_frontend::{
     ast::AstFile,
-    diagnostic::{Diagnostic, Severity},
-    source::SourceMap,
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
+    lexer::{LexedFile, LexemeKind, lex},
+    source::{SourceId, SourceMap},
 };
 
 const FIXTURE_MESSAGE: &str = "Phase 0 fixture wiring";
@@ -22,6 +24,30 @@ const FIXTURE_MESSAGE: &str = "Phase 0 fixture wiring";
 struct FixtureCase {
     relative_path: String,
     disk_path: PathBuf,
+}
+
+struct LexerFailCase {
+    relative_path: String,
+    source_path: PathBuf,
+    sidecar_path: PathBuf,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ExpectedDiagnostic {
+    code: String,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SidecarError {
+    Empty,
+    EmptyLine { line: usize },
+    BareCarriageReturn { line: usize },
+    WrongColumnCount { line: usize },
+    InvalidCode { line: usize },
+    InvalidOffset { line: usize },
+    InvalidSpan { line: usize },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -48,6 +74,36 @@ enum CaseFailure {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+struct LexerCaseOutcome {
+    relative_path: String,
+    result: Result<LexerEvidence, LexerCaseFailure>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct LexerEvidence {
+    byte_len: usize,
+    lexeme_count: usize,
+    diagnostic_count: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum LexerCaseFailure {
+    ReadSource(io::ErrorKind),
+    InvalidUtf8Source,
+    ReadSidecar(io::ErrorKind),
+    InvalidUtf8Sidecar,
+    InvalidSidecar(SidecarError),
+    SourceModel,
+    LexerInternal,
+    LexemeInvariant,
+    UnexpectedDiagnostics,
+    DiagnosticModel,
+    DiagnosticSeverity,
+    DiagnosticOrder,
+    DiagnosticMismatch,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 enum SuiteError {
     RootIo(io::ErrorKind),
     RootSymlink,
@@ -69,6 +125,12 @@ enum DiscoveryIssue {
     UnknownExtension {
         relative_path: String,
     },
+    MissingSidecar {
+        relative_path: String,
+    },
+    OrphanSidecar {
+        relative_path: String,
+    },
     UnsupportedEntryType {
         relative_path: String,
     },
@@ -79,11 +141,26 @@ struct FixtureExpression {
     byte_len: usize,
 }
 
-fn fixture_root() -> PathBuf {
+fn phase0_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase0/source-pass")
 }
 
+fn lexer_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/lexer-pass")
+}
+
+fn lexer_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/lexer-fail")
+}
+
 fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
+    discover_files(root, &["ko"])
+}
+
+fn discover_files(
+    root: &Path,
+    allowed_extensions: &[&str],
+) -> Result<Vec<FixtureCase>, SuiteError> {
     let metadata = fs::symlink_metadata(root).map_err(|error| SuiteError::RootIo(error.kind()))?;
     if metadata.file_type().is_symlink() {
         return Err(SuiteError::RootSymlink);
@@ -94,7 +171,13 @@ fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
 
     let mut cases = Vec::new();
     let mut issues = Vec::new();
-    collect_entries(root, Path::new(""), &mut cases, &mut issues);
+    collect_entries(
+        root,
+        Path::new(""),
+        allowed_extensions,
+        &mut cases,
+        &mut issues,
+    );
     if !issues.is_empty() {
         issues.sort_by(|left, right| issue_sort_key(left).cmp(&issue_sort_key(right)));
         return Err(SuiteError::InvalidEntries(issues));
@@ -108,9 +191,54 @@ fn discover_fixtures(root: &Path) -> Result<Vec<FixtureCase>, SuiteError> {
     Ok(cases)
 }
 
+fn discover_lexer_fail_cases(root: &Path) -> Result<Vec<LexerFailCase>, SuiteError> {
+    let files = discover_files(root, &["ko", "diag"])?;
+    let mut sources = BTreeMap::new();
+    let mut sidecars = BTreeMap::new();
+
+    for file in files {
+        if let Some(stem) = file.relative_path.strip_suffix(".ko") {
+            sources.insert(stem.to_owned(), file);
+        } else if let Some(stem) = file.relative_path.strip_suffix(".diag") {
+            sidecars.insert(stem.to_owned(), file);
+        }
+    }
+
+    let mut cases = Vec::new();
+    let mut issues = Vec::new();
+    for (stem, source) in sources {
+        let Some(sidecar) = sidecars.remove(&stem) else {
+            issues.push(DiscoveryIssue::MissingSidecar {
+                relative_path: source.relative_path,
+            });
+            continue;
+        };
+        cases.push(LexerFailCase {
+            relative_path: source.relative_path,
+            source_path: source.disk_path,
+            sidecar_path: sidecar.disk_path,
+        });
+    }
+    for sidecar in sidecars.into_values() {
+        issues.push(DiscoveryIssue::OrphanSidecar {
+            relative_path: sidecar.relative_path,
+        });
+    }
+
+    if !issues.is_empty() {
+        issues.sort_by(|left, right| issue_sort_key(left).cmp(&issue_sort_key(right)));
+        return Err(SuiteError::InvalidEntries(issues));
+    }
+    if cases.is_empty() {
+        return Err(SuiteError::NoFixtures);
+    }
+    Ok(cases)
+}
+
 fn collect_entries(
     root: &Path,
     relative_dir: &Path,
+    allowed_extensions: &[&str],
     cases: &mut Vec<FixtureCase>,
     issues: &mut Vec<DiscoveryIssue>,
 ) {
@@ -176,12 +304,14 @@ fn collect_entries(
                 relative_path: normalized_path,
             });
         } else if file_type.is_dir() {
-            collect_entries(root, &relative_path, cases, issues);
+            collect_entries(root, &relative_path, allowed_extensions, cases, issues);
         } else if file_type.is_file() {
-            if relative_path
+            let extension = relative_path
                 .extension()
-                .and_then(|extension| extension.to_str())
-                != Some("ko")
+                .and_then(|extension| extension.to_str());
+            if !allowed_extensions
+                .iter()
+                .any(|allowed| Some(*allowed) == extension)
             {
                 issues.push(DiscoveryIssue::UnknownExtension {
                     relative_path: normalized_path,
@@ -224,8 +354,72 @@ fn issue_sort_key(issue: &DiscoveryIssue) -> (u8, &str, String) {
         } => (1, relative_path, format!("{kind:?}")),
         DiscoveryIssue::Symlink { relative_path } => (2, relative_path, String::new()),
         DiscoveryIssue::UnknownExtension { relative_path } => (3, relative_path, String::new()),
-        DiscoveryIssue::UnsupportedEntryType { relative_path } => (4, relative_path, String::new()),
+        DiscoveryIssue::MissingSidecar { relative_path } => (4, relative_path, String::new()),
+        DiscoveryIssue::OrphanSidecar { relative_path } => (5, relative_path, String::new()),
+        DiscoveryIssue::UnsupportedEntryType { relative_path } => (6, relative_path, String::new()),
     }
+}
+
+fn parse_sidecar(
+    sources: &SourceMap,
+    source_id: SourceId,
+    text: &str,
+    catalog: &DiagnosticCodeCatalog,
+) -> Result<Vec<ExpectedDiagnostic>, SidecarError> {
+    if text.is_empty() {
+        return Err(SidecarError::Empty);
+    }
+
+    let mut diagnostics = Vec::new();
+    for (line_index, raw_line) in text.split_inclusive('\n').enumerate() {
+        let line_number = line_index + 1;
+        let line = if let Some(line) = raw_line.strip_suffix('\n') {
+            line.strip_suffix('\r').unwrap_or(line)
+        } else {
+            raw_line
+        };
+        if line.contains('\r') {
+            return Err(SidecarError::BareCarriageReturn { line: line_number });
+        }
+        if line.is_empty() {
+            return Err(SidecarError::EmptyLine { line: line_number });
+        }
+
+        let columns = line.split('\t').collect::<Vec<_>>();
+        if columns.len() != 3 {
+            return Err(SidecarError::WrongColumnCount { line: line_number });
+        }
+        if catalog.resolve(columns[0]).is_err() {
+            return Err(SidecarError::InvalidCode { line: line_number });
+        }
+        let start = parse_decimal_offset(columns[1])
+            .ok_or(SidecarError::InvalidOffset { line: line_number })?;
+        let end = parse_decimal_offset(columns[2])
+            .ok_or(SidecarError::InvalidOffset { line: line_number })?;
+        let span = sources
+            .span(source_id, start, end)
+            .map_err(|_| SidecarError::InvalidSpan { line: line_number })?;
+        if span.is_empty() {
+            return Err(SidecarError::InvalidSpan { line: line_number });
+        }
+        diagnostics.push(ExpectedDiagnostic {
+            code: columns[0].to_owned(),
+            start,
+            end,
+        });
+    }
+
+    if diagnostics.is_empty() {
+        return Err(SidecarError::Empty);
+    }
+    Ok(diagnostics)
+}
+
+fn parse_decimal_offset(raw: &str) -> Option<usize> {
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    raw.parse().ok()
 }
 
 fn run_suite(root: &Path) -> Result<Vec<CaseOutcome>, SuiteError> {
@@ -297,6 +491,170 @@ fn run_case(case: &FixtureCase) -> Result<SourcePassEvidence, CaseFailure> {
         ast_node_count: ast.expressions().len(),
         diagnostic_code: code.to_string(),
     })
+}
+
+fn run_lexer_pass_suite(root: &Path) -> Result<Vec<LexerCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| LexerCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_lexer_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_lexer_pass_case(case: &FixtureCase) -> Result<LexerEvidence, LexerCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        lex_fixture_source(&case.relative_path, &case.disk_path)?;
+    validate_lexemes(source_id, byte_len, &lexed)?;
+    if !lexed.diagnostics().is_empty() {
+        return Err(LexerCaseFailure::UnexpectedDiagnostics);
+    }
+
+    if sources
+        .source_text(source_id)
+        .map_err(|_| LexerCaseFailure::SourceModel)?
+        .len()
+        != byte_len
+    {
+        return Err(LexerCaseFailure::SourceModel);
+    }
+    Ok(LexerEvidence {
+        byte_len,
+        lexeme_count: lexed.lexemes().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_lexer_fail_suite(root: &Path) -> Result<Vec<LexerCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| LexerCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_lexer_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_lexer_fail_case(case: &LexerFailCase) -> Result<LexerEvidence, LexerCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        lex_fixture_source(&case.relative_path, &case.source_path)?;
+    validate_lexemes(source_id, byte_len, &lexed)?;
+
+    let sidecar_bytes = fs::read(&case.sidecar_path)
+        .map_err(|error| LexerCaseFailure::ReadSidecar(error.kind()))?;
+    let sidecar =
+        String::from_utf8(sidecar_bytes).map_err(|_| LexerCaseFailure::InvalidUtf8Sidecar)?;
+    let catalog = codes::catalog().map_err(|_| LexerCaseFailure::DiagnosticModel)?;
+    let expected = parse_sidecar(&sources, source_id, &sidecar, &catalog)
+        .map_err(LexerCaseFailure::InvalidSidecar)?;
+
+    if lexed
+        .diagnostics()
+        .iter()
+        .any(|diagnostic| diagnostic.severity() != Severity::Error)
+    {
+        return Err(LexerCaseFailure::DiagnosticSeverity);
+    }
+    let actual = diagnostic_expectations(lexed.diagnostics().iter());
+    let ordered = ordered_diagnostics(&sources, lexed.diagnostics())
+        .map_err(|_| LexerCaseFailure::DiagnosticModel)?;
+    let ordered_actual = diagnostic_expectations(ordered.into_iter());
+    if actual != ordered_actual {
+        return Err(LexerCaseFailure::DiagnosticOrder);
+    }
+    if actual != expected {
+        return Err(LexerCaseFailure::DiagnosticMismatch);
+    }
+
+    Ok(LexerEvidence {
+        byte_len,
+        lexeme_count: lexed.lexemes().len(),
+        diagnostic_count: actual.len(),
+    })
+}
+
+fn lex_fixture_source(
+    relative_path: &str,
+    disk_path: &Path,
+) -> Result<(SourceMap, SourceId, LexedFile, usize), LexerCaseFailure> {
+    let bytes = fs::read(disk_path).map_err(|error| LexerCaseFailure::ReadSource(error.kind()))?;
+    let text = String::from_utf8(bytes).map_err(|_| LexerCaseFailure::InvalidUtf8Source)?;
+    let byte_len = text.len();
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source(relative_path.to_owned(), text)
+        .map_err(|_| LexerCaseFailure::SourceModel)?;
+    let lexed = lex(&sources, source_id).map_err(|_| LexerCaseFailure::LexerInternal)?;
+    Ok((sources, source_id, lexed, byte_len))
+}
+
+fn validate_lexemes(
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &LexedFile,
+) -> Result<(), LexerCaseFailure> {
+    if lexed.source_id() != source_id || lexed.lexemes().is_empty() {
+        return Err(LexerCaseFailure::LexemeInvariant);
+    }
+
+    let mut expected_start = 0;
+    let mut saw_eof = false;
+    for (index, lexeme) in lexed.lexemes().iter().enumerate() {
+        let span = lexeme.span();
+        let is_eof = matches!(lexeme.kind(), LexemeKind::Eof);
+        if span.source_id() != source_id || span.start() != expected_start {
+            return Err(LexerCaseFailure::LexemeInvariant);
+        }
+        if is_eof {
+            if index + 1 != lexed.lexemes().len() || !span.is_empty() || span.start() != source_len
+            {
+                return Err(LexerCaseFailure::LexemeInvariant);
+            }
+            saw_eof = true;
+        } else {
+            if span.is_empty() || span.end() > source_len {
+                return Err(LexerCaseFailure::LexemeInvariant);
+            }
+            expected_start = span.end();
+        }
+    }
+    if !saw_eof || expected_start != source_len {
+        return Err(LexerCaseFailure::LexemeInvariant);
+    }
+    Ok(())
+}
+
+fn diagnostic_expectations<'a>(
+    diagnostics: impl Iterator<Item = &'a Diagnostic>,
+) -> Vec<ExpectedDiagnostic> {
+    diagnostics
+        .map(|diagnostic| ExpectedDiagnostic {
+            code: diagnostic.code().to_string(),
+            start: diagnostic.primary_span().start(),
+            end: diagnostic.primary_span().end(),
+        })
+        .collect()
+}
+
+fn lexer_stable_report(outcomes: &[LexerCaseOutcome]) -> String {
+    let mut lines = Vec::with_capacity(outcomes.len());
+    for outcome in outcomes {
+        let status = match &outcome.result {
+            Ok(evidence) => format!(
+                "ok bytes={} lexemes={} diagnostics={}",
+                evidence.byte_len, evidence.lexeme_count, evidence.diagnostic_count
+            ),
+            Err(failure) => format!("error {failure:?}"),
+        };
+        lines.push(format!(
+            "{}\t{status}",
+            escaped_report_path(&outcome.relative_path)
+        ));
+    }
+    lines.join("\n")
 }
 
 fn stable_report(outcomes: &[CaseOutcome]) -> String {
@@ -392,6 +750,13 @@ mod tests {
             .collect()
     }
 
+    fn fail_relative_paths(cases: &[LexerFailCase]) -> Vec<&str> {
+        cases
+            .iter()
+            .map(|case| case.relative_path.as_str())
+            .collect()
+    }
+
     fn assert_discovery_error(root: &Path, expected: SuiteError) {
         match discover_fixtures(root) {
             Ok(cases) => panic!(
@@ -402,9 +767,20 @@ mod tests {
         }
     }
 
+    fn assert_fail_discovery_error(root: &Path, expected: SuiteError) {
+        match discover_lexer_fail_cases(root) {
+            Ok(cases) => panic!(
+                "expected fail discovery to fail, but it found {:?}",
+                fail_relative_paths(&cases)
+            ),
+            Err(actual) => assert_eq!(actual, expected),
+        }
+    }
+
     #[test]
     fn checked_in_suite_executes_the_exact_source_loading_case() {
-        let outcomes = run_suite(&fixture_root()).expect("the checked-in suite must be valid");
+        let outcomes =
+            run_suite(&phase0_fixture_root()).expect("the checked-in suite must be valid");
 
         assert_eq!(outcomes.len(), 1, "one checked-in .ko case must execute");
         assert_eq!(outcomes[0].relative_path, "unicode.ko");
@@ -422,6 +798,179 @@ mod tests {
                 evidence.byte_len
             )
         );
+    }
+
+    #[test]
+    fn checked_in_lexer_suites_execute_exact_pass_and_fail_cases() {
+        let pass = run_lexer_pass_suite(&lexer_pass_fixture_root())
+            .expect("the checked-in lexer pass suite must be valid");
+        let fail = run_lexer_fail_suite(&lexer_fail_fixture_root())
+            .expect("the checked-in lexer fail suite must be valid");
+
+        assert_eq!(pass.len(), 1);
+        assert_eq!(pass[0].relative_path, "basic.ko");
+        let pass_evidence = pass[0]
+            .result
+            .as_ref()
+            .expect("the checked-in lexer pass case must pass");
+        assert!(pass_evidence.lexeme_count > 1);
+        assert_eq!(pass_evidence.diagnostic_count, 0);
+
+        assert_eq!(fail.len(), 1);
+        assert_eq!(fail[0].relative_path, "invalid-character.ko");
+        let fail_evidence = fail[0]
+            .result
+            .as_ref()
+            .expect("the checked-in lexer fail case must match its sidecar");
+        assert!(fail_evidence.lexeme_count > 1);
+        assert_eq!(fail_evidence.diagnostic_count, 1);
+
+        assert_eq!(
+            lexer_stable_report(&pass),
+            format!(
+                "basic.ko\tok bytes={} lexemes={} diagnostics=0",
+                pass_evidence.byte_len, pass_evidence.lexeme_count
+            )
+        );
+        assert_eq!(
+            lexer_stable_report(&fail),
+            format!(
+                "invalid-character.ko\tok bytes={} lexemes={} diagnostics=1",
+                fail_evidence.byte_len, fail_evidence.lexeme_count
+            )
+        );
+    }
+
+    #[test]
+    fn lexer_fail_discovery_pairs_nested_cases_and_sorts_sources() {
+        let temp = TempDir::new("fail-pairs");
+        write(temp.path(), "z.ko", b"z");
+        write(temp.path(), "z.diag", b"L0001\t0\t1\n");
+        write(temp.path(), "nested/a.diag", b"L0001\t0\t1\n");
+        write(temp.path(), "nested/a.ko", b"a");
+
+        let cases = discover_lexer_fail_cases(temp.path())
+            .expect("every fail source has exactly one sidecar");
+
+        assert_eq!(fail_relative_paths(&cases), ["nested/a.ko", "z.ko"]);
+        assert!(cases[0].sidecar_path.ends_with("nested/a.diag"));
+        assert!(cases[1].sidecar_path.ends_with("z.diag"));
+    }
+
+    #[test]
+    fn lexer_fail_discovery_rejects_empty_missing_or_orphan_suites() {
+        let empty = TempDir::new("fail-empty");
+        assert_fail_discovery_error(empty.path(), SuiteError::NoFixtures);
+
+        let unpaired = TempDir::new("fail-unpaired");
+        write(unpaired.path(), "missing.ko", b"x");
+        write(unpaired.path(), "orphan.diag", b"L0001\t0\t1\n");
+        assert_fail_discovery_error(
+            unpaired.path(),
+            SuiteError::InvalidEntries(vec![
+                DiscoveryIssue::MissingSidecar {
+                    relative_path: "missing.ko".to_owned(),
+                },
+                DiscoveryIssue::OrphanSidecar {
+                    relative_path: "orphan.diag".to_owned(),
+                },
+            ]),
+        );
+    }
+
+    #[test]
+    fn lexer_fail_discovery_rejects_unknown_extensions() {
+        let temp = TempDir::new("fail-unknown");
+        write(temp.path(), "case.ko", b"x");
+        write(temp.path(), "case.diag", b"L0001\t0\t1\n");
+        write(temp.path(), "README", b"unexpected");
+
+        assert_fail_discovery_error(
+            temp.path(),
+            SuiteError::InvalidEntries(vec![DiscoveryIssue::UnknownExtension {
+                relative_path: "README".to_owned(),
+            }]),
+        );
+    }
+
+    #[test]
+    fn lexer_fail_runner_reports_invalid_utf8_source_and_sidecar_separately() {
+        let invalid_source = TempDir::new("fail-invalid-source");
+        write(invalid_source.path(), "case.ko", &[0xff]);
+        write(invalid_source.path(), "case.diag", b"L0001\t0\t1\n");
+        let source_outcomes =
+            run_lexer_fail_suite(invalid_source.path()).expect("the source and sidecar are paired");
+        assert_eq!(
+            source_outcomes[0].result,
+            Err(LexerCaseFailure::InvalidUtf8Source)
+        );
+
+        let invalid_sidecar = TempDir::new("fail-invalid-sidecar");
+        write(invalid_sidecar.path(), "case.ko", "β".as_bytes());
+        write(invalid_sidecar.path(), "case.diag", &[0xff]);
+        let sidecar_outcomes = run_lexer_fail_suite(invalid_sidecar.path())
+            .expect("the source and sidecar are paired");
+        assert_eq!(
+            sidecar_outcomes[0].result,
+            Err(LexerCaseFailure::InvalidUtf8Sidecar)
+        );
+    }
+
+    #[test]
+    fn sidecar_parser_accepts_only_registered_nonempty_half_open_spans() {
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("case.ko", "βx")
+            .expect("test source name is unique");
+        let catalog =
+            DiagnosticCodeCatalog::try_new(&["L0001", "L0002"]).expect("test codes are valid");
+
+        assert_eq!(
+            parse_sidecar(&sources, source_id, "L0001\t0\t2\r\nL0002\t2\t3", &catalog,),
+            Ok(vec![
+                ExpectedDiagnostic {
+                    code: "L0001".to_owned(),
+                    start: 0,
+                    end: 2,
+                },
+                ExpectedDiagnostic {
+                    code: "L0002".to_owned(),
+                    start: 2,
+                    end: 3,
+                },
+            ])
+        );
+
+        for (sidecar, expected) in [
+            ("", SidecarError::Empty),
+            ("\n", SidecarError::EmptyLine { line: 1 }),
+            ("L0001\t0\t2\n\n", SidecarError::EmptyLine { line: 2 }),
+            (
+                "L0001\t0\t2\r",
+                SidecarError::BareCarriageReturn { line: 1 },
+            ),
+            (
+                "L0001\t0\t2\rx\n",
+                SidecarError::BareCarriageReturn { line: 1 },
+            ),
+            ("L0001\t0\n", SidecarError::WrongColumnCount { line: 1 }),
+            ("L9999\t0\t2\n", SidecarError::InvalidCode { line: 1 }),
+            ("L0001\t+0\t2\n", SidecarError::InvalidOffset { line: 1 }),
+            (
+                "L0001\t999999999999999999999999999999\t2\n",
+                SidecarError::InvalidOffset { line: 1 },
+            ),
+            ("L0001\t0\t0\n", SidecarError::InvalidSpan { line: 1 }),
+            ("L0001\t0\t1\n", SidecarError::InvalidSpan { line: 1 }),
+            ("L0001\t2\t1\n", SidecarError::InvalidSpan { line: 1 }),
+            ("L0001\t0\t4\n", SidecarError::InvalidSpan { line: 1 }),
+        ] {
+            assert_eq!(
+                parse_sidecar(&sources, source_id, sidecar, &catalog),
+                Err(expected),
+                "unexpected result for sidecar {sidecar:?}",
+            );
+        }
     }
 
     #[test]

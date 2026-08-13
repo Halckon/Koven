@@ -4,15 +4,33 @@ use std::{error::Error, fmt};
 
 use crate::source::{SourceError, SourceMap, Span};
 
-/// Phase 0 的生产错误码目录。
+/// 已发布的生产错误码目录。
 ///
 /// 后续语言功能只能在分配正式语义错误码的 Spec 中向 [`ALL`] 增加条目。测试代码应通过
 /// [`DiagnosticCodeCatalog::try_new`] 建立自己的目录，不能在这里注册样例编号。
 pub mod codes {
     use super::{DiagnosticCodeCatalog, DiagnosticCodeError};
 
+    pub(crate) const UNEXPECTED_CHARACTER: &str = "L0001";
+    pub(crate) const RESERVED_WORD: &str = "L0002";
+    pub(crate) const UNTERMINATED_BLOCK_COMMENT: &str = "L0003";
+    pub(crate) const UNTERMINATED_STRING: &str = "L0004";
+    pub(crate) const UNTERMINATED_INTERPOLATION: &str = "L0005";
+    pub(crate) const INVALID_STRING_ESCAPE: &str = "L0006";
+    pub(crate) const INVALID_CHAR_LITERAL: &str = "L0007";
+    pub(crate) const INVALID_NUMERIC_LITERAL: &str = "L0008";
+
     /// 已发布的生产错误码。
-    pub const ALL: &[&str] = &[];
+    pub const ALL: &[&str] = &[
+        UNEXPECTED_CHARACTER,
+        RESERVED_WORD,
+        UNTERMINATED_BLOCK_COMMENT,
+        UNTERMINATED_STRING,
+        UNTERMINATED_INTERPOLATION,
+        INVALID_STRING_ESCAPE,
+        INVALID_CHAR_LITERAL,
+        INVALID_NUMERIC_LITERAL,
+    ];
 
     /// 由集中定义创建生产错误码目录。
     ///

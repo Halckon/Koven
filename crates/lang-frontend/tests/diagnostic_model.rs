@@ -105,11 +105,20 @@ fn catalog_rejects_duplicates_and_unknown_lookups() {
 }
 
 #[test]
-fn production_catalog_remains_empty_in_phase_zero() {
+fn production_catalog_contains_exactly_the_published_lexer_codes() {
+    let expected = [
+        "L0001", "L0002", "L0003", "L0004", "L0005", "L0006", "L0007", "L0008",
+    ];
     let catalog = codes::catalog().expect("the checked-in production catalog must be valid");
 
-    assert!(codes::ALL.is_empty());
-    assert!(catalog.is_empty());
+    assert_eq!(codes::ALL, expected);
+    assert_eq!(catalog.len(), expected.len());
+    for raw_code in expected {
+        assert_eq!(
+            catalog.resolve(raw_code).map(|code| code.to_string()),
+            Ok(raw_code.to_owned()),
+        );
+    }
 }
 
 #[test]

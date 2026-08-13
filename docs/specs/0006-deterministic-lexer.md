@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | done |
 | Goal ID | `KOV-P1-006` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | [`agent-language-design-guide-v0.5.md`](../agent-language-design-guide-v0.5.md) |
@@ -22,9 +22,9 @@
 
 ## 2. 背景
 
-Phase 0 已提供 source / `Span`、结构化诊断与真实 fixture target，但尚无 Lexer。现行 v0.4
-未完整定义标识符字符集、字面量、trivia、最长匹配和错误恢复，且其“完整”硬关键字表漏掉
-正文已经使用的 `move`，因此不能据此猜测实现。现行 v0.5 已收敛这些规则，并为本 Spec
+Phase 0 已提供 source / `Span`、结构化诊断与真实 fixture target，但当时尚无 Lexer。历史
+v0.4 未完整定义标识符字符集、字面量、trivia、最长匹配和错误恢复，且其“完整”硬关键字表
+漏掉正文已经使用的 `move`，因此不能据此猜测实现。现行 v0.5 已收敛这些规则，并为本 Spec
 提供可执行的语言与恢复契约。
 
 ## 3. 范围与需求
@@ -72,31 +72,31 @@ Phase 0 已提供 source / `Span`、结构化诊断与真实 fixture target，�
 
 ## 5. 验收标准
 
-- [ ] 穷举测试 42 个硬关键字、2 个软关键字和 11 个未来保留字；`move` 是硬关键字，
+- [x] 穷举测试 42 个硬关键字、2 个软关键字和 11 个未来保留字；`move` 是硬关键字，
       `error` 是标识符，关键字前后缀和大小写边界符合 guide。
-- [ ] 标识符测试覆盖首 / 续字符、单独 `_`、ASCII 边界，以及 Unicode scalar 只能用于
+- [x] 标识符测试覆盖首 / 续字符、单独 `_`、ASCII 边界，以及 Unicode scalar 只能用于
       注释和字面量内容、不能组成标识符的反例。
-- [ ] trivia 测试覆盖最大 space / tab 段、LF、CRLF、裸 CR、Unicode 空白、行注释、
+- [x] trivia 测试覆盖最大 space / tab 段、LF、CRLF、裸 CR、Unicode 空白、行注释、
       非嵌套块注释、普通模式 BOM 和未终止块注释，并锁定每段 `Span`。
-- [ ] 字面量测试覆盖整数、小数、range 消歧义、非法数字最大区域、Unicode `Char` /
+- [x] 字面量测试覆盖整数、小数、range 消歧义、非法数字最大区域、Unicode `Char` /
       `String`、全部合法转义、空 / 多 scalar `Char`、最大非空 string-text、`${...}` 嵌套
       模式、换行 / EOF 恢复，以及 EOF 多层未闭合模式只报告最内层错误。
-- [ ] 穷举固定符号并验证最长匹配、注释优先、`as?` / `!in` / `!is` 邻接边界和为
+- [x] 穷举固定符号并验证最长匹配、注释优先、`as?` / `!in` / `!is` 邻接边界和为
       Phase 5 保留但尚无 Parser 语义的 `@` token。
-- [ ] `L0001`–`L0008` 各自只表达表中一类含义；测试断言全部为 error，以及错误码、固定
+- [x] `L0001`–`L0008` 各自只表达表中一类含义；测试断言全部为 error，以及错误码、固定
       消息、精确字节 `Span`、恢复后的 token 和诊断稳定顺序。
-- [ ] 空文件只产生唯一 EOF；每个非 EOF lexeme 非空、同 source、不重叠，所有 lexeme
+- [x] 空文件只产生唯一 EOF；每个非 EOF lexeme 非空、同 source、不重叠，所有 lexeme
       联合覆盖 EOF 前全部 UTF-8 字节；恢复不产生零长度循环或 `panic!`。
-- [ ] 相同源码在不同 source 加载顺序和重复运行下产生相同 kind、相对 `Span` 与诊断；
+- [x] 相同源码在不同 source 加载顺序和重复运行下产生相同 kind、相对 `Span` 与诊断；
       任何被 `SourceMap` 拒绝的 `SourceId`（至少覆盖来自另一 source map 的 ID）返回具体
       内部错误，不为测试泄漏不安全的 ID 构造器。
-- [ ] `lexer-pass` / `lexer-fail` 均至少执行一个真实 `.ko` case；零 case、非法配对或期望
+- [x] `lexer-pass` / `lexer-fail` 均至少执行一个真实 `.ko` case；零 case、非法配对或期望
       不匹配使测试失败，且 Phase 0 fixture 继续执行。
-- [ ] `cargo tree -p lang-frontend --edges all --locked --offline` 及 manifest / lock diff 证明
+- [x] `cargo tree -p lang-frontend --edges all --locked --offline` 及 manifest / lock diff 证明
       未新增 normal、dev 或 build 依赖。
-- [ ] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线通过，无
+- [x] frontend 窄测试和 workspace fmt、check、Clippy、test、CLI build 基线通过，无
       ignored / filtered case 被隐瞒。
-- [ ] Architecture 更新为实现后的 Lexer 数据流和 Parser 前置边界，不把 Parser 写成已实现。
+- [x] Architecture 更新为实现后的 Lexer 数据流和 Parser 前置边界，不把 Parser 写成已实现。
 
 ## 6. 技术方案与边界
 
@@ -127,11 +127,11 @@ lexeme，不另造重叠的 invalid lexeme。换行处只弹出当前字符串�
 
 ## 7. 实施计划
 
-1. [ ] 注册 `L0001`–`L0008` → 验证：目录、severity 与消息单测
-2. [ ] 实现 lexeme 模型、普通模式、关键字 / 符号 / trivia / 数字扫描 → 验证：Lexer 窄测试
-3. [ ] 实现 `Char`、字符串 / 插值模式和全部恢复路径 → 验证：逐类诊断与多错误恢复测试
-4. [ ] 扩展 pass / fail fixture 及 sidecar 自检 → 验证：真实 fixture target
-5. [ ] 同步 Spec 验收记录与 Architecture → 验证：全 workspace 基线与 staged diff
+1. [x] 注册 `L0001`–`L0008` → 验证：目录、severity 与消息单测
+2. [x] 实现 lexeme 模型、普通模式、关键字 / 符号 / trivia / 数字扫描 → 验证：Lexer 窄测试
+3. [x] 实现 `Char`、字符串 / 插值模式和全部恢复路径 → 验证：逐类诊断与多错误恢复测试
+4. [x] 扩展 pass / fail fixture 及 sidecar 自检 → 验证：真实 fixture target
+5. [x] 同步 Spec 验收记录与 Architecture → 验证：全 workspace 基线与 staged diff
 
 ## 8. 提交计划
 
@@ -152,13 +152,13 @@ v0.5 激活及全仓当前真源指针同步已由本 Spec 之外的独立纯文
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| `cargo test -p lang-frontend --lib --locked --offline` | 未执行 | 尚未实现 |
-| `cargo test -p lang-frontend --test lexer --locked --offline` | 未执行 | Lexer test target 尚未创建 |
-| `cargo test -p lang-frontend --test fixtures --locked --offline` | 未执行 | Phase 1 fixtures 尚未创建 |
-| `cargo test -p lang-frontend --doc --locked --offline` | 未执行 | 尚未实现 |
-| `cargo tree -p lang-frontend --edges all --locked --offline` | 未执行 | 尚未实施依赖自检 |
-| `cargo fmt --all -- --check` | 未执行 | 尚未实现 |
-| `cargo check --workspace --all-targets --locked --offline` | 未执行 | 尚未实现 |
-| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 未执行 | 尚未实现 |
-| `cargo test --workspace --all-targets --locked --offline` | 未执行 | 尚未实现 |
-| `cargo build -p lang-cli --locked --offline` | 未执行 | 尚未实现 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 3 passed；0 failed / ignored / filtered |
+| `cargo test -p lang-frontend --test lexer --locked --offline` | 通过 | 18 passed；0 failed / ignored / filtered |
+| `cargo test -p lang-frontend --test fixtures --locked --offline` | 通过 | 15 passed；0 failed / ignored / filtered；三个 suite 均真实执行 |
+| `cargo test -p lang-frontend --doc --locked --offline` | 通过 | 7 passed；0 failed / ignored / filtered |
+| `cargo tree -p lang-frontend --edges all --locked --offline` | 通过 | 仅 `lang-frontend` 根节点；manifest / lock 无差异，未新增依赖 |
+| `cargo fmt --all -- --check` | 通过 | 无输出 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 全 workspace / target 检查完成 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | 68 passed；0 failed / ignored / filtered |
+| `cargo build -p lang-cli --locked --offline` | 通过 | `lang-cli` 构建完成 |
