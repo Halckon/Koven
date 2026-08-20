@@ -1,0 +1,8 @@
+fun classify(input: Input): Int = if (input) 1 else 0
+fun run(items: Items) {
+    for ((item, _) in items) {
+        if (item) continue
+    }
+    while (ready) { break }
+    loop { return }
+}

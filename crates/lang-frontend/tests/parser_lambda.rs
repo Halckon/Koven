@@ -202,10 +202,15 @@ fn lambda_body_has_ordered_elements_without_duplicate_tail_or_block_mode() {
     }
     for (_, node) in nested.ast().statements().iter() {
         let elements = match node.payload() {
-            Statement::Block { elements } | Statement::LambdaBody { elements } => elements,
+            Statement::Block { elements }
+            | Statement::LambdaBody { elements }
+            | Statement::ControlBody { elements } => elements,
             Statement::Error
             | Statement::LocalVariable { .. }
             | Statement::LocalDestructuring { .. }
+            | Statement::While { .. }
+            | Statement::For { .. }
+            | Statement::Loop { .. }
             | Statement::Expression { .. } => {
                 continue;
             }
@@ -574,13 +579,7 @@ fn lambda_body_diagnostics_have_fixed_codes_messages_spans_and_error_nodes() {
 
 #[test]
 fn unsupported_body_introducers_use_lambda_specific_diagnostic() {
-    for text in [
-        "{ const val x = 1 }",
-        "{ fun f(): Unit }",
-        "{ return x }",
-        "{ if x }",
-        "{ class X }",
-    ] {
+    for text in ["{ const val x = 1 }", "{ fun f(): Unit }", "{ class X }"] {
         let (_, parsed) = parsed_expression(text);
         assert!(
             parsed

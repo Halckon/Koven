@@ -1,0 +1,2 @@
+val result = if (ready) 1
+fun next() {}

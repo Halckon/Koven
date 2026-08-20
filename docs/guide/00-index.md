@@ -114,7 +114,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0015 | `package` / Kotlin 风格 `import` 文件头 | `04-grammar-declarations-blocks.md` §11 | ✅ 已实现 |
-| SPEC-0016 | control-flow（`if`/`when`/循环/jump/`super`） | `04-grammar-declarations-blocks.md` §12 | ⬜ v0.18 已批准，待实现 |
+| SPEC-0016 | control-flow（`if`/`when`/循环/jump/`super`） | `04-grammar-declarations-blocks.md` §12 | ✅ 已实现 |
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | 尚未撰写 | ⬜ 未实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 

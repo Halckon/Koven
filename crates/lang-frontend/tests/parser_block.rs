@@ -219,15 +219,6 @@ fn unsupported_elements_have_the_dedicated_stable_diagnostic() {
     for text in [
         "{ const val }",
         "{ fun }",
-        "{ return }",
-        "{ break }",
-        "{ continue }",
-        "{ if }",
-        "{ when }",
-        "{ super }",
-        "{ for }",
-        "{ while }",
-        "{ loop }",
         "{ value class }",
         "{ class }",
         "{ interface }",
@@ -333,7 +324,7 @@ fn missing_initializer_preserves_each_structural_boundary() {
     for (text, expected_elements) in [
         ("{ val x = }", 1),
         ("{ val x = val y = 2 }", 2),
-        ("{ val x = return }", 2),
+        ("{ val x = fun }", 2),
     ] {
         let (_, parsed) = parsed(text);
         assert_eq!(root_elements(&parsed).len(), expected_elements, "{text:?}");

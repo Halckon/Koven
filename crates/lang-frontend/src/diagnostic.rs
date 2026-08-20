@@ -65,6 +65,17 @@ pub mod codes {
     pub(crate) const MISPLACED_IMPORT_DIRECTIVE: &str = "L0052";
     pub(crate) const EXPECTED_FILE_HEADER_SEPARATOR: &str = "L0053";
     pub(crate) const WILDCARD_IMPORT_ALIAS: &str = "L0054";
+    pub(crate) const EXPECTED_CONDITION: &str = "L0055";
+    pub(crate) const EXPECTED_CONTROL_BODY: &str = "L0056";
+    pub(crate) const EXPECTED_ELSE_BRANCH: &str = "L0057";
+    pub(crate) const EXPECTED_WHEN_ENTRY: &str = "L0058";
+    pub(crate) const EXPECTED_WHEN_ARROW: &str = "L0059";
+    pub(crate) const EXPECTED_LOOP_BODY: &str = "L0060";
+    pub(crate) const EXPECTED_FOR_BINDING: &str = "L0061";
+    pub(crate) const EXPECTED_FOR_IN: &str = "L0062";
+    pub(crate) const EXPECTED_SUPER_INTERFACE: &str = "L0063";
+    pub(crate) const EXPECTED_SUPER_MEMBER_SEPARATOR: &str = "L0064";
+    pub(crate) const EXPECTED_WHEN_ENTRY_SEPARATOR: &str = "L0065";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -122,6 +133,17 @@ pub mod codes {
         MISPLACED_IMPORT_DIRECTIVE,
         EXPECTED_FILE_HEADER_SEPARATOR,
         WILDCARD_IMPORT_ALIAS,
+        EXPECTED_CONDITION,
+        EXPECTED_CONTROL_BODY,
+        EXPECTED_ELSE_BRANCH,
+        EXPECTED_WHEN_ENTRY,
+        EXPECTED_WHEN_ARROW,
+        EXPECTED_LOOP_BODY,
+        EXPECTED_FOR_BINDING,
+        EXPECTED_FOR_IN,
+        EXPECTED_SUPER_INTERFACE,
+        EXPECTED_SUPER_MEMBER_SEPARATOR,
+        EXPECTED_WHEN_ENTRY_SEPARATOR,
     ];
 
     /// 由集中定义创建生产错误码目录。

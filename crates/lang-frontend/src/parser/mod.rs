@@ -359,6 +359,11 @@ pub enum Statement {
         /// 源码顺序的 lambda body element。
         elements: Vec<StatementId>,
     },
+    /// `if` / `when` 专用的有序 body；是否读取尾表达式由拥有它的控制表达式上下文决定。
+    ControlBody {
+        /// 源码顺序的 control body element。
+        elements: Vec<StatementId>,
+    },
     /// 只引用既有简单变量 Item 的局部声明。
     LocalVariable {
         /// 对应的 `Item::Variable`。
@@ -379,11 +384,96 @@ pub enum Statement {
         /// 唯一 initializer 表达式。
         initializer: ExpressionId,
     },
+    /// `while` statement。
+    While {
+        /// 真实 `while` token。
+        keyword_span: Span,
+        /// 条件表达式。
+        condition: ExpressionId,
+        /// 唯一普通 block body。
+        body: StatementId,
+    },
+    /// `for` statement。
+    For {
+        /// 真实 `for` token。
+        keyword_span: Span,
+        /// 名称或解构 binding。
+        binding: ForBinding,
+        /// 真实 `in` token；恢复插入时为空范围。
+        in_span: Span,
+        /// 只求值一次的 source 表达式。
+        source: ExpressionId,
+        /// 唯一普通 block body。
+        body: StatementId,
+    },
+    /// `loop` statement。
+    Loop {
+        /// 真实 `loop` token。
+        keyword_span: Span,
+        /// 唯一普通 block body。
+        body: StatementId,
+    },
     /// expression statement。
     Expression {
         /// 对应表达式。
         expression: ExpressionId,
     },
+}
+
+/// `for` header 中的源码 binding。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ForBinding {
+    /// 单一名称；错误恢复可保存 [`NameMarker::Missing`] / [`NameMarker::Error`]。
+    Name(NameMarker),
+    /// 完整解构 binding；`_` 作为普通真实名称范围保留，语义层解释为丢弃。
+    Destructuring {
+        /// 真实 `(`。
+        left_paren_span: Span,
+        /// 源码顺序的名称或恢复 marker。
+        names: Vec<NameMarker>,
+        /// 真实 `)`；缺失时不伪造。
+        right_paren_span: Option<Span>,
+    },
+}
+
+/// `when` entry 中的条件。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WhenCondition {
+    /// 普通表达式条件。
+    Expression(ExpressionId),
+    /// `is` / `!is` 类型条件。
+    TypeTest {
+        /// 真实运算符范围。
+        operator_span: Span,
+        /// 是否为否定形式。
+        negated: bool,
+        /// 目标类型。
+        type_ref: TypeRefId,
+    },
+    /// `in` / `!in` 包含条件。
+    Contains {
+        /// 真实运算符范围。
+        operator_span: Span,
+        /// 是否为否定形式。
+        negated: bool,
+        /// 右侧容器表达式。
+        expression: ExpressionId,
+    },
+}
+
+/// 一个源码有序的 `when` entry。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WhenEntry {
+    /// 从首条件或 `else` 到 body 结束的范围。
+    pub span: Span,
+    /// 非 `else` entry 的一个或多个条件。
+    pub conditions: Vec<WhenCondition>,
+    /// `else` entry 的真实关键字范围。
+    pub else_span: Option<Span>,
+    /// 真实 `->`；恢复插入时为空范围。
+    pub arrow_span: Span,
+    /// 唯一 control body。
+    pub body: StatementId,
 }
 
 /// 一个函数类型参数。
@@ -539,6 +629,56 @@ pub enum Expression {
         arrow_span: Option<Span>,
         /// 唯一对应的 [`Statement::LambdaBody`]。
         body: StatementId,
+    },
+    /// Kotlin 风格条件表达式。
+    If {
+        /// 真实 `if` token。
+        keyword_span: Span,
+        /// 条件表达式。
+        condition: ExpressionId,
+        /// then control body。
+        then_branch: StatementId,
+        /// 真实 `else` token；缺失时为 `None`。
+        else_span: Option<Span>,
+        /// else control body 或嵌套 `else if`。
+        else_branch: Option<StatementId>,
+    },
+    /// Kotlin 风格多分支条件表达式。
+    When {
+        /// 真实 `when` token。
+        keyword_span: Span,
+        /// 可选 subject。
+        subject: Option<ExpressionId>,
+        /// 源码顺序的 entries。
+        entries: Vec<WhenEntry>,
+    },
+    /// 最近 callable 的返回表达式。
+    Return {
+        /// 真实 `return` token。
+        keyword_span: Span,
+        /// 同一逻辑行上的可选返回值。
+        value: Option<ExpressionId>,
+    },
+    /// 最近 loop 的退出表达式。
+    Break {
+        /// 真实 `break` token。
+        keyword_span: Span,
+    },
+    /// 最近 loop 的继续表达式。
+    Continue {
+        /// 真实 `continue` token。
+        keyword_span: Span,
+    },
+    /// 接口默认方法消歧义 receiver。
+    SuperMember {
+        /// 真实 `super` token。
+        keyword_span: Span,
+        /// `<...>` 内接口类型。
+        interface: TypeRefId,
+        /// 真实 `.`；恢复插入时为空范围。
+        dot_span: Span,
+        /// 成员名称；恢复插入时可为空范围。
+        name_span: Span,
     },
     /// 前缀表达式。
     Prefix {
