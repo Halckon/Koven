@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.17。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -420,7 +420,7 @@ SPEC-0009 的最小验收必须包括：
 
 后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
-终点。control-flow 与 class-family 分别由 SPEC-0016、0017 的后续 guide 补齐。
+终点。control-flow 由本文件 §12 补齐；class-family 仍由 SPEC-0017 的后续 guide 定义。
 
 ## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
 
@@ -524,5 +524,103 @@ SPEC-0015 只交付 Phase 1 Lexer / Parser / AST / 诊断与恢复。package 到
 映射、多文件名称解析、exact / wildcard import 的绑定与冲突规则属于 SPEC-0025；相关长期
 映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。上述 Phase 1
 增量已由 SPEC-0015 实现并验收。
+
+## 12. SPEC-0016 control-flow、jump 与 `super`
+
+```ebnf
+if_expression = "if", "(", expression, ")", control_body,
+                [ "else", (if_expression | control_body) ] ;
+
+when_expression = "when", [ "(", expression, ")" ], "{",
+                  { when_entry, when_separator }, "}" ;
+when_entry = (when_condition, { ",", when_condition } | "else"),
+             "->", control_body ;
+when_condition = expression | "is", type_ref | "!is", type_ref
+               | "in", expression | "!in", expression ;
+when_separator = trivia_with_line_break | trivia*, ";", trivia* ;
+
+while_statement = "while", "(", expression, ")", block ;
+for_statement = "for", "(", for_binding, "in", expression, ")", block ;
+for_binding = Identifier | "(", for_binding_name,
+              { ",", for_binding_name }, ")" ;
+for_binding_name = Identifier | "_" ;
+loop_statement = "loop", block ;
+
+jump_expression = "return", [ expression ] | "break" | "continue" ;
+super_expression = "super", "<", type_ref, ">", ".", Identifier ;
+control_body = expression | control_block ;
+control_block = "{", control_element*, "}" ;
+```
+
+### 12.1 `if` 的 statement / value context
+
+- `if` 是表达式，但缺 `else` 的形态只能作为 block、lambda body 或 control block 中一个
+  **完整且最外层的 expression statement**。`val x = if (...) ...`、赋值右侧、实参、运算符
+  操作数、`return` 值、lambda 尾值以及任何嵌套 value context 都必须有 `else`；缺失时使用
+  L0057 `expected else branch`，在 then body 结束位置产生空主 `Span`，AST 仍保留
+  `else = None` 供恢复与工具使用。
+- statement context 中缺 `else` 的 `if` 结果固定为 `Unit`。同时存在两条分支时，整体值由
+  Phase 2 对两个分支尾值求公共类型；`Nothing` 继续作为 bottom type。Koven 在这一点与
+  Kotlin 的位置规则一致，不采用“所有 `if` 都强制 `else`”的更严格变体。
+- `else if` 右侧直接嵌套另一个 `if_expression`。条件必须位于 `()`；缺条件用 L0055，缺
+  `)` 复用 L0010。缺 then / else body 使用 L0056。普通 block 仍固定为 `Unit`；只有由
+  `if` / `when` 明确拥有的 `control_block` 才把最后一个 expression element 作为尾值，空
+  control block 或以非表达式 element 结束时值为 `Unit`。
+
+### 12.2 `when`
+
+- 同时支持 `when (subject)` 与无 subject 的 `when { ... }`。有 subject 时，普通表达式条件
+  表示与 subject 做相等比较；`is` / `!is` 是类型测试，`in` / `!in` 是包含测试。无 subject
+  时每个普通条件必须在 Phase 2 为 `Boolean`，且不接受省略左操作数的四种 subject 条件。
+- 同一 entry 的多个条件用 `,` 分组。`else` 必须是唯一条件并位于最后一个 entry；其顺序、
+  重复与穷尽性由 Phase 2 检查。`enum class` / Boolean 等已证明穷尽的 value-context `when`
+  可省略 `else`；其他 value-context `when` 必须穷尽。Phase 1 保存全部条件与 entry 顺序，
+  不伪造类型结论。
+- entry 之间必须有实际换行或 `;`；同一行多个 entry 必须写 `;`。缺 entry 用 L0058，缺
+  `->` 用 L0059，同行缺分隔用 L0065。entry body 使用 `control_body`，owner-aware 恢复保留
+  下一 entry、`else` 或 `}`，不能把嵌套 delimiter/string/interpolation 内的箭头或分隔提升。
+
+### 12.3 loops 与迭代契约
+
+- `while`、`for`、`loop` 是 statement，不进入 Pratt 运算符表；三者 body 都必须是普通
+  `{ ... }` block，缺 body 使用 L0060。`while` 条件与 `for` source 只解析表达式，类型约束
+  留给 Phase 2。
+- `for` 接受一个名称或完整解构 binding；解构中的 `_` 表示丢弃该分量。缺 binding 用
+  L0061，缺 `in` 用 L0062。source 只求值一次，语义等价于取得一次 `source.iterator()`，
+  再反复调用 `hasNext()` / `next()`；名称绑定、`Iterable<T>` / `Iterator<T>` 的名义检查和
+  解构类型检查分别属于 Phase 2/5，不阻塞 Phase 1 保存源码结构。
+- `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
+  边界。Phase 1 建立 jump AST，Phase 2 负责上下文诊断。v1 不提供 loop label。
+
+### 12.4 `return` 边界
+
+- lambda 与具名函数都是 callable boundary。裸 `return` 永远退出最近的 callable：lambda
+  内退出 lambda，具名函数体内退出具名函数；它绝不穿过 lambda 非局部返回外层函数。
+- `return expression` 的 expression 必须与当前 callable 返回类型兼容；裸 `return` 返回
+  `Unit`。换行结束一个无值 `return`，因此跨行返回值必须显式分组。`return`、`break`、
+  `continue` 都是 `Nothing` 类型的 jump expression，可出现在 Elvis 等 value context。
+- v1 不定义 `label@`、`return@label`、隐式调用名标签或 inline 函数的非局部返回例外；这些
+  拼写必须按现有非法/尾随 token 规则拒绝，不得从 Kotlin 经验补齐。Phase 1 只保存 jump 与
+  可选值；目标解析和返回类型检查属于 Phase 2。
+
+### 12.5 `super` 与 Phase 1 AST / 诊断
+
+- `super<Interface>.member` 是 primary/postfix receiver，后续可继续普通 call / member 链。
+  `super` 不接受裸用法、`super.member`、`super<T>` 无成员或 Rust 风格路径。缺接口类型使用
+  L0063，缺 `.` 使用 L0064，缺成员名使用既有 L0011。它只表示接口默认方法冲突消歧义；
+  接口归属、override 与冲突检查属于 SPEC-0017/Phase 2。
+- AST 增加 `If`、`When`、`Return`、`Break`、`Continue`、`SuperMember` expression payload，
+  以及 `While`、`For`、`Loop` statement payload；control body 以 statement ID 连接并保留
+  entry、binding、关键字、分隔符和 delimiter 的真实 `Span`。错误恢复建立显式 Error
+  child，不伪造不存在的 token 范围。
+- L0055–L0065 的稳定含义依次为 expected condition、expected control body、expected else
+  branch、expected when entry、expected when arrow、expected loop body、expected for
+  binding、expected `in`、expected super interface、expected super member separator、
+  expected when entry separator。Parser 保持单调游标；每个控制结构及恢复对其拥有区域为
+  `O(n)`，不得从每个 entry 或 element 重新扫描整个文件。
+
+SPEC-0016 只交付 Phase 1 Parser / AST / 诊断、恢复与 fixture。Boolean 条件、分支公共类型、
+`Nothing`、jump target、`when` 穷尽性 / smart cast、迭代协议绑定和接口默认方法检查属于
+Phase 2；不得为让 Parser 通过而提前伪造这些语义。
 
 ---

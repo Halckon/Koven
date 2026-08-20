@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（三）：调用参数、Lambda 与解构
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.14。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
 > 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
 > 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
@@ -80,7 +80,8 @@ block 时尾值为 `Unit`。这里不创造隐式 statement separator：普通 e
 把 `x` 改判为第二项 tail expression。当前阶段若要使用普通 tail expression，它必须是 body
 首项，或位于一个已有真实 `}` 结束的 nested block 之后；不承诺“任意局部声明序列 + tail
 expression”。Phase 1 只保存该结构；参数类型、捕获、返回类型与 `move` 合法性由 Phase 2 / 3
-检查。`return` 等控制流仍不属于本节。
+检查。v0.18 的 `return` 可作为 lambda body element，且退出最近 lambda；完整 jump 产生式、
+上下文与恢复规则见[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 12 节。
 
 Lambda 参数源码不重复书写 `borrow` / `inout`；其契约由 Phase 2 对该 lambda 应用的
 **期望函数类型**逐项提供。例如把 `{ x -> use(x) }` 检查为 `(borrow T) -> R` 时，body 中的

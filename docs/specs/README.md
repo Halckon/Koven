@@ -1,10 +1,10 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.17 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.18 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.17](../guide/00-index.md) 已由用户明确启用并取代 v0.16；v0.12、v0.13 内容已合入 v0.14。
+[v0.18](../guide/00-index.md) 已由用户明确启用并取代 v0.17；v0.12、v0.13 内容已合入 v0.14。
 SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0062 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
@@ -76,7 +76,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0014](./0014-complete-file-parser.md) | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制（`done`） | 0011、0013 `done`；v0.15 已封闭完整文件恢复契约；站立授权已记录 |
 | [0062](./0062-top-level-declaration-separators.md) | 按 v0.16 修正顶层声明换行 / 分号分隔（`done`） | 0014 `done`；v0.16 已生效；当前持续 Goal 的站立授权 |
 | [0015](./0015-package-import-parser.md) | 解析 `package` / Kotlin 风格 `import`（`done`） | 0014、0062 `done`；v0.17 已生效；当前持续 Goal 的站立授权 |
-| 0016 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
+| 0016 | 解析 `if` / `when` / `super`、loop-family 与 jump 控制流 | 0009 `done`；v0.18 已生效；当前持续 Goal 的站立授权 |
 | 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
 
 ### Phase 2：名称与类型检查
@@ -151,7 +151,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.17 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.18 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 

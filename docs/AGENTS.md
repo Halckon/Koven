@@ -42,11 +42,12 @@ docs/
 | ADR | 为什么选择这项长期架构决策 | 接受后不改写历史；由新 ADR 取代 |
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
-当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.17 文档集。它是
+当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.18 文档集。它是
 跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.12 及更早单文件 guide 只保留为
 历史；v0.11、v0.12 候选快照在 v0.14 启用后补回，仅用于合入验证。v0.13 的内容已经合入
 v0.14，没有独立文件快照；v0.15 在滚动正文中补齐完整文件恢复契约，v0.16 修正顶层声明
-分隔规则，v0.17 采用 Kotlin 风格的 `package` / `import` 文件头。
+分隔规则，v0.17 采用 Kotlin 风格的 `package` / `import` 文件头，v0.18 封闭 Phase 1
+控制流与最近 callable `return` 契约。
 
 ---
 

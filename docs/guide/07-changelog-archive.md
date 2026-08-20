@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.17），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.18），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -232,3 +232,16 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 3 | 定义绝对 exact import、末尾 `.*` wildcard import 与 exact import 的 `as` alias；拒绝 `mod` / `use` / `::` / 花括号分组等 Rust 风格形式 | 🔴 语法补全 |
 | 4 | 文件头之间及文件头到声明之间沿用换行 / `;` 分隔意图；为名称、位置、分隔与 wildcard alias 分配 L0048–L0054 | 🟡 诊断与恢复补全 |
 | 5 | `ParsedFile` 内嵌保存 package 与有序 imports，普通 roots 保持只含 ItemId；文件映射与名称绑定延后到 SPEC-0025 + package ADR | 🟡 AST 与 Phase 边界补全 |
+
+## v0.18 变更记录
+
+> v0.18 于 2026-08-20 由用户明确启用并取代 v0.17，封闭 SPEC-0016 的 control-flow 与
+> callable-local `return` 契约。
+
+| # | 变更 | 类型 |
+|---|---|---|
+| 1 | 定义 `if` 的 statement/value context：完整 statement position 可省略 `else`，所有需要值的位置必须有 `else` | 🔴 语法与上下文补全 |
+| 2 | 定义 subjectful / subjectless `when`、条件族、逗号分组、换行 / 分号 entry 分隔和 Phase 2 穷尽性边界 | 🔴 语法补全 |
+| 3 | 定义 `while` / `for` / `loop`、单次求值迭代 source、名称 / 解构 binding 与 `_`，迭代协议绑定延后到 Phase 2/5 | 🔴 控制流补全 |
+| 4 | lambda 成为独立 callable boundary；裸 `return` 退出最近 lambda 或具名函数，明确拒绝标签与非局部 lambda return | 🔴 jump 语义补全 |
+| 5 | 定义 `super<Interface>.member`、control-flow AST / owner-aware 恢复边界及 L0055–L0065 | 🟡 AST、诊断与恢复补全 |

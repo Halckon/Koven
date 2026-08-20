@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.17。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -53,7 +53,9 @@
       [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md)第 11 节的可选
       `package`、exact / wildcard / alias `import`、文件头顺序和 owner-aware 恢复；只保存
       Phase 1 AST，不实现名称解析或文件系统映射
-- [ ] **SPEC-0016 / SPEC-0017**：由后续 guide 分别定义并实现 control-flow 与 class-family；
+- [ ] **SPEC-0016（前置：SPEC-0009 `done`；v0.18 已明确启用）**：解析 `if` / `when`、
+      loop-family、jump 与 `super`，实现 §12 的 AST、位置敏感 `else` 诊断和恢复契约。
+- [ ] **SPEC-0017**：由后续 guide 定义并实现 class-family；
       不得把这些结构塞回 SPEC-0009 至 SPEC-0014（v0.11 补充：[01-design-decisions.md](./01-design-decisions.md)第 19 节错误传播
       运算符 `?` 的语义依赖 SPEC-0016 定义的 `return`，其 parser 支持应在 SPEC-0016 落地
       后紧接排期，不得早于 `return` 语义定案）

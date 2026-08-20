@@ -1,20 +1,18 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.14。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–20 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
 
-> **阅读说明（v0.11 新增）**：本部分大量示例代码使用了 `if`、`when`、`super`、循环以及
+> **阅读说明（v0.18 更新）**：本部分大量示例代码使用了 `if`、`when`、`super`、循环以及
 > `class`/`interface`/`enum class`/`object` 等 class-family 结构。这些结构反映的是 v1 已经
 > 确定的**目标设计意图**，用来说明其他设计决策（例如 `enum class` 的能力、`super` 的用途）
-> 在最终语言里如何使用；这**不等于**它们已经拥有语法规范文档（[03-grammar-core.md](./03-grammar-core.md)/
-> [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)/[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)）那样的正式产生式
-> 或已经过 SPEC 验收。正式文法分别由尚未排期的 SPEC-0016（control-flow）与 SPEC-0017
-> （class-family）独立定义。阅读本部分时请把这里的代码样例理解为“设计已定、语法产生式
-> 待补”，不要反推成“语法规范文档遗漏了这部分语法”。这条说明本身不批准任何新语法，也不
-> 改变 SPEC-0016/0017 的排期。
+> 在最终语言里如何使用。control-flow 已由
+> [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
+> class-family 仍由 SPEC-0017 后续独立定义。class-family 示例继续只能理解为设计意图，
+> 不能反推成已经验收的产生式。
 
 ## 1. 基础类型对齐 Kotlin，新增 `object`
 
@@ -742,15 +740,15 @@ mutableMap.remove(key)       // 按key删除,不取得key所有权,调用点不�
   不是源语言可观察语义，与第 8 节对顺序容器 allocator 细节的态度一致。
 - `MutableMap` 扩容 / rehash 时，正在被借用的 `value`（通过 18.3 节的借用查询）与顺序
   容器的元素借用一样，构成借用冲突，必须被 Phase 3 拒绝。
-- Map 的迭代协议（`for ((k, v) in map)`）依赖尚未定义的 `Iterator` 协议，留给 SPEC-0016
-  控制流 guide 一并解决，本节不展开。
+- v0.18 已定义 `for ((k, v) in map)` 的单次求值与 `iterator()` / `hasNext()` / `next()`
+  调用形状；具体名义接口声明、Map iterator 的元素所有权和运行时布局仍留给 Phase 2/5。
 
 ## 19. 错误传播运算符 `?`（候选设计，v0.11 新增）
 
 现有 guide 没有为 `Result<T, E>` 提供任何错误传播语法糖，可恢复错误处理目前只能手写
 `when` 逐层匹配。本节提出一个仿照 Rust `?` 的 postfix 运算符候选设计。**本节的语义依赖
-尚未正式定义的 `return`（由 SPEC-0016 控制流 guide 给出），因此本节只展开候选语义，
-具体产生式与 Phase 1 parser 支持需要等 SPEC-0016 落地并完成独立设计评审后再排期**；
+v0.18 已正式定义的最近 callable `return`，但本节只展开候选语义，
+具体产生式与 Phase 1 parser 支持需要在 SPEC-0016 完成后另行设计评审与排期**；
 本节不是已批准的实施契约。
 
 ```kotlin

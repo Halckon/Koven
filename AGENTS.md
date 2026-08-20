@@ -34,7 +34,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.17。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.18。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -65,7 +65,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.17 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.18 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
@@ -96,6 +96,9 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   惰性初始化不属于 v1。对成员函数体是否也施加该限制仍待澄清。
 - 具名函数的表达式体必须显式声明返回类型；无体或 block body 省略返回标注时精确固定为
   `Unit`，不是从函数体推导返回类型。
+- 缺 `else` 的 `if` 只允许作为完整 statement element；任何需要值的上下文都必须有
+  `else`。lambda 是独立的 `return` 边界，裸 `return` 退出最近的 lambda 或具名函数；v1
+  不支持标签或从 lambda 非局部返回外层函数。
 - 不支持类实现继承；`super<Interface>.method()` 只用于接口默认方法冲突消歧义。
 - v1 不支持自定义属性 getter / setter，也不向用户开放自定义 `infix fun`。
 - v1 不提供运行时反射或 RTTI；`is` / `as` 仅用于编译期已知的类型层级。

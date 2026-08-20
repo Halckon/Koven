@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（一）：表达式与类型引用基础
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §1–6），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.14。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
 > 原第四部分体量过大，本次拆分为三份，均保留原节号以维持既有 SPEC 引用与 Span 表述
 > 不变：本文档（§1–6）覆盖 primary/postfix/`type_ref`/运算符优先级/Lexer 错误交接/AST
 > `Span` 规则，是后续两份的共享基础；[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)（§7–8）覆盖
@@ -26,7 +26,9 @@ primary_expression = Identifier
                    | grouped_expression
                    | unbound_reference
                    | string_expression
-                   | lambda_expression ;
+                   | lambda_expression
+                   | if_expression | when_expression | jump_expression
+                   | super_expression ;
 
 grouped_expression = "(", expression, ")" ;
 unbound_reference  = "::", Identifier ;
@@ -41,7 +43,8 @@ interpolation      = InterpolationStart,
 
 `Identifier` 指 lexer 的普通 identifier token，包含在普通标识符位置使用的软词拼写；硬关键字
 和未来保留字不符合该终结符。Phase 1 的 primary **仅**包含上表项目。`lambda_expression` 见
-[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节；`if`、`when` 和 `super` 继续延后。SPEC-0007 的历史子集不含 lambda，不能用当前
+[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节；control-flow primary 见
+[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 12 节。SPEC-0007 的历史子集不含 lambda 或 control-flow，不能用当前
 产生式反写其已完成验收事实。
 
 独立入口必须在跳过首尾 trivia 后消费到唯一 EOF，不能以“已得到一个表达式”为由忽略后续

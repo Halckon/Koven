@@ -1,13 +1,13 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.17 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.18 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
 Koven 编译器目前处于 **Phase 1(词法分析 + 语法分析)** 阶段,类型检查(Phase 2)、所有权/借用检查(Phase 3)、代码生成(Phase 4)和标准库(Phase 5)都还没有开始。也就是说:
 
 - 本教程里的大部分语法——基础类型、变量、函数、`value class`/`class`、所有权标注、集合类型、lambda——已经有完整、可执行的语法定义,编译器前端正在实现。
-- **控制流(`if`/`when`/循环)和 class 家族(`class`/`interface`/`enum class`/`object`)的正式语法产生式还没有最终定稿**,会在后续独立 guide 中给出;但它们的设计方向已经通过大量示例代码明确下来,本教程按这个已确定的方向讲解,并会在对应章节开头提醒一句。
+- **控制流(`if`/`when`/循环/jump)已在 v0.18 定稿；class 家族(`class`/`interface`/`enum class`/`object`)的正式语法产生式仍等待后续 guide。**
 - `Map`/`MutableMap` 的所有权契约、错误传播 `?` 与 `Copyable` opt-out 目前只有候选设计,尚未获得实施授权;教程会在相关章节明确标注这一边界。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -387,7 +387,8 @@ val (sender, receiver) = channel<Int>()
 
 ## 7. 控制流
 
-> **状态说明**:这一章讲的是设计方向,不是已经锁定的正式语法。guide 明确说"不提前定义 `if`/`when`/`super`/循环"的产生式,但同时又在大量示例代码里直接使用它们——这是当前设计文档里还没完全对齐的一处,后续 guide 需要把正式产生式定下来。这里按已经反复出现、语义相对确定的写法讲。
+> **状态说明**:v0.18 已锁定本章控制流的 Phase 1 语法；条件类型、`when` 穷尽性、smart cast
+> 与 jump target 等静态语义在 Phase 2 实施。
 
 ### 7.1 `if`
 
@@ -398,7 +399,9 @@ fun divide(a: Int, b: Int): Int {
 }
 ```
 
-`if` 能作为表达式使用,类型按分支推导;如果某一分支的类型是 `Nothing`(比如走到了 `error(...)`),整体类型会推导成另一分支的类型。
+缺 `else` 的 `if` 只能作为完整语句使用；初始化器、赋值右侧、实参、`return` 值或其他需要
+值的位置必须写 `else`。两条分支都存在时按分支推导结果类型；如果一条分支是 `Nothing`，
+整体按另一条分支推导。
 
 ### 7.2 `when`
 
@@ -414,7 +417,22 @@ fun area(shape: Shape): Double = when (shape) {
 
 ### 7.3 循环
 
-`for`/`while`/`loop` 目前只在个别示例里出现过(比如 `for (line in reader.lines())`),具体的迭代协议——`Iterator`/`Iterable` 接口长什么样、`for` 到底怎么脱糖——在现有 guide 里完全没有定义,这里先不展开,等对应 guide 出来之后再补。
+`while`、`for`、`loop` 都要求 `{ ... }` body。`for` 的 source 只求值一次，再经
+`iterator()` / `hasNext()` / `next()` 推进；名称解析与协议类型检查留给 Phase 2/5。
+
+### 7.4 lambda 内快速退出
+
+lambda 是独立的返回边界，裸 `return` 退出最近的 lambda 或具名函数：
+
+```kotlin
+val parse = { text ->
+    if (text.isEmpty()) return 0
+    text.length
+}
+```
+
+Koven v1 不支持 Kotlin 的 `return@label`、隐式调用名标签或 inline 非局部返回。嵌套 lambda
+中的 `return` 只退出最内层 lambda，不会意外退出外层函数。
 
 ---
 
