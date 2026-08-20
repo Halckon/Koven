@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.15。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.16。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -46,14 +46,17 @@
       节点组合为完整文件，并实现声明
       分隔、跨声明同步与级联抑制；单个语法错误不得导致整个文件解析中断，但本 Spec 不以
       尚未定义的控制流或 class-family 范例为验收条件
+- [ ] **SPEC-0062（前置：SPEC-0014 `done`；v0.16 已明确启用）**：把 `;` 加入固定符号，
+      实现顶层声明的换行 / 分号分隔、同行缺分号诊断及 owner-aware 恢复；不改变 block 与
+      独立声明入口
 - [ ] **SPEC-0015**：解析 `module` / `import`；先由后续 guide 定义语法
 - [ ] **SPEC-0016 / SPEC-0017**：由后续 guide 分别定义并实现 control-flow 与 class-family；
       不得把这些结构塞回 SPEC-0009 至 SPEC-0014（v0.11 补充：[01-design-decisions.md](./01-design-decisions.md)第 19 节错误传播
       运算符 `?` 的语义依赖 SPEC-0016 定义的 `return`，其 parser 支持应在 SPEC-0016 落地
       后紧接排期，不得早于 `return` 语义定案）
 
-SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0014 已完成；SPEC-0015 至 SPEC-0017 是现行
-规范规定的后续 Parser 边界。未勾选状态不
+SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0014 已完成；SPEC-0062 是 v0.16 的当前增量，
+SPEC-0015 至 SPEC-0017 是其后的 Parser 边界。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参

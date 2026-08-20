@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.15。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.16。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -272,8 +272,9 @@ SPEC-0013 后进入该聚合；SPEC-0009 的历史子集仅包含
   `while` / `loop` 以及 `value class` / `class` / `interface` / `enum class` / `object` /
   `companion object` 都不属于本节。关键字已经存在不等于可以作为 block element；parser 必须
   准确拒绝，不能将未实现结构保存为 opaque token 或错误地当作 identifier expression。
-- Koven v1 没有源码分号，换行和注释始终是 trivia；因此 element 不由分号、LF、CRLF 或
-  注释终止。parser 先按适用产生式消费一个**最大合法 element**：局部声明的 initializer 和
+- v0.16 的 `;` 只分隔完整文件的顶层声明，换行和注释在 block 内仍是 trivia；因此 block
+  element 不由分号、LF、CRLF 或注释终止。parser 先按适用产生式消费一个**最大合法
+  element**：局部声明的 initializer 和
   expression statement 都使用既有 Pratt expression。当前 owner 的 `}` 始终是 hard stop；
   `val`、`var` 和本节 unsupported element 引导关键字在最大 expression 已完整且不在任何
   expression owner / delimiter 内时是结构 stop，留给 block dispatch 开始下一局部声明或
@@ -389,7 +390,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
   lexical owner；恢复必须复用第 7 节预索引的 `L0004`–`L0006` terminal-owner 关系，不能把
   `InterpolationEnd` 当作 block closer，也不能在每个 block error 处重扫 Lexer 诊断。
 - unsupported / expected element 的最小恢复以“消费确定的错误引导 token 或错误 token”
-  为边界；没有分号或换行可供猜测整个未来结构的结束位置，因此不得按行跳过，也不得越过
+  为边界；block 内没有分号或换行分隔可供猜测整个未来结构的结束位置，因此不得按行跳过，也不得越过
   当前 owner `}`。遗留 token 随后按允许的最大合法 element 规则解析；可能产生的独立错误
   必须各有真实根因，不能为同一未消费 token 重复发诊断。
 - 每次循环要么消费至少一个 raw lexeme，要么在 `}` / EOF 结束；诊断顺序按源码位置稳定。
@@ -409,7 +410,7 @@ SPEC-0009 的最小验收必须包括：
   嵌套空与多层 block、局部 `val` / `var`、expression statement，以及具名函数的无体 / 表达式
   体 / block body 三形态；
 - fail：缺 `{` / `}`、不完整局部声明、当前 owner `}` 前缺 initializer、`const val` / 局部
-  `fun` / 控制流 / class-family 等 unsupported element、分号 Lexer error、block 用作 expression
+  `fun` / 控制流 / class-family 等 unsupported element、分号作为 unsupported block element、block 用作 expression
   或 lambda；断言稳定错误码、UTF-8 字节 `Span`、error statement 及恢复后的 element 顺序；
 - owner 与复杂度：嵌套 block、string / interpolation 中的大括号和 terminal Lexer error 不得
   提前关闭 block；长 element 序列与长错误序列用检查计数或等价白盒证据锁定单调 `O(n)`；
@@ -424,18 +425,29 @@ SPEC-0009 的最小验收必须包括：
 ## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
 
 ```ebnf
-source_file = trivia*, { simple_declaration, trivia* }, EOF ;
+source_file = trivia*,
+              [ simple_declaration,
+                { declaration_separator, simple_declaration },
+                [ trivia*, ";" ] ],
+              trivia*, EOF ;
+
+declaration_separator = trivia_with_line_break
+                      | trivia*, ";", trivia* ;
 ```
 
 - 空文件合法。文件产物按源码顺序保存零个或多个既有 `ItemId`；`AstFile` 已是文件级容器，
   不增加虚构的根 Item。SPEC-0014 只组合现有 `val`、`var`、`const val`、`fun`，不接纳
   `module` / `import`、control-flow、class-family 或其他尚未定义的顶层产生式。
-- 声明不使用换行或分号分隔。一个声明的既有产生式完成后，下一个最外层 `val`、`var`、
-  `const` 或 `fun` token 开始下一声明；是否存在 trivia 不改变结果。`const val` 仍由同一
-  constant declaration 消费，不拆成两个声明。
-- 上述四个 starter 只在 delimiter stack 为空且 lexical owner 回到文件 baseline 时构成
-  **soft declaration boundary**。括号、方括号、大括号、string 或 interpolation 内的同形
-  关键字属于当前声明或错误区，不能提前开始下一声明；EOF 是唯一无条件 hard boundary。
+- `trivia_with_line_break` 是至少包含一个实际 LF / CRLF 的非空 trivia 序列；已终止 block
+  comment 内的 LF / CRLF 同样计入，只有 space、tab 或不含换行的注释不构成分隔。声明之间
+  必须存在该换行分隔或一个 `;`；因此同一行多个声明必须写 `;`。分隔区域可同时包含换行和
+  一个 `;`，最后一个声明后允许一个可选 `;`；文件开头或连续的 `;` 不产生空声明，按非法
+  顶层区域恢复。`const val` 仍由同一 constant declaration 消费，不拆成两个声明。
+- 上述四个 starter 与 `;` 只在 delimiter stack 为空且 lexical owner 回到文件 baseline 时
+  构成恢复用 **soft declaration boundary**。括号、方括号、大括号、string 或 interpolation
+  内的同形 token 属于当前声明或错误区，不能提前开始下一声明；EOF 是唯一无条件 hard
+  boundary。恢复边界不等于合法分隔：两个同行 starter 之间缺少 `;` 时仍保留后一声明，
+  但必须产生 L0047 `expected declaration separator`，主 `Span` 精确覆盖后一声明 starter。
 - 文件入口遇到 `val (`、`var (`、`const val (` 继续使用 L0043 和 `Item::Error`，但错误区
   在下一 soft declaration boundary 前结束。其他不能开始既有声明的普通顶层 token 使用
   L0017 `expected declaration`，一次错误区只发一条该诊断并建立覆盖实际消费区的
@@ -448,6 +460,10 @@ source_file = trivia*, { simple_declaration, trivia* }, EOF ;
   根因不得产生文件级级联。诊断按现有全序确定性合并。
 - 对含 `n` 个 lexeme 的文件，文件 dispatch 与跨声明恢复合计必须是 `O(n)` 时间、`O(d)`
   owner / delimiter 栈空间；starter、terminal event 与错误区不得从每个声明重新扫描全文件。
+
+v0.16 的换行 / `;` 规则只改变 `source_file` 顶层声明序列，不把换行或分号提升为通用
+expression / block statement separator，也不改变独立声明入口。实施增量由 SPEC-0062 负责；
+在该 Spec 完成前，v0.15 的已实现行为应在 Architecture 中明确标作规范漂移。
 
 SPEC-0014 新增 `parse_file(&SourceMap, &LexedFile) -> ParsedFile`，其中 `ParsedFile` 暴露同源
 `SyntaxAst`、有序根 `ItemId` 切片及合并诊断。现有 `parse_expression`、`parse_declaration`、

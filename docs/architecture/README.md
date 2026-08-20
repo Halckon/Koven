@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.15 文档集定义。
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.16 文档集定义。
 
 ## 当前状态
 
@@ -16,12 +16,14 @@
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0046` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
-- `lang_frontend::lexer` 已提供覆盖现行 v0.15 词法契约的确定性扫描、完整 lexeme 流与
+- `lang_frontend::lexer` 已提供覆盖 v0.15 词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&` 固定符号；
 - `lang_frontend::parser` 已提供独立表达式、声明与 block 入口、具体 Item / Statement /
   Expression / TypeRef 索引式 AST、Pratt 优先级、typed call、callable 参数 marker、结构化
   `CallArgument`、函数 block body、lambda、具名函数隐式 `Unit` 返回标注及局部恢复，并
   确定性合并 Lexer / Parser 诊断；
+- 现有 Lexer 尚未产生 v0.16 的 `;` token，文件 Parser 仍按 v0.15 允许同行声明无分隔符；
+  这是等待 SPEC-0062 修复的已知规范漂移，不代表 v0.16 语义尚未生效；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit
   pass / fail fixture harness；
