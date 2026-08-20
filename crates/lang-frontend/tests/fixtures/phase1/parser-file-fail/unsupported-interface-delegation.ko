@@ -1,2 +1,0 @@
-class Service(private val logger: Logger): Logger by logger
-class Next

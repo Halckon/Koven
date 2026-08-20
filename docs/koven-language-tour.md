@@ -50,7 +50,7 @@ Koven 想把两种开发体验拼接在一起:
 ### 1.3 现在能做、不能做什么
 
 - **已经有完整语法定义、编译器前端正在实现**:基础类型、变量与常量声明、函数(含泛型、高阶函数、闭包)、所有权标注体系、控制流、class-family、`Box<T>`、`Array`/`List`/`MutableList`。
-- **规范已定、Parser 尚待后续 Spec**:`class`/`interface`/`enum class`/具名 `object` 家族与窄化接口委托。
+- **规范与 Parser 已完成、语义检查待后续 Phase**:`class`/`interface`/`enum class`/具名 `object` 家族与窄化接口委托。
 - **完全尚未设计**:`Map`/`MutableMap` 的可实施契约、用户自定义索引运算符。
 - **已确定不支持**:自定义属性访问器、扩展函数、异常。
 
@@ -274,8 +274,8 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移�
 
 ## 6. 用类型建模
 
-> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定，基础 Parser 已由 SPEC-0017
-> 实现；窄化接口委托仍待后续 SPEC-0064 增量实现。
+> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定，基础 Parser 与窄化接口委托
+> 已分别由 SPEC-0017、SPEC-0064 实现；名称、类型与所有权检查仍属于后续 Phase。
 
 ### 6.1 `value class`:内联值类型
 
@@ -688,7 +688,7 @@ Koven 编译器按下面的阶段推进,每个阶段完成后才会开始下一�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | Phase 0 | 项目骨架(Cargo workspace、AST、诊断框架) | 已完成 |
-| Phase 1 | 词法 + 语法分析 | 进行中(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流、postfix `?` 与 class-family 已完成；接口委托 Parser 待 SPEC-0064) |
+| Phase 1 | 词法 + 语法分析 | 已完成(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流、postfix `?`、class-family 与接口委托均已实现) |
 | Phase 2 | 类型检查(不含所有权/借用) | 未开始 |
 | Phase 3 | 所有权 / 借用检查 | 未开始 |
 | Phase 4 | LLVM 代码生成 | 未开始 |

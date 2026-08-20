@@ -8,7 +8,7 @@
 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托 Parser 拆为
 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0062、SPEC-0063 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0062、SPEC-0063、SPEC-0064 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -82,7 +82,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0016](./0016-control-flow-parser.md) | 解析 `if` / `when` / `super`、loop-family 与 jump 控制流（`done`） | 0009、0014 `done`；v0.18 已生效；当前持续 Goal 的站立授权 |
 | [0063](./0063-postfix-error-propagation-parser.md) | 解析 postfix 错误传播 `?`（`done`） | 0016 `done`；v0.19 已生效；当前持续 Goal 的站立授权 |
 | [0017](./0017-class-family-parser.md) | 解析 `value class` / `class` / `interface` / `enum class` / 具名 `object` / `companion object`（`done`） | 0014 `done`；v0.20 已生效；当前持续 Goal 的站立授权；不含接口委托 |
-| 0064 | 增量解析 `Interface by valField` 接口实现委托 | 0017 `done`；v0.20 已生效；当前持续 Goal 的站立授权 |
+| [0064](./0064-interface-delegation-parser.md) | 增量解析 `Interface by valField` 接口实现委托（`done`） | 0017 `done`；v0.20 已生效；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 

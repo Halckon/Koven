@@ -88,6 +88,7 @@ pub mod codes {
     pub(crate) const EXPECTED_ENUM_MEMBER_DELIMITER: &str = "L0075";
     pub(crate) const INVALID_DECLARATION_MODIFIER: &str = "L0076";
     pub(crate) const UNSUPPORTED_CLASS_FAMILY_FORM: &str = "L0077";
+    pub(crate) const EXPECTED_DELEGATION_TARGET: &str = "L0078";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -168,6 +169,7 @@ pub mod codes {
         EXPECTED_ENUM_MEMBER_DELIMITER,
         INVALID_DECLARATION_MODIFIER,
         UNSUPPORTED_CLASS_FAMILY_FORM,
+        EXPECTED_DELEGATION_TARGET,
     ];
 
     /// 由集中定义创建生产错误码目录。

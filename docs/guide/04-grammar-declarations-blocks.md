@@ -420,8 +420,8 @@ SPEC-0009 的最小验收必须包括：
 
 后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
-终点。control-flow 由本文件 §12 补齐；class-family 由 v0.20 的本文件 §13 定义，并已由
-SPEC-0017 实施；接口委托仍等待 SPEC-0064。
+终点。control-flow 由本文件 §12 补齐；class-family 与接口委托由 v0.20 的本文件 §13
+定义，并已分别由 SPEC-0017 与 SPEC-0064 实施。
 
 ## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
 
@@ -765,9 +765,9 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
 - `val/var property by expression` 属性委托明确不支持。
 
-SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser。委托语法由后续独立
-SPEC-0064 增量实现；在 SPEC-0064 `done` 前，生产 Parser 必须以 unsupported class-family
-form 定向拒绝 `by`，不能误吞为 supertype 的一部分或普通名称。
+SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser；SPEC-0064 已增量实现该
+子句。生产 Parser 只在 ordinary class supertype entry 中提交 `by Identifier`；其他上下文
+或任意 delegate expression 仍以 unsupported class-family form 定向拒绝。
 
 ### 13.4 Phase 1 AST、`Span`、诊断与恢复
 
@@ -786,7 +786,7 @@ form 定向拒绝 `by`，不能误吞为 supertype 的一部分或普通名称�
   expected member separator、expected enum variant、expected enum variant separator、
   expected enum member delimiter、invalid declaration modifier、unsupported class-family form。
   缺通用 `:` / TypeRef / `)` / `}` 继续复用既有稳定类别，不改变旧错误码含义。SPEC-0064
-  如需 expected delegation target，必须从 L0078 起另行分配。
+  分配 L0078 `expected delegation target`，覆盖缺失或非法目标 Identifier。
 - 文件 soft boundary 增量识别 class-family starter 及其单一 visibility 前缀；body recovery
   只在当前 brace/string/interpolation owner 回到 member baseline 后识别 member/variant starter。
   nested delimiter 内同形 token 不提升。恢复抵达外层 `}`、下一顶层声明或 EOF 时保留 owner

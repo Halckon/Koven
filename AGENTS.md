@@ -3,10 +3,10 @@
 本文件约束在本仓库内工作的 AI Agent 与开发者。它描述**如何开发、验证和交付**，不是
 语言语法规范本身。规则优先于示例；如果规则、代码和文档互相冲突，不得自行折中。
 
-> 当前仓库已完成 Phase 0 并进入 Phase 1：确定性 Lexer、独立表达式、声明、block、lambda、
+> 当前仓库已完成 Phase 0 与 Phase 1：确定性 Lexer、独立表达式、声明、block、lambda、
 > callable 参数与 typed call argument Parser、局部 `val` 解构、完整文件组合、Kotlin 风格
-> `package` / `import` 文件头、control-flow、postfix `?`、class-family，以及具名函数隐式
-> `Unit` 返回标注已实现。
+> `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
+> 具名函数隐式 `Unit` 返回标注已实现；下一阶段为 Phase 2 名称与类型检查。
 > 已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---
@@ -20,7 +20,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0 已完成；Phase 1 的确定性 Lexer、独立表达式、声明、block、lambda、callable 参数与 typed call argument Parser、局部 `val` 解构、完整文件组合与跨声明恢复、`package` / `import` 文件头、control-flow、postfix `?`、class-family、隐式 `Unit`、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；下一阶段为 Phase 2 名称与类型检查。确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。

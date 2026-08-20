@@ -2,8 +2,8 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.20 文档集定义。class-family 已由
-SPEC-0017 实现；v0.20 的窄化接口委托仍等待 SPEC-0064。
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.20 文档集定义。class-family 与
+窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；名称和类型检查尚未开始。
 
 ## 当前状态
 
@@ -14,7 +14,7 @@ SPEC-0017 实现；v0.20 的窄化接口委托仍等待 SPEC-0064。
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0077` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0078` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.17 词法契约的确定性扫描、完整 lexeme 流与
@@ -29,7 +29,7 @@ SPEC-0017 实现；v0.20 的窄化接口委托仍等待 SPEC-0064。
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness；
-- 尚无接口委托、类型检查、所有权检查或 codegen 实现；
+- 尚无名称/类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -167,14 +167,15 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
   Phase 1 结构，不提前做名称、类型、常量求值或运行时状态检查；
 - class-family body 按换行 / `;` 分隔 member，enum 变体按逗号分隔并以 `;` 进入成员区；
   L0066–L0077 覆盖头、字段、supertype、member、variant 与修饰符恢复。`by` 仍是普通
-  identifier，并在 SPEC-0064 前以 L0077 定向拒绝；匿名 / nested / local class-family、
-  构造器调用、普通 body field、属性委托与 `nocopy` 同样不被扩张接受；
+  identifier，但 ordinary class supertype entry 可提交 `Interface by field` 并保存
+  `DelegationClause`；L0078 覆盖缺失目标。非 ordinary class、匿名 / nested / local
+  class-family、构造器调用、普通 body field、属性委托与任意 delegate expression 仍被拒绝；
 - `Expression` 与 `TypeRef` payload 只通过现有 typed ID 连接，叶与合成节点都保留同一
   `SourceId` 的 UTF-8 字节 `Span`；源码拼写继续由共享 `SourceMap` 回查；
 - Lexer invalid / reserved token 被消费为显式 Error 节点且不重复同源诊断；delimiter、插值
   stop、不结合链与尾随 token 使用既有 `L0009`–`L0015`，typed call argument 与参数 marker
   使用 `L0033`–`L0039` 做 owner-aware 局部恢复，局部解构使用 `L0040`–`L0046`，control-flow
-  使用 L0055–L0065，class-family 使用 L0066–L0077。postfix `?` 不需要新错误类别，缺左
+  使用 L0055–L0065，class-family 使用 L0066–L0077，委托目标使用 L0078。postfix `?` 不需要新错误类别，缺左
   operand 继续使用 L0009；
   已发布的 `L0016` 仅保留在 catalog，生产
   Parser 不再发出；
@@ -204,7 +205,7 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
   `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现精确注册 `L0001`–`L0008` 八个
-  Lexer 错误码与 `L0009`–`L0077` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
+  Lexer 错误码与 `L0009`–`L0078` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
   类别，`L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
@@ -286,7 +287,7 @@ Expression；callable marker、函数类型参数与调用实参都是
 - file suite 调用生产完整文件入口；四个 pass fixture 覆盖 package / import 文件头、
   control-flow、postfix `?` 与 class-family，六个 fail fixture 覆盖 L0017 跨声明恢复、
   L0047 同行缺分号、L0052 声明后 import、value-context `if` 的 L0057、postfix 缺 operand
-  与接口委托 L0077，均由
+  与缺委托目标 L0078，均由
   非零 / sidecar 配对守卫实际执行；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
@@ -307,8 +308,8 @@ suite 不表示类型检查或编译，harness 也不调用 renderer 或固定�
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
 索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 / block / lambda Parser、
 callable 参数与 typed call argument、局部解构、完整文件与 package / import Parser、
-control-flow、class-family、具名函数隐式 `Unit` 返回标注及分层 fixture harness 已存在；
-接口委托仍等待 SPEC-0064。`lang-std` 的 bootstrap 流程与
+control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注及分层 fixture
+harness 已存在。`lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 
 ## 更新要求

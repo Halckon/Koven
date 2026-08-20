@@ -401,6 +401,19 @@ pub struct SupertypeEntry {
     pub span: Span,
     /// 唯一 TypeRef。
     pub type_ref: TypeRefId,
+    /// ordinary class 可选的接口委托子句。
+    pub delegation: Option<DelegationClause>,
+}
+
+/// `Interface by field` 的 Phase 1 源码结构。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DelegationClause {
+    /// 子句从 `by` 到最后真实目标 token 的范围。
+    pub span: Span,
+    /// 上下文软关键字 `by` 的真实 Identifier token。
+    pub by_span: Span,
+    /// 委托目标字段名称或恢复 marker。
+    pub target: NameMarker,
 }
 
 /// enum 变体的一个关联数据参数。

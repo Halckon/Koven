@@ -12,14 +12,14 @@ use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, CallArgument, CastOperator, ClassField, ClassifierBody,
-    ClassifierDeclaration, ClassifierKind, CompanionObject, DeclarationModifiers, EnumVariant,
-    EnumVariantParameter, Expression, ExpressionAst, ForBinding, FunctionBody, FunctionForm,
-    FunctionTypeParameter, ImportAlias, ImportDirective, Item, LiteralKind, MAX_RECURSION_DEPTH,
-    NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker, ParsedBlock,
-    ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError, PrefixOperator,
-    PrimaryConstructor, QualifiedNameSegment, Statement, StringPart, SupertypeEntry, TypeParameter,
-    TypePathSegment, TypeRef, ValueParameter, VariableKind, VisibilityModifier, WhenCondition,
-    WhenEntry,
+    ClassifierDeclaration, ClassifierKind, CompanionObject, DeclarationModifiers, DelegationClause,
+    EnumVariant, EnumVariantParameter, Expression, ExpressionAst, ForBinding, FunctionBody,
+    FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective, Item, LiteralKind,
+    MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker,
+    ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError,
+    PrefixOperator, PrimaryConstructor, QualifiedNameSegment, Statement, StringPart,
+    SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
+    VisibilityModifier, WhenCondition, WhenEntry,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;
@@ -1521,7 +1521,7 @@ impl Parser<'_> {
             None
         };
 
-        let (supertype_colon_span, supertypes) = self.parse_supertype_list()?;
+        let (supertype_colon_span, supertypes) = self.parse_supertype_list(kind)?;
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             Some(self.parse_classifier_body(kind)?)
         } else {
@@ -1766,6 +1766,7 @@ impl Parser<'_> {
 
     fn parse_supertype_list(
         &mut self,
+        kind: ClassifierKind,
     ) -> Result<(Option<Span>, Vec<SupertypeEntry>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Colon) {
             return Ok((None, Vec::new()));
@@ -1782,21 +1783,89 @@ impl Parser<'_> {
                         .with(TypeStops::FILE),
                 )?;
                 let type_span = self.type_span(type_ref)?;
-                entries.push(SupertypeEntry {
-                    span: type_span,
-                    type_ref,
-                });
-                if self.current_identifier_is("by")? {
-                    let primary = self.bump()?.span();
-                    self.emit(
-                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
-                        "unsupported class-family form",
-                        primary,
-                    )?;
-                    if self.current_is_identifier() {
-                        self.bump()?;
+                let delegation = if self.current_identifier_is("by")? {
+                    let by_span = self.bump()?.span();
+                    if !matches!(kind, ClassifierKind::Class { .. }) {
+                        self.emit(
+                            codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                            "unsupported class-family form",
+                            by_span,
+                        )?;
                     }
-                }
+                    let current = self.current()?;
+                    let target_boundary = self.current_is_symbol(Symbol::Comma)
+                        || self.current_is_symbol(Symbol::LeftBrace)
+                        || matches!(current.kind(), LexemeKind::Eof)
+                        || self.is_file_declaration_boundary(current);
+                    let target = if self.current_is_identifier() {
+                        NameMarker::Present(self.bump()?.span())
+                    } else {
+                        let primary = if target_boundary {
+                            self.empty_at(current.span().start())?
+                        } else {
+                            current.span()
+                        };
+                        if !self.is_poison_kind(current.kind()) {
+                            self.emit(
+                                codes::EXPECTED_DELEGATION_TARGET,
+                                "expected delegation target",
+                                primary,
+                            )?;
+                        }
+                        if target_boundary {
+                            NameMarker::Missing(primary)
+                        } else {
+                            self.bump()?;
+                            NameMarker::Error(primary)
+                        }
+                    };
+                    let target_span = marker_span(target);
+                    let delegation = DelegationClause {
+                        span: self.span(
+                            by_span.start(),
+                            if target_span.is_empty() {
+                                by_span.end()
+                            } else {
+                                target_span.end().max(by_span.end())
+                            },
+                        )?,
+                        by_span,
+                        target,
+                    };
+                    let current = self.current()?;
+                    let at_entry_boundary = self.current_is_symbol(Symbol::Comma)
+                        || self.current_is_symbol(Symbol::LeftBrace)
+                        || matches!(current.kind(), LexemeKind::Eof)
+                        || self.is_file_declaration_boundary(current);
+                    if !at_entry_boundary {
+                        if !self.is_poison_kind(current.kind()) {
+                            self.emit(
+                                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                                "unsupported class-family form",
+                                current.span(),
+                            )?;
+                        }
+                        self.recover_declaration_region(
+                            DeclarationStops::EMPTY
+                                .with(DeclarationStops::COMMA)
+                                .with(DeclarationStops::LEFT_BRACE)
+                                .union(self.root_declaration_stops()),
+                        )?;
+                    }
+                    Some(delegation)
+                } else {
+                    None
+                };
+                entries.push(SupertypeEntry {
+                    span: self.span(
+                        type_span.start(),
+                        delegation
+                            .map(|clause| clause.span.end())
+                            .unwrap_or(type_span.end()),
+                    )?,
+                    type_ref,
+                    delegation,
+                });
                 if self.current_is_symbol(Symbol::LeftParen) {
                     let primary = self.current()?.span();
                     self.emit(
@@ -7078,11 +7147,10 @@ mod tests {
         assert!(large_work <= small_work * 2 + 8);
     }
 
-    fn class_family_metrics(members: usize) -> (usize, usize, usize) {
-        let text = format!("class C {{ {} }}", "fun f(): Unit; ".repeat(members));
+    fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
         let mut sources = SourceMap::new();
         let source_id = sources
-            .add_source("class-family-linear.ko", &text)
+            .add_source("class-family-linear.ko", text)
             .expect("test source name must be unique");
         let lexed = lex(&sources, source_id).expect("test source must lex");
         let source = sources
@@ -7124,6 +7192,11 @@ mod tests {
         )
     }
 
+    fn class_family_metrics(members: usize) -> (usize, usize, usize) {
+        let text = format!("class C {{ {} }}", "fun f(): Unit; ".repeat(members));
+        parse_class_family_metrics(&text)
+    }
+
     #[test]
     fn class_family_member_dispatch_stays_linear_when_doubled() {
         let (small_raw, small_visits, small_items) = class_family_metrics(32);
@@ -7151,43 +7224,8 @@ mod tests {
         } else {
             format!("class C({entries})")
         };
-        let mut sources = SourceMap::new();
-        let source_id = sources
-            .add_source("class-family-inline-linear.ko", &text)
-            .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
-        let source = sources
-            .source_text(source_id)
-            .expect("test source must remain available");
-        let lexical_recoveries =
-            LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
-        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
-        let lambda_headers =
-            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
-                .expect("headers must index");
-        let mut parser = Parser {
-            sources: &sources,
-            lexed: &lexed,
-            lexical_recoveries,
-            strict_trials,
-            lambda_headers,
-            index: 0,
-            next_terminal_recovery_event: 0,
-            recursion_depth: 0,
-            file_mode: false,
-            ast: ExpressionAst::new(source_id),
-            diagnostics: Vec::new(),
-            declaration_recovery_raw_visits: 0,
-            declaration_recovery_event_queries_and_applications: 0,
-            block_dispatch_iterations: 0,
-            lambda_body_dispatch_iterations: 0,
-            significant_raw_visits: Cell::new(0),
-        };
-        parser
-            .parse_declaration_root()
-            .expect("class family must parse");
-        assert!(parser.diagnostics.is_empty(), "{:?}", parser.diagnostics);
-        (lexed.lexemes().len(), parser.significant_raw_visits.get())
+        let (raw, visits, _) = parse_class_family_metrics(&text);
+        (raw, visits)
     }
 
     #[test]
@@ -7199,6 +7237,24 @@ mod tests {
             assert!(large_visits <= large_raw * 24);
             assert!(large_visits <= small_visits * 2 + 64);
         }
+    }
+
+    #[test]
+    fn interface_delegation_sequences_stay_linear_when_doubled() {
+        let metrics = |entries| {
+            let supertypes = (0..entries)
+                .map(|index| format!("I{index} by delegate"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let text = format!("class C(val delegate: Impl): {supertypes}");
+            let (raw, visits, _) = parse_class_family_metrics(&text);
+            (raw, visits)
+        };
+        let (small_raw, small_visits) = metrics(32);
+        let (large_raw, large_visits) = metrics(64);
+        assert!(small_visits <= small_raw * 24);
+        assert!(large_visits <= large_raw * 24);
+        assert!(large_visits <= small_visits * 2 + 64);
     }
 
     fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) {

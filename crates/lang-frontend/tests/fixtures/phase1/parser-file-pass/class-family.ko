@@ -1,4 +1,4 @@
-public class Service(private val logger: Logger): Logger {
+public class Service(private val logger: Logger): Logger by logger {
     override fun log(message: String): Unit {}
 
     companion object {

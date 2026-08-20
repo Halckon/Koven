@@ -161,10 +161,7 @@ fn enum_uses_commas_and_semicolon_before_shared_members() {
 }
 
 #[test]
-fn unsupported_delegation_and_nested_forms_are_directionally_rejected() {
-    let (_, delegated) = declaration("class Service(private val logger: Logger): Logger by logger");
-    assert_eq!(codes(delegated.diagnostics()), ["L0077"]);
-
+fn nested_and_anonymous_forms_are_directionally_rejected() {
     let (_, nested) = declaration("class Outer { class Inner }");
     assert_eq!(codes(nested.diagnostics()), ["L0077"]);
 
