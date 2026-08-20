@@ -5,8 +5,10 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.9](./agent-language-design-guide-v0.9.md)：当前语言语义及其中强制实现、
-  Phase 边界的真源。
+- [语言设计指南 v0.14](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+  多文档真源。
+- [历史单文件 guide](./agent-language-design-guide-v0.10.md)：v0.10 历史候选及更早版本的
+  不可变历史快照；不参与现行语义优先级。
 - [Specs 与路线图](./specs/)：单次功能或行为变更的范围、Goal、计划、依赖和验收标准。
 - [ADR](./adr/)：长期架构选择及其理由、替代方案与代价。
 - [Architecture](./architecture/)：仓库当前已实现架构的最新快照。
@@ -33,5 +35,6 @@ Goal：提交成功后标记完成
 
 当前仓库已完成 Phase 0 并进入 Phase 1；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
 SPEC-0008 已分别建立独立表达式和声明 Parser，SPEC-0009 已建立 block / statement 序列及
-函数 block body Parser。完整文件与其余语法仍按后续 Specs 推进。
+函数 block body Parser，SPEC-0010 与 SPEC-0011 已分别实现 lambda literal 和具名函数隐式
+`Unit` 返回标注。完整文件与其余语法仍按后续 Specs 推进。
 各编译阶段的实际状态见 [架构快照](./architecture/README.md)。

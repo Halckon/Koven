@@ -11,7 +11,7 @@
 | 状态 | draft |
 | Goal ID | `KOV-PN-NNN` |
 | 所属 Phase | Phase N |
-| 语言规范 | [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md) |
+| 语言规范 | 现行 [`guide/00-index.md`](../guide/00-index.md) 及本 Spec 相关章节 |
 | 批准依据 | 待填写；单份明确确认或有效站立授权 |
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |

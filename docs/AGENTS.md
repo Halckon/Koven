@@ -12,7 +12,16 @@
 docs/
 ├── README.md
 ├── AGENTS.md
-├── agent-language-design-guide-v*.md
+├── agent-language-design-guide-v*.md  # v0.10 及更早的单文件历史
+├── guide/                              # v0.14 起的现行滚动文档集
+│   ├── 00-index.md
+│   ├── 01-design-decisions.md
+│   ├── 02-lexical-spec.md
+│   ├── 03-grammar-core.md
+│   ├── 04-grammar-declarations-blocks.md
+│   ├── 05-grammar-calls-lambda.md
+│   ├── 06-roadmap.md
+│   └── 07-changelog-archive.md
 ├── specs/
 │   ├── README.md
 │   ├── NNNN-kebab-case-title.md
@@ -27,14 +36,15 @@ docs/
 
 | 文档 | 回答的问题 | 生命周期 |
 |---|---|---|
-| 版本化语言规范 | 语言语义及 guide 已强制确定的实现、Phase 边界是什么 | 新版本取代旧版本，旧版保留 |
+| 现行语言规范文档集 | 语言语义及 guide 已强制确定的实现、Phase 边界是什么 | 正文原地演进；变更归档与 Git 保留历史 |
+| 单文件历史 guide | 旧版本当时规定了什么 | 保留，不接收后续语义修改 |
 | Spec | 这一次具体做什么、如何验收 | `draft → approved → in-progress → done` |
 | ADR | 为什么选择这项长期架构决策 | 接受后不改写历史；由新 ADR 取代 |
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
-当前语言语义真源是
-[`agent-language-design-guide-v0.9.md`](./agent-language-design-guide-v0.9.md)。它是跨功能、
-跨 Phase 的版本化规范，不属于单次实现 Spec。
+当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.14 文档集。它是
+跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.10 及更早单文件 guide 只保留为
+历史；v0.12、v0.13 的内容已经合入 v0.14，不保留独立文件快照。
 
 ---
 
@@ -79,11 +89,16 @@ Spec，但必须添加回归测试；若修复会改变既有语言语义，则�
 
 ## 3. 版本化语言规范
 
-- 文件名使用 `agent-language-design-guide-vMAJOR.MINOR.md`；版本号表达语言设计版本，不与
-  Spec 或 ADR 编号混用。
+- v0.14 起，现行规范以 [`guide/00-index.md`](./guide/00-index.md) 为唯一入口；索引声明整个
+  文档集的当前版本与状态，每份正文顶部记录自身最近一次内容变更版本。
+- `docs/guide/` 正文原地演进，不为每个版本复制整套目录。每次版本变更必须追加
+  [`guide/07-changelog-archive.md`](./guide/07-changelog-archive.md)，并以 Git 提交保存可复核
+  的历史状态。v0.12、v0.13 已合入 v0.14，不补造独立快照。
+- v0.10 及更早的 `agent-language-design-guide-vMAJOR.MINOR.md` 是单文件历史材料，继续保留，
+  不原地接收 v0.14 及后续语义修改。
 - 只有用户明确指定的新版本才能取代当前版本。创建了更高版本号文件不等于自动生效。
-- 从 v0.3 起，新版本必须说明它取代的版本并维护变更记录；旧版本不删除、不原地改造成
-  新语义。v0.3 之前的历史材料未随当前仓库归档，不适用这条保留要求。
+- 新版本必须在索引中说明它取代的版本并维护变更记录。v0.3 之前的历史材料未随当前仓库
+  归档，不适用这条追溯要求。
 - 不改变既有语义的拼写、链接、表述或示例勘误可以修改当前版本；如果改变关键字、语法、
   类型、所有权、标准库契约、强制实现边界或 Phase 验收，必须创建新版本，并同步更新相关
   章节、关键字表（如适用）和版本变更记录。
@@ -183,6 +198,7 @@ IR、后端或 Phase 边界，必须先形成并启用新 guide 版本，再由 
 文档变更完成前检查：
 
 - [ ] 根 `AGENTS.md` 指向当前 guide 的真实路径；
+- [ ] `guide/00-index.md` 的版本与状态、受影响正文的内容版本、变更归档和 Git diff 一致；
 - [ ] Spec 的 guide 版本、Phase、ADR 和受影响 member 引用有效；
 - [ ] ADR 被取代关系是双向且编号正确；
 - [ ] Architecture 只描述已实现事实，计划和未决事项有显式标记；

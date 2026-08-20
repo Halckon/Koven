@@ -1,5 +1,9 @@
 # AGENT 开发指导文档：自研编译型语言设计规范 v0.3
 
+> **历史版本：本文已被后续 guide 取代；当前唯一语言规范入口是
+> [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.14 文档集。本文只保留 v0.3 当时的
+> 语义记录，不参与现行语义优先级。**
+
 > 本文档是给开发 Agent 的权威规范，取代 v0.2（`agent-language-design-guide.md`）。语法设计原则：**尽量贴近 Kotlin 命名与语法习惯**，内存模型为 Rust 式简化所有权/借用，编译器用 Rust 实现，LLVM 后端。本文档与此前所有文档（`language-tech-stack.md`、`language-spec-full.md`、v0.2 guide）如有冲突，一律以本文档为准。
 
 > 归档说明：上述 v0.2 guide、旧技术栈/语言规格以及下文提到的审计报告尚未随当前仓库

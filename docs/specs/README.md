@@ -1,12 +1,12 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.9 语言规范](../agent-language-design-guide-v0.9.md) 维护可独立验证、可独立
+本目录依据现行 [v0.14 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.9](../agent-language-design-guide-v0.9.md) 已由用户明确启用，并为 0010 及后续路线给出
-一次性编号重排。SPEC-0010、SPEC-0011 已完成；尚未物化的条目仍只是候选 Goal，不因编号
-预留而自动获得实现授权。
+[v0.14](../guide/00-index.md) 已由用户明确启用并取代 v0.9；v0.12、v0.13 内容已合入该文档集。
+SPEC-0010、SPEC-0011 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而自动获得实现
+授权。
 
 ## Goal 与提交工作流
 
@@ -70,10 +70,10 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0008](./0008-declaration-parser.md) | 解析 `val` / `var` / `const val`、函数、泛型与调用点类型实参（`done`） | 0007 `done`；v0.7 已生效；站立授权已记录 |
 | [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`done`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
 | [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
-| [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`done`） | 0009、0010 `done`；v0.9 已生效；站立授权已记录 |
-| 0012 | 解析 typed call argument、命名实参与 `own` / `inout` / `borrow` 模式实参 | 0010 `done`；v0.9 生效；后续 guide 封闭 callee-side 参数模式、默认与匹配规则 |
-| 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；v0.9 生效 |
-| 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；不是 Phase 1 全部语法终点 |
+| [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
+| 0012 | 解析统一 callable 参数 marker、typed call argument、命名实参与调用点 `borrow` / `&` 模式 | 0010、0011 `done`；v0.14 已生效；站立授权已记录 |
+| 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；适用 guide 已启用 |
+| 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；先由后续 guide 封闭完整文件恢复契约 |
 | 0015 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
 | 0016 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
 | 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
@@ -98,10 +98,10 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | 0027 | 建立变量所有权状态并检测 use-after-move | 0019、0020 |
 | 0028 | 实现条件复制、移动与消费式解构检查 | 0022、0027 |
-| 0029 | 检查 `borrow` / `inout` / `own` 冲突并确定 ASAP 析构点 | 0028；新 guide 明确借用与析构规则 |
+| 0029 | 检查 `Value` / `Borrow` / `Inout` 契约、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点 | 0028；新 guide 明确借用与析构规则 |
 | 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
-| 0032 | 检查 move closure 与 `Shareable` / `Transferable` | 0020、0029；新 guide 明确标记能力推导 |
+| 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
@@ -159,7 +159,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | `object` / `companion object` | 编译期限制只约束存储状态和初始化式；成员函数体可使用普通 v1 代码，但不能读取或修改运行时单例状态 | 新 guide |
 | `module` / `import` | 使用显式、点分层级 module 名和绝对 import；source root 到文件的映射由 package ADR 决定，不从相对路径静默推导语义 | 新 guide + ADR |
-| `Shareable` / `Transferable` | v1 与 `Copyable` 一样采用编译器已知的结构化自动推导，不开放手动实现；标准库并发类型的例外逐项写入 Spec | 新 guide |
+| `Transferable` | v1 与 `Copyable` 一样采用编译器已知的结构化自动推导，不开放手动实现；标准库并发类型的例外逐项写入 Spec；`Shareable` 延后到 v2 | 现行 v0.14；后续 Spec |
 | 借用与析构 | v1 借用只存在于一次调用的动态期间，不允许存储或返回；ASAP 析构以所有权检查标出的最后一次合法使用为准，分支合流采用保守点 | 新 guide |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |

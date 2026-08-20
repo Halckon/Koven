@@ -3,7 +3,8 @@
 本文件约束在本仓库内工作的 AI Agent 与开发者。它描述**如何开发、验证和交付**，不是
 语言语法规范本身。规则优先于示例；如果规则、代码和文档互相冲突，不得自行折中。
 
-> 当前仓库已完成 Phase 0 并进入 Phase 1：确定性 Lexer、独立表达式与声明 Parser 已实现。
+> 当前仓库已完成 Phase 0 并进入 Phase 1：确定性 Lexer、独立表达式、声明、block、lambda
+> Parser 与具名函数隐式 `Unit` 返回标注已实现。
 > 已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---
@@ -17,7 +18,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0 已完成；Phase 1 的确定性 Lexer、独立表达式与声明 Parser、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0 已完成；Phase 1 的确定性 Lexer、独立表达式、声明、block、lambda Parser、隐式 `Unit`、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -32,7 +33,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`agent-language-design-guide-v0.9.md`](./docs/agent-language-design-guide-v0.9.md)。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.14。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -63,7 +64,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.9 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.14 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - `value class` 表示值语义和内联布局，不得描述成“永远在栈上”，也不天然等于可复制。
@@ -73,12 +74,13 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   唯一析构义务。
 - 普通 `class` 表示堆分配的引用语义，并受所有权与借用检查约束。`Box<T>` 用于把
   `value class` 显式装箱；v1 的 `Box<T>` 只接受 `value class`，`Box<普通 class>` 是类型错误。
-- `own`、`inout`、`borrow` 只允许出现在调用实参位置，必须由调用参数的专用语法解析；
-  它们不是 Pratt parser 中的通用一元运算符。
+- `own` 仍是硬关键字，但 v0.14 没有任何产生式接受它。声明侧参数 marker 使用 `borrow` /
+  `inout`；调用点可选写 `borrow`，`Inout` 实参必须写 `&`。这些形式都不是 Pratt parser 中
+  的通用一元运算符，必须由各自的参数专用语法解析。
 - v1 采用简化单一所有者和 ASAP 析构，不实现完整 NLL。不得用 Rust 借用检查器的全部
   行为自行补齐本语言规则。
 - `move (...) -> T` 只接受不含借用捕获的闭包；跨线程 API 的闭包实参必须显式写
-  `move { ... }`，并检查 `Shareable` / `Transferable` 约束。
+  `move { ... }`，并检查 v1 的 `Transferable` 约束；`Shareable` 延后到 v2。
 - `error()` 是返回 `Nothing` 的标准库顶层函数，不是关键字；其语义是 abort，不是可捕获
   异常。`e!!` 脱糖为 `e ?: error("Non-null assertion failed")`。
 - `enum class` 具有 Rust ADT 风格的变体关联数据，不等同于 Kotlin 的普通枚举；`when`
@@ -101,7 +103,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 | 版本 | 非当前范围 |
 |---|---|
-| v2 | `dyn` 动态分发、泛型型变、`object` / `companion object` 的运行时状态或惰性初始化、区间切片、自定义 allocator、完整跨线程借用数据流分析 |
+| v2 | `dyn` 动态分发、泛型型变、`Shareable`、`object` / `companion object` 的运行时状态或惰性初始化、区间切片、自定义 allocator、完整跨线程借用数据流分析 |
 | v3（推荐方向） | 协程；当前推荐 `async` / `await` + `Future`，具体语义、执行器和排期等待后续规范 |
 | v4+ | 编译器自举 |
 | 未排期 | 未被规范定义的 `sealed`、`actor`、`spawn`、`yield`、`macro`、`reify` 等语义 |
@@ -272,7 +274,7 @@ feature 只启用当前使用且已验证的最小集合；不机械关闭全部
 | 0 | Cargo workspace、索引式 AST、诊断框架、语言测试骨架 | workspace 与骨架可检查；不实现临时 parser，解析从 Phase 1 按阶段落地 |
 | 1 | Lexer / Parser、错误恢复 | 指南范例可完整解析；错误有稳定代码及准确行列 |
 | 2 | 类型检查、smart cast、穷尽性、`Nothing`、条件 `Copyable`、解构 | 正反例均产生预期类型结果或诊断 |
-| 3 | 所有权 / 借用、复制与移动、跨线程标记 trait | 拒绝 use-after-move、重复可变借用和借用闭包跨线程 |
+| 3 | 所有权 / 借用、复制与移动、跨线程 `Transferable` | 拒绝 use-after-move、重复可变借用和借用闭包跨线程 |
 | 4 | SSA IR、LLVM codegen、析构、闭包环境、DWARF | 生成并运行本机程序；可用 `gdb` / `lldb` 单步调试 |
 | 5 | 最小标准库 | 标准库的目标语言测试全部通过 |
 | 6 | 包管理、LSP、格式化、TextMate / Tree-sitter | 各工具有独立、可重复的验收用例 |
@@ -366,9 +368,10 @@ cargo build -p lang-cli
 
 ## 10. 语言与架构变更
 
-- 新增或改变关键字、语法、类型规则、所有权规则、标准库契约或 Phase 验收时，必须创建
-  新版本 guide，并同步更新对应章节、关键字表（如适用）和版本变更记录；只有用户明确
-  指定后，根文件才切换当前真源链接。纯勘误可直接修正当前版本。
+- 新增或改变关键字、语法、类型规则、所有权规则、标准库契约或 Phase 验收时，必须提升
+  `docs/guide/` 文档集版本，并同步更新索引、对应章节、关键字表（如适用）和
+  `07-changelog-archive.md`；只有用户明确指定后，新版本才成为现行真源。纯勘误可直接修正
+  当前版本。
 - 新功能或可观察行为变化必须先有可验证的 Spec；改变 workspace 边界、IR 层级、后端
   方案、ABI 或长期开发模式时，先写 ADR。实现完成后同步更新受影响的 architecture 快照。
 - 根 `AGENTS.md` 记录长期工程规则；guide 记录语言语义以及其中强制确定的 Phase / 实现
@@ -388,10 +391,8 @@ cargo build -p lang-cli
    何处，以及早期阶段如何 bootstrap。
 2. v1 `object` / `companion object` 的编译期限制是否也约束成员函数体。
 3. module / import、ABI、FFI、目标三元组、链接器、增量编译与跨平台发布策略。
-4. `Shareable`、`Transferable` 的自动推导、显式实现与泛型约束规则。`Copyable` 的 v1
-   结构化自动推导与禁止手动实现自 v0.4 起已确定。
-5. 借用生命周期与 ASAP 析构点的精确定义，自建 SSA IR 指令集和调试映射。
-6. LLVM / `inkwell` 版本及 feature 组合、机器可读诊断协议、包清单与锁文件 schema。
+4. 借用生命周期与 ASAP 析构点的精确定义，自建 SSA IR 指令集和调试映射。
+5. LLVM / `inkwell` 版本及 feature 组合、机器可读诊断协议、包清单与锁文件 schema。
 
 ---
 
