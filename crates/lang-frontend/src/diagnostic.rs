@@ -58,6 +58,13 @@ pub mod codes {
     pub(crate) const EXPECTED_DESTRUCTURING_INITIALIZER_SEPARATOR: &str = "L0045";
     pub(crate) const EXPECTED_DESTRUCTURING_INITIALIZER: &str = "L0046";
     pub(crate) const EXPECTED_DECLARATION_SEPARATOR: &str = "L0047";
+    pub(crate) const EXPECTED_PACKAGE_NAME: &str = "L0048";
+    pub(crate) const EXPECTED_IMPORT_TARGET: &str = "L0049";
+    pub(crate) const EXPECTED_IMPORT_ALIAS: &str = "L0050";
+    pub(crate) const MISPLACED_PACKAGE_DIRECTIVE: &str = "L0051";
+    pub(crate) const MISPLACED_IMPORT_DIRECTIVE: &str = "L0052";
+    pub(crate) const EXPECTED_FILE_HEADER_SEPARATOR: &str = "L0053";
+    pub(crate) const WILDCARD_IMPORT_ALIAS: &str = "L0054";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -108,6 +115,13 @@ pub mod codes {
         EXPECTED_DESTRUCTURING_INITIALIZER_SEPARATOR,
         EXPECTED_DESTRUCTURING_INITIALIZER,
         EXPECTED_DECLARATION_SEPARATOR,
+        EXPECTED_PACKAGE_NAME,
+        EXPECTED_IMPORT_TARGET,
+        EXPECTED_IMPORT_ALIAS,
+        MISPLACED_PACKAGE_DIRECTIVE,
+        MISPLACED_IMPORT_DIRECTIVE,
+        EXPECTED_FILE_HEADER_SEPARATOR,
+        WILDCARD_IMPORT_ALIAS,
     ];
 
     /// 由集中定义创建生产错误码目录。

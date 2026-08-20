@@ -102,8 +102,8 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ("fun", Keyword::Fun),
         ("import", Keyword::Import),
         ("interface", Keyword::Interface),
-        ("module", Keyword::Module),
         ("object", Keyword::Object),
+        ("package", Keyword::Package),
         ("typealias", Keyword::Typealias),
         ("val", Keyword::Val),
         ("value", Keyword::Value),
@@ -185,6 +185,13 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ));
     }
 
+    let retired_id = add_source(&mut sources, "retired-module.ko", "module");
+    let retired_file = lex_source(&sources, retired_id);
+    let retired = significant_lexemes(&retired_file).collect::<Vec<_>>();
+    assert_eq!(retired.len(), 1);
+    assert_eq!(retired[0].kind(), LexemeKind::Token(TokenKind::Identifier));
+    assert!(retired_file.diagnostics().is_empty());
+
     let reserved_text = reserved
         .iter()
         .map(|(spelling, _)| *spelling)
@@ -212,7 +219,7 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
 
 #[test]
 fn keyword_boundaries_and_ascii_identifiers_do_not_use_unicode_rules() {
-    let text = "_ a A z9 _0 myclass className Class movement asyncTask error get set Int Copyable classβ next // β\n'β' \"界\"";
+    let text = "_ a A z9 _0 myclass className Class package packageName mypackage movement asyncTask error get set Int Copyable classβ next // β\n'β' \"界\"";
     let identifiers = [
         "_",
         "a",
@@ -222,6 +229,8 @@ fn keyword_boundaries_and_ascii_identifiers_do_not_use_unicode_rules() {
         "myclass",
         "className",
         "Class",
+        "packageName",
+        "mypackage",
         "movement",
         "asyncTask",
         "error",
@@ -252,6 +261,13 @@ fn keyword_boundaries_and_ascii_identifiers_do_not_use_unicode_rules() {
         class.kind(),
         LexemeKind::Token(TokenKind::Keyword(_))
     ));
+    let package = significant_lexemes(&lexed)
+        .find(|lexeme| lexeme_text(&sources, lexeme) == "package")
+        .expect("package is a complete keyword");
+    assert_eq!(
+        package.kind(),
+        LexemeKind::Token(TokenKind::Keyword(Keyword::Package))
+    );
     let invalid_beta = significant_lexemes(&lexed)
         .find(|lexeme| {
             lexeme_text(&sources, lexeme) == "β"

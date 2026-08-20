@@ -12,9 +12,10 @@ use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression, ExpressionAst,
-    FunctionBody, FunctionForm, FunctionTypeParameter, Item, LiteralKind, MAX_RECURSION_DEPTH,
-    NameMarker, NamedArgumentPrefix, ParameterModeMarker, ParsedBlock, ParsedDeclaration,
-    ParsedExpression, ParsedFile, ParserInternalError, PrefixOperator, Statement, StringPart,
+    FunctionBody, FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective, Item,
+    LiteralKind, MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective,
+    ParameterModeMarker, ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile,
+    ParserInternalError, PrefixOperator, QualifiedNameSegment, Statement, StringPart,
     TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
 };
 
@@ -64,6 +65,7 @@ pub(super) fn parse_file(
         #[cfg(test)]
         significant_raw_visits: Cell::new(0),
     };
+    let (package, imports) = parser.parse_file_header()?;
     let roots = parser.parse_file_roots()?;
     let mut diagnostics = lexed.diagnostics().to_vec();
     diagnostics.extend(parser.diagnostics);
@@ -73,6 +75,8 @@ pub(super) fn parse_file(
         .collect();
     Ok(ParsedFile {
         ast: parser.ast,
+        package,
+        imports,
         roots,
         diagnostics,
     })
@@ -654,7 +658,7 @@ impl Parser<'_> {
 
     fn is_file_declaration_boundary(&self, lexeme: Lexeme) -> bool {
         self.file_mode
-            && (file_declaration_start_kind(lexeme.kind())
+            && (file_construct_start_kind(lexeme.kind())
                 || matches!(
                     lexeme.kind(),
                     LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
@@ -844,6 +848,183 @@ impl Parser<'_> {
         self.consume_declaration_tail(root)
     }
 
+    fn parse_file_header(
+        &mut self,
+    ) -> Result<(Option<PackageDirective>, Vec<ImportDirective>), ParserInternalError> {
+        let package = if self.current_is_keyword(Keyword::Package) {
+            let directive = self.parse_package_directive()?;
+            self.consume_file_header_separator()?;
+            Some(directive)
+        } else {
+            None
+        };
+
+        let mut imports = Vec::new();
+        while self.current_is_keyword(Keyword::Import) {
+            imports.push(self.parse_import_directive()?);
+            self.consume_file_header_separator()?;
+        }
+
+        Ok((package, imports))
+    }
+
+    fn consume_file_header_separator(&mut self) -> Result<(), ParserInternalError> {
+        if matches!(self.current()?.kind(), LexemeKind::Eof) {
+            return Ok(());
+        }
+        if self.file_separator_region_has_line_break()? {
+            return Ok(());
+        }
+        if self.current_is_symbol(Symbol::Semicolon) {
+            self.bump()?;
+            return Ok(());
+        }
+        self.emit(
+            codes::EXPECTED_FILE_HEADER_SEPARATOR,
+            "expected file header separator",
+            self.current()?.span(),
+        )
+    }
+
+    fn parse_package_directive(&mut self) -> Result<PackageDirective, ParserInternalError> {
+        let keyword_span = self.bump()?.span();
+        let (segments, _) = self.parse_qualified_name(
+            codes::EXPECTED_PACKAGE_NAME,
+            "expected package name",
+            false,
+        )?;
+        let end = self.previous_significant_end().max(keyword_span.end());
+        Ok(PackageDirective {
+            span: self.span(keyword_span.start(), end)?,
+            keyword_span,
+            segments,
+        })
+    }
+
+    fn parse_import_directive(&mut self) -> Result<ImportDirective, ParserInternalError> {
+        let keyword_span = self.bump()?.span();
+        let (segments, wildcard_span) = self.parse_import_target()?;
+        let mut alias = None;
+        let mut end = self.previous_significant_end().max(keyword_span.end());
+
+        if self.current_is_keyword(Keyword::As) {
+            let as_span = self.bump()?.span();
+            if wildcard_span.is_some() {
+                self.emit(
+                    codes::WILDCARD_IMPORT_ALIAS,
+                    "wildcard import cannot have an alias",
+                    as_span,
+                )?;
+            }
+            let name_span = if self.current_is_identifier() {
+                self.bump()?.span()
+            } else {
+                let current = self.current()?;
+                let boundary = matches!(current.kind(), LexemeKind::Eof)
+                    || self.is_file_declaration_boundary(current);
+                let span = if boundary {
+                    self.empty_at(current.span().start())?
+                } else {
+                    current.span()
+                };
+                if !self.is_poison_kind(current.kind()) {
+                    self.emit(codes::EXPECTED_IMPORT_ALIAS, "expected import alias", span)?;
+                }
+                if !boundary {
+                    self.recover_declaration_region(DeclarationStops::FILE)?;
+                    end = self.previous_significant_end().max(end);
+                }
+                span
+            };
+            end = end.max(name_span.end()).max(as_span.end());
+            if wildcard_span.is_none() {
+                alias = Some(ImportAlias { as_span, name_span });
+            }
+        }
+
+        Ok(ImportDirective {
+            span: self.span(keyword_span.start(), end)?,
+            keyword_span,
+            segments,
+            wildcard_span,
+            alias,
+        })
+    }
+
+    fn parse_import_target(
+        &mut self,
+    ) -> Result<(Vec<QualifiedNameSegment>, Option<Span>), ParserInternalError> {
+        let (segments, wildcard_prefix) = self.parse_qualified_name(
+            codes::EXPECTED_IMPORT_TARGET,
+            "expected import target",
+            true,
+        )?;
+        let wildcard_span = if wildcard_prefix && self.current_is_symbol(Symbol::Star) {
+            Some(self.bump()?.span())
+        } else {
+            None
+        };
+        Ok((segments, wildcard_span))
+    }
+
+    fn parse_qualified_name(
+        &mut self,
+        code: &str,
+        message: &'static str,
+        allow_wildcard: bool,
+    ) -> Result<(Vec<QualifiedNameSegment>, bool), ParserInternalError> {
+        let mut segments = Vec::new();
+        if !self.current_is_identifier() {
+            let current = self.current()?;
+            let boundary = matches!(current.kind(), LexemeKind::Eof)
+                || self.is_file_declaration_boundary(current);
+            let span = if boundary {
+                self.empty_at(current.span().start())?
+            } else {
+                current.span()
+            };
+            if !self.is_poison_kind(current.kind()) {
+                self.emit(code, message, span)?;
+            }
+            if !boundary {
+                self.recover_declaration_region(DeclarationStops::FILE)?;
+            }
+            return Ok((segments, false));
+        }
+
+        segments.push(QualifiedNameSegment {
+            span: self.bump()?.span(),
+        });
+        while self.current_is_symbol(Symbol::Dot) {
+            self.bump()?;
+            if allow_wildcard && self.current_is_symbol(Symbol::Star) {
+                return Ok((segments, true));
+            }
+            if self.current_is_identifier() {
+                segments.push(QualifiedNameSegment {
+                    span: self.bump()?.span(),
+                });
+                continue;
+            }
+            let current = self.current()?;
+            let boundary = matches!(current.kind(), LexemeKind::Eof)
+                || self.is_file_declaration_boundary(current);
+            let span = if boundary {
+                self.empty_at(current.span().start())?
+            } else {
+                current.span()
+            };
+            if !self.is_poison_kind(current.kind()) {
+                self.emit(code, message, span)?;
+            }
+            if !boundary {
+                self.recover_declaration_region(DeclarationStops::FILE)?;
+            }
+            break;
+        }
+        Ok((segments, false))
+    }
+
     fn parse_file_roots(&mut self) -> Result<Vec<ItemId>, ParserInternalError> {
         let mut roots = Vec::new();
         while !matches!(self.current()?.kind(), LexemeKind::Eof) {
@@ -854,7 +1035,37 @@ impl Parser<'_> {
                 continue;
             }
 
-            let started_as_declaration = file_declaration_start_kind(self.current()?.kind());
+            if self.current_is_keyword(Keyword::Package) || self.current_is_keyword(Keyword::Import)
+            {
+                let is_package = self.current_is_keyword(Keyword::Package);
+                let start = self.current()?.span().start();
+                let (directive_end, primary) = if is_package {
+                    let directive = self.parse_package_directive()?;
+                    (directive.span.end(), directive.keyword_span)
+                } else {
+                    let directive = self.parse_import_directive()?;
+                    (directive.span.end(), directive.keyword_span)
+                };
+                let span = self.span(start, directive_end)?;
+                self.emit(
+                    if is_package {
+                        codes::MISPLACED_PACKAGE_DIRECTIVE
+                    } else {
+                        codes::MISPLACED_IMPORT_DIRECTIVE
+                    },
+                    if is_package {
+                        "misplaced package directive"
+                    } else {
+                        "misplaced import directive"
+                    },
+                    primary,
+                )?;
+                roots.push(self.add_item(span, Item::Error)?);
+                self.consume_file_header_separator()?;
+                continue;
+            }
+
+            let started_as_declaration = simple_declaration_start_kind(self.current()?.kind());
             let before = self.index;
             let root = self.parse_declaration_item()?;
             if self.index <= before {
@@ -875,8 +1086,20 @@ impl Parser<'_> {
                 && !separated_by_line_break
             {
                 self.emit(
-                    codes::EXPECTED_DECLARATION_SEPARATOR,
-                    "expected declaration separator",
+                    if self.current_is_keyword(Keyword::Package)
+                        || self.current_is_keyword(Keyword::Import)
+                    {
+                        codes::EXPECTED_FILE_HEADER_SEPARATOR
+                    } else {
+                        codes::EXPECTED_DECLARATION_SEPARATOR
+                    },
+                    if self.current_is_keyword(Keyword::Package)
+                        || self.current_is_keyword(Keyword::Import)
+                    {
+                        "expected file header separator"
+                    } else {
+                        "expected declaration separator"
+                    },
                     self.current()?.span(),
                 )?;
             }
@@ -2553,7 +2776,7 @@ impl Parser<'_> {
             && (matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-            ) || (self.file_mode && file_declaration_start_kind(current.kind())))
+            ) || (self.file_mode && file_construct_start_kind(current.kind())))
         {
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,
@@ -4086,13 +4309,21 @@ fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
     )
 }
 
-fn file_declaration_start_kind(kind: LexemeKind) -> bool {
+fn simple_declaration_start_kind(kind: LexemeKind) -> bool {
     matches!(
         kind,
         LexemeKind::Token(TokenKind::Keyword(
             Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Fun
         ))
     )
+}
+
+fn file_construct_start_kind(kind: LexemeKind) -> bool {
+    simple_declaration_start_kind(kind)
+        || matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Package | Keyword::Import))
+        )
 }
 
 #[derive(Clone, Copy)]
@@ -4207,7 +4438,7 @@ impl Stops {
             }
             kind if self.block_elements && unsupported_block_element_kind(kind) => true,
             kind if self.delimiters & Self::FILE_DECLARATION != 0
-                && file_declaration_start_kind(kind) =>
+                && file_construct_start_kind(kind) =>
             {
                 true
             }
@@ -4357,7 +4588,7 @@ impl TypeStops {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) if self.0 & Self::FILE != 0 => {
                 true
             }
-            kind if self.0 & Self::FILE != 0 && file_declaration_start_kind(kind) => true,
+            kind if self.0 & Self::FILE != 0 && file_construct_start_kind(kind) => true,
             _ => false,
         }
     }
@@ -4509,7 +4740,7 @@ impl DeclarationStops {
                 Some(Symbol::LeftParen) if self.0 & Self::LEFT_PAREN != 0
             )
             || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::FILE.0 != 0)
-            || (self.0 & Self::FILE.0 != 0 && file_declaration_start_kind(lexeme.kind()))
+            || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
     }
 }
 

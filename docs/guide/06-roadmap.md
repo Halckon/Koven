@@ -49,7 +49,7 @@
 - [x] **SPEC-0062（前置：SPEC-0014 `done`；v0.16 已明确启用）**：把 `;` 加入固定符号，
       实现顶层声明的换行 / 分号分隔、同行缺分号诊断及 owner-aware 恢复；不改变 block 与
       独立声明入口
-- [ ] **SPEC-0015（前置：SPEC-0014、SPEC-0062 `done`；v0.17 已明确启用）**：解析
+- [x] **SPEC-0015（前置：SPEC-0014、SPEC-0062 `done`；v0.17 已明确启用）**：解析
       [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md)第 11 节的可选
       `package`、exact / wildcard / alias `import`、文件头顺序和 owner-aware 恢复；只保存
       Phase 1 AST，不实现名称解析或文件系统映射
@@ -58,9 +58,8 @@
       运算符 `?` 的语义依赖 SPEC-0016 定义的 `return`，其 parser 支持应在 SPEC-0016 落地
       后紧接排期，不得早于 `return` 语义定案）
 
-SPEC-0006 词法基线、SPEC-0007 至 SPEC-0014 以及 v0.16 增量 SPEC-0062 已完成；v0.17 已
-解除 SPEC-0015 的语言设计门禁；
-SPEC-0015 至 SPEC-0017 是其后的 Parser 边界。未勾选状态不
+SPEC-0006 词法基线、SPEC-0007 至 SPEC-0015 以及 v0.16 增量 SPEC-0062 已完成；
+SPEC-0016、SPEC-0017 是其后的 Parser 边界。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参

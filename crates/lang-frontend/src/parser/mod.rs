@@ -102,6 +102,8 @@ pub(crate) const MAX_RECURSION_DEPTH: usize = 1024;
 #[derive(Debug)]
 pub struct ParsedFile {
     pub(crate) ast: SyntaxAst,
+    pub(crate) package: Option<PackageDirective>,
+    pub(crate) imports: Vec<ImportDirective>,
     pub(crate) roots: Vec<ItemId>,
     pub(crate) diagnostics: Vec<Diagnostic>,
 }
@@ -119,6 +121,18 @@ impl ParsedFile {
         &self.ast
     }
 
+    /// 返回可选的文件 package directive。
+    #[must_use]
+    pub const fn package(&self) -> Option<&PackageDirective> {
+        self.package.as_ref()
+    }
+
+    /// 返回按源码顺序排列的 import directives。
+    #[must_use]
+    pub fn imports(&self) -> &[ImportDirective] {
+        &self.imports
+    }
+
     /// 返回按源码顺序排列的顶层声明。
     #[must_use]
     pub fn roots(&self) -> &[ItemId] {
@@ -130,6 +144,48 @@ impl ParsedFile {
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
+}
+
+/// 点分限定名中的一个真实标识符 segment。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QualifiedNameSegment {
+    /// segment 的真实源码范围。
+    pub span: Span,
+}
+
+/// 文件首部可选的 `package` directive。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageDirective {
+    /// 从 `package` 到最后实际消费 segment 的范围。
+    pub span: Span,
+    /// 真实 `package` token。
+    pub keyword_span: Span,
+    /// 源码顺序的点分名称 segment。
+    pub segments: Vec<QualifiedNameSegment>,
+}
+
+/// exact import 的可选别名。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImportAlias {
+    /// 真实 `as` token。
+    pub as_span: Span,
+    /// 真实别名；缺失恢复时为空范围。
+    pub name_span: Span,
+}
+
+/// 文件首部一个源码有序的 `import` directive。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImportDirective {
+    /// 从 `import` 到 alias、wildcard 或最后 segment 的范围。
+    pub span: Span,
+    /// 真实 `import` token。
+    pub keyword_span: Span,
+    /// 源码顺序的点分目标 segment。
+    pub segments: Vec<QualifiedNameSegment>,
+    /// 末尾 `*`；exact import 为 `None`。
+    pub wildcard_span: Option<Span>,
+    /// exact import 的可选 `as` alias。
+    pub alias: Option<ImportAlias>,
 }
 
 /// 拥有具体 AST、根节点与两阶段有序诊断的解析产物。

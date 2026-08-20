@@ -522,6 +522,7 @@ file_header_separator = trivia_with_line_break
 
 SPEC-0015 只交付 Phase 1 Lexer / Parser / AST / 诊断与恢复。package 到 source root / 文件的
 映射、多文件名称解析、exact / wildcard import 的绑定与冲突规则属于 SPEC-0025；相关长期
-映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。
+映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。上述 Phase 1
+增量已由 SPEC-0015 实现并验收。
 
 ---

@@ -127,10 +127,10 @@ pub enum Keyword {
     Import,
     /// `interface`。
     Interface,
-    /// `module`。
-    Module,
     /// `object`。
     Object,
+    /// `package`。
+    Package,
     /// `typealias`。
     Typealias,
     /// `val`。

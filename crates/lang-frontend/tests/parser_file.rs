@@ -251,3 +251,180 @@ fn long_file_keeps_every_root_without_recovery_drift() {
         assert_eq!(parsed.roots().len(), 512);
     }
 }
+
+#[test]
+fn package_and_kotlin_style_imports_preserve_source_order_and_spans() {
+    let text = "package alpha.beta\nimport koven.io.println\nimport koven.collections.*\nimport koven.math.Vector as Vec\nval answer=42";
+    let (sources, parsed) = parsed(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+
+    let package = parsed.package().expect("package");
+    assert_eq!(sources.slice(package.span).unwrap(), "package alpha.beta");
+    assert_eq!(
+        package
+            .segments
+            .iter()
+            .map(|segment| sources.slice(segment.span).unwrap())
+            .collect::<Vec<_>>(),
+        ["alpha", "beta"]
+    );
+
+    assert_eq!(parsed.imports().len(), 3);
+    assert_eq!(
+        parsed
+            .imports()
+            .iter()
+            .map(|import| sources.slice(import.span).unwrap())
+            .collect::<Vec<_>>(),
+        [
+            "import koven.io.println",
+            "import koven.collections.*",
+            "import koven.math.Vector as Vec",
+        ]
+    );
+    assert!(parsed.imports()[0].wildcard_span.is_none());
+    assert_eq!(
+        sources
+            .slice(parsed.imports()[1].wildcard_span.expect("wildcard"))
+            .unwrap(),
+        "*"
+    );
+    let alias = parsed.imports()[2].alias.expect("alias");
+    assert_eq!(sources.slice(alias.as_span).unwrap(), "as");
+    assert_eq!(sources.slice(alias.name_span).unwrap(), "Vec");
+    assert_eq!(parsed.roots().len(), 1);
+}
+
+#[test]
+fn default_package_and_semicolons_can_separate_file_header_elements() {
+    let (_, parsed) = parsed("import a.b; import c.*; val x=1");
+    assert!(parsed.package().is_none());
+    assert_eq!(parsed.imports().len(), 2);
+    assert_eq!(parsed.roots().len(), 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+}
+
+#[test]
+fn malformed_header_fields_use_their_dedicated_diagnostics() {
+    let (_, missing_names) = parsed("package\nimport\nval x=1");
+    assert_eq!(codes(missing_names.diagnostics()), ["L0048", "L0049"]);
+    assert!(missing_names.diagnostics()[0].primary_span().is_empty());
+    assert!(missing_names.diagnostics()[1].primary_span().is_empty());
+
+    let (_, missing_alias) = parsed("import a.b as\nval x=1");
+    assert_eq!(codes(missing_alias.diagnostics()), ["L0050"]);
+
+    let (wildcard_sources, wildcard_alias) = parsed("import a.* as Alias\nval x=1");
+    assert_eq!(codes(wildcard_alias.diagnostics()), ["L0054"]);
+    assert_eq!(
+        wildcard_sources
+            .slice(wildcard_alias.diagnostics()[0].primary_span())
+            .unwrap(),
+        "as"
+    );
+    assert!(wildcard_alias.imports()[0].alias.is_none());
+
+    let (_, malformed_region) = parsed("package 123 junk\nval x=1");
+    assert_eq!(codes(malformed_region.diagnostics()), ["L0048"]);
+    assert_eq!(malformed_region.roots().len(), 1);
+
+    let (_, lexer_owned) = parsed("package $ junk\nimport valid.name\nval x=1");
+    assert_eq!(codes(lexer_owned.diagnostics()), ["L0001"]);
+    assert_eq!(lexer_owned.imports().len(), 1);
+    assert_eq!(lexer_owned.roots().len(), 1);
+}
+
+#[test]
+fn header_elements_require_newline_or_semicolon_separators() {
+    for text in [
+        "package a import b\nval x=1",
+        "import a import b\nval x=1",
+        "import a val x=1",
+    ] {
+        let (sources, parsed) = parsed(text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0053"], "{text:?}");
+        assert!(matches!(
+            sources
+                .slice(parsed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "import" | "val"
+        ));
+    }
+
+    let (_, block_comment_line) = parsed("package a /* line\nbreak */ import b\nval x=1");
+    assert!(block_comment_line.diagnostics().is_empty());
+}
+
+#[test]
+fn repeated_or_late_directives_are_error_roots_and_preserve_declarations() {
+    let (sources, parsed) = parsed("package a\npackage b\nval x=1\nimport c");
+    assert_eq!(codes(parsed.diagnostics()), ["L0051", "L0052"]);
+    assert_eq!(
+        sources
+            .slice(parsed.diagnostics()[0].primary_span())
+            .unwrap(),
+        "package"
+    );
+    assert_eq!(
+        sources
+            .slice(parsed.diagnostics()[1].primary_span())
+            .unwrap(),
+        "import"
+    );
+    assert_eq!(parsed.roots().len(), 3);
+    assert!(matches!(root_items(&parsed)[0], Item::Error));
+    assert!(matches!(root_items(&parsed)[1], Item::Variable { .. }));
+    assert!(matches!(root_items(&parsed)[2], Item::Error));
+}
+
+#[test]
+fn rust_style_and_retired_module_spellings_are_not_file_header_syntax() {
+    let (_, names) = parsed("module demo\nuse path\nmod child\nval x=1");
+    assert!(names.package().is_none());
+    assert!(names.imports().is_empty());
+    assert_eq!(codes(names.diagnostics()), ["L0017"]);
+    assert_eq!(names.roots().len(), 2);
+
+    let (_, path_separator) = parsed("import a::b\nval x=1");
+    assert!(codes(path_separator.diagnostics()).contains(&"L0053".to_owned()));
+    assert_eq!(path_separator.roots().len(), 2);
+
+    let (_, grouped) = parsed("import a.{b,c}\nval x=1");
+    assert_eq!(codes(grouped.diagnostics()), ["L0049"]);
+    assert_eq!(grouped.roots().len(), 1);
+
+    let (_, missing_wildcard_dot) = parsed("import a*\nval x=1");
+    assert!(codes(missing_wildcard_dot.diagnostics()).contains(&"L0053".to_owned()));
+}
+
+#[test]
+fn nested_header_keywords_do_not_become_file_directives() {
+    let (_, parsed) = parsed("val x=call(package hidden, import other)\nval y=2");
+    assert!(parsed.package().is_none());
+    assert!(parsed.imports().is_empty());
+    assert_eq!(parsed.roots().len(), 2, "{:?}", parsed.diagnostics());
+}
+
+#[test]
+fn long_import_sequence_is_preserved_without_cursor_drift() {
+    let text: String = (0..256)
+        .map(|index| format!("import pkg.name{index}\n"))
+        .chain(std::iter::once("val x=1".to_owned()))
+        .collect();
+    let (_, parsed) = parsed(&text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.imports().len(), 256);
+    assert_eq!(parsed.roots().len(), 1);
+}

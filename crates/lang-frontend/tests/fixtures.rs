@@ -1618,7 +1618,7 @@ mod tests {
         let pass = pass[0].result.as_ref().expect("file pass fixture");
         assert_eq!(pass.item_count, 2);
         assert_eq!(pass.diagnostic_count, 0);
-        assert_eq!(fail.len(), 2);
+        assert_eq!(fail.len(), 3);
         for outcome in fail {
             let evidence = outcome.result.as_ref().expect("file fail fixture");
             assert_eq!(evidence.item_count, 2);

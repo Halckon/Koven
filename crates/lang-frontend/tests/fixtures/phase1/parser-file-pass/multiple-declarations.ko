@@ -1,2 +1,5 @@
+package examples.fixtures
+import koven.io.println
+
 val answer = 42
 fun next() {}

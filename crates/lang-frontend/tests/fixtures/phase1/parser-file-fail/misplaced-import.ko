@@ -1,0 +1,2 @@
+val answer = 42
+import koven.io.println
