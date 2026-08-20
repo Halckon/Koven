@@ -2,15 +2,15 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | approved |
 | Goal ID | `KOV-P1-063` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 [v0.18](../guide/00-index.md)；候选起点为 [错误传播运算符 `?`](../guide/01-design-decisions.md#19-错误传播运算符-候选设计v011-新增) |
-| 批准依据 | 当前持续 Goal 提供后续 Spec 站立授权；语言 guide 版本级启用不在站立授权范围内 |
+| 语言规范 | 现行 [v0.19](../guide/00-index.md)：[`Result<T, E>` 与 postfix `?`](../guide/01-design-decisions.md#19-resultt-e-错误值与-postfix-v019-正式启用) |
+| 批准依据 | 用户于 2026-08-20 同意前述完整错误值契约并要求继续实施；当前持续 Goal 的站立授权 |
 | 前置 Spec | SPEC-0016 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用定义完整 `?` 契约的 guide v0.19；现行 v0.18 仍把该设计标为候选 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` Parser / AST、诊断回归、fixture、Architecture |
 | 语言语义变更 | 是；必须先由 guide v0.19 批准，不能由本 Spec 自行确定 |
 
@@ -25,7 +25,7 @@ SPEC-0016 已实现最近 callable `return`，满足候选设计的 Parser 前�
 class-family，因此使用尚未占用的插入式编号 SPEC-0063，避免重编号既有路线图。Lexer 已把
 `?`、`?.`、`?:` 作为三个最长匹配固定符号；本 Spec 不需要词法增量。
 
-现行 v0.18 只提供候选语义，尤其没有正式批准 lambda 内传播目标。拟议 v0.19 必须明确：
+现行 v0.19 已明确：
 `?` 与裸 `return` 使用同一个最近 callable 边界；位于 lambda 内时只退出该 lambda，不形成
 外层具名函数的非局部 return。
 
@@ -81,7 +81,7 @@ lambda 边界检查。这避免 Parser 根据尚不存在的类型信息产生�
 
 ## 7. 实施计划
 
-1. [ ] 启用 v0.19 并解除 Spec 阻塞，进入 `approved` / `in-progress` → 验证：guide 版本、
+1. [x] 启用 v0.19 并解除 Spec 阻塞，进入 `approved` / `in-progress` → 验证：guide 版本、
        changelog、roadmap 与 Spec 引用一致
 2. [ ] 扩充 AST 与 postfix parser → 验证：专用 AST、Span、结合性和消歧窄测
 3. [ ] 补齐错误恢复、复杂度与真实 fixture → 验证：compile-pass / fail、N→2N 和 harness
@@ -96,12 +96,11 @@ lambda 边界检查。这避免 Parser 根据尚不存在的类型信息产生�
 
 ## 9. 未决问题
 
-- 阻塞：用户是否明确启用“lambda 内 `?` 退出最近 lambda、绝不退出外层具名函数”的 v0.19
-  完整契约。
+- 无；lambda 与具名函数的最近 callable 边界已由 v0.19 封闭。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | Markdown 相对链接与 `git diff --check` | 通过 | 两份变更文档的本地目标均存在；无空白错误 |
-| Rust / fixture / workspace 基线 | 未执行 | v0.19 尚未启用，禁止开始实现 |
+| Rust / fixture / workspace 基线 | 未执行 | 等待 SPEC-0063 实施 |

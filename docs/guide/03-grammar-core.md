@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（一）：表达式与类型引用基础
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §1–6），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.19。
 > 原第四部分体量过大，本次拆分为三份，均保留原节号以维持既有 SPEC 引用与 Span 表述
 > 不变：本文档（§1–6）覆盖 primary/postfix/`type_ref`/运算符优先级/Lexer 错误交接/AST
 > `Span` 规则，是后续两份的共享基础；[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)（§7–8）覆盖
@@ -63,6 +63,7 @@ postfix_suffix = ".", Identifier
                | call_suffix
                | index_suffix
                | "!!"
+               | "?"
                | "::", Identifier ;
 
 call_suffix       = "(", [ call_argument,
@@ -73,11 +74,15 @@ index_suffix      = "[", expression, "]" ;
 ```
 
 所有 suffix 同属最高优先级，从左到右逐个包裹 receiver；例如 `a!!.b(c)[i]::ref!!` 是一条
-确定的左结合链，`!!` 可重复。`.`、`?.` 和有 receiver 的 `::` 后必须是普通
+确定的左结合链，`!!` 与 `?` 均可重复。`.`、`?.` 和有 receiver 的 `::` 后必须是普通
 `Identifier`，不能用硬关键字或 reserved-word token 冒充名称。无 receiver 的 `::name`
 属于 primary，有 receiver 的 `value::name` 属于 postfix。两类引用在此阶段只产生 AST，名称
 解析、可见性与 callable 类型均属后续阶段。`e!!` 的既有语义不变，仍脱糖为
-`e ?: error("Non-null assertion failed")`。
+`e ?: error("Non-null assertion failed")`。`e?` 建立 `Propagate { value, question_span }`，
+其 `Result<T, E>` 与最近 callable 约束见[01-design-decisions.md](./01-design-decisions.md)第 19 节；Phase 1 不做类型或上下文拒绝。
+Lexer 的 `?`、`?.`、`?:` 是三个最长匹配 token，parser 不拆分后两者。因而 `result?` 是
+propagate，`result?.member` 是 safe member，`result ?: fallback` 是 Elvis；`result??` 是
+两个左结合 propagate 节点，最终类型是否合法由 Phase 2 判断。
 
 `call_argument` 在本版中的完整产生式见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节；basic call 与 typed call 复用同一实参语法，允许空
 参数列表但不允许 trailing comma。SPEC-0007 完成时只支持位置实参并以 L0016 拒绝命名 / 模式
@@ -201,7 +206,7 @@ assignment_operator   = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 
 | 优先级 | 运算符 / 结构 | 结合性 |
 |---|---|---|
-| 1 | `.` `?.` `()` `[]` postfix `!!`、bound `::name` | 左结合，可连续 |
+| 1 | `.` `?.` `()` `[]` postfix `!!`、postfix `?`、bound `::name` | 左结合，可连续 |
 | 2 | prefix `!` `-` `+` | 右结合 |
 | 3 | `as` `as?` | 左结合 |
 | 4 | `*` `/` `%` | 左结合 |
@@ -283,6 +288,7 @@ SPEC-0007 至少区分下列语法错误含义；稳定 `L` 码、固定消息�
 | member / bound reference | receiver 起点至名称 token 终点 |
 | call / index | receiver 起点至闭合 `)` / `]` 终点；缺闭合符时至该 suffix 最后消费位置 |
 | postfix `!!` | receiver 起点至 `!!` 终点 |
+| postfix `?` | receiver 起点至真实 `?` 终点；保存 `question_span`，不反查或扩张既有 child |
 | string | 开始引号起点至结束引号终点；恢复时至该字符串最后消费位置 |
 | interpolation | `${` 起点至匹配 `}` 终点；恢复时至该插值最后消费位置 |
 | error | 覆盖本次实际消费的错误区域；只有位于 stop token / EOF 且没有可消费 token 时可以为空 |

@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.19。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–20 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
@@ -743,13 +743,13 @@ mutableMap.remove(key)       // 按key删除,不取得key所有权,调用点不�
 - v0.18 已定义 `for ((k, v) in map)` 的单次求值与 `iterator()` / `hasNext()` / `next()`
   调用形状；具体名义接口声明、Map iterator 的元素所有权和运行时布局仍留给 Phase 2/5。
 
-## 19. 错误传播运算符 `?`（候选设计，v0.11 新增）
+## 19. `Result<T, E>` 错误值与 postfix `?`（v0.19 正式启用）
 
-现有 guide 没有为 `Result<T, E>` 提供任何错误传播语法糖，可恢复错误处理目前只能手写
-`when` 逐层匹配。本节提出一个仿照 Rust `?` 的 postfix 运算符候选设计。**本节的语义依赖
-v0.18 已正式定义的最近 callable `return`，但本节只展开候选语义，
-具体产生式与 Phase 1 parser 支持需要在 SPEC-0016 完成后另行设计评审与排期**；
-本节不是已批准的实施契约。
+v1 把可预期、可恢复的失败表达为普通返回值，不提供异常体系。源语言精确没有 `throw`、
+`try`、`catch`、`finally`、`throws`、可捕获异常类层级或异常栈展开；函数返回类型
+`Result<T, E>` 本身就是完整失败契约，不再用第二个关键字重复声明。合法但没有值使用 `T?`，
+可恢复失败使用 `Result<T, E>`，程序不变量破坏使用不可捕获的 `error()` abort，三者不得
+混用。
 
 ```kotlin
 fun readConfig(path: String): Result<Config, IoError> {
@@ -759,10 +759,10 @@ fun readConfig(path: String): Result<Config, IoError> {
 }
 ```
 
-- `expr?` 只能出现在返回类型是 `Result<T, E>`（或未来其他被标注支持传播的类型）的函数
-  体内；`expr` 的类型必须是 `Result<U, E>`，其中 `E` 与外层函数返回类型的错误类型一致
-  （v1 不做隐式错误类型转换，`E` 必须完全相同；是否放开类似 `Into`/`From` 的转换留给
-  后续版本）。
+- `expr?` 只传播 `Result`。它所在最近 callable 的返回类型必须是 `Result<T, E>`，operand
+  类型必须是 `Result<U, E>`，其中 `E` 精确相同。v1 不把 `?` 开放为用户可实现协议，不传播
+  `T?`，也不做 `Into`/`From` 式隐式错误转换；错误类型变化必须由显式 `when` 或后续标准库
+  `mapError` 完成。
 - 语义上，`expr?` 等价于：
 
   ```kotlin
@@ -775,19 +775,22 @@ fun readConfig(path: String): Result<Config, IoError> {
 
   即：`expr` 只求值一次；`Ok` 分支时整个表达式的值是内部的 `value`（按 `Copyable` 规则
   复制或移动，和第 11 节 `enum class` 变体字段访问的规则一致）；`Err` 分支时
-  提前从当前函数 `return` 整个 `__tmp`（而不是重新构造一个新 `Err`），避免多一次装箱。
+  从最近 callable `return` 整个 `__tmp`（而不是重新构造一个新 `Err`）。具名函数和 lambda
+  都是 callable boundary；lambda 内的 `?` 只退出该 lambda，绝不从外层具名函数非局部返回。
 - `?` 的优先级与 `!!` 相同，归入[03-grammar-core.md](./03-grammar-core.md)第 4 节运算符层级表的第 1 级（postfix，左结合，
   可连续），因此 `foo()?.bar()?` 合法。
 - `?` 与 `!!` 的差异：`!!` 面向 `T?`，失败时 `error()`（abort，不可恢复）；`?` 面向
-  `Result<T, E>`，失败时是**函数级别的提前返回**，把错误交还给调用者处理，不终止进程。
+  `Result<T, E>`，失败时是**callable 级别的普通提前返回**，把错误值交还给调用者，不终止进程。
   二者不能混用（不能对 `Result<T, E>` 用 `!!`，也不能对 `T?` 用 `?`）。
 - 与第 5 节所有权规则的交互：`expr?` 对不满足 `Copyable` 的 `T` 同样成立，`Ok`
   分支消费 `__tmp` 并移出其 `value`（单一分量的消费式解构，复用第 11 节的
   机制）；`Err` 分支整体移动 `__tmp` 用于 `return`。
 
-**验收方向**（供 SPEC-0016 排期时参考，不是现行 v1 的已批准验收标准）：`?` 只能出现在
-返回 `Result<_, E>` 的函数体内，用在其他返回类型的函数中是类型 / 上下文诊断；`E` 不
-匹配是类型诊断；`?.`/`?` 链式混用需要额外的消歧测试。
+Phase 1 只建立 postfix AST，不拥有 callable 返回类型或 `Result` 名称绑定信息，因此在所有
+expression context 接受 `?`；上述 callable、operand 与 `E` 约束由 Phase 2 形成类型 / 上下文
+诊断。Phase 3 把 `Err` 传播视为普通 return 所有权路径，Phase 4 在该路径生成正常 drop，
+不得引入 unwind cleanup。应用边界使用 `when` 选择恢复、转换、报告或调用 `error()`；
+`Result` 不“接住异常”，因为该模型中没有异常被抛出。
 
 ## 20. `Copyable` 显式 opt-out（候选方向，v0.11 新增）
 

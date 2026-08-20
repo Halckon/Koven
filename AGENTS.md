@@ -34,7 +34,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.18。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.19。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -65,7 +65,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.18 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.19 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
@@ -86,6 +86,9 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   `move { ... }`，并检查 v1 的 `Transferable` 约束；`Shareable` 延后到 v2。
 - `error()` 是返回 `Nothing` 的标准库顶层函数，不是关键字；其语义是 abort，不是可捕获
   异常。`e!!` 脱糖为 `e ?: error("Non-null assertion failed")`。
+- v1 不提供 `throw` / `try` / `catch` / `finally` / `throws` 或异常栈展开。可预期、可恢复
+  失败使用显式 `Result<T, E>` 返回值；postfix `?` 只传播 `Err` 到最近 callable，函数返回
+  类型本身就是失败契约，不另设声明关键字。
 - `enum class` 具有 Rust ADT 风格的变体关联数据，不等同于 Kotlin 的普通枚举；`when`
   需要穷尽性检查，并支持分支内 smart cast。
 - 解构遵循 `componentN()` 命名约定，但右值只求值一次；不可复制 `value class` 的完整解构
