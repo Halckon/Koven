@@ -350,6 +350,9 @@ fn missing_initializer_preserves_each_structural_boundary() {
 
     let (_, lambda_initializer) = parsed_ok("{ val x = {} }");
     assert_eq!(root_elements(&lambda_initializer).len(), 1);
+
+    let (_, lambda_then_expression) = parsed_ok("{ val f = { x -> x }\nf(1) }");
+    assert_eq!(root_elements(&lambda_then_expression).len(), 2);
 }
 
 #[test]

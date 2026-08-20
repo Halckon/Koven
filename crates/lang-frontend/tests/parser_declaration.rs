@@ -226,6 +226,8 @@ fn markers(item: &Item) -> Vec<NameMarker> {
             .chain(type_parameters.iter().map(|parameter| parameter.name))
             .chain(parameters.iter().map(|parameter| parameter.name))
             .collect(),
+        Item::Classifier(classifier) => vec![classifier.name],
+        Item::Modified { .. } | Item::Companion(_) => Vec::new(),
     }
 }
 
@@ -718,7 +720,6 @@ fn type_parameter_eof_does_not_invent_a_list_separator_error() {
 #[test]
 fn unsupported_and_multi_declaration_forms_are_not_silently_accepted() {
     for text in [
-        "public val x = 1",
         "fun f(x: T = 1): R",
         "fun f((x, y): T): R",
         "fun <T: A & B> f(): R",
@@ -735,6 +736,14 @@ fn unsupported_and_multi_declaration_forms_are_not_silently_accepted() {
             .0,
         "L0013"
     );
+
+    let (_, public) = parsed("public val x = 1");
+    assert!(
+        public.diagnostics().is_empty(),
+        "{:?}",
+        public.diagnostics()
+    );
+    assert!(matches!(item(&public), Item::Modified { .. }));
 }
 
 #[test]

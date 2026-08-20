@@ -60,7 +60,7 @@
       [`03-grammar-core.md`](./03-grammar-core.md)第 2、4、6 节的 postfix `?`，只建立
       `Propagate` AST 与消歧 / 恢复证据；`Result<T, E>`、最近 callable 和错误类型检查延后
       到 Phase 2。
-- [ ] **SPEC-0017（前置：SPEC-0014 `done`；v0.20 已明确启用）**：按
+- [x] **SPEC-0017（前置：SPEC-0014 `done`；v0.20 已明确启用）**：按
       [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) 第 13 节解析
       `value class` / `class` / `interface` / `enum class` / 具名 `object` / `companion object`，
       只交付 Phase 1 AST、诊断与恢复；不实现接口委托或 Phase 2/3 语义检查。
@@ -68,8 +68,8 @@
       `by` 仍由 Lexer 产出 identifier，只在 class supertype entry 的确定上下文中提交。不得扩张
       为属性委托、任意 delegate expression、动态代理或运行时 `dyn` 分发。
 
-SPEC-0006 词法基线、SPEC-0007 至 SPEC-0016 以及 v0.16 增量 SPEC-0062 已完成；
-SPEC-0063 已完成，SPEC-0017 是其后的 Parser 边界；SPEC-0064 在 class-family 完成后单独
+SPEC-0006 词法基线、SPEC-0007 至 SPEC-0017 以及 v0.16 增量 SPEC-0062 已完成；
+SPEC-0063 已完成；SPEC-0064 在 class-family 完成后单独
 补齐窄化接口委托。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。

@@ -119,7 +119,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0015 | `package` / Kotlin 风格 `import` 文件头 | `04-grammar-declarations-blocks.md` §11 | ✅ 已实现 |
 | SPEC-0016 | control-flow（`if`/`when`/循环/jump/`super`） | `04-grammar-declarations-blocks.md` §12 | ✅ 已实现 |
-| SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | `04-grammar-declarations-blocks.md` §13 | ⬜ 未实现 |
+| SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | `04-grammar-declarations-blocks.md` §13 | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ⬜ 未实现 |
@@ -142,7 +142,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0047 | SPEC-0062 同行声明缺少 `;` | `04-grammar-declarations-blocks.md` §10 |
 | L0048–L0054 | SPEC-0015 package/import 名称、位置、分隔与 wildcard alias 诊断 | `04-grammar-declarations-blocks.md` §11 |
 | L0055–L0065 | SPEC-0016 条件、分支、when entry、loop、for 与 super 诊断 | `04-grammar-declarations-blocks.md` §12 |
-| L0066–L0077 | SPEC-0017 class-family 头、字段、成员、enum 与修饰符诊断（待实现） | `04-grammar-declarations-blocks.md` §13 |
+| L0066–L0077 | 已实现的 SPEC-0017 class-family 头、字段、成员、enum 与修饰符诊断 | `04-grammar-declarations-blocks.md` §13 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

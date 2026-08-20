@@ -310,6 +310,174 @@ pub enum VariableKind {
     Var,
 }
 
+/// class-family 与声明 wrapper 保存的显式可见性。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VisibilityModifier {
+    /// `public`。
+    Public(Span),
+    /// `internal`。
+    Internal(Span),
+    /// `private`。
+    Private(Span),
+}
+
+/// 一条声明前缀的源码修饰符；顺序已经由 Parser 验证。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DeclarationModifiers {
+    /// 可选的唯一 visibility。
+    pub visibility: Option<VisibilityModifier>,
+    /// 实例函数可选的 `override`。
+    pub override_span: Option<Span>,
+}
+
+/// class-family 声明种类及其真实关键字范围。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClassifierKind {
+    /// `value class`。
+    ValueClass {
+        /// 真实 `value`。
+        value_span: Span,
+        /// 真实 `class`；缺失恢复时为空范围。
+        class_span: Span,
+    },
+    /// `class`。
+    Class {
+        /// 真实 `class`。
+        class_span: Span,
+    },
+    /// `interface`。
+    Interface {
+        /// 真实 `interface`。
+        interface_span: Span,
+    },
+    /// `enum class`。
+    EnumClass {
+        /// 真实 `enum`。
+        enum_span: Span,
+        /// 真实 `class`；缺失恢复时为空范围。
+        class_span: Span,
+    },
+    /// 具名 `object`。
+    Object {
+        /// 真实 `object`。
+        object_span: Span,
+    },
+}
+
+/// class/value class 主构造器中的一个存储字段。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClassField {
+    /// 字段完整范围。
+    pub span: Span,
+    /// 可选可见性。
+    pub visibility: Option<VisibilityModifier>,
+    /// `val` / `var`。
+    pub kind: VariableKind,
+    /// 真实 `val` / `var` token。
+    pub keyword_span: Span,
+    /// 字段名称或恢复 marker。
+    pub name: NameMarker,
+    /// 名称后的 `:`；恢复插入时为空范围。
+    pub colon_span: Span,
+    /// 字段类型或错误 TypeRef。
+    pub type_ref: TypeRefId,
+}
+
+/// class/value class 的显式主构造器。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrimaryConstructor {
+    /// 真实 `(`。
+    pub left_paren_span: Span,
+    /// 源码顺序的存储字段。
+    pub fields: Vec<ClassField>,
+    /// 真实 `)`；缺失恢复时为 `None`。
+    pub right_paren_span: Option<Span>,
+}
+
+/// 一个源码有序的 supertype entry。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SupertypeEntry {
+    /// entry 完整范围。
+    pub span: Span,
+    /// 唯一 TypeRef。
+    pub type_ref: TypeRefId,
+}
+
+/// enum 变体的一个关联数据参数。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnumVariantParameter {
+    /// 参数完整范围。
+    pub span: Span,
+    /// 参数名称或恢复 marker。
+    pub name: NameMarker,
+    /// 真实 `:`；恢复插入时为空范围。
+    pub colon_span: Span,
+    /// 参数类型或错误 TypeRef。
+    pub type_ref: TypeRefId,
+}
+
+/// 一个 enum class 变体。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumVariant {
+    /// 变体完整范围。
+    pub span: Span,
+    /// 变体名称或恢复 marker。
+    pub name: NameMarker,
+    /// 可选关联数据参数列表的 `(`。
+    pub left_paren_span: Option<Span>,
+    /// 源码顺序的关联数据参数。
+    pub parameters: Vec<EnumVariantParameter>,
+    /// 真实 `)`；无参数列表或缺失恢复时为 `None`。
+    pub right_paren_span: Option<Span>,
+}
+
+/// class-family body 的源码结构。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClassifierBody {
+    /// 真实 `{`。
+    pub left_brace_span: Span,
+    /// enum 专用的源码顺序变体；其他 classifier 为空。
+    pub variants: Vec<EnumVariant>,
+    /// enum 变体区与成员区之间的真实 `;`。
+    pub enum_member_delimiter_span: Option<Span>,
+    /// 源码顺序的 member Item。
+    pub members: Vec<ItemId>,
+    /// 真实 `}`；缺失恢复时为 `None`。
+    pub right_brace_span: Option<Span>,
+}
+
+/// 一个 class-family Item 的完整 payload。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClassifierDeclaration {
+    /// classifier 种类与关键字。
+    pub kind: ClassifierKind,
+    /// 声明名称。
+    pub name: NameMarker,
+    /// 源码顺序的类型参数。
+    pub type_parameters: Vec<TypeParameter>,
+    /// `<...>` 合成范围。
+    pub type_parameter_list_span: Option<Span>,
+    /// class/value class 的可选主构造器。
+    pub primary_constructor: Option<PrimaryConstructor>,
+    /// supertype list 前的真实 `:`。
+    pub supertype_colon_span: Option<Span>,
+    /// 源码顺序的 supertypes。
+    pub supertypes: Vec<SupertypeEntry>,
+    /// 可选 body。
+    pub body: Option<ClassifierBody>,
+}
+
+/// 一个 companion object Item 的完整 payload。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompanionObject {
+    /// 真实 `companion`。
+    pub companion_span: Span,
+    /// 真实 `object`；缺失恢复时为空范围。
+    pub object_span: Span,
+    /// 唯一 body。
+    pub body: ClassifierBody,
+}
+
 /// 具名函数的互斥 body 形态。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FunctionBody {
@@ -551,6 +719,13 @@ pub struct CallArgument {
 pub enum Item {
     /// 恢复过程中显式插入的错误声明。
     Error,
+    /// 为既有声明或 class-family member 保存显式修饰符，不复制 child payload。
+    Modified {
+        /// 已验证顺序的修饰符。
+        modifiers: DeclarationModifiers,
+        /// 被修饰的唯一声明。
+        declaration: ItemId,
+    },
     /// `val` / `var` 声明。
     Variable {
         /// 声明可变性。
@@ -596,6 +771,10 @@ pub enum Item {
         /// 返回标注来源与 body 的封闭组合。
         form: FunctionForm,
     },
+    /// 顶层 class-family 声明。
+    Classifier(Box<ClassifierDeclaration>),
+    /// `companion object` 关联命名空间。
+    Companion(Box<CompanionObject>),
 }
 
 /// 具体表达式 payload；子节点只通过 typed ID 连接。

@@ -202,6 +202,21 @@ fn when_forms_conditions_and_separators_are_source_ordered() {
         Expression::When { subject: None, entries, .. } if entries.len() == 2
     ));
 
+    let (_, type_test_after_binary_body) =
+        expression("when (shape) { is Circle -> radius * radius\nis Point -> 0.0 }");
+    assert!(
+        type_test_after_binary_body.diagnostics().is_empty(),
+        "{:?}",
+        type_test_after_binary_body.diagnostics()
+    );
+    assert!(matches!(
+        expression_payload(
+            &type_test_after_binary_body,
+            type_test_after_binary_body.root()
+        ),
+        Expression::When { entries, .. } if entries.len() == 2
+    ));
+
     let (_, same_line) = expression("when { ready -> run() other -> stop() }");
     assert!(codes(same_line.diagnostics()).contains(&"L0065".to_owned()));
 

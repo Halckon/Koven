@@ -76,6 +76,18 @@ pub mod codes {
     pub(crate) const EXPECTED_SUPER_INTERFACE: &str = "L0063";
     pub(crate) const EXPECTED_SUPER_MEMBER_SEPARATOR: &str = "L0064";
     pub(crate) const EXPECTED_WHEN_ENTRY_SEPARATOR: &str = "L0065";
+    pub(crate) const EXPECTED_CLASS_KEYWORD: &str = "L0066";
+    pub(crate) const EXPECTED_CLASSIFIER_NAME: &str = "L0067";
+    pub(crate) const EXPECTED_CONSTRUCTOR_FIELD: &str = "L0068";
+    pub(crate) const EXPECTED_CONSTRUCTOR_SEPARATOR: &str = "L0069";
+    pub(crate) const EXPECTED_SUPERTYPE: &str = "L0070";
+    pub(crate) const EXPECTED_MEMBER: &str = "L0071";
+    pub(crate) const EXPECTED_MEMBER_SEPARATOR: &str = "L0072";
+    pub(crate) const EXPECTED_ENUM_VARIANT: &str = "L0073";
+    pub(crate) const EXPECTED_ENUM_VARIANT_SEPARATOR: &str = "L0074";
+    pub(crate) const EXPECTED_ENUM_MEMBER_DELIMITER: &str = "L0075";
+    pub(crate) const INVALID_DECLARATION_MODIFIER: &str = "L0076";
+    pub(crate) const UNSUPPORTED_CLASS_FAMILY_FORM: &str = "L0077";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -144,6 +156,18 @@ pub mod codes {
         EXPECTED_SUPER_INTERFACE,
         EXPECTED_SUPER_MEMBER_SEPARATOR,
         EXPECTED_WHEN_ENTRY_SEPARATOR,
+        EXPECTED_CLASS_KEYWORD,
+        EXPECTED_CLASSIFIER_NAME,
+        EXPECTED_CONSTRUCTOR_FIELD,
+        EXPECTED_CONSTRUCTOR_SEPARATOR,
+        EXPECTED_SUPERTYPE,
+        EXPECTED_MEMBER,
+        EXPECTED_MEMBER_SEPARATOR,
+        EXPECTED_ENUM_VARIANT,
+        EXPECTED_ENUM_VARIANT_SEPARATOR,
+        EXPECTED_ENUM_MEMBER_DELIMITER,
+        INVALID_DECLARATION_MODIFIER,
+        UNSUPPORTED_CLASS_FAMILY_FORM,
     ];
 
     /// 由集中定义创建生产错误码目录。

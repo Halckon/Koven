@@ -420,8 +420,8 @@ SPEC-0009 的最小验收必须包括：
 
 后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
-终点。control-flow 由本文件 §12 补齐；class-family 由 v0.20 的本文件 §13 定义并等待
-SPEC-0017 实施。
+终点。control-flow 由本文件 §12 补齐；class-family 由 v0.20 的本文件 §13 定义，并已由
+SPEC-0017 实施；接口委托仍等待 SPEC-0064。
 
 ## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
 

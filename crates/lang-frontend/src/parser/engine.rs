@@ -11,12 +11,14 @@ use std::cell::Cell;
 use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
-    AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression, ExpressionAst,
-    ForBinding, FunctionBody, FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective,
-    Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective,
-    ParameterModeMarker, ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile,
-    ParserInternalError, PrefixOperator, QualifiedNameSegment, Statement, StringPart,
-    TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind, WhenCondition,
+    AssignmentOperator, BinaryOperator, CallArgument, CastOperator, ClassField, ClassifierBody,
+    ClassifierDeclaration, ClassifierKind, CompanionObject, DeclarationModifiers, EnumVariant,
+    EnumVariantParameter, Expression, ExpressionAst, ForBinding, FunctionBody, FunctionForm,
+    FunctionTypeParameter, ImportAlias, ImportDirective, Item, LiteralKind, MAX_RECURSION_DEPTH,
+    NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker, ParsedBlock,
+    ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError, PrefixOperator,
+    PrimaryConstructor, QualifiedNameSegment, Statement, StringPart, SupertypeEntry, TypeParameter,
+    TypePathSegment, TypeRef, ValueParameter, VariableKind, VisibilityModifier, WhenCondition,
     WhenEntry,
 };
 
@@ -1286,6 +1288,25 @@ impl Parser<'_> {
     }
 
     fn parse_declaration_item(&mut self) -> Result<ItemId, ParserInternalError> {
+        let modifiers = self.parse_declaration_modifiers(false)?;
+        let declaration = self.parse_unmodified_declaration_item()?;
+        self.wrap_modified_item(modifiers, declaration)
+    }
+
+    fn parse_unmodified_declaration_item(&mut self) -> Result<ItemId, ParserInternalError> {
+        if self.current_identifier_is("nocopy")?
+            && self
+                .peek(1)
+                .is_some_and(|next| classifier_declaration_start_kind(next.kind()))
+        {
+            let primary = self.bump()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            return self.parse_classifier_declaration();
+        }
         Ok(
             if self.local_destructuring_start(Keyword::Val)
                 || self.local_destructuring_start(Keyword::Var)
@@ -1302,6 +1323,8 @@ impl Parser<'_> {
                 self.parse_constant_declaration()?
             } else if self.current_is_keyword(Keyword::Fun) {
                 self.parse_function_declaration()?
+            } else if classifier_declaration_start_kind(self.current()?.kind()) {
+                self.parse_classifier_declaration()?
             } else {
                 let current = self.current()?;
                 let span = if self.file_mode {
@@ -1317,6 +1340,72 @@ impl Parser<'_> {
                     self.emit(codes::EXPECTED_DECLARATION, "expected declaration", span)?;
                 }
                 self.add_item(span, Item::Error)?
+            },
+        )
+    }
+
+    fn parse_declaration_modifiers(
+        &mut self,
+        allow_override: bool,
+    ) -> Result<DeclarationModifiers, ParserInternalError> {
+        let mut modifiers = DeclarationModifiers::default();
+        let mut saw_override = false;
+        loop {
+            let visibility = if self.current_is_keyword(Keyword::Public) {
+                Some(VisibilityModifier::Public(self.current()?.span()))
+            } else if self.current_is_keyword(Keyword::Internal) {
+                Some(VisibilityModifier::Internal(self.current()?.span()))
+            } else if self.current_is_keyword(Keyword::Private) {
+                Some(VisibilityModifier::Private(self.current()?.span()))
+            } else {
+                None
+            };
+            if let Some(visibility) = visibility {
+                let span = self.bump()?.span();
+                if modifiers.visibility.is_some() || saw_override {
+                    self.emit(
+                        codes::INVALID_DECLARATION_MODIFIER,
+                        "invalid declaration modifier",
+                        span,
+                    )?;
+                } else {
+                    modifiers.visibility = Some(visibility);
+                }
+                continue;
+            }
+            if self.current_is_keyword(Keyword::Override) {
+                let span = self.bump()?.span();
+                if !allow_override || saw_override {
+                    self.emit(
+                        codes::INVALID_DECLARATION_MODIFIER,
+                        "invalid declaration modifier",
+                        span,
+                    )?;
+                } else {
+                    modifiers.override_span = Some(span);
+                }
+                saw_override = true;
+                continue;
+            }
+            break;
+        }
+        Ok(modifiers)
+    }
+
+    fn wrap_modified_item(
+        &mut self,
+        modifiers: DeclarationModifiers,
+        declaration: ItemId,
+    ) -> Result<ItemId, ParserInternalError> {
+        let Some(start) = declaration_modifier_start(modifiers) else {
+            return Ok(declaration);
+        };
+        let child_span = self.ast.items().get(declaration)?.span();
+        self.add_item(
+            self.span(start, child_span.end().max(start))?,
+            Item::Modified {
+                modifiers,
+                declaration,
             },
         )
     }
@@ -1345,6 +1434,890 @@ impl Parser<'_> {
                 initializer,
             },
         )
+    }
+
+    fn parse_classifier_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
+        let kind = if self.current_is_keyword(Keyword::Value) {
+            let value_span = self.bump()?.span();
+            let class_span = if self.current_is_keyword(Keyword::Class) {
+                self.bump()?.span()
+            } else {
+                let primary = self.current()?.span();
+                self.emit(
+                    codes::EXPECTED_CLASS_KEYWORD,
+                    "expected 'class' keyword",
+                    primary,
+                )?;
+                self.empty_at(primary.start())?
+            };
+            ClassifierKind::ValueClass {
+                value_span,
+                class_span,
+            }
+        } else if self.current_is_keyword(Keyword::Class) {
+            ClassifierKind::Class {
+                class_span: self.bump()?.span(),
+            }
+        } else if self.current_is_keyword(Keyword::Interface) {
+            ClassifierKind::Interface {
+                interface_span: self.bump()?.span(),
+            }
+        } else if self.current_is_keyword(Keyword::Enum) {
+            let enum_span = self.bump()?.span();
+            let class_span = if self.current_is_keyword(Keyword::Class) {
+                self.bump()?.span()
+            } else {
+                let primary = self.current()?.span();
+                self.emit(
+                    codes::EXPECTED_CLASS_KEYWORD,
+                    "expected 'class' keyword",
+                    primary,
+                )?;
+                self.empty_at(primary.start())?
+            };
+            ClassifierKind::EnumClass {
+                enum_span,
+                class_span,
+            }
+        } else {
+            ClassifierKind::Object {
+                object_span: self.bump()?.span(),
+            }
+        };
+        let start = classifier_keyword_start(kind);
+        let name = self.parse_classifier_name()?;
+        let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
+        if let (ClassifierKind::Object { .. }, Some(list_span)) = (kind, type_parameter_list_span) {
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                list_span,
+            )?;
+        }
+
+        let supports_constructor = matches!(
+            kind,
+            ClassifierKind::ValueClass { .. } | ClassifierKind::Class { .. }
+        );
+        let primary_constructor = if self.current_is_symbol(Symbol::LeftParen) {
+            let constructor =
+                self.parse_primary_constructor(matches!(kind, ClassifierKind::ValueClass { .. }))?;
+            if !supports_constructor {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    constructor.left_paren_span,
+                )?;
+            }
+            supports_constructor.then_some(constructor)
+        } else {
+            if matches!(kind, ClassifierKind::ValueClass { .. }) {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    self.empty_at(self.current()?.span().start())?,
+                )?;
+            }
+            None
+        };
+
+        let (supertype_colon_span, supertypes) = self.parse_supertype_list()?;
+        let body = if self.current_is_symbol(Symbol::LeftBrace) {
+            Some(self.parse_classifier_body(kind)?)
+        } else {
+            if matches!(kind, ClassifierKind::EnumClass { .. }) {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    self.empty_at(self.current()?.span().start())?,
+                )?;
+            }
+            None
+        };
+        let end = body
+            .as_ref()
+            .and_then(|body| body.right_brace_span)
+            .map(Span::end)
+            .or_else(|| {
+                supertypes
+                    .last()
+                    .map(|entry| entry.span.end())
+                    .or_else(|| {
+                        primary_constructor.as_ref().map(|constructor| {
+                            constructor
+                                .right_paren_span
+                                .map(Span::end)
+                                .unwrap_or_else(|| {
+                                    constructor
+                                        .fields
+                                        .last()
+                                        .map(|field| field.span.end())
+                                        .unwrap_or(constructor.left_paren_span.end())
+                                })
+                        })
+                    })
+                    .or_else(|| type_parameter_list_span.map(Span::end))
+            })
+            .unwrap_or(marker_span(name).end().max(start));
+        self.add_item(
+            self.span(start, end.max(start))?,
+            Item::Classifier(Box::new(ClassifierDeclaration {
+                kind,
+                name,
+                type_parameters,
+                type_parameter_list_span,
+                primary_constructor,
+                supertype_colon_span,
+                supertypes,
+                body,
+            })),
+        )
+    }
+
+    fn parse_classifier_name(&mut self) -> Result<NameMarker, ParserInternalError> {
+        if self.current_is_identifier() {
+            return Ok(NameMarker::Present(self.bump()?.span()));
+        }
+        let current = self.current()?;
+        let is_boundary = matches!(current.kind(), LexemeKind::Eof)
+            || matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(
+                    Symbol::Less | Symbol::LeftParen | Symbol::Colon | Symbol::LeftBrace
+                ))
+            )
+            || self.is_file_declaration_boundary(current);
+        let primary = if is_boundary {
+            self.empty_at(current.span().start())?
+        } else {
+            current.span()
+        };
+        if !self.is_poison_kind(current.kind()) {
+            self.emit(
+                codes::EXPECTED_CLASSIFIER_NAME,
+                "expected classifier name",
+                primary,
+            )?;
+        }
+        if is_boundary {
+            Ok(NameMarker::Missing(primary))
+        } else {
+            self.bump()?;
+            Ok(NameMarker::Error(primary))
+        }
+    }
+
+    fn parse_primary_constructor(
+        &mut self,
+        require_nonempty: bool,
+    ) -> Result<PrimaryConstructor, ParserInternalError> {
+        let left_paren_span = self.bump()?.span();
+        let mut fields = Vec::new();
+        if self.current_is_symbol(Symbol::RightParen) && require_nonempty {
+            self.emit(
+                codes::EXPECTED_CONSTRUCTOR_FIELD,
+                "expected constructor field",
+                self.current()?.span(),
+            )?;
+        }
+        while !self.current_is_symbol(Symbol::RightParen)
+            && !matches!(self.current()?.kind(), LexemeKind::Eof)
+        {
+            if self.current_is_symbol(Symbol::Comma) {
+                let comma = self.bump()?.span();
+                self.emit(
+                    codes::EXPECTED_CONSTRUCTOR_FIELD,
+                    "expected constructor field",
+                    comma,
+                )?;
+                continue;
+            }
+            if let Some(field) = self.parse_class_field()? {
+                fields.push(field);
+            }
+            if self.current_is_symbol(Symbol::Comma) {
+                let comma = self.bump()?.span();
+                if self.current_is_symbol(Symbol::RightParen) {
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        comma,
+                    )?;
+                }
+                continue;
+            }
+            if self.current_is_symbol(Symbol::RightParen) {
+                break;
+            }
+            self.emit(
+                codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
+                "expected constructor separator",
+                self.current()?.span(),
+            )?;
+            if class_field_start_kind(self.current()?.kind()) {
+                continue;
+            }
+            self.recover_declaration_region(
+                DeclarationStops::EMPTY
+                    .with(DeclarationStops::COMMA)
+                    .with(DeclarationStops::RIGHT_PAREN),
+            )?;
+        }
+        let right_paren_span = if self.current_is_symbol(Symbol::RightParen) {
+            Some(self.bump()?.span())
+        } else {
+            self.emit_closing(
+                self.empty_at(self.current()?.span().start())?,
+                left_paren_span,
+            )?;
+            None
+        };
+        Ok(PrimaryConstructor {
+            left_paren_span,
+            fields,
+            right_paren_span,
+        })
+    }
+
+    fn parse_class_field(&mut self) -> Result<Option<ClassField>, ParserInternalError> {
+        let modifiers = self.parse_declaration_modifiers(false)?;
+        let visibility = modifiers.visibility;
+        let current_start = self.current()?.span().start();
+        let start = declaration_modifier_start(modifiers).unwrap_or(current_start);
+        if matches!(
+            self.current()?.kind(),
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Borrow | Keyword::Inout | Keyword::Own | Keyword::Vararg
+            ))
+        ) {
+            let primary = self.bump()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+        }
+        let (kind, keyword_span) = if self.current_is_keyword(Keyword::Val) {
+            (VariableKind::Val, self.bump()?.span())
+        } else if self.current_is_keyword(Keyword::Var) {
+            (VariableKind::Var, self.bump()?.span())
+        } else {
+            let primary = self.current()?.span();
+            if !self.is_poison() {
+                self.emit(
+                    codes::EXPECTED_CONSTRUCTOR_FIELD,
+                    "expected constructor field",
+                    primary,
+                )?;
+            }
+            self.recover_declaration_region(
+                DeclarationStops::EMPTY
+                    .with(DeclarationStops::COMMA)
+                    .with(DeclarationStops::RIGHT_PAREN),
+            )?;
+            return Ok(None);
+        };
+        let name = self.parse_name_marker(
+            codes::EXPECTED_PARAMETER_NAME,
+            "expected parameter name",
+            NameContext::ValueParameter,
+        )?;
+        let colon_span = if self.current_is_symbol(Symbol::Colon) {
+            self.bump()?.span()
+        } else {
+            let primary = self.empty_at(self.current()?.span().start())?;
+            self.emit(
+                codes::EXPECTED_PARAMETER_COLON,
+                "expected parameter colon",
+                primary,
+            )?;
+            primary
+        };
+        let type_ref = self.parse_type_ref(
+            TypeStops::empty()
+                .with(TypeStops::COMMA)
+                .with(TypeStops::RIGHT_PAREN)
+                .with(TypeStops::EQUAL),
+        )?;
+        if self.current_is_symbol(Symbol::Equal) {
+            let primary = self.bump()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            self.recover_declaration_region(
+                DeclarationStops::EMPTY
+                    .with(DeclarationStops::COMMA)
+                    .with(DeclarationStops::RIGHT_PAREN),
+            )?;
+        }
+        let end = self.type_span(type_ref)?.end().max(keyword_span.end());
+        Ok(Some(ClassField {
+            span: self.span(start, end.max(start))?,
+            visibility,
+            kind,
+            keyword_span,
+            name,
+            colon_span,
+            type_ref,
+        }))
+    }
+
+    fn parse_supertype_list(
+        &mut self,
+    ) -> Result<(Option<Span>, Vec<SupertypeEntry>), ParserInternalError> {
+        if !self.current_is_symbol(Symbol::Colon) {
+            return Ok((None, Vec::new()));
+        }
+        let colon_span = self.bump()?.span();
+        let mut entries = Vec::new();
+        loop {
+            let current = self.current()?;
+            if self.can_start_type_ref(current) {
+                let type_ref = self.parse_type_ref(
+                    TypeStops::empty()
+                        .with(TypeStops::COMMA)
+                        .with(TypeStops::LEFT_BRACE)
+                        .with(TypeStops::FILE),
+                )?;
+                let type_span = self.type_span(type_ref)?;
+                entries.push(SupertypeEntry {
+                    span: type_span,
+                    type_ref,
+                });
+                if self.current_identifier_is("by")? {
+                    let primary = self.bump()?.span();
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        primary,
+                    )?;
+                    if self.current_is_identifier() {
+                        self.bump()?;
+                    }
+                }
+                if self.current_is_symbol(Symbol::LeftParen) {
+                    let primary = self.current()?.span();
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        primary,
+                    )?;
+                    self.recover_declaration_region(
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::COMMA)
+                            .with(DeclarationStops::LEFT_BRACE)
+                            .union(self.root_declaration_stops()),
+                    )?;
+                }
+            } else {
+                let primary = if self.current_is_symbol(Symbol::LeftBrace)
+                    || matches!(current.kind(), LexemeKind::Eof)
+                    || self.is_file_declaration_boundary(current)
+                {
+                    self.empty_at(current.span().start())?
+                } else {
+                    current.span()
+                };
+                if !self.is_poison_kind(current.kind()) {
+                    self.emit(codes::EXPECTED_SUPERTYPE, "expected supertype", primary)?;
+                }
+                if !primary.is_empty() {
+                    self.recover_declaration_region(
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::COMMA)
+                            .with(DeclarationStops::LEFT_BRACE)
+                            .union(self.root_declaration_stops()),
+                    )?;
+                }
+            }
+            if self.current_is_symbol(Symbol::Comma) {
+                let comma = self.bump()?.span();
+                if self.current_is_symbol(Symbol::LeftBrace)
+                    || matches!(self.current()?.kind(), LexemeKind::Eof)
+                {
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        comma,
+                    )?;
+                    break;
+                }
+                continue;
+            }
+            break;
+        }
+        Ok((Some(colon_span), entries))
+    }
+
+    fn parse_classifier_body(
+        &mut self,
+        kind: ClassifierKind,
+    ) -> Result<ClassifierBody, ParserInternalError> {
+        if matches!(kind, ClassifierKind::EnumClass { .. }) {
+            self.parse_enum_body()
+        } else {
+            let context = match kind {
+                ClassifierKind::ValueClass { .. } => ClassMemberContext::ValueClass,
+                ClassifierKind::Class { .. } => ClassMemberContext::Class,
+                ClassifierKind::Interface { .. } => ClassMemberContext::Interface,
+                ClassifierKind::Object { .. } => ClassMemberContext::Object,
+                ClassifierKind::EnumClass { .. } => ClassMemberContext::Enum,
+            };
+            self.parse_ordinary_classifier_body(context)
+        }
+    }
+
+    fn parse_ordinary_classifier_body(
+        &mut self,
+        context: ClassMemberContext,
+    ) -> Result<ClassifierBody, ParserInternalError> {
+        let left_brace_span = self.bump()?.span();
+        let members = self.parse_classifier_members(context)?;
+        let right_brace_span = self.finish_classifier_body(left_brace_span)?;
+        Ok(ClassifierBody {
+            left_brace_span,
+            variants: Vec::new(),
+            enum_member_delimiter_span: None,
+            members,
+            right_brace_span,
+        })
+    }
+
+    fn parse_classifier_members(
+        &mut self,
+        context: ClassMemberContext,
+    ) -> Result<Vec<ItemId>, ParserInternalError> {
+        let mut members = Vec::new();
+        while !self.current_is_symbol(Symbol::RightBrace)
+            && !matches!(self.current()?.kind(), LexemeKind::Eof)
+        {
+            if self.current_is_symbol(Symbol::Semicolon) {
+                let primary = self.bump()?.span();
+                self.emit(codes::EXPECTED_MEMBER, "expected member", primary)?;
+                continue;
+            }
+            let before = self.index;
+            let member = self.parse_classifier_member(context)?;
+            if self.index <= before {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            let member_end = self.ast.items().get(member)?.span().end();
+            members.push(member);
+            if self.current_is_symbol(Symbol::RightBrace)
+                || matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                break;
+            }
+            if self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+                continue;
+            }
+            if self.gap_has_line_break(member_end, self.current()?.span().start())? {
+                continue;
+            }
+            self.emit(
+                codes::EXPECTED_MEMBER_SEPARATOR,
+                "expected member separator",
+                self.current()?.span(),
+            )?;
+            if class_member_start_kind(self.current()?.kind()) {
+                continue;
+            }
+            self.recover_declaration_region(
+                DeclarationStops::EMPTY
+                    .with(DeclarationStops::RIGHT_BRACE)
+                    .with(DeclarationStops::SEMICOLON)
+                    .with(DeclarationStops::CLASS_MEMBER),
+            )?;
+            if self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
+        }
+        Ok(members)
+    }
+
+    fn parse_classifier_member(
+        &mut self,
+        context: ClassMemberContext,
+    ) -> Result<ItemId, ParserInternalError> {
+        let modifiers = self.parse_declaration_modifiers(context.allows_override())?;
+        let primary = self.current()?.span();
+        if matches!(context, ClassMemberContext::Interface)
+            && self.current_is_keyword(Keyword::Fun)
+            && let Some(
+                visibility @ (VisibilityModifier::Internal(_) | VisibilityModifier::Private(_)),
+            ) = modifiers.visibility
+        {
+            self.emit(
+                codes::INVALID_DECLARATION_MODIFIER,
+                "invalid declaration modifier",
+                visibility_span(visibility),
+            )?;
+        }
+        let declaration = if self.current_is_keyword(Keyword::Companion) {
+            if !context.allows_companion() {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    primary,
+                )?;
+            }
+            self.parse_companion_object()?
+        } else if self.current_is_keyword(Keyword::Fun) {
+            self.parse_function_declaration()?
+        } else if self.current_is_keyword(Keyword::Const) {
+            if !context.allows_constant() {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    primary,
+                )?;
+            }
+            self.parse_constant_declaration()?
+        } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            let kind = if self.current_is_keyword(Keyword::Var) {
+                VariableKind::Var
+            } else {
+                VariableKind::Val
+            };
+            let keyword = self.bump()?.span();
+            self.parse_variable_declaration(keyword, kind)?
+        } else if classifier_declaration_start_kind(self.current()?.kind()) {
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            self.parse_classifier_declaration()?
+        } else {
+            let boundary = self.current_is_symbol(Symbol::RightBrace)
+                || matches!(self.current()?.kind(), LexemeKind::Eof);
+            let primary = if boundary {
+                self.empty_at(primary.start())?
+            } else {
+                primary
+            };
+            let start = primary.start();
+            if !self.is_poison() {
+                if self.current_identifier_is("constructor")?
+                    || self.current_identifier_is("init")?
+                    || self.current_identifier_is("by")?
+                {
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        primary,
+                    )?;
+                } else {
+                    self.emit(codes::EXPECTED_MEMBER, "expected member", primary)?;
+                }
+            }
+            let end = self.recover_declaration_region(
+                DeclarationStops::EMPTY
+                    .with(DeclarationStops::RIGHT_BRACE)
+                    .with(DeclarationStops::SEMICOLON)
+                    .with(DeclarationStops::CLASS_MEMBER),
+            )?;
+            self.add_item(self.span(start, end.max(primary.end()))?, Item::Error)?
+        };
+        self.wrap_modified_item(modifiers, declaration)
+    }
+
+    fn parse_companion_object(&mut self) -> Result<ItemId, ParserInternalError> {
+        let companion_span = self.bump()?.span();
+        let object_span = if self.current_is_keyword(Keyword::Object) {
+            self.bump()?.span()
+        } else {
+            let primary = self.current()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            self.empty_at(primary.start())?
+        };
+        let body = if self.current_is_symbol(Symbol::LeftBrace) {
+            self.parse_ordinary_classifier_body(ClassMemberContext::Companion)?
+        } else {
+            let primary = self.current()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+            ClassifierBody {
+                left_brace_span: self.empty_at(primary.start())?,
+                variants: Vec::new(),
+                enum_member_delimiter_span: None,
+                members: Vec::new(),
+                right_brace_span: None,
+            }
+        };
+        let end = body
+            .right_brace_span
+            .map(Span::end)
+            .unwrap_or_else(|| object_span.end().max(companion_span.end()));
+        self.add_item(
+            self.span(companion_span.start(), end)?,
+            Item::Companion(Box::new(CompanionObject {
+                companion_span,
+                object_span,
+                body,
+            })),
+        )
+    }
+
+    fn parse_enum_body(&mut self) -> Result<ClassifierBody, ParserInternalError> {
+        let left_brace_span = self.bump()?.span();
+        let mut variants = Vec::new();
+        let mut delimiter = None;
+        if self.current_is_symbol(Symbol::RightBrace) {
+            self.emit(
+                codes::EXPECTED_ENUM_VARIANT,
+                "expected enum variant",
+                self.current()?.span(),
+            )?;
+        }
+        while !self.current_is_symbol(Symbol::RightBrace)
+            && !self.current_is_symbol(Symbol::Semicolon)
+            && !matches!(self.current()?.kind(), LexemeKind::Eof)
+        {
+            if !self.current_is_identifier() {
+                if class_member_start_kind(self.current()?.kind()) {
+                    self.emit(
+                        codes::EXPECTED_ENUM_MEMBER_DELIMITER,
+                        "expected enum member delimiter",
+                        self.current()?.span(),
+                    )?;
+                    break;
+                }
+                let primary = self.current()?.span();
+                if !self.is_poison() {
+                    self.emit(
+                        codes::EXPECTED_ENUM_VARIANT,
+                        "expected enum variant",
+                        primary,
+                    )?;
+                }
+                self.recover_declaration_region(
+                    DeclarationStops::EMPTY
+                        .with(DeclarationStops::COMMA)
+                        .with(DeclarationStops::RIGHT_BRACE)
+                        .with(DeclarationStops::SEMICOLON)
+                        .with(DeclarationStops::ENUM_VARIANT),
+                )?;
+            } else {
+                variants.push(self.parse_enum_variant()?);
+            }
+            if self.current_is_symbol(Symbol::Comma) {
+                let comma = self.bump()?.span();
+                if self.current_is_symbol(Symbol::RightBrace)
+                    || self.current_is_symbol(Symbol::Semicolon)
+                {
+                    self.emit(
+                        codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                        "unsupported class-family form",
+                        comma,
+                    )?;
+                }
+                continue;
+            }
+            if self.current_is_symbol(Symbol::RightBrace)
+                || self.current_is_symbol(Symbol::Semicolon)
+                || matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                break;
+            }
+            if class_member_start_kind(self.current()?.kind()) {
+                self.emit(
+                    codes::EXPECTED_ENUM_MEMBER_DELIMITER,
+                    "expected enum member delimiter",
+                    self.current()?.span(),
+                )?;
+                break;
+            }
+            self.emit(
+                codes::EXPECTED_ENUM_VARIANT_SEPARATOR,
+                "expected enum variant separator",
+                self.current()?.span(),
+            )?;
+            if self.current_is_identifier() {
+                continue;
+            }
+        }
+        let members = if self.current_is_symbol(Symbol::Semicolon) {
+            let separator = self.bump()?.span();
+            delimiter = Some(separator);
+            let members = self.parse_classifier_members(ClassMemberContext::Enum)?;
+            if members.is_empty() {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    separator,
+                )?;
+            }
+            members
+        } else if class_member_start_kind(self.current()?.kind()) {
+            self.parse_classifier_members(ClassMemberContext::Enum)?
+        } else {
+            Vec::new()
+        };
+        let right_brace_span = self.finish_classifier_body(left_brace_span)?;
+        Ok(ClassifierBody {
+            left_brace_span,
+            variants,
+            enum_member_delimiter_span: delimiter,
+            members,
+            right_brace_span,
+        })
+    }
+
+    fn parse_enum_variant(&mut self) -> Result<EnumVariant, ParserInternalError> {
+        let name = NameMarker::Present(self.bump()?.span());
+        let start = marker_span(name).start();
+        let mut parameters = Vec::new();
+        let mut left_paren_span = None;
+        let mut right_paren_span = None;
+        if self.current_is_symbol(Symbol::LeftParen) {
+            let opener = self.bump()?.span();
+            left_paren_span = Some(opener);
+            if self.current_is_symbol(Symbol::RightParen) {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    self.current()?.span(),
+                )?;
+            }
+            while !self.current_is_symbol(Symbol::RightParen)
+                && !matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                if self.current_is_symbol(Symbol::Comma) {
+                    let primary = self.bump()?.span();
+                    self.emit(
+                        codes::EXPECTED_CONSTRUCTOR_FIELD,
+                        "expected constructor field",
+                        primary,
+                    )?;
+                    continue;
+                }
+                parameters.push(self.parse_enum_variant_parameter()?);
+                if self.current_is_symbol(Symbol::Comma) {
+                    let comma = self.bump()?.span();
+                    if self.current_is_symbol(Symbol::RightParen) {
+                        self.emit(
+                            codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                            "unsupported class-family form",
+                            comma,
+                        )?;
+                    }
+                    continue;
+                }
+                if !self.current_is_symbol(Symbol::RightParen) {
+                    self.emit(
+                        codes::EXPECTED_CONSTRUCTOR_SEPARATOR,
+                        "expected constructor separator",
+                        self.current()?.span(),
+                    )?;
+                    if self.current_is_identifier() {
+                        continue;
+                    }
+                    self.recover_declaration_region(
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::COMMA)
+                            .with(DeclarationStops::RIGHT_PAREN),
+                    )?;
+                }
+            }
+            if self.current_is_symbol(Symbol::RightParen) {
+                right_paren_span = Some(self.bump()?.span());
+            } else {
+                self.emit_closing(self.empty_at(self.current()?.span().start())?, opener)?;
+            }
+        }
+        let end = right_paren_span
+            .map(Span::end)
+            .or_else(|| parameters.last().map(|parameter| parameter.span.end()))
+            .unwrap_or(marker_span(name).end());
+        Ok(EnumVariant {
+            span: self.span(start, end)?,
+            name,
+            left_paren_span,
+            parameters,
+            right_paren_span,
+        })
+    }
+
+    fn parse_enum_variant_parameter(
+        &mut self,
+    ) -> Result<EnumVariantParameter, ParserInternalError> {
+        if matches!(
+            self.current()?.kind(),
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Val
+                    | Keyword::Var
+                    | Keyword::Borrow
+                    | Keyword::Inout
+                    | Keyword::Own
+                    | Keyword::Vararg
+            ))
+        ) {
+            let primary = self.bump()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "unsupported class-family form",
+                primary,
+            )?;
+        }
+        let name = self.parse_name_marker(
+            codes::EXPECTED_PARAMETER_NAME,
+            "expected parameter name",
+            NameContext::ValueParameter,
+        )?;
+        let colon_span = if self.current_is_symbol(Symbol::Colon) {
+            self.bump()?.span()
+        } else {
+            let primary = self.empty_at(self.current()?.span().start())?;
+            self.emit(
+                codes::EXPECTED_PARAMETER_COLON,
+                "expected parameter colon",
+                primary,
+            )?;
+            primary
+        };
+        let type_ref = self.parse_type_ref(
+            TypeStops::empty()
+                .with(TypeStops::COMMA)
+                .with(TypeStops::RIGHT_PAREN),
+        )?;
+        let end = self.type_span(type_ref)?.end().max(marker_span(name).end());
+        Ok(EnumVariantParameter {
+            span: self.span(marker_span(name).start(), end)?,
+            name,
+            colon_span,
+            type_ref,
+        })
+    }
+
+    fn finish_classifier_body(
+        &mut self,
+        opener: Span,
+    ) -> Result<Option<Span>, ParserInternalError> {
+        if self.current_is_symbol(Symbol::RightBrace) {
+            Ok(Some(self.bump()?.span()))
+        } else {
+            let current = self.current()?;
+            if !self.is_poison_kind(current.kind()) {
+                self.emit_closing(self.empty_at(current.span().start())?, opener)?;
+            }
+            Ok(None)
+        }
     }
 
     fn parse_local_variable_declaration(
@@ -1752,7 +2725,11 @@ impl Parser<'_> {
         if self.current_is_symbol(Symbol::Equal) {
             let equals = self.bump()?.span();
             let initializer = self.parse_expression_bp(0, stops)?;
-            let initializer = self.consume_expression_tail(initializer, stops)?;
+            let initializer = if self.lambda_initializer_line_boundary(initializer)? {
+                initializer
+            } else {
+                self.consume_expression_tail(initializer, stops)?
+            };
             return Ok((equals, initializer));
         }
 
@@ -2585,6 +3562,17 @@ impl Parser<'_> {
             if stops.contains(current) {
                 break;
             }
+            if stops.when_entry_body
+                && matches!(
+                    current.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Is | Keyword::In))
+                        | LexemeKind::Token(TokenKind::Symbol(Symbol::BangIs | Symbol::BangIn))
+                )
+                && self
+                    .gap_has_line_break(self.expression_span(left)?.end(), current.span().start())?
+            {
+                break;
+            }
 
             if let Some(combination) = self.unsupported_operator()? {
                 let left_span = self.expression_span(left)?;
@@ -2997,7 +3985,8 @@ impl Parser<'_> {
             self.emit(codes::EXPECTED_WHEN_ARROW, "expected when arrow", span)?;
             self.empty_at(self.previous_significant_end())?
         };
-        let body = self.parse_control_body(outer_stops.with(Stops::RIGHT_BRACE))?;
+        let body =
+            self.parse_control_body(outer_stops.with(Stops::RIGHT_BRACE).as_when_entry_body())?;
         let end = self.statement_span(body)?.end().max(arrow_span.end());
         Ok(WhenEntry {
             span: self.span(start, end)?,
@@ -4724,6 +5713,13 @@ impl Parser<'_> {
         )
     }
 
+    fn current_identifier_is(&self, expected: &str) -> Result<bool, ParserInternalError> {
+        if !self.current_is_identifier() {
+            return Ok(false);
+        }
+        Ok(self.sources.slice(self.current()?.span())? == expected)
+    }
+
     fn is_poison(&self) -> bool {
         matches!(
             self.peek(0).map(Lexeme::kind),
@@ -4796,6 +5792,22 @@ impl Parser<'_> {
         )
     }
 
+    fn lambda_initializer_line_boundary(
+        &self,
+        id: ExpressionId,
+    ) -> Result<bool, ParserInternalError> {
+        if !matches!(
+            self.ast.expressions().get(id)?.payload(),
+            Expression::Lambda { .. }
+        ) {
+            return Ok(false);
+        }
+        self.gap_has_line_break(
+            self.expression_span(id)?.end(),
+            self.current()?.span().start(),
+        )
+    }
+
     fn validate_statement_context(
         &mut self,
         id: StatementId,
@@ -4828,6 +5840,9 @@ impl Parser<'_> {
                     let item = self.ast.items().get(id)?.payload().clone();
                     match item {
                         Item::Error => {}
+                        Item::Modified { declaration, .. } => {
+                            work.push(ContextWork::Item(declaration));
+                        }
                         Item::Variable { initializer, .. } | Item::Constant { initializer, .. } => {
                             work.push(ContextWork::Expression {
                                 id: initializer,
@@ -4858,6 +5873,18 @@ impl Parser<'_> {
                                 }
                             },
                         },
+                        Item::Classifier(classifier) => {
+                            if let Some(body) = classifier.body {
+                                for member in body.members.into_iter().rev() {
+                                    work.push(ContextWork::Item(member));
+                                }
+                            }
+                        }
+                        Item::Companion(companion) => {
+                            for member in companion.body.members.into_iter().rev() {
+                                work.push(ContextWork::Item(member));
+                            }
+                        }
                     }
                 }
                 ContextWork::Statement {
@@ -5273,9 +6300,117 @@ fn simple_declaration_start_kind(kind: LexemeKind) -> bool {
     matches!(
         kind,
         LexemeKind::Token(TokenKind::Keyword(
-            Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Fun
+            Keyword::Val
+                | Keyword::Var
+                | Keyword::Const
+                | Keyword::Fun
+                | Keyword::Value
+                | Keyword::Class
+                | Keyword::Interface
+                | Keyword::Enum
+                | Keyword::Object
+                | Keyword::Public
+                | Keyword::Internal
+                | Keyword::Private
+                | Keyword::Override
         ))
     )
+}
+
+fn classifier_declaration_start_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(
+            Keyword::Value | Keyword::Class | Keyword::Interface | Keyword::Enum | Keyword::Object
+        ))
+    )
+}
+
+fn class_field_start_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(
+            Keyword::Val
+                | Keyword::Var
+                | Keyword::Public
+                | Keyword::Internal
+                | Keyword::Private
+                | Keyword::Override
+        ))
+    )
+}
+
+fn class_member_start_kind(kind: LexemeKind) -> bool {
+    classifier_declaration_start_kind(kind)
+        || matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Fun
+                    | Keyword::Const
+                    | Keyword::Val
+                    | Keyword::Var
+                    | Keyword::Companion
+                    | Keyword::Public
+                    | Keyword::Internal
+                    | Keyword::Private
+                    | Keyword::Override
+            ))
+        )
+}
+
+fn visibility_span(visibility: VisibilityModifier) -> Span {
+    match visibility {
+        VisibilityModifier::Public(span)
+        | VisibilityModifier::Internal(span)
+        | VisibilityModifier::Private(span) => span,
+    }
+}
+
+fn declaration_modifier_start(modifiers: DeclarationModifiers) -> Option<usize> {
+    modifiers
+        .visibility
+        .map(visibility_span)
+        .map(Span::start)
+        .into_iter()
+        .chain(modifiers.override_span.map(Span::start))
+        .min()
+}
+
+fn classifier_keyword_start(kind: ClassifierKind) -> usize {
+    match kind {
+        ClassifierKind::ValueClass { value_span, .. } => value_span.start(),
+        ClassifierKind::Class { class_span } => class_span.start(),
+        ClassifierKind::Interface { interface_span } => interface_span.start(),
+        ClassifierKind::EnumClass { enum_span, .. } => enum_span.start(),
+        ClassifierKind::Object { object_span } => object_span.start(),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ClassMemberContext {
+    ValueClass,
+    Class,
+    Interface,
+    Enum,
+    Object,
+    Companion,
+}
+
+impl ClassMemberContext {
+    const fn allows_override(self) -> bool {
+        matches!(
+            self,
+            Self::ValueClass | Self::Class | Self::Enum | Self::Object
+        )
+    }
+
+    const fn allows_companion(self) -> bool {
+        !matches!(self, Self::Object | Self::Companion)
+    }
+
+    const fn allows_constant(self) -> bool {
+        matches!(self, Self::Object | Self::Companion)
+    }
 }
 
 fn file_construct_start_kind(kind: LexemeKind) -> bool {
@@ -5290,16 +6425,19 @@ fn file_construct_start_kind(kind: LexemeKind) -> bool {
 struct Stops {
     delimiters: u16,
     block_elements: bool,
+    when_entry_body: bool,
 }
 
 impl Stops {
     const ROOT: Self = Self {
         delimiters: 0,
         block_elements: false,
+        when_entry_body: false,
     };
     const FILE: Self = Self {
         delimiters: Self::FILE_DECLARATION,
         block_elements: false,
+        when_entry_body: false,
     };
     const RIGHT_PAREN: u16 = 1 << 0;
     const RIGHT_BRACKET: u16 = 1 << 1;
@@ -5316,6 +6454,7 @@ impl Stops {
         Self {
             delimiters: (outer_stops.delimiters & Self::HARD_DELIMITERS) | Self::RIGHT_BRACE,
             block_elements: true,
+            when_entry_body: false,
         }
     }
 
@@ -5326,6 +6465,7 @@ impl Stops {
                 | Self::LAMBDA_COMMA
                 | Self::ARROW,
             block_elements: true,
+            when_entry_body: false,
         }
     }
 
@@ -5333,6 +6473,14 @@ impl Stops {
         Self {
             delimiters: self.delimiters | flag,
             block_elements: self.block_elements,
+            when_entry_body: self.when_entry_body,
+        }
+    }
+
+    const fn as_when_entry_body(self) -> Self {
+        Self {
+            when_entry_body: true,
+            ..self
         }
     }
 
@@ -5341,6 +6489,7 @@ impl Stops {
             delimiters: self.delimiters
                 & !(Self::LAMBDA_COMMA | Self::ARROW | Self::FILE_DECLARATION),
             block_elements: false,
+            when_entry_body: self.when_entry_body,
         }
     }
 
@@ -5348,6 +6497,7 @@ impl Stops {
         Self {
             delimiters: self.delimiters & !Self::FILE_DECLARATION,
             block_elements: self.block_elements,
+            when_entry_body: self.when_entry_body,
         }
     }
 
@@ -5646,6 +6796,9 @@ impl DeclarationStops {
     const RIGHT_BRACKET: u16 = 1 << 9;
     const INTERPOLATION_END: u16 = 1 << 10;
     const FILE: Self = Self(1 << 11);
+    const SEMICOLON: u16 = 1 << 12;
+    const CLASS_MEMBER: u16 = 1 << 13;
+    const ENUM_VARIANT: u16 = 1 << 14;
 
     const fn from_expression_hard(stops: Stops) -> Self {
         let mut bits = 0;
@@ -5710,6 +6863,10 @@ impl DeclarationStops {
                 Some(Symbol::LeftParen) if self.0 & Self::LEFT_PAREN != 0
             )
             || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::FILE.0 != 0)
+            || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::SEMICOLON != 0)
+            || (self.0 & Self::CLASS_MEMBER != 0 && class_member_start_kind(lexeme.kind()))
+            || (self.0 & Self::ENUM_VARIANT != 0
+                && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)))
             || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
     }
 }
@@ -5919,6 +7076,129 @@ mod tests {
         assert!(small_work <= small_raw * 3);
         assert!(large_work <= large_raw * 3);
         assert!(large_work <= small_work * 2 + 8);
+    }
+
+    fn class_family_metrics(members: usize) -> (usize, usize, usize) {
+        let text = format!("class C {{ {} }}", "fun f(): Unit; ".repeat(members));
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("class-family-linear.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let source = sources
+            .source_text(source_id)
+            .expect("test source must remain available");
+        validate_lexemes(&sources, &lexed, source.len()).expect("lexer output must be valid");
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            lambda_headers,
+            index: 0,
+            next_terminal_recovery_event: 0,
+            recursion_depth: 0,
+            file_mode: false,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        parser
+            .parse_declaration_root()
+            .expect("class family must parse");
+        assert!(parser.diagnostics.is_empty(), "{:?}", parser.diagnostics);
+        (
+            lexed.lexemes().len(),
+            parser.significant_raw_visits.get(),
+            parser.ast.items().len(),
+        )
+    }
+
+    #[test]
+    fn class_family_member_dispatch_stays_linear_when_doubled() {
+        let (small_raw, small_visits, small_items) = class_family_metrics(32);
+        let (large_raw, large_visits, large_items) = class_family_metrics(64);
+        assert_eq!(small_items, 33);
+        assert_eq!(large_items, 65);
+        assert!(small_visits <= small_raw * 24);
+        assert!(large_visits <= large_raw * 24);
+        assert!(large_visits <= small_visits * 2 + 64);
+    }
+
+    fn class_family_inline_sequence_metrics(variants: bool, elements: usize) -> (usize, usize) {
+        let entries = (0..elements)
+            .map(|index| {
+                if variants {
+                    format!("V{index}")
+                } else {
+                    format!("val f{index}: Int")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let text = if variants {
+            format!("enum class E {{ {entries} }}")
+        } else {
+            format!("class C({entries})")
+        };
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("class-family-inline-linear.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let source = sources
+            .source_text(source_id)
+            .expect("test source must remain available");
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            lambda_headers,
+            index: 0,
+            next_terminal_recovery_event: 0,
+            recursion_depth: 0,
+            file_mode: false,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        parser
+            .parse_declaration_root()
+            .expect("class family must parse");
+        assert!(parser.diagnostics.is_empty(), "{:?}", parser.diagnostics);
+        (lexed.lexemes().len(), parser.significant_raw_visits.get())
+    }
+
+    #[test]
+    fn class_family_field_and_variant_sequences_stay_linear_when_doubled() {
+        for variants in [false, true] {
+            let (small_raw, small_visits) = class_family_inline_sequence_metrics(variants, 32);
+            let (large_raw, large_visits) = class_family_inline_sequence_metrics(variants, 64);
+            assert!(small_visits <= small_raw * 24);
+            assert!(large_visits <= large_raw * 24);
+            assert!(large_visits <= small_visits * 2 + 64);
+        }
     }
 
     fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) {

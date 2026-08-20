@@ -274,8 +274,8 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移�
 
 ## 6. 用类型建模
 
-> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定；当前 Parser 尚待 SPEC-0017
-> 与后续接口委托 SPEC-0064 分阶段实现。
+> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定，基础 Parser 已由 SPEC-0017
+> 实现；窄化接口委托仍待后续 SPEC-0064 增量实现。
 
 ### 6.1 `value class`:内联值类型
 
@@ -688,7 +688,7 @@ Koven 编译器按下面的阶段推进,每个阶段完成后才会开始下一�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | Phase 0 | 项目骨架(Cargo workspace、AST、诊断框架) | 已完成 |
-| Phase 1 | 词法 + 语法分析 | 进行中(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流与 postfix `?` 已完成；class-family 与接口委托 Parser 待 SPEC-0017/0064) |
+| Phase 1 | 词法 + 语法分析 | 进行中(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流、postfix `?` 与 class-family 已完成；接口委托 Parser 待 SPEC-0064) |
 | Phase 2 | 类型检查(不含所有权/借用) | 未开始 |
 | Phase 3 | 所有权 / 借用检查 | 未开始 |
 | Phase 4 | LLVM 代码生成 | 未开始 |

@@ -1,0 +1,15 @@
+public class Service(private val logger: Logger): Logger {
+    override fun log(message: String): Unit {}
+
+    companion object {
+        const val VERSION: Int = 1
+        fun create(logger: Logger): Service = Service(logger)
+    }
+}
+
+enum class Outcome<T, E> {
+    Ok(item: T),
+    Err(error: E);
+
+    fun isOk(): Boolean = true
+}
