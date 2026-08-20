@@ -541,6 +541,7 @@ fn fixed_symbol(text: &str) -> Option<(Symbol, usize)> {
         ("}", Symbol::RightBrace),
         (",", Symbol::Comma),
         (":", Symbol::Colon),
+        (";", Symbol::Semicolon),
         ("@", Symbol::At),
         (".", Symbol::Dot),
         ("?", Symbol::Question),

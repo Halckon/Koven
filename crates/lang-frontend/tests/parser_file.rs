@@ -44,8 +44,8 @@ fn empty_and_trivia_only_files_have_no_roots_or_diagnostics() {
 }
 
 #[test]
-fn existing_declarations_compose_in_source_order_without_line_or_semicolon_separator() {
-    let text = "val a=1 var b=2 const val c=3 fun f(){}fun g():Int=4";
+fn newline_semicolon_and_optional_trailing_semicolon_separate_declarations() {
+    let text = "val a=1\nvar b=2; const val c=3\r\nfun f(){}\n; fun g():Int=4;";
     let (sources, parsed) = parsed(text);
     assert!(
         parsed.diagnostics().is_empty(),
@@ -53,18 +53,62 @@ fn existing_declarations_compose_in_source_order_without_line_or_semicolon_separ
         parsed.diagnostics()
     );
     assert_eq!(parsed.roots().len(), 5);
-    let starts: Vec<_> = parsed
+    let declarations: Vec<_> = parsed
         .roots()
         .iter()
-        .map(|id| parsed.ast().items().get(*id).unwrap().span().start())
+        .map(|id| {
+            sources
+                .slice(parsed.ast().items().get(*id).unwrap().span())
+                .unwrap()
+        })
         .collect();
-    assert_eq!(starts, vec![0, 8, 16, 30, 39]);
     assert_eq!(
-        sources
-            .slice(parsed.ast().items().get(parsed.roots()[4]).unwrap().span())
-            .unwrap(),
-        "fun g():Int=4"
+        declarations,
+        [
+            "val a=1",
+            "var b=2",
+            "const val c=3",
+            "fun f(){}",
+            "fun g():Int=4",
+        ]
     );
+}
+
+#[test]
+fn same_line_declarations_without_semicolon_report_the_next_starter_and_recover() {
+    let (_, parsed) = parsed("val answer = 42 fun next() {}");
+    assert_eq!(parsed.roots().len(), 2);
+    assert_eq!(codes(parsed.diagnostics()), ["L0047"]);
+    let primary = parsed.diagnostics()[0].primary_span();
+    assert_eq!((primary.start(), primary.end()), (16, 19));
+    assert!(matches!(root_items(&parsed)[0], Item::Variable { .. }));
+    assert!(matches!(root_items(&parsed)[1], Item::Function { .. }));
+}
+
+#[test]
+fn only_a_real_line_break_or_semicolon_in_comment_trivia_separates_declarations() {
+    let (_, same_line) = parsed("val a=1 /* comment */ fun f() {}");
+    assert_eq!(codes(same_line.diagnostics()), ["L0047"]);
+
+    for text in [
+        "val a=1 /* comment\ncontinues */ fun f() {}",
+        "val a=1 // comment\nfun f() {}",
+    ] {
+        let (_, separated) = parsed(text);
+        assert!(separated.diagnostics().is_empty(), "{text:?}");
+        assert_eq!(separated.roots().len(), 2);
+    }
+}
+
+#[test]
+fn leading_and_consecutive_semicolons_are_error_items_not_empty_declarations() {
+    let (_, parsed) = parsed("; val a=1;; fun f() {};");
+    assert_eq!(parsed.roots().len(), 4);
+    assert_eq!(codes(parsed.diagnostics()), ["L0017", "L0017"]);
+    assert!(matches!(root_items(&parsed)[0], Item::Error));
+    assert!(matches!(root_items(&parsed)[1], Item::Variable { .. }));
+    assert!(matches!(root_items(&parsed)[2], Item::Error));
+    assert!(matches!(root_items(&parsed)[3], Item::Function { .. }));
 }
 
 #[test]
@@ -87,7 +131,7 @@ fn lexer_poison_builds_error_item_without_duplicate_parser_classification() {
 
 #[test]
 fn unsupported_top_level_destructuring_recovers_at_next_declaration() {
-    let (_, parsed) = parsed("val (a,b)=pair fun next(){}");
+    let (_, parsed) = parsed("val (a,b)=pair\nfun next(){}");
     assert_eq!(parsed.roots().len(), 2);
     assert!(matches!(root_items(&parsed)[0], Item::Error));
     assert!(matches!(root_items(&parsed)[1], Item::Function { .. }));
@@ -104,8 +148,28 @@ fn declaration_starter_inside_nested_delimiter_is_not_a_file_boundary() {
 }
 
 #[test]
+fn nested_semicolon_and_declaration_starter_do_not_become_file_roots() {
+    for text in [
+        "val x=(1; fun hidden() {})\nval y=2",
+        "val x=(1 fun hidden() {})\nval y=2",
+        "val x=call(1; fun hidden() {})\nval y=2",
+        "val x=\"${1; fun hidden() {}}\"\nval y=2",
+    ] {
+        let (_, parsed) = parsed(text);
+        assert_eq!(
+            parsed.roots().len(),
+            2,
+            "{text:?}: {:?}",
+            parsed.diagnostics()
+        );
+        assert!(matches!(root_items(&parsed)[0], Item::Variable { .. }));
+        assert!(matches!(root_items(&parsed)[1], Item::Variable { .. }));
+    }
+}
+
+#[test]
 fn missing_initializer_preserves_following_function_at_an_empty_boundary() {
-    let (_, parsed) = parsed("val answer fun next(){}");
+    let (_, parsed) = parsed("val answer\nfun next(){}");
     assert_eq!(parsed.roots().len(), 2);
     assert_eq!(codes(parsed.diagnostics()), ["L0020"]);
     let span = parsed.diagnostics()[0].primary_span();
@@ -114,7 +178,7 @@ fn missing_initializer_preserves_following_function_at_an_empty_boundary() {
 
 #[test]
 fn declaration_keyword_inside_call_owner_does_not_start_a_root() {
-    let (_, parsed) = parsed("val x=call(fun hidden) val y=2");
+    let (_, parsed) = parsed("val x=call(fun hidden)\nval y=2");
     assert_eq!(
         parsed.roots().len(),
         2,
@@ -156,6 +220,16 @@ fn standalone_declaration_keeps_its_trailing_token_contract() {
 }
 
 #[test]
+fn standalone_declaration_does_not_accept_a_trailing_semicolon() {
+    let mut sources = SourceMap::new();
+    let source_id = add_source(&mut sources, "standalone-semicolon.ko", "val x=1;");
+    let lexed = lex(&sources, source_id).expect("lex");
+    assert!(lexed.diagnostics().is_empty());
+    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    assert_eq!(codes(parsed.diagnostics()), ["L0013"]);
+}
+
+#[test]
 fn parsed_file_preserves_map_local_source_identity() {
     let mut sources = SourceMap::new();
     let first = add_source(&mut sources, "first.ko", "val a=1");
@@ -168,10 +242,12 @@ fn parsed_file_preserves_map_local_source_identity() {
 
 #[test]
 fn long_file_keeps_every_root_without_recovery_drift() {
-    let text: String = (0..512)
-        .map(|index| format!("val n{index}={index} "))
-        .collect();
-    let (_, parsed) = parsed(&text);
-    assert!(parsed.diagnostics().is_empty());
-    assert_eq!(parsed.roots().len(), 512);
+    for separator in ["\n", ";"] {
+        let text: String = (0..512)
+            .map(|index| format!("val n{index}={index}{separator}"))
+            .collect();
+        let (_, parsed) = parsed(&text);
+        assert!(parsed.diagnostics().is_empty(), "separator={separator:?}");
+        assert_eq!(parsed.roots().len(), 512);
+    }
 }

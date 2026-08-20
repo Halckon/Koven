@@ -1,1 +1,2 @@
-val answer = 42 fun next() {}
+val answer = 42
+fun next() {}

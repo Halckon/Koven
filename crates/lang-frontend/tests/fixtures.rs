@@ -1618,10 +1618,12 @@ mod tests {
         let pass = pass[0].result.as_ref().expect("file pass fixture");
         assert_eq!(pass.item_count, 2);
         assert_eq!(pass.diagnostic_count, 0);
-        assert_eq!(fail.len(), 1);
-        let fail = fail[0].result.as_ref().expect("file fail fixture");
-        assert_eq!(fail.item_count, 2);
-        assert_eq!(fail.diagnostic_count, 1);
+        assert_eq!(fail.len(), 2);
+        for outcome in fail {
+            let evidence = outcome.result.as_ref().expect("file fail fixture");
+            assert_eq!(evidence.item_count, 2);
+            assert_eq!(evidence.diagnostic_count, 1);
+        }
     }
 
     #[test]

@@ -57,6 +57,7 @@ pub mod codes {
     pub(crate) const UNSUPPORTED_DESTRUCTURING_TRAILING_COMMA: &str = "L0044";
     pub(crate) const EXPECTED_DESTRUCTURING_INITIALIZER_SEPARATOR: &str = "L0045";
     pub(crate) const EXPECTED_DESTRUCTURING_INITIALIZER: &str = "L0046";
+    pub(crate) const EXPECTED_DECLARATION_SEPARATOR: &str = "L0047";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -106,6 +107,7 @@ pub mod codes {
         UNSUPPORTED_DESTRUCTURING_TRAILING_COMMA,
         EXPECTED_DESTRUCTURING_INITIALIZER_SEPARATOR,
         EXPECTED_DESTRUCTURING_INITIALIZER,
+        EXPECTED_DECLARATION_SEPARATOR,
     ];
 
     /// 由集中定义创建生产错误码目录。

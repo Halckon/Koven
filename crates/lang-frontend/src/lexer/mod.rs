@@ -243,6 +243,8 @@ pub enum Symbol {
     Comma,
     /// `:`。
     Colon,
+    /// `;`。
+    Semicolon,
     /// `@`。
     At,
     /// `.`。

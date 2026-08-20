@@ -462,8 +462,8 @@ declaration_separator = trivia_with_line_break
   owner / delimiter 栈空间；starter、terminal event 与错误区不得从每个声明重新扫描全文件。
 
 v0.16 的换行 / `;` 规则只改变 `source_file` 顶层声明序列，不把换行或分号提升为通用
-expression / block statement separator，也不改变独立声明入口。实施增量由 SPEC-0062 负责；
-在该 Spec 完成前，v0.15 的已实现行为应在 Architecture 中明确标作规范漂移。
+expression / block statement separator，也不改变独立声明入口。该增量已由 SPEC-0062 实现
+并验收。
 
 SPEC-0014 新增 `parse_file(&SourceMap, &LexedFile) -> ParsedFile`，其中 `ParsedFile` 暴露同源
 `SyntaxAst`、有序根 `ItemId` 切片及合并诊断。现有 `parse_expression`、`parse_declaration`、

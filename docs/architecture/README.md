@@ -13,20 +13,18 @@
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0046` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0047` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
-- `lang_frontend::lexer` 已提供覆盖 v0.15 词法契约的确定性扫描、完整 lexeme 流与
-  结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&` 固定符号；
+- `lang_frontend::lexer` 已提供覆盖 v0.16 词法契约的确定性扫描、完整 lexeme 流与
+  结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&` 及顶层声明分隔用 `;` 固定符号；
 - `lang_frontend::parser` 已提供独立表达式、声明与 block 入口、具体 Item / Statement /
   Expression / TypeRef 索引式 AST、Pratt 优先级、typed call、callable 参数 marker、结构化
   `CallArgument`、函数 block body、lambda、具名函数隐式 `Unit` 返回标注及局部恢复，并
   确定性合并 Lexer / Parser 诊断；
-- 现有 Lexer 尚未产生 v0.16 的 `;` token，文件 Parser 仍按 v0.15 允许同行声明无分隔符；
-  这是等待 SPEC-0062 修复的已知规范漂移，不代表 v0.16 语义尚未生效；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
-  parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit
-  pass / fail fixture harness；
+  parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
+  parser-file pass / fail fixture harness；
 - 尚无控制流、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -156,7 +154,10 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
   和 nested block 恢复保持单调前进，`L0028`–`L0030` 分别稳定表达缺 block、非法 element 与
   已延后的 element；lambda body 复用相同 hard-owner 规则，并以 `L0031` / `L0032` 区分缺少
   body element 与当前阶段不支持的 body 形态。完整文件入口在 owner baseline 将 `val` / `var` /
-  `const` / `fun` 识别为 soft boundary，未知区以 L0017 / Error Item 恢复且保留下一声明；
+  `const` / `fun` 与 `;` 识别为恢复边界；顶层声明之间接受实际 LF / CRLF 或一个 `;`，同行
+  缺 `;` 以 L0047 报错并保留后一声明。terminated block comment 内的换行计入分隔，space、
+  tab 与无换行注释不计；前导 / 连续 `;` 以 L0017 / Error Item 恢复，block 与独立声明入口
+  不获得分号分隔语义；
   后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   名称 / 类型 / 所有权检查以及 CLI / LSP 接线仍属后续 Phase。
 
@@ -168,7 +169,7 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
   `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现精确注册 `L0001`–`L0008` 八个
-  Lexer 错误码与 `L0009`–`L0046` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
+  Lexer 错误码与 `L0009`–`L0047` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
   类别，`L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
@@ -246,6 +247,8 @@ Expression；callable marker、函数类型参数与调用实参都是
   显式 `Unit` 与显式其他类型，两个 fail fixture 分别锁定省略标注的表达式体 `L0021` 和真实
   colon 后缺 TypeRef 的 `L0014`。runner 同时检查 `FunctionForm` 来源、Error / 真实 TypeRef、
   非零用例、sidecar 配对和空范围诊断策略；
+- file suite 调用生产完整文件入口；pass fixture 以换行组合两个根，fail fixture 同时覆盖
+  L0017 跨声明恢复和 L0047 同行缺分号，均由非零 / sidecar 配对守卫实际执行；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 

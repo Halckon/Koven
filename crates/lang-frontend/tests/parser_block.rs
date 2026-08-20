@@ -281,6 +281,21 @@ fn unknown_non_expression_token_uses_expected_element_and_recovers() {
 }
 
 #[test]
+fn semicolon_is_a_parser_error_inside_blocks_not_a_lexer_error_or_separator() {
+    let text = "{ ; val y = 2 }";
+    let (_, parsed) = parsed(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
+    assert_eq!(
+        parsed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0029"]
+    );
+}
+
+#[test]
 fn local_name_recovery_preserves_the_owner_closer_and_next_declaration() {
     for (text, expected_elements) in [("{ val + }", 1), ("{ val + val y = 2 }", 2)] {
         let (_, parsed) = parsed(text);

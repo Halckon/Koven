@@ -653,7 +653,18 @@ impl Parser<'_> {
     }
 
     fn is_file_declaration_boundary(&self, lexeme: Lexeme) -> bool {
-        self.file_mode && file_declaration_start_kind(lexeme.kind())
+        self.file_mode
+            && (file_declaration_start_kind(lexeme.kind())
+                || matches!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+                ))
+    }
+
+    fn file_separator_region_has_line_break(&self) -> Result<bool, ParserInternalError> {
+        let start = self.previous_significant_end();
+        let end = self.current()?.span().start();
+        Ok(self.sources.slice(self.span(start, end)?)?.contains('\n'))
     }
 
     fn parse_block_root(&mut self) -> Result<StatementId, ParserInternalError> {
@@ -836,12 +847,39 @@ impl Parser<'_> {
     fn parse_file_roots(&mut self) -> Result<Vec<ItemId>, ParserInternalError> {
         let mut roots = Vec::new();
         while !matches!(self.current()?.kind(), LexemeKind::Eof) {
+            if self.current_is_symbol(Symbol::Semicolon) {
+                let span = self.bump()?.span();
+                self.emit(codes::EXPECTED_DECLARATION, "expected declaration", span)?;
+                roots.push(self.add_item(span, Item::Error)?);
+                continue;
+            }
+
+            let started_as_declaration = file_declaration_start_kind(self.current()?.kind());
             let before = self.index;
             let root = self.parse_declaration_item()?;
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             roots.push(root);
+
+            if matches!(self.current()?.kind(), LexemeKind::Eof) {
+                break;
+            }
+            let separated_by_line_break = self.file_separator_region_has_line_break()?;
+            if self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+                continue;
+            }
+            if started_as_declaration
+                && self.is_file_declaration_boundary(self.current()?)
+                && !separated_by_line_break
+            {
+                self.emit(
+                    codes::EXPECTED_DECLARATION_SEPARATOR,
+                    "expected declaration separator",
+                    self.current()?.span(),
+                )?;
+            }
         }
         Ok(roots)
     }
@@ -2504,12 +2542,31 @@ impl Parser<'_> {
     fn parse_group(&mut self, outer_stops: Stops) -> Result<ExpressionId, ParserInternalError> {
         let outer_stops = outer_stops.without_file_declaration_stop();
         let opener = self.bump()?.span();
-        let inner = self.parse_expression_bp(
+        let mut inner = self.parse_expression_bp(
             0,
             outer_stops
                 .without_lambda_body_soft_stops()
                 .with(Stops::RIGHT_PAREN),
         )?;
+        let current = self.current()?;
+        if !self.current_is_symbol(Symbol::RightParen)
+            && (matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+            ) || (self.file_mode && file_declaration_start_kind(current.kind())))
+        {
+            self.emit(
+                codes::UNEXPECTED_TRAILING_TOKEN,
+                "unexpected trailing token",
+                current.span(),
+            )?;
+            let start = self.expression_span(inner)?.start();
+            let end = self.recover_declaration_region(
+                DeclarationStops::from_expression_hard(outer_stops)
+                    .with(DeclarationStops::RIGHT_PAREN),
+            )?;
+            inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
+        }
         let inner_span = self.expression_span(inner)?;
         let end = if self.current_is_symbol(Symbol::RightParen) {
             self.bump()?.span().end()
@@ -4133,6 +4190,9 @@ impl Stops {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) => {
                 self.delimiters & (Self::COMMA | Self::LAMBDA_COMMA) != 0
             }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) => {
+                self.delimiters & Self::FILE_DECLARATION != 0
+            }
             LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) => {
                 self.delimiters & Self::ARROW != 0
             }
@@ -4294,6 +4354,9 @@ impl TypeStops {
             kind if self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(kind) => {
                 true
             }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) if self.0 & Self::FILE != 0 => {
+                true
+            }
             kind if self.0 & Self::FILE != 0 && file_declaration_start_kind(kind) => true,
             _ => false,
         }
@@ -4445,6 +4508,7 @@ impl DeclarationStops {
                 symbol,
                 Some(Symbol::LeftParen) if self.0 & Self::LEFT_PAREN != 0
             )
+            || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::FILE.0 != 0)
             || (self.0 & Self::FILE.0 != 0 && file_declaration_start_kind(lexeme.kind()))
     }
 }

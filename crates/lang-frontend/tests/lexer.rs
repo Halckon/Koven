@@ -527,6 +527,7 @@ fn fixed_symbols_use_longest_match_and_keyword_composites_require_adjacency() {
         ("}", Symbol::RightBrace),
         (",", Symbol::Comma),
         (":", Symbol::Colon),
+        (";", Symbol::Semicolon),
         ("@", Symbol::At),
         (".", Symbol::Dot),
         ("?.", Symbol::QuestionDot),
@@ -674,7 +675,7 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
     assert!(split_file.diagnostics().is_empty());
     assert_complete_coverage(&sources, split_id, &split_file);
 
-    let invalid_text = ";#|";
+    let invalid_text = "#|";
     let invalid_id = add_source(&mut sources, "unsupported-invalid.ko", invalid_text);
     let invalid_file = lex_source(&sources, invalid_id);
     assert_eq!(
@@ -682,7 +683,6 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
             .map(|lexeme| (lexeme_text(&sources, lexeme), lexeme.kind()))
             .collect::<Vec<_>>(),
         [
-            (";", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
             ("#", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
             ("|", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
         ]
@@ -699,11 +699,7 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
                 )
             })
             .collect::<Vec<_>>(),
-        [
-            ("L0001".to_owned(), 0, 1),
-            ("L0001".to_owned(), 1, 2),
-            ("L0001".to_owned(), 2, 3),
-        ]
+        [("L0001".to_owned(), 0, 1), ("L0001".to_owned(), 1, 2),]
     );
     assert_complete_coverage(&sources, invalid_id, &invalid_file);
 }
