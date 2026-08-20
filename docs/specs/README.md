@@ -77,6 +77,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0062](./0062-top-level-declaration-separators.md) | 按 v0.16 修正顶层声明换行 / 分号分隔（`done`） | 0014 `done`；v0.16 已生效；当前持续 Goal 的站立授权 |
 | [0015](./0015-package-import-parser.md) | 解析 `package` / Kotlin 风格 `import`（`done`） | 0014、0062 `done`；v0.17 已生效；当前持续 Goal 的站立授权 |
 | [0016](./0016-control-flow-parser.md) | 解析 `if` / `when` / `super`、loop-family 与 jump 控制流（`done`） | 0009、0014 `done`；v0.18 已生效；当前持续 Goal 的站立授权 |
+| [0063](./0063-postfix-error-propagation-parser.md) | 解析 postfix 错误传播 `?`（`draft`） | 0016 `done`；等待用户明确启用 v0.19 完整契约 |
 | 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
 
 ### Phase 2：名称与类型检查
