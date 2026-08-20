@@ -1,18 +1,16 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.19。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–20 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
 
-> **阅读说明（v0.18 更新）**：本部分大量示例代码使用了 `if`、`when`、`super`、循环以及
-> `class`/`interface`/`enum class`/`object` 等 class-family 结构。这些结构反映的是 v1 已经
-> 确定的**目标设计意图**，用来说明其他设计决策（例如 `enum class` 的能力、`super` 的用途）
-> 在最终语言里如何使用。control-flow 已由
+> **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
-> class-family 仍由 SPEC-0017 后续独立定义。class-family 示例继续只能理解为设计意图，
-> 不能反推成已经验收的产生式。
+> class-family 的表面语法、成员边界、AST 与恢复契约已由同文件 §13 正式定义。示例只用于
+> 解释设计意图；与产生式冲突时以 §12、§13 的明确规则为准，不能从 Kotlin 或示例补出
+> 未列出的构造器、匿名对象、继承或成员形式。
 
 ## 1. 基础类型对齐 Kotlin，新增 `object`
 
@@ -34,11 +32,15 @@
 
 ```kotlin
 object Config {
-    val version: String = "1.0"
+    const val VERSION: String = "1.0"
 }
 ```
 
-`object` 编译为编译期确定的单一静态实例。**v1 仅支持内部属性为编译期可求值（`const`/字面量/常量表达式）的 `object`**，避免运行时懒加载初始化竞争带来的实现复杂度；运行时惰性初始化的 `object` 列为 v2 特性。
+具名 `object` 同时声明一个名义类型和该类型的唯一值。v1 的该值不携带运行时存储状态：
+body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`、初始化块或惰性状态。
+`const val` 在编译期求值；成员函数可以执行普通 v1 运行时代码并可使用 `this`，因为函数代码
+本身不是 singleton 存储状态。具名 `object` 可以实现接口并参与单态化静态分发，但 v1 不把
+它擦除为裸 interface 或 `dyn`。运行时状态、惰性初始化与共享可变 singleton 统一延后到 v2。
 
 ## 2. 关键字与保留字
 
@@ -200,9 +202,9 @@ private fun impl(): Unit { ... }
 
 ```kotlin
 enum class Shape {
-    Circle(radius: Double)
-    Rectangle(w: Double, h: Double)
-    Point
+    Circle(radius: Double),
+    Rectangle(w: Double, h: Double),
+    Point;
 
     fun area(): Double = when (this) {
         is Circle -> 3.14159 * radius * radius
@@ -565,11 +567,12 @@ val (sender, receiver) = channel<Int>()
   `value class` 的原子聚合拆分能力；若前一个调用的所有权效果使后续调用非法，应产生正常
   所有权诊断。
 
-## 12. 类型级静态成员：`companion object`
+## 12. 类型级关联成员：`companion object`
 
 ```kotlin
 class Point(val x: Int, val y: Int) {
     companion object {
+        const val DIMENSIONS: Int = 2
         fun origin(): Point = Point(0, 0)
     }
 }
@@ -577,7 +580,24 @@ class Point(val x: Int, val y: Int) {
 val p = Point.origin()
 ```
 
-没有二级构造器、没有 `init` 块的情况下，类型级别的常量/工厂函数通过 `companion object` 表达。**限制与第 1 节的 `object` 一致：v1 只支持内部成员为编译期可求值的 `companion object`**，运行时状态列为 v2。
+没有二级构造器、没有 `init` 块的情况下，类型级常量和工厂函数通过可选的
+`companion object` 表达；没有类型级成员的类型完全不需要 companion。v1 把 companion
+定义成**关联命名空间**，不是隐藏 singleton：
+
+- 每个 `class` / `value class` / `enum class` / `interface` 至多一个匿名 companion；不接受
+  `companion object Name`，也不产生可观察的 `Type.Companion` 值或对象身份；
+- body 只允许 `const val` 与关联函数，不允许普通 `val` / `var`、嵌套类型或初始化块；
+- 关联函数可以执行普通运行时代码、构造对象并返回 `Result`，但没有 `this`，也不能直接读取
+  实例字段；“编译期可求值”只约束 `const val` initializer，不约束函数体；
+- companion 不实现接口，不捕获 enclosing 类型参数。泛型工厂必须自行声明类型参数，例如
+  `fun <T> empty(): Box<T>`；
+- `Type.member` 在名称解析后直接指向关联函数符号或内联常量，不分配 singleton、不生成
+  初始化 guard，也没有退出时析构。
+
+interface 的固定协议常量同样放在 companion 中，例如
+`interface Http { companion object { const val DEFAULT_PORT: Int = 80 } }`，并以
+`Http.DEFAULT_PORT` 访问。它不被实现类型继承或 override。要求“每个实现类型各自提供一个
+常量”的 associated-constant contract 是另一项未来能力，v1 不用相同语法悄悄引入。
 
 ## 13. 明确砍掉：自定义属性 getter/setter
 
@@ -601,9 +621,24 @@ class Service : Logger, Auditor {
 
 `super<InterfaceName>.method()` 语法直接对齐 Kotlin 的实际机制。如果一个类实现的多个接口存在同名默认方法，编译器强制要求显式 `override` 并在方法体内用 `super<X>` 消歧义，否则报错。
 
+v1 另保留窄化的**接口实现委托**作为组合工具：普通 `class` 可以在 supertype list 写
+`Interface by field`，其中 `field` 必须是同一主构造器中的不可变 `val` 字段，字段的具体类型
+必须静态满足该接口。`by` 只在此位置作为上下文软关键字；不允许任意 delegate expression、
+`var` delegate、value/enum/object delegation 或运行时代理。编译器生成保持原 callable
+Value/Borrow/Inout 与返回契约的转发，手写 `override` 优先，多来源冲突必须显式 override。
+这项语法由 class-family 之后的独立 Spec 实施，不混入 SPEC-0017。
+
+Kotlin 风格的属性委托 `val/var property by expression` 不属于 v1：它需要自定义 getter /
+setter、惰性初始化与属性元数据，和第 13 节及无运行时反射边界冲突。
+
 ## 15. `dyn`（trait object 动态分发）降级为 v2
 
 早前文档中曾出现“`dyn Shape` 语法用于异构集合的动态分发”的表述，与关键字表状态不一致。**明确结论：`dyn` 是保留关键字，但对应的动态分发语法在 v1 不实现**，v1 泛型/接口全部走单态化静态分发。如需要异构集合场景，v1 阶段用 `enum class` 包装各具体类型来模拟（这也是 Rust 在没有 trait object 时的常见替代方案）。
+
+v1 也不提供 Kotlin/Java 风格的匿名内部类或 `object : Interface { ... }` object expression。
+lambda 只实现函数类型这一个 callable 行为，不伪装成任意接口实例；单回调 API 应直接接受
+函数类型，多方法或有字段的实现使用具名 class，简单包装优先使用上一节的接口委托。
+匿名对象必须等 `dyn`、隐藏捕获布局、对象身份与逃逸所有权规则一并在 v2 设计后才能加入。
 
 ## 16. 整数运算的溢出与除零语义（v0.11 新增）
 
@@ -794,15 +829,15 @@ expression context 接受 `?`；上述 callable、operand 与 `E` 约束由 Phas
 不得引入 unwind cleanup。应用边界使用 `when` 选择恢复、转换、报告或调用 `error()`；
 `Result` 不“接住异常”，因为该模型中没有异常被抛出。
 
-## 20. `Copyable` 显式 opt-out（候选方向，v0.11 新增）
+## 20. `Copyable` 显式 opt-out（v0.20 定案：v1 不支持）
 
 第 5 节的 `Copyable` 完全由字段结构自动、递归推导，v1 明确不提供用户手动
 否定或覆盖的语法。这是一个刻意的简化，但也意味着丢失了一个常见模式：即使一个
 `value class` 的全部字段都是数值类型，设计者也没有办法强制它“只能移动、不能被意外
 复制”（例如用来防止两个语义不同的 ID 被复制后混用）。
 
-本节**不改变** v1 的既有规则，只记录一个候选方向，供 SPEC-0017（class-family 语法）在
-设计 `value class` 声明语法时一并评估：
+v0.20 已结合 class-family 修饰符集合完成取舍：v1 保持结构化自动推导，不增加 `nocopy`
+或等价否定修饰符。以下两个方向作为决策记录保留：
 
 - 方向 A：引入声明修饰符（例如 `nocopy value class UserId(val raw: Int)`），显式让该
   类型及递归包含它的聚合退出自动 `Copyable` 推导，即使结构上满足条件。
@@ -810,8 +845,8 @@ expression context 接受 `?`；上述 callable、operand 与 `E` 约束由 Phas
   避免为一个相对小众的需求增加新关键字和新的 Phase 2 特判分支。
 
 两个方向各有成本：方向 A 增加语言复杂度（新修饰符、`Copyable` 推导规则出现例外
-分支），方向 B 保留现有简洁性但放弃这类强类型保证。本候选方向不做取舍，留给
-SPEC-0017 连同其他 class-family 声明修饰符一并决定。
+分支），方向 B 保留现有简洁性但放弃这类强类型保证。v1 选择方向 B；方向 A 如需恢复，
+必须由 v2+ 新 guide 重新定义关键字、推导和兼容性，SPEC-0017 不接受该拼写。
 
 ---
 
@@ -835,12 +870,12 @@ interface Shape {
 }
 
 enum class Result<T, E> {
-    Ok(value: T)
+    Ok(value: T),
     Err(error: E)
 }
 
 object Config {
-    val version: String = "1.0"
+    const val VERSION: String = "1.0"
 }
 
 class Counter(var count: Int) {

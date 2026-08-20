@@ -1,14 +1,14 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.19 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.20 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
 Koven 编译器目前处于 **Phase 1(词法分析 + 语法分析)** 阶段,类型检查(Phase 2)、所有权/借用检查(Phase 3)、代码生成(Phase 4)和标准库(Phase 5)都还没有开始。也就是说:
 
 - 本教程里的大部分语法——基础类型、变量、函数、`value class`/`class`、所有权标注、集合类型、lambda——已经有完整、可执行的语法定义,编译器前端正在实现。
-- **控制流(`if`/`when`/循环/jump)已在 v0.18 定稿；class 家族(`class`/`interface`/`enum class`/`object`)的正式语法产生式仍等待后续 guide。**
-- `Map`/`MutableMap` 的所有权契约与 `Copyable` opt-out 目前仍是候选设计；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
+- **控制流已在 v0.18 定稿；class 家族、类型级 companion、匿名内部类边界与窄化接口委托已在 v0.20 定稿。**
+- `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
 
@@ -49,8 +49,8 @@ Koven 想把两种开发体验拼接在一起:
 
 ### 1.3 现在能做、不能做什么
 
-- **已经有完整语法定义、编译器前端正在实现**:基础类型、变量与常量声明、函数(含泛型、高阶函数、闭包)、所有权标注体系、`value class`/`Box<T>`、`Array`/`List`/`MutableList`。
-- **设计方向已确定、正式语法还在制定**:`if`/`when`/循环、`class`/`interface`/`enum class`/`object` 家族。
+- **已经有完整语法定义、编译器前端正在实现**:基础类型、变量与常量声明、函数(含泛型、高阶函数、闭包)、所有权标注体系、控制流、class-family、`Box<T>`、`Array`/`List`/`MutableList`。
+- **规范已定、Parser 尚待后续 Spec**:`class`/`interface`/`enum class`/具名 `object` 家族与窄化接口委托。
 - **完全尚未设计**:`Map`/`MutableMap` 的可实施契约、用户自定义索引运算符。
 - **已确定不支持**:自定义属性访问器、扩展函数、异常。
 
@@ -66,8 +66,8 @@ Koven 想把两种开发体验拼接在一起:
 value class Point(val x: Int, val y: Int)
 
 enum class Shape {
-    Circle(radius: Double)
-    Point
+    Circle(radius: Double),
+    Point;
 
     fun area(): Double = when (this) {
         is Circle -> 3.14159 * radius * radius
@@ -274,7 +274,8 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移�
 
 ## 6. 用类型建模
 
-> **状态说明**:本章讲的 `class`/`interface`/`enum class`/`object` 家族,正式语法产生式还在制定中,但语义和写法已经通过 guide 里的示例明确下来,这里按已确定的方向讲。
+> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定；当前 Parser 尚待 SPEC-0017
+> 与后续接口委托 SPEC-0064 分阶段实现。
 
 ### 6.1 `value class`:内联值类型
 
@@ -307,9 +308,9 @@ val boxed: Box<Point> = Box(point)
 
 ```kotlin
 enum class Shape {
-    Circle(radius: Double)
-    Rectangle(w: Double, h: Double)
-    Point
+    Circle(radius: Double),
+    Rectangle(w: Double, h: Double),
+    Point;
 
     fun area(): Double = when (this) {
         is Circle -> 3.14159 * radius * radius
@@ -357,7 +358,9 @@ class Service : Logger, Auditor {
 
 ```kotlin
 object Config {
-    val version: String = "1.0"
+    const val VERSION: String = "1.0"
+
+    fun describe(): String = "Koven ${VERSION}"
 }
 
 class Point(val x: Int, val y: Int) {
@@ -369,7 +372,32 @@ class Point(val x: Int, val y: Int) {
 val p = Point.origin()
 ```
 
-两者都编译成编译期确定的静态实例,但有同一个限制:**v1 只支持内部成员为编译期可求值(`const`/字面量/常量表达式)的 `object`/`companion object`**,运行时才能确定的惰性初始化状态要等到 v2。也就是说,`object`/`companion object` 目前更接近"编译期常量的命名空间",还不能当成带运行时可变状态的单例来用。
+两者不是同一种运行时概念。具名 `object` 是有唯一值的名义 singleton,可有普通成员函数并在
+函数里使用 `this`,但 v1 不允许运行时存储字段或惰性初始化。`companion object` 只是类型级
+关联命名空间:不创建 `Point.Companion` 值,只允许 `const val` 和不使用 `this` 的关联函数。
+
+接口也可以用 companion 暴露类型级常量:
+
+```kotlin
+interface Protocol {
+    companion object {
+        const val VERSION: Int = 1
+    }
+}
+
+val version = Protocol.VERSION
+```
+
+该常量不被实现类继承或 override。v1 也不支持 Kotlin/Java 风格匿名内部类或 `object { ... }`
+表达式；lambda 只适合单一函数类型。需要多方法实现时声明具名 class；若只是把一个接口的
+方法机械转发给构造器字段,可使用窄化委托:
+
+```kotlin
+class TracingLogger(private val delegate: Logger) : Logger by delegate
+```
+
+委托目标必须是同一主构造器的不可变 `val` 字段,手写 `override` 优先；属性委托、任意表达式
+委托、动态代理与运行时 `dyn` 都不在 v1 范围内。
 
 ### 6.7 解构声明
 
@@ -575,8 +603,10 @@ v1 只提供**同步阻塞 IO**(文件、网络),异步 IO 依赖协程,要等 v
 | 协程 / `async`/`await` | 延后到 v3 |
 | 自定义 allocator | 延后到 v2+ |
 | `Map` / `MutableMap` 可实施契约 | 有候选设计,尚未独立评审或授权实施 |
-| `object` / `companion object` 运行时惰性状态 | 延后到 v2(v1 只支持编译期可求值成员) |
-| `Copyable` 用户手动实现/覆盖/opt-out | v1 不支持;opt-out 只有候选方向 |
+| `object` / `companion object` 运行时存储状态或惰性初始化 | 延后到 v2；v1 的具名 `object` 可有普通函数,companion 是无对象身份的关联命名空间 |
+| 匿名内部类 / `object { ... }` expression | v1 不支持；单回调用 lambda,多方法用具名 class 或窄化接口委托 |
+| 属性委托 / 任意 delegate expression | v1 不支持；只保留 `Interface by valField` 接口实现委托 |
+| `Copyable` 用户手动实现/覆盖/opt-out | v1 不支持；v0.20 已明确不引入 `nocopy` |
 
 ---
 
@@ -624,7 +654,7 @@ import koven.math.Vector as Vec
 其他:    as false null operator override super this true
 ```
 
-**软关键字(仅特定上下文有特殊含义)**:`to`、`infix`(仅标准库内部使用)
+**上下文软拼写(lexer 仍产出普通 identifier)**:`to`、`infix`(仅标准库内部使用)、`by`(仅 class supertype 委托位置)
 
 **保留但当前版本未使用**(禁止用作标识符,给 v2/v3 预留):
 
@@ -658,7 +688,7 @@ Koven 编译器按下面的阶段推进,每个阶段完成后才会开始下一�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | Phase 0 | 项目骨架(Cargo workspace、AST、诊断框架) | 已完成 |
-| Phase 1 | 词法 + 语法分析 | 进行中(v0.14 `&` 词法增量、callable 参数/调用实参、表达式、声明、block、lambda、局部解构、完整文件恢复与 `package`/`import` 已完成;控制流、class 家族的解析器仍在推进) |
+| Phase 1 | 词法 + 语法分析 | 进行中(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流与 postfix `?` 已完成；class-family 与接口委托 Parser 待 SPEC-0017/0064) |
 | Phase 2 | 类型检查(不含所有权/借用) | 未开始 |
 | Phase 3 | 所有权 / 借用检查 | 未开始 |
 | Phase 4 | LLVM 代码生成 | 未开始 |

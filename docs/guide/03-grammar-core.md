@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（一）：表达式与类型引用基础
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §1–6），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.19。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > 原第四部分体量过大，本次拆分为三份，均保留原节号以维持既有 SPEC 引用与 Span 表述
 > 不变：本文档（§1–6）覆盖 primary/postfix/`type_ref`/运算符优先级/Lexer 错误交接/AST
 > `Span` 规则，是后续两份的共享基础；[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)（§7–8）覆盖
@@ -46,6 +46,9 @@ interpolation      = InterpolationStart,
 [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节；control-flow primary 见
 [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 12 节。SPEC-0007 的历史子集不含 lambda 或 control-flow，不能用当前
 产生式反写其已完成验收事实。
+
+v0.20 的 `object` 只存在于声明语法，不是 primary expression；v1 不接受匿名内部类或
+`object { ... }` expression。lambda 只产生函数类型值，不能借此匿名实现多方法 interface。
 
 独立入口必须在跳过首尾 trivia 后消费到唯一 EOF，不能以“已得到一个表达式”为由忽略后续
 token。字符串插值递归调用同一表达式 parser，但以当前层的 `InterpolationEnd` 代替 EOF

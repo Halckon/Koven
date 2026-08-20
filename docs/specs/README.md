@@ -1,10 +1,12 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.19 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.20 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.19](../guide/00-index.md) 已由用户同意前述完整错误值契约并要求继续实施，取代 v0.18；
+[v0.20](../guide/00-index.md) 已由用户要求按确认建议调整并启用，取代 v0.19；它正式封闭
+class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托 Parser 拆为
+SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
 SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0062、SPEC-0063 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
@@ -79,7 +81,8 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0015](./0015-package-import-parser.md) | 解析 `package` / Kotlin 风格 `import`（`done`） | 0014、0062 `done`；v0.17 已生效；当前持续 Goal 的站立授权 |
 | [0016](./0016-control-flow-parser.md) | 解析 `if` / `when` / `super`、loop-family 与 jump 控制流（`done`） | 0009、0014 `done`；v0.18 已生效；当前持续 Goal 的站立授权 |
 | [0063](./0063-postfix-error-propagation-parser.md) | 解析 postfix 错误传播 `?`（`done`） | 0016 `done`；v0.19 已生效；当前持续 Goal 的站立授权 |
-| 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
+| 0017 | 解析 `value class` / `class` / `interface` / `enum class` / 具名 `object` / `companion object` | 0014 `done`；v0.20 已生效；当前持续 Goal 的站立授权；不含接口委托 |
+| 0064 | 增量解析 `Interface by valField` 接口实现委托 | 0017 `done`；v0.20 已生效；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 
@@ -87,13 +90,13 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | 0018 | 完成单文件声明收集、作用域和名称诊断 | 0014 |
 | 0019 | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing` | 0018 |
-| 0020 | 检查泛型及 class / interface / enum / value class 名义类型 | 0019、0017 |
+| 0020 | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托 | 0019、0017、0064 |
 | 0021 | 实现 `when` 穷尽性与 smart cast | 0020、0016 |
 | 0022 | 推导条件 `Copyable` 并检查结构化解构类型 | 0019、0020 |
 | 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；package 映射 ADR |
-| 0026 | 检查 `object` / `companion object` | 0020、0017；先由新 guide 明确成员函数限制 |
+| 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效 |
 
 ### Phase 3：所有权与借用
 
@@ -153,7 +156,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.19 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.20 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 
@@ -164,7 +167,6 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 
 | 决策 | 推荐方案 | 需要的权威文档 |
 |---|---|---|
-| `object` / `companion object` | 编译期限制只约束存储状态和初始化式；成员函数体可使用普通 v1 代码，但不能读取或修改运行时单例状态 | 新 guide |
 | 借用与析构 | v1 借用只存在于一次调用的动态期间，不允许存储或返回；ASAP 析构以所有权检查标出的最后一次合法使用为准，分支合流采用保守点 | 新 guide |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |

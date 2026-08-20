@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 完整词法规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第三部分），完整文档
-> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.17。
+> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > v0.5 词法基线已由 SPEC-0006 实现并验收；v0.14 新增的单字符 `&` 已由 SPEC-0012
 > 增量实现并验收；v0.16 新增的 `;` 固定符号已由 SPEC-0062 实现并验收；v0.17 的
 > `module` → `package` 关键字替换已由 SPEC-0015 实现并验收。
@@ -56,12 +56,14 @@ super       this        true
 ## 2. 软关键字（仅特定上下文有特殊含义，其余场景可作普通标识符）
 
 ```
-to          infix（仅标准库内部使用）
+to          by          infix（仅标准库内部使用）
 ```
 
-两者在 lexer 中都始终是普通 `Identifier`。parser 只在[03-grammar-core.md](./03-grammar-core.md)第 4 节规定的表达式位置把拼写 `to`
-解释成中缀运算符；`infix` 在表达式中仍是标识符，只能由后续标准库声明语法在其专用上下文
-解释。
+三者在 lexer 中都始终是普通 `Identifier`。parser 只在[03-grammar-core.md](./03-grammar-core.md)第 4 节规定的表达式位置把拼写 `to`
+解释成中缀运算符；v0.20 起只在[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 13 节普通 class 的
+supertype entry 中把 `by` 解释成接口委托标记；`infix` 在表达式中仍是标识符，只能由后续
+标准库声明语法在其专用上下文解释。`by` 在其他所有位置继续是普通名称，不获得全局关键字
+行为；因此 v0.20 不改变 Lexer token 类别或已实现词法输出。
 
 > `get` / `set` 自 v0.2 起就不是软关键字，lexer 始终把它们作为普通
 > `Identifier`。[01-design-decisions.md](./01-design-decisions.md)第 8 节的顺序容器索引是预声明原语，parser 不查找这两个

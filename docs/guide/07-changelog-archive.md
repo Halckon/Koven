@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.19），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.20），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -258,3 +258,19 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 3 | postfix `?` 只传播 `Result` 的 `Err` 到最近 callable；lambda 内只退出该 lambda，不允许非局部返回 | 🔴 控制流与类型契约补全 |
 | 4 | v1 要求错误类型 `E` 精确一致，不提供用户传播协议或隐式错误转换；Phase 1 只建 AST，Phase 2/3/4 分别负责类型、所有权与正常 return cleanup | 🟡 Phase 边界补全 |
 | 5 | `?` 与 `?.` / `?:` 依赖 Lexer 最长匹配消歧，与其余 postfix 同为最高优先级、左结合、可连续；由 SPEC-0063 实施 | 🟡 语法与实施边界补全 |
+
+## v0.20 变更记录
+
+> v0.20 于 2026-08-20 由用户要求按已确认建议调整并启用，取代 v0.19，封闭
+> SPEC-0017 的 class-family 契约，并为窄化接口委托保留独立增量边界。
+
+| # | 变更 | 类型 |
+|---|---|---|
+| 1 | 正式定义 `value class` / `class` / `interface` / `enum class` / 具名 `object` 与 `companion object` 的 Kotlin 表面风格产生式、visibility/override、成员分隔、AST、Span、恢复及 L0066–L0077 | 🔴 语法与诊断补全 |
+| 2 | 主构造器字段必须写 `val` / `var`；拒绝普通临时参数、默认值、二级构造器、`init`、body 存储字段、trailing comma 与未列修饰符；v1 明确不增加 `nocopy` | 🔴 class-family 边界定案 |
+| 3 | enum 变体改用 Kotlin 风格逗号分隔；存在共享成员时以必需 `;` 分开变体区和成员区，关联数据继续使用 Koven ADT 语义 | 🔴 enum 表面语法定案 |
+| 4 | companion 被定义为可选、无对象身份的关联命名空间，只容纳 `const val` 与无 receiver 关联函数；函数体可执行普通运行时代码，运行时静态状态、初始化 guard 与析构不进入 v1 | 🔴 companion 语义定案 |
+| 5 | interface 可以通过 companion 暴露固定 `const val`，常量不继承、不 override；每个实现类型各自提供 associated constant 的契约继续延后 | 🟡 接口常量边界补全 |
+| 6 | 具名 `object` 保留无运行时字段的 singleton 类型/值和实例函数；排除匿名内部类、object expression、SAM 自动转换、nested/local class-family，单回调继续使用函数类型/lambda | 🔴 object 与 lambda 边界定案 |
+| 7 | 保留 ordinary class 的 `Interface by valField` 窄化接口实现委托：`by` 为上下文软词、具体类型静态分发、原样转发 callable 契约；排除任意表达式、`var` delegate、运行时代理和属性委托 | 🔴 组合能力定案 |
+| 8 | 接口委托 Parser 拆为 SPEC-0064，SPEC-0017 先交付无 delegation clause 的 class-family；在前者完成前 `by` 必须定向拒绝，不得误判成普通 supertype 名称 | 🟡 分阶段边界补全 |

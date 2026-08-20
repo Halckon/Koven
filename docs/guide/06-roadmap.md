@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.19。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -19,7 +19,7 @@
 ## Phase 1：词法 + 语法分析（Lexer/Parser）
 
 - [x] **SPEC-0006**：实现 [v0.5 词法基线](./02-lexical-spec.md)：ASCII 标识符、42 个硬
-      关键字、2 个软关键字、11 个未来保留字、trivia、字面量、字符串插值、当时的固定符号、
+      关键字、当时的 2 个软关键字、11 个未来保留字、trivia、字面量、字符串插值、当时的固定符号、
       EOF 和错误恢复；v0.14 新增的单字符 `&` 已由 SPEC-0012 增量实施
 - [x] 所有 token / trivia / invalid 区域保留精确 UTF-8 字节 `Span`，非法源码返回结构化
       诊断而不 `panic!`
@@ -60,11 +60,17 @@
       [`03-grammar-core.md`](./03-grammar-core.md)第 2、4、6 节的 postfix `?`，只建立
       `Propagate` AST 与消歧 / 恢复证据；`Result<T, E>`、最近 callable 和错误类型检查延后
       到 Phase 2。
-- [ ] **SPEC-0017**：由后续 guide 定义并实现 class-family；
-      不得把这些结构塞回 SPEC-0009 至 SPEC-0014。
+- [ ] **SPEC-0017（前置：SPEC-0014 `done`；v0.20 已明确启用）**：按
+      [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) 第 13 节解析
+      `value class` / `class` / `interface` / `enum class` / 具名 `object` / `companion object`，
+      只交付 Phase 1 AST、诊断与恢复；不实现接口委托或 Phase 2/3 语义检查。
+- [ ] **SPEC-0064（前置：SPEC-0017 `done`）**：增量解析 `Interface by field` 接口实现委托；
+      `by` 仍由 Lexer 产出 identifier，只在 class supertype entry 的确定上下文中提交。不得扩张
+      为属性委托、任意 delegate expression、动态代理或运行时 `dyn` 分发。
 
 SPEC-0006 词法基线、SPEC-0007 至 SPEC-0016 以及 v0.16 增量 SPEC-0062 已完成；
-SPEC-0063 已完成，SPEC-0017 是其后的 Parser 边界。未勾选状态不
+SPEC-0063 已完成，SPEC-0017 是其后的 Parser 边界；SPEC-0064 在 class-family 完成后单独
+补齐窄化接口委托。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参
@@ -119,8 +125,8 @@ SPEC-0009 至 SPEC-0014 范围的理由：
 value class Point(val x: Int, val y: Int)
 
 enum class Shape {
-    Circle(radius: Double)
-    Point
+    Circle(radius: Double),
+    Point;
 
     fun area(): Double = when (this) {
         is Circle -> 3.14159 * radius * radius
@@ -144,7 +150,11 @@ fun main(): Unit {
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
       独占访问或是否与其他借用冲突
-- [ ] 接口/`enum class` 变体的类型检查，`when` 穷尽性检查
+- [ ] class-family 的名称、visibility、supertype、`override`、`object` / `companion object`
+      关联成员与编译期常量检查；接口 companion 常量不参与继承或 override；`enum class`
+      变体类型检查与 `when` 穷尽性检查
+- [ ] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
+      其静态具体类型满足接口；手写 `override` 优先，拒绝未消歧的多委托冲突
 - [ ] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
 - [ ] 泛型单态化的类型层面准备（类型替换，不接编译期计算）
 - [ ] `Nothing` 类型的 bottom-type 特殊处理
@@ -194,6 +204,8 @@ Spec 之前，本条限制不变。）
 - [ ] 移动后使用（use-after-move）检测
 - [ ] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
+- [ ] 接口委托生成的转发调用保持原方法的 `Value` / `Borrow` / `Inout` 契约，并把字段访问、
+      移动与借用冲突归入同一套所有权检查；不得把委托隐式升级成共享运行时代理
 - [ ] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
 - [ ] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
 - [ ] 移动顺序容器时转移唯一缓冲区 owner，拒绝再次使用源容器；构造时按 `Copyable`

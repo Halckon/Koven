@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（三）：调用参数、Lambda 与解构
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
 > 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
@@ -14,6 +14,9 @@ lambda，SPEC-0011 只交付具名函数隐式 `Unit` 返回标注。为解除 v
 门禁，SPEC-0012 的单一 Goal 是**调用边界语法**：同步交付具名函数 / 函数类型参数 marker 与
 typed call argument；不包含 Phase 2 / 3 合法性检查。SPEC-0013 只交付局部 `val` 解构；每项
 均须独立验收和提交，后项不得反向扩大前项。
+
+v0.20 明确 lambda 只实现一个函数类型调用入口；它不产生匿名 class/object，也不能实现
+多方法 interface。需要多方法实现时使用具名 class；机械转发可使用 §13.3 限定的接口委托。
 
 lambda、typed argument 与解构三项结构 parser 都必须接收调用方的 hard stop 集合，并把自身
 真实 closer 作为新增 owner。恢复按以下固定优先级处理边界，不能用“所有局部 owner 退出后

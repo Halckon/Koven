@@ -2,7 +2,8 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.19 文档集定义。
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.20 文档集定义。v0.20 已批准的
+class-family 与接口委托尚未进入当前 Parser，分别等待 SPEC-0017 与 SPEC-0064。
 
 ## 当前状态
 
@@ -85,9 +86,10 @@ crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未
 - `LexemeKind` 封闭区分普通 token、trivia、invalid 区域和唯一 EOF。除 EOF 的
   `[source.len(), source.len())` 外，每个 lexeme 都有非空 UTF-8 字节 `Span`，并按顺序无
   重叠地联合覆盖完整输入；
-- scanner 实现 ASCII 标识符、42 个硬关键字、2 个仍按 identifier 输出的软关键字、11 个
+- scanner 实现 ASCII 标识符、42 个硬关键字、2 个历史基线中仍按 identifier 输出的软关键字、11 个
   reserved-word token、十进制数字、`Char`、单行 `String` / `${...}` 插值、trivia 与固定
-  符号最长匹配；扫描只使用标准库，没有新增依赖；
+  符号最长匹配；v0.20 的 `by` 同样自然产出 identifier，不需要或拥有独立 Lexer token；
+  扫描只使用标准库，没有新增依赖；
 - 字符串与插值使用显式模式栈，只有插值普通模式中的花括号改变嵌套深度。非法输入始终
   前进并形成规范规定的 token / invalid / segment 形态；未终止模式按最内层错误抑制规则
   恢复，不对正常用户输入 `panic!`；

@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.18。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -420,7 +420,8 @@ SPEC-0009 的最小验收必须包括：
 
 后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
-终点。control-flow 由本文件 §12 补齐；class-family 仍由 SPEC-0017 的后续 guide 定义。
+终点。control-flow 由本文件 §12 补齐；class-family 由 v0.20 的本文件 §13 定义并等待
+SPEC-0017 实施。
 
 ## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
 
@@ -622,5 +623,181 @@ control_block = "{", control_element*, "}" ;
 SPEC-0016 只交付 Phase 1 Parser / AST / 诊断、恢复与 fixture。Boolean 条件、分支公共类型、
 `Nothing`、jump target、`when` 穷尽性 / smart cast、迭代协议绑定和接口默认方法检查属于
 Phase 2；不得为让 Parser 通过而提前伪造这些语义。
+
+## 13. SPEC-0017 class-family 与后续接口委托
+
+v0.20 封闭 `value class` / `class` / `interface` / `enum class` / 具名 `object` 与
+`companion object` 的 v1 表面语法。以下产生式中的普通 token 间允许 trivia；需要实际换行
+或 `;` 的位置单独写成 separator：
+
+```ebnf
+visibility_modifier = "public" | "internal" | "private" ;
+declaration_modifiers = [ visibility_modifier ] ;
+method_modifiers = [ visibility_modifier ], [ "override" ] ;
+
+simple_declaration = declaration_modifiers,
+                     ( variable_declaration | constant_declaration
+                     | function_declaration | classifier_declaration ) ;
+
+classifier_declaration = value_class_declaration | class_declaration
+                       | interface_declaration | enum_class_declaration
+                       | object_declaration ;
+
+value_class_declaration = "value", "class", Identifier,
+                          [ type_parameter_list ], value_primary_constructor,
+                          [ supertype_list ], [ class_body ] ;
+class_declaration = "class", Identifier, [ type_parameter_list ],
+                    [ class_primary_constructor ], [ supertype_list ],
+                    [ class_body ] ;
+interface_declaration = "interface", Identifier, [ type_parameter_list ],
+                        [ supertype_list ], [ interface_body ] ;
+enum_class_declaration = "enum", "class", Identifier,
+                         [ type_parameter_list ], [ supertype_list ], enum_body ;
+object_declaration = "object", Identifier, [ supertype_list ], [ object_body ] ;
+
+value_primary_constructor = "(", class_field,
+                            { ",", class_field }, ")" ;
+class_primary_constructor = "(", [ class_field,
+                            { ",", class_field } ], ")" ;
+class_field = [ visibility_modifier ], ( "val" | "var" ), Identifier,
+              ":", type_ref ;
+
+supertype_list = ":", supertype_entry, { ",", supertype_entry } ;
+supertype_entry = type_ref, [ delegation_clause ] ;
+delegation_clause = soft_identifier_by, Identifier ;
+
+class_body = "{", [ class_member,
+             { member_separator, class_member } ], [ member_separator ], "}" ;
+interface_body = "{", [ interface_member,
+                 { member_separator, interface_member } ],
+                 [ member_separator ], "}" ;
+object_body = "{", [ object_member,
+              { member_separator, object_member } ], [ member_separator ], "}" ;
+
+class_member = method_modifiers, function_declaration
+             | declaration_modifiers, companion_object ;
+interface_member = [ "public" ], function_declaration
+                 | declaration_modifiers, companion_object ;
+object_member = method_modifiers, function_declaration
+              | declaration_modifiers, constant_declaration ;
+
+companion_object = "companion", "object", companion_body ;
+companion_body = "{", [ companion_member,
+                 { member_separator, companion_member } ],
+                 [ member_separator ], "}" ;
+companion_member = declaration_modifiers, constant_declaration
+                 | declaration_modifiers, function_declaration ;
+
+enum_body = "{", enum_variant, { ",", enum_variant },
+            ( "}" | ";", enum_member,
+              { member_separator, enum_member }, [ member_separator ], "}" ) ;
+enum_variant = Identifier, [ "(", enum_variant_parameter,
+               { ",", enum_variant_parameter }, ")" ] ;
+enum_variant_parameter = Identifier, ":", type_ref ;
+enum_member = method_modifiers, function_declaration
+            | declaration_modifiers, companion_object ;
+
+member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
+```
+
+`type_parameter_list`、`function_declaration`、`constant_declaration` 与 `type_ref` 分别复用
+第 7 节及[03-grammar-core.md](./03-grammar-core.md)已有结构；不得为成员复制第二套 callable 参数、返回标注或 TypeRef AST。
+
+### 13.1 声明头、构造器字段与修饰符
+
+- `value class` 必须有一个非空主构造器字段列表；普通 `class` 可以省略构造器，等价于可调用
+  的空构造器，也可以显式写空 `()`。两者的主构造器参数都必须以 `val` / `var` 声明存储字段，
+  不接受未存储参数、Value/Borrow/Inout marker、默认值、`vararg` 或 trailing comma。
+- 构造器调用向每个字段交付普通 Value 实参；复制、移动与字段可变性由 Phase 2/3 检查。
+  v1 不提供 `constructor` 关键字、二级构造器、`init` block 或 body 内新增存储字段。
+- class-family 名称后的泛型参数复用单一内联上界规则。`object` 不携带类型参数；companion
+  不能捕获 enclosing 类型参数，关联泛型函数必须自行声明类型参数。
+- `public` / `internal` / `private` 可作为顶层声明、class-family、构造器字段、普通成员与
+  companion 成员的单一 visibility；省略精确表示 `public`。Phase 1 保存显式 token 与缺省
+  的差异，文件私有、package 可见和成员访问检查属于 Phase 2。
+- 修饰符顺序固定为 visibility 后接可选 `override`。`override` 只接受在 class/value/enum/
+  object 的实例成员函数上；interface 成员只允许省略 visibility 或显式 `public`。顶层
+  `override`、重复/逆序 visibility、`extern`、`operator`、`unsafe`、`own`、`nocopy` 及其他
+  未列修饰符均为 unsupported class-family form，不能由名称或 Kotlin 经验补齐。
+- `class`、`value class`、`enum class` 与具名 `object` 的 supertype list 在 Phase 1 保存
+  TypeRef 源码顺序；interface 的同形列表表示父接口。Phase 2 必须证明每项都是接口，Koven
+  不支持 class implementation inheritance、构造器调用、`by` 之外的 delegation specifier
+  或 Kotlin `Base(...)` 基类初始化。
+
+### 13.2 body、enum 变体与成员边界
+
+- class/value class body 只含实例函数和至多一个 companion；interface 只含抽象/默认函数和
+  至多一个 companion；enum 在变体区后只含共享实例函数和至多一个 companion；具名 object
+  只含实例函数与 `const val`。所有 body 都拒绝普通 `val` / `var`、嵌套 class-family、局部
+  类型、getter/setter、constructor/init 和匿名 object。
+- 具名 object 同时引入一个名义类型和唯一值；它没有运行时字段或初始化状态，但实例函数可
+  执行普通 v1 代码、使用 `this` 并实现接口。companion 与它不同：companion 是纯关联命名
+  空间，不能作为值、没有 `this`、不实现接口，也不接受名称。
+- companion 可出现在 class/value/enum/interface 中，body 只接受 `const val` 与关联函数。
+  `const val` initializer 的编译期求值和允许类型由 Phase 2 检查；关联函数体不受编译期求值
+  限制。interface companion 常量以 `Interface.CONSTANT` 访问，不被实现类型继承或 override。
+- parser 复用既有三形态函数节点；Phase 2 要求 class/value/enum/object/companion 的函数必须
+  有 expression body 或 block body，只有 interface 函数可以无体。不得把无体 concrete
+  member 偷换成未定义的 `abstract` 机制。
+- enum 必须至少有一个变体。变体使用 Kotlin 风格逗号分隔；有共享成员时，最后一个变体后
+  必须有一个 `;`。无成员时不接受多余 `;`。无数据变体写 `Point`，不得写空 `Point()`；带
+  数据变体参数必须非空且只写 `name: type_ref`，不写 `val` / `var` / marker / default。
+  变体和参数列表都不接受 trailing comma。
+- 普通 body member 之间使用实际 LF/CRLF 或 `;`；同行多个 member 必须写 `;`，最后一个
+  member 后允许一个可选 separator。该 separator 只属于 class-family body，不把 `;` 或换行
+  提升为通用 block statement separator。enum 变体区的逗号与变体/成员之间的 `;` 不复用
+  member separator，也不依赖空行猜测边界。
+- named class-family 只允许作为完整文件顶层声明；block/lambda/control body 内仍按既有
+  unsupported element 处理。`object : Interface { ... }`、`object { ... }` expression 与 Java
+  匿名内部类都不进入 primary 产生式；单一 callable 行为使用函数类型/lambda，多方法或有
+  字段实现使用具名 class。
+
+### 13.3 接口委托的独立实施边界
+
+`by` 在 Lexer 中始终是普通 Identifier，只在 ordinary class 的 supertype entry 中按拼写
+提交 `delegation_clause`。完整契约如下：
+
+- target 必须是同一主构造器的不可变 `val` 字段名称；不接受 `var`、任意表达式或未存储参数；
+- delegate 字段持有具体名义类型，Phase 2 必须证明该类型静态满足目标 interface；裸
+  interface、`dyn`、反射代理或运行时查找不属于 v1；
+- 自动转发完整保持原成员的 receiver、Value/Borrow/Inout、返回类型与 `Result` 契约，不
+  插入隐式 `?` 或异常层；手写 override 优先，多来源同签名冲突必须显式 override；
+- delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
+- `val/var property by expression` 属性委托明确不支持。
+
+SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser。委托语法由后续独立
+SPEC-0064 增量实现；在 SPEC-0064 `done` 前，生产 Parser 必须以 unsupported class-family
+form 定向拒绝 `by`，不能误吞为 supertype 的一部分或普通名称。
+
+### 13.4 Phase 1 AST、`Span`、诊断与恢复
+
+- `Item` 增加 class-family payload，封闭区分 value/class/interface/enum/object；保存显式
+  visibility/override、名称 marker、类型参数、主构造器字段、源码有序 supertype、enum
+  variant 与 member ItemId。函数和常量 member 复用既有 Item payload，增加所属上下文与
+  modifier 源码表示；companion 使用独立 member payload，不伪装成具名 object。
+- constructor field、enum variant parameter 与 supertype 保存既有 TypeRefId；缺失名称仍用
+  Present/Missing/Error 三态。所有列表保存真实 delimiter Span，缺失 token 用边界处空 Span，
+  不为恢复伪造 identifier、关键字、`,`、`;` 或 brace。
+- classifier Span 从最早显式 modifier（否则从 `value`/`class`/`interface`/`enum`/`object`）
+  到 body closer；无 body 时止于 header 最后真实 token。member、field、variant、companion
+  同样只覆盖自身最后实际消费位置；零宽 error child 不跨 trivia 扩张父范围。
+- SPEC-0017 分配 L0066–L0077：expected `class` keyword、expected classifier name、expected
+  constructor field、expected constructor separator、expected supertype、expected member、
+  expected member separator、expected enum variant、expected enum variant separator、
+  expected enum member delimiter、invalid declaration modifier、unsupported class-family form。
+  缺通用 `:` / TypeRef / `)` / `}` 继续复用既有稳定类别，不改变旧错误码含义。SPEC-0064
+  如需 expected delegation target，必须从 L0078 起另行分配。
+- 文件 soft boundary 增量识别 class-family starter 及其单一 visibility 前缀；body recovery
+  只在当前 brace/string/interpolation owner 回到 member baseline 后识别 member/variant starter。
+  nested delimiter 内同形 token 不提升。恢复抵达外层 `}`、下一顶层声明或 EOF 时保留 owner
+  closer/boundary；Lexer poison 不重复分类，每轮必须消费非空错误区或抵达 stop。
+- enum 的 Identifier variant starter、普通 member starter、visibility 前缀与 contextual `by`
+  使用有限状态试探；失败试探不分配 AST、不发诊断、不移动正式游标。一个含 n 个 lexeme、
+  d 层 delimiter 的 class-family 声明解析与恢复必须为 `O(n)` 时间、`O(d)` owner 空间，不从
+  每个 member/variant/type parameter 回扫整个声明。
+
+SPEC-0017 只交付 Phase 1 Parser/AST/诊断、恢复、复杂度与真实 file fixture；名称重复、
+visibility、接口归属、override、enum 穷尽性、object/companion 常量求值和类型/所有权规则
+分别属于 Phase 2/3。它不得因语法已保存而把这些后续检查伪装成已实现事实。
 
 ---
