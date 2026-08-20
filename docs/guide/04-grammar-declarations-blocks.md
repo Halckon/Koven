@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.12。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.15。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -420,5 +420,37 @@ SPEC-0009 的最小验收必须包括：
 后续按单一 Goal 拆分：SPEC-0010 至 SPEC-0013 分别实现[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节四项能力，SPEC-0014 再组合
 届时已有节点并提供完整文件、声明边界、跨声明恢复与级联抑制；它不是 Phase 1 全部语法的
 终点。control-flow 与 class-family 分别由 SPEC-0016、0017 的后续 guide 补齐。
+
+## 10. SPEC-0014 完整文件、声明分隔与跨声明恢复
+
+```ebnf
+source_file = trivia*, { simple_declaration, trivia* }, EOF ;
+```
+
+- 空文件合法。文件产物按源码顺序保存零个或多个既有 `ItemId`；`AstFile` 已是文件级容器，
+  不增加虚构的根 Item。SPEC-0014 只组合现有 `val`、`var`、`const val`、`fun`，不接纳
+  `module` / `import`、control-flow、class-family 或其他尚未定义的顶层产生式。
+- 声明不使用换行或分号分隔。一个声明的既有产生式完成后，下一个最外层 `val`、`var`、
+  `const` 或 `fun` token 开始下一声明；是否存在 trivia 不改变结果。`const val` 仍由同一
+  constant declaration 消费，不拆成两个声明。
+- 上述四个 starter 只在 delimiter stack 为空且 lexical owner 回到文件 baseline 时构成
+  **soft declaration boundary**。括号、方括号、大括号、string 或 interpolation 内的同形
+  关键字属于当前声明或错误区，不能提前开始下一声明；EOF 是唯一无条件 hard boundary。
+- 文件入口遇到 `val (`、`var (`、`const val (` 继续使用 L0043 和 `Item::Error`，但错误区
+  在下一 soft declaration boundary 前结束。其他不能开始既有声明的普通顶层 token 使用
+  L0017 `expected declaration`，一次错误区只发一条该诊断并建立覆盖实际消费区的
+  `Item::Error`；Lexer 已诊断的 invalid / reserved token 只建立 Error Item，不重复分类。
+- 独立声明入口继续以 EOF 为唯一声明 stop，并保留 L0013 `unexpected trailing token` 行为；
+  文件入口不得把后续合法声明报告为 trailing token，也不得修改 SPEC-0008–0013 节点内部
+  的诊断含义。内部恢复抵达文件 soft boundary 时保留该 starter，交还文件循环。
+- 每轮文件循环必须消费一个声明或一个非空错误区，或者抵达 EOF。Lexer terminal owner
+  事件、异形 closer 与局部 delimiter 沿用第 7、8 节 owner-aware 规则；同一 Lexer / Parser
+  根因不得产生文件级级联。诊断按现有全序确定性合并。
+- 对含 `n` 个 lexeme 的文件，文件 dispatch 与跨声明恢复合计必须是 `O(n)` 时间、`O(d)`
+  owner / delimiter 栈空间；starter、terminal event 与错误区不得从每个声明重新扫描全文件。
+
+SPEC-0014 新增 `parse_file(&SourceMap, &LexedFile) -> ParsedFile`，其中 `ParsedFile` 暴露同源
+`SyntaxAst`、有序根 `ItemId` 切片及合并诊断。现有 `parse_expression`、`parse_declaration`、
+`parse_block` 的公共行为与返回类型保持不变。
 
 ---

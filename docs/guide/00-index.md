@@ -12,13 +12,14 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 
 ## 1. 版本与状态
 
-- **当前唯一权威版本是本文档集的 v0.14**，已于 2026-08-20 由用户明确启用并取代
-  [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md)。v0.12 及更早
+- **当前唯一权威版本是本文档集的 v0.15**，已于 2026-08-20 由用户明确启用并取代 v0.14；
+  v0.14 此前已取代 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md)。v0.12 及更早
   单文件 guide 只作为历史材料，不参与现行语义优先级。
-- **当前文档集版本是 v0.14**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
+- **当前文档集版本是 v0.15**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
-  `Inout` 的调用点标注从关键字 `inout` 改写为符号 `&`。完整逐版本记录见下文
+  `Inout` 的调用点标注从关键字 `inout` 改写为符号 `&`；v0.15 封闭完整文件、声明分隔与
+  跨声明恢复契约。完整逐版本记录见下文
   “精简版本历史”与 [`07-changelog-archive.md`](./07-changelog-archive.md) 的完整表格。
 - **v0.12、v0.13 已合入 v0.14**。v0.11、v0.12 的单文件候选快照已在 v0.14 启用后
   补回，仅用于核对合入过程；v0.13 没有独立快照。v0.13 是本文档集唯一一次不携带
@@ -27,7 +28,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   外，版本号是单一递增序列，不再区分“语义
   版本”和“结构版本”两条轴——每份正文文档顶部标注的是它自己内容最近一次改动所在的
   版本（例如 `04-grammar-declarations-blocks.md` 标 v0.12，是因为它自 v0.12 起没再变过，
-  不代表落后）；本索引聚合记录整个文档集当前启用的 v0.14 状态。
+  不代表落后）；本索引聚合记录整个文档集当前启用的 v0.15 状态。
 - [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17 节是 v0.14 启用后生效的
   规范规则；第 18–20 节明确标注为候选设计或候选方向，在独立完成设计评审、补充到对应
   实施 Spec 之前，不得被 Phase 2/3/5 实现直接引用为已批准契约。
@@ -61,10 +62,10 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | [`01-design-decisions.md`](./01-design-decisions.md) | 原第一部分全部 20 节 + 原第二部分（现为附录） | ~840 | 中——设计级变更会碰它，如本次所有权标注简化 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——SPEC-0006 基线与 SPEC-0012 的 v0.14 `&` 增量均已验收 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~320 | 低到中——是 04、05 的共享基础 |
-| [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8：SPEC-0008（声明）、SPEC-0009（block） | ~420 | 低——已验收 |
+| [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10：声明、block、完整文件恢复 | ~460 | 中——SPEC-0014 契约已由 v0.15 封闭 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.14 完整逐版本变更记录表格（含 v0.13 结构调整说明） | ~190 | 只追加，不修改 |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.15 完整逐版本变更记录表格（含 v0.13 结构调整说明） | ~200 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -89,6 +90,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.12 | 取消独立的 `Own` 契约（并入 `Value`），`Borrow` 调用点标注改为可选，`Inout` 保持强制；`own` 的语法用途退役，但仍保留为硬关键字 |
 | v0.13 | **结构调整，非语义变更**：v0.12 单文件拆分为本文档集 |
 | v0.14 | `Inout` 调用点标注拼写从关键字 `inout` 改为符号 `&`；声明侧关键字 `inout` 不变；词法层新增固定符号 `&`（唯一触及已实现 SPEC-0006 词法基线的改动） |
+| v0.15 | 封闭完整文件产生式、声明 soft boundary、文件级错误 Item、跨声明恢复与线性复杂度契约 |
 
 ## 5. SPEC 编号索引
 
@@ -105,7 +107,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0011 | 具名函数省略返回标注固定为 `Unit` | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0012 | 统一 callable 参数 marker、typed call argument（v0.12 起为三契约版本；v0.14 起调用点 `Inout` 标注改用符号 `&`） | `05-grammar-calls-lambda.md` §9（声明侧类型语法见 `03-grammar-core.md` §3，`&` 词法定义见 `02-lexical-spec.md` §7） | ✅ 已实现 |
 | SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
-| SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | 尚未撰写（占位于 `06-roadmap.md`） | ⬜ 未实现 |
+| SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | `04-grammar-declarations-blocks.md` §10 | ⬜ 未实现 |
 | SPEC-0015 | `module` / `import` | 尚未撰写 | ⬜ 未实现 |
 | SPEC-0016 | control-flow（`if`/`when`/循环） | 尚未撰写 | ⬜ 未实现，`01-design-decisions.md` 多处示例依赖其排期 |
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | 尚未撰写 | ⬜ 未实现 |
@@ -146,6 +148,6 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 
 ---
 
-*本索引与其余 7 份文档共同构成 Koven 现行语言设计规范 v0.14；v0.13 是唯一的
+*本索引与其余 7 份文档共同构成 Koven 现行语言设计规范 v0.15；v0.13 是唯一的
 纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*

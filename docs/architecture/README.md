@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.14 文档集定义。
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.15 文档集定义。
 
 ## 当前状态
 
@@ -16,7 +16,7 @@
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0046` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
-- `lang_frontend::lexer` 已提供覆盖现行 v0.14 词法契约的确定性扫描、完整 lexeme 流与
+- `lang_frontend::lexer` 已提供覆盖现行 v0.15 词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&` 固定符号；
 - `lang_frontend::parser` 已提供独立表达式、声明与 block 入口、具体 Item / Statement /
   Expression / TypeRef 索引式 AST、Pratt 优先级、typed call、callable 参数 marker、结构化
