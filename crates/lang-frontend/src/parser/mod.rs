@@ -19,6 +19,22 @@ pub type SyntaxAst = AstFile<Item, Statement, Expression, TypeRef>;
 /// 表达式解析使用的具体索引式 AST；保留旧名称作为兼容别名。
 pub type ExpressionAst = SyntaxAst;
 
+/// 从一份确定性词法产物解析完整源码文件。
+pub fn parse_file(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+) -> Result<ParsedFile, ParserInternalError> {
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("koven-file-parser".to_owned())
+            .stack_size(PARSER_STACK_SIZE)
+            .spawn_scoped(scope, || engine::parse_file(sources, lexed))
+            .map_err(|error| ParserInternalError::ParserThread(error.kind()))?
+            .join()
+            .map_err(|_| ParserInternalError::ParserThreadPanicked)?
+    })
+}
+
 /// 从一份确定性词法产物解析唯一独立表达式。
 ///
 /// 用户语法错误保留在返回产物中；source identity、AST、诊断模型或实现资源边界失败才返回
@@ -81,6 +97,40 @@ pub fn parse_block(
 const PARSER_STACK_SIZE: usize = 32 * 1024 * 1024;
 // 该值是实现安全预算，不是 Koven 语法语义；超过预算由 ParserInternalError 明确报告。
 pub(crate) const MAX_RECURSION_DEPTH: usize = 1024;
+
+/// 拥有完整文件 AST、有序顶层声明与两阶段有序诊断的解析产物。
+#[derive(Debug)]
+pub struct ParsedFile {
+    pub(crate) ast: SyntaxAst,
+    pub(crate) roots: Vec<ItemId>,
+    pub(crate) diagnostics: Vec<Diagnostic>,
+}
+
+impl ParsedFile {
+    /// 返回产物关联的源码身份。
+    #[must_use]
+    pub const fn source_id(&self) -> SourceId {
+        self.ast.source_id()
+    }
+
+    /// 返回只读具体 AST。
+    #[must_use]
+    pub const fn ast(&self) -> &SyntaxAst {
+        &self.ast
+    }
+
+    /// 返回按源码顺序排列的顶层声明。
+    #[must_use]
+    pub fn roots(&self) -> &[ItemId] {
+        &self.roots
+    }
+
+    /// 返回 Lexer 与 Parser 诊断的确定性合并全序。
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+}
 
 /// 拥有具体 AST、根节点与两阶段有序诊断的解析产物。
 #[derive(Debug)]

@@ -25,7 +25,7 @@
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit
   pass / fail fixture harness；
-- 尚无控制流、完整文件 parser、类型检查、所有权检查或 codegen 实现；
+- 尚无控制流、类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -97,9 +97,9 @@ Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输�
 
 ## 表达式、声明、Block、Lambda 与隐式 Unit Parser
 
-`lang_frontend::parser::parse_expression`、`parse_declaration` 与 `parse_block` 都接收共享
+`lang_frontend::parser::parse_expression`、`parse_declaration`、`parse_block` 与 `parse_file` 都接收共享
 `(&SourceMap, &LexedFile)`，校验 map-local source identity，并分别返回唯一
-`ExpressionId` / `ItemId` / `StatementId` 根及两阶段诊断全序。三个入口共享 `SyntaxAst`、
+`ExpressionId` / `ItemId` / `StatementId` 根，或完整文件的有序 `ItemId` roots，并返回两阶段诊断全序。四个入口共享 `SyntaxAst`、
 Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语法错误进入产物，内部不变量或
 资源边界失败才返回具体错误。
 
@@ -153,8 +153,9 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
   与只在 delimiter 外生效的 soft structure stop 分离；局部声明、字符串 / 插值 terminal owner
   和 nested block 恢复保持单调前进，`L0028`–`L0030` 分别稳定表达缺 block、非法 element 与
   已延后的 element；lambda body 复用相同 hard-owner 规则，并以 `L0031` / `L0032` 区分缺少
-  body element 与当前阶段不支持的 body 形态。完整文件组合与跨声明恢复
-  均尚未实现；后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
+  body element 与当前阶段不支持的 body 形态。完整文件入口在 owner baseline 将 `val` / `var` /
+  `const` / `fun` 识别为 soft boundary，未知区以 L0017 / Error Item 恢复且保留下一声明；
+  后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   名称 / 类型 / 所有权检查以及 CLI / LSP 接线仍属后续 Phase。
 
 ## 结构化诊断与 renderer
@@ -261,8 +262,8 @@ Expression；callable marker、函数类型参数与调用实参都是
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
 索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 / block / lambda Parser、
-callable 参数与 typed call argument、局部解构、具名函数隐式 `Unit` 返回标注及分层
-fixture harness 已存在；控制流与完整文件 Parser 仍未实现。`lang-std` 的 bootstrap 流程与
+callable 参数与 typed call argument、局部解构、完整文件 Parser、具名函数隐式 `Unit` 返回标注及分层
+fixture harness 已存在；控制流仍未实现。`lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 
 ## 更新要求

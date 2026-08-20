@@ -18,7 +18,7 @@ use lang_frontend::{
     lexer::{LexedFile, LexemeKind, lex},
     parser::{
         Expression, FunctionBody, FunctionForm, Item, Statement, SyntaxAst, TypeRef, parse_block,
-        parse_declaration, parse_expression,
+        parse_declaration, parse_expression, parse_file,
     },
     source::{SourceId, SourceMap},
 };
@@ -248,6 +248,14 @@ fn parser_declaration_pass_fixture_root() -> PathBuf {
 
 fn parser_declaration_fail_fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-declaration-fail")
+}
+
+fn parser_file_pass_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-file-pass")
+}
+
+fn parser_file_fail_fixture_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/phase1/parser-file-fail")
 }
 
 fn parser_block_pass_fixture_root() -> PathBuf {
@@ -946,6 +954,74 @@ fn run_declaration_fail_case(
     })
 }
 
+fn run_file_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_fixtures(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_file_pass_case(case),
+        })
+        .collect())
+}
+
+fn run_file_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.disk_path)?;
+    let parsed = parse_file(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if !parsed.diagnostics().is_empty() || parsed.ast().source_id() != source_id {
+        return Err(ParserCaseFailure::UnexpectedDiagnostics);
+    }
+    if parsed
+        .roots()
+        .iter()
+        .any(|root| parsed.ast().items().get(*root).is_err())
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    Ok(DeclarationEvidence {
+        byte_len,
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        type_ref_count: parsed.ast().type_refs().len(),
+        diagnostic_count: 0,
+    })
+}
+
+fn run_file_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+    let cases = discover_lexer_fail_cases(root)?;
+    Ok(cases
+        .iter()
+        .map(|case| DeclarationCaseOutcome {
+            relative_path: case.relative_path.clone(),
+            result: run_file_fail_case(case),
+        })
+        .collect())
+}
+
+fn run_file_fail_case(case: &LexerFailCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+    let (sources, source_id, lexed, byte_len) =
+        parser_fixture_source(&case.relative_path, &case.source_path)?;
+    let parsed = parse_file(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if parsed.ast().source_id() != source_id
+        || parsed
+            .roots()
+            .iter()
+            .any(|root| parsed.ast().items().get(*root).is_err())
+    {
+        return Err(ParserCaseFailure::RootInvariant);
+    }
+    let expected = load_parser_sidecar(&sources, source_id, &case.sidecar_path)?;
+    validate_parser_diagnostics(&sources, parsed.diagnostics(), &expected)?;
+    Ok(DeclarationEvidence {
+        byte_len,
+        item_count: parsed.ast().items().len(),
+        expression_count: parsed.ast().expressions().len(),
+        type_ref_count: parsed.ast().type_refs().len(),
+        diagnostic_count: expected.len(),
+    })
+}
+
 fn validate_implicit_unit_root(
     ast: &SyntaxAst,
     root: lang_frontend::ast::ItemId,
@@ -1530,6 +1606,22 @@ mod tests {
             .expect("the empty declaration fail case must match its sidecar");
         assert_eq!(fail_evidence.item_count, 1);
         assert_eq!(fail_evidence.diagnostic_count, 1);
+    }
+
+    #[test]
+    fn checked_in_file_suites_execute_multiple_roots_and_cross_declaration_recovery() {
+        let pass = run_file_pass_suite(&parser_file_pass_fixture_root())
+            .expect("the file pass suite must be valid");
+        let fail = run_file_fail_suite(&parser_file_fail_fixture_root())
+            .expect("the file fail suite must be valid");
+        assert_eq!(pass.len(), 1);
+        let pass = pass[0].result.as_ref().expect("file pass fixture");
+        assert_eq!(pass.item_count, 2);
+        assert_eq!(pass.diagnostic_count, 0);
+        assert_eq!(fail.len(), 1);
+        let fail = fail[0].result.as_ref().expect("file fail fixture");
+        assert_eq!(fail.item_count, 2);
+        assert_eq!(fail.diagnostic_count, 1);
     }
 
     #[test]

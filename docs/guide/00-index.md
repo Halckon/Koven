@@ -107,7 +107,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0011 | 具名函数省略返回标注固定为 `Unit` | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0012 | 统一 callable 参数 marker、typed call argument（v0.12 起为三契约版本；v0.14 起调用点 `Inout` 标注改用符号 `&`） | `05-grammar-calls-lambda.md` §9（声明侧类型语法见 `03-grammar-core.md` §3，`&` 词法定义见 `02-lexical-spec.md` §7） | ✅ 已实现 |
 | SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
-| SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | `04-grammar-declarations-blocks.md` §10 | ⬜ 未实现 |
+| SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0015 | `module` / `import` | 尚未撰写 | ⬜ 未实现 |
 | SPEC-0016 | control-flow（`if`/`when`/循环） | 尚未撰写 | ⬜ 未实现，`01-design-decisions.md` 多处示例依赖其排期 |
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | 尚未撰写 | ⬜ 未实现 |
