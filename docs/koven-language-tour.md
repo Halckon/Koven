@@ -8,7 +8,7 @@ Koven 编译器目前处于 **Phase 1(词法分析 + 语法分析)** 阶段,类�
 
 - 本教程里的大部分语法——基础类型、变量、函数、`value class`/`class`、所有权标注、集合类型、lambda——已经有完整、可执行的语法定义,编译器前端正在实现。
 - **控制流(`if`/`when`/循环/jump)已在 v0.18 定稿；class 家族(`class`/`interface`/`enum class`/`object`)的正式语法产生式仍等待后续 guide。**
-- `Map`/`MutableMap` 的所有权契约与 `Copyable` opt-out 目前仍是候选设计；错误传播 `?` 已由 v0.19 定稿并进入实施。
+- `Map`/`MutableMap` 的所有权契约与 `Copyable` opt-out 目前仍是候选设计；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
 

@@ -119,7 +119,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0016 | control-flow（`if`/`when`/循环/jump/`super`） | `04-grammar-declarations-blocks.md` §12 | ✅ 已实现 |
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | 尚未撰写 | ⬜ 未实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
-| SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | 🟨 待实现 |
+| SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 
 ## 6. 错误码索引（近似区间，精确定义以对应文档正文为准）
 

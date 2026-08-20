@@ -1,0 +1,2 @@
+fun invalid(): Result<Value, Error> = ?
+fun next(): Unit

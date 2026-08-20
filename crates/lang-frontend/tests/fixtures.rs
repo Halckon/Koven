@@ -1614,13 +1614,13 @@ mod tests {
             .expect("the file pass suite must be valid");
         let fail = run_file_fail_suite(&parser_file_fail_fixture_root())
             .expect("the file fail suite must be valid");
-        assert_eq!(pass.len(), 2);
+        assert_eq!(pass.len(), 3);
         for outcome in pass {
             let evidence = outcome.result.as_ref().expect("file pass fixture");
             assert_eq!(evidence.item_count, 2);
             assert_eq!(evidence.diagnostic_count, 0);
         }
-        assert_eq!(fail.len(), 4);
+        assert_eq!(fail.len(), 5);
         for outcome in fail {
             let evidence = outcome.result.as_ref().expect("file fail fixture");
             assert_eq!(evidence.item_count, 2);

@@ -55,7 +55,7 @@
       Phase 1 AST，不实现名称解析或文件系统映射
 - [x] **SPEC-0016（前置：SPEC-0009 `done`；v0.18 已明确启用）**：解析 `if` / `when`、
       loop-family、jump 与 `super`，实现 §12 的 AST、位置敏感 `else` 诊断和恢复契约。
-- [ ] **SPEC-0063（前置：SPEC-0016 `done`；v0.19 已明确启用）**：解析
+- [x] **SPEC-0063（前置：SPEC-0016 `done`；v0.19 已明确启用）**：解析
       [`01-design-decisions.md`](./01-design-decisions.md)第 19 节与
       [`03-grammar-core.md`](./03-grammar-core.md)第 2、4、6 节的 postfix `?`，只建立
       `Propagate` AST 与消歧 / 恢复证据；`Result<T, E>`、最近 callable 和错误类型检查延后
@@ -64,7 +64,7 @@
       不得把这些结构塞回 SPEC-0009 至 SPEC-0014。
 
 SPEC-0006 词法基线、SPEC-0007 至 SPEC-0016 以及 v0.16 增量 SPEC-0062 已完成；
-SPEC-0063 是当前 Parser Goal，SPEC-0017 是其后的 Parser 边界。未勾选状态不
+SPEC-0063 已完成，SPEC-0017 是其后的 Parser 边界。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参

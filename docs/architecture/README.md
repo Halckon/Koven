@@ -153,12 +153,16 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 - `return` 同行可带值，换行结束裸 return；Parser 只保存最近 callable jump 的结构，不提前
   做 return / break / continue target、分支类型或 `Nothing` 检查。`when` 保存两种形态及
   换行 / `;` entry 分隔，loop body 必须为 block，`super<Interface>.member` 复用既有 postfix；
+- postfix 循环已增加 `Expression::Propagate { value, question_span }`，与 call、index、member、
+  `!!` 和 callable reference 左结合并保持单调迭代；Phase 1 在所有 expression context 保存
+  该节点，不提前检查 `Result<T, E>` 或 callable 返回类型。Lexer 最长匹配继续使 `?.` / `?:`
+  分别属于 safe member / Elvis；传播后普通成员访问使用显式分组 `(result?).member`；
 - `Expression` 与 `TypeRef` payload 只通过现有 typed ID 连接，叶与合成节点都保留同一
   `SourceId` 的 UTF-8 字节 `Span`；源码拼写继续由共享 `SourceMap` 回查；
 - Lexer invalid / reserved token 被消费为显式 Error 节点且不重复同源诊断；delimiter、插值
   stop、不结合链与尾随 token 使用既有 `L0009`–`L0015`，typed call argument 与参数 marker
   使用 `L0033`–`L0039` 做 owner-aware 局部恢复，局部解构使用 `L0040`–`L0046`，control-flow
-  使用 L0055–L0065。
+  使用 L0055–L0065。postfix `?` 不需要新错误类别，缺左 operand 继续使用 L0009；
   已发布的 `L0016` 仅保留在 catalog，生产
   Parser 不再发出；
 - 递归 Pratt 实现在固定 32 MiB 的 scoped worker 隔离栈上运行，并在 1024 个内部递归预算

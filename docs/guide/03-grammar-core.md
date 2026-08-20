@@ -82,7 +82,8 @@ index_suffix      = "[", expression, "]" ;
 其 `Result<T, E>` 与最近 callable 约束见[01-design-decisions.md](./01-design-decisions.md)第 19 节；Phase 1 不做类型或上下文拒绝。
 Lexer 的 `?`、`?.`、`?:` 是三个最长匹配 token，parser 不拆分后两者。因而 `result?` 是
 propagate，`result?.member` 是 safe member，`result ?: fallback` 是 Elvis；`result??` 是
-两个左结合 propagate 节点，最终类型是否合法由 Phase 2 判断。
+两个左结合 propagate 节点，最终类型是否合法由 Phase 2 判断。传播后立即做普通成员访问时
+统一写 `(result?).member`；不得用空白敏感的 token 重解释把 `result?.member` 当作传播。
 
 `call_argument` 在本版中的完整产生式见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节；basic call 与 typed call 复用同一实参语法，允许空
 参数列表但不允许 trailing comma。SPEC-0007 完成时只支持位置实参并以 L0016 拒绝命名 / 模式

@@ -3512,15 +3512,33 @@ impl Parser<'_> {
                 }
             } else if self.current_is_symbol(Symbol::LeftBracket) {
                 self.parse_index(receiver, stops)?
-            } else if self.current_is_symbol(Symbol::BangBang) {
-                let operator_span = self.bump()?.span();
+            } else if matches!(
+                self.peek(0).map(Lexeme::kind),
+                Some(LexemeKind::Token(TokenKind::Symbol(
+                    Symbol::BangBang | Symbol::Question
+                )))
+            ) {
+                let operator = self.bump()?;
+                let operator_span = operator.span();
                 let receiver_span = self.expression_span(receiver)?;
+                let payload = match operator.kind() {
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::BangBang)) => {
+                        Expression::NonNullAssert {
+                            operand: receiver,
+                            operator_span,
+                        }
+                    }
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Question)) => {
+                        Expression::Propagate {
+                            value: receiver,
+                            question_span: operator_span,
+                        }
+                    }
+                    _ => return Err(ParserInternalError::InvalidLexemeStream),
+                };
                 self.add_expression(
                     self.span(receiver_span.start(), operator_span.end())?,
-                    Expression::NonNullAssert {
-                        operand: receiver,
-                        operator_span,
-                    },
+                    payload,
                 )?
             } else if self.current_is_symbol(Symbol::ColonColon) {
                 self.parse_bound_reference(receiver, stops)?
@@ -3532,12 +3550,18 @@ impl Parser<'_> {
     }
 
     fn is_postfix_start(&self) -> bool {
-        self.current_is_symbol(Symbol::Dot)
-            || self.current_is_symbol(Symbol::QuestionDot)
-            || self.current_is_symbol(Symbol::LeftParen)
-            || self.current_is_symbol(Symbol::LeftBracket)
-            || self.current_is_symbol(Symbol::BangBang)
-            || self.current_is_symbol(Symbol::ColonColon)
+        matches!(
+            self.peek(0).map(Lexeme::kind),
+            Some(LexemeKind::Token(TokenKind::Symbol(
+                Symbol::Dot
+                    | Symbol::QuestionDot
+                    | Symbol::LeftParen
+                    | Symbol::LeftBracket
+                    | Symbol::BangBang
+                    | Symbol::Question
+                    | Symbol::ColonColon
+            )))
+        )
     }
 
     fn consume_error_postfix(
@@ -4967,6 +4991,9 @@ impl Parser<'_> {
                         | Expression::NonNullAssert {
                             operand: expression,
                             ..
+                        }
+                        | Expression::Propagate {
+                            value: expression, ..
                         } => work.push(ContextWork::Expression {
                             id: expression,
                             statement_allowed: false,
@@ -6009,6 +6036,56 @@ mod tests {
                 parsed.diagnostics()
             );
         }
+    }
+
+    fn postfix_propagation_metrics(questions: usize) -> (usize, usize) {
+        let text = format!("result{}", "?".repeat(questions));
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("postfix-propagation.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            lambda_headers,
+            index: 0,
+            next_terminal_recovery_event: 0,
+            recursion_depth: 0,
+            file_mode: false,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        let root = parser
+            .parse_expression_bp(0, Stops::ROOT)
+            .expect("propagation chain must parse");
+        parser
+            .consume_expression_tail(root, Stops::ROOT)
+            .expect("propagation tail must parse");
+        assert!(parser.diagnostics.is_empty());
+        (lexed.lexemes().len(), parser.significant_raw_visits.get())
+    }
+
+    #[test]
+    fn postfix_propagation_significant_visits_stay_linear_when_doubled() {
+        let (small_raw, small_visits) = postfix_propagation_metrics(256);
+        let (large_raw, large_visits) = postfix_propagation_metrics(512);
+        assert!(small_visits <= small_raw * 16);
+        assert!(large_visits <= large_raw * 16);
+        assert!(large_visits <= small_visits * 2 + 32);
     }
 
     fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {

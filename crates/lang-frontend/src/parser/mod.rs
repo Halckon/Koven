@@ -769,6 +769,13 @@ pub enum Expression {
         /// `!!` 范围。
         operator_span: Span,
     },
+    /// postfix `?` 错误值传播。
+    Propagate {
+        /// 被传播的 `Result` 表达式；类型约束留给 Phase 2。
+        value: ExpressionId,
+        /// 真实 `?` 范围。
+        question_span: Span,
+    },
     /// 未绑定或绑定 callable reference。
     CallableReference {
         /// `None` 表示 `::name`，否则表示 `receiver::name`。

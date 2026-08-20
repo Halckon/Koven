@@ -1,0 +1,5 @@
+fun decode(input: Input): Result<Output, DecodeError> {
+    return parse(input)?
+}
+
+fun pipeline(input: Input): Result<Output, DecodeError> = decode(input)?

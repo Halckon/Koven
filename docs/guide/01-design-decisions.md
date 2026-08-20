@@ -778,7 +778,9 @@ fun readConfig(path: String): Result<Config, IoError> {
   从最近 callable `return` 整个 `__tmp`（而不是重新构造一个新 `Err`）。具名函数和 lambda
   都是 callable boundary；lambda 内的 `?` 只退出该 lambda，绝不从外层具名函数非局部返回。
 - `?` 的优先级与 `!!` 相同，归入[03-grammar-core.md](./03-grammar-core.md)第 4 节运算符层级表的第 1 级（postfix，左结合，
-  可连续），因此 `foo()?.bar()?` 合法。
+  可连续）。由于 `?.` 是 Kotlin safe-member 的单一最长匹配 token，传播后立即访问普通成员
+  必须显式分组为 `(foo()?).bar`；`foo()?.bar` 永远表示 safe member，不解释为 `foo()?` 后
+  接 `.bar`。
 - `?` 与 `!!` 的差异：`!!` 面向 `T?`，失败时 `error()`（abort，不可恢复）；`?` 面向
   `Result<T, E>`，失败时是**callable 级别的普通提前返回**，把错误值交还给调用者，不终止进程。
   二者不能混用（不能对 `Result<T, E>` 用 `!!`，也不能对 `T?` 用 `?`）。
