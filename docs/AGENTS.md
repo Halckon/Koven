@@ -12,7 +12,7 @@
 docs/
 ├── README.md
 ├── AGENTS.md
-├── agent-language-design-guide-v*.md  # v0.10 及更早的单文件历史
+├── agent-language-design-guide-v*.md  # v0.12 及更早的单文件历史
 ├── guide/                              # v0.14 起的现行滚动文档集
 │   ├── 00-index.md
 │   ├── 01-design-decisions.md
@@ -43,8 +43,9 @@ docs/
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
 当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.14 文档集。它是
-跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.10 及更早单文件 guide 只保留为
-历史；v0.12、v0.13 的内容已经合入 v0.14，不保留独立文件快照。
+跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.12 及更早单文件 guide 只保留为
+历史；v0.11、v0.12 候选快照在 v0.14 启用后补回，仅用于合入验证。v0.13 的内容已经合入
+v0.14，没有独立文件快照。
 
 ---
 
@@ -93,8 +94,9 @@ Spec，但必须添加回归测试；若修复会改变既有语言语义，则�
   文档集的当前版本与状态，每份正文顶部记录自身最近一次内容变更版本。
 - `docs/guide/` 正文原地演进，不为每个版本复制整套目录。每次版本变更必须追加
   [`guide/07-changelog-archive.md`](./guide/07-changelog-archive.md)，并以 Git 提交保存可复核
-  的历史状态。v0.12、v0.13 已合入 v0.14，不补造独立快照。
-- v0.10 及更早的 `agent-language-design-guide-vMAJOR.MINOR.md` 是单文件历史材料，继续保留，
+  的历史状态。v0.11、v0.12 的单文件候选快照已补回，不改变其内容已合入 v0.14
+  的状态；v0.13 是纯结构拆分，没有独立快照。
+- v0.12 及更早的 `agent-language-design-guide-vMAJOR.MINOR.md` 是单文件历史材料，继续保留，
   不原地接收 v0.14 及后续语义修改。
 - 只有用户明确指定的新版本才能取代当前版本。创建了更高版本号文件不等于自动生效。
 - 新版本必须在索引中说明它取代的版本并维护变更记录。v0.3 之前的历史材料未随当前仓库
