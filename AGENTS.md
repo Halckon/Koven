@@ -34,7 +34,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.16。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.17。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -65,9 +65,11 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.16 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.17 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
+- 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
+  `mod` / `use` / `::` 或花括号分组导入。文件系统映射与名称解析仍等待后续 Spec / ADR。
 - `value class` 表示值语义和内联布局，不得描述成“永远在栈上”，也不天然等于可复制。
   它可以包含不可复制字段；仅当全部字段类型都满足 `Copyable` 时才自动满足 `Copyable`，
   否则转交所有权时发生移动。`Copyable` 可作泛型上界但不能由用户手动实现；不可复制字段
@@ -391,7 +393,8 @@ cargo build -p lang-cli
 1. `lang-std` 已确定使用目标语言源码；未确定的是 Rust runtime / ABI 支撑是否存在、位于
    何处，以及早期阶段如何 bootstrap。
 2. v1 `object` / `companion object` 的编译期限制是否也约束成员函数体。
-3. module / import、ABI、FFI、目标三元组、链接器、增量编译与跨平台发布策略。
+3. package 到 source root / 文件的映射、跨文件名称解析、ABI、FFI、目标三元组、链接器、
+   增量编译与跨平台发布策略。
 4. 借用生命周期与 ASAP 析构点的精确定义，自建 SSA IR 指令集和调试映射。
 5. LLVM / `inkwell` 版本及 feature 组合、机器可读诊断协议、包清单与锁文件 schema。
 

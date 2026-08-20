@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.16。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.17。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -437,7 +437,8 @@ declaration_separator = trivia_with_line_break
 
 - 空文件合法。文件产物按源码顺序保存零个或多个既有 `ItemId`；`AstFile` 已是文件级容器，
   不增加虚构的根 Item。SPEC-0014 只组合现有 `val`、`var`、`const val`、`fun`，不接纳
-  `module` / `import`、control-flow、class-family 或其他尚未定义的顶层产生式。
+  `package` / `import`、control-flow、class-family 或其他尚未定义的顶层产生式。v0.17 的
+  SPEC-0015 在本节既有完整文件契约上增量加入文件头，不改写 SPEC-0014 的历史边界。
 - `trivia_with_line_break` 是至少包含一个实际 LF / CRLF 的非空 trivia 序列；已终止 block
   comment 内的 LF / CRLF 同样计入，只有 space、tab 或不含换行的注释不构成分隔。声明之间
   必须存在该换行分隔或一个 `;`；因此同一行多个声明必须写 `;`。分隔区域可同时包含换行和
@@ -468,5 +469,59 @@ expression / block statement separator，也不改变独立声明入口。该增
 SPEC-0014 新增 `parse_file(&SourceMap, &LexedFile) -> ParsedFile`，其中 `ParsedFile` 暴露同源
 `SyntaxAst`、有序根 `ItemId` 切片及合并诊断。现有 `parse_expression`、`parse_declaration`、
 `parse_block` 的公共行为与返回类型保持不变。
+
+## 11. SPEC-0015 `package` 与 Kotlin 风格 `import` 文件头
+
+```ebnf
+source_file = trivia*,
+              [ package_directive ],
+              { import_directive },
+              [ simple_declaration,
+                { declaration_separator, simple_declaration },
+                [ trivia*, ";" ] ],
+              trivia*, EOF ;
+
+package_directive = "package", trivia+, qualified_name ;
+
+import_directive = "import", trivia+, import_target,
+                   [ trivia+, "as", trivia+, Identifier ] ;
+
+import_target = qualified_name
+              | qualified_name, ".", "*" ;
+
+qualified_name = Identifier, { ".", Identifier } ;
+
+file_header_separator = trivia_with_line_break
+                      | trivia*, ";", trivia* ;
+```
+
+- 每个文件最多有一个可选 `package` directive。它必须是文件首个非 trivia 构造；省略时
+  文件处于默认 package。零个或多个 `import` 必须紧随可选 `package`，并位于任何普通声明
+  之前。只有 exact import 可写 `as Identifier`；wildcard import 的 `*` 必须是最后一个
+  segment，不能起别名。
+- 名称采用一个或多个点分 ASCII Identifier segment。不得有前导点、尾随点、空 segment，
+  也不得以硬关键字或 reserved word 冒充 segment。所有 import 都是绝对名称；v1 不提供
+  相对 import。Koven 不接受 Rust 风格的 `mod`、`use`、`::`、`self` / `super` / `crate`
+  路径或花括号分组导入。
+- 两个文件头构造之间、最后一个文件头与首个声明之间，必须出现实际 LF / CRLF 或 `;`。
+  最后一个构造若直接抵达 EOF 可省略分隔符。换行判定与第 10 节一致，已终止 block comment
+  内换行计入，space、tab 或无换行注释不计；同一行继续写下一个文件构造必须显式写 `;`。
+  这项规则不改变 block、expression 或独立声明入口。
+- `ParsedFile` 内嵌保存 `Option<PackageDirective>` 与源码有序的 `Vec<ImportDirective>`；普通
+  声明继续只通过 `roots: Vec<ItemId>` 暴露。directive、点分 segment、wildcard 和 alias
+  都保留真实 `Span`，不创建虚构 Item 或第五张 AST table。Parser 只保存源码结构，不解析
+  文件系统路径、source root、package identity、名称绑定、可见性、重复或 wildcard 展开。
+- `package` 重复或出现在 import / 声明之后使用 L0051 `misplaced package directive`；声明
+  后的 `import` 使用 L0052 `misplaced import directive`。缺 package 名、缺 import target、
+  缺 alias 分别使用 L0048–L0050；文件头间缺换行 / `;` 使用 L0053；wildcard import 后写
+  alias 使用 L0054。主 `Span` 覆盖首个能确定类别的真实 token；EOF 缺失使用同位置空 Span。
+- 文件头 starter 只在 delimiter stack 为空且 lexical owner 回到文件 baseline 时作为 soft
+  boundary。恢复必须保留下一合法文件头或声明 starter，不能把 nested string、interpolation
+  或 delimiter 内的 `package` / `import` 提升到文件级；一次根因不产生重复文件级诊断。
+  文件 dispatch、header 解析和跨构造恢复合计保持 `O(n)` 时间与单调游标。
+
+SPEC-0015 只交付 Phase 1 Lexer / Parser / AST / 诊断与恢复。package 到 source root / 文件的
+映射、多文件名称解析、exact / wildcard import 的绑定与冲突规则属于 SPEC-0025；相关长期
+映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。
 
 ---

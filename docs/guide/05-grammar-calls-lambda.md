@@ -482,7 +482,7 @@ SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量�
 | 0012 | 统一 callable 参数 marker、函数类型参数与 typed call argument |
 | 0013 | 局部 `val` 解构 |
 | 0014 | 完整文件、声明分隔与跨声明恢复（旧 0011） |
-| 0015 | `module` / `import`（旧 0012） |
+| 0015 | `package` / Kotlin 风格 `import`（旧 `module` / `import` 候选） |
 | 0016 | control-flow Parser（原待编号） |
 | 0017 | class-family Parser（原待编号） |
 | 0018–0026 | Phase 2 旧 0013–0021，逐项 `+5` |

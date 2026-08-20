@@ -1,6 +1,6 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.16 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.17 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
@@ -582,11 +582,24 @@ v1 只提供**同步阻塞 IO**(文件、网络),异步 IO 依赖协程,要等 v
 
 ## 14. 关键字与运算符速查
 
+文件可以用 Kotlin 风格的头部声明源码组织：
+
+```kotlin
+package com.example.app
+
+import koven.io.println
+import koven.collections.*
+import koven.math.Vector as Vec
+```
+
+`package` 可省略；`import` 必须位于普通声明之前。Koven 不接受 Rust 的 `mod`、`use`、
+`::` 或花括号分组导入，源码路径到 package 的映射及跨文件名称解析仍等待后续阶段实现。
+
 **硬关键字(42 个,不可作标识符)**
 
 ```
-声明相关:class companion const enum extern fun import interface module
-         object typealias val value var vararg
+声明相关:class companion const enum extern fun import interface object
+         package typealias val value var vararg
 控制流:  break continue else for if in is loop return when while
 所有权:  borrow inout move own unsafe
 可见性:  internal private public
@@ -627,7 +640,7 @@ Koven 编译器按下面的阶段推进,每个阶段完成后才会开始下一�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | Phase 0 | 项目骨架(Cargo workspace、AST、诊断框架) | 已完成 |
-| Phase 1 | 词法 + 语法分析 | 进行中(v0.14 `&` 词法增量、callable 参数/调用实参、表达式、声明、block、lambda、局部解构与完整文件恢复已完成;`module`/`import`、控制流、class 家族的解析器仍在推进) |
+| Phase 1 | 词法 + 语法分析 | 进行中(v0.14 `&` 词法增量、callable 参数/调用实参、表达式、声明、block、lambda、局部解构与完整文件恢复已完成;`package`/`import`、控制流、class 家族的解析器仍在推进) |
 | Phase 2 | 类型检查(不含所有权/借用) | 未开始 |
 | Phase 3 | 所有权 / 借用检查 | 未开始 |
 | Phase 4 | LLVM 代码生成 | 未开始 |

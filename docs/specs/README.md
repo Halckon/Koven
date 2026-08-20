@@ -1,10 +1,10 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.16 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.17 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.16](../guide/00-index.md) 已由用户明确启用并取代 v0.15；v0.12、v0.13 内容已合入 v0.14。
+[v0.17](../guide/00-index.md) 已由用户明确启用并取代 v0.16；v0.12、v0.13 内容已合入 v0.14。
 SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0062 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
@@ -75,7 +75,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0013](./0013-local-val-destructuring-parser.md) | 解析 block / lambda body 内局部 `val` 解构（`done`） | 0012 `done`；适用 guide 已启用；站立授权已记录 |
 | [0014](./0014-complete-file-parser.md) | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制（`done`） | 0011、0013 `done`；v0.15 已封闭完整文件恢复契约；站立授权已记录 |
 | [0062](./0062-top-level-declaration-separators.md) | 按 v0.16 修正顶层声明换行 / 分号分隔（`done`） | 0014 `done`；v0.16 已生效；当前持续 Goal 的站立授权 |
-| 0015 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
+| 0015 | 解析 `package` / Kotlin 风格 `import` | 0014、0062 `done`；v0.17 已生效；当前持续 Goal 的站立授权 |
 | 0016 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
 | 0017 | 解析 `value class` / `class` / `interface` / `enum class` / `object` / `companion object` | 0009 `done`；先由后续 guide 明确定义 |
 
@@ -90,7 +90,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | 0022 | 推导条件 `Copyable` 并检查结构化解构类型 | 0019、0020 |
 | 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
-| 0025 | 建立多文件 module / import 名称解析 | 0015、0018；新 guide + module 映射 ADR |
+| 0025 | 建立多文件 package / import 名称解析 | 0015、0018；package 映射 ADR |
 | 0026 | 检查 `object` / `companion object` | 0020、0017；先由新 guide 明确成员函数限制 |
 
 ### Phase 3：所有权与借用
@@ -148,10 +148,10 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | 0060 | 提供版本化机器可读诊断协议 | 0003、0055；接受协议 ADR |
 | 0061 | 构建首个支持平台的 compiler + stdlib 发行包 | 0040、0042–0051、0054；接受发布矩阵 ADR |
 
-增量编译不预留在 Phase 0–6 主链中。它依赖稳定 module identity、package lock、SSA 和依赖
+增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.16 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.17 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 
@@ -163,7 +163,6 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | 决策 | 推荐方案 | 需要的权威文档 |
 |---|---|---|
 | `object` / `companion object` | 编译期限制只约束存储状态和初始化式；成员函数体可使用普通 v1 代码，但不能读取或修改运行时单例状态 | 新 guide |
-| `module` / `import` | 使用显式、点分层级 module 名和绝对 import；source root 到文件的映射由 package ADR 决定，不从相对路径静默推导语义 | 新 guide + ADR |
 | 借用与析构 | v1 借用只存在于一次调用的动态期间，不允许存储或返回；ASAP 析构以所有权检查标出的最后一次合法使用为准，分支合流采用保守点 | 新 guide |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |

@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 完整词法规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第三部分），完整文档
-> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.16。
+> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.17。
 > v0.5 词法基线已由 SPEC-0006 实现并验收；v0.14 新增的单字符 `&` 已由 SPEC-0012
 > 增量实现并验收；v0.16 新增的 `;` 固定符号已由 SPEC-0062 实现并验收。
 
@@ -10,7 +10,7 @@
 **声明相关**
 ```
 class       companion   const       enum        extern
-fun         import      interface   module      object
+fun         import      interface   object      package
 typealias   val         value       var         vararg
 ```
 
@@ -38,6 +38,10 @@ super       this        true
 ```
 
 > `error` **不在此表中**——它是标准库顶层函数，不是关键字（[01-design-decisions.md](./01-design-decisions.md)第 3 节）。
+
+> v0.17 以 `package` 取代原硬关键字 `module`。`package` 只在完整文件头产生式中有特殊
+> 含义；`module` 自 v0.17 起按普通 `Identifier` 扫描。Koven 不保留 Rust 风格的 `mod` / `use`
+> 语法，也不把 `module` 作为它们的同义词。
 
 > `own` **仍在此表中，数量不变**——v0.10/v0.11 候选一度让它出现在函数类型、具名参数与
 > 调用实参三处产生式里；v0.12 取消了这一独立契约（并入 `Value`，见[01-design-decisions.md](./01-design-decisions.md)第 5 节与
