@@ -258,6 +258,21 @@ pub enum Statement {
         /// 对应的 `Item::Variable`。
         declaration: ItemId,
     },
+    /// block 或 lambda body 中的局部 `val` 解构。
+    LocalDestructuring {
+        /// 真实 `val` 关键字范围。
+        val_span: Span,
+        /// 真实 `(` 范围。
+        left_paren_span: Span,
+        /// 源码顺序的 binding marker。
+        bindings: Vec<NameMarker>,
+        /// 真实 `)`；缺失时不伪造范围。
+        right_paren_span: Option<Span>,
+        /// 真实 `=`；缺失时不伪造范围。
+        equals_span: Option<Span>,
+        /// 唯一 initializer 表达式。
+        initializer: ExpressionId,
+    },
     /// expression statement。
     Expression {
         /// 对应表达式。

@@ -35,7 +35,7 @@ Goal：提交成功后标记完成
 
 当前仓库已完成 Phase 0 并进入 Phase 1；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
 SPEC-0008 已分别建立独立表达式和声明 Parser，SPEC-0009 已建立 block / statement 序列及
-函数 block body Parser，SPEC-0010、SPEC-0011 与 SPEC-0012 已分别实现 lambda literal、具名
-函数隐式 `Unit` 返回标注，以及 callable 参数 marker / typed call argument。完整文件与其余
-语法仍按后续 Specs 推进。
+函数 block body Parser，SPEC-0010 至 SPEC-0013 已实现 lambda literal、具名
+函数隐式 `Unit` 返回标注、callable 参数 marker / typed call argument，以及 block /
+lambda body 内的局部 `val` 解构。完整文件与其余语法仍按后续 Specs 推进。
 各编译阶段的实际状态见 [架构快照](./architecture/README.md)。

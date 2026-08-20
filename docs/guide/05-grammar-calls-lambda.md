@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.14。
-> 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0012 已实现；本节下一项是 SPEC-0013
-> 的局部 `val` 解构。共享的表达式/类型引用基础见
+> 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
+> 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)。
 
@@ -472,7 +472,7 @@ SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历�
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
 SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量接受其他 golden 变化。
 
-0001–0009 的历史实体文件和编号保持不变；0010–0012 已完成。0013 及后续候选尚未物化，
+0001–0009 的历史实体文件和编号保持不变；0010–0013 已完成。0014 及后续候选尚未物化，
 本版按下表使用唯一编号，禁止保留新旧编号别名：
 
 | 新编号 | Goal / 旧候选映射 |

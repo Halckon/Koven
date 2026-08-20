@@ -203,7 +203,10 @@ fn lambda_body_has_ordered_elements_without_duplicate_tail_or_block_mode() {
     for (_, node) in nested.ast().statements().iter() {
         let elements = match node.payload() {
             Statement::Block { elements } | Statement::LambdaBody { elements } => elements,
-            Statement::Error | Statement::LocalVariable { .. } | Statement::Expression { .. } => {
+            Statement::Error
+            | Statement::LocalVariable { .. }
+            | Statement::LocalDestructuring { .. }
+            | Statement::Expression { .. } => {
                 continue;
             }
         };

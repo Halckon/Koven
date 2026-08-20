@@ -13,7 +13,7 @@
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0039` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0046` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖现行 v0.14 词法契约的确定性扫描、完整 lexeme 流与
@@ -129,6 +129,10 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 - block 入口消费 v0.8 的空 / 嵌套 block、局部 `val` / `var` 与 expression statement，按源码
   顺序保存 typed `StatementId`；显式和隐式 block body 都把真实 block 的完整范围纳入函数
   Item 范围，隐式无体 Item 精确止于参数列表最后实际消费位置；
+- block 与 lambda body 在 `val (` 起点提交唯一 `Statement::LocalDestructuring`，
+  内嵌保存有序 `NameMarker` bindings、真实可选 `)` / `=` 与唯一 initializer
+  `ExpressionId`；`var (` / `const val (` 与独立声明上下文分别以错误 statement /
+  item 恢复，不新增 pattern table或提前进行 Phase 2 / 3 检查；
 - expression primary 消费 v0.9 的普通与 `move` lambda，以 `Expression::Lambda` 唯一引用
   独立 `Statement::LambdaBody`；block element 起点的 `{` 仍是 Unit block，等待 primary 的
   `{` 才是 lambda，因而无需 trivia 或类型猜测即可区分两者；
@@ -139,7 +143,8 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
   `SourceId` 的 UTF-8 字节 `Span`；源码拼写继续由共享 `SourceMap` 回查；
 - Lexer invalid / reserved token 被消费为显式 Error 节点且不重复同源诊断；delimiter、插值
   stop、不结合链与尾随 token 使用既有 `L0009`–`L0015`，typed call argument 与参数 marker
-  使用 `L0033`–`L0039` 做 owner-aware 局部恢复。已发布的 `L0016` 仅保留在 catalog，生产
+  使用 `L0033`–`L0039` 做 owner-aware 局部恢复，局部解构使用 `L0040`–`L0046`。
+  已发布的 `L0016` 仅保留在 catalog，生产
   Parser 不再发出；
 - 递归 Pratt 实现在固定 32 MiB 的 scoped worker 隔离栈上运行，并在 1024 个内部递归预算
   单位处返回具体资源错误；这避免调用线程的小栈或输入 token 数放大栈申请，也不新增未经
@@ -148,7 +153,7 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
   与只在 delimiter 外生效的 soft structure stop 分离；局部声明、字符串 / 插值 terminal owner
   和 nested block 恢复保持单调前进，`L0028`–`L0030` 分别稳定表达缺 block、非法 element 与
   已延后的 element；lambda body 复用相同 hard-owner 规则，并以 `L0031` / `L0032` 区分缺少
-  body element 与当前阶段不支持的 body 形态。局部 `val` 解构、完整文件组合与跨声明恢复
+  body element 与当前阶段不支持的 body 形态。完整文件组合与跨声明恢复
   均尚未实现；后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   名称 / 类型 / 所有权检查以及 CLI / LSP 接线仍属后续 Phase。
 
@@ -160,7 +165,7 @@ Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
   `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现精确注册 `L0001`–`L0008` 八个
-  Lexer 错误码与 `L0009`–`L0039` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
+  Lexer 错误码与 `L0009`–`L0046` Parser 错误码；`L0016` 为不再由生产 Parser 发出的历史
   类别，`L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
@@ -196,8 +201,9 @@ typed table，payload 类型由后续语法阶段或测试调用方提供：
   和测试，不是序列化格式或跨构建稳定协议。
 
 生产模块已用 `SyntaxAst = AstFile<Item, Statement, Expression, TypeRef>` 定义共享具体 AST，
-并保留 `ExpressionAst` 兼容别名。`Statement` 封闭区分 Error、Block、引用变量 Item 的
-LocalVariable 与引用表达式的 Expression；callable marker、函数类型参数与调用实参都是
+并保留 `ExpressionAst` 兼容别名。`Statement` 封闭区分 Error、Block / LambdaBody、引用变量
+Item 的 LocalVariable、内嵌 binding / initializer 的 LocalDestructuring 与引用表达式的
+Expression；callable marker、函数类型参数与调用实参都是
 四张 typed table 内节点的封闭内嵌 payload，没有新增第五张 table。尚无 visitor、HIR / MIR、
 名称解析结果或 LLVM / codegen handle。
 
@@ -228,9 +234,11 @@ LocalVariable 与引用表达式的 Expression；callable marker、函数类型�
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
 - block suite 调用生产 block 入口，pass case 遍历 Statement / Item / Expression typed child，
-  fail case 逐项核对 Lexer / Parser 合并诊断；两套 suite 均有非零用例与配对守卫；
+  fail case 逐项核对 Lexer / Parser 合并诊断；已加入局部解构 pass 与 `L0044` trailing
+  comma fail，两套 suite 均有非零用例与配对守卫；
 - lambda suite 调用生产 expression 入口，pass case 验证 Lambda 至 LambdaBody 的 typed child，
-  fail case 精确核对 `L0031` / `L0032` 及合并诊断；两套 suite 同样执行非零与配对守卫；
+  fail case 精确核对合并诊断；已加入 lambda body 解构 pass 与 `L0046` 缺 initializer
+  fail，并保留 `L0031` / `L0032` 证据；两套 suite 同样执行非零与配对守卫；
 - implicit-unit suite 调用生产声明入口；五个 pass fixture 覆盖隐式无体、空 / 非空 block、
   显式 `Unit` 与显式其他类型，两个 fail fixture 分别锁定省略标注的表达式体 `L0021` 和真实
   colon 后缺 TypeRef 的 `L0014`。runner 同时检查 `FunctionForm` 来源、Error / 真实 TypeRef、
@@ -253,8 +261,8 @@ LocalVariable 与引用表达式的 Expression；callable marker、函数类型�
 
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
 索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 / block / lambda Parser、
-callable 参数与 typed call argument、具名函数隐式 `Unit` 返回标注及分层 fixture harness
-已存在；局部解构、控制流与完整文件 Parser 仍未实现。`lang-std` 的 bootstrap 流程与
+callable 参数与 typed call argument、局部解构、具名函数隐式 `Unit` 返回标注及分层
+fixture harness 已存在；控制流与完整文件 Parser 仍未实现。`lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 
 ## 更新要求

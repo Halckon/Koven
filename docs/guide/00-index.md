@@ -62,7 +62,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——SPEC-0006 基线与 SPEC-0012 的 v0.14 `&` 增量均已验收 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~320 | 低到中——是 04、05 的共享基础 |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8：SPEC-0008（声明）、SPEC-0009（block） | ~420 | 低——已验收 |
-| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | **高**——SPEC-0012 已实现，下一项 SPEC-0013 的局部解构仍在这里 |
+| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
 | [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.14 完整逐版本变更记录表格（含 v0.13 结构调整说明） | ~190 | 只追加，不修改 |
 
@@ -104,7 +104,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0010 | lambda literal | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0011 | 具名函数省略返回标注固定为 `Unit` | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0012 | 统一 callable 参数 marker、typed call argument（v0.12 起为三契约版本；v0.14 起调用点 `Inout` 标注改用符号 `&`） | `05-grammar-calls-lambda.md` §9（声明侧类型语法见 `03-grammar-core.md` §3，`&` 词法定义见 `02-lexical-spec.md` §7） | ✅ 已实现 |
-| SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ⬜ 未实现 |
+| SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | 尚未撰写（占位于 `06-roadmap.md`） | ⬜ 未实现 |
 | SPEC-0015 | `module` / `import` | 尚未撰写 | ⬜ 未实现 |
 | SPEC-0016 | control-flow（`if`/`when`/循环） | 尚未撰写 | ⬜ 未实现，`01-design-decisions.md` 多处示例依赖其排期 |

@@ -41,7 +41,7 @@
       命名实参与模式实参
       （声明侧关键字 `borrow` / `inout`；调用点关键字 `borrow` 与符号 `&`）的 Phase 1
       AST / parser；不实现 Phase 2 / 3 合法性检查
-- [ ] **SPEC-0013（前置：SPEC-0012 `done`）**：只实现 block / lambda body 内局部 `val` 解构
+- [x] **SPEC-0013（前置：SPEC-0012 `done`）**：只实现 block / lambda body 内局部 `val` 解构
 - [ ] **SPEC-0014（前置：SPEC-0011、0013 `done`）**：只把 SPEC-0007 至 SPEC-0013 的既有
       节点组合为完整文件，并实现声明
       分隔、跨声明同步与级联抑制；单个语法错误不得导致整个文件解析中断，但本 Spec 不以
@@ -52,7 +52,7 @@
       运算符 `?` 的语义依赖 SPEC-0016 定义的 `return`，其 parser 支持应在 SPEC-0016 落地
       后紧接排期，不得早于 `return` 语义定案）
 
-SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0012 已完成；SPEC-0013 至 SPEC-0017 是现行
+SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0013 已完成；SPEC-0014 至 SPEC-0017 是现行
 规范规定的后续 Parser 边界。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。

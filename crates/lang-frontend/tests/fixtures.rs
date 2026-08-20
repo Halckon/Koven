@@ -1539,9 +1539,17 @@ mod tests {
         let fail = run_block_fail_suite(&parser_block_fail_fixture_root())
             .expect("the block fail suite must be valid");
 
-        assert_eq!(pass.len(), 1);
-        assert_eq!(pass[0].relative_path, "sequence.ko");
-        let pass = pass[0]
+        assert_eq!(pass.len(), 2);
+        assert_eq!(pass[0].relative_path, "destructuring.ko");
+        let destructuring = pass[0]
+            .result
+            .as_ref()
+            .expect("the destructuring block fixture must parse without diagnostics");
+        assert!(destructuring.statement_count >= 2);
+        assert_eq!(destructuring.expression_count, 1);
+        assert_eq!(destructuring.diagnostic_count, 0);
+        assert_eq!(pass[1].relative_path, "sequence.ko");
+        let pass = pass[1]
             .result
             .as_ref()
             .expect("the block pass fixture must parse without diagnostics");
@@ -1550,9 +1558,16 @@ mod tests {
         assert!(pass.expression_count >= 2);
         assert_eq!(pass.diagnostic_count, 0);
 
-        assert_eq!(fail.len(), 1);
-        assert_eq!(fail[0].relative_path, "unsupported-return.ko");
-        let fail = fail[0]
+        assert_eq!(fail.len(), 2);
+        assert_eq!(fail[0].relative_path, "destructuring-trailing-comma.ko");
+        let destructuring = fail[0]
+            .result
+            .as_ref()
+            .expect("the destructuring block fail fixture must match its sidecar");
+        assert!(destructuring.statement_count >= 2);
+        assert_eq!(destructuring.diagnostic_count, 1);
+        assert_eq!(fail[1].relative_path, "unsupported-return.ko");
+        let fail = fail[1]
             .result
             .as_ref()
             .expect("the block fail fixture must match its sidecar");
@@ -1567,18 +1582,35 @@ mod tests {
         let fail = run_lambda_fail_suite(&parser_lambda_fail_fixture_root())
             .expect("the lambda fail suite must be valid");
 
-        assert_eq!(pass.len(), 1);
+        assert_eq!(pass.len(), 2);
         assert_eq!(pass[0].relative_path, "basic.ko");
-        let pass = pass[0]
+        let basic = pass[0]
             .result
             .as_ref()
             .expect("the lambda pass fixture must parse to Lambda/LambdaBody");
-        assert!(pass.expression_count >= 3);
-        assert_eq!(pass.diagnostic_count, 0);
+        assert!(basic.expression_count >= 3);
+        assert_eq!(basic.diagnostic_count, 0);
+        assert_eq!(pass[1].relative_path, "destructuring.ko");
+        let destructuring = pass[1]
+            .result
+            .as_ref()
+            .expect("the destructuring lambda fixture must parse without diagnostics");
+        assert!(destructuring.expression_count >= 2);
+        assert_eq!(destructuring.diagnostic_count, 0);
 
-        assert_eq!(fail.len(), 1);
-        assert_eq!(fail[0].relative_path, "expected-element.ko");
-        let fail = fail[0]
+        assert_eq!(fail.len(), 2);
+        assert_eq!(
+            fail[0].relative_path,
+            "destructuring-missing-initializer.ko"
+        );
+        let destructuring = fail[0]
+            .result
+            .as_ref()
+            .expect("the destructuring lambda fail fixture must match its sidecar");
+        assert!(destructuring.expression_count >= 2);
+        assert_eq!(destructuring.diagnostic_count, 1);
+        assert_eq!(fail[1].relative_path, "expected-element.ko");
+        let fail = fail[1]
             .result
             .as_ref()
             .expect("the lambda fail fixture must match its sidecar");

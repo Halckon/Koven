@@ -5,7 +5,7 @@
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
 [v0.14](../guide/00-index.md) 已由用户明确启用并取代 v0.9；v0.12、v0.13 内容已合入该文档集。
-SPEC-0010、SPEC-0011、SPEC-0012 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -72,7 +72,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
 | [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
 | [0012](./0012-callable-parameter-and-call-argument-parser.md) | 解析统一 callable 参数 marker、typed call argument、命名实参与调用点 `borrow` / `&` 模式（`done`） | 0010、0011 `done`；v0.14 已生效；站立授权已记录 |
-| 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；适用 guide 已启用 |
+| [0013](./0013-local-val-destructuring-parser.md) | 解析 block / lambda body 内局部 `val` 解构（`done`） | 0012 `done`；适用 guide 已启用；站立授权已记录 |
 | 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；先由后续 guide 封闭完整文件恢复契约 |
 | 0015 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
 | 0016 | 解析 `if` / `when` / `super` 与 loop-family 控制流 | 0009 `done`；先由后续 guide 明确定义 |
