@@ -222,7 +222,7 @@ fn expression_contexts_commit_lambda_while_block_dispatch_keeps_nested_block() {
         panic!("call")
     };
     assert!(matches!(
-        expression(&call, arguments[0]),
+        expression(&call, arguments[0].value),
         Expression::Lambda { .. }
     ));
 
@@ -491,7 +491,7 @@ fn string_interpolation_preserves_grouped_lambda_call_as_typed_structure() {
     };
     assert_eq!(arguments.len(), 1);
     assert!(matches!(
-        expression(&parsed, arguments[0]),
+        expression(&parsed, arguments[0].value),
         Expression::Name
     ));
     let Expression::Group {
@@ -660,11 +660,11 @@ fn owner_recovery_keeps_lambda_commas_and_closers_at_the_correct_level() {
     };
     assert_eq!(arguments.len(), 2);
     assert!(matches!(
-        expression(&parsed, arguments[0]),
+        expression(&parsed, arguments[0].value),
         Expression::Lambda { .. }
     ));
     assert!(matches!(
-        expression(&parsed, arguments[1]),
+        expression(&parsed, arguments[1].value),
         Expression::Name
     ));
 

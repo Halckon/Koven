@@ -552,6 +552,7 @@ fn fixed_symbol(text: &str) -> Option<(Symbol, usize)> {
         ("-", Symbol::Minus),
         ("<", Symbol::Less),
         (">", Symbol::Greater),
+        ("&", Symbol::Ampersand),
         ("=", Symbol::Equal),
     ];
     SYMBOLS

@@ -283,12 +283,56 @@ pub struct TypeParameter {
 pub struct ValueParameter {
     /// 完整参数范围。
     pub span: Span,
+    /// 声明侧显式参数模式；缺失表示按值参数。
+    pub mode_marker: Option<ParameterModeMarker>,
     /// 参数名称或恢复 marker。
     pub name: NameMarker,
     /// 名称后的 `:`；恢复插入时可为空范围。
     pub colon_span: Span,
     /// 参数类型或显式错误 TypeRef。
     pub type_ref: TypeRefId,
+}
+
+/// callable 参数契约的显式源码 marker。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParameterModeMarker {
+    /// `borrow` 关键字范围。
+    Borrow(Span),
+    /// 声明侧 `inout` 或调用点 `&` 的真实范围。
+    Inout(Span),
+}
+
+/// 函数类型中内嵌的一个参数。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FunctionTypeParameter {
+    /// 从显式 marker（若有）或类型起点到类型结束的完整范围。
+    pub span: Span,
+    /// 声明侧显式参数模式；缺失表示按值参数。
+    pub mode_marker: Option<ParameterModeMarker>,
+    /// 唯一参数类型。
+    pub type_ref: TypeRefId,
+}
+
+/// 命名实参前缀的封闭源码表示。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NamedArgumentPrefix {
+    /// 真实参数名范围。
+    pub name_span: Span,
+    /// 真实 `=` 范围。
+    pub equals_span: Span,
+}
+
+/// 调用表达式中按源码顺序内嵌的一个实参。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallArgument {
+    /// 从名称、模式或值的最早起点到最后实际消费位置的范围。
+    pub span: Span,
+    /// 可选命名前缀。
+    pub named_prefix: Option<NamedArgumentPrefix>,
+    /// 调用点显式模式；缺失表示未标注实参。
+    pub mode_marker: Option<ParameterModeMarker>,
+    /// 唯一实参值表达式。
+    pub value: ExpressionId,
 }
 
 /// 独立声明 payload；子节点只通过 typed ID 连接。
@@ -439,7 +483,7 @@ pub enum Expression {
         /// 是否为空安全访问。
         safe: bool,
     },
-    /// 基本位置实参调用。
+    /// 普通或 typed 实参调用。
     Call {
         /// 被调用表达式。
         callee: ExpressionId,
@@ -447,8 +491,8 @@ pub enum Expression {
         type_arguments: Vec<TypeRefId>,
         /// `<...>` 合成范围；普通调用为 `None`。
         type_arguments_span: Option<Span>,
-        /// 位置实参。
-        arguments: Vec<ExpressionId>,
+        /// 源码顺序的实参。
+        arguments: Vec<CallArgument>,
     },
     /// 单表达式索引。
     Index {
@@ -602,8 +646,8 @@ pub enum TypeRef {
     Function {
         /// 可选 `move` 标记范围。
         move_span: Option<Span>,
-        /// 参数类型。
-        parameters: Vec<TypeRefId>,
+        /// 带 callable 契约的源码顺序参数。
+        parameters: Vec<FunctionTypeParameter>,
         /// `->` 范围；恢复时可为空。
         arrow_span: Span,
         /// 返回类型。

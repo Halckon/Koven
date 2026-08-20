@@ -287,6 +287,8 @@ pub enum Symbol {
     EqualEqual,
     /// `!=`。
     BangEqual,
+    /// `&`。
+    Ampersand,
     /// `&&`。
     AndAnd,
     /// `||`。

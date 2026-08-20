@@ -5,7 +5,7 @@ use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
     parser::{
-        AssignmentOperator, BinaryOperator, CastOperator, Expression, LiteralKind,
+        AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression, LiteralKind,
         ParsedExpression, ParserInternalError, PrefixOperator, StringPart, TypeRef,
         parse_expression,
     },
@@ -92,7 +92,7 @@ fn call_payload(
     ExpressionId,
     &[lang_frontend::ast::TypeRefId],
     Option<lang_frontend::source::Span>,
-    &[ExpressionId],
+    &[CallArgument],
 ) {
     let Expression::Call {
         callee,
@@ -845,7 +845,6 @@ fn parser_diagnostic_codes_messages_and_primary_spans_are_stable() {
         ("a b", "L0013", "unexpected trailing token", 2, 3),
         ("a as 4", "L0014", "expected type reference", 5, 6),
         ("a++b", "L0015", "unsupported operator", 1, 3),
-        ("f(x = 1)", "L0016", "unsupported argument form", 4, 5),
     ];
 
     for (text, code, message, start, end) in cases {
@@ -906,68 +905,51 @@ fn unsupported_operator_combinations_use_the_whole_adjacent_span() {
 }
 
 #[test]
-fn unsupported_argument_forms_are_contextual_but_grouped_assignment_is_legal() {
-    for (text, start, end) in [
-        ("f(name = value)", 7, 8),
-        ("f(own value)", 2, 5),
-        ("f(inout value)", 2, 7),
-        ("f(borrow value)", 2, 8),
+fn call_argument_forms_are_contextual_and_grouped_assignment_remains_legal() {
+    for text in [
+        "f(name = input)",
+        "f(borrow input)",
+        "f(&input)",
+        "f(name = borrow input)",
+        "f(name = &input)",
+        "f((a = b))",
     ] {
-        let diagnostics = parse_fingerprints(text);
-        assert!(
-            diagnostics
-                .iter()
-                .any(|actual| { actual.0 == "L0016" && actual.3 == start && actual.4 == end })
-        );
+        assert_parses(text);
     }
-    assert_parses("f((a = b))");
 }
 
 #[test]
-fn unsupported_argument_recovery_respects_strings_nested_delimiters_and_eof() {
-    let text = r#"f(name = "${a, b}", next)"#;
+fn call_argument_recovery_respects_strings_nested_delimiters_and_eof() {
+    let text = r#"f(name = "${inner(a, b)}", next)"#;
     let (_sources, parsed) = parsed_case_with_diagnostics(text);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016"]
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
     );
     let Expression::Call { arguments, .. } = expression(&parsed, parsed.root()) else {
-        panic!("expected recovered call")
+        panic!("expected call")
     };
-    assert_eq!(arguments.len(), 1);
+    assert_eq!(arguments.len(), 2);
     assert!(matches!(
-        expression(&parsed, arguments[0]),
+        expression(&parsed, arguments[1].value),
         Expression::Name
     ));
 
-    for nested in [
-        "f(own (x), y)",
-        "f(name = g(x), y)",
-        "f(name = [g(a,b)], next)",
-        "f(borrow [x], y)",
-    ] {
+    for nested in ["f(borrow (x), y)", "f(name = g(x), y)", "f(&(a = b), y)"] {
         let (_sources, parsed) = parsed_case_with_diagnostics(nested);
-        assert_eq!(
-            parsed
-                .diagnostics()
-                .iter()
-                .map(|diagnostic| diagnostic.code().to_string())
-                .collect::<Vec<_>>(),
-            ["L0016"],
+        assert!(
+            parsed.diagnostics().is_empty(),
             "{nested:?}: {:?}",
             parsed.diagnostics()
         );
         let Expression::Call { arguments, .. } = expression(&parsed, parsed.root()) else {
-            panic!("{nested:?} must recover to its outer call")
+            panic!("{nested:?} must retain its outer call")
         };
-        assert_eq!(arguments.len(), 1, "{nested:?}");
+        assert_eq!(arguments.len(), 2, "{nested:?}");
     }
 
-    for malformed in ["f(own [x)", "f(borrow [x", "!+1(own[-"] {
+    for malformed in ["f(name =", "f(borrow", "!+1(name ="] {
         let mut sources = SourceMap::new();
         let source_id = add_source(&mut sources, "argument-eof.ko", malformed);
         let lexed = lex(&sources, source_id).expect("test source must lex");
@@ -977,139 +959,38 @@ fn unsupported_argument_recovery_respects_strings_nested_delimiters_and_eof() {
             parsed
                 .diagnostics()
                 .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0016"),
+                .any(|diagnostic| diagnostic.code().to_string() == "L0033"),
             "{malformed:?}: {:?}",
             parsed.diagnostics()
         );
     }
 
-    let (_sources, parsed) = parsed_case_with_diagnostics("f(own [x), y)");
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .filter(|diagnostic| diagnostic.code().to_string() == "L0016")
-            .count(),
-        1
-    );
-    assert!(parsed.diagnostics().iter().any(|diagnostic| {
-        diagnostic.code().to_string() == "L0013"
-            && diagnostic.primary_span().start() == "f(own [x)".len()
-    }));
-
-    let interpolation = r#""${f(own [x)}tail""#;
+    let interpolation = r#""${f(name =)}tail""#;
     let (_sources, parsed) = parsed_case_with_diagnostics(interpolation);
-    assert_eq!(
+    assert!(
         parsed
             .diagnostics()
             .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016"]
+            .any(|diagnostic| diagnostic.code().to_string() == "L0033")
     );
     let root = parsed.ast().expressions().get(parsed.root()).expect("root");
     assert_eq!(root.span().end(), interpolation.len());
 
     let newline_string = "f(name = \"a\n, next)";
     let (_sources, parsed) = parsed_case_with_diagnostics(newline_string);
-    assert_eq!(
+    assert!(
         parsed
             .diagnostics()
             .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016", "L0004"]
+            .any(|diagnostic| diagnostic.code().to_string() == "L0004")
     );
     let Expression::Call { arguments, .. } = expression(&parsed, parsed.root()) else {
         panic!("newline recovery must retain the outer call")
     };
-    assert_eq!(arguments.len(), 1);
-
-    let escaped_newline = "f(name = \"a\\\n, next)";
-    let (_sources, parsed) = parsed_case_with_diagnostics(escaped_newline);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016", "L0006"]
-    );
+    assert_eq!(arguments.len(), 2);
     assert!(matches!(
-        expression(&parsed, parsed.root()),
-        Expression::Call { arguments, .. } if arguments.len() == 1
-    ));
-
-    let ordinary_invalid_escape = r#""${f(name = "a\q${x}", next)}""#;
-    let (_sources, parsed) = parsed_case_with_diagnostics(ordinary_invalid_escape);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016", "L0006"]
-    );
-    let root = parsed.ast().expressions().get(parsed.root()).expect("root");
-    assert!(matches!(root.payload(), Expression::String { .. }));
-    assert_eq!(root.span().end(), ordinary_invalid_escape.len());
-
-    let terminal_escape_before_argument = "\"${f(\"a\\\n, name = \"${x}\", next)}tail\"";
-    let (_sources, parsed) = parsed_case_with_diagnostics(terminal_escape_before_argument);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0006", "L0016"]
-    );
-    let root = parsed.ast().expressions().get(parsed.root()).expect("root");
-    assert!(matches!(root.payload(), Expression::String { .. }));
-    assert_eq!(root.span().end(), terminal_escape_before_argument.len());
-
-    let recovered_then_valid_string = "f(name = \"a\n\"b,c\", next)";
-    let (_sources, parsed) = parsed_case_with_diagnostics(recovered_then_valid_string);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016", "L0004"]
-    );
-    assert!(matches!(
-        expression(&parsed, parsed.root()),
-        Expression::Call { arguments, .. } if arguments.len() == 1
-    ));
-
-    let prior_recovery = "\"${f(\"a\n, name = \"${x}\", next)}tail\"";
-    let (_sources, parsed) = parsed_case_with_diagnostics(prior_recovery);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0004", "L0016"]
-    );
-    let root = parsed.ast().expressions().get(parsed.root()).expect("root");
-    assert!(matches!(root.payload(), Expression::String { .. }));
-    assert_eq!(root.span().end(), prior_recovery.len());
-
-    let invalid_escape_then_newline = "f(name = \"a\\q\n, next)";
-    let (_sources, parsed) = parsed_case_with_diagnostics(invalid_escape_then_newline);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0016", "L0004", "L0006"]
-    );
-    assert!(matches!(
-        expression(&parsed, parsed.root()),
-        Expression::Call { arguments, .. } if arguments.len() == 1
+        expression(&parsed, arguments[1].value),
+        Expression::Name
     ));
 }
 
@@ -1432,8 +1313,8 @@ fn non_associative_recovery_keeps_an_explicit_error_region() {
 }
 
 #[test]
-fn incomplete_unsupported_argument_keeps_call_span_at_eof() {
-    let text = "f(own x";
+fn incomplete_named_argument_keeps_call_span_at_eof() {
+    let text = "f(name =";
     let (_sources, parsed) = parsed_case_with_diagnostics(text);
     let root = parsed.ast().expressions().get(parsed.root()).expect("root");
     assert!(matches!(root.payload(), Expression::Call { .. }));
@@ -1442,7 +1323,7 @@ fn incomplete_unsupported_argument_keeps_call_span_at_eof() {
         parsed
             .diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.code().to_string() == "L0016")
+            .any(|diagnostic| diagnostic.code().to_string() == "L0033")
     );
     assert!(
         parsed
@@ -1596,7 +1477,7 @@ fn malformed_nested_index_recovery_stops_before_the_outer_argument_boundary() {
 }
 
 #[test]
-fn poison_postfix_recovery_stops_at_the_owning_argument_boundary() {
+fn invalid_argument_recovery_stops_at_the_owning_call_boundary() {
     for text in ["f(@[x, y)", "f(@(x, y)"] {
         let (_sources, parsed) = parsed_case_with_diagnostics(text);
         let call = parsed
@@ -1610,12 +1491,16 @@ fn poison_postfix_recovery_stops_at_the_owning_argument_boundary() {
             .unwrap_or_else(|| panic!("{text:?} must retain the outer call"));
         let (call_span, arguments) = call;
         assert_eq!(call_span.end(), text.len(), "{text:?}");
-        assert_eq!(arguments.len(), 2, "{text:?}");
+        assert_eq!(arguments.len(), 1, "{text:?}");
+        assert!(matches!(
+            expression(&parsed, arguments[0].value),
+            Expression::Error
+        ));
         assert_eq!(
             parsed
                 .diagnostics()
                 .iter()
-                .filter(|diagnostic| diagnostic.code().to_string() == "L0009")
+                .filter(|diagnostic| diagnostic.code().to_string() == "L0033")
                 .count(),
             1,
             "{text:?}: {:?}",
@@ -1738,7 +1623,7 @@ fn trailing_call_comma_preserves_an_empty_error_argument() {
     let error = parsed
         .ast()
         .expressions()
-        .get(arguments[1])
+        .get(arguments[1].value)
         .expect("empty error argument");
     assert!(matches!(error.payload(), Expression::Error));
     let right_paren = text.find(')').expect("right paren");

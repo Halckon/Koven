@@ -299,6 +299,12 @@ impl<'a> TrialBuilder<'a> {
 
         let mut explored_depth = 0;
         loop {
+            if closer == Symbol::RightParen
+                && (self.is_keyword(cursor, Keyword::Borrow)
+                    || self.is_keyword(cursor, Keyword::Inout))
+            {
+                cursor += 1;
+            }
             let child = types
                 .get(cursor)
                 .copied()
@@ -529,7 +535,8 @@ mod tests {
 
     #[test]
     fn recognizes_complete_strict_types_and_rejects_incomplete_candidates() {
-        let (lexed, index) = indexed("f<A.B<C?>, move (D, E<F>) -> G?> /* trivia */ ()");
+        let (lexed, index) =
+            indexed("f<A.B<C?>, Box<move (borrow D, inout E<F>) -> G?>> /* trivia */ ()");
         let trial = index
             .query(less_raw(&lexed, 0), 0)
             .expect("query must work");
@@ -546,7 +553,16 @@ mod tests {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Greater))
         ));
 
-        for malformed in ["f<T>", "f<>()", "f<T,>()", "f<,T>()", "f<T"] {
+        for malformed in [
+            "f<T>",
+            "f<>()",
+            "f<T,>()",
+            "f<,T>()",
+            "f<T",
+            "f<(borrow inout T) -> R>()",
+            "f<(borrow borrow T) -> R>()",
+            "f<Box<(borrow inout T) -> R>>()",
+        ] {
             let (lexed, index) = indexed(malformed);
             assert!(matches!(
                 index.query(less_raw(&lexed, 0), 0),
@@ -595,7 +611,7 @@ mod tests {
     fn successful_failed_and_mixed_trial_families_stay_linear_when_doubled() {
         fn successful(cases: usize) -> String {
             std::iter::repeat_n(
-                "f /* trivia */ <A.B.C<D, E>, move (F, G<H>) -> I?> /* trivia */ ()",
+                "f /* trivia */ <A.B.C<D, E>, move (borrow F, inout G<H>) -> I?> /* trivia */ ()",
                 cases,
             )
             .collect::<Vec<_>>()

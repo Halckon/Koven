@@ -5,8 +5,8 @@
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
 [v0.14](../guide/00-index.md) 已由用户明确启用并取代 v0.9；v0.12、v0.13 内容已合入该文档集。
-SPEC-0010、SPEC-0011 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而自动获得实现
-授权。
+SPEC-0010、SPEC-0011、SPEC-0012 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+自动获得实现授权。
 
 ## Goal 与提交工作流
 
@@ -71,7 +71,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0009](./0009-block-statement-parser.md) | 解析 block / statement 序列与函数 block body（`done`） | 0008 `done`；v0.8 已生效；站立授权已记录 |
 | [0010](./0010-lambda-literal-parser.md) | 解析 lambda literal（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
 | [0011](./0011-implicit-unit-return.md) | 解析具名函数省略返回标注时的隐式 `Unit`（`done`） | 0009 `done`；v0.9 已生效；站立授权已记录 |
-| 0012 | 解析统一 callable 参数 marker、typed call argument、命名实参与调用点 `borrow` / `&` 模式 | 0010、0011 `done`；v0.14 已生效；站立授权已记录 |
+| [0012](./0012-callable-parameter-and-call-argument-parser.md) | 解析统一 callable 参数 marker、typed call argument、命名实参与调用点 `borrow` / `&` 模式（`done`） | 0010、0011 `done`；v0.14 已生效；站立授权已记录 |
 | 0013 | 解析 block / lambda body 内局部 `val` 解构 | 0012 `done`；适用 guide 已启用 |
 | 0014 | 组合 0007–0013 已有节点为完整文件并实现声明分隔、跨声明恢复与级联抑制 | 0011、0013 `done`；先由后续 guide 封闭完整文件恢复契约 |
 | 0015 | 解析 `module` / `import` | 0008 `done`；先由后续 guide 定义语法 |
@@ -150,6 +150,10 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 module identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
+现行 v0.14 已确定：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
+延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
+
 ## 未决决策的推荐方向
 
 以下是起草后续 guide / ADR 时的默认推荐，不是已经接受的决策；触及对应 Spec 前仍需正式
@@ -159,7 +163,6 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | `object` / `companion object` | 编译期限制只约束存储状态和初始化式；成员函数体可使用普通 v1 代码，但不能读取或修改运行时单例状态 | 新 guide |
 | `module` / `import` | 使用显式、点分层级 module 名和绝对 import；source root 到文件的映射由 package ADR 决定，不从相对路径静默推导语义 | 新 guide + ADR |
-| `Transferable` | v1 与 `Copyable` 一样采用编译器已知的结构化自动推导，不开放手动实现；标准库并发类型的例外逐项写入 Spec；`Shareable` 延后到 v2 | 现行 v0.14；后续 Spec |
 | 借用与析构 | v1 借用只存在于一次调用的动态期间，不允许存储或返回；ASAP 析构以所有权检查标出的最后一次合法使用为准，分支合流采用保守点 | 新 guide |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |

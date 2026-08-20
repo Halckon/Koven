@@ -1449,21 +1449,35 @@ mod tests {
         let fail = run_parser_fail_suite(&parser_fail_fixture_root())
             .expect("the checked-in parser fail suite must be valid");
 
-        assert_eq!(pass.len(), 1);
-        assert_eq!(pass[0].relative_path, "precedence.ko");
-        let pass_evidence = pass[0]
+        assert_eq!(pass.len(), 2);
+        assert_eq!(pass[0].relative_path, "call-arguments.ko");
+        let call_evidence = pass[0]
             .result
             .as_ref()
             .expect("the checked-in parser pass case must parse without diagnostics");
+        assert!(call_evidence.expression_count > 1);
+        assert_eq!(call_evidence.diagnostic_count, 0);
+        assert_eq!(pass[1].relative_path, "precedence.ko");
+        let pass_evidence = pass[1]
+            .result
+            .as_ref()
+            .expect("the precedence pass case must parse without diagnostics");
         assert!(pass_evidence.expression_count > 1);
         assert_eq!(pass_evidence.diagnostic_count, 0);
 
-        assert_eq!(fail.len(), 1);
-        assert_eq!(fail[0].relative_path, "trailing-token.ko");
-        let fail_evidence = fail[0]
+        assert_eq!(fail.len(), 2);
+        assert_eq!(fail[0].relative_path, "call-missing-value.ko");
+        let call_fail_evidence = fail[0]
             .result
             .as_ref()
             .expect("the checked-in parser fail case must match merged diagnostics");
+        assert!(call_fail_evidence.expression_count > 0);
+        assert_eq!(call_fail_evidence.diagnostic_count, 1);
+        assert_eq!(fail[1].relative_path, "trailing-token.ko");
+        let fail_evidence = fail[1]
+            .result
+            .as_ref()
+            .expect("the trailing-token fail case must match merged diagnostics");
         assert!(fail_evidence.expression_count > 0);
         assert_eq!(fail_evidence.diagnostic_count, 1);
     }
@@ -1475,30 +1489,45 @@ mod tests {
         let fail = run_declaration_fail_suite(&parser_declaration_fail_fixture_root())
             .expect("the declaration fail suite must be valid");
 
-        assert_eq!(pass.len(), 2);
-        assert_eq!(pass[0].relative_path, "constant.ko");
-        let pass_evidence = pass[0]
+        assert_eq!(pass.len(), 3);
+        assert_eq!(pass[0].relative_path, "callable-parameters.ko");
+        let callable_evidence = pass[0]
             .result
             .as_ref()
             .expect("the declaration pass case must parse without diagnostics");
+        assert_eq!(callable_evidence.item_count, 1);
+        assert_eq!(callable_evidence.diagnostic_count, 0);
+        assert!(callable_evidence.type_ref_count > 0);
+        assert_eq!(pass[1].relative_path, "constant.ko");
+        let pass_evidence = pass[1]
+            .result
+            .as_ref()
+            .expect("the constant declaration must parse without diagnostics");
         assert_eq!(pass_evidence.item_count, 1);
         assert!(pass_evidence.expression_count > 0);
         assert!(pass_evidence.type_ref_count > 0);
         assert_eq!(pass_evidence.diagnostic_count, 0);
-        let function_evidence = pass[1]
+        let function_evidence = pass[2]
             .result
             .as_ref()
             .expect("the function block fixture must parse without diagnostics");
-        assert_eq!(pass[1].relative_path, "function-block.ko");
+        assert_eq!(pass[2].relative_path, "function-block.ko");
         assert!(function_evidence.item_count >= 2);
         assert!(function_evidence.expression_count > 0);
 
-        assert_eq!(fail.len(), 1);
-        assert_eq!(fail[0].relative_path, "empty.ko");
-        let fail_evidence = fail[0]
+        assert_eq!(fail.len(), 2);
+        assert_eq!(fail[0].relative_path, "duplicate-parameter-mode.ko");
+        let duplicate_evidence = fail[0]
             .result
             .as_ref()
             .expect("the declaration fail case must match its sidecar");
+        assert_eq!(duplicate_evidence.item_count, 1);
+        assert_eq!(duplicate_evidence.diagnostic_count, 1);
+        assert_eq!(fail[1].relative_path, "empty.ko");
+        let fail_evidence = fail[1]
+            .result
+            .as_ref()
+            .expect("the empty declaration fail case must match its sidecar");
         assert_eq!(fail_evidence.item_count, 1);
         assert_eq!(fail_evidence.diagnostic_count, 1);
     }

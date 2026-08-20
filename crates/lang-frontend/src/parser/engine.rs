@@ -11,10 +11,11 @@ use std::cell::Cell;
 use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
-    AssignmentOperator, BinaryOperator, CastOperator, Expression, ExpressionAst, FunctionBody,
-    FunctionForm, Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, ParsedBlock,
-    ParsedDeclaration, ParsedExpression, ParserInternalError, PrefixOperator, Statement,
-    StringPart, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
+    AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression, ExpressionAst,
+    FunctionBody, FunctionForm, FunctionTypeParameter, Item, LiteralKind, MAX_RECURSION_DEPTH,
+    NameMarker, NamedArgumentPrefix, ParameterModeMarker, ParsedBlock, ParsedDeclaration,
+    ParsedExpression, ParserInternalError, PrefixOperator, Statement, StringPart, TypeParameter,
+    TypePathSegment, TypeRef, ValueParameter, VariableKind,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;
@@ -50,6 +51,7 @@ pub(super) fn parse(
         strict_trials,
         lambda_headers,
         index: 0,
+        next_terminal_recovery_event: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
@@ -97,6 +99,7 @@ pub(super) fn parse_declaration(
         strict_trials,
         lambda_headers,
         index: 0,
+        next_terminal_recovery_event: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
@@ -142,6 +145,7 @@ pub(super) fn parse_block(
         strict_trials,
         lambda_headers,
         index: 0,
+        next_terminal_recovery_event: 0,
         recursion_depth: 0,
         ast: ExpressionAst::new(lexed.source_id()),
         diagnostics: Vec::new(),
@@ -215,7 +219,6 @@ struct LexicalRecoveryIndex {
     string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
     lexical_poison_string_recoveries: Vec<(usize, usize)>,
-    terminal_string_ends: Vec<usize>,
     unterminated_interpolation_starts: Vec<usize>,
     terminal_error_at_eof: bool,
     terminal_owner_events: Vec<TerminalOwnerEvent>,
@@ -477,19 +480,11 @@ impl LexicalRecoveryIndex {
         string_owner_ends.dedup_by_key(|(start, _)| *start);
         lexical_poison_string_recoveries.sort_unstable();
         lexical_poison_string_recoveries.dedup_by_key(|(start, _)| *start);
-        let mut terminal_string_ends = string_recoveries
-            .iter()
-            .map(|(_, end)| *end)
-            .collect::<Vec<_>>();
-        terminal_string_ends.sort_unstable();
-        terminal_string_ends.dedup();
-
         Ok(Self {
             source_len: source.len(),
             string_owner_ends,
             string_recoveries,
             lexical_poison_string_recoveries,
-            terminal_string_ends,
             unterminated_interpolation_starts,
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
@@ -565,6 +560,8 @@ struct Parser<'source> {
     strict_trials: StrictCallTrialIndex,
     lambda_headers: LambdaHeaderIndex,
     index: usize,
+    // Parser cursor 只向前推进，因此恢复入口也可在整根内单调跳过已经越过的 terminal event。
+    next_terminal_recovery_event: usize,
     recursion_depth: usize,
     ast: ExpressionAst,
     diagnostics: Vec<Diagnostic>,
@@ -1271,6 +1268,30 @@ impl Parser<'_> {
         Ok((parameters, Some(self.span(opener.start(), end)?)))
     }
 
+    fn parse_parameter_mode_marker(
+        &mut self,
+    ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
+        let marker = if self.current_is_keyword(Keyword::Borrow) {
+            Some(ParameterModeMarker::Borrow(self.bump()?.span()))
+        } else if self.current_is_keyword(Keyword::Inout) {
+            Some(ParameterModeMarker::Inout(self.bump()?.span()))
+        } else {
+            None
+        };
+        if marker.is_none() {
+            return Ok(None);
+        }
+        while self.current_is_keyword(Keyword::Borrow) || self.current_is_keyword(Keyword::Inout) {
+            let duplicate = self.bump()?.span();
+            self.emit(
+                codes::DUPLICATE_PARAMETER_MODE,
+                "duplicate parameter mode",
+                duplicate,
+            )?;
+        }
+        Ok(marker)
+    }
+
     fn parse_value_parameters(&mut self) -> Result<Vec<ValueParameter>, ParserInternalError> {
         if !self.current_is_symbol(Symbol::LeftParen) {
             let current = self.current()?;
@@ -1291,12 +1312,24 @@ impl Parser<'_> {
                 self.emit(codes::EXPECTED_LIST_ELEMENT, "expected list element", comma)?;
                 continue;
             }
+            let mode_marker = self.parse_parameter_mode_marker()?;
             let name = self.parse_name_marker(
                 codes::EXPECTED_PARAMETER_NAME,
                 "expected parameter name",
                 NameContext::ValueParameter,
             )?;
-            let start = marker_span(name).start();
+            let start = mode_marker
+                .map(parameter_mode_span)
+                .unwrap_or_else(|| marker_span(name))
+                .start();
+            let mut last_consumed_end = mode_marker.map(|marker| {
+                self.previous_significant_end()
+                    .max(parameter_mode_span(marker).end())
+            });
+            let name_span = marker_span(name);
+            if !name_span.is_empty() {
+                last_consumed_end = Some(last_consumed_end.unwrap_or(0).max(name_span.end()));
+            }
             let colon_span = if self.current_is_symbol(Symbol::Colon) {
                 self.bump()?.span()
             } else {
@@ -1322,6 +1355,9 @@ impl Parser<'_> {
                 }
                 insertion
             };
+            if !colon_span.is_empty() {
+                last_consumed_end = Some(last_consumed_end.unwrap_or(0).max(colon_span.end()));
+            }
             let missing_colon_default =
                 self.current_is_symbol(Symbol::Equal) && colon_span.is_empty();
             let type_ref = if self.current_is_symbol(Symbol::Equal)
@@ -1345,9 +1381,14 @@ impl Parser<'_> {
                 )?;
                 self.add_type_ref(self.span(start, end.max(start))?, TypeRef::Error)?
             };
-            let end = self.type_span(type_ref)?.end();
+            let type_span = self.type_span(type_ref)?;
+            if !type_span.is_empty() {
+                last_consumed_end = Some(last_consumed_end.unwrap_or(0).max(type_span.end()));
+            }
+            let end = last_consumed_end.unwrap_or(type_span.end());
             parameters.push(ValueParameter {
                 span: self.span(start, end)?,
+                mode_marker,
                 name,
                 colon_span,
                 type_ref,
@@ -1452,19 +1493,25 @@ impl Parser<'_> {
             .significant(0)
             .ok_or(ParserInternalError::InvalidLexemeStream)?;
         let recovery_start = first.1.span().start();
-        let mut next_terminal_event = self
+        while let Some(event) = self
             .lexical_recoveries
             .terminal_owner_events
-            .partition_point(|event| event.offset <= recovery_start);
-        #[cfg(test)]
+            .get(self.next_terminal_recovery_event)
         {
-            // `partition_point` 是一次有界起点定位；其库内比较次数不参与逐 lexeme 计数。
-            self.declaration_recovery_event_queries_and_applications += 1;
+            #[cfg(test)]
+            {
+                self.declaration_recovery_event_queries_and_applications += 1;
+            }
+            if event.offset > recovery_start {
+                break;
+            }
+            self.next_terminal_recovery_event += 1;
         }
+        let mut next_terminal_event = self.next_terminal_recovery_event;
         let mut end = recovery_start;
         let mut next_significant = Some(first);
 
-        loop {
+        'recovery: loop {
             let (raw_index, current) = if let Some(first) = next_significant.take() {
                 first
             } else {
@@ -1495,7 +1542,10 @@ impl Parser<'_> {
                     self.declaration_recovery_event_queries_and_applications += 1;
                 }
                 let Some((owner, delimiter_baseline)) = owners.last().copied() else {
-                    return Err(ParserInternalError::InvalidLexemeStream);
+                    // 恢复可以从一个由调用方拥有的 string / interpolation
+                    // 内部开始。其 terminal event 是该调用方的 hard boundary，
+                    // 不是当前错误区域缺少局部 owner。
+                    break 'recovery;
                 };
                 if owner.kind() != event.kind || owner.opener() != event.opener {
                     return Err(ParserInternalError::InvalidLexemeStream);
@@ -1572,6 +1622,7 @@ impl Parser<'_> {
             self.index = raw_index + 1;
             end = current.span().end();
         }
+        self.next_terminal_recovery_event = next_terminal_event;
         Ok(end)
     }
 
@@ -2318,21 +2369,85 @@ impl Parser<'_> {
 
         if !self.current_is_symbol(Symbol::RightParen) {
             loop {
-                if self.argument_form_start()? {
-                    self.consume_unsupported_argument(argument_stops)?;
-                    last_consumed_end = self.previous_significant_end().max(last_consumed_end);
-                } else {
-                    let argument = self.parse_expression_bp(0, argument_stops)?;
-                    last_consumed_end = self.expression_span(argument)?.end();
-                    arguments.push(argument);
+                if self.current_is_symbol(Symbol::Comma) {
+                    let comma = self.bump()?.span();
+                    last_consumed_end = last_consumed_end.max(comma.end());
+                    self.emit(
+                        codes::UNSUPPORTED_ARGUMENT_EMPTY_ELEMENT,
+                        "unsupported argument empty element",
+                        comma,
+                    )?;
+                    let empty = self.empty_at(comma.start())?;
+                    let value = self.add_expression(empty, Expression::Error)?;
+                    arguments.push(CallArgument {
+                        span: empty,
+                        named_prefix: None,
+                        mode_marker: None,
+                        value,
+                    });
+                    if self.current_is_symbol(Symbol::RightParen) {
+                        break;
+                    }
+                    continue;
                 }
 
+                let (argument, consumed_separator) =
+                    self.parse_call_argument(argument_stops, outer_stops)?;
+                if !argument.span.is_empty() {
+                    last_consumed_end = argument.span.end().max(last_consumed_end);
+                }
+                arguments.push(argument);
+                if consumed_separator {
+                    last_consumed_end = self.previous_significant_end().max(last_consumed_end);
+                    if self.current_is_symbol(Symbol::RightParen) {
+                        break;
+                    }
+                    continue;
+                }
                 if self.current_is_symbol(Symbol::Comma) {
-                    self.bump()?;
+                    let comma = self.bump()?.span();
+                    last_consumed_end = last_consumed_end.max(comma.end());
                     if self.current_is_symbol(Symbol::RightParen) {
                         let span = self.empty_at(self.current()?.span().start())?;
-                        self.emit(codes::EXPECTED_EXPRESSION, "expected expression", span)?;
-                        arguments.push(self.add_expression(span, Expression::Error)?);
+                        self.emit(
+                            codes::UNSUPPORTED_ARGUMENT_TRAILING_COMMA,
+                            "unsupported argument trailing comma",
+                            comma,
+                        )?;
+                        let value = self.add_expression(span, Expression::Error)?;
+                        arguments.push(CallArgument {
+                            span,
+                            named_prefix: None,
+                            mode_marker: None,
+                            value,
+                        });
+                        break;
+                    }
+                    continue;
+                }
+                let current = self.current()?;
+                if self.call_argument_boundary(current, outer_stops) {
+                    break;
+                }
+                if self.can_start_call_argument(current) {
+                    self.emit(
+                        codes::EXPECTED_ARGUMENT_SEPARATOR,
+                        "expected argument separator",
+                        self.empty_at(current.span().start())?,
+                    )?;
+                    continue;
+                }
+                let diagnostic_span = current.span();
+                let recovery_end = self.recover_call_region(outer_stops)?;
+                self.emit(
+                    codes::EXPECTED_ARGUMENT_SEPARATOR,
+                    "expected argument separator",
+                    diagnostic_span,
+                )?;
+                last_consumed_end = recovery_end.max(last_consumed_end);
+                if self.current_is_symbol(Symbol::Comma) {
+                    last_consumed_end = self.bump()?.span().end().max(last_consumed_end);
+                    if self.current_is_symbol(Symbol::RightParen) {
                         break;
                     }
                     continue;
@@ -2348,12 +2463,7 @@ impl Parser<'_> {
             if !self.is_poison() {
                 self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
             }
-            arguments
-                .last()
-                .map(|id| self.expression_span(*id).map(Span::end))
-                .transpose()?
-                .unwrap_or(last_consumed_end)
-                .max(last_consumed_end)
+            last_consumed_end
         };
         self.add_expression(
             self.span(callee_span.start(), end)?,
@@ -2363,6 +2473,157 @@ impl Parser<'_> {
                 type_arguments_span,
                 arguments,
             },
+        )
+    }
+
+    fn parse_call_argument(
+        &mut self,
+        argument_stops: Stops,
+        outer_stops: Stops,
+    ) -> Result<(CallArgument, bool), ParserInternalError> {
+        let named_prefix = if self.current_is_identifier()
+            && self.peek(1).is_some_and(|lexeme| {
+                matches!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Equal))
+                )
+            }) {
+            let name_span = self.bump()?.span();
+            let equals_span = self.bump()?.span();
+            Some(NamedArgumentPrefix {
+                name_span,
+                equals_span,
+            })
+        } else {
+            None
+        };
+        let mut first_start = named_prefix.map(|prefix| prefix.name_span.start());
+        let mut last_consumed_end = named_prefix.map(|prefix| prefix.equals_span.end());
+
+        let mode_marker = self.parse_argument_mode_marker()?;
+        if let Some(marker) = mode_marker {
+            let span = parameter_mode_span(marker);
+            first_start.get_or_insert(span.start());
+            last_consumed_end = Some(self.previous_significant_end().max(span.end()));
+        }
+
+        if mode_marker.is_some()
+            && self.current_is_identifier()
+            && self.peek(1).is_some_and(|lexeme| {
+                matches!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Equal))
+                )
+            })
+        {
+            self.bump()?;
+            let equals = self.bump()?.span();
+            self.emit(
+                codes::INVALID_ARGUMENT_MODE_ORDERING,
+                "invalid argument mode ordering",
+                equals,
+            )?;
+            last_consumed_end = Some(equals.end());
+        }
+
+        let current = self.current()?;
+        let (value, consumed_separator) = if self.call_argument_boundary(current, outer_stops) {
+            let empty = self.empty_at(current.span().start())?;
+            self.emit(
+                codes::EXPECTED_ARGUMENT_VALUE,
+                "expected argument value",
+                empty,
+            )?;
+            let value = self.add_expression(empty, Expression::Error)?;
+            let consumed_separator = self.current_is_symbol(Symbol::Comma);
+            if consumed_separator {
+                self.bump()?;
+            }
+            (value, consumed_separator)
+        } else if self.can_start_expression(current) {
+            (self.parse_expression_bp(0, argument_stops)?, false)
+        } else {
+            let error_start = current.span().start();
+            let diagnostic_span = current.span();
+            let poison = self.is_poison();
+            let error_end = self.recover_call_region(outer_stops)?;
+            let error_span = self.span(error_start, error_end.max(error_start))?;
+            if !poison {
+                self.emit(
+                    codes::EXPECTED_ARGUMENT_VALUE,
+                    "expected argument value",
+                    diagnostic_span,
+                )?;
+            }
+            let value = self.add_expression(error_span, Expression::Error)?;
+            let consumed_separator = self.current_is_symbol(Symbol::Comma);
+            if consumed_separator {
+                self.bump()?;
+            }
+            (value, consumed_separator)
+        };
+        let value_span = self.expression_span(value)?;
+        let start = first_start.unwrap_or(value_span.start());
+        if !value_span.is_empty() {
+            last_consumed_end = Some(last_consumed_end.unwrap_or(0).max(value_span.end()));
+        }
+        let end = last_consumed_end.unwrap_or(value_span.end());
+        Ok((
+            CallArgument {
+                span: self.span(start, end)?,
+                named_prefix,
+                mode_marker,
+                value,
+            },
+            consumed_separator,
+        ))
+    }
+
+    fn parse_argument_mode_marker(
+        &mut self,
+    ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
+        let marker = if self.current_is_keyword(Keyword::Borrow) {
+            Some(ParameterModeMarker::Borrow(self.bump()?.span()))
+        } else if self.current_is_symbol(Symbol::Ampersand) {
+            Some(ParameterModeMarker::Inout(self.bump()?.span()))
+        } else {
+            None
+        };
+        if marker.is_none() {
+            return Ok(None);
+        }
+        while self.current_is_keyword(Keyword::Borrow) || self.current_is_symbol(Symbol::Ampersand)
+        {
+            let duplicate = self.bump()?.span();
+            self.emit(
+                codes::DUPLICATE_ARGUMENT_MODE,
+                "duplicate argument mode",
+                duplicate,
+            )?;
+        }
+        Ok(marker)
+    }
+
+    fn can_start_call_argument(&self, lexeme: Lexeme) -> bool {
+        self.can_start_expression(lexeme)
+            || self.current_is_keyword(Keyword::Borrow)
+            || self.current_is_symbol(Symbol::Ampersand)
+    }
+
+    fn call_argument_boundary(&self, lexeme: Lexeme, outer_stops: Stops) -> bool {
+        matches!(lexeme.kind(), LexemeKind::Eof)
+            || self.current_is_symbol(Symbol::Comma)
+            || self.current_is_symbol(Symbol::RightParen)
+            || (outer_stops.contains(lexeme)
+                && !self.current_is_symbol(Symbol::Comma)
+                && !self.current_is_symbol(Symbol::RightParen))
+    }
+
+    fn recover_call_region(&mut self, outer_stops: Stops) -> Result<usize, ParserInternalError> {
+        self.recover_declaration_region(
+            DeclarationStops::from_expression_hard(outer_stops)
+                .with(DeclarationStops::COMMA)
+                .with(DeclarationStops::RIGHT_PAREN),
         )
     }
 
@@ -2406,111 +2667,6 @@ impl Parser<'_> {
             return Err(ParserInternalError::InvalidLexemeStream);
         }
         Ok(Some((arguments, self.span(opener.start(), closer.end())?)))
-    }
-
-    fn argument_form_start(&self) -> Result<bool, ParserInternalError> {
-        if self.current_is_keyword(Keyword::Own)
-            || self.current_is_keyword(Keyword::Inout)
-            || self.current_is_keyword(Keyword::Borrow)
-        {
-            return Ok(true);
-        }
-        if !self.current_is_identifier() {
-            return Ok(false);
-        }
-        Ok(matches!(
-            self.peek(1).map(Lexeme::kind),
-            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)))
-        ))
-    }
-
-    fn consume_unsupported_argument(&mut self, stops: Stops) -> Result<(), ParserInternalError> {
-        let first = self.bump()?;
-        let diagnostic_span = if matches!(first.kind(), LexemeKind::Token(TokenKind::Identifier))
-            && self.current_is_symbol(Symbol::Equal)
-        {
-            self.bump()?.span()
-        } else {
-            first.span()
-        };
-        self.emit(
-            codes::UNSUPPORTED_ARGUMENT_FORM,
-            "unsupported argument form",
-            diagnostic_span,
-        )?;
-
-        let mut delimiters = Vec::new();
-        let mut string_depth = 0usize;
-        let mut interpolation_depth = 0usize;
-        let recovery_start = self.current()?.span().start();
-        let mut next_string_recovery = self
-            .lexical_recoveries
-            .terminal_string_ends
-            .partition_point(|end| *end <= recovery_start);
-        loop {
-            let current = self.current()?;
-            let current_offset = current.span().start();
-            let recovered_string_boundary = string_depth > 0
-                && self
-                    .lexical_recoveries
-                    .terminal_string_ends
-                    .get(next_string_recovery)
-                    .is_some_and(|end| *end <= current_offset);
-            if recovered_string_boundary {
-                string_depth -= 1;
-                next_string_recovery += 1;
-            }
-            if matches!(current.kind(), LexemeKind::Eof) {
-                break;
-            }
-            if stops.contains(current) && string_depth == 0 {
-                let closes_owned_delimiter = matches!(
-                    current.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(symbol))
-                        if delimiters.last().is_some_and(|closer| *closer == symbol)
-                );
-                if closes_owned_delimiter {
-                    delimiters.pop();
-                    self.bump()?;
-                    continue;
-                }
-                let owner_hard_boundary = matches!(
-                    current.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
-                        | LexemeKind::Token(TokenKind::InterpolationEnd)
-                );
-                if owner_hard_boundary {
-                    break;
-                }
-                let nested_comma = self.current_is_symbol(Symbol::Comma)
-                    && (!delimiters.is_empty() || interpolation_depth > 0);
-                if !nested_comma {
-                    break;
-                }
-            }
-            match current.kind() {
-                LexemeKind::Token(TokenKind::StringStart) => string_depth += 1,
-                LexemeKind::Token(TokenKind::StringEnd) if string_depth > 0 => string_depth -= 1,
-                LexemeKind::Token(TokenKind::InterpolationStart) => interpolation_depth += 1,
-                LexemeKind::Token(TokenKind::InterpolationEnd) if interpolation_depth > 0 => {
-                    interpolation_depth -= 1;
-                }
-                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
-                    delimiters.push(Symbol::RightParen);
-                }
-                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBracket)) => {
-                    delimiters.push(Symbol::RightBracket);
-                }
-                LexemeKind::Token(TokenKind::Symbol(symbol))
-                    if delimiters.last().is_some_and(|closer| *closer == symbol) =>
-                {
-                    delimiters.pop();
-                }
-                _ => {}
-            }
-            self.bump()?;
-        }
-        Ok(())
     }
 
     fn parse_index(
@@ -3062,7 +3218,27 @@ impl Parser<'_> {
             .with(TypeStops::RIGHT_PAREN);
         if !self.current_is_symbol(Symbol::RightParen) {
             loop {
-                parameters.push(self.parse_type_ref(parameter_stops)?);
+                let mode_marker = self.parse_parameter_mode_marker()?;
+                let parameter_start = mode_marker
+                    .map(parameter_mode_span)
+                    .map(Span::start)
+                    .unwrap_or(self.current()?.span().start());
+                let type_ref = self.parse_type_ref(parameter_stops)?;
+                let type_span = self.type_span(type_ref)?;
+                let marker_end = mode_marker.map(|marker| {
+                    self.previous_significant_end()
+                        .max(parameter_mode_span(marker).end())
+                });
+                let parameter_end = if type_span.is_empty() {
+                    marker_end.unwrap_or(type_span.end())
+                } else {
+                    marker_end.unwrap_or(0).max(type_span.end())
+                };
+                parameters.push(FunctionTypeParameter {
+                    span: self.span(parameter_start, parameter_end)?,
+                    mode_marker,
+                    type_ref,
+                });
                 if self.current_is_symbol(Symbol::Comma) {
                     self.bump()?;
                     continue;
@@ -3072,8 +3248,7 @@ impl Parser<'_> {
         }
         let mut last_end = parameters
             .last()
-            .map(|id| self.type_span(*id).map(Span::end))
-            .transpose()?
+            .map(|parameter| parameter.span.end())
             .unwrap_or(opener.end());
         if self.current_is_symbol(Symbol::RightParen) {
             last_end = self.bump()?.span().end();
@@ -3763,6 +3938,12 @@ fn marker_span(marker: NameMarker) -> Span {
     }
 }
 
+fn parameter_mode_span(marker: ParameterModeMarker) -> Span {
+    match marker {
+        ParameterModeMarker::Borrow(span) | ParameterModeMarker::Inout(span) => span,
+    }
+}
+
 #[derive(Clone, Copy)]
 enum RecoveryOwner {
     String { opener: usize },
@@ -3915,6 +4096,7 @@ mod tests {
             strict_trials,
             lambda_headers,
             index: 0,
+            next_terminal_recovery_event: 0,
             recursion_depth: 0,
             ast: ExpressionAst::new(source_id),
             diagnostics: Vec::new(),
@@ -3949,6 +4131,86 @@ mod tests {
         let large_work = large_visits + large_events;
 
         assert!(small_visits > 0);
+        assert!(small_visits <= small_raw);
+        assert!(large_visits <= large_raw);
+        assert!(small_work <= small_raw * 3);
+        assert!(large_work <= large_raw * 3);
+        assert!(large_work <= small_work * 2 + 8);
+    }
+
+    fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) {
+        let text = format!("f({}tail)", "@ \"bad\n, ".repeat(regions));
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("call-recovery.ko", &text)
+            .expect("test source name must be unique");
+        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let source = sources
+            .source_text(source_id)
+            .expect("test source must remain available");
+        validate_lexemes(&sources, &lexed, source.len()).expect("lexer output must be valid");
+
+        let lexical_recoveries =
+            LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
+        let terminal_events = lexical_recoveries.terminal_owner_events.len();
+        let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+        let lambda_headers =
+            LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
+                .expect("headers must index");
+        let mut parser = Parser {
+            sources: &sources,
+            lexed: &lexed,
+            lexical_recoveries,
+            strict_trials,
+            lambda_headers,
+            index: 0,
+            next_terminal_recovery_event: 0,
+            recursion_depth: 0,
+            ast: ExpressionAst::new(source_id),
+            diagnostics: Vec::new(),
+            declaration_recovery_raw_visits: 0,
+            declaration_recovery_event_queries_and_applications: 0,
+            block_dispatch_iterations: 0,
+            lambda_body_dispatch_iterations: 0,
+            significant_raw_visits: Cell::new(0),
+        };
+        let root = parser
+            .parse_expression_bp(0, Stops::ROOT)
+            .expect("recovered call must parse");
+        parser
+            .consume_expression_tail(root, Stops::ROOT)
+            .expect("recovered call tail must parse");
+
+        assert_eq!(terminal_events, regions);
+        assert_eq!(parser.next_terminal_recovery_event, terminal_events);
+        assert_eq!(parser.diagnostics.len(), regions);
+        assert!(
+            parser
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code().to_string() == "L0033")
+        );
+
+        (
+            lexed.lexemes().len(),
+            parser.declaration_recovery_raw_visits,
+            parser.declaration_recovery_event_queries_and_applications,
+            terminal_events,
+            parser.diagnostics.len(),
+        )
+    }
+
+    #[test]
+    fn call_recovery_with_many_terminal_owners_stays_linear() {
+        let (small_raw, small_visits, small_event_work, small_events, small_diagnostics) =
+            call_recovery_metrics(16);
+        let (large_raw, large_visits, large_event_work, large_events, large_diagnostics) =
+            call_recovery_metrics(32);
+        let small_work = small_visits + small_event_work;
+        let large_work = large_visits + large_event_work;
+
+        assert_eq!(large_events, small_events * 2);
+        assert_eq!(large_diagnostics, small_diagnostics * 2);
         assert!(small_visits <= small_raw);
         assert!(large_visits <= large_raw);
         assert!(small_work <= small_raw * 3);
@@ -4011,6 +4273,7 @@ mod tests {
             strict_trials,
             lambda_headers,
             index: 0,
+            next_terminal_recovery_event: 0,
             recursion_depth: 0,
             ast: ExpressionAst::new(source_id),
             diagnostics: Vec::new(),
@@ -4075,6 +4338,7 @@ mod tests {
             strict_trials,
             lambda_headers,
             index: 0,
+            next_terminal_recovery_event: 0,
             recursion_depth: 0,
             ast: ExpressionAst::new(source_id),
             diagnostics: Vec::new(),

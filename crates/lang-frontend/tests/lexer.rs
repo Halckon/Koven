@@ -1,4 +1,4 @@
-//! SPEC-0006 的公开 Lexer 契约与 v0.5 词法规则测试。
+//! SPEC-0006 的公开 Lexer 基线与 SPEC-0012 的 `&` 词法增量测试。
 
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
@@ -549,6 +549,7 @@ fn fixed_symbols_use_longest_match_and_keyword_composites_require_adjacency() {
         (">=", Symbol::GreaterEqual),
         ("==", Symbol::EqualEqual),
         ("!=", Symbol::BangEqual),
+        ("&", Symbol::Ampersand),
         ("&&", Symbol::AndAnd),
         ("||", Symbol::OrOr),
         ("+=", Symbol::PlusEqual),
@@ -596,6 +597,59 @@ fn fixed_symbols_use_longest_match_and_keyword_composites_require_adjacency() {
 }
 
 #[test]
+fn ampersand_and_logical_and_have_exact_lexemes_and_spans() {
+    let text = "&x &&x & &x";
+    let mut sources = SourceMap::new();
+    let source_id = add_source(&mut sources, "ampersand.ko", text);
+    let lexed = lex_source(&sources, source_id);
+    let actual = significant_lexemes(&lexed)
+        .map(|lexeme| {
+            (
+                lexeme_text(&sources, lexeme),
+                lexeme.kind(),
+                lexeme.span().start(),
+                lexeme.span().end(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        actual,
+        [
+            (
+                "&",
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand)),
+                0,
+                1,
+            ),
+            ("x", LexemeKind::Token(TokenKind::Identifier), 1, 2),
+            (
+                "&&",
+                LexemeKind::Token(TokenKind::Symbol(Symbol::AndAnd)),
+                3,
+                5,
+            ),
+            ("x", LexemeKind::Token(TokenKind::Identifier), 5, 6),
+            (
+                "&",
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand)),
+                7,
+                8,
+            ),
+            (
+                "&",
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand)),
+                9,
+                10,
+            ),
+            ("x", LexemeKind::Token(TokenKind::Identifier), 10, 11),
+        ]
+    );
+    assert!(lexed.diagnostics().is_empty());
+    assert_complete_coverage(&sources, source_id, &lexed);
+}
+
+#[test]
 fn unsupported_operator_spellings_split_or_report_by_available_single_characters() {
     let split_text = "++ -- << ...";
     let mut sources = SourceMap::new();
@@ -620,7 +674,7 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
     assert!(split_file.diagnostics().is_empty());
     assert_complete_coverage(&sources, split_id, &split_file);
 
-    let invalid_text = ";#&|";
+    let invalid_text = ";#|";
     let invalid_id = add_source(&mut sources, "unsupported-invalid.ko", invalid_text);
     let invalid_file = lex_source(&sources, invalid_id);
     assert_eq!(
@@ -630,7 +684,6 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
         [
             (";", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
             ("#", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
-            ("&", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
             ("|", LexemeKind::Invalid(InvalidKind::UnexpectedCharacter)),
         ]
     );
@@ -650,7 +703,6 @@ fn unsupported_operator_spellings_split_or_report_by_available_single_characters
             ("L0001".to_owned(), 0, 1),
             ("L0001".to_owned(), 1, 2),
             ("L0001".to_owned(), 2, 3),
-            ("L0001".to_owned(), 3, 4),
         ]
     );
     assert_complete_coverage(&sources, invalid_id, &invalid_file);

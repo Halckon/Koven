@@ -58,10 +58,10 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
 | [`01-design-decisions.md`](./01-design-decisions.md) | 原第一部分全部 20 节 + 原第二部分（现为附录） | ~840 | 中——设计级变更会碰它，如本次所有权标注简化 |
-| [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——SPEC-0006 基线已验收；v0.14 新增的 `&` 增量由 SPEC-0012 实施 |
+| [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——SPEC-0006 基线与 SPEC-0012 的 v0.14 `&` 增量均已验收 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~320 | 低到中——是 04、05 的共享基础 |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8：SPEC-0008（声明）、SPEC-0009（block） | ~420 | 低——已验收 |
-| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | **高**——SPEC-0012 还没实现，两次调用点标注改动（v0.12 所有权简化、v0.14 `Inout` 符号化）几乎全砸在这里 |
+| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | **高**——SPEC-0012 已实现，下一项 SPEC-0013 的局部解构仍在这里 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
 | [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.14 完整逐版本变更记录表格（含 v0.13 结构调整说明） | ~190 | 只追加，不修改 |
 
@@ -102,7 +102,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0009 | block、statement 序列、函数 block body | `04-grammar-declarations-blocks.md` §8 | ✅ 已实现 |
 | SPEC-0010 | lambda literal | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0011 | 具名函数省略返回标注固定为 `Unit` | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
-| SPEC-0012 | 统一 callable 参数 marker、typed call argument（v0.12 起为三契约版本；v0.14 起调用点 `Inout` 标注改用符号 `&`） | `05-grammar-calls-lambda.md` §9（声明侧类型语法见 `03-grammar-core.md` §3，`&` 词法定义见 `02-lexical-spec.md` §7） | ⬜ 未实现，设计已随 v0.12/v0.14 更新 |
+| SPEC-0012 | 统一 callable 参数 marker、typed call argument（v0.12 起为三契约版本；v0.14 起调用点 `Inout` 标注改用符号 `&`） | `05-grammar-calls-lambda.md` §9（声明侧类型语法见 `03-grammar-core.md` §3，`&` 词法定义见 `02-lexical-spec.md` §7） | ✅ 已实现 |
 | SPEC-0013 | 局部 `val` 解构 | `05-grammar-calls-lambda.md` §9 | ⬜ 未实现 |
 | SPEC-0014 | 完整文件、声明分隔与跨声明恢复 | 尚未撰写（占位于 `06-roadmap.md`） | ⬜ 未实现 |
 | SPEC-0015 | `module` / `import` | 尚未撰写 | ⬜ 未实现 |
@@ -119,16 +119,16 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0001–L0008 | 已实现 Lexer 诊断 | `02-lexical-spec.md` |
 | L0009–L0032 | 已实现 Parser 诊断 | `03-grammar-core.md`、`04-grammar-declarations-blocks.md`、`05-grammar-calls-lambda.md` |
 | L0004–L0006 | Lexer 字符串/插值终止相关诊断类别 | `02-lexical-spec.md`，恢复语义见 `04-grammar-declarations-blocks.md` |
-| L0016 | SPEC-0007 历史类别 `unsupported argument form`（SPEC-0012 后含义作废，编号保留不复用） | `05-grammar-calls-lambda.md` |
+| L0016 | SPEC-0007 历史类别 `unsupported argument form`（SPEC-0012 后生产 Parser 不再发出，历史含义与编号保留不复用） | `05-grammar-calls-lambda.md` |
 | L0024–L0026 | SPEC-0008 声明列表诊断 | `04-grammar-declarations-blocks.md` |
 | L0031–L0032 | SPEC-0010 lambda body 诊断 | `05-grammar-calls-lambda.md` |
 | L0033–L0039 | SPEC-0012 call argument / 参数模式诊断（含 `duplicate argument mode` 等，v0.14 起调用点字母表为 `borrow` 关键字 + `&` 符号，诊断类别与编号不变） | `05-grammar-calls-lambda.md`，声明侧引用见 `03-grammar-core.md`、`04-grammar-declarations-blocks.md` |
 | L0040–L0046 | SPEC-0013 局部解构诊断 | `05-grammar-calls-lambda.md` |
 
-`&` 符号本身没有分配新的错误码——它复用 L0033–L0039 既有类别，只是把这些类别里
-“模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号。
-词法层“裸 `&` 非法字符”这条旧诊断在 v0.14 后不再产生（`&` 现在是合法固定符号），
-不占用独立错误码，属于诊断类别的**移除**而非新增。
+`&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
+“调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
+声明侧 L0039 的 `borrow`/`inout` 字母表不变。v0.14 后裸 `&` 不再触发 L0001（`&` 现在是
+合法固定符号），但 L0001 类别仍用于其他非法字符；这里只移除了该字符的旧触发情形。
 
 ## 7. 核心概念速查（概念 → 主要讨论位置）
 

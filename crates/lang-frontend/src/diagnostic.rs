@@ -43,6 +43,13 @@ pub mod codes {
     pub(crate) const UNSUPPORTED_BLOCK_ELEMENT: &str = "L0030";
     pub(crate) const EXPECTED_LAMBDA_BODY_ELEMENT: &str = "L0031";
     pub(crate) const UNSUPPORTED_LAMBDA_BODY_FORM: &str = "L0032";
+    pub(crate) const EXPECTED_ARGUMENT_VALUE: &str = "L0033";
+    pub(crate) const EXPECTED_ARGUMENT_SEPARATOR: &str = "L0034";
+    pub(crate) const UNSUPPORTED_ARGUMENT_EMPTY_ELEMENT: &str = "L0035";
+    pub(crate) const UNSUPPORTED_ARGUMENT_TRAILING_COMMA: &str = "L0036";
+    pub(crate) const INVALID_ARGUMENT_MODE_ORDERING: &str = "L0037";
+    pub(crate) const DUPLICATE_ARGUMENT_MODE: &str = "L0038";
+    pub(crate) const DUPLICATE_PARAMETER_MODE: &str = "L0039";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -78,6 +85,13 @@ pub mod codes {
         UNSUPPORTED_BLOCK_ELEMENT,
         EXPECTED_LAMBDA_BODY_ELEMENT,
         UNSUPPORTED_LAMBDA_BODY_FORM,
+        EXPECTED_ARGUMENT_VALUE,
+        EXPECTED_ARGUMENT_SEPARATOR,
+        UNSUPPORTED_ARGUMENT_EMPTY_ELEMENT,
+        UNSUPPORTED_ARGUMENT_TRAILING_COMMA,
+        INVALID_ARGUMENT_MODE_ORDERING,
+        DUPLICATE_ARGUMENT_MODE,
+        DUPLICATE_PARAMETER_MODE,
     ];
 
     /// 由集中定义创建生产错误码目录。

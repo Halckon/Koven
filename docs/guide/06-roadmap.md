@@ -20,7 +20,7 @@
 
 - [x] **SPEC-0006**：实现 [v0.5 词法基线](./02-lexical-spec.md)：ASCII 标识符、42 个硬
       关键字、2 个软关键字、11 个未来保留字、trivia、字面量、字符串插值、当时的固定符号、
-      EOF 和错误恢复；v0.14 新增的单字符 `&` 由 SPEC-0012 增量实施
+      EOF 和错误恢复；v0.14 新增的单字符 `&` 已由 SPEC-0012 增量实施
 - [x] 所有 token / trivia / invalid 区域保留精确 UTF-8 字节 `Span`，非法源码返回结构化
       诊断而不 `panic!`
 - [x] **SPEC-0007**：实现 [`03-grammar-core.md`](./03-grammar-core.md) 独立表达式入口、全部运算符层级、`type_ref`、仅位置实参的
@@ -36,7 +36,7 @@
       [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节 lambda literal
 - [x] **SPEC-0011（前置：SPEC-0009 `done`）**：只实现具名函数无体 / block body 省略返回
       标注时固定为 `Unit`；表达式体仍要求显式标注
-- [ ] **SPEC-0012（前置：SPEC-0010、0011 `done`；v0.14 已明确启用）**：增量实现单字符
+- [x] **SPEC-0012（前置：SPEC-0010、0011 `done`；v0.14 已明确启用）**：增量实现单字符
       `&` 的 Lexer token，以及统一 callable 参数 marker、函数类型参数、typed call argument、
       命名实参与模式实参
       （声明侧关键字 `borrow` / `inout`；调用点关键字 `borrow` 与符号 `&`）的 Phase 1
@@ -52,8 +52,8 @@
       运算符 `?` 的语义依赖 SPEC-0016 定义的 `return`，其 parser 支持应在 SPEC-0016 落地
       后紧接排期，不得早于 `return` 语义定案）
 
-SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0011 已完成；v0.14 的 `&` 词法增量尚待
-SPEC-0012 实施。SPEC-0012 至 SPEC-0017 是现行规范规定的后续 Parser 边界。未勾选状态不
+SPEC-0006 词法基线以及 SPEC-0007 至 SPEC-0012 已完成；SPEC-0013 至 SPEC-0017 是现行
+规范规定的后续 Parser 边界。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参

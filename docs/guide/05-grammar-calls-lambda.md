@@ -2,9 +2,10 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.14。
-> 保留原节号 §9 以维持既有 SPEC 引用不变。本文档是拆分后变化最快的一份——SPEC-0012
-> 尚未实现，v0.12 的所有权标注简化改动几乎全部落在这里；共享的表达式/类型引用基础见
-> [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)。
+> 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0012 已实现；本节下一项是 SPEC-0013
+> 的局部 `val` 解构。共享的表达式/类型引用基础见
+> [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
+> [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)。
 
 ## 9. SPEC-0010 至 SPEC-0013：lambda、隐式 `Unit`、typed call argument 与局部 `val` 解构
 
@@ -231,10 +232,12 @@ v0.14 在保持“`Inout` 调用点标注仍是强制项”这一结论不变的
   记住的规则是“调用一个会修改你变量的函数，在实参前加一个 `&`”，不需要记住一个完整
   单词。安全性质不受影响——`&` 依旧是强制项、依旧只对可变 place 合法，[06-roadmap.md](./06-roadmap.md)
   Phase 3 的所有权检查规则不变，改变的只是这个强制标注本身的书写重量。
-- **声明侧的关键字 `inout` 不受影响**：`fun mutate(inout x: Point): Unit` 与
-  `(inout T) -> R` 两处继续使用关键字 `inout`，理由见[03-grammar-core.md](./03-grammar-core.md)第 3 节——
-  声明侧标注的是“这是所有权模型本身需要的信息”，不是“调用点书写负担”，v0.12/v0.14 两次
-  调整都只动了调用点，从未打算精简声明侧。
+- **声明侧的关键字 `borrow` / `inout` 都不受影响**：
+  `fun inspect(borrow x: Point): Unit`、`fun mutate(inout x: Point): Unit`、`(borrow T) -> R`
+  与 `(inout T) -> R` 继续显式声明对应契约，理由见
+  [03-grammar-core.md](./03-grammar-core.md) 第 3 节——声明侧标注的是“这是所有权模型本身需要的信息”，
+  不是“调用点书写负担”。v0.12 只让调用点 `borrow` 可省，v0.14 只把调用点
+  `inout` 改写为 `&`；两版都没有精简声明侧。
 - **`&` 是新增的固定符号，不是既有 token 的复用**：v1 此前没有单字符 `&`（只有 `&&`），
   这次改动为它在[02-lexical-spec.md](./02-lexical-spec.md)第 7 节新增一个词法 token，唯一合法语法位置是本节
   的调用实参入口；`&` 不参与任何通用 prefix / binary 表达式层级，v1 也不提供按位与运算符
@@ -469,8 +472,8 @@ SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历�
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
 SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量接受其他 golden 变化。
 
-0001–0009 的历史实体文件和编号保持不变；0010、0011 已完成。其余候选尚未物化，本版按
-下表使用唯一编号，禁止保留新旧编号别名：
+0001–0009 的历史实体文件和编号保持不变；0010–0012 已完成。0013 及后续候选尚未物化，
+本版按下表使用唯一编号，禁止保留新旧编号别名：
 
 | 新编号 | Goal / 旧候选映射 |
 |---|---|
