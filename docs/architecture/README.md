@@ -368,10 +368,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   各执行两次 Lexer 与两次完整文件 Parser，共验证 650 个 Lexer 和 650 个 Parser 产物；逐次
   锁定 lexeme 完整字节覆盖、唯一末尾 EOF、source identity、diagnostic primary / label、四张
   AST table、typed roots 与 package / import 子 Span，并比较完整公开 `Debug` 产物以证明确定性；
-- `lexer_boundary_matrix` integration test 经生产 Lexer 执行 2,127 个固定 case：330 个硬/
+- `lexer_boundary_matrix` integration test 经生产 Lexer 执行 2,127 个固定源码：330 个硬/
   未来保留/软词 ASCII identifier 边界类别、1,596 个普通固定符号相邻 spelling、199 个 `as?` /
-  `!in` / `!is` continuation 与终止边界，以及 2 个注释优先级 case；每例锁定目标分类或
-  最长首 token、精确 Span、连续完整字节覆盖和唯一 EOF，且不复制 scanner 的匹配顺序；
+  `!in` / `!is` continuation 与终止边界，以及 2 个注释优先级 case。每个源码执行两次 Lexer，
+  共验证 4,254 个产物的 source identity、连续完整字节覆盖、末尾唯一 EOF、diagnostic primary /
+  label Span 和完整公开产物确定性；全部源码保持零诊断，并继续锁定目标分类或最长首 token、
+  精确 Span，且不复制 scanner 的匹配顺序；双 Lexer helper 同时由完整文件对抗矩阵复用；
 - `parser_entry_adversarial` integration test 对 16 个前缀与 16 个后缀分别运行独立 expression、
   declaration、block 三个公开入口，共执行 768 个 entry/case、1536 次生产解析；每个 case
   显式锁定 lexeme 连续完整覆盖、唯一末尾 EOF、source-local 有界 Lexer / AST / diagnostic

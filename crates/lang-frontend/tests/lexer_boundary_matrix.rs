@@ -1,9 +1,15 @@
-//! SPEC-0073 的固定词边界、符号最长匹配与注释优先级矩阵契约。
+//! SPEC-0073 / SPEC-0103 的固定词边界、符号最长匹配与注释优先级矩阵契约。
 
 use lang_frontend::{
-    lexer::{LexedFile, LexemeKind, Symbol, TokenKind, TriviaKind, lex},
-    source::{SourceId, SourceMap},
+    diagnostic::DiagnosticDetail,
+    lexer::{LexedFile, LexemeKind, Symbol, TokenKind, TriviaKind},
+    source::SourceId,
 };
+
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
+
+use lexer_matrix_assertions::lex_source_twice;
 
 const WORDS: &[&str] = &[
     "class",
@@ -106,32 +112,56 @@ const FIXED_SYMBOLS: &[(&str, Symbol)] = &[
     ("=", Symbol::Equal),
 ];
 
-fn lex_case(text: &str) -> (SourceMap, SourceId, LexedFile) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("lexer-boundary-matrix.ko", text)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    (sources, source_id, lexed)
-}
-
-fn assert_complete_coverage(source_id: SourceId, source_len: usize, lexed: &LexedFile) {
-    let mut next_offset = 0;
+fn validate_boundary_lexed(source_id: SourceId, source_len: usize, lexed: &LexedFile) {
+    assert_eq!(lexed.source_id(), source_id);
+    let mut covered = 0;
     let mut eof_count = 0;
-    for lexeme in lexed.lexemes() {
+    for (index, lexeme) in lexed.lexemes().iter().enumerate() {
         let span = lexeme.span();
         assert_eq!(span.source_id(), source_id);
-        assert_eq!(span.start(), next_offset);
+        assert!(span.start() <= span.end());
+        assert!(span.end() <= source_len);
         if lexeme.kind() == LexemeKind::Eof {
             eof_count += 1;
+            assert_eq!(index + 1, lexed.lexemes().len());
             assert_eq!((span.start(), span.end()), (source_len, source_len));
         } else {
+            assert_eq!(span.start(), covered);
             assert!(span.end() > span.start());
-            next_offset = span.end();
+            covered = span.end();
         }
     }
-    assert_eq!(next_offset, source_len);
+    assert_eq!(covered, source_len);
     assert_eq!(eof_count, 1);
+    for diagnostic in lexed.diagnostics() {
+        let primary = diagnostic.primary_span();
+        assert_eq!(primary.source_id(), source_id);
+        assert!(primary.start() <= primary.end());
+        assert!(primary.end() <= source_len);
+        for detail in diagnostic.details() {
+            if let DiagnosticDetail::Label(label) = detail {
+                let span = label.span();
+                assert_eq!(span.source_id(), source_id);
+                assert!(span.start() <= span.end());
+                assert!(span.end() <= source_len);
+            }
+        }
+    }
+}
+
+fn lex_case(text: &str) -> LexedFile {
+    let (_, _, lexed) = lex_source_twice(
+        "lexer-boundary-matrix.ko",
+        text,
+        text,
+        validate_boundary_lexed,
+    );
+    assert!(
+        lexed.diagnostics().is_empty(),
+        "{text:?}: {:?}",
+        lexed.diagnostics()
+    );
+    lexed
 }
 
 fn significant_kinds(lexed: &LexedFile) -> Vec<LexemeKind> {
@@ -160,18 +190,12 @@ fn every_fixed_word_mutation_remains_one_identifier_without_diagnostics() {
             format!("{word}0"),
             uppercase_initial,
         ] {
-            let (_sources, source_id, lexed) = lex_case(&text);
-            assert!(
-                lexed.diagnostics().is_empty(),
-                "{text:?}: {:?}",
-                lexed.diagnostics()
-            );
+            let lexed = lex_case(&text);
             assert_eq!(
                 significant_kinds(&lexed),
                 [LexemeKind::Token(TokenKind::Identifier)],
                 "{text:?}",
             );
-            assert_complete_coverage(source_id, text.len(), &lexed);
             executed += 1;
         }
     }
@@ -196,7 +220,7 @@ fn every_fixed_symbol_pair_uses_the_longest_available_first_token() {
                 .max_by_key(|(spelling, _)| spelling.len())
                 .copied()
                 .expect("each matrix source starts with a fixed symbol");
-            let (_sources, source_id, lexed) = lex_case(&text);
+            let lexed = lex_case(&text);
             let first = &lexed.lexemes()[0];
             assert_eq!(
                 first.kind(),
@@ -208,7 +232,6 @@ fn every_fixed_symbol_pair_uses_the_longest_available_first_token() {
                 (0, expected_spelling.len()),
                 "{text:?}",
             );
-            assert_complete_coverage(source_id, text.len(), &lexed);
             executed += 1;
         }
     }
@@ -225,8 +248,7 @@ fn compound_word_symbols_enforce_their_complete_ascii_boundary_contract() {
     for (spelling, kind) in compounds {
         for continuation in CONTINUES.chars() {
             let text = format!("{spelling}{continuation}");
-            let (_sources, source_id, lexed) = lex_case(&text);
-            assert!(lexed.diagnostics().is_empty(), "{text:?}");
+            let lexed = lex_case(&text);
             assert_eq!(
                 significant_kinds(&lexed),
                 [
@@ -235,14 +257,12 @@ fn compound_word_symbols_enforce_their_complete_ascii_boundary_contract() {
                 ],
                 "{text:?}",
             );
-            assert_complete_coverage(source_id, text.len(), &lexed);
             executed += 1;
         }
 
         for suffix in ["", " ", ".", "?", "("] {
             let text = format!("{spelling}{suffix}");
-            let (_sources, source_id, lexed) = lex_case(&text);
-            assert!(lexed.diagnostics().is_empty(), "{text:?}");
+            let lexed = lex_case(&text);
             let first = &lexed.lexemes()[0];
             assert_eq!(
                 first.kind(),
@@ -250,15 +270,13 @@ fn compound_word_symbols_enforce_their_complete_ascii_boundary_contract() {
                 "{text:?}",
             );
             assert_eq!((first.span().start(), first.span().end()), (0, 3));
-            assert_complete_coverage(source_id, text.len(), &lexed);
             executed += 1;
         }
     }
 
     for continuation in CONTINUES.chars() {
         let text = format!("as?{continuation}");
-        let (_sources, source_id, lexed) = lex_case(&text);
-        assert!(lexed.diagnostics().is_empty(), "{text:?}");
+        let lexed = lex_case(&text);
         let first = &lexed.lexemes()[0];
         assert_eq!(
             first.kind(),
@@ -266,7 +284,6 @@ fn compound_word_symbols_enforce_their_complete_ascii_boundary_contract() {
             "{text:?}",
         );
         assert_eq!((first.span().start(), first.span().end()), (0, 3));
-        assert_complete_coverage(source_id, text.len(), &lexed);
         executed += 1;
     }
 
@@ -280,9 +297,7 @@ fn comment_openers_take_priority_over_their_fixed_symbol_prefixes() {
         ("// /= trailing", TriviaKind::LineComment),
         ("/* /= */+", TriviaKind::BlockComment),
     ] {
-        let (_sources, source_id, lexed) = lex_case(text);
-        assert!(lexed.diagnostics().is_empty(), "{text:?}");
+        let lexed = lex_case(text);
         assert_eq!(lexed.lexemes()[0].kind(), LexemeKind::Trivia(expected));
-        assert_complete_coverage(source_id, text.len(), &lexed);
     }
 }
