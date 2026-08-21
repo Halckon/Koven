@@ -1,18 +1,21 @@
-//! SPEC-0076 / SPEC-0096 的 Parser 诊断 witness 与公开产物不变量。
+//! SPEC-0076 / SPEC-0096 / SPEC-0108 的 Parser 诊断 witness 与公开产物不变量。
 
 use std::collections::BTreeSet;
 
 use lang_frontend::{
     diagnostic::codes,
-    lexer::{LexedFile, lex},
+    lexer::LexedFile,
     parser::{ParserInternalError, parse_block, parse_declaration, parse_expression, parse_file},
     source::{SourceId, SourceMap, Span},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 
 #[derive(Clone, Copy, Debug)]
 enum Entry {
@@ -500,12 +503,16 @@ fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
     assert_eq!(witness_codes, expected_codes);
 
     for witness in WITNESSES {
-        let mut sources = SourceMap::new();
-        let source_id = sources
-            .add_source("parser-diagnostic-witness.ko", witness.source)
-            .expect("witness source name must be unique");
-        let lexed = lex(&sources, source_id).expect("witness must lex internally");
-        validate_lexed(source_id, witness.source.len(), &lexed);
+        let context = format!(
+            "{} via {:?} for {:?}",
+            witness.code, witness.entry, witness.source
+        );
+        let (sources, source_id, lexed) = lex_source_twice(
+            "parser-diagnostic-witness.ko",
+            witness.source,
+            &context,
+            validate_lexed,
+        );
         assert!(
             lexed.diagnostics().is_empty(),
             "{} {:?} is not Lexer-clean: {:?}",
@@ -514,10 +521,6 @@ fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
             lexed.diagnostics()
         );
 
-        let context = format!(
-            "{} via {:?} for {:?}",
-            witness.code, witness.entry, witness.source
-        );
         let first = parse_fingerprint(
             witness.entry,
             &sources,
