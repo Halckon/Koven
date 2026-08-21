@@ -1,7 +1,8 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.21。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.21；
+> 第 22 节是未启用的 v0.22 候选，不改变当前权威版本。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–21 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
@@ -924,6 +925,111 @@ SPEC-0018 不推导表达式类型，不选择 overload / constructor / member�
 visibility 跨文件规则、override、调用实参映射、捕获所有权或 package/import 冲突。它的
 输出必须允许 SPEC-0019 在不重新遍历源码字符串的前提下读取 scope、symbol、overload set
 与每个已解析名称引用。
+
+---
+
+## 22. 基础类型检查与局部推导（v0.22 候选，未启用）
+
+> **候选状态**：本节是用于解除 SPEC-0019 设计门禁的完整提案，不属于现行 v0.21 语义。
+> 只有用户明确启用 v0.22 并指定其取代 v0.21 后，本节才成为实现依据；在此之前不得注册
+> L0082–L0089 或提交类型检查代码。
+
+本候选把“基础类型检查”收敛为一个可独立验收的阶段：它解析内建标量与函数类型，给局部
+绑定和已支持表达式建立确定类型，检查具名函数的返回契约，并把需要 nominal member、泛型
+实例化或 overload 选择的节点显式标为 deferred。`deferred` 是编译器阶段状态，不是用户可见
+类型，也不得被当作类型正确；后续 Spec 必须填充它，完整编译流水线不能携带 deferred 节点
+进入所有权检查或 codegen。
+
+### 22.1 显式语义环境与类型身份
+
+- 类型检查入口接收 `SourceMap`、`ParsedFile`、SPEC-0018 的 `NameResolution` 和不可变
+  `TypeEnvironment`。环境按 `ExternalSymbolId` 绑定内建类型或单态外部 value / function
+  签名；不得按 `Int`、`error` 等字符串硬编码语义，也不得隐式加载 prelude。
+- `TypeId` 只在一次 typed 产物内有效。类型表至少封闭表示 builtin、nullable、function、
+  integer-literal constraint、`Error` 与 `Deferred`；相同结构必须确定性规范化，不能依赖
+  随机 hash 迭代。`Error` 用于抑制已诊断级联，`Deferred` 精确保留后续阶段责任。
+- SPEC-0019 识别 `Byte`、`Short`、`Int`、`Long`、`UByte`、`UShort`、`UInt`、`ULong`、
+  `Float`、`Double`、`Boolean`、`Char`、`String`、`Unit`、`Nothing` 与 `Any` 的环境身份。
+  裸 builtin 不接受类型实参；nullable 后缀形成 `T?`。`Any` 在本阶段只作为后续泛型检查的
+  顶层约束，不建立需要运行时擦除的普通 value 表示；把它直接用于 local、参数或返回值时
+  暂记 deferred，由 SPEC-0020 结合 nominal / 表示规则封闭。
+- TypeRef 首段若已由名称阶段报 L0080，类型检查只产生 `Error`，不重复报错；限定名后续段、
+  源码 nominal classifier、type parameter 和泛型实例统一 deferred 给 SPEC-0020。已解析的
+  builtin 携带任何类型实参时使用 L0082。
+
+### 22.2 相容、字面量与运算符最小闭包
+
+- `Nothing` 是所有类型的 bottom type；`Nothing?` 只包含 `null`，可适配任意 nullable 类型。
+  对任意非空 `T`，`T` 可适配 `T?`；除此之外 SPEC-0019 不引入隐式子类型或数值 widening。
+  两个相同规范化类型相容，`Error` 与任何类型相容以抑制级联，`Deferred` 不参与成功判定。
+- 十进制整数字面量先保留数学整数约束；无 expected type 时在值可表示时默认为 `Int`，否则
+  使用 L0083。存在整数 builtin expected type 时，只要值落入该类型范围即可适配；这只是
+  字面量定型，不允许已定型的 `Int` 变量隐式转换为 `Long` 或无符号类型。一元负号与紧随的
+  整数字面量合并做范围判断，使各有符号类型的最小值可表达。
+- 浮点字面量固定为 `Double`；`Float` 在没有后缀语法的 v1 中只能来自已定型 value / call，
+  不把 `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、String 分别固定为
+  `Boolean`、`Char`、`String`；无 expected nullable type 的独立 `null` 无法推导。
+- `!` 只接受 `Boolean`；一元 `+` / `-` 只接受数值 builtin。`* / % -` 与数值 `+` 要求两侧
+  已定型为同一数值类型并返回该类型；`String + String` 返回 `String`，不提供隐式
+  `String + Any`。`< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
+  接受相同类型、`T` 与 `T?` 或任一侧 `Nothing`，返回 `Boolean`；`&&` / `||` 只接受
+  `Boolean`。不满足操作数契约使用 L0085，primary 为运算符，左右 operand 作为 label。
+- Elvis `left ?: right` 要求左侧为 `T?` 或 `Nothing?`，并以 expected type 检查右侧可适配
+  `T`；结果为 `T`。`!!` 要求 nullable operand 并返回非空 `T`。range、`to`、cast/type-test、
+  assignment、member、index、call/callable reference 与 postfix `?` 需要 nominal、place、
+  callable 或 `Result` 信息，SPEC-0019 只遍历 child 并将自身结果标为 deferred，不臆造类型。
+
+### 22.3 expected type、local 与 lambda
+
+- 类型检查采用单向 expected-type 传播，不做全局双向约束求解。显式 local 标注、函数返回
+  标注、callable 参数位置和 control 分支的外层 expected type可以向 child 传播；不得从赋值
+  之后的使用、overload 选择或另一文件反推声明类型。
+- `val` / `var` 有显式 TypeRef 时先解析标注，再用它检查 initializer；不相容使用 L0084，
+  primary 覆盖 initializer，label 指向 expected TypeRef。无标注时采用 initializer 已知类型；
+  integer-literal constraint在此默认，`null`、带参数但无 expected function type 的 lambda，
+  或真正缺少约束的表达式使用 L0083。若 initializer 自身因后续阶段能力而 deferred，则 local
+  也 deferred，不提前发 L0083。
+- lambda 是独立 callable。存在 expected function type 时，参数数量和 `move` / mode 结构先
+  做精确匹配，不匹配使用 L0084，再以对应参数类型检查 body；参数类型不从 body 反推。无参数 lambda 可以从
+  body 已知尾值推导 `() -> R`；带参数 lambda 没有 expected function type 时使用 L0083。
+  普通 block 固定为 `Unit`，`LambdaBody` / `ControlBody` 才读取尾 expression；以声明或 jump
+  结束、或空 body 的尾值为 `Unit`。
+
+### 22.4 具名函数、控制流与 `Nothing`
+
+- 所有顶层和 member 函数先建立签名再检查任一 body，支持同文件递归。SPEC-0019 只提交
+  全部 TypeRef 均为本节已知类型且不需要 overload/member 选择的单态签名；泛型、nominal 或
+  deferred TypeRef 的函数签名保留给 SPEC-0020，不产生伪造的部分签名。
+- `ImplicitUnitAbsent` 与 `ImplicitUnitBlock` 的返回类型精确为 `Unit`；显式 TypeRef 决定返回
+  类型，绝不从 body 改写。表达式 body 以声明返回类型作为 expected type，不相容使用 L0084。
+- `return`、`break`、`continue` 的表达式类型均为 `Nothing`。裸 `return` 只适配 `Unit`；带值
+  `return e` 以最近 callable 的返回类型检查 `e`。lambda 建立独立 return 边界；文件 initializer
+  等无 callable 上下文的 `return` 使用 L0086；裸 return 与非 `Unit` callable、带值 return 与
+  `Unit` callable 的形态冲突使用 L0087，表达式值类型不匹配仍使用 L0084。break/continue
+  target 留给后续 control-flow 语义检查，本 Spec 只赋 bottom type。
+- 显式非 `Unit` block-body 函数若存在可到达的 body 末尾，使用 L0088，primary 为右花括号
+  或 EOF 恢复点，label 指向返回 TypeRef。`if` 两分支或 control body 尾值在两侧已知时取最小
+  join：同型保持原类型，任一侧 `Nothing` 取另一侧，`T` 与 `T?` 取 `T?`；否则 L0089。
+  缺 `else` 的 statement-context `if` 固定 `Unit`。`when` 穷尽性和 smart cast 留给 SPEC-0021；
+  在此之前 `when` 的整体类型为 deferred，但其 child 仍接受局部检查。
+
+### 22.5 诊断与分阶段完成条件
+
+| 错误码 | 含义 | primary / 关联位置 |
+|---|---|---|
+| L0082 | builtin type 不接受当前类型实参 | primary 为首个实参或参数列表；label 指向 builtin 名称 |
+| L0083 | 无法从当前合法上下文推导类型 | primary 为 initializer、literal 或 lambda；不得用于后续阶段 deferred |
+| L0084 | expression 或 lambda 结构与 expected type 不相容 | primary 为 expression / lambda header；label 指向产生 expected type 的标注或参数 |
+| L0085 | 运算符的 operand 类型无效 | primary 为运算符；label 按左、右源码顺序列出已知 operand 类型 |
+| L0086 | `return` 不在任何 callable 内 | primary 为 `return` keyword |
+| L0087 | `return` 的有值 / 无值形态与 callable 返回类型冲突 | primary 为 `return` 或其值；label 返回标注 |
+| L0088 | 显式非 `Unit` block body 可以到达末尾 | primary 为 body 结束位置；label 返回标注 |
+| L0089 | control 分支没有本阶段可确定的公共类型 | primary 为 `else` / 第二分支；label 指向第一分支尾值 |
+
+所有 typed 表、deferred reason 与诊断顺序必须确定；同一根因产生 `Error` 后，下游不得再发
+同范围类型级联。SPEC-0019 的完成不代表完整文件已无 deferred：它必须证明本节封闭子集全部
+得到 known / error，且每一种 deferred reason 都精确对应 SPEC-0020、后续 callable 检查、
+SPEC-0021 或 SPEC-0063 的既定责任，不能用单一 `Unsupported` 垃圾桶掩盖遗漏。
 
 ---
 
