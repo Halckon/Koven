@@ -1,14 +1,18 @@
-//! SPEC-0017 class-family 的 Phase 1 AST、诊断与恢复契约测试。
+//! SPEC-0017 / SPEC-0125 class-family 的 Phase 1 AST、诊断与恢复契约测试。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::lex,
     parser::{
         ClassifierDeclaration, ClassifierKind, Item, NameMarker, ParsedDeclaration, ParsedFile,
-        VisibilityModifier, parse_declaration, parse_expression, parse_file,
+        VisibilityModifier,
     },
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_declaration_twice, parse_expression_twice, parse_file_twice};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique source")
@@ -17,16 +21,14 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "class-family.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
 fn file(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "class-family-file.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -279,8 +281,7 @@ fn unsupported_kotlin_class_forms_do_not_expand_the_v1_grammar() {
 
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "anonymous.ko", "object { fun run() {} }");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse expression");
+    let parsed = parse_expression_twice(&sources, source_id, "anonymous object expression");
     assert_eq!(codes(parsed.diagnostics())[0], "L0009");
 }
 

@@ -387,6 +387,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   block 与完整文件的全部源码路径均执行两次 Lexer 与两次对应 Parser，并逐次验证相同公开产物
   不变量。完整文件 typed wrapper 与既有 file matrix wrapper 共用单职责 file output 校验；该
   suite 无预期内部错误路径，测试文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
+- `parser_class_family` 的 12 个核心 integration test 保持五种 classifier、generic / constructor /
+  supertype / member、enum variant、companion、匿名形式拒绝、L0066–L0077、owner recovery、source
+  identity 与完整 guide 示例断言；declaration、完整文件与 expression 的全部源码路径均执行两次
+  Lexer 与两次对应 Parser，并逐次验证相同公开产物不变量。该 suite 无预期内部错误路径，测试
+  文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
