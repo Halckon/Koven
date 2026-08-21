@@ -387,7 +387,11 @@ ASCII 标识符、单行字符串、非嵌套 block comment、最小数值后缀
 `scopes.tsv` 为仓库私有的代表性 scope/源码片段契约。`lang-frontend` 的
 `textmate_grammar` integration test 检查 grammar repository 和 scope 存在性，并用生产 Lexer
 证明正常 corpus 无诊断且覆盖主要 token/trivia family、reserved corpus 精确产生 11 个
-L0002。该回归不引入 JSON/TextMate runtime 依赖；JSON 语法在交付检查中独立验证。
+L0002。`editors/textmate/tests/lexical-contract.tsv` 另以 80 个共享 case 锁定全部 33 个 operator、
+10 个 punctuation、有效 integer/float/string escape/character 及代表性拒绝边界；零依赖 Node
+verifier 实际从 JSON repository 递归定位并执行锚定 regex，Rust integration test 用同一 TSV
+验证全部正例的生产 Lexer 分类或零诊断。TextMate `package.json` 只提供 `npm test` 脚本，不含
+依赖或 lockfile，也不把 Node 引入 Cargo 测试。
 
 ## Tree-sitter grammar
 

@@ -1,4 +1,4 @@
-//! SPEC-0058 的 TextMate grammar 与 corpus 回归。
+//! SPEC-0058 / SPEC-0071 的 TextMate grammar、corpus 与词法契约回归。
 
 use std::{collections::BTreeSet, fs, path::PathBuf};
 
@@ -79,6 +79,81 @@ fn textmate_path(relative: &str) -> PathBuf {
 
 fn read_asset(relative: &str) -> String {
     fs::read_to_string(textmate_path(relative)).expect("TextMate asset must be readable UTF-8")
+}
+
+#[test]
+fn lexical_contract_positive_cases_match_the_production_lexer() {
+    let contract = read_asset("tests/lexical-contract.tsv");
+    let mut counts = std::collections::BTreeMap::new();
+
+    for (index, line) in contract.lines().enumerate() {
+        let (family, spelling) = line
+            .split_once('\t')
+            .unwrap_or_else(|| panic!("contract line {} needs two columns", index + 1));
+        assert!(!family.is_empty() && !spelling.is_empty());
+        *counts.entry(family).or_insert(0_usize) += 1;
+        if family.starts_with("reject.") {
+            continue;
+        }
+
+        let text = if family == "string.escape" {
+            format!("\"a{spelling}b\"")
+        } else {
+            spelling.to_owned()
+        };
+        let mut sources = SourceMap::new();
+        let source_id = sources
+            .add_source("textmate-lexical-contract.ko", text)
+            .expect("unique lexical-contract source");
+        let lexed = lex(&sources, source_id).expect("lexical contract must lex");
+        assert!(
+            lexed.diagnostics().is_empty(),
+            "{family} {spelling:?}: {:?}",
+            lexed.diagnostics()
+        );
+        let tokens = lexed
+            .lexemes()
+            .iter()
+            .filter_map(|lexeme| match lexeme.kind() {
+                LexemeKind::Token(kind) => Some(kind),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        match family {
+            "symbol.operator" | "symbol.punctuation" => {
+                assert_eq!(tokens.len(), 1, "{spelling:?}");
+                assert!(matches!(tokens[0], TokenKind::Symbol(_)), "{spelling:?}");
+            }
+            "number.float" => {
+                assert_eq!(tokens.len(), 1, "{spelling:?}");
+                assert!(
+                    matches!(tokens[0], TokenKind::FloatLiteral(_)),
+                    "{spelling:?}"
+                );
+            }
+            "number.integer" => {
+                assert_eq!(tokens.len(), 1, "{spelling:?}");
+                assert!(
+                    matches!(tokens[0], TokenKind::IntegerLiteral(_)),
+                    "{spelling:?}"
+                );
+            }
+            "string.escape" => {
+                assert!(matches!(tokens.first(), Some(TokenKind::StringStart)));
+                assert!(matches!(tokens.last(), Some(TokenKind::StringEnd)));
+            }
+            "character" => assert_eq!(tokens, [TokenKind::CharLiteral]),
+            other => panic!("unknown positive contract family {other}"),
+        }
+    }
+
+    assert_eq!(counts.get("symbol.operator"), Some(&33));
+    assert_eq!(counts.get("symbol.punctuation"), Some(&10));
+    assert_eq!(counts.get("string.escape"), Some(&8));
+    assert_eq!(counts.get("number.float"), Some(&4));
+    assert_eq!(counts.get("number.integer"), Some(&7));
+    assert_eq!(counts.get("character"), Some(&4));
 }
 
 #[test]

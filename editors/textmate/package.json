@@ -1,0 +1,8 @@
+{
+  "name": "koven-textmate-grammar",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/verify-lexical-contract.mjs"
+  }
+}
