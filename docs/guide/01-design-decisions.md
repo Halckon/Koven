@@ -1,9 +1,10 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.22。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.22；
+> §23 是明确排除于现行语义之外的 v0.23 候选。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
-> [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–21 节的设计决策，
+> [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–22 节的现行设计决策，
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -1040,6 +1041,150 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 同范围类型级联。SPEC-0019 的完成不代表完整文件已无 deferred：它必须证明本节封闭子集全部
 得到 known / error，且每一种 deferred reason 都精确对应 SPEC-0020、后续 callable 检查、
 SPEC-0021 或 SPEC-0063 的既定责任，不能用单一 `Unsupported` 垃圾桶掩盖遗漏。
+
+---
+
+## 23. 名义类型、泛型与接口实现（候选 v0.23，未启用）
+
+> 本节是下一版候选契约，不属于当前 v0.22 权威语义。只有用户明确启用 v0.23 取代 v0.22
+> 后，SPEC-0020 才能批准并实施。候选的目的，是把 §5、§7、§14–15、§21–22 与
+> [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §13 已有设计意图收敛成
+> 可执行的单文件类型阶段；它不提前实现 member/call 选择、smart cast 或所有权。
+
+### 23.1 名义身份与泛型实例
+
+- 每个源码 `value class` / `class` / `interface` / `enum class` / 具名 `object` 声明产生一个
+  稳定名义身份。身份来自声明 symbol，不由名称字符串或结构相同推导；两个字段完全相同的
+  class 仍是不同类型。具名 object 的类型和值共享声明来源，但仍保留不同的 type/value
+  symbol。
+- `TypeId` 增加 `Nominal(nominal_id, arguments)` 与 `TypeParameter(symbol_id)`。相同名义身份
+  和相同有序实参规范化为同一类型；参数顺序是身份的一部分。类型参数以声明 symbol 区分，
+  不按拼写合并。普通 class 是固定大小 owner/reference handle，value/enum 是内联名义值；
+  精确布局和 `Copyable` 仍分别交给 Phase 4 与 SPEC-0022。
+- 声明处类型参数按源码顺序编号，使用点必须提供精确数量的实参；v1 没有 raw type、默认
+  类型实参、星投影、型变、隐式缺参或多余实参。泛型是 invariant：`Box<A>` 与 `Box<B>`
+  只有在 `A == B` 时相同，不从接口关系推导协变/逆变。
+- 无显式 bound 的类型参数等价于顶层约束 `Any`，但参数本身在单态化后有具体表示，不等于把
+  值擦除成运行时 `Any`。显式单一 bound 只允许：一个可带类型实参的 interface，或编译器
+  预声明的 `Copyable` / `Transferable` 能力；显式 `Any` 与省略 bound 等价。普通
+  class/value/enum/object、nullable、函数
+  类型和另一个类型参数不能作为 v1 上界；这种精确限制避免引入类继承、交集类型和递归
+  F-bound。
+- SPEC-0020 检查 interface bound；`Copyable` 满足性由 SPEC-0022 检查，`Transferable`
+  满足性由 Phase 3 检查。它们在 SPEC-0020 只保存为不同的能力谓词，不能伪装成普通
+  interface，也不能因暂未求值而把整个名义类型降格为单一 deferred。
+- `TypeEnvironment` 以外部 symbol identity 显式绑定 `Copyable` / `Transferable` 能力，方式
+  与 builtin 类型绑定同样不依赖拼写；未绑定的同名外部 symbol 不是能力。源码中同名
+  interface 仍只是普通 interface，不能冒充编译器能力，但可按普通 interface bound 使用。
+- TypeRef 中的源码名义类型与类型参数在 SPEC-0020 后必须成为 known/error；同文件限定类型
+  仍不开放 nested type。多 segment TypeRef 继续只可能由后续 package/import 解析，因此在
+  SPEC-0025 前保持 `QualifiedType` deferred，不能把 `Outer.Inner` 猜成嵌套类型。
+
+### 23.2 interface 位置与名义关系
+
+- v1 没有 `dyn`，因此 interface 实例只允许出现在三类静态位置：类型参数 bound、class-family
+  supertype list、接口委托的目标。不得把裸 interface 或 `Interface?` 用作 local、字段、
+  普通值参数、返回类型、enum 关联数据、函数类型分量或容器元素；这些位置需要运行时值表示，
+  必须使用满足该接口的具体名义类型或由该接口约束的类型参数。
+- class/value/enum/object 的每个 supertype 必须是已实例化 interface；interface 的每个
+  supertype 必须是父 interface。Koven 不接受普通 class 继承。同一直接列表重复 interface
+  是错误；经不同路径传递得到的完全相同实例合并为一个 requirement 来源，而同一 interface
+  声明以不同 invariant 实参到达则是冲突。interface 继承图必须无环。诊断按源码中首次闭合
+  重复或环的 edge 定位，不能依赖图容器迭代顺序。
+- 名义类型 `C<Args>` 静态满足 interface `I<Actuals>`，当且仅当按 `C` 的实际类型实参替换后，
+  `I<Actuals>` 出现在其直接或传递 interface 集合中。关系按完整 invariant 实例判断；实现
+  `I<Int>` 不满足 `I<Long>`，也不产生裸 `I` 值。
+- `this` 在 class/value/enum/object 实例成员中是当前 `C<T...>`；在 interface 默认方法中是
+  受当前 interface 约束但保持静态分发的 `Self`，不产生 interface runtime value。companion
+  没有 `this`，其检查仍由 SPEC-0026 完成。
+
+### 23.3 callable 签名、实现与 override
+
+- 类型检查先为全部顶层函数和 classifier 收集 callable 签名，并为 classifier 额外收集类型
+  参数、字段、enum 变体参数与 supertype，再检查图和 body。顶层/member 函数自己的类型
+  参数使用独立作用域；签名中的 classifier 参数按其声明身份保存。替换是捕获规避、按 typed
+  identity 进行的确定性结构替换，不能重解析源码文本。泛型函数 body 在其类型参数环境中
+  检查；不因尚未实例化就把合法 `T` 当成 deferred，也不在本 Spec 推导调用点类型实参。
+- 同一文件或成员值作用域的 **overload shape** 由名称、callable 类型参数数量和源码顺序
+  参数类型组成；
+  参数名、返回类型、类型参数 bound 和 `Value`/`Borrow`/`Inout` 模式都不参与 overload
+  区分。原因是 `Borrow` 调用点 marker 可省略，按模式重载会让普通 `f(x)` 无法确定选择
+  Value 还是 Borrow。shape 相同的后一个声明是重复签名，即使返回类型、bound 或模式不同
+  也不能形成 overload。泛型参数只改名但结构相同的 shape 按 alpha-equivalent 视为重复。
+  完整 callable contract 仍保存参数模式和返回类型；interface 替换/override 必须在 shape
+  匹配后再精确比较 contract，不能因为模式不参与 overload 就忽略模式不一致。
+- 顶层 overload 同样使用该 shape 拒绝重复。interface 成员可以无体（abstract requirement）
+  或有体（default）。子 interface 的本地
+  同键声明替换继承 requirement/default；由于 Phase 1 不接受 interface `override` token，
+  这里不要求该关键字。其模式、参数与返回类型必须和被替换签名精确一致。
+- class/value/enum/object 的实例成员必须有 expression 或 block body。若其签名匹配任一直接
+  或传递 interface member，必须显式写 `override`，并与该 member 的类型参数数量、模式、
+  参数类型和返回类型精确一致；v1 不引入返回协变或参数逆变。没有任何匹配来源的
+  `override` 同样是错误。实现 interface requirement 的 member 必须保持 `public`（省略
+  visibility 即 public），不能用 `internal` / `private` 缩窄协议可见性。
+- 具体类型必须覆盖全部 abstract requirement。单个继承 default 可直接使用；来自两个互不
+  替换来源的同键 default，或 abstract/default 与不同委托来源产生的冲突，必须由具体类型
+  提供显式 `override`。手写 override 胜过 default 和委托生成项。`super<I>.method()` 的
+  receiver/interface 归属与调用检查留给后续 member/call Spec，但 SPEC-0020 必须保存冲突
+  来源，不能提前任选一个实现。
+
+### 23.4 窄化接口委托
+
+- `Interface by field` 只在 ordinary `class` 生效。target 必须精确指向同一主构造器的
+  `val` 字段；`var`、body local、companion value、任意表达式或其他同名 symbol 均无效。
+- 字段静态类型必须是具体 class/value/enum/object 或受足够 interface bound 约束的类型参数，
+  且在替换 class 实参后满足被委托的完整 interface 实例。裸 interface 字段仍因没有运行时
+  表示而非法；委托不隐式创建 `dyn`、代理或共享 owner。
+- 委托生成的实现精确复制 interface callable 的类型参数、参数模式、参数类型和返回类型；
+  不改变 `Result`、不插入 `?`，也不参与用户可见 overload。手写同键 `override` 优先。
+  两个 delegate、delegate 与继承 default、或 delegate 与另一个未消歧来源提供同键实现时，
+  必须显式 override；诊断保存全部源码有序来源。
+- SPEC-0020 只验证和记录静态转发计划；member call lowering、字段借用/移动与实际转发代码
+  分别属于后续 call、Phase 3 和 Phase 4，不在此阶段生成隐藏 AST Item。
+
+### 23.5 typed 产物、deferred 交接与诊断
+
+- typed 产物增加源码有序 `NominalId`、classifier descriptor、类型参数/上界、已替换
+  interface closure、字段/变体/member 签名与委托计划。公开查询只返回 typed identity，
+  内部索引使用有序 Vec/BTreeMap；图遍历必须有确定的灰/黑状态并报告第一条源码有序闭环。
+  `TypeEnvironment::bind_capability` 只接受 type symbol 和封闭的 `Copyable`/`Transferable`
+  identity，重复或 kind 不匹配继续作为内部环境构造错误 fail loud。
+- SPEC-0020 完成后，源码 nominal/type-parameter TypeRef、顶层/member 泛型函数签名和合法
+  `this` 不再使用
+  `NominalOrTypeParameter` / `FunctionContainsDeferred` / `ThisType`。member、constructor、
+  overload/call argument mapping、callable reference、cast/type-test、when/smart cast、
+  destructuring、capability 满足性和 package-qualified type 继续保留各自 reason；不得用
+  `NominalOrTypeParameter` 作为遗留垃圾桶。
+- 新诊断按既有全序聚合，产生 `Error` 后抑制同根级联：
+
+| 错误码 | 稳定含义 | primary / label |
+|---|---|---|
+| L0091 | 名义类型实参数量不等于声明参数数量 | primary 为 use-site 类型实参表或类型名；label 指向声明参数表/名称 |
+| L0092 | 类型参数 bound 不是 `Any`、interface 或预声明能力 | primary 为 bound TypeRef；label 指向类型参数名称 |
+| L0093 | 类型实参不满足已可判定的 interface bound | primary 为该实参；label 指向声明 bound |
+| L0094 | interface 被用于需要运行时值表示的位置 | primary 为完整 TypeRef；label 指向 interface 声明 |
+| L0095 | class-family supertype 不是 interface，或同一 interface 声明重复实例化 | primary 为后出现的 supertype；label 指向实际声明或首次实例 |
+| L0096 | interface 继承图形成环 | primary 为闭环 edge 的 TypeRef；label 按路径顺序指向先前 edge |
+| L0097 | 同一成员作用域存在重复 callable 签名 | primary 为后出现的函数名；label 指向首个同键声明 |
+| L0098 | concrete member 缺少必需的 body | primary 为 member 名称；label 指向 concrete owner |
+| L0099 | 子 interface 的本地替换签名与继承 member 不一致 | primary 为本地 member 名称；label 指向被替换 member |
+| L0100 | `override` 缺失、无目标、签名不一致或缩窄可见性 | primary 为 `override` token（缺失时为 member 名称）；label 指向相关 interface member |
+| L0101 | 具体类型未实现 abstract interface member | primary 为 classifier 名称；label 指向未满足的 requirement |
+| L0102 | 多个 interface default 存在未显式消歧的同键冲突 | primary 为 classifier 名称；label 按源码顺序指向冲突来源 |
+| L0103 | 委托 target 不是同一主构造器的不可变 `val` 字段 | primary 为 target 名称；label 在存在同名字段时指向该字段 |
+| L0104 | delegate 字段类型不满足目标 interface 实例 | primary 为 target 名称；label 指向目标 interface TypeRef |
+| L0105 | 多个委托/default 为同键成员提供未显式消歧的实现 | primary 为后出现的 `by`；label 指向先前来源和 member requirement |
+
+级联抑制是本表契约的一部分：L0100 已指出同 shape 的错误实现后，不再为同一 requirement
+追加 L0101；L0095/L0096 使一条 hierarchy edge 失效后，不从该 edge 派生 requirement 或
+default 冲突；L0103/L0104 已使委托失效后，不为原本期望由该委托满足的每个 member 逐条追加
+L0101/L0105。独立的另一条合法 interface requirement 仍照常检查，不能用一次 Error 吞掉
+无关诊断。
+
+候选 v0.23 只封闭 SPEC-0020。调用表达式/构造器/member access 与具名实参映射应在其后单独
+物化 callable Spec；SPEC-0021 仍只负责 `when` 穷尽性与 smart cast，SPEC-0022 负责
+`Copyable`/解构与内联递归，SPEC-0026 负责 companion/const。这样 nominal graph 是后续阶段
+共享的稳定输入，而不是把整个 Phase 2 塞进一个不可独立验收的提交。
 
 ---
 

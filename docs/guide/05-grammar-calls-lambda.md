@@ -476,8 +476,9 @@ SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历�
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
 SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量接受其他 golden 变化。
 
-0001–0009 的历史实体文件和编号保持不变；0010–0013 已完成。0014 及后续候选尚未物化，
-本版按下表使用唯一编号，禁止保留新旧编号别名：
+0001–0009 的历史实体文件和编号保持不变；下表记录拆分当时对 0010 及后续编号的唯一映射，
+禁止保留新旧编号别名。当前完成状态与后续已物化 Spec 以
+[`00-index.md`](./00-index.md)和[`../specs/README.md`](../specs/README.md)为准：
 
 | 新编号 | Goal / 旧候选映射 |
 |---|---|

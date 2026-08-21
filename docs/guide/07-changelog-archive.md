@@ -3,7 +3,8 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.22），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.22，并附 v0.23
+未启用候选记录），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -298,3 +299,17 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 2 | 无约束 signed 整数按范围默认 `Int`→`Long`，unsigned 按 `UInt`→`ULong`；无后缀实数固定 `Double`，`f` 固定 `Float`，不发生已定型变量隐式 widening | 🔴 类型语义定案 |
 | 3 | 定义显式 TypeEnvironment、稳定 TypeId、单向 expected type、local/lambda 基础推导、函数返回与 `Nothing` bottom；分配 L0082–L0090 | 🔴 Phase 2 契约定案 |
 | 4 | 数值后缀的 Lexer/AST 交接拆为 SPEC-0066，基础类型检查交给 SPEC-0019；nominal、generic、call/member、smart cast 与所有权继续后置 | 🟡 Phase 边界补全 |
+
+## v0.23 候选变更记录（未启用）
+
+> 本候选于 2026-08-21 为下一阶段审计起草。当前权威版本仍是 v0.22；只有用户明确启用
+> v0.23 后，本表内容才成为现行语义并解除 SPEC-0020 门禁。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 定义声明 symbol 派生的名义身份、invariant 泛型实例、类型参数身份与捕获规避替换；精确禁止 raw/default/型变/星投影 | 🔴 候选类型语义 |
+| 2 | 把 v1 显式上界收窄为 `Any`、interface 或预声明 `Copyable`/`Transferable` 能力；interface bound 在 SPEC-0020 检查，能力满足性分别后置 | 🔴 候选泛型边界 |
+| 3 | 明确无 `dyn` 时 interface 只允许作 bound/supertype/delegation target，不能直接作为 runtime value TypeRef | 🔴 候选表示边界 |
+| 4 | 封闭 interface 继承图；overload shape 明确排除返回/bound/参数模式以避免可选 Borrow marker 歧义，完整 contract 仍精确比较；并定义 abstract/default、显式 override、缺实现与多默认冲突 | 🔴 候选接口语义 |
+| 5 | 封闭 `Interface by valField` 的静态满足、转发签名、手写 override 优先与多来源冲突规则，不生成隐藏 AST | 🔴 候选委托语义 |
+| 6 | 为 SPEC-0020 预分配 L0091–L0105，并明确 nominal/type-parameter/this deferred 的完成后交接；call/member/smart-cast/Copyable/companion 继续拆分 | 🟡 候选诊断与 Phase 边界 |
