@@ -410,6 +410,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   202 个 UTF-8 scalar 前缀，共 747 个 case、1,494 次生产解析，逐例锁定连续 lexeme 覆盖、
   唯一末尾 EOF、source-local 诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未
   发现生产缺陷；
+- `parser_entry_token_omission_matrix` integration test 复用同一 12-case 独立入口 corpus，逐一
+  删除全部显著 token；expression / declaration / block 分别执行 66 / 104 / 70 个 mutation，
+  共 240 个 case、480 次生产解析，逐例重新词法分析并锁定连续覆盖、唯一 EOF、source-local
+  诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
