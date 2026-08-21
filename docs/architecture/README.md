@@ -382,6 +382,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
   重复完整文件解析；逐例锁定连续 lexeme 覆盖、唯一 EOF、词法错误码、公开产物确定性，并
   要求 64 个可继续 case 后的顶层 sentinel 声明全部存活；
+- `parser_diagnostic_witness_matrix` integration test 将生产目录 `L0009`–`L0078` 中 69 个现行
+  Parser 诊断逐一映射到 expression、declaration、block 或 file 公开入口；每个 Lexer-clean
+  witness 的目标码恰好出现一次，全部 Span 保持 source-local，69 个 case 共执行 138 次确定性
+  解析。兼容保留但生产 Parser 已退役的 L0016 被显式排除，矩阵同时证明所有实际诊断均不发该码；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
