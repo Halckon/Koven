@@ -476,8 +476,9 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   内换行六种结构载体，与四种无 LF trivia 投放到 expression `when` entry、declaration class
   member 和 block 裸 `return` 边界；反向锁定 expression / block 中缀连续与 enum comma 必需。
   它与完整文件矩阵共享唯一 10-carrier `TriviaKind` / spelling / byte 分段表；60 个 Lexer-clean
-  源码、120 次独立入口解析逐次验证 lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic
-  Span、typed root、syntax shape 与公开产物确定性；本矩阵未发现生产缺陷；
+  源码各运行两次 Lexer 与两次独立入口 Parser，共验证 120 个 Lexer 和 120 个 Parser 产物，
+  逐次锁定 lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic Span、typed root、syntax
+  shape 与两个阶段的完整公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
