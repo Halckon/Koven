@@ -1,12 +1,17 @@
-//! SPEC-0077 的完整语法组合非换行 trivia 等价矩阵。
+//! SPEC-0077 / SPEC-0097 的非换行 trivia 等价与公开产物不变量。
 
 use std::mem::{Discriminant, discriminant};
 
 use lang_frontend::{
     lexer::{LexemeKind, lex},
     parser::{Expression, Item, ParsedFile, Statement, TypeRef, parse_file},
-    source::SourceMap,
+    source::{SourceId, SourceMap, Span},
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
 
 #[derive(Clone, Copy)]
 struct GrammarCase {
@@ -314,12 +319,58 @@ fn syntax_shape(parsed: &ParsedFile) -> SyntaxShape {
     }
 }
 
+fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
+    assert_eq!(span.source_id(), source_id);
+    assert!(span.start() <= span.end());
+    assert!(span.end() <= source_len);
+}
+
+fn validate_parsed_file(
+    source_id: SourceId,
+    source_len: usize,
+    parsed: &ParsedFile,
+    context: &str,
+) {
+    assert_eq!(parsed.source_id(), source_id);
+    validate_ast(source_id, source_len, parsed.ast());
+    validate_diagnostics(source_id, source_len, parsed.diagnostics());
+    for root in parsed.roots() {
+        parsed
+            .ast()
+            .items()
+            .get(*root)
+            .unwrap_or_else(|error| panic!("invalid file root for {context}: {error}"));
+    }
+    if let Some(package) = parsed.package() {
+        validate_span(source_id, source_len, package.span);
+        validate_span(source_id, source_len, package.keyword_span);
+        for segment in &package.segments {
+            validate_span(source_id, source_len, segment.span);
+        }
+    }
+    for import in parsed.imports() {
+        validate_span(source_id, source_len, import.span);
+        validate_span(source_id, source_len, import.keyword_span);
+        for segment in &import.segments {
+            validate_span(source_id, source_len, segment.span);
+        }
+        if let Some(span) = import.wildcard_span {
+            validate_span(source_id, source_len, span);
+        }
+        if let Some(alias) = import.alias {
+            validate_span(source_id, source_len, alias.as_span);
+            validate_span(source_id, source_len, alias.name_span);
+        }
+    }
+}
+
 fn parse_clean(source: &str, context: &str) -> (Vec<LexemeKind>, SyntaxShape) {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("parser-trivia-invariance.ko", source)
         .expect("matrix source name must be unique");
     let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
+    validate_lexed(source_id, source.len(), &lexed);
     assert!(
         lexed.diagnostics().is_empty(),
         "Lexer diagnostics for {context}: {:?}",
@@ -330,10 +381,18 @@ fn parse_clean(source: &str, context: &str) -> (Vec<LexemeKind>, SyntaxShape) {
         .unwrap_or_else(|error| panic!("first parse failed for {context}: {error}"));
     let repeated = parse_file(&sources, &lexed)
         .unwrap_or_else(|error| panic!("repeated parse failed for {context}: {error}"));
-    assert!(
-        first.diagnostics().is_empty(),
-        "Parser diagnostics for {context}: {:?}\nsource={source:?}",
-        first.diagnostics()
+    for parsed in [&first, &repeated] {
+        validate_parsed_file(source_id, source.len(), parsed, context);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "Parser diagnostics for {context}: {:?}\nsource={source:?}",
+            parsed.diagnostics()
+        );
+    }
+    assert_eq!(
+        syntax_shape(&first),
+        syntax_shape(&repeated),
+        "non-deterministic syntax shape for {context}"
     );
     assert_eq!(
         format!("{first:?}"),
