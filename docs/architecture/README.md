@@ -413,6 +413,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   lexical mode 的变体精确保留一次目标 L0001 / L0002，192 个 owner-affecting 变体锁定总性，
   600 个非 owner 变体还要求后置 sentinel 存活。错误接收者的 call / index 后缀恢复复用
   declaration owner stack，避免内层 string interpolation closer 被误作外层边界；
+- `parser_token_duplication_matrix` integration test 复用同一 corpus 和 396 个 token slot，在每个
+  原 token 后以空格分隔复制其精确源码切片并重新词法分析；382 个非 lexical-mode 变体锁定
+  原 token 与 duplicate 的相同 `TokenKind` 和精确 byte Span，96 个 owner-affecting 变体锁定
+  总性，300 个非 owner 变体还要求后置 sentinel 存活。全部变体重复完整文件解析并保持公开
+  AST / 诊断确定一致；本矩阵未发现生产缺陷；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
