@@ -1,7 +1,12 @@
-//! SPEC-0152 的四公开 Parser 入口递归预算精确边界矩阵。
+//! SPEC-0152 / SPEC-0159 的四公开 Parser 入口递归预算精确边界矩阵。
 
 use lang_frontend::{
-    parser::{ParserInternalError, parse_block, parse_declaration, parse_expression, parse_file},
+    diagnostic::Diagnostic,
+    lexer::LexedFile,
+    parser::{
+        Expression, ExpressionAst, Item, ParserInternalError, Statement, parse_block,
+        parse_declaration, parse_expression, parse_file,
+    },
     source::{SourceId, SourceMap},
 };
 
@@ -14,6 +19,65 @@ use parser_test_assertions::{
 };
 
 const RECURSION_LIMIT: usize = 1_024;
+
+#[derive(Clone, Copy)]
+enum OwnerShape {
+    Closed,
+    Terminal,
+}
+
+impl OwnerShape {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Closed => "closed lexical owner",
+            Self::Terminal => "terminal lexical owner",
+        }
+    }
+
+    fn source(self, depth: usize) -> String {
+        let mut source = format!("{}x", "\"${".repeat(depth));
+        if matches!(self, Self::Closed) {
+            source.push_str(&"}\"".repeat(depth));
+        }
+        source
+    }
+}
+
+#[derive(Clone, Copy)]
+enum OwnerEntry {
+    Expression,
+    Declaration,
+    Block,
+    File,
+}
+
+impl OwnerEntry {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Expression => "expression",
+            Self::Declaration => "declaration",
+            Self::Block => "block",
+            Self::File => "file",
+        }
+    }
+
+    const fn boundary(self) -> (usize, usize) {
+        match self {
+            Self::Expression | Self::Declaration | Self::File => (511, 512),
+            Self::Block => (510, 511),
+        }
+    }
+
+    fn source(self, owner: &str, terminal: bool) -> (String, usize) {
+        let (prefix, suffix) = match self {
+            Self::Expression => ("", ""),
+            Self::Declaration | Self::File => ("val result = ", ""),
+            Self::Block if terminal => ("{ ", ""),
+            Self::Block => ("{ ", " }"),
+        };
+        (format!("{prefix}{owner}{suffix}"), prefix.len())
+    }
+}
 
 #[derive(Clone, Copy)]
 enum ExpressionShape {
@@ -100,6 +164,186 @@ fn assert_expression_boundary(shape: ExpressionShape) {
     );
 }
 
+fn assert_owner_diagnostics(
+    diagnostics: &[Diagnostic],
+    shape: OwnerShape,
+    owner_start: usize,
+    depth: usize,
+    source_len: usize,
+    context: &str,
+) {
+    match shape {
+        OwnerShape::Closed => assert!(
+            diagnostics.is_empty(),
+            "closed lexical owner diagnostics for {context}: {diagnostics:?}"
+        ),
+        OwnerShape::Terminal => {
+            assert_eq!(diagnostics.len(), 1, "terminal diagnostics for {context}");
+            let diagnostic = &diagnostics[0];
+            assert_eq!(
+                diagnostic.code().to_string(),
+                "L0005",
+                "terminal code for {context}"
+            );
+            assert_eq!(
+                (
+                    diagnostic.primary_span().start(),
+                    diagnostic.primary_span().end()
+                ),
+                (owner_start + depth * 3 - 2, source_len),
+                "terminal span for {context}"
+            );
+        }
+    }
+}
+
+fn assert_string_count(ast: &ExpressionAst, depth: usize) {
+    assert_eq!(
+        ast.expressions()
+            .iter()
+            .filter(|(_, node)| matches!(node.payload(), Expression::String { .. }))
+            .count(),
+        depth
+    );
+}
+
+fn assert_expression_is_string(ast: &ExpressionAst, expression: lang_frontend::ast::ExpressionId) {
+    assert!(matches!(
+        ast.expressions()
+            .get(expression)
+            .expect("lexical owner root expression")
+            .payload(),
+        Expression::String { .. }
+    ));
+}
+
+fn assert_accepted_owner(
+    entry: OwnerEntry,
+    shape: OwnerShape,
+    sources: &SourceMap,
+    source_id: SourceId,
+    owner_start: usize,
+    depth: usize,
+    context: &str,
+) {
+    let source_len = sources
+        .source_text(source_id)
+        .unwrap_or_else(|error| panic!("lexical owner source lookup failed for {context}: {error}"))
+        .len();
+    match entry {
+        OwnerEntry::Expression => {
+            let parsed = parse_expression_twice(sources, source_id, context);
+            assert_owner_diagnostics(
+                parsed.diagnostics(),
+                shape,
+                owner_start,
+                depth,
+                source_len,
+                context,
+            );
+            assert_expression_is_string(parsed.ast(), parsed.root());
+            assert_string_count(parsed.ast(), depth);
+        }
+        OwnerEntry::Declaration => {
+            let parsed = parse_declaration_twice(sources, source_id, context);
+            assert_owner_diagnostics(
+                parsed.diagnostics(),
+                shape,
+                owner_start,
+                depth,
+                source_len,
+                context,
+            );
+            let Item::Variable { initializer, .. } = parsed
+                .ast()
+                .items()
+                .get(parsed.root())
+                .expect("lexical owner declaration root")
+                .payload()
+            else {
+                panic!("lexical owner declaration must remain a variable")
+            };
+            assert_expression_is_string(parsed.ast(), *initializer);
+            assert_string_count(parsed.ast(), depth);
+        }
+        OwnerEntry::Block => {
+            let parsed = parse_block_twice(sources, source_id, context);
+            assert_owner_diagnostics(
+                parsed.diagnostics(),
+                shape,
+                owner_start,
+                depth,
+                source_len,
+                context,
+            );
+            let Statement::Block { elements } = parsed
+                .ast()
+                .statements()
+                .get(parsed.root())
+                .expect("lexical owner block root")
+                .payload()
+            else {
+                panic!("lexical owner block must retain its root")
+            };
+            assert_eq!(elements.len(), 1);
+            let Statement::Expression { expression } = parsed
+                .ast()
+                .statements()
+                .get(elements[0])
+                .expect("lexical owner block element")
+                .payload()
+            else {
+                panic!("lexical owner block must retain its expression")
+            };
+            assert_expression_is_string(parsed.ast(), *expression);
+            assert_string_count(parsed.ast(), depth);
+        }
+        OwnerEntry::File => {
+            let parsed = parse_file_twice(sources, source_id, context);
+            assert_owner_diagnostics(
+                parsed.diagnostics(),
+                shape,
+                owner_start,
+                depth,
+                source_len,
+                context,
+            );
+            assert_eq!(parsed.roots().len(), 1);
+            let Item::Variable { initializer, .. } = parsed
+                .ast()
+                .items()
+                .get(parsed.roots()[0])
+                .expect("lexical owner file root")
+                .payload()
+            else {
+                panic!("lexical owner file root must remain a variable")
+            };
+            assert_expression_is_string(parsed.ast(), *initializer);
+            assert_string_count(parsed.ast(), depth);
+        }
+    }
+}
+
+fn assert_rejected_owner(entry: OwnerEntry, sources: &SourceMap, lexed: &LexedFile, context: &str) {
+    let expected = ParserInternalError::NestingLimitExceeded {
+        limit: RECURSION_LIMIT,
+    };
+    match entry {
+        OwnerEntry::Expression => {
+            assert_parser_error_twice(sources, lexed, expected, context, parse_expression)
+        }
+        OwnerEntry::Declaration => {
+            assert_parser_error_twice(sources, lexed, expected, context, parse_declaration)
+        }
+        OwnerEntry::Block => {
+            assert_parser_error_twice(sources, lexed, expected, context, parse_block)
+        }
+        OwnerEntry::File => {
+            assert_parser_error_twice(sources, lexed, expected, context, parse_file)
+        }
+    }
+}
+
 #[test]
 fn expression_recursion_shapes_lock_their_last_accepted_and_first_rejected_depths() {
     for shape in [
@@ -164,4 +408,57 @@ fn declaration_block_and_file_entries_lock_exact_recursion_boundaries() {
         "file block rejected boundary",
         parse_file,
     );
+}
+
+#[test]
+fn lexical_owners_lock_exact_recursion_boundaries_for_every_entry() {
+    let mut accepted = 0;
+    let mut rejected = 0;
+
+    for entry in [
+        OwnerEntry::Expression,
+        OwnerEntry::Declaration,
+        OwnerEntry::Block,
+        OwnerEntry::File,
+    ] {
+        let (accepted_depth, rejected_depth) = entry.boundary();
+        assert_eq!(accepted_depth + 1, rejected_depth);
+
+        for shape in [OwnerShape::Closed, OwnerShape::Terminal] {
+            let terminal = matches!(shape, OwnerShape::Terminal);
+            let context = format!("{} {} accepted boundary", entry.label(), shape.label());
+            let owner = shape.source(accepted_depth);
+            let (source, owner_start) = entry.source(&owner, terminal);
+            let (sources, source_id) = add_source(source);
+            assert_accepted_owner(
+                entry,
+                shape,
+                &sources,
+                source_id,
+                owner_start,
+                accepted_depth,
+                &context,
+            );
+            accepted += 1;
+
+            let context = format!("{} {} rejected boundary", entry.label(), shape.label());
+            let owner = shape.source(rejected_depth);
+            let (source, owner_start) = entry.source(&owner, terminal);
+            let source_len = source.len();
+            let (sources, source_id) = add_source(source);
+            let lexed = lex_parser_source_twice(&sources, source_id, &context);
+            assert_owner_diagnostics(
+                lexed.diagnostics(),
+                shape,
+                owner_start,
+                rejected_depth,
+                source_len,
+                &context,
+            );
+            assert_rejected_owner(entry, &sources, &lexed, &context);
+            rejected += 1;
+        }
+    }
+
+    assert_eq!((accepted, rejected), (8, 8));
 }

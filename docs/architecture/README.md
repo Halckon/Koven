@@ -538,15 +538,17 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   65,536 个 Error 节点，无 Parser 级联。call argument、block local element 与 file variable root
   均保持 4,096 项，全部产物保持连续覆盖、唯一 EOF、source-local AST / diagnostic Span、有效
   typed root 与完整公开产物确定性，本轮未发现生产缺陷；
-- `parser_recursion_boundary_matrix` integration test 以 18 个相邻深度源码锁定四个公开 Parser
+- `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
   1,023 层；declaration generic type 接受 1,023 层、拒绝 1,024 层；block 与 file function body
-  接受 1,024 层、拒绝 1,025 层。九个成功源码各执行两次 Lexer 与两次 Parser，保持零诊断、
-  source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性；九个失败源码各执行
-  两次 Lexer 与两次 Parser，均精确返回相同 `NestingLimitExceeded { limit: 1024 }`。矩阵锁定
-  1,024 单位实现预算映射到不同调用路径后的源码边界，不把内部预算误作统一源码层数；本轮
-  未发现生产缺陷；
+  接受 1,024 层、拒绝 1,025 层。完整闭合与 EOF terminal 的 nested string/interpolation 在
+  expression、declaration、file 接受 511 层、拒绝 512 层，在额外占用一级预算的 block 接受
+  510 层、拒绝 511 层；四个 terminal 接受源码各精确保留最内层一个 byte-accurate L0005，
+  不产生 Parser 级联，closed 接受源码保持零诊断，两类均保留全部 String AST。17 个成功与
+  17 个失败源码各执行两次 Lexer 与两次 Parser，共验证 68 个 Lexer 和 68 个 Parser 产物或错误
+  结果；失败侧均精确返回相同 `NestingLimitExceeded { limit: 1024 }`。矩阵锁定 1,024 单位实现
+  预算映射到不同调用路径后的源码边界，不把内部预算误作统一源码层数；本轮未发现生产缺陷；
 - `parser_stack_isolation_matrix` integration test 从四个相互独立的 64 KiB 调用线程分别执行
   expression、declaration、block 与 file 公开入口，共验证 8 个递归边界源码、16 个 Lexer
   产物和 16 个 Parser 结果。group 511 层、declaration generic type 1,023 层及 block / file
