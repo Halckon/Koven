@@ -1,10 +1,15 @@
-//! SPEC-0069 的三个独立 Parser 入口确定性对抗组合矩阵。
+//! SPEC-0069 的独立 Parser 入口对抗组合与 SPEC-0093 的产物不变量。
 
 use lang_frontend::{
-    lexer::{LexedFile, lex},
+    lexer::lex,
     parser::{parse_block, parse_declaration, parse_expression},
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
 
 const PREFIXES: &[&str] = &[
     "",
@@ -29,27 +34,58 @@ const SUFFIXES: &[&str] = &[
     "", "0", "x", ")", "]", "}", ">", ",", " + y", " ?: y", "?.member", "\n", ";", "\"", "'", "\0",
 ];
 
-type ParseEntry = fn(&SourceMap, &LexedFile) -> Result<String, String>;
-
-fn expression_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_expression(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
+#[derive(Clone, Copy)]
+enum EntryKind {
+    Expression,
+    Declaration,
+    Block,
 }
 
-fn declaration_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_declaration(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
+fn parse_twice(
+    entry_name: &str,
+    kind: EntryKind,
+    sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &lang_frontend::lexer::LexedFile,
+    text: &str,
+) {
+    macro_rules! parse_entry {
+        ($parse:ident, $table:ident) => {{
+            let first = $parse(sources, lexed).unwrap_or_else(|error| {
+                panic!("{entry_name} case {text:?} failed internally: {error}")
+            });
+            let repeated = $parse(sources, lexed).unwrap_or_else(|error| {
+                panic!("repeated {entry_name} case {text:?} failed internally: {error}")
+            });
+            for parsed in [&first, &repeated] {
+                assert_eq!(parsed.source_id(), source_id);
+                validate_ast(source_id, source_len, parsed.ast());
+                validate_diagnostics(source_id, source_len, parsed.diagnostics());
+                parsed
+                    .ast()
+                    .$table()
+                    .get(parsed.root())
+                    .unwrap_or_else(|error| {
+                        panic!("invalid {entry_name} root for {text:?}: {error}")
+                    });
+            }
+            assert_eq!(
+                format!("{first:?}"),
+                format!("{repeated:?}"),
+                "non-deterministic {entry_name} case: {text:?}"
+            );
+        }};
+    }
+
+    match kind {
+        EntryKind::Expression => parse_entry!(parse_expression, expressions),
+        EntryKind::Declaration => parse_entry!(parse_declaration, items),
+        EntryKind::Block => parse_entry!(parse_block, statements),
+    }
 }
 
-fn block_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_block(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
-}
-
-fn exercise_matrix(entry_name: &str, parse: ParseEntry) -> usize {
+fn exercise_matrix(entry_name: &str, kind: EntryKind) -> usize {
     let mut executed = 0;
     for prefix in PREFIXES {
         for suffix in SUFFIXES {
@@ -59,15 +95,15 @@ fn exercise_matrix(entry_name: &str, parse: ParseEntry) -> usize {
                 .add_source("entry-adversarial.ko", text.clone())
                 .expect("unique matrix source");
             let lexed = lex(&sources, source_id).expect("matrix lexing must not fail internally");
-            let first = parse(&sources, &lexed).unwrap_or_else(|error| {
-                panic!("{entry_name} case {text:?} failed internally: {error}")
-            });
-            let repeated = parse(&sources, &lexed).unwrap_or_else(|error| {
-                panic!("repeated {entry_name} case {text:?} failed internally: {error}")
-            });
-            assert_eq!(
-                first, repeated,
-                "non-deterministic {entry_name} case: {text:?}"
+            validate_lexed(source_id, text.len(), &lexed);
+            parse_twice(
+                entry_name,
+                kind,
+                &sources,
+                source_id,
+                text.len(),
+                &lexed,
+                &text,
             );
             executed += 1;
         }
@@ -76,18 +112,18 @@ fn exercise_matrix(entry_name: &str, parse: ParseEntry) -> usize {
 }
 
 #[test]
-fn independent_parser_entries_are_total_and_deterministic_over_the_matrix() {
+fn independent_parser_entries_preserve_output_invariants_over_the_matrix() {
     assert_eq!(PREFIXES.len(), 16);
     assert_eq!(SUFFIXES.len(), 16);
     let entries = [
-        ("expression", expression_fingerprint as ParseEntry),
-        ("declaration", declaration_fingerprint as ParseEntry),
-        ("block", block_fingerprint as ParseEntry),
+        ("expression", EntryKind::Expression),
+        ("declaration", EntryKind::Declaration),
+        ("block", EntryKind::Block),
     ];
 
     let executed = entries
         .into_iter()
-        .map(|(name, parse)| exercise_matrix(name, parse))
+        .map(|(name, kind)| exercise_matrix(name, kind))
         .sum::<usize>();
     assert_eq!(executed, 16 * 16 * 3);
 }
