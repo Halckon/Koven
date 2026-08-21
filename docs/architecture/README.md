@@ -109,6 +109,14 @@ Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输�
 Pratt、TypeRef、词法恢复索引、固定 worker 与递归预算；普通语法错误进入产物，内部不变量或
 资源边界失败才返回具体错误。
 
+Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` 保存具体 AST payload，
+`output` 保存四类解析产物与文件 directive，`error` 保存内部边界错误，均经门面 re-export
+保持原有 API。内部 `engine.rs` 只编排入口、持有唯一 `Parser` 状态和跨领域不变量；
+`engine/` 下按 `recovery`、`boundary`、`file`、`declaration`、`class`、`destructuring`、
+`block`、`expression`、`postfix`、`operator`、`type_ref` 与 `core` 拆分同一状态上的领域
+操作。`trial` 与 `lambda_trial` 继续负责无副作用预索引；所有子模块共享唯一 cursor、AST、
+诊断序列和 binding-power 定义，不复制解析状态或恢复规则。
+
 - Parser 跳过 trivia，消费 v0.6 的 primary、postfix、prefix、14 档中缀 / 赋值和递归
   `type_ref`；binding power 只在 `parser::engine` 中定义，`to` 由源码 `Span` 精确识别；
 - 声明入口消费 v0.7 的 `val`、`var`、`const val` 与具名 `fun`，保存三态名称 marker、参数与
