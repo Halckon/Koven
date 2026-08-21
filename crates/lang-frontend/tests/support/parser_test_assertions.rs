@@ -7,7 +7,10 @@
 
 use lang_frontend::{
     lexer::LexedFile,
-    parser::{ParsedDeclaration, ParsedExpression, parse_declaration, parse_expression},
+    parser::{
+        ParsedBlock, ParsedDeclaration, ParsedExpression, parse_block, parse_declaration,
+        parse_expression,
+    },
     source::{SourceId, SourceMap},
 };
 
@@ -24,11 +27,7 @@ pub(crate) fn parse_expression_twice(
     source_id: SourceId,
     context: &str,
 ) -> ParsedExpression {
-    let source_len = sources
-        .source_text(source_id)
-        .unwrap_or_else(|error| panic!("source lookup failed for {context}: {error}"))
-        .len();
-    let lexed = lex_loaded_source_twice(sources, source_id, source_len, context, validate_lexed);
+    let (source_len, lexed) = parser_source_twice(sources, source_id, context);
     parse_expression_from_lexed_twice(sources, source_id, source_len, &lexed, context)
 }
 
@@ -37,12 +36,30 @@ pub(crate) fn parse_declaration_twice(
     source_id: SourceId,
     context: &str,
 ) -> ParsedDeclaration {
+    let (source_len, lexed) = parser_source_twice(sources, source_id, context);
+    parse_declaration_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+}
+
+pub(crate) fn parse_block_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    context: &str,
+) -> ParsedBlock {
+    let (source_len, lexed) = parser_source_twice(sources, source_id, context);
+    parse_block_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+}
+
+fn parser_source_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    context: &str,
+) -> (usize, LexedFile) {
     let source_len = sources
         .source_text(source_id)
         .unwrap_or_else(|error| panic!("source lookup failed for {context}: {error}"))
         .len();
     let lexed = lex_loaded_source_twice(sources, source_id, source_len, context, validate_lexed);
-    parse_declaration_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+    (source_len, lexed)
 }
 
 fn parse_expression_from_lexed_twice(
@@ -99,6 +116,35 @@ fn parse_declaration_from_lexed_twice(
         format!("{first:?}"),
         format!("{repeated:?}"),
         "non-deterministic declaration parse for {context}"
+    );
+    first
+}
+
+fn parse_block_from_lexed_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &LexedFile,
+    context: &str,
+) -> ParsedBlock {
+    let first = parse_block(sources, lexed)
+        .unwrap_or_else(|error| panic!("first block parse failed for {context}: {error}"));
+    let repeated = parse_block(sources, lexed)
+        .unwrap_or_else(|error| panic!("repeated block parse failed for {context}: {error}"));
+    for parsed in [&first, &repeated] {
+        assert_eq!(parsed.source_id(), source_id);
+        validate_ast(source_id, source_len, parsed.ast());
+        validate_diagnostics(source_id, source_len, parsed.diagnostics());
+        parsed
+            .ast()
+            .statements()
+            .get(parsed.root())
+            .unwrap_or_else(|error| panic!("block root failed for {context}: {error}"));
+    }
+    assert_eq!(
+        format!("{first:?}"),
+        format!("{repeated:?}"),
+        "non-deterministic block parse for {context}"
     );
     first
 }

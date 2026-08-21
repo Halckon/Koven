@@ -1,4 +1,4 @@
-//! SPEC-0009 的独立 block、statement 顺序与 owner 恢复测试。
+//! SPEC-0009 / SPEC-0119 的独立 block、statement 顺序与 owner 恢复测试。
 
 use lang_frontend::{
     ast::StatementId,
@@ -10,6 +10,11 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
 };
 
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_block_twice;
+
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources.add_source("case.ko", text).expect("unique source")
 }
@@ -17,8 +22,7 @@ fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
 fn parsed(text: &str) -> (SourceMap, ParsedBlock) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse");
+    let parsed = parse_block_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
