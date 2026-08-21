@@ -410,10 +410,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   排除，矩阵同时证明所有实际诊断均不发该码；本轮未发现生产缺陷；
 - `parser_trivia_invariance_matrix` integration test 以 20 个完整 grammar case 覆盖文件头、声明、
   类型、表达式、call/lambda、control-flow 与 class-family，把 tab、无换行 block comment 和
-  混合 trivia 投放到每个单独 token gap、全部 gap 及文件首尾；1,175 个源码变体、2,350 次
-  完整文件解析均保持 significant `LexemeKind` 序列与无 Span AST 结构指纹不变且零诊断，并
-  逐次锁定 lexeme 完整覆盖、唯一 EOF、source-local 有界 AST / diagnostic Span、文件 roots、
-  package / import directive Span、syntax shape 与公开产物确定性；
+  混合 trivia 投放到每个单独 token gap、全部 gap 及文件首尾；1,175 个源码变体各运行两次
+  Lexer 与两次完整文件 Parser，共验证 2,350 个 Lexer 和 2,350 个 Parser 产物。全部变体均保持
+  significant `LexemeKind` 序列与无 Span AST 结构指纹不变且零诊断，并逐次锁定 lexeme 完整
+  覆盖、唯一 EOF、source-local 有界 AST / diagnostic Span、文件 roots、package / import
+  directive Span、syntax shape 与两个阶段的完整公开产物确定性；本轮未发现生产缺陷；
 - `parser_line_break_boundary_matrix` integration test 将 LF、CRLF、line comment 终止换行及
   block comment 内 LF / CRLF 六个结构载体，与四个合法非换行 trivia 载体投放到文件头、
   顶层声明、class member、`when` entry 和 `return` 边界；另锁定 enum comma 与中缀连续性，

@@ -1,17 +1,20 @@
-//! SPEC-0077 / SPEC-0097 的非换行 trivia 等价与公开产物不变量。
+//! SPEC-0077 / SPEC-0097 / SPEC-0109 的非换行 trivia 等价与公开产物不变量。
 
 use std::mem::{Discriminant, discriminant};
 
 use lang_frontend::{
-    lexer::{LexemeKind, lex},
+    lexer::LexemeKind,
     parser::{Expression, Item, ParsedFile, Statement, TypeRef, parse_file},
-    source::{SourceId, SourceMap, Span},
+    source::{SourceId, Span},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 
 #[derive(Clone, Copy)]
 struct GrammarCase {
@@ -365,12 +368,12 @@ fn validate_parsed_file(
 }
 
 fn parse_clean(source: &str, context: &str) -> (Vec<LexemeKind>, SyntaxShape) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-trivia-invariance.ko", source)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) = lex_source_twice(
+        "parser-trivia-invariance.ko",
+        source,
+        context,
+        validate_lexed,
+    );
     assert!(
         lexed.diagnostics().is_empty(),
         "Lexer diagnostics for {context}: {:?}",
