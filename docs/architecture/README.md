@@ -672,18 +672,19 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   source case，每例运行两次 Lexer 与两次 Parser，共验证 504 个 Lexer 和 504 个 Parser 产物。
   矩阵发现并修复 control-body Error 节点覆盖尚未消费 token 时 trivia-gap 查询构造反向 Span 的
   缺陷；重叠范围现在明确表示无 gap，并由既有 tail recovery 继续消费错误 token；
-- `parser_entry_lexical_poison_replacement_matrix` 对同一 240 个 token slot 分别以 `#` / `async`
-  替换，共执行 480 个 mutation；加上 12 个 baseline 共 492 个 source case，每例运行两次 Lexer
-  与两次 Parser，共验证 984 个 Lexer 和 984 个 Parser 产物；40 个 lexical-mode case 锁定
-  Scanner / Parser 总性，440 个普通 case 精确锁定唯一 L0001 / L0002 与 poison primary Span，
-  全部保持连续覆盖、唯一 EOF、source-local AST / 诊断、typed root 有效和公开产物确定性；
-  本矩阵未发现生产缺陷；
+- `parser_entry_lexical_poison_replacement_matrix` 对同一 240 个 token slot 分别以 `#`、`async`、
+  `'ab'`、`1e3` 替换，共执行 960 个 mutation；加上 12 个 baseline 共 972 个 source case，每例
+  运行两次 Lexer 与两次 Parser，共验证 1,944 个 Lexer 和 1,944 个 Parser 产物；80 个
+  lexical-mode case 锁定 Scanner / Parser 总性，880 个普通 case 精确锁定唯一 L0001 / L0002 /
+  L0007 / L0008 与 poison primary Span，全部保持连续覆盖、唯一 EOF、source-local AST / 诊断、
+  typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_entry_lexical_poison_insertion_matrix` 复用共享 lexical-mode gap 状态机，在 12-case corpus
   的 240 个 token 上枚举 252 个 gap；239 个 code-mode gap 与 13 个 string-mode gap 分别插入
-  两种 poison，共执行 504 个 mutation；加上 12 个 baseline 共 516 个 source case，每例运行
-  两次 Lexer 与两次 Parser，共验证 1,032 个 Lexer 和 1,032 个 Parser 产物。code-mode 精确锁定
-  唯一 L0001 / L0002 及 Span，string-mode 保持 Lexer / Parser 零诊断；完整文件矩阵的
-  418 / 409 / 9 计数同时保持不变，本矩阵未发现生产缺陷；
+  四种 poison，共执行 1,008 个 mutation；加上 12 个 baseline 共 1,020 个 source case，每例
+  运行两次 Lexer 与两次 Parser，共验证 2,040 个 Lexer 和 2,040 个 Parser 产物。956 个 code-mode
+  mutation 精确锁定唯一 L0001 / L0002 / L0007 / L0008 及 Span，52 个 string-mode mutation
+  保持 Lexer / Parser 零诊断；完整文件矩阵的 418 / 409 / 9 计数同时保持不变，本矩阵未发现
+  生产缺陷；
 - `parser_entry_adjacent_token_transposition_matrix` 复用同一 12-case corpus，在 240 个 token 内枚举
   expression / declaration / block 的 62 / 100 / 66 个相邻 pair，共执行 228 个 mutation；加上
   12 个 baseline 共 240 个 source case，每例运行两次 Lexer 与两次 Parser，共验证 480 个 Lexer
@@ -712,20 +713,21 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
   诊断 / AST Span，并定向回归 class member closer 与 nested interpolation tail 两个恢复缺陷；
 - `parser_lexical_poison_replacement_matrix` integration test 复用同一 corpus 和 396 个 token slot，
-  分别以非法字符 `#` 与未来保留字 `async` 生成 792 个重新词法分析的变体；764 个不改变
-  lexical mode 的变体精确保留一次目标 L0001 / L0002，192 个 owner-affecting 变体锁定总性，
-  600 个非 owner 变体还要求后置 sentinel 存活。错误接收者的 call / index 后缀恢复复用
-  declaration owner stack，避免内层 string interpolation closer 被误作外层边界；
+  分别以 `#`、`async`、`'ab'` 与 `1e3` 生成 1,584 个重新词法分析的变体；1,528 个不改变
+  lexical mode 的变体精确保留一次目标 L0001 / L0002 / L0007 / L0008，384 个 owner-affecting
+  变体锁定总性，1,200 个非 owner 变体还要求后置 sentinel 存活。错误接收者的 call / index
+  后缀恢复复用 declaration owner stack，避免内层 string interpolation closer 被误作外层边界；
 - `parser_token_duplication_matrix` integration test 复用同一 corpus 和 396 个 token slot，在每个
   原 token 后以空格分隔复制其精确源码切片并重新词法分析；382 个非 lexical-mode 变体锁定
   原 token 与 duplicate 的相同 `TokenKind` 和精确 byte Span，96 个 owner-affecting 变体锁定
   总性，300 个非 owner 变体还要求后置 sentinel 存活。全部变体重复完整文件解析并保持公开
   AST / 诊断确定一致；本矩阵未发现生产缺陷；
 - `parser_lexical_poison_insertion_matrix` integration test 复用同一 corpus 的源码起点与 396 个
-  token 末尾，共枚举 418 个 gap，并分别插入 `#` / `async` 生成 836 个变体；409 个 code-mode
-  gap 的 818 个变体在插入 Span 精确产生 L0001 / L0002，9 个 string-mode gap 的 18 个变体
-  保持 Lexer / Parser 零诊断。原语法 token 与 owner 全部保留，因此所有变体均要求后置
-  sentinel 存活，并重复完整文件解析以锁定总性和确定性；本矩阵未发现生产缺陷；
+  token 末尾，共枚举 418 个 gap，并分别插入 `#`、`async`、`'ab'`、`1e3` 生成 1,672 个变体；
+  409 个 code-mode gap 的 1,636 个变体在插入 Span 精确产生 L0001 / L0002 / L0007 / L0008，
+  9 个 string-mode gap 的 36 个变体保持 Lexer / Parser 零诊断。原语法 token 与 owner 全部保留，
+  因此所有变体均要求后置 sentinel 存活，并重复完整文件解析以锁定总性和确定性；本矩阵未发现
+  生产缺陷；
 - `parser_adjacent_token_transposition_matrix` integration test 复用同一 corpus 的 396 个 token，
   枚举 374 个相邻 pair 并以空格隔离交换后的原 token 源码；356 个非 lexical-mode 变体锁定
   right / left 的原 `TokenKind` 与计算后的精确 Span，154 个 owner-affecting 变体锁定总性，

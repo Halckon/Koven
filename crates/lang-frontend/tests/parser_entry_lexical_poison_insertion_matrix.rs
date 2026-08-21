@@ -1,4 +1,4 @@
-//! SPEC-0089 / SPEC-0114 的独立 Parser 入口逐 token gap 词法 poison 插入矩阵。
+//! SPEC-0089 / SPEC-0114 / SPEC-0157 的独立 Parser 入口逐 token gap 词法 poison 插入矩阵。
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
@@ -28,12 +28,12 @@ fn insert_poison(source: &str, offset: usize, poison: &str) -> (String, (usize, 
 #[test]
 fn inserting_lexer_poison_at_each_token_gap_is_total_for_every_entry() {
     assert_eq!(ENTRY_CASES.len(), 12);
-    assert_eq!(LEXICAL_POISONS.len(), 2);
+    assert_eq!(LEXICAL_POISONS.len(), 4);
     let mut case_counts = [0; 3];
     let mut token_count = 0;
     let mut gap_counts = [0; 3];
     let mut mutation_counts = [0; 3];
-    let mut poison_counts = [0; 2];
+    let mut poison_counts = [0; 4];
     let mut code_mode_gaps = 0;
     let mut string_mode_gaps = 0;
 
@@ -114,7 +114,7 @@ fn inserting_lexer_poison_at_each_token_gap_is_total_for_every_entry() {
     assert_eq!(case_counts, [4, 4, 4]);
     assert_eq!(token_count, 240);
     assert_eq!(gap_counts, [70, 108, 74]);
-    assert_eq!(mutation_counts, [140, 216, 148]);
-    assert_eq!(poison_counts, [252, 252]);
+    assert_eq!(mutation_counts, [280, 432, 296]);
+    assert_eq!(poison_counts, [252; 4]);
     assert_eq!((code_mode_gaps, string_mode_gaps), (239, 13));
 }

@@ -1,4 +1,4 @@
-//! SPEC-0083 / SPEC-0111 的合法完整语法 token gap 词法 poison 插入矩阵。
+//! SPEC-0083 / SPEC-0111 / SPEC-0157 的合法完整语法 token gap 词法 poison 插入矩阵。
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -59,13 +59,14 @@ fn insert_poison(source: &str, offset: usize, poison: &str) -> (String, (usize, 
 #[test]
 fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
     assert_eq!(GRAMMAR_CASES.len(), 22);
-    assert_eq!(LEXICAL_POISONS.len(), 2);
+    assert_eq!(LEXICAL_POISONS.len(), 4);
 
     let mut token_count = 0;
     let mut gap_count = 0;
     let mut code_mode_gaps = 0;
     let mut string_mode_gaps = 0;
     let mut executed = 0;
+    let mut poison_counts = [0; 4];
 
     for case in GRAMMAR_CASES {
         let (source, gaps, case_token_count) = baseline_and_gaps(case.source, case.name);
@@ -79,7 +80,7 @@ fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
                 string_mode_gaps += 1;
             }
 
-            for poison in LEXICAL_POISONS {
+            for (poison_index, poison) in LEXICAL_POISONS.iter().enumerate() {
                 let context = format!(
                     "{} insert {} at gap {} ({})",
                     case.name,
@@ -125,6 +126,7 @@ fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
                 }
                 assert_last_root_source(&sources, &parsed, SENTINEL, &context);
                 executed += 1;
+                poison_counts[poison_index] += 1;
             }
         }
     }
@@ -137,6 +139,7 @@ fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
             string_mode_gaps,
             executed,
         ),
-        (396, 418, 409, 9, 836)
+        (396, 418, 409, 9, 1_672)
     );
+    assert_eq!(poison_counts, [418; 4]);
 }

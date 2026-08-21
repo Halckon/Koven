@@ -1,4 +1,4 @@
-//! SPEC-0088 / SPEC-0114 的独立 Parser 入口逐显著 token 词法 poison 替换矩阵。
+//! SPEC-0088 / SPEC-0114 / SPEC-0157 的独立 Parser 入口逐显著 token 词法 poison 替换矩阵。
 
 use lang_frontend::source::Span;
 
@@ -31,10 +31,10 @@ fn replace_with_poison(source: &str, span: Span, poison: &str) -> (String, (usiz
 #[test]
 fn replacing_each_significant_token_with_lexer_poison_is_total_for_every_entry() {
     assert_eq!(ENTRY_CASES.len(), 12);
-    assert_eq!(LEXICAL_POISONS.len(), 2);
+    assert_eq!(LEXICAL_POISONS.len(), 4);
     let mut case_counts = [0; 3];
     let mut mutation_counts = [0; 3];
-    let mut poison_counts = [0; 2];
+    let mut poison_counts = [0; 4];
     let mut lexical_mode_mutations = 0;
     let mut target_code_mutations = 0;
 
@@ -91,7 +91,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_for_every_entry()
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(mutation_counts, [132, 208, 140]);
-    assert_eq!(poison_counts, [240, 240]);
-    assert_eq!((lexical_mode_mutations, target_code_mutations), (40, 440));
+    assert_eq!(mutation_counts, [264, 416, 280]);
+    assert_eq!(poison_counts, [240; 4]);
+    assert_eq!((lexical_mode_mutations, target_code_mutations), (80, 880));
 }

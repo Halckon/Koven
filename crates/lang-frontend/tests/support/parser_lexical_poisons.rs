@@ -18,4 +18,14 @@ pub(crate) const LEXICAL_POISONS: &[Poison] = &[
         text: "async",
         code: "L0002",
     },
+    Poison {
+        name: "invalid character literal",
+        text: "'ab'",
+        code: "L0007",
+    },
+    Poison {
+        name: "invalid numeric literal",
+        text: "1e3",
+        code: "L0008",
+    },
 ];

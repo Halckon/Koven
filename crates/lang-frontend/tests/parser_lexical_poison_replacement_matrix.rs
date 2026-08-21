@@ -1,4 +1,4 @@
-//! SPEC-0081 / SPEC-0111 的合法完整语法逐显著 token 词法 poison 替换矩阵。
+//! SPEC-0081 / SPEC-0111 / SPEC-0157 的合法完整语法逐显著 token 词法 poison 替换矩阵。
 
 use lang_frontend::source::Span;
 
@@ -60,20 +60,21 @@ fn replace_with_poison(source: &str, span: Span, poison: &str) -> String {
 #[test]
 fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable() {
     assert_eq!(GRAMMAR_CASES.len(), 22);
-    assert_eq!(LEXICAL_POISONS.len(), 2);
+    assert_eq!(LEXICAL_POISONS.len(), 4);
 
     let mut executed = 0;
     let mut owner_mutations = 0;
     let mut recoverable_mutations = 0;
     let mut lexical_mode_mutations = 0;
     let mut target_code_mutations = 0;
+    let mut poison_counts = [0; 4];
 
     for case in GRAMMAR_CASES {
         let (source, slots) = baseline_and_slots(case.source, case.name);
         assert!(!slots.is_empty(), "empty mutation slots for {}", case.name);
 
         for slot in slots {
-            for poison in LEXICAL_POISONS {
+            for (poison_index, poison) in LEXICAL_POISONS.iter().enumerate() {
                 let context = format!(
                     "{} replace {:?} at {}..{} with {}",
                     case.name,
@@ -110,6 +111,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable()
                     recoverable_mutations += 1;
                 }
                 executed += 1;
+                poison_counts[poison_index] += 1;
             }
         }
     }
@@ -126,6 +128,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable()
             lexical_mode_mutations,
             target_code_mutations,
         ),
-        (792, 192, 600, 28, 764)
+        (1_584, 384, 1_200, 56, 1_528)
     );
+    assert_eq!(poison_counts, [396; 4]);
 }
