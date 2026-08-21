@@ -2,20 +2,23 @@
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    lexer::lex,
     name_resolution::{
         NameEnvironment, Namespace, ReferenceTarget, ScopeKind, SymbolKind, resolve_names,
     },
-    parser::{ParsedFile, parse_file},
+    parser::ParsedFile,
     source::SourceMap,
 };
 use std::{fs, path::Path};
 
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_file_twice;
+
 fn parsed(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("names.ko", text).expect("unique source");
-    let lexed = lex(&sources, source).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source, "name resolution source");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",

@@ -590,6 +590,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 suite 不表示类型检查或编译，harness 也不调用 renderer 或固定公共机器诊断协议。
 `tests/name_resolution.rs` 另行枚举非零 Phase 2 `name-pass` / `name-fail` fixture，真实调用
 Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L0081 的 code / byte Span；
+其 13 个 integration test 的 14 条源码路径统一经 typed file helper 进入名称解析，每条源码执行
+两次 Lexer 与两次完整文件 Parser，共验证 28 个 Lexer 和 28 个 Parser 产物的 source identity、
+lexeme 连续覆盖、唯一 EOF、AST / diagnostic Span、file roots、directive Span 与完整公开产物
+确定性；名称解析领域断言继续消费首个已验证产物，本轮未发现生产缺陷。
 `tests/type_checking.rs` 枚举 `type-pass` / `type-fail` fixture，经相同前置流水线调用类型检查，
 并精确核对 L0082–L0130 的 code / byte Span；当前 `type-pass` 与 `type-fail` 各有六个真实
 fixture，包含名义类型、interface 实现、override、委托、`when`/smart-cast、`Copyable`/
