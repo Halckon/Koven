@@ -1,17 +1,20 @@
-//! SPEC-0075 / SPEC-0095 的 lexical owner 位置恢复与公开产物契约。
+//! SPEC-0075 / SPEC-0095 / SPEC-0107 的 lexical owner 位置恢复与公开产物契约。
 
 use lang_frontend::{
-    lexer::{LexedFile, lex},
+    lexer::LexedFile,
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 #[path = "support/parser_mutation_assertions.rs"]
 mod parser_mutation_assertions;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 use parser_mutation_assertions::assert_last_root_source;
 
 #[derive(Clone, Copy)]
@@ -162,13 +165,13 @@ const TERMINAL_OWNERS: &[Owner] = &[
     },
 ];
 
-fn lex_case(text: &str) -> (SourceMap, SourceId, LexedFile) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-lexical-owner-matrix.ko", text)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    (sources, source_id, lexed)
+fn lex_case(text: &str, context: &str) -> (SourceMap, SourceId, LexedFile) {
+    lex_source_twice(
+        "parser-lexical-owner-matrix.ko",
+        text,
+        context,
+        validate_lexed,
+    )
 }
 
 fn lexical_codes(lexed: &LexedFile) -> Vec<String> {
@@ -225,8 +228,7 @@ fn recoverable_owners_preserve_the_following_top_level_declaration() {
                 "{}{}{}\nval after = 1",
                 placement.prefix, owner.text, placement.suffix
             );
-            let (sources, source_id, lexed) = lex_case(&text);
-            validate_lexed(source_id, text.len(), &lexed);
+            let (sources, source_id, lexed) = lex_case(&text, &context);
             assert_eq!(
                 lexical_codes(&lexed),
                 owner.lexical_codes,
@@ -251,8 +253,7 @@ fn terminal_owners_are_total_at_every_representative_placement() {
         for owner in TERMINAL_OWNERS {
             let context = format!("{} at {}", owner.name, placement.name);
             let text = format!("{}{}", placement.prefix, owner.text);
-            let (sources, source_id, lexed) = lex_case(&text);
-            validate_lexed(source_id, text.len(), &lexed);
+            let (sources, source_id, lexed) = lex_case(&text, &context);
             assert_eq!(
                 lexical_codes(&lexed),
                 owner.lexical_codes,

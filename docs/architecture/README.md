@@ -396,10 +396,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   source-local 有界 AST / 诊断、三类 typed root、完整文件所有 roots 和 package / import
   directive Span；矩阵无普通用户输入内部错误，本轮未发现生产缺陷；
 - `parser_lexical_owner_matrix` integration test 把 4 个可继续 owner 与 5 个 EOF terminal owner
-  分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
-  重复完整文件解析；逐例锁定 lexeme 完整覆盖、唯一 EOF、词法错误码、source-local 有界
-  Lexer / AST / diagnostic Span、文件根可解引用与公开产物确定性，并对 64 个可继续 case 的
-  两次产物分别证明精确 `val after = 1` sentinel 是最后一个完整文件根；
+  分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case；每例
+  运行两次 Lexer 与两次完整文件 Parser，共验证 288 个 Lexer 和 288 个 Parser 产物。逐例锁定
+  lexeme 完整覆盖、唯一 EOF、精确词法错误码、source-local 有界 Lexer / AST / diagnostic
+  Span、文件根可解引用与两个阶段的完整公开产物确定性，并对 64 个可继续 case 的两次
+  Parser 产物分别证明精确 `val after = 1` sentinel 是最后一个完整文件根；本轮未发现生产缺陷；
 - `parser_diagnostic_witness_matrix` integration test 将生产目录 `L0009`–`L0078` 中 69 个现行
   Parser 诊断逐一映射到 expression、declaration、block 或 file 公开入口；每个 Lexer-clean
   witness 的两次产物都恰好发出一次目标码，并锁定 lexeme 完整覆盖、唯一 EOF、source-local
