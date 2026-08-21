@@ -1,7 +1,7 @@
 //! SPEC-0080 的合法完整语法逐显著 token 缺失恢复矩阵。
 
 use lang_frontend::{
-    lexer::{LexemeKind, Symbol, TokenKind, lex},
+    lexer::lex,
     parser::ParsedFile,
     source::{SourceMap, Span},
 };
@@ -10,39 +10,19 @@ use lang_frontend::{
 mod frontend_matrix_assertions;
 #[path = "support/parser_grammar_corpus.rs"]
 mod parser_grammar_corpus;
+#[path = "support/parser_mutation_assertions.rs"]
+mod parser_mutation_assertions;
+#[path = "support/parser_mutation_tokens.rs"]
+mod parser_mutation_tokens;
 
 use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
+use parser_mutation_assertions::assert_last_root_source;
+use parser_mutation_tokens::{MutationSlot, original_token_slots, token_affects_owner};
 
 const SENTINEL: &str = "val sentinel = 0";
 
-#[derive(Clone, Copy, Debug)]
-struct Omission {
-    kind: TokenKind,
-    span: Span,
-}
-
-fn omission_affects_owner(kind: TokenKind) -> bool {
-    matches!(
-        kind,
-        TokenKind::StringStart
-            | TokenKind::StringEnd
-            | TokenKind::InterpolationStart
-            | TokenKind::InterpolationEnd
-            | TokenKind::Symbol(
-                Symbol::LeftParen
-                    | Symbol::RightParen
-                    | Symbol::LeftBracket
-                    | Symbol::RightBracket
-                    | Symbol::LeftBrace
-                    | Symbol::RightBrace
-                    | Symbol::Less
-                    | Symbol::Greater
-            )
-    )
-}
-
-fn baseline_and_omissions(case_source: &str, context: &str) -> (String, Vec<Omission>) {
+fn baseline_and_omissions(case_source: &str, context: &str) -> (String, Vec<MutationSlot>) {
     let source = format!("{case_source}\n{SENTINEL}");
     let mut sources = SourceMap::new();
     let source_id = sources
@@ -64,19 +44,7 @@ fn baseline_and_omissions(case_source: &str, context: &str) -> (String, Vec<Omis
     );
     assert_sentinel(&sources, &parsed, context);
 
-    let omissions = lexed
-        .lexemes()
-        .iter()
-        .filter_map(|lexeme| {
-            let LexemeKind::Token(kind) = lexeme.kind() else {
-                return None;
-            };
-            (lexeme.span().end() <= case_source.len()).then_some(Omission {
-                kind,
-                span: lexeme.span(),
-            })
-        })
-        .collect();
+    let omissions = original_token_slots(&lexed, case_source.len());
     (source, omissions)
 }
 
@@ -99,23 +67,7 @@ fn parse_mutation(source: &str, context: &str) -> (SourceMap, ParsedFile) {
 }
 
 fn assert_sentinel(sources: &SourceMap, parsed: &ParsedFile, context: &str) {
-    let last_root = parsed
-        .roots()
-        .last()
-        .unwrap_or_else(|| panic!("missing sentinel root for {context}"));
-    let span = parsed
-        .ast()
-        .items()
-        .get(*last_root)
-        .unwrap_or_else(|error| panic!("invalid sentinel root for {context}: {error}"))
-        .span();
-    assert_eq!(
-        sources
-            .slice(span)
-            .unwrap_or_else(|error| panic!("invalid sentinel span for {context}: {error}")),
-        SENTINEL,
-        "last root is not the sentinel for {context}; parsed={parsed:?}"
-    );
+    assert_last_root_source(sources, parsed, SENTINEL, context);
 }
 
 #[test]
@@ -143,7 +95,7 @@ fn deleting_each_significant_token_is_total_and_recovers_non_owner_suffixes() {
             );
             let mutated = omit(&source, omission.span);
             let (sources, parsed) = parse_mutation(&mutated, &context);
-            if omission_affects_owner(omission.kind) {
+            if token_affects_owner(omission.kind) {
                 owner_omissions += 1;
             } else {
                 assert_sentinel(&sources, &parsed, &context);

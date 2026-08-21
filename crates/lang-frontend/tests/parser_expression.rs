@@ -1455,6 +1455,23 @@ fn nested_interpolation_consumes_its_own_delimiters_before_outer_string_end() {
 }
 
 #[test]
+fn lexical_poison_postfix_recovery_preserves_nested_interpolation_owners() {
+    let text = r#""前${ # ('界', "内${x}")}后""#;
+    let (_sources, parsed) = parsed_case_with_diagnostics(text);
+    assert_eq!(
+        parsed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0001"]
+    );
+    let root = parsed.ast().expressions().get(parsed.root()).expect("root");
+    assert_eq!((root.span().start(), root.span().end()), (0, text.len()));
+    assert!(matches!(root.payload(), Expression::String { .. }));
+}
+
+#[test]
 fn moderately_deep_prefix_nesting_does_not_overflow() {
     let prefix = format!("{}x", "!-".repeat(128));
     assert_parses(&prefix);

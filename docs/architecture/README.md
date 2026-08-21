@@ -408,6 +408,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
   诊断 / AST Span，并定向回归 class member closer 与 nested interpolation tail 两个恢复缺陷；
+- `parser_lexical_poison_replacement_matrix` integration test 复用同一 corpus 和 396 个 token slot，
+  分别以非法字符 `#` 与未来保留字 `async` 生成 792 个重新词法分析的变体；764 个不改变
+  lexical mode 的变体精确保留一次目标 L0001 / L0002，192 个 owner-affecting 变体锁定总性，
+  600 个非 owner 变体还要求后置 sentinel 存活。错误接收者的 call / index 后缀恢复复用
+  declaration owner stack，避免内层 string interpolation closer 被误作外层边界；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 

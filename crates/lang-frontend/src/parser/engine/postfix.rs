@@ -95,20 +95,10 @@ impl Parser<'_> {
         let mut end = first.span().end();
         match first.kind() {
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
-                end = self.consume_balanced_suffix(
-                    Symbol::LeftParen,
-                    Symbol::RightParen,
-                    end,
-                    stops,
-                )?;
+                end = self.consume_balanced_suffix(Symbol::RightParen, end, stops)?;
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBracket)) => {
-                end = self.consume_balanced_suffix(
-                    Symbol::LeftBracket,
-                    Symbol::RightBracket,
-                    end,
-                    stops,
-                )?;
+                end = self.consume_balanced_suffix(Symbol::RightBracket, end, stops)?;
             }
             LexemeKind::Token(TokenKind::Symbol(
                 Symbol::Dot | Symbol::QuestionDot | Symbol::ColonColon,
@@ -122,25 +112,21 @@ impl Parser<'_> {
 
     pub(super) fn consume_balanced_suffix(
         &mut self,
-        opener: Symbol,
         closer: Symbol,
-        mut end: usize,
+        end: usize,
         stops: Stops,
     ) -> Result<usize, ParserInternalError> {
-        let stops = stops.without_lambda_body_soft_stops();
-        let mut depth = 1usize;
-        while depth > 0 {
-            let current = self.current()?;
-            if matches!(current.kind(), LexemeKind::Eof) || stops.contains(current) {
-                break;
-            }
-            let lexeme = self.bump()?;
-            end = lexeme.span().end();
-            match lexeme.kind() {
-                LexemeKind::Token(TokenKind::Symbol(symbol)) if symbol == opener => depth += 1,
-                LexemeKind::Token(TokenKind::Symbol(symbol)) if symbol == closer => depth -= 1,
-                _ => {}
-            }
+        let closer_stop = match closer {
+            Symbol::RightParen => DeclarationStops::RIGHT_PAREN,
+            Symbol::RightBracket => DeclarationStops::RIGHT_BRACKET,
+            _ => return Err(ParserInternalError::InvalidLexemeStream),
+        };
+        let recovery_stops =
+            DeclarationStops::from_expression_hard(stops.without_lambda_body_soft_stops())
+                .with(closer_stop);
+        let mut end = self.recover_declaration_region(recovery_stops)?.max(end);
+        if self.current_is_symbol(closer) {
+            end = self.bump()?.span().end();
         }
         Ok(end)
     }
