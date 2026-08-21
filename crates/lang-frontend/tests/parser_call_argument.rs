@@ -1,16 +1,19 @@
-//! SPEC-0012 callable 参数契约与 typed call argument 的公共契约测试。
+//! SPEC-0012 / SPEC-0121 callable 参数契约与 typed call argument 的公共契约测试。
 
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
-    lexer::lex,
     parser::{
         AssignmentOperator, CallArgument, Expression, FunctionTypeParameter, Item, NameMarker,
-        ParameterModeMarker, ParsedDeclaration, ParsedExpression, TypeRef, parse_declaration,
-        parse_expression,
+        ParameterModeMarker, ParsedDeclaration, ParsedExpression, TypeRef,
     },
     source::{SourceId, SourceMap, Span},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_declaration_twice, parse_expression_twice};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique source name")
@@ -19,8 +22,7 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn parsed_expression(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "expression.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -37,8 +39,7 @@ fn parsed_expression_ok(text: &str) -> (SourceMap, ParsedExpression) {
 fn parsed_declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "declaration.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -1341,8 +1342,7 @@ fn recovered_argument_spans_keep_their_source_identity() {
     let mut sources = SourceMap::new();
     add_source(&mut sources, "noise.ko", "noise");
     let source_id = add_source(&mut sources, "case.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     assert_eq!(parsed.source_id(), source_id);
     assert_eq!(root_arguments(&parsed).len(), 2);
     for argument in root_arguments(&parsed) {
