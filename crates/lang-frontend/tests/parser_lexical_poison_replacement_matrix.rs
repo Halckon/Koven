@@ -1,7 +1,7 @@
 //! SPEC-0081 的合法完整语法逐显著 token 词法 poison 替换矩阵。
 
 use lang_frontend::{
-    lexer::{TokenKind, lex},
+    lexer::lex,
     source::{SourceMap, Span},
 };
 
@@ -13,6 +13,8 @@ mod parser_grammar_corpus;
 mod parser_lexical_poisons;
 #[path = "support/parser_mutation_assertions.rs"]
 mod parser_mutation_assertions;
+#[path = "support/parser_mutation_modes.rs"]
+mod parser_mutation_modes;
 #[path = "support/parser_mutation_owners.rs"]
 mod parser_mutation_owners;
 #[path = "support/parser_mutation_tokens.rs"]
@@ -22,21 +24,11 @@ use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_assertions::assert_last_root_source;
+use parser_mutation_modes::token_is_lexical_mode_segment;
 use parser_mutation_owners::token_affects_owner;
 use parser_mutation_tokens::{MutationSlot, original_token_slots};
 
 const SENTINEL: &str = "val sentinel = 0";
-
-fn token_is_lexical_mode_segment(kind: TokenKind) -> bool {
-    matches!(
-        kind,
-        TokenKind::StringStart
-            | TokenKind::StringText
-            | TokenKind::StringEnd
-            | TokenKind::InterpolationStart
-            | TokenKind::InterpolationEnd
-    )
-}
 
 fn baseline_and_slots(case_source: &str, context: &str) -> (String, Vec<MutationSlot>) {
     let source = format!("{case_source}\n{SENTINEL}");
