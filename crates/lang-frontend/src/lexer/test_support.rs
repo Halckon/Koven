@@ -406,3 +406,60 @@ pub(crate) fn invalid_lexer_diagnostic_stream_test_files(
         ("non-Lexer diagnostic code", "L0009", non_lexer_code),
     ]
 }
+
+/// 保留 lexical poison lexeme，同时移除其生产诊断。
+pub(crate) fn undiagnosed_lexer_poison_test_files(
+    sources: &mut SourceMap,
+) -> Vec<(&'static str, &'static str, LexedFile)> {
+    let cases = [
+        (
+            "unexpected character",
+            "undiagnosed-character.ko",
+            "#",
+            "L0001",
+        ),
+        ("reserved word", "undiagnosed-reserved.ko", "async", "L0002"),
+        (
+            "unterminated block comment",
+            "undiagnosed-comment.ko",
+            "/* open",
+            "L0003",
+        ),
+        (
+            "invalid string escape",
+            "undiagnosed-escape.ko",
+            r#""a\qz""#,
+            "L0006",
+        ),
+        (
+            "invalid character literal",
+            "undiagnosed-char.ko",
+            "'ab'",
+            "L0007",
+        ),
+        (
+            "invalid numeric literal",
+            "undiagnosed-number.ko",
+            "1e3",
+            "L0008",
+        ),
+    ];
+
+    cases
+        .into_iter()
+        .map(|(case, name, text, expected_code)| {
+            let source_id = sources
+                .add_source(name, text)
+                .unwrap_or_else(|error| panic!("poison source setup failed for {case}: {error}"));
+            let mut lexed = copy_lexed(&lex_test_source_twice(sources, source_id, case));
+            let codes = lexed
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(codes, [expected_code], "diagnostic corpus drift for {case}");
+            lexed.diagnostics.clear();
+            (case, expected_code, lexed)
+        })
+        .collect()
+}

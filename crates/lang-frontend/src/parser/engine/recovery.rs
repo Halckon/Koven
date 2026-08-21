@@ -51,6 +51,7 @@ impl LexicalRecoveryIndex {
         let mut unterminated_interpolation_starts = Vec::new();
         let mut terminal_error_at_eof = false;
         let mut terminal_owner_events = Vec::new();
+        let mut diagnosed_lexemes = vec![false; lexed.lexemes().len()];
 
         for diagnostic in lexed.diagnostics() {
             let span = diagnostic.primary_span();
@@ -74,10 +75,13 @@ impl LexicalRecoveryIndex {
             } else {
                 return Err(ParserInternalError::InvalidLexemeStream);
             };
-            if span.source_id() != lexed.source_id() || !has_diagnostic_anchor(lexed, span, anchor)
-            {
+            if span.source_id() != lexed.source_id() {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
+            let Some(anchor_index) = diagnostic_anchor_index(lexed, span, anchor) else {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            };
+            diagnosed_lexemes[anchor_index] = true;
             if code == unterminated_string {
                 string_recoveries.push((span.start(), span.end()));
                 string_exit_events.push((span.end(), span.start()));
@@ -116,6 +120,14 @@ impl LexicalRecoveryIndex {
                 terminal_other_spans.push((span.start(), span.end()));
                 terminal_error_at_eof |= span.end() == source.len();
             }
+        }
+        if lexed.lexemes().iter().enumerate().any(|(index, lexeme)| {
+            matches!(
+                lexeme.kind(),
+                LexemeKind::Invalid(_) | LexemeKind::Token(TokenKind::ReservedWord(_))
+            ) && !diagnosed_lexemes[index]
+        }) {
+            return Err(ParserInternalError::InvalidLexemeStream);
         }
 
         string_exit_events.sort_unstable();
@@ -332,15 +344,19 @@ impl LexicalRecoveryIndex {
     }
 }
 
-fn has_diagnostic_anchor(lexed: &LexedFile, span: Span, expected: LexicalDiagnosticAnchor) -> bool {
+fn diagnostic_anchor_index(
+    lexed: &LexedFile,
+    span: Span,
+    expected: LexicalDiagnosticAnchor,
+) -> Option<usize> {
     let Ok(index) = lexed
         .lexemes()
         .binary_search_by_key(&span.start(), |lexeme| lexeme.span().start())
     else {
-        return false;
+        return None;
     };
     let lexeme = lexed.lexemes()[index];
-    match expected {
+    let matches = match expected {
         LexicalDiagnosticAnchor::ExactInvalid(kind) => {
             lexeme.span() == span && lexeme.kind() == LexemeKind::Invalid(kind)
         }
@@ -355,7 +371,8 @@ fn has_diagnostic_anchor(lexed: &LexedFile, span: Span, expected: LexicalDiagnos
         LexicalDiagnosticAnchor::InterpolationStart => {
             lexeme.kind() == LexemeKind::Token(TokenKind::InterpolationStart)
         }
-    }
+    };
+    matches.then_some(index)
 }
 
 #[derive(Clone, Copy)]

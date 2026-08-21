@@ -453,6 +453,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   primary Span 与 source-local L0009 注入；两类输入保持 lexeme 结构有效，由 recovery index 与
   expression、declaration、block、file 四个入口各双运行，共精确拒绝 20 次。该防线消除了 foreign
   owner diagnostic 延迟为 `SourceError` 以及非 Lexer code 被静默合并的内部缺口；
+- diagnostic anchor 校验还返回 lexeme index 并在 O(L) 位图中记录覆盖，随后单次扫描要求五种
+  `InvalidKind` 与 `ReservedWord` poison 均有对应生产 diagnostic。test-only corpus 从六份独立
+  双 Lexer 产物精确移除 L0001 / L0002 / L0003 / L0006 / L0007 / L0008，同时保留 poison 与
+  lexeme 结构；recovery index 与四个 engine 入口各双运行，共精确拒绝 60 次。完整双向校验保持
+  O(D log L + L)，修复了未诊断 poison 可能形成静默 Error AST 的内部缺口；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
