@@ -1,14 +1,18 @@
-//! SPEC-0011 的具名函数隐式 `Unit` 与显式恢复契约测试。
+//! SPEC-0011 / SPEC-0127 的具名函数隐式 `Unit` 与显式恢复契约测试。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::lex,
     parser::{
         Expression, FunctionBody, FunctionForm, Item, ParsedDeclaration, ParserInternalError,
         Statement, TypeRef, parse_declaration,
     },
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{lex_and_parse_declaration_twice, parse_declaration_twice};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique source")
@@ -17,8 +21,7 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn parsed(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, "implicit-unit.ko", text);
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, id, text);
     (sources, parsed)
 }
 
@@ -339,8 +342,7 @@ fn implicit_unit_is_deterministic_source_owned_and_utf8_byte_accurate() {
             add_source(&mut sources, "noise.ko", "val x = 1");
         }
         let id = add_source(&mut sources, "case.ko", text);
-        let lexed = lex(&sources, id).expect("lex");
-        let parsed = parse_declaration(&sources, &lexed).expect("parse");
+        let parsed = parse_declaration_twice(&sources, id, text);
         assert_eq!(parsed.source_id(), id);
         assert!(matches!(
             function(&parsed),
@@ -366,7 +368,7 @@ fn implicit_unit_is_deterministic_source_owned_and_utf8_byte_accurate() {
 
     let mut owner = SourceMap::new();
     let id = add_source(&mut owner, "owner.ko", "fun f()");
-    let lexed = lex(&owner, id).expect("lex");
+    let (lexed, _) = lex_and_parse_declaration_twice(&owner, id, "owner source");
     let mut foreign = SourceMap::new();
     add_source(&mut foreign, "foreign.ko", "fun f()");
     assert!(matches!(
