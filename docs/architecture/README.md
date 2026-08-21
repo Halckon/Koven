@@ -414,6 +414,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   删除全部显著 token；expression / declaration / block 分别执行 66 / 104 / 70 个 mutation，
   共 240 个 case、480 次生产解析，逐例重新词法分析并锁定连续覆盖、唯一 EOF、source-local
   诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未发现生产缺陷；
+- `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
+  分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
+  mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span，全部执行两次生产解析。矩阵
+  发现并修复 control-body Error 节点覆盖尚未消费 token 时 trivia-gap 查询构造反向 Span 的缺陷；
+  重叠范围现在明确表示无 gap，并由既有 tail recovery 继续消费错误 token；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界

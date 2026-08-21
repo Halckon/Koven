@@ -526,6 +526,25 @@ fn completed_block_reuses_the_existing_trailing_token_diagnostic() {
 }
 
 #[test]
+fn duplicated_control_condition_closer_recovers_overlapping_error_spans() {
+    let text = "{\nif (ready) )  { yes } else { no }\nreturn\n}";
+    let (_, parsed) = parsed(text);
+    assert!(
+        !parsed.diagnostics().is_empty(),
+        "duplicated closer must remain a user syntax error"
+    );
+    parsed
+        .ast()
+        .statements()
+        .get(parsed.root())
+        .expect("recovered block root must remain valid");
+    assert!(parsed.diagnostics().iter().all(|diagnostic| {
+        let span = diagnostic.primary_span();
+        span.start() <= span.end() && span.end() <= text.len()
+    }));
+}
+
+#[test]
 fn source_identity_and_nested_block_budget_are_internal_boundaries() {
     let mut owner = SourceMap::new();
     let id = add_source(&mut owner, "{}");

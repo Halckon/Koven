@@ -37,6 +37,11 @@ impl Parser<'_> {
         start: usize,
         end: usize,
     ) -> Result<bool, ParserInternalError> {
+        // 恢复节点可以覆盖当前尚未消费的错误 token；重叠范围之间没有 trivia gap。
+        // 直接判 false，让调用方继续既有 tail recovery，而不是构造反向 Span。
+        if end <= start {
+            return Ok(false);
+        }
         Ok(self.sources.slice(self.span(start, end)?)?.contains('\n'))
     }
 
