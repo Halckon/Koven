@@ -17,6 +17,7 @@ use parser_test_assertions::{
 const OWNER_COUNT: usize = 4_096;
 const VALID_OWNER: &str = "\"${x}\"";
 const RECOVERED_OWNER: &str = "\"${}\"";
+const POISON_OWNER: &str = r#""a\qz""#;
 
 fn add_source(source: String) -> (SourceMap, SourceId) {
     let mut sources = SourceMap::new();
@@ -62,6 +63,22 @@ fn assert_interpolation_nodes(ast: &ExpressionAst, inner_is_error: bool) {
     assert_eq!(strings, OWNER_COUNT);
 }
 
+fn assert_poison_string_nodes(ast: &ExpressionAst) {
+    let mut strings = 0;
+    for (_, node) in ast.expressions().iter() {
+        let Expression::String { parts } = node.payload() else {
+            continue;
+        };
+        strings += 1;
+        assert!(matches!(
+            parts.as_slice(),
+            [StringPart::Text(_), StringPart::Error(error), StringPart::Text(_)]
+                if error.end() - error.start() == 2
+        ));
+    }
+    assert_eq!(strings, OWNER_COUNT);
+}
+
 fn assert_call_arguments(ast: &ExpressionAst, expression: ExpressionId) {
     let Expression::Call { arguments, .. } = ast
         .expressions()
@@ -74,7 +91,7 @@ fn assert_call_arguments(ast: &ExpressionAst, expression: ExpressionId) {
     assert_eq!(arguments.len(), OWNER_COUNT);
 }
 
-fn assert_diagnostic_series(diagnostics: &[Diagnostic]) {
+fn assert_diagnostic_series(diagnostics: &[Diagnostic], code: &str) {
     assert_eq!(
         diagnostics.len(),
         OWNER_COUNT,
@@ -92,7 +109,7 @@ fn assert_diagnostic_series(diagnostics: &[Diagnostic]) {
     assert!(
         diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code().to_string() == "L0009")
+            .all(|diagnostic| diagnostic.code().to_string() == code)
     );
     assert!(
         diagnostics
@@ -164,13 +181,13 @@ fn every_public_entry_recovers_each_large_empty_interpolation_once() {
     let arguments = repeated(",", RECOVERED_OWNER);
     let (sources, source_id) = add_source(format!("call({arguments})"));
     let parsed = parse_expression_twice(&sources, source_id, "owner recovery expression");
-    assert_diagnostic_series(parsed.diagnostics());
+    assert_diagnostic_series(parsed.diagnostics(), "L0009");
     assert_call_arguments(parsed.ast(), parsed.root());
     assert_interpolation_nodes(parsed.ast(), true);
 
     let (sources, source_id) = add_source(format!("val result = call({arguments})"));
     let parsed = parse_declaration_twice(&sources, source_id, "owner recovery declaration");
-    assert_diagnostic_series(parsed.diagnostics());
+    assert_diagnostic_series(parsed.diagnostics(), "L0009");
     let Item::Variable { initializer, .. } = parsed
         .ast()
         .items()
@@ -186,7 +203,7 @@ fn every_public_entry_recovers_each_large_empty_interpolation_once() {
     let body = local_variables(RECOVERED_OWNER);
     let (sources, source_id) = add_source(format!("{{\n{body}}}"));
     let parsed = parse_block_twice(&sources, source_id, "owner recovery block");
-    assert_diagnostic_series(parsed.diagnostics());
+    assert_diagnostic_series(parsed.diagnostics(), "L0009");
     let Statement::Block { elements } = parsed
         .ast()
         .statements()
@@ -208,11 +225,69 @@ fn every_public_entry_recovers_each_large_empty_interpolation_once() {
         .collect::<String>();
     let (sources, source_id) = add_source(file);
     let parsed = parse_file_twice(&sources, source_id, "owner recovery file");
-    assert_diagnostic_series(parsed.diagnostics());
+    assert_diagnostic_series(parsed.diagnostics(), "L0009");
     assert_eq!(parsed.roots().len(), OWNER_COUNT);
     assert!(parsed.roots().iter().all(|root| matches!(
         parsed.ast().items().get(*root),
         Ok(node) if matches!(node.payload(), Item::Variable { .. })
     )));
     assert_interpolation_nodes(parsed.ast(), true);
+}
+
+#[test]
+fn every_public_entry_preserves_large_lexer_owned_string_errors_without_cascades() {
+    let arguments = repeated(",", POISON_OWNER);
+    let (sources, source_id) = add_source(format!("call({arguments})"));
+    let parsed = parse_expression_twice(&sources, source_id, "poison owner expression");
+    assert_diagnostic_series(parsed.diagnostics(), "L0006");
+    assert_call_arguments(parsed.ast(), parsed.root());
+    assert_poison_string_nodes(parsed.ast());
+
+    let (sources, source_id) = add_source(format!("val result = call({arguments})"));
+    let parsed = parse_declaration_twice(&sources, source_id, "poison owner declaration");
+    assert_diagnostic_series(parsed.diagnostics(), "L0006");
+    let Item::Variable { initializer, .. } = parsed
+        .ast()
+        .items()
+        .get(parsed.root())
+        .expect("poison owner declaration root")
+        .payload()
+    else {
+        panic!("poison owner declaration must remain a variable")
+    };
+    assert_call_arguments(parsed.ast(), *initializer);
+    assert_poison_string_nodes(parsed.ast());
+
+    let body = local_variables(POISON_OWNER);
+    let (sources, source_id) = add_source(format!("{{\n{body}}}"));
+    let parsed = parse_block_twice(&sources, source_id, "poison owner block");
+    assert_diagnostic_series(parsed.diagnostics(), "L0006");
+    let Statement::Block { elements } = parsed
+        .ast()
+        .statements()
+        .get(parsed.root())
+        .expect("poison owner block root")
+        .payload()
+    else {
+        panic!("poison owner block must retain its root")
+    };
+    assert_eq!(elements.len(), OWNER_COUNT);
+    assert!(elements.iter().all(|element| matches!(
+        parsed.ast().statements().get(*element),
+        Ok(node) if matches!(node.payload(), Statement::LocalVariable { .. })
+    )));
+    assert_poison_string_nodes(parsed.ast());
+
+    let file = (0..OWNER_COUNT)
+        .map(|index| format!("val x{index} = {POISON_OWNER}\n"))
+        .collect::<String>();
+    let (sources, source_id) = add_source(file);
+    let parsed = parse_file_twice(&sources, source_id, "poison owner file");
+    assert_diagnostic_series(parsed.diagnostics(), "L0006");
+    assert_eq!(parsed.roots().len(), OWNER_COUNT);
+    assert!(parsed.roots().iter().all(|root| matches!(
+        parsed.ast().items().get(*root),
+        Ok(node) if matches!(node.payload(), Item::Variable { .. })
+    )));
+    assert_poison_string_nodes(parsed.ast());
 }

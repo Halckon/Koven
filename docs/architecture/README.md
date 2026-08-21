@@ -521,13 +521,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   保留 4,096 组 `Item::Error` 与后续 `val` sentinel；全部产物保持连续覆盖、唯一 EOF、
   source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性。file 错误区使用
   真实后续声明 starter 同步，普通换行不被误作 file recovery boundary；本轮未发现生产缺陷；
-- `parser_owner_stress_matrix` integration test 通过 8 个 owner-rich 大源码覆盖 expression、
+- `parser_owner_stress_matrix` integration test 通过 12 个 owner-rich 大源码覆盖 expression、
   declaration、block 与 file 四个公开入口，每例运行两次 Lexer 与两次对应 Parser，共验证
-  16 个 Lexer 和 16 个 Parser 产物。四个合法源码合计保留 16,384 个单 interpolation string，
+  24 个 Lexer 和 24 个 Parser 产物。四个合法源码合计保留 16,384 个单 interpolation string，
   inner expression 均为 Name 且零诊断；四个恢复源码合计保留 16,384 个相同 String 与 inner
-  Error，并精确产生 16,384 条源码严格递增的 L0009。call argument、block local element 与
-  file variable root 均各自保留 4,096 项；全部产物保持连续覆盖、唯一 EOF、source-local AST /
-  diagnostic Span、有效 typed root 与完整公开产物确定性，本轮未发现生产缺陷；
+  Error，并精确产生 16,384 条源码严格递增的 L0009；四个 lexical-poison 源码另保留 16,384
+  个 Text / Error / Text string 与严格递增的 Lexer L0006，不产生 Parser 级联。call argument、
+  block local element 与 file variable root 均各自保留 4,096 项；全部产物保持连续覆盖、唯一
+  EOF、source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性，本轮未发现
+  生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 18 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
