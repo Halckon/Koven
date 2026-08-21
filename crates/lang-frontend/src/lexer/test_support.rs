@@ -463,3 +463,40 @@ pub(crate) fn undiagnosed_lexer_poison_test_files(
         })
         .collect()
 }
+
+/// 复制生产诊断，使两条 diagnostic 非法共享同一 lexeme anchor。
+pub(crate) fn duplicate_lexer_diagnostic_anchor_test_files(
+    sources: &mut SourceMap,
+) -> Vec<(&'static str, &'static str, LexedFile)> {
+    let cases = [
+        (
+            "duplicate poison diagnostic",
+            "duplicate-poison-diagnostic.ko",
+            "#",
+            "L0001",
+        ),
+        (
+            "duplicate owner diagnostic",
+            "duplicate-owner-diagnostic.ko",
+            "\"abc",
+            "L0004",
+        ),
+    ];
+
+    cases
+        .into_iter()
+        .map(|(case, name, text, expected_code)| {
+            let source_id = sources.add_source(name, text).unwrap_or_else(|error| {
+                panic!("duplicate source setup failed for {case}: {error}")
+            });
+            let mut lexed = copy_lexed(&lex_test_source_twice(sources, source_id, case));
+            assert_eq!(
+                lexed.diagnostics.len(),
+                1,
+                "diagnostic corpus drift for {case}"
+            );
+            lexed.diagnostics.push(lexed.diagnostics[0].clone());
+            (case, expected_code, lexed)
+        })
+        .collect()
+}

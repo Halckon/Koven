@@ -81,6 +81,9 @@ impl LexicalRecoveryIndex {
             let Some(anchor_index) = diagnostic_anchor_index(lexed, span, anchor) else {
                 return Err(ParserInternalError::InvalidLexemeStream);
             };
+            if diagnosed_lexemes[anchor_index] {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            }
             diagnosed_lexemes[anchor_index] = true;
             if code == unterminated_string {
                 string_recoveries.push((span.start(), span.end()));

@@ -1,8 +1,8 @@
 use super::*;
 use crate::{
     lexer::{
-        invalid_lexer_diagnostic_stream_test_files, lex_test_source_twice,
-        malformed_lexical_owner_test_files, malformed_test_lexed_files,
+        duplicate_lexer_diagnostic_anchor_test_files, invalid_lexer_diagnostic_stream_test_files,
+        lex_test_source_twice, malformed_lexical_owner_test_files, malformed_test_lexed_files,
         mismatched_lexer_diagnostic_anchor_test_files, mismatched_recovery_diagnostic_test_files,
         undiagnosed_lexer_poison_test_files,
     },
@@ -242,6 +242,49 @@ fn every_parser_entry_rejects_undiagnosed_lexer_poisons_deterministically() {
         assert!(
             lexed.diagnostics().is_empty(),
             "{case} must remove its original {original_code} diagnostic"
+        );
+
+        let expected = ParserInternalError::InvalidLexemeStream;
+        assert_internal_error_twice(&expected, "lexical recovery index", case, || {
+            LexicalRecoveryIndex::new(source, &lexed)
+        });
+        assert_internal_error_twice(&expected, "expression parser", case, || {
+            parse(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "declaration parser", case, || {
+            parse_declaration(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "block parser", case, || {
+            parse_block(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "file parser", case, || {
+            parse_file(&sources, &lexed)
+        });
+    }
+}
+
+#[test]
+fn every_parser_entry_rejects_duplicate_lexer_diagnostic_anchors_deterministically() {
+    let mut sources = SourceMap::new();
+    let cases = duplicate_lexer_diagnostic_anchor_test_files(&mut sources);
+    assert_eq!(cases.len(), 2);
+
+    for (case, expected_code, lexed) in cases {
+        let source = sources
+            .source_text(lexed.source_id())
+            .expect("test source must remain available");
+        validate_lexemes(&sources, &lexed, source.len()).unwrap_or_else(|error| {
+            panic!("{case} must remain lexeme-structurally valid: {error}")
+        });
+        let codes = lexed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            codes,
+            [expected_code, expected_code],
+            "diagnostic corpus drift for {case}"
         );
 
         let expected = ParserInternalError::InvalidLexemeStream;

@@ -13,8 +13,8 @@ use crate::{
 
 #[cfg(test)]
 pub(crate) use test_support::{
-    invalid_lexer_diagnostic_stream_test_files, lex_test_source_twice,
-    malformed_lexical_owner_test_files, malformed_test_lexed_files,
+    duplicate_lexer_diagnostic_anchor_test_files, invalid_lexer_diagnostic_stream_test_files,
+    lex_test_source_twice, malformed_lexical_owner_test_files, malformed_test_lexed_files,
     mismatched_lexer_diagnostic_anchor_test_files, mismatched_recovery_diagnostic_test_files,
     undiagnosed_lexer_poison_test_files,
 };

@@ -458,6 +458,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   双 Lexer 产物精确移除 L0001 / L0002 / L0003 / L0006 / L0007 / L0008，同时保留 poison 与
   lexeme 结构；recovery index 与四个 engine 入口各双运行，共精确拒绝 60 次。完整双向校验保持
   O(D log L + L)，修复了未诊断 poison 可能形成静默 Error AST 的内部缺口；
+- 覆盖位图还在写入前拒绝已占用的 anchor index，使 diagnostic/lexeme 关联满足 exactly-once。
+  test-only corpus 分别复制一份 L0001 poison diagnostic 与 L0004 owner diagnostic，两类产物均
+  保留 source identity、lexeme 结构及两个完全相同的生产诊断；recovery index 与四个 engine 入口
+  各双运行，共精确拒绝 20 次。该唯一性检查不增加遍历、分配或渐近复杂度；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
