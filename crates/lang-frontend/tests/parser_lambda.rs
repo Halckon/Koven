@@ -1,4 +1,4 @@
-//! SPEC-0010 的 lambda literal、上下文判定与恢复契约测试。
+//! SPEC-0010 / SPEC-0120 的 lambda literal、上下文判定与恢复契约测试。
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -6,11 +6,15 @@ use lang_frontend::{
     lexer::lex,
     parser::{
         BinaryOperator, Expression, Item, ParsedBlock, ParsedDeclaration, ParsedExpression,
-        ParserInternalError, Statement, StringPart, parse_block, parse_declaration,
-        parse_expression,
+        ParserInternalError, Statement, StringPart, parse_expression,
     },
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_block_twice, parse_declaration_twice, parse_expression_twice};
 
 fn source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique test source")
@@ -19,24 +23,21 @@ fn source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn parsed_expression(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let id = source(&mut sources, "lambda.ko", text);
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, id, text);
     (sources, parsed)
 }
 
 fn parsed_block(text: &str) -> (SourceMap, ParsedBlock) {
     let mut sources = SourceMap::new();
     let id = source(&mut sources, "block.ko", text);
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse");
+    let parsed = parse_block_twice(&sources, id, text);
     (sources, parsed)
 }
 
 fn parsed_declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let id = source(&mut sources, "declaration.ko", text);
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, id, text);
     (sources, parsed)
 }
 
@@ -728,8 +729,7 @@ fn lambda_is_deterministic_across_source_order_and_preserves_source_identity() {
             source(&mut sources, "noise.ko", "noise");
         }
         let id = source(&mut sources, "case.ko", text);
-        let lexed = lex(&sources, id).expect("lex");
-        let parsed = parse_expression(&sources, &lexed).expect("parse");
+        let parsed = parse_expression_twice(&sources, id, text);
         assert_eq!(parsed.source_id(), id);
         (
             parsed.ast().expressions().len(),
