@@ -9,14 +9,6 @@ impl Parser<'_> {
         }
     }
 
-    pub(super) fn root_type_stops(&self) -> TypeStops {
-        if self.file_mode {
-            TypeStops::empty().with(TypeStops::FILE)
-        } else {
-            TypeStops::empty()
-        }
-    }
-
     pub(super) fn root_declaration_stops(&self) -> DeclarationStops {
         if self.file_mode {
             DeclarationStops::FILE

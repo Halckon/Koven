@@ -623,10 +623,11 @@ impl Parser<'_> {
                 first,
             )?;
             let error_start = first.start();
-            let mut error_end = first.end();
-            while !stops.contains(self.current()?) {
-                error_end = self.bump()?.span().end();
-            }
+            // Tail 中可以出现完整 nested string / interpolation / delimiter owner；必须在
+            // owner 回到 baseline 后识别调用方 stop，不能把内层同形 closer 当成外层边界。
+            let error_end = self
+                .recover_declaration_region(DeclarationStops::from_expression(stops))?
+                .max(first.end());
             self.add_expression(self.span(error_start, error_end)?, Expression::Error)?;
             consumed_end = Some(error_end);
         }

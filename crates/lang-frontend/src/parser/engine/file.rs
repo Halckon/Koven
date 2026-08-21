@@ -278,6 +278,7 @@ impl Parser<'_> {
     pub(super) fn parse_unmodified_declaration_item(
         &mut self,
     ) -> Result<ItemId, ParserInternalError> {
+        let declaration_stops = self.root_expression_stops();
         if self.current_identifier_is("nocopy")?
             && self
                 .peek(1)
@@ -299,14 +300,14 @@ impl Parser<'_> {
                 self.parse_unsupported_destructuring_context()?
             } else if self.current_is_keyword(Keyword::Val) {
                 let keyword = self.bump()?.span();
-                self.parse_variable_declaration(keyword, VariableKind::Val)?
+                self.parse_variable_declaration(keyword, VariableKind::Val, declaration_stops)?
             } else if self.current_is_keyword(Keyword::Var) {
                 let keyword = self.bump()?.span();
-                self.parse_variable_declaration(keyword, VariableKind::Var)?
+                self.parse_variable_declaration(keyword, VariableKind::Var, declaration_stops)?
             } else if self.current_is_keyword(Keyword::Const) {
-                self.parse_constant_declaration()?
+                self.parse_constant_declaration(declaration_stops)?
             } else if self.current_is_keyword(Keyword::Fun) {
-                self.parse_function_declaration()?
+                self.parse_function_declaration(declaration_stops)?
             } else if classifier_declaration_start_kind(self.current()?.kind()) {
                 self.parse_classifier_declaration()?
             } else {

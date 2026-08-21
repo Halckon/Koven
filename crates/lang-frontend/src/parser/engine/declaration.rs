@@ -5,14 +5,15 @@ impl Parser<'_> {
         &mut self,
         keyword: Span,
         kind: VariableKind,
+        declaration_stops: Stops,
     ) -> Result<ItemId, ParserInternalError> {
         let name = self.parse_name_marker(
             codes::EXPECTED_DECLARATION_NAME,
             "expected declaration name",
             NameContext::Declaration,
         )?;
-        let (colon_span, type_ref) = self.parse_optional_type_annotation()?;
-        let (equals_span, initializer) = self.parse_required_initializer()?;
+        let (colon_span, type_ref) = self.parse_optional_type_annotation(declaration_stops)?;
+        let (equals_span, initializer) = self.parse_required_initializer(declaration_stops)?;
         let end = self.expression_span(initializer)?.end().max(keyword.end());
         self.add_item(
             self.span(keyword.start(), end)?,
@@ -27,7 +28,10 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn parse_constant_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
+    pub(super) fn parse_constant_declaration(
+        &mut self,
+        declaration_stops: Stops,
+    ) -> Result<ItemId, ParserInternalError> {
         let const_span = self.bump()?.span();
         let val_marker = if self.current_is_keyword(Keyword::Val) {
             NameMarker::Present(self.bump()?.span())
@@ -66,8 +70,8 @@ impl Parser<'_> {
             "expected declaration name",
             NameContext::Declaration,
         )?;
-        let (colon_span, type_ref) = self.parse_optional_type_annotation()?;
-        let (equals_span, initializer) = self.parse_required_initializer()?;
+        let (colon_span, type_ref) = self.parse_optional_type_annotation(declaration_stops)?;
+        let (equals_span, initializer) = self.parse_required_initializer(declaration_stops)?;
         let end = self
             .expression_span(initializer)?
             .end()
@@ -86,7 +90,10 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn parse_function_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
+    pub(super) fn parse_function_declaration(
+        &mut self,
+        declaration_stops: Stops,
+    ) -> Result<ItemId, ParserInternalError> {
         let fun_span = self.bump()?.span();
         let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
         let name = self.parse_name_marker(
@@ -96,7 +103,7 @@ impl Parser<'_> {
         )?;
         let parameters = self.parse_value_parameters()?;
         let parameter_end = self.previous_significant_end().max(fun_span.end());
-        let (form, end) = self.parse_function_form(parameter_end)?;
+        let (form, end) = self.parse_function_form(parameter_end, declaration_stops)?;
         self.add_item(
             self.span(fun_span.start(), end)?,
             Item::Function {
@@ -112,15 +119,16 @@ impl Parser<'_> {
     pub(super) fn parse_function_form(
         &mut self,
         parameter_end: usize,
+        declaration_stops: Stops,
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         if self.current_is_symbol(Symbol::Colon) {
             let colon_span = self.bump()?.span();
             let type_ref = self.parse_type_ref(
-                self.root_type_stops()
+                TypeStops::from_expression(declaration_stops)
                     .with(TypeStops::EQUAL)
                     .with(TypeStops::LEFT_BRACE),
             )?;
-            return self.finish_explicit_function_form(colon_span, type_ref);
+            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
         }
 
         if self.current_is_symbol(Symbol::Equal) {
@@ -131,7 +139,7 @@ impl Parser<'_> {
                 insertion,
             )?;
             let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
-            return self.finish_explicit_function_form(insertion, type_ref);
+            return self.finish_explicit_function_form(insertion, type_ref, declaration_stops);
         }
 
         if self.current_is_symbol(Symbol::LeftBrace) {
@@ -149,11 +157,11 @@ impl Parser<'_> {
                 current.span(),
             )?;
             let type_ref = self.parse_type_ref(
-                self.root_type_stops()
+                TypeStops::from_expression(declaration_stops)
                     .with(TypeStops::EQUAL)
                     .with(TypeStops::LEFT_BRACE),
             )?;
-            return self.finish_explicit_function_form(colon_span, type_ref);
+            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
         }
 
         Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
@@ -163,10 +171,11 @@ impl Parser<'_> {
         &mut self,
         colon_span: Span,
         type_ref: TypeRefId,
+        declaration_stops: Stops,
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         let body = if self.current_is_symbol(Symbol::Equal) {
             let equals_span = self.bump()?.span();
-            let expression = self.parse_expression_bp(0, self.root_expression_stops())?;
+            let expression = self.parse_expression_bp(0, declaration_stops)?;
             FunctionBody::Expression {
                 equals_span,
                 expression,
@@ -245,26 +254,29 @@ impl Parser<'_> {
 
     pub(super) fn parse_optional_type_annotation(
         &mut self,
+        declaration_stops: Stops,
     ) -> Result<(Option<Span>, Option<TypeRefId>), ParserInternalError> {
         if !self.current_is_symbol(Symbol::Colon) {
             return Ok((None, None));
         }
         let colon = self.bump()?.span();
-        let type_ref = self.parse_type_ref(self.root_type_stops().with(TypeStops::EQUAL))?;
+        let type_ref = self
+            .parse_type_ref(TypeStops::from_expression(declaration_stops).with(TypeStops::EQUAL))?;
         Ok((Some(colon), Some(type_ref)))
     }
 
     pub(super) fn parse_required_initializer(
         &mut self,
+        declaration_stops: Stops,
     ) -> Result<(Span, ExpressionId), ParserInternalError> {
         if self.current_is_symbol(Symbol::Equal) {
             let equals = self.bump()?.span();
-            let initializer = self.parse_expression_bp(0, self.root_expression_stops())?;
+            let initializer = self.parse_expression_bp(0, declaration_stops)?;
             return Ok((equals, initializer));
         }
         let current = self.current()?;
-        let file_boundary = self.is_file_declaration_boundary(current);
-        let primary = if matches!(current.kind(), LexemeKind::Eof) || file_boundary {
+        let boundary = declaration_stops.contains(current);
+        let primary = if boundary {
             self.empty_at(current.span().start())?
         } else {
             current.span()
@@ -276,14 +288,17 @@ impl Parser<'_> {
         }
         let equals = self.empty_at(current.span().start())?;
         if self.can_start_expression(current) {
-            let initializer = self.parse_expression_bp(0, self.root_expression_stops())?;
+            let initializer = self.parse_expression_bp(0, declaration_stops)?;
             return Ok((equals, initializer));
         }
-        let error_span = if matches!(current.kind(), LexemeKind::Eof) || file_boundary {
+        let error_span = if boundary {
             primary
         } else {
             let start = current.span().start();
-            let end = self.recover_declaration_region(self.root_declaration_stops())?;
+            let recovery_stops = self
+                .root_declaration_stops()
+                .union(DeclarationStops::from_expression_hard(declaration_stops));
+            let end = self.recover_declaration_region(recovery_stops)?;
             self.span(start, end.max(start))?
         };
         let initializer = self.add_expression(error_span, Expression::Error)?;

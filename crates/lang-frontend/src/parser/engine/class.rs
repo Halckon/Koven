@@ -599,6 +599,7 @@ impl Parser<'_> {
         &mut self,
         context: ClassMemberContext,
     ) -> Result<ItemId, ParserInternalError> {
+        let member_stops = self.root_expression_stops().with(Stops::RIGHT_BRACE);
         let modifiers = self.parse_declaration_modifiers(context.allows_override())?;
         let primary = self.current()?.span();
         if matches!(context, ClassMemberContext::Interface)
@@ -623,7 +624,7 @@ impl Parser<'_> {
             }
             self.parse_companion_object()?
         } else if self.current_is_keyword(Keyword::Fun) {
-            self.parse_function_declaration()?
+            self.parse_function_declaration(member_stops)?
         } else if self.current_is_keyword(Keyword::Const) {
             if !context.allows_constant() {
                 self.emit(
@@ -632,7 +633,7 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            self.parse_constant_declaration()?
+            self.parse_constant_declaration(member_stops)?
         } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -645,7 +646,7 @@ impl Parser<'_> {
                 VariableKind::Val
             };
             let keyword = self.bump()?.span();
-            self.parse_variable_declaration(keyword, kind)?
+            self.parse_variable_declaration(keyword, kind, member_stops)?
         } else if classifier_declaration_start_kind(self.current()?.kind()) {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,

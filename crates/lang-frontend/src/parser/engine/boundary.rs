@@ -460,25 +460,28 @@ impl NameContext {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DeclarationStops(u16);
+pub(super) struct DeclarationStops(u32);
 
 impl DeclarationStops {
     pub(super) const EMPTY: Self = Self(0);
-    pub(super) const COMMA: u16 = 1 << 0;
-    pub(super) const RIGHT_PAREN: u16 = 1 << 1;
-    pub(super) const GREATER: u16 = 1 << 2;
-    pub(super) const LEFT_BRACE: u16 = 1 << 3;
-    pub(super) const COLON: u16 = 1 << 4;
-    pub(super) const EQUAL: u16 = 1 << 5;
-    pub(super) const LEFT_PAREN: u16 = 1 << 6;
-    pub(super) const RIGHT_BRACE: u16 = 1 << 7;
-    pub(super) const BLOCK_ELEMENT: u16 = 1 << 8;
-    pub(super) const RIGHT_BRACKET: u16 = 1 << 9;
-    pub(super) const INTERPOLATION_END: u16 = 1 << 10;
+    pub(super) const COMMA: u32 = 1 << 0;
+    pub(super) const RIGHT_PAREN: u32 = 1 << 1;
+    pub(super) const GREATER: u32 = 1 << 2;
+    pub(super) const LEFT_BRACE: u32 = 1 << 3;
+    pub(super) const COLON: u32 = 1 << 4;
+    pub(super) const EQUAL: u32 = 1 << 5;
+    pub(super) const LEFT_PAREN: u32 = 1 << 6;
+    pub(super) const RIGHT_BRACE: u32 = 1 << 7;
+    pub(super) const BLOCK_ELEMENT: u32 = 1 << 8;
+    pub(super) const RIGHT_BRACKET: u32 = 1 << 9;
+    pub(super) const INTERPOLATION_END: u32 = 1 << 10;
     pub(super) const FILE: Self = Self(1 << 11);
-    pub(super) const SEMICOLON: u16 = 1 << 12;
-    pub(super) const CLASS_MEMBER: u16 = 1 << 13;
-    pub(super) const ENUM_VARIANT: u16 = 1 << 14;
+    pub(super) const SEMICOLON: u32 = 1 << 12;
+    pub(super) const CLASS_MEMBER: u32 = 1 << 13;
+    pub(super) const ENUM_VARIANT: u32 = 1 << 14;
+    const ARROW: u32 = 1 << 15;
+    const ELSE: u32 = 1 << 16;
+    const CONTROL_EXPRESSION: u32 = 1 << 17;
 
     pub(super) const fn from_expression_hard(stops: Stops) -> Self {
         let mut bits = 0;
@@ -497,7 +500,27 @@ impl DeclarationStops {
         Self(bits)
     }
 
-    pub(super) const fn with(self, flag: u16) -> Self {
+    pub(super) const fn from_expression(stops: Stops) -> Self {
+        let mut result = Self::from_expression_hard(stops);
+        if stops.delimiters & (Stops::COMMA | Stops::LAMBDA_COMMA) != 0 {
+            result.0 |= Self::COMMA;
+        }
+        if stops.delimiters & Stops::ARROW != 0 {
+            result.0 |= Self::ARROW;
+        }
+        if stops.delimiters & Stops::ELSE != 0 {
+            result.0 |= Self::ELSE;
+        }
+        if stops.delimiters & Stops::FILE_DECLARATION != 0 {
+            result.0 |= Self::FILE.0;
+        }
+        if stops.block_elements {
+            result.0 |= Self::LEFT_BRACE | Self::BLOCK_ELEMENT | Self::CONTROL_EXPRESSION;
+        }
+        result
+    }
+
+    pub(super) const fn with(self, flag: u32) -> Self {
         Self(self.0 | flag)
     }
 
@@ -544,9 +567,17 @@ impl DeclarationStops {
             )
             || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::FILE.0 != 0)
             || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::SEMICOLON != 0)
+            || matches!(symbol, Some(Symbol::Arrow) if self.0 & Self::ARROW != 0)
+            || (self.0 & Self::ELSE != 0
+                && matches!(
+                    lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
+                ))
             || (self.0 & Self::CLASS_MEMBER != 0 && class_member_start_kind(lexeme.kind()))
             || (self.0 & Self::ENUM_VARIANT != 0
                 && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)))
+            || (self.0 & Self::CONTROL_EXPRESSION != 0
+                && control_expression_start_kind(lexeme.kind()))
             || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
     }
 }

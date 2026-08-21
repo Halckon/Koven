@@ -211,6 +211,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   identifier，但 ordinary class supertype entry 可提交 `Interface by field` 并保存
   `DelegationClause`；L0078 覆盖缺失目标。非 ordinary class、匿名 / nested / local
   class-family、构造器调用、普通 body field、属性委托与任意 delegate expression 仍被拒绝；
+- variable / constant / function declaration 显式接收调用位置的 expression stops：文件根保持
+  file declaration 边界，class-family member 额外保留所属 `}`，因此缺失类型、initializer 或
+  函数表达式体不会消费 class closer 并把后续顶层声明误归入 member body；
 - `Expression` 与 `TypeRef` payload 只通过现有 typed ID 连接，叶与合成节点都保留同一
   `SourceId` 的 UTF-8 字节 `Span`；源码拼写继续由共享 `SourceMap` 回查；
 - Lexer invalid / reserved token 被消费为显式 Error 节点且不重复同源诊断；delimiter、插值
@@ -220,6 +223,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   operand 继续使用 L0009；
   已发布的 `L0016` 仅保留在 catalog，生产
   Parser 不再发出；
+- expression tail 的 `L0013` 恢复复用 declaration owner stack，并由完整的内部
+  `Stops`→`DeclarationStops` 映射保留 comma、delimiter、file、arrow、else 与 block-element
+  边界；nested string / interpolation 的同形 closer 只在 owner 回到 baseline 后才可停止恢复；
 - 递归 Pratt 实现在固定 32 MiB 的 scoped worker 隔离栈上运行，并在 1024 个内部递归预算
   单位处返回具体资源错误；这避免调用线程的小栈或输入 token 数放大栈申请，也不新增未经
   guide 分配的用户诊断码；
@@ -398,6 +404,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   文件头、声明、callable、block、lambda、control-flow、postfix、class-family、接口委托、
   运算符层级及 Unicode 嵌套 string / interpolation；其 1,373 个 UTF-8 scalar 前缀均保持
   lexeme 完整覆盖、唯一末尾 EOF、有界诊断 / AST Span，并完成两次确定性完整文件解析；
+- `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
+  396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
+  `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
+  诊断 / AST Span，并定向回归 class member closer 与 nested interpolation tail 两个恢复缺陷；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
