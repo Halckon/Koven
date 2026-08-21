@@ -547,10 +547,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
   本轮未发现生产缺陷；
 - `frontend_matrix_assertions` 为 prefix / suffix truncation、interior deletion、scalar / token
-  duplication / transposition / replacement、token omission 与 lexical poison insertion 十一个完整
-  文件恢复矩阵提供共享双 Lexer / 双 Parser 入口；70,604 个主要变异 / 截断 case、242 个
-  baseline / complete case 与 2 个定向 omission 回归合计 70,848 个 source case，共验证 141,696
-  个 Lexer 和 141,696 个 Parser 产物。两阶段产物锁定
+  duplication / transposition / replacement / insertion、token omission 与 lexical poison insertion
+  十二个完整文件恢复矩阵提供共享双 Lexer / 双 Parser 入口；88,453 个主要变异 / 截断 case、
+  264 个 baseline / complete case 与 2 个定向 omission 回归合计 88,719 个 source case，共验证
+  177,438 个 Lexer 和 177,438 个 Parser 产物。两阶段产物锁定
   source identity、lexeme 完整覆盖与唯一 EOF、source-local AST / diagnostic 主与 label Span、
   文件 roots、package / import directive Span，并比较完整公开产物确定性；内部区间删除矩阵
   发现并修复一项生产缺陷，详见下项；
@@ -615,6 +615,14 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   18,962 个对应入口 Parser 产物。字母表覆盖 identifier、number、poison、string / char、escape、
   interpolation、comment、brace、LF 与多字节 Unicode，并锁定每项精确计数、连续覆盖、唯一
   EOF、source-local AST / diagnostic Span、有效 root 与公开产物确定性；本轮未发现生产缺陷；
+- `parser_scalar_insertion_matrix` 复用同一 13-scalar 字母表，在相同 22-file corpus 的源码起点、
+  scalar 间及 EOF 共 1,373 个 UTF-8 边界分别插入每项，精确执行 17,849 个 mutation；加上 22
+  个 clean preflight 共 17,871 个 source case，验证 35,742 个 Lexer 和 35,742 个完整文件 Parser
+  产物。`parser_entry_scalar_insertion_matrix` 在 12-entry corpus 按 expression / declaration /
+  block 的 195 / 350 / 202 个边界执行 2,535 / 4,550 / 2,626 个 mutation；加上 12 个 preflight
+  共 9,723 个 source case，验证 19,446 个 Lexer 和 19,446 个对应入口 Parser 产物。两个矩阵不
+  添加分隔空格，锁定每项精确计数、插入后 byte length、连续覆盖、唯一 EOF、source-local
+  AST / diagnostic Span、有效 root 与公开产物确定性；本轮未发现生产缺陷；
 - `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
   分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
   mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span；加上 12 个 baseline 共 252 个
