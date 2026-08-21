@@ -1,20 +1,30 @@
-//! SPEC-0063 postfix `?` 的 Phase 1 AST、消歧与边界测试。
+//! SPEC-0063 / SPEC-0124 postfix `?` 的 Phase 1 AST、消歧与边界测试。
 
 use lang_frontend::{
     ast::ExpressionId,
     diagnostic::Diagnostic,
-    lexer::lex,
-    parser::{Expression, ParsedExpression, Statement, parse_block, parse_expression, parse_file},
+    parser::{Expression, ParsedBlock, ParsedExpression, Statement},
     source::SourceMap,
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_file_twice};
 
 fn parse(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("propagation.ko", text)
         .expect("unique source");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
+    (sources, parsed)
+}
+
+fn block(text: &str) -> (SourceMap, ParsedBlock) {
+    let mut sources = SourceMap::new();
+    let source_id = sources.add_source("block.ko", text).expect("unique source");
+    let parsed = parse_block_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -152,8 +162,7 @@ fn phase_one_accepts_propagation_in_lambda_and_named_function_bodies() {
     let text = "fun decode(input: Input): Result<Output, DecodeError> { return parse(input)? }";
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("file.ko", text).expect("unique source");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse file");
+    let parsed = parse_file_twice(&sources, source_id, text);
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
@@ -161,12 +170,7 @@ fn phase_one_accepts_propagation_in_lambda_and_named_function_bodies() {
     );
 
     let block_text = "{ val output = parse(input)?\n val next = output }";
-    let mut block_sources = SourceMap::new();
-    let block_id = block_sources
-        .add_source("block.ko", block_text)
-        .expect("unique source");
-    let block_lexed = lex(&block_sources, block_id).expect("lex");
-    let block = parse_block(&block_sources, &block_lexed).expect("parse block");
+    let (_, block) = block(block_text);
     assert!(block.diagnostics().is_empty(), "{:?}", block.diagnostics());
 }
 
@@ -182,10 +186,7 @@ fn a_question_without_a_left_operand_uses_the_existing_expression_error() {
 #[test]
 fn a_missing_operand_preserves_the_next_block_element() {
     let text = "{ val failed = ?\n val next = 1 }";
-    let mut sources = SourceMap::new();
-    let source_id = sources.add_source("recovery.ko", text).unwrap();
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse block");
+    let (_, parsed) = block(text);
     assert_eq!(codes(parsed.diagnostics()), ["L0009"]);
     let Statement::Block { elements } = parsed
         .ast()
@@ -204,8 +205,7 @@ fn propagation_preserves_source_identity_and_exact_composite_span() {
     let mut sources = SourceMap::new();
     let _first = sources.add_source("first.ko", "other?").unwrap();
     let second = sources.add_source("second.ko", "result?").unwrap();
-    let lexed = lex(&sources, second).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, second, "result? in second source");
     let root = parsed.ast().expressions().get(parsed.root()).unwrap();
     assert_eq!(root.span().source_id(), second);
     assert_eq!((root.span().start(), root.span().end()), (0, 7));

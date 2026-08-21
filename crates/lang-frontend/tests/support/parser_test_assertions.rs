@@ -8,17 +8,20 @@
 use lang_frontend::{
     lexer::LexedFile,
     parser::{
-        ParsedBlock, ParsedDeclaration, ParsedExpression, parse_block, parse_declaration,
-        parse_expression,
+        ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, parse_block,
+        parse_declaration, parse_expression, parse_file,
     },
     source::{SourceId, SourceMap},
 };
 
+#[path = "file_output_assertions.rs"]
+mod file_output_assertions;
 #[path = "frontend_output_assertions.rs"]
 mod frontend_output_assertions;
 #[path = "lexer_matrix_assertions.rs"]
 mod lexer_matrix_assertions;
 
+use file_output_assertions::validate_file_output;
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
 use lexer_matrix_assertions::lex_loaded_source_twice;
 
@@ -47,6 +50,15 @@ pub(crate) fn parse_block_twice(
 ) -> ParsedBlock {
     let (source_len, lexed) = parser_source_twice(sources, source_id, context);
     parse_block_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+}
+
+pub(crate) fn parse_file_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    context: &str,
+) -> ParsedFile {
+    let (source_len, lexed) = parser_source_twice(sources, source_id, context);
+    parse_file_from_lexed_twice(sources, source_id, source_len, &lexed, context)
 }
 
 fn parser_source_twice(
@@ -145,6 +157,27 @@ fn parse_block_from_lexed_twice(
         format!("{first:?}"),
         format!("{repeated:?}"),
         "non-deterministic block parse for {context}"
+    );
+    first
+}
+
+fn parse_file_from_lexed_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &LexedFile,
+    context: &str,
+) -> ParsedFile {
+    let first = parse_file(sources, lexed)
+        .unwrap_or_else(|error| panic!("first file parse failed for {context}: {error}"));
+    let repeated = parse_file(sources, lexed)
+        .unwrap_or_else(|error| panic!("repeated file parse failed for {context}: {error}"));
+    validate_file_output(source_id, source_len, &first, context);
+    validate_file_output(source_id, source_len, &repeated, context);
+    assert_eq!(
+        format!("{first:?}"),
+        format!("{repeated:?}"),
+        "non-deterministic file parse for {context}"
     );
     first
 }

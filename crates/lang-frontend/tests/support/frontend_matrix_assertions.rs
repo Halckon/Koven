@@ -6,14 +6,15 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
 };
 
+#[path = "file_output_assertions.rs"]
+mod file_output_assertions;
 #[path = "frontend_output_assertions.rs"]
 mod frontend_output_assertions;
 #[path = "lexer_matrix_assertions.rs"]
 mod lexer_matrix_assertions;
 
-use frontend_output_assertions::{
-    validate_ast, validate_diagnostics, validate_lexed, validate_span,
-};
+use file_output_assertions::validate_file_output;
+use frontend_output_assertions::validate_lexed;
 
 pub(crate) fn lex_source_twice(
     source_name: &str,
@@ -21,45 +22,6 @@ pub(crate) fn lex_source_twice(
     context: &str,
 ) -> (SourceMap, SourceId, LexedFile) {
     lexer_matrix_assertions::lex_source_twice(source_name, source, context, validate_lexed)
-}
-
-fn validate_file_output(
-    source_id: SourceId,
-    source_len: usize,
-    parsed: &ParsedFile,
-    context: &str,
-) {
-    assert_eq!(parsed.source_id(), source_id);
-    validate_ast(source_id, source_len, parsed.ast());
-    validate_diagnostics(source_id, source_len, parsed.diagnostics());
-    for root in parsed.roots() {
-        parsed
-            .ast()
-            .items()
-            .get(*root)
-            .unwrap_or_else(|error| panic!("invalid file root for {context}: {error}"));
-    }
-    if let Some(package) = parsed.package() {
-        validate_span(source_id, source_len, package.span);
-        validate_span(source_id, source_len, package.keyword_span);
-        for segment in &package.segments {
-            validate_span(source_id, source_len, segment.span);
-        }
-    }
-    for import in parsed.imports() {
-        validate_span(source_id, source_len, import.span);
-        validate_span(source_id, source_len, import.keyword_span);
-        for segment in &import.segments {
-            validate_span(source_id, source_len, segment.span);
-        }
-        if let Some(span) = import.wildcard_span {
-            validate_span(source_id, source_len, span);
-        }
-        if let Some(alias) = import.alias {
-            validate_span(source_id, source_len, alias.as_span);
-            validate_span(source_id, source_len, alias.name_span);
-        }
-    }
 }
 
 pub(crate) fn parse_file_twice(
