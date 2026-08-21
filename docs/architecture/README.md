@@ -511,6 +511,14 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   唯一末尾 EOF、source-local 有界 Lexer / AST / diagnostic Span 与可解析 typed root，并分别
   比较两次完整公开 `Debug` 产物以证明 lexeme、AST table 插入顺序、Span 和诊断确定性；矩阵
   不引入随机、IO 或第三方 property-testing 依赖，payload 边仍由精确领域测试验收；
+- `parser_stress_matrix` integration test 通过 8 个确定性大平坦源码覆盖 expression、declaration、
+  block 与 file 四个公开入口，每例运行两次 Lexer 与两次对应 Parser，共验证 16 个 Lexer 和
+  16 个 Parser 产物。四个合法源码分别保留 4,096 个 call argument、value parameter、block
+  element 与 file root；四个错误源码分别精确产生 4,096 个 L0015 / L0024 / L0029 / L0017，
+  primary Span 严格递增。declaration 保留尾参数，block 保留 4,096 个 `Statement::Error`，file
+  保留 4,096 组 `Item::Error` 与后续 `val` sentinel；全部产物保持连续覆盖、唯一 EOF、
+  source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性。file 错误区使用
+  真实后续声明 starter 同步，普通换行不被误作 file recovery boundary；本轮未发现生产缺陷；
 - `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
