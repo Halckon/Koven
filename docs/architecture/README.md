@@ -336,12 +336,19 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - 空 suite 是 `NoFixtures` 配置错误。Phase 0 case 以严格 UTF-8 读取，以规范相对路径作为
   `SourceMap` 名称，创建并切片全文件 `Span`，再构造测试私有 AST expression 和一条使用
   `tests/support/fixture_codes.rs` 中 `L9000` 目录的结构化诊断；
-- Lexer pass case 调用生产 `lex` 并验证零诊断、source identity、唯一 EOF，以及全部非 EOF
-  lexeme 对输入字节的连续完整覆盖；
+- Lexer pass / fail 与 Parser fixture source helper 都在同一 `SourceMap` / `SourceId` 上调用两次
+  生产 `lex`；两次均验证 source identity、唯一 EOF、全部非 EOF lexeme 对输入字节的连续完整
+  覆盖，以及 diagnostic primary / label Span 的 source-local 有界性，并比较完整公开产物确定性。
+  三个 checked-in Lexer fixture 与 34 个 checked-in Parser fixture 共验证 74 个 Lexer 产物；
+  临时 fixture harness 自检通过相同 helper 自动继承该约束；
 - Lexer fail case 按规范相对 stem 将 `.ko` 与 `.diag` 一一配对；sidecar 每行严格使用
   `Ldddd<TAB>start_byte<TAB>end_byte`，只接受已注册生产码、LF / CRLF、十进制非空半开
   UTF-8 字节范围，并与生产诊断全序逐项全等。缺失 / 孤立 sidecar 和非法格式都使 suite
   失败；该 sidecar 是仓库私有测试格式，不是公共诊断协议；
+- 34 个 checked-in Parser fixture 按 expression 4、declaration 5、block 4、lambda 4、
+  implicit-unit 7、file 10 分组；每例在首个确定 Lexer 产物上执行两次对应公开 Parser，比较完整
+  `Debug` 后把首个确定产物交给既有领域断言，共验证 68 个 Parser 产物。内部入口错误与 Lexer /
+  Parser 重复产物漂移使用不同的 fixture failure variant；
 - Parser pass case 以生产 Lexer 与独立表达式入口验证零诊断、根有效及完整消费到 EOF；Parser fail
   case 复用同一 sidecar 契约，逐项核对合并后的 Lexer / Parser 诊断全序；现有 expression
   suite 已加入命名 / `borrow` / `&` 实参与 `L0033` 缺值证据；

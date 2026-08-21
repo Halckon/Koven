@@ -1,4 +1,4 @@
-//! SPEC-0005 至 SPEC-0007 的语言 fixture 发现、执行与失败保护。
+//! SPEC-0005 至 SPEC-0007 / SPEC-0115 的语言 fixture 发现、执行与失败保护。
 
 mod support;
 
@@ -14,7 +14,9 @@ use std::{
 use fixture_codes::phase0_fixture_code;
 use lang_frontend::{
     ast::AstFile,
-    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity, codes, ordered_diagnostics},
+    diagnostic::{
+        Diagnostic, DiagnosticCodeCatalog, DiagnosticDetail, Severity, codes, ordered_diagnostics,
+    },
     lexer::{LexedFile, LexemeKind, lex},
     parser::{
         Expression, FunctionBody, FunctionForm, Item, Statement, SyntaxAst, TypeRef, parse_block,
@@ -151,7 +153,9 @@ enum ParserCaseFailure {
     InvalidSidecar(SidecarError),
     SourceModel,
     LexerInternal,
+    LexerOutputInvariant,
     ParserInternal,
+    ParserOutputInvariant,
     RootInvariant,
     UnexpectedDiagnostics,
     DiagnosticModel,
@@ -637,7 +641,6 @@ fn run_lexer_pass_suite(root: &Path) -> Result<Vec<LexerCaseOutcome>, SuiteError
 fn run_lexer_pass_case(case: &FixtureCase) -> Result<LexerEvidence, LexerCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         lex_fixture_source(&case.relative_path, &case.disk_path)?;
-    validate_lexemes(source_id, byte_len, &lexed)?;
     if !lexed.diagnostics().is_empty() {
         return Err(LexerCaseFailure::UnexpectedDiagnostics);
     }
@@ -671,7 +674,6 @@ fn run_lexer_fail_suite(root: &Path) -> Result<Vec<LexerCaseOutcome>, SuiteError
 fn run_lexer_fail_case(case: &LexerFailCase) -> Result<LexerEvidence, LexerCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         lex_fixture_source(&case.relative_path, &case.source_path)?;
-    validate_lexemes(source_id, byte_len, &lexed)?;
 
     let sidecar_bytes = fs::read(&case.sidecar_path)
         .map_err(|error| LexerCaseFailure::ReadSidecar(error.kind()))?;
@@ -726,8 +728,7 @@ fn run_parser_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteErr
 fn run_parser_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
-    let parsed =
-        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
     if !parsed.diagnostics().is_empty() {
         return Err(ParserCaseFailure::UnexpectedDiagnostics);
     }
@@ -758,8 +759,7 @@ fn run_parser_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteErr
 fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
-    let parsed =
-        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
     if parsed.ast().source_id() != source_id
         || parsed.ast().expressions().get(parsed.root()).is_err()
     {
@@ -842,8 +842,7 @@ fn run_lambda_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteErr
 fn run_lambda_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
-    let parsed =
-        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
     if !parsed.diagnostics().is_empty() {
         return Err(ParserCaseFailure::UnexpectedDiagnostics);
     }
@@ -873,8 +872,7 @@ fn run_lambda_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome>, SuiteErr
 fn run_lambda_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
-    let parsed =
-        parse_expression(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
     if parsed.ast().source_id() != source_id {
         return Err(ParserCaseFailure::RootInvariant);
     }
@@ -902,8 +900,7 @@ fn run_declaration_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>
 fn run_declaration_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
-    let parsed =
-        parse_declaration(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_declaration)?;
     if !parsed.diagnostics().is_empty() {
         return Err(ParserCaseFailure::UnexpectedDiagnostics);
     }
@@ -936,8 +933,7 @@ fn run_declaration_fail_case(
 ) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
-    let parsed =
-        parse_declaration(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_declaration)?;
     if parsed.ast().source_id() != source_id || parsed.ast().items().get(parsed.root()).is_err() {
         return Err(ParserCaseFailure::RootInvariant);
     }
@@ -968,7 +964,7 @@ fn run_file_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, Suite
 fn run_file_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
-    let parsed = parse_file(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_file)?;
     if !parsed.diagnostics().is_empty() || parsed.ast().source_id() != source_id {
         return Err(ParserCaseFailure::UnexpectedDiagnostics);
     }
@@ -1002,7 +998,7 @@ fn run_file_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, Suite
 fn run_file_fail_case(case: &LexerFailCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
-    let parsed = parse_file(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_file)?;
     if parsed.ast().source_id() != source_id
         || parsed
             .roots()
@@ -1082,8 +1078,7 @@ fn run_implicit_unit_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcom
             result: (|| {
                 let (sources, source_id, lexed, byte_len) =
                     parser_fixture_source(&case.relative_path, &case.disk_path)?;
-                let parsed = parse_declaration(&sources, &lexed)
-                    .map_err(|_| ParserCaseFailure::ParserInternal)?;
+                let parsed = parse_fixture_twice(&sources, &lexed, parse_declaration)?;
                 if !parsed.diagnostics().is_empty() {
                     return Err(ParserCaseFailure::UnexpectedDiagnostics);
                 }
@@ -1112,8 +1107,7 @@ fn run_implicit_unit_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcom
             result: (|| {
                 let (sources, source_id, lexed, byte_len) =
                     parser_fixture_source(&case.relative_path, &case.source_path)?;
-                let parsed = parse_declaration(&sources, &lexed)
-                    .map_err(|_| ParserCaseFailure::ParserInternal)?;
+                let parsed = parse_fixture_twice(&sources, &lexed, parse_declaration)?;
                 if parsed.source_id() != source_id {
                     return Err(ParserCaseFailure::RootInvariant);
                 }
@@ -1146,7 +1140,7 @@ fn run_block_pass_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>, SuiteError
 fn run_block_pass_case(case: &FixtureCase) -> Result<BlockEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
-    let parsed = parse_block(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_block)?;
     if !parsed.diagnostics().is_empty() {
         return Err(ParserCaseFailure::UnexpectedDiagnostics);
     }
@@ -1178,7 +1172,7 @@ fn run_block_fail_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>, SuiteError
 fn run_block_fail_case(case: &LexerFailCase) -> Result<BlockEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
-    let parsed = parse_block(&sources, &lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let parsed = parse_fixture_twice(&sources, &lexed, parse_block)?;
     if parsed.ast().source_id() != source_id
         || parsed.ast().statements().get(parsed.root()).is_err()
     {
@@ -1238,6 +1232,22 @@ fn validate_parser_diagnostics(
     Ok(())
 }
 
+fn parse_fixture_twice<T, E>(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+    parse: impl Fn(&SourceMap, &LexedFile) -> Result<T, E>,
+) -> Result<T, ParserCaseFailure>
+where
+    T: std::fmt::Debug,
+{
+    let first = parse(sources, lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    let repeated = parse(sources, lexed).map_err(|_| ParserCaseFailure::ParserInternal)?;
+    if format!("{first:?}") != format!("{repeated:?}") {
+        return Err(ParserCaseFailure::ParserOutputInvariant);
+    }
+    Ok(first)
+}
+
 fn parser_fixture_source(
     relative_path: &str,
     disk_path: &Path,
@@ -1249,8 +1259,16 @@ fn parser_fixture_source(
     let source_id = sources
         .add_source(relative_path.to_owned(), text)
         .map_err(|_| ParserCaseFailure::SourceModel)?;
-    let lexed = lex(&sources, source_id).map_err(|_| ParserCaseFailure::LexerInternal)?;
-    Ok((sources, source_id, lexed, byte_len))
+    let first = lex(&sources, source_id).map_err(|_| ParserCaseFailure::LexerInternal)?;
+    let repeated = lex(&sources, source_id).map_err(|_| ParserCaseFailure::LexerInternal)?;
+    validate_lexemes(source_id, byte_len, &first)
+        .map_err(|_| ParserCaseFailure::LexerOutputInvariant)?;
+    validate_lexemes(source_id, byte_len, &repeated)
+        .map_err(|_| ParserCaseFailure::LexerOutputInvariant)?;
+    if format!("{first:?}") != format!("{repeated:?}") {
+        return Err(ParserCaseFailure::LexerOutputInvariant);
+    }
+    Ok((sources, source_id, first, byte_len))
 }
 
 fn lex_fixture_source(
@@ -1264,8 +1282,14 @@ fn lex_fixture_source(
     let source_id = sources
         .add_source(relative_path.to_owned(), text)
         .map_err(|_| LexerCaseFailure::SourceModel)?;
-    let lexed = lex(&sources, source_id).map_err(|_| LexerCaseFailure::LexerInternal)?;
-    Ok((sources, source_id, lexed, byte_len))
+    let first = lex(&sources, source_id).map_err(|_| LexerCaseFailure::LexerInternal)?;
+    let repeated = lex(&sources, source_id).map_err(|_| LexerCaseFailure::LexerInternal)?;
+    validate_lexemes(source_id, byte_len, &first)?;
+    validate_lexemes(source_id, byte_len, &repeated)?;
+    if format!("{first:?}") != format!("{repeated:?}") {
+        return Err(LexerCaseFailure::LexemeInvariant);
+    }
+    Ok((sources, source_id, first, byte_len))
 }
 
 fn validate_lexemes(
@@ -1300,6 +1324,26 @@ fn validate_lexemes(
     }
     if !saw_eof || expected_start != source_len {
         return Err(LexerCaseFailure::LexemeInvariant);
+    }
+    for diagnostic in lexed.diagnostics() {
+        let primary = diagnostic.primary_span();
+        if primary.source_id() != source_id
+            || primary.start() > primary.end()
+            || primary.end() > source_len
+        {
+            return Err(LexerCaseFailure::LexemeInvariant);
+        }
+        for detail in diagnostic.details() {
+            if let DiagnosticDetail::Label(label) = detail {
+                let span = label.span();
+                if span.source_id() != source_id
+                    || span.start() > span.end()
+                    || span.end() > source_len
+                {
+                    return Err(LexerCaseFailure::LexemeInvariant);
+                }
+            }
+        }
     }
     Ok(())
 }
