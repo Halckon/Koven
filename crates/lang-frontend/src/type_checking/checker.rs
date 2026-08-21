@@ -1,4 +1,5 @@
 mod callable;
+mod container;
 mod copyability;
 mod delegation;
 mod destructuring;
@@ -26,12 +27,13 @@ use crate::{
 };
 
 use super::{
-    BuiltinType, CallDescriptor, CallableDescriptor, Capability, Copyability, DeferredReason,
-    DelegationPlan, DestructuringDescriptor, EnumCaseDescriptor, EnvironmentFunction,
-    EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
-    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind, ParameterMode,
-    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
-    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    BuiltinType, CallDescriptor, CallableDescriptor, Capability, ContainerConstructionDescriptor,
+    Copyability, DeferredReason, DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor,
+    EnumCaseDescriptor, EnvironmentFunction, EnvironmentType, ExpressionCategory,
+    ExternalTypeBinding, FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor,
+    NominalId, NominalKind, ParameterMode, SequentialContainerKind, TypeCheckingError,
+    TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
+    TypedFile, TypedFileParts,
 };
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
@@ -105,6 +107,8 @@ struct Checker<'a> {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    container_constructions: Vec<ContainerConstructionDescriptor>,
+    element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
     classifiers: Vec<TypeId>,
     diagnostics: Vec<Diagnostic>,
@@ -151,6 +155,12 @@ struct Checker<'a> {
     call_argument_mode_code: DiagnosticCode,
     no_matching_overload_code: DiagnosticCode,
     ambiguous_call_code: DiagnosticCode,
+    invalid_container_element_code: DiagnosticCode,
+    cannot_infer_container_element_code: DiagnosticCode,
+    invalid_container_construction_code: DiagnosticCode,
+    invalid_container_index_code: DiagnosticCode,
+    immutable_container_place_code: DiagnosticCode,
+    invalid_container_member_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -246,6 +256,8 @@ impl<'a> Checker<'a> {
                 parsed.ast().expressions().len()
             ],
             calls: Vec::new(),
+            container_constructions: Vec::new(),
+            element_places: Vec::new(),
             callables: Vec::new(),
             classifiers: Vec::new(),
             diagnostics: Vec::new(),
@@ -295,6 +307,14 @@ impl<'a> Checker<'a> {
             call_argument_mode_code: catalog.resolve(codes::CALL_ARGUMENT_MODE)?,
             no_matching_overload_code: catalog.resolve(codes::NO_MATCHING_OVERLOAD)?,
             ambiguous_call_code: catalog.resolve(codes::AMBIGUOUS_CALL)?,
+            invalid_container_element_code: catalog.resolve(codes::INVALID_CONTAINER_ELEMENT)?,
+            cannot_infer_container_element_code: catalog
+                .resolve(codes::CANNOT_INFER_CONTAINER_ELEMENT)?,
+            invalid_container_construction_code: catalog
+                .resolve(codes::INVALID_CONTAINER_CONSTRUCTION)?,
+            invalid_container_index_code: catalog.resolve(codes::INVALID_CONTAINER_INDEX)?,
+            immutable_container_place_code: catalog.resolve(codes::IMMUTABLE_CONTAINER_PLACE)?,
+            invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
         })
     }
 
@@ -352,6 +372,8 @@ impl<'a> Checker<'a> {
                 destructurings: self.destructurings,
                 expression_categories: self.expression_categories,
                 calls: self.calls,
+                container_constructions: self.container_constructions,
+                element_places: self.element_places,
             },
             diagnostics,
         ))
@@ -430,6 +452,7 @@ impl<'a> Checker<'a> {
             Some(ExternalTypeBinding::Function(signature)) => {
                 self.normalize_environment_function(&signature)
             }
+            Some(ExternalTypeBinding::IntrinsicCallable(_)) => self.error_type(),
             None => self.deferred(DeferredReason::UnboundExternalType),
         };
         self.external_types.insert(id, ty);
@@ -538,10 +561,16 @@ impl<'a> Checker<'a> {
             TypeKind::Function { .. } => "function type".to_owned(),
             TypeKind::Nominal { nominal, .. } => format!("nominal#{}", nominal.symbol().index()),
             TypeKind::Intrinsic {
-                constructor: IntrinsicTypeConstructor::Box,
+                constructor,
                 arguments,
             } => format!(
-                "Box<{}>",
+                "{}<{}>",
+                match constructor {
+                    IntrinsicTypeConstructor::Box => "Box",
+                    IntrinsicTypeConstructor::Array => "Array",
+                    IntrinsicTypeConstructor::List => "List",
+                    IntrinsicTypeConstructor::MutableList => "MutableList",
+                },
                 arguments
                     .first()
                     .map(|argument| self.type_name(*argument))

@@ -7,8 +7,8 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        BuiltinType, Capability, DeferredReason, TypeCheckingError, TypeEnvironment, TypeKind,
-        TypedFile, check_types,
+        BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
+        TypeCheckingError, TypeEnvironment, TypeKind, TypedFile, check_types,
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -64,6 +64,36 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             Capability::Transferable,
         ),
     ];
+    let containers = [
+        (
+            names.declare_type("Array").expect("Array"),
+            IntrinsicTypeConstructor::Array,
+        ),
+        (
+            names.declare_type("List").expect("List"),
+            IntrinsicTypeConstructor::List,
+        ),
+        (
+            names.declare_type("MutableList").expect("MutableList"),
+            IntrinsicTypeConstructor::MutableList,
+        ),
+    ];
+    let constructors = [
+        (
+            names.declare_function("arrayOf").expect("arrayOf"),
+            IntrinsicCallable::ArrayOf,
+        ),
+        (
+            names.declare_function("listOf").expect("listOf"),
+            IntrinsicCallable::ListOf,
+        ),
+        (
+            names
+                .declare_function("mutableListOf")
+                .expect("mutableListOf"),
+            IntrinsicCallable::MutableListOf,
+        ),
+    ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types.bind_builtin(symbol, builtin).expect("binding");
@@ -72,6 +102,16 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
         types
             .bind_capability(symbol, capability)
             .expect("capability binding");
+    }
+    for (symbol, container) in containers {
+        types
+            .bind_intrinsic(symbol, container)
+            .expect("container binding");
+    }
+    for (symbol, constructor) in constructors {
+        types
+            .bind_intrinsic_callable(symbol, constructor)
+            .expect("constructor binding");
     }
     (names, types)
 }
@@ -941,7 +981,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 5, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 6, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

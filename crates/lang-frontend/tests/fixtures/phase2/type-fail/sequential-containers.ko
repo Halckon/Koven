@@ -1,0 +1,7 @@
+fun invalid(list: List<Int>): Unit {
+    val empty = listOf()
+    val mixed = listOf(1, true)
+    val badIndex = list[true]
+    val replacement = (list[0] = 1)
+    val bypass = list.get(0)
+}

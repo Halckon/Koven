@@ -188,13 +188,13 @@ fun main(): Unit {
       禁止把普通字段读取标记为所有权移出
 - [ ] 为 `value class` 建立有序结构分量并支持解构类型检查；右值只求值一次，类型结果标记为
       复制式或消费式解构；不可复制类型的消费式解构必须覆盖全部分量
-- [ ] 按[01-design-decisions.md](./01-design-decisions.md)第 8 节识别 `Array<T>`、`List<T>`、`MutableList<T>` 的精确单类型实参、
+- [x] 按[01-design-decisions.md](./01-design-decisions.md)第 8 节识别 `Array<T>`、`List<T>`、`MutableList<T>` 的精确单类型实参、
       长度 / 可变性角色和非 `Copyable` 独占 owner 能力；拒绝内建容器 arity 错误
-- [ ] 检查顺序容器元素的 storable type 条件：保留单态化后的具体元素类型，不擦除为 `Any`，
+- [x] 检查顺序容器元素的 storable type 条件：保留单态化后的具体元素类型，不擦除为 `Any`，
       不把裸 interface 当作 v1 `dyn` 表示，也不隐式改写成 `Box<T>`
-- [ ] 识别封闭的列表式 / 运行时长度构造操作并推导元素类型；把顺序容器索引结果标记为
+- [x] 识别封闭的列表式 / 运行时长度构造操作并推导元素类型；把顺序容器索引结果标记为
       element place，按容器类型检查索引 key、place 可变性和赋值左侧合法性
-- [ ] 顺序容器索引能力不进入用户可见 `Indexable` / `MutableIndexable` interface 或泛型上界；普通
+- [x] 顺序容器索引能力不进入用户可见 `Indexable` / `MutableIndexable` interface 或泛型上界；普通
       `.get(...)` / `.set(...)` 成员调用不得绕过内建 `[]` place 规则
 
 Map 不是 Phase 2 的本版实施项。在后续 guide 定义 key 等价性与所有权契约前，类型检查器

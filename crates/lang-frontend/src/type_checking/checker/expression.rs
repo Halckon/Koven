@@ -181,16 +181,28 @@ impl Checker<'_> {
                 type_ref,
                 ..
             } => self.check_type_test(expression, negated, operator_span, type_ref)?,
-            Expression::Assignment { target, value, .. } => {
-                self.check_expression(target, None, None)?;
-                self.check_expression(value, None, None)?;
+            Expression::Assignment {
+                target,
+                operator,
+                operator_span,
+                value,
+            } => {
+                let result = if let Some(result) =
+                    self.check_container_assignment(target, operator, operator_span, value)?
+                {
+                    result
+                } else {
+                    self.check_expression(target, None, None)?;
+                    self.check_expression(value, None, None)?;
+                    ExprCheck {
+                        ty: self.deferred(DeferredReason::Assignment),
+                        falls_through: true,
+                    }
+                };
                 if let Some(key) = self.stable_flow_key(target) {
                     self.flow_facts.remove(&key);
                 }
-                ExprCheck {
-                    ty: self.deferred(DeferredReason::Assignment),
-                    falls_through: true,
-                }
+                result
             }
             Expression::Member {
                 receiver,
@@ -202,14 +214,9 @@ impl Checker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => self.check_call(id, span, callee, type_arguments, arguments)?,
+            } => self.check_call(id, span, callee, type_arguments, arguments, expected)?,
             Expression::Index { receiver, index } => {
-                self.check_expression(receiver, None, None)?;
-                self.check_expression(index, None, None)?;
-                ExprCheck {
-                    ty: self.deferred(DeferredReason::Index),
-                    falls_through: true,
-                }
+                self.check_container_index(id, receiver, index)?
             }
             Expression::Propagate { value, .. } => {
                 self.check_expression(value, None, None)?;
@@ -339,6 +346,12 @@ impl Checker<'_> {
         }
         let receiver = self.check_expression(receiver, None, None)?;
         let name = self.sources.slice(name_span)?;
+        if let Some(ty) = self.container_member_type(receiver.ty, name, name_span)? {
+            return Ok(ExprCheck {
+                ty,
+                falls_through: receiver.falls_through,
+            });
+        }
         if let TypeKind::EnumCase { case, .. } = self.kind(receiver.ty) {
             let descriptor = self
                 .enum_case(*case)
@@ -903,7 +916,7 @@ impl Checker<'_> {
         matches!(self.kind(ty), TypeKind::Builtin(actual) if *actual == expected)
     }
 
-    fn is_numeric(&self, ty: TypeId) -> bool {
+    pub(super) fn is_numeric(&self, ty: TypeId) -> bool {
         matches!(
             self.kind(ty),
             TypeKind::Builtin(

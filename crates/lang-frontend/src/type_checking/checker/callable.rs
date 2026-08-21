@@ -48,7 +48,18 @@ impl Checker<'_> {
         callee: ExpressionId,
         type_arguments: Vec<TypeRefId>,
         arguments: Vec<CallArgument>,
+        expected: Option<TypeId>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        if let Some(result) = self.check_intrinsic_container_call(
+            expression,
+            call_span,
+            callee,
+            &type_arguments,
+            &arguments,
+            expected,
+        )? {
+            return Ok(result);
+        }
         for &type_argument in &type_arguments {
             self.resolve_type_ref(type_argument)?;
         }
@@ -451,6 +462,9 @@ impl Checker<'_> {
                         |_| {
                             self.expression_categories[argument.value.index()]
                                 == ExpressionCategory::Place
+                                && self
+                                    .is_mutable_element_place(argument.value)
+                                    .unwrap_or(true)
                         },
                     )
                 }
@@ -491,7 +505,8 @@ impl Checker<'_> {
             deferred |= self.is_deferred(result.ty);
             if !deferred
                 && matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
-                && self.expression_categories[argument.value.index()] != ExpressionCategory::Place
+                && (self.expression_categories[argument.value.index()] != ExpressionCategory::Place
+                    || self.is_mutable_element_place(argument.value) == Some(false))
             {
                 self.emit_mapping_error(MappingError::Mode {
                     primary: argument
@@ -625,6 +640,13 @@ impl Checker<'_> {
                 } else {
                     ExpressionCategory::Temporary
                 }
+            }
+            Expression::Member { .. }
+                if self
+                    .is_read_only_container_size(expression)
+                    .unwrap_or(false) =>
+            {
+                ExpressionCategory::Temporary
             }
             Expression::Member { .. } | Expression::Index { .. }
                 if self.types.get(ty).is_some()

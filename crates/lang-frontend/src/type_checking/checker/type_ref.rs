@@ -223,12 +223,29 @@ impl Checker<'_> {
                     descriptor.id() == *nominal && descriptor.kind() == NominalKind::ValueClass
                 })
             }
-            _ => false,
+            (IntrinsicTypeConstructor::Box, _) => false,
+            (
+                IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList,
+                _,
+            ) => self.is_structurally_storable_type(argument),
         };
         if !valid {
+            let (code, message) = if constructor == IntrinsicTypeConstructor::Box {
+                (
+                    self.invalid_box_argument_code,
+                    "Box type argument must be a concrete value class instance",
+                )
+            } else {
+                (
+                    self.invalid_container_element_code,
+                    "sequential container element type is not structurally storable",
+                )
+            };
             self.emit(
-                self.invalid_box_argument_code,
-                "Box type argument must be a concrete value class instance",
+                code,
+                message,
                 self.ast().type_refs().get(argument_ref)?.span(),
             )?;
             return Ok(self.error_type());

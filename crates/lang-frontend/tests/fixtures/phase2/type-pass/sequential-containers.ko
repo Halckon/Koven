@@ -1,0 +1,10 @@
+fun containers(size: Int): Unit {
+    val initializer: (Int) -> Int = { index -> index }
+    val array = Array<Int>(size, initializer)
+    val readonly = listOf(1, 2)
+    val mutable = MutableList<Int>()
+    val first: Int = readonly[0]
+    val replaced = (array[0] = 3)
+    val changed = (mutable[0] = 4)
+    val count: Int = readonly.size
+}

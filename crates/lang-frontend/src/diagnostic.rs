@@ -135,6 +135,12 @@ pub mod codes {
     pub(crate) const CALL_ARGUMENT_MODE: &str = "L0122";
     pub(crate) const NO_MATCHING_OVERLOAD: &str = "L0123";
     pub(crate) const AMBIGUOUS_CALL: &str = "L0124";
+    pub(crate) const INVALID_CONTAINER_ELEMENT: &str = "L0125";
+    pub(crate) const CANNOT_INFER_CONTAINER_ELEMENT: &str = "L0126";
+    pub(crate) const INVALID_CONTAINER_CONSTRUCTION: &str = "L0127";
+    pub(crate) const INVALID_CONTAINER_INDEX: &str = "L0128";
+    pub(crate) const IMMUTABLE_CONTAINER_PLACE: &str = "L0129";
+    pub(crate) const INVALID_CONTAINER_MEMBER: &str = "L0130";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -262,6 +268,12 @@ pub mod codes {
         CALL_ARGUMENT_MODE,
         NO_MATCHING_OVERLOAD,
         AMBIGUOUS_CALL,
+        INVALID_CONTAINER_ELEMENT,
+        CANNOT_INFER_CONTAINER_ELEMENT,
+        INVALID_CONTAINER_CONSTRUCTION,
+        INVALID_CONTAINER_INDEX,
+        IMMUTABLE_CONTAINER_PLACE,
+        INVALID_CONTAINER_MEMBER,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -171,6 +171,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0106–L0114 | v0.24 的 type-test/smart-cast/when 诊断；SPEC-0021 已实现 | `01-design-decisions.md` §24.5 |
 | L0115–L0118 | v0.25 的 `Copyable` bound、内联递归、intrinsic `Box` 与结构化解构诊断；SPEC-0022 已实现 | `01-design-decisions.md` §25.5 |
 | L0119–L0124 | callable target、命名/数量/模式映射、无匹配与歧义诊断；SPEC-0067 已实现 | `05-grammar-calls-lambda.md` §9 |
+| L0125–L0130 | 顺序容器元素、推导、核心构造、索引、只读 place 与禁用 `.get`/`.set` 诊断；SPEC-0023 已实现 | `01-design-decisions.md` §8 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

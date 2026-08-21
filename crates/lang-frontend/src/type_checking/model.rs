@@ -9,7 +9,10 @@ use crate::{
     source::SourceId,
 };
 
-use super::{CallDescriptor, ExpressionCategory};
+use super::{
+    CallDescriptor, ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
+    IntrinsicCallable,
+};
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -335,6 +338,12 @@ pub enum Capability {
 pub enum IntrinsicTypeConstructor {
     /// Exclusive heap owner for one concrete value-class instance.
     Box,
+    /// Fixed-length mutable-element sequential owner.
+    Array,
+    /// Read-only sequential owner.
+    List,
+    /// Growable sequential owner.
+    MutableList,
 }
 
 /// 一个规范化类型在当前静态上下文中的复制能力。
@@ -476,6 +485,7 @@ pub(crate) enum ExternalTypeBinding {
     Intrinsic(IntrinsicTypeConstructor),
     Value(EnvironmentType),
     Function(EnvironmentFunction),
+    IntrinsicCallable(IntrinsicCallable),
 }
 
 /// 与一个显式 [`NameEnvironment`] 绑定的不可变类型环境构建器。
@@ -558,6 +568,19 @@ impl TypeEnvironment {
         self.bind(
             symbol,
             ExternalTypeBinding::Function(signature),
+            ExternalSymbolKind::Function,
+        )
+    }
+
+    /// 把外部 function symbol 绑定为编译器拥有的封闭核心构造。
+    pub fn bind_intrinsic_callable(
+        &mut self,
+        symbol: ExternalSymbolId,
+        callable: IntrinsicCallable,
+    ) -> Result<(), TypeCheckingError> {
+        self.bind(
+            symbol,
+            ExternalTypeBinding::IntrinsicCallable(callable),
             ExternalSymbolKind::Function,
         )
     }
@@ -780,7 +803,7 @@ impl TypeTable {
     }
 }
 
-/// SPEC-0019 的单文件 typed 产物。
+/// Phase 2 的单文件 typed 产物。
 #[derive(Clone, Debug)]
 pub struct TypedFile {
     source_id: SourceId,
@@ -797,6 +820,8 @@ pub struct TypedFile {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
+    pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -813,6 +838,8 @@ pub(crate) struct TypedFileParts {
     pub(crate) destructurings: Vec<DestructuringDescriptor>,
     pub(crate) expression_categories: Vec<ExpressionCategory>,
     pub(crate) calls: Vec<CallDescriptor>,
+    pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
+    pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
 
 impl TypedFile {
@@ -837,6 +864,8 @@ impl TypedFile {
             destructurings: parts.destructurings,
             expression_categories: parts.expression_categories,
             calls: parts.calls,
+            container_constructions: parts.container_constructions,
+            element_places: parts.element_places,
             diagnostics,
         }
     }

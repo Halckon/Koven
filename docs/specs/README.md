@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -109,7 +109,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0021](./0021-when-exhaustiveness-smart-cast.md) | 实现 `when` 穷尽性与 smart cast（`done`） | 0020、0016 `done`；v0.24 已明确启用 |
 | [0022](./0022-copyable-structural-destructuring.md) | 推导条件 `Copyable`、检查有限内联布局与结构化解构类型（`done`） | 0019、0020 `done`；v0.25 已明确启用 |
 | [0067](./0067-callable-type-checking.md) | 检查 callable 选择、实参映射、参数模式与 place/temporary 类别（`done`） | 0019、0020、0022 `done`；v0.25 callable 契约已生效；当前持续 Goal 的站立授权 |
-| 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
+| [0023](./0023-sequential-container-types.md) | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型（`done`） | 0020、0022、0067 `done`；v0.6 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；package 映射 ADR |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效 |
