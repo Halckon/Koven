@@ -1,14 +1,20 @@
-//! SPEC-0072 的 Pratt 运算符优先级、结合性与不结合组矩阵契约。
+//! SPEC-0072 / SPEC-0104 的 Pratt 运算符优先级、结合性与不结合组矩阵契约。
 
 use lang_frontend::{
     ast::ExpressionId,
-    lexer::lex,
     parser::{
         AssignmentOperator, BinaryOperator, CastOperator, Expression, ParsedExpression,
         PrefixOperator, parse_expression,
     },
-    source::SourceMap,
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OperatorKind {
@@ -26,19 +32,45 @@ struct OperatorCase {
     kind: OperatorKind,
 }
 
-fn parse(text: &str) -> ParsedExpression {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("operator-matrix.ko", text)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    let parsed = parse_expression(&sources, &lexed).expect("matrix source must parse internally");
+fn parse_case(text: &str, expect_clean: bool) -> ParsedExpression {
+    let (sources, source_id, lexed) =
+        lex_source_twice("operator-matrix.ko", text, text, validate_lexed);
     assert!(
-        parsed.diagnostics().is_empty(),
+        lexed.diagnostics().is_empty(),
         "{text:?}: {:?}",
-        parsed.diagnostics()
+        lexed.diagnostics()
     );
-    parsed
+    let first = parse_expression(&sources, &lexed)
+        .unwrap_or_else(|error| panic!("first parse failed for {text:?}: {error}"));
+    let repeated = parse_expression(&sources, &lexed)
+        .unwrap_or_else(|error| panic!("repeated parse failed for {text:?}: {error}"));
+    for parsed in [&first, &repeated] {
+        assert_eq!(parsed.source_id(), source_id);
+        validate_ast(source_id, text.len(), parsed.ast());
+        validate_diagnostics(source_id, text.len(), parsed.diagnostics());
+        parsed
+            .ast()
+            .expressions()
+            .get(parsed.root())
+            .unwrap_or_else(|error| panic!("invalid expression root for {text:?}: {error}"));
+        if expect_clean {
+            assert!(
+                parsed.diagnostics().is_empty(),
+                "{text:?}: {:?}",
+                parsed.diagnostics()
+            );
+        }
+    }
+    assert_eq!(
+        format!("{first:?}"),
+        format!("{repeated:?}"),
+        "non-deterministic parse for {text:?}"
+    );
+    first
+}
+
+fn parse(text: &str) -> ParsedExpression {
+    parse_case(text, true)
 }
 
 fn expression(parsed: &ParsedExpression, id: ExpressionId) -> &Expression {
@@ -454,19 +486,10 @@ fn every_non_associative_group_pair_reports_the_second_operator_span() {
                 let second_start = prefix.len();
                 let text = format!("{prefix}{} {second_rhs}", second.spelling);
 
-                let mut sources = SourceMap::new();
-                let source_id = sources
-                    .add_source("non-associative-matrix.ko", &text)
-                    .expect("matrix source name must be unique");
-                let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-                let parsed = parse_expression(&sources, &lexed)
-                    .expect("non-associative matrix must parse internally");
-                let diagnostics = parsed
-                    .diagnostics()
-                    .iter()
-                    .filter(|diagnostic| diagnostic.code().to_string() == "L0012")
-                    .collect::<Vec<_>>();
-                assert_eq!(diagnostics.len(), 1, "{text:?}: {:?}", parsed.diagnostics());
+                let parsed = parse_case(&text, false);
+                let diagnostics = parsed.diagnostics();
+                assert_eq!(diagnostics.len(), 1, "{text:?}: {diagnostics:?}");
+                assert_eq!(diagnostics[0].code().to_string(), "L0012", "{text:?}");
                 assert_eq!(
                     (
                         diagnostics[0].primary_span().start(),

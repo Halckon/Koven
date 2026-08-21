@@ -383,7 +383,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
-  `L0012` 断言锁定第二个不结合运算符的精确 byte span，且不复制生产 binding-power 数值；
+  每个源码执行两次 Lexer 与两次 Parser，共验证 480 个 Lexer 和 480 个 Parser 产物的连续覆盖、
+  末尾唯一 EOF、source-local AST / diagnostic Span、typed root 与完整公开产物确定性。200 个
+  结构 case 两阶段零诊断；40 个不结合 case 的完整诊断序列恰好一个 `L0012`，精确指向第二个
+  运算符 byte span；矩阵不复制生产 binding-power 数值，本轮未发现生产缺陷；
 - `parser_token_inventory` integration test 自检 120 个互异片段，覆盖全部 42 个 Keyword、
   11 个 ReservedWord、43 个 Symbol、literal/string/interpolation、四类 trivia 与 L0001–L0008；
   四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，显式锁定 lexeme 完整覆盖、
