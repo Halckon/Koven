@@ -5,36 +5,16 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-#[path = "support/parser_entry_matrix.rs"]
-mod parser_entry_matrix;
+#[path = "support/parser_entry_mutation_support.rs"]
+mod parser_entry_mutation_support;
 #[path = "support/parser_mutation_lexemes.rs"]
 mod parser_mutation_lexemes;
 #[path = "support/parser_mutation_modes.rs"]
 mod parser_mutation_modes;
-#[path = "support/parser_mutation_tokens.rs"]
-mod parser_mutation_tokens;
 
-use parser_entry_matrix::{ENTRY_CASES, EntryCase, parse_entry_twice};
+use parser_entry_mutation_support::{ENTRY_CASES, baseline_slots, parse_entry_twice};
 use parser_mutation_lexemes::assert_exact_token;
 use parser_mutation_modes::token_is_lexical_mode_segment;
-use parser_mutation_tokens::{MutationSlot, original_token_slots};
-
-fn baseline_slots(case: EntryCase) -> Vec<MutationSlot> {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-entry-duplication-baseline.ko", case.source)
-        .expect("baseline source name must be unique");
-    let lexed = lex(&sources, source_id).expect("baseline must lex internally");
-    assert!(
-        lexed.diagnostics().is_empty(),
-        "{}: {:?}",
-        case.name,
-        lexed.diagnostics()
-    );
-    let parser_diagnostics = parse_entry_twice(case, &sources, source_id, &lexed, case.name);
-    assert_eq!(parser_diagnostics, 0, "{} must parse cleanly", case.name);
-    original_token_slots(&lexed, case.source.len())
-}
 
 fn duplicate_token(source: &str, span: Span) -> (String, (usize, usize)) {
     let token_source = &source[span.start()..span.end()];

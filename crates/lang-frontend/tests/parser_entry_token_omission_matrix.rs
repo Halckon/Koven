@@ -5,30 +5,10 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-#[path = "support/parser_entry_matrix.rs"]
-mod parser_entry_matrix;
-#[path = "support/parser_mutation_tokens.rs"]
-mod parser_mutation_tokens;
+#[path = "support/parser_entry_mutation_support.rs"]
+mod parser_entry_mutation_support;
 
-use parser_entry_matrix::{ENTRY_CASES, EntryCase, parse_entry_twice};
-use parser_mutation_tokens::{MutationSlot, original_token_slots};
-
-fn baseline_slots(case: EntryCase) -> Vec<MutationSlot> {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-entry-omission-baseline.ko", case.source)
-        .expect("baseline source name must be unique");
-    let lexed = lex(&sources, source_id).expect("baseline must lex internally");
-    assert!(
-        lexed.diagnostics().is_empty(),
-        "{}: {:?}",
-        case.name,
-        lexed.diagnostics()
-    );
-    let parser_diagnostics = parse_entry_twice(case, &sources, source_id, &lexed, case.name);
-    assert_eq!(parser_diagnostics, 0, "{} must parse cleanly", case.name);
-    original_token_slots(&lexed, case.source.len())
-}
+use parser_entry_mutation_support::{ENTRY_CASES, EntryCase, baseline_slots, parse_entry_twice};
 
 fn omit(source: &str, span: Span) -> String {
     let mut mutated = String::with_capacity(source.len() - (span.end() - span.start()));
