@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -107,6 +107,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0076](./0076-parser-diagnostic-witness-matrix.md) | 建立已发布 Parser 诊断的公开入口 witness 矩阵（`done`） | 0003、0014、0069、0075 `done`；当前持续 Goal 的站立授权 |
 | [0077](./0077-parser-trivia-invariance-matrix.md) | 建立完整语法组合的非换行 trivia 等价矩阵（`done`） | 0006、0014、0073、0076 `done`；当前持续 Goal 的站立授权 |
 | [0078](./0078-parser-line-break-boundary-matrix.md) | 建立 LF / CRLF 与 comment 换行的结构边界矩阵（`done`） | 0014、0016、0017、0062、0077 `done`；当前持续 Goal 的站立授权 |
+| [0079](./0079-parser-prefix-truncation-matrix.md) | 建立合法完整语法逐 UTF-8 前缀的 EOF 恢复矩阵（`done`） | 0006、0014、0068、0074、0078 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 
