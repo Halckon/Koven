@@ -329,3 +329,4 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 2 | 定义 `this`、参数、local val/var 的稳定 smart-cast key，赋值/capture kill、短路布尔事实传播与分支交集 | 🔴 候选数据流语义 |
 | 3 | 仅 Boolean、enum case 集及 nullable 扩展构成可证明有限域；定义重复覆盖、else 位置和 value/statement-context 穷尽规则 | 🔴 候选 when 语义 |
 | 4 | 定义分支 expected type/LUB、Nothing 出口及 L0106–L0113，保持 member/call、as、包含协议和所有权后置 | 🟡 候选诊断与 Phase 边界 |
+| 5 | 候选审计补充 enum case 外部限定名、显式 expression usage context，并以独立 L0114 拒绝 case type 的非测试位置；不回写第 4 条起草时记录 | 🟡 候选契约补全 |

@@ -159,7 +159,7 @@ fun main(): Unit {
       委托检查；诊断 L0091–L0105。
 - [ ] **SPEC-0021（draft；等待 v0.24 明确启用）**：建立 enum case type、稳定 place 的
       flow facts、赋值/capture kill、Boolean/enum/nullable 有限域穷尽性、分支 join 与
-      L0106–L0113；不得从未启用候选直接进入实现。
+      L0106–L0114；不得从未启用候选直接进入实现。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、

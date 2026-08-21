@@ -1190,14 +1190,18 @@ v0.23 本节只封闭 SPEC-0020。调用表达式/构造器/member access 与具
 ## 24. `when` 穷尽性与 smart cast（v0.24 候选，未启用）
 
 > 本节是供 SPEC-0021 评审的候选契约。v0.23 仍是唯一现行版本；用户明确启用 v0.24 前，
-> 本节不得改变名称解析或类型检查行为，L0106–L0113 也只作预留。
+> 本节不得改变名称解析或类型检查行为，L0106–L0114 也只作预留。
 
 ### 24.1 enum case 的双重身份
 
 - `enum class E { C(...), D }` 中每个 case 同时声明同拼写的值构造器和嵌套 case type；二者
   共享一个 `EnumCaseId`，分别进入 `E` 的值/类型命名空间。case type 不是可独立实现
   interface 的普通 classifier，也不能出现在 supertype、泛型实参或公开签名中；只允许作为
-  `is` / `!is` 的目标和 smart-cast 后的内部流类型。其 runtime 公共类型始终是 `E<...>`。
+  `is` / `!is` 的目标和 smart-cast 后的内部流类型。其 runtime 公共类型始终是 `E<...>`；
+  其他显式 TypeRef 位置使用 L0114，而不是把 case type 当作 root enum 的别名。
+- enum 本体作用域内可写短名 `C`；外部源码必须写限定名 `E.C`。同一限定拼写在值位置表示
+  case value/constructor，在 `is` / `!is` 的目标位置表示 case type。名称阶段解析完整限定链，
+  不允许把“首段已解析、尾段 deferred”伪装为成功；跨 package 的前缀展开仍后置 SPEC-0025。
 - case payload 字段属于对应 case type。enum 自身方法内的裸 `radius` 是“隐式 `this` 的
   case payload 候选”，名称阶段保留候选而不提前报 unresolved；只有当前流事实唯一证明
   `this` 为声明该字段的 case 时才能取其类型。`this.radius` 遵循相同规则。没有该事实、多个
@@ -1221,6 +1225,9 @@ v0.23 本节只封闭 SPEC-0020。调用表达式/构造器/member access 与具
 - subjectful `when` 的 subject 只求值一次并获得临时 key；若源码 subject 本身是稳定 place，
   case 事实同时绑定到该 place。一个 entry 用逗号列出多个条件时，body 只获得所有可进入
   alternative 事实的交集，不能把仅由其中一个条件证明的 payload 字段暴露给整个 body。
+- `when (shape) { is Shape.Circle -> ... }` 是外部作用域的规范写法；enum 自身方法内允许
+  `when (this) { is Circle -> ... }`。无 payload case 也可在普通条件写 `Shape.Point` / `Point`，
+  按 case value 与 subject 做等值比较；有 payload case 的构造器名称本身不是一个 case value。
 - `x != null` / `x == null` 为稳定 nullable key 建立非空/为空事实。事实只能收窄，不能改变
   声明类型或写回类型；赋值仍按声明类型检查。循环回边、未知 call 的副作用和 lambda 捕获
   使用保守 kill，不实现完整 SSA 数据流或 NLL。
@@ -1244,6 +1251,10 @@ v0.23 本节只封闭 SPEC-0020。调用表达式/构造器/member access 与具
 - initializer、assignment RHS、return value、call argument、表达式体以及另一个 value
   expression 的嵌套位置都是 value context。value-context `when` 必须有 `else` 或被有限域
   证明穷尽，否则 L0111；statement element 位置允许非穷尽，结果固定为 `Unit`。
+- checker 必须从 AST owner 显式传递 `ExpressionUse::{Value,Statement}`（或等价封闭状态）：
+  普通 block 中非尾 expression element 是 statement use；control/lambda body 的尾 expression、
+  initializer 与表达式 body 是 value use。`expected == None` 同时可能表示推导和值被丢弃，
+  禁止用它推断上下文。
 - value-context 分支先接受外部 expected type。无 expected type 时按源码顺序求最小公共类型：
   忽略 `Nothing`；完全相同类型保持不变；`T` 与 `T?` 合并为 `T?`；同一 enum 的 case 流类型
   合并为 enum root；其他已知类型合并为 `Any`。Error 抑制同根级联，Deferred 只保留其专用
@@ -1263,6 +1274,7 @@ v0.23 本节只封闭 SPEC-0020。调用表达式/构造器/member access 与具
 | L0111 | value-context `when` 未覆盖封闭域或无法证明穷尽 | primary 为 `when`；labels 按声明顺序列出遗漏 case，非封闭域建议添加 `else` |
 | L0112 | 无 expected type 的可达分支无法形成合法公共类型 | primary 为后出现分支尾值；label 指向首个冲突分支 |
 | L0113 | enum case payload 在当前流事实下不可唯一访问 | primary 为字段名称；labels 指向候选 case 声明 |
+| L0114 | enum case type 出现在 `is` / `!is` 目标之外的显式 TypeRef 位置 | primary 为 case TypeRef；label 指向 root enum 声明 |
 
 L0106/L0107 已使条件 poisoned 后，不追加同条件的 L0110；L0108/L0109 不阻止仍可确定的
 entry body 类型检查；L0111 只产生一条并聚合遗漏项。SPEC-0021 不顺带实现一般 member/call

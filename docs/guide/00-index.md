@@ -109,7 +109,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.21 | 封闭单文件类型/值双命名空间、稳定 scope/symbol 身份、预声明与顺序 local 可见性，以及 L0079–L0081 名称诊断 |
 | v0.22 | 新增 `L` / `u` / `f` 最小数值后缀；封闭默认数值类型、单向 expected type、基础 local/lambda/函数返回检查与 L0082–L0090 |
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
-| v0.24（候选） | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0113；未启用 |
+| v0.24（候选） | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114；未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -162,7 +162,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0079–L0081 | 已实现的 duplicate / unresolved / use-before-local 名称诊断 | `01-design-decisions.md` §21.3 |
 | L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；SPEC-0019 已实现 | `01-design-decisions.md` §22.5 |
 | L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 已实现 | `01-design-decisions.md` §23.5 |
-| L0106–L0113 | v0.24 候选的 type-test/smart-cast/when 诊断；未启用、未实现 | `01-design-decisions.md` §24.5 |
+| L0106–L0114 | v0.24 候选的 type-test/smart-cast/when 诊断；未启用、未实现 | `01-design-decisions.md` §24.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

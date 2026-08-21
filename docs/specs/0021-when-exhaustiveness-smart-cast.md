@@ -8,7 +8,7 @@
 | 候选语言规范 | [v0.24 候选 §24](../guide/01-design-decisions.md#24-when-穷尽性与-smart-castv024-候选未启用) |
 | 前置 Spec | SPEC-0016、SPEC-0020 `done` |
 | 阻塞项 | 用户尚未明确启用 v0.24 取代 v0.23 |
-| 影响范围 | name-resolution enum case identity、typed flow facts、when/type-test、L0106–L0113、Phase 2 fixture、Architecture |
+| 影响范围 | name-resolution enum case identity、typed flow facts、when/type-test、L0106–L0114、Phase 2 fixture、Architecture |
 
 ## 1. Goal
 
@@ -18,11 +18,13 @@
 
 ## 2. 范围
 
-- enum case 的值/类型双命名空间身份，以及 payload 候选引用；不把 case type 暴露为普通签名类型。
+- enum case 的值/类型双命名空间身份、内外部限定名称，以及 payload 候选引用；不把 case type
+  暴露为普通签名类型，非法 TypeRef 位置使用 L0114。
 - `is`/`!is` 的合法关系、Boolean 结果与 enum/nullable flow fact；`as`/`as?` 继续 deferred。
 - `this`、参数、local val 与受限 local var 的稳定 key；赋值、capture、短路布尔和分支 join。
 - subjectful/subjectless when 条件检查、else 顺序、重复覆盖、有限域穷尽性和 value/statement context。
-- expected type、Nothing 与无 expected 分支 LUB；L0106–L0113 及真实 pass/fail fixture。
+- 显式 value/statement expression use、expected type、Nothing 与无 expected 分支 LUB；
+  L0106–L0114 及真实 pass/fail fixture。
 
 ## 3. 非目标
 
@@ -34,11 +36,13 @@
 ## 4. 验收标准
 
 - [ ] 用户明确启用 v0.24，Spec 从 `draft` 推进为 `in-progress`。
-- [ ] enum case 在值/类型命名空间共享稳定身份；payload 候选只在唯一 case fact 下可访问。
+- [ ] enum case 在值/类型命名空间共享稳定身份；短名/限定名确定解析；case type 非测试位置
+      覆盖 L0114；payload 候选只在唯一 case fact 下可访问。
 - [ ] 合法/非法 `is`/`!is`、nullable test 与无 RTTI 边界覆盖 L0106，结果精确为 Boolean。
 - [ ] local val/parameter/this、可赋值 var kill、capture kill、`!`/`&&`/`||` 与分支交集有测试。
 - [ ] Boolean/enum/nullable 覆盖、negative test、逗号 alternative、poison、重复及 else 位置覆盖 L0107–L0111。
-- [ ] value/statement context、expected type、Nothing、nullable/enum/Any join 覆盖 L0111/L0112。
+- [ ] value/statement context 由 owner 显式传递，不用 expected presence 猜测；expected type、
+      Nothing、nullable/enum/Any join 覆盖 L0111/L0112。
 - [ ] L0113 精确覆盖无事实与歧义 payload；已有 L0080 不抢占合法候选。
 - [ ] source/environment identity、重复运行、深条件/长 case 集预算、确定性顺序有测试。
 - [ ] frontend 与 workspace 基线、CLI build、Markdown 链接、diff 全通过，文档同步当前事实。
@@ -48,7 +52,7 @@
 1. [ ] 激活 v0.24，并把本 Spec 置为 `in-progress`。
 2. [ ] 建立 enum case identity 与 payload candidate name target。
 3. [ ] 建立 typed flow-key/fact/kill/join 模型和 type-test 检查。
-4. [ ] 实现 when coverage、context、branch join 与 L0106–L0113。
+4. [ ] 实现 when coverage、context、branch join 与 L0106–L0114。
 5. [ ] 补窄测、Phase 2 fixture、预算/确定性测试。
 6. [ ] 同步 Architecture/guide/Spec，运行 workspace 基线。
 7. [ ] 创建独立提交 `feat(frontend): check when exhaustiveness (SPEC-0021)`。
