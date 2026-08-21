@@ -1,19 +1,22 @@
-//! SPEC-0078 / SPEC-0098 / SPEC-0100 的结构性换行边界与公开产物不变量。
+//! SPEC-0078 / SPEC-0098 / SPEC-0100 / SPEC-0110 的结构性换行边界与公开产物不变量。
 
 use std::mem::{Discriminant, discriminant};
 
 use lang_frontend::{
-    lexer::{LexemeKind, lex},
+    lexer::LexemeKind,
     parser::{Expression, Item, ParsedFile, Statement, TypeRef, parse_file},
-    source::{SourceId, SourceMap, Span},
+    source::{SourceId, Span},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 #[path = "support/parser_line_break_carriers.rs"]
 mod parser_line_break_carriers;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 use parser_line_break_carriers::{
     Carrier, NON_BREAK_TRIVIA, STRUCTURAL_BREAKS, validate_carrier_lexemes,
 };
@@ -216,12 +219,12 @@ fn parse_twice(
     carrier: Carrier,
     context: &str,
 ) -> ParseFingerprint {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-line-break-matrix.ko", source)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) = lex_source_twice(
+        "parser-line-break-matrix.ko",
+        source,
+        context,
+        validate_lexed,
+    );
     validate_carrier_lexemes(&sources, &lexed, carrier_start, carrier, context);
     assert!(
         lexed.diagnostics().is_empty(),

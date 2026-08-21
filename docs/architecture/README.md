@@ -418,9 +418,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - `parser_line_break_boundary_matrix` integration test 将 LF、CRLF、line comment 终止换行及
   block comment 内 LF / CRLF 六个结构载体，与四个合法非换行 trivia 载体投放到文件头、
   顶层声明、class member、`when` entry 和 `return` 边界；另锁定 enum comma 与中缀连续性，
-  共执行 80 个 Lexer-clean 源码、160 次确定性完整文件解析；每例精确锁定 carrier 的
-  `TriviaKind` / spelling / byte 分段、lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic
-  Span、文件 roots 与 package / import directive Span；源码裸 CR 仍由 Lexer 以 L0001 拒绝；
+  共执行 80 个 Lexer-clean 源码，每例运行两次 Lexer 与两次完整文件 Parser，共验证 160 个
+  Lexer 和 160 个 Parser 产物。每例精确锁定 carrier 的 `TriviaKind` / spelling / byte 分段、
+  lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic Span、文件 roots、package / import
+  directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
+  本轮未发现生产缺陷；
 - `frontend_matrix_assertions` 为 prefix truncation、token omission / duplication / transposition 与
   lexical poison replacement / insertion 六个完整文件恢复矩阵提供共享解析入口；4,167 个主要
   变异 / 前缀 case 的两次产物均分别锁定 source identity、source-local AST / diagnostic 主与
