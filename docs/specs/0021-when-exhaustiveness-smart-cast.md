@@ -2,12 +2,12 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-021` |
 | 所属 Phase | Phase 2 |
-| 候选语言规范 | [v0.24 候选 §24](../guide/01-design-decisions.md#24-when-穷尽性与-smart-castv024-候选未启用) |
+| 语言规范 | [现行 v0.24 §24](../guide/01-design-decisions.md#24-when-穷尽性与-smart-castv024) |
 | 前置 Spec | SPEC-0016、SPEC-0020 `done` |
-| 阻塞项 | 用户尚未明确启用 v0.24 取代 v0.23 |
+| 阻塞项 | 无 |
 | 影响范围 | name-resolution enum case identity、typed flow facts、when/type-test、L0106–L0114、Phase 2 fixture、Architecture |
 
 ## 1. Goal
@@ -35,7 +35,7 @@
 
 ## 4. 验收标准
 
-- [ ] 用户明确启用 v0.24，Spec 从 `draft` 推进为 `in-progress`。
+- [x] 用户明确启用 v0.24，Spec 从 `draft` 推进为 `in-progress`。
 - [ ] enum case 在值/类型命名空间共享稳定身份；短名/限定名确定解析；case type 非测试位置
       覆盖 L0114；payload 候选只在唯一 case fact 下可访问。
 - [ ] 合法/非法 `is`/`!is`、nullable test 与无 RTTI 边界覆盖 L0106，结果精确为 Boolean。
@@ -49,7 +49,7 @@
 
 ## 5. 模块边界与实施顺序
 
-1. [ ] 激活 v0.24，并把本 Spec 置为 `in-progress`。
+1. [x] 激活 v0.24，并把本 Spec 置为 `in-progress`。
 2. [ ] 建立 enum case identity 与 payload candidate name target。
 3. [ ] 建立 typed flow-key/fact/kill/join 模型和 type-test 检查。
 4. [ ] 实现 when coverage、context、branch join 与 L0106–L0114。
@@ -62,7 +62,7 @@
 
 ## 6. 未决门禁
 
-- 唯一阻塞是 v0.24 尚未获得版本级明确启用；站立 Spec 授权不能替代该确认。
+- 无；v0.24 已获得版本级明确启用，正文已封闭实施所需语义选择。
 
 ## 7. 验证记录
 
