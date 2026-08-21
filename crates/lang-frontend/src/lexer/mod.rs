@@ -1,6 +1,8 @@
 //! Koven v1 的确定性词法模型与入口。
 
 mod scanner;
+#[cfg(test)]
+mod test_support;
 
 use std::{error::Error, fmt};
 
@@ -8,6 +10,9 @@ use crate::{
     diagnostic::{Diagnostic, DiagnosticCodeError, DiagnosticError},
     source::{SourceError, SourceId, SourceMap, Span},
 };
+
+#[cfg(test)]
+pub(crate) use test_support::lex_test_source_twice;
 
 /// 对一份已加载源码执行完整词法分析。
 ///

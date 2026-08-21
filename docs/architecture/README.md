@@ -408,6 +408,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   的全部源码路径均执行两次 Lexer 与两次对应 Parser，并逐次验证 root、header、AST、diagnostic 与
   完整公开产物不变量。512 roots 与 256 imports 长序列保持通过，测试文件不再直接调用 Lexer /
   Parser；本轮未发现生产缺陷；
+- Parser 的 12 个 engine、6 个 lambda-header trial 与 3 个 strict-call trial 私有算法测试实际执行
+  68 条 Lexer 输入路径：engine 43、lambda-header 8、strict-call trial 17。它们统一使用仅在
+  `cfg(test)` 编译的 Lexer typed helper，每条源码运行两次生产 Lexer，共验证 136 个产物的
+  source identity、连续 byte 覆盖、唯一 EOF、diagnostic primary / label Span 与全部私有字段
+  确定性；首个已验证产物继续供既有 owner recovery、dispatch、缓存、递归预算与线性复杂度
+  断言消费，三个 Parser 私有测试模块不再直接调用生产 `lex`，本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{lexer::lex, source::SourceMap};
+use crate::{lexer::lex_test_source_twice, source::SourceMap};
 
 #[test]
 fn lexical_recovery_indexes_only_strings_that_own_invalid_escapes() {
@@ -8,7 +8,7 @@ fn lexical_recovery_indexes_only_strings_that_own_invalid_escapes() {
     let source_id = sources
         .add_source("invalid-string-escape-owners.ko", text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "invalid string escape owners");
     let index = LexicalRecoveryIndex::new(text, &lexed).expect("recoveries must index");
     let openers = lexed
         .lexemes()
@@ -59,7 +59,7 @@ fn function_suffix_transfers_complete_string_poison_to_the_lexer_owner() {
         let source_id = sources
             .add_source("function-string-suffix.ko", text)
             .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexed = lex_test_source_twice(&sources, source_id, "function string suffix");
         let parsed = parse_declaration(&sources, &lexed)
             .expect("lexical poison must remain a user diagnostic");
         let actual = parsed
@@ -108,7 +108,7 @@ fn recovery_metrics(regions: usize) -> (usize, usize, usize) {
     let source_id = sources
         .add_source("declaration-recovery.ko", &text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "declaration recovery metrics");
     let source = sources
         .source_text(source_id)
         .expect("test source must remain available");
@@ -174,7 +174,7 @@ fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
     let source_id = sources
         .add_source("class-family-linear.ko", text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "class family metrics");
     let source = sources
         .source_text(source_id)
         .expect("test source must remain available");
@@ -284,7 +284,7 @@ fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) 
     let source_id = sources
         .add_source("call-recovery.ko", &text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "call recovery metrics");
     let source = sources
         .source_text(source_id)
         .expect("test source must remain available");
@@ -370,7 +370,7 @@ fn lambda_local_recovery_preserves_inherited_hard_closers() {
         let source_id = sources
             .add_source("lambda-local-recovery.ko", text)
             .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexed = lex_test_source_twice(&sources, source_id, "lambda local recovery");
         let parsed = parse(&sources, &lexed).expect("recovery must remain a user diagnostic");
         assert!(
             matches!(
@@ -400,7 +400,7 @@ fn postfix_propagation_metrics(questions: usize) -> (usize, usize) {
     let source_id = sources
         .add_source("postfix-propagation.ko", &text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "postfix propagation metrics");
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
     let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
@@ -448,7 +448,7 @@ fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
     let source_id = sources
         .add_source("block-dispatch.ko", &text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "block dispatch metrics");
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
     let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
@@ -518,7 +518,7 @@ fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
     let source_id = sources
         .add_source("lambda-body-dispatch.ko", &text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "lambda body dispatch metrics");
     let lexical_diagnostics = lexed.diagnostics().len();
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
@@ -598,7 +598,7 @@ fn terminal_owner_events_preserve_boundary_order_and_exact_owner() {
     let source_id = sources
         .add_source("terminal-owner-events.ko", text)
         .expect("test source name must be unique");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
+    let lexed = lex_test_source_twice(&sources, source_id, "terminal owner events");
     let index = LexicalRecoveryIndex::new(text, &lexed).expect("events must index");
     let bad_openers = text
         .match_indices("\"bad")
@@ -634,7 +634,7 @@ fn terminal_owner_events_preserve_boundary_order_and_exact_owner() {
     let nested_id = nested_sources
         .add_source("nested-terminal-owners.ko", nested_eof_text)
         .expect("test source name must be unique");
-    let nested_lexed = lex(&nested_sources, nested_id).expect("test source must lex");
+    let nested_lexed = lex_test_source_twice(&nested_sources, nested_id, "nested terminal owners");
     let nested_index = LexicalRecoveryIndex::new(nested_eof_text, &nested_lexed)
         .expect("suppressed outer owners must index");
     let outer_string = nested_eof_text.find('"').unwrap();
@@ -666,7 +666,7 @@ fn terminal_owner_events_preserve_boundary_order_and_exact_owner() {
     let escape_id = escape_sources
         .add_source("terminal-escape-owner.ko", escape_text)
         .expect("test source name must be unique");
-    let escape_lexed = lex(&escape_sources, escape_id).expect("test source must lex");
+    let escape_lexed = lex_test_source_twice(&escape_sources, escape_id, "terminal escape owner");
     let escape_index =
         LexicalRecoveryIndex::new(escape_text, &escape_lexed).expect("terminal escape must index");
     assert_eq!(

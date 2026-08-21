@@ -303,7 +303,7 @@ fn is_symbol(kind: LexemeKind, expected: Symbol) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{LexedFile, LexemeKind, Symbol, TokenKind, lex},
+        lexer::{LexedFile, LexemeKind, Symbol, TokenKind, lex_test_source_twice},
         source::SourceMap,
     };
 
@@ -314,7 +314,7 @@ mod tests {
         let source_id = sources
             .add_source("lambda-trial.ko", text)
             .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexed = lex_test_source_twice(&sources, source_id, "lambda header trial");
         let index = LambdaHeaderIndex::new(&lexed, &[]).expect("lexer output must index");
         (lexed, index)
     }
@@ -412,7 +412,8 @@ mod tests {
             let source_id = sources
                 .add_source("recovered-string.ko", text)
                 .expect("test source name must be unique");
-            let lexed = lex(&sources, source_id).expect("test source must lex");
+            let lexed =
+                lex_test_source_twice(&sources, source_id, "recovered string lambda header");
             let diagnostic = lexed
                 .diagnostics()
                 .first()
@@ -439,7 +440,7 @@ mod tests {
         let source_id = sources
             .add_source("nested-terminal.ko", text)
             .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexed = lex_test_source_twice(&sources, source_id, "nested terminal lambda header");
         let events = [
             TerminalOwnerEvent {
                 offset: text.len(),

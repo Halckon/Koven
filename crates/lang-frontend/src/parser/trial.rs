@@ -501,7 +501,7 @@ fn validate_lexeme_shape(lexed: &LexedFile) -> Result<(), ParserInternalError> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{LexemeKind, Symbol, TokenKind, lex},
+        lexer::{LexemeKind, Symbol, TokenKind, lex_test_source_twice},
         source::SourceMap,
     };
 
@@ -512,7 +512,7 @@ mod tests {
         let source_id = sources
             .add_source("trial.ko", text)
             .expect("test source name must be unique");
-        let lexed = lex(&sources, source_id).expect("test source must lex");
+        let lexed = lex_test_source_twice(&sources, source_id, "strict call trial");
         let index = StrictCallTrialIndex::new(&lexed).expect("lexer output must index");
         (lexed, index)
     }
