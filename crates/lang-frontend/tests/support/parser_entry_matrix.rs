@@ -14,7 +14,8 @@ use lang_frontend::{
 #[path = "frontend_output_assertions.rs"]
 mod frontend_output_assertions;
 
-use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+pub(crate) use frontend_output_assertions::validate_lexed;
+use frontend_output_assertions::{validate_ast, validate_diagnostics};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum EntryKind {

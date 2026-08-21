@@ -1,10 +1,9 @@
-//! SPEC-0091 / SPEC-0101 的独立入口 trivia 等价与词法分段不变量。
+//! SPEC-0091 / SPEC-0101 / SPEC-0113 的独立入口 trivia 等价与词法分段不变量。
 
-use lang_frontend::{
-    lexer::{LexemeKind, lex},
-    source::SourceMap,
-};
+use lang_frontend::lexer::LexemeKind;
 
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 #[path = "support/parser_entry_matrix.rs"]
 mod parser_entry_matrix;
 #[path = "support/parser_mutation_gaps.rs"]
@@ -14,7 +13,10 @@ mod parser_mutation_tokens;
 #[path = "support/parser_trivia_variants.rs"]
 mod parser_trivia_variants;
 
-use parser_entry_matrix::{ENTRY_CASES, EntryCase, EntrySyntaxShape, parse_entry_twice};
+use lexer_matrix_assertions::lex_source_twice;
+use parser_entry_matrix::{
+    ENTRY_CASES, EntryCase, EntrySyntaxShape, parse_entry_twice, validate_lexed,
+};
 use parser_mutation_gaps::{Gap, token_gaps};
 use parser_mutation_tokens::original_token_slots;
 use parser_trivia_variants::{TRIVIA_VARIANTS, TriviaVariant, validate_inserted_trivia};
@@ -51,11 +53,12 @@ fn parse_clean(
     insertions: &[(usize, TriviaVariant)],
     context: &str,
 ) -> (Vec<LexemeKind>, EntrySyntaxShape) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-entry-trivia-invariance.ko", source)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
+    let (sources, source_id, lexed) = lex_source_twice(
+        "parser-entry-trivia-invariance.ko",
+        source,
+        context,
+        validate_lexed,
+    );
     assert!(
         lexed.diagnostics().is_empty(),
         "Lexer diagnostics for {context}: {:?}\nsource={source:?}",
@@ -85,12 +88,12 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape_for_every_en
     for case in ENTRY_CASES {
         let index = case.kind.count_index();
         case_counts[index] += 1;
-        let mut baseline_sources = SourceMap::new();
-        let baseline_source_id = baseline_sources
-            .add_source("parser-entry-trivia-baseline.ko", case.source)
-            .expect("baseline source name must be unique");
-        let baseline_lexed =
-            lex(&baseline_sources, baseline_source_id).expect("baseline must lex internally");
+        let (_, _, baseline_lexed) = lex_source_twice(
+            "parser-entry-trivia-baseline.ko",
+            case.source,
+            case.name,
+            validate_lexed,
+        );
         let slots = original_token_slots(&baseline_lexed, case.source.len());
         token_counts[index] += slots.len();
         let gaps = token_gaps(slots.iter().map(|slot| (slot.kind, slot.span.end())));
