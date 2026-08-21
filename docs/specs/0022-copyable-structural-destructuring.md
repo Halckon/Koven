@@ -35,7 +35,7 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 
 - 在外部 `TypeEnvironment` 中绑定 intrinsic `Box` 身份；源码同名 class 保持普通名义类型，
   未绑定 intrinsic 时不得按拼写猜测。
-- 建立可缓存且递归安全的能力查询，至少区分 `Copyable`、`MoveOnly`、`Unknown`、`Error`；
+- 建立可缓存且递归安全的能力查询，精确区分 `Copyable`、`MoveOnly`、`Unknown`、`Error`；
   按 v0.25 §25.1 处理基础类型、`Nothing`、nullable、value class、enum、类型参数与 move-only
   类型，并在 generic substitution 后判定。
 - 扩展 type-argument bound 检查：interface bound 沿用 SPEC-0020，内建 `Copyable` bound
@@ -43,12 +43,13 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 - 按声明顺序建立 value-class field / enum payload 的内联图，nullable 为透明边，所有规定的
   handle 打断环；未经过 handle 再遇同一 nominal declaration 时不因泛型实参变化而无限展开。
   确定性报告 L0116，并阻止无效类型继续进入能力推导。
-- 对 intrinsic `Box` 精确检查 arity 与 type kind；非具体 value-class 实参产生 L0117，
-  `T : Copyable` 仍不足以证明合法。
+- 对 intrinsic `Box` 精确检查 arity 与 type kind；错误 arity 沿用 L0091，单个实参不是具体
+  value-class 时产生 L0117，`T : Copyable` 仍不足以证明合法。
 - 为局部 value-class 解构检查精确 arity并产生 L0118；记录 statement identity、源类型、
   Copy/Consume mode 及有序的 binding symbol / component type。initializer 只检查一次。
-- 局部解构中的 `_` 按普通绑定处理；非 value-class 解构继续使用专用 deferred reason，等待
-  一般 member/call 选择，不在本 Spec 猜测 `componentN()`。
+- 局部解构中的 `_` 继续由既有 Parser 以 L0042 拒绝，不进入名称或类型阶段；非 value-class
+  解构继续使用专用 deferred reason，等待一般 member/call 选择，不在本 Spec 猜测
+  `componentN()`。
 - 新增 Rust 窄测与 Phase 2 pass/fail fixture，锁定 source/environment identity、泛型替换、
   递归环顺序、诊断码/关键 Span、重复运行确定性和深图复杂度边界。
 
@@ -67,29 +68,42 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 - [ ] 用户明确启用 v0.25，本 Spec 从 `draft` 推进为 `in-progress`。
 - [ ] `Copyable` 查询覆盖全部封闭类型类别、实际泛型替换、能力上界和同名冒充反例；结果
       可供后续阶段按 stable type identity 查询。
-- [ ] enum payload、nullable、value-class field 的直接/间接内联环得到确定性 L0116；经
-      class/object/function/intrinsic Box/动态容器打断的环不误报。
+- [ ] enum payload、nullable、value-class field 的直接/间接内联环得到确定性 L0116；每个
+      循环强连通分量一条、代表环 labels 稳定；经 class/object/function/intrinsic Box/动态容器
+      打断的环不误报。
 - [ ] intrinsic `Box` 只接受具体 value-class instance；普通 class、enum、builtin、interface、
       function、type parameter 和源码同名 `Box` 的边界均有测试。
 - [ ] `Copyable` generic bound 的正反例覆盖 L0115、精确 primary/label、poison 抑制与 interface
       bound 回归。
-- [ ] value-class 局部解构覆盖 Copy/Consume、泛型替换、精确/过少/过多 arity、普通 `_`
-      binding、initializer 单次检查，以及非 value-class deferred 边界。
+- [ ] value-class 局部解构覆盖 Copy/Consume、泛型替换、精确/过少/过多 arity、既有 L0042
+      `_` 回归、initializer 单次检查，以及非 value-class deferred 边界。
 - [ ] 深名义图、重复查询、重复执行与声明顺序诊断保持确定性，并有与风险相称的复杂度预算。
 - [ ] `type_checking` 窄测、Phase 2 pass/fail fixture 与 workspace 标准基线全部通过；
       Architecture、guide 路线图和本 Spec 验收记录同步为实际事实。
 
 ## 6. 技术方案与边界
 
-- `type_checking/mod.rs` 继续作为稳定门面；在 `model.rs` 增加最小公开 typed descriptor，
-  不把递归算法堆回门面。
+- `type_checking/mod.rs` 继续作为稳定门面；`model.rs` 增加 `IntrinsicTypeConstructor::Box`、
+  `Copyability`、`DestructuringMode` 与按 `StatementId` 查询的 typed descriptor，不把递归算法
+  堆回门面。`TypeEnvironment::bind_intrinsic` 与 `TypeKind::Intrinsic` 按 identity 交接，
+  `substitute_type`、shape/type-name 等现有封闭匹配同步覆盖这一新 kind。
+- 当前 value-class 字段类型直到 `check_item` 才解析，无法支持“函数先于类型声明”时的解构。
+  因此在检查任何 root body 前新增名义分量预声明 pass：一次解析全部主构造器字段并保留其
+  TypeRef Span；enum payload 复用现有 `collect_enum_cases` 结果。后续 `check_item` 不得重复解析
+  或产生第二套字段事实。
 - intrinsic identity 与能力绑定归 `TypeEnvironment` / type model；声明图、替换和 nominal kind
-  复用现有 descriptor，不建立第二套名义数据库。
-- `checker` 下按单一职责增加能力 / 布局与解构检查模块；诊断只经集中 error catalog 产生。
+  复用现有 descriptor。typed 产物保存与最终 TypeTable 对齐的 `Copyability` 结果及源码顺序
+  destructuring descriptor，后续 Phase 不需重建第二套名义数据库。
+- `checker.rs` 当前已有 993 个物理行，不能继续承载独立职责。实现时先把现有 nominal 收集、
+  bound/interface pass 移入 `checker/nominal.rs`，flow metadata 移入 `checker/flow.rs`，并用
+  现有测试锁定行为；新算法分别放入职责明确的 `checker/copyability.rs`、`layout.rs` 与
+  `destructuring.rs`，每次提取后跑类型检查窄测。
 - 能力与布局递归使用显式 visitation state / memo，错误和环按源码声明顺序稳定输出；不得用
-  随机 hash 迭代决定诊断。
+  随机 hash 迭代决定诊断。布局错误保留 nominal TypeId，只把布局状态和 Copyability 标为
+  `Error`，避免用丢失 identity 的方式抑制级联。
 - 解构 descriptor 只描述类型层面的原子动作，不修改 AST，不伪造 `componentN()` call，也不
-  承担 Phase 3 的 move state。
+  承担 Phase 3 的 move state。L0118 恢复时不产生有效 descriptor；与字段对应的 binding
+  仍获得前缀分量类型，多余 binding 为 `Error`，initializer/type 已 poisoned 时不追加 L0118。
 
 ## 7. 实施计划
 
@@ -120,4 +134,7 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 |---|---|---|
 | Markdown 相对链接检查 | 通过 | `AGENTS.md` 与 `docs/**/*.md` 共 58 个文件的本地目标均存在 |
 | `git diff --check` | 通过 | 草案 diff 无空白错误 |
-| Cargo 基线 | 未执行 | 本提交只改 guide / Spec 草案；实现阶段按根 AGENTS 执行 |
+| `cargo test -p lang-frontend --test parser_local_destructuring --locked --offline` | 通过 | 14 passed；确认局部 `_` 由既有 L0042 路径拒绝 |
+| `cargo test -p lang-frontend --test name_resolution --locked --offline` | 通过 | 13 passed；确认 discard 不建立 symbol |
+| `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 29 passed；记录实施前 type-checker characterization baseline |
+| workspace Cargo 基线 | 未执行 | 当前只细化未启用候选；实现阶段按根 AGENTS 执行全量基线 |

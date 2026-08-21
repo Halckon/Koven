@@ -355,3 +355,5 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 4 | 封闭局部 value-class 解构的精确 arity、一次求值、Copy/Consume typed descriptor；局部 `_` 是普通绑定，`for` 中的 `_` 仍是专用 discard，不扩展成通用占位符 | 🔴 候选解构语义 |
 | 5 | 为 SPEC-0022 预分配 L0115–L0118；字段投影所有权、move-after-use、一般 component/member/call、容器和 codegen 继续后置 | 🟡 候选诊断与 Phase 边界 |
 | 6 | 勘误 companion 泛型函数示例：用不依赖类型 kind 证明的 `identity` 替换违反既有 Box 实参约束的 `empty(): Box<T>`，不改变 v0.24 语义 | 🟢 示例勘误 |
+| 7 | 候选实施审计纠正第 4 条的 `_` 子句：现有 Parser 已以 L0042 拒绝局部解构 `_`，v0.25 不扩展 Parser/名称语义；只有 `for` 的 `_` 是 discard。第 4 条的精确 arity 与 descriptor 契约不变 | 🟡 候选勘误（取代冲突子句） |
+| 8 | 补齐 Copyable 四态、每个循环 SCC 一条 L0116、Box 错误 arity 沿用 L0091，以及错误解构不产生有效 descriptor 的恢复边界 | 🟡 候选可执行性补全 |
