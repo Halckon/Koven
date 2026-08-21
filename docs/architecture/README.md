@@ -528,6 +528,13 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   两次 Lexer 与两次 Parser，均精确返回相同 `NestingLimitExceeded { limit: 1024 }`。矩阵锁定
   1,024 单位实现预算映射到不同调用路径后的源码边界，不把内部预算误作统一源码层数；本轮
   未发现生产缺陷；
+- `parser_stack_isolation_matrix` integration test 从四个相互独立的 64 KiB 调用线程分别执行
+  expression、declaration、block 与 file 公开入口，共验证 8 个递归边界源码、16 个 Lexer
+  产物和 16 个 Parser 结果。group 511 层、declaration generic type 1,023 层及 block / file
+  nested block 1,024 层均双运行成功并保持零诊断、有效 typed root、source-local AST /
+  diagnostic Span 与完整公开产物确定性；各自增加一层后均双运行返回相同
+  `NestingLimitExceeded { limit: 1024 }`。线程启动或 join 失败会显式使测试失败，因此四个入口
+  的边界递归继续由固定 Parser worker 承载，不依赖调用者线程栈大小；本轮未发现生产缺陷；
 - `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
