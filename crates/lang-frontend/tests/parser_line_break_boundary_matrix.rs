@@ -1,17 +1,75 @@
-//! SPEC-0078 的结构性换行 carrier 到语法边界矩阵。
+//! SPEC-0078 / SPEC-0098 的结构性换行边界与公开产物不变量。
 
 use std::mem::{Discriminant, discriminant};
 
 use lang_frontend::{
-    diagnostic::DiagnosticDetail,
-    lexer::{LexemeKind, lex},
+    lexer::{LexedFile, LexemeKind, TriviaKind, lex},
     parser::{Expression, Item, ParsedFile, Statement, TypeRef, parse_file},
     source::{SourceId, SourceMap, Span},
 };
 
-const STRUCTURAL_BREAKS: &[&str] = &["\n", "\r\n", "//c\n", "//c\r\n", "/*c\nc*/", "/*c\r\nc*/"];
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
 
-const NON_BREAK_TRIVIA: &[&str] = &[" ", "\t", "/*c*/", "/*c\rc*/"];
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+
+#[derive(Clone, Copy)]
+struct Carrier {
+    text: &'static str,
+    trivia: &'static [(TriviaKind, &'static str)],
+}
+
+const STRUCTURAL_BREAKS: &[Carrier] = &[
+    Carrier {
+        text: "\n",
+        trivia: &[(TriviaKind::Newline, "\n")],
+    },
+    Carrier {
+        text: "\r\n",
+        trivia: &[(TriviaKind::Newline, "\r\n")],
+    },
+    Carrier {
+        text: "//c\n",
+        trivia: &[
+            (TriviaKind::LineComment, "//c"),
+            (TriviaKind::Newline, "\n"),
+        ],
+    },
+    Carrier {
+        text: "//c\r\n",
+        trivia: &[
+            (TriviaKind::LineComment, "//c"),
+            (TriviaKind::Newline, "\r\n"),
+        ],
+    },
+    Carrier {
+        text: "/*c\nc*/",
+        trivia: &[(TriviaKind::BlockComment, "/*c\nc*/")],
+    },
+    Carrier {
+        text: "/*c\r\nc*/",
+        trivia: &[(TriviaKind::BlockComment, "/*c\r\nc*/")],
+    },
+];
+
+const NON_BREAK_TRIVIA: &[Carrier] = &[
+    Carrier {
+        text: " ",
+        trivia: &[(TriviaKind::Whitespace, " ")],
+    },
+    Carrier {
+        text: "\t",
+        trivia: &[(TriviaKind::Whitespace, "\t")],
+    },
+    Carrier {
+        text: "/*c*/",
+        trivia: &[(TriviaKind::BlockComment, "/*c*/")],
+    },
+    Carrier {
+        text: "/*c\rc*/",
+        trivia: &[(TriviaKind::BlockComment, "/*c\rc*/")],
+    },
+];
 
 #[derive(Clone, Copy)]
 struct BoundaryCase {
@@ -111,6 +169,76 @@ fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
     assert!(span.end() <= source_len);
 }
 
+fn validate_carrier_lexemes(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+    carrier_start: usize,
+    carrier: Carrier,
+    context: &str,
+) {
+    let carrier_end = carrier_start + carrier.text.len();
+    let actual = lexed
+        .lexemes()
+        .iter()
+        .filter(|lexeme| {
+            let span = lexeme.span();
+            span.start() >= carrier_start && span.end() <= carrier_end && span.start() < span.end()
+        })
+        .map(|lexeme| {
+            let LexemeKind::Trivia(kind) = lexeme.kind() else {
+                panic!(
+                    "carrier produced non-trivia {:?} for {context}",
+                    lexeme.kind()
+                );
+            };
+            let text = sources
+                .slice(lexeme.span())
+                .unwrap_or_else(|error| panic!("invalid carrier span for {context}: {error}"));
+            (kind, text)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, carrier.trivia, "carrier lexeme drift for {context}");
+}
+
+fn validate_parsed_file(
+    source_id: SourceId,
+    source_len: usize,
+    parsed: &ParsedFile,
+    context: &str,
+) {
+    assert_eq!(parsed.source_id(), source_id);
+    validate_ast(source_id, source_len, parsed.ast());
+    validate_diagnostics(source_id, source_len, parsed.diagnostics());
+    for root in parsed.roots() {
+        parsed
+            .ast()
+            .items()
+            .get(*root)
+            .unwrap_or_else(|error| panic!("invalid file root for {context}: {error}"));
+    }
+    if let Some(package) = parsed.package() {
+        validate_span(source_id, source_len, package.span);
+        validate_span(source_id, source_len, package.keyword_span);
+        for segment in &package.segments {
+            validate_span(source_id, source_len, segment.span);
+        }
+    }
+    for import in parsed.imports() {
+        validate_span(source_id, source_len, import.span);
+        validate_span(source_id, source_len, import.keyword_span);
+        for segment in &import.segments {
+            validate_span(source_id, source_len, segment.span);
+        }
+        if let Some(span) = import.wildcard_span {
+            validate_span(source_id, source_len, span);
+        }
+        if let Some(alias) = import.alias {
+            validate_span(source_id, source_len, alias.as_span);
+            validate_span(source_id, source_len, alias.name_span);
+        }
+    }
+}
+
 fn syntax_shape(parsed: &ParsedFile) -> SyntaxShape {
     let ast = parsed.ast();
     SyntaxShape {
@@ -166,12 +294,19 @@ fn syntax_shape(parsed: &ParsedFile) -> SyntaxShape {
     }
 }
 
-fn parse_twice(source: &str, context: &str) -> ParseFingerprint {
+fn parse_twice(
+    source: &str,
+    carrier_start: usize,
+    carrier: Carrier,
+    context: &str,
+) -> ParseFingerprint {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("parser-line-break-matrix.ko", source)
         .expect("matrix source name must be unique");
     let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
+    validate_lexed(source_id, source.len(), &lexed);
+    validate_carrier_lexemes(&sources, &lexed, carrier_start, carrier, context);
     assert!(
         lexed.diagnostics().is_empty(),
         "Lexer diagnostics for {context}: {:?}",
@@ -190,20 +325,19 @@ fn parse_twice(source: &str, context: &str) -> ParseFingerprint {
         .unwrap_or_else(|error| panic!("first parse failed for {context}: {error}"));
     let repeated = parse_file(&sources, &lexed)
         .unwrap_or_else(|error| panic!("repeated parse failed for {context}: {error}"));
+    for parsed in [&first, &repeated] {
+        validate_parsed_file(source_id, source.len(), parsed, context);
+    }
+    assert_eq!(
+        syntax_shape(&first),
+        syntax_shape(&repeated),
+        "non-deterministic syntax shape for {context}"
+    );
     assert_eq!(
         format!("{first:?}"),
         format!("{repeated:?}"),
         "non-deterministic parse for {context}"
     );
-    for diagnostic in first.diagnostics() {
-        validate_span(source_id, source.len(), diagnostic.primary_span());
-        for detail in diagnostic.details() {
-            if let DiagnosticDetail::Label(label) = detail {
-                validate_span(source_id, source.len(), label.span());
-            }
-        }
-    }
-
     ParseFingerprint {
         significant_kinds,
         diagnostic_codes: first
@@ -232,20 +366,25 @@ fn line_break_carriers_share_boundaries_and_non_break_trivia_does_not() {
     assert!(
         STRUCTURAL_BREAKS
             .iter()
-            .all(|carrier| carrier.contains('\n'))
+            .all(|carrier| carrier.text.contains('\n'))
     );
     assert!(
         NON_BREAK_TRIVIA
             .iter()
-            .all(|carrier| !carrier.contains('\n'))
+            .all(|carrier| !carrier.text.contains('\n'))
     );
 
     let mut executed = 0;
     for case in BOUNDARY_CASES {
         let mut structural_baseline = None;
         for carrier in STRUCTURAL_BREAKS {
-            let context = format!("{} structural {carrier:?}", case.name);
-            let parsed = parse_twice(&source(case.prefix, carrier, case.suffix), &context);
+            let context = format!("{} structural {:?}", case.name, carrier.text);
+            let parsed = parse_twice(
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
+                &context,
+            );
             assert!(
                 parsed.diagnostic_codes.is_empty(),
                 "unexpected structural diagnostics for {context}: {:?}",
@@ -261,8 +400,13 @@ fn line_break_carriers_share_boundaries_and_non_break_trivia_does_not() {
 
         let mut non_break_baseline = None;
         for carrier in NON_BREAK_TRIVIA {
-            let context = format!("{} non-break {carrier:?}", case.name);
-            let parsed = parse_twice(&source(case.prefix, carrier, case.suffix), &context);
+            let context = format!("{} non-break {:?}", case.name, carrier.text);
+            let parsed = parse_twice(
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
+                &context,
+            );
             assert_eq!(
                 parsed.diagnostic_codes, case.non_break_codes,
                 "unexpected non-break diagnostics for {context}"
@@ -311,8 +455,13 @@ fn newline_does_not_replace_enum_comma_or_split_an_infix_expression() {
     for case in INVARIANT_CASES {
         let mut baseline = None;
         for carrier in carriers.clone() {
-            let context = format!("{} with {carrier:?}", case.name);
-            let parsed = parse_twice(&source(case.prefix, carrier, case.suffix), &context);
+            let context = format!("{} with {:?}", case.name, carrier.text);
+            let parsed = parse_twice(
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
+                &context,
+            );
             assert_eq!(
                 parsed.diagnostic_codes, case.codes,
                 "unexpected diagnostics for {context}"

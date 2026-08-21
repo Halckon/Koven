@@ -407,7 +407,9 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - `parser_line_break_boundary_matrix` integration test 将 LF、CRLF、line comment 终止换行及
   block comment 内 LF / CRLF 六个结构载体，与四个合法非换行 trivia 载体投放到文件头、
   顶层声明、class member、`when` entry 和 `return` 边界；另锁定 enum comma 与中缀连续性，
-  共执行 80 个 Lexer-clean 源码、160 次确定性完整文件解析；源码裸 CR 仍由 Lexer 以 L0001 拒绝；
+  共执行 80 个 Lexer-clean 源码、160 次确定性完整文件解析；每例精确锁定 carrier 的
+  `TriviaKind` / spelling / byte 分段、lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic
+  Span、文件 roots 与 package / import directive Span；源码裸 CR 仍由 Lexer 以 L0001 拒绝；
 - `parser_prefix_truncation_matrix` integration test 以 22 个 Lexer / Parser-clean 完整文件覆盖
   文件头、声明、callable、block、lambda、control-flow、postfix、class-family、接口委托、
   运算符层级及 Unicode 嵌套 string / interpolation；其 1,373 个 UTF-8 scalar 前缀均保持

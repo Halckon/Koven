@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079、SPEC-0080、SPEC-0081、SPEC-0082、SPEC-0083、SPEC-0084、SPEC-0085、SPEC-0086、SPEC-0087、SPEC-0088、SPEC-0089、SPEC-0090、SPEC-0091、SPEC-0092、SPEC-0093、SPEC-0094、SPEC-0095、SPEC-0096、SPEC-0097 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079、SPEC-0080、SPEC-0081、SPEC-0082、SPEC-0083、SPEC-0084、SPEC-0085、SPEC-0086、SPEC-0087、SPEC-0088、SPEC-0089、SPEC-0090、SPEC-0091、SPEC-0092、SPEC-0093、SPEC-0094、SPEC-0095、SPEC-0096、SPEC-0097、SPEC-0098 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -126,6 +126,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0095](./0095-parser-lexical-owner-output-invariants.md) | 强化 lexical-owner 矩阵的 Lexer / AST / diagnostic / root / sentinel 不变量（`done`） | 0006、0014、0075、0093、0094 `done`；当前持续 Goal 的站立授权 |
 | [0096](./0096-parser-diagnostic-witness-output-invariants.md) | 强化 Parser diagnostic witness 的 Lexer / AST / diagnostic / root / directive 不变量（`done`） | 0003、0014、0076、0093–0095 `done`；当前持续 Goal 的站立授权 |
 | [0097](./0097-parser-trivia-output-invariants.md) | 强化 Parser trivia 等价矩阵的 Lexer / AST / diagnostic / root / directive 不变量（`done`） | 0006、0014、0077、0093–0096 `done`；当前持续 Goal 的站立授权 |
+| [0098](./0098-parser-line-break-output-invariants.md) | 强化 line-break carrier 分段及 Parser AST / diagnostic / root / directive 不变量（`done`） | 0006、0014、0078、0093–0097 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 
