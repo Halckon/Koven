@@ -7,6 +7,191 @@ use crate::{
     source::SourceId,
 };
 
+/// 由 classifier 声明 symbol 派生的稳定名义身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NominalId(SymbolId);
+
+impl NominalId {
+    pub(crate) const fn new(symbol: SymbolId) -> Self {
+        Self(symbol)
+    }
+
+    /// 返回定义该名义类型的源码 symbol。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.0
+    }
+}
+
+/// 名义声明的表示类别。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NominalKind {
+    /// Inline value-semantics classifier.
+    ValueClass,
+    /// Heap reference-semantics classifier.
+    Class,
+    /// Static interface contract.
+    Interface,
+    /// Algebraic enum classifier.
+    EnumClass,
+    /// Named singleton classifier.
+    Object,
+}
+
+/// typed 产物中的源码有序名义声明描述符。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NominalDescriptor {
+    pub(crate) id: NominalId,
+    pub(crate) kind: NominalKind,
+    pub(crate) type_parameters: Vec<SymbolId>,
+    pub(crate) direct_interfaces: Vec<TypeId>,
+    pub(crate) interfaces: Vec<TypeId>,
+    pub(crate) fields: Vec<SymbolId>,
+    pub(crate) variants: Vec<SymbolId>,
+    pub(crate) members: Vec<SymbolId>,
+}
+
+impl NominalDescriptor {
+    /// 返回声明派生的名义身份。
+    #[must_use]
+    pub const fn id(&self) -> NominalId {
+        self.id
+    }
+    /// 返回 classifier 表示类别。
+    #[must_use]
+    pub const fn kind(&self) -> NominalKind {
+        self.kind
+    }
+    /// 返回源码声明顺序的类型参数 symbol。
+    #[must_use]
+    pub fn type_parameters(&self) -> &[SymbolId] {
+        &self.type_parameters
+    }
+    /// 返回验证后的直接 interface 实例。
+    #[must_use]
+    pub fn direct_interfaces(&self) -> &[TypeId] {
+        &self.direct_interfaces
+    }
+    /// 返回替换后的直接与传递 interface closure。
+    #[must_use]
+    pub fn interfaces(&self) -> &[TypeId] {
+        &self.interfaces
+    }
+    /// 返回主构造器字段 symbol。
+    #[must_use]
+    pub fn fields(&self) -> &[SymbolId] {
+        &self.fields
+    }
+    /// 返回 enum 变体 symbol。
+    #[must_use]
+    pub fn variants(&self) -> &[SymbolId] {
+        &self.variants
+    }
+    /// 返回实例 member callable symbol。
+    #[must_use]
+    pub fn members(&self) -> &[SymbolId] {
+        &self.members
+    }
+}
+
+/// 类型参数的规范化单一上界。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TypeParameterBound {
+    /// Omitted or explicit top bound.
+    Any,
+    /// Static interface instance.
+    Interface(TypeId),
+    /// Compiler-owned structural capability.
+    Capability(Capability),
+    /// Invalid source bound retained for cascade suppression.
+    Error,
+}
+
+/// typed 产物中的源码类型参数描述符。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TypeParameterDescriptor {
+    pub(crate) symbol: SymbolId,
+    pub(crate) bound: TypeParameterBound,
+}
+
+impl TypeParameterDescriptor {
+    /// 返回声明 symbol。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.symbol
+    }
+
+    /// 返回规范化上界。
+    #[must_use]
+    pub const fn bound(self) -> TypeParameterBound {
+        self.bound
+    }
+}
+
+/// 经静态验证的接口委托转发计划。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DelegationPlan {
+    pub(crate) owner: NominalId,
+    pub(crate) interface: TypeId,
+    pub(crate) target: SymbolId,
+}
+
+/// 已规范化的顶层或实例 member callable 签名。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableDescriptor {
+    pub(crate) symbol: SymbolId,
+    pub(crate) owner: Option<NominalId>,
+    pub(crate) type_parameters: Vec<SymbolId>,
+    pub(crate) parameters: Vec<FunctionParameterType>,
+    pub(crate) return_type: TypeId,
+}
+
+impl CallableDescriptor {
+    /// 返回函数声明 symbol。
+    #[must_use]
+    pub const fn symbol(&self) -> SymbolId {
+        self.symbol
+    }
+    /// 返回实例 member owner；顶层函数为 `None`。
+    #[must_use]
+    pub const fn owner(&self) -> Option<NominalId> {
+        self.owner
+    }
+    /// 返回 callable 自身的源码顺序类型参数。
+    #[must_use]
+    pub fn type_parameters(&self) -> &[SymbolId] {
+        &self.type_parameters
+    }
+    /// 返回包含参数模式的规范化参数。
+    #[must_use]
+    pub fn parameters(&self) -> &[FunctionParameterType] {
+        &self.parameters
+    }
+    /// 返回规范化返回类型。
+    #[must_use]
+    pub const fn return_type(&self) -> TypeId {
+        self.return_type
+    }
+}
+
+impl DelegationPlan {
+    /// 返回拥有该委托的 ordinary class。
+    #[must_use]
+    pub const fn owner(self) -> NominalId {
+        self.owner
+    }
+    /// 返回完整 invariant interface 实例。
+    #[must_use]
+    pub const fn interface(self) -> TypeId {
+        self.interface
+    }
+    /// 返回同一主构造器的 immutable field symbol。
+    #[must_use]
+    pub const fn target(self) -> SymbolId {
+        self.target
+    }
+}
+
 use super::TypeCheckingError;
 
 /// v0.22 基础阶段识别的内建类型身份。
@@ -82,6 +267,15 @@ pub enum ParameterMode {
     Inout,
 }
 
+/// 编译器预声明、由后续阶段结构化求值的封闭能力。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Capability {
+    /// Value can be duplicated without user-defined copy glue.
+    Copyable,
+    /// Value can be transferred across threads.
+    Transferable,
+}
+
 /// 外部签名使用的递归类型描述；进入 typed 产物后会被规范化为 [`TypeId`]。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EnvironmentType {
@@ -121,6 +315,7 @@ pub struct EnvironmentFunction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExternalTypeBinding {
     Builtin(BuiltinType),
+    Capability(Capability),
     Value(EnvironmentType),
     Function(EnvironmentFunction),
 }
@@ -153,6 +348,19 @@ impl TypeEnvironment {
         self.bind(
             symbol,
             ExternalTypeBinding::Builtin(builtin),
+            ExternalSymbolKind::Type,
+        )
+    }
+
+    /// 把外部 type symbol 绑定为编译器封闭能力身份。
+    pub fn bind_capability(
+        &mut self,
+        symbol: ExternalSymbolId,
+        capability: Capability,
+    ) -> Result<(), TypeCheckingError> {
+        self.bind(
+            symbol,
+            ExternalTypeBinding::Capability(capability),
             ExternalSymbolKind::Type,
         )
     }
@@ -294,6 +502,19 @@ pub enum TypeKind {
         /// Return type.
         return_type: TypeId,
     },
+    /// Invariant instantiation of a source nominal declaration.
+    Nominal {
+        /// Source classifier identity.
+        nominal: NominalId,
+        /// Ordered invariant type arguments.
+        arguments: Vec<TypeId>,
+    },
+    /// Source type parameter identity.
+    TypeParameter(SymbolId),
+    /// Static `Self` inside an interface default body.
+    StaticSelf(TypeId),
+    /// Predeclared structural capability used only as a generic bound.
+    Capability(Capability),
     /// Integer literal constraint before contextual selection.
     IntegerLiteral(IntegerConstraint),
     /// Error recovery type.
@@ -378,24 +599,40 @@ pub struct TypedFile {
     expression_types: Vec<TypeId>,
     type_ref_types: Vec<TypeId>,
     symbol_types: Vec<TypeId>,
+    nominals: Vec<NominalDescriptor>,
+    type_parameters: Vec<TypeParameterDescriptor>,
+    delegations: Vec<DelegationPlan>,
+    callables: Vec<CallableDescriptor>,
     diagnostics: Vec<Diagnostic>,
+}
+
+pub(crate) struct TypedFileParts {
+    pub(crate) expression_types: Vec<TypeId>,
+    pub(crate) type_ref_types: Vec<TypeId>,
+    pub(crate) symbol_types: Vec<TypeId>,
+    pub(crate) nominals: Vec<NominalDescriptor>,
+    pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
+    pub(crate) delegations: Vec<DelegationPlan>,
+    pub(crate) callables: Vec<CallableDescriptor>,
 }
 
 impl TypedFile {
     pub(crate) fn new(
         source_id: SourceId,
         types: TypeTable,
-        expression_types: Vec<TypeId>,
-        type_ref_types: Vec<TypeId>,
-        symbol_types: Vec<TypeId>,
+        parts: TypedFileParts,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
             source_id,
             types,
-            expression_types,
-            type_ref_types,
-            symbol_types,
+            expression_types: parts.expression_types,
+            type_ref_types: parts.type_ref_types,
+            symbol_types: parts.symbol_types,
+            nominals: parts.nominals,
+            type_parameters: parts.type_parameters,
+            delegations: parts.delegations,
+            callables: parts.callables,
             diagnostics,
         }
     }
@@ -428,6 +665,30 @@ impl TypedFile {
     /// 查询源码 symbol 类型。
     pub fn symbol_type(&self, id: SymbolId) -> Option<TypeId> {
         self.symbol_types.get(id.index()).copied()
+    }
+
+    /// 返回源码声明顺序的名义类型描述符。
+    #[must_use]
+    pub fn nominals(&self) -> &[NominalDescriptor] {
+        &self.nominals
+    }
+
+    /// 返回源码 symbol 顺序的类型参数描述符。
+    #[must_use]
+    pub fn type_parameters(&self) -> &[TypeParameterDescriptor] {
+        &self.type_parameters
+    }
+
+    /// 返回源码顺序的有效静态接口委托计划。
+    #[must_use]
+    pub fn delegations(&self) -> &[DelegationPlan] {
+        &self.delegations
+    }
+
+    /// 返回源码声明顺序的已知 callable 签名。
+    #[must_use]
+    pub fn callables(&self) -> &[CallableDescriptor] {
+        &self.callables
     }
 
     #[must_use]

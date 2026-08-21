@@ -1,0 +1,9 @@
+interface Protocol<T> {
+    fun apply(input: T): T
+}
+
+class Plain {}
+
+class Broken(val plain: Plain) : Protocol<Int> by plain {
+    fun apply(input: Int): Long = 1L
+}

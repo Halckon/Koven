@@ -5,8 +5,29 @@ use crate::{
 
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TypeUse {
+    Runtime,
+    Static,
+}
+
 impl Checker<'_> {
     pub(super) fn resolve_type_ref(&mut self, id: TypeRefId) -> Result<TypeId, TypeCheckingError> {
+        self.resolve_type_ref_for(id, TypeUse::Runtime)
+    }
+
+    pub(super) fn resolve_static_type_ref(
+        &mut self,
+        id: TypeRefId,
+    ) -> Result<TypeId, TypeCheckingError> {
+        self.resolve_type_ref_for(id, TypeUse::Static)
+    }
+
+    fn resolve_type_ref_for(
+        &mut self,
+        id: TypeRefId,
+        usage: TypeUse,
+    ) -> Result<TypeId, TypeCheckingError> {
         if let Some(ty) = self.type_ref_types[id.index()] {
             return Ok(ty);
         }
@@ -44,8 +65,82 @@ impl Checker<'_> {
                                 self.external_type(external)?
                             }
                         }
-                        Some(ReferenceTarget::Symbol(_)) => {
-                            self.deferred(DeferredReason::NominalOrTypeParameter)
+                        Some(ReferenceTarget::Symbol(symbol)) => {
+                            match self.symbol_kinds.get(symbol.index()).copied() {
+                                Some(crate::name_resolution::SymbolKind::TypeParameter) => {
+                                    if segment.arguments.is_empty() {
+                                        self.types.intern(TypeKind::TypeParameter(symbol))
+                                    } else {
+                                        self.emit_with_label(
+                                            self.type_argument_arity_code,
+                                            "type parameter does not accept type arguments",
+                                            self.ast()
+                                                .type_refs()
+                                                .get(segment.arguments[0])?
+                                                .span(),
+                                            self.symbol_spans[symbol.index()],
+                                            "type parameter declared here",
+                                        )?;
+                                        self.error_type()
+                                    }
+                                }
+                                Some(crate::name_resolution::SymbolKind::Classifier) => {
+                                    let Some(nominal) =
+                                        self.nominal_by_symbol.get(&symbol).copied()
+                                    else {
+                                        return Err(TypeCheckingError::InvalidExternalBinding);
+                                    };
+                                    let expected = self
+                                        .nominals
+                                        .iter()
+                                        .find(|descriptor| descriptor.id() == nominal)
+                                        .map(|descriptor| descriptor.type_parameters().len())
+                                        .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+                                    if segment.arguments.len() != expected {
+                                        self.emit_with_label(
+                                            self.type_argument_arity_code,
+                                            "nominal type has the wrong number of type arguments",
+                                            segment.name_span,
+                                            self.symbol_spans[symbol.index()],
+                                            format!("expected {expected} type arguments"),
+                                        )?;
+                                        self.error_type()
+                                    } else {
+                                        let arguments = segment
+                                            .arguments
+                                            .iter()
+                                            .map(|&argument| self.resolve_type_ref(argument))
+                                            .collect::<Result<Vec<_>, _>>()?;
+                                        if arguments.iter().any(|&argument| self.is_error(argument))
+                                        {
+                                            self.error_type()
+                                        } else {
+                                            let is_interface =
+                                                self.nominals.iter().any(|descriptor| {
+                                                    descriptor.id() == nominal
+                                                        && descriptor.kind()
+                                                            == NominalKind::Interface
+                                                });
+                                            if usage == TypeUse::Runtime && is_interface {
+                                                self.emit_with_label(
+                                                    self.interface_runtime_value_code,
+                                                    "interface cannot be used as a runtime value type without dyn",
+                                                    self.ast().type_refs().get(id)?.span(),
+                                                    self.symbol_spans[symbol.index()],
+                                                    "interface declared here",
+                                                )?;
+                                                self.error_type()
+                                            } else {
+                                                self.types.intern(TypeKind::Nominal {
+                                                    nominal,
+                                                    arguments,
+                                                })
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => self.error_type(),
+                            }
                         }
                         Some(ReferenceTarget::Unresolved | ReferenceTarget::LaterLocal(_))
                         | None => self.error_type(),
@@ -54,7 +149,9 @@ impl Checker<'_> {
                             | ReferenceTarget::ExternalOverloadSet(_),
                         ) => return Err(TypeCheckingError::InvalidExternalBinding),
                     };
-                    if matches!(self.kind(base), TypeKind::Builtin(BuiltinType::Any)) {
+                    if usage == TypeUse::Runtime
+                        && matches!(self.kind(base), TypeKind::Builtin(BuiltinType::Any))
+                    {
                         base = self.deferred(DeferredReason::AnyValueRepresentation);
                     }
                     if nullable_span.is_some() && !self.is_error(base) && !self.is_deferred(base) {

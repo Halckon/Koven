@@ -1,0 +1,14 @@
+interface Base<T> {
+    fun read(input: T): T
+}
+
+interface Named : Base<Int> {
+    fun name(): String = "named"
+}
+
+class Reader : Named {
+    override fun read(input: Int): Int = input
+    override fun name(): String = "reader"
+}
+
+class Holder(val reader: Reader) : Named by reader {}

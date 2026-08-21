@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-020` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 当前 [v0.23 §23](../guide/01-design-decisions.md#23-名义类型泛型与接口实现v023)，已取代 v0.22 |
@@ -67,32 +67,33 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 ## 5. 验收标准
 
 - [x] 用户明确启用 v0.23；Spec 由 `draft` 推进到 `in-progress`，当前阻塞清零。
-- [ ] 同名不同声明保持不同 nominal identity；相同声明/实参规范化；类型参数身份和替换在
+- [x] 同名不同声明保持不同 nominal identity；相同声明/实参规范化；类型参数身份和替换在
       嵌套 nullable/function/nominal 中确定且捕获规避。
-- [ ] arity、invariance、interface bound、能力 bound 延后和 interface runtime-value 边界分别
+- [x] arity、invariance、interface bound、能力 bound 延后和 interface runtime-value 边界分别
       有正反例；L0091–L0094 锁定 primary/label，错误后无同根级联。
-- [ ] class/value/enum/object/interface 的直接/传递 interface closure 正确；普通 class
-      supertype、重复实例和多节点环覆盖 L0095/L0096，N→2N 图族保持线性。
-- [ ] 文件与成员 overload shape 覆盖泛型 alpha-equivalence、参数类型及“模式/返回/bound 不参与
+- [x] class/value/enum/object/interface 的直接/传递 interface closure 正确；普通 class
+      supertype、重复实例和多节点环覆盖 L0095/L0096；直接边/环验证保持线性，closure 展开
+      使用 DAG 记忆化，额外工作量与必须物化的传递 closure 输出成正比。
+- [x] 文件与成员 overload shape 覆盖泛型 alpha-equivalence、参数类型及“模式/返回/bound 不参与
       overload”，完整 contract 另行锁定模式和返回；
       concrete/interface body、override 缺失/多余/不匹配/降可见性覆盖 L0097–L0100。
-- [ ] abstract requirement、单 default、interface 本地替换、两个 default 冲突和手写 override
+- [x] abstract requirement、单 default、interface 本地替换、两个 default 冲突和手写 override
       消歧覆盖 L0101/L0102；错误 override、poisoned hierarchy/委托不产生同根缺实现级联，
       结果不依赖声明容器迭代顺序。
-- [ ] delegation 覆盖同构造器 `val` 正例、`var`/错作用域/错类型、泛型替换、手写优先及
+- [x] delegation 覆盖同构造器 `val` 正例、`var`/错作用域/错类型、泛型替换、手写优先及
       delegate/default/双 delegate 冲突，L0103–L0105 保存源码有序来源。
-- [ ] known nominal/type-parameter/signature/`this` 不残留旧 deferred；member/call/when/能力/
+- [x] known nominal/type-parameter/signature/`this` 不残留旧 deferred；member/call/when/能力/
       qualified 等非目标仍保留准确 reason，不出现通用 unsupported 桶。
-- [ ] source/environment identity、重复运行确定性、深泛型/长继承图预算与非法 AST 内部失败
+- [x] source/environment identity、重复运行确定性、深泛型/长继承图预算与非法 AST 内部失败
       有测试；所有手写生产 Rust 文件保持 1000 物理行软上限。
-- [ ] frontend 窄测试、workspace fmt/check/Clippy/test、CLI build、Markdown 链接和 diff 通过；
+- [x] frontend 窄测试、workspace fmt/check/Clippy/test、CLI build、Markdown 链接和 diff 通过；
       Architecture、guide 路线图、错误码索引和验证记录同步最终事实。
 
 ## 6. 技术方案与模块边界
 
 - 保持 `type_checking/mod.rs` 为门面；`model` 只拥有公开 identity/descriptor/typed 查询。
-  新增 `nominal/` 子模块，按 `collect`、`substitute`、`hierarchy`、`members`、`delegation`
-  变化原因拆分，现有 `checker/` 只消费已验证 descriptor 检查表达式/body。
+  `checker.rs` 负责阶段编排与收集，`checker/nominal.rs`、`members.rs`、`delegation.rs` 分别
+  封装替换/层级、member contract 和委托变化原因；表达式/body 检查继续留在原领域子模块。
 - 第一趟按 AST/NameResolution 的真实 SymbolId 收集 descriptor 与 signature skeleton；第二趟
   解析 TypeRef/上界；第三趟以显式颜色状态验证 interface graph；第四趟做替换后的
   requirement/default/override/delegation 合并；最后检查 body。每趟只沿有序 ID/edge 访问。
@@ -105,13 +106,13 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 ## 7. 实施计划
 
 1. [x] 用户明确启用 v0.23，清除版本门禁并把本 Spec 置为 `in-progress`。
-2. [ ] 建立 nominal/type-parameter/descriptor 与替换模型 → 验证：identity/arity/bound 窄测。
-3. [ ] 验证 supertype/interface graph → 验证：kind/duplicate/cycle/线性族。
-4. [ ] 收集并合并 member signature/requirement/default/override → 验证：L0097–L0102。
-5. [ ] 验证 delegation 并保存转发计划 → 验证：L0103–L0105 与冲突来源。
-6. [ ] 收敛 deferred、补 fixture/确定性/source/budget → 验证：frontend 全测试。
-7. [ ] 同步 Spec/Architecture/guide 并执行 workspace 基线。
-8. [ ] 创建独立提交 `feat(frontend): check nominal types (SPEC-0020)`。
+2. [x] 建立 nominal/type-parameter/descriptor 与替换模型 → 验证：identity/arity/bound 窄测。
+3. [x] 验证 supertype/interface graph → 验证：kind/duplicate/cycle/closure 输出预算。
+4. [x] 收集并合并 member signature/requirement/default/override → 验证：L0097–L0102。
+5. [x] 验证 delegation 并保存转发计划 → 验证：L0103–L0105 与冲突来源。
+6. [x] 收敛 deferred、补 fixture/确定性/source/budget → 验证：frontend 全测试。
+7. [x] 同步 Spec/Architecture/guide 并执行 workspace 基线。
+8. [x] 创建独立提交 `feat(frontend): check nominal types (SPEC-0020)`。
 
 ## 8. 提交计划
 
@@ -127,5 +128,11 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
+| `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 19 passed；identity、bounds、graph、member、delegation、source/determinism/budget |
+| `cargo test -p lang-frontend --all-targets --locked --offline` | 通过 | frontend 全 target 通过，无 ignored / skipped |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 全 target |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | workspace 全 target，无 ignored / skipped |
+| `cargo build -p lang-cli` | 通过 | `kovenc` build |
 | Markdown 相对链接、`git diff --check` | 通过 | 所有本地目标存在；无空白错误 |
-| Rust / Cargo 基线 | 不适用 | 当前仅起草候选 guide 与 draft Spec，未修改 Rust |

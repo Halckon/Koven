@@ -43,7 +43,11 @@ impl Checker<'_> {
                 falls_through: true,
             },
             Expression::This => ExprCheck {
-                ty: self.deferred(DeferredReason::ThisType),
+                ty: self
+                    .classifiers
+                    .last()
+                    .copied()
+                    .unwrap_or_else(|| self.deferred(DeferredReason::ThisType)),
                 falls_through: true,
             },
             Expression::Literal(literal) => {

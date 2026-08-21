@@ -36,7 +36,7 @@ impl Checker<'_> {
                 } => {
                     let mut parameter_types = Vec::with_capacity(parameters.len());
                     let mut has_error = false;
-                    let mut has_deferred = !type_parameters.is_empty();
+                    let mut has_deferred = false;
                     for parameter in parameters {
                         let ty = self.resolve_type_ref(parameter.type_ref)?;
                         has_error |= self.is_error(ty);
@@ -50,6 +50,7 @@ impl Checker<'_> {
                     let return_type = self.function_return_type(form)?;
                     has_error |= self.is_error(return_type);
                     has_deferred |= self.is_deferred(return_type);
+                    let function_parameters = parameter_types.clone();
                     let function = if has_error {
                         self.error_type()
                     } else if has_deferred {
@@ -62,6 +63,36 @@ impl Checker<'_> {
                         })
                     };
                     self.set_marker_symbol(name, function);
+                    if let NameMarker::Present(span) = name
+                        && let Some(symbol) = self.symbol_at(span)
+                    {
+                        let type_parameters = type_parameters
+                            .iter()
+                            .filter_map(|parameter| match parameter.name {
+                                NameMarker::Present(span) => self.symbol_at(span),
+                                _ => None,
+                            })
+                            .collect();
+                        let owner = self
+                            .nominal_by_scope
+                            .get(&self.symbol_scopes[symbol.index()])
+                            .copied();
+                        if let Some(owner) = owner
+                            && let Some(descriptor) = self
+                                .nominals
+                                .iter_mut()
+                                .find(|descriptor| descriptor.id() == owner)
+                        {
+                            descriptor.members.push(symbol);
+                        }
+                        self.typed_callables.push(CallableDescriptor {
+                            symbol,
+                            owner,
+                            type_parameters,
+                            parameters: function_parameters,
+                            return_type,
+                        });
+                    }
                 }
                 _ => {}
             }
@@ -98,6 +129,23 @@ impl Checker<'_> {
             }
             Item::Function { form, .. } => self.check_function(form)?,
             Item::Classifier(classifier) => {
+                let classifier_type = match classifier.name {
+                    NameMarker::Present(span) => self
+                        .symbol_at(span)
+                        .and_then(|symbol| self.symbol_type(symbol)),
+                    NameMarker::Missing(_) | NameMarker::Error(_) => None,
+                };
+                if let Some(ty) = classifier_type {
+                    let this_type = if matches!(
+                        classifier.kind,
+                        crate::parser::ClassifierKind::Interface { .. }
+                    ) {
+                        self.types.intern(TypeKind::StaticSelf(ty))
+                    } else {
+                        ty
+                    };
+                    self.classifiers.push(this_type);
+                }
                 if let Some(constructor) = classifier.primary_constructor {
                     for field in constructor.fields {
                         let ty = self.resolve_type_ref(field.type_ref)?;
@@ -105,13 +153,22 @@ impl Checker<'_> {
                     }
                 }
                 for supertype in classifier.supertypes {
-                    self.resolve_type_ref(supertype.type_ref)?;
+                    self.resolve_static_type_ref(supertype.type_ref)?;
                 }
                 if let Some(body) = classifier.body {
                     self.check_classifier_body(body)?;
                 }
+                if classifier_type.is_some() {
+                    self.classifiers.pop();
+                }
             }
-            Item::Companion(companion) => self.check_classifier_body(companion.body)?,
+            Item::Companion(companion) => {
+                let owner = self.classifiers.pop();
+                self.check_classifier_body(companion.body)?;
+                if let Some(owner) = owner {
+                    self.classifiers.push(owner);
+                }
+            }
         }
         Ok(())
     }
@@ -183,7 +240,10 @@ impl Checker<'_> {
         Ok(())
     }
 
-    fn function_return_type(&mut self, form: FunctionForm) -> Result<TypeId, TypeCheckingError> {
+    pub(super) fn function_return_type(
+        &mut self,
+        form: FunctionForm,
+    ) -> Result<TypeId, TypeCheckingError> {
         match form {
             FunctionForm::ImplicitUnitAbsent | FunctionForm::ImplicitUnitBlock(_) => {
                 Ok(self.builtin(BuiltinType::Unit))
@@ -363,7 +423,7 @@ impl Checker<'_> {
     }
 }
 
-fn item_parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
+pub(super) fn item_parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
     match marker {
         None => ParameterMode::Value,
         Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,

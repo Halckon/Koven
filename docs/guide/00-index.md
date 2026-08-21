@@ -73,7 +73,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.22 完整记录 + v0.23 候选记录（含 v0.13 结构调整说明） | ~320 | 只追加，不修改 |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.23 完整记录（含 v0.13 结构调整说明） | ~320 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -129,7 +129,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | `04-grammar-declarations-blocks.md` §13 | ✅ 已实现 |
 | SPEC-0018 | 单文件声明收集、作用域与名称诊断 | `01-design-decisions.md` §21 | ✅ 已实现 |
 | SPEC-0019 | 基础类型、局部推导与函数返回检查 | `01-design-decisions.md` §22 | ✅ 已完成 |
-| SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | `01-design-decisions.md` §23 | 🚧 实施中 |
+| SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | `01-design-decisions.md` §23 | ✅ 已完成 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -157,7 +157,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0078 | 已实现的 SPEC-0064 expected delegation target | `04-grammar-declarations-blocks.md` §13.3–13.4 |
 | L0079–L0081 | 已实现的 duplicate / unresolved / use-before-local 名称诊断 | `01-design-decisions.md` §21.3 |
 | L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；SPEC-0019 已实现 | `01-design-decisions.md` §22.5 |
-| L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 实施中 | `01-design-decisions.md` §23.5 |
+| L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 已实现 | `01-design-decisions.md` §23.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

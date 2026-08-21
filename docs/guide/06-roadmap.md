@@ -154,9 +154,9 @@ fun main(): Unit {
 - [x] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
       字面量定型、局部推导、单向 expected type、隐式 `Unit` / 显式返回类型、`Nothing`
       bottom 与 L0082–L0090。
-- [ ] **SPEC-0020（前置已完成；v0.23 已明确启用，实施中）**：建立名义/泛型 identity 与替换、
+- [x] **SPEC-0020（前置已完成；v0.23 已明确启用）**：建立名义/泛型 identity 与替换、
       interface hierarchy/requirement/default、显式 override 和 `Interface by valField` 静态
-      委托检查；诊断 L0091–L0105。启用前不得进入实现。
+      委托检查；诊断 L0091–L0105。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、

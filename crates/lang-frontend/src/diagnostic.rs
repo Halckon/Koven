@@ -101,6 +101,21 @@ pub mod codes {
     pub(crate) const MISSING_RETURN: &str = "L0088";
     pub(crate) const NO_COMMON_BRANCH_TYPE: &str = "L0089";
     pub(crate) const NUMERIC_LITERAL_OUT_OF_RANGE: &str = "L0090";
+    pub(crate) const TYPE_ARGUMENT_ARITY: &str = "L0091";
+    pub(crate) const INVALID_TYPE_BOUND: &str = "L0092";
+    pub(crate) const TYPE_ARGUMENT_BOUND: &str = "L0093";
+    pub(crate) const INTERFACE_RUNTIME_VALUE: &str = "L0094";
+    pub(crate) const INVALID_SUPERTYPE: &str = "L0095";
+    pub(crate) const INTERFACE_CYCLE: &str = "L0096";
+    pub(crate) const DUPLICATE_CALLABLE_SHAPE: &str = "L0097";
+    pub(crate) const CONCRETE_MEMBER_BODY: &str = "L0098";
+    pub(crate) const INTERFACE_MEMBER_MISMATCH: &str = "L0099";
+    pub(crate) const INVALID_OVERRIDE: &str = "L0100";
+    pub(crate) const MISSING_INTERFACE_MEMBER: &str = "L0101";
+    pub(crate) const DEFAULT_MEMBER_CONFLICT: &str = "L0102";
+    pub(crate) const INVALID_DELEGATION_TARGET: &str = "L0103";
+    pub(crate) const DELEGATE_INTERFACE_MISMATCH: &str = "L0104";
+    pub(crate) const DELEGATION_MEMBER_CONFLICT: &str = "L0105";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -194,6 +209,21 @@ pub mod codes {
         MISSING_RETURN,
         NO_COMMON_BRANCH_TYPE,
         NUMERIC_LITERAL_OUT_OF_RANGE,
+        TYPE_ARGUMENT_ARITY,
+        INVALID_TYPE_BOUND,
+        TYPE_ARGUMENT_BOUND,
+        INTERFACE_RUNTIME_VALUE,
+        INVALID_SUPERTYPE,
+        INTERFACE_CYCLE,
+        DUPLICATE_CALLABLE_SHAPE,
+        CONCRETE_MEMBER_BODY,
+        INTERFACE_MEMBER_MISMATCH,
+        INVALID_OVERRIDE,
+        MISSING_INTERFACE_MEMBER,
+        DEFAULT_MEMBER_CONFLICT,
+        INVALID_DELEGATION_TARGET,
+        DELEGATE_INTERFACE_MISMATCH,
+        DELEGATION_MEMBER_CONFLICT,
     ];
 
     /// 由集中定义创建生产错误码目录。

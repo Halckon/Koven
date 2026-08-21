@@ -1,14 +1,14 @@
 //! SPEC-0019 基础类型、局部推导和返回契约集成测试。
 
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     lexer::lex,
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        BuiltinType, DeferredReason, TypeCheckingError, TypeEnvironment, TypeKind, TypedFile,
-        check_types,
+        BuiltinType, Capability, DeferredReason, TypeCheckingError, TypeEnvironment, TypeKind,
+        TypedFile, check_types,
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -54,9 +54,24 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             builtin,
         ));
     }
+    let capabilities = [
+        (
+            names.declare_type("Copyable").expect("Copyable"),
+            Capability::Copyable,
+        ),
+        (
+            names.declare_type("Transferable").expect("Transferable"),
+            Capability::Transferable,
+        ),
+    ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types.bind_builtin(symbol, builtin).expect("binding");
+    }
+    for (symbol, capability) in capabilities {
+        types
+            .bind_capability(symbol, capability)
+            .expect("capability binding");
     }
     (names, types)
 }
@@ -79,6 +94,21 @@ fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
         .iter()
         .map(|diagnostic| diagnostic.code().to_string())
         .collect()
+}
+
+fn diagnostic_spans<'a>(sources: &'a SourceMap, diagnostic: &Diagnostic) -> (&'a str, &'a str) {
+    let primary = sources
+        .slice(diagnostic.primary_span())
+        .expect("primary text");
+    let label = diagnostic
+        .details()
+        .iter()
+        .find_map(|detail| match detail {
+            DiagnosticDetail::Label(label) => sources.slice(label.span()).ok(),
+            DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+        })
+        .expect("diagnostic label");
+    (primary, label)
 }
 
 fn literal_type(
@@ -234,12 +264,299 @@ fn environment_identity_is_explicit_and_duplicate_or_wrong_bindings_fail_loud() 
         duplicate.bind_builtin(int, BuiltinType::Int),
         Err(TypeCheckingError::InvalidExternalBinding)
     ));
+    let copyable = names
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "Copyable")
+        .expect("Copyable")
+        .id();
+    assert!(matches!(
+        duplicate.bind_capability(copyable, Capability::Copyable),
+        Err(TypeCheckingError::InvalidExternalBinding)
+    ));
 }
 
 #[test]
 fn numeric_overflow_is_a_source_diagnostic_not_an_internal_failure() {
     let (_, _, _, typed) = checked("val huge = 340282366920938463463374607431768211456");
     assert_eq!(codes(typed.diagnostics()), ["L0090"]);
+}
+
+#[test]
+fn nominal_and_type_parameter_identity_is_known_and_arity_is_exact() {
+    let text = "class Box<T>(val item: T) {}\n\
+                class Left {}\n\
+                class Right {}\n\
+                fun inspect(left: Box<Int>, again: Box<Int>, missing: Box, many: Left<Int>): Unit";
+    let (sources, parsed, resolution, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0091", "L0091"]);
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[0]),
+        ("Box", "Box")
+    );
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[1]),
+        ("Left", "Left")
+    );
+    assert_eq!(typed.nominals().len(), 3);
+    assert_ne!(typed.nominals()[1].id(), typed.nominals()[2].id());
+
+    let mut box_types = parsed
+        .ast()
+        .type_refs()
+        .iter()
+        .filter(|(_, node)| sources.slice(node.span()) == Ok("Box<Int>"))
+        .map(|(id, _)| typed.type_ref_type(id).expect("typed Box<Int>"));
+    let first = box_types.next().expect("first Box<Int>");
+    assert_eq!(box_types.next(), Some(first));
+    assert!(
+        matches!(typed.types().get(first), Some(TypeKind::Nominal { arguments, .. }) if arguments.len() == 1)
+    );
+
+    let type_parameter = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| {
+            symbol.name() == "T"
+                && matches!(
+                    symbol.kind(),
+                    lang_frontend::name_resolution::SymbolKind::TypeParameter
+                )
+        })
+        .expect("type parameter");
+    assert!(matches!(
+        typed.symbol_type(type_parameter.id()).and_then(|id| typed.types().get(id)),
+        Some(TypeKind::TypeParameter(symbol)) if *symbol == type_parameter.id()
+    ));
+}
+
+#[test]
+fn bounds_are_static_but_interfaces_are_not_runtime_value_types() {
+    let text = "interface Protocol {}\n\
+                class Concrete {}\n\
+                class Good<T: Protocol> : Protocol {}\n\
+                class AnyBound<T: Any> {}\n\
+                class CopyBound<T: Copyable> {}\n\
+                class BadClass<T: Concrete> {}\n\
+                class BadNullable<T: Protocol?> {}\n\
+                fun bad(input: Protocol): Unit";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0092", "L0092", "L0094"]);
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[0]),
+        ("Concrete", "T")
+    );
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[1]),
+        ("Protocol?", "T")
+    );
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[2]),
+        ("Protocol", "Protocol")
+    );
+    assert!(typed.type_parameters().iter().any(|parameter| matches!(
+        parameter.bound(),
+        lang_frontend::type_checking::TypeParameterBound::Interface(_)
+    )));
+}
+
+#[test]
+fn direct_interface_edges_reject_classes_duplicates_and_cycles() {
+    let (_, _, _, non_interface) = checked("class Parent {}\nclass Child : Parent {}");
+    assert_eq!(codes(non_interface.diagnostics()), ["L0095"]);
+
+    let (_, _, _, duplicate) =
+        checked("interface Protocol<T> {}\nclass Both : Protocol<Int>, Protocol<Long> {}");
+    assert_eq!(codes(duplicate.diagnostics()), ["L0095"]);
+
+    let (_, _, _, cycle) = checked("interface Left : Right {}\ninterface Right : Left {}");
+    assert_eq!(codes(cycle.diagnostics()), ["L0096"]);
+}
+
+#[test]
+fn interface_closure_substitutes_invariant_arguments_and_checks_bounds() {
+    let text = "interface Base<T> {}\n\
+                interface Mid<U> : Base<U> {}\n\
+                class Good : Mid<Int> {}\n\
+                class Wrong : Mid<Long> {}\n\
+                class Holder<T: Base<Int>> {}\n\
+                class Generic<U: Mid<Int>> { fun pass(input: Holder<U>): Unit {} }\n\
+                fun inspect(good: Holder<Good>, bad: Holder<Wrong>): Unit";
+    let (sources, _, resolution, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0093"]);
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[0]),
+        ("Wrong", "T")
+    );
+    let good = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "Good")
+        .expect("Good");
+    let descriptor = typed
+        .nominals()
+        .iter()
+        .find(|descriptor| descriptor.id().symbol() == good.id())
+        .expect("Good descriptor");
+    assert_eq!(descriptor.direct_interfaces().len(), 1);
+    assert_eq!(descriptor.interfaces().len(), 2);
+}
+
+#[test]
+fn overload_shape_is_alpha_equivalent_and_concrete_members_need_bodies() {
+    let text = "fun <T> pick(input: T): Int = 1\n\
+                fun <U> pick(other: U): Long = 1L\n\
+                fun mode(input: Int): Unit {}\n\
+                fun mode(borrow other: Int): Unit {}\n\
+                interface Contract { fun required(input: Int): Unit }\n\
+                class Concrete { fun missing(input: Int): Unit; fun okay(): Unit {} }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0097", "L0097", "L0098"]);
+}
+
+#[test]
+fn interface_replacements_and_overrides_require_exact_contracts() {
+    let (_, _, _, replacement) = checked(
+        "interface Base { fun act(input: Int): Int }\n\
+         interface Child : Base { fun act(input: Int): Long }",
+    );
+    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
+
+    let text = "interface Required { fun run(input: Int): Int }\n\
+                class Missing : Required {}\n\
+                class NeedsOverride : Required { fun run(input: Int): Int = 1 }\n\
+                class BadReturn : Required { override fun run(input: Int): Long = 1L }\n\
+                class Extra { override fun lone(): Unit {} }\n\
+                class Hidden : Required { private override fun run(input: Int): Int = 1 }\n\
+                class Good : Required { override fun run(input: Int): Int = 1 }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0101", "L0100", "L0100", "L0100", "L0100"]
+    );
+}
+
+#[test]
+fn abstract_requirements_accept_one_default_but_multiple_defaults_conflict() {
+    let text = "interface Abstract { fun ping(): Int }\n\
+                interface Left { fun ping(): Int = 1 }\n\
+                interface Right { fun ping(): Int = 2 }\n\
+                interface Child : Left { fun ping(): Int = 3 }\n\
+                class Covered : Abstract, Left {}\n\
+                class Shadowed : Child {}\n\
+                class Conflict : Left, Right {}\n\
+                class Resolved : Left, Right { override fun ping(): Int = 3 }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0102"]);
+}
+
+#[test]
+fn interface_delegation_validates_targets_types_and_conflicts() {
+    let valid = "interface Draw { fun draw(): Unit }\n\
+                 class Renderer : Draw { override fun draw(): Unit {} }\n\
+                 class Screen(val renderer: Renderer) : Draw by renderer {}\n\
+                 class Generic<T: Draw>(val target: T) : Draw by target {}";
+    let (_, _, _, typed) = checked(valid);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.delegations().len(), 2);
+
+    let invalid = "interface Draw { fun draw(): Unit }\n\
+                   class Renderer : Draw { override fun draw(): Unit {} }\n\
+                   class Other {}\n\
+                   val outside: Renderer = this\n\
+                   class Mutable(var renderer: Renderer) : Draw by renderer {}\n\
+                   class WrongScope(val actual: Renderer) : Draw by outside {}\n\
+                   class Wrong(val other: Other) : Draw by other {}";
+    let (_, _, _, typed) = checked(invalid);
+    assert_eq!(codes(typed.diagnostics()), ["L0103", "L0103", "L0104"]);
+
+    let conflicts = "interface Draw { fun act(): Unit }\n\
+                     interface Reset { fun act(): Unit }\n\
+                     interface Default { fun act(): Unit {} }\n\
+                     class Drawer : Draw { override fun act(): Unit {} }\n\
+                     class Resetter : Reset { override fun act(): Unit {} }\n\
+                     class Two(val draw: Drawer, val reset: Resetter) : Draw by draw, Reset by reset {}\n\
+                     class Mixed(val draw: Drawer) : Draw by draw, Default {}\n\
+                     class Resolved(val draw: Drawer, val reset: Resetter) : Draw by draw, Reset by reset { override fun act(): Unit {} }";
+    let (_, _, _, typed) = checked(conflicts);
+    assert_eq!(codes(typed.diagnostics()), ["L0105", "L0105"]);
+}
+
+#[test]
+fn generic_signatures_and_legal_this_types_are_known() {
+    let text = "fun <T> identity(item: T): T = item\n\
+                class Sample { fun self(): Sample = this }\n\
+                interface Protocol { fun touch(): Unit { val current = this } }";
+    let (_, parsed, resolution, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let identity = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "identity")
+        .expect("identity");
+    assert!(matches!(
+        typed
+            .symbol_type(identity.id())
+            .and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Function { .. })
+    ));
+    let identity_descriptor = typed
+        .callables()
+        .iter()
+        .find(|callable| callable.symbol() == identity.id())
+        .expect("identity descriptor");
+    assert!(identity_descriptor.owner().is_none());
+    assert_eq!(identity_descriptor.type_parameters().len(), 1);
+    assert!(
+        typed
+            .callables()
+            .iter()
+            .any(|callable| callable.owner().is_some())
+    );
+    let this_kinds = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| matches!(node.payload(), lang_frontend::parser::Expression::This))
+        .map(|(id, _)| {
+            typed
+                .expression_type(id)
+                .and_then(|ty| typed.types().get(ty))
+                .expect("typed this")
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(this_kinds[0], TypeKind::Nominal { .. }));
+    assert!(matches!(this_kinds[1], TypeKind::StaticSelf(_)));
+}
+
+#[test]
+fn deep_generic_and_long_interface_graphs_stay_deterministic() {
+    let mut text = String::from("class Box<T> {}\ninterface I0 {}\n");
+    for index in 1..64 {
+        text.push_str(&format!("interface I{index} : I{} {{}}\n", index - 1));
+    }
+    text.push_str("class Leaf : I63 {}\nfun deep(input: ");
+    for _ in 0..96 {
+        text.push_str("Box<");
+    }
+    text.push_str("Int");
+    for _ in 0..96 {
+        text.push('>');
+    }
+    text.push_str("): Unit {}\n");
+    let (_, _, resolution, typed) = checked(&text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let leaf = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "Leaf")
+        .expect("Leaf");
+    let descriptor = typed
+        .nominals()
+        .iter()
+        .find(|descriptor| descriptor.id().symbol() == leaf.id())
+        .expect("Leaf descriptor");
+    assert_eq!(descriptor.interfaces().len(), 64);
 }
 
 #[test]
@@ -267,7 +584,7 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     assert!(resolution.diagnostics().is_empty());
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    assert!(typed.diagnostics().is_empty());
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
 
     let mut reasons = BTreeSet::new();
     for (id, _) in parsed.ast().expressions().iter() {
@@ -295,10 +612,8 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
     }
     for expected in [
         DeferredReason::AnyValueRepresentation,
-        DeferredReason::NominalOrTypeParameter,
         DeferredReason::QualifiedType,
         DeferredReason::ForwardValueType,
-        DeferredReason::ThisType,
         DeferredReason::MemberAccess,
         DeferredReason::Call,
         DeferredReason::Index,
@@ -306,7 +621,6 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
         DeferredReason::ErrorPropagation,
         DeferredReason::OverloadSelection,
         DeferredReason::WhenTyping,
-        DeferredReason::ControlJoin,
         DeferredReason::Destructuring,
     ] {
         assert!(
@@ -325,7 +639,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 1, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 2, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);
