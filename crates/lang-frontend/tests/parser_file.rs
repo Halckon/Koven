@@ -1,10 +1,16 @@
-//! SPEC-0014 完整文件组合与跨声明恢复契约测试。
+//! SPEC-0014 / SPEC-0128 完整文件组合与跨声明恢复契约测试。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::lex,
-    parser::{Item, ParsedFile, parse_declaration, parse_file},
+    parser::{Item, ParsedFile},
     source::{SourceId, SourceMap},
+};
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{
+    lex_and_parse_declaration_twice, parse_declaration_twice, parse_file_twice,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
@@ -14,8 +20,7 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn parsed(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "file.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -213,19 +218,19 @@ fn terminal_string_recovery_returns_to_file_baseline_before_recognizing_boundary
 #[test]
 fn standalone_declaration_keeps_its_trailing_token_contract() {
     let mut sources = SourceMap::new();
-    let source_id = add_source(&mut sources, "standalone.ko", "val x=1 val y=2");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let text = "val x=1 val y=2";
+    let source_id = add_source(&mut sources, "standalone.ko", text);
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     assert_eq!(codes(parsed.diagnostics()), ["L0013"]);
 }
 
 #[test]
 fn standalone_declaration_does_not_accept_a_trailing_semicolon() {
     let mut sources = SourceMap::new();
-    let source_id = add_source(&mut sources, "standalone-semicolon.ko", "val x=1;");
-    let lexed = lex(&sources, source_id).expect("lex");
+    let text = "val x=1;";
+    let source_id = add_source(&mut sources, "standalone-semicolon.ko", text);
+    let (lexed, parsed) = lex_and_parse_declaration_twice(&sources, source_id, text);
     assert!(lexed.diagnostics().is_empty());
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
     assert_eq!(codes(parsed.diagnostics()), ["L0013"]);
 }
 
@@ -234,8 +239,7 @@ fn parsed_file_preserves_map_local_source_identity() {
     let mut sources = SourceMap::new();
     let first = add_source(&mut sources, "first.ko", "val a=1");
     let second = add_source(&mut sources, "second.ko", "val b=2");
-    let lexed = lex(&sources, second).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, second, "second file source");
     assert_eq!(parsed.source_id(), second);
     assert_ne!(parsed.source_id(), first);
 }

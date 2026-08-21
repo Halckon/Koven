@@ -402,6 +402,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   与 source-order 断言；全部正常源码路径均执行两次 Lexer 与两次 declaration Parser，并逐次验证
   相同公开产物不变量。仅故意跨 `SourceMap` 的 identity 错误直接调用 Parser 并继续精确返回
   `ParserInternalError::Source`；本轮未发现生产缺陷；
+- `parser_file` 的 27 个核心 integration test 保持空文件、package / import、alias / wildcard、声明
+  分隔、未知区域、Lexer poison、nested owner、跨声明恢复、source identity、standalone declaration
+  与 L0001、L0010、L0013、L0017、L0020、L0033、L0043、L0047–L0054 断言；file / declaration
+  的全部源码路径均执行两次 Lexer 与两次对应 Parser，并逐次验证 root、header、AST、diagnostic 与
+  完整公开产物不变量。512 roots 与 256 imports 长序列保持通过，测试文件不再直接调用 Lexer /
+  Parser；本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
