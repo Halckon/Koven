@@ -8,9 +8,12 @@ use lang_frontend::{lexer::lex, parser::ParsedFile, source::SourceMap};
 mod frontend_matrix_assertions;
 #[path = "support/parser_grammar_corpus.rs"]
 mod parser_grammar_corpus;
+#[path = "support/parser_prefixes.rs"]
+mod parser_prefixes;
 
 use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
+use parser_prefixes::prefix_ends;
 
 fn parse_prefix(source: &str, context: &str) -> ParsedFile {
     let mut sources = SourceMap::new();
@@ -20,17 +23,6 @@ fn parse_prefix(source: &str, context: &str) -> ParsedFile {
     let lexed = lex(&sources, source_id).expect("matrix prefix must lex internally");
     validate_lexed(source_id, source.len(), &lexed);
     parse_file_twice(&sources, source_id, source.len(), &lexed, context)
-}
-
-fn prefix_ends(source: &str) -> Vec<usize> {
-    let mut ends = Vec::with_capacity(source.chars().count() + 1);
-    ends.push(0);
-    ends.extend(
-        source
-            .char_indices()
-            .map(|(start, character)| start + character.len_utf8()),
-    );
-    ends
 }
 
 #[test]

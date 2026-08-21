@@ -404,6 +404,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   文件头、声明、callable、block、lambda、control-flow、postfix、class-family、接口委托、
   运算符层级及 Unicode 嵌套 string / interpolation；其 1,373 个 UTF-8 scalar 前缀均保持
   lexeme 完整覆盖、唯一末尾 EOF、有界诊断 / AST Span，并完成两次确定性完整文件解析；
+- `parser_entry_prefix_truncation_matrix` integration test 以 12 个 Lexer / Parser-clean 独立源码按
+  expression / declaration / block 各 4 个覆盖 callable、control-flow、运算符、lambda、泛型、
+  class-family、局部解构、loop-family 与 Unicode lexical owner；三个入口分别执行 195 / 350 /
+  202 个 UTF-8 scalar 前缀，共 747 个 case、1,494 次生产解析，逐例锁定连续 lexeme 覆盖、
+  唯一末尾 EOF、source-local 诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未
+  发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
