@@ -547,10 +547,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
   本轮未发现生产缺陷；
 - `frontend_matrix_assertions` 为 prefix / suffix truncation、interior deletion、scalar / token
-  duplication、token omission / transposition 与 lexical poison replacement / insertion 九个完整文件
-  恢复矩阵提供共享双 Lexer / 双 Parser 入口；51,860 个主要变异 / 截断 case、198 个 baseline /
-  complete case 与 2 个定向 omission 回归合计 52,060 个 source case，共验证 104,120 个 Lexer 和
-  104,120 个 Parser 产物。两阶段产物锁定
+  duplication / transposition、token omission 与 lexical poison replacement / insertion 十个完整文件
+  恢复矩阵提供共享双 Lexer / 双 Parser 入口；53,164 个主要变异 / 截断 case、220 个 baseline /
+  complete case 与 2 个定向 omission 回归合计 53,386 个 source case，共验证 106,772 个 Lexer 和
+  106,772 个 Parser 产物。两阶段产物锁定
   source identity、lexeme 完整覆盖与唯一 EOF、source-local AST / diagnostic 主与 label Span、
   文件 roots、package / import directive Span，并比较完整公开产物确定性；内部区间删除矩阵
   发现并修复一项生产缺陷，详见下项；
@@ -597,6 +597,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   矩阵不添加分隔空格，直接覆盖 identifier、数字、运算符、注释 opener 与 segmented string /
   interpolation 内部边界，并保持连续覆盖、唯一 EOF、source-local AST / diagnostic Span、有效
   root 与公开产物确定性；本轮未发现生产缺陷；
+- `parser_scalar_transposition_matrix` 在相同 22-file corpus 枚举 1,329 个相邻 UTF-8 scalar
+  pair，排除 25 个相同字符 no-op 后精确执行 1,304 个 mutation；加上 22 个 clean preflight
+  共 1,326 个 source case，验证 2,652 个 Lexer 和 2,652 个完整文件 Parser 产物。
+  `parser_entry_scalar_transposition_matrix` 在 12-entry corpus 按 expression / declaration / block
+  分别枚举 187 / 342 / 194 个 pair，排除 4 / 7 / 3 个 no-op 后执行 183 / 335 / 191 个 mutation；
+  加上 12 个 preflight 共 721 个 source case，验证 1,442 个 Lexer 和 1,442 个对应入口 Parser
+  产物。两个矩阵不添加分隔空格，覆盖 lexeme 与 lexical-owner 内部邻接，并锁定源码长度不变、
+  变异非 no-op、连续覆盖、唯一 EOF、source-local AST / diagnostic Span、有效 root 与公开产物
+  确定性；本轮未发现生产缺陷；
 - `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
   分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
   mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span；加上 12 个 baseline 共 252 个
