@@ -440,6 +440,14 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   `LexicalRecoveryIndex` 重复拒绝 8 次，expression、declaration、block、file 四个 engine 入口
   重复拒绝 32 次，全部精确返回 `InvalidLexemeStream`。这为 diagnostic 与 token owner 的生产关联
   增加独立负向证据，本轮未发现生产缺陷；
+- `LexicalRecoveryIndex` 还统一验证 L0001–L0008 的生产 lexeme anchor：L0001 / L0003 / L0006 /
+  L0007 / L0008 必须与同 Span、同 `InvalidKind` 的 lexeme 对应，L0002 必须与同 Span 的
+  ReservedWord token 对应，L0004 / L0005 必须锚定诊断起点处的 StringStart / InterpolationStart。
+  anchor 查找复用已经过结构校验的 lexeme 起点顺序做二分定位，复杂度为 O(D log L)；
+  test-only corpus 从七份独立双 Lexer 产物移除 unexpected character、reserved word、unterminated
+  block comment、非终止 / 终止 invalid escape、invalid char、invalid number 的精确 anchor，同时
+  保留诊断与通用流结构；recovery index 与四个 engine 入口各双运行，共精确拒绝 70 次。该防线
+  修复了 Parser 先前可能接受 diagnostic/lexeme 不一致内部产物的缺口，不改变合法 Lexer 产物；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；

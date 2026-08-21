@@ -3,7 +3,7 @@ use crate::{
     source::{SourceId, SourceMap, Span},
 };
 
-use super::{LexedFile, LexemeKind, TokenKind, lex};
+use super::{InvalidKind, LexedFile, LexemeKind, ReservedWord, TokenKind, lex};
 
 fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
     assert_eq!(span.source_id(), source_id);
@@ -74,12 +74,20 @@ fn copy_lexed(lexed: &LexedFile) -> LexedFile {
 }
 
 fn replace_first_token_kind(lexed: &mut LexedFile, expected: TokenKind, replacement: TokenKind) {
+    replace_first_lexeme_kind(
+        lexed,
+        LexemeKind::Token(expected),
+        LexemeKind::Token(replacement),
+    );
+}
+
+fn replace_first_lexeme_kind(lexed: &mut LexedFile, expected: LexemeKind, replacement: LexemeKind) {
     let lexeme = lexed
         .lexemes
         .iter_mut()
-        .find(|lexeme| lexeme.kind == LexemeKind::Token(expected))
+        .find(|lexeme| lexeme.kind == expected)
         .unwrap_or_else(|| panic!("test Lexer product must contain {expected:?}"));
-    lexeme.kind = LexemeKind::Token(replacement);
+    lexeme.kind = replacement;
 }
 
 /// 从正常 Lexer 产物派生 Parser 必须拒绝的 test-only 结构破坏。
@@ -270,4 +278,73 @@ pub(crate) fn mismatched_recovery_diagnostic_test_files(
     cases.push(("terminal escape outside string", "L0006", terminal_escape));
 
     cases
+}
+
+/// 保留生产诊断，同时移除与其精确重合的 lexeme anchor。
+pub(crate) fn mismatched_lexer_diagnostic_anchor_test_files(
+    sources: &mut SourceMap,
+) -> Vec<(&'static str, &'static str, LexedFile)> {
+    let cases = [
+        (
+            "unexpected character",
+            "mismatch-unexpected-character.ko",
+            "#",
+            "L0001",
+            LexemeKind::Invalid(InvalidKind::UnexpectedCharacter),
+        ),
+        (
+            "reserved word",
+            "mismatch-reserved-word.ko",
+            "async",
+            "L0002",
+            LexemeKind::Token(TokenKind::ReservedWord(ReservedWord::Async)),
+        ),
+        (
+            "unterminated block comment",
+            "mismatch-unterminated-comment.ko",
+            "/* open",
+            "L0003",
+            LexemeKind::Invalid(InvalidKind::UnterminatedBlockComment),
+        ),
+        (
+            "invalid string escape",
+            "mismatch-invalid-escape-anchor.ko",
+            r#""a\qz""#,
+            "L0006",
+            LexemeKind::Invalid(InvalidKind::InvalidStringEscape),
+        ),
+        (
+            "terminal string escape",
+            "mismatch-terminal-escape-anchor.ko",
+            "\"abc\\",
+            "L0006",
+            LexemeKind::Invalid(InvalidKind::InvalidStringEscape),
+        ),
+        (
+            "invalid character literal",
+            "mismatch-invalid-char.ko",
+            "'ab'",
+            "L0007",
+            LexemeKind::Invalid(InvalidKind::InvalidCharLiteral),
+        ),
+        (
+            "invalid numeric literal",
+            "mismatch-invalid-number.ko",
+            "1e3",
+            "L0008",
+            LexemeKind::Invalid(InvalidKind::InvalidNumericLiteral),
+        ),
+    ];
+
+    cases
+        .into_iter()
+        .map(|(case, name, text, code, anchor)| {
+            let source_id = sources
+                .add_source(name, text)
+                .unwrap_or_else(|error| panic!("anchor source setup failed for {case}: {error}"));
+            let mut lexed = copy_lexed(&lex_test_source_twice(sources, source_id, case));
+            replace_first_lexeme_kind(&mut lexed, anchor, LexemeKind::Token(TokenKind::Identifier));
+            (case, code, lexed)
+        })
+        .collect()
 }

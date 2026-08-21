@@ -23,14 +23,25 @@ pub(in crate::parser) struct TerminalOwnerEvent {
     pub(in crate::parser) opener: usize,
 }
 
+#[derive(Clone, Copy)]
+enum LexicalDiagnosticAnchor {
+    ExactInvalid(InvalidKind),
+    ExactReservedWord,
+    StringStart,
+    InterpolationStart,
+}
+
 impl LexicalRecoveryIndex {
     pub(super) fn new(source: &str, lexed: &LexedFile) -> Result<Self, ParserInternalError> {
         let catalog = codes::catalog()?;
+        let unexpected_character = catalog.resolve(codes::UNEXPECTED_CHARACTER)?;
+        let reserved_word = catalog.resolve(codes::RESERVED_WORD)?;
         let unterminated_string = catalog.resolve(codes::UNTERMINATED_STRING)?;
         let unterminated_interpolation = catalog.resolve(codes::UNTERMINATED_INTERPOLATION)?;
         let invalid_string_escape = catalog.resolve(codes::INVALID_STRING_ESCAPE)?;
         let invalid_char_literal = catalog.resolve(codes::INVALID_CHAR_LITERAL)?;
         let unterminated_block_comment = catalog.resolve(codes::UNTERMINATED_BLOCK_COMMENT)?;
+        let invalid_numeric_literal = catalog.resolve(codes::INVALID_NUMERIC_LITERAL)?;
 
         let mut string_recoveries = Vec::new();
         let mut string_exit_events = Vec::new();
@@ -44,6 +55,38 @@ impl LexicalRecoveryIndex {
         for diagnostic in lexed.diagnostics() {
             let span = diagnostic.primary_span();
             let code = diagnostic.code();
+            let anchor = if code == unexpected_character {
+                Some(LexicalDiagnosticAnchor::ExactInvalid(
+                    InvalidKind::UnexpectedCharacter,
+                ))
+            } else if code == reserved_word {
+                Some(LexicalDiagnosticAnchor::ExactReservedWord)
+            } else if code == unterminated_block_comment {
+                Some(LexicalDiagnosticAnchor::ExactInvalid(
+                    InvalidKind::UnterminatedBlockComment,
+                ))
+            } else if code == unterminated_string {
+                Some(LexicalDiagnosticAnchor::StringStart)
+            } else if code == unterminated_interpolation {
+                Some(LexicalDiagnosticAnchor::InterpolationStart)
+            } else if code == invalid_string_escape {
+                Some(LexicalDiagnosticAnchor::ExactInvalid(
+                    InvalidKind::InvalidStringEscape,
+                ))
+            } else if code == invalid_char_literal {
+                Some(LexicalDiagnosticAnchor::ExactInvalid(
+                    InvalidKind::InvalidCharLiteral,
+                ))
+            } else if code == invalid_numeric_literal {
+                Some(LexicalDiagnosticAnchor::ExactInvalid(
+                    InvalidKind::InvalidNumericLiteral,
+                ))
+            } else {
+                None
+            };
+            if anchor.is_some_and(|anchor| !has_diagnostic_anchor(lexed, span, anchor)) {
+                return Err(ParserInternalError::InvalidLexemeStream);
+            }
             if code == unterminated_string {
                 string_recoveries.push((span.start(), span.end()));
                 string_exit_events.push((span.end(), span.start()));
@@ -295,6 +338,32 @@ impl LexicalRecoveryIndex {
             .binary_search_by_key(&start, |(owner, _)| *owner)
             .ok()
             .map(|index| self.lexical_poison_string_recoveries[index].1)
+    }
+}
+
+fn has_diagnostic_anchor(lexed: &LexedFile, span: Span, expected: LexicalDiagnosticAnchor) -> bool {
+    let Ok(index) = lexed
+        .lexemes()
+        .binary_search_by_key(&span.start(), |lexeme| lexeme.span().start())
+    else {
+        return false;
+    };
+    let lexeme = lexed.lexemes()[index];
+    match expected {
+        LexicalDiagnosticAnchor::ExactInvalid(kind) => {
+            lexeme.span() == span && lexeme.kind() == LexemeKind::Invalid(kind)
+        }
+        LexicalDiagnosticAnchor::ExactReservedWord => {
+            lexeme.span() == span
+                && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::ReservedWord(_)))
+        }
+        LexicalDiagnosticAnchor::StringStart => {
+            lexeme.span().start() == span.start()
+                && lexeme.kind() == LexemeKind::Token(TokenKind::StringStart)
+        }
+        LexicalDiagnosticAnchor::InterpolationStart => {
+            lexeme.kind() == LexemeKind::Token(TokenKind::InterpolationStart)
+        }
     }
 }
 

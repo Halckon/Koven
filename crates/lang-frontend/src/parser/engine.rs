@@ -21,8 +21,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     lexer::{
-        FloatLiteralSuffix, IntegerLiteralSuffix, Keyword, LexedFile, Lexeme, LexemeKind, Symbol,
-        TokenKind,
+        FloatLiteralSuffix, IntegerLiteralSuffix, InvalidKind, Keyword, LexedFile, Lexeme,
+        LexemeKind, Symbol, TokenKind,
     },
     source::{SourceMap, Span},
 };
