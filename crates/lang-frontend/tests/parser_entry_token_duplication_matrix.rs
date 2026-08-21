@@ -1,9 +1,6 @@
-//! SPEC-0087 的独立 Parser 入口逐显著 token 重复恢复矩阵。
+//! SPEC-0087 / SPEC-0114 的独立 Parser 入口逐显著 token 重复恢复矩阵。
 
-use lang_frontend::{
-    lexer::lex,
-    source::{SourceMap, Span},
-};
+use lang_frontend::source::Span;
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
@@ -12,7 +9,9 @@ mod parser_mutation_lexemes;
 #[path = "support/parser_mutation_modes.rs"]
 mod parser_mutation_modes;
 
-use parser_entry_mutation_support::{ENTRY_CASES, baseline_slots, parse_entry_twice};
+use parser_entry_mutation_support::{
+    ENTRY_CASES, baseline_slots, lex_source_twice, parse_entry_twice,
+};
 use parser_mutation_lexemes::assert_exact_token;
 use parser_mutation_modes::token_is_lexical_mode_segment;
 
@@ -51,11 +50,8 @@ fn duplicating_each_significant_token_is_total_and_deterministic_for_every_entry
                 slot.span.end()
             );
             let (mutated, duplicate_span) = duplicate_token(case.source, slot.span);
-            let mut sources = SourceMap::new();
-            let source_id = sources
-                .add_source("parser-entry-token-duplication.ko", &mutated)
-                .expect("mutation source name must be unique");
-            let lexed = lex(&sources, source_id).expect("mutation must lex internally");
+            let (sources, source_id, lexed) =
+                lex_source_twice("parser-entry-token-duplication.ko", &mutated, &context);
 
             if token_is_lexical_mode_segment(slot.kind) {
                 lexical_mode_mutations += 1;

@@ -439,32 +439,39 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - `parser_entry_prefix_truncation_matrix` integration test 以 12 个 Lexer / Parser-clean 独立源码按
   expression / declaration / block 各 4 个覆盖 callable、control-flow、运算符、lambda、泛型、
   class-family、局部解构、loop-family 与 Unicode lexical owner；三个入口分别执行 195 / 350 /
-  202 个 UTF-8 scalar 前缀，共 747 个 case、1,494 次生产解析，逐例锁定连续 lexeme 覆盖、
-  唯一末尾 EOF、source-local 诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未
-  发现生产缺陷；
+  202 个 UTF-8 scalar 前缀；加上 12 个 clean preflight 共 759 个 source case，每例运行两次
+  Lexer 与两次对应入口 Parser，共验证 1,518 个 Lexer 和 1,518 个 Parser 产物，逐次锁定连续
+  lexeme 覆盖、唯一末尾 EOF、source-local 诊断 / AST Span、可解析 typed root 与公开产物
+  确定性；本矩阵未发现生产缺陷；
 - `parser_entry_token_omission_matrix` integration test 复用同一 12-case 独立入口 corpus，逐一
   删除全部显著 token；expression / declaration / block 分别执行 66 / 104 / 70 个 mutation，
-  共 240 个 case、480 次生产解析，逐例重新词法分析并锁定连续覆盖、唯一 EOF、source-local
-  诊断 / AST Span、可解析 typed root 与公开产物确定性；本矩阵未发现生产缺陷；
+  加上 12 个 baseline 共 252 个 source case，每例运行两次 Lexer 与两次 Parser，共验证 504 个
+  Lexer 和 504 个 Parser 产物；逐次锁定连续覆盖、唯一 EOF、source-local 诊断 / AST Span、
+  可解析 typed root 与公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
   分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
-  mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span，全部执行两次生产解析。矩阵
-  发现并修复 control-body Error 节点覆盖尚未消费 token 时 trivia-gap 查询构造反向 Span 的缺陷；
-  重叠范围现在明确表示无 gap，并由既有 tail recovery 继续消费错误 token；
+  mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span；加上 12 个 baseline 共 252 个
+  source case，每例运行两次 Lexer 与两次 Parser，共验证 504 个 Lexer 和 504 个 Parser 产物。
+  矩阵发现并修复 control-body Error 节点覆盖尚未消费 token 时 trivia-gap 查询构造反向 Span 的
+  缺陷；重叠范围现在明确表示无 gap，并由既有 tail recovery 继续消费错误 token；
 - `parser_entry_lexical_poison_replacement_matrix` 对同一 240 个 token slot 分别以 `#` / `async`
-  替换，共执行 480 个 mutation、960 次生产解析；40 个 lexical-mode case 锁定 Scanner / Parser
-  总性，440 个普通 case 精确锁定唯一 L0001 / L0002 与 poison primary Span，全部保持连续覆盖、
-  唯一 EOF、source-local AST / 诊断、typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
+  替换，共执行 480 个 mutation；加上 12 个 baseline 共 492 个 source case，每例运行两次 Lexer
+  与两次 Parser，共验证 984 个 Lexer 和 984 个 Parser 产物；40 个 lexical-mode case 锁定
+  Scanner / Parser 总性，440 个普通 case 精确锁定唯一 L0001 / L0002 与 poison primary Span，
+  全部保持连续覆盖、唯一 EOF、source-local AST / 诊断、typed root 有效和公开产物确定性；
+  本矩阵未发现生产缺陷；
 - `parser_entry_lexical_poison_insertion_matrix` 复用共享 lexical-mode gap 状态机，在 12-case corpus
   的 240 个 token 上枚举 252 个 gap；239 个 code-mode gap 与 13 个 string-mode gap 分别插入
-  两种 poison，共执行 504 个 mutation、1,008 次生产解析。code-mode 精确锁定唯一 L0001 /
-  L0002 及 Span，string-mode 保持 Lexer / Parser 零诊断；完整文件矩阵的 418 / 409 / 9 计数
-  同时保持不变，本矩阵未发现生产缺陷；
+  两种 poison，共执行 504 个 mutation；加上 12 个 baseline 共 516 个 source case，每例运行
+  两次 Lexer 与两次 Parser，共验证 1,032 个 Lexer 和 1,032 个 Parser 产物。code-mode 精确锁定
+  唯一 L0001 / L0002 及 Span，string-mode 保持 Lexer / Parser 零诊断；完整文件矩阵的
+  418 / 409 / 9 计数同时保持不变，本矩阵未发现生产缺陷；
 - `parser_entry_adjacent_token_transposition_matrix` 复用同一 12-case corpus，在 240 个 token 内枚举
-  expression / declaration / block 的 62 / 100 / 66 个相邻 pair，共执行 228 个 mutation、456 次
-  生产解析；201 个不涉及 lexical-mode segment 的 pair 精确锁定交换后 right / left 的原 `TokenKind` 与 byte
-  Span，27 个 string owner pair 锁定 Scanner / Parser 总性，全部保持 source-local AST / 诊断、
-  typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
+  expression / declaration / block 的 62 / 100 / 66 个相邻 pair，共执行 228 个 mutation；加上
+  12 个 baseline 共 240 个 source case，每例运行两次 Lexer 与两次 Parser，共验证 480 个 Lexer
+  和 480 个 Parser 产物；201 个不涉及 lexical-mode segment 的 pair 精确锁定交换后 right / left
+  的原 `TokenKind` 与 byte Span，27 个 string owner pair 锁定 Scanner / Parser 总性，全部保持
+  source-local AST / 诊断、typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_entry_trivia_invariance_matrix` 复用同一 12-case corpus 和 lexical-mode gap 状态机，在
   expression / declaration / block 的 66 / 106 / 67 个 code-mode gap 分别投放 tab、无换行 block
   comment 与混合 trivia，并覆盖每例全 gap 投放；共执行 753 个 mutation，全部保持 baseline 的

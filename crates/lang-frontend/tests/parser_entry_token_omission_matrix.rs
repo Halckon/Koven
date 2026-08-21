@@ -1,14 +1,13 @@
-//! SPEC-0086 的独立 Parser 入口逐显著 token 缺失恢复矩阵。
+//! SPEC-0086 / SPEC-0114 的独立 Parser 入口逐显著 token 缺失恢复矩阵。
 
-use lang_frontend::{
-    lexer::lex,
-    source::{SourceMap, Span},
-};
+use lang_frontend::source::Span;
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
 
-use parser_entry_mutation_support::{ENTRY_CASES, EntryCase, baseline_slots, parse_entry_twice};
+use parser_entry_mutation_support::{
+    ENTRY_CASES, EntryCase, baseline_slots, lex_source_twice, parse_entry_twice,
+};
 
 fn omit(source: &str, span: Span) -> String {
     let mut mutated = String::with_capacity(source.len() - (span.end() - span.start()));
@@ -18,11 +17,8 @@ fn omit(source: &str, span: Span) -> String {
 }
 
 fn parse_mutation(case: EntryCase, source: &str, context: &str) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-entry-token-omission.ko", source)
-        .expect("mutation source name must be unique");
-    let lexed = lex(&sources, source_id).expect("mutation must lex internally");
+    let (sources, source_id, lexed) =
+        lex_source_twice("parser-entry-token-omission.ko", source, context);
     parse_entry_twice(case, &sources, source_id, &lexed, context);
 }
 

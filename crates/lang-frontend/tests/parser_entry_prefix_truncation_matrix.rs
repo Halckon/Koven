@@ -1,23 +1,25 @@
-//! SPEC-0085 的独立 Parser 入口逐 UTF-8 前缀 EOF 恢复矩阵。
+//! SPEC-0085 / SPEC-0114 的独立 Parser 入口逐 UTF-8 前缀 EOF 恢复矩阵。
 
 use std::collections::BTreeSet;
 
-use lang_frontend::{lexer::lex, source::SourceMap};
-
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 #[path = "support/parser_entry_matrix.rs"]
 mod parser_entry_matrix;
 #[path = "support/parser_prefixes.rs"]
 mod parser_prefixes;
 
-use parser_entry_matrix::{ENTRY_CASES, EntryCase, parse_entry_twice};
+use lexer_matrix_assertions::lex_source_twice;
+use parser_entry_matrix::{ENTRY_CASES, EntryCase, parse_entry_twice, validate_lexed};
 use parser_prefixes::prefix_ends;
 
 fn parse_prefix(case: EntryCase, source: &str, context: &str) -> (usize, usize) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-entry-prefix-truncation.ko", source)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix prefix must lex internally");
+    let (sources, source_id, lexed) = lex_source_twice(
+        "parser-entry-prefix-truncation.ko",
+        source,
+        context,
+        validate_lexed,
+    );
     let parser_diagnostics = parse_entry_twice(case, &sources, source_id, &lexed, context);
     (lexed.diagnostics().len(), parser_diagnostics.0)
 }

@@ -1,9 +1,6 @@
-//! SPEC-0088 的独立 Parser 入口逐显著 token 词法 poison 替换矩阵。
+//! SPEC-0088 / SPEC-0114 的独立 Parser 入口逐显著 token 词法 poison 替换矩阵。
 
-use lang_frontend::{
-    lexer::lex,
-    source::{SourceMap, Span},
-};
+use lang_frontend::source::Span;
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
@@ -12,7 +9,9 @@ mod parser_lexical_poisons;
 #[path = "support/parser_mutation_modes.rs"]
 mod parser_mutation_modes;
 
-use parser_entry_mutation_support::{ENTRY_CASES, baseline_slots, parse_entry_twice};
+use parser_entry_mutation_support::{
+    ENTRY_CASES, baseline_slots, lex_source_twice, parse_entry_twice,
+};
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_modes::token_is_lexical_mode_segment;
 
@@ -56,11 +55,11 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_for_every_entry()
                 );
                 let (mutated, poison_span) =
                     replace_with_poison(case.source, slot.span, poison.text);
-                let mut sources = SourceMap::new();
-                let source_id = sources
-                    .add_source("parser-entry-lexical-poison-replacement.ko", &mutated)
-                    .expect("mutation source name must be unique");
-                let lexed = lex(&sources, source_id).expect("mutation must lex internally");
+                let (sources, source_id, lexed) = lex_source_twice(
+                    "parser-entry-lexical-poison-replacement.ko",
+                    &mutated,
+                    &context,
+                );
 
                 if token_is_lexical_mode_segment(slot.kind) {
                     lexical_mode_mutations += 1;

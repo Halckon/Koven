@@ -1,6 +1,4 @@
-//! SPEC-0089 的独立 Parser 入口逐 token gap 词法 poison 插入矩阵。
-
-use lang_frontend::{lexer::lex, source::SourceMap};
+//! SPEC-0089 / SPEC-0114 的独立 Parser 入口逐 token gap 词法 poison 插入矩阵。
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
@@ -9,7 +7,9 @@ mod parser_lexical_poisons;
 #[path = "support/parser_mutation_gaps.rs"]
 mod parser_mutation_gaps;
 
-use parser_entry_mutation_support::{ENTRY_CASES, baseline_slots, parse_entry_twice};
+use parser_entry_mutation_support::{
+    ENTRY_CASES, baseline_slots, lex_source_twice, parse_entry_twice,
+};
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_gaps::token_gaps;
 
@@ -67,14 +67,14 @@ fn inserting_lexer_poison_at_each_token_gap_is_total_for_every_entry() {
                     if gap.code_mode { "code" } else { "string" }
                 );
                 let (mutated, poison_range) = insert_poison(case.source, gap.offset, poison.text);
-                let mut sources = SourceMap::new();
-                let source_id = sources
-                    .add_source("parser-entry-lexical-poison-insertion.ko", &mutated)
-                    .expect("mutation source name must be unique");
+                let (sources, source_id, lexed) = lex_source_twice(
+                    "parser-entry-lexical-poison-insertion.ko",
+                    &mutated,
+                    &context,
+                );
                 let poison_span = sources
                     .span(source_id, poison_range.0, poison_range.1)
                     .expect("poison span must fit mutation source");
-                let lexed = lex(&sources, source_id).expect("mutation must lex internally");
 
                 if gap.code_mode {
                     assert_eq!(

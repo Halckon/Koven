@@ -1,6 +1,4 @@
-//! SPEC-0090 的独立 Parser 入口相邻显著 token 交换恢复矩阵。
-
-use lang_frontend::{lexer::lex, source::SourceMap};
+//! SPEC-0090 / SPEC-0114 的独立 Parser 入口相邻显著 token 交换恢复矩阵。
 
 #[path = "support/parser_entry_mutation_support.rs"]
 mod parser_entry_mutation_support;
@@ -9,7 +7,9 @@ mod parser_mutation_lexemes;
 #[path = "support/parser_mutation_modes.rs"]
 mod parser_mutation_modes;
 
-use parser_entry_mutation_support::{ENTRY_CASES, MutationSlot, baseline_slots, parse_entry_twice};
+use parser_entry_mutation_support::{
+    ENTRY_CASES, MutationSlot, baseline_slots, lex_source_twice, parse_entry_twice,
+};
 use parser_mutation_lexemes::assert_exact_token;
 use parser_mutation_modes::token_is_lexical_mode_segment;
 
@@ -72,11 +72,8 @@ fn transposing_each_adjacent_token_pair_is_total_and_deterministic_for_every_ent
                 right.span.end()
             );
             let (mutated, right_range, left_range) = transpose_pair(case.source, left, right);
-            let mut sources = SourceMap::new();
-            let source_id = sources
-                .add_source("parser-entry-token-transposition.ko", &mutated)
-                .expect("mutation source name must be unique");
-            let lexed = lex(&sources, source_id).expect("mutation must lex internally");
+            let (sources, source_id, lexed) =
+                lex_source_twice("parser-entry-token-transposition.ko", &mutated, &context);
 
             let affects_lexical_mode = token_is_lexical_mode_segment(left.kind)
                 || token_is_lexical_mode_segment(right.kind);
