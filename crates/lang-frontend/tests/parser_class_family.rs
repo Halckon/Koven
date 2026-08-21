@@ -220,6 +220,21 @@ fn l0066_through_l0077_have_stable_first_primary_spans() {
 }
 
 #[test]
+fn segmented_string_classifier_name_recovers_the_complete_owner() {
+    let text = r#"class "text" {}"#;
+    let (sources, parsed) = declaration(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0067"]);
+
+    let NameMarker::Error(span) = classifier(&parsed).name else {
+        panic!("expected recovered classifier name")
+    };
+    assert_eq!(
+        sources.slice(span).expect("name recovery span"),
+        r#""text""#
+    );
+}
+
+#[test]
 fn interface_object_and_companion_keep_the_v1_static_member_boundary() {
     for text in [
         "interface Protocol { fun send(item: Int): Unit; public fun version(): Int = 1; companion object { const val VERSION: Int = 1 } }",

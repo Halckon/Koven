@@ -144,6 +144,29 @@ impl Parser<'_> {
             return Ok(NameMarker::Present(self.bump()?.span()));
         }
         let current = self.current()?;
+        if matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart)) {
+            let start = current.span().start();
+            let owner_end = self
+                .lexical_recoveries
+                .string_recovery_end(start)
+                .or_else(|| {
+                    self.lexical_recoveries
+                        .lexical_poison_string_recovery_end(start)
+                })
+                .or_else(|| self.lexical_recoveries.string_owner_end(start));
+            if let Some(owner_end) = owner_end {
+                self.emit(
+                    codes::EXPECTED_CLASSIFIER_NAME,
+                    "expected classifier name",
+                    current.span(),
+                )?;
+                let mut end = start;
+                while end < owner_end {
+                    end = self.bump()?.span().end();
+                }
+                return Ok(NameMarker::Error(self.span(start, end)?));
+            }
+        }
         let is_boundary = matches!(current.kind(), LexemeKind::Eof)
             || matches!(
                 current.kind(),

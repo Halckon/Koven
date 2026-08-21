@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -103,6 +103,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0072](./0072-pratt-operator-matrix.md) | 锁定 Pratt 全优先级、结合性与不结合组矩阵（`done`） | 0007、0069 `done`；当前持续 Goal 的站立授权 |
 | [0073](./0073-lexer-boundary-matrix.md) | 锁定固定词边界、符号最长匹配与注释优先级矩阵（`done`） | 0006、0068 `done`；当前持续 Goal 的站立授权 |
 | [0074](./0074-parser-token-inventory-matrix.md) | 以完整词法片段库存覆盖四个公开 Parser 入口（`done`） | 0006、0014、0069、0073 `done`；当前持续 Goal 的站立授权 |
+| [0075](./0075-parser-lexical-owner-placement-matrix.md) | 覆盖 lexical owner 在代表性语法位置的恢复矩阵（`done`） | 0006、0014、0069、0074 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 

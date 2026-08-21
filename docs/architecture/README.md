@@ -239,7 +239,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   按 inner-to-outer 顺序补齐剩余 lexical owner；原 Lexer 诊断保持不变，合法 Lexer 产物不再
   被误判为 `InvalidLexemeStream`；独立声明入口遇到完整 string 作为非法声明起点时，同样从
   `StringStart` 整体消费该多 lexeme owner，形成覆盖完整 string 的单一 L0017 / Error Item，
-  不让 tail recovery 从 owner 中途开始；
+  不让 tail recovery 从 owner 中途开始；class-family 名称位置也通过相同预索引边界把完整、
+  含词法 poison 或终止恢复的 segmented string 收敛为一个 `NameMarker::Error`，保留既有
+  L0067 且不从 owner 中部继续解析；
   后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   Parser 自身仍不做名称 / 类型 / 所有权检查，CLI / LSP 接线仍属后续 Phase。
 
@@ -376,6 +378,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   11 个 ReservedWord、43 个 Symbol、literal/string/interpolation、四类 trivia 与 L0001–L0008；
   四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，锁定 lexeme 完整覆盖、公开
   AST/诊断确定性和无普通用户输入内部错误，并精确回归独立声明完整 string 的 L0017/Span；
+- `parser_lexical_owner_matrix` integration test 把 4 个可继续 owner 与 5 个 EOF terminal owner
+  分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
+  重复完整文件解析；逐例锁定连续 lexeme 覆盖、唯一 EOF、词法错误码、公开产物确定性，并
+  要求 64 个可继续 case 后的顶层 sentinel 声明全部存活；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
