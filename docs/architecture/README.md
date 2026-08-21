@@ -8,7 +8,8 @@ SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interfa
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
-类型、核心构造和 element-place 类型事实。
+类型、核心构造和 element-place 类型事实；SPEC-0058 已提供独立 TextMate grammar 与由生产
+Lexer 校验的高亮回归 corpus。
 
 ## 当前状态
 
@@ -52,6 +53,8 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
+- `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
+  expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无泛型 callable 实例化、所有权状态检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -358,6 +361,21 @@ Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L008
 并精确核对 L0082–L0130 的 code / byte Span；当前 `type-pass` 与 `type-fail` 各有六个真实
 fixture，包含名义类型、interface 实现、override、委托、`when`/smart-cast、`Copyable`/
 结构化解构、callable 和顺序容器正反例。
+
+## TextMate grammar
+
+`editors/textmate/syntaxes/koven.tmLanguage.json` 是不依赖 LSP 的 TextMate JSON grammar，声明
+`source.koven` 与 `.ko` 文件类型。repository 按注释、字符串/插值、字符、数值、annotation、
+声明名称、内建类型、关键字、未来保留字、运算符和标点拆分；匹配边界遵循现行 Lexer 的
+ASCII 标识符、单行字符串、非嵌套 block comment、最小数值后缀与最长符号集合。它只提供
+词法近似，不读取名称解析或类型检查事实。
+
+`editors/textmate/tests/highlight.ko` 与 `reserved.ko` 分别保存正常和未来保留字 corpus，
+`scopes.tsv` 为仓库私有的代表性 scope/源码片段契约。`lang-frontend` 的
+`textmate_grammar` integration test 检查 grammar repository 和 scope 存在性，并用生产 Lexer
+证明正常 corpus 无诊断且覆盖主要 token/trivia family、reserved corpus 精确产生 11 个
+L0002。该回归不引入 JSON/TextMate runtime 依赖；JSON 语法在交付检查中独立验证。VS Code
+extension、语义高亮、LSP token 与 Tree-sitter grammar 均尚未实现。
 
 ## 尚未实现的编译流水线
 

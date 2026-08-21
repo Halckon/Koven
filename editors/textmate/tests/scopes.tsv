@@ -1,0 +1,24 @@
+comment.line.double-slash.koven	// TextMate line comment
+comment.block.koven	/* TextMate block comment */
+string.quoted.double.koven	"hello\n${add(1, 2)}"
+constant.character.escape.koven	\n
+meta.interpolation.koven	${add(1, 2)}
+constant.character.koven	'界'
+constant.numeric.integer.koven	42L
+constant.numeric.float.koven	1.5
+entity.name.type.annotation.koven	Test
+entity.name.type.koven	Point
+entity.name.function.koven	draw
+variable.other.readwrite.koven	total
+storage.type.builtin.koven	Int
+keyword.declaration.koven	fun
+keyword.control.koven	when
+storage.modifier.ownership.koven	borrow
+storage.modifier.visibility.koven	public
+keyword.operator.word.koven	is
+constant.language.koven	true
+storage.modifier.koven	override
+variable.language.koven	this
+invalid.illegal.reserved.koven	async
+keyword.operator.symbol.koven	?.
+punctuation.separator.koven	,

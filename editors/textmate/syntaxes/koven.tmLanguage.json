@@ -1,0 +1,215 @@
+{
+  "name": "Koven",
+  "scopeName": "source.koven",
+  "fileTypes": [
+    "ko"
+  ],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#characters" },
+    { "include": "#numbers" },
+    { "include": "#annotations" },
+    { "include": "#declarations" },
+    { "include": "#builtin-types" },
+    { "include": "#operators" },
+    { "include": "#keywords" },
+    { "include": "#reserved-words" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.koven",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.koven",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.koven",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.koven" }
+          },
+          "end": "\"|(?=\\r?$)",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.koven" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.koven",
+              "match": "\\\\[\\\\'\"nrt0$]"
+            },
+            {
+              "name": "meta.interpolation.koven",
+              "begin": "\\$\\{",
+              "beginCaptures": {
+                "0": { "name": "punctuation.section.interpolation.begin.koven" }
+              },
+              "end": "\\}",
+              "endCaptures": {
+                "0": { "name": "punctuation.section.interpolation.end.koven" }
+              },
+              "patterns": [
+                { "include": "#interpolation-braces" },
+                { "include": "$self" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interpolation-braces": {
+      "patterns": [
+        {
+          "name": "meta.block.koven",
+          "begin": "\\{",
+          "end": "\\}",
+          "patterns": [
+            { "include": "$self" }
+          ]
+        }
+      ]
+    },
+    "characters": {
+      "patterns": [
+        {
+          "name": "constant.character.koven",
+          "match": "'(?:\\\\[\\\\'\"nrt0]|[^'\\r\\n\\\\])'"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.koven",
+          "match": "\\b(?:[0-9]+\\.[0-9]+(?:[fF])?|[0-9]+[fF])\\b"
+        },
+        {
+          "name": "constant.numeric.integer.koven",
+          "match": "\\b[0-9]+(?:L|[uU]L?)?\\b"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "match": "(@)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.definition.annotation.koven" },
+            "2": { "name": "entity.name.type.annotation.koven" }
+          }
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(?:(value|enum)\\s+)?(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.koven" },
+            "2": { "name": "keyword.declaration.koven" },
+            "3": { "name": "entity.name.type.koven" }
+          }
+        },
+        {
+          "match": "\\b(interface|object|typealias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.koven" },
+            "2": { "name": "entity.name.type.koven" }
+          }
+        },
+        {
+          "match": "\\b(fun)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.koven" },
+            "2": { "name": "entity.name.function.koven" }
+          }
+        },
+        {
+          "match": "\\b(val|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.koven" },
+            "2": { "name": "variable.other.readwrite.koven" }
+          }
+        }
+      ]
+    },
+    "builtin-types": {
+      "patterns": [
+        {
+          "name": "storage.type.builtin.koven",
+          "match": "\\b(?:Byte|Short|Int|Long|UByte|UShort|UInt|ULong|Float|Double|Boolean|Char|String|Unit|Nothing|Any|Copyable|Transferable)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.koven",
+          "match": "\\b(?:class|companion|const|enum|extern|fun|import|interface|object|package|typealias|val|value|var|vararg)\\b"
+        },
+        {
+          "name": "keyword.control.koven",
+          "match": "\\b(?:break|continue|else|for|if|loop|return|when|while)\\b"
+        },
+        {
+          "name": "storage.modifier.ownership.koven",
+          "match": "\\b(?:borrow|inout|move|own|unsafe)\\b"
+        },
+        {
+          "name": "storage.modifier.visibility.koven",
+          "match": "\\b(?:internal|private|public)\\b"
+        },
+        {
+          "name": "keyword.operator.word.koven",
+          "match": "\\b(?:as|in|is)\\b"
+        },
+        {
+          "name": "constant.language.koven",
+          "match": "\\b(?:false|null|true)\\b"
+        },
+        {
+          "name": "storage.modifier.koven",
+          "match": "\\b(?:operator|override)\\b"
+        },
+        {
+          "name": "variable.language.koven",
+          "match": "\\b(?:super|this)\\b"
+        }
+      ]
+    },
+    "reserved-words": {
+      "patterns": [
+        {
+          "name": "invalid.illegal.reserved.koven",
+          "match": "\\b(?:async|await|suspend|actor|spawn|sealed|dyn|where|yield|macro|reify)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.symbol.koven",
+          "match": "as\\?|!in\\b|!is\\b|\\.\\.<|\\?\\.|\\?:|!!|::|->|\\.\\.|<=|>=|==|!=|&&|\\|\\||\\+=|-=|\\*=|/=|%=|[?!.*/%+\\-<>&=]"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.koven",
+          "match": "[()\\[\\]{},:;@]"
+        }
+      ]
+    }
+  }
+}

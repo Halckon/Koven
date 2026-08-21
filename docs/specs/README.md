@@ -164,7 +164,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | 0055 | 让 LSP 发布 frontend 诊断 | 0025、0021、0003 |
 | 0056 | 让 LSP 支持跳转定义 | 0055、0025、0021 |
 | 0057 | 实现稳定、幂等的格式化器 | 0014、0006 |
-| 0058 | 提供 TextMate grammar 与回归 fixture | 0014、0015 |
+| [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | 0059 | 提供 Tree-sitter grammar 与 corpus | 0014、0015 |
 | 0060 | 提供版本化机器可读诊断协议 | 0003、0055；接受协议 ADR |
 | 0061 | 构建首个支持平台的 compiler + stdlib 发行包 | 0040、0042–0051、0054；接受发布矩阵 ADR |

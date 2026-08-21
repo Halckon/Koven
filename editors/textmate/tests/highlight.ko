@@ -1,0 +1,47 @@
+package sample.editor
+
+import sample.math.sum as add
+
+// TextMate line comment
+/* TextMate block comment */
+@Test
+public value class Point(val x: Int, val y: Int)
+
+internal enum class Result {
+    Ok,
+    Error;
+}
+
+private interface Drawable {
+    fun draw(borrow label: String): Unit
+}
+
+object Origin
+typealias Coordinate = Long
+extern fun foreign(inout target: Point): Unit
+
+const val GREETING: String = "hello\n${add(1, 2)}"
+val letter: Char = '界'
+val escaped: Char = '\n'
+val numbers = 0 + 42L + 7u + 8UL + 1.5 + 2f
+
+operator fun Point.plus(other: Point): Point = this
+override fun draw(borrow label: String) {
+    var total = 1
+    if (true && total !in 2..<4 || false) {
+        total += 1
+    } else {
+        total -= 1
+    }
+    when (total) {
+        0 -> return
+        else -> loop { break }
+    }
+    while (total <= 10) { continue }
+    for (item in 0..total) { total *= item }
+    val maybe = this as? Point
+    val member = maybe?.x ?: null
+    val certain = member!!
+    val reference = Point::plus
+    unsafe { move { own } }
+}
