@@ -2,12 +2,12 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.20 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.21 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；名称和类型检查尚未开始。
 
 ## 当前状态
 
-仓库已完成 Phase 0 并进入 Phase 1。工程骨架按
+仓库已完成 Phase 0 与 Phase 1，即将进入 Phase 2。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
 
 - 根目录是 resolver 3 的 virtual Cargo workspace；所有 package 使用 Rust edition 2024，

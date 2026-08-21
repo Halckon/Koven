@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.21。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -69,7 +69,7 @@
       为属性委托、任意 delegate expression、动态代理或运行时 `dyn` 分发。
 
 SPEC-0006 词法基线、SPEC-0007 至 SPEC-0017 以及增量 SPEC-0062、0063、0064 已完成，
-现行 v0.20 定义的 Phase 1 Lexer / Parser 边界已经闭合。未勾选状态不
+现行 v0.21 沿用的 Phase 1 Lexer / Parser 边界已经闭合。未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参
@@ -143,6 +143,10 @@ fun main(): Unit {
 
 ## Phase 2：类型检查（不含所有权/借用）
 
+- [ ] **SPEC-0018（前置：SPEC-0014 `done`；v0.21 已明确启用）**：按
+      [`01-design-decisions.md`](./01-design-decisions.md) 第 21 节建立单文件双命名空间、
+      确定性 `ScopeId` / `SymbolId`、函数 overload set、顺序 local 可见性、显式
+      `NameEnvironment` 与 L0079–L0081；不展开 package/import，不选择 member 或 overload。
 - [ ] 局部类型推导（`val`/`var`）
 - [ ] 函数签名类型检查（显式返回标注、隐式 `Unit` 与 `Nothing`）
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余

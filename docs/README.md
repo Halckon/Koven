@@ -5,7 +5,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.20](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+- [语言设计指南 v0.21](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
   多文档真源。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
@@ -33,7 +33,7 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库已完成 Phase 0 并进入 Phase 1；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
+当前仓库已完成 Phase 0 与 Phase 1，即将进入 Phase 2；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
 SPEC-0008 已分别建立独立表达式和声明 Parser，SPEC-0009 已建立 block / statement 序列及
 函数 block body Parser，SPEC-0010 至 SPEC-0014 已实现 lambda literal、具名
 函数隐式 `Unit` 返回标注、callable 参数 marker / typed call argument，以及 block /

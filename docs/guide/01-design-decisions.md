@@ -1,9 +1,9 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.21。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
-> [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–20 节的设计决策，
+> [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–21 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -850,12 +850,86 @@ v0.20 已结合 class-family 修饰符集合完成取舍：v1 保持结构化自
 
 ---
 
+## 21. 单文件名称、作用域与预声明环境（v0.21）
+
+v0.21 封闭 Phase 2 的第一条可执行边界：SPEC-0018 只处理一份已经成功解析的
+`ParsedFile`，建立稳定符号身份、词法作用域和名称引用；不从文件路径猜测 package，也不
+展开 `import`。名称解析与类型检查是两个阶段：前者回答“这个拼写指向哪个声明或候选组”，
+后者才回答“该声明是否适用于这里”。
+
+### 21.1 双命名空间与声明身份
+
+- 每个词法作用域分别维护**类型命名空间**和**值命名空间**。类型参数以及
+  `value class` / `class` / `interface` / `enum class` / 具名 `object` 进入类型命名空间；
+  `val` / `var` / `const val`、参数、局部绑定、函数和 enum 变体进入值命名空间。
+- 同一拼写可以在同一作用域的两个不同命名空间各出现一次；引用所处的语法上下文决定查询
+  哪一个命名空间。`type_ref` 查询类型空间，普通名称表达式查询值空间。classifier 在调用
+  或 `Type.member` 位置形成的构造器 / 关联命名空间候选由后续类型检查从已解析的 type
+  symbol 建立，不把 classifier 复制成第二个用户 value 声明。具名 `object` 额外产生同名
+  singleton value，但两个身份仍共同追溯到同一声明。
+- 每个成功收集的声明、参数和局部绑定获得一个只在本次解析产物内有效的稳定 `SymbolId`；
+  每个作用域获得 `ScopeId`。ID 按确定性的源码遍历顺序分配，不等同于名称哈希或跨编译
+  持久标识，也不得暴露随机集合的迭代顺序。
+- 同一值作用域中的多个函数声明形成一个源码有序的 overload set。函数与非函数值同名、
+  两个非函数值同名、同一类型作用域两个类型同名，均使用 L0079。两个函数是否具有重复
+  签名、哪个 overload 最终适用，等待 SPEC-0019/0020 获得类型后判断；SPEC-0018 不按参数
+  数量或源码 TypeRef 文本自行淘汰候选。
+
+Kotlin 风格的 `UpperCamelCase` / `lowerCamelCase` / 常量大写只是源码风格，不是名称身份
+的一部分，也不产生 Phase 2 错误；语言仍按第 2 节的 ASCII、大小写敏感 Identifier 精确匹配。
+
+### 21.2 作用域与可见时点
+
+- 文件作用域先按源码顺序收集全部顶层声明，再解析任何签名或 body，因此顶层类型、函数、
+  常量和变量允许同文件前向引用与函数递归。package/import 不是本地声明；未来
+  SPEC-0025 根据 package ADR 构造外部环境后，仍使用本节相同查询规则。
+- 每个 classifier 建立独立成员作用域。主构造器字段与 body 成员在成员 body 解析前完整
+  收集，允许成员前向引用；函数可形成 overload set。companion 拥有单独的类型级值作用域，
+  不把关联函数 / 常量注入实例成员作用域，实例成员也不反向注入 companion。
+- 具名函数建立类型参数作用域和值参数作用域；参数在整个 body 中可见。函数自己的递归名称
+  来自外层已收集的 overload set。类型参数在其后续上界、参数、返回类型和 body 内可见；
+  同一参数列表或类型参数列表重名使用 L0079。
+- lambda 参数在该 lambda body 内可见；未被 lambda 自己声明、但解析到外层值的引用记录为
+  外层 symbol，捕获方式与 `move` 合法性仍由 Phase 3 判断。`for` binding 只在 loop body
+  可见，不在 iterable/source 表达式中可见。
+- block 按 element 源码顺序解析。局部 `val` / `var` 的 initializer 先在当前可见环境中
+  解析，随后才把新名称加入当前 block；局部解构的所有 binding 同时在 initializer 完成后
+  加入。名称不在自己的 initializer 或同 block 更早 element 中可见。
+- 同一作用域重复声明使用 L0079；嵌套 block、lambda 或 loop 可以遮蔽外层同命名空间的
+  symbol，查询总是选择最近的已可见声明，不产生隐式 warning。声明前若已有可见的外层同名
+  symbol，较早引用继续解析到外层；只有没有任何可见声明、但当前顺序作用域稍后会声明同名
+  local 时，才使用 L0081，而不是 L0080。
+
+### 21.3 引用、外部环境与诊断
+
+- SPEC-0018 的入口必须显式接收一个不可变 `NameEnvironment`。它提供预声明类型、值与函数
+  overload，但不读取文件系统、不隐式加载标准库，也不按名称硬编码“可能来自 import”。
+  后续 prelude / package 阶段可以构造环境；测试可构造最小环境。环境中不存在且词法作用域
+  也找不到的名称使用 L0080。
+- 非限定名称从当前作用域向父作用域查询对应命名空间，再查询外部环境。`type_ref` 的首个
+  segment 必须解析为类型或外部类型；后续 segment 的嵌套类型 / package 解释由 SPEC-0020 /
+  0025 继续处理。`.` / `?.` 后的 member、`super<Interface>.member`、constructor、companion
+  与 enum variant 的最终选择依赖 receiver 类型，SPEC-0018 只解析 receiver 与显式 type
+  segment，不对 member name 发未定义诊断。
+- `public` / `internal` / `private` 在单文件内部均可见；跨文件与跨 package 可见性由
+  SPEC-0025 执行。`this`、`super`、jump target、override、接口委托目标类型和 smart cast
+  都有后续专用检查，不能伪装成普通未定义名称。
+- L0079 `duplicate name in scope` 的 primary 覆盖后出现的声明名称，label 指向同命名空间
+  的首个冲突声明；函数 overload 组不触发本码。L0080 `unresolved name` 的 primary 覆盖
+  引用 Identifier。L0081 `name used before local declaration` 的 primary 覆盖较早引用，label
+  指向同一顺序作用域稍后的 local 声明。诊断与 symbol/reference 表均按源码位置和既有
+  `ordered_diagnostics` 规则确定性排序。
+
+SPEC-0018 不推导表达式类型，不选择 overload / constructor / member，不检查泛型 arity、
+visibility 跨文件规则、override、调用实参映射、捕获所有权或 package/import 冲突。它的
+输出必须允许 SPEC-0019 在不重新遍历源码字符串的前提下读取 scope、symbol、overload set
+与每个已解析名称引用。
 
 ---
 
 ## 附录：核心结构声明总览（原第二部分）
 
-> 原文档第二部分独立成章，本次拆分中并入设计决策文档作为收尾附录：这段示例把第 1–20
+> 原文档第二部分独立成章，本次拆分中并入设计决策文档作为收尾附录：这段示例把第 1–21
 > 节讨论过的各类声明（`value class`、`class`、`interface`、`enum class`、`object`、
 > `companion object`、泛型函数）放在一起，给出一个整体印象。
 

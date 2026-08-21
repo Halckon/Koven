@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.20），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.21），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -274,3 +274,15 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 6 | 具名 `object` 保留无运行时字段的 singleton 类型/值和实例函数；排除匿名内部类、object expression、SAM 自动转换、nested/local class-family，单回调继续使用函数类型/lambda | 🔴 object 与 lambda 边界定案 |
 | 7 | 保留 ordinary class 的 `Interface by valField` 窄化接口实现委托：`by` 为上下文软词、具体类型静态分发、原样转发 callable 契约；排除任意表达式、`var` delegate、运行时代理和属性委托 | 🔴 组合能力定案 |
 | 8 | 接口委托 Parser 拆为 SPEC-0064，SPEC-0017 先交付无 delegation clause 的 class-family；在前者完成前 `by` 必须定向拒绝，不得误判成普通 supertype 名称 | 🟡 分阶段边界补全 |
+
+## v0.21 变更记录
+
+> v0.21 于 2026-08-21 由用户明确要求启用并取代 v0.20，封闭 Phase 2 首个单文件名称解析
+> 契约；不提前决定 package 到文件系统的映射。
+
+| # | 变更 | 类型 |
+|---|---|---|
+| 1 | 定义类型 / 值双命名空间、源码有序 `ScopeId` / `SymbolId` 与显式外部 `NameEnvironment`，名称保持 ASCII 大小写敏感，Kotlin 命名风格不提升为语义错误 | 🔴 名称模型定案 |
+| 2 | 顶层和 classifier member 在 body 前完整收集并允许前向引用；block local 在 initializer 后才可见，嵌套作用域允许遮蔽，较早引用只在没有外层可见名称时构成 use-before-local | 🔴 作用域语义定案 |
+| 3 | 同作用域函数形成 overload set，其他同命名空间冲突使用 L0079；未解析名称与声明前 local 分别使用 L0080、L0081，并固定 primary / label 与确定性顺序 | 🔴 诊断契约补全 |
+| 4 | SPEC-0018 只解析单文件 lexical name 与 receiver/type 首段；package/import、member/constructor/overload 选择、跨文件 visibility、类型与捕获所有权继续由后续 Spec 处理 | 🟡 Phase 边界补全 |
