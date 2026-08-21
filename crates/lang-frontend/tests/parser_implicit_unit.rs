@@ -6,13 +6,15 @@ use lang_frontend::{
         Expression, FunctionBody, FunctionForm, Item, ParsedDeclaration, ParserInternalError,
         Statement, TypeRef, parse_declaration,
     },
-    source::{SourceId, SourceMap},
+    source::{SourceError, SourceId, SourceMap},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::{lex_and_parse_declaration_twice, parse_declaration_twice};
+use parser_test_assertions::{
+    assert_parser_error_twice, lex_and_parse_declaration_twice, parse_declaration_twice,
+};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique source")
@@ -371,8 +373,11 @@ fn implicit_unit_is_deterministic_source_owned_and_utf8_byte_accurate() {
     let (lexed, _) = lex_and_parse_declaration_twice(&owner, id, "owner source");
     let mut foreign = SourceMap::new();
     add_source(&mut foreign, "foreign.ko", "fun f()");
-    assert!(matches!(
-        parse_declaration(&foreign, &lexed),
-        Err(ParserInternalError::Source(_))
-    ));
+    assert_parser_error_twice(
+        &foreign,
+        &lexed,
+        ParserInternalError::Source(SourceError::InvalidSourceId { source_id: id }),
+        "foreign implicit Unit source",
+        parse_declaration,
+    );
 }

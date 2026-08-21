@@ -8,8 +8,8 @@
 use lang_frontend::{
     lexer::LexedFile,
     parser::{
-        ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, parse_block,
-        parse_declaration, parse_expression, parse_file,
+        ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError,
+        parse_block, parse_declaration, parse_expression, parse_file,
     },
     source::{SourceId, SourceMap},
 };
@@ -69,6 +69,35 @@ pub(crate) fn parse_file_twice(
 ) -> ParsedFile {
     let (source_len, lexed) = parser_source_twice(sources, source_id, context);
     parse_file_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+}
+
+pub(crate) fn lex_parser_source_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    context: &str,
+) -> LexedFile {
+    parser_source_twice(sources, source_id, context).1
+}
+
+pub(crate) fn assert_parser_error_twice<T>(
+    sources: &SourceMap,
+    lexed: &LexedFile,
+    expected: ParserInternalError,
+    context: &str,
+    parse: fn(&SourceMap, &LexedFile) -> Result<T, ParserInternalError>,
+) {
+    let first = parse(sources, lexed)
+        .err()
+        .unwrap_or_else(|| panic!("first parse unexpectedly succeeded for {context}"));
+    let repeated = parse(sources, lexed)
+        .err()
+        .unwrap_or_else(|| panic!("repeated parse unexpectedly succeeded for {context}"));
+    assert_eq!(first, expected, "first parser error for {context}");
+    assert_eq!(repeated, expected, "repeated parser error for {context}");
+    assert_eq!(
+        first, repeated,
+        "non-deterministic parser error for {context}"
+    );
 }
 
 fn parser_source_twice(

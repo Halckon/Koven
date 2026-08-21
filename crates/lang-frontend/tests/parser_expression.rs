@@ -3,19 +3,20 @@
 use lang_frontend::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
-    lexer::lex,
     parser::{
         AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression,
         FloatLiteralKind, IntegerLiteralKind, LiteralKind, ParsedExpression, ParserInternalError,
         PrefixOperator, StringPart, TypeRef, parse_expression,
     },
-    source::{SourceId, SourceMap},
+    source::{SourceError, SourceId, SourceMap},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::parse_expression_twice;
+use parser_test_assertions::{
+    assert_parser_error_twice, lex_parser_source_twice, parse_expression_twice,
+};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources
@@ -1177,14 +1178,17 @@ fn closing_delimiter_diagnostic_carries_the_opening_label() {
 fn parsing_rejects_lexed_files_from_another_source_map() {
     let mut origin = SourceMap::new();
     let origin_id = add_source(&mut origin, "origin.ko", "x");
-    let lexed = lex(&origin, origin_id).expect("test source must lex");
+    let lexed = lex_parser_source_twice(&origin, origin_id, "foreign expression source");
     let foreign = SourceMap::new();
-    assert!(matches!(
-        parse_expression(&foreign, &lexed),
-        Err(ParserInternalError::Source(
-            lang_frontend::source::SourceError::InvalidSourceId { source_id }
-        )) if source_id == origin_id
-    ));
+    assert_parser_error_twice(
+        &foreign,
+        &lexed,
+        ParserInternalError::Source(SourceError::InvalidSourceId {
+            source_id: origin_id,
+        }),
+        "foreign expression source",
+        parse_expression,
+    );
 }
 
 #[test]
@@ -1750,14 +1754,13 @@ fn recursion_budget_prevents_stack_amplification() {
     ] {
         let mut sources = SourceMap::new();
         let source_id = add_source(&mut sources, "budget.ko", &text);
-        let lexed = lex(&sources, source_id).expect("test source must lex");
-        let result = parse_expression(&sources, &lexed);
-        assert!(
-            matches!(
-                result,
-                Err(ParserInternalError::NestingLimitExceeded { limit: 1024 })
-            ),
-            "{label}: {result:?}"
+        let lexed = lex_parser_source_twice(&sources, source_id, label);
+        assert_parser_error_twice(
+            &sources,
+            &lexed,
+            ParserInternalError::NestingLimitExceeded { limit: 1024 },
+            label,
+            parse_expression,
         );
     }
 }

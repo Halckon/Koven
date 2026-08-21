@@ -3,18 +3,19 @@
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
-    lexer::lex,
     parser::{
         Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedDeclaration,
         ParserInternalError, Statement, TypeRef, VariableKind, parse_declaration,
     },
-    source::{SourceId, SourceMap, Span},
+    source::{SourceError, SourceId, SourceMap, Span},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::parse_declaration_twice;
+use parser_test_assertions::{
+    assert_parser_error_twice, lex_parser_source_twice, parse_declaration_twice,
+};
 
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources.add_source("case.ko", text).expect("unique source")
@@ -994,20 +995,26 @@ fn terminal_lexical_recovery_inside_a_default_exits_each_exact_owner() {
 fn source_identity_and_declaration_depth_budget_are_internal_boundaries() {
     let mut owner = SourceMap::new();
     let id = add_source(&mut owner, "val x = 1");
-    let lexed = lex(&owner, id).expect("lex");
+    let lexed = lex_parser_source_twice(&owner, id, "foreign declaration source");
     let mut foreign = SourceMap::new();
     add_source(&mut foreign, "val x = 1");
-    assert!(matches!(
-        parse_declaration(&foreign, &lexed),
-        Err(ParserInternalError::Source(_))
-    ));
+    assert_parser_error_twice(
+        &foreign,
+        &lexed,
+        ParserInternalError::Source(SourceError::InvalidSourceId { source_id: id }),
+        "foreign declaration source",
+        parse_declaration,
+    );
 
     let deep = format!("val x: {}T{} = 1", "A<".repeat(1_100), ">".repeat(1_100));
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, &deep);
-    let lexed = lex(&sources, id).expect("lex");
-    assert!(matches!(
-        parse_declaration(&sources, &lexed),
-        Err(ParserInternalError::NestingLimitExceeded { limit: 1024 })
-    ));
+    let lexed = lex_parser_source_twice(&sources, id, "declaration nesting budget");
+    assert_parser_error_twice(
+        &sources,
+        &lexed,
+        ParserInternalError::NestingLimitExceeded { limit: 1024 },
+        "declaration nesting budget",
+        parse_declaration,
+    );
 }

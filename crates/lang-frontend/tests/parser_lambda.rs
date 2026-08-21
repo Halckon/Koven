@@ -3,18 +3,20 @@
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
-    lexer::lex,
     parser::{
         BinaryOperator, Expression, Item, ParsedBlock, ParsedDeclaration, ParsedExpression,
         ParserInternalError, Statement, StringPart, parse_expression,
     },
-    source::{SourceId, SourceMap},
+    source::{SourceError, SourceId, SourceMap},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::{parse_block_twice, parse_declaration_twice, parse_expression_twice};
+use parser_test_assertions::{
+    assert_parser_error_twice, lex_parser_source_twice, parse_block_twice, parse_declaration_twice,
+    parse_expression_twice,
+};
 
 fn source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique test source")
@@ -751,13 +753,16 @@ fn lambda_is_deterministic_across_source_order_and_preserves_source_identity() {
 
     let mut owner = SourceMap::new();
     let id = source(&mut owner, "owner.ko", "{}");
-    let lexed = lex(&owner, id).expect("lex");
+    let lexed = lex_parser_source_twice(&owner, id, "foreign lambda source");
     let mut foreign = SourceMap::new();
     source(&mut foreign, "foreign.ko", "{}");
-    assert!(matches!(
-        parse_expression(&foreign, &lexed),
-        Err(ParserInternalError::Source(_))
-    ));
+    assert_parser_error_twice(
+        &foreign,
+        &lexed,
+        ParserInternalError::Source(SourceError::InvalidSourceId { source_id: id }),
+        "foreign lambda source",
+        parse_expression,
+    );
 }
 
 #[test]
@@ -780,9 +785,12 @@ fn lambda_and_nested_blocks_use_the_shared_recursion_budget_without_panicking() 
     let text = format!("{}x{}", "{ ".repeat(1_100), " }".repeat(1_100));
     let mut sources = SourceMap::new();
     let id = source(&mut sources, "deep.ko", &text);
-    let lexed = lex(&sources, id).expect("lex");
-    assert!(matches!(
-        parse_expression(&sources, &lexed),
-        Err(ParserInternalError::NestingLimitExceeded { limit: 1024 })
-    ));
+    let lexed = lex_parser_source_twice(&sources, id, "lambda nesting budget");
+    assert_parser_error_twice(
+        &sources,
+        &lexed,
+        ParserInternalError::NestingLimitExceeded { limit: 1024 },
+        "lambda nesting budget",
+        parse_expression,
+    );
 }

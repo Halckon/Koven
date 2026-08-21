@@ -3,17 +3,18 @@
 use lang_frontend::{
     ast::StatementId,
     diagnostic::{Diagnostic, Severity},
-    lexer::lex,
     parser::{
         Expression, Item, ParsedBlock, ParserInternalError, Statement, VariableKind, parse_block,
     },
-    source::{SourceId, SourceMap},
+    source::{SourceError, SourceId, SourceMap},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::parse_block_twice;
+use parser_test_assertions::{
+    assert_parser_error_twice, lex_parser_source_twice, parse_block_twice,
+};
 
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources.add_source("case.ko", text).expect("unique source")
@@ -552,20 +553,26 @@ fn duplicated_control_condition_closer_recovers_overlapping_error_spans() {
 fn source_identity_and_nested_block_budget_are_internal_boundaries() {
     let mut owner = SourceMap::new();
     let id = add_source(&mut owner, "{}");
-    let lexed = lex(&owner, id).expect("lex");
+    let lexed = lex_parser_source_twice(&owner, id, "foreign block source");
     let mut foreign = SourceMap::new();
     add_source(&mut foreign, "{}");
-    assert!(matches!(
-        parse_block(&foreign, &lexed),
-        Err(ParserInternalError::Source(_))
-    ));
+    assert_parser_error_twice(
+        &foreign,
+        &lexed,
+        ParserInternalError::Source(SourceError::InvalidSourceId { source_id: id }),
+        "foreign block source",
+        parse_block,
+    );
 
     let deep = format!("{}{}", "{".repeat(1_100), "}".repeat(1_100));
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, &deep);
-    let lexed = lex(&sources, id).expect("lex");
-    assert!(matches!(
-        parse_block(&sources, &lexed),
-        Err(ParserInternalError::NestingLimitExceeded { limit: 1024 })
-    ));
+    let lexed = lex_parser_source_twice(&sources, id, "block nesting budget");
+    assert_parser_error_twice(
+        &sources,
+        &lexed,
+        ParserInternalError::NestingLimitExceeded { limit: 1024 },
+        "block nesting budget",
+        parse_block,
+    );
 }

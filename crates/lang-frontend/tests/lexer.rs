@@ -1138,10 +1138,12 @@ fn source_ids_from_another_map_return_a_specific_internal_error() {
     let mut second = SourceMap::new();
     add_source(&mut second, "local.ko", "val");
 
-    match lex(&second, foreign_id) {
-        Err(LexerInternalError::Source(SourceError::InvalidSourceId { source_id })) => {
-            assert_eq!(source_id, foreign_id);
-        }
-        other => panic!("expected the exact foreign-source error, got {other:?}"),
-    }
+    let expected = LexerInternalError::Source(SourceError::InvalidSourceId {
+        source_id: foreign_id,
+    });
+    let first = lex(&second, foreign_id).expect_err("first foreign source must fail");
+    let repeated = lex(&second, foreign_id).expect_err("repeated foreign source must fail");
+    assert_eq!(first, expected);
+    assert_eq!(repeated, expected);
+    assert_eq!(first, repeated);
 }

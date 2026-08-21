@@ -414,6 +414,13 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   source identity、连续 byte 覆盖、唯一 EOF、diagnostic primary / label Span 与全部私有字段
   确定性；首个已验证产物继续供既有 owner recovery、dispatch、缓存、递归预算与线性复杂度
   断言消费，三个 Parser 私有测试模块不再直接调用生产 `lex`，本轮未发现生产缺陷；
+- Lexer 核心 suite 的 foreign `SourceId` 内部边界连续执行两次生产入口并精确返回相同
+  `InvalidSourceId`；Parser expression、declaration、block、lambda 与 implicit-Unit suites 的
+  14 条 foreign identity / recursion-budget 路径先验证 28 个正常 Lexer 产物，再通过 typed
+  helper 验证 28 个 Parser 错误结果。5 条 foreign identity 路径均保留准确 owner `SourceId`，
+  9 条 prefix / assignment / elvis / group / generic / function / declaration / block / lambda 递归
+  形状均精确返回 limit 1024；失败路径由宽泛单次 variant 匹配收紧为精确双运行确定性，本轮
+  未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
