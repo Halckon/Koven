@@ -390,6 +390,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   类型、表达式、call/lambda、control-flow 与 class-family，把 tab、无换行 block comment 和
   混合 trivia 投放到每个单独 token gap、全部 gap 及文件首尾；1,175 个源码变体、2,350 次
   完整文件解析均保持 significant `LexemeKind` 序列与无 Span AST 结构指纹不变且零诊断；
+- `parser_line_break_boundary_matrix` integration test 将 LF、CRLF、line comment 终止换行及
+  block comment 内 LF / CRLF 六个结构载体，与四个合法非换行 trivia 载体投放到文件头、
+  顶层声明、class member、`when` entry 和 `return` 边界；另锁定 enum comma 与中缀连续性，
+  共执行 80 个 Lexer-clean 源码、160 次确定性完整文件解析；源码裸 CR 仍由 Lexer 以 L0001 拒绝；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
