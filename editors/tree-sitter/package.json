@@ -1,0 +1,15 @@
+{
+  "name": "tree-sitter-koven",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.26.12"
+  },
+  "allowScripts": {
+    "tree-sitter-cli@0.26.12": true
+  }
+}

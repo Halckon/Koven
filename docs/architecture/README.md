@@ -9,7 +9,8 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
 类型、核心构造和 element-place 类型事实；SPEC-0058 已提供独立 TextMate grammar 与由生产
-Lexer 校验的高亮回归 corpus。
+Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
+identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
@@ -374,8 +375,24 @@ ASCII 标识符、单行字符串、非嵌套 block comment、最小数值后缀
 `scopes.tsv` 为仓库私有的代表性 scope/源码片段契约。`lang-frontend` 的
 `textmate_grammar` integration test 检查 grammar repository 和 scope 存在性，并用生产 Lexer
 证明正常 corpus 无诊断且覆盖主要 token/trivia family、reserved corpus 精确产生 11 个
-L0002。该回归不引入 JSON/TextMate runtime 依赖；JSON 语法在交付检查中独立验证。VS Code
-extension、语义高亮、LSP token 与 Tree-sitter grammar 均尚未实现。
+L0002。该回归不引入 JSON/TextMate runtime 依赖；JSON 语法在交付检查中独立验证。
+
+## Tree-sitter grammar
+
+`editors/tree-sitter/grammar.js` 是 Koven concrete-syntax grammar 的唯一手写 JavaScript
+入口；`src/grammar.json`、`src/node-types.json` 与 `src/parser.c` 是由精确锁定的官方
+`tree-sitter-cli` `0.26.12` 确定性生成并提交审阅的产物。grammar 覆盖文件头、声明与
+class-family、类型、block/control-flow、call/lambda、字符串插值和现行 Pratt 运算符层级。
+生产编译器仍只使用 Rust Lexer/Parser，Tree-sitter 的增量错误恢复不构成 compile-pass 判据。
+
+Tree-sitter 的正则 token 无法排除全部硬关键字和未来保留字，因此 `src/scanner.c` 在 ASCII
+identifier 边界集中拒绝现行 42 个硬关键字与 11 个未来保留字，并为局部解构单独排除 `_`。
+`test/corpus/koven.txt` 的 7 个 concrete-tree case 覆盖文件头与声明、class-family、call/lambda、
+control-flow、字符串插值、跨声明恢复和保留字。`lang-frontend` 的
+`tree_sitter_grammar` integration test 再用生产 Lexer/Parser 读取同一批代表性 `.ko` fixture，
+锁定合法文件零诊断、`L0009` 空 span 恢复、关键字分类、完整有序诊断及错误后的后续根节点。
+CLI 仅是该目录精确锁定的开发依赖，不进入 Cargo workspace 或编译器运行时。VS Code
+extension、语义高亮与 LSP token 仍尚未实现。
 
 ## 尚未实现的编译流水线
 

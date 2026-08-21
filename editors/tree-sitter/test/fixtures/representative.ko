@@ -1,0 +1,45 @@
+package sample.syntax
+import sample.math.add as plus
+
+public value class Point(val x: Int, val y: Int)
+
+interface Shape {
+    fun area(): Double
+}
+
+class Circle(val radius: Double): Shape {
+    override fun area(): Double = radius * radius
+    companion object {
+        const val KIND: String = "circle"
+    }
+}
+
+enum class Result<T> {
+    Ok(payload: T),
+    Error(message: String);
+    fun valueOr(default: T): T = when (this) {
+        is Result.Ok -> this.payload
+        else -> default
+    }
+}
+
+object Origin {
+    const val NAME: String = "origin"
+}
+
+fun compute(inout total: Int): Int {
+    val (left, right) = pair()
+    val transform: (Int) -> Int = { input -> input * 2 }
+    val text = "value ${transform(left)}"
+    while (total < 10) {
+        total += 1
+    }
+    for ((item, _) in items) {
+        consume(item)
+    }
+    loop {
+        break
+    }
+    update(target = &total, source = borrow right)
+    return if (total == 10) transform(left) else plus(left, right)
+}

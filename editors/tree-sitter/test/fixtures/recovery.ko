@@ -1,0 +1,7 @@
+package sample.recovery
+
+fun broken(input: Int): Int {
+    val result = input +
+}
+
+val after = 1

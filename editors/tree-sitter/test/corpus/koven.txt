@@ -1,0 +1,422 @@
+==================
+File header and declarations
+==================
+
+package sample.syntax
+import sample.math.add as plus
+
+val answer: Int = plus(40, 2)
+fun <T: Any> identity(borrow item: T): T = item
+
+---
+
+(source_file
+  (package_directive
+    (qualified_name
+      (identifier)
+      (identifier)))
+  (import_directive
+    (import_target
+      (identifier)
+      (identifier)
+      (identifier))
+    (identifier))
+  (variable_declaration
+    (identifier)
+    (type_annotation
+      (qualified_type
+        (qualified_name
+          (identifier))))
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (integer_literal)))
+          (call_argument
+            (expression
+              (integer_literal)))))))
+  (function_declaration
+    (type_parameter_list
+      (type_parameter
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (identifier)
+    (value_parameter_list
+      (value_parameter
+        (parameter_mode)
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (expression_body
+      (expression
+        (identifier)))))
+
+==================
+Class family
+==================
+
+value class Point(val x: Int, val y: Int)
+interface Shape {
+    fun area(): Double
+}
+enum class Result {
+    Ok,
+    Error;
+    fun code(): Int = 1
+}
+object Origin {
+    const val NAME: String = "origin"
+}
+
+---
+
+(source_file
+  (classifier_declaration
+    (value_class_declaration
+      (identifier)
+      (value_primary_constructor
+        (class_field
+          (identifier)
+          (qualified_type
+            (qualified_name
+              (identifier))))
+        (class_field
+          (identifier)
+          (qualified_type
+            (qualified_name
+              (identifier)))))))
+  (classifier_declaration
+    (interface_declaration
+      (identifier)
+      (interface_body
+        (interface_method_declaration
+          (function_declaration
+            (identifier)
+            (value_parameter_list)
+            (qualified_type
+              (qualified_name
+                (identifier))))))))
+  (classifier_declaration
+    (enum_class_declaration
+      (identifier)
+      (enum_body
+        (enum_variant
+          (identifier))
+        (enum_variant
+          (identifier))
+        (enum_member
+          (method_declaration
+            (function_declaration
+              (identifier)
+              (value_parameter_list)
+              (qualified_type
+                (qualified_name
+                  (identifier)))
+              (expression_body
+                (expression
+                  (integer_literal)))))))))
+  (classifier_declaration
+    (object_declaration
+      (identifier)
+      (object_body
+        (constant_declaration
+          (identifier)
+          (type_annotation
+            (qualified_type
+              (qualified_name
+                (identifier))))
+          (expression
+            (string_literal
+              (string_content))))))))
+
+==================
+Calls and lambda
+==================
+
+fun use(): Unit {
+    val transform: (Int) -> Int = { input -> input * 2 }
+    val result = receiver?.member<Int>(name = borrow input)[0]!!
+    val reference = result::next
+}
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (value_parameter_list)
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (block
+      (local_variable_statement
+        (variable_declaration
+          (identifier)
+          (type_annotation
+            (function_type
+              (function_type_parameter
+                (qualified_type
+                  (qualified_name
+                    (identifier))))
+              (qualified_type
+                (qualified_name
+                  (identifier)))))
+          (expression
+            (lambda_expression
+              (lambda_header
+                (identifier))
+              (expression_statement
+                (expression
+                  (binary_expression
+                    (expression
+                      (identifier))
+                    (expression
+                      (integer_literal)))))))))
+      (local_variable_statement
+        (variable_declaration
+          (identifier)
+          (expression
+            (postfix_expression
+              (expression
+                (index_expression
+                  (expression
+                    (call_expression
+                      (expression
+                        (member_expression
+                          (expression
+                            (identifier))
+                          (identifier)))
+                      (call_type_arguments
+                        (qualified_type
+                          (qualified_name
+                            (identifier))))
+                      (argument_list
+                        (call_argument
+                          (named_argument_prefix
+                            (identifier))
+                          (argument_mode)
+                          (expression
+                            (identifier))))))
+                  (expression
+                    (integer_literal))))))))
+      (local_variable_statement
+        (variable_declaration
+          (identifier)
+          (expression
+            (callable_reference
+              (expression
+                (identifier))
+              (identifier))))))))
+
+==================
+Control flow
+==================
+
+fun flow(inout total: Int): Int {
+    while (total < 10) {
+        total += 1
+    }
+    for ((item, _) in items) {
+        consume(item)
+    }
+    loop {
+        break
+    }
+    return if (total == 10) total else when (total) {
+        0 -> 1
+        else -> total
+    }
+}
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (value_parameter_list
+      (value_parameter
+        (parameter_mode)
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (block
+      (while_statement
+        (expression
+          (binary_expression
+            (expression
+              (identifier))
+            (expression
+              (integer_literal))))
+        (block
+          (expression_statement
+            (expression
+              (assignment_expression
+                (expression
+                  (identifier))
+                (expression
+                  (integer_literal)))))))
+      (for_statement
+        (for_binding
+          (identifier)
+          (identifier))
+        (expression
+          (identifier))
+        (block
+          (expression_statement
+            (expression
+              (call_expression
+                (expression
+                  (identifier))
+                (argument_list
+                  (call_argument
+                    (expression
+                      (identifier)))))))))
+      (loop_statement
+        (block
+          (expression_statement
+            (expression
+              (jump_expression)))))
+      (expression_statement
+        (expression
+          (jump_expression
+            (expression
+              (if_expression
+                (expression
+                  (binary_expression
+                    (expression
+                      (identifier))
+                    (expression
+                      (integer_literal))))
+                (control_body
+                  (expression
+                    (identifier)))
+                (control_body
+                  (expression
+                    (when_expression
+                      (expression
+                        (identifier))
+                      (when_entry
+                        (when_condition
+                          (expression
+                            (integer_literal)))
+                        (control_body
+                          (expression
+                            (integer_literal))))
+                      (when_entry
+                        (control_body
+                          (expression
+                            (identifier)))))))))))))))
+
+==================
+String interpolation
+==================
+
+val text = "hello\n${format(name)}"
+val scalar: Char = '界'
+val number = 42UL + 1.5f
+
+---
+
+(source_file
+  (variable_declaration
+    (identifier)
+    (expression
+      (string_literal
+        (string_content)
+        (escape_sequence)
+        (interpolation
+          (expression
+            (call_expression
+              (expression
+                (identifier))
+              (argument_list
+                (call_argument
+                  (expression
+                    (identifier))))))))))
+  (variable_declaration
+    (identifier)
+    (type_annotation
+      (qualified_type
+        (qualified_name
+          (identifier))))
+    (expression
+      (character_literal)))
+  (variable_declaration
+    (identifier)
+    (expression
+      (binary_expression
+        (expression
+          (integer_literal))
+        (expression
+          (float_literal))))))
+
+==================
+Recover at the next declaration
+==================
+
+fun broken(input: Int): Int {
+    val result = input +
+}
+
+val after = 1
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (value_parameter_list
+      (value_parameter
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (block
+      (local_variable_statement
+        (variable_declaration
+          (identifier)
+          (expression
+            (identifier))))
+      (ERROR)))
+  (variable_declaration
+    (identifier)
+    (expression
+      (integer_literal))))
+
+==================
+Reserved words are not identifiers
+==================
+
+val value = 1
+val async = 2
+val after = 3
+
+---
+
+(source_file
+  (variable_declaration
+    (ERROR
+      (integer_literal))
+    (identifier)
+    (expression
+      (integer_literal)))
+  (variable_declaration
+    (identifier)
+    (expression
+      (integer_literal))))

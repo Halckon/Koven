@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "koven",
+      "camelcase": "Koven",
+      "scope": "source.koven",
+      "path": ".",
+      "file-types": [
+        "ko"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "UNLICENSED",
+    "description": "Tree-sitter grammar for the Koven language"
+  }
+}
