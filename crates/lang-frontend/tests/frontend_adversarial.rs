@@ -1,14 +1,11 @@
-//! SPEC-0068 / SPEC-0102 / SPEC-0103 的 Lexer / 完整文件 Parser 确定性对抗组合矩阵。
+//! SPEC-0068 / SPEC-0102 / SPEC-0103 / SPEC-0111 的 Lexer / 完整文件 Parser 确定性对抗组合矩阵。
 
 use lang_frontend::diagnostic::Diagnostic;
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
-#[path = "support/lexer_matrix_assertions.rs"]
-mod lexer_matrix_assertions;
 
-use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
-use lexer_matrix_assertions::lex_source_twice;
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 
 const PREFIXES: &[&str] = &[
     "",
@@ -77,8 +74,7 @@ fn short_source_matrix_preserves_coverage_and_repeatable_parse_structure() {
         for suffix in SUFFIXES {
             let text = format!("{prefix}{suffix}");
             let context = format!("adversarial case {text:?}");
-            let (sources, source_id, lexed) =
-                lex_source_twice("adversarial.ko", &text, &context, validate_lexed);
+            let (sources, source_id, lexed) = lex_source_twice("adversarial.ko", &text, &context);
             parse_file_twice(&sources, source_id, text.len(), &lexed, &context);
         }
     }
@@ -87,12 +83,8 @@ fn short_source_matrix_preserves_coverage_and_repeatable_parse_structure() {
 #[test]
 fn terminal_char_root_closes_suppressed_string_and_interpolation_owners() {
     let text = "val x = \"${'";
-    let (sources, source_id, lexed) = lex_source_twice(
-        "terminal-char.ko",
-        text,
-        "terminal char regression",
-        validate_lexed,
-    );
+    let (sources, source_id, lexed) =
+        lex_source_twice("terminal-char.ko", text, "terminal char regression");
     assert_eq!(
         diagnostic_fingerprints(lexed.diagnostics()),
         [(

@@ -424,13 +424,18 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
   本轮未发现生产缺陷；
 - `frontend_matrix_assertions` 为 prefix truncation、token omission / duplication / transposition 与
-  lexical poison replacement / insertion 六个完整文件恢复矩阵提供共享解析入口；4,167 个主要
-  变异 / 前缀 case 的两次产物均分别锁定 source identity、source-local AST / diagnostic 主与
-  label Span、文件 roots、package / import directive Span，并比较完整公开产物确定性；
+  lexical poison replacement / insertion 六个完整文件恢复矩阵提供共享双 Lexer / 双 Parser
+  入口；4,167 个主要变异 / 前缀 case、132 个 baseline / complete case 与 2 个定向 omission
+  回归合计 4,301 个 source case，共验证 8,602 个 Lexer 和 8,602 个 Parser 产物。两阶段产物锁定
+  source identity、lexeme 完整覆盖与唯一 EOF、source-local AST / diagnostic 主与 label Span、
+  文件 roots、package / import directive Span，并比较完整公开产物确定性；本轮未发现生产缺陷；
+  既有 `frontend_adversarial` 也通过该入口复用双 Lexer，避免同一 integration test 重复加载
+  `lexer_matrix_assertions`；
 - `parser_prefix_truncation_matrix` integration test 以 22 个 Lexer / Parser-clean 完整文件覆盖
   文件头、声明、callable、block、lambda、control-flow、postfix、class-family、接口委托、
   运算符层级及 Unicode 嵌套 string / interpolation；其 1,373 个 UTF-8 scalar 前缀均保持
-  lexeme 完整覆盖、唯一末尾 EOF、有界诊断 / AST Span，并完成两次确定性完整文件解析；
+  lexeme 完整覆盖、唯一末尾 EOF、有界诊断 / AST Span，并完成两次确定性 Lexer 与完整文件
+  Parser；
 - `parser_entry_prefix_truncation_matrix` integration test 以 12 个 Lexer / Parser-clean 独立源码按
   expression / declaration / block 各 4 个覆盖 callable、control-flow、运算符、lambda、泛型、
   class-family、局部解构、loop-family 与 Unicode lexical owner；三个入口分别执行 195 / 350 /

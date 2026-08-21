@@ -1,9 +1,6 @@
-//! SPEC-0081 的合法完整语法逐显著 token 词法 poison 替换矩阵。
+//! SPEC-0081 / SPEC-0111 的合法完整语法逐显著 token 词法 poison 替换矩阵。
 
-use lang_frontend::{
-    lexer::lex,
-    source::{SourceMap, Span},
-};
+use lang_frontend::source::Span;
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -20,7 +17,7 @@ mod parser_mutation_owners;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
-use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_assertions::assert_last_root_source;
@@ -32,12 +29,8 @@ const SENTINEL: &str = "val sentinel = 0";
 
 fn baseline_and_slots(case_source: &str, context: &str) -> (String, Vec<MutationSlot>) {
     let source = format!("{case_source}\n{SENTINEL}");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-poison-replacement-baseline.ko", &source)
-        .expect("baseline source name must be unique");
-    let lexed = lex(&sources, source_id).expect("baseline source must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) =
+        lex_source_twice("parser-poison-replacement-baseline.ko", &source, context);
     assert!(
         lexed.diagnostics().is_empty(),
         "baseline must lex cleanly for {context}: {:?}",
@@ -90,12 +83,8 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable()
                     poison.name
                 );
                 let mutated = replace_with_poison(&source, slot.span, poison.text);
-                let mut sources = SourceMap::new();
-                let source_id = sources
-                    .add_source("parser-poison-replacement.ko", &mutated)
-                    .expect("mutation source name must be unique");
-                let lexed = lex(&sources, source_id).expect("mutation must lex internally");
-                validate_lexed(source_id, mutated.len(), &lexed);
+                let (sources, source_id, lexed) =
+                    lex_source_twice("parser-poison-replacement.ko", &mutated, &context);
 
                 if token_is_lexical_mode_segment(slot.kind) {
                     lexical_mode_mutations += 1;

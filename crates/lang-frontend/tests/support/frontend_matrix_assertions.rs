@@ -1,4 +1,4 @@
-//! SPEC-0099 的 Lexer / 完整文件 Parser 矩阵共享公开产物不变量。
+//! SPEC-0099 / SPEC-0111 的 Lexer / 完整文件 Parser 矩阵共享公开产物不变量。
 
 use lang_frontend::{
     lexer::LexedFile,
@@ -8,9 +8,20 @@ use lang_frontend::{
 
 #[path = "frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 
-pub(crate) use frontend_output_assertions::validate_lexed;
-use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_span};
+use frontend_output_assertions::{
+    validate_ast, validate_diagnostics, validate_lexed, validate_span,
+};
+
+pub(crate) fn lex_source_twice(
+    source_name: &str,
+    source: &str,
+    context: &str,
+) -> (SourceMap, SourceId, LexedFile) {
+    lexer_matrix_assertions::lex_source_twice(source_name, source, context, validate_lexed)
+}
 
 fn validate_file_output(
     source_id: SourceId,

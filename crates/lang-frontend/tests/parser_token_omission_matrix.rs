@@ -1,7 +1,6 @@
-//! SPEC-0080 的合法完整语法逐显著 token 缺失恢复矩阵。
+//! SPEC-0080 / SPEC-0111 的合法完整语法逐显著 token 缺失恢复矩阵。
 
 use lang_frontend::{
-    lexer::lex,
     parser::ParsedFile,
     source::{SourceMap, Span},
 };
@@ -17,7 +16,7 @@ mod parser_mutation_owners;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
-use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_mutation_assertions::assert_last_root_source;
 use parser_mutation_owners::token_affects_owner;
@@ -27,12 +26,8 @@ const SENTINEL: &str = "val sentinel = 0";
 
 fn baseline_and_omissions(case_source: &str, context: &str) -> (String, Vec<MutationSlot>) {
     let source = format!("{case_source}\n{SENTINEL}");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-token-omission-baseline.ko", &source)
-        .expect("baseline source name must be unique");
-    let lexed = lex(&sources, source_id).expect("baseline source must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) =
+        lex_source_twice("parser-token-omission-baseline.ko", &source, context);
     assert!(
         lexed.diagnostics().is_empty(),
         "baseline must lex cleanly for {context}: {:?}",
@@ -59,12 +54,7 @@ fn omit(source: &str, span: Span) -> String {
 }
 
 fn parse_mutation(source: &str, context: &str) -> (SourceMap, ParsedFile) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-token-omission.ko", source)
-        .expect("mutation source name must be unique");
-    let lexed = lex(&sources, source_id).expect("mutation must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) = lex_source_twice("parser-token-omission.ko", source, context);
     let parsed = parse_file_twice(&sources, source_id, source.len(), &lexed, context);
     (sources, parsed)
 }

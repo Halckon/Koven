@@ -1,6 +1,4 @@
-//! SPEC-0083 的合法完整语法 token gap 词法 poison 插入矩阵。
-
-use lang_frontend::{lexer::lex, source::SourceMap};
+//! SPEC-0083 / SPEC-0111 的合法完整语法 token gap 词法 poison 插入矩阵。
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -15,7 +13,7 @@ mod parser_mutation_gaps;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
-use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_assertions::assert_last_root_source;
@@ -26,12 +24,8 @@ const SENTINEL: &str = "val sentinel = 0";
 
 fn baseline_and_gaps(case_source: &str, context: &str) -> (String, Vec<Gap>, usize) {
     let source = format!("{case_source}\n{SENTINEL}");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-poison-insertion-baseline.ko", &source)
-        .expect("baseline source name must be unique");
-    let lexed = lex(&sources, source_id).expect("baseline source must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) =
+        lex_source_twice("parser-poison-insertion-baseline.ko", &source, context);
     assert!(
         lexed.diagnostics().is_empty(),
         "baseline must lex cleanly for {context}: {:?}",
@@ -94,15 +88,11 @@ fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
                     if gap.code_mode { "code" } else { "string" }
                 );
                 let (mutated, poison_range) = insert_poison(&source, gap.offset, poison.text);
-                let mut sources = SourceMap::new();
-                let source_id = sources
-                    .add_source("parser-poison-insertion.ko", &mutated)
-                    .expect("mutation source name must be unique");
+                let (sources, source_id, lexed) =
+                    lex_source_twice("parser-poison-insertion.ko", &mutated, &context);
                 let poison_span = sources
                     .span(source_id, poison_range.0, poison_range.1)
                     .expect("inserted poison span must fit the mutation source");
-                let lexed = lex(&sources, source_id).expect("mutation must lex internally");
-                validate_lexed(source_id, mutated.len(), &lexed);
 
                 if gap.code_mode {
                     assert_eq!(

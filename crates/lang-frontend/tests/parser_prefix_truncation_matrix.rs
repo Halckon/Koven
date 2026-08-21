@@ -1,8 +1,8 @@
-//! SPEC-0079 / SPEC-0099 的 UTF-8 前缀恢复与共享文件产物不变量。
+//! SPEC-0079 / SPEC-0099 / SPEC-0111 的 UTF-8 前缀恢复与共享文件产物不变量。
 
 use std::collections::BTreeSet;
 
-use lang_frontend::{lexer::lex, parser::ParsedFile, source::SourceMap};
+use lang_frontend::parser::ParsedFile;
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -11,17 +11,13 @@ mod parser_grammar_corpus;
 #[path = "support/parser_prefixes.rs"]
 mod parser_prefixes;
 
-use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_prefixes::prefix_ends;
 
 fn parse_prefix(source: &str, context: &str) -> ParsedFile {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-prefix-truncation.ko", source)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix prefix must lex internally");
-    validate_lexed(source_id, source.len(), &lexed);
+    let (sources, source_id, lexed) =
+        lex_source_twice("parser-prefix-truncation.ko", source, context);
     parse_file_twice(&sources, source_id, source.len(), &lexed, context)
 }
 
