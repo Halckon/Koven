@@ -1,15 +1,18 @@
-//! SPEC-0013 局部 `val` 解构的公共 AST、诊断与恢复契约测试。
+//! SPEC-0013 / SPEC-0122 局部 `val` 解构的公共 AST、诊断与恢复契约测试。
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     diagnostic::Diagnostic,
-    lexer::lex,
     parser::{
         Expression, Item, NameMarker, ParsedBlock, ParsedDeclaration, ParsedExpression, Statement,
-        parse_block, parse_declaration, parse_expression,
     },
     source::{SourceId, SourceMap, Span},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_block_twice, parse_declaration_twice, parse_expression_twice};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources.add_source(name, text).expect("unique source")
@@ -18,24 +21,21 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 fn parsed_block(text: &str) -> (SourceMap, ParsedBlock) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "block.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse");
+    let parsed = parse_block_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
 fn parsed_expression(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "expression.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
 fn parsed_declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "declaration.ko", text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -547,9 +547,9 @@ fn destructuring_recovery_preserves_an_inherited_mismatched_hard_closer() {
 fn destructuring_spans_keep_the_selected_source_map_identity() {
     let mut sources = SourceMap::new();
     add_source(&mut sources, "unrelated.ko", "{}");
-    let source_id = add_source(&mut sources, "selected.ko", "{ val (a, b) = pair }");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse");
+    let text = "{ val (a, b) = pair }";
+    let source_id = add_source(&mut sources, "selected.ko", text);
+    let parsed = parse_block_twice(&sources, source_id, text);
     assert!(parsed.diagnostics().is_empty());
     let node = parsed
         .ast()
