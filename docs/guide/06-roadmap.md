@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.24。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.25。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -160,10 +160,10 @@ fun main(): Unit {
 - [x] **SPEC-0021（前置已完成；v0.24 已明确启用）**：建立 enum case type、稳定 place 的
       flow facts、赋值/capture kill、Boolean/enum/nullable 有限域穷尽性、分支 join 与
       L0106–L0114。
-- [ ] **SPEC-0022（draft；前置已完成；等待 v0.25 明确启用）**：按候选
+- [x] **SPEC-0022（前置已完成；v0.25 已明确启用）**：按现行
       [`01-design-decisions.md`](./01-design-decisions.md) §25 推导条件 `Copyable`，拒绝无限
       内联布局与非法 intrinsic `Box` 实参，并为局部 value-class 解构产出有序的
-      Copy/Consume typed descriptor；当前不得提前实施。
+      Copy/Consume typed descriptor；L0115–L0118 已实施。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
@@ -179,7 +179,7 @@ fun main(): Unit {
 - [x] `Nothing` 类型的 bottom-type 特殊处理
 - [ ] 计算 `value class` / `enum class` 的条件 `Copyable`：允许不可复制字段或 payload，按
       实际类型实参递归推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、
-      覆盖或同名冒充（v0.25 候选，未启用）
+      覆盖或同名冒充（v0.25 现行契约）
 - [ ] 检查内联类型结构有限；拒绝未经过 `class`、`Box` 或动态容器等固定大小 handle 打断的
       直接 / 间接递归内联环
 - [ ] 对内建 `Box<T>` 执行 type-kind 检查：只接受 `value class` 类型实参，拒绝普通 `class`

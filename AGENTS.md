@@ -7,8 +7,8 @@
 > callable 参数与 typed call argument Parser、局部 `val` 解构、完整文件组合、Kotlin 风格
 > `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
 > 具名函数隐式 `Unit` 返回标注已实现；Phase 2 的单文件名称解析、基础类型检查以及完整
-> 名义类型、泛型、interface 实现与窄化委托检查，以及 `when` 穷尽性与 smart cast 已完成；
-> 下一项为条件 `Copyable` 与结构化解构类型检查。
+> 名义类型、泛型、interface 实现与窄化委托检查、`when` 穷尽性与 smart cast，以及条件
+> `Copyable`、有限内联布局与结构化解构类型检查已完成；下一项为 callable 类型检查。
 > 已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---
@@ -22,7 +22,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast，下一项为条件 `Copyable` 与结构化解构类型检查。确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局与结构化解构类型检查，下一项为 callable 类型检查。确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -37,7 +37,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.24。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.25。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -68,7 +68,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.24 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.25 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
@@ -82,8 +82,13 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   否则转交所有权时发生移动。`Copyable` 可作泛型上界但不能由用户手动实现；不可复制字段
   只能投影借用，v1 不支持普通字段部分移动。`Copyable` 类型不得需要复制 glue、retain 或
   唯一析构义务。
+- `Nothing` 满足 `Copyable`；nullable、`value class` 与有限 `enum class` 按内部实际类型
+  条件推导。无 `Copyable` 上界的类型参数在泛型体内按 move-only 使用。无限 value/enum
+  内联递归必须在布局前拒绝。
 - 普通 `class` 表示堆分配的引用语义，并受所有权与借用检查约束。`Box<T>` 用于把
-  `value class` 显式装箱；v1 的 `Box<T>` 只接受 `value class`，`Box<普通 class>` 是类型错误。
+  `value class` 显式装箱；v1 的 intrinsic `Box<T>` 只接受具体 `value class` 实例，
+  `Box<普通 class>` 与仅由类型参数表示的 `Box<T>` 是类型错误，同名源码 class 不获得
+  intrinsic 身份。
 - `own` 仍是硬关键字，但 v0.14 没有任何产生式接受它。声明侧参数 marker 使用 `borrow` /
   `inout`；调用点可选写 `borrow`，`Inout` 实参必须写 `&`。这些形式都不是 Pratt parser 中
   的通用一元运算符，必须由各自的参数专用语法解析。

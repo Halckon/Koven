@@ -1,7 +1,10 @@
+mod copyability;
 mod delegation;
+mod destructuring;
 mod expression;
 mod flow;
 mod item;
+mod layout;
 mod literal;
 mod members;
 mod nominal;
@@ -17,16 +20,16 @@ use crate::{
         EnumCase, EnumCaseId, ExternalSymbolId, NameResolution, Namespace, ReferenceTarget,
         ScopeId, ScopeKind, SymbolId, SymbolKind,
     },
-    parser::{ClassifierKind, Item, NameMarker, ParsedFile, SyntaxAst, VariableKind},
+    parser::{ClassifierKind, Item, NameMarker, ParsedFile, SyntaxAst},
     source::{SourceMap, Span},
 };
 
 use super::{
-    BuiltinType, CallableDescriptor, Capability, DeferredReason, DelegationPlan,
-    EnumCaseDescriptor, EnvironmentFunction, EnvironmentType, ExternalTypeBinding,
-    FunctionParameterType, NominalDescriptor, NominalId, NominalKind, ParameterMode,
-    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
-    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    BuiltinType, CallableDescriptor, Capability, Copyability, DeferredReason, DelegationPlan,
+    DestructuringDescriptor, EnumCaseDescriptor, EnvironmentFunction, EnvironmentType,
+    ExternalTypeBinding, FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor,
+    NominalId, NominalKind, ParameterMode, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
+    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
@@ -71,6 +74,7 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
     symbol_spans: Vec<Span>,
+    component_type_spans: Vec<Option<Span>>,
     symbol_scopes: Vec<ScopeId>,
     scope_parents: Vec<Option<ScopeId>>,
     scope_kinds: Vec<ScopeKind>,
@@ -94,7 +98,9 @@ struct Checker<'a> {
     enum_case_by_payload_symbol: BTreeMap<SymbolId, EnumCaseId>,
     source_enum_cases: Vec<EnumCase>,
     interface_edge_spans: BTreeMap<(NominalId, NominalId), Span>,
+    invalid_inline_nominals: BTreeSet<NominalId>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
+    destructurings: Vec<DestructuringDescriptor>,
     callables: Vec<CallableContext>,
     classifiers: Vec<TypeId>,
     diagnostics: Vec<Diagnostic>,
@@ -131,6 +137,10 @@ struct Checker<'a> {
     non_exhaustive_when_code: DiagnosticCode,
     when_branch_type_code: DiagnosticCode,
     invalid_enum_payload_access_code: DiagnosticCode,
+    copyable_type_argument_bound_code: DiagnosticCode,
+    infinite_inline_layout_code: DiagnosticCode,
+    invalid_box_argument_code: DiagnosticCode,
+    destructuring_arity_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -190,6 +200,7 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             symbol_kinds,
             symbol_spans,
+            component_type_spans: vec![None; names.symbols().len()],
             symbol_scopes,
             scope_parents: names.scopes().iter().map(|scope| scope.parent()).collect(),
             scope_kinds: names.scopes().iter().map(|scope| scope.kind()).collect(),
@@ -217,7 +228,9 @@ impl<'a> Checker<'a> {
             enum_case_by_payload_symbol: BTreeMap::new(),
             source_enum_cases: names.enum_cases().to_vec(),
             interface_edge_spans: BTreeMap::new(),
+            invalid_inline_nominals: BTreeSet::new(),
             external_types: BTreeMap::new(),
+            destructurings: Vec::new(),
             callables: Vec::new(),
             classifiers: Vec::new(),
             diagnostics: Vec::new(),
@@ -256,6 +269,11 @@ impl<'a> Checker<'a> {
             when_branch_type_code: catalog.resolve(codes::WHEN_BRANCH_TYPE)?,
             invalid_enum_payload_access_code: catalog
                 .resolve(codes::INVALID_ENUM_PAYLOAD_ACCESS)?,
+            copyable_type_argument_bound_code: catalog
+                .resolve(codes::COPYABLE_TYPE_ARGUMENT_BOUND)?,
+            infinite_inline_layout_code: catalog.resolve(codes::INFINITE_INLINE_LAYOUT)?,
+            invalid_box_argument_code: catalog.resolve(codes::INVALID_BOX_ARGUMENT)?,
+            destructuring_arity_code: catalog.resolve(codes::DESTRUCTURING_ARITY)?,
         })
     }
 
@@ -263,10 +281,12 @@ impl<'a> Checker<'a> {
         self.collect_nominals()?;
         self.collect_flow_metadata();
         self.collect_enum_cases()?;
+        self.collect_nominal_fields()?;
         self.check_type_parameter_bounds()?;
         self.check_direct_interfaces()?;
         self.check_interface_cycles()?;
         self.compute_interface_closures()?;
+        self.check_inline_layouts()?;
         self.predeclare_signatures()?;
         self.check_delegations()?;
         self.check_callable_shapes_and_bodies()?;
@@ -274,6 +294,7 @@ impl<'a> Checker<'a> {
             self.check_item(root)?;
         }
         self.validate_type_argument_bounds()?;
+        let copyabilities = self.all_copyabilities();
         let error = self.error_type();
         let expression_types = self
             .expression_types
@@ -306,402 +327,11 @@ impl<'a> Checker<'a> {
                 delegations: self.delegations,
                 callables: self.typed_callables,
                 enum_cases: self.enum_cases,
+                copyabilities,
+                destructurings: self.destructurings,
             },
             diagnostics,
         ))
-    }
-
-    fn check_direct_interfaces(&mut self) -> Result<(), TypeCheckingError> {
-        let classifiers = self
-            .ast()
-            .items()
-            .iter()
-            .filter_map(|(_, node)| match node.payload() {
-                Item::Classifier(classifier) => Some(classifier.as_ref().clone()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for classifier in classifiers {
-            let NameMarker::Present(name_span) = classifier.name else {
-                continue;
-            };
-            let Some(symbol) = self.symbol_at(name_span) else {
-                continue;
-            };
-            let Some(nominal) = self.nominal_by_symbol.get(&symbol).copied() else {
-                continue;
-            };
-            let mut accepted = Vec::new();
-            let mut first_by_nominal = BTreeMap::new();
-            for supertype in classifier.supertypes {
-                let ty = self.resolve_static_type_ref(supertype.type_ref)?;
-                if self.is_error(ty) {
-                    continue;
-                }
-                let TypeKind::Nominal {
-                    nominal: target, ..
-                } = self.kind(ty)
-                else {
-                    self.emit(
-                        self.invalid_supertype_code,
-                        "class-family supertype must be an interface",
-                        self.ast().type_refs().get(supertype.type_ref)?.span(),
-                    )?;
-                    continue;
-                };
-                let target = *target;
-                let is_interface = self.nominals.iter().any(|descriptor| {
-                    descriptor.id() == target && descriptor.kind() == NominalKind::Interface
-                });
-                if !is_interface {
-                    self.emit_with_label(
-                        self.invalid_supertype_code,
-                        "class-family supertype must be an interface",
-                        self.ast().type_refs().get(supertype.type_ref)?.span(),
-                        self.symbol_spans[target.symbol().index()],
-                        "non-interface type declared here",
-                    )?;
-                    continue;
-                }
-                let span = self.ast().type_refs().get(supertype.type_ref)?.span();
-                if let Some(first) = first_by_nominal.insert(target, span) {
-                    self.emit_with_label(
-                        self.invalid_supertype_code,
-                        "interface appears more than once in the direct supertype list",
-                        span,
-                        first,
-                        "first interface instance appears here",
-                    )?;
-                    continue;
-                }
-                accepted.push(ty);
-                self.interface_edge_spans.insert((nominal, target), span);
-            }
-            let descriptor = self
-                .nominals
-                .iter_mut()
-                .find(|descriptor| descriptor.id() == nominal)
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            descriptor.direct_interfaces = accepted.clone();
-            descriptor.interfaces = accepted;
-        }
-        Ok(())
-    }
-
-    fn check_interface_cycles(&mut self) -> Result<(), TypeCheckingError> {
-        loop {
-            let mut colors = self
-                .nominals
-                .iter()
-                .map(|descriptor| (descriptor.id(), 0_u8))
-                .collect::<BTreeMap<_, _>>();
-            let roots = self
-                .nominals
-                .iter()
-                .filter(|descriptor| descriptor.kind() == NominalKind::Interface)
-                .map(NominalDescriptor::id)
-                .collect::<Vec<_>>();
-            let cycle = roots.into_iter().find_map(|root| {
-                (colors[&root] == 0)
-                    .then(|| find_interface_cycle(root, &self.nominals, &self.types, &mut colors))
-                    .flatten()
-            });
-            let Some((from, to)) = cycle else {
-                return Ok(());
-            };
-            let primary = self.interface_edge_spans[&(from, to)];
-            self.emit_with_label(
-                self.interface_cycle_code,
-                "interface inheritance forms a cycle",
-                primary,
-                self.symbol_spans[to.symbol().index()],
-                "cycle reaches this interface again",
-            )?;
-            let descriptor = self
-                .nominals
-                .iter_mut()
-                .find(|descriptor| descriptor.id() == from)
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            descriptor.direct_interfaces.retain(|&ty| {
-                !matches!(self.types.get(ty), Some(TypeKind::Nominal { nominal, .. }) if *nominal == to)
-            });
-            descriptor.interfaces = descriptor.direct_interfaces.clone();
-        }
-    }
-
-    fn check_type_parameter_bounds(&mut self) -> Result<(), TypeCheckingError> {
-        let parameters = self
-            .ast()
-            .items()
-            .iter()
-            .flat_map(|(_, node)| match node.payload() {
-                Item::Function {
-                    type_parameters, ..
-                } => type_parameters.clone(),
-                Item::Classifier(classifier) => classifier.type_parameters.clone(),
-                _ => Vec::new(),
-            })
-            .collect::<Vec<_>>();
-        for parameter in parameters {
-            let Some(bound) = parameter.bound else {
-                continue;
-            };
-            let ty = self.resolve_static_type_ref(bound)?;
-            let valid = matches!(
-                self.kind(ty),
-                TypeKind::Builtin(BuiltinType::Any) | TypeKind::Capability(_)
-            ) || matches!(self.kind(ty), TypeKind::Nominal { nominal, .. }
-                    if self.nominals.iter().any(|descriptor| descriptor.id() == *nominal && descriptor.kind() == NominalKind::Interface));
-            let normalized = match self.kind(ty) {
-                TypeKind::Builtin(BuiltinType::Any) => TypeParameterBound::Any,
-                TypeKind::Capability(capability) => TypeParameterBound::Capability(*capability),
-                TypeKind::Nominal { .. } if valid => TypeParameterBound::Interface(ty),
-                _ => TypeParameterBound::Error,
-            };
-            if let NameMarker::Present(span) = parameter.name
-                && let Some(symbol) = self.symbol_at(span)
-                && let Some(&index) = self.type_parameter_by_symbol.get(&symbol)
-            {
-                self.type_parameters[index].bound = normalized;
-            }
-            if !self.is_error(ty) && !valid {
-                let primary = self.ast().type_refs().get(bound)?.span();
-                let label = match parameter.name {
-                    NameMarker::Present(span)
-                    | NameMarker::Missing(span)
-                    | NameMarker::Error(span) => span,
-                };
-                self.emit_with_label(
-                    self.invalid_type_bound_code,
-                    "type parameter bound must be Any, an interface, or a compiler capability",
-                    primary,
-                    label,
-                    "type parameter declared here",
-                )?;
-            }
-        }
-        Ok(())
-    }
-
-    fn collect_nominals(&mut self) -> Result<(), TypeCheckingError> {
-        for index in 0..self.symbol_kinds.len() {
-            if self.symbol_kinds[index] == SymbolKind::TypeParameter {
-                let symbol = SymbolId(index);
-                let ty = self.types.intern(TypeKind::TypeParameter(symbol));
-                self.set_symbol(symbol, ty);
-                self.type_parameter_by_symbol
-                    .insert(symbol, self.type_parameters.len());
-                self.type_parameters.push(TypeParameterDescriptor {
-                    symbol,
-                    bound: TypeParameterBound::Any,
-                });
-            }
-        }
-        let classifiers = self
-            .ast()
-            .items()
-            .iter()
-            .filter_map(|(_, node)| {
-                if let Item::Classifier(classifier) = node.payload() {
-                    Some((node.span(), classifier.as_ref().clone()))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        for (classifier_span, classifier) in classifiers {
-            let NameMarker::Present(name_span) = classifier.name else {
-                continue;
-            };
-            let Some(symbol) = self.symbol_at(name_span) else {
-                continue;
-            };
-            let id = NominalId::new(symbol);
-            let fields = classifier
-                .primary_constructor
-                .as_ref()
-                .into_iter()
-                .flat_map(|constructor| &constructor.fields)
-                .filter_map(|field| match field.name {
-                    NameMarker::Present(span) => self.symbol_at(span),
-                    _ => None,
-                })
-                .collect();
-            let variants = classifier
-                .body
-                .as_ref()
-                .into_iter()
-                .flat_map(|body| &body.variants)
-                .filter_map(|variant| match variant.name {
-                    NameMarker::Present(span) => self.symbol_at(span),
-                    _ => None,
-                })
-                .collect();
-            let mut parameters = Vec::new();
-            for parameter in classifier.type_parameters {
-                if let NameMarker::Present(span) = parameter.name
-                    && let Some(parameter_symbol) = self.symbol_at(span)
-                {
-                    parameters.push(parameter_symbol);
-                    let ty = self.types.intern(TypeKind::TypeParameter(parameter_symbol));
-                    self.set_symbol(parameter_symbol, ty);
-                }
-            }
-            let kind = match classifier.kind {
-                ClassifierKind::ValueClass { .. } => NominalKind::ValueClass,
-                ClassifierKind::Class { .. } => NominalKind::Class,
-                ClassifierKind::Interface { .. } => NominalKind::Interface,
-                ClassifierKind::EnumClass { .. } => NominalKind::EnumClass,
-                ClassifierKind::Object { .. } => NominalKind::Object,
-            };
-            self.nominal_by_symbol.insert(symbol, id);
-            if let Some(scope) = self
-                .classifier_scope_by_span
-                .get(&(classifier_span.start(), classifier_span.end()))
-                .copied()
-            {
-                self.nominal_by_scope.insert(scope, id);
-            }
-            self.nominals.push(NominalDescriptor {
-                id,
-                kind,
-                type_parameters: parameters.clone(),
-                direct_interfaces: Vec::new(),
-                interfaces: Vec::new(),
-                fields,
-                variants,
-                members: Vec::new(),
-            });
-            let arguments = parameters
-                .into_iter()
-                .map(|parameter| self.types.intern(TypeKind::TypeParameter(parameter)))
-                .collect();
-            let ty = self.types.intern(TypeKind::Nominal {
-                nominal: id,
-                arguments,
-            });
-            self.set_symbol(symbol, ty);
-        }
-        Ok(())
-    }
-
-    fn collect_enum_cases(&mut self) -> Result<(), TypeCheckingError> {
-        let variants = self
-            .ast()
-            .items()
-            .iter()
-            .filter_map(|(_, node)| match node.payload() {
-                Item::Classifier(classifier) => classifier.body.as_ref(),
-                _ => None,
-            })
-            .flat_map(|body| body.variants.iter().cloned())
-            .map(|variant| {
-                (
-                    (variant.span.start(), variant.span.end()),
-                    variant.parameters,
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        for source in self.source_enum_cases.clone() {
-            let root = self
-                .nominal_by_symbol
-                .get(&source.root())
-                .copied()
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            let root_type = self
-                .symbol_type(source.root())
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            let parameters = variants
-                .get(&(source.span().start(), source.span().end()))
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            if parameters.len() != source.payloads().len() {
-                return Err(TypeCheckingError::InvalidExternalBinding);
-            }
-            let mut payloads = Vec::with_capacity(parameters.len());
-            for (parameter, &symbol) in parameters.iter().zip(source.payloads()) {
-                let ty = self.resolve_type_ref(parameter.type_ref)?;
-                self.set_symbol(symbol, ty);
-                self.enum_case_by_payload_symbol.insert(symbol, source.id());
-                payloads.push((symbol, ty));
-            }
-            let case_type = self.types.intern(TypeKind::EnumCase {
-                case: source.id(),
-                root: root_type,
-            });
-            self.set_symbol(source.type_symbol(), case_type);
-            let value_type = if payloads.is_empty() {
-                root_type
-            } else {
-                self.types.intern(TypeKind::Function {
-                    move_only: false,
-                    parameters: payloads
-                        .iter()
-                        .map(|&(_, ty)| FunctionParameterType {
-                            mode: ParameterMode::Value,
-                            ty,
-                        })
-                        .collect(),
-                    return_type: root_type,
-                })
-            };
-            self.set_symbol(source.value_symbol(), value_type);
-            let index = self.enum_cases.len();
-            self.enum_case_by_id.insert(source.id(), index);
-            self.enum_case_by_type_symbol
-                .insert(source.type_symbol(), source.id());
-            self.enum_case_by_value_symbol
-                .insert(source.value_symbol(), source.id());
-            self.enum_cases.push(EnumCaseDescriptor {
-                id: source.id(),
-                root,
-                root_type,
-                value_symbol: source.value_symbol(),
-                type_symbol: source.type_symbol(),
-                payloads,
-            });
-        }
-        Ok(())
-    }
-
-    fn collect_flow_metadata(&mut self) {
-        let variables = self
-            .ast()
-            .items()
-            .iter()
-            .filter_map(|(_, node)| match node.payload() {
-                Item::Variable {
-                    kind: VariableKind::Var,
-                    name: NameMarker::Present(span),
-                    ..
-                } => Some(*span),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for span in variables {
-            if let Some(symbol) = self.symbol_at(span) {
-                self.mutable_symbols.insert(symbol);
-            }
-        }
-        for (scope, target) in &self.source_references {
-            let ReferenceTarget::Symbol(symbol) = target else {
-                continue;
-            };
-            if !self.mutable_symbols.contains(symbol) {
-                continue;
-            }
-            let declaration_scope = self.symbol_scopes[symbol.index()];
-            let mut current = Some(*scope);
-            while let Some(id) = current {
-                if id == declaration_scope {
-                    break;
-                }
-                if self.scope_kinds[id.index()] == ScopeKind::Lambda {
-                    self.captured_mutable_symbols.insert(*symbol);
-                    break;
-                }
-                current = self.scope_parents[id.index()];
-            }
-        }
     }
 
     fn ast(&self) -> &SyntaxAst {
@@ -768,6 +398,7 @@ impl<'a> Checker<'a> {
             Some(ExternalTypeBinding::Capability(capability)) => {
                 self.types.intern(TypeKind::Capability(capability))
             }
+            Some(ExternalTypeBinding::Intrinsic(_)) => self.error_type(),
             Some(ExternalTypeBinding::Value(ty)) => self.normalize_environment_type(&ty),
             Some(ExternalTypeBinding::Function(signature)) => {
                 self.normalize_environment_function(&signature)
@@ -879,6 +510,16 @@ impl<'a> Checker<'a> {
             TypeKind::Nullable(inner) => format!("{}?", self.type_name(*inner)),
             TypeKind::Function { .. } => "function type".to_owned(),
             TypeKind::Nominal { nominal, .. } => format!("nominal#{}", nominal.symbol().index()),
+            TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Box,
+                arguments,
+            } => format!(
+                "Box<{}>",
+                arguments
+                    .first()
+                    .map(|argument| self.type_name(*argument))
+                    .unwrap_or_else(|| "<missing>".to_owned())
+            ),
             TypeKind::EnumCase { case, .. } => format!("enum-case#{}", case.index()),
             TypeKind::TypeParameter(symbol) => format!("type-parameter#{}", symbol.index()),
             TypeKind::StaticSelf(interface) => format!("Self<{}>", self.type_name(*interface)),
@@ -952,37 +593,6 @@ impl<'a> Checker<'a> {
             self.emit(self.mismatch_code, message, primary)
         }
     }
-}
-
-fn find_interface_cycle(
-    current: NominalId,
-    nominals: &[NominalDescriptor],
-    types: &TypeTable,
-    colors: &mut BTreeMap<NominalId, u8>,
-) -> Option<(NominalId, NominalId)> {
-    colors.insert(current, 1);
-    let descriptor = nominals
-        .iter()
-        .find(|descriptor| descriptor.id() == current)?;
-    for &interface in descriptor.direct_interfaces() {
-        let TypeKind::Nominal {
-            nominal: target, ..
-        } = types.get(interface)?
-        else {
-            continue;
-        };
-        match colors.get(target).copied().unwrap_or_default() {
-            1 => return Some((current, *target)),
-            0 => {
-                if let Some(cycle) = find_interface_cycle(*target, nominals, types, colors) {
-                    return Some(cycle);
-                }
-            }
-            _ => {}
-        }
-    }
-    colors.insert(current, 2);
-    None
 }
 
 fn namespace_key(namespace: Namespace) -> u8 {

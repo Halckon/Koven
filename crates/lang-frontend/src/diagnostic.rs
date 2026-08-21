@@ -125,6 +125,10 @@ pub mod codes {
     pub(crate) const WHEN_BRANCH_TYPE: &str = "L0112";
     pub(crate) const INVALID_ENUM_PAYLOAD_ACCESS: &str = "L0113";
     pub(crate) const ENUM_CASE_TYPE_POSITION: &str = "L0114";
+    pub(crate) const COPYABLE_TYPE_ARGUMENT_BOUND: &str = "L0115";
+    pub(crate) const INFINITE_INLINE_LAYOUT: &str = "L0116";
+    pub(crate) const INVALID_BOX_ARGUMENT: &str = "L0117";
+    pub(crate) const DESTRUCTURING_ARITY: &str = "L0118";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -242,6 +246,10 @@ pub mod codes {
         WHEN_BRANCH_TYPE,
         INVALID_ENUM_PAYLOAD_ACCESS,
         ENUM_CASE_TYPE_POSITION,
+        COPYABLE_TYPE_ARGUMENT_BOUND,
+        INFINITE_INLINE_LAYOUT,
+        INVALID_BOX_ARGUMENT,
+        DESTRUCTURING_ARITY,
     ];
 
     /// 由集中定义创建生产错误码目录。

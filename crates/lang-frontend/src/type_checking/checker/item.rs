@@ -146,12 +146,6 @@ impl Checker<'_> {
                     };
                     self.classifiers.push(this_type);
                 }
-                if let Some(constructor) = classifier.primary_constructor {
-                    for field in constructor.fields {
-                        let ty = self.resolve_type_ref(field.type_ref)?;
-                        self.set_marker_symbol(field.name, ty);
-                    }
-                }
                 for supertype in classifier.supertypes {
                     self.resolve_static_type_ref(supertype.type_ref)?;
                 }
@@ -282,19 +276,17 @@ impl Checker<'_> {
             }
             Statement::LocalDestructuring {
                 bindings,
+                left_paren_span,
+                right_paren_span,
                 initializer,
                 ..
-            } => {
-                self.check_expression(initializer, None, None)?;
-                let deferred = self.deferred(DeferredReason::Destructuring);
-                for binding in bindings {
-                    self.set_marker_symbol(binding, deferred);
-                }
-                Ok(StatementCheck {
-                    ty: unit,
-                    falls_through: true,
-                })
-            }
+            } => self.check_local_destructuring(
+                id,
+                &bindings,
+                left_paren_span,
+                right_paren_span,
+                initializer,
+            ),
             Statement::While {
                 condition, body, ..
             } => {
@@ -392,7 +384,7 @@ impl Checker<'_> {
         })
     }
 
-    fn set_marker_symbol(&mut self, marker: NameMarker, ty: TypeId) {
+    pub(super) fn set_marker_symbol(&mut self, marker: NameMarker, ty: TypeId) {
         if let NameMarker::Present(span) = marker
             && let Some(symbol) = self.symbol_at(span)
         {

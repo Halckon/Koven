@@ -1,0 +1,11 @@
+value class Pair<A, B>(val first: A, val second: B)
+
+enum class State {
+    Ready,
+    Done
+}
+
+fun split(copy: Pair<Int, Int>, moved: Pair<Int, String>, state: State): Unit {
+    val (left, right) = copy
+    val (head, tail) = moved
+}

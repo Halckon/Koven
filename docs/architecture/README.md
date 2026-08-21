@@ -2,10 +2,11 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.24 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.25 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
-SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast。
+SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
+建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实。
 
 ## 当前状态
 
@@ -16,7 +17,7 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0114` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0118` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -38,12 +39,13 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
   并实现数值定型、局部单向 expected type、lambda / 基础运算符 / 返回流检查、enum case
   type、稳定 place flow facts、赋值/capture kill、短路条件传播，以及 Boolean/enum/nullable
-  `when` 穷尽性和 L0082–L0114；member 选择、调用实例化等后续责任仍使用逐类
-  `DeferredReason` 保留；
+  `when` 穷尽性、条件 `Copyable` 四态查询、名义内联递归检查、环境绑定的 intrinsic
+  `Box`，以及局部 value-class 解构的 Copy/Consume descriptor 和 L0082–L0118；member
+  选择、调用实例化等后续责任仍使用逐类 `DeferredReason` 保留；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
-- 尚无 member/call 选择、条件 `Copyable`、所有权检查或 codegen 实现；
+- 尚无 member/call 选择、所有权状态检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

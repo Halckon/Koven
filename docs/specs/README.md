@@ -1,15 +1,15 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.24 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.25 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
 [v0.24](../guide/00-index.md) 已由用户明确启用并取代 v0.23；它封闭 enum case type、`when`
 穷尽性与 smart cast，SPEC-0021 已完成实施与验收。
 
-v0.25 的条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构契约目前只是
-[候选 §25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025-候选)；
-用户未明确启用前，SPEC-0022 保持 `draft` 且不得实施。
+[v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
+明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
+解构契约，SPEC-0022 已完成实施与验收。
 
 [v0.23](../guide/00-index.md) 已由用户明确启用并取代 v0.22；它封闭 nominal/generic/interface/
 委托契约，SPEC-0020 已完成实施。
@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -107,7 +107,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0019](./0019-basic-type-checking.md) | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing`（`done`） | 0018、0066 `done`；v0.22 已生效 |
 | [0020](./0020-nominal-generic-interface-types.md) | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托（`done`） | 0019、0017、0064 `done`；v0.23 已明确启用 |
 | [0021](./0021-when-exhaustiveness-smart-cast.md) | 实现 `when` 穷尽性与 smart cast（`done`） | 0020、0016 `done`；v0.24 已明确启用 |
-| [0022](./0022-copyable-structural-destructuring.md) | 推导条件 `Copyable`、检查有限内联布局与结构化解构类型（`draft`） | 0019、0020 `done`；等待 v0.25 明确启用 |
+| [0022](./0022-copyable-structural-destructuring.md) | 推导条件 `Copyable`、检查有限内联布局与结构化解构类型（`done`） | 0019、0020 `done`；v0.25 已明确启用 |
 | 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；package 映射 ADR |
@@ -171,7 +171,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.24 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.25 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 

@@ -2,15 +2,15 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | done |
 | Goal ID | `KOV-P2-022` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 当前权威为 [v0.24](../guide/00-index.md)；实施契约为尚未启用的 [v0.25 候选 §25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025-候选) |
-| 批准依据 | 当前持续 Goal 的站立授权；仍不替代 guide 版本级明确启用 |
+| 语言规范 | [现行 v0.25 §25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) |
+| 批准依据 | 用户于 2026-08-21 明确启用 v0.25 并要求实施 SPEC-0022 |
 | 前置 Spec | SPEC-0019、SPEC-0020 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 guide v0.25；解除前不得进入 `approved` / `in-progress` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` type environment / nominal model / type checker、L0115–L0118、Phase 2 fixture、Architecture |
 | 语言语义变更 | 否；实现经明确启用后的 guide 契约 |
 
@@ -28,8 +28,8 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 但不提前建立移动状态或析构语义。
 
 审计发现 v0.24 没有唯一决定 enum / `Nothing` 的 `Copyable` 规则、局部 `_` 的身份、内联图是否
-包含 enum payload，以及泛型 `Box<T>` 的 kind 证明。上述选择已集中到 v0.25 候选 §25；该版本
-获得明确启用前，本 Spec 只能保持草案。
+包含 enum payload，以及泛型 `Box<T>` 的 kind 证明。上述选择已集中到现行 v0.25 §25，版本
+门禁现已解除。
 
 ## 3. 范围与需求
 
@@ -65,20 +65,20 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 
 ## 5. 验收标准
 
-- [ ] 用户明确启用 v0.25，本 Spec 从 `draft` 推进为 `in-progress`。
-- [ ] `Copyable` 查询覆盖全部封闭类型类别、实际泛型替换、能力上界和同名冒充反例；结果
+- [x] 用户明确启用 v0.25，本 Spec 从 `draft` 推进为 `in-progress`。
+- [x] `Copyable` 查询覆盖全部封闭类型类别、实际泛型替换、能力上界和同名冒充反例；结果
       可供后续阶段按 stable type identity 查询。
-- [ ] enum payload、nullable、value-class field 的直接/间接内联环得到确定性 L0116；每个
+- [x] enum payload、nullable、value-class field 的直接/间接内联环得到确定性 L0116；每个
       循环强连通分量一条、代表环 labels 稳定；经 class/object/function/intrinsic Box/动态容器
       打断的环不误报。
-- [ ] intrinsic `Box` 只接受具体 value-class instance；普通 class、enum、builtin、interface、
+- [x] intrinsic `Box` 只接受具体 value-class instance；普通 class、enum、builtin、interface、
       function、type parameter 和源码同名 `Box` 的边界均有测试。
-- [ ] `Copyable` generic bound 的正反例覆盖 L0115、精确 primary/label、poison 抑制与 interface
+- [x] `Copyable` generic bound 的正反例覆盖 L0115、精确 primary/label、poison 抑制与 interface
       bound 回归。
-- [ ] value-class 局部解构覆盖 Copy/Consume、泛型替换、精确/过少/过多 arity、既有 L0042
+- [x] value-class 局部解构覆盖 Copy/Consume、泛型替换、精确/过少/过多 arity、既有 L0042
       `_` 回归、initializer 单次检查，以及非 value-class deferred 边界。
-- [ ] 深名义图、重复查询、重复执行与声明顺序诊断保持确定性，并有与风险相称的复杂度预算。
-- [ ] `type_checking` 窄测、Phase 2 pass/fail fixture 与 workspace 标准基线全部通过；
+- [x] 深名义图、重复查询、重复执行与声明顺序诊断保持确定性，并有与风险相称的复杂度预算。
+- [x] `type_checking` 窄测、Phase 2 pass/fail fixture 与 workspace 标准基线全部通过；
       Architecture、guide 路线图和本 Spec 验收记录同步为实际事实。
 
 ## 6. 技术方案与边界
@@ -107,14 +107,14 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 
 ## 7. 实施计划
 
-1. [ ] 激活 v0.25 并把本 Spec 标为 `in-progress` → 验证：索引、正文、路线图、变更记录一致。
-2. [ ] 建立 intrinsic Box identity 与 `Copyability` 查询 → 验证：能力矩阵和同名冒充窄测。
-3. [ ] 实现 generic capability bound 与有限内联图 → 验证：L0115–L0117、递归和确定性窄测。
-4. [ ] 实现 typed structural destructuring descriptor → 验证：L0118、Copy/Consume、泛型与
+1. [x] 激活 v0.25 并把本 Spec 标为 `in-progress` → 验证：索引、正文、路线图、变更记录一致。
+2. [x] 建立 intrinsic Box identity 与 `Copyability` 查询 → 验证：能力矩阵和同名冒充窄测。
+3. [x] 实现 generic capability bound 与有限内联图 → 验证：L0115–L0117、递归和确定性窄测。
+4. [x] 实现 typed structural destructuring descriptor → 验证：L0118、Copy/Consume、泛型与
        deferred 边界窄测。
-5. [ ] 补 Phase 2 pass/fail fixture、复杂度和回归测试 → 验证：受影响 frontend 测试。
-6. [ ] 同步 Architecture、guide、Spec 验收与验证记录 → 验证：Markdown 链接和 diff。
-7. [ ] 运行 workspace 标准基线并创建独立提交 → 验证：实际退出状态与 staged diff。
+5. [x] 补 Phase 2 pass/fail fixture、复杂度和回归测试 → 验证：受影响 frontend 测试。
+6. [x] 同步 Architecture、guide、Spec 验收与验证记录 → 验证：Markdown 链接和 diff。
+7. [x] 运行 workspace 标准基线并创建独立提交 → 验证：实际退出状态与 staged diff。
 
 ## 8. 提交计划
 
@@ -125,8 +125,7 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 
 ## 9. 未决问题
 
-- 阻塞：等待用户明确指定 guide v0.25 取代 v0.24。候选 §25 已把实施所需语义选择封闭；
-  若用户要求修改其中任何规则，应先更新候选和本 Spec，再启用。
+- 无；v0.25 已明确启用，实施语义已封闭。
 
 ## 10. 验证记录
 
@@ -137,4 +136,6 @@ SPEC-0021 已建立 enum case payload 描述；当前仍把 `Copyable` capabilit
 | `cargo test -p lang-frontend --test parser_local_destructuring --locked --offline` | 通过 | 14 passed；确认局部 `_` 由既有 L0042 路径拒绝 |
 | `cargo test -p lang-frontend --test name_resolution --locked --offline` | 通过 | 13 passed；确认 discard 不建立 symbol |
 | `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 29 passed；记录实施前 type-checker characterization baseline |
-| workspace Cargo 基线 | 未执行 | 当前只细化未启用候选；实现阶段按根 AGENTS 执行全量基线 |
+| `cargo test -p lang-frontend --test type_copyability --locked --offline` | 通过 | 8 passed；能力、布局、Box 与解构专测 |
+| `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 29 passed；含 4 组 Phase 2 pass/fail fixture |
+| workspace Cargo 基线 | 通过 | fmt、check、Clippy `-D warnings`、367 tests、`cargo build -p lang-cli` 全部通过 |

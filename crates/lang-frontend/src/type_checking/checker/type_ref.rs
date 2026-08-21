@@ -139,18 +139,22 @@ impl Checker<'_> {
     ) -> Result<TypeId, TypeCheckingError> {
         match self.reference(segment.name_span, Namespace::Type).cloned() {
             Some(ReferenceTarget::External(external)) => {
-                if !segment.arguments.is_empty() {
-                    self.emit_with_label(
-                        self.builtin_arguments_code,
-                        "builtin type does not accept type arguments",
-                        self.ast().type_refs().get(segment.arguments[0])?.span(),
-                        segment.name_span,
-                        "builtin type declared here",
-                    )?;
-                    Ok(self.error_type())
-                } else {
-                    self.external_type(external)
+                if let Some(ExternalTypeBinding::Intrinsic(constructor)) =
+                    self.environment.binding(external).cloned()
+                {
+                    return self.resolve_intrinsic_segment(segment, constructor);
                 }
+                if segment.arguments.is_empty() {
+                    return self.external_type(external);
+                }
+                self.emit_with_label(
+                    self.builtin_arguments_code,
+                    "builtin type does not accept type arguments",
+                    self.ast().type_refs().get(segment.arguments[0])?.span(),
+                    segment.name_span,
+                    "builtin type declared here",
+                )?;
+                Ok(self.error_type())
             }
             Some(ReferenceTarget::Symbol(symbol)) => match self
                 .symbol_kinds
@@ -193,6 +197,46 @@ impl Checker<'_> {
                 | ReferenceTarget::EnumCasePayloadCandidates(_),
             ) => Err(TypeCheckingError::InvalidExternalBinding),
         }
+    }
+
+    fn resolve_intrinsic_segment(
+        &mut self,
+        segment: &TypePathSegment,
+        constructor: IntrinsicTypeConstructor,
+    ) -> Result<TypeId, TypeCheckingError> {
+        if segment.arguments.len() != 1 {
+            self.emit(
+                self.type_argument_arity_code,
+                "intrinsic type has the wrong number of type arguments",
+                segment.name_span,
+            )?;
+            return Ok(self.error_type());
+        }
+        let argument_ref = segment.arguments[0];
+        let argument = self.resolve_type_ref(argument_ref)?;
+        if self.is_error(argument) {
+            return Ok(self.error_type());
+        }
+        let valid = match (constructor, self.kind(argument)) {
+            (IntrinsicTypeConstructor::Box, TypeKind::Nominal { nominal, .. }) => {
+                self.nominals.iter().any(|descriptor| {
+                    descriptor.id() == *nominal && descriptor.kind() == NominalKind::ValueClass
+                })
+            }
+            _ => false,
+        };
+        if !valid {
+            self.emit(
+                self.invalid_box_argument_code,
+                "Box type argument must be a concrete value class instance",
+                self.ast().type_refs().get(argument_ref)?.span(),
+            )?;
+            return Ok(self.error_type());
+        }
+        Ok(self.types.intern(TypeKind::Intrinsic {
+            constructor,
+            arguments: vec![argument],
+        }))
     }
 
     fn resolve_nominal_segment(

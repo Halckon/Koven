@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
-    ast::{ExpressionId, TypeRefId},
+    ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::Diagnostic,
     name_resolution::{
         EnumCaseId, ExternalSymbolId, ExternalSymbolKind, NameEnvironment, SymbolId,
@@ -322,6 +322,109 @@ pub enum Capability {
     Transferable,
 }
 
+/// 由类型环境显式绑定、不能由源码同名声明冒充的内建类型构造器。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntrinsicTypeConstructor {
+    /// Exclusive heap owner for one concrete value-class instance.
+    Box,
+}
+
+/// 一个规范化类型在当前静态上下文中的复制能力。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Copyability {
+    /// Values can be duplicated without observable copy or drop glue.
+    Copyable,
+    /// No copy proof exists, so by-value uses must move.
+    MoveOnly,
+    /// A later typed selection still determines the type.
+    Unknown,
+    /// The source type or its inline layout is invalid.
+    Error,
+}
+
+/// 局部结构化解构交给 Phase 3 的原子所有权模式。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DestructuringMode {
+    /// Each component is copied and the source remains available.
+    Copy,
+    /// The whole source is consumed as one ownership action.
+    Consume,
+}
+
+/// 一个已类型化的结构化解构分量。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DestructuringComponent {
+    symbol: SymbolId,
+    ty: TypeId,
+}
+
+impl DestructuringComponent {
+    pub(crate) const fn new(symbol: SymbolId, ty: TypeId) -> Self {
+        Self { symbol, ty }
+    }
+
+    /// 返回接收该分量的局部 binding symbol。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.symbol
+    }
+
+    /// 返回替换实际泛型实参后的分量类型。
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
+
+/// 一条精确、有效的局部 value-class 结构化解构。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DestructuringDescriptor {
+    statement: StatementId,
+    source_type: TypeId,
+    mode: DestructuringMode,
+    components: Vec<DestructuringComponent>,
+}
+
+impl DestructuringDescriptor {
+    pub(crate) fn new(
+        statement: StatementId,
+        source_type: TypeId,
+        mode: DestructuringMode,
+        components: Vec<DestructuringComponent>,
+    ) -> Self {
+        Self {
+            statement,
+            source_type,
+            mode,
+            components,
+        }
+    }
+
+    /// 返回拥有该操作的稳定 statement identity。
+    #[must_use]
+    pub const fn statement(&self) -> StatementId {
+        self.statement
+    }
+
+    /// 返回 initializer 的规范化源类型。
+    #[must_use]
+    pub const fn source_type(&self) -> TypeId {
+        self.source_type
+    }
+
+    /// 返回 Copy 或 Consume 原子模式。
+    #[must_use]
+    pub const fn mode(&self) -> DestructuringMode {
+        self.mode
+    }
+
+    /// 返回字段声明顺序的 binding / component type。
+    #[must_use]
+    pub fn components(&self) -> &[DestructuringComponent] {
+        &self.components
+    }
+}
+
 /// 外部签名使用的递归类型描述；进入 typed 产物后会被规范化为 [`TypeId`]。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EnvironmentType {
@@ -362,6 +465,7 @@ pub struct EnvironmentFunction {
 pub(crate) enum ExternalTypeBinding {
     Builtin(BuiltinType),
     Capability(Capability),
+    Intrinsic(IntrinsicTypeConstructor),
     Value(EnvironmentType),
     Function(EnvironmentFunction),
 }
@@ -407,6 +511,19 @@ impl TypeEnvironment {
         self.bind(
             symbol,
             ExternalTypeBinding::Capability(capability),
+            ExternalSymbolKind::Type,
+        )
+    }
+
+    /// 把外部 type symbol 绑定为编译器拥有的内建类型构造器身份。
+    pub fn bind_intrinsic(
+        &mut self,
+        symbol: ExternalSymbolId,
+        intrinsic: IntrinsicTypeConstructor,
+    ) -> Result<(), TypeCheckingError> {
+        self.bind(
+            symbol,
+            ExternalTypeBinding::Intrinsic(intrinsic),
             ExternalSymbolKind::Type,
         )
     }
@@ -466,6 +583,10 @@ impl TypeEnvironment {
 pub struct TypeId(usize);
 
 impl TypeId {
+    pub(crate) const fn new(index: usize) -> Self {
+        Self(index)
+    }
+
     /// 返回 typed 产物类型表中的稳定下标。
     #[must_use]
     pub const fn index(self) -> usize {
@@ -553,6 +674,13 @@ pub enum TypeKind {
         /// Source classifier identity.
         nominal: NominalId,
         /// Ordered invariant type arguments.
+        arguments: Vec<TypeId>,
+    },
+    /// Compiler-owned intrinsic type constructor applied to invariant arguments.
+    Intrinsic {
+        /// Stable constructor identity supplied by [`TypeEnvironment`].
+        constructor: IntrinsicTypeConstructor,
+        /// Ordered invariant arguments.
         arguments: Vec<TypeId>,
     },
     /// 仅在 type-test 与流事实中存在的 enum case refinement。
@@ -657,6 +785,8 @@ pub struct TypedFile {
     delegations: Vec<DelegationPlan>,
     callables: Vec<CallableDescriptor>,
     enum_cases: Vec<EnumCaseDescriptor>,
+    copyabilities: Vec<Copyability>,
+    destructurings: Vec<DestructuringDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -669,6 +799,8 @@ pub(crate) struct TypedFileParts {
     pub(crate) delegations: Vec<DelegationPlan>,
     pub(crate) callables: Vec<CallableDescriptor>,
     pub(crate) enum_cases: Vec<EnumCaseDescriptor>,
+    pub(crate) copyabilities: Vec<Copyability>,
+    pub(crate) destructurings: Vec<DestructuringDescriptor>,
 }
 
 impl TypedFile {
@@ -689,6 +821,8 @@ impl TypedFile {
             delegations: parts.delegations,
             callables: parts.callables,
             enum_cases: parts.enum_cases,
+            copyabilities: parts.copyabilities,
+            destructurings: parts.destructurings,
             diagnostics,
         }
     }
@@ -751,6 +885,26 @@ impl TypedFile {
     #[must_use]
     pub fn enum_cases(&self) -> &[EnumCaseDescriptor] {
         &self.enum_cases
+    }
+
+    /// 查询一个本产物 TypeId 的静态复制能力。
+    #[must_use]
+    pub fn copyability(&self, id: TypeId) -> Option<Copyability> {
+        self.copyabilities.get(id.index()).copied()
+    }
+
+    /// 返回源码 statement 顺序的有效 value-class 解构描述符。
+    #[must_use]
+    pub fn destructurings(&self) -> &[DestructuringDescriptor] {
+        &self.destructurings
+    }
+
+    /// 查询指定 statement 的有效 value-class 解构描述符。
+    #[must_use]
+    pub fn destructuring(&self, statement: StatementId) -> Option<&DestructuringDescriptor> {
+        self.destructurings
+            .iter()
+            .find(|descriptor| descriptor.statement() == statement)
     }
 
     #[must_use]

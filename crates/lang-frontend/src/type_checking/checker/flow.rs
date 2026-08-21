@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use crate::{
     ast::{ExpressionId, StatementId},
     name_resolution::{Namespace, ReferenceTarget, ScopeKind, SymbolId, SymbolKind},
-    parser::{BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator, Statement},
+    parser::{
+        BinaryOperator, Expression, Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator,
+        Statement, VariableKind,
+    },
     source::Span,
 };
 
@@ -24,6 +27,47 @@ pub(super) enum FlowKey {
 type ConditionFacts = (BTreeMap<FlowKey, TypeId>, BTreeMap<FlowKey, TypeId>);
 
 impl Checker<'_> {
+    pub(super) fn collect_flow_metadata(&mut self) {
+        let variables = self
+            .ast()
+            .items()
+            .iter()
+            .filter_map(|(_, node)| match node.payload() {
+                Item::Variable {
+                    kind: VariableKind::Var,
+                    name: NameMarker::Present(span),
+                    ..
+                } => Some(*span),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for span in variables {
+            if let Some(symbol) = self.symbol_at(span) {
+                self.mutable_symbols.insert(symbol);
+            }
+        }
+        for (scope, target) in &self.source_references {
+            let ReferenceTarget::Symbol(symbol) = target else {
+                continue;
+            };
+            if !self.mutable_symbols.contains(symbol) {
+                continue;
+            }
+            let declaration_scope = self.symbol_scopes[symbol.index()];
+            let mut current = Some(*scope);
+            while let Some(id) = current {
+                if id == declaration_scope {
+                    break;
+                }
+                if self.scope_kinds[id.index()] == ScopeKind::Lambda {
+                    self.captured_mutable_symbols.insert(*symbol);
+                    break;
+                }
+                current = self.scope_parents[id.index()];
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_if(
         &mut self,

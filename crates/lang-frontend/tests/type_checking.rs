@@ -940,7 +940,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 3, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 4, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

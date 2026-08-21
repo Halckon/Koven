@@ -1,12 +1,12 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.24 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.25 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
 Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase 2 已实现单文件名称解析、
-基础与名义/泛型/interface 类型检查，以及 `when` 穷尽性与 smart cast。条件 `Copyable`、
-容器及跨文件解析等后续 Phase 2 工作仍待实施；所有权/借用检查（Phase 3）、代码生成
+基础与名义/泛型/interface 类型检查、`when` 穷尽性与 smart cast，以及条件 `Copyable`、
+有限内联布局与结构化解构类型检查。call/member、容器及跨文件解析等后续 Phase 2 工作仍待实施；所有权/借用检查（Phase 3）、代码生成
 （Phase 4）和标准库（Phase 5）尚未开始。
 也就是说：
 
@@ -17,6 +17,8 @@ Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase
 - **单文件名称、作用域、重载组与未解析名称诊断已在 v0.21 定稿，并由 SPEC-0018 实现。**
 - **名义/泛型/interface 类型检查已由 SPEC-0020 实现；v0.24 的 enum case type、有限域
   `when` 穷尽性与 smart cast 已由 SPEC-0021 实现。**
+- **v0.25 的条件 `Copyable`、intrinsic `Box`、有限内联布局和局部 value-class 解构类型事实
+  已由 SPEC-0022 实现。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。

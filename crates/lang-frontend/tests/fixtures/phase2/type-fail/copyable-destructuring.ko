@@ -1,0 +1,8 @@
+value class Holder<T : Copyable>(val payload: T)
+value class Direct(val next: Direct)
+value class Pair(val first: Int, val second: String)
+class Ref
+
+fun fail(holder: Holder<Ref>, pair: Pair): Unit {
+    val (only) = pair
+}

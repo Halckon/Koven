@@ -16,6 +16,7 @@ enum ShapeType {
         return_type: Box<ShapeType>,
     },
     Nominal(NominalId, Vec<ShapeType>),
+    Intrinsic(IntrinsicTypeConstructor, Vec<ShapeType>),
     TypeParameter(usize),
     Capability(Capability),
 }
@@ -206,6 +207,16 @@ impl Checker<'_> {
             }),
             TypeKind::Nominal { nominal, arguments } => Some(ShapeType::Nominal(
                 *nominal,
+                arguments
+                    .iter()
+                    .map(|argument| self.shape_type(*argument, parameter_slots))
+                    .collect::<Option<Vec<_>>>()?,
+            )),
+            TypeKind::Intrinsic {
+                constructor,
+                arguments,
+            } => Some(ShapeType::Intrinsic(
+                *constructor,
                 arguments
                     .iter()
                     .map(|argument| self.shape_type(*argument, parameter_slots))
