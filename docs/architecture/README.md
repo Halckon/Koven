@@ -357,6 +357,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   笛卡尔积，逐例验证 lexeme 完整字节覆盖、唯一 EOF、source identity、诊断及四张 AST table
   span、文件头和根指纹的重复解析确定性；另以终止字符位于 interpolation 的定向回归锁定
   `L0007` 根因和 lexical-owner 恢复；
+- `parser_entry_adversarial` integration test 对 16 个前缀与 16 个后缀分别运行独立 expression、
+  declaration、block 三个公开入口，共执行 768 个 entry/case、1536 次生产解析；每个 case
+  比较公开稳定 `Debug` 骨架以锁定 root typed ID、AST table 插入顺序与 source span、诊断的
+  重复运行确定性，且不引入随机、IO 或第三方 property-testing 依赖；payload 边仍由精确
+  领域测试验收；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 

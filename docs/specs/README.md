@@ -21,7 +21,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -99,6 +99,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0065](./0065-parser-module-decomposition.md) | 按职责拆分 Parser 内部模块并保持现有行为（`done`） | 0017、0062–0064 `done`；用户明确要求拆分 Parser |
 | [0066](./0066-numeric-literal-suffixes.md) | 识别 `L` / `u` / `f` 数值后缀并在 Parser AST 保留规范化身份（`done`） | 0006、0007 `done`；v0.22 已生效；用户明确批准实施 |
 | [0068](./0068-frontend-adversarial-matrix.md) | 增加 Lexer / 完整文件 Parser 对抗组合矩阵（`done`） | 0006、0014 `done`；当前持续 Goal 的站立授权 |
+| [0069](./0069-parser-entry-adversarial-matrix.md) | 覆盖独立 expression / declaration / block Parser 对抗矩阵（`done`） | 0007–0009、0068 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 
