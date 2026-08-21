@@ -1,0 +1,5 @@
+class Item
+
+fun <T> identity(item: T): T = item
+
+val item: Item = Item()

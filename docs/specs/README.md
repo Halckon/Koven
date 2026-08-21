@@ -9,7 +9,7 @@
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -90,7 +90,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0018 | 完成单文件声明收集、作用域和名称诊断 | 0014 `done`；v0.21 已生效；当前持续 Goal 的站立授权 |
+| [0018](./0018-single-file-name-resolution.md) | 完成单文件声明收集、作用域和名称诊断（`done`） | 0014 `done`；v0.21 已生效；当前持续 Goal 的站立授权 |
 | 0019 | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing` | 0018 |
 | 0020 | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托 | 0019、0017、0064 |
 | 0021 | 实现 `when` 穷尽性与 smart cast | 0020、0016 |

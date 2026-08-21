@@ -33,7 +33,7 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库已完成 Phase 0 与 Phase 1，即将进入 Phase 2；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
+当前仓库已完成 Phase 0 与 Phase 1，并以 SPEC-0018 进入 Phase 2；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
 SPEC-0008 已分别建立独立表达式和声明 Parser，SPEC-0009 已建立 block / statement 序列及
 函数 block body Parser，SPEC-0010 至 SPEC-0014 已实现 lambda literal、具名
 函数隐式 `Unit` 返回标注、callable 参数 marker / typed call argument，以及 block /

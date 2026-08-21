@@ -1,0 +1,4 @@
+fun demo(): Unit {
+    val first = later
+    val later = missing
+}

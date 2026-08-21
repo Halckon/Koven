@@ -6,7 +6,7 @@
 > 当前仓库已完成 Phase 0 与 Phase 1：确定性 Lexer、独立表达式、声明、block、lambda、
 > callable 参数与 typed call argument Parser、局部 `val` 解构、完整文件组合、Kotlin 风格
 > `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
-> 具名函数隐式 `Unit` 返回标注已实现；下一阶段为 Phase 2 名称与类型检查。
+> 具名函数隐式 `Unit` 返回标注已实现；Phase 2 的单文件名称解析已完成，下一项为基础类型检查。
 > 已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---
@@ -20,7 +20,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；下一阶段为 Phase 2 名称与类型检查。确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析，下一项为基础类型检查。确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。

@@ -89,6 +89,9 @@ pub mod codes {
     pub(crate) const INVALID_DECLARATION_MODIFIER: &str = "L0076";
     pub(crate) const UNSUPPORTED_CLASS_FAMILY_FORM: &str = "L0077";
     pub(crate) const EXPECTED_DELEGATION_TARGET: &str = "L0078";
+    pub(crate) const DUPLICATE_NAME: &str = "L0079";
+    pub(crate) const UNRESOLVED_NAME: &str = "L0080";
+    pub(crate) const NAME_USED_BEFORE_LOCAL: &str = "L0081";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -170,6 +173,9 @@ pub mod codes {
         INVALID_DECLARATION_MODIFIER,
         UNSUPPORTED_CLASS_FAMILY_FORM,
         EXPECTED_DELEGATION_TARGET,
+        DUPLICATE_NAME,
+        UNRESOLVED_NAME,
+        NAME_USED_BEFORE_LOCAL,
     ];
 
     /// 由集中定义创建生产错误码目录。

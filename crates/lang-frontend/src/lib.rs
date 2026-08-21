@@ -9,6 +9,9 @@ pub mod diagnostic;
 /// 确定性 Koven 词法分析与逐字节源码范围。
 pub mod lexer;
 
+/// 单文件声明收集、词法作用域与名称引用。
+pub mod name_resolution;
+
 /// Pratt 表达式、类型引用与具体索引式 AST。
 pub mod parser;
 

@@ -143,7 +143,7 @@ fun main(): Unit {
 
 ## Phase 2：类型检查（不含所有权/借用）
 
-- [ ] **SPEC-0018（前置：SPEC-0014 `done`；v0.21 已明确启用）**：按
+- [x] **SPEC-0018（前置：SPEC-0014 `done`；v0.21 已明确启用）**：按
       [`01-design-decisions.md`](./01-design-decisions.md) 第 21 节建立单文件双命名空间、
       确定性 `ScopeId` / `SymbolId`、函数 overload set、顺序 local 可见性、显式
       `NameEnvironment` 与 L0079–L0081；不展开 package/import，不选择 member 或 overload。
