@@ -160,6 +160,10 @@ fun main(): Unit {
 - [x] **SPEC-0021（前置已完成；v0.24 已明确启用）**：建立 enum case type、稳定 place 的
       flow facts、赋值/capture kill、Boolean/enum/nullable 有限域穷尽性、分支 join 与
       L0106–L0114。
+- [ ] **SPEC-0022（draft；前置已完成；等待 v0.25 明确启用）**：按候选
+      [`01-design-decisions.md`](./01-design-decisions.md) §25 推导条件 `Copyable`，拒绝无限
+      内联布局与非法 intrinsic `Box` 实参，并为局部 value-class 解构产出有序的
+      Copy/Consume typed descriptor；当前不得提前实施。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
@@ -173,8 +177,9 @@ fun main(): Unit {
 - [x] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
 - [ ] 泛型单态化的类型层面准备（类型替换，不接编译期计算）
 - [x] `Nothing` 类型的 bottom-type 特殊处理
-- [ ] 计算 `value class` 的条件 `Copyable`：允许不可复制字段，按实际字段类型和泛型实参递归
-      推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、覆盖或同名冒充
+- [ ] 计算 `value class` / `enum class` 的条件 `Copyable`：允许不可复制字段或 payload，按
+      实际类型实参递归推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、
+      覆盖或同名冒充（v0.25 候选，未启用）
 - [ ] 检查内联类型结构有限；拒绝未经过 `class`、`Box` 或动态容器等固定大小 handle 打断的
       直接 / 间接递归内联环
 - [ ] 对内建 `Box<T>` 执行 type-kind 检查：只接受 `value class` 类型实参，拒绝普通 `class`

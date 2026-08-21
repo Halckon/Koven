@@ -37,10 +37,14 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   外，版本号是单一递增序列，不再区分“语义
   版本”和“结构版本”两条轴——每份正文文档顶部标注的是它自己内容最近一次改动所在的
   版本；本索引聚合记录整个文档集当前启用的 v0.24 状态。
-- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19、20、21、22、23 节是现行规范规则；
+- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19–24 节是现行规范规则；
   第 18 节仍明确标注为 Map 候选设计，在完成设计门禁并补充到对应实施 Spec 之前，
   不得被 Phase 2/3/5 实现直接引用为已批准契约。v0.22 的数值后缀由 SPEC-0066 实施，
   L0082–L0090 与基础类型检查由 SPEC-0019 实施。
+- **最新候选版本是 v0.25，尚未启用**：候选边界仅限
+  [`01-design-decisions.md`](./01-design-decisions.md) §25 的条件 `Copyable`、有限内联布局、
+  intrinsic `Box` 与结构化解构契约，以及 L0115–L0118。当前唯一权威版本仍是 v0.24；
+  用户未明确启用 v0.25 前，SPEC-0022 保持 `draft`，候选内容不得进入实现事实。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -68,13 +72,13 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 22 节现行设计 + 候选 §23 + 原第二部分（现为附录） | ~1300 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 24 节现行设计 + Map 候选 §18 + v0.25 候选 §25 + 原第二部分（现为附录） | ~1400 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.24 完整记录（含 v0.13 结构调整说明） | ~340 | 只追加，不修改 |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.24 完整记录与 v0.25 候选记录（含 v0.13 结构调整说明） | ~360 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -109,6 +113,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.22 | 新增 `L` / `u` / `f` 最小数值后缀；封闭默认数值类型、单向 expected type、基础 local/lambda/函数返回检查与 L0082–L0090 |
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
+| v0.25（候选） | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；尚未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -133,6 +138,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0019 | 基础类型、局部推导与函数返回检查 | `01-design-decisions.md` §22 | ✅ 已完成 |
 | SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | `01-design-decisions.md` §23 | ✅ 已完成 |
 | SPEC-0021 | `when` 穷尽性与 smart cast | `01-design-decisions.md` §24 | ✅ 已完成 |
+| SPEC-0022 | 条件 `Copyable`、有限内联布局与结构化解构类型检查 | `01-design-decisions.md` §25（v0.25 候选） | 📝 draft；等待 v0.25 启用 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -162,6 +168,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；SPEC-0019 已实现 | `01-design-decisions.md` §22.5 |
 | L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 已实现 | `01-design-decisions.md` §23.5 |
 | L0106–L0114 | v0.24 的 type-test/smart-cast/when 诊断；SPEC-0021 已实现 | `01-design-decisions.md` §24.5 |
+| L0115–L0118 | v0.25 候选的 `Copyable` bound、内联递归、intrinsic `Box` 与结构化解构诊断；未启用、未实现 | `01-design-decisions.md` §25.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -185,6 +192,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 基础类型、局部推导与返回检查（v0.22） | `01-design-decisions.md` §22 |
 | 名义类型、泛型与 interface 实现（v0.23） | `01-design-decisions.md` §23 |
 | `when` 穷尽性与 smart cast（v0.24） | `01-design-decisions.md` §24 |
+| 条件 `Copyable`、内联布局、intrinsic `Box` 与结构化解构（v0.25 候选） | `01-design-decisions.md` §25 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---

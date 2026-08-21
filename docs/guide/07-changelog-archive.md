@@ -341,3 +341,17 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > SPEC-0021 已于 2026-08-21 完成：enum case 的值/类型共享身份、限定名称与 payload 候选，
 > 稳定 place flow facts、赋值/capture kill、短路条件传播，以及 Boolean/enum/nullable `when`
 > 穷尽性和 L0106–L0114 均已由类型检查、集成测试与 Phase 2 fixture 验收。
+
+## v0.25 候选变更记录（未启用）
+
+> 本候选于 2026-08-21 为 SPEC-0022 起草。当前唯一权威版本仍是 v0.24；只有用户明确启用
+> v0.25 后，下列契约和 L0115–L0118 才成为现行语义。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 封闭 `Copyable` 判定：基础类型与 `Nothing`、nullable、value class、enum case payload 和能力上界按实际类型递归判定；普通 class、String、object、函数与 Box 保持 move-only | 🔴 候选类型能力语义 |
+| 2 | 把 value-class 字段与 enum payload 纳入确定性内联布局图，nullable 透明，class/object/function/Box/动态容器打断递归；无限环在进入 DataLayout 前拒绝 | 🔴 候选布局合法性 |
+| 3 | 把标准 `Box` 定义为外部环境绑定的 intrinsic identity，只接受可证明的具体 value-class 实例；同名源码 class 不冒充，当前泛型上界不能证明 `Box<T>` 合法 | 🔴 候选内建类型边界 |
+| 4 | 封闭局部 value-class 解构的精确 arity、一次求值、Copy/Consume typed descriptor；局部 `_` 是普通绑定，`for` 中的 `_` 仍是专用 discard，不扩展成通用占位符 | 🔴 候选解构语义 |
+| 5 | 为 SPEC-0022 预分配 L0115–L0118；字段投影所有权、move-after-use、一般 component/member/call、容器和 codegen 继续后置 | 🟡 候选诊断与 Phase 边界 |
+| 6 | 勘误 companion 泛型函数示例：用不依赖类型 kind 证明的 `identity` 替换违反既有 Box 实参约束的 `empty(): Box<T>`，不改变 v0.24 语义 | 🟢 示例勘误 |

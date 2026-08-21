@@ -4,7 +4,7 @@
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.24。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
-> 附录收录原第二部分的核心结构声明总览。
+> 第 25 节是尚未启用的 v0.25 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -589,8 +589,9 @@ val p = Point.origin()
 - body 只允许 `const val` 与关联函数，不允许普通 `val` / `var`、嵌套类型或初始化块；
 - 关联函数可以执行普通运行时代码、构造对象并返回 `Result`，但没有 `this`，也不能直接读取
   实例字段；“编译期可求值”只约束 `const val` initializer，不约束函数体；
-- companion 不实现接口，不捕获 enclosing 类型参数。泛型工厂必须自行声明类型参数，例如
-  `fun <T> empty(): Box<T>`；
+- companion 不实现接口，不捕获 enclosing 类型参数。泛型关联函数必须自行声明类型参数，
+  例如 `fun <T> identity(value: T): T = value`；这里不使用 `Box<T>` 作为示例，因为第 5 节
+  已要求 `Box` 的实参是具体 `value class`，未约束的 `T` 不能证明这一点；
 - `Type.member` 在名称解析后直接指向关联函数符号或内联常量，不分配 singleton、不生成
   初始化 guard，也没有退出时析构。
 
@@ -1279,6 +1280,93 @@ v0.23 本节只封闭 SPEC-0020。调用表达式/构造器/member access 与具
 L0106/L0107 已使条件 poisoned 后，不追加同条件的 L0110；L0108/L0109 不阻止仍可确定的
 entry body 类型检查；L0111 只产生一条并聚合遗漏项。SPEC-0021 不顺带实现一般 member/call
 选择、`as`、包含协议、所有权或跨文件 sealed hierarchy。
+
+---
+
+## 25. 条件 `Copyable`、内联递归与结构化解构（v0.25 候选）
+
+> **候选状态**：本节为 SPEC-0022 起草，当前唯一权威版本仍是 v0.24。只有用户明确启用
+> v0.25 后，本节才取代第 5、11 节中尚未封闭的边界并授权实现；候选内容不得提前进入 Rust
+> 代码、architecture 或已完成事实。
+
+### 25.1 封闭的 `Copyable` 判定
+
+`Copyable` 是由编译器绑定的内建能力身份，不按源码拼写识别。判定对已替换的实际类型递归
+进行，结果至少区分 `Copyable`、`MoveOnly`、`Unknown` 与 `Error`；`Unknown` 不能当作能力
+证明，`Error` 只抑制同根级联。v1 使用以下封闭规则：
+
+- 数值类型、`Boolean`、`Char`、`Unit` 和 bottom type `Nothing` 满足 `Copyable`。`Nothing`
+  没有可构造的有效值，因此是平凡满足；这也使只有 `null` 值域的 `Nothing?` 满足规则。
+- `T?` 当且仅当 `T` 满足 `Copyable`；nullable wrapper 不引入 retain、clone 或唯一析构。
+- `value class C<A...>` 当且仅当按实际类型实参替换后，每个主构造器字段类型都满足
+  `Copyable`。字段的 `val` / `var` 不参与判定。
+- 有限 `enum class E<A...>` 当且仅当按实际类型实参替换后，每个 case 的每个 payload 类型
+  都满足 `Copyable`；无 payload 的 enum 因而满足。case type 沿用其 root enum 实例的能力，
+  不形成可独立声明或实现的 marker。
+- 类型参数只在其声明具有编译器绑定的 `Copyable` 上界时满足；`T : SomeInterface`、`T : Any`
+  或无上界都不能作为证明。对类型实参检查 `Copyable` 上界时使用本节同一判定。
+- `String`、普通 `class`、具名 `object`、函数 / lambda 类型和内建 `Box<T>` 均为
+  `MoveOnly`，不得因字段或类型实参可复制而提升。裸 interface、`Any`、尚未完成选择的类型、
+  deferred/error type 不能证明 `Copyable`。
+- 用户声明的同名 `Copyable` 或 `Box` 不获得内建身份，也不能冒充能力或 intrinsic 类型。
+
+该规则只产生类型能力事实。赋值、传参、返回或解构后是否构成 move-after-use 仍由 Phase 3
+检查；SPEC-0022 不建立所有权状态机。
+
+### 25.2 有限内联布局图
+
+类型声明的内联边由 `value class` 主构造器字段与 `enum class` case payload 产生；nullable
+包装对布局递归是透明边。普通 `class`、具名 `object`、函数 / lambda、内建 `Box` 与动态
+顺序容器都是固定大小的间接 handle，打断内联环。类型参数本身不构成声明递归边；沿未被
+handle 打断的路径再次遇到同一 value/enum 名义声明时，无论类型实参是否变化都构成无限
+内联递归（例如 `A<T>` 包含 `A<List<T>>` 仍非法），避免为变化中的实例无限展开。实际类型
+实参替换仍用于判断边上的 nullable / handle 类别与 `Copyable` 条件。
+
+编译器必须按声明顺序建立确定性图并报告第一条稳定可复现的直接或间接环。被判定为无限
+内联布局的类型进入 `Error`，不得继续被当作 `Copyable`，也不得流入后续 DataLayout / LLVM
+类型构造。目标相关的实际大小、对齐和对象大小上限仍属于 Phase 4。
+
+### 25.3 内建 `Box` 身份与实参边界
+
+v1 的 `Box` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor，不按名称字符串
+特判。它精确接受一个类型实参，且该实参必须能静态证明为一个具体 `value class` 名义实例；
+普通 `class`、enum、interface、object、基础类型、函数类型与类型参数均不合法。当前上界
+语言没有“是 value class”这种 kind bound，因此即使 `T : Copyable` 也不足以让 `Box<T>`
+合法；泛型代码必须在具体 value-class 实例已知的位置使用 `Box`。
+
+`Box<T>` 自身始终 `MoveOnly`，并打断内联递归。源码中声明 `class Box<T>` 只产生普通名义
+class，不取得 intrinsic 语义；外部环境没有绑定 intrinsic `Box` 时，编译器不得按拼写猜测。
+
+### 25.4 局部结构化解构
+
+SPEC-0022 只检查 SPEC-0013 已接纳的局部 `val (a, b) = expression`：initializer 只类型
+检查和求值一次。源类型为 `value class` 时，分量精确对应主构造器字段的声明顺序，绑定数
+必须与字段数相等；不能缺少或多出分量。typed 结果记录稳定的 statement identity、源类型、
+按序的绑定 symbol / 分量类型，以及整次操作是 `Copy` 还是 `Consume`：源类型满足
+`Copyable` 时为 `Copy`，否则为 `Consume`。
+
+这里的 `Consume` 只是交给 Phase 3 的原子所有权动作描述；SPEC-0022 不判定解构后再次使用、
+字段析构或部分移动。非 `value class` 的 `componentN()` 选择依赖尚未实施的一般 member/call
+选择，继续保留为专用 deferred reason，不猜测结构分量。
+
+第 11 节“占位、跳过或丢弃尚未定义”精确约束局部 `val` 解构：`val (_, x) = pair` 中 `_`
+在 v1 只是普通绑定名称，不是丢弃占位符，并参与通常的重复名称检查。
+[`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) §12 中 `for` binding
+已经解析的 `_` 是仅属于 `for` 的专用 discard 形态；其迭代类型与所有权语义由后续 iterable
+Spec 定义，不得反向扩展成通用解构占位符。
+
+### 25.5 诊断与 Phase 边界
+
+| 错误码 | 含义 | 主范围与关联信息 |
+|---|---|---|
+| L0115 | 类型实参不满足内建 `Copyable` 上界 | primary 为实参 TypeRef；label 指向上界声明 |
+| L0116 | 直接或间接形成无限内联布局环 | primary 为闭环字段 / payload TypeRef；labels 按环中声明顺序列出其余边 |
+| L0117 | intrinsic `Box` 的实参不是可证明的具体 `value class` 实例 | primary 为实参 TypeRef；无 intrinsic 绑定时不使用此诊断 |
+| L0118 | `value class` 结构化解构绑定数与字段数不一致 | primary 为解构 pattern；label 指向类型声明并给出期望数量 |
+
+SPEC-0022 不实现一般 callable/member/constructor 选择、独立 `componentN()` 调用、字段投影
+所有权、move-after-use、drop、容器类型、`Transferable`、companion 或 codegen。L0115–L0118
+只有 v0.25 明确启用后才获得稳定含义。
 
 ---
 
