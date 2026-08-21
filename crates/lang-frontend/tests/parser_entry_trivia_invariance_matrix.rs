@@ -1,13 +1,7 @@
-//! SPEC-0091 的独立 Parser 入口非换行 trivia 等价矩阵。
-
-use std::mem::{Discriminant, discriminant};
+//! SPEC-0091 / SPEC-0101 的独立入口 trivia 等价与词法分段不变量。
 
 use lang_frontend::{
     lexer::{LexemeKind, lex},
-    parser::{
-        Expression, Item, Statement, SyntaxAst, TypeRef, parse_block, parse_declaration,
-        parse_expression,
-    },
     source::SourceMap,
 };
 
@@ -17,47 +11,13 @@ mod parser_entry_matrix;
 mod parser_mutation_gaps;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
+#[path = "support/parser_trivia_variants.rs"]
+mod parser_trivia_variants;
 
-use parser_entry_matrix::{ENTRY_CASES, EntryCase, EntryKind, parse_entry_twice};
+use parser_entry_matrix::{ENTRY_CASES, EntryCase, EntrySyntaxShape, parse_entry_twice};
 use parser_mutation_gaps::{Gap, token_gaps};
 use parser_mutation_tokens::original_token_slots;
-
-const TRIVIA_VARIANTS: &[&str] = &["\t", "/*c*/", " \t/*c*/ "];
-
-#[derive(Debug, PartialEq, Eq)]
-struct EntrySyntaxShape {
-    root: usize,
-    items: Vec<Discriminant<Item>>,
-    statements: Vec<Discriminant<Statement>>,
-    expressions: Vec<Discriminant<Expression>>,
-    type_refs: Vec<Discriminant<TypeRef>>,
-}
-
-fn entry_syntax_shape(ast: &SyntaxAst, root: usize) -> EntrySyntaxShape {
-    EntrySyntaxShape {
-        root,
-        items: ast
-            .items()
-            .iter()
-            .map(|(_, node)| discriminant(node.payload()))
-            .collect(),
-        statements: ast
-            .statements()
-            .iter()
-            .map(|(_, node)| discriminant(node.payload()))
-            .collect(),
-        expressions: ast
-            .expressions()
-            .iter()
-            .map(|(_, node)| discriminant(node.payload()))
-            .collect(),
-        type_refs: ast
-            .type_refs()
-            .iter()
-            .map(|(_, node)| discriminant(node.payload()))
-            .collect(),
-    }
-}
+use parser_trivia_variants::{TRIVIA_VARIANTS, TriviaVariant, validate_inserted_trivia};
 
 fn significant_kinds(lexemes: &[lang_frontend::lexer::Lexeme]) -> Vec<LexemeKind> {
     lexemes
@@ -88,6 +48,7 @@ fn insert_trivia_at_all_gaps(source: &str, gaps: &[Gap], trivia: &str) -> String
 fn parse_clean(
     case: EntryCase,
     source: &str,
+    insertions: &[(usize, TriviaVariant)],
     context: &str,
 ) -> (Vec<LexemeKind>, EntrySyntaxShape) {
     let mut sources = SourceMap::new();
@@ -100,29 +61,15 @@ fn parse_clean(
         "Lexer diagnostics for {context}: {:?}\nsource={source:?}",
         lexed.diagnostics()
     );
+    for (start, variant) in insertions {
+        validate_inserted_trivia(&sources, &lexed, *start, *variant, context);
+    }
     let kinds = significant_kinds(lexed.lexemes());
+    let (diagnostic_count, shape) = parse_entry_twice(case, &sources, source_id, &lexed, context);
     assert_eq!(
-        parse_entry_twice(case, &sources, source_id, &lexed, context),
-        0,
+        diagnostic_count, 0,
         "entry must parse cleanly for {context}"
     );
-    let shape = match case.kind {
-        EntryKind::Expression => {
-            let parsed = parse_expression(&sources, &lexed)
-                .unwrap_or_else(|error| panic!("expression parse failed for {context}: {error}"));
-            entry_syntax_shape(parsed.ast(), parsed.root().index())
-        }
-        EntryKind::Declaration => {
-            let parsed = parse_declaration(&sources, &lexed)
-                .unwrap_or_else(|error| panic!("declaration parse failed for {context}: {error}"));
-            entry_syntax_shape(parsed.ast(), parsed.root().index())
-        }
-        EntryKind::Block => {
-            let parsed = parse_block(&sources, &lexed)
-                .unwrap_or_else(|error| panic!("block parse failed for {context}: {error}"));
-            entry_syntax_shape(parsed.ast(), parsed.root().index())
-        }
-    };
     (kinds, shape)
 }
 
@@ -153,22 +100,31 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape_for_every_en
             .collect::<Vec<_>>();
         code_gap_counts[index] += code_gaps.len();
 
-        let (baseline_kinds, baseline_shape) = parse_clean(*case, case.source, case.name);
+        let (baseline_kinds, baseline_shape) = parse_clean(*case, case.source, &[], case.name);
         for gap in &code_gaps {
-            for trivia in TRIVIA_VARIANTS {
-                let context = format!("{} insert {trivia:?} at code gap {}", case.name, gap.offset);
-                let mutated = insert_trivia(case.source, gap.offset, trivia);
-                let (kinds, shape) = parse_clean(*case, &mutated, &context);
+            for variant in TRIVIA_VARIANTS {
+                let context = format!(
+                    "{} insert {:?} at code gap {}",
+                    case.name, variant.text, gap.offset
+                );
+                let mutated = insert_trivia(case.source, gap.offset, variant.text);
+                let insertions = [(gap.offset, *variant)];
+                let (kinds, shape) = parse_clean(*case, &mutated, &insertions, &context);
                 assert_eq!(kinds, baseline_kinds, "token drift for {context}");
                 assert_eq!(shape, baseline_shape, "syntax drift for {context}");
                 mutation_counts[index] += 1;
             }
         }
 
-        for trivia in TRIVIA_VARIANTS {
-            let context = format!("{} insert {trivia:?} at all code gaps", case.name);
-            let mutated = insert_trivia_at_all_gaps(case.source, &code_gaps, trivia);
-            let (kinds, shape) = parse_clean(*case, &mutated, &context);
+        for variant in TRIVIA_VARIANTS {
+            let context = format!("{} insert {:?} at all code gaps", case.name, variant.text);
+            let mutated = insert_trivia_at_all_gaps(case.source, &code_gaps, variant.text);
+            let insertions = code_gaps
+                .iter()
+                .enumerate()
+                .map(|(index, gap)| (gap.offset + index * variant.text.len(), *variant))
+                .collect::<Vec<_>>();
+            let (kinds, shape) = parse_clean(*case, &mutated, &insertions, &context);
             assert_eq!(kinds, baseline_kinds, "token drift for {context}");
             assert_eq!(shape, baseline_shape, "syntax drift for {context}");
             mutation_counts[index] += 1;

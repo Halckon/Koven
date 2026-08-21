@@ -1,8 +1,13 @@
-//! 独立 Parser 入口矩阵共享的合法 corpus 与公开产物断言。
+//! 独立 Parser 入口矩阵共享的合法 corpus、公开产物与无 Span 结构断言。
+
+use std::mem::{Discriminant, discriminant};
 
 use lang_frontend::{
     lexer::LexedFile,
-    parser::{parse_block, parse_declaration, parse_expression},
+    parser::{
+        Expression, Item, Statement, SyntaxAst, TypeRef, parse_block, parse_declaration,
+        parse_expression,
+    },
     source::{SourceId, SourceMap},
 };
 
@@ -102,6 +107,42 @@ pub(crate) const ENTRY_CASES: &[EntryCase] = &[
 struct EntryFingerprint {
     debug: String,
     diagnostic_count: usize,
+    shape: EntrySyntaxShape,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct EntrySyntaxShape {
+    root: usize,
+    items: Vec<Discriminant<Item>>,
+    statements: Vec<Discriminant<Statement>>,
+    expressions: Vec<Discriminant<Expression>>,
+    type_refs: Vec<Discriminant<TypeRef>>,
+}
+
+fn entry_syntax_shape(ast: &SyntaxAst, root: usize) -> EntrySyntaxShape {
+    EntrySyntaxShape {
+        root,
+        items: ast
+            .items()
+            .iter()
+            .map(|(_, node)| discriminant(node.payload()))
+            .collect(),
+        statements: ast
+            .statements()
+            .iter()
+            .map(|(_, node)| discriminant(node.payload()))
+            .collect(),
+        expressions: ast
+            .expressions()
+            .iter()
+            .map(|(_, node)| discriminant(node.payload()))
+            .collect(),
+        type_refs: ast
+            .type_refs()
+            .iter()
+            .map(|(_, node)| discriminant(node.payload()))
+            .collect(),
+    }
 }
 
 fn parse_entry_once(
@@ -125,6 +166,7 @@ fn parse_entry_once(
             EntryFingerprint {
                 debug: format!("{:?}", $parsed),
                 diagnostic_count: $parsed.diagnostics().len(),
+                shape: entry_syntax_shape($parsed.ast(), $parsed.root().index()),
             }
         }};
     }
@@ -154,7 +196,7 @@ pub(crate) fn parse_entry_twice(
     source_id: SourceId,
     lexed: &LexedFile,
     context: &str,
-) -> usize {
+) -> (usize, EntrySyntaxShape) {
     let source_len = sources
         .source_text(source_id)
         .expect("matrix source identity must resolve")
@@ -163,5 +205,5 @@ pub(crate) fn parse_entry_twice(
     let first = parse_entry_once(case, sources, source_id, source_len, lexed, context);
     let repeated = parse_entry_once(case, sources, source_id, source_len, lexed, context);
     assert_eq!(first, repeated, "non-deterministic parse for {context}");
-    first.diagnostic_count
+    (first.diagnostic_count, first.shape)
 }

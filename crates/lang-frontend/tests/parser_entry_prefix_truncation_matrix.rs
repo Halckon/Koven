@@ -19,7 +19,7 @@ fn parse_prefix(case: EntryCase, source: &str, context: &str) -> (usize, usize) 
         .expect("matrix source name must be unique");
     let lexed = lex(&sources, source_id).expect("matrix prefix must lex internally");
     let parser_diagnostics = parse_entry_twice(case, &sources, source_id, &lexed, context);
-    (lexed.diagnostics().len(), parser_diagnostics)
+    (lexed.diagnostics().len(), parser_diagnostics.0)
 }
 
 #[test]

@@ -101,7 +101,7 @@ fn inserting_lexer_poison_at_each_token_gap_is_total_for_every_entry() {
                     parse_entry_twice(*case, &sources, source_id, &lexed, &context);
                 if !gap.code_mode {
                     assert_eq!(
-                        parser_diagnostics, 0,
+                        parser_diagnostics.0, 0,
                         "string insertion must parse cleanly for {context}"
                     );
                 }

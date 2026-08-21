@@ -23,6 +23,6 @@ pub(crate) fn baseline_slots(case: EntryCase) -> Vec<MutationSlot> {
         lexed.diagnostics()
     );
     let parser_diagnostics = parse_entry_twice(case, &sources, source_id, &lexed, case.name);
-    assert_eq!(parser_diagnostics, 0, "{} must parse cleanly", case.name);
+    assert_eq!(parser_diagnostics.0, 0, "{} must parse cleanly", case.name);
     parser_mutation_tokens::original_token_slots(&lexed, case.source.len())
 }

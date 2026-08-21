@@ -450,8 +450,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 - `parser_entry_trivia_invariance_matrix` 复用同一 12-case corpus 和 lexical-mode gap 状态机，在
   expression / declaration / block 的 66 / 106 / 67 个 code-mode gap 分别投放 tab、无换行 block
   comment 与混合 trivia，并覆盖每例全 gap 投放；共执行 753 个 mutation，全部保持 baseline 的
-  significant `LexemeKind` 序列、无 Span AST 结构指纹和两阶段零诊断，同时重复解析锁定公开产物
-  确定性；本矩阵未发现生产缺陷；
+  significant `LexemeKind` 序列、无 Span AST 结构指纹和两阶段零诊断。每个插入区间按 overlap
+  精确锁定共享表中的 `TriviaKind` 与 spelling，包括与原 whitespace 合并的 lexeme；all-gap
+  变体按累计 byte 位移验证全部插入。共享 entry fingerprint 让两次解析均验证并比较 shape，
+  753 个变体共执行 1,506 次生产解析，不再为 shape 额外执行第三次解析；本矩阵未发现生产缺陷；
 - `parser_entry_line_break_boundary_matrix` 将 LF、CRLF、line comment 终止换行及 block comment
   内换行六种结构载体，与四种无 LF trivia 投放到 expression `when` entry、declaration class
   member 和 block 裸 `return` 边界；反向锁定 expression / block 中缀连续与 enum comma 必需。
