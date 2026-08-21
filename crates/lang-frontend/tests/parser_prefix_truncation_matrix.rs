@@ -1,4 +1,4 @@
-//! SPEC-0079 的合法完整语法逐 UTF-8 前缀 EOF 恢复矩阵。
+//! SPEC-0079 / SPEC-0099 的 UTF-8 前缀恢复与共享文件产物不变量。
 
 use std::collections::BTreeSet;
 

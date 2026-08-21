@@ -410,6 +410,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   共执行 80 个 Lexer-clean 源码、160 次确定性完整文件解析；每例精确锁定 carrier 的
   `TriviaKind` / spelling / byte 分段、lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic
   Span、文件 roots 与 package / import directive Span；源码裸 CR 仍由 Lexer 以 L0001 拒绝；
+- `frontend_matrix_assertions` 为 prefix truncation、token omission / duplication / transposition 与
+  lexical poison replacement / insertion 六个完整文件恢复矩阵提供共享解析入口；4,167 个主要
+  变异 / 前缀 case 的两次产物均分别锁定 source identity、source-local AST / diagnostic 主与
+  label Span、文件 roots、package / import directive Span，并比较完整公开产物确定性；
 - `parser_prefix_truncation_matrix` integration test 以 22 个 Lexer / Parser-clean 完整文件覆盖
   文件头、声明、callable、block、lambda、control-flow、postfix、class-family、接口委托、
   运算符层级及 Unicode 嵌套 string / interpolation；其 1,373 个 UTF-8 scalar 前缀均保持

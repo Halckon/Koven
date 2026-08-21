@@ -7,7 +7,7 @@ use lang_frontend::{
     source::{SourceId, Span},
 };
 
-fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
+pub(crate) fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
     assert_eq!(span.source_id(), source_id);
     assert!(span.start() <= span.end());
     assert!(span.end() <= source_len);
