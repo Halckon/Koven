@@ -161,6 +161,274 @@ fn numeric_defaults_suffixes_and_contextual_integer_types_are_stable() {
 }
 
 #[test]
+fn enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests() {
+    let text = "enum class Shape {\n\
+                    Circle(radius: Int), Point;\n\
+                    fun isCircle(): Boolean = this is Circle\n\
+                }\n\
+                fun invalid(input: Shape.Circle): Unit {}";
+    let (sources, parsed, names, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0114"]);
+    assert_eq!(typed.enum_cases().len(), 2);
+    let circle = &typed.enum_cases()[0];
+    assert_eq!(circle.id(), names.enum_cases()[0].id());
+    assert_eq!(circle.payloads().len(), 1);
+    assert!(matches!(
+        typed.types().get(circle.root_type()),
+        Some(TypeKind::Nominal { .. })
+    ));
+    let case_type = parsed
+        .ast()
+        .type_refs()
+        .iter()
+        .filter(|(_, node)| sources.slice(node.span()) == Ok("Circle"))
+        .find_map(|(id, _)| {
+            let ty = typed.type_ref_type(id)?;
+            matches!(typed.types().get(ty), Some(TypeKind::EnumCase { .. })).then_some(ty)
+        })
+        .expect("type-test case type");
+    assert!(matches!(
+        typed.types().get(case_type),
+        Some(TypeKind::EnumCase { case, .. }) if *case == circle.id()
+    ));
+    assert_eq!(
+        diagnostic_spans(&sources, &typed.diagnostics()[0]),
+        ("Shape.Circle", "Shape")
+    );
+}
+
+#[test]
+fn type_tests_drive_enum_payload_and_nullable_smart_casts() {
+    let text = "enum class Shape { Circle(radius: Int), Point }\n\
+                fun radius(shape: Shape): Int {\n\
+                    if (shape is Shape.Circle) { return shape.radius }\n\
+                    return 0\n\
+                }\n\
+                fun increment(input: Int?): Int {\n\
+                    if (input != null) { return input + 1 }\n\
+                    return 0\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn assignment_and_capture_invalidate_mutable_smart_casts_and_invalid_tests_are_precise() {
+    let text = "enum class Shape { Circle(radius: Int), Point }\n\
+                interface Marker\n\
+                fun assigned(initial: Shape, replacement: Shape): Int {\n\
+                    var current = initial\n\
+                    if (current is Shape.Circle) {\n\
+                        current = replacement\n\
+                        return current.radius\n\
+                    }\n\
+                    return 0\n\
+                }\n\
+                fun captured(initial: Shape): Int {\n\
+                    var current = initial\n\
+                    val callback = { current }\n\
+                    if (current is Shape.Circle) { return current.radius }\n\
+                    return 0\n\
+                }\n\
+                fun invalid(shape: Shape): Boolean = shape is Marker";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0113", "L0113", "L0106"]);
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
+            .collect::<Vec<_>>(),
+        ["radius", "radius", "is"]
+    );
+}
+
+#[test]
+fn exhaustive_when_covers_enum_boolean_nullable_and_short_circuit_facts() {
+    let text = "enum class Shape {
+                    Circle(radius: Int), Point;
+                    fun ownRadius(): Int = when (this) {
+                        is Circle -> radius
+                        is Point -> 0
+                    }
+                }
+                fun external(shape: Shape): Int = when (shape) {
+                    is Shape.Circle -> shape.radius
+                    Shape.Point -> 0
+                }
+                fun positive(shape: Shape): Boolean =
+                    shape is Shape.Circle && shape.radius > 0
+                fun local(shape: Shape): Boolean {
+                    val current = shape
+                    return current is Shape.Circle && current.radius > 0
+                }
+                fun disjunction(shape: Shape): Boolean =
+                    shape !is Shape.Circle || shape.radius > 0
+                fun afterExit(shape: Shape): Int {
+                    if (shape !is Shape.Circle) { return 0 }
+                    return shape.radius
+                }
+                fun nullable(shape: Shape?): Int = when (shape) {
+                    null -> 0
+                    is Shape.Circle -> shape.radius
+                    is Shape.Point -> 0
+                }
+                fun boolean(flag: Boolean): Int = when (flag) {
+                    true -> 1
+                    false -> 0
+                }
+                fun preserveRoot(shape: Shape): Shape {
+                    if (shape is Shape.Circle) { return shape }
+                    return shape
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn generic_enum_case_tests_substitute_root_arguments_for_payloads() {
+    let text = "enum class Maybe<T> {
+                    Some(item: T), None;
+                    fun valueOr(fallback: T): T = when (this) {
+                        is Some -> item
+                        is None -> fallback
+                    }
+                }
+                fun external(input: Maybe<Int>): Int = when (input) {
+                    is Maybe.Some<Int> -> input.item
+                    is Maybe.None<Int> -> 0
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn when_negative_and_comma_coverage_keep_only_shared_flow_facts() {
+    let valid = "enum class Shape { Circle(radius: Int), Point }
+                 fun classify(shape: Shape): Int = when (shape) {
+                     !is Shape.Circle -> 0
+                     is Shape.Circle -> shape.radius
+                 }";
+    let (_, _, _, typed) = checked(valid);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let invalid = "enum class Shape { Circle(radius: Int), Point }
+                   fun merged(shape: Shape): Int = when (shape) {
+                       is Shape.Circle, is Shape.Point -> shape.radius
+                   }";
+    let (sources, _, _, typed) = checked(invalid);
+    assert_eq!(codes(typed.diagnostics()), ["L0113"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("payload span"),
+        "radius"
+    );
+}
+
+#[test]
+fn when_context_and_coverage_diagnostics_are_deterministic() {
+    let text = "enum class Shape { Circle(radius: Int), Point }
+                fun statement(shape: Shape): Int {
+                    when (shape) { is Shape.Circle -> shape.radius }
+                    return 0
+                }
+                fun nestedStatement(flag: Boolean, shape: Shape): Int {
+                    if (flag) {
+                        when (shape) { is Shape.Circle -> shape.radius }
+                    }
+                    return 0
+                }
+                fun missing(shape: Shape): Int = when (shape) {
+                    is Shape.Circle -> shape.radius
+                }
+                fun repeated(flag: Boolean): Int = when (flag) {
+                    true -> 1
+                    true -> 2
+                }
+                fun misplaced(flag: Boolean): Int = when (flag) {
+                    else -> 0
+                    true -> 1
+                    else -> 2
+                }";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0111", "L0111", "L0110", "L0109", "L0108"]
+    );
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
+            .collect::<Vec<_>>(),
+        ["when", "when", "true", "else", "else"]
+    );
+}
+
+#[test]
+fn subjectless_when_requires_boolean_conditions_and_known_branches_join_to_any() {
+    let invalid = "fun invalid(): Int = when { 1 -> 1; else -> 0 }";
+    let (sources, _, _, typed) = checked(invalid);
+    assert_eq!(codes(typed.diagnostics()), ["L0107"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("condition span"),
+        "1"
+    );
+
+    let valid = "fun mixed(flag: Boolean): Any = when (flag) {
+                     true -> 1
+                     false -> \"text\"
+                 }";
+    let (_, _, _, typed) = checked(valid);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn when_branch_join_handles_nothing_nullable_enum_cases_and_any() {
+    let text = "enum class Choice { First, Second }
+                fun joins(flag: Boolean, optional: Int?, choice: Choice): Unit {
+                    val nullable = when (flag) { true -> 1; false -> optional }
+                    val root = when (choice) {
+                        is Choice.First -> choice
+                        is Choice.Second -> choice
+                    }
+                    val mixed = when (flag) { true -> 1; false -> \"text\" }
+                }
+                fun bottom(flag: Boolean): Int = when (flag) {
+                    true -> return 1
+                    false -> 2
+                }";
+    let (_, _, names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let symbol_type = |name: &str| {
+        let symbol = names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == name)
+            .expect("local symbol");
+        typed
+            .symbol_type(symbol.id())
+            .and_then(|ty| typed.types().get(ty))
+            .expect("local type")
+    };
+    assert!(matches!(
+        symbol_type("nullable"),
+        TypeKind::Nullable(inner)
+            if matches!(typed.types().get(*inner), Some(TypeKind::Builtin(BuiltinType::Int)))
+    ));
+    assert!(matches!(symbol_type("root"), TypeKind::Nominal { .. }));
+    assert!(matches!(
+        symbol_type("mixed"),
+        TypeKind::Builtin(BuiltinType::Any)
+    ));
+}
+
+#[test]
 fn local_lambda_operator_and_type_ref_diagnostics_use_published_codes() {
     let (_, _, _, valid) = checked(
         "fun apply(): Unit {\n\
@@ -224,7 +492,13 @@ fn bottom_non_null_and_numeric_boundaries_do_not_widen_silently() {
 
 #[test]
 fn repeated_checks_are_deterministic_and_foreign_source_maps_fail() {
-    let (sources, parsed) = parse("fun identity(input: Int): Int = input + 1");
+    let (sources, parsed) = parse(
+        "enum class Choice { First, Second }
+         fun select(input: Choice): Int = when (input) {
+             is Choice.First -> 1
+             is Choice.Second -> 2
+         }",
+    );
     let (names, types) = environments();
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let first = check_types(&sources, &parsed, &resolution, &types).expect("first");
@@ -240,6 +514,34 @@ fn repeated_checks_are_deterministic_and_foreign_source_maps_fail() {
         check_types(&foreign, &parsed, &resolution, &types),
         Err(TypeCheckingError::Source(_))
     ));
+}
+
+#[test]
+fn long_enum_domains_and_deep_smart_cast_conditions_stay_deterministic() {
+    let mut text = String::from("enum class Large { ");
+    for index in 0..128 {
+        if index != 0 {
+            text.push_str(", ");
+        }
+        text.push_str(&format!("C{index}"));
+    }
+    text.push_str(" }\nfun select(input: Large): Int = when (input) {\n");
+    for index in 0..128 {
+        text.push_str(&format!("Large.C{index} -> {index}\n"));
+    }
+    text.push_str("}\n");
+    text.push_str("enum class Shape { Circle(radius: Int), Point }\n");
+    text.push_str("fun deep(shape: Shape): Boolean = shape is Shape.Circle");
+    for _ in 0..96 {
+        text.push_str(" && shape.radius > 0");
+    }
+    text.push('\n');
+
+    let (_, _, _, first) = checked(&text);
+    let (_, _, _, second) = checked(&text);
+    assert!(first.diagnostics().is_empty(), "{:?}", first.diagnostics());
+    assert_eq!(first.diagnostics(), second.diagnostics());
+    assert_eq!(first.enum_cases(), second.enum_cases());
 }
 
 #[test]
@@ -620,7 +922,6 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
         DeferredReason::CastOrTypeTest,
         DeferredReason::ErrorPropagation,
         DeferredReason::OverloadSelection,
-        DeferredReason::WhenTyping,
         DeferredReason::Destructuring,
     ] {
         assert!(
@@ -639,7 +940,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 2, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 3, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

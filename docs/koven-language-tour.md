@@ -4,15 +4,19 @@
 
 ## 关于当前状态,需要提前说明
 
-Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，并以单文件名称解析进入
-Phase 2；类型检查仍是下一项。所有权/借用检查（Phase 3）、代码生成（Phase 4）和标准库
-（Phase 5）尚未开始。
+Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase 2 已实现单文件名称解析、
+基础与名义/泛型/interface 类型检查，以及 `when` 穷尽性与 smart cast。条件 `Copyable`、
+容器及跨文件解析等后续 Phase 2 工作仍待实施；所有权/借用检查（Phase 3）、代码生成
+（Phase 4）和标准库（Phase 5）尚未开始。
 也就是说：
 
 - 本教程里的 Phase 1 语法——基础类型、变量、函数、`value class`/`class`、调用标注、lambda、
-  control-flow 与文件结构——已经有完整、可执行的 Parser；类型和所有权语义仍按后续 Phase 实施。
+  control-flow 与文件结构——已经有完整、可执行的 Parser；已实施的类型语义以 Architecture
+  和完成的 Phase 2 Spec 为准，所有权语义仍按后续 Phase 实施。
 - **控制流已在 v0.18 定稿；class 家族、类型级 companion、匿名内部类边界与窄化接口委托已在 v0.20 定稿。**
 - **单文件名称、作用域、重载组与未解析名称诊断已在 v0.21 定稿，并由 SPEC-0018 实现。**
+- **名义/泛型/interface 类型检查已由 SPEC-0020 实现；v0.24 的 enum case type、有限域
+  `when` 穷尽性与 smart cast 已由 SPEC-0021 实现。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -435,8 +439,8 @@ val (sender, receiver) = channel<Int>()
 
 ## 7. 控制流
 
-> **状态说明**:v0.18 已锁定本章控制流的 Phase 1 语法；条件类型、`when` 穷尽性、smart cast
-> 与 jump target 等静态语义在 Phase 2 实施。
+> **状态说明**：v0.18 已锁定本章控制流的 Phase 1 语法；v0.24 的条件类型、有限域 `when`
+> 穷尽性与 smart cast 已由 SPEC-0021 实现，jump target 等其余静态语义仍在后续 Phase 处理。
 
 ### 7.1 `if`
 
@@ -455,8 +459,8 @@ fun divide(a: Int, b: Int): Int {
 
 ```kotlin
 fun area(shape: Shape): Double = when (shape) {
-    is Circle -> 3.14159 * shape.radius * shape.radius
-    is Rectangle -> shape.w * shape.h
+    is Shape.Circle -> 3.14159 * shape.radius * shape.radius
+    is Shape.Rectangle -> shape.w * shape.h
     else -> 0.0
 }
 ```

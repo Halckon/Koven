@@ -217,7 +217,10 @@ impl Checker<'_> {
                 .map(ShapeType::TypeParameter),
             TypeKind::StaticSelf(interface) => self.shape_type(*interface, parameter_slots),
             TypeKind::Capability(capability) => Some(ShapeType::Capability(*capability)),
-            TypeKind::IntegerLiteral(_) | TypeKind::Error | TypeKind::Deferred(_) => None,
+            TypeKind::EnumCase { .. }
+            | TypeKind::IntegerLiteral(_)
+            | TypeKind::Error
+            | TypeKind::Deferred(_) => None,
         }
     }
 

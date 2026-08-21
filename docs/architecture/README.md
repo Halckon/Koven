@@ -5,6 +5,7 @@
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.24 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
+SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast。
 
 ## 当前状态
 
@@ -15,7 +16,7 @@ SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interfa
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0105` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0114` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -29,16 +30,20 @@ SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interfa
   确定性合并 Lexer / Parser 诊断；
 - `lang_frontend::name_resolution` 已提供显式 `NameEnvironment`、单文件类型 / 值双命名
   空间、稳定 `ScopeId` / `SymbolId`、有序 overload set、顺序 local 可见性、名称引用产物与
-  L0079–L0081；它不读取文件系统、不展开 package/import，也不执行类型或 member 选择；
+  L0079–L0081；enum case 的值构造器与 type-test 身份共享稳定 `EnumCaseId`，限定 case 尾段
+  与 payload 候选也保留在解析产物中。该阶段不读取文件系统、不展开 package/import，
+  也不执行类型或控制流判断；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
-  并实现数值定型、局部单向 expected type、lambda / 基础运算符 / 返回流检查及
-  L0082–L0105；member 选择、调用实例化等后续责任仍使用逐类 `DeferredReason` 保留；
+  并实现数值定型、局部单向 expected type、lambda / 基础运算符 / 返回流检查、enum case
+  type、稳定 place flow facts、赋值/capture kill、短路条件传播，以及 Boolean/enum/nullable
+  `when` 穷尽性和 L0082–L0114；member 选择、调用实例化等后续责任仍使用逐类
+  `DeferredReason` 保留；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
-- 尚无 member/call 选择、`when` 穷尽性与 smart cast、所有权检查或 codegen 实现；
+- 尚无 member/call 选择、条件 `Copyable`、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -341,8 +346,8 @@ suite 不表示类型检查或编译，harness 也不调用 renderer 或固定�
 `tests/name_resolution.rs` 另行枚举非零 Phase 2 `name-pass` / `name-fail` fixture，真实调用
 Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L0081 的 code / byte Span；
 `tests/type_checking.rs` 枚举 `type-pass` / `type-fail` fixture，经相同前置流水线调用类型检查，
-并精确核对 L0082–L0105 的 code / byte Span；当前 `type-pass` 与 `type-fail` 各有两个真实
-fixture，包含名义类型、interface 实现、override 与委托正反例。
+并精确核对 L0082–L0114 的 code / byte Span；当前 `type-pass` 与 `type-fail` 各有三个真实
+fixture，包含名义类型、interface 实现、override、委托，以及 `when`/smart-cast 正反例。
 
 ## 尚未实现的编译流水线
 
@@ -358,7 +363,8 @@ fixture，包含名义类型、interface 实现、override 与委托正反例。
 callable 参数与 typed call argument、局部解构、完整文件与 package / import Parser、
 control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析、
 基础类型检查、名义/泛型/interface 检查及分层 fixture harness 已存在；member/call 选择、
-`when` 穷尽性、smart cast 与后续类型规则仍未实现；
+enum case type、`when` 穷尽性与 smart cast 也已实现；条件 `Copyable`、容器与后续类型规则
+仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 

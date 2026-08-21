@@ -116,6 +116,15 @@ pub mod codes {
     pub(crate) const INVALID_DELEGATION_TARGET: &str = "L0103";
     pub(crate) const DELEGATE_INTERFACE_MISMATCH: &str = "L0104";
     pub(crate) const DELEGATION_MEMBER_CONFLICT: &str = "L0105";
+    pub(crate) const INVALID_TYPE_TEST: &str = "L0106";
+    pub(crate) const INVALID_WHEN_CONDITION: &str = "L0107";
+    pub(crate) const DUPLICATE_WHEN_ELSE: &str = "L0108";
+    pub(crate) const NON_FINAL_WHEN_ELSE: &str = "L0109";
+    pub(crate) const DUPLICATE_WHEN_COVERAGE: &str = "L0110";
+    pub(crate) const NON_EXHAUSTIVE_WHEN: &str = "L0111";
+    pub(crate) const WHEN_BRANCH_TYPE: &str = "L0112";
+    pub(crate) const INVALID_ENUM_PAYLOAD_ACCESS: &str = "L0113";
+    pub(crate) const ENUM_CASE_TYPE_POSITION: &str = "L0114";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -224,6 +233,15 @@ pub mod codes {
         INVALID_DELEGATION_TARGET,
         DELEGATE_INTERFACE_MISMATCH,
         DELEGATION_MEMBER_CONFLICT,
+        INVALID_TYPE_TEST,
+        INVALID_WHEN_CONDITION,
+        DUPLICATE_WHEN_ELSE,
+        NON_FINAL_WHEN_ELSE,
+        DUPLICATE_WHEN_COVERAGE,
+        NON_EXHAUSTIVE_WHEN,
+        WHEN_BRANCH_TYPE,
+        INVALID_ENUM_PAYLOAD_ACCESS,
+        ENUM_CASE_TYPE_POSITION,
     ];
 
     /// 由集中定义创建生产错误码目录。

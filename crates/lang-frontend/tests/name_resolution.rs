@@ -127,6 +127,72 @@ fn members_are_predeclared_and_companion_does_not_inherit_instance_values() {
 }
 
 #[test]
+fn enum_cases_share_identity_across_namespaces_and_preserve_payload_candidates() {
+    let text = "enum class Shape {\n\
+                    Circle(radius: Int), Point;\n\
+                    fun area(): Int = when (this) {\n\
+                        is Circle -> radius\n\
+                        is Point -> 0\n\
+                    }\n\
+                }\n\
+                fun inspect(shape: Shape): Boolean = shape is Shape.Circle";
+    let (sources, parsed) = parsed(text);
+    let resolution = resolve_names(&sources, &parsed, &environment()).expect("resolve");
+
+    assert!(
+        resolution.diagnostics().is_empty(),
+        "{:?}",
+        resolution.diagnostics()
+    );
+    assert_eq!(resolution.enum_cases().len(), 2);
+    let circle = &resolution.enum_cases()[0];
+    assert_ne!(circle.value_symbol(), circle.type_symbol());
+    assert_eq!(circle.payloads().len(), 1);
+    assert_eq!(
+        resolution.symbols()[circle.value_symbol().index()].kind(),
+        SymbolKind::EnumVariant
+    );
+    assert_eq!(
+        resolution.symbols()[circle.type_symbol().index()].kind(),
+        SymbolKind::EnumCaseType
+    );
+    assert!(resolution.references().iter().any(|reference| {
+        sources.slice(reference.span()).expect("span") == "radius"
+            && matches!(
+                reference.target(),
+                ReferenceTarget::EnumCasePayloadCandidates(candidates)
+                    if candidates == circle.payloads()
+            )
+    }));
+    assert!(resolution.references().iter().any(|reference| {
+        sources.slice(reference.span()).expect("span") == "Circle"
+            && reference.namespace() == Namespace::Type
+            && reference.target() == &ReferenceTarget::Symbol(circle.type_symbol())
+    }));
+}
+
+#[test]
+fn qualified_enum_case_resolution_rejects_unknown_tail_segments() {
+    let text = "enum class Shape { Circle(radius: Int), Point }
+                fun invalid(shape: Shape): Boolean {
+                    val missing = Shape.Unknown
+                    return shape is Shape.Missing
+                }";
+    let (sources, parsed) = parsed(text);
+    let resolution = resolve_names(&sources, &parsed, &environment()).expect("resolve");
+
+    assert_eq!(codes(resolution.diagnostics()), ["L0080", "L0080"]);
+    assert_eq!(
+        resolution
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| span_text(&sources, diagnostic))
+            .collect::<Vec<_>>(),
+        ["Unknown", "Missing"]
+    );
+}
+
+#[test]
 fn locals_bind_after_initializer_and_nested_scopes_shadow() {
     let text = "fun demo(base: Int): Int {\n\
                     val first = later\n\

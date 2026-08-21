@@ -23,6 +23,7 @@ macro_rules! define_id {
 
 define_id!(ScopeId, "词法作用域在单次名称解析产物中的身份。");
 define_id!(SymbolId, "源码 symbol 在单次名称解析产物中的身份。");
+define_id!(EnumCaseId, "enum case 在单次名称解析产物中的身份。");
 define_id!(ExternalSymbolId, "显式名称环境中预声明 symbol 的身份。");
 
 /// 名称所属的独立命名空间。
@@ -294,6 +295,8 @@ pub enum SymbolKind {
     Field,
     /// enum 变体。
     EnumVariant,
+    /// 仅供 type-test 使用的 enum case type。
+    EnumCaseType,
     /// 具名函数或变体值参数。
     ValueParameter,
     /// lambda 参数。
@@ -302,6 +305,69 @@ pub enum SymbolKind {
     ForBinding,
     /// 局部解构 binding。
     DestructuringBinding,
+}
+
+/// 同时关联值构造器、type-test 身份与 payload 参数的 enum case。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumCase {
+    id: EnumCaseId,
+    root: SymbolId,
+    value_symbol: SymbolId,
+    type_symbol: SymbolId,
+    span: Span,
+    payloads: Vec<SymbolId>,
+}
+
+impl EnumCase {
+    /// 返回源码顺序的 case 身份。
+    #[must_use]
+    pub const fn id(&self) -> EnumCaseId {
+        self.id
+    }
+    /// 返回所属 root enum classifier symbol。
+    #[must_use]
+    pub const fn root(&self) -> SymbolId {
+        self.root
+    }
+    /// 返回值命名空间中的 case value/constructor symbol。
+    #[must_use]
+    pub const fn value_symbol(&self) -> SymbolId {
+        self.value_symbol
+    }
+    /// 返回类型命名空间中的 case type symbol。
+    #[must_use]
+    pub const fn type_symbol(&self) -> SymbolId {
+        self.type_symbol
+    }
+    /// 返回完整 case 声明范围。
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+    /// 返回源码顺序的 payload 参数 symbol。
+    #[must_use]
+    pub fn payloads(&self) -> &[SymbolId] {
+        &self.payloads
+    }
+    pub(crate) const fn new(
+        id: EnumCaseId,
+        root: SymbolId,
+        value_symbol: SymbolId,
+        type_symbol: SymbolId,
+        span: Span,
+    ) -> Self {
+        Self {
+            id,
+            root,
+            value_symbol,
+            type_symbol,
+            span,
+            payloads: Vec::new(),
+        }
+    }
+    pub(crate) fn set_payloads(&mut self, payloads: Vec<SymbolId>) {
+        self.payloads = payloads;
+    }
 }
 
 /// 一个已收集源码 symbol。
@@ -375,6 +441,8 @@ pub enum ReferenceTarget {
     External(ExternalSymbolId),
     /// 外部环境中的有序函数 overload set。
     ExternalOverloadSet(Vec<ExternalSymbolId>),
+    /// 等待 smart-cast facts 唯一选择的 enum case payload symbols。
+    EnumCasePayloadCandidates(Vec<SymbolId>),
     /// 当前环境中未解析。
     Unresolved,
     /// 同一顺序作用域稍后出现的 local 声明范围。
@@ -432,6 +500,7 @@ pub struct NameResolution {
     environment_owner: Arc<()>,
     scopes: Vec<Scope>,
     symbols: Vec<Symbol>,
+    enum_cases: Vec<EnumCase>,
     references: Vec<NameReference>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -441,6 +510,7 @@ impl NameResolution {
         environment_owner: Arc<()>,
         scopes: Vec<Scope>,
         symbols: Vec<Symbol>,
+        enum_cases: Vec<EnumCase>,
         references: Vec<NameReference>,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
@@ -449,6 +519,7 @@ impl NameResolution {
             environment_owner,
             scopes,
             symbols,
+            enum_cases,
             references,
             diagnostics,
         }
@@ -467,6 +538,11 @@ impl NameResolution {
     #[must_use]
     pub fn symbols(&self) -> &[Symbol] {
         &self.symbols
+    }
+    /// 返回源码顺序的 enum case 身份与双命名空间关联。
+    #[must_use]
+    pub fn enum_cases(&self) -> &[EnumCase] {
+        &self.enum_cases
     }
     /// 返回按 AST 遍历顺序记录的名称引用。
     #[must_use]

@@ -8,8 +8,9 @@ use crate::{
 };
 
 use super::{
-    ExternalBinding, NameEnvironment, NameReference, NameResolution, NameResolutionError,
-    Namespace, ReferenceTarget, Scope, ScopeId, ScopeKind, Symbol, SymbolId, SymbolKind,
+    EnumCase, EnumCaseId, ExternalBinding, NameEnvironment, NameReference, NameResolution,
+    NameResolutionError, Namespace, ReferenceTarget, Scope, ScopeId, ScopeKind, Symbol, SymbolId,
+    SymbolKind,
 };
 
 #[derive(Clone, Debug)]
@@ -41,6 +42,10 @@ struct Resolver<'a> {
     environment: &'a NameEnvironment,
     scopes: Vec<ScopeState>,
     symbols: Vec<Symbol>,
+    enum_cases: Vec<EnumCase>,
+    enum_case_by_root_name: BTreeMap<(SymbolId, String), EnumCaseId>,
+    enum_case_by_span: BTreeMap<(usize, usize), EnumCaseId>,
+    payload_candidates: BTreeMap<ScopeId, BTreeMap<String, Vec<SymbolId>>>,
     references: Vec<NameReference>,
     diagnostics: Vec<Diagnostic>,
     duplicate_code: DiagnosticCode,
@@ -61,6 +66,10 @@ impl<'a> Resolver<'a> {
             environment,
             scopes: Vec::new(),
             symbols: Vec::new(),
+            enum_cases: Vec::new(),
+            enum_case_by_root_name: BTreeMap::new(),
+            enum_case_by_span: BTreeMap::new(),
+            payload_candidates: BTreeMap::new(),
             references: Vec::new(),
             diagnostics: Vec::new(),
             duplicate_code: catalog.resolve(codes::DUPLICATE_NAME)?,
@@ -86,6 +95,7 @@ impl<'a> Resolver<'a> {
             self.environment.owner(),
             self.scopes.into_iter().map(|scope| scope.public).collect(),
             self.symbols,
+            self.enum_cases,
             self.references,
             ordered,
         ))
@@ -334,6 +344,12 @@ impl<'a> Resolver<'a> {
         classifier: &ClassifierDeclaration,
     ) -> Result<(), NameResolutionError> {
         let scope = self.add_scope(Some(parent), ScopeKind::Classifier, Some(span));
+        let root = match classifier.name {
+            NameMarker::Present(name_span) => {
+                self.declaration_symbol(name_span, Namespace::Type, SymbolKind::Classifier)
+            }
+            _ => None,
+        };
         self.resolve_type_parameters(&classifier.type_parameters, scope)?;
         if let Some(constructor) = &classifier.primary_constructor {
             for field in &constructor.fields {
@@ -342,12 +358,39 @@ impl<'a> Resolver<'a> {
         }
         if let Some(body) = &classifier.body {
             for variant in &body.variants {
-                self.insert_marker(
+                let (Some(root), NameMarker::Present(name_span)) = (root, variant.name) else {
+                    continue;
+                };
+                let Some(type_symbol) = self.insert_marker(
+                    scope,
+                    variant.name,
+                    Namespace::Type,
+                    SymbolKind::EnumCaseType,
+                )?
+                else {
+                    continue;
+                };
+                let Some(value_symbol) = self.insert_marker(
                     scope,
                     variant.name,
                     Namespace::Value,
                     SymbolKind::EnumVariant,
-                )?;
+                )?
+                else {
+                    continue;
+                };
+                let id = EnumCaseId(self.enum_cases.len());
+                let name = self.sources.slice(name_span)?.to_owned();
+                self.enum_case_by_root_name.insert((root, name), id);
+                self.enum_case_by_span
+                    .insert((variant.span.start(), variant.span.end()), id);
+                self.enum_cases.push(EnumCase::new(
+                    id,
+                    root,
+                    value_symbol,
+                    type_symbol,
+                    variant.span,
+                ));
             }
             for &member in &body.members {
                 self.predeclare_item(member, scope)?;
@@ -368,14 +411,33 @@ impl<'a> Resolver<'a> {
             for variant in &body.variants {
                 let variant_scope =
                     self.add_scope(Some(scope), ScopeKind::EnumVariant, Some(variant.span));
+                let mut payloads = Vec::new();
                 for parameter in &variant.parameters {
                     self.resolve_type(parameter.type_ref, variant_scope)?;
-                    self.insert_marker(
+                    if let Some(symbol) = self.insert_marker(
                         variant_scope,
                         parameter.name,
                         Namespace::Value,
                         SymbolKind::ValueParameter,
-                    )?;
+                    )? {
+                        payloads.push(symbol);
+                        if let NameMarker::Present(name_span) = parameter.name {
+                            let name = self.sources.slice(name_span)?.to_owned();
+                            self.payload_candidates
+                                .entry(scope)
+                                .or_default()
+                                .entry(name)
+                                .or_default()
+                                .push(symbol);
+                        }
+                    }
+                }
+                if let Some(id) = self
+                    .enum_case_by_span
+                    .get(&(variant.span.start(), variant.span.end()))
+                    .copied()
+                {
+                    self.enum_cases[id.index()].set_payloads(payloads);
                 }
             }
             for &member in &body.members {
@@ -671,8 +733,54 @@ impl<'a> Resolver<'a> {
                 self.resolve_expression(target, scope)?;
                 self.resolve_expression(value, scope)
             }
-            Expression::Member { receiver, .. } => {
-                self.resolve_expression_with_type_fallback(receiver, scope)
+            Expression::Member {
+                receiver,
+                name_span,
+                ..
+            } => {
+                self.resolve_expression_with_type_fallback(receiver, scope)?;
+                let receiver_node = self.ast().expressions().get(receiver)?;
+                if matches!(receiver_node.payload(), Expression::This) {
+                    if let Some(candidates) =
+                        self.lookup_payload_candidates(scope, self.sources.slice(name_span)?)
+                    {
+                        self.references.push(NameReference::new(
+                            name_span,
+                            scope,
+                            Namespace::Value,
+                            ReferenceTarget::EnumCasePayloadCandidates(candidates),
+                        ));
+                    }
+                } else if matches!(receiver_node.payload(), Expression::Name)
+                    && let Some(ReferenceTarget::Symbol(root)) =
+                        self.reference_target(receiver_node.span(), Namespace::Type)
+                {
+                    let name = self.sources.slice(name_span)?.to_owned();
+                    if let Some(case) = self.enum_case_by_root_name.get(&(root, name)) {
+                        let symbol = self.enum_cases[case.index()].value_symbol();
+                        self.references.push(NameReference::new(
+                            name_span,
+                            scope,
+                            Namespace::Value,
+                            ReferenceTarget::Symbol(symbol),
+                        ));
+                    } else if self.enum_cases.iter().any(|case| case.root() == root) {
+                        self.diagnostics.push(Diagnostic::new(
+                            self.sources,
+                            Severity::Error,
+                            self.unresolved_code,
+                            "unresolved enum case value",
+                            name_span,
+                        )?);
+                        self.references.push(NameReference::new(
+                            name_span,
+                            scope,
+                            Namespace::Value,
+                            ReferenceTarget::Unresolved,
+                        ));
+                    }
+                }
+                Ok(())
             }
             Expression::Call {
                 callee,
@@ -718,6 +826,35 @@ impl<'a> Resolver<'a> {
             TypeRef::Qualified { segments, .. } => {
                 if let Some(first) = segments.first() {
                     self.resolve_reference(first.name_span, scope, Namespace::Type)?;
+                }
+                if let [first, second] = segments.as_slice()
+                    && let Some(ReferenceTarget::Symbol(root)) =
+                        self.reference_target(first.name_span, Namespace::Type)
+                {
+                    let name = self.sources.slice(second.name_span)?.to_owned();
+                    if let Some(case) = self.enum_case_by_root_name.get(&(root, name)) {
+                        let symbol = self.enum_cases[case.index()].type_symbol();
+                        self.references.push(NameReference::new(
+                            second.name_span,
+                            scope,
+                            Namespace::Type,
+                            ReferenceTarget::Symbol(symbol),
+                        ));
+                    } else if self.enum_cases.iter().any(|case| case.root() == root) {
+                        self.diagnostics.push(Diagnostic::new(
+                            self.sources,
+                            Severity::Error,
+                            self.unresolved_code,
+                            "unresolved enum case type",
+                            second.name_span,
+                        )?);
+                        self.references.push(NameReference::new(
+                            second.name_span,
+                            scope,
+                            Namespace::Type,
+                            ReferenceTarget::Unresolved,
+                        ));
+                    }
                 }
                 for segment in segments {
                     for argument in segment.arguments {
@@ -788,7 +925,9 @@ impl<'a> Resolver<'a> {
                 }
             }
         } else if namespace == Namespace::Value {
-            if let Some(later) = self.lookup_later_local(scope, &name, span.start()) {
+            if let Some(candidates) = self.lookup_payload_candidates(scope, &name) {
+                ReferenceTarget::EnumCasePayloadCandidates(candidates)
+            } else if let Some(later) = self.lookup_later_local(scope, &name, span.start()) {
                 let mut diagnostic = Diagnostic::new(
                     self.sources,
                     Severity::Error,
@@ -861,6 +1000,41 @@ impl<'a> Resolver<'a> {
         match binding {
             Binding::Single(id) => ReferenceTarget::Symbol(*id),
             Binding::Functions(ids) => ReferenceTarget::OverloadSet(ids.clone()),
+        }
+    }
+
+    fn declaration_symbol(
+        &self,
+        span: Span,
+        namespace: Namespace,
+        kind: SymbolKind,
+    ) -> Option<SymbolId> {
+        self.symbols
+            .iter()
+            .find(|symbol| {
+                symbol.span() == span && symbol.namespace() == namespace && symbol.kind() == kind
+            })
+            .map(Symbol::id)
+    }
+
+    fn reference_target(&self, span: Span, namespace: Namespace) -> Option<ReferenceTarget> {
+        self.references
+            .iter()
+            .rev()
+            .find(|reference| reference.span() == span && reference.namespace() == namespace)
+            .map(|reference| reference.target().clone())
+    }
+
+    fn lookup_payload_candidates(&self, mut scope: ScopeId, name: &str) -> Option<Vec<SymbolId>> {
+        loop {
+            if let Some(candidates) = self
+                .payload_candidates
+                .get(&scope)
+                .and_then(|by_name| by_name.get(name))
+            {
+                return Some(candidates.clone());
+            }
+            scope = self.scopes[scope.index()].public.parent()?;
         }
     }
 }

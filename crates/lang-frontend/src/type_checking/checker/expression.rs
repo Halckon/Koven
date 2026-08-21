@@ -2,12 +2,11 @@ use crate::{
     diagnostic::Diagnostic,
     name_resolution::{Namespace, ReferenceTarget},
     parser::{
-        BinaryOperator, Expression, FloatLiteralKind, IntegerLiteralKind, LiteralKind,
-        PrefixOperator, StringPart, WhenCondition,
+        BinaryOperator, Expression, IntegerLiteralKind, LiteralKind, PrefixOperator, StringPart,
     },
 };
 
-use super::*;
+use super::{flow::extend_facts, *};
 
 struct LambdaSyntax {
     span: Span,
@@ -39,15 +38,20 @@ impl Checker<'_> {
                 falls_through: true,
             },
             Expression::Name => ExprCheck {
-                ty: self.name_expression_type(span)?,
+                ty: self.name_expression_type(id, span)?,
                 falls_through: true,
             },
             Expression::This => ExprCheck {
                 ty: self
-                    .classifiers
-                    .last()
+                    .flow_facts
+                    .get(&FlowKey::This)
                     .copied()
-                    .unwrap_or_else(|| self.deferred(DeferredReason::ThisType)),
+                    .unwrap_or_else(|| {
+                        self.classifiers
+                            .last()
+                            .copied()
+                            .unwrap_or_else(|| self.deferred(DeferredReason::ThisType))
+                    }),
                 falls_through: true,
             },
             Expression::Literal(literal) => {
@@ -98,30 +102,10 @@ impl Checker<'_> {
                 expected_span,
             )?,
             Expression::When {
-                subject, entries, ..
-            } => {
-                if let Some(subject) = subject {
-                    self.check_expression(subject, None, None)?;
-                }
-                for entry in entries {
-                    for condition in entry.conditions {
-                        match condition {
-                            WhenCondition::Expression(expression)
-                            | WhenCondition::Contains { expression, .. } => {
-                                self.check_expression(expression, None, None)?;
-                            }
-                            WhenCondition::TypeTest { type_ref, .. } => {
-                                self.resolve_type_ref(type_ref)?;
-                            }
-                        }
-                    }
-                    self.check_value_body(entry.body, expected, expected_span)?;
-                }
-                ExprCheck {
-                    ty: self.deferred(DeferredReason::WhenTyping),
-                    falls_through: true,
-                }
-            }
+                keyword_span,
+                subject,
+                entries,
+            } => self.check_when(id, keyword_span, subject, entries, expected, expected_span)?,
             Expression::Return {
                 keyword_span,
                 value,
@@ -182,11 +166,6 @@ impl Checker<'_> {
                 expression,
                 type_ref,
                 ..
-            }
-            | Expression::TypeTest {
-                expression,
-                type_ref,
-                ..
             } => {
                 self.check_expression(expression, None, None)?;
                 self.resolve_type_ref(type_ref)?;
@@ -195,21 +174,29 @@ impl Checker<'_> {
                     falls_through: true,
                 }
             }
+            Expression::TypeTest {
+                expression,
+                negated,
+                operator_span,
+                type_ref,
+                ..
+            } => self.check_type_test(expression, negated, operator_span, type_ref)?,
             Expression::Assignment { target, value, .. } => {
                 self.check_expression(target, None, None)?;
                 self.check_expression(value, None, None)?;
+                if let Some(key) = self.stable_flow_key(target) {
+                    self.flow_facts.remove(&key);
+                }
                 ExprCheck {
                     ty: self.deferred(DeferredReason::Assignment),
                     falls_through: true,
                 }
             }
-            Expression::Member { receiver, .. } => {
-                self.check_expression(receiver, None, None)?;
-                ExprCheck {
-                    ty: self.deferred(DeferredReason::MemberAccess),
-                    falls_through: true,
-                }
-            }
+            Expression::Member {
+                receiver,
+                name_span,
+                ..
+            } => self.check_member(receiver, name_span)?,
             Expression::Call {
                 callee,
                 type_arguments,
@@ -264,7 +251,16 @@ impl Checker<'_> {
         Ok(result)
     }
 
-    fn name_expression_type(&mut self, span: Span) -> Result<TypeId, TypeCheckingError> {
+    fn name_expression_type(
+        &mut self,
+        id: ExpressionId,
+        span: Span,
+    ) -> Result<TypeId, TypeCheckingError> {
+        if let Some(key) = self.stable_flow_key(id)
+            && let Some(ty) = self.flow_facts.get(&key).copied()
+        {
+            return Ok(ty);
+        }
         let target = self.reference(span, Namespace::Value).cloned();
         match target {
             Some(ReferenceTarget::Symbol(symbol)) => Ok(self
@@ -274,171 +270,184 @@ impl Checker<'_> {
             Some(ReferenceTarget::OverloadSet(_) | ReferenceTarget::ExternalOverloadSet(_)) => {
                 Ok(self.deferred(DeferredReason::OverloadSelection))
             }
+            Some(ReferenceTarget::EnumCasePayloadCandidates(candidates)) => {
+                self.resolve_payload_candidates(span, &candidates)
+            }
             Some(ReferenceTarget::Unresolved | ReferenceTarget::LaterLocal(_)) | None => {
                 Ok(self.error_type())
             }
         }
     }
 
-    fn check_literal(
+    fn check_type_test(
         &mut self,
-        id: ExpressionId,
-        span: Span,
-        literal: LiteralKind,
-        expected: Option<TypeId>,
-        expected_span: Option<Span>,
+        expression: ExpressionId,
+        _negated: bool,
+        operator_span: Span,
+        type_ref: TypeRefId,
     ) -> Result<ExprCheck, TypeCheckingError> {
-        let ty = match literal {
-            LiteralKind::Integer(kind) => {
-                self.check_integer_literal(id, span, kind, expected, expected_span, false)?
-            }
-            LiteralKind::Float(kind) => self.check_float_literal(span, kind, expected_span)?,
-            LiteralKind::Char => self.builtin(BuiltinType::Char),
-            LiteralKind::Boolean(_) => self.builtin(BuiltinType::Boolean),
-            LiteralKind::Null => match expected.map(|ty| self.kind(ty).clone()) {
-                Some(TypeKind::Nullable(_)) => expected.expect("matched Some"),
-                Some(_) => {
-                    let nothing = self.builtin(BuiltinType::Nothing);
-                    self.types.intern(TypeKind::Nullable(nothing))
-                }
-                None => {
-                    self.emit(
-                        self.cannot_infer_code,
-                        "cannot infer the type of null without a nullable expected type",
-                        span,
-                    )?;
-                    self.error_type()
-                }
-            },
+        let actual = self.check_expression(expression, None, None)?.ty;
+        let target = self.resolve_type_test_ref(type_ref)?;
+        let valid = if self.is_error(actual) || self.is_error(target) {
+            true
+        } else {
+            self.valid_type_test_relation(actual, target)
         };
+        if !valid {
+            self.emit_with_label(
+                self.invalid_type_test_code,
+                "type test target is not runtime-testable from the operand type",
+                operator_span,
+                self.ast().type_refs().get(type_ref)?.span(),
+                "invalid type-test target",
+            )?;
+        }
         Ok(ExprCheck {
-            ty,
+            ty: self.builtin(BuiltinType::Boolean),
             falls_through: true,
         })
     }
 
-    fn check_integer_literal(
+    pub(super) fn valid_type_test_relation(&self, actual: TypeId, target: TypeId) -> bool {
+        match self.kind(target) {
+            TypeKind::EnumCase { root, .. } => match self.kind(actual) {
+                TypeKind::EnumCase {
+                    root: actual_root, ..
+                } => actual_root == root,
+                TypeKind::Nominal { .. } => actual == *root,
+                TypeKind::Nullable(inner) => *inner == *root,
+                _ => false,
+            },
+            TypeKind::Nominal { nominal, .. } => {
+                let is_interface = self.nominals.iter().any(|descriptor| {
+                    descriptor.id() == *nominal && descriptor.kind() == NominalKind::Interface
+                });
+                !is_interface
+                    && (actual == target
+                        || matches!(self.kind(actual), TypeKind::Nullable(inner) if *inner == target))
+            }
+            _ => false,
+        }
+    }
+
+    fn check_member(
         &mut self,
-        id: ExpressionId,
+        receiver: ExpressionId,
+        name_span: Span,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        if let Some(ReferenceTarget::Symbol(symbol)) =
+            self.reference(name_span, Namespace::Value).cloned()
+            && self.enum_case_by_value_symbol.contains_key(&symbol)
+        {
+            let ty = self
+                .symbol_type(symbol)
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            return Ok(ExprCheck {
+                ty,
+                falls_through: true,
+            });
+        }
+        let receiver = self.check_expression(receiver, None, None)?;
+        let name = self.sources.slice(name_span)?;
+        if let TypeKind::EnumCase { case, .. } = self.kind(receiver.ty) {
+            let descriptor = self
+                .enum_case(*case)
+                .cloned()
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            if let Some((_, ty)) = descriptor.payloads().iter().find(|(symbol, _)| {
+                self.sources.slice(self.symbol_spans[symbol.index()]) == Ok(name)
+            }) {
+                return Ok(ExprCheck {
+                    ty: *ty,
+                    falls_through: receiver.falls_through,
+                });
+            }
+        }
+        let candidates = self.payload_candidates_for_type(receiver.ty, name);
+        if !candidates.is_empty() {
+            self.emit_payload_access(name_span, &candidates)?;
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver.falls_through,
+            });
+        }
+        Ok(ExprCheck {
+            ty: self.deferred(DeferredReason::MemberAccess),
+            falls_through: receiver.falls_through,
+        })
+    }
+
+    fn resolve_payload_candidates(
+        &mut self,
         span: Span,
-        kind: IntegerLiteralKind,
-        expected: Option<TypeId>,
-        expected_span: Option<Span>,
-        negative: bool,
+        candidates: &[SymbolId],
     ) -> Result<TypeId, TypeCheckingError> {
-        let Some(magnitude) = self.integer_magnitude(span, kind)? else {
-            self.numeric_range_error(span, expected_span)?;
-            let error = self.error_type();
-            self.set_expression(id, error);
-            return Ok(error);
-        };
-        let expected_builtin = expected.and_then(|ty| match self.kind(ty) {
-            TypeKind::Builtin(builtin) => Some(*builtin),
-            _ => None,
+        let active = self.flow_facts.get(&FlowKey::This).and_then(|ty| {
+            if let TypeKind::EnumCase { case, .. } = self.kind(*ty) {
+                Some(*case)
+            } else {
+                None
+            }
         });
-        let selected = match kind {
-            IntegerLiteralKind::Unsuffixed => {
-                if let Some(expected) = expected_builtin.filter(|ty| is_signed_integer(*ty)) {
-                    fits_signed(magnitude, expected, negative).then_some(expected)
-                } else if fits_signed(magnitude, BuiltinType::Int, negative) {
-                    Some(BuiltinType::Int)
-                } else if fits_signed(magnitude, BuiltinType::Long, negative) {
-                    Some(BuiltinType::Long)
-                } else {
-                    None
-                }
-            }
-            IntegerLiteralKind::Long => {
-                fits_signed(magnitude, BuiltinType::Long, negative).then_some(BuiltinType::Long)
-            }
-            IntegerLiteralKind::Unsigned => {
-                if negative {
-                    None
-                } else if let Some(expected) =
-                    expected_builtin.filter(|ty| is_unsigned_integer(*ty))
-                {
-                    fits_unsigned(magnitude, expected).then_some(expected)
-                } else if fits_unsigned(magnitude, BuiltinType::UInt) {
-                    Some(BuiltinType::UInt)
-                } else if fits_unsigned(magnitude, BuiltinType::ULong) {
-                    Some(BuiltinType::ULong)
-                } else {
-                    None
-                }
-            }
-            IntegerLiteralKind::UnsignedLong => (!negative
-                && fits_unsigned(magnitude, BuiltinType::ULong))
-            .then_some(BuiltinType::ULong),
-        };
-        let ty = if let Some(selected) = selected {
-            self.builtin(selected)
-        } else {
-            self.numeric_range_error(span, expected_span)?;
-            self.error_type()
-        };
-        self.set_expression(id, ty);
-        Ok(ty)
-    }
-
-    fn check_float_literal(
-        &mut self,
-        span: Span,
-        kind: FloatLiteralKind,
-        expected_span: Option<Span>,
-    ) -> Result<TypeId, TypeCheckingError> {
-        let text = self.sources.slice(span)?;
-        let number = match kind {
-            FloatLiteralKind::Double => text,
-            FloatLiteralKind::Float => &text[..text.len() - 1],
-        };
-        let finite = match kind {
-            FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
-            FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
-        };
-        if !finite {
-            self.numeric_range_error(span, expected_span)?;
-            return Ok(self.error_type());
+        if let Some(active) = active
+            && let Some(symbol) = candidates
+                .iter()
+                .find(|symbol| self.enum_case_by_payload_symbol.get(symbol) == Some(&active))
+        {
+            return self
+                .symbol_type(*symbol)
+                .ok_or(TypeCheckingError::InvalidExternalBinding);
         }
-        Ok(self.builtin(match kind {
-            FloatLiteralKind::Double => BuiltinType::Double,
-            FloatLiteralKind::Float => BuiltinType::Float,
-        }))
+        self.emit_payload_access(span, candidates)?;
+        Ok(self.error_type())
     }
 
-    fn integer_magnitude(
-        &self,
-        span: Span,
-        kind: IntegerLiteralKind,
-    ) -> Result<Option<u128>, TypeCheckingError> {
-        let text = self.sources.slice(span)?;
-        let suffix_len = match kind {
-            IntegerLiteralKind::Unsuffixed => 0,
-            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => 1,
-            IntegerLiteralKind::UnsignedLong => 2,
+    fn payload_candidates_for_type(&self, ty: TypeId, name: &str) -> Vec<SymbolId> {
+        let root = match self.kind(ty) {
+            TypeKind::Nominal { nominal, .. } => Some(*nominal),
+            TypeKind::Nullable(inner) => match self.kind(*inner) {
+                TypeKind::Nominal { nominal, .. } => Some(*nominal),
+                _ => None,
+            },
+            _ => None,
         };
-        Ok(text[..text.len() - suffix_len].parse::<u128>().ok())
+        self.enum_cases
+            .iter()
+            .filter(|case| Some(case.root()) == root)
+            .flat_map(|case| case.payloads())
+            .filter_map(|(symbol, _)| {
+                (self.sources.slice(self.symbol_spans[symbol.index()]) == Ok(name))
+                    .then_some(*symbol)
+            })
+            .collect()
     }
 
-    fn numeric_range_error(
+    fn emit_payload_access(
         &mut self,
-        span: Span,
-        expected_span: Option<Span>,
+        primary: Span,
+        candidates: &[SymbolId],
     ) -> Result<(), TypeCheckingError> {
-        if let Some(expected) = expected_span {
-            self.emit_with_label(
-                self.numeric_range_code,
-                "numeric literal is outside the representable range",
-                span,
-                expected,
-                "expected type introduced here",
-            )
-        } else {
-            self.emit(
-                self.numeric_range_code,
-                "numeric literal is outside the representable range",
-                span,
-            )
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.invalid_enum_payload_access_code,
+            "enum case payload is not uniquely available in the current flow",
+            primary,
+        )?;
+        for symbol in candidates {
+            let case = self
+                .enum_case_by_payload_symbol
+                .get(symbol)
+                .and_then(|case| self.enum_case(*case))
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            diagnostic.add_label(
+                self.sources,
+                self.symbol_spans[case.value_symbol().index()],
+                "payload is declared by this case",
+            )?;
         }
+        self.diagnostics.push(diagnostic);
+        Ok(())
     }
 
     fn check_lambda(
@@ -540,47 +549,6 @@ impl Checker<'_> {
         Ok(ExprCheck {
             ty: error,
             falls_through: true,
-        })
-    }
-
-    fn check_if(
-        &mut self,
-        condition: ExpressionId,
-        then_branch: StatementId,
-        else_span: Option<Span>,
-        else_branch: Option<StatementId>,
-        expected: Option<TypeId>,
-        expected_span: Option<Span>,
-    ) -> Result<ExprCheck, TypeCheckingError> {
-        let boolean = self.builtin(BuiltinType::Boolean);
-        self.check_expression(condition, Some(boolean), None)?;
-        let then_result = self.check_value_body(then_branch, expected, expected_span)?;
-        let Some(else_branch) = else_branch else {
-            return Ok(ExprCheck {
-                ty: self.builtin(BuiltinType::Unit),
-                falls_through: true,
-            });
-        };
-        let else_result = self.check_value_body(else_branch, expected, expected_span)?;
-        let ty = if self.is_deferred(then_result.ty) || self.is_deferred(else_result.ty) {
-            self.deferred(DeferredReason::ControlJoin)
-        } else if let Some(join) = self.join(then_result.ty, else_result.ty) {
-            join
-        } else {
-            let primary = else_span.unwrap_or(self.ast().statements().get(else_branch)?.span());
-            let first = self.ast().statements().get(then_branch)?.span();
-            self.emit_with_label(
-                self.branch_type_code,
-                "control branches do not have a common type",
-                primary,
-                first,
-                format!("first branch has type {}", self.type_name(then_result.ty)),
-            )?;
-            self.error_type()
-        };
-        Ok(ExprCheck {
-            ty,
-            falls_through: then_result.falls_through || else_result.falls_through,
         })
     }
 
@@ -727,8 +695,71 @@ impl Checker<'_> {
         if operator == BinaryOperator::Elvis {
             return self.check_elvis(left, operator_span, right, expected, expected_span);
         }
-        let left_result = self.check_expression(left, None, None)?;
-        let right_result = self.check_expression(right, None, None)?;
+        if matches!(
+            operator,
+            BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+        ) {
+            let left_result = self.check_expression(left, None, None)?;
+            let (left_true, left_false) = self.condition_facts(left)?;
+            let baseline = self.flow_facts.clone();
+            let right_entry = if operator == BinaryOperator::LogicalAnd {
+                &left_true
+            } else {
+                &left_false
+            };
+            self.flow_facts = extend_facts(&baseline, right_entry);
+            let right_result = self.check_expression(right, None, None)?;
+            self.flow_facts = baseline;
+            let valid = self.is_builtin(left_result.ty, BuiltinType::Boolean)
+                && self.is_builtin(right_result.ty, BuiltinType::Boolean);
+            let ty = if valid {
+                self.builtin(BuiltinType::Boolean)
+            } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
+                self.error_type()
+            } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
+                self.deferred(DeferredReason::ControlJoin)
+            } else {
+                self.emit_binary_operand_error(
+                    operator_span,
+                    left,
+                    left_result.ty,
+                    right,
+                    right_result.ty,
+                )?;
+                self.error_type()
+            };
+            return Ok(ExprCheck {
+                ty,
+                falls_through: left_result.falls_through && right_result.falls_through,
+            });
+        }
+        let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
+        let left_null = equality
+            && matches!(
+                self.ast().expressions().get(left)?.payload(),
+                Expression::Literal(LiteralKind::Null)
+            );
+        let right_null = equality
+            && matches!(
+                self.ast().expressions().get(right)?.payload(),
+                Expression::Literal(LiteralKind::Null)
+            );
+        let (left_result, right_result) = if left_null && !right_null {
+            let right_result = self.check_expression(right, None, None)?;
+            let expected = matches!(self.kind(right_result.ty), TypeKind::Nullable(_))
+                .then_some(right_result.ty);
+            (self.check_expression(left, expected, None)?, right_result)
+        } else if right_null && !left_null {
+            let left_result = self.check_expression(left, None, None)?;
+            let expected = matches!(self.kind(left_result.ty), TypeKind::Nullable(_))
+                .then_some(left_result.ty);
+            (left_result, self.check_expression(right, expected, None)?)
+        } else {
+            (
+                self.check_expression(left, None, None)?,
+                self.check_expression(right, None, None)?,
+            )
+        };
         if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::ControlJoin),
@@ -878,7 +909,7 @@ impl Checker<'_> {
         Ok(())
     }
 
-    fn is_builtin(&self, ty: TypeId, expected: BuiltinType) -> bool {
+    pub(super) fn is_builtin(&self, ty: TypeId, expected: BuiltinType) -> bool {
         matches!(self.kind(ty), TypeKind::Builtin(actual) if *actual == expected)
     }
 
@@ -899,40 +930,4 @@ impl Checker<'_> {
             )
         )
     }
-}
-
-fn is_signed_integer(ty: BuiltinType) -> bool {
-    matches!(
-        ty,
-        BuiltinType::Byte | BuiltinType::Short | BuiltinType::Int | BuiltinType::Long
-    )
-}
-
-fn is_unsigned_integer(ty: BuiltinType) -> bool {
-    matches!(
-        ty,
-        BuiltinType::UByte | BuiltinType::UShort | BuiltinType::UInt | BuiltinType::ULong
-    )
-}
-
-fn fits_signed(magnitude: u128, ty: BuiltinType, negative: bool) -> bool {
-    let (positive_max, negative_max) = match ty {
-        BuiltinType::Byte => (i8::MAX as u128, (i8::MAX as u128) + 1),
-        BuiltinType::Short => (i16::MAX as u128, (i16::MAX as u128) + 1),
-        BuiltinType::Int => (i32::MAX as u128, (i32::MAX as u128) + 1),
-        BuiltinType::Long => (i64::MAX as u128, (i64::MAX as u128) + 1),
-        _ => return false,
-    };
-    magnitude <= if negative { negative_max } else { positive_max }
-}
-
-fn fits_unsigned(magnitude: u128, ty: BuiltinType) -> bool {
-    magnitude
-        <= match ty {
-            BuiltinType::UByte => u8::MAX as u128,
-            BuiltinType::UShort => u16::MAX as u128,
-            BuiltinType::UInt => u32::MAX as u128,
-            BuiltinType::ULong => u64::MAX as u128,
-            _ => return false,
-        }
 }

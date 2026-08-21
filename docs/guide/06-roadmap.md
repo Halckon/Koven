@@ -157,21 +157,22 @@ fun main(): Unit {
 - [x] **SPEC-0020（前置已完成；v0.23 已明确启用）**：建立名义/泛型 identity 与替换、
       interface hierarchy/requirement/default、显式 override 和 `Interface by valField` 静态
       委托检查；诊断 L0091–L0105。
-- [ ] **SPEC-0021（前置已完成；v0.24 已明确启用，实施中）**：建立 enum case type、稳定 place 的
+- [x] **SPEC-0021（前置已完成；v0.24 已明确启用）**：建立 enum case type、稳定 place 的
       flow facts、赋值/capture kill、Boolean/enum/nullable 有限域穷尽性、分支 join 与
       L0106–L0114。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
       独占访问或是否与其他借用冲突
-- [ ] class-family 的名称、visibility、supertype、`override`、`object` / `companion object`
-      关联成员与编译期常量检查；接口 companion 常量不参与继承或 override；`enum class`
-      变体类型检查与 `when` 穷尽性检查
-- [ ] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
+- [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
+      穷尽性检查
+- [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
+      或 override
+- [x] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
       其静态具体类型满足接口；手写 `override` 优先，拒绝未消歧的多委托冲突
-- [ ] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
+- [x] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
 - [ ] 泛型单态化的类型层面准备（类型替换，不接编译期计算）
-- [ ] `Nothing` 类型的 bottom-type 特殊处理
+- [x] `Nothing` 类型的 bottom-type 特殊处理
 - [ ] 计算 `value class` 的条件 `Copyable`：允许不可复制字段，按实际字段类型和泛型实参递归
       推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、覆盖或同名冒充
 - [ ] 检查内联类型结构有限；拒绝未经过 `class`、`Box` 或动态容器等固定大小 handle 打断的

@@ -1,30 +1,34 @@
 mod delegation;
 mod expression;
+mod flow;
 mod item;
+mod literal;
 mod members;
 mod nominal;
 mod type_ref;
+mod when;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     name_resolution::{
-        ExternalSymbolId, NameResolution, Namespace, ReferenceTarget, ScopeId, ScopeKind, SymbolId,
-        SymbolKind,
+        EnumCase, EnumCaseId, ExternalSymbolId, NameResolution, Namespace, ReferenceTarget,
+        ScopeId, ScopeKind, SymbolId, SymbolKind,
     },
-    parser::{ClassifierKind, Item, NameMarker, ParsedFile, SyntaxAst},
+    parser::{ClassifierKind, Item, NameMarker, ParsedFile, SyntaxAst, VariableKind},
     source::{SourceMap, Span},
 };
 
 use super::{
     BuiltinType, CallableDescriptor, Capability, DeferredReason, DelegationPlan,
-    EnvironmentFunction, EnvironmentType, ExternalTypeBinding, FunctionParameterType,
-    NominalDescriptor, NominalId, NominalKind, ParameterMode, TypeCheckingError, TypeEnvironment,
-    TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile,
-    TypedFileParts,
+    EnumCaseDescriptor, EnvironmentFunction, EnvironmentType, ExternalTypeBinding,
+    FunctionParameterType, NominalDescriptor, NominalId, NominalKind, ParameterMode,
+    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
+    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
+use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
 #[derive(Clone, Copy)]
 struct ExprCheck {
@@ -60,6 +64,7 @@ struct Checker<'a> {
     environment: &'a TypeEnvironment,
     types: TypeTable,
     expression_types: Vec<Option<TypeId>>,
+    expression_uses: Vec<ExpressionUse>,
     type_ref_types: Vec<Option<TypeId>>,
     symbol_types: Vec<Option<TypeId>>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
@@ -67,6 +72,12 @@ struct Checker<'a> {
     symbol_kinds: Vec<SymbolKind>,
     symbol_spans: Vec<Span>,
     symbol_scopes: Vec<ScopeId>,
+    scope_parents: Vec<Option<ScopeId>>,
+    scope_kinds: Vec<ScopeKind>,
+    mutable_symbols: BTreeSet<SymbolId>,
+    captured_mutable_symbols: BTreeSet<SymbolId>,
+    flow_facts: BTreeMap<FlowKey, TypeId>,
+    source_references: Vec<(ScopeId, ReferenceTarget)>,
     nominal_by_symbol: BTreeMap<SymbolId, NominalId>,
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
     classifier_scope_by_span: BTreeMap<(usize, usize), ScopeId>,
@@ -76,6 +87,12 @@ struct Checker<'a> {
     delegations: Vec<DelegationPlan>,
     invalid_delegations: Vec<(NominalId, TypeId)>,
     typed_callables: Vec<CallableDescriptor>,
+    enum_cases: Vec<EnumCaseDescriptor>,
+    enum_case_by_id: BTreeMap<EnumCaseId, usize>,
+    enum_case_by_type_symbol: BTreeMap<SymbolId, EnumCaseId>,
+    enum_case_by_value_symbol: BTreeMap<SymbolId, EnumCaseId>,
+    enum_case_by_payload_symbol: BTreeMap<SymbolId, EnumCaseId>,
+    source_enum_cases: Vec<EnumCase>,
     interface_edge_spans: BTreeMap<(NominalId, NominalId), Span>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     callables: Vec<CallableContext>,
@@ -105,6 +122,15 @@ struct Checker<'a> {
     invalid_delegation_target_code: DiagnosticCode,
     delegate_interface_mismatch_code: DiagnosticCode,
     delegation_member_conflict_code: DiagnosticCode,
+    enum_case_type_position_code: DiagnosticCode,
+    invalid_type_test_code: DiagnosticCode,
+    invalid_when_condition_code: DiagnosticCode,
+    duplicate_when_else_code: DiagnosticCode,
+    non_final_when_else_code: DiagnosticCode,
+    duplicate_when_coverage_code: DiagnosticCode,
+    non_exhaustive_when_code: DiagnosticCode,
+    when_branch_type_code: DiagnosticCode,
+    invalid_enum_payload_access_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -157,6 +183,7 @@ impl<'a> Checker<'a> {
             environment,
             types: TypeTable::new(),
             expression_types: vec![None; parsed.ast().expressions().len()],
+            expression_uses: collect_expression_uses(parsed),
             type_ref_types: vec![None; parsed.ast().type_refs().len()],
             symbol_types: vec![None; names.symbols().len()],
             references,
@@ -164,6 +191,16 @@ impl<'a> Checker<'a> {
             symbol_kinds,
             symbol_spans,
             symbol_scopes,
+            scope_parents: names.scopes().iter().map(|scope| scope.parent()).collect(),
+            scope_kinds: names.scopes().iter().map(|scope| scope.kind()).collect(),
+            mutable_symbols: BTreeSet::new(),
+            captured_mutable_symbols: BTreeSet::new(),
+            flow_facts: BTreeMap::new(),
+            source_references: names
+                .references()
+                .iter()
+                .map(|reference| (reference.scope(), reference.target().clone()))
+                .collect(),
             nominal_by_symbol: BTreeMap::new(),
             nominal_by_scope: BTreeMap::new(),
             classifier_scope_by_span,
@@ -173,6 +210,12 @@ impl<'a> Checker<'a> {
             delegations: Vec::new(),
             invalid_delegations: Vec::new(),
             typed_callables: Vec::new(),
+            enum_cases: Vec::new(),
+            enum_case_by_id: BTreeMap::new(),
+            enum_case_by_type_symbol: BTreeMap::new(),
+            enum_case_by_value_symbol: BTreeMap::new(),
+            enum_case_by_payload_symbol: BTreeMap::new(),
+            source_enum_cases: names.enum_cases().to_vec(),
             interface_edge_spans: BTreeMap::new(),
             external_types: BTreeMap::new(),
             callables: Vec::new(),
@@ -203,11 +246,23 @@ impl<'a> Checker<'a> {
             delegate_interface_mismatch_code: catalog
                 .resolve(codes::DELEGATE_INTERFACE_MISMATCH)?,
             delegation_member_conflict_code: catalog.resolve(codes::DELEGATION_MEMBER_CONFLICT)?,
+            enum_case_type_position_code: catalog.resolve(codes::ENUM_CASE_TYPE_POSITION)?,
+            invalid_type_test_code: catalog.resolve(codes::INVALID_TYPE_TEST)?,
+            invalid_when_condition_code: catalog.resolve(codes::INVALID_WHEN_CONDITION)?,
+            duplicate_when_else_code: catalog.resolve(codes::DUPLICATE_WHEN_ELSE)?,
+            non_final_when_else_code: catalog.resolve(codes::NON_FINAL_WHEN_ELSE)?,
+            duplicate_when_coverage_code: catalog.resolve(codes::DUPLICATE_WHEN_COVERAGE)?,
+            non_exhaustive_when_code: catalog.resolve(codes::NON_EXHAUSTIVE_WHEN)?,
+            when_branch_type_code: catalog.resolve(codes::WHEN_BRANCH_TYPE)?,
+            invalid_enum_payload_access_code: catalog
+                .resolve(codes::INVALID_ENUM_PAYLOAD_ACCESS)?,
         })
     }
 
     fn run(mut self) -> Result<TypedFile, TypeCheckingError> {
         self.collect_nominals()?;
+        self.collect_flow_metadata();
+        self.collect_enum_cases()?;
         self.check_type_parameter_bounds()?;
         self.check_direct_interfaces()?;
         self.check_interface_cycles()?;
@@ -250,6 +305,7 @@ impl<'a> Checker<'a> {
                 type_parameters: self.type_parameters,
                 delegations: self.delegations,
                 callables: self.typed_callables,
+                enum_cases: self.enum_cases,
             },
             diagnostics,
         ))
@@ -529,6 +585,125 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
+    fn collect_enum_cases(&mut self) -> Result<(), TypeCheckingError> {
+        let variants = self
+            .ast()
+            .items()
+            .iter()
+            .filter_map(|(_, node)| match node.payload() {
+                Item::Classifier(classifier) => classifier.body.as_ref(),
+                _ => None,
+            })
+            .flat_map(|body| body.variants.iter().cloned())
+            .map(|variant| {
+                (
+                    (variant.span.start(), variant.span.end()),
+                    variant.parameters,
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        for source in self.source_enum_cases.clone() {
+            let root = self
+                .nominal_by_symbol
+                .get(&source.root())
+                .copied()
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            let root_type = self
+                .symbol_type(source.root())
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            let parameters = variants
+                .get(&(source.span().start(), source.span().end()))
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            if parameters.len() != source.payloads().len() {
+                return Err(TypeCheckingError::InvalidExternalBinding);
+            }
+            let mut payloads = Vec::with_capacity(parameters.len());
+            for (parameter, &symbol) in parameters.iter().zip(source.payloads()) {
+                let ty = self.resolve_type_ref(parameter.type_ref)?;
+                self.set_symbol(symbol, ty);
+                self.enum_case_by_payload_symbol.insert(symbol, source.id());
+                payloads.push((symbol, ty));
+            }
+            let case_type = self.types.intern(TypeKind::EnumCase {
+                case: source.id(),
+                root: root_type,
+            });
+            self.set_symbol(source.type_symbol(), case_type);
+            let value_type = if payloads.is_empty() {
+                root_type
+            } else {
+                self.types.intern(TypeKind::Function {
+                    move_only: false,
+                    parameters: payloads
+                        .iter()
+                        .map(|&(_, ty)| FunctionParameterType {
+                            mode: ParameterMode::Value,
+                            ty,
+                        })
+                        .collect(),
+                    return_type: root_type,
+                })
+            };
+            self.set_symbol(source.value_symbol(), value_type);
+            let index = self.enum_cases.len();
+            self.enum_case_by_id.insert(source.id(), index);
+            self.enum_case_by_type_symbol
+                .insert(source.type_symbol(), source.id());
+            self.enum_case_by_value_symbol
+                .insert(source.value_symbol(), source.id());
+            self.enum_cases.push(EnumCaseDescriptor {
+                id: source.id(),
+                root,
+                root_type,
+                value_symbol: source.value_symbol(),
+                type_symbol: source.type_symbol(),
+                payloads,
+            });
+        }
+        Ok(())
+    }
+
+    fn collect_flow_metadata(&mut self) {
+        let variables = self
+            .ast()
+            .items()
+            .iter()
+            .filter_map(|(_, node)| match node.payload() {
+                Item::Variable {
+                    kind: VariableKind::Var,
+                    name: NameMarker::Present(span),
+                    ..
+                } => Some(*span),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for span in variables {
+            if let Some(symbol) = self.symbol_at(span) {
+                self.mutable_symbols.insert(symbol);
+            }
+        }
+        for (scope, target) in &self.source_references {
+            let ReferenceTarget::Symbol(symbol) = target else {
+                continue;
+            };
+            if !self.mutable_symbols.contains(symbol) {
+                continue;
+            }
+            let declaration_scope = self.symbol_scopes[symbol.index()];
+            let mut current = Some(*scope);
+            while let Some(id) = current {
+                if id == declaration_scope {
+                    break;
+                }
+                if self.scope_kinds[id.index()] == ScopeKind::Lambda {
+                    self.captured_mutable_symbols.insert(*symbol);
+                    break;
+                }
+                current = self.scope_parents[id.index()];
+            }
+        }
+    }
+
     fn ast(&self) -> &SyntaxAst {
         self.parsed.ast()
     }
@@ -565,6 +740,12 @@ impl<'a> Checker<'a> {
 
     fn symbol_type(&self, id: SymbolId) -> Option<TypeId> {
         self.symbol_types.get(id.index()).copied().flatten()
+    }
+
+    fn enum_case(&self, id: EnumCaseId) -> Option<&EnumCaseDescriptor> {
+        self.enum_case_by_id
+            .get(&id)
+            .and_then(|&index| self.enum_cases.get(index))
     }
 
     fn symbol_at(&self, span: Span) -> Option<SymbolId> {
@@ -660,6 +841,8 @@ impl<'a> Checker<'a> {
         }
         match (self.kind(actual), self.kind(expected)) {
             (TypeKind::Builtin(BuiltinType::Nothing), _) => true,
+            (TypeKind::EnumCase { root, .. }, _) if *root == expected => true,
+            (TypeKind::EnumCase { root, .. }, TypeKind::Nullable(inner)) if root == inner => true,
             (TypeKind::Nullable(inner), TypeKind::Nullable(expected))
                 if matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)) =>
             {
@@ -696,6 +879,7 @@ impl<'a> Checker<'a> {
             TypeKind::Nullable(inner) => format!("{}?", self.type_name(*inner)),
             TypeKind::Function { .. } => "function type".to_owned(),
             TypeKind::Nominal { nominal, .. } => format!("nominal#{}", nominal.symbol().index()),
+            TypeKind::EnumCase { case, .. } => format!("enum-case#{}", case.index()),
             TypeKind::TypeParameter(symbol) => format!("type-parameter#{}", symbol.index()),
             TypeKind::StaticSelf(interface) => format!("Self<{}>", self.type_name(*interface)),
             TypeKind::Capability(Capability::Copyable) => "Copyable".to_owned(),

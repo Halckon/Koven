@@ -1,0 +1,7 @@
+enum class Shape { Circle(radius: Int), Point }
+
+fun radius(shape: Shape?): Int = when (shape) {
+    null -> 0
+    is Shape.Circle -> shape.radius
+    is Shape.Point -> 0
+}

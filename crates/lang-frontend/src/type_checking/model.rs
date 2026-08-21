@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::Diagnostic,
-    name_resolution::{ExternalSymbolId, ExternalSymbolKind, NameEnvironment, SymbolId},
+    name_resolution::{
+        EnumCaseId, ExternalSymbolId, ExternalSymbolKind, NameEnvironment, SymbolId,
+    },
     source::SourceId,
 };
 
@@ -144,6 +146,50 @@ pub struct CallableDescriptor {
     pub(crate) type_parameters: Vec<SymbolId>,
     pub(crate) parameters: Vec<FunctionParameterType>,
     pub(crate) return_type: TypeId,
+}
+
+/// enum case 的 typed identity、root 实例模板与 payload 类型。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumCaseDescriptor {
+    pub(crate) id: EnumCaseId,
+    pub(crate) root: NominalId,
+    pub(crate) root_type: TypeId,
+    pub(crate) value_symbol: SymbolId,
+    pub(crate) type_symbol: SymbolId,
+    pub(crate) payloads: Vec<(SymbolId, TypeId)>,
+}
+
+impl EnumCaseDescriptor {
+    /// 返回名称阶段分配的稳定 case 身份。
+    #[must_use]
+    pub const fn id(&self) -> EnumCaseId {
+        self.id
+    }
+    /// 返回所属 root enum 的名义身份。
+    #[must_use]
+    pub const fn root(&self) -> NominalId {
+        self.root
+    }
+    /// 返回携带 root 类型参数的声明内实例模板。
+    #[must_use]
+    pub const fn root_type(&self) -> TypeId {
+        self.root_type
+    }
+    /// 返回值命名空间中的构造器/value symbol。
+    #[must_use]
+    pub const fn value_symbol(&self) -> SymbolId {
+        self.value_symbol
+    }
+    /// 返回类型命名空间中的 case type symbol。
+    #[must_use]
+    pub const fn type_symbol(&self) -> SymbolId {
+        self.type_symbol
+    }
+    /// 返回源码顺序的 payload symbol/type。
+    #[must_use]
+    pub fn payloads(&self) -> &[(SymbolId, TypeId)] {
+        &self.payloads
+    }
 }
 
 impl CallableDescriptor {
@@ -509,6 +555,13 @@ pub enum TypeKind {
         /// Ordered invariant type arguments.
         arguments: Vec<TypeId>,
     },
+    /// 仅在 type-test 与流事实中存在的 enum case refinement。
+    EnumCase {
+        /// 名称阶段稳定 case identity。
+        case: EnumCaseId,
+        /// 携带实际泛型参数的 root enum runtime type。
+        root: TypeId,
+    },
     /// Source type parameter identity.
     TypeParameter(SymbolId),
     /// Static `Self` inside an interface default body.
@@ -603,6 +656,7 @@ pub struct TypedFile {
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
     callables: Vec<CallableDescriptor>,
+    enum_cases: Vec<EnumCaseDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -614,6 +668,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
     pub(crate) callables: Vec<CallableDescriptor>,
+    pub(crate) enum_cases: Vec<EnumCaseDescriptor>,
 }
 
 impl TypedFile {
@@ -633,6 +688,7 @@ impl TypedFile {
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
             callables: parts.callables,
+            enum_cases: parts.enum_cases,
             diagnostics,
         }
     }
@@ -689,6 +745,12 @@ impl TypedFile {
     #[must_use]
     pub fn callables(&self) -> &[CallableDescriptor] {
         &self.callables
+    }
+
+    /// 返回源码声明顺序的 typed enum case 描述符。
+    #[must_use]
+    pub fn enum_cases(&self) -> &[EnumCaseDescriptor] {
+        &self.enum_cases
     }
 
     #[must_use]

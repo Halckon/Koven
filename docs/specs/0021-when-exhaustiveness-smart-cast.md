@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-021` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | [现行 v0.24 §24](../guide/01-design-decisions.md#24-when-穷尽性与-smart-castv024) |
@@ -36,26 +36,26 @@
 ## 4. 验收标准
 
 - [x] 用户明确启用 v0.24，Spec 从 `draft` 推进为 `in-progress`。
-- [ ] enum case 在值/类型命名空间共享稳定身份；短名/限定名确定解析；case type 非测试位置
+- [x] enum case 在值/类型命名空间共享稳定身份；短名/限定名确定解析；case type 非测试位置
       覆盖 L0114；payload 候选只在唯一 case fact 下可访问。
-- [ ] 合法/非法 `is`/`!is`、nullable test 与无 RTTI 边界覆盖 L0106，结果精确为 Boolean。
-- [ ] local val/parameter/this、可赋值 var kill、capture kill、`!`/`&&`/`||` 与分支交集有测试。
-- [ ] Boolean/enum/nullable 覆盖、negative test、逗号 alternative、poison、重复及 else 位置覆盖 L0107–L0111。
-- [ ] value/statement context 由 owner 显式传递，不用 expected presence 猜测；expected type、
+- [x] 合法/非法 `is`/`!is`、nullable test 与无 RTTI 边界覆盖 L0106，结果精确为 Boolean。
+- [x] local val/parameter/this、可赋值 var kill、capture kill、`!`/`&&`/`||` 与分支交集有测试。
+- [x] Boolean/enum/nullable 覆盖、negative test、逗号 alternative、poison、重复及 else 位置覆盖 L0107–L0111。
+- [x] value/statement context 由 owner 显式传递，不用 expected presence 猜测；expected type、
       Nothing、nullable/enum/Any join 覆盖 L0111/L0112。
-- [ ] L0113 精确覆盖无事实与歧义 payload；已有 L0080 不抢占合法候选。
-- [ ] source/environment identity、重复运行、深条件/长 case 集预算、确定性顺序有测试。
-- [ ] frontend 与 workspace 基线、CLI build、Markdown 链接、diff 全通过，文档同步当前事实。
+- [x] L0113 精确覆盖无事实与歧义 payload；已有 L0080 不抢占合法候选。
+- [x] source/environment identity、重复运行、深条件/长 case 集预算、确定性顺序有测试。
+- [x] frontend 与 workspace 基线、CLI build、Markdown 链接、diff 全通过，文档同步当前事实。
 
 ## 5. 模块边界与实施顺序
 
 1. [x] 激活 v0.24，并把本 Spec 置为 `in-progress`。
-2. [ ] 建立 enum case identity 与 payload candidate name target。
-3. [ ] 建立 typed flow-key/fact/kill/join 模型和 type-test 检查。
-4. [ ] 实现 when coverage、context、branch join 与 L0106–L0114。
-5. [ ] 补窄测、Phase 2 fixture、预算/确定性测试。
-6. [ ] 同步 Architecture/guide/Spec，运行 workspace 基线。
-7. [ ] 创建独立提交 `feat(frontend): check when exhaustiveness (SPEC-0021)`。
+2. [x] 建立 enum case identity 与 payload candidate name target。
+3. [x] 建立 typed flow-key/fact/kill/join 模型和 type-test 检查。
+4. [x] 实现 when coverage、context、branch join 与 L0106–L0114。
+5. [x] 补窄测、Phase 2 fixture、预算/确定性测试。
+6. [x] 同步 Architecture/guide/Spec，运行 workspace 基线。
+7. [x] 创建独立提交 `feat(frontend): check when exhaustiveness (SPEC-0021)`。
 
 实现保持 `type_checking/mod.rs` 门面稳定；flow/coverage 应按职责放入 checker 子模块，不把
 已有 `checker.rs` 再扩成超限文件。名称阶段只保存候选身份，不进行类型或控制流判断。
@@ -68,5 +68,9 @@
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| Markdown 相对链接、`git diff --check` | 待执行 | 候选文档完成后检查 |
-| Rust / Cargo 基线 | 不适用 | 当前仅起草候选 guide 与 draft Spec，未修改 Rust |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | 全 workspace / target 检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | 359 passed；0 failed / ignored / measured / filtered |
+| `cargo build -p lang-cli` | 通过 | `kovenc` dev build |
+| Markdown 相对链接、`git diff --check` | 通过 | 全仓 Markdown 本地目标存在；diff 无空白错误 |
