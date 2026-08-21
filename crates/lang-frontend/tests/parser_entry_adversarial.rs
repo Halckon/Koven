@@ -1,15 +1,17 @@
-//! SPEC-0069 的独立 Parser 入口对抗组合与 SPEC-0093 的产物不变量。
+//! SPEC-0069 / SPEC-0093 / SPEC-0105 的独立 Parser 入口对抗组合产物不变量。
 
 use lang_frontend::{
-    lexer::lex,
     parser::{parse_block, parse_declaration, parse_expression},
     source::{SourceId, SourceMap},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 
 const PREFIXES: &[&str] = &[
     "",
@@ -90,12 +92,9 @@ fn exercise_matrix(entry_name: &str, kind: EntryKind) -> usize {
     for prefix in PREFIXES {
         for suffix in SUFFIXES {
             let text = format!("{prefix}{suffix}");
-            let mut sources = SourceMap::new();
-            let source_id: SourceId = sources
-                .add_source("entry-adversarial.ko", text.clone())
-                .expect("unique matrix source");
-            let lexed = lex(&sources, source_id).expect("matrix lexing must not fail internally");
-            validate_lexed(source_id, text.len(), &lexed);
+            let context = format!("{entry_name} case {text:?}");
+            let (sources, source_id, lexed) =
+                lex_source_twice("entry-adversarial.ko", &text, &context, validate_lexed);
             parse_twice(
                 entry_name,
                 kind,

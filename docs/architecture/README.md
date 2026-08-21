@@ -375,11 +375,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   label Span 和完整公开产物确定性；全部源码保持零诊断，并继续锁定目标分类或最长首 token、
   精确 Span，且不复制 scanner 的匹配顺序；双 Lexer helper 同时由完整文件对抗矩阵复用；
 - `parser_entry_adversarial` integration test 对 16 个前缀与 16 个后缀分别运行独立 expression、
-  declaration、block 三个公开入口，共执行 768 个 entry/case、1536 次生产解析；每个 case
-  显式锁定 lexeme 连续完整覆盖、唯一末尾 EOF、source-local 有界 Lexer / AST / diagnostic
-  Span 与可解析 typed root，并比较两次公开 `Debug` 产物以证明 AST table 插入顺序、Span 和
-  诊断确定性；矩阵不引入随机、IO 或第三方 property-testing 依赖，payload 边仍由精确领域
-  测试验收；
+  declaration、block 三个公开入口，共执行 768 个 entry/case；每例运行两次 Lexer 与两次
+  Parser，共验证 1,536 个 Lexer 和 1,536 个 Parser 产物。它们显式锁定 lexeme 连续完整覆盖、
+  唯一末尾 EOF、source-local 有界 Lexer / AST / diagnostic Span 与可解析 typed root，并分别
+  比较两次完整公开 `Debug` 产物以证明 lexeme、AST table 插入顺序、Span 和诊断确定性；矩阵
+  不引入随机、IO 或第三方 property-testing 依赖，payload 边仍由精确领域测试验收；
 - `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
