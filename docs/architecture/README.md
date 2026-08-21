@@ -357,6 +357,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   笛卡尔积，逐例验证 lexeme 完整字节覆盖、唯一 EOF、source identity、诊断及四张 AST table
   span、文件头和根指纹的重复解析确定性；另以终止字符位于 interpolation 的定向回归锁定
   `L0007` 根因和 lexical-owner 恢复；
+- `lexer_boundary_matrix` integration test 经生产 Lexer 执行 2,127 个固定 case：330 个硬/
+  未来保留/软词 ASCII identifier 边界类别、1,596 个普通固定符号相邻 spelling、199 个 `as?` /
+  `!in` / `!is` continuation 与终止边界，以及 2 个注释优先级 case；每例锁定目标分类或
+  最长首 token、精确 Span、连续完整字节覆盖和唯一 EOF，且不复制 scanner 的匹配顺序；
 - `parser_entry_adversarial` integration test 对 16 个前缀与 16 个后缀分别运行独立 expression、
   declaration、block 三个公开入口，共执行 768 个 entry/case、1536 次生产解析；每个 case
   比较公开稳定 `Debug` 骨架以锁定 root typed ID、AST table 插入顺序与 source span、诊断的
