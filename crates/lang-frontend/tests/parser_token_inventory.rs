@@ -1,17 +1,20 @@
-//! SPEC-0074 的词法片段库存与 SPEC-0094 的四入口产物不变量。
+//! SPEC-0074 / SPEC-0094 / SPEC-0106 的词法片段库存与四入口产物不变量。
 
 use std::collections::BTreeSet;
 
 use lang_frontend::{
-    lexer::{LexedFile, LexemeKind, TokenKind, TriviaKind, lex},
+    lexer::{LexedFile, LexemeKind, TokenKind, TriviaKind},
     parser::{Item, parse_block, parse_declaration, parse_expression, parse_file},
     source::{SourceId, SourceMap, Span},
 };
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use lexer_matrix_assertions::lex_source_twice;
 
 const KEYWORDS: &[&str] = &[
     "class",
@@ -89,13 +92,9 @@ fn inventory() -> Vec<&'static str> {
         .collect()
 }
 
-fn lex_case(text: &str) -> (SourceId, LexedFile) {
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("parser-token-inventory.ko", text)
-        .expect("matrix source name must be unique");
-    let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-    (source_id, lexed)
+fn lex_case(text: &str) -> LexedFile {
+    let (_, _, lexed) = lex_source_twice("parser-token-inventory.ko", text, text, validate_lexed);
+    lexed
 }
 
 fn first_non_eof_kind(lexed: &LexedFile) -> LexemeKind {
@@ -123,26 +122,30 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
         120
     );
 
+    let mut lexed_cases = 0;
     for text in KEYWORDS {
-        let (_, lexed) = lex_case(text);
+        let lexed = lex_case(text);
         assert!(matches!(
             first_non_eof_kind(&lexed),
             LexemeKind::Token(TokenKind::Keyword(_))
         ));
+        lexed_cases += 1;
     }
     for text in RESERVED_WORDS {
-        let (_, lexed) = lex_case(text);
+        let lexed = lex_case(text);
         assert!(matches!(
             first_non_eof_kind(&lexed),
             LexemeKind::Token(TokenKind::ReservedWord(_))
         ));
+        lexed_cases += 1;
     }
     for text in SYMBOLS {
-        let (_, lexed) = lex_case(text);
+        let lexed = lex_case(text);
         assert!(matches!(
             first_non_eof_kind(&lexed),
             LexemeKind::Token(TokenKind::Symbol(_))
         ));
+        lexed_cases += 1;
     }
     for (text, expected) in TRIVIA.iter().zip([
         TriviaKind::Whitespace,
@@ -150,21 +153,23 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
         TriviaKind::LineComment,
         TriviaKind::BlockComment,
     ]) {
-        let (_, lexed) = lex_case(text);
+        let lexed = lex_case(text);
         assert_eq!(first_non_eof_kind(&lexed), LexemeKind::Trivia(expected));
+        lexed_cases += 1;
     }
 
     let mut diagnostic_codes = BTreeSet::new();
     for text in &inventory {
-        let (source_id, lexed) = lex_case(text);
-        validate_lexed(source_id, text.len(), &lexed);
+        let lexed = lex_case(text);
         diagnostic_codes.extend(
             lexed
                 .diagnostics()
                 .iter()
                 .map(|diagnostic| diagnostic.code().to_string()),
         );
+        lexed_cases += 1;
     }
+    assert_eq!(lexed_cases, 220);
     assert_eq!(
         diagnostic_codes,
         (1..=8).map(|code| format!("L{code:04}")).collect()
@@ -174,35 +179,48 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
 #[test]
 fn standalone_declaration_recovers_a_complete_string_as_one_user_error_region() {
     let text = "\"text\"";
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("declaration-string-recovery.ko", text)
-        .expect("regression source name must be unique");
-    let lexed = lex(&sources, source_id).expect("regression source must lex internally");
-    let parsed = parse_declaration(&sources, &lexed)
-        .expect("valid segmented string lexemes must not become an internal parser error");
-
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| {
-                (
-                    diagnostic.code().to_string(),
-                    diagnostic.primary_span().start(),
-                    diagnostic.primary_span().end(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        [("L0017".to_owned(), 0, text.len())]
+    let (sources, source_id, lexed) = lex_source_twice(
+        "declaration-string-recovery.ko",
+        text,
+        "declaration string recovery",
+        validate_lexed,
     );
-    let root = parsed
-        .ast()
-        .items()
-        .get(parsed.root())
-        .expect("declaration error root must resolve");
-    assert_eq!((root.span().start(), root.span().end()), (0, text.len()));
-    assert_eq!(root.payload(), &Item::Error);
+    let first = parse_declaration(&sources, &lexed)
+        .expect("valid segmented string lexemes must not become an internal parser error");
+    let repeated = parse_declaration(&sources, &lexed)
+        .expect("repeated declaration string recovery must not fail internally");
+
+    for parsed in [&first, &repeated] {
+        assert_eq!(parsed.source_id(), source_id);
+        validate_ast(source_id, text.len(), parsed.ast());
+        validate_diagnostics(source_id, text.len(), parsed.diagnostics());
+        assert_eq!(
+            parsed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    (
+                        diagnostic.code().to_string(),
+                        diagnostic.primary_span().start(),
+                        diagnostic.primary_span().end(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            [("L0017".to_owned(), 0, text.len())]
+        );
+        let root = parsed
+            .ast()
+            .items()
+            .get(parsed.root())
+            .expect("declaration error root must resolve");
+        assert_eq!((root.span().start(), root.span().end()), (0, text.len()));
+        assert_eq!(root.payload(), &Item::Error);
+    }
+    assert_eq!(
+        format!("{first:?}"),
+        format!("{repeated:?}"),
+        "non-deterministic declaration string recovery"
+    );
 }
 
 type WrapFragment = fn(&str) -> String;
@@ -342,12 +360,9 @@ fn every_lexical_fragment_preserves_output_invariants_in_every_public_parser_ent
     for fragment in inventory {
         for (entry_name, wrap, kind) in entries {
             let text = wrap(fragment);
-            let mut sources = SourceMap::new();
-            let source_id = sources
-                .add_source("parser-token-entry.ko", &text)
-                .expect("matrix source name must be unique");
-            let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-            validate_lexed(source_id, text.len(), &lexed);
+            let context = format!("{entry_name} fragment {fragment:?}");
+            let (sources, source_id, lexed) =
+                lex_source_twice("parser-token-entry.ko", &text, &context, validate_lexed);
             parse_twice(
                 entry_name,
                 kind,

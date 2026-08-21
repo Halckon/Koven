@@ -389,10 +389,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   运算符 byte span；矩阵不复制生产 binding-power 数值，本轮未发现生产缺陷；
 - `parser_token_inventory` integration test 自检 120 个互异片段，覆盖全部 42 个 Keyword、
   11 个 ReservedWord、43 个 Symbol、literal/string/interpolation、四类 trivia 与 L0001–L0008；
-  四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，显式锁定 lexeme 完整覆盖、
-  唯一 EOF、source-local 有界 AST / 诊断、三类 typed root、完整文件所有 roots 和 package /
-  import directive Span，以及公开产物确定性；矩阵无普通用户输入内部错误，并精确回归独立
-  声明完整 string 的 L0017 / Span；
+  分类与全库存检查、四入口矩阵和定向 string 回归共执行 701 个 source case，每例双 Lexer，
+  合计验证 1,402 个 Lexer 产物的连续完整覆盖、唯一 EOF、source-local 诊断 Span 与完整公开
+  产物确定性；四个公开 Parser 入口共执行 480 个 entry/case、960 个 Parser 产物，另以两个
+  Parser 产物精确回归独立声明完整 string 的 L0017 / Span / error root。Parser 产物锁定
+  source-local 有界 AST / 诊断、三类 typed root、完整文件所有 roots 和 package / import
+  directive Span；矩阵无普通用户输入内部错误，本轮未发现生产缺陷；
 - `parser_lexical_owner_matrix` integration test 把 4 个可继续 owner 与 5 个 EOF terminal owner
   分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
   重复完整文件解析；逐例锁定 lexeme 完整覆盖、唯一 EOF、词法错误码、source-local 有界
