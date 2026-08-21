@@ -394,8 +394,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   两次产物分别证明精确 `val after = 1` sentinel 是最后一个完整文件根；
 - `parser_diagnostic_witness_matrix` integration test 将生产目录 `L0009`–`L0078` 中 69 个现行
   Parser 诊断逐一映射到 expression、declaration、block 或 file 公开入口；每个 Lexer-clean
-  witness 的目标码恰好出现一次，全部 Span 保持 source-local，69 个 case 共执行 138 次确定性
-  解析。兼容保留但生产 Parser 已退役的 L0016 被显式排除，矩阵同时证明所有实际诊断均不发该码；
+  witness 的两次产物都恰好发出一次目标码，并锁定 lexeme 完整覆盖、唯一 EOF、source-local
+  有界 AST / diagnostic 主与 label Span、三类 typed root、完整文件 roots 及 package / import
+  directive Span；69 个 case 共执行 138 次确定性解析，兼容保留但生产 Parser 已退役的 L0016
+  被显式排除，矩阵同时证明所有实际诊断均不发该码；
 - `parser_trivia_invariance_matrix` integration test 以 20 个完整 grammar case 覆盖文件头、声明、
   类型、表达式、call/lambda、control-flow 与 class-family，把 tab、无换行 block comment 和
   混合 trivia 投放到每个单独 token gap、全部 gap 及文件首尾；1,175 个源码变体、2,350 次

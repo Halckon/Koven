@@ -1,4 +1,4 @@
-//! SPEC-0076 的已发布 Parser 诊断公开入口 witness 矩阵。
+//! SPEC-0076 / SPEC-0096 的 Parser 诊断 witness 与公开产物不变量。
 
 use std::collections::BTreeSet;
 
@@ -8,6 +8,11 @@ use lang_frontend::{
     parser::{ParserInternalError, parse_block, parse_declaration, parse_expression, parse_file},
     source::{SourceId, SourceMap, Span},
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
 
 #[derive(Clone, Copy, Debug)]
 enum Entry {
@@ -396,14 +401,17 @@ fn fingerprint_span(source_id: SourceId, source_len: usize, span: Span) -> (usiz
 fn parse_fingerprint(
     entry: Entry,
     sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
     lexed: &LexedFile,
+    context: &str,
 ) -> Result<ParseFingerprint, ParserInternalError> {
-    macro_rules! fingerprint {
-        ($parsed:expr) => {{
-            let parsed = $parsed?;
-            let source_id = parsed.source_id();
-            let source_len = sources.source_text(source_id)?.len();
-            let diagnostics = parsed
+    macro_rules! fingerprint_common {
+        ($parsed:ident) => {{
+            assert_eq!($parsed.source_id(), source_id);
+            validate_ast(source_id, source_len, $parsed.ast());
+            validate_diagnostics(source_id, source_len, $parsed.diagnostics());
+            let diagnostics = $parsed
                 .diagnostics()
                 .iter()
                 .map(|diagnostic| {
@@ -418,17 +426,59 @@ fn parse_fingerprint(
                 })
                 .collect();
             ParseFingerprint {
-                public_output: format!("{parsed:?}"),
+                public_output: format!("{:?}", $parsed),
                 diagnostics,
             }
         }};
     }
+    macro_rules! fingerprint_entry {
+        ($parse:ident, $table:ident) => {{
+            let parsed = $parse(sources, lexed)?;
+            parsed
+                .ast()
+                .$table()
+                .get(parsed.root())
+                .unwrap_or_else(|error| panic!("invalid {:?} root for {context}: {error}", entry));
+            fingerprint_common!(parsed)
+        }};
+    }
 
     Ok(match entry {
-        Entry::Expression => fingerprint!(parse_expression(sources, lexed)),
-        Entry::Declaration => fingerprint!(parse_declaration(sources, lexed)),
-        Entry::Block => fingerprint!(parse_block(sources, lexed)),
-        Entry::File => fingerprint!(parse_file(sources, lexed)),
+        Entry::Expression => fingerprint_entry!(parse_expression, expressions),
+        Entry::Declaration => fingerprint_entry!(parse_declaration, items),
+        Entry::Block => fingerprint_entry!(parse_block, statements),
+        Entry::File => {
+            let parsed = parse_file(sources, lexed)?;
+            for root in parsed.roots() {
+                parsed
+                    .ast()
+                    .items()
+                    .get(*root)
+                    .unwrap_or_else(|error| panic!("invalid file root for {context}: {error}"));
+            }
+            if let Some(package) = parsed.package() {
+                fingerprint_span(source_id, source_len, package.span);
+                fingerprint_span(source_id, source_len, package.keyword_span);
+                for segment in &package.segments {
+                    fingerprint_span(source_id, source_len, segment.span);
+                }
+            }
+            for import in parsed.imports() {
+                fingerprint_span(source_id, source_len, import.span);
+                fingerprint_span(source_id, source_len, import.keyword_span);
+                for segment in &import.segments {
+                    fingerprint_span(source_id, source_len, segment.span);
+                }
+                if let Some(span) = import.wildcard_span {
+                    fingerprint_span(source_id, source_len, span);
+                }
+                if let Some(alias) = import.alias {
+                    fingerprint_span(source_id, source_len, alias.as_span);
+                    fingerprint_span(source_id, source_len, alias.name_span);
+                }
+            }
+            fingerprint_common!(parsed)
+        }
     })
 }
 
@@ -455,6 +505,7 @@ fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
             .add_source("parser-diagnostic-witness.ko", witness.source)
             .expect("witness source name must be unique");
         let lexed = lex(&sources, source_id).expect("witness must lex internally");
+        validate_lexed(source_id, witness.source.len(), &lexed);
         assert!(
             lexed.diagnostics().is_empty(),
             "{} {:?} is not Lexer-clean: {:?}",
@@ -463,13 +514,33 @@ fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
             lexed.diagnostics()
         );
 
-        let first = parse_fingerprint(witness.entry, &sources, &lexed).unwrap_or_else(|error| {
+        let context = format!(
+            "{} via {:?} for {:?}",
+            witness.code, witness.entry, witness.source
+        );
+        let first = parse_fingerprint(
+            witness.entry,
+            &sources,
+            source_id,
+            witness.source.len(),
+            &lexed,
+            &context,
+        )
+        .unwrap_or_else(|error| {
             panic!(
                 "{} via {:?} failed internally for {:?}: {error}",
                 witness.code, witness.entry, witness.source
             )
         });
-        let repeated = parse_fingerprint(witness.entry, &sources, &lexed).unwrap_or_else(|error| {
+        let repeated = parse_fingerprint(
+            witness.entry,
+            &sources,
+            source_id,
+            witness.source.len(),
+            &lexed,
+            &context,
+        )
+        .unwrap_or_else(|error| {
             panic!(
                 "repeated {} via {:?} failed internally for {:?}: {error}",
                 witness.code, witness.entry, witness.source
@@ -480,27 +551,29 @@ fn every_current_parser_diagnostic_has_one_public_lexer_clean_witness() {
             "{} via {:?} is not deterministic for {:?}",
             witness.code, witness.entry, witness.source
         );
-        assert_eq!(
-            first
-                .diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.code == witness.code)
-                .count(),
-            1,
-            "{} via {:?} did not produce exactly one witness for {:?}: {:?}",
-            witness.code,
-            witness.entry,
-            witness.source,
-            first.diagnostics
-        );
-        assert!(
-            first
-                .diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.code != "L0016"),
-            "retired L0016 was emitted by {:?} for {:?}",
-            witness.entry,
-            witness.source
-        );
+        for parsed in [&first, &repeated] {
+            assert_eq!(
+                parsed
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == witness.code)
+                    .count(),
+                1,
+                "{} via {:?} did not produce exactly one witness for {:?}: {:?}",
+                witness.code,
+                witness.entry,
+                witness.source,
+                parsed.diagnostics
+            );
+            assert!(
+                parsed
+                    .diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.code != "L0016"),
+                "retired L0016 was emitted by {:?} for {:?}",
+                witness.entry,
+                witness.source
+            );
+        }
     }
 }
