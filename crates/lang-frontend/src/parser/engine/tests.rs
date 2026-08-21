@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     lexer::{
-        lex_test_source_twice, malformed_lexical_owner_test_files, malformed_test_lexed_files,
+        invalid_lexer_diagnostic_stream_test_files, lex_test_source_twice,
+        malformed_lexical_owner_test_files, malformed_test_lexed_files,
         mismatched_lexer_diagnostic_anchor_test_files, mismatched_recovery_diagnostic_test_files,
     },
     source::{SourceError, SourceMap},
@@ -158,6 +159,46 @@ fn every_parser_entry_rejects_mismatched_lexer_diagnostic_anchors_deterministica
             .expect("test source must remain available");
         validate_lexemes(&sources, &lexed, source.len())
             .unwrap_or_else(|error| panic!("{case} must remain structurally valid: {error}"));
+        let codes = lexed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(codes, [expected_code], "diagnostic corpus drift for {case}");
+
+        let expected = ParserInternalError::InvalidLexemeStream;
+        assert_internal_error_twice(&expected, "lexical recovery index", case, || {
+            LexicalRecoveryIndex::new(source, &lexed)
+        });
+        assert_internal_error_twice(&expected, "expression parser", case, || {
+            parse(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "declaration parser", case, || {
+            parse_declaration(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "block parser", case, || {
+            parse_block(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "file parser", case, || {
+            parse_file(&sources, &lexed)
+        });
+    }
+}
+
+#[test]
+fn every_parser_entry_rejects_invalid_lexer_diagnostic_streams_deterministically() {
+    let mut sources = SourceMap::new();
+    let mut foreign_sources = SourceMap::new();
+    let cases = invalid_lexer_diagnostic_stream_test_files(&mut sources, &mut foreign_sources);
+    assert_eq!(cases.len(), 2);
+
+    for (case, expected_code, lexed) in cases {
+        let source = sources
+            .source_text(lexed.source_id())
+            .expect("test source must remain available");
+        validate_lexemes(&sources, &lexed, source.len()).unwrap_or_else(|error| {
+            panic!("{case} must remain lexeme-structurally valid: {error}")
+        });
         let codes = lexed
             .diagnostics()
             .iter()

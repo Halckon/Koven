@@ -1,5 +1,5 @@
 use crate::{
-    diagnostic::DiagnosticDetail,
+    diagnostic::{Diagnostic, DiagnosticDetail, Severity, codes},
     source::{SourceId, SourceMap, Span},
 };
 
@@ -347,4 +347,62 @@ pub(crate) fn mismatched_lexer_diagnostic_anchor_test_files(
             (case, code, lexed)
         })
         .collect()
+}
+
+/// 派生 source identity 或 code domain 不属于生产 Lexer 的诊断流。
+pub(crate) fn invalid_lexer_diagnostic_stream_test_files(
+    sources: &mut SourceMap,
+    foreign_sources: &mut SourceMap,
+) -> Vec<(&'static str, &'static str, LexedFile)> {
+    let foreign_source_id = foreign_sources
+        .add_source("foreign-lexer-diagnostic.ko", "\"abc")
+        .expect("foreign diagnostic source name must be unique");
+    let source_id = sources
+        .add_source("foreign-diagnostic-owner.ko", "\"abc")
+        .expect("diagnostic owner source name must be unique");
+    let mut foreign_diagnostic = copy_lexed(&lex_test_source_twice(
+        sources,
+        source_id,
+        "foreign diagnostic owner",
+    ));
+    let original = foreign_diagnostic
+        .diagnostics
+        .first()
+        .expect("unterminated string must have one diagnostic");
+    assert!(original.details().is_empty());
+    let foreign_span = foreign_sources
+        .span(foreign_source_id, 0, 4)
+        .expect("foreign diagnostic span must be valid");
+    foreign_diagnostic.diagnostics[0] = Diagnostic::new(
+        foreign_sources,
+        original.severity(),
+        original.code(),
+        original.message(),
+        foreign_span,
+    )
+    .expect("foreign diagnostic must be valid in its own source map");
+
+    let source_id = sources
+        .add_source("non-lexer-diagnostic-code.ko", "value")
+        .expect("non-Lexer diagnostic source name must be unique");
+    let mut non_lexer_code = copy_lexed(&lex_test_source_twice(
+        sources,
+        source_id,
+        "non-Lexer diagnostic code",
+    ));
+    let span = sources
+        .span(source_id, 0, 5)
+        .expect("non-Lexer diagnostic span must be source-local");
+    let code = codes::catalog()
+        .and_then(|catalog| catalog.resolve(codes::EXPECTED_EXPRESSION))
+        .expect("production diagnostic catalog must resolve L0009");
+    non_lexer_code.diagnostics.push(
+        Diagnostic::new(sources, Severity::Error, code, "expected expression", span)
+            .expect("non-Lexer diagnostic must remain structurally valid"),
+    );
+
+    vec![
+        ("foreign diagnostic source", "L0004", foreign_diagnostic),
+        ("non-Lexer diagnostic code", "L0009", non_lexer_code),
+    ]
 }

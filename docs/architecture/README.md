@@ -448,6 +448,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   block comment、非终止 / 终止 invalid escape、invalid char、invalid number 的精确 anchor，同时
   保留诊断与通用流结构；recovery index 与四个 engine 入口各双运行，共精确拒绝 70 次。该防线
   修复了 Parser 先前可能接受 diagnostic/lexeme 不一致内部产物的缺口，不改变合法 Lexer 产物；
+- Lexer diagnostic 流还在相同分类点强制 source identity 等于 `LexedFile::source_id`，并把 code
+  domain 精确限定为 L0001–L0008。test-only corpus 从两份独立双 Lexer 产物派生 foreign L0004
+  primary Span 与 source-local L0009 注入；两类输入保持 lexeme 结构有效，由 recovery index 与
+  expression、declaration、block、file 四个入口各双运行，共精确拒绝 20 次。该防线消除了 foreign
+  owner diagnostic 延迟为 `SourceError` 以及非 Lexer code 被静默合并的内部缺口；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；

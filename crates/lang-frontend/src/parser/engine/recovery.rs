@@ -56,35 +56,26 @@ impl LexicalRecoveryIndex {
             let span = diagnostic.primary_span();
             let code = diagnostic.code();
             let anchor = if code == unexpected_character {
-                Some(LexicalDiagnosticAnchor::ExactInvalid(
-                    InvalidKind::UnexpectedCharacter,
-                ))
+                LexicalDiagnosticAnchor::ExactInvalid(InvalidKind::UnexpectedCharacter)
             } else if code == reserved_word {
-                Some(LexicalDiagnosticAnchor::ExactReservedWord)
+                LexicalDiagnosticAnchor::ExactReservedWord
             } else if code == unterminated_block_comment {
-                Some(LexicalDiagnosticAnchor::ExactInvalid(
-                    InvalidKind::UnterminatedBlockComment,
-                ))
+                LexicalDiagnosticAnchor::ExactInvalid(InvalidKind::UnterminatedBlockComment)
             } else if code == unterminated_string {
-                Some(LexicalDiagnosticAnchor::StringStart)
+                LexicalDiagnosticAnchor::StringStart
             } else if code == unterminated_interpolation {
-                Some(LexicalDiagnosticAnchor::InterpolationStart)
+                LexicalDiagnosticAnchor::InterpolationStart
             } else if code == invalid_string_escape {
-                Some(LexicalDiagnosticAnchor::ExactInvalid(
-                    InvalidKind::InvalidStringEscape,
-                ))
+                LexicalDiagnosticAnchor::ExactInvalid(InvalidKind::InvalidStringEscape)
             } else if code == invalid_char_literal {
-                Some(LexicalDiagnosticAnchor::ExactInvalid(
-                    InvalidKind::InvalidCharLiteral,
-                ))
+                LexicalDiagnosticAnchor::ExactInvalid(InvalidKind::InvalidCharLiteral)
             } else if code == invalid_numeric_literal {
-                Some(LexicalDiagnosticAnchor::ExactInvalid(
-                    InvalidKind::InvalidNumericLiteral,
-                ))
+                LexicalDiagnosticAnchor::ExactInvalid(InvalidKind::InvalidNumericLiteral)
             } else {
-                None
+                return Err(ParserInternalError::InvalidLexemeStream);
             };
-            if anchor.is_some_and(|anchor| !has_diagnostic_anchor(lexed, span, anchor)) {
+            if span.source_id() != lexed.source_id() || !has_diagnostic_anchor(lexed, span, anchor)
+            {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             if code == unterminated_string {
