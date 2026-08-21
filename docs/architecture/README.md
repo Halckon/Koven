@@ -546,10 +546,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic Span、文件 roots、package / import
   directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
   本轮未发现生产缺陷；
-- `frontend_matrix_assertions` 为 prefix truncation、token omission / duplication / transposition 与
-  lexical poison replacement / insertion 六个完整文件恢复矩阵提供共享双 Lexer / 双 Parser
-  入口；4,167 个主要变异 / 前缀 case、132 个 baseline / complete case 与 2 个定向 omission
-  回归合计 4,301 个 source case，共验证 8,602 个 Lexer 和 8,602 个 Parser 产物。两阶段产物锁定
+- `frontend_matrix_assertions` 为 prefix / suffix truncation、token omission / duplication /
+  transposition 与 lexical poison replacement / insertion 七个完整文件恢复矩阵提供共享双 Lexer /
+  双 Parser 入口；5,540 个主要变异 / 截断 case、154 个 baseline / complete case 与 2 个定向
+  omission 回归合计 5,696 个 source case，共验证 11,392 个 Lexer 和 11,392 个 Parser 产物。两阶段产物锁定
   source identity、lexeme 完整覆盖与唯一 EOF、source-local AST / diagnostic 主与 label Span、
   文件 roots、package / import directive Span，并比较完整公开产物确定性；本轮未发现生产缺陷；
   既有 `frontend_adversarial` 也通过该入口复用双 Lexer，避免同一 integration test 重复加载
@@ -571,6 +571,13 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   加上 12 个 baseline 共 252 个 source case，每例运行两次 Lexer 与两次 Parser，共验证 504 个
   Lexer 和 504 个 Parser 产物；逐次锁定连续覆盖、唯一 EOF、source-local 诊断 / AST Span、
   可解析 typed root 与公开产物确定性；本矩阵未发现生产缺陷；
+- `parser_suffix_truncation_matrix` 复用相同 22-file corpus，在每个 UTF-8 scalar 起点删除源码
+  前缀并保留后缀，精确执行 1,373 个后缀；加上 22 个 clean preflight 共 1,395 个 source case，
+  每例运行两次 Lexer 与两次完整文件 Parser，共验证 2,790 个 Lexer 和 2,790 个 Parser 产物。
+  `parser_entry_suffix_truncation_matrix` 同样复用 12-entry corpus，按 expression / declaration /
+  block 分别执行 195 / 350 / 202 个后缀；加上 12 个 preflight 共 759 个 source case，验证 1,518
+  个 Lexer 和 1,518 个对应入口 Parser 产物。两个矩阵均锁定连续覆盖、唯一 EOF、source-local
+  AST / diagnostic Span、有效 root 与公开产物确定性，本轮未发现生产缺陷；
 - `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
   分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
   mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span；加上 12 个 baseline 共 252 个
