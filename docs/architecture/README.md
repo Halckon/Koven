@@ -548,8 +548,11 @@ ASCII 标识符、单行字符串、非嵌套 block comment、最小数值后缀
 L0002。`editors/textmate/tests/lexical-contract.tsv` 另以 80 个共享 case 锁定全部 33 个 operator、
 10 个 punctuation、有效 integer/float/string escape/character 及代表性拒绝边界；零依赖 Node
 verifier 实际从 JSON repository 递归定位并执行锚定 regex，Rust integration test 用同一 TSV
-验证全部正例的生产 Lexer 分类或零诊断。TextMate `package.json` 只提供 `npm test` 脚本，不含
-依赖或 lockfile，也不把 Node 引入 Cargo 测试。
+验证全部正例的生产 Lexer 分类或零诊断。66 个正例 source 与两个 corpus 共 68 个 source case
+各运行两次 Lexer，共验证 136 个 Lexer 产物的连续完整覆盖、唯一 EOF、source-local diagnostic
+Span 与完整公开产物确定性；纯 Lexer target 只加载单一职责的 `lexer_output_assertions`，完整
+frontend 断言门面复用同一实现。TextMate `package.json` 只提供 `npm test` 脚本，不含依赖或
+lockfile，也不把 Node 引入 Cargo 测试。
 
 ## Tree-sitter grammar
 
@@ -567,7 +570,10 @@ control-flow、字符串插值、跨声明恢复和保留字。`lang-frontend` �
 锁定合法文件零诊断、`L0009` 空 span 恢复、关键字分类、完整有序诊断及错误后的后续根节点。
 同一测试还从 external scanner 的唯一 C 初始化表提取全部 53 个不可用 identifier 拼写，精确
 对照 42 个生产 `Keyword` 与 11 个 `ReservedWord` / `L0002` span；原生 corpus 同时证明
-`value` / `async` 被拒绝，而 `className` / `asyncTask` 仍按完整词边界成为 identifier。
+`value` / `async` 被拒绝，而 `className` / `asyncTask` 仍按完整词边界成为 identifier。word
+contract 与三个 fixture 共 4 个 source case 各运行两次 Lexer，共验证 8 个 Lexer 产物；三个
+fixture 各运行两次完整文件 Parser，共验证 6 个 Parser 产物的 AST、诊断、root、directive Span
+与完整公开产物确定性。
 CLI 仅是该目录精确锁定的开发依赖，不进入 Cargo workspace 或编译器运行时。VS Code
 extension、语义高亮与 LSP token 仍尚未实现。
 

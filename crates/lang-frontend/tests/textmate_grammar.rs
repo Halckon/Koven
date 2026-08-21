@@ -1,11 +1,16 @@
-//! SPEC-0058 / SPEC-0071 的 TextMate grammar、corpus 与词法契约回归。
+//! SPEC-0058 / SPEC-0071 / SPEC-0116 的 TextMate grammar、corpus 与词法契约回归。
 
 use std::{collections::BTreeSet, fs, path::PathBuf};
 
-use lang_frontend::{
-    lexer::{LexemeKind, TokenKind, TriviaKind, lex},
-    source::SourceMap,
-};
+use lang_frontend::lexer::{LexemeKind, TokenKind, TriviaKind};
+
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
+#[path = "support/lexer_output_assertions.rs"]
+mod lexer_output_assertions;
+
+use lexer_matrix_assertions::lex_source_twice;
+use lexer_output_assertions::validate_lexed;
 
 const REPOSITORIES: &[&str] = &[
     "comments",
@@ -101,11 +106,13 @@ fn lexical_contract_positive_cases_match_the_production_lexer() {
         } else {
             spelling.to_owned()
         };
-        let mut sources = SourceMap::new();
-        let source_id = sources
-            .add_source("textmate-lexical-contract.ko", text)
-            .expect("unique lexical-contract source");
-        let lexed = lex(&sources, source_id).expect("lexical contract must lex");
+        let context = format!("{family} {spelling:?}");
+        let (_, _, lexed) = lex_source_twice(
+            "textmate-lexical-contract.ko",
+            &text,
+            &context,
+            validate_lexed,
+        );
         assert!(
             lexed.diagnostics().is_empty(),
             "{family} {spelling:?}: {:?}",
@@ -219,11 +226,12 @@ fn scope_expectations_reference_declared_scopes_and_corpus_text() {
 #[test]
 fn highlight_corpus_is_lexer_valid_and_covers_primary_families() {
     let text = read_asset("tests/highlight.ko");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("editors/textmate/tests/highlight.ko", text)
-        .expect("unique corpus source");
-    let lexed = lex(&sources, source_id).expect("lexer invariant");
+    let (_, _, lexed) = lex_source_twice(
+        "editors/textmate/tests/highlight.ko",
+        &text,
+        "TextMate highlight corpus",
+        validate_lexed,
+    );
     assert!(lexed.diagnostics().is_empty());
 
     let mut token_families = BTreeSet::new();
@@ -284,11 +292,12 @@ fn highlight_corpus_is_lexer_valid_and_covers_primary_families() {
 #[test]
 fn reserved_corpus_matches_the_lexer_contract() {
     let text = read_asset("tests/reserved.ko");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("editors/textmate/tests/reserved.ko", text)
-        .expect("unique corpus source");
-    let lexed = lex(&sources, source_id).expect("lexer invariant");
+    let (_, _, lexed) = lex_source_twice(
+        "editors/textmate/tests/reserved.ko",
+        &text,
+        "TextMate reserved corpus",
+        validate_lexed,
+    );
 
     let reserved_count = lexed
         .lexemes()

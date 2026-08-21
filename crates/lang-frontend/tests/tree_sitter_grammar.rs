@@ -1,12 +1,13 @@
-//! SPEC-0059 / SPEC-0070 的 Tree-sitter fixture 与生产 Lexer/Parser 交叉验收。
+//! SPEC-0059 / SPEC-0070 / SPEC-0116 的 Tree-sitter fixture 与生产 Lexer/Parser 交叉验收。
 
 use std::{fs, path::PathBuf};
 
-use lang_frontend::{
-    lexer::{Keyword, LexemeKind, TokenKind, lex},
-    parser::parse_file,
-    source::SourceMap,
-};
+use lang_frontend::lexer::{Keyword, LexemeKind, TokenKind};
+
+#[path = "support/frontend_matrix_assertions.rs"]
+mod frontend_matrix_assertions;
+
+use frontend_matrix_assertions::{lex_source_twice, parse_file_twice};
 
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -96,11 +97,11 @@ fn external_scanner_word_table_matches_the_complete_production_lexer_contract() 
     assert_eq!(actual, expected);
 
     let text = expected.join(" ");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("tree-sitter-word-contract.ko", text)
-        .expect("unique word-contract source");
-    let lexed = lex(&sources, source_id).expect("word contract must lex");
+    let (sources, _, lexed) = lex_source_twice(
+        "tree-sitter-word-contract.ko",
+        &text,
+        "Tree-sitter word contract",
+    );
     let tokens = lexed
         .lexemes()
         .iter()
@@ -135,14 +136,15 @@ fn external_scanner_word_table_matches_the_complete_production_lexer_contract() 
 #[test]
 fn representative_fixture_is_accepted_by_the_production_frontend() {
     let text = read_fixture("representative.ko");
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("editors/tree-sitter/test/fixtures/representative.ko", text)
-        .expect("unique fixture source");
-    let lexed = lex(&sources, source_id).expect("lexer invariant");
+    let context = "Tree-sitter representative fixture";
+    let (sources, source_id, lexed) = lex_source_twice(
+        "editors/tree-sitter/test/fixtures/representative.ko",
+        &text,
+        context,
+    );
     assert!(lexed.diagnostics().is_empty());
 
-    let parsed = parse_file(&sources, &lexed).expect("parser invariant");
+    let parsed = parse_file_twice(&sources, source_id, text.len(), &lexed, context);
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
@@ -160,14 +162,15 @@ fn representative_fixture_is_accepted_by_the_production_frontend() {
 fn recovery_fixture_locks_parser_code_and_empty_span_before_later_root() {
     let text = read_fixture("recovery.ko");
     let expected_offset = text.find("\n}").expect("broken block closer") + 1;
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("editors/tree-sitter/test/fixtures/recovery.ko", text)
-        .expect("unique fixture source");
-    let lexed = lex(&sources, source_id).expect("lexer invariant");
+    let context = "Tree-sitter recovery fixture";
+    let (sources, source_id, lexed) = lex_source_twice(
+        "editors/tree-sitter/test/fixtures/recovery.ko",
+        &text,
+        context,
+    );
     assert!(lexed.diagnostics().is_empty());
 
-    let parsed = parse_file(&sources, &lexed).expect("parser invariant");
+    let parsed = parse_file_twice(&sources, source_id, text.len(), &lexed, context);
     assert_eq!(parsed.roots().len(), 2, "later declaration must recover");
     assert_eq!(parsed.diagnostics().len(), 1);
     let diagnostic = &parsed.diagnostics()[0];
@@ -180,11 +183,12 @@ fn recovery_fixture_locks_parser_code_and_empty_span_before_later_root() {
 fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() {
     let text = read_fixture("reserved.ko");
     assert!(text.ends_with("val asyncTask = 4\n"));
-    let mut sources = SourceMap::new();
-    let source_id = sources
-        .add_source("editors/tree-sitter/test/fixtures/reserved.ko", text)
-        .expect("unique fixture source");
-    let lexed = lex(&sources, source_id).expect("lexer invariant");
+    let context = "Tree-sitter reserved fixture";
+    let (sources, source_id, lexed) = lex_source_twice(
+        "editors/tree-sitter/test/fixtures/reserved.ko",
+        &text,
+        context,
+    );
 
     assert_eq!(lexed.diagnostics().len(), 1);
     assert_eq!(lexed.diagnostics()[0].code().to_string(), "L0002");
@@ -199,7 +203,7 @@ fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() 
             && sources.slice(lexeme.span()).expect("keyword span") == "value"
     }));
 
-    let parsed = parse_file(&sources, &lexed).expect("parser invariant");
+    let parsed = parse_file_twice(&sources, source_id, text.len(), &lexed, context);
     let last_root = parsed.roots().last().expect("following declaration root");
     assert_eq!(
         sources
