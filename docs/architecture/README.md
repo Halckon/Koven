@@ -497,14 +497,16 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   共验证 4,254 个产物的 source identity、连续完整字节覆盖、末尾唯一 EOF、diagnostic primary /
   label Span 和完整公开产物确定性；全部源码保持零诊断，并继续锁定目标分类或最长首 token、
   精确 Span，且不复制 scanner 的匹配顺序；双 Lexer helper 同时由完整文件对抗矩阵复用；
-- `lexer_stress_matrix` integration test 通过公开 Lexer 入口执行 10 个大输入 / 深模式源码并各
-  运行两次，共验证 20 个完整产物：6 类约 65,536-byte 最大化 identifier、number、whitespace、
+- `lexer_stress_matrix` integration test 通过公开 Lexer 入口执行 14 个大输入 / 深模式源码并各
+  运行两次，共验证 28 个完整产物：6 类约 65,536-byte 最大化 identifier、number、whitespace、
   line / block comment 与多字节 string text 保持既有单段或三段 token 形态；4,096 层合法
   string/interpolation mode 精确形成 16,386 个 lexeme，单一 interpolation 内 16,384 层 brace
   精确形成 32,774 个 lexeme；4,096 层未终止 mode 只报告最内层一个 L0005，4,096 个连续
   多字节非法 scalar 精确形成严格递增的 L0001 / `Invalid` 对。全部产物保持连续完整覆盖、唯一
-  EOF、source-local byte Span 与完整公开产物确定性，没有 wall-clock 阈值或生产测试钩子；
-  本轮未发现生产缺陷；
+  EOF、source-local byte Span 与完整公开产物确定性。相同的合法 mode、deep brace、未终止 mode
+  与多字节诊断流形状另从显式 64 KiB 调用线程各执行两次生产 Lexer，精确保留既有 lexeme /
+  diagnostic 数量，证明迭代式 `Vec<Mode>` 状态管理不把源码深度转化为调用栈深度；全部检查
+  没有 wall-clock 阈值或生产测试钩子，本轮未发现生产缺陷；
 - `parser_entry_adversarial` integration test 对 16 个前缀与 16 个后缀分别运行独立 expression、
   declaration、block 三个公开入口，共执行 768 个 entry/case；每例运行两次 Lexer 与两次
   Parser，共验证 1,536 个 Lexer 和 1,536 个 Parser 产物。它们显式锁定 lexeme 连续完整覆盖、

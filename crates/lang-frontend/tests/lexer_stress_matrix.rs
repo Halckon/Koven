@@ -16,6 +16,7 @@ const LONG_RUN: usize = 65_536;
 const MODE_DEPTH: usize = 4_096;
 const BRACE_DEPTH: usize = 16_384;
 const DIAGNOSTIC_COUNT: usize = 4_096;
+const SMALL_CALLER_STACK: usize = 64 * 1_024;
 
 fn lex_stress(name: &str, source: &str) -> LexedFile {
     let (_, _, lexed) = lex_source_twice(name, source, name, validate_lexed);
@@ -219,4 +220,54 @@ fn large_multibyte_diagnostic_stream_is_byte_accurate_and_sorted() {
             (start, end)
         );
     }
+}
+
+#[test]
+fn deep_modes_and_large_diagnostics_stay_iterative_on_a_small_caller_stack() {
+    std::thread::Builder::new()
+        .name("lexer-stress-small-caller".to_owned())
+        .stack_size(SMALL_CALLER_STACK)
+        .spawn(|| {
+            let mut closed_modes = String::with_capacity(MODE_DEPTH * 5 + 1);
+            for _ in 0..MODE_DEPTH {
+                closed_modes.push_str("\"${");
+            }
+            closed_modes.push('x');
+            for _ in 0..MODE_DEPTH {
+                closed_modes.push_str("}\"");
+            }
+            let lexed = lex_stress("small-stack-closed-modes.ko", &closed_modes);
+            assert!(lexed.diagnostics().is_empty());
+            assert_eq!(lexed.lexemes().len(), MODE_DEPTH * 4 + 2);
+
+            let mut braces = String::with_capacity(BRACE_DEPTH * 2 + 5);
+            braces.push_str("\"${");
+            braces.push_str(&"{".repeat(BRACE_DEPTH));
+            braces.push('x');
+            braces.push_str(&"}".repeat(BRACE_DEPTH + 1));
+            braces.push('"');
+            let lexed = lex_stress("small-stack-braces.ko", &braces);
+            assert!(lexed.diagnostics().is_empty());
+            assert_eq!(lexed.lexemes().len(), BRACE_DEPTH * 2 + 6);
+
+            let unterminated = format!("{}x", "\"${".repeat(MODE_DEPTH));
+            let lexed = lex_stress("small-stack-unterminated.ko", &unterminated);
+            assert_eq!(lexed.lexemes().len(), MODE_DEPTH * 2 + 2);
+            assert_eq!(lexed.diagnostics().len(), 1);
+            assert_eq!(lexed.diagnostics()[0].code().to_string(), "L0005");
+
+            let invalid = "界".repeat(DIAGNOSTIC_COUNT);
+            let lexed = lex_stress("small-stack-diagnostics.ko", &invalid);
+            assert_eq!(lexed.lexemes().len(), DIAGNOSTIC_COUNT + 1);
+            assert_eq!(lexed.diagnostics().len(), DIAGNOSTIC_COUNT);
+            assert!(
+                lexed
+                    .diagnostics()
+                    .iter()
+                    .all(|diagnostic| diagnostic.code().to_string() == "L0001")
+            );
+        })
+        .expect("small Lexer caller thread must start")
+        .join()
+        .expect("Lexer stress must remain iterative on a small caller stack");
 }
