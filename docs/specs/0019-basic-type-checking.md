@@ -46,6 +46,8 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
   call argument 映射；这些节点只使用逐类 deferred reason。
 - 不检查 assignment place、mutability、index、callable reference、postfix `?`、接口委托、
   override、visibility、constant evaluation、when 穷尽性或 smart cast。
+- 不实现 Kotlin 的完整局部双向约束求解、整数/浮点后缀或 mixed numeric operator 提升；
+  类型检查器不得接受 Lexer 未定义的 `L` / `u` / `f` 后缀来补齐这些能力。
 - 不执行移动、复制、借用、捕获或析构检查，不建立 HIR/MIR，也不接线 CLI/LSP。
 - 不启用 v0.22；在用户版本级确认前不得把本 Spec 推进到 approved / in-progress。
 
@@ -53,9 +55,13 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
 
 - [ ] TypeEnvironment 显式、不可变且不按拼写硬编码 builtin；跨环境身份失败 loud。
 - [ ] TypeId、结构规范化、symbol/type-ref/expression 结果和 deferred reason 在重复运行中确定。
-- [ ] builtin、nullable、function 与 integer-literal constraint 正例覆盖；L0082 锁定 builtin arity。
+- [ ] builtin、nullable、function 与 integer-literal constraint 正例覆盖；无 expected type 的
+      超 `Int` 字面量、显式 expected `Long` / unsigned、不可产生的 `Float` 字面量边界明确；
+      L0082 锁定 builtin arity。
 - [ ] local annotation/inference 覆盖各标量、null、expected integer、lambda 与 deferred initializer；
       L0083/L0084 的 primary 和 expected label 精确。
+- [ ] 单向 expected type 的边界有定向测试：不从后续 local 使用、overload candidate 或带参
+      lambda body 反推类型。
 - [ ] 基础 operator、Elvis、`!!` 覆盖正反例；L0085 精确锁定 operator 与 operand labels。
 - [ ] 隐式 `Unit`、显式 expression/block body、return boundary、`Nothing`、fallthrough 与基础
       `if` join 覆盖 L0086–L0089。

@@ -969,6 +969,11 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 - 浮点字面量固定为 `Double`；`Float` 在没有后缀语法的 v1 中只能来自已定型 value / call，
   不把 `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、String 分别固定为
   `Boolean`、`Char`、`String`；无 expected nullable type 的独立 `null` 无法推导。
+- 以上规则有意只借鉴 Kotlin 的“整数字面量约束 + 不对已定型数值做隐式转换”，不复制其
+  完整字面量和推导系统。Koven v1 尚无 `L` / `u` / `f` 后缀：无 expected type 的十进制
+  整数字面量只默认成 `Int`，超出 `Int` 即使用 L0083；`Long` 与无符号整数必须由显式
+  expected type 定型，`Float` 不能直接由字面量产生。不得在类型检查器里接受词法规范没有
+  定义的后缀，也不得把这条约束扩张为变量之间的隐式 widening。
 - `!` 只接受 `Boolean`；一元 `+` / `-` 只接受数值 builtin。`* / % -` 与数值 `+` 要求两侧
   已定型为同一数值类型并返回该类型；`String + String` 返回 `String`，不提供隐式
   `String + Any`。`< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
@@ -994,6 +999,10 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
   body 已知尾值推导 `() -> R`；带参数 lambda 没有 expected function type 时使用 L0083。
   普通 block 固定为 `Unit`，`LambdaBody` / `ControlBody` 才读取尾 expression；以声明或 jump
   结束、或空 body 的尾值为 `Unit`。
+- 这不是 Kotlin 的完整局部双向约束求解：Kotlin 可把使用位置、overload candidate 和 lambda
+  body 共同纳入局部约束；SPEC-0019 只允许已经确定的外层 expected type 单向流入 child。
+  因此本阶段不会从后续使用反推 local，不会用 lambda body 选择 overload，也不会从带参
+  lambda 的 body 猜参数类型；这些限制是确定性阶段边界，不是待实现的隐式行为。
 
 ### 22.4 具名函数、控制流与 `Nothing`
 
