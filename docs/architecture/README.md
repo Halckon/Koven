@@ -386,6 +386,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   Parser 诊断逐一映射到 expression、declaration、block 或 file 公开入口；每个 Lexer-clean
   witness 的目标码恰好出现一次，全部 Span 保持 source-local，69 个 case 共执行 138 次确定性
   解析。兼容保留但生产 Parser 已退役的 L0016 被显式排除，矩阵同时证明所有实际诊断均不发该码；
+- `parser_trivia_invariance_matrix` integration test 以 20 个完整 grammar case 覆盖文件头、声明、
+  类型、表达式、call/lambda、control-flow 与 class-family，把 tab、无换行 block comment 和
+  混合 trivia 投放到每个单独 token gap、全部 gap 及文件首尾；1,175 个源码变体、2,350 次
+  完整文件解析均保持 significant `LexemeKind` 序列与无 Span AST 结构指纹不变且零诊断；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
