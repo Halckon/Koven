@@ -1,0 +1,68 @@
+# SPEC-0021: 检查 `when` 穷尽性与 smart cast
+
+| 字段 | 值 |
+|---|---|
+| 状态 | draft |
+| Goal ID | `KOV-P2-021` |
+| 所属 Phase | Phase 2 |
+| 候选语言规范 | [v0.24 候选 §24](../guide/01-design-decisions.md#24-when-穷尽性与-smart-castv024-候选未启用) |
+| 前置 Spec | SPEC-0016、SPEC-0020 `done` |
+| 阻塞项 | 用户尚未明确启用 v0.24 取代 v0.23 |
+| 影响范围 | name-resolution enum case identity、typed flow facts、when/type-test、L0106–L0113、Phase 2 fixture、Architecture |
+
+## 1. Goal
+
+在不引入一般 RTTI、member/call 选择或所有权检查的前提下，为 enum case 建立 type-test 身份，
+让 `if`/`when` 的稳定引用获得可验证 smart cast，并确定性检查 Boolean、enum 与 nullable
+有限域的 `when` 穷尽性、重复覆盖和分支类型。
+
+## 2. 范围
+
+- enum case 的值/类型双命名空间身份，以及 payload 候选引用；不把 case type 暴露为普通签名类型。
+- `is`/`!is` 的合法关系、Boolean 结果与 enum/nullable flow fact；`as`/`as?` 继续 deferred。
+- `this`、参数、local val 与受限 local var 的稳定 key；赋值、capture、短路布尔和分支 join。
+- subjectful/subjectless when 条件检查、else 顺序、重复覆盖、有限域穷尽性和 value/statement context。
+- expected type、Nothing 与无 expected 分支 LUB；L0106–L0113 及真实 pass/fail fixture。
+
+## 3. 非目标
+
+- 不实现一般 member/constructor/overload/call 选择、`in` 协议、cast、sealed class、跨文件层级。
+- 不建立任意 class/interface RTTI，不允许 interface 或泛型参数 runtime type-test。
+- 不做完整 CFG/SSA、循环定点、所有权/借用、NLL 或跨 callable 副作用分析。
+- 不新增 crate、依赖或 Parser 语法，不改变 v0.23 已实现诊断含义。
+
+## 4. 验收标准
+
+- [ ] 用户明确启用 v0.24，Spec 从 `draft` 推进为 `in-progress`。
+- [ ] enum case 在值/类型命名空间共享稳定身份；payload 候选只在唯一 case fact 下可访问。
+- [ ] 合法/非法 `is`/`!is`、nullable test 与无 RTTI 边界覆盖 L0106，结果精确为 Boolean。
+- [ ] local val/parameter/this、可赋值 var kill、capture kill、`!`/`&&`/`||` 与分支交集有测试。
+- [ ] Boolean/enum/nullable 覆盖、negative test、逗号 alternative、poison、重复及 else 位置覆盖 L0107–L0111。
+- [ ] value/statement context、expected type、Nothing、nullable/enum/Any join 覆盖 L0111/L0112。
+- [ ] L0113 精确覆盖无事实与歧义 payload；已有 L0080 不抢占合法候选。
+- [ ] source/environment identity、重复运行、深条件/长 case 集预算、确定性顺序有测试。
+- [ ] frontend 与 workspace 基线、CLI build、Markdown 链接、diff 全通过，文档同步当前事实。
+
+## 5. 模块边界与实施顺序
+
+1. [ ] 激活 v0.24，并把本 Spec 置为 `in-progress`。
+2. [ ] 建立 enum case identity 与 payload candidate name target。
+3. [ ] 建立 typed flow-key/fact/kill/join 模型和 type-test 检查。
+4. [ ] 实现 when coverage、context、branch join 与 L0106–L0113。
+5. [ ] 补窄测、Phase 2 fixture、预算/确定性测试。
+6. [ ] 同步 Architecture/guide/Spec，运行 workspace 基线。
+7. [ ] 创建独立提交 `feat(frontend): check when exhaustiveness (SPEC-0021)`。
+
+实现保持 `type_checking/mod.rs` 门面稳定；flow/coverage 应按职责放入 checker 子模块，不把
+已有 `checker.rs` 再扩成超限文件。名称阶段只保存候选身份，不进行类型或控制流判断。
+
+## 6. 未决门禁
+
+- 唯一阻塞是 v0.24 尚未获得版本级明确启用；站立 Spec 授权不能替代该确认。
+
+## 7. 验证记录
+
+| 命令 / 检查 | 结果 | 备注 |
+|---|---|---|
+| Markdown 相对链接、`git diff --check` | 待执行 | 候选文档完成后检查 |
+| Rust / Cargo 基线 | 不适用 | 当前仅起草候选 guide 与 draft Spec，未修改 Rust |

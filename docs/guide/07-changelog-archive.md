@@ -317,3 +317,15 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 
 > v0.23 于 2026-08-21 由用户明确启用并取代 v0.22；上述候选契约自此成为现行语义，
 > SPEC-0020 的版本门禁解除并进入实施。候选起草记录按只追加治理保留，不回写历史措辞。
+
+## v0.24 候选变更记录（未启用）
+
+> 本候选于 2026-08-21 为 SPEC-0021 起草。当前唯一权威版本仍是 v0.23；只有用户明确启用
+> v0.24 后，下列契约才成为现行语义。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | enum case 同时获得值构造器与仅供 type-test/smart-cast 使用的嵌套 case type 身份，封闭 payload 字段的流敏感访问 | 🔴 候选类型/名称语义 |
+| 2 | 定义 `this`、参数、local val/var 的稳定 smart-cast key，赋值/capture kill、短路布尔事实传播与分支交集 | 🔴 候选数据流语义 |
+| 3 | 仅 Boolean、enum case 集及 nullable 扩展构成可证明有限域；定义重复覆盖、else 位置和 value/statement-context 穷尽规则 | 🔴 候选 when 语义 |
+| 4 | 定义分支 expected type/LUB、Nothing 出口及 L0106–L0113，保持 member/call、as、包含协议和所有权后置 | 🟡 候选诊断与 Phase 边界 |
