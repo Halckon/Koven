@@ -423,6 +423,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   替换，共执行 480 个 mutation、960 次生产解析；40 个 lexical-mode case 锁定 Scanner / Parser
   总性，440 个普通 case 精确锁定唯一 L0001 / L0002 与 poison primary Span，全部保持连续覆盖、
   唯一 EOF、source-local AST / 诊断、typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
+- `parser_entry_lexical_poison_insertion_matrix` 复用共享 lexical-mode gap 状态机，在 12-case corpus
+  的 240 个 token 上枚举 252 个 gap；239 个 code-mode gap 与 13 个 string-mode gap 分别插入
+  两种 poison，共执行 504 个 mutation、1,008 次生产解析。code-mode 精确锁定唯一 L0001 /
+  L0002 及 Span，string-mode 保持 Lexer / Parser 零诊断；完整文件矩阵的 418 / 409 / 9 计数
+  同时保持不变，本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界

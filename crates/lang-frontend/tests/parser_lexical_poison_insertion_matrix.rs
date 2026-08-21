@@ -1,9 +1,6 @@
 //! SPEC-0083 的合法完整语法 token gap 词法 poison 插入矩阵。
 
-use lang_frontend::{
-    lexer::{TokenKind, lex},
-    source::SourceMap,
-};
+use lang_frontend::{lexer::lex, source::SourceMap};
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -13,6 +10,8 @@ mod parser_grammar_corpus;
 mod parser_lexical_poisons;
 #[path = "support/parser_mutation_assertions.rs"]
 mod parser_mutation_assertions;
+#[path = "support/parser_mutation_gaps.rs"]
+mod parser_mutation_gaps;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
@@ -20,57 +19,10 @@ use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_assertions::assert_last_root_source;
-use parser_mutation_tokens::{MutationSlot, original_token_slots};
+use parser_mutation_gaps::{Gap, token_gaps};
+use parser_mutation_tokens::original_token_slots;
 
 const SENTINEL: &str = "val sentinel = 0";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LexicalMode {
-    Code,
-    String,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Gap {
-    offset: usize,
-    code_mode: bool,
-}
-
-fn token_gaps(slots: &[MutationSlot]) -> Vec<Gap> {
-    let mut modes = vec![LexicalMode::Code];
-    let mut gaps = vec![Gap {
-        offset: 0,
-        code_mode: true,
-    }];
-
-    for slot in slots {
-        match slot.kind {
-            TokenKind::StringStart => {
-                assert_eq!(modes.last(), Some(&LexicalMode::Code));
-                modes.push(LexicalMode::String);
-            }
-            TokenKind::InterpolationStart => {
-                assert_eq!(modes.last(), Some(&LexicalMode::String));
-                modes.push(LexicalMode::Code);
-            }
-            TokenKind::InterpolationEnd => {
-                assert_eq!(modes.pop(), Some(LexicalMode::Code));
-                assert_eq!(modes.last(), Some(&LexicalMode::String));
-            }
-            TokenKind::StringEnd => {
-                assert_eq!(modes.pop(), Some(LexicalMode::String));
-            }
-            _ => {}
-        }
-        gaps.push(Gap {
-            offset: slot.span.end(),
-            code_mode: modes.last() == Some(&LexicalMode::Code),
-        });
-    }
-
-    assert_eq!(modes, [LexicalMode::Code]);
-    gaps
-}
 
 fn baseline_and_gaps(case_source: &str, context: &str) -> (String, Vec<Gap>, usize) {
     let source = format!("{case_source}\n{SENTINEL}");
@@ -94,7 +46,7 @@ fn baseline_and_gaps(case_source: &str, context: &str) -> (String, Vec<Gap>, usi
     assert_last_root_source(&sources, &parsed, SENTINEL, context);
 
     let slots = original_token_slots(&lexed, case_source.len());
-    let gaps = token_gaps(&slots);
+    let gaps = token_gaps(slots.iter().map(|slot| (slot.kind, slot.span.end())));
     (source, gaps, slots.len())
 }
 
