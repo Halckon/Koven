@@ -519,6 +519,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   保留 4,096 组 `Item::Error` 与后续 `val` sentinel；全部产物保持连续覆盖、唯一 EOF、
   source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性。file 错误区使用
   真实后续声明 starter 同步，普通换行不被误作 file recovery boundary；本轮未发现生产缺陷；
+- `parser_recursion_boundary_matrix` integration test 以 18 个相邻深度源码锁定四个公开 Parser
+  入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
+  拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
+  1,023 层；declaration generic type 接受 1,023 层、拒绝 1,024 层；block 与 file function body
+  接受 1,024 层、拒绝 1,025 层。九个成功源码各执行两次 Lexer 与两次 Parser，保持零诊断、
+  source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性；九个失败源码各执行
+  两次 Lexer 与两次 Parser，均精确返回相同 `NestingLimitExceeded { limit: 1024 }`。矩阵锁定
+  1,024 单位实现预算映射到不同调用路径后的源码边界，不把内部预算误作统一源码层数；本轮
+  未发现生产缺陷；
 - `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
