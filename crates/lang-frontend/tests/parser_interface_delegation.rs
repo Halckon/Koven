@@ -1,19 +1,23 @@
-//! SPEC-0064 窄化接口委托的 Phase 1 AST、恢复与拒绝边界测试。
+//! SPEC-0064 / SPEC-0126 窄化接口委托的 Phase 1 AST、恢复与拒绝边界测试。
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::{LexemeKind, TokenKind, lex},
-    parser::{ClassifierDeclaration, Item, NameMarker, ParsedDeclaration, parse_declaration},
+    lexer::{LexemeKind, TokenKind},
+    parser::{ClassifierDeclaration, Item, NameMarker, ParsedDeclaration},
     source::{SourceMap, Span},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{lex_and_parse_declaration_twice, parse_declaration_twice};
 
 fn declaration(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("delegation.ko", text)
         .expect("unique source");
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
@@ -156,13 +160,12 @@ fn by_remains_an_identifier_outside_the_supertype_context() {
     let text = "val by = 1";
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("identifier.ko", text).expect("source");
-    let lexed = lex(&sources, source_id).expect("lex");
+    let (lexed, parsed) = lex_and_parse_declaration_twice(&sources, source_id, text);
     assert!(lexed.lexemes().iter().any(|lexeme| {
         matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier))
             && sources
                 .slice(lexeme.span())
                 .is_ok_and(|slice| slice == "by")
     }));
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
     assert!(parsed.diagnostics().is_empty());
 }

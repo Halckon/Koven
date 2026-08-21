@@ -39,8 +39,18 @@ pub(crate) fn parse_declaration_twice(
     source_id: SourceId,
     context: &str,
 ) -> ParsedDeclaration {
+    lex_and_parse_declaration_twice(sources, source_id, context).1
+}
+
+pub(crate) fn lex_and_parse_declaration_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    context: &str,
+) -> (LexedFile, ParsedDeclaration) {
     let (source_len, lexed) = parser_source_twice(sources, source_id, context);
-    parse_declaration_from_lexed_twice(sources, source_id, source_len, &lexed, context)
+    let parsed =
+        parse_declaration_from_lexed_twice(sources, source_id, source_len, &lexed, context);
+    (lexed, parsed)
 }
 
 pub(crate) fn parse_block_twice(

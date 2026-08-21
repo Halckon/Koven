@@ -392,6 +392,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   identity 与完整 guide 示例断言；declaration、完整文件与 expression 的全部源码路径均执行两次
   Lexer 与两次对应 Parser，并逐次验证相同公开产物不变量。该 suite 无预期内部错误路径，测试
   文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
+- `parser_interface_delegation` 的 5 个核心 integration test 保持混合 supertype 顺序、委托 clause /
+  target Span、L0077 / L0078、owner boundary、Phase 2 延迟检查与 `by` identifier 词法断言；全部
+  源码路径均执行两次 Lexer 与两次 declaration Parser，并逐次验证相同公开产物不变量。typed
+  helper 可同时返回首个已验证 LexedFile 与 declaration 产物，供词法见证继续检查；该 suite 无
+  预期内部错误路径，测试文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
