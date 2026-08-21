@@ -1,4 +1,4 @@
-//! SPEC-0150 的 Lexer 大输入、深模式与大诊断流公开产物压力矩阵。
+//! SPEC-0150 / SPEC-0160 的 Lexer 大输入、深模式与大诊断流公开产物压力矩阵。
 
 use lang_frontend::lexer::{
     IntegerLiteralSuffix, InvalidKind, LexedFile, LexemeKind, Symbol, TokenKind, TriviaKind,
@@ -35,6 +35,25 @@ fn assert_single_lexeme(source: &str, expected: LexemeKind, name: &str) {
         ),
         (0, source.len()),
         "{name}"
+    );
+}
+
+fn assert_lexeme(lexed: &LexedFile, index: usize, kind: LexemeKind, start: usize, end: usize) {
+    let lexeme = &lexed.lexemes()[index];
+    assert_eq!(lexeme.kind(), kind);
+    assert_eq!((lexeme.span().start(), lexeme.span().end()), (start, end));
+}
+
+fn assert_single_diagnostic(lexed: &LexedFile, code: &str, start: usize, end: usize) {
+    assert_eq!(lexed.diagnostics().len(), 1);
+    let diagnostic = &lexed.diagnostics()[0];
+    assert_eq!(diagnostic.code().to_string(), code);
+    assert_eq!(
+        (
+            diagnostic.primary_span().start(),
+            diagnostic.primary_span().end()
+        ),
+        (start, end)
     );
 }
 
@@ -99,6 +118,147 @@ fn long_maximal_runs_preserve_exact_lexeme_segmentation() {
         ),
         (1, 1 + string_text.len())
     );
+}
+
+#[test]
+fn long_invalid_lexemes_preserve_exact_recovery_segmentation() {
+    let long_text = "a".repeat(LONG_RUN);
+
+    let unterminated_comment = format!("/*{long_text}");
+    let lexed = lex_stress("long-unterminated-comment.ko", &unterminated_comment);
+    assert_eq!(lexed.lexemes().len(), 2);
+    assert_lexeme(
+        &lexed,
+        0,
+        LexemeKind::Invalid(InvalidKind::UnterminatedBlockComment),
+        0,
+        unterminated_comment.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0003", 0, unterminated_comment.len());
+
+    let unterminated_string = format!("\"{long_text}");
+    let lexed = lex_stress("long-unterminated-string.ko", &unterminated_string);
+    assert_eq!(lexed.lexemes().len(), 3);
+    assert_lexeme(&lexed, 0, LexemeKind::Token(TokenKind::StringStart), 0, 1);
+    assert_lexeme(
+        &lexed,
+        1,
+        LexemeKind::Token(TokenKind::StringText),
+        1,
+        unterminated_string.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0004", 0, unterminated_string.len());
+
+    let unterminated_interpolation = format!("\"${{{long_text}");
+    let lexed = lex_stress(
+        "long-unterminated-interpolation.ko",
+        &unterminated_interpolation,
+    );
+    assert_eq!(lexed.lexemes().len(), 4);
+    assert_lexeme(&lexed, 0, LexemeKind::Token(TokenKind::StringStart), 0, 1);
+    assert_lexeme(
+        &lexed,
+        1,
+        LexemeKind::Token(TokenKind::InterpolationStart),
+        1,
+        3,
+    );
+    assert_lexeme(
+        &lexed,
+        2,
+        LexemeKind::Token(TokenKind::Identifier),
+        3,
+        unterminated_interpolation.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0005", 1, unterminated_interpolation.len());
+
+    let terminal_escape = format!("\"{long_text}\\");
+    let terminal_escape_start = terminal_escape.len() - 1;
+    let lexed = lex_stress("long-terminal-escape.ko", &terminal_escape);
+    assert_eq!(lexed.lexemes().len(), 4);
+    assert_lexeme(&lexed, 0, LexemeKind::Token(TokenKind::StringStart), 0, 1);
+    assert_lexeme(
+        &lexed,
+        1,
+        LexemeKind::Token(TokenKind::StringText),
+        1,
+        terminal_escape_start,
+    );
+    assert_lexeme(
+        &lexed,
+        2,
+        LexemeKind::Invalid(InvalidKind::InvalidStringEscape),
+        terminal_escape_start,
+        terminal_escape.len(),
+    );
+    assert_single_diagnostic(
+        &lexed,
+        "L0006",
+        terminal_escape_start,
+        terminal_escape.len(),
+    );
+
+    let long_suffix = "b".repeat(LONG_RUN);
+    let interior_escape = format!("\"{long_text}\\q{long_suffix}\"");
+    let interior_escape_start = 1 + long_text.len();
+    let interior_escape_end = interior_escape_start + 2;
+    let suffix_end = interior_escape_end + long_suffix.len();
+    let lexed = lex_stress("long-interior-escape.ko", &interior_escape);
+    assert_eq!(lexed.lexemes().len(), 6);
+    assert_lexeme(&lexed, 0, LexemeKind::Token(TokenKind::StringStart), 0, 1);
+    assert_lexeme(
+        &lexed,
+        1,
+        LexemeKind::Token(TokenKind::StringText),
+        1,
+        interior_escape_start,
+    );
+    assert_lexeme(
+        &lexed,
+        2,
+        LexemeKind::Invalid(InvalidKind::InvalidStringEscape),
+        interior_escape_start,
+        interior_escape_end,
+    );
+    assert_lexeme(
+        &lexed,
+        3,
+        LexemeKind::Token(TokenKind::StringText),
+        interior_escape_end,
+        suffix_end,
+    );
+    assert_lexeme(
+        &lexed,
+        4,
+        LexemeKind::Token(TokenKind::StringEnd),
+        suffix_end,
+        interior_escape.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0006", interior_escape_start, interior_escape_end);
+
+    let invalid_char = format!("'{long_text}'");
+    let lexed = lex_stress("long-invalid-char.ko", &invalid_char);
+    assert_eq!(lexed.lexemes().len(), 2);
+    assert_lexeme(
+        &lexed,
+        0,
+        LexemeKind::Invalid(InvalidKind::InvalidCharLiteral),
+        0,
+        invalid_char.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0007", 0, invalid_char.len());
+
+    let invalid_number = format!("{}e3", "1".repeat(LONG_RUN));
+    let lexed = lex_stress("long-invalid-number.ko", &invalid_number);
+    assert_eq!(lexed.lexemes().len(), 2);
+    assert_lexeme(
+        &lexed,
+        0,
+        LexemeKind::Invalid(InvalidKind::InvalidNumericLiteral),
+        0,
+        invalid_number.len(),
+    );
+    assert_single_diagnostic(&lexed, "L0008", 0, invalid_number.len());
 }
 
 #[test]
