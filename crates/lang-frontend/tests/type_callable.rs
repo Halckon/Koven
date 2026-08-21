@@ -2,15 +2,19 @@
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::lex,
     name_resolution::{NameEnvironment, resolve_names},
-    parser::{Expression, ParsedFile, parse_file},
+    parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
         BuiltinType, CallableTarget, EnvironmentFunction, EnvironmentParameter, ExpressionCategory,
         ParameterMode, TypeEnvironment, TypeKind, check_types,
     },
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -34,8 +38,7 @@ const BUILTINS: [BuiltinType; 16] = [
 fn parsed(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("callable.ko", text).expect("source");
-    let lexed = lex(&sources, source).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source, "callable type source");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",

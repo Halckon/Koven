@@ -602,6 +602,10 @@ fixture，包含名义类型、interface 实现、override、委托、`when`/sma
 Parser，共验证 98 个 Lexer 和 98 个 Parser 产物的 source identity、lexeme 连续覆盖、唯一 EOF、
 AST / diagnostic Span、file roots、directive Span 与完整公开产物确定性；既有领域断言继续消费
 首个已验证产物，本轮未发现生产缺陷。
+`tests/type_callable.rs` 的 6 个 integration test 各执行一条独立源码，并统一经相同 typed file
+helper 进入名称解析与 callable 类型检查；每条源码执行两次 Lexer 与两次完整文件 Parser，共
+验证 12 个 Lexer 和 12 个 Parser 产物的相同公开不变量。callable target、实参映射、参数 mode、
+place / temporary、overload、deferred 与 L0119–L0124 领域断言保持不变，本轮未发现生产缺陷。
 
 ## TextMate grammar
 
