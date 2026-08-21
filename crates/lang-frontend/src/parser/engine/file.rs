@@ -317,6 +317,11 @@ impl Parser<'_> {
                     self.span(start, end.max(current.span().end()))?
                 } else if matches!(current.kind(), LexemeKind::Eof) {
                     self.empty_at(current.span().start())?
+                } else if matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart)) {
+                    // String 是多 lexeme 的单一词法 owner；从 opener 整体恢复，避免 tail
+                    // recovery 在 owner 中途遇到 StringEnd 并误判为损坏的 lexeme stream。
+                    let end = self.recover_declaration_region(DeclarationStops::EMPTY)?;
+                    self.span(current.span().start(), end.max(current.span().end()))?
                 } else {
                     self.bump()?.span()
                 };

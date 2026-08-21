@@ -237,7 +237,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   不获得分号分隔语义；
   Lexer 在 EOF 以终止性 char/comment 根因抑制外层 string/interpolation 级联诊断时，恢复索引
   按 inner-to-outer 顺序补齐剩余 lexical owner；原 Lexer 诊断保持不变，合法 Lexer 产物不再
-  被误判为 `InvalidLexemeStream`；
+  被误判为 `InvalidLexemeStream`；独立声明入口遇到完整 string 作为非法声明起点时，同样从
+  `StringStart` 整体消费该多 lexeme owner，形成覆盖完整 string 的单一 L0017 / Error Item，
+  不让 tail recovery 从 owner 中途开始；
   后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   Parser 自身仍不做名称 / 类型 / 所有权检查，CLI / LSP 接线仍属后续 Phase。
 
@@ -370,6 +372,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
   54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
   `L0012` 断言锁定第二个不结合运算符的精确 byte span，且不复制生产 binding-power 数值；
+- `parser_token_inventory` integration test 自检 120 个互异片段，覆盖全部 42 个 Keyword、
+  11 个 ReservedWord、43 个 Symbol、literal/string/interpolation、四类 trivia 与 L0001–L0008；
+  四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，锁定 lexeme 完整覆盖、公开
+  AST/诊断确定性和无普通用户输入内部错误，并精确回归独立声明完整 string 的 L0017/Span；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
