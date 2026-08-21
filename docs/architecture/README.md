@@ -362,6 +362,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   比较公开稳定 `Debug` 骨架以锁定 root typed ID、AST table 插入顺序与 source span、诊断的
   重复运行确定性，且不引入随机、IO 或第三方 property-testing 依赖；payload 边仍由精确
   领域测试验收；
+- `parser_operator_matrix` integration test 经生产 Lexer 与公开 expression 入口执行 240 个
+  固定 case：110 个表达式右操作数中缀层双向组合、36 个 postfix/prefix/cast 高层组合、
+  54 个结合性组合和 40 个不结合组成员组合；结构断言锁定低优先级根与高优先级子树，
+  `L0012` 断言锁定第二个不结合运算符的精确 byte span，且不复制生产 binding-power 数值；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
