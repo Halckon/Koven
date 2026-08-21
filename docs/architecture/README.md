@@ -606,6 +606,10 @@ AST / diagnostic Span、file roots、directive Span 与完整公开产物确定�
 helper 进入名称解析与 callable 类型检查；每条源码执行两次 Lexer 与两次完整文件 Parser，共
 验证 12 个 Lexer 和 12 个 Parser 产物的相同公开不变量。callable target、实参映射、参数 mode、
 place / temporary、overload、deferred 与 L0119–L0124 领域断言保持不变，本轮未发现生产缺陷。
+`tests/type_containers.rs` 的 6 个 integration test 同样各执行一条独立源码，并统一经 typed file
+helper 进入名称解析与顺序容器类型检查；共验证 12 个 Lexer 和 12 个完整文件 Parser 产物的相同
+公开不变量。`Array` / `List` / `MutableList`、构造推导、元素可存储性、element place、intrinsic
+identity、deferred 与 L0091、L0094、L0122、L0125–L0130 断言保持不变，本轮未发现生产缺陷。
 
 ## TextMate grammar
 

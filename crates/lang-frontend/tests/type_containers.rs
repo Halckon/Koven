@@ -2,9 +2,8 @@
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    lexer::lex,
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    parser::{Expression, ParsedFile, parse_file},
+    parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
@@ -12,6 +11,11 @@ use lang_frontend::{
         TypedFile, check_types,
     },
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -35,8 +39,7 @@ const BUILTINS: [BuiltinType; 16] = [
 fn parsed(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("containers.ko", text).expect("source");
-    let lexed = lex(&sources, source).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source, "sequential container type source");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
