@@ -597,7 +597,11 @@ lexeme 连续覆盖、唯一 EOF、AST / diagnostic Span、file roots、directiv
 `tests/type_checking.rs` 枚举 `type-pass` / `type-fail` fixture，经相同前置流水线调用类型检查，
 并精确核对 L0082–L0130 的 code / byte Span；当前 `type-pass` 与 `type-fail` 各有六个真实
 fixture，包含名义类型、interface 实现、override、委托、`when`/smart-cast、`Copyable`/
-结构化解构、callable 和顺序容器正反例。
+结构化解构、callable 和顺序容器正反例。其 29 个 integration test 实际执行的 49 条源码路径
+统一经 typed file helper 进入名称解析与类型检查，每条源码执行两次 Lexer 与两次完整文件
+Parser，共验证 98 个 Lexer 和 98 个 Parser 产物的 source identity、lexeme 连续覆盖、唯一 EOF、
+AST / diagnostic Span、file roots、directive Span 与完整公开产物确定性；既有领域断言继续消费
+首个已验证产物，本轮未发现生产缺陷。
 
 ## TextMate grammar
 

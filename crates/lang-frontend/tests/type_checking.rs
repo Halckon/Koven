@@ -2,9 +2,8 @@
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    lexer::lex,
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    parser::{ParsedFile, parse_file},
+    parser::ParsedFile,
     source::SourceMap,
     type_checking::{
         BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
@@ -12,6 +11,11 @@ use lang_frontend::{
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -35,8 +39,7 @@ const BUILTINS: [BuiltinType; 16] = [
 fn parse(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("types.ko", text).expect("source");
-    let lexed = lex(&sources, source).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
+    let parsed = parse_file_twice(&sources, source, "type checking source");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
