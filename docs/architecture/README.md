@@ -530,6 +530,14 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   block local element 与 file variable root 均各自保留 4,096 项；全部产物保持连续覆盖、唯一
   EOF、source-local AST / diagnostic Span、有效 typed root 与完整公开产物确定性，本轮未发现
   生产缺陷；
+- `parser_standalone_poison_stress_matrix` integration test 将 `#`、`async`、`'ab'`、`1e3`
+  四类 standalone poison 分别以 4,096 项平坦流投放到 expression、declaration、block 与 file
+  四个公开入口，共执行 16 个大源码、两次 Lexer 与两次对应 Parser，验证 32 个 Lexer 和 32 个
+  Parser 产物。每个源码精确保留 4,096 条同类且 primary Span 严格递增的 L0001 / L0002 /
+  L0007 / L0008，以及 4,096 个 byte-accurate `Expression::Error`；合计验证 65,536 条诊断和
+  65,536 个 Error 节点，无 Parser 级联。call argument、block local element 与 file variable root
+  均保持 4,096 项，全部产物保持连续覆盖、唯一 EOF、source-local AST / diagnostic Span、有效
+  typed root 与完整公开产物确定性，本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 18 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
