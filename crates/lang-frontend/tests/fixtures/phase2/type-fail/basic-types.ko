@@ -1,0 +1,7 @@
+fun invalid(): Unit {
+    val missing = null
+    val mismatch: String = 1
+    val operand = false + 1
+}
+
+fun missing(): Int {}

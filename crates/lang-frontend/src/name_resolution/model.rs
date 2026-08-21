@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     diagnostic::Diagnostic,
@@ -78,11 +78,23 @@ pub(crate) enum ExternalBinding {
 }
 
 /// 显式传给名称解析器的不可变预声明集合。
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameEnvironment {
+    owner: Arc<()>,
     symbols: Vec<ExternalSymbol>,
     types: BTreeMap<String, ExternalBinding>,
     values: BTreeMap<String, ExternalBinding>,
+}
+
+impl Default for NameEnvironment {
+    fn default() -> Self {
+        Self {
+            owner: Arc::new(()),
+            symbols: Vec::new(),
+            types: BTreeMap::new(),
+            values: BTreeMap::new(),
+        }
+    }
 }
 
 /// 外部环境声明冲突。
@@ -135,6 +147,16 @@ impl NameEnvironment {
     #[must_use]
     pub fn symbols(&self) -> &[ExternalSymbol] {
         &self.symbols
+    }
+
+    /// 按环境内身份读取外部 symbol。
+    #[must_use]
+    pub fn symbol(&self, id: ExternalSymbolId) -> Option<&ExternalSymbol> {
+        self.symbols.get(id.index())
+    }
+
+    pub(crate) fn owner(&self) -> Arc<()> {
+        Arc::clone(&self.owner)
     }
 
     fn declare(
@@ -407,6 +429,7 @@ impl NameReference {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameResolution {
     source_id: SourceId,
+    environment_owner: Arc<()>,
     scopes: Vec<Scope>,
     symbols: Vec<Symbol>,
     references: Vec<NameReference>,
@@ -415,6 +438,7 @@ pub struct NameResolution {
 impl NameResolution {
     pub(crate) fn new(
         source_id: SourceId,
+        environment_owner: Arc<()>,
         scopes: Vec<Scope>,
         symbols: Vec<Symbol>,
         references: Vec<NameReference>,
@@ -422,6 +446,7 @@ impl NameResolution {
     ) -> Self {
         Self {
             source_id,
+            environment_owner,
             scopes,
             symbols,
             references,
@@ -452,5 +477,9 @@ impl NameResolution {
     #[must_use]
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
+    }
+
+    pub(crate) fn environment_owner(&self) -> &Arc<()> {
+        &self.environment_owner
     }
 }

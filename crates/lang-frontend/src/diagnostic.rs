@@ -92,6 +92,15 @@ pub mod codes {
     pub(crate) const DUPLICATE_NAME: &str = "L0079";
     pub(crate) const UNRESOLVED_NAME: &str = "L0080";
     pub(crate) const NAME_USED_BEFORE_LOCAL: &str = "L0081";
+    pub(crate) const BUILTIN_TYPE_ARGUMENTS: &str = "L0082";
+    pub(crate) const CANNOT_INFER_TYPE: &str = "L0083";
+    pub(crate) const TYPE_MISMATCH: &str = "L0084";
+    pub(crate) const INVALID_OPERAND_TYPES: &str = "L0085";
+    pub(crate) const RETURN_OUTSIDE_CALLABLE: &str = "L0086";
+    pub(crate) const RETURN_SHAPE_MISMATCH: &str = "L0087";
+    pub(crate) const MISSING_RETURN: &str = "L0088";
+    pub(crate) const NO_COMMON_BRANCH_TYPE: &str = "L0089";
+    pub(crate) const NUMERIC_LITERAL_OUT_OF_RANGE: &str = "L0090";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -176,6 +185,15 @@ pub mod codes {
         DUPLICATE_NAME,
         UNRESOLVED_NAME,
         NAME_USED_BEFORE_LOCAL,
+        BUILTIN_TYPE_ARGUMENTS,
+        CANNOT_INFER_TYPE,
+        TYPE_MISMATCH,
+        INVALID_OPERAND_TYPES,
+        RETURN_OUTSIDE_CALLABLE,
+        RETURN_SHAPE_MISMATCH,
+        MISSING_RETURN,
+        NO_COMMON_BRANCH_TYPE,
+        NUMERIC_LITERAL_OUT_OF_RANGE,
     ];
 
     /// 由集中定义创建生产错误码目录。

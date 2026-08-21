@@ -151,7 +151,7 @@ fun main(): Unit {
       [`01-design-decisions.md`](./01-design-decisions.md) 第 21 节建立单文件双命名空间、
       确定性 `ScopeId` / `SymbolId`、函数 overload set、顺序 local 可见性、显式
       `NameEnvironment` 与 L0079–L0081；不展开 package/import，不选择 member 或 overload。
-- [ ] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
+- [x] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
       字面量定型、局部推导、单向 expected type、隐式 `Unit` / 显式返回类型、`Nothing`
       bottom 与 L0082–L0090。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余

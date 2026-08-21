@@ -1,0 +1,8 @@
+fun choose(flag: Boolean): Int = if (flag) { 1 } else { 2 }
+
+fun values(): Unit {
+    val count = 1
+    val ratio = 1f
+    val optional: String? = null
+    val fallback = optional ?: "none"
+}

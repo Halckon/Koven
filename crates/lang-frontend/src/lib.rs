@@ -17,3 +17,6 @@ pub mod parser;
 
 /// 源码身份、字节范围与展示位置。
 pub mod source;
+
+/// v0.22 基础类型检查、局部推导与 typed 产物。
+pub mod type_checking;

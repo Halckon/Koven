@@ -3,8 +3,8 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.22 文档集定义。class-family 与
-窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，类型
-检查尚未开始。
+窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
+SPEC-0019 已建立基础类型检查。
 
 ## 当前状态
 
@@ -15,7 +15,7 @@
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0081` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0090` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -30,10 +30,14 @@
 - `lang_frontend::name_resolution` 已提供显式 `NameEnvironment`、单文件类型 / 值双命名
   空间、稳定 `ScopeId` / `SymbolId`、有序 overload set、顺序 local 可见性、名称引用产物与
   L0079–L0081；它不读取文件系统、不展开 package/import，也不执行类型或 member 选择；
+- `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
+  `TypeId` / typed 产物、builtin / nullable / function TypeRef、数值定型、局部单向 expected
+  type、lambda / 基础运算符 / 返回流检查与 L0082–L0090；后续责任使用逐类
+  `DeferredReason` 保留，不把尚未实现的 nominal、泛型、member 或 overload 伪装为成功；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
-  parser-file pass / fail fixture harness，以及 Phase 2 名称解析 pass / fail fixture；
-- 尚无类型检查、所有权检查或 codegen 实现；
+  parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础类型检查 pass / fail fixture；
+- 尚无完整 nominal / 泛型类型检查、所有权检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -334,7 +338,9 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
 独立声明、独立 block、lambda expression、具名函数隐式 `Unit` 与完整文件 Parser。这些
 suite 不表示类型检查或编译，harness 也不调用 renderer 或固定公共机器诊断协议。
 `tests/name_resolution.rs` 另行枚举非零 Phase 2 `name-pass` / `name-fail` fixture，真实调用
-Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L0081 的 code / byte Span。
+Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L0081 的 code / byte Span；
+`tests/type_checking.rs` 枚举 `type-pass` / `type-fail` fixture，经相同前置流水线调用类型检查，
+并精确核对 L0082–L0090 的 code / byte Span。
 
 ## 尚未实现的编译流水线
 
@@ -348,8 +354,9 @@ Lexer、完整文件 Parser 与名称解析入口，并精确核对 L0079–L008
 其中 `lang-frontend` 不依赖 LLVM / `inkwell`，LLVM 细节后续只能收敛在 codegen 边界。
 索引式 AST 存储、结构化诊断基础设施、Lexer、独立表达式 / 声明 / block / lambda Parser、
 callable 参数与 typed call argument、局部解构、完整文件与 package / import Parser、
-control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析及
-分层 fixture harness 已存在。类型检查仍未实现；`lang-std` 的 bootstrap 流程与
+control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析、
+基础类型检查及分层 fixture harness 已存在。nominal / 泛型与后续类型规则仍未实现；
+`lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 
 ## 更新要求

@@ -1,0 +1,38 @@
+//! v0.22 基础类型检查、局部推导与返回契约。
+
+mod checker;
+mod error;
+mod model;
+
+use std::{sync::Arc, thread};
+
+use crate::{name_resolution::NameResolution, parser::ParsedFile, source::SourceMap};
+
+pub use error::TypeCheckingError;
+pub use model::*;
+
+/// 对已完成名称解析的单文件执行 SPEC-0019 基础类型检查。
+pub fn check_types(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    environment: &TypeEnvironment,
+) -> Result<TypedFile, TypeCheckingError> {
+    if parsed.source_id() != names.source_id() {
+        return Err(TypeCheckingError::MismatchedNameSource);
+    }
+    if !Arc::ptr_eq(names.environment_owner(), environment.owner()) {
+        return Err(TypeCheckingError::MismatchedNameEnvironment);
+    }
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("koven-type-checker".to_owned())
+            .stack_size(32 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                checker::check(sources, parsed, names, environment)
+            })
+            .map_err(|error| TypeCheckingError::CheckerThread(error.kind()))?
+            .join()
+            .map_err(|_| TypeCheckingError::CheckerThreadPanicked)?
+    })
+}

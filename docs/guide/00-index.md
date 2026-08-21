@@ -126,7 +126,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0016 | control-flow（`if`/`when`/循环/jump/`super`） | `04-grammar-declarations-blocks.md` §12 | ✅ 已实现 |
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | `04-grammar-declarations-blocks.md` §13 | ✅ 已实现 |
 | SPEC-0018 | 单文件声明收集、作用域与名称诊断 | `01-design-decisions.md` §21 | ✅ 已实现 |
-| SPEC-0019 | 基础类型、局部推导与函数返回检查 | `01-design-decisions.md` §22 | ✅ 已批准；下一项实施 Goal |
+| SPEC-0019 | 基础类型、局部推导与函数返回检查 | `01-design-decisions.md` §22 | ✅ 已完成 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -153,7 +153,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0066–L0077 | 已实现的 SPEC-0017 class-family 头、字段、成员、enum 与修饰符诊断 | `04-grammar-declarations-blocks.md` §13 |
 | L0078 | 已实现的 SPEC-0064 expected delegation target | `04-grammar-declarations-blocks.md` §13.3–13.4 |
 | L0079–L0081 | 已实现的 duplicate / unresolved / use-before-local 名称诊断 | `01-design-decisions.md` §21.3 |
-| L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；已分配，等待 SPEC-0019 实现 | `01-design-decisions.md` §22.5 |
+| L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；SPEC-0019 已实现 | `01-design-decisions.md` §22.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

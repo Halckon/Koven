@@ -115,6 +115,14 @@ macro_rules! define_typed_table {
             }
         }
 
+        impl $id {
+            /// 返回所属 AST table 中的稳定下标。
+            #[must_use]
+            pub const fn index(self) -> usize {
+                self.0
+            }
+        }
+
         #[doc = concat!("按插入顺序拥有", $category_name, "节点的 typed table。")]
         #[derive(Debug)]
         pub struct $table<T> {

@@ -94,7 +94,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
 | [0018](./0018-single-file-name-resolution.md) | 完成单文件声明收集、作用域和名称诊断（`done`） | 0014 `done`；v0.21 已生效；当前持续 Goal 的站立授权 |
-| [0019](./0019-basic-type-checking.md) | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing`（`approved`） | 0018、0066 `done`；v0.22 已生效 |
+| [0019](./0019-basic-type-checking.md) | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing`（`done`） | 0018、0066 `done`；v0.22 已生效 |
 | 0020 | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托 | 0019、0017、0064 |
 | 0021 | 实现 `when` 穷尽性与 smart cast | 0020、0016 |
 | 0022 | 推导条件 `Copyable` 并检查结构化解构类型 | 0019、0020 |
