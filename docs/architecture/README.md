@@ -434,6 +434,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   `LexicalRecoveryIndex` 重复拒绝 12 次，并由 expression、declaration、block、file 四个 engine
   入口重复拒绝 48 次，全部精确返回 `InvalidLexemeStream`。这把流结构与 lexical-owner 语义
   两层内部防线的负向证据分离，本轮未发现生产缺陷；
+- test-only recovery diagnostic corpus 还从四份独立双 Lexer 产物保留原始 L0004 / L0005 / L0006
+  与精确 Span，同时移除对应 StringStart、InterpolationStart 或成对 string owner token。四类产物
+  均保持 source identity、连续 Span、唯一 EOF 并通过通用 Lexeme 结构校验；
+  `LexicalRecoveryIndex` 重复拒绝 8 次，expression、declaration、block、file 四个 engine 入口
+  重复拒绝 32 次，全部精确返回 `InvalidLexemeStream`。这为 diagnostic 与 token owner 的生产关联
+  增加独立负向证据，本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；

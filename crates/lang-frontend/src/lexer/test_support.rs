@@ -73,6 +73,15 @@ fn copy_lexed(lexed: &LexedFile) -> LexedFile {
     }
 }
 
+fn replace_first_token_kind(lexed: &mut LexedFile, expected: TokenKind, replacement: TokenKind) {
+    let lexeme = lexed
+        .lexemes
+        .iter_mut()
+        .find(|lexeme| lexeme.kind == LexemeKind::Token(expected))
+        .unwrap_or_else(|| panic!("test Lexer product must contain {expected:?}"));
+    lexeme.kind = LexemeKind::Token(replacement);
+}
+
 /// 从正常 Lexer 产物派生 Parser 必须拒绝的 test-only 结构破坏。
 pub(crate) fn malformed_test_lexed_files(
     sources: &SourceMap,
@@ -183,6 +192,82 @@ pub(crate) fn malformed_lexical_owner_test_files(
         "InterpolationStart closed as StringEnd",
         interpolation_closed_as_string,
     ));
+
+    cases
+}
+
+/// 保留生产诊断，同时移除其 lexical owner token 的 test-only 产物。
+pub(crate) fn mismatched_recovery_diagnostic_test_files(
+    sources: &mut SourceMap,
+) -> Vec<(&'static str, &'static str, LexedFile)> {
+    let mut derive = |name, text, context| {
+        let source_id = sources
+            .add_source(name, text)
+            .unwrap_or_else(|error| panic!("mismatch source setup failed for {context}: {error}"));
+        copy_lexed(&lex_test_source_twice(sources, source_id, context))
+    };
+    let mut cases = Vec::with_capacity(4);
+
+    let mut unterminated_string = derive(
+        "mismatch-unterminated-string.ko",
+        "\"abc",
+        "unterminated string diagnostic mismatch",
+    );
+    replace_first_token_kind(
+        &mut unterminated_string,
+        TokenKind::StringStart,
+        TokenKind::Identifier,
+    );
+    cases.push((
+        "unterminated string without opener",
+        "L0004",
+        unterminated_string,
+    ));
+
+    let mut unterminated_interpolation = derive(
+        "mismatch-unterminated-interpolation.ko",
+        "\"${a",
+        "unterminated interpolation diagnostic mismatch",
+    );
+    replace_first_token_kind(
+        &mut unterminated_interpolation,
+        TokenKind::InterpolationStart,
+        TokenKind::Identifier,
+    );
+    cases.push((
+        "unterminated interpolation without opener",
+        "L0005",
+        unterminated_interpolation,
+    ));
+
+    let mut invalid_escape = derive(
+        "mismatch-invalid-escape.ko",
+        r#""a\q""#,
+        "invalid escape diagnostic mismatch",
+    );
+    replace_first_token_kind(
+        &mut invalid_escape,
+        TokenKind::StringStart,
+        TokenKind::Identifier,
+    );
+    replace_first_token_kind(
+        &mut invalid_escape,
+        TokenKind::StringEnd,
+        TokenKind::Identifier,
+    );
+    cases.push(("invalid escape outside string", "L0006", invalid_escape));
+
+    let mut terminal_escape = derive(
+        "mismatch-terminal-escape.ko",
+        "\"abc\\",
+        "terminal escape diagnostic mismatch",
+    );
+    replace_first_token_kind(
+        &mut terminal_escape,
+        TokenKind::StringStart,
+        TokenKind::Identifier,
+    );
+    cases.push(("terminal escape outside string", "L0006", terminal_escape));
 
     cases
 }

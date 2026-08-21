@@ -14,6 +14,7 @@ use crate::{
 #[cfg(test)]
 pub(crate) use test_support::{
     lex_test_source_twice, malformed_lexical_owner_test_files, malformed_test_lexed_files,
+    mismatched_recovery_diagnostic_test_files,
 };
 
 /// 对一份已加载源码执行完整词法分析。
