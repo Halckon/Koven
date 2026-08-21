@@ -1,12 +1,17 @@
-//! SPEC-0074 的完整词法片段到四个公开 Parser 入口矩阵契约。
+//! SPEC-0074 的词法片段库存与 SPEC-0094 的四入口产物不变量。
 
 use std::collections::BTreeSet;
 
 use lang_frontend::{
     lexer::{LexedFile, LexemeKind, TokenKind, TriviaKind, lex},
     parser::{Item, parse_block, parse_declaration, parse_expression, parse_file},
-    source::{SourceId, SourceMap},
+    source::{SourceId, SourceMap, Span},
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
 
 const KEYWORDS: &[&str] = &[
     "class",
@@ -93,25 +98,6 @@ fn lex_case(text: &str) -> (SourceId, LexedFile) {
     (source_id, lexed)
 }
 
-fn assert_lexeme_coverage(source_id: SourceId, source_len: usize, lexed: &LexedFile) {
-    let mut next_offset = 0;
-    let mut eof_count = 0;
-    for lexeme in lexed.lexemes() {
-        let span = lexeme.span();
-        assert_eq!(span.source_id(), source_id);
-        assert_eq!(span.start(), next_offset);
-        if lexeme.kind() == LexemeKind::Eof {
-            eof_count += 1;
-            assert_eq!((span.start(), span.end()), (source_len, source_len));
-        } else {
-            assert!(span.end() > span.start());
-            next_offset = span.end();
-        }
-    }
-    assert_eq!(next_offset, source_len);
-    assert_eq!(eof_count, 1);
-}
-
 fn first_non_eof_kind(lexed: &LexedFile) -> LexemeKind {
     lexed
         .lexemes()
@@ -171,7 +157,7 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
     let mut diagnostic_codes = BTreeSet::new();
     for text in &inventory {
         let (source_id, lexed) = lex_case(text);
-        assert_lexeme_coverage(source_id, text.len(), &lexed);
+        validate_lexed(source_id, text.len(), &lexed);
         diagnostic_codes.extend(
             lexed
                 .diagnostics()
@@ -219,31 +205,14 @@ fn standalone_declaration_recovers_a_complete_string_as_one_user_error_region() 
     assert_eq!(root.payload(), &Item::Error);
 }
 
-type ParseEntry = fn(&SourceMap, &LexedFile) -> Result<String, String>;
 type WrapFragment = fn(&str) -> String;
 
-fn expression_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_expression(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
-}
-
-fn declaration_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_declaration(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
-}
-
-fn block_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_block(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
-}
-
-fn file_fingerprint(sources: &SourceMap, lexed: &LexedFile) -> Result<String, String> {
-    parse_file(sources, lexed)
-        .map(|parsed| format!("{parsed:?}"))
-        .map_err(|error| error.to_string())
+#[derive(Clone, Copy)]
+enum EntryKind {
+    Expression,
+    Declaration,
+    Block,
+    File,
 }
 
 fn direct(fragment: &str) -> String {
@@ -258,52 +227,135 @@ fn in_file(fragment: &str) -> String {
     format!("{fragment}\nval after = 1")
 }
 
+fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
+    assert_eq!(span.source_id(), source_id);
+    assert!(span.start() <= span.end());
+    assert!(span.end() <= source_len);
+}
+
+fn parse_twice(
+    entry_name: &str,
+    kind: EntryKind,
+    fragment: &str,
+    sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &LexedFile,
+) {
+    macro_rules! validate_common {
+        ($parsed:expr) => {{
+            assert_eq!($parsed.source_id(), source_id);
+            validate_ast(source_id, source_len, $parsed.ast());
+            validate_diagnostics(source_id, source_len, $parsed.diagnostics());
+        }};
+    }
+    macro_rules! parse_entry {
+        ($parse:ident, $table:ident) => {{
+            let first = $parse(sources, lexed).unwrap_or_else(|error| {
+                panic!("{entry_name} fragment {fragment:?} failed internally: {error}")
+            });
+            let repeated = $parse(sources, lexed).unwrap_or_else(|error| {
+                panic!("repeated {entry_name} fragment {fragment:?} failed internally: {error}")
+            });
+            for parsed in [&first, &repeated] {
+                validate_common!(parsed);
+                parsed
+                    .ast()
+                    .$table()
+                    .get(parsed.root())
+                    .unwrap_or_else(|error| {
+                        panic!("invalid {entry_name} root for {fragment:?}: {error}")
+                    });
+            }
+            assert_eq!(
+                format!("{first:?}"),
+                format!("{repeated:?}"),
+                "non-deterministic {entry_name} fragment {fragment:?}"
+            );
+        }};
+    }
+
+    match kind {
+        EntryKind::Expression => parse_entry!(parse_expression, expressions),
+        EntryKind::Declaration => parse_entry!(parse_declaration, items),
+        EntryKind::Block => parse_entry!(parse_block, statements),
+        EntryKind::File => {
+            let first = parse_file(sources, lexed).unwrap_or_else(|error| {
+                panic!("file fragment {fragment:?} failed internally: {error}")
+            });
+            let repeated = parse_file(sources, lexed).unwrap_or_else(|error| {
+                panic!("repeated file fragment {fragment:?} failed internally: {error}")
+            });
+            for parsed in [&first, &repeated] {
+                validate_common!(parsed);
+                for root in parsed.roots() {
+                    parsed.ast().items().get(*root).unwrap_or_else(|error| {
+                        panic!("invalid file root for {fragment:?}: {error}")
+                    });
+                }
+                if let Some(package) = parsed.package() {
+                    validate_span(source_id, source_len, package.span);
+                    validate_span(source_id, source_len, package.keyword_span);
+                    for segment in &package.segments {
+                        validate_span(source_id, source_len, segment.span);
+                    }
+                }
+                for import in parsed.imports() {
+                    validate_span(source_id, source_len, import.span);
+                    validate_span(source_id, source_len, import.keyword_span);
+                    for segment in &import.segments {
+                        validate_span(source_id, source_len, segment.span);
+                    }
+                    if let Some(span) = import.wildcard_span {
+                        validate_span(source_id, source_len, span);
+                    }
+                    if let Some(alias) = &import.alias {
+                        validate_span(source_id, source_len, alias.as_span);
+                        validate_span(source_id, source_len, alias.name_span);
+                    }
+                }
+            }
+            assert_eq!(
+                format!("{first:?}"),
+                format!("{repeated:?}"),
+                "non-deterministic file fragment {fragment:?}"
+            );
+        }
+    }
+}
+
 #[test]
-fn every_lexical_fragment_is_total_and_deterministic_in_every_public_parser_entry() {
+fn every_lexical_fragment_preserves_output_invariants_in_every_public_parser_entry() {
     let entries = [
-        (
-            "expression",
-            direct as WrapFragment,
-            expression_fingerprint as ParseEntry,
-        ),
+        ("expression", direct as WrapFragment, EntryKind::Expression),
         (
             "declaration",
             direct as WrapFragment,
-            declaration_fingerprint as ParseEntry,
+            EntryKind::Declaration,
         ),
-        (
-            "block",
-            in_block as WrapFragment,
-            block_fingerprint as ParseEntry,
-        ),
-        (
-            "file",
-            in_file as WrapFragment,
-            file_fingerprint as ParseEntry,
-        ),
+        ("block", in_block as WrapFragment, EntryKind::Block),
+        ("file", in_file as WrapFragment, EntryKind::File),
     ];
     let inventory = inventory();
     let mut executed = 0;
 
     for fragment in inventory {
-        for (entry_name, wrap, parse) in entries {
+        for (entry_name, wrap, kind) in entries {
             let text = wrap(fragment);
             let mut sources = SourceMap::new();
             let source_id = sources
                 .add_source("parser-token-entry.ko", &text)
                 .expect("matrix source name must be unique");
             let lexed = lex(&sources, source_id).expect("matrix source must lex internally");
-            assert_lexeme_coverage(source_id, text.len(), &lexed);
-
-            let first = parse(&sources, &lexed).unwrap_or_else(|error| {
-                panic!("{entry_name} fragment {fragment:?} failed internally: {error}")
-            });
-            let repeated = parse(&sources, &lexed).unwrap_or_else(|error| {
-                panic!("repeated {entry_name} fragment {fragment:?} failed internally: {error}")
-            });
-            assert_eq!(
-                first, repeated,
-                "non-deterministic {entry_name} fragment {fragment:?}"
+            validate_lexed(source_id, text.len(), &lexed);
+            parse_twice(
+                entry_name,
+                kind,
+                fragment,
+                &sources,
+                source_id,
+                text.len(),
+                &lexed,
             );
             executed += 1;
         }

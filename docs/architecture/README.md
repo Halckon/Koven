@@ -383,8 +383,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   `L0012` 断言锁定第二个不结合运算符的精确 byte span，且不复制生产 binding-power 数值；
 - `parser_token_inventory` integration test 自检 120 个互异片段，覆盖全部 42 个 Keyword、
   11 个 ReservedWord、43 个 Symbol、literal/string/interpolation、四类 trivia 与 L0001–L0008；
-  四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，锁定 lexeme 完整覆盖、公开
-  AST/诊断确定性和无普通用户输入内部错误，并精确回归独立声明完整 string 的 L0017/Span；
+  四个公开 Parser 入口共执行 480 个 entry/case、960 次重复解析，显式锁定 lexeme 完整覆盖、
+  唯一 EOF、source-local 有界 AST / 诊断、三类 typed root、完整文件所有 roots 和 package /
+  import directive Span，以及公开产物确定性；矩阵无普通用户输入内部错误，并精确回归独立
+  声明完整 string 的 L0017 / Span；
 - `parser_lexical_owner_matrix` integration test 把 4 个可继续 owner 与 5 个 EOF terminal owner
   分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
   重复完整文件解析；逐例锁定连续 lexeme 覆盖、唯一 EOF、词法错误码、公开产物确定性，并
