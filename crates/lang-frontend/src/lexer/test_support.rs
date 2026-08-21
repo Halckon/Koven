@@ -64,3 +64,77 @@ pub(crate) fn lex_test_source_twice(
     assert_eq!(first.diagnostics, repeated.diagnostics, "{context}");
     first
 }
+
+fn copy_lexed(lexed: &LexedFile) -> LexedFile {
+    LexedFile {
+        source_id: lexed.source_id,
+        lexemes: lexed.lexemes.clone(),
+        diagnostics: lexed.diagnostics.clone(),
+    }
+}
+
+/// 从正常 Lexer 产物派生 Parser 必须拒绝的 test-only 结构破坏。
+pub(crate) fn malformed_test_lexed_files(
+    sources: &SourceMap,
+    source_id: SourceId,
+    foreign_span: Span,
+) -> Vec<(&'static str, LexedFile, bool)> {
+    let valid = lex_test_source_twice(sources, source_id, "malformed lexeme corpus base");
+    assert!(valid.lexemes.len() >= 4);
+    assert!(!matches!(valid.lexemes[0].kind, LexemeKind::Eof));
+    assert!(matches!(valid.lexemes.last(), Some(lexeme) if lexeme.kind == LexemeKind::Eof));
+
+    let span = |start, end| {
+        sources
+            .span(source_id, start, end)
+            .expect("malformed corpus span must be source-local")
+    };
+    let mut cases = Vec::with_capacity(8);
+
+    let mut empty = copy_lexed(&valid);
+    empty.lexemes.clear();
+    cases.push(("empty stream", empty, false));
+
+    let mut missing_eof = copy_lexed(&valid);
+    missing_eof.lexemes.pop();
+    cases.push(("missing EOF", missing_eof, false));
+
+    let mut eof_before_tokens = copy_lexed(&valid);
+    let eof = eof_before_tokens
+        .lexemes
+        .pop()
+        .expect("valid stream must end in EOF");
+    eof_before_tokens.lexemes.insert(0, eof);
+    cases.push(("EOF before tokens", eof_before_tokens, false));
+
+    let mut duplicate_eof = copy_lexed(&valid);
+    let eof = *duplicate_eof
+        .lexemes
+        .last()
+        .expect("valid stream must end in EOF");
+    let final_index = duplicate_eof.lexemes.len() - 1;
+    duplicate_eof.lexemes.insert(final_index, eof);
+    cases.push(("duplicate EOF", duplicate_eof, false));
+
+    let mut empty_non_eof = copy_lexed(&valid);
+    empty_non_eof.lexemes[0].span = span(0, 0);
+    cases.push(("empty non-EOF", empty_non_eof, false));
+
+    let mut discontinuous = copy_lexed(&valid);
+    discontinuous.lexemes[1].span = span(2, 3);
+    cases.push(("discontinuous span", discontinuous, false));
+
+    let mut early_eof = copy_lexed(&valid);
+    early_eof
+        .lexemes
+        .last_mut()
+        .expect("valid stream must end in EOF")
+        .span = span(2, 2);
+    cases.push(("early EOF", early_eof, false));
+
+    let mut foreign = copy_lexed(&valid);
+    foreign.lexemes[0].span = foreign_span;
+    cases.push(("foreign span", foreign, true));
+
+    cases
+}

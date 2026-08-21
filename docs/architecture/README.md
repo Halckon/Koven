@@ -421,6 +421,13 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   9 条 prefix / assignment / elvis / group / generic / function / declaration / block / lambda 递归
   形状均精确返回 limit 1024；失败路径由宽泛单次 variant 匹配收紧为精确双运行确定性，本轮
   未发现生产缺陷；
+- Parser 私有测试可在 `cfg(test)` 内从源码 `a b` 的双 Lexer 正常产物派生 empty stream、missing
+  EOF、EOF before tokens、duplicate EOF、empty non-EOF、discontinuous span、early EOF 与
+  foreign span 八类非法 `LexedFile`，而生产 API 仍不公开其构造器或字段。expression、declaration、
+  block、file 四个 engine 入口对每类重复拒绝，共验证 64 个精确错误；strict-call 与
+  lambda-header 预索引器另验证 32 个精确 `InvalidLexemeStream`。engine 对七类本地结构错误返回
+  `InvalidLexemeStream`，对 foreign span 保留统一 `SourceMap::slice` 的准确 `InvalidSourceId`；
+  本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；

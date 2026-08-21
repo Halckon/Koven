@@ -1,5 +1,75 @@
 use super::*;
-use crate::{lexer::lex_test_source_twice, source::SourceMap};
+use crate::{
+    lexer::{lex_test_source_twice, malformed_test_lexed_files},
+    source::{SourceError, SourceMap},
+};
+
+fn assert_internal_error_twice<T>(
+    expected: &ParserInternalError,
+    consumer: &str,
+    case: &str,
+    mut operation: impl FnMut() -> Result<T, ParserInternalError>,
+) {
+    let first = operation()
+        .err()
+        .unwrap_or_else(|| panic!("first {consumer} unexpectedly accepted {case}"));
+    let repeated = operation()
+        .err()
+        .unwrap_or_else(|| panic!("repeated {consumer} unexpectedly accepted {case}"));
+    assert_eq!(&first, expected, "first {consumer} error for {case}");
+    assert_eq!(&repeated, expected, "repeated {consumer} error for {case}");
+    assert_eq!(
+        first, repeated,
+        "non-deterministic {consumer} error for {case}"
+    );
+}
+
+#[test]
+fn every_parser_consumer_rejects_malformed_lexeme_streams_deterministically() {
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source("malformed-stream.ko", "a b")
+        .expect("test source name must be unique");
+    let mut foreign_sources = SourceMap::new();
+    let foreign_id = foreign_sources
+        .add_source("foreign-span.ko", "x")
+        .expect("test source name must be unique");
+    let foreign_span = foreign_sources
+        .span(foreign_id, 0, 1)
+        .expect("foreign test span must be valid in its owner map");
+    let cases = malformed_test_lexed_files(&sources, source_id, foreign_span);
+    assert_eq!(cases.len(), 8);
+
+    for (case, lexed, has_foreign_span) in cases {
+        let engine_error = if has_foreign_span {
+            ParserInternalError::Source(SourceError::InvalidSourceId {
+                source_id: foreign_id,
+            })
+        } else {
+            ParserInternalError::InvalidLexemeStream
+        };
+        assert_internal_error_twice(&engine_error, "expression parser", case, || {
+            parse(&sources, &lexed)
+        });
+        assert_internal_error_twice(&engine_error, "declaration parser", case, || {
+            parse_declaration(&sources, &lexed)
+        });
+        assert_internal_error_twice(&engine_error, "block parser", case, || {
+            parse_block(&sources, &lexed)
+        });
+        assert_internal_error_twice(&engine_error, "file parser", case, || {
+            parse_file(&sources, &lexed)
+        });
+
+        let shape_error = ParserInternalError::InvalidLexemeStream;
+        assert_internal_error_twice(&shape_error, "strict-call index", case, || {
+            StrictCallTrialIndex::new(&lexed)
+        });
+        assert_internal_error_twice(&shape_error, "lambda-header index", case, || {
+            LambdaHeaderIndex::new(&lexed, &[])
+        });
+    }
+}
 
 #[test]
 fn lexical_recovery_indexes_only_strings_that_own_invalid_escapes() {

@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[cfg(test)]
-pub(crate) use test_support::lex_test_source_twice;
+pub(crate) use test_support::{lex_test_source_twice, malformed_test_lexed_files};
 
 /// 对一份已加载源码执行完整词法分析。
 ///
