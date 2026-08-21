@@ -1,4 +1,4 @@
-//! SPEC-0092 的独立 Parser 入口结构性换行 carrier 边界矩阵。
+//! SPEC-0092 / SPEC-0100 的独立入口换行边界与公开产物不变量。
 
 use std::mem::{Discriminant, discriminant};
 
@@ -13,11 +13,13 @@ use lang_frontend::{
 
 #[path = "support/frontend_output_assertions.rs"]
 mod frontend_output_assertions;
+#[path = "support/parser_line_break_carriers.rs"]
+mod parser_line_break_carriers;
 
 use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
-
-const STRUCTURAL_BREAKS: &[&str] = &["\n", "\r\n", "//c\n", "//c\r\n", "/*c\nc*/", "/*c\r\nc*/"];
-const NON_BREAK_TRIVIA: &[&str] = &[" ", "\t", "/*c*/", "/*c\rc*/"];
+use parser_line_break_carriers::{
+    Carrier, NON_BREAK_TRIVIA, STRUCTURAL_BREAKS, validate_carrier_lexemes,
+};
 
 #[derive(Clone, Copy, Debug)]
 enum EntryKind {
@@ -164,7 +166,13 @@ fn syntax_shape(ast: &SyntaxAst, root: usize) -> SyntaxShape {
     }
 }
 
-fn parse_twice(kind: EntryKind, source: &str, context: &str) -> ParseFingerprint {
+fn parse_twice(
+    kind: EntryKind,
+    source: &str,
+    carrier_start: usize,
+    carrier: Carrier,
+    context: &str,
+) -> ParseFingerprint {
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("parser-entry-line-break-matrix.ko", source)
@@ -176,6 +184,7 @@ fn parse_twice(kind: EntryKind, source: &str, context: &str) -> ParseFingerprint
         lexed.diagnostics()
     );
     validate_lexed(source_id, source.len(), &lexed);
+    validate_carrier_lexemes(&sources, &lexed, carrier_start, carrier, context);
     let significant_kinds = lexed
         .lexemes()
         .iter()
@@ -191,14 +200,21 @@ fn parse_twice(kind: EntryKind, source: &str, context: &str) -> ParseFingerprint
                 .unwrap_or_else(|error| panic!("first parse failed for {context}: {error}"));
             let repeated = $parse(&sources, &lexed)
                 .unwrap_or_else(|error| panic!("repeated parse failed for {context}: {error}"));
-            assert_eq!(first.source_id(), source_id);
-            validate_ast(source_id, source.len(), first.ast());
-            validate_diagnostics(source_id, source.len(), first.diagnostics());
-            first
-                .ast()
-                .$table()
-                .get(first.root())
-                .unwrap_or_else(|error| panic!("root failed for {context}: {error}"));
+            for parsed in [&first, &repeated] {
+                assert_eq!(parsed.source_id(), source_id);
+                validate_ast(source_id, source.len(), parsed.ast());
+                validate_diagnostics(source_id, source.len(), parsed.diagnostics());
+                parsed
+                    .ast()
+                    .$table()
+                    .get(parsed.root())
+                    .unwrap_or_else(|error| panic!("root failed for {context}: {error}"));
+            }
+            assert_eq!(
+                syntax_shape(first.ast(), first.root().index()),
+                syntax_shape(repeated.ast(), repeated.root().index()),
+                "non-deterministic syntax shape for {context}"
+            );
             assert_eq!(
                 format!("{first:?}"),
                 format!("{repeated:?}"),
@@ -240,22 +256,24 @@ fn line_break_carriers_form_the_expected_boundary_for_each_entry() {
     assert!(
         STRUCTURAL_BREAKS
             .iter()
-            .all(|carrier| carrier.contains('\n'))
+            .all(|carrier| carrier.text.contains('\n'))
     );
     assert!(
         NON_BREAK_TRIVIA
             .iter()
-            .all(|carrier| !carrier.contains('\n'))
+            .all(|carrier| !carrier.text.contains('\n'))
     );
 
     let mut executed = 0;
     for case in BOUNDARY_CASES {
         let mut structural_baseline = None;
         for carrier in STRUCTURAL_BREAKS {
-            let context = format!("{} structural {carrier:?}", case.name);
+            let context = format!("{} structural {:?}", case.name, carrier.text);
             let parsed = parse_twice(
                 case.kind,
-                &source(case.prefix, carrier, case.suffix),
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
                 &context,
             );
             assert!(
@@ -273,10 +291,12 @@ fn line_break_carriers_form_the_expected_boundary_for_each_entry() {
 
         let mut non_break_baseline = None;
         for carrier in NON_BREAK_TRIVIA {
-            let context = format!("{} non-break {carrier:?}", case.name);
+            let context = format!("{} non-break {:?}", case.name, carrier.text);
             let parsed = parse_twice(
                 case.kind,
-                &source(case.prefix, carrier, case.suffix),
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
                 &context,
             );
             assert_eq!(
@@ -327,10 +347,12 @@ fn newline_does_not_replace_required_tokens_or_split_infix_expressions() {
     for case in INVARIANT_CASES {
         let mut baseline = None;
         for carrier in carriers.clone() {
-            let context = format!("{} with {carrier:?}", case.name);
+            let context = format!("{} with {:?}", case.name, carrier.text);
             let parsed = parse_twice(
                 case.kind,
-                &source(case.prefix, carrier, case.suffix),
+                &source(case.prefix, carrier.text, case.suffix),
+                case.prefix.len(),
+                *carrier,
                 &context,
             );
             assert_eq!(
