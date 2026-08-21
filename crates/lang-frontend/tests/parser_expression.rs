@@ -1,4 +1,4 @@
-//! SPEC-0007 的公开表达式 Parser 契约测试。
+//! SPEC-0007 / SPEC-0117 的公开表达式 Parser 契约测试。
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -11,6 +11,11 @@ use lang_frontend::{
     },
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_expression_twice;
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources
@@ -32,8 +37,7 @@ fn diagnostic_fingerprint(diagnostic: &Diagnostic) -> (String, Severity, &str, u
 fn parse_fingerprints(text: &str) -> Vec<(String, Severity, String, usize, usize)> {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "case.ko", text);
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     parsed
         .diagnostics()
         .iter()
@@ -47,8 +51,7 @@ fn parse_fingerprints(text: &str) -> Vec<(String, Severity, String, usize, usize
 fn assert_parses(text: &str) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "pass.ko", text);
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     assert!(
         parsed.diagnostics().is_empty(),
         "{text:?} produced diagnostics: {:?}",
@@ -66,8 +69,7 @@ fn assert_parses(text: &str) {
 fn parsed_case(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "ast.ko", text);
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     assert!(
         parsed.diagnostics().is_empty(),
         "{text:?}: {:?}",
@@ -371,8 +373,7 @@ fn typed_call_trial_is_deterministic_across_source_loading_order() {
             add_source(&mut sources, "noise.ko", "noise");
         }
         let source_id = add_source(&mut sources, "typed.ko", text);
-        let lexed = lex(&sources, source_id).expect("lex");
-        let parsed = parse_expression(&sources, &lexed).expect("parse");
+        let parsed = parse_expression_twice(&sources, source_id, text);
         (
             parsed.ast().expressions().len(),
             parsed.ast().type_refs().len(),
@@ -456,8 +457,7 @@ fn string_group_prefix_cast_assignment_and_error_payloads_are_observable() {
 
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, "error.ko", "");
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, id, "empty error expression");
     assert!(matches!(
         expression(&parsed, parsed.root()),
         Expression::Error
@@ -709,8 +709,7 @@ fn every_closed_operator_variant_and_remaining_payload_shape_is_constructed() {
 
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, "bad-type.ko", "x as 4");
-    let lexed = lex(&sources, id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, id, "bad cast type");
     let Expression::Cast { type_ref, .. } = expression(&parsed, parsed.root()) else {
         panic!("cast")
     };
@@ -988,9 +987,7 @@ fn call_argument_recovery_respects_strings_nested_delimiters_and_eof() {
     for malformed in ["f(name =", "f(borrow", "!+1(name ="] {
         let mut sources = SourceMap::new();
         let source_id = add_source(&mut sources, "argument-eof.ko", malformed);
-        let lexed = lex(&sources, source_id).expect("test source must lex");
-        let parsed = parse_expression(&sources, &lexed)
-            .unwrap_or_else(|error| panic!("{malformed:?} returned {error:?}"));
+        let parsed = parse_expression_twice(&sources, source_id, malformed);
         assert!(
             parsed
                 .diagnostics()
@@ -1157,8 +1154,7 @@ fn lexer_poison_is_not_duplicated_and_independent_parser_errors_survive() {
 fn closing_delimiter_diagnostic_carries_the_opening_label() {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "closer.ko", "(a");
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, "missing closer");
     let diagnostic = parsed
         .diagnostics()
         .iter()
@@ -1199,8 +1195,7 @@ fn diagnostics_are_deterministic_across_source_loading_order_and_repeated_runs()
     let mut sources = SourceMap::new();
     let _noise = add_source(&mut sources, "noise.ko", "noise");
     let source_id = add_source(&mut sources, "case.ko", text);
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, "diagnostics after noise source");
     let after_noise = parsed
         .diagnostics()
         .iter()
@@ -1267,8 +1262,7 @@ fn interpolation_trailing_input_keeps_the_string_and_does_not_invent_a_closer_er
 fn parsed_case_with_diagnostics(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "red-team.ko", text);
-    let lexed = lex(&sources, source_id).expect("test source must lex");
-    let parsed = parse_expression(&sources, &lexed).expect("test source identity must parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
