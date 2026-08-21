@@ -431,6 +431,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   各执行两次 Lexer 与两次完整文件 Parser，共验证 650 个 Lexer 和 650 个 Parser 产物；逐次
   锁定 lexeme 完整字节覆盖、唯一末尾 EOF、source identity、diagnostic primary / label、四张
   AST table、typed roots 与 package / import 子 Span，并比较完整公开 `Debug` 产物以证明确定性；
+- `lexer` 的 19 个核心 integration test 保持 hard / soft / reserved word、ASCII identifier、trivia、
+  comment、numeric、char / string / interpolation、fixed symbol、unsupported operator、`&` / `&&`、
+  L0001–L0008、恢复形状、diagnostic 顺序、UTF-8 对抗 corpus、EOF / byte coverage 与 source-load
+  order 断言；全部正常 source 均执行两次 Lexer，并逐次验证 source identity、完整字节覆盖、唯一
+  EOF、diagnostic Span 与完整公开产物确定性。仅 foreign `SourceId` 内部错误直接调用 Lexer 并
+  继续精确返回 `InvalidSourceId`；本轮未发现生产缺陷；
 - `lexer_boundary_matrix` integration test 经生产 Lexer 执行 2,127 个固定源码：330 个硬/
   未来保留/软词 ASCII identifier 边界类别、1,596 个普通固定符号相邻 spelling、199 个 `as?` /
   `!in` / `!is` continuation 与终止边界，以及 2 个注释优先级 case。每个源码执行两次 Lexer，

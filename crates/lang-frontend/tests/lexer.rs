@@ -1,4 +1,4 @@
-//! SPEC-0006 的公开 Lexer 基线与 SPEC-0012 的 `&` 词法增量测试。
+//! SPEC-0006 / SPEC-0012 / SPEC-0129 的公开 Lexer 与重复产物契约测试。
 
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
@@ -9,6 +9,14 @@ use lang_frontend::{
     source::{SourceError, SourceId, SourceMap},
 };
 
+#[path = "support/lexer_matrix_assertions.rs"]
+mod lexer_matrix_assertions;
+#[path = "support/lexer_output_assertions.rs"]
+mod lexer_output_assertions;
+
+use lexer_matrix_assertions::lex_loaded_source_twice;
+use lexer_output_assertions::validate_lexed;
+
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources
         .add_source(name, text)
@@ -16,7 +24,17 @@ fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
 }
 
 fn lex_source(sources: &SourceMap, source_id: SourceId) -> LexedFile {
-    lex(sources, source_id).expect("valid source identity must reach the lexer")
+    let source_len = sources
+        .source_text(source_id)
+        .expect("valid source identity must resolve")
+        .len();
+    lex_loaded_source_twice(
+        sources,
+        source_id,
+        source_len,
+        "Lexer core source",
+        validate_lexed,
+    )
 }
 
 fn lexeme_text<'a>(sources: &'a SourceMap, lexeme: &Lexeme) -> &'a str {
