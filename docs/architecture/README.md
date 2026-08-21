@@ -428,6 +428,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   两种 poison，共执行 504 个 mutation、1,008 次生产解析。code-mode 精确锁定唯一 L0001 /
   L0002 及 Span，string-mode 保持 Lexer / Parser 零诊断；完整文件矩阵的 418 / 409 / 9 计数
   同时保持不变，本矩阵未发现生产缺陷；
+- `parser_entry_adjacent_token_transposition_matrix` 复用同一 12-case corpus，在 240 个 token 内枚举
+  expression / declaration / block 的 62 / 100 / 66 个相邻 pair，共执行 228 个 mutation、456 次
+  生产解析；201 个不涉及 lexical-mode segment 的 pair 精确锁定交换后 right / left 的原 `TokenKind` 与 byte
+  Span，27 个 string owner pair 锁定 Scanner / Parser 总性，全部保持 source-local AST / 诊断、
+  typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
