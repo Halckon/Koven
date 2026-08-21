@@ -438,6 +438,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   comment 与混合 trivia，并覆盖每例全 gap 投放；共执行 753 个 mutation，全部保持 baseline 的
   significant `LexemeKind` 序列、无 Span AST 结构指纹和两阶段零诊断，同时重复解析锁定公开产物
   确定性；本矩阵未发现生产缺陷；
+- `parser_entry_line_break_boundary_matrix` 将 LF、CRLF、line comment 终止换行及 block comment
+  内换行六种结构载体，与四种无 LF trivia 投放到 expression `when` entry、declaration class
+  member 和 block 裸 `return` 边界；反向锁定 expression / block 中缀连续与 enum comma 必需。
+  共执行 60 个 Lexer-clean 源码、120 次确定性独立入口解析，并验证 source-local AST / 诊断、
+  typed root 与相关结构指纹；本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
