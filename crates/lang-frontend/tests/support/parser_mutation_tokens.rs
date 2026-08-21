@@ -1,7 +1,7 @@
-//! Parser source-mutation matrices shared token-owner classification.
+//! Parser source-mutation matrices shared token-slot enumeration.
 
 use lang_frontend::{
-    lexer::{LexedFile, LexemeKind, Symbol, TokenKind},
+    lexer::{LexedFile, LexemeKind, TokenKind},
     source::Span,
 };
 
@@ -25,24 +25,4 @@ pub(crate) fn original_token_slots(lexed: &LexedFile, original_end: usize) -> Ve
             })
         })
         .collect()
-}
-
-pub(crate) fn token_affects_owner(kind: TokenKind) -> bool {
-    matches!(
-        kind,
-        TokenKind::StringStart
-            | TokenKind::StringEnd
-            | TokenKind::InterpolationStart
-            | TokenKind::InterpolationEnd
-            | TokenKind::Symbol(
-                Symbol::LeftParen
-                    | Symbol::RightParen
-                    | Symbol::LeftBracket
-                    | Symbol::RightBracket
-                    | Symbol::LeftBrace
-                    | Symbol::RightBrace
-                    | Symbol::Less
-                    | Symbol::Greater
-            )
-    )
 }

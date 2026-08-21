@@ -11,13 +11,16 @@ mod frontend_matrix_assertions;
 mod parser_grammar_corpus;
 #[path = "support/parser_mutation_assertions.rs"]
 mod parser_mutation_assertions;
+#[path = "support/parser_mutation_owners.rs"]
+mod parser_mutation_owners;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
 use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
 use parser_mutation_assertions::assert_last_root_source;
-use parser_mutation_tokens::{MutationSlot, original_token_slots, token_affects_owner};
+use parser_mutation_owners::token_affects_owner;
+use parser_mutation_tokens::{MutationSlot, original_token_slots};
 
 const SENTINEL: &str = "val sentinel = 0";
 

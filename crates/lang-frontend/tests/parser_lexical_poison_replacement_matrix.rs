@@ -9,37 +9,23 @@ use lang_frontend::{
 mod frontend_matrix_assertions;
 #[path = "support/parser_grammar_corpus.rs"]
 mod parser_grammar_corpus;
+#[path = "support/parser_lexical_poisons.rs"]
+mod parser_lexical_poisons;
 #[path = "support/parser_mutation_assertions.rs"]
 mod parser_mutation_assertions;
+#[path = "support/parser_mutation_owners.rs"]
+mod parser_mutation_owners;
 #[path = "support/parser_mutation_tokens.rs"]
 mod parser_mutation_tokens;
 
 use frontend_matrix_assertions::{parse_file_twice, validate_lexed};
 use parser_grammar_corpus::GRAMMAR_CASES;
+use parser_lexical_poisons::LEXICAL_POISONS;
 use parser_mutation_assertions::assert_last_root_source;
-use parser_mutation_tokens::{MutationSlot, original_token_slots, token_affects_owner};
+use parser_mutation_owners::token_affects_owner;
+use parser_mutation_tokens::{MutationSlot, original_token_slots};
 
 const SENTINEL: &str = "val sentinel = 0";
-
-#[derive(Clone, Copy)]
-struct Poison {
-    name: &'static str,
-    text: &'static str,
-    code: &'static str,
-}
-
-const POISONS: &[Poison] = &[
-    Poison {
-        name: "invalid character",
-        text: "#",
-        code: "L0001",
-    },
-    Poison {
-        name: "future reserved word",
-        text: "async",
-        code: "L0002",
-    },
-];
 
 fn token_is_lexical_mode_segment(kind: TokenKind) -> bool {
     matches!(
@@ -89,7 +75,7 @@ fn replace_with_poison(source: &str, span: Span, poison: &str) -> String {
 #[test]
 fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable() {
     assert_eq!(GRAMMAR_CASES.len(), 22);
-    assert_eq!(POISONS.len(), 2);
+    assert_eq!(LEXICAL_POISONS.len(), 2);
 
     let mut executed = 0;
     let mut owner_mutations = 0;
@@ -102,7 +88,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_and_recoverable()
         assert!(!slots.is_empty(), "empty mutation slots for {}", case.name);
 
         for slot in slots {
-            for poison in POISONS {
+            for poison in LEXICAL_POISONS {
                 let context = format!(
                     "{} replace {:?} at {}..{} with {}",
                     case.name,

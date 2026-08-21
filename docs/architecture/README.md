@@ -418,6 +418,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   原 token 与 duplicate 的相同 `TokenKind` 和精确 byte Span，96 个 owner-affecting 变体锁定
   总性，300 个非 owner 变体还要求后置 sentinel 存活。全部变体重复完整文件解析并保持公开
   AST / 诊断确定一致；本矩阵未发现生产缺陷；
+- `parser_lexical_poison_insertion_matrix` integration test 复用同一 corpus 的源码起点与 396 个
+  token 末尾，共枚举 418 个 gap，并分别插入 `#` / `async` 生成 836 个变体；409 个 code-mode
+  gap 的 818 个变体在插入 Span 精确产生 L0001 / L0002，9 个 string-mode gap 的 18 个变体
+  保持 Lexer / Parser 零诊断。原语法 token 与 owner 全部保留，因此所有变体均要求后置
+  sentinel 存活，并重复完整文件解析以锁定总性和确定性；本矩阵未发现生产缺陷；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 
