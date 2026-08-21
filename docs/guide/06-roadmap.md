@@ -164,7 +164,8 @@ fun main(): Unit {
       [`01-design-decisions.md`](./01-design-decisions.md) §25 推导条件 `Copyable`，拒绝无限
       内联布局与非法 intrinsic `Box` 实参，并为局部 value-class 解构产出有序的
       Copy/Consume typed descriptor；L0115–L0118 已实施。
-- [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
+- [x] **SPEC-0067（前置已完成；v0.25 callable 契约已生效）**：为具名与预声明 callable
+      建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
       独占访问或是否与其他借用冲突

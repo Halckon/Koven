@@ -202,19 +202,7 @@ impl Checker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                self.check_expression(callee, None, None)?;
-                for type_argument in type_arguments {
-                    self.resolve_type_ref(type_argument)?;
-                }
-                for argument in arguments {
-                    self.check_expression(argument.value, None, None)?;
-                }
-                ExprCheck {
-                    ty: self.deferred(DeferredReason::Call),
-                    falls_through: true,
-                }
-            }
+            } => self.check_call(id, span, callee, type_arguments, arguments)?,
             Expression::Index { receiver, index } => {
                 self.check_expression(receiver, None, None)?;
                 self.check_expression(index, None, None)?;
@@ -247,6 +235,8 @@ impl Checker<'_> {
             self.mismatch(span, expected_span, result.ty, expected)?;
             result.ty = self.error_type();
         }
+        let category = self.classify_expression_category(id, result.ty);
+        self.set_expression_category(id, category);
         self.set_expression(id, result.ty);
         Ok(result)
     }

@@ -129,6 +129,12 @@ pub mod codes {
     pub(crate) const INFINITE_INLINE_LAYOUT: &str = "L0116";
     pub(crate) const INVALID_BOX_ARGUMENT: &str = "L0117";
     pub(crate) const DESTRUCTURING_ARITY: &str = "L0118";
+    pub(crate) const NON_CALLABLE_TARGET: &str = "L0119";
+    pub(crate) const INVALID_NAMED_ARGUMENT: &str = "L0120";
+    pub(crate) const CALL_ARGUMENT_ARITY: &str = "L0121";
+    pub(crate) const CALL_ARGUMENT_MODE: &str = "L0122";
+    pub(crate) const NO_MATCHING_OVERLOAD: &str = "L0123";
+    pub(crate) const AMBIGUOUS_CALL: &str = "L0124";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -250,6 +256,12 @@ pub mod codes {
         INFINITE_INLINE_LAYOUT,
         INVALID_BOX_ARGUMENT,
         DESTRUCTURING_ARITY,
+        NON_CALLABLE_TARGET,
+        INVALID_NAMED_ARGUMENT,
+        CALL_ARGUMENT_ARITY,
+        CALL_ARGUMENT_MODE,
+        NO_MATCHING_OVERLOAD,
+        AMBIGUOUS_CALL,
     ];
 
     /// 由集中定义创建生产错误码目录。

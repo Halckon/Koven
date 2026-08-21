@@ -9,6 +9,8 @@ use crate::{
     source::SourceId,
 };
 
+use super::{CallDescriptor, ExpressionCategory};
+
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NominalId(SymbolId);
@@ -144,6 +146,7 @@ pub struct CallableDescriptor {
     pub(crate) symbol: SymbolId,
     pub(crate) owner: Option<NominalId>,
     pub(crate) type_parameters: Vec<SymbolId>,
+    pub(crate) parameter_symbols: Vec<Option<SymbolId>>,
     pub(crate) parameters: Vec<FunctionParameterType>,
     pub(crate) return_type: TypeId,
 }
@@ -207,6 +210,11 @@ impl CallableDescriptor {
     #[must_use]
     pub fn type_parameters(&self) -> &[SymbolId] {
         &self.type_parameters
+    }
+    /// 返回与参数顺序对齐的稳定名称 symbol；恢复参数为 `None`。
+    #[must_use]
+    pub fn parameter_symbols(&self) -> &[Option<SymbolId>] {
+        &self.parameter_symbols
     }
     /// 返回包含参数模式的规范化参数。
     #[must_use]
@@ -787,6 +795,8 @@ pub struct TypedFile {
     enum_cases: Vec<EnumCaseDescriptor>,
     copyabilities: Vec<Copyability>,
     destructurings: Vec<DestructuringDescriptor>,
+    expression_categories: Vec<ExpressionCategory>,
+    calls: Vec<CallDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -801,6 +811,8 @@ pub(crate) struct TypedFileParts {
     pub(crate) enum_cases: Vec<EnumCaseDescriptor>,
     pub(crate) copyabilities: Vec<Copyability>,
     pub(crate) destructurings: Vec<DestructuringDescriptor>,
+    pub(crate) expression_categories: Vec<ExpressionCategory>,
+    pub(crate) calls: Vec<CallDescriptor>,
 }
 
 impl TypedFile {
@@ -823,6 +835,8 @@ impl TypedFile {
             enum_cases: parts.enum_cases,
             copyabilities: parts.copyabilities,
             destructurings: parts.destructurings,
+            expression_categories: parts.expression_categories,
+            calls: parts.calls,
             diagnostics,
         }
     }
@@ -905,6 +919,26 @@ impl TypedFile {
         self.destructurings
             .iter()
             .find(|descriptor| descriptor.statement() == statement)
+    }
+
+    /// 查询一个表达式的 Phase 2 place/temporary 类别。
+    #[must_use]
+    pub fn expression_category(&self, expression: ExpressionId) -> Option<ExpressionCategory> {
+        self.expression_categories.get(expression.index()).copied()
+    }
+
+    /// 返回源码 call expression 顺序的成功选择描述符。
+    #[must_use]
+    pub fn calls(&self) -> &[CallDescriptor] {
+        &self.calls
+    }
+
+    /// 查询指定 call expression 的成功选择描述符。
+    #[must_use]
+    pub fn call(&self, expression: ExpressionId) -> Option<&CallDescriptor> {
+        self.calls
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
     }
 
     #[must_use]

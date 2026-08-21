@@ -1,0 +1,13 @@
+fun read(borrow input: Int): Unit {}
+
+class Sample {
+    fun convert(input: Int): Long = 1L
+}
+
+fun use(sample: Sample, callback: (Int) -> Long): Long {
+    val local = 1
+    val automatic = read(local)
+    val explicit = read(borrow 2)
+    val member = sample.convert(3)
+    return callback(4)
+}

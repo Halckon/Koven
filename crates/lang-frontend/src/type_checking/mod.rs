@@ -1,5 +1,6 @@
 //! v0.22 基础类型检查、局部推导与返回契约。
 
+mod call;
 mod checker;
 mod error;
 mod model;
@@ -8,6 +9,7 @@ use std::{sync::Arc, thread};
 
 use crate::{name_resolution::NameResolution, parser::ParsedFile, source::SourceMap};
 
+pub use call::*;
 pub use error::TypeCheckingError;
 pub use model::*;
 

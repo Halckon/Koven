@@ -35,6 +35,7 @@ impl Checker<'_> {
                     ..
                 } => {
                     let mut parameter_types = Vec::with_capacity(parameters.len());
+                    let mut parameter_symbols = Vec::with_capacity(parameters.len());
                     let mut has_error = false;
                     let mut has_deferred = false;
                     for parameter in parameters {
@@ -42,6 +43,10 @@ impl Checker<'_> {
                         has_error |= self.is_error(ty);
                         has_deferred |= self.is_deferred(ty);
                         self.set_marker_symbol(parameter.name, ty);
+                        parameter_symbols.push(match parameter.name {
+                            NameMarker::Present(span) => self.symbol_at(span),
+                            NameMarker::Missing(_) | NameMarker::Error(_) => None,
+                        });
                         parameter_types.push(FunctionParameterType {
                             mode: item_parameter_mode(parameter.mode_marker),
                             ty,
@@ -89,6 +94,7 @@ impl Checker<'_> {
                             symbol,
                             owner,
                             type_parameters,
+                            parameter_symbols,
                             parameters: function_parameters,
                             return_type,
                         });

@@ -143,6 +143,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
 | SPEC-0066 | v0.22 `L` / `u` / `f` 数值后缀 Lexer / AST 增量 | `02-lexical-spec.md` §6 | ✅ 已实现 |
+| SPEC-0067 | 单态 callable/member 选择、实参映射与 place/temporary 分类 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 
 ## 6. 错误码索引（近似区间，精确定义以对应文档正文为准）
 
@@ -169,6 +170,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 已实现 | `01-design-decisions.md` §23.5 |
 | L0106–L0114 | v0.24 的 type-test/smart-cast/when 诊断；SPEC-0021 已实现 | `01-design-decisions.md` §24.5 |
 | L0115–L0118 | v0.25 的 `Copyable` bound、内联递归、intrinsic `Box` 与结构化解构诊断；SPEC-0022 已实现 | `01-design-decisions.md` §25.5 |
+| L0119–L0124 | callable target、命名/数量/模式映射、无匹配与歧义诊断；SPEC-0067 已实现 | `05-grammar-calls-lambda.md` §9 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

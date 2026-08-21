@@ -1,0 +1,9 @@
+fun take(input: Int): Unit {}
+
+fun use(): Unit {
+    val missing = take()
+    val wrongMode = take(&1)
+    val wrongType = take(true)
+    val target = 1
+    val called = target()
+}

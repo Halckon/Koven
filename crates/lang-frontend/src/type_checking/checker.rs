@@ -1,3 +1,4 @@
+mod callable;
 mod copyability;
 mod delegation;
 mod destructuring;
@@ -25,11 +26,12 @@ use crate::{
 };
 
 use super::{
-    BuiltinType, CallableDescriptor, Capability, Copyability, DeferredReason, DelegationPlan,
-    DestructuringDescriptor, EnumCaseDescriptor, EnvironmentFunction, EnvironmentType,
-    ExternalTypeBinding, FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor,
-    NominalId, NominalKind, ParameterMode, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
-    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    BuiltinType, CallDescriptor, CallableDescriptor, Capability, Copyability, DeferredReason,
+    DelegationPlan, DestructuringDescriptor, EnumCaseDescriptor, EnvironmentFunction,
+    EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
+    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind, ParameterMode,
+    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
+    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
@@ -101,6 +103,8 @@ struct Checker<'a> {
     invalid_inline_nominals: BTreeSet<NominalId>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     destructurings: Vec<DestructuringDescriptor>,
+    expression_categories: Vec<ExpressionCategory>,
+    calls: Vec<CallDescriptor>,
     callables: Vec<CallableContext>,
     classifiers: Vec<TypeId>,
     diagnostics: Vec<Diagnostic>,
@@ -141,6 +145,12 @@ struct Checker<'a> {
     infinite_inline_layout_code: DiagnosticCode,
     invalid_box_argument_code: DiagnosticCode,
     destructuring_arity_code: DiagnosticCode,
+    non_callable_target_code: DiagnosticCode,
+    invalid_named_argument_code: DiagnosticCode,
+    call_argument_arity_code: DiagnosticCode,
+    call_argument_mode_code: DiagnosticCode,
+    no_matching_overload_code: DiagnosticCode,
+    ambiguous_call_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -231,6 +241,11 @@ impl<'a> Checker<'a> {
             invalid_inline_nominals: BTreeSet::new(),
             external_types: BTreeMap::new(),
             destructurings: Vec::new(),
+            expression_categories: vec![
+                ExpressionCategory::Temporary;
+                parsed.ast().expressions().len()
+            ],
+            calls: Vec::new(),
             callables: Vec::new(),
             classifiers: Vec::new(),
             diagnostics: Vec::new(),
@@ -274,6 +289,12 @@ impl<'a> Checker<'a> {
             infinite_inline_layout_code: catalog.resolve(codes::INFINITE_INLINE_LAYOUT)?,
             invalid_box_argument_code: catalog.resolve(codes::INVALID_BOX_ARGUMENT)?,
             destructuring_arity_code: catalog.resolve(codes::DESTRUCTURING_ARITY)?,
+            non_callable_target_code: catalog.resolve(codes::NON_CALLABLE_TARGET)?,
+            invalid_named_argument_code: catalog.resolve(codes::INVALID_NAMED_ARGUMENT)?,
+            call_argument_arity_code: catalog.resolve(codes::CALL_ARGUMENT_ARITY)?,
+            call_argument_mode_code: catalog.resolve(codes::CALL_ARGUMENT_MODE)?,
+            no_matching_overload_code: catalog.resolve(codes::NO_MATCHING_OVERLOAD)?,
+            ambiguous_call_code: catalog.resolve(codes::AMBIGUOUS_CALL)?,
         })
     }
 
@@ -329,6 +350,8 @@ impl<'a> Checker<'a> {
                 enum_cases: self.enum_cases,
                 copyabilities,
                 destructurings: self.destructurings,
+                expression_categories: self.expression_categories,
+                calls: self.calls,
             },
             diagnostics,
         ))
@@ -358,6 +381,10 @@ impl<'a> Checker<'a> {
 
     fn set_expression(&mut self, id: ExpressionId, ty: TypeId) {
         self.expression_types[id.index()] = Some(ty);
+    }
+
+    fn set_expression_category(&mut self, id: ExpressionId, category: ExpressionCategory) {
+        self.expression_categories[id.index()] = category;
     }
 
     fn set_type_ref(&mut self, id: TypeRefId, ty: TypeId) {
