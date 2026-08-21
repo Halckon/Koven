@@ -610,6 +610,10 @@ place / temporary、overload、deferred 与 L0119–L0124 领域断言保持不�
 helper 进入名称解析与顺序容器类型检查；共验证 12 个 Lexer 和 12 个完整文件 Parser 产物的相同
 公开不变量。`Array` / `List` / `MutableList`、构造推导、元素可存储性、element place、intrinsic
 identity、deferred 与 L0091、L0094、L0122、L0125–L0130 断言保持不变，本轮未发现生产缺陷。
+`tests/type_copyability.rs` 的 8 个 integration test 各执行一条独立源码，并统一经 typed file
+helper 进入名称解析与 copyability 类型检查；共验证 16 个 Lexer 和 16 个完整文件 Parser 产物的
+相同公开不变量。conditional `Copyable`、有限内联布局、intrinsic `Box`、结构化解构 copy /
+consume、source identity 与 L0091、L0115–L0118 断言保持不变，本轮未发现生产缺陷。
 
 ## TextMate grammar
 
