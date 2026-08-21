@@ -1,15 +1,16 @@
-//! SPEC-0016 control-flow、jump 与 super 的 Phase 1 契约测试。
+//! SPEC-0016 / SPEC-0123 control-flow、jump 与 super 的 Phase 1 契约测试。
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     diagnostic::Diagnostic,
-    lexer::lex,
-    parser::{
-        Expression, ForBinding, ParsedBlock, ParsedExpression, Statement, WhenCondition,
-        parse_block, parse_expression,
-    },
+    parser::{Expression, ForBinding, ParsedBlock, ParsedExpression, Statement, WhenCondition},
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::{parse_block_twice, parse_expression_twice};
 
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources
@@ -20,16 +21,14 @@ fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
 fn expression(text: &str) -> (SourceMap, ParsedExpression) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_expression(&sources, &lexed).expect("parse");
+    let parsed = parse_expression_twice(&sources, source_id, text);
     (sources, parsed)
 }
 
 fn block(text: &str) -> (SourceMap, ParsedBlock) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_block(&sources, &lexed).expect("parse");
+    let parsed = parse_block_twice(&sources, source_id, text);
     (sources, parsed)
 }
 

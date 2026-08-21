@@ -378,6 +378,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   block / lambda / declaration 上下文、精确 Span、diagnostic、owner recovery 与长列表复杂度断言；
   三种入口的全部源码路径均执行两次 Lexer 与两次对应 Parser，并逐次验证相同公开产物不变量。
   该 suite 无预期内部错误路径，测试文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
+- `parser_control_flow` 的 7 个核心 integration test 保持 value-context `if`、control body、`when`、
+  loop、jump、`super` postfix、L0055–L0065 与精确结构 / diagnostic 断言；expression 与 block 的
+  全部源码路径均执行两次 Lexer 与两次对应 Parser，并逐次验证相同公开产物不变量。该 suite
+  无预期内部错误路径，测试文件不再直接调用 Lexer / Parser；本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
