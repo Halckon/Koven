@@ -1,4 +1,4 @@
-//! SPEC-0008 的独立声明 Parser 公共契约与恢复测试。
+//! SPEC-0008 / SPEC-0118 的独立声明 Parser 公共契约与恢复测试。
 
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
@@ -11,6 +11,11 @@ use lang_frontend::{
     source::{SourceId, SourceMap, Span},
 };
 
+#[path = "support/parser_test_assertions.rs"]
+mod parser_test_assertions;
+
+use parser_test_assertions::parse_declaration_twice;
+
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources.add_source("case.ko", text).expect("unique source")
 }
@@ -18,8 +23,7 @@ fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
 fn parsed(text: &str) -> (SourceMap, ParsedDeclaration) {
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, text);
-    let lexed = lex(&sources, source_id).expect("lex");
-    let parsed = parse_declaration(&sources, &lexed).expect("parse");
+    let parsed = parse_declaration_twice(&sources, source_id, text);
     (sources, parsed)
 }
 

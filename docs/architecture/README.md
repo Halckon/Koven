@@ -357,6 +357,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   两次 Lexer 与两次 expression Parser，逐次验证 lexeme 完整覆盖、唯一 EOF、source-local AST /
   diagnostic Span、typed root 和完整公开产物确定性。仅故意混用 `SourceMap` 的 identity 错误与
   六个预期 `NestingLimitExceeded` 的资源错误 case 直接调用入口；本轮未发现生产缺陷；
+- `parser_declaration` 的 22 个核心 integration test 保持既有声明 corpus、AST payload、精确
+  Span、diagnostic、owner recovery 与递归预算断言；全部正常用户源码路径执行两次 Lexer 与
+  两次 declaration Parser，并逐次验证相同公开产物不变量。仅故意混用 `SourceMap` 的 identity
+  错误与一个预期 `NestingLimitExceeded` 的资源错误 case 直接调用入口；本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
