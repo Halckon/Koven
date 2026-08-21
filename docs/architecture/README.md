@@ -403,6 +403,9 @@ identifier 边界集中拒绝现行 42 个硬关键字与 11 个未来保留字�
 control-flow、字符串插值、跨声明恢复和保留字。`lang-frontend` 的
 `tree_sitter_grammar` integration test 再用生产 Lexer/Parser 读取同一批代表性 `.ko` fixture，
 锁定合法文件零诊断、`L0009` 空 span 恢复、关键字分类、完整有序诊断及错误后的后续根节点。
+同一测试还从 external scanner 的唯一 C 初始化表提取全部 53 个不可用 identifier 拼写，精确
+对照 42 个生产 `Keyword` 与 11 个 `ReservedWord` / `L0002` span；原生 corpus 同时证明
+`value` / `async` 被拒绝，而 `className` / `asyncTask` 仍按完整词边界成为 identifier。
 CLI 仅是该目录精确锁定的开发依赖，不进入 Cargo workspace 或编译器运行时。VS Code
 extension、语义高亮与 LSP token 仍尚未实现。
 

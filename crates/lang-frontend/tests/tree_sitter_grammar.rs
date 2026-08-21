@@ -1,4 +1,4 @@
-//! SPEC-0059 的 Tree-sitter fixture 与生产 Lexer/Parser 交叉验收。
+//! SPEC-0059 / SPEC-0070 的 Tree-sitter fixture 与生产 Lexer/Parser 交叉验收。
 
 use std::{fs, path::PathBuf};
 
@@ -14,8 +14,122 @@ fn fixture_path(name: &str) -> PathBuf {
         .join(name)
 }
 
+fn tree_sitter_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../editors/tree-sitter")
+        .join(name)
+}
+
 fn read_fixture(name: &str) -> String {
     fs::read_to_string(fixture_path(name)).expect("Tree-sitter fixture must be readable UTF-8")
+}
+
+#[test]
+fn external_scanner_word_table_matches_the_complete_production_lexer_contract() {
+    const HARD_KEYWORDS: &[&str] = &[
+        "class",
+        "companion",
+        "const",
+        "enum",
+        "extern",
+        "fun",
+        "import",
+        "interface",
+        "object",
+        "package",
+        "typealias",
+        "val",
+        "value",
+        "var",
+        "vararg",
+        "break",
+        "continue",
+        "else",
+        "for",
+        "if",
+        "in",
+        "is",
+        "loop",
+        "return",
+        "when",
+        "while",
+        "borrow",
+        "inout",
+        "move",
+        "own",
+        "unsafe",
+        "internal",
+        "private",
+        "public",
+        "as",
+        "false",
+        "null",
+        "operator",
+        "override",
+        "super",
+        "this",
+        "true",
+    ];
+    const FUTURE_RESERVED_WORDS: &[&str] = &[
+        "async", "await", "suspend", "actor", "spawn", "sealed", "dyn", "where", "yield", "macro",
+        "reify",
+    ];
+
+    assert_eq!(HARD_KEYWORDS.len(), 42);
+    assert_eq!(FUTURE_RESERVED_WORDS.len(), 11);
+    let expected = HARD_KEYWORDS
+        .iter()
+        .chain(FUTURE_RESERVED_WORDS)
+        .copied()
+        .collect::<Vec<_>>();
+
+    let scanner = fs::read_to_string(tree_sitter_path("src/scanner.c"))
+        .expect("external scanner must be readable UTF-8");
+    let table = scanner
+        .split_once("static const char *const RESERVED_WORDS[] = {")
+        .expect("external scanner word table start")
+        .1
+        .split_once("};")
+        .expect("external scanner word table end")
+        .0;
+    let actual = table.split('"').skip(1).step_by(2).collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+
+    let text = expected.join(" ");
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source("tree-sitter-word-contract.ko", text)
+        .expect("unique word-contract source");
+    let lexed = lex(&sources, source_id).expect("word contract must lex");
+    let tokens = lexed
+        .lexemes()
+        .iter()
+        .filter_map(|lexeme| match lexeme.kind() {
+            LexemeKind::Token(kind) => Some((kind, lexeme.span())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(tokens.len(), expected.len());
+    assert!(
+        tokens[..HARD_KEYWORDS.len()]
+            .iter()
+            .all(|(kind, _)| { matches!(kind, TokenKind::Keyword(_)) })
+    );
+    assert!(
+        tokens[HARD_KEYWORDS.len()..]
+            .iter()
+            .all(|(kind, _)| { matches!(kind, TokenKind::ReservedWord(_)) })
+    );
+    assert_eq!(lexed.diagnostics().len(), FUTURE_RESERVED_WORDS.len());
+    for (diagnostic, expected_word) in lexed.diagnostics().iter().zip(FUTURE_RESERVED_WORDS) {
+        assert_eq!(diagnostic.code().to_string(), "L0002");
+        assert_eq!(
+            sources
+                .slice(diagnostic.primary_span())
+                .expect("reserved-word span"),
+            *expected_word
+        );
+    }
 }
 
 #[test]
@@ -65,7 +179,7 @@ fn recovery_fixture_locks_parser_code_and_empty_span_before_later_root() {
 #[test]
 fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() {
     let text = read_fixture("reserved.ko");
-    assert!(text.ends_with("val after = 3\n"));
+    assert!(text.ends_with("val asyncTask = 4\n"));
     let mut sources = SourceMap::new();
     let source_id = sources
         .add_source("editors/tree-sitter/test/fixtures/reserved.ko", text)
@@ -98,7 +212,7 @@ fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() 
                     .span()
             )
             .expect("root span"),
-        "val after = 3"
+        "val asyncTask = 4"
     );
     assert_eq!(
         parsed

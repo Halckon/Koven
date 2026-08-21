@@ -405,7 +405,8 @@ Reserved words are not identifiers
 
 val value = 1
 val async = 2
-val after = 3
+val className = 3
+val asyncTask = 4
 
 ---
 
@@ -413,6 +414,10 @@ val after = 3
   (variable_declaration
     (ERROR
       (integer_literal))
+    (identifier)
+    (expression
+      (integer_literal)))
+  (variable_declaration
     (identifier)
     (expression
       (integer_literal)))
