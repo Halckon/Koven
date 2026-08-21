@@ -433,6 +433,11 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   生产解析；201 个不涉及 lexical-mode segment 的 pair 精确锁定交换后 right / left 的原 `TokenKind` 与 byte
   Span，27 个 string owner pair 锁定 Scanner / Parser 总性，全部保持 source-local AST / 诊断、
   typed root 有效和公开产物确定性；本矩阵未发现生产缺陷；
+- `parser_entry_trivia_invariance_matrix` 复用同一 12-case corpus 和 lexical-mode gap 状态机，在
+  expression / declaration / block 的 66 / 106 / 67 个 code-mode gap 分别投放 tab、无换行 block
+  comment 与混合 trivia，并覆盖每例全 gap 投放；共执行 753 个 mutation，全部保持 baseline 的
+  significant `LexemeKind` 序列、无 Span AST 结构指纹和两阶段零诊断，同时重复解析锁定公开产物
+  确定性；本矩阵未发现生产缺陷；
 - `parser_token_omission_matrix` integration test 复用同一 22-file corpus，逐一删除原始范围内
   396 个显著 token；96 个 owner-affecting case 锁定总性，300 个非 owner case 还要求后置
   `val sentinel = 0` 保持最后顶层 Item。全部 case 重复解析、验证完整 lexeme 覆盖和有界
