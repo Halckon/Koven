@@ -235,6 +235,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   缺 `;` 以 L0047 报错并保留后一声明。terminated block comment 内的换行计入分隔，space、
   tab 与无换行注释不计；前导 / 连续 `;` 以 L0017 / Error Item 恢复，block 与独立声明入口
   不获得分号分隔语义；
+  Lexer 在 EOF 以终止性 char/comment 根因抑制外层 string/interpolation 级联诊断时，恢复索引
+  按 inner-to-outer 顺序补齐剩余 lexical owner；原 Lexer 诊断保持不变，合法 Lexer 产物不再
+  被误判为 `InvalidLexemeStream`；
   后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
   Parser 自身仍不做名称 / 类型 / 所有权检查，CLI / LSP 接线仍属后续 Phase。
 
@@ -350,6 +353,10 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   L0047 同行缺分号、L0052 声明后 import、value-context `if` 的 L0057、postfix 缺 operand
   与缺委托目标 L0078，均由
   非零 / sidecar 配对守卫实际执行；
+- `frontend_adversarial` integration test 对 18 个词法/语法前缀与 18 个后缀执行 324-case
+  笛卡尔积，逐例验证 lexeme 完整字节覆盖、唯一 EOF、source identity、诊断及四张 AST table
+  span、文件头和根指纹的重复解析确定性；另以终止字符位于 interpolation 的定向回归锁定
+  `L0007` 根因和 lexical-owner 恢复；
 - runner 返回只包含规范相对路径和稳定证据 / 失败类别的结构化 outcome。测试报告
   边界转义路径中的反斜杠、tab、CR 和 LF，不输出 fixture 根的绝对路径。
 

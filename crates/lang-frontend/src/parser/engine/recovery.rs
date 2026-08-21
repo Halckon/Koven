@@ -113,10 +113,9 @@ impl LexicalRecoveryIndex {
             }
 
             if matches!(lexeme.kind(), LexemeKind::Eof) && !active_owners.is_empty() {
-                let has_terminal_root = verified_events
-                    .last()
-                    .is_some_and(|event| event.offset == source.len());
-                if !has_terminal_root {
+                // 终止性 char/comment 根因会按 Lexer 的级联抑制规则取代外层 string / interpolation
+                // 诊断；此时没有显式 owner event，但剩余 owner 仍必须在同一 EOF 关闭。
+                if !terminal_error_at_eof {
                     return Err(ParserInternalError::InvalidLexemeStream);
                 }
                 while let Some((kind, opener)) = active_owners.pop() {
