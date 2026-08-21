@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.21 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.22 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，类型
 检查尚未开始。
 
@@ -18,9 +18,9 @@
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0081` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
-- `lang_frontend::lexer` 已提供覆盖 v0.17 词法契约的确定性扫描、完整 lexeme 流与
+- `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&`、顶层分隔用 `;`，以及以
-  `package` 取代 `module` 的 42 个硬关键字；
+  `package` 取代 `module` 的 42 个硬关键字和最小数值后缀集合；
 - `lang_frontend::parser` 已提供独立表达式、声明与 block 入口、具体 Item / Statement /
   Expression / TypeRef 索引式 AST、Pratt 优先级、typed call、callable 参数 marker、结构化
   `CallArgument`、函数 block body、lambda、具名函数隐式 `Unit` 返回标注、`package` /
@@ -95,6 +95,9 @@ crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未
   reserved-word token、十进制数字、`Char`、单行 `String` / `${...}` 插值、trivia 与固定
   符号最长匹配；v0.20 的 `by` 同样自然产出 identifier，不需要或拥有独立 Lexer token；
   扫描只使用标准库，没有新增依赖；
+- 数值 scanner 接受并规范化 `L`、`u` / `U`、`uL` / `UL` 与 `f` / `F`；token 通过
+  `IntegerLiteralSuffix` / `FloatLiteralSuffix` 保留身份，未知或错序后缀仍形成单一 L0008
+  区域。Lexer 不解析数值、不检查范围，也不决定 expected/default type；
 - 字符串与插值使用显式模式栈，只有插值普通模式中的花括号改变嵌套深度。非法输入始终
   前进并形成规范规定的 token / invalid / segment 形态；未终止模式按最内层错误抑制规则
   恢复，不对正常用户输入 `panic!`；
@@ -154,6 +157,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - expression primary 消费 v0.9 的普通与 `move` lambda，以 `Expression::Lambda` 唯一引用
   独立 `Statement::LambdaBody`；block element 起点的 `{` 仍是 Unit block，等待 primary 的
   `{` 才是 lambda，因而无需 trivia 或类型猜测即可区分两者；
+- scalar literal AST 以 `IntegerLiteralKind` / `FloatLiteralKind` 保存无后缀、`Long`、
+  unsigned、`ULong`、`Double` 与 `Float` 规范化身份；Parser 只映射 token，不回读源码或
+  提前做数值定型；
 - `LambdaHeaderIndex` 在每个 parser 入口构造时单趟预索引完整 raw lexeme 与 terminal-owner
   event 流，并按 `{` 的 raw index 提供 `O(1)` 严格 header 查询；失败不分配 AST、不发诊断，
   正式解析只提交完整的零参数或普通 Identifier 参数前缀；

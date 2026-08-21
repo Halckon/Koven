@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.21。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.22。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -67,9 +67,12 @@
 - [x] **SPEC-0064（前置：SPEC-0017 `done`）**：增量解析 `Interface by field` 接口实现委托；
       `by` 仍由 Lexer 产出 identifier，只在 class supertype entry 的确定上下文中提交。不得扩张
       为属性委托、任意 delegate expression、动态代理或运行时 `dyn` 分发。
+- [x] **SPEC-0066（前置：SPEC-0006、0007 `done`；v0.22 已明确启用）**：识别 `L`、`u` /
+      `U`、`uL` / `UL`、`f` / `F` 数值后缀，在 Lexer token 与 Parser AST 保存规范化身份；
+      不解析数值或决定默认类型。
 
-SPEC-0006 词法基线、SPEC-0007 至 SPEC-0017 以及增量 SPEC-0062、0063、0064 已完成，
-现行 v0.21 沿用的 Phase 1 Lexer / Parser 边界已经闭合。未勾选状态不
+SPEC-0006 词法基线、SPEC-0007 至 SPEC-0017 以及增量 SPEC-0062、0063、0064、0066 已完成。
+未勾选状态不
 表示已经批准或已有代码；各 Spec 必须按实际依赖顺序独立验收和提交。后续阶段使用
 [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) 第 9 节的新编号映射。
 `type_ref` 的 Phase 1 反例必须拒绝含值实参的 `Array<Int, 4>`；`Array<Int, Size>` 的两个实参
@@ -81,7 +84,8 @@ SPEC-0006 词法基线、SPEC-0007 至 SPEC-0017 以及增量 SPEC-0062、0063�
 标识符、Unicode `Char` / `String` 内容、全部字面量、`${...}` 嵌套插值、LF / CRLF、两类
 注释、全部固定符号和最长匹配；反例逐类覆盖上表八种错误，并断言稳定错误码、精确字节
 `Span`、恢复后的后续 token 及确定性顺序。数字测试必须锁定 `1..2` / `1..<2` 与
-`1e3` / `0x10` / `1L` / `1_0` 的边界；`&`/`&&` 最长匹配边界同样需要锁定测试
+`1e3` / `0x10` / `1l` / `1_0` 的边界；v0.22 的 `1L` / `1u` / `1f` 正例及错序后缀归
+SPEC-0066 增量验收。`&`/`&&` 最长匹配边界同样需要锁定测试
 （v0.14 新增固定符号，归 SPEC-0012 增量验收）：`&x` 是单字符 `&` token 后跟 `x`，
 `&&x` 是单一 `&&` token
 后跟 `x`，`& &x`（trivia 分隔）是两个独立 `&` token，三者必须分别断言 lexeme 数量与
@@ -147,8 +151,9 @@ fun main(): Unit {
       [`01-design-decisions.md`](./01-design-decisions.md) 第 21 节建立单文件双命名空间、
       确定性 `ScopeId` / `SymbolId`、函数 overload set、顺序 local 可见性、显式
       `NameEnvironment` 与 L0079–L0081；不展开 package/import，不选择 member 或 overload。
-- [ ] 局部类型推导（`val`/`var`）
-- [ ] 函数签名类型检查（显式返回标注、隐式 `Unit` 与 `Nothing`）
+- [ ] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
+      字面量定型、局部推导、单向 expected type、隐式 `Unit` / 显式返回类型、`Nothing`
+      bottom 与 L0082–L0090。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、

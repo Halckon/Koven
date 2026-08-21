@@ -1,8 +1,7 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.21；
-> 第 22 节是未启用的 v0.22 候选，不改变当前权威版本。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.22。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–21 节的设计决策，
 > 附录收录原第二部分的核心结构声明总览。
@@ -928,11 +927,10 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 
 ---
 
-## 22. 基础类型检查与局部推导（v0.22 候选，未启用）
+## 22. 基础类型检查与局部推导（v0.22）
 
-> **候选状态**：本节是用于解除 SPEC-0019 设计门禁的完整提案，不属于现行 v0.21 语义。
-> 只有用户明确启用 v0.22 并指定其取代 v0.21 后，本节才成为实现依据；在此之前不得注册
-> L0082–L0089 或提交类型检查代码。
+> v0.22 已于 2026-08-21 由用户明确启用并取代 v0.21；数值后缀的 Phase 1 交接由
+> SPEC-0066 实施，基础类型检查由 SPEC-0019 实施。
 
 本候选把“基础类型检查”收敛为一个可独立验收的阶段：它解析内建标量与函数类型，给局部
 绑定和已支持表达式建立确定类型，检查具名函数的返回契约，并把需要 nominal member、泛型
@@ -962,18 +960,20 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 - `Nothing` 是所有类型的 bottom type；`Nothing?` 只包含 `null`，可适配任意 nullable 类型。
   对任意非空 `T`，`T` 可适配 `T?`；除此之外 SPEC-0019 不引入隐式子类型或数值 widening。
   两个相同规范化类型相容，`Error` 与任何类型相容以抑制级联，`Deferred` 不参与成功判定。
-- 十进制整数字面量先保留数学整数约束；无 expected type 时在值可表示时默认为 `Int`，否则
-  使用 L0083。存在整数 builtin expected type 时，只要值落入该类型范围即可适配；这只是
-  字面量定型，不允许已定型的 `Int` 变量隐式转换为 `Long` 或无符号类型。一元负号与紧随的
-  整数字面量合并做范围判断，使各有符号类型的最小值可表达。
-- 浮点字面量固定为 `Double`；`Float` 在没有后缀语法的 v1 中只能来自已定型 value / call，
-  不把 `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、String 分别固定为
+- 无后缀十进制整数字面量先保留有符号数学整数约束；存在 `Byte` / `Short` / `Int` / `Long`
+  expected type 时只要值落入范围即可适配。无 expected type 时先默认 `Int`，超出 `Int` 但
+  落入 `Long` 时默认 `Long`，再超出使用 L0090。`L` 后缀固定为 `Long`。
+- `u` / `U` 后缀建立无符号整数约束：存在 `UByte` / `UShort` / `UInt` / `ULong` expected
+  type 时按范围适配；否则先默认 `UInt`，超出后默认 `ULong`，再超出使用 L0090。`uL` /
+  `UL` 固定为 `ULong`。无后缀整数不得适配无符号 expected type，带 `u` 的整数也不得适配
+  有符号 expected type；这只是字面量定型，不允许已定型变量发生隐式数值转换。
+- 一元负号与紧随的无后缀或 `L` 整数字面量合并做范围判断，使各有符号类型的最小值可表达；
+  对无符号字面量应用负号使用 L0085。
+- 无后缀浮点字面量固定为 `Double`；`f` / `F` 后缀固定为 `Float`，包括 `1f`。不把
+  `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、String 分别固定为
   `Boolean`、`Char`、`String`；无 expected nullable type 的独立 `null` 无法推导。
-- 以上规则有意只借鉴 Kotlin 的“整数字面量约束 + 不对已定型数值做隐式转换”，不复制其
-  完整字面量和推导系统。Koven v1 尚无 `L` / `u` / `f` 后缀：无 expected type 的十进制
-  整数字面量只默认成 `Int`，超出 `Int` 即使用 L0083；`Long` 与无符号整数必须由显式
-  expected type 定型，`Float` 不能直接由字面量产生。不得在类型检查器里接受词法规范没有
-  定义的后缀，也不得把这条约束扩张为变量之间的隐式 widening。
+- Byte / Short 没有专用后缀；`D` / `d`、`I` / `i`、小写 `l` 与 Rust 风格完整类型名后缀
+  均未定义。类型检查器不得接受词法规范没有定义的拼写补齐这些能力。
 - `!` 只接受 `Boolean`；一元 `+` / `-` 只接受数值 builtin。`* / % -` 与数值 `+` 要求两侧
   已定型为同一数值类型并返回该类型；`String + String` 返回 `String`，不提供隐式
   `String + Any`。`< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
@@ -1034,6 +1034,7 @@ visibility 跨文件规则、override、调用实参映射、捕获所有权或 
 | L0087 | `return` 的有值 / 无值形态与 callable 返回类型冲突 | primary 为 `return` 或其值；label 返回标注 |
 | L0088 | 显式非 `Unit` block body 可以到达末尾 | primary 为 body 结束位置；label 返回标注 |
 | L0089 | control 分支没有本阶段可确定的公共类型 | primary 为 `else` / 第二分支；label 指向第一分支尾值 |
+| L0090 | 数值字面量无法由后缀、expected type 或默认规则表示 | primary 为完整字面量；label 在存在 expected type 时指向该类型 |
 
 所有 typed 表、deferred reason 与诊断顺序必须确定；同一根因产生 `Error` 后，下游不得再发
 同范围类型级联。SPEC-0019 的完成不代表完整文件已无 deferred：它必须证明本节封闭子集全部

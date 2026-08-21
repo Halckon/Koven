@@ -700,16 +700,38 @@ pub enum Expression {
 /// 标量字面量类别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LiteralKind {
-    /// 十进制整数。
-    Integer,
-    /// 十进制浮点数。
-    Float,
+    /// 十进制整数及规范化后缀身份。
+    Integer(IntegerLiteralKind),
+    /// 十进制实数及规范化后缀身份。
+    Float(FloatLiteralKind),
     /// 单 scalar `Char`。
     Char,
     /// 布尔值。
     Boolean(bool),
     /// `null`。
     Null,
+}
+
+/// Parser AST 中稳定的整数字面量身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntegerLiteralKind {
+    /// 无后缀整数，类型由 expected type 或默认规则决定。
+    Unsuffixed,
+    /// `L` 固定 `Long`。
+    Long,
+    /// `u` / `U` 无符号整数约束。
+    Unsigned,
+    /// `uL` / `UL` 固定 `ULong`。
+    UnsignedLong,
+}
+
+/// Parser AST 中稳定的实数字面量身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloatLiteralKind {
+    /// 无后缀实数，固定 `Double`。
+    Double,
+    /// `f` / `F`，固定 `Float`。
+    Float,
 }
 
 /// 字符串内部的一个可观察分段。

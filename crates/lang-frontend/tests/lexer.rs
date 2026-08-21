@@ -3,8 +3,8 @@
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
     lexer::{
-        InvalidKind, Keyword, LexedFile, Lexeme, LexemeKind, LexerInternalError, ReservedWord,
-        Symbol, TokenKind, TriviaKind, lex,
+        FloatLiteralSuffix, IntegerLiteralSuffix, InvalidKind, Keyword, LexedFile, Lexeme,
+        LexemeKind, LexerInternalError, ReservedWord, Symbol, TokenKind, TriviaKind, lex,
     },
     source::{SourceError, SourceId, SourceMap},
 };
@@ -384,15 +384,25 @@ fn block_comments_are_non_nested_and_end_at_the_first_closer() {
 
 #[test]
 fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
-    let text = "0 001 1.0 1..2 1..<2 .5 1. 1e3 1.0e3 0x10 1L 1_0 next";
+    let text = "0 001 1.0 1L 1u 1U 1uL 1UL 1.0f 1.0F 1f 1F 1..2 1..<2 .5 1. 1e3 1.0e3 0x10 1l 1LU 1Ul 1ul 1.0L 1.0u 1uName 1_0 next";
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "numbers.ko", text);
     let lexed = lex_source(&sources, source_id);
     let actual = significant_lexemes(&lexed)
         .map(|lexeme| {
             let class = match lexeme.kind() {
-                LexemeKind::Token(TokenKind::IntegerLiteral) => "integer",
-                LexemeKind::Token(TokenKind::FloatLiteral) => "float",
+                LexemeKind::Token(TokenKind::IntegerLiteral(IntegerLiteralSuffix::None)) => {
+                    "integer"
+                }
+                LexemeKind::Token(TokenKind::IntegerLiteral(IntegerLiteralSuffix::Long)) => "long",
+                LexemeKind::Token(TokenKind::IntegerLiteral(IntegerLiteralSuffix::Unsigned)) => {
+                    "unsigned"
+                }
+                LexemeKind::Token(TokenKind::IntegerLiteral(
+                    IntegerLiteralSuffix::UnsignedLong,
+                )) => "unsigned-long",
+                LexemeKind::Token(TokenKind::FloatLiteral(FloatLiteralSuffix::None)) => "double",
+                LexemeKind::Token(TokenKind::FloatLiteral(FloatLiteralSuffix::Float)) => "float",
                 LexemeKind::Token(TokenKind::Identifier) => "identifier",
                 LexemeKind::Token(TokenKind::Symbol(_)) => "symbol",
                 LexemeKind::Invalid(InvalidKind::InvalidNumericLiteral) => "invalid-number",
@@ -407,7 +417,16 @@ fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
         [
             ("integer", "0"),
             ("integer", "001"),
-            ("float", "1.0"),
+            ("double", "1.0"),
+            ("long", "1L"),
+            ("unsigned", "1u"),
+            ("unsigned", "1U"),
+            ("unsigned-long", "1uL"),
+            ("unsigned-long", "1UL"),
+            ("float", "1.0f"),
+            ("float", "1.0F"),
+            ("float", "1f"),
+            ("float", "1F"),
             ("integer", "1"),
             ("symbol", ".."),
             ("integer", "2"),
@@ -421,12 +440,18 @@ fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
             ("invalid-number", "1e3"),
             ("invalid-number", "1.0e3"),
             ("invalid-number", "0x10"),
-            ("invalid-number", "1L"),
+            ("invalid-number", "1l"),
+            ("invalid-number", "1LU"),
+            ("invalid-number", "1Ul"),
+            ("invalid-number", "1ul"),
+            ("invalid-number", "1.0L"),
+            ("invalid-number", "1.0u"),
+            ("invalid-number", "1uName"),
             ("invalid-number", "1_0"),
             ("identifier", "next"),
         ]
     );
-    assert_eq!(lexed.diagnostics().len(), 5);
+    assert_eq!(lexed.diagnostics().len(), 11);
     for diagnostic in lexed.diagnostics() {
         assert_eq!(diagnostic.severity(), Severity::Error);
         assert_eq!(diagnostic.code().to_string(), "L0008");

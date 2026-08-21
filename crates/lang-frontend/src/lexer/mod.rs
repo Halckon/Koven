@@ -84,10 +84,10 @@ pub enum LexemeKind {
 pub enum TokenKind {
     /// 普通标识符；软关键字也使用此分类。
     Identifier,
-    /// 十进制整数字面量。
-    IntegerLiteral,
-    /// 十进制小数字面量。
-    FloatLiteral,
+    /// 十进制整数字面量及规范化后缀身份。
+    IntegerLiteral(IntegerLiteralSuffix),
+    /// 十进制实数字面量及规范化后缀身份。
+    FloatLiteral(FloatLiteralSuffix),
     /// 合法的单 scalar 字符字面量。
     CharLiteral,
     /// 字符串开始引号。
@@ -106,6 +106,28 @@ pub enum TokenKind {
     ReservedWord(ReservedWord),
     /// 固定运算符或标点。
     Symbol(Symbol),
+}
+
+/// 整数字面量由 Lexer 规范化保存的类型后缀。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntegerLiteralSuffix {
+    /// 没有类型后缀。
+    None,
+    /// `L`。
+    Long,
+    /// `u` / `U`。
+    Unsigned,
+    /// `uL` / `UL`。
+    UnsignedLong,
+}
+
+/// 实数字面量由 Lexer 规范化保存的类型后缀。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloatLiteralSuffix {
+    /// 没有类型后缀，类型阶段固定为 `Double`。
+    None,
+    /// `f` / `F`，包括没有小数点的 `1f`。
+    Float,
 }
 
 /// 42 个硬关键字。

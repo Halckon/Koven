@@ -38,8 +38,8 @@ impl Parser<'_> {
             lexeme.kind(),
             LexemeKind::Token(
                 TokenKind::Identifier
-                    | TokenKind::IntegerLiteral
-                    | TokenKind::FloatLiteral
+                    | TokenKind::IntegerLiteral(_)
+                    | TokenKind::FloatLiteral(_)
                     | TokenKind::CharLiteral
                     | TokenKind::StringStart
             ) | LexemeKind::Token(TokenKind::Keyword(

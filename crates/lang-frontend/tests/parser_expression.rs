@@ -5,9 +5,9 @@ use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
     lexer::lex,
     parser::{
-        AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression, LiteralKind,
-        ParsedExpression, ParserInternalError, PrefixOperator, StringPart, TypeRef,
-        parse_expression,
+        AssignmentOperator, BinaryOperator, CallArgument, CastOperator, Expression,
+        FloatLiteralKind, IntegerLiteralKind, LiteralKind, ParsedExpression, ParserInternalError,
+        PrefixOperator, StringPart, TypeRef, parse_expression,
     },
     source::{SourceId, SourceMap},
 };
@@ -113,8 +113,14 @@ fn concrete_payloads_use_typed_ids_and_exact_composite_spans() {
     for (text, expected) in [
         ("name", Expression::Name),
         ("this", Expression::This),
-        ("1", Expression::Literal(LiteralKind::Integer)),
-        ("1.5", Expression::Literal(LiteralKind::Float)),
+        (
+            "1",
+            Expression::Literal(LiteralKind::Integer(IntegerLiteralKind::Unsuffixed)),
+        ),
+        (
+            "1.5",
+            Expression::Literal(LiteralKind::Float(FloatLiteralKind::Double)),
+        ),
         ("'x'", Expression::Literal(LiteralKind::Char)),
         ("true", Expression::Literal(LiteralKind::Boolean(true))),
         ("null", Expression::Literal(LiteralKind::Null)),
@@ -164,6 +170,36 @@ fn concrete_payloads_use_typed_ids_and_exact_composite_spans() {
         expression(&parsed, *receiver),
         Expression::NonNullAssert { .. }
     ));
+}
+
+#[test]
+fn numeric_suffixes_have_normalized_parser_ast_identities() {
+    for (text, expected) in [
+        ("1", LiteralKind::Integer(IntegerLiteralKind::Unsuffixed)),
+        ("1L", LiteralKind::Integer(IntegerLiteralKind::Long)),
+        ("1u", LiteralKind::Integer(IntegerLiteralKind::Unsigned)),
+        ("1U", LiteralKind::Integer(IntegerLiteralKind::Unsigned)),
+        (
+            "1uL",
+            LiteralKind::Integer(IntegerLiteralKind::UnsignedLong),
+        ),
+        (
+            "1UL",
+            LiteralKind::Integer(IntegerLiteralKind::UnsignedLong),
+        ),
+        ("1.0", LiteralKind::Float(FloatLiteralKind::Double)),
+        ("1.0f", LiteralKind::Float(FloatLiteralKind::Float)),
+        ("1.0F", LiteralKind::Float(FloatLiteralKind::Float)),
+        ("1f", LiteralKind::Float(FloatLiteralKind::Float)),
+        ("1F", LiteralKind::Float(FloatLiteralKind::Float)),
+    ] {
+        let (_sources, parsed) = parsed_case(text);
+        assert_eq!(
+            expression(&parsed, parsed.root()),
+            &Expression::Literal(expected),
+            "{text}"
+        );
+    }
 }
 
 #[test]

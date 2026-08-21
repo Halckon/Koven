@@ -2,16 +2,16 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | approved |
 | Goal ID | `KOV-P2-019` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 v0.21；拟议 [v0.22 §22 候选](../guide/01-design-decisions.md#22-基础类型检查与局部推导v022-候选未启用) 尚未生效 |
-| 批准依据 | 无；当前持续 Goal 不能替代新 guide 的版本级明确启用 |
-| 前置 Spec | SPEC-0018 `done` |
+| 语言规范 | 现行 [v0.22 §22](../guide/01-design-decisions.md#22-基础类型检查与局部推导v022) |
+| 批准依据 | 用户于 2026-08-21 明确启用 v0.22 并要求实施 |
+| 前置 Spec | SPEC-0018 `done`；SPEC-0066 `in-progress` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 v0.22 取代 v0.21 |
-| 影响范围 | `lang-frontend` typed model、基础类型检查、L0082–L0089、Phase 2 fixture、Architecture |
+| 阻塞项 | SPEC-0066 尚未完成 |
+| 影响范围 | `lang-frontend` typed model、基础类型检查、L0082–L0090、Phase 2 fixture、Architecture |
 | 语言语义变更 | 否；启用后只实施对应 guide 契约 |
 
 ## 1. Goal
@@ -37,7 +37,7 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
   type、普通 block `Unit` 与 lambda/control tail value。
 - 预收集本阶段可完整解析的具名函数签名，检查 expression/block body、最近 callable return、
   `Nothing` bottom、fallthrough 与基础 `if` join。
-- 注册并产生 L0082–L0089，保留 primary、label、稳定全序和级联抑制；新增真实 Phase 2
+- 注册并产生 L0082–L0090，保留 primary、label、稳定全序和级联抑制；新增真实 Phase 2
   compile-pass / compile-fail fixture。
 
 ## 4. 非目标
@@ -46,8 +46,8 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
   call argument 映射；这些节点只使用逐类 deferred reason。
 - 不检查 assignment place、mutability、index、callable reference、postfix `?`、接口委托、
   override、visibility、constant evaluation、when 穷尽性或 smart cast。
-- 不实现 Kotlin 的完整局部双向约束求解、整数/浮点后缀或 mixed numeric operator 提升；
-  类型检查器不得接受 Lexer 未定义的 `L` / `u` / `f` 后缀来补齐这些能力。
+- 不实现 Kotlin 的完整局部双向约束求解或 mixed numeric operator 提升；类型检查器只消费
+  SPEC-0066 已规范化的 `L` / `u` / `uL` / `f` 身份，不回读源码或接受其他后缀。
 - 不执行移动、复制、借用、捕获或析构检查，不建立 HIR/MIR，也不接线 CLI/LSP。
 - 不启用 v0.22；在用户版本级确认前不得把本 Spec 推进到 approved / in-progress。
 
@@ -55,9 +55,9 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
 
 - [ ] TypeEnvironment 显式、不可变且不按拼写硬编码 builtin；跨环境身份失败 loud。
 - [ ] TypeId、结构规范化、symbol/type-ref/expression 结果和 deferred reason 在重复运行中确定。
-- [ ] builtin、nullable、function 与 integer-literal constraint 正例覆盖；无 expected type 的
-      超 `Int` 字面量、显式 expected `Long` / unsigned、不可产生的 `Float` 字面量边界明确；
-      L0082 锁定 builtin arity。
+- [ ] builtin、nullable、function 与 integer-literal constraint 正例覆盖；默认 `Int`→`Long`、
+      `u` 的 `UInt`→`ULong`、固定 `L` / `uL` / `f`、signed/unsigned expected type 边界和
+      L0090 越界行为明确；L0082 锁定 builtin arity。
 - [ ] local annotation/inference 覆盖各标量、null、expected integer、lambda 与 deferred initializer；
       L0083/L0084 的 primary 和 expected label 精确。
 - [ ] 单向 expected type 的边界有定向测试：不从后续 local 使用、overload candidate 或带参
@@ -82,7 +82,7 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
 
 ## 7. 实施计划
 
-1. [ ] 用户明确启用 v0.22，解除版本门禁并把本 Spec 推进为 in-progress。
+1. [x] 用户明确启用 v0.22 并批准本 Spec；等待 SPEC-0066 完成后推进为 in-progress。
 2. [ ] 建立类型环境、类型表、typed 产物和错误边界 → 验证：model 窄测试。
 3. [ ] 实现 TypeRef、字面量、local 与基础 operator → 验证：表达式/local 正反例。
 4. [ ] 实现 callable、return、flow 与基础 control join → 验证：函数正反例。
@@ -98,7 +98,7 @@ cast 多个独立变化原因；本 Spec 只物化拟议 v0.22 §22 的基础闭
 
 ## 9. 未决问题
 
-- 唯一阻塞项是 v0.22 尚未获得版本级明确启用；候选契约内部无未决语义。
+- 无语义未决问题；当前只有前置 SPEC-0066 尚未完成。
 
 ## 10. 验证记录
 

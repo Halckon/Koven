@@ -4,8 +4,8 @@ use crate::{
 };
 
 use super::{
-    InvalidKind, Keyword, LexedFile, Lexeme, LexemeKind, LexerInternalError, ReservedWord, Symbol,
-    TokenKind, TriviaKind,
+    FloatLiteralSuffix, IntegerLiteralSuffix, InvalidKind, Keyword, LexedFile, Lexeme, LexemeKind,
+    LexerInternalError, ReservedWord, Symbol, TokenKind, TriviaKind,
 };
 
 #[derive(Clone, Copy)]
@@ -240,13 +240,35 @@ impl Scanner<'_> {
     fn scan_number(&mut self) -> Result<(), LexerInternalError> {
         let start = self.offset;
         self.consume_ascii_digits();
-        let mut kind = TokenKind::IntegerLiteral;
+        let mut has_fraction = false;
         let rest = &self.text[self.offset..];
         if rest.starts_with('.') && rest.as_bytes().get(1).is_some_and(u8::is_ascii_digit) {
             self.offset += 1;
             self.consume_ascii_digits();
-            kind = TokenKind::FloatLiteral;
+            has_fraction = true;
         }
+
+        let kind = if has_fraction {
+            let suffix = if self.consume_byte_if(|byte| matches!(byte, b'f' | b'F')) {
+                FloatLiteralSuffix::Float
+            } else {
+                FloatLiteralSuffix::None
+            };
+            TokenKind::FloatLiteral(suffix)
+        } else if self.consume_byte_if(|byte| matches!(byte, b'f' | b'F')) {
+            TokenKind::FloatLiteral(FloatLiteralSuffix::Float)
+        } else if self.consume_byte_if(|byte| byte == b'L') {
+            TokenKind::IntegerLiteral(IntegerLiteralSuffix::Long)
+        } else if self.consume_byte_if(|byte| matches!(byte, b'u' | b'U')) {
+            let suffix = if self.consume_byte_if(|byte| byte == b'L') {
+                IntegerLiteralSuffix::UnsignedLong
+            } else {
+                IntegerLiteralSuffix::Unsigned
+            };
+            TokenKind::IntegerLiteral(suffix)
+        } else {
+            TokenKind::IntegerLiteral(IntegerLiteralSuffix::None)
+        };
 
         if self
             .text
@@ -262,6 +284,17 @@ impl Scanner<'_> {
             return self.add_diagnostic(LexicalError::InvalidNumericLiteral, start, self.offset);
         }
         self.emit_token(kind, start)
+    }
+
+    fn consume_byte_if(&mut self, predicate: impl FnOnce(u8) -> bool) -> bool {
+        let Some(byte) = self.text.as_bytes().get(self.offset).copied() else {
+            return false;
+        };
+        if !predicate(byte) {
+            return false;
+        }
+        self.offset += 1;
+        true
     }
 
     fn consume_ascii_digits(&mut self) {

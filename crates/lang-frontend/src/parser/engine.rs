@@ -20,7 +20,10 @@ pub(super) use recovery::{TerminalOwnerEvent, TerminalOwnerKind};
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
-    lexer::{Keyword, LexedFile, Lexeme, LexemeKind, Symbol, TokenKind},
+    lexer::{
+        FloatLiteralSuffix, IntegerLiteralSuffix, Keyword, LexedFile, Lexeme, LexemeKind, Symbol,
+        TokenKind,
+    },
     source::{SourceMap, Span},
 };
 
@@ -32,13 +35,13 @@ use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, CallArgument, CastOperator, ClassField, ClassifierBody,
     ClassifierDeclaration, ClassifierKind, CompanionObject, DeclarationModifiers, DelegationClause,
-    EnumVariant, EnumVariantParameter, Expression, ExpressionAst, ForBinding, FunctionBody,
-    FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective, Item, LiteralKind,
-    MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker,
-    ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError,
-    PrefixOperator, PrimaryConstructor, QualifiedNameSegment, Statement, StringPart,
-    SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
-    VisibilityModifier, WhenCondition, WhenEntry,
+    EnumVariant, EnumVariantParameter, Expression, ExpressionAst, FloatLiteralKind, ForBinding,
+    FunctionBody, FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective,
+    IntegerLiteralKind, Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix,
+    PackageDirective, ParameterModeMarker, ParsedBlock, ParsedDeclaration, ParsedExpression,
+    ParsedFile, ParserInternalError, PrefixOperator, PrimaryConstructor, QualifiedNameSegment,
+    Statement, StringPart, SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter,
+    VariableKind, VisibilityModifier, WhenCondition, WhenEntry,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;

@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.21），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.22），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -286,3 +286,15 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 2 | 顶层和 classifier member 在 body 前完整收集并允许前向引用；block local 在 initializer 后才可见，嵌套作用域允许遮蔽，较早引用只在没有外层可见名称时构成 use-before-local | 🔴 作用域语义定案 |
 | 3 | 同作用域函数形成 overload set，其他同命名空间冲突使用 L0079；未解析名称与声明前 local 分别使用 L0080、L0081，并固定 primary / label 与确定性顺序 | 🔴 诊断契约补全 |
 | 4 | SPEC-0018 只解析单文件 lexical name 与 receiver/type 首段；package/import、member/constructor/overload 选择、跨文件 visibility、类型与捕获所有权继续由后续 Spec 处理 | 🟡 Phase 边界补全 |
+
+## v0.22 变更记录
+
+> v0.22 于 2026-08-21 由用户明确要求启用并取代 v0.21，封闭最小 Kotlin 风格数值后缀和
+> Phase 2 基础类型检查契约。
+
+| # | 变更 | 类型 |
+|---|---|---|
+| 1 | 新增 `L`、`u` / `U`、`uL` / `UL`、`f` / `F` 精确数值后缀；`1f` 是 `Float`，小写 `l`、错序组合及其他后缀仍为 L0008 | 🔴 词法语义变更 |
+| 2 | 无约束 signed 整数按范围默认 `Int`→`Long`，unsigned 按 `UInt`→`ULong`；无后缀实数固定 `Double`，`f` 固定 `Float`，不发生已定型变量隐式 widening | 🔴 类型语义定案 |
+| 3 | 定义显式 TypeEnvironment、稳定 TypeId、单向 expected type、local/lambda 基础推导、函数返回与 `Nothing` bottom；分配 L0082–L0090 | 🔴 Phase 2 契约定案 |
+| 4 | 数值后缀的 Lexer/AST 交接拆为 SPEC-0066，基础类型检查交给 SPEC-0019；nominal、generic、call/member、smart cast 与所有权继续后置 | 🟡 Phase 边界补全 |

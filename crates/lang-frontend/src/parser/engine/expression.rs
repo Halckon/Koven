@@ -200,13 +200,23 @@ impl Parser<'_> {
                 let span = self.bump()?.span();
                 self.add_expression(span, Expression::Name)
             }
-            LexemeKind::Token(TokenKind::IntegerLiteral) => {
+            LexemeKind::Token(TokenKind::IntegerLiteral(suffix)) => {
                 let span = self.bump()?.span();
-                self.add_expression(span, Expression::Literal(LiteralKind::Integer))
+                let kind = match suffix {
+                    IntegerLiteralSuffix::None => IntegerLiteralKind::Unsuffixed,
+                    IntegerLiteralSuffix::Long => IntegerLiteralKind::Long,
+                    IntegerLiteralSuffix::Unsigned => IntegerLiteralKind::Unsigned,
+                    IntegerLiteralSuffix::UnsignedLong => IntegerLiteralKind::UnsignedLong,
+                };
+                self.add_expression(span, Expression::Literal(LiteralKind::Integer(kind)))
             }
-            LexemeKind::Token(TokenKind::FloatLiteral) => {
+            LexemeKind::Token(TokenKind::FloatLiteral(suffix)) => {
                 let span = self.bump()?.span();
-                self.add_expression(span, Expression::Literal(LiteralKind::Float))
+                let kind = match suffix {
+                    FloatLiteralSuffix::None => FloatLiteralKind::Double,
+                    FloatLiteralSuffix::Float => FloatLiteralKind::Float,
+                };
+                self.add_expression(span, Expression::Literal(LiteralKind::Float(kind)))
             }
             LexemeKind::Token(TokenKind::CharLiteral) => {
                 let span = self.bump()?.span();

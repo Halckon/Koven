@@ -1493,14 +1493,21 @@ mod tests {
         assert!(pass_evidence.lexeme_count > 1);
         assert_eq!(pass_evidence.diagnostic_count, 0);
 
-        assert_eq!(fail.len(), 1);
+        assert_eq!(fail.len(), 2);
         assert_eq!(fail[0].relative_path, "invalid-character.ko");
-        let fail_evidence = fail[0]
+        assert_eq!(fail[1].relative_path, "invalid-numeric-suffix.ko");
+        let invalid_character = fail[0]
             .result
             .as_ref()
             .expect("the checked-in lexer fail case must match its sidecar");
-        assert!(fail_evidence.lexeme_count > 1);
-        assert_eq!(fail_evidence.diagnostic_count, 1);
+        let invalid_numeric = fail[1]
+            .result
+            .as_ref()
+            .expect("the checked-in numeric fail case must match its sidecar");
+        assert!(invalid_character.lexeme_count > 1);
+        assert!(invalid_numeric.lexeme_count > 1);
+        assert_eq!(invalid_character.diagnostic_count, 1);
+        assert_eq!(invalid_numeric.diagnostic_count, 1);
 
         assert_eq!(
             lexer_stable_report(&pass),
@@ -1512,8 +1519,12 @@ mod tests {
         assert_eq!(
             lexer_stable_report(&fail),
             format!(
-                "invalid-character.ko\tok bytes={} lexemes={} diagnostics=1",
-                fail_evidence.byte_len, fail_evidence.lexeme_count
+                "invalid-character.ko\tok bytes={} lexemes={} diagnostics=1\n\
+                 invalid-numeric-suffix.ko\tok bytes={} lexemes={} diagnostics=1",
+                invalid_character.byte_len,
+                invalid_character.lexeme_count,
+                invalid_numeric.byte_len,
+                invalid_numeric.lexeme_count
             )
         );
     }
