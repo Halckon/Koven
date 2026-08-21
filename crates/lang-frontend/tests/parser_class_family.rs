@@ -331,6 +331,32 @@ fn member_recovery_respects_lexical_owners_and_outer_hard_closers() {
 }
 
 #[test]
+fn malformed_companion_constant_preserves_string_owner_and_both_closers() {
+    let text =
+        r#"interface Printable { fun show(): Unit; companion object { const "printable" } }"#;
+    let (_, parsed) = declaration(text);
+    assert_eq!(
+        codes(parsed.diagnostics()),
+        ["L0018".to_owned(), "L0022".to_owned(), "L0020".to_owned()]
+    );
+
+    let root = parsed
+        .ast()
+        .items()
+        .get(parsed.root())
+        .expect("interface root");
+    assert_eq!(root.span().end(), text.len());
+    let outer_body = classifier(&parsed).body.as_ref().expect("interface body");
+    assert!(outer_body.right_brace_span.is_some());
+    assert_eq!(outer_body.members.len(), 2);
+    let Item::Companion(companion) = item(&parsed, outer_body.members[1]) else {
+        panic!("expected recovered companion")
+    };
+    assert!(companion.body.right_brace_span.is_some());
+    assert_eq!(companion.body.members.len(), 1);
+}
+
+#[test]
 fn phase_one_aggregate_guide_example_now_parses_as_one_file() {
     let text = r#"value class Point(val x: Int, val y: Int)
 

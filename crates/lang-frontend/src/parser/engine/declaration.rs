@@ -56,19 +56,29 @@ impl Parser<'_> {
             } else if self.current_is_keyword(Keyword::Var) {
                 NameMarker::Error(self.bump()?.span())
             } else if self.current_is_identifier()
+                || matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
                 || self.current_is_symbol(Symbol::Colon)
                 || self.current_is_symbol(Symbol::Equal)
                 || matches!(current.kind(), LexemeKind::Eof)
             {
+                // 保留 StringStart，让名称恢复一次消费完整 lexical owner。
                 NameMarker::Missing(self.empty_at(current.span().start())?)
             } else {
                 NameMarker::Error(self.bump()?.span())
             }
         };
-        let name = self.parse_name_marker(
+        // 嵌套 constant 的名称恢复不能越过成员调用方拥有的 hard closer。
+        let name_stops = DeclarationStops::from_expression_hard(declaration_stops);
+        let name_stops = if self.file_mode {
+            name_stops.union(DeclarationStops::FILE)
+        } else {
+            name_stops
+        };
+        let name = self.parse_name_marker_with_stops(
             codes::EXPECTED_DECLARATION_NAME,
             "expected declaration name",
             NameContext::Declaration,
+            name_stops,
         )?;
         let (colon_span, type_ref) = self.parse_optional_type_annotation(declaration_stops)?;
         let (equals_span, initializer) = self.parse_required_initializer(declaration_stops)?;

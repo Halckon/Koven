@@ -546,12 +546,14 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   lexeme 完整覆盖、唯一 EOF、source-local AST / diagnostic Span、文件 roots、package / import
   directive Span 与两个阶段的完整公开产物确定性；源码裸 CR 仍由 Lexer 以 L0001 拒绝，
   本轮未发现生产缺陷；
-- `frontend_matrix_assertions` 为 prefix / suffix truncation、token omission / duplication /
-  transposition 与 lexical poison replacement / insertion 七个完整文件恢复矩阵提供共享双 Lexer /
-  双 Parser 入口；5,540 个主要变异 / 截断 case、154 个 baseline / complete case 与 2 个定向
-  omission 回归合计 5,696 个 source case，共验证 11,392 个 Lexer 和 11,392 个 Parser 产物。两阶段产物锁定
+- `frontend_matrix_assertions` 为 prefix / suffix truncation、interior deletion、token omission /
+  duplication / transposition 与 lexical poison replacement / insertion 八个完整文件恢复矩阵提供
+  共享双 Lexer / 双 Parser 入口；50,509 个主要变异 / 截断 case、176 个 baseline / complete case
+  与 2 个定向 omission 回归合计 50,687 个 source case，共验证 101,374 个 Lexer 和 101,374 个
+  Parser 产物。两阶段产物锁定
   source identity、lexeme 完整覆盖与唯一 EOF、source-local AST / diagnostic 主与 label Span、
-  文件 roots、package / import directive Span，并比较完整公开产物确定性；本轮未发现生产缺陷；
+  文件 roots、package / import directive Span，并比较完整公开产物确定性；内部区间删除矩阵
+  发现并修复一项生产缺陷，详见下项；
   既有 `frontend_adversarial` 也通过该入口复用双 Lexer，避免同一 integration test 重复加载
   `lexer_matrix_assertions`；
 - `parser_prefix_truncation_matrix` integration test 以 22 个 Lexer / Parser-clean 完整文件覆盖
@@ -578,6 +580,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   block 分别执行 195 / 350 / 202 个后缀；加上 12 个 preflight 共 759 个 source case，验证 1,518
   个 Lexer 和 1,518 个对应入口 Parser 产物。两个矩阵均锁定连续覆盖、唯一 EOF、source-local
   AST / diagnostic Span、有效 root 与公开产物确定性，本轮未发现生产缺陷；
+- `parser_interior_deletion_matrix` 在相同 22-file corpus 的内部 UTF-8 scalar 边界间删除任意
+  非空连续区间，同时保留非空前后缀，精确执行 44,969 个 mutation；加上 22 个 clean preflight
+  共 44,991 个 source case，验证 89,982 个 Lexer 和 89,982 个完整文件 Parser 产物。
+  `parser_entry_interior_deletion_matrix` 在 12-entry corpus 按 expression / declaration / block
+  分别执行 4,453 / 15,634 / 4,656 个 mutation；加上 12 个 preflight 共 24,755 个 source case，
+  验证 49,510 个 Lexer 和 49,510 个对应入口 Parser 产物。矩阵发现 companion constant 缺失
+  `val` 后直接出现 segmented string 时只消费 `StringStart`、继而从 lexical owner 内部恢复并
+  错误返回 `InvalidLexemeStream` 的缺陷；constant 现在把该 owner 交给名称恢复，并继承成员
+  `}` hard stop，定向回归锁定 companion 与外层 classifier closer 均被保留；
 - `parser_entry_token_duplication_matrix` integration test 在同一 corpus 的 240 个显著 token 后
   分别插入其源码副本；20 个 lexical-mode mutation 锁定 Scanner / Parser 总性，220 个普通
   mutation 精确锁定原 token 与 duplicate 的 `TokenKind` / Span；加上 12 个 baseline 共 252 个
