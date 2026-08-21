@@ -1,10 +1,18 @@
-//! SPEC-0075 的 lexical owner 到代表性语法位置恢复矩阵契约。
+//! SPEC-0075 / SPEC-0095 的 lexical owner 位置恢复与公开产物契约。
 
 use lang_frontend::{
-    lexer::{LexedFile, LexemeKind, lex},
-    parser::{Item, NameMarker, ParsedFile, parse_file},
+    lexer::{LexedFile, lex},
+    parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
 };
+
+#[path = "support/frontend_output_assertions.rs"]
+mod frontend_output_assertions;
+#[path = "support/parser_mutation_assertions.rs"]
+mod parser_mutation_assertions;
+
+use frontend_output_assertions::{validate_ast, validate_diagnostics, validate_lexed};
+use parser_mutation_assertions::assert_last_root_source;
 
 #[derive(Clone, Copy)]
 struct Placement {
@@ -163,25 +171,6 @@ fn lex_case(text: &str) -> (SourceMap, SourceId, LexedFile) {
     (sources, source_id, lexed)
 }
 
-fn assert_lexeme_coverage(source_id: SourceId, source_len: usize, lexed: &LexedFile) {
-    let mut next_offset = 0;
-    let mut eof_count = 0;
-    for lexeme in lexed.lexemes() {
-        let span = lexeme.span();
-        assert_eq!(span.source_id(), source_id);
-        assert_eq!(span.start(), next_offset);
-        if lexeme.kind() == LexemeKind::Eof {
-            eof_count += 1;
-            assert_eq!((span.start(), span.end()), (source_len, source_len));
-        } else {
-            assert!(span.end() > span.start());
-            next_offset = span.end();
-        }
-    }
-    assert_eq!(next_offset, source_len);
-    assert_eq!(eof_count, 1);
-}
-
 fn lexical_codes(lexed: &LexedFile) -> Vec<String> {
     lexed
         .diagnostics()
@@ -190,38 +179,37 @@ fn lexical_codes(lexed: &LexedFile) -> Vec<String> {
         .collect()
 }
 
-fn assert_after_survives(sources: &SourceMap, parsed: &ParsedFile, context: &str) {
-    let found = parsed.roots().iter().any(|root| {
-        let Ok(node) = parsed.ast().items().get(*root) else {
-            return false;
-        };
-        let Item::Variable {
-            name: NameMarker::Present(span),
-            ..
-        } = node.payload()
-        else {
-            return false;
-        };
-        sources.slice(*span).is_ok_and(|name| name == "after")
-    });
-    assert!(
-        found,
-        "sentinel declaration did not survive {context}: diagnostics={:?}",
-        parsed.diagnostics()
-    );
+fn validate_parsed(source_id: SourceId, source_len: usize, parsed: &ParsedFile, context: &str) {
+    validate_ast(source_id, source_len, parsed.ast());
+    validate_diagnostics(source_id, source_len, parsed.diagnostics());
+    for root in parsed.roots() {
+        parsed
+            .ast()
+            .items()
+            .get(*root)
+            .unwrap_or_else(|error| panic!("invalid file root for {context}: {error}"));
+    }
 }
 
-fn parse_twice(sources: &SourceMap, lexed: &LexedFile, context: &str) -> ParsedFile {
+fn parse_twice(
+    sources: &SourceMap,
+    source_id: SourceId,
+    source_len: usize,
+    lexed: &LexedFile,
+    context: &str,
+) -> (ParsedFile, ParsedFile) {
     let first = parse_file(sources, lexed)
         .unwrap_or_else(|error| panic!("first parse failed for {context}: {error}"));
     let second = parse_file(sources, lexed)
         .unwrap_or_else(|error| panic!("second parse failed for {context}: {error}"));
+    validate_parsed(source_id, source_len, &first, context);
+    validate_parsed(source_id, source_len, &second, context);
     assert_eq!(
         format!("{first:?}"),
         format!("{second:?}"),
         "public parser output changed for {context}"
     );
-    first
+    (first, second)
 }
 
 #[test]
@@ -238,15 +226,16 @@ fn recoverable_owners_preserve_the_following_top_level_declaration() {
                 placement.prefix, owner.text, placement.suffix
             );
             let (sources, source_id, lexed) = lex_case(&text);
-            assert_lexeme_coverage(source_id, text.len(), &lexed);
+            validate_lexed(source_id, text.len(), &lexed);
             assert_eq!(
                 lexical_codes(&lexed),
                 owner.lexical_codes,
                 "unexpected lexer diagnostics for {context}"
             );
 
-            let parsed = parse_twice(&sources, &lexed, &context);
-            assert_after_survives(&sources, &parsed, &context);
+            let (first, second) = parse_twice(&sources, source_id, text.len(), &lexed, &context);
+            assert_last_root_source(&sources, &first, "val after = 1", &context);
+            assert_last_root_source(&sources, &second, "val after = 1", &context);
             executed += 1;
         }
     }
@@ -257,21 +246,20 @@ fn recoverable_owners_preserve_the_following_top_level_declaration() {
 fn terminal_owners_are_total_at_every_representative_placement() {
     assert_eq!(PLACEMENTS.len(), 16);
     assert_eq!(TERMINAL_OWNERS.len(), 5);
-
     let mut executed = 0;
     for placement in PLACEMENTS {
         for owner in TERMINAL_OWNERS {
             let context = format!("{} at {}", owner.name, placement.name);
             let text = format!("{}{}", placement.prefix, owner.text);
             let (sources, source_id, lexed) = lex_case(&text);
-            assert_lexeme_coverage(source_id, text.len(), &lexed);
+            validate_lexed(source_id, text.len(), &lexed);
             assert_eq!(
                 lexical_codes(&lexed),
                 owner.lexical_codes,
                 "unexpected lexer diagnostics for {context}"
             );
 
-            parse_twice(&sources, &lexed, &context);
+            parse_twice(&sources, source_id, text.len(), &lexed, &context);
             executed += 1;
         }
     }

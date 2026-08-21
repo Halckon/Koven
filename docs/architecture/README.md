@@ -389,8 +389,9 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   声明完整 string 的 L0017 / Span；
 - `parser_lexical_owner_matrix` integration test 把 4 个可继续 owner 与 5 个 EOF terminal owner
   分别投放到 16 个声明、名称、类型、class-family 和表达式位置，共执行 144 个 case、288 次
-  重复完整文件解析；逐例锁定连续 lexeme 覆盖、唯一 EOF、词法错误码、公开产物确定性，并
-  要求 64 个可继续 case 后的顶层 sentinel 声明全部存活；
+  重复完整文件解析；逐例锁定 lexeme 完整覆盖、唯一 EOF、词法错误码、source-local 有界
+  Lexer / AST / diagnostic Span、文件根可解引用与公开产物确定性，并对 64 个可继续 case 的
+  两次产物分别证明精确 `val after = 1` sentinel 是最后一个完整文件根；
 - `parser_diagnostic_witness_matrix` integration test 将生产目录 `L0009`–`L0078` 中 69 个现行
   Parser 诊断逐一映射到 expression、declaration、block 或 file 公开入口；每个 Lexer-clean
   witness 的目标码恰好出现一次，全部 Span 保持 source-local，69 个 case 共执行 138 次确定性
