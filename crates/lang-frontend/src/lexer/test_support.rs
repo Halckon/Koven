@@ -3,7 +3,7 @@ use crate::{
     source::{SourceId, SourceMap, Span},
 };
 
-use super::{LexedFile, LexemeKind, lex};
+use super::{LexedFile, LexemeKind, TokenKind, lex};
 
 fn validate_span(source_id: SourceId, source_len: usize, span: Span) {
     assert_eq!(span.source_id(), source_id);
@@ -135,6 +135,54 @@ pub(crate) fn malformed_test_lexed_files(
     let mut foreign = copy_lexed(&valid);
     foreign.lexemes[0].span = foreign_span;
     cases.push(("foreign span", foreign, true));
+
+    cases
+}
+
+/// 派生结构有效、但 lexical owner token 序列不可能的 test-only 产物。
+pub(crate) fn malformed_lexical_owner_test_files(
+    sources: &SourceMap,
+    source_id: SourceId,
+) -> Vec<(&'static str, LexedFile)> {
+    let valid = lex_test_source_twice(sources, source_id, "malformed lexical owner corpus base");
+    assert_eq!(valid.lexemes.len(), 4);
+    assert!(matches!(valid.lexemes[0].kind, LexemeKind::Token(_)));
+    assert!(matches!(valid.lexemes[2].kind, LexemeKind::Token(_)));
+    assert!(matches!(valid.lexemes[3].kind, LexemeKind::Eof));
+    let mut cases = Vec::with_capacity(6);
+
+    let mut unmatched_string_end = copy_lexed(&valid);
+    unmatched_string_end.lexemes[0].kind = LexemeKind::Token(TokenKind::StringEnd);
+    cases.push(("unmatched StringEnd", unmatched_string_end));
+
+    let mut unmatched_interpolation_end = copy_lexed(&valid);
+    unmatched_interpolation_end.lexemes[0].kind = LexemeKind::Token(TokenKind::InterpolationEnd);
+    cases.push(("unmatched InterpolationEnd", unmatched_interpolation_end));
+
+    let mut dangling_string_start = copy_lexed(&valid);
+    dangling_string_start.lexemes[0].kind = LexemeKind::Token(TokenKind::StringStart);
+    cases.push(("dangling StringStart", dangling_string_start));
+
+    let mut dangling_interpolation_start = copy_lexed(&valid);
+    dangling_interpolation_start.lexemes[0].kind = LexemeKind::Token(TokenKind::InterpolationStart);
+    cases.push(("dangling InterpolationStart", dangling_interpolation_start));
+
+    let mut string_closed_as_interpolation = copy_lexed(&valid);
+    string_closed_as_interpolation.lexemes[0].kind = LexemeKind::Token(TokenKind::StringStart);
+    string_closed_as_interpolation.lexemes[2].kind = LexemeKind::Token(TokenKind::InterpolationEnd);
+    cases.push((
+        "StringStart closed as InterpolationEnd",
+        string_closed_as_interpolation,
+    ));
+
+    let mut interpolation_closed_as_string = copy_lexed(&valid);
+    interpolation_closed_as_string.lexemes[0].kind =
+        LexemeKind::Token(TokenKind::InterpolationStart);
+    interpolation_closed_as_string.lexemes[2].kind = LexemeKind::Token(TokenKind::StringEnd);
+    cases.push((
+        "InterpolationStart closed as StringEnd",
+        interpolation_closed_as_string,
+    ));
 
     cases
 }

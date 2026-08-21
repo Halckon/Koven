@@ -1,6 +1,8 @@
 use super::*;
 use crate::{
-    lexer::{lex_test_source_twice, malformed_test_lexed_files},
+    lexer::{
+        lex_test_source_twice, malformed_lexical_owner_test_files, malformed_test_lexed_files,
+    },
     source::{SourceError, SourceMap},
 };
 
@@ -67,6 +69,40 @@ fn every_parser_consumer_rejects_malformed_lexeme_streams_deterministically() {
         });
         assert_internal_error_twice(&shape_error, "lambda-header index", case, || {
             LambdaHeaderIndex::new(&lexed, &[])
+        });
+    }
+}
+
+#[test]
+fn every_parser_entry_rejects_impossible_lexical_owner_streams_deterministically() {
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source("malformed-owners.ko", "a b")
+        .expect("test source name must be unique");
+    let source = sources
+        .source_text(source_id)
+        .expect("test source must remain available");
+    let cases = malformed_lexical_owner_test_files(&sources, source_id);
+    assert_eq!(cases.len(), 6);
+
+    for (case, lexed) in cases {
+        validate_lexemes(&sources, &lexed, source.len())
+            .unwrap_or_else(|error| panic!("{case} must remain structurally valid: {error}"));
+        let expected = ParserInternalError::InvalidLexemeStream;
+        assert_internal_error_twice(&expected, "lexical recovery index", case, || {
+            LexicalRecoveryIndex::new(source, &lexed)
+        });
+        assert_internal_error_twice(&expected, "expression parser", case, || {
+            parse(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "declaration parser", case, || {
+            parse_declaration(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "block parser", case, || {
+            parse_block(&sources, &lexed)
+        });
+        assert_internal_error_twice(&expected, "file parser", case, || {
+            parse_file(&sources, &lexed)
         });
     }
 }

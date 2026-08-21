@@ -428,6 +428,12 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   lambda-header 预索引器另验证 32 个精确 `InvalidLexemeStream`。engine 对七类本地结构错误返回
   `InvalidLexemeStream`，对 foreign span 保留统一 `SourceMap::slice` 的准确 `InvalidSourceId`；
   本轮未发现生产缺陷；
+- 同一 test-only 边界还可从结构有效的 `a b` 产物派生 unmatched StringEnd、unmatched
+  InterpolationEnd、dangling StringStart、dangling InterpolationStart 及两种错配 closer 共六类
+  不可能的 lexical-owner token 流；每类均先通过 engine 通用 Lexeme 结构校验，再由
+  `LexicalRecoveryIndex` 重复拒绝 12 次，并由 expression、declaration、block、file 四个 engine
+  入口重复拒绝 48 次，全部精确返回 `InvalidLexemeStream`。这把流结构与 lexical-owner 语义
+  两层内部防线的负向证据分离，本轮未发现生产缺陷；
 - declaration suite 以相同约束实际调用独立声明入口；Parser sidecar 允许 Parser 的空范围
   诊断，但 `L0001`–`L0008` Lexer 码即使在合并 sidecar 中仍必须使用非空范围；现有 suite
   已加入具名函数 / 函数类型 marker 与 `L0039` 重复 marker 证据；
