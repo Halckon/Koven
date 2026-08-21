@@ -2,17 +2,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-020` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 当前 v0.22；候选 [v0.23 §23](../guide/01-design-decisions.md#23-名义类型泛型与接口实现候选-v023未启用) 尚未生效 |
+| 语言规范 | 当前 [v0.23 §23](../guide/01-design-decisions.md#23-名义类型泛型与接口实现v023)，已取代 v0.22 |
 | 批准依据 | 当前持续 Goal 的站立授权可批准 Spec，但不能替代 guide 版本级确认 |
 | 前置 Spec | SPEC-0019、SPEC-0017、SPEC-0064 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无；不改变 workspace/阶段/IR 边界 |
-| 阻塞项 | 用户尚未明确启用 v0.23 取代 v0.22 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` nominal model、泛型替换、classifier/interface graph、L0091–L0105、Phase 2 fixture、Architecture |
-| 语言语义变更 | 是；只能在 v0.23 明确启用后实施 |
+| 语言语义变更 | 是；v0.23 已明确启用 |
 
 ## 1. Goal
 
@@ -24,7 +24,7 @@ interface 继承/实现、member 签名与 override/default 冲突，并验证 S
 
 v0.22 只把源码 classifier/type parameter 标为 deferred。旧 guide 已表达“无 class 继承、
 interface 静态分发、委托必须指向 `val` 字段”等设计意图，但没有规定泛型上界集合、interface
-runtime 表示边界、签名等价、override 必需性、冲突优先级或错误码。候选 v0.23 §23 把这些
+runtime 表示边界、签名等价、override 必需性、冲突优先级或错误码。v0.23 §23 把这些
 缺口封闭后，本 Spec 才能形成可验证实现，不能用 Rust/Kotlin 经验反向补规范。
 
 ## 3. 范围与需求
@@ -66,7 +66,7 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 
 ## 5. 验收标准
 
-- [ ] 用户明确启用 v0.23；Spec 由 `draft` 推进到 `in-progress`，当前阻塞清零。
+- [x] 用户明确启用 v0.23；Spec 由 `draft` 推进到 `in-progress`，当前阻塞清零。
 - [ ] 同名不同声明保持不同 nominal identity；相同声明/实参规范化；类型参数身份和替换在
       嵌套 nullable/function/nominal 中确定且捕获规避。
 - [ ] arity、invariance、interface bound、能力 bound 延后和 interface runtime-value 边界分别
@@ -104,7 +104,7 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 
 ## 7. 实施计划
 
-1. [ ] 用户明确启用 v0.23，清除版本门禁并把本 Spec 置为 `in-progress`。
+1. [x] 用户明确启用 v0.23，清除版本门禁并把本 Spec 置为 `in-progress`。
 2. [ ] 建立 nominal/type-parameter/descriptor 与替换模型 → 验证：identity/arity/bound 窄测。
 3. [ ] 验证 supertype/interface graph → 验证：kind/duplicate/cycle/线性族。
 4. [ ] 收集并合并 member signature/requirement/default/override → 验证：L0097–L0102。
@@ -121,7 +121,7 @@ runtime 表示边界、签名等价、override 必需性、冲突优先级或错
 
 ## 9. 未决问题
 
-- 唯一阻塞是候选 v0.23 尚未获得版本级明确启用；候选正文已封闭实施所需语义选择。
+- 无；v0.23 已获得版本级明确启用，正文已封闭实施所需语义选择。
 
 ## 10. 验证记录
 

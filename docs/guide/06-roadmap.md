@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.22。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.23。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -154,7 +154,7 @@ fun main(): Unit {
 - [x] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
       字面量定型、局部推导、单向 expected type、隐式 `Unit` / 显式返回类型、`Nothing`
       bottom 与 L0082–L0090。
-- [ ] **SPEC-0020（前置已完成；候选 v0.23 尚未启用）**：建立名义/泛型 identity 与替换、
+- [ ] **SPEC-0020（前置已完成；v0.23 已明确启用，实施中）**：建立名义/泛型 identity 与替换、
       interface hierarchy/requirement/default、显式 override 和 `Interface by valField` 静态
       委托检查；诊断 L0091–L0105。启用前不得进入实现。
 - [ ] 为具名与预声明 callable 建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余

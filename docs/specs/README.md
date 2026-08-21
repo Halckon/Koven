@@ -1,11 +1,11 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.22 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.23 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-候选 v0.23 已起草 nominal/generic/interface/委托契约，但尚未启用；因此 SPEC-0020 已物化为
-`draft`，不能借站立授权越过 guide 的版本级确认门禁。
+[v0.23](../guide/00-index.md) 已由用户明确启用并取代 v0.22；它封闭 nominal/generic/interface/
+委托契约，SPEC-0020 已进入实施。
 
 [v0.22](../guide/00-index.md) 已由用户明确启用并取代 v0.21；它正式封闭最小数值后缀、默认
 数值类型与基础类型检查契约，并把词法 / AST 增量交给 SPEC-0066、类型阶段交给 SPEC-0019。
@@ -98,7 +98,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 |---|---|---|
 | [0018](./0018-single-file-name-resolution.md) | 完成单文件声明收集、作用域和名称诊断（`done`） | 0014 `done`；v0.21 已生效；当前持续 Goal 的站立授权 |
 | [0019](./0019-basic-type-checking.md) | 检查基础类型、局部推导、隐式 `Unit` / 显式返回类型与 `Nothing`（`done`） | 0018、0066 `done`；v0.22 已生效 |
-| [0020](./0020-nominal-generic-interface-types.md) | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托（`draft`） | 0019、0017、0064 `done`；等待 v0.23 明确启用 |
+| [0020](./0020-nominal-generic-interface-types.md) | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托（`in-progress`） | 0019、0017、0064 `done`；v0.23 已明确启用 |
 | 0021 | 实现 `when` 穷尽性与 smart cast | 0020、0016 |
 | 0022 | 推导条件 `Copyable` 并检查结构化解构类型 | 0019、0020 |
 | 0023 | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型 | 0020、0022；v0.6 生效 |
@@ -164,7 +164,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.22 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.23 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 

@@ -12,13 +12,10 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 
 ## 1. 版本与状态
 
-- **当前唯一权威版本是本文档集的 v0.22**，已于 2026-08-21 由用户明确启用，取代 v0.21；
+- **当前唯一权威版本是本文档集的 v0.23**，已于 2026-08-21 由用户明确启用，取代 v0.22；
   v0.14 此前已取代 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md)。v0.12 及更早
   单文件 guide 只作为历史材料，不参与现行语义优先级。
-- **v0.23 目前只是未启用候选**：[`01-design-decisions.md`](./01-design-decisions.md) §23
-  起草了名义类型、泛型、interface 实现与窄化委托的完整契约。文件名和章节号较新不构成
-  批准；在用户明确指定 v0.23 取代 v0.22 前，SPEC-0020 保持 `draft`，实现不得引用该节。
-- **当前文档集版本是 v0.22**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
+- **当前文档集版本是 v0.23**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
   `Inout` 的调用点标注从关键字 `inout` 改写为符号 `&`；v0.15 封闭完整文件与跨声明恢复
@@ -27,7 +24,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   context `if` 与最近 callable `return` 语义；v0.19 正式采用 `Result<T, E>` 错误值、postfix
   `?` 与无异常展开的可恢复失败模型；v0.20 封闭 class-family、轻量 companion、匿名对象
   边界、窄化接口委托与 interface companion 常量；v0.21 封闭单文件双命名空间、作用域、
-  预声明环境和首批名称诊断；v0.22 封闭最小数值后缀、默认数值类型与基础类型检查契约。
+  预声明环境和首批名称诊断；v0.22 封闭最小数值后缀、默认数值类型与基础类型检查契约；
+  v0.23 封闭名义/泛型身份、interface 静态实现、override/default 冲突与窄化接口委托。
   完整逐版本
   记录见下文
   “精简版本历史”与 [`07-changelog-archive.md`](./07-changelog-archive.md) 的完整表格。
@@ -37,10 +35,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   变更归档，因此没有进入语义变更记录表格，单独在下方“结构调整说明”里交代。除这一版
   外，版本号是单一递增序列，不再区分“语义
   版本”和“结构版本”两条轴——每份正文文档顶部标注的是它自己内容最近一次改动所在的
-  版本；本索引聚合记录整个文档集当前启用的 v0.22 状态。
-- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19、20、21、22 节是现行规范规则；
-  第 18 节仍明确标注为 Map 候选设计，第 23 节是未启用的 v0.23 候选。两者在各自完成
-  版本/设计门禁并补充到对应实施 Spec 之前，
+  版本；本索引聚合记录整个文档集当前启用的 v0.23 状态。
+- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19、20、21、22、23 节是现行规范规则；
+  第 18 节仍明确标注为 Map 候选设计，在完成设计门禁并补充到对应实施 Spec 之前，
   不得被 Phase 2/3/5 实现直接引用为已批准契约。v0.22 的数值后缀由 SPEC-0066 实施，
   L0082–L0090 与基础类型检查由 SPEC-0019 实施。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
@@ -109,7 +106,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.20 | 封闭 Kotlin 表面风格 class-family；companion 为无状态关联命名空间；排除匿名对象和属性委托，保留窄化接口实现委托与 interface companion 常量 |
 | v0.21 | 封闭单文件类型/值双命名空间、稳定 scope/symbol 身份、预声明与顺序 local 可见性，以及 L0079–L0081 名称诊断 |
 | v0.22 | 新增 `L` / `u` / `f` 最小数值后缀；封闭默认数值类型、单向 expected type、基础 local/lambda/函数返回检查与 L0082–L0090 |
-| v0.23（候选） | 起草名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105；未启用 |
+| v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 
 ## 5. SPEC 编号索引
 
@@ -132,7 +129,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0017 | class-family（`class`/`interface`/`enum class`/`object`） | `04-grammar-declarations-blocks.md` §13 | ✅ 已实现 |
 | SPEC-0018 | 单文件声明收集、作用域与名称诊断 | `01-design-decisions.md` §21 | ✅ 已实现 |
 | SPEC-0019 | 基础类型、局部推导与函数返回检查 | `01-design-decisions.md` §22 | ✅ 已完成 |
-| SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | 候选 `01-design-decisions.md` §23 | ⏸ draft；等待 v0.23 明确启用 |
+| SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | `01-design-decisions.md` §23 | 🚧 实施中 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -160,7 +157,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0078 | 已实现的 SPEC-0064 expected delegation target | `04-grammar-declarations-blocks.md` §13.3–13.4 |
 | L0079–L0081 | 已实现的 duplicate / unresolved / use-before-local 名称诊断 | `01-design-decisions.md` §21.3 |
 | L0082–L0090 | v0.22 的基础类型、推导、return、control 与数值范围诊断；SPEC-0019 已实现 | `01-design-decisions.md` §22.5 |
-| L0091–L0105 | 候选 v0.23 的名义/泛型/interface/override/委托诊断；未启用、未进入生产目录 | `01-design-decisions.md` §23.5 |
+| L0091–L0105 | v0.23 的名义/泛型/interface/override/委托诊断；SPEC-0020 实施中 | `01-design-decisions.md` §23.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -182,11 +179,11 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | class-family / companion / 接口委托 / 匿名对象边界 | `01-design-decisions.md` §12、§14–15，`04-grammar-declarations-blocks.md` §13 |
 | 单文件双命名空间、作用域、预声明与名称诊断 | `01-design-decisions.md` §21 |
 | 基础类型、局部推导与返回检查（v0.22） | `01-design-decisions.md` §22 |
-| 名义类型、泛型与 interface 实现（候选 v0.23） | `01-design-decisions.md` §23 |
+| 名义类型、泛型与 interface 实现（v0.23） | `01-design-decisions.md` §23 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---
 
-*除明确排除的候选 §18/§23 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
-v0.22；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
+*除明确排除的候选 §18 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
+v0.23；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*
