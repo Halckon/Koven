@@ -612,6 +612,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   expression / declaration 跨 comment 内逻辑换行保留 `left + right` Binary；block / file 在 comment
   外没有换行或分号时，仍仅凭 comment 内 LF / CRLF 保留 `val first = 0` 与 `val after = 1` 两个声明。
   全部公开产物确定且零诊断，本轮未发现生产缺陷；
+- `parser_long_line_comment_boundaries` integration test 构造含 block / string / interpolation-like
+  marker 与 21,845 个 `界`（65,535 bytes）的 line comment，并分别紧邻 LF / CRLF。每类 carrier
+  进入 expression、declaration、block 与 file 四个公开入口，共执行 8 个源码；每源码先双运行
+  独立 Lexer，再由 Parser helper 双运行 Lexer / Parser，合计验证 32 个 Lexer 与 16 个 Parser 产物。
+  Lexer 均产生一个精确停在换行前的 LineComment trivia，随后产生一个相邻、不重叠且覆盖完整
+  LF / CRLF 的 Newline trivia；正文 marker 不泄漏，UTF-8 payload 可精确切片。expression /
+  declaration 保留换行后的 `left + right` Binary；block / file 在没有其他换行或分号时，仅凭该
+  Newline trivia 保留 `val first = 0` 与 `val after = 1` 两个声明。全部公开产物确定且零诊断，
+  本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
