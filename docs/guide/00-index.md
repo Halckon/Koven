@@ -151,6 +151,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0066 | v0.22 `L` / `u` / `f` 数值后缀 Lexer / AST 增量 | `02-lexical-spec.md` §6 | ✅ 已实现 |
 | SPEC-0067 | 单态 callable/member 选择、实参映射与 place/temporary 分类 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0173 | 唯一期望函数类型的 lambda 参数契约 typed facts | `05-grammar-calls-lambda.md` §9、`../specs/0173-lambda-parameter-contract-facts.md` | ✅ 已实现 |
+| SPEC-0175 | block 内调用实参 lambda 边界修复 | `05-grammar-calls-lambda.md`、`../specs/0175-call-argument-lambda-boundary.md` | ✅ 已实现 |
 
 ## 6. 错误码索引（近似区间，精确定义以对应文档正文为准）
 

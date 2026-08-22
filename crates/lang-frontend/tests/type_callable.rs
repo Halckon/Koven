@@ -153,8 +153,8 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
                     val reader: (borrow Int) -> Unit = { item -> inspect(item) }\n\
                     val writer: (inout Int) -> Unit = { item -> mutate(&item) }\n\
                     val moved: move (borrow Int) -> Unit = move { item -> inspect(item) }\n\
-                    val appliedBorrow = applyBorrow(({ item -> }))\n\
-                    val appliedInout = applyInout(({ item -> }))\n\
+                    val appliedBorrow = applyBorrow({ item -> })\n\
+                    val appliedInout = applyInout({ item -> })\n\
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();

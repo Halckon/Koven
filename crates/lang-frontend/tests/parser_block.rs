@@ -88,6 +88,27 @@ fn empty_and_nested_blocks_preserve_typed_roots_and_exact_spans() {
 }
 
 #[test]
+fn call_argument_lambda_is_not_mistaken_for_a_nested_block() {
+    let text = "{\nval callback = apply({ item -> consume(item) })\nval sentinel = 1\n}";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
+    let (calls, lambdas) =
+        parsed
+            .ast()
+            .expressions()
+            .iter()
+            .fold(
+                (0, 0),
+                |(calls, lambdas), (_, expression)| match expression.payload() {
+                    Expression::Call { .. } => (calls + 1, lambdas),
+                    Expression::Lambda { .. } => (calls, lambdas + 1),
+                    _ => (calls, lambdas),
+                },
+            );
+    assert_eq!((calls, lambdas), (2, 1));
+}
+
+#[test]
 fn local_variables_expressions_and_nested_blocks_keep_source_order() {
     let text = "{ x + y val x = 1 var y: Int = 2 {} }";
     let (_, parsed) = parsed_ok(text);

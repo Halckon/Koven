@@ -14,7 +14,7 @@ fun use(sample: Sample, callback: (Int) -> Long): Long {
     val member = sample.convert(3)
     val reader: (borrow Int) -> Unit = { item -> read(item) }
     val writer: (inout Int) -> Unit = { item -> write(&item) }
-    val acceptedBorrow = acceptBorrow(({ item -> }))
-    val acceptedInout = acceptInout(({ item -> }))
+    val acceptedBorrow = acceptBorrow({ item -> })
+    val acceptedInout = acceptInout({ item -> })
     return callback(4)
 }

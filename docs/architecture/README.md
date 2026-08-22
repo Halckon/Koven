@@ -12,6 +12,8 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
 use-after-move 检查；SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
 SPEC-0173 已让唯一期望函数类型的 lambda 采用 Value/Borrow/Inout 参数契约，并发布稳定
 parameter binding typed facts；
+SPEC-0175 已让 block 内未分组 lambda 实参优先进入 expression parser，不再被 outer block stop
+误判为空实参；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -375,7 +377,7 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   Span、diagnostic、owner recovery 与递归预算断言；全部正常用户源码路径执行两次 Lexer 与
   两次 declaration Parser，并逐次验证相同公开产物不变量。仅故意混用 `SourceMap` 的 identity
   错误与一个预期 `NestingLimitExceeded` 的资源错误 case 直接调用入口；本轮未发现生产缺陷；
-- `parser_block` 的 22 个核心 integration test 保持既有 block / statement corpus、typed child、
+- `parser_block` 的 23 个核心 integration test 保持既有 block / statement corpus、typed child、
   精确 Span、diagnostic、owner recovery 与递归预算断言；全部正常用户源码路径执行两次 Lexer
   与两次 block Parser，并逐次验证相同公开产物不变量。仅故意混用 `SourceMap` 的 identity 错误
   与一个预期 `NestingLimitExceeded` 的资源错误 case 直接调用入口；本轮未发现生产缺陷；

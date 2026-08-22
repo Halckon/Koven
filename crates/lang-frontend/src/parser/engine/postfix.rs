@@ -470,6 +470,7 @@ impl Parser<'_> {
             || self.current_is_symbol(Symbol::Comma)
             || self.current_is_symbol(Symbol::RightParen)
             || (outer_stops.contains(lexeme)
+                && !self.can_start_expression(lexeme)
                 && !self.current_is_symbol(Symbol::Comma)
                 && !self.current_is_symbol(Symbol::RightParen))
     }
