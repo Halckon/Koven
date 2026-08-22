@@ -40,7 +40,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   版本；本索引聚合记录整个文档集当前启用的 v0.25 状态。
 - [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19–24 节是现行规范规则；
   第 18 节仍明确标注为 Map 候选设计，在完成设计门禁并补充到对应实施 Spec 之前，
-  不得被 Phase 2/3/5 实现直接引用为已批准契约。v0.22 的数值后缀由 SPEC-0066 实施，
+  不得被 Phase 2/3/5 实现直接引用为已批准契约；第 26 节是 v0.26 调用期借用与 ASAP
+  析构点候选，在用户明确启用前同样不参与现行语义。v0.22 的数值后缀由 SPEC-0066 实施，
   L0082–L0090 与基础类型检查由 SPEC-0019 实施。
 - **v0.25 已明确启用**：[`01-design-decisions.md`](./01-design-decisions.md) §25 的条件
   `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构契约，以及 L0115–L0118 已成为
@@ -72,7 +73,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 25 节现行设计 + Map 候选 §18 + 原第二部分（现为附录） | ~1400 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 25 节现行设计 + Map 候选 §18 + v0.26 候选 §26 + 原第二部分（现为附录） | ~1550 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
@@ -114,6 +115,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
+| v0.26（候选） | 起草显式实参调用期 loan、参数绑定能力与 ASAP drop-point；尚未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -139,6 +141,10 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0020 | 名义类型、泛型、interface 实现与窄化委托 | `01-design-decisions.md` §23 | ✅ 已完成 |
 | SPEC-0021 | `when` 穷尽性与 smart cast | `01-design-decisions.md` §24 | ✅ 已完成 |
 | SPEC-0022 | 条件 `Copyable`、有限内联布局与结构化解构类型检查 | `01-design-decisions.md` §25 | ✅ 已实现 |
+| SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
+| SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
+| SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
+| SPEC-0029 | 显式实参调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ⏳ v0.26 候选，未启用 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -172,6 +178,8 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0115–L0118 | v0.25 的 `Copyable` bound、内联递归、intrinsic `Box` 与结构化解构诊断；SPEC-0022 已实现 | `01-design-decisions.md` §25.5 |
 | L0119–L0124 | callable target、命名/数量/模式映射、无匹配与歧义诊断；SPEC-0067 已实现 | `05-grammar-calls-lambda.md` §9 |
 | L0125–L0130 | 顺序容器元素、推导、核心构造、索引、只读 place 与禁用 `.get`/`.set` 诊断；SPEC-0023 已实现 | `01-design-decisions.md` §8 |
+| L0131–L0132 | use-after-move 与禁止不可复制分量部分移动；SPEC-0027/0028 已实现 | `../specs/0027-variable-ownership-use-after-move.md`、`../specs/0028-conditional-copy-structural-move.md` |
+| L0133–L0135（候选） | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；尚未启用或实现 | `01-design-decisions.md` §26.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -196,10 +204,11 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 名义类型、泛型与 interface 实现（v0.23） | `01-design-decisions.md` §23 |
 | `when` 穷尽性与 smart cast（v0.24） | `01-design-decisions.md` §24 |
 | 条件 `Copyable`、内联布局、intrinsic `Box` 与结构化解构（v0.25） | `01-design-decisions.md` §25 |
+| 调用期借用与 ASAP 析构点（v0.26 候选，未启用） | `01-design-decisions.md` §26 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---
 
-*除明确排除的候选 §18 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
+*除明确排除的候选 §18、§26 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
 v0.25；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*

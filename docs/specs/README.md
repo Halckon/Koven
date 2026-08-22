@@ -175,7 +175,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 |---|---|---|
 | [0027](./0027-variable-ownership-use-after-move.md) | 建立变量所有权状态并检测 use-after-move（`done`） | 0019、0020、0022、0067 `done`；当前持续 Goal 的站立授权 |
 | [0028](./0028-conditional-copy-structural-move.md) | 实现条件复制、移动与消费式解构检查（`done`） | 0022、0027 `done`；当前持续 Goal 的站立授权 |
-| 0029 | 检查 `Value` / `Borrow` / `Inout` 契约、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点 | 0028；新 guide 明确借用与析构规则 |
+| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 契约、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`draft`） | 0028 `done`；[v0.26 候选](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)已起草，等待用户明确启用 |
 | 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |
@@ -292,7 +292,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 
 | 决策 | 推荐方案 | 需要的权威文档 |
 |---|---|---|
-| 借用与析构 | v1 借用只存在于一次调用的动态期间，不允许存储或返回；ASAP 析构以所有权检查标出的最后一次合法使用为准，分支合流采用保守点 | 新 guide |
+| 借用与析构 | 已形成 [v0.26 候选](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)：v1 loan 限于一次同步调用，ASAP 析构按 owned-value liveness 的最早安全点；当前仍待用户明确启用 | 新 guide（候选已起草） |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |
 | LLVM / target / linker | 固定一组经兼容矩阵验证的 LLVM major 与 `inkwell` feature；先支持单一 host target，再扩展 CI 矩阵 | ADR |

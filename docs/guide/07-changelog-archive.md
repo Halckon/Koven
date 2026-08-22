@@ -368,3 +368,16 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > SPEC-0022 已于 2026-08-21 完成：类型产物可按稳定 `TypeId` 查询四态 `Copyability`，
 > 名义内联环、intrinsic `Box` 和局部 value-class 解构分别由 L0116、L0117 与 L0118 锁定，
 > `Copyable` 上界由 L0115 检查；Phase 2 fixture 与 workspace 标准基线均已通过。
+
+## v0.26 候选变更记录（未启用）
+
+> 本候选于 2026-08-22 为 SPEC-0029 起草。当前唯一权威版本仍是 v0.25；只有用户明确启用
+> v0.26 并指定其取代 v0.25 后，下列契约和 L0133–L0135 才成为现行语义。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 把 v1 borrow 收敛为显式 call argument 建立的同步调用期 loan：argument operand 仍按源码顺序求值，每个 operand 完成后立即应用 Value/Borrow/Inout 效果，loan 覆盖后续实参求值和 callee 动态执行 | 🔴 候选所有权语义 |
+| 2 | 封闭参数体内能力：Value 参数 owned，Borrow/Inout 参数 non-owning；Borrow 只读/shared reborrow，Inout 可替换/reborrow但不得把 MoveOnly 值移出后留下未初始化 place | 🔴 候选借用语义 |
+| 3 | 定义 SymbolId + field path 的 place 重叠与 shared/exclusive 冲突矩阵；不同已知字段可证明不重叠，index place 保持到 SPEC-0030 的明确 deferred | 🔴 候选别名边界 |
+| 4 | 把 ASAP 精确定义为路径敏感 owned-value liveness 的最早安全 drop point，封闭 temporary、赋值替换、scope exit、return/`?`、break/continue、分支合流和 loop backedge 规则 | 🔴 候选析构语义 |
+| 5 | 为 SPEC-0029 预分配 L0133–L0135，并要求所有权产物保存 loan begin/end 与 drop facts；非 place/temporary 的 `&` 保持既有 L0122，member/委托 receiver、容器 index、closure capture、借用返回与完整 NLL 继续后置 | 🟡 候选诊断与 Phase 边界 |

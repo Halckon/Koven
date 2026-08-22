@@ -4,7 +4,8 @@
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.25。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
-> 第 25 节是 v0.25 已启用的现行规则；附录收录原第二部分的核心结构声明总览。
+> 第 25 节是 v0.25 已启用的现行规则；第 26 节是尚未启用的 v0.26 候选，不参与现行语义；
+> 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -1374,6 +1375,137 @@ Spec 定义，不得反向扩展成通用解构占位符。
 SPEC-0022 不实现一般 callable/member/constructor 选择、独立 `componentN()` 调用、字段投影
 所有权、move-after-use、drop、容器类型、`Transferable`、companion 或 codegen。L0115–L0118
 自 v0.25 起具有稳定含义。
+
+---
+
+## 26. 调用期借用与 ASAP 析构点（v0.26 候选，未启用）
+
+> **候选状态**：本节为解除 SPEC-0029 门禁而起草。当前唯一权威版本仍是 v0.25；只有用户
+> 明确启用 v0.26 并指定其取代 v0.25 后，本节才成为现行语义。在此之前不得按本节实现
+> L0133–L0135、借用冲突或析构点。
+
+### 26.1 所有者、参数绑定与调用期 loan
+
+v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期参数或可存储的 borrow value。
+局部变量、临时值和 `Value` 参数在其值为 `MoveOnly` 时拥有唯一析构义务；`Borrow` / `Inout`
+参数只是调用者 place 的非 owning 绑定，由调用者保持 owner，callee 退出时不得析构它们。
+`Copyable` 值不产生唯一析构义务，也不因借用而生成 copy / retain / clone glue。
+
+一次同步调用按以下固定顺序处理：
+
+1. 先求值 callee，再按**源码顺序**各求值一次 argument operand；命名实参映射不改变顺序。
+2. 每个 operand 求值完成后立即应用已由 Phase 2 选定的参数契约，再继续求值下一个 operand：
+   `Value` 对 `Copyable` 产生 owned copy，对 `MoveOnly` 转移 owner；`Borrow` 建立 shared loan；
+   `Inout` 建立 exclusive loan。因而较早实参的 loan 在较晚实参及其嵌套调用求值期间已经有效。
+3. 所有成功建立的 loan 持续到同步 callee 返回；返回后同时结束。`Borrow temporary` 合法，
+   temporary owner 延长到调用返回后再按本节析构。`Inout temporary` 继续非法。
+4. operand 或 callee 产生 `Nothing` 时，不求值其后的 argument，也不为未求值 argument 建立
+   loan。`error()` 是 abort，不做异常展开或沿栈析构。
+
+这不是 NLL：loan 不因 callee 内或调用者表达式中的“最后一次实际访问”提前结束，也不跨越
+本次同步调用存储、返回或挂起。调用期 loan 是所有权检查产物，不成为源码可命名的值。
+
+### 26.2 `Value` / `Borrow` / `Inout` 参数体内能力
+
+- `Value T` 参数是普通 owned local：满足 `Copyable` 时可复制，否则按普通移动规则使用；
+  未移动的 `MoveOnly` 参数由 callee 在本节确定的析构点负责析构。
+- `Borrow T` 参数允许读取、建立嵌套 shared reborrow，以及在 `T : Copyable` 时产生 owned
+  copy。它不允许赋值、建立 `Inout` reborrow、析构或从中移动 `MoveOnly` 值。
+- `Inout T` 参数是已初始化 place 的 exclusive 非 owning 绑定。它允许读取、shared/exclusive
+  reborrow 和以完整新 `T` 替换原值；替换必须先求值 RHS，再析构旧值并提交新值。它不允许
+  把 `MoveOnly` 值移出后留下未初始化的调用者 place。
+- 从 `Borrow` / `Inout` 参数返回或赋给 owned 目标时，只在 `T : Copyable` 时产生 owned copy；
+  `MoveOnly` 情况属于非法移出，而不是借用逃逸。v1 没有 borrow-return 类型。
+- nested reborrow 不得超过 nested call；callee 返回时原 `Inout` place 必须仍为一个完整、
+  已初始化且由调用者拥有的 `T`。
+
+闭包捕获会产生超出单次普通调用的环境 owner，仍由 SPEC-0032 封闭；本节不借“调用期 loan”
+提前接受或拒绝捕获。instance member 的隐式 receiver mode 也尚无源码契约，本节只检查
+`CallArgument` 的显式参数绑定，不从方法名、函数体或字段可变性猜测 receiver 是 `Borrow`
+还是 `Inout`。
+
+### 26.3 place 重叠与冲突矩阵
+
+SPEC-0029 的 place identity 由稳定 root `SymbolId` 与零个或多个已解析 field `SymbolId`
+组成。两个 place 在 root 不同时不重叠；路径完全相同或一方是另一方前缀时重叠；同一 root
+下首个不同字段代表可证明不重叠的存储。普通字段仍不得部分移动，但不同字段可以同时建立
+不冲突的 loan。无法形成稳定 root/path 的表达式不是可借用 place。
+
+index place 的逻辑索引证明、容器重分配冲突与 element replacement 由 SPEC-0030 封闭；
+在该 Spec 完成前，SPEC-0029 必须把 index loan 保留为明确 deferred，不能当成已证明不重叠，
+也不能按内存地址或常量折叠自行接受。
+
+本候选中的 mutable place 也使用封闭规则，不等同于“任何 place”：完整 root 只有源码 `var`
+绑定或 `Inout` 参数可变；`val`、`Value` / `Borrow` 参数、解构绑定和 `for` binding 的完整值
+不可被 `&` 替换。字段必须声明为 `var`，并且普通 `class` 字段的 receiver owner 当前可独占，
+或内联 value/enum receiver path 自身递归满足 mutable place，才是 mutable field place。因此
+`val node: Node` 不允许 `&node` 替换 handle，但在 `Node` 是普通 class 且 `next` 为 `var` 时允许
+`&node.next`；`val point: Point` 的内联 `var` 字段仍不可变，必须由 `var point` 或 `Inout Point`
+投影。group 透明继承内部类别；temporary、`this` 与尚未封闭的 receiver/index 不由本规则
+猜测为 mutable。
+
+对同一或重叠 place，调用者侧的冲突规则只有以下一套：
+
+| 已有效状态 | 新 shared loan / read / `Copyable` copy | 新 exclusive loan / mutation | move / drop |
+|---|---|---|---|
+| 无 loan | 合法 | 仅 mutable place 合法 | 合法 |
+| 一个或多个 shared loan | 合法 | 冲突 | 冲突 |
+| exclusive loan | 冲突 | 冲突 | 冲突 |
+
+`Inout` holder 在 callee 内通过该绑定进行的读取、替换和 reborrow 是 exclusive loan 授予的
+能力，不按“调用者再次访问”处理；对同一 place 的另一参数绑定仍应用上表。新 loan 的 primary
+指向产生冲突的 argument operand 或 `&`，label 指向最早仍有效的冲突 loan；move、赋值或
+drop 与 loan 冲突时 primary 指向该访问，label 同样指向 loan 来源。诊断和 label 顺序只按
+源码顺序，不依赖 hash 迭代。
+
+### 26.4 ASAP 析构的可执行定义
+
+“ASAP”精确定义为：对每条正常控制流路径，在保持所有未来合法读取、借用、移动和赋值 RHS
+求值不变的前提下，于 owner 不再 live 的最早边界析构仍 `Available` 的 `MoveOnly` 值。它是
+owned-value liveness，不把调用期 loan 缩短为完整 NLL。所有权检查输出显式、源码有序的
+drop facts；Phase 4 消费这些事实生成 drop/free，不得重新猜测生命周期。
+
+- `MoveOnly` temporary 在所属完整表达式结束时析构；若作为 `Borrow` 实参，则延长到该调用
+  返回后；若被 `Value` 移走，则源 temporary 不再析构。
+- named owner 在路径上的最后一次合法使用后析构。若 owner 从未使用，则在 initializer 完成
+  且绑定建立后立即析构；initializer 自身仍只求值一次。
+- 普通 `var` 替换先完整求值 RHS；若 RHS 正常返回，再析构旧值并写入新值。RHS 可读取旧值，
+  但若已把旧值移动走，则本次赋值不再为旧值生成 drop。
+- `return value` 先求值并交付返回值，再按内层到外层、同层声明逆序析构仍可用的 owner，
+  最后转移控制；postfix `?` 的 `Err` 路径使用同一 return cleanup。`break` / `continue` 只析构
+  被跳出词法 scope 中的 owner，不能析构目标 loop 下一次迭代仍需要的外层 owner。
+- 正常 scope 结束时，仍 live 的 owner 按声明逆序析构。多个 temporary 在同一边界析构时按
+  完成求值的逆序处理；`Copyable` 值不进入该顺序。
+- 分支分别计算 liveness。若合流后没有未来使用，各条 incoming path 在最早安全边界析构仍
+  可用的 owner；某条路径已移动时该路径不析构。若无法证明 branch-local 最后使用，则保守
+  延迟到最近共同安全边界，不能提前析构。合流后的未来使用若可从已移动路径到达，仍产生
+  L0131，而不是通过在其他路径插入 copy 修复。
+- loop backedge 上仍可能在后续迭代使用的 owner 保持 live；只有离开 loop 的边或可证明不再
+  回到使用点的路径可以析构。v1 不做跨调用、跨闭包或依赖运行时索引的 NLL 证明。
+
+任何有效 loan 都把对应 owner 视为 live；drop 与 loan 冲突必须先报告借用错误，不能通过
+提前结束 loan 或静默延后到不可复核的位置“修复”源码。程序已有所有权错误时可以保留用于
+抑制级联的恢复状态，但不得据此生成可执行 drop 计划。
+
+### 26.5 诊断、产物与实施边界
+
+| 错误码 | 候选稳定含义 | 主范围与关联信息 |
+|---|---|---|
+| L0133 | 从 `Borrow` / `Inout` 绑定移出 `MoveOnly` 值 | primary 为消费位置；label 指向参数声明或 loan 来源 |
+| L0134 | `Inout` operand 已是 place，但不是可独占的 mutable place | primary 为 `&`；label 可指向不可变声明 |
+| L0135 | read / borrow / mutation / move / drop 与仍有效 loan 冲突 | primary 为后发生的冲突访问；label 指向最早冲突 loan |
+
+L0131 use-after-move 与 L0132 partial-move 的含义不变；同一根因先产生 L0133–L0135 后，不再
+追加 L0131/L0132 级联。非 place 或 temporary 的 `&operand` 继续由既有 L0122 参数模式不匹配
+拒绝，不迁移到 L0134。有效所有权产物至少能按 expression/control-flow edge 查询 loan begin、
+loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `Span`。
+
+本候选只解除 SPEC-0029 的显式 call argument、参数体内 reborrow 与 owned-value drop-point
+门禁。member/委托 receiver、index element place 与容器 relocation 属于 SPEC-0030 或后续
+独立 Goal；closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
+跨调用 loan、完整 NLL 和部分移动不进入 v1。被 lambda 引用的外层 owner 在 SPEC-0032 前
+必须保留明确 deferred 且不得生成提前 drop fact，不能把“未检查 capture”误当成最后使用。
+SPEC-0029 不新增语法、依赖或 LLVM 类型。
 
 ---
 

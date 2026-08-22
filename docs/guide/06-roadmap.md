@@ -218,6 +218,10 @@ Spec 之前，本条限制不变。）
 
 ## Phase 3：所有权 / 借用检查
 
+SPEC-0029 的显式 call argument loan 与 ASAP drop-point 已在
+[v0.26 候选](./01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)中形成
+可执行草案，但候选尚未启用；当前权威版本仍是 v0.25，因此以下对应项不能提前勾选或实现。
+
 - [ ] 实现简化版单一所有者 + ASAP 析构（不做完整 NLL）
 - [ ] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
       与声明侧 `Value` / `Borrow` / `Inout` 契约，判定 place / temporary、可变性、复制 / 移动
