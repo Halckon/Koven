@@ -550,6 +550,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   invalid escape 继续形成唯一 Error part。声明 initializer、单一 block local 与单一 file root 均可
   通过 typed ID 解引用；terminal block 依赖既有 EOF ownership，不伪造右花括号。本轮未发现生产
   缺陷；
+- `parser_mixed_long_lexical_error_stream` integration test 以约 256 KiB 的异构源码把长 closed
+  string 内 L0006、长 closed L0007 char、长 L0008 number 与四种长 EOF terminal owner 依次
+  组成 call argument，再分别投放到 expression、declaration、block 与 file 四个公开入口。16 个
+  源码各执行两次 Lexer 与两次对应 Parser，共验证 32 个 Lexer 和 32 个 Parser 产物；每例保持
+  四条源码有序、wrapper-offset 精确的 Lexer 根因，以及唯一一条 EOF 空 Span 的 L0010 和指向
+  真实 call `(` 的 opener label。这锁定 terminal owner 只拥有自身 closer、未闭合 call 仍是独立
+  语法错误、外层 block closer 不再级联的边界。四个 argument 及 Error / String / Error part 形态、
+  变量 initializer、单一 block local 和单一 file root 均可通过 typed ID 解引用，全部公开产物保持
+  确定性；本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
