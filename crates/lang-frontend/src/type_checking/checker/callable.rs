@@ -96,6 +96,15 @@ impl Checker<'_> {
                         .collect(),
                     return_type,
                 });
+            } else if self.aggregate_projection_for(callee).is_none()
+                && let Some(result) = self.check_structural_component_call(
+                    expression,
+                    callee,
+                    &type_arguments,
+                    &arguments,
+                )?
+            {
+                return Ok(result);
             } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
                 for argument in &arguments {
                     self.check_expression(argument.value, None, None)?;

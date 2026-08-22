@@ -9,7 +9,9 @@ use crate::{
         Statement, StringPart, WhenCondition,
     },
     source::{SourceMap, Span},
-    type_checking::{Copyability, ParameterMode, TypedFile},
+    type_checking::{
+        AggregateProjectionKind, Copyability, DestructuringMode, ParameterMode, TypedFile,
+    },
 };
 
 use super::{OwnershipCheckedFile, OwnershipCheckingError};
@@ -64,6 +66,7 @@ struct Checker<'a> {
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
     diagnostics: Vec<Diagnostic>,
     use_after_move_code: DiagnosticCode,
+    partial_move_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -107,6 +110,7 @@ impl<'a> Checker<'a> {
             calls_by_expression,
             diagnostics: Vec::new(),
             use_after_move_code: codes::catalog()?.resolve(codes::USE_AFTER_MOVE)?,
+            partial_move_code: codes::catalog()?.resolve(codes::PARTIAL_MOVE)?,
         })
     }
 
@@ -206,7 +210,7 @@ impl<'a> Checker<'a> {
                 Ok(Flows::next(state))
             }
             Statement::LocalDestructuring { initializer, .. } => {
-                self.check_expression(initializer, state, ExpressionUse::Read)
+                self.check_destructuring(id, initializer, state)
             }
             Statement::While {
                 condition, body, ..
@@ -353,12 +357,25 @@ impl<'a> Checker<'a> {
                     self.diagnostics.len() == diagnostic_count,
                 )
             }
-            Expression::Member { receiver, .. } => {
-                self.check_expression(receiver, state, ExpressionUse::Read)
+            Expression::Member {
+                receiver,
+                name_span,
+                ..
+            } => {
+                let diagnostic_count = self.diagnostics.len();
+                let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
+                if matches!(usage, ExpressionUse::Consume)
+                    && flows.next.is_some()
+                    && self.diagnostics.len() == diagnostic_count
+                {
+                    self.reject_partial_move(id, name_span)?;
+                }
+                Ok(flows)
             }
             Expression::Call {
                 callee, arguments, ..
             } => {
+                let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_expression(callee, state, ExpressionUse::Read)?;
                 let modes = self.calls_by_expression.get(&id.index()).cloned();
                 for (index, argument) in arguments.into_iter().enumerate() {
@@ -372,6 +389,20 @@ impl<'a> Checker<'a> {
                         ExpressionUse::Read
                     };
                     flows = self.chain_expression(flows, argument.value, usage)?;
+                }
+                if flows.next.is_some()
+                    && self.diagnostics.len() == diagnostic_count
+                    && self
+                        .typed
+                        .aggregate_projection(id)
+                        .is_some_and(|projection| {
+                            projection.kind() == AggregateProjectionKind::StructuralComponent
+                        })
+                {
+                    let callee = self.parsed.ast().expressions().get(callee)?;
+                    if let Expression::Member { name_span, .. } = callee.payload() {
+                        self.reject_partial_move(id, *name_span)?;
+                    }
                 }
                 Ok(flows)
             }
@@ -459,6 +490,33 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
+    fn check_destructuring(
+        &mut self,
+        statement: StatementId,
+        initializer: ExpressionId,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let Some(descriptor) = self.typed.destructuring(statement) else {
+            return self.check_expression(initializer, state, ExpressionUse::Read);
+        };
+        let usage = match descriptor.mode() {
+            DestructuringMode::Copy => ExpressionUse::Read,
+            DestructuringMode::Consume => ExpressionUse::Consume,
+        };
+        let bindings = descriptor
+            .components()
+            .iter()
+            .map(|component| component.symbol())
+            .collect::<Vec<_>>();
+        let mut flows = self.check_expression(initializer, state, usage)?;
+        if let Some(state) = flows.next.as_mut() {
+            for binding in bindings {
+                state.remove(&binding);
+            }
+        }
+        Ok(flows)
+    }
+
     fn finish_assignment(
         &mut self,
         flows: Flows,
@@ -509,6 +567,36 @@ impl<'a> Checker<'a> {
         if matches!(usage, ExpressionUse::Consume) && self.is_move_only_variable(symbol) {
             state.insert(symbol, span);
         }
+        Ok(())
+    }
+
+    fn reject_partial_move(
+        &mut self,
+        expression: ExpressionId,
+        primary: Span,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(projection) = self.typed.aggregate_projection(expression) else {
+            return Ok(());
+        };
+        if self.typed.copyability(projection.ty()) != Some(Copyability::MoveOnly) {
+            return Ok(());
+        }
+        let Some(field) = self.names.symbols().get(projection.field().index()) else {
+            return Ok(());
+        };
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.partial_move_code,
+            "cannot move a non-Copyable component out of its owner",
+            primary,
+        )?;
+        diagnostic.add_label(
+            self.sources,
+            field.span(),
+            "non-Copyable component declared here",
+        )?;
+        self.diagnostics.push(diagnostic);
         Ok(())
     }
 

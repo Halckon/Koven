@@ -1,0 +1,7 @@
+class Resource {}
+value class Pair<A, B>(val first: A, val second: B)
+fun take(item: Resource): Unit {}
+fun fail(pair: Pair<Resource, Int>): Unit {
+    val field = take(pair.first)
+    val component = pair.component1()
+}

@@ -10,6 +10,7 @@ mod layout;
 mod literal;
 mod members;
 mod nominal;
+mod projection;
 mod type_ref;
 mod when;
 
@@ -27,13 +28,13 @@ use crate::{
 };
 
 use super::{
-    BuiltinType, CallDescriptor, CallableDescriptor, Capability, ContainerConstructionDescriptor,
-    Copyability, DeferredReason, DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor,
-    EnumCaseDescriptor, EnvironmentFunction, EnvironmentType, ExpressionCategory,
-    ExternalTypeBinding, FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor,
-    NominalId, NominalKind, ParameterMode, SequentialContainerKind, TypeCheckingError,
-    TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
-    TypedFile, TypedFileParts,
+    AggregateProjectionDescriptor, BuiltinType, CallDescriptor, CallableDescriptor, Capability,
+    ContainerConstructionDescriptor, Copyability, DeferredReason, DelegationPlan,
+    DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor, EnvironmentFunction,
+    EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
+    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind, ParameterMode,
+    SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
+    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
@@ -107,6 +108,7 @@ struct Checker<'a> {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    aggregate_projections: Vec<AggregateProjectionDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
@@ -256,6 +258,7 @@ impl<'a> Checker<'a> {
                 parsed.ast().expressions().len()
             ],
             calls: Vec::new(),
+            aggregate_projections: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
@@ -372,6 +375,7 @@ impl<'a> Checker<'a> {
                 destructurings: self.destructurings,
                 expression_categories: self.expression_categories,
                 calls: self.calls,
+                aggregate_projections: self.aggregate_projections,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,
             },

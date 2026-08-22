@@ -178,15 +178,15 @@ fun main(): Unit {
 - [x] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
 - [ ] 泛型单态化的类型层面准备（类型替换，不接编译期计算）
 - [x] `Nothing` 类型的 bottom-type 特殊处理
-- [ ] 计算 `value class` / `enum class` 的条件 `Copyable`：允许不可复制字段或 payload，按
+- [x] 计算 `value class` / `enum class` 的条件 `Copyable`：允许不可复制字段或 payload，按
       实际类型实参递归推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、
       覆盖或同名冒充（v0.25 现行契约）
-- [ ] 检查内联类型结构有限；拒绝未经过 `class`、`Box` 或动态容器等固定大小 handle 打断的
+- [x] 检查内联类型结构有限；拒绝未经过 `class`、`Box` 或动态容器等固定大小 handle 打断的
       直接 / 间接递归内联环
-- [ ] 对内建 `Box<T>` 执行 type-kind 检查：只接受 `value class` 类型实参，拒绝普通 `class`
-- [ ] 检查字段投影的使用模式：可复制字段可读出 owned copy，不可复制字段只允许投影借用，
+- [x] 对内建 `Box<T>` 执行 type-kind 检查：只接受 `value class` 类型实参，拒绝普通 `class`
+- [x] 检查字段投影的使用模式：可复制字段可读出 owned copy，不可复制字段只允许投影借用，
       禁止把普通字段读取标记为所有权移出
-- [ ] 为 `value class` 建立有序结构分量并支持解构类型检查；右值只求值一次，类型结果标记为
+- [x] 为 `value class` 建立有序结构分量并支持解构类型检查；右值只求值一次，类型结果标记为
       复制式或消费式解构；不可复制类型的消费式解构必须覆盖全部分量
 - [x] 按[01-design-decisions.md](./01-design-decisions.md)第 8 节识别 `Array<T>`、`List<T>`、`MutableList<T>` 的精确单类型实参、
       长度 / 可变性角色和非 `Copyable` 独占 owner 能力；拒绝内建容器 arity 错误
@@ -223,12 +223,12 @@ Spec 之前，本条限制不变。）
       与声明侧 `Value` / `Borrow` / `Inout` 契约，判定 place / temporary、可变性、复制 / 移动
       与借用冲突；不得按函数名猜测例外
 - [x] 移动后使用（use-after-move）检测
-- [ ] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
+- [x] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
 - [ ] 接口委托生成的转发调用保持原方法的 `Value` / `Borrow` / `Inout` 契约，并把字段访问、
       移动与借用冲突归入同一套所有权检查；不得把委托隐式升级成共享运行时代理
-- [ ] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
-- [ ] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
+- [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
+- [x] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
 - [ ] 移动顺序容器时转移唯一缓冲区 owner，拒绝再次使用源容器；构造时按 `Copyable`
       能力处理已有 place：已有 place 与临时表达式同样不需要额外标注，按 `Copyable` 复制
       或移动元素，不插入 clone、retain 或 `Box`；initializer 返回值直接交付

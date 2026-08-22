@@ -5,6 +5,7 @@ mod checker;
 mod container;
 mod error;
 mod model;
+mod projection;
 
 use std::{sync::Arc, thread};
 
@@ -14,6 +15,7 @@ pub use call::*;
 pub use container::*;
 pub use error::TypeCheckingError;
 pub use model::*;
+pub use projection::*;
 
 /// 对已完成名称解析的单文件执行当前 Phase 2 类型检查流水线。
 pub fn check_types(

@@ -9,7 +9,8 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
 类型、核心构造和 element-place 类型事实；SPEC-0027 已建立整变量所有权状态与
-use-after-move 检查；SPEC-0058 已提供独立 TextMate grammar 与由生产
+use-after-move 检查；SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
+SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
 
@@ -22,7 +23,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0131` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0132` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -51,12 +52,14 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
   实例化、callable reference、safe-call lifting 与所有权可用性仍使用逐类 `DeferredReason`
-  保留；
+  保留；普通名义主构造器字段已建立带实际泛型替换的 `AggregateProjectionDescriptor`，
+  `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
 - `lang_frontend::ownership_checking` 已提供消费 ParsedFile、名称解析与类型事实的独立检查
   入口，以稳定 `SymbolId` 跟踪局部整变量和参数的可用 / 已移动状态；MoveOnly 值在
   initializer、Value 实参和显式 return 的按值交付点移动，Copyable 值保持可用，普通重新
   赋值恢复变量状态，分支与循环按可继续路径保守合流；L0131 同时定位非法使用与首次移动，
-  借用冲突、部分移动、消费式解构和析构点仍属后续 Spec；
+  Copy/Consume 解构按单个原子动作复制或移动整个源值，L0132 拒绝从字段或自动结构分量移出
+  MoveOnly 值且不建立部分状态；借用冲突、顺序容器 element place 和析构点仍属后续 Spec；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
@@ -894,6 +897,10 @@ consume、source identity 与 L0091、L0115–L0118 断言保持不变，本轮�
 Copyable 按值交付、Borrow / Inout、重新赋值、temporary、分支 / loop 合流、终止路径、
 SymbolId 遮蔽、错误 AST 去级联和真实 pass / fail fixture；fixture runner 精确枚举一个正例与
 一个反例，并核对 L0131 的 code、非法使用 Span 与首次移动 label Span。
+`tests/ownership_structural.rs` 的 4 个 integration test 覆盖条件 value class、nullable enum、
+intrinsic Box、无 / 有 `Copyable` 上界类型参数、Copy/Consume 完整解构、temporary、字段的
+Borrow / Inout / Value 投影、自动 `componentN()`、显式成员优先及普通 class 字段；另精确枚举
+一个 structural pass 与一个 fail fixture，并核对 L0131 / L0132 primary 和字段声明 label。
 
 ## TextMate grammar
 
@@ -954,9 +961,10 @@ callable 参数与 typed call argument、局部解构、完整文件与 package 
 control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析、
 基础类型检查、名义/泛型/interface 检查及分层 fixture harness 已存在；enum case type、
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
-类型事实也已实现；整变量 MoveOnly / Copyable 状态和 use-after-move 已由独立 Phase 3 阶段
-实现；泛型 callable 实例化、`object` / `companion object` 关联成员，以及消费式解构、借用
-冲突、部分移动与析构点等后续所有权规则仍未实现；
+类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
+解构和字段 / 自动结构分量的部分移动拒绝已由独立 Phase 3 阶段实现；泛型 callable 实例化、
+`object` / `companion object` 关联成员，以及借用冲突、容器 element place 与析构点等后续
+所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 

@@ -207,8 +207,9 @@ impl Checker<'_> {
             Expression::Member {
                 receiver,
                 name_span,
+                safe,
                 ..
-            } => self.check_member(receiver, name_span)?,
+            } => self.check_member(id, receiver, name_span, safe)?,
             Expression::Call {
                 callee,
                 type_arguments,
@@ -329,8 +330,10 @@ impl Checker<'_> {
 
     fn check_member(
         &mut self,
-        receiver: ExpressionId,
+        expression: ExpressionId,
+        receiver_id: ExpressionId,
         name_span: Span,
+        safe: bool,
     ) -> Result<ExprCheck, TypeCheckingError> {
         if let Some(ReferenceTarget::Symbol(symbol)) =
             self.reference(name_span, Namespace::Value).cloned()
@@ -344,7 +347,15 @@ impl Checker<'_> {
                 falls_through: true,
             });
         }
-        let receiver = self.check_expression(receiver, None, None)?;
+        let receiver = self.check_expression(receiver_id, None, None)?;
+        if let Some(ty) =
+            self.check_field_projection(expression, receiver_id, receiver.ty, name_span, safe)?
+        {
+            return Ok(ExprCheck {
+                ty,
+                falls_through: receiver.falls_through,
+            });
+        }
         let name = self.sources.slice(name_span)?;
         if let Some(ty) = self.container_member_type(receiver.ty, name, name_span)? {
             return Ok(ExprCheck {

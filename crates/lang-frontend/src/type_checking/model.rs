@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    CallDescriptor, ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
-    IntrinsicCallable,
+    AggregateProjectionDescriptor, CallDescriptor, ContainerConstructionDescriptor,
+    ElementPlaceDescriptor, ExpressionCategory, IntrinsicCallable,
 };
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
@@ -820,6 +820,7 @@ pub struct TypedFile {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    aggregate_projections: Vec<AggregateProjectionDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -838,6 +839,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) destructurings: Vec<DestructuringDescriptor>,
     pub(crate) expression_categories: Vec<ExpressionCategory>,
     pub(crate) calls: Vec<CallDescriptor>,
+    pub(crate) aggregate_projections: Vec<AggregateProjectionDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
@@ -864,6 +866,7 @@ impl TypedFile {
             destructurings: parts.destructurings,
             expression_categories: parts.expression_categories,
             calls: parts.calls,
+            aggregate_projections: parts.aggregate_projections,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             diagnostics,
@@ -967,6 +970,24 @@ impl TypedFile {
     pub fn call(&self, expression: ExpressionId) -> Option<&CallDescriptor> {
         self.calls
             .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码 expression 顺序的聚合分量投影。
+    #[must_use]
+    pub fn aggregate_projections(&self) -> &[AggregateProjectionDescriptor] {
+        &self.aggregate_projections
+    }
+
+    /// 查询指定 expression 的聚合分量投影。
+    #[must_use]
+    pub fn aggregate_projection(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<AggregateProjectionDescriptor> {
+        self.aggregate_projections
+            .iter()
+            .copied()
             .find(|descriptor| descriptor.expression() == expression)
     }
 
