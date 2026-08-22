@@ -222,7 +222,7 @@ Spec 之前，本条限制不变。）
 - [ ] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
       与声明侧 `Value` / `Borrow` / `Inout` 契约，判定 place / temporary、可变性、复制 / 移动
       与借用冲突；不得按函数名猜测例外
-- [ ] 移动后使用（use-after-move）检测
+- [x] 移动后使用（use-after-move）检测
 - [ ] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
 - [ ] 接口委托生成的转发调用保持原方法的 `Value` / `Borrow` / `Inout` 契约，并把字段访问、

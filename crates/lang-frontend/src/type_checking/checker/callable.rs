@@ -563,6 +563,7 @@ impl Checker<'_> {
                     argument_index,
                     mapping[argument_index],
                     self.expression_categories[argument.value.index()],
+                    candidate.parameters[mapping[argument_index]].mode,
                 )
             })
             .collect();

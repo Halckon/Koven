@@ -1,0 +1,6 @@
+class Resource {}
+fun take(item: Resource): Unit {}
+fun fail(input: Resource): Unit {
+    val first = take(input)
+    val second = take(input)
+}

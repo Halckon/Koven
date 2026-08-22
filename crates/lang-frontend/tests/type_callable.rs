@@ -98,6 +98,11 @@ fn source_member_and_function_value_calls_record_stable_mappings() {
             .collect::<Vec<_>>(),
         [0, 1]
     );
+    assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
+    assert_eq!(
+        typed.calls()[0].arguments()[1].mode(),
+        ParameterMode::Borrow
+    );
     assert_eq!(
         typed.calls()[0].arguments()[0].category(),
         ExpressionCategory::Place
@@ -135,6 +140,7 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
         typed.calls()[2].arguments()[0].category(),
         ExpressionCategory::Place
     );
+    assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Inout);
 }
 
 #[test]
@@ -216,6 +222,7 @@ fn external_singleton_call_uses_the_same_positional_contract() {
         typed.calls()[0].target(),
         CallableTarget::External(target) if target == external
     ));
+    assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
 }
 
 #[test]

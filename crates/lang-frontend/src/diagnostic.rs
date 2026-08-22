@@ -141,6 +141,7 @@ pub mod codes {
     pub(crate) const INVALID_CONTAINER_INDEX: &str = "L0128";
     pub(crate) const IMMUTABLE_CONTAINER_PLACE: &str = "L0129";
     pub(crate) const INVALID_CONTAINER_MEMBER: &str = "L0130";
+    pub(crate) const USE_AFTER_MOVE: &str = "L0131";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -274,6 +275,7 @@ pub mod codes {
         INVALID_CONTAINER_INDEX,
         IMMUTABLE_CONTAINER_PLACE,
         INVALID_CONTAINER_MEMBER,
+        USE_AFTER_MOVE,
     ];
 
     /// 由集中定义创建生产错误码目录。

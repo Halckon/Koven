@@ -3,6 +3,7 @@ use crate::{
     name_resolution::{ExternalSymbolId, SymbolId},
 };
 
+use super::ParameterMode;
 use super::model::TypeId;
 
 /// Phase 2 对表达式操作数建立的类型层面类别。
@@ -31,6 +32,7 @@ pub struct CallArgumentDescriptor {
     argument_index: usize,
     parameter_index: usize,
     category: ExpressionCategory,
+    mode: ParameterMode,
 }
 
 impl CallArgumentDescriptor {
@@ -38,11 +40,13 @@ impl CallArgumentDescriptor {
         argument_index: usize,
         parameter_index: usize,
         category: ExpressionCategory,
+        mode: ParameterMode,
     ) -> Self {
         Self {
             argument_index,
             parameter_index,
             category,
+            mode,
         }
     }
 
@@ -62,6 +66,12 @@ impl CallArgumentDescriptor {
     #[must_use]
     pub const fn category(self) -> ExpressionCategory {
         self.category
+    }
+
+    /// 返回已选择参数的传递模式。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
     }
 }
 

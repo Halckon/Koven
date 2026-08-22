@@ -8,20 +8,21 @@ SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interfa
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
-类型、核心构造和 element-place 类型事实；SPEC-0058 已提供独立 TextMate grammar 与由生产
+类型、核心构造和 element-place 类型事实；SPEC-0027 已建立整变量所有权状态与
+use-after-move 检查；SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
-仓库已完成 Phase 0 与 Phase 1，并已进入 Phase 2。工程骨架按
+仓库已完成 Phase 0、Phase 1 与当前无 guide 门禁的 Phase 2 主线，并已进入 Phase 3。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
 
 - 根目录是 resolver 3 的 virtual Cargo workspace；所有 package 使用 Rust edition 2024，
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0130` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0131` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -51,12 +52,17 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
   实例化、callable reference、safe-call lifting 与所有权可用性仍使用逐类 `DeferredReason`
   保留；
+- `lang_frontend::ownership_checking` 已提供消费 ParsedFile、名称解析与类型事实的独立检查
+  入口，以稳定 `SymbolId` 跟踪局部整变量和参数的可用 / 已移动状态；MoveOnly 值在
+  initializer、Value 实参和显式 return 的按值交付点移动，Copyable 值保持可用，普通重新
+  赋值恢复变量状态，分支与循环按可继续路径保守合流；L0131 同时定位非法使用与首次移动，
+  借用冲突、部分移动、消费式解构和析构点仍属后续 Spec；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无泛型 callable 实例化、所有权状态检查或 codegen 实现；
+- 尚无泛型 callable 实例化、借用冲突 / 部分移动 / 析构点检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -884,6 +890,10 @@ identity、deferred 与 L0091、L0094、L0122、L0125–L0130 断言保持不变
 helper 进入名称解析与 copyability 类型检查；共验证 16 个 Lexer 和 16 个完整文件 Parser 产物的
 相同公开不变量。conditional `Copyable`、有限内联布局、intrinsic `Box`、结构化解构 copy /
 consume、source identity 与 L0091、L0115–L0118 断言保持不变，本轮未发现生产缺陷。
+`tests/ownership_checking.rs` 的 6 个 integration test 覆盖 source identity、MoveOnly 与
+Copyable 按值交付、Borrow / Inout、重新赋值、temporary、分支 / loop 合流、终止路径、
+SymbolId 遮蔽、错误 AST 去级联和真实 pass / fail fixture；fixture runner 精确枚举一个正例与
+一个反例，并核对 L0131 的 code、非法使用 Span 与首次移动 label Span。
 
 ## TextMate grammar
 
@@ -944,8 +954,9 @@ callable 参数与 typed call argument、局部解构、完整文件与 package 
 control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析、
 基础类型检查、名义/泛型/interface 检查及分层 fixture harness 已存在；enum case type、
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
-类型事实也已实现；泛型 callable 实例化、`object` / `companion object` 关联成员和后续
-所有权规则仍未实现；
+类型事实也已实现；整变量 MoveOnly / Copyable 状态和 use-after-move 已由独立 Phase 3 阶段
+实现；泛型 callable 实例化、`object` / `companion object` 关联成员，以及消费式解构、借用
+冲突、部分移动与析构点等后续所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。
 
