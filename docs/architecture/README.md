@@ -638,6 +638,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   helper 双运行 Lexer / Parser，合计验证 8 个 Lexer 与 4 个 Parser 产物；合法源精确包含 12,290 个
   Identifier 与 12,286 个 Dot，恢复源包含 12,289 个 Identifier 与 12,287 个 Dot。全部 Span 均
   source-local、可切片且确定，本轮未发现生产缺陷；
+- `parser_large_file_header_separators` integration test 建立两个含 4,096 个 `import pkg.ItemN` 的
+  完整文件，合计覆盖 8,192 个 imports。合法源循环使用 LF、CRLF、分号与内部含 LF 的 block
+  comment 分隔，精确保留 package、全部双 segment imports 与最终 `val after = 1` root，零诊断；
+  Lexer 观察到 4,096 个 import keyword、4,097 个 Dot、8,195 个 Identifier、1,024 个 Semicolon、
+  1,024 个 BlockComment 和 2,049 个独立 Newline trivia，comment 内换行不泄漏为独立 trivia。
+  恢复源仅以普通空格连接全部 header / root，相应产生 4,097 条有序 L0053，primary 逐一覆盖下一
+  `import` 或最终 `val` starter，同时不吞 directive、不产生 Error root。每源先双运行独立 Lexer，
+  再由 file helper 双运行 Lexer / Parser，合计验证 8 个 Lexer 与 4 个 Parser 产物；全部 Span 均
+  source-local、可切片且确定，本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
