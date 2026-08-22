@@ -559,6 +559,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   语法错误、外层 block closer 不再级联的边界。四个 argument 及 Error / String / Error part 形态、
   变量 initializer、单一 block local 和单一 file root 均可通过 typed ID 解引用，全部公开产物保持
   确定性；本轮未发现生产缺陷；
+- `parser_mixed_long_recoverable_error_stream` integration test 以同一约 320 KiB 闭合 call 串联
+  长 closed invalid-escape string、长 newline-terminated string、长 newline-terminal escape、长
+  invalid char、长 invalid number 与合法 `sentinel` 参数，再分别投放到 expression、declaration、
+  block 与 file 四个公开入口。4 个源码各执行两次 Lexer 与两次对应 Parser，共验证 8 个 Lexer
+  和 8 个 Parser 产物；每例精确保留源码有序的 L0006 / L0004 / L0006 / L0007 / L0008，两个
+  newline owner 的 String / CallArgument Span 停在换行前，且无 Parser 诊断。六个 argument、三个
+  String、两个 Error、两个 invalid-escape Error part、真实 `)` 和尾部 Name 均保持 typed 可解引用；
+  block / file 还分别保留第二个 `val after = 0` local / root，证明恢复越过参数列表并返回外层
+  code mode。全部公开产物保持确定性；本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
