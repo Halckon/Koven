@@ -169,6 +169,11 @@ fun main(): Unit {
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
       独占访问或是否与其他借用冲突
+- [x] **SPEC-0173（现行 callable 契约实现漂移修复）**：具有唯一期望函数类型的 lambda
+      逐项采用 Value/Borrow/Inout 参数契约，并按参数 SymbolId 发布 typed fact；结构错误不
+      伪造模式
+- [ ] 多 overload 候选对 lambda expected contract/body 的 candidate-isolated 检查；由
+      SPEC-0174 独立封闭 trial 与诊断回滚，不把无期望单次检查误报为完整实现
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承

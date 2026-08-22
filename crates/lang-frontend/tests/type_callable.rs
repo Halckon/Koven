@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     diagnostic::Diagnostic,
-    name_resolution::{NameEnvironment, resolve_names},
+    name_resolution::{NameEnvironment, SymbolKind, resolve_names},
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
@@ -141,6 +141,103 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
         ExpressionCategory::Place
     );
     assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Inout);
+}
+
+#[test]
+fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
+    let text = "fun inspect(borrow input: Int): Unit {}\n\
+                fun mutate(inout input: Int): Unit {}\n\
+                fun applyBorrow(callback: (borrow Int) -> Unit): Unit {}\n\
+                fun applyInout(callback: (inout Int) -> Unit): Unit {}\n\
+                fun use(): Unit {\n\
+                    val reader: (borrow Int) -> Unit = { item -> inspect(item) }\n\
+                    val writer: (inout Int) -> Unit = { item -> mutate(&item) }\n\
+                    val moved: move (borrow Int) -> Unit = move { item -> inspect(item) }\n\
+                    val appliedBorrow = applyBorrow(({ item -> }))\n\
+                    val appliedInout = applyInout(({ item -> }))\n\
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let named_modes = resolution
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.kind() == SymbolKind::ValueParameter)
+        .map(|symbol| (symbol.name(), typed.parameter_mode(symbol.id())))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        named_modes,
+        [
+            ("input", Some(ParameterMode::Borrow)),
+            ("input", Some(ParameterMode::Inout)),
+            ("callback", Some(ParameterMode::Value)),
+            ("callback", Some(ParameterMode::Value)),
+        ]
+    );
+
+    let lambda_modes = resolution
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+        .map(|symbol| typed.parameter_mode(symbol.id()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lambda_modes,
+        [
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Inout),
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Inout),
+        ]
+    );
+
+    let lambda_type_modes = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| matches!(node.payload(), Expression::Lambda { .. }).then_some(id))
+        .map(|id| {
+            match typed
+                .expression_type(id)
+                .and_then(|ty| typed.types().get(ty))
+            {
+                Some(TypeKind::Function { parameters, .. }) => parameters[0].mode,
+                other => panic!("expected typed lambda function, got {other:?}"),
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lambda_type_modes,
+        [
+            ParameterMode::Borrow,
+            ParameterMode::Inout,
+            ParameterMode::Borrow,
+            ParameterMode::Borrow,
+            ParameterMode::Inout,
+        ]
+    );
+}
+
+#[test]
+fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
+    let text = "fun inspect(borrow input: Int): Unit {}\n\
+                val wrongMove: (borrow Int) -> Unit = move { item -> inspect(item) }\n\
+                val wrongArity: (borrow Int) -> Unit = { -> }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert_eq!(codes(typed.diagnostics()), ["L0084", "L0084"]);
+    let invalid_lambda_parameter = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+        .expect("wrongMove lambda parameter");
+    assert_eq!(typed.parameter_mode(invalid_lambda_parameter.id()), None);
 }
 
 #[test]

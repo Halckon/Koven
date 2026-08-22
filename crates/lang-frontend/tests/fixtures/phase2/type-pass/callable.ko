@@ -1,4 +1,7 @@
 fun read(borrow input: Int): Unit {}
+fun write(inout input: Int): Unit {}
+fun acceptBorrow(callback: (borrow Int) -> Unit): Unit {}
+fun acceptInout(callback: (inout Int) -> Unit): Unit {}
 
 class Sample {
     fun convert(input: Int): Long = 1L
@@ -9,5 +12,9 @@ fun use(sample: Sample, callback: (Int) -> Long): Long {
     val automatic = read(local)
     val explicit = read(borrow 2)
     val member = sample.convert(3)
+    val reader: (borrow Int) -> Unit = { item -> read(item) }
+    val writer: (inout Int) -> Unit = { item -> write(&item) }
+    val acceptedBorrow = acceptBorrow(({ item -> }))
+    val acceptedInout = acceptInout(({ item -> }))
     return callback(4)
 }

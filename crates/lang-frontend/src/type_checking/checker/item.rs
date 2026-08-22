@@ -40,17 +40,19 @@ impl Checker<'_> {
                     let mut has_deferred = false;
                     for parameter in parameters {
                         let ty = self.resolve_type_ref(parameter.type_ref)?;
+                        let mode = item_parameter_mode(parameter.mode_marker);
                         has_error |= self.is_error(ty);
                         has_deferred |= self.is_deferred(ty);
                         self.set_marker_symbol(parameter.name, ty);
-                        parameter_symbols.push(match parameter.name {
+                        let parameter_symbol = match parameter.name {
                             NameMarker::Present(span) => self.symbol_at(span),
                             NameMarker::Missing(_) | NameMarker::Error(_) => None,
-                        });
-                        parameter_types.push(FunctionParameterType {
-                            mode: item_parameter_mode(parameter.mode_marker),
-                            ty,
-                        });
+                        };
+                        if let Some(symbol) = parameter_symbol {
+                            self.set_parameter_mode(symbol, mode);
+                        }
+                        parameter_symbols.push(parameter_symbol);
+                        parameter_types.push(FunctionParameterType { mode, ty });
                     }
                     let return_type = self.function_return_type(form)?;
                     has_error |= self.is_error(return_type);

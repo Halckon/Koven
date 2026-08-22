@@ -32,9 +32,10 @@ use super::{
     ContainerConstructionDescriptor, Copyability, DeferredReason, DelegationPlan,
     DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor, EnvironmentFunction,
     EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
-    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind, ParameterMode,
-    SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
-    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
+    ParameterBindingDescriptor, ParameterMode, SequentialContainerKind, TypeCheckingError,
+    TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
+    TypedFile, TypedFileParts,
 };
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
@@ -75,6 +76,7 @@ struct Checker<'a> {
     expression_uses: Vec<ExpressionUse>,
     type_ref_types: Vec<Option<TypeId>>,
     symbol_types: Vec<Option<TypeId>>,
+    parameter_modes: Vec<Option<ParameterMode>>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
@@ -218,6 +220,7 @@ impl<'a> Checker<'a> {
             expression_uses: collect_expression_uses(parsed),
             type_ref_types: vec![None; parsed.ast().type_refs().len()],
             symbol_types: vec![None; names.symbols().len()],
+            parameter_modes: vec![None; names.symbols().len()],
             references,
             symbols_by_span,
             symbol_kinds,
@@ -355,6 +358,14 @@ impl<'a> Checker<'a> {
             .into_iter()
             .map(|ty| ty.unwrap_or(error))
             .collect();
+        let parameter_bindings = self
+            .parameter_modes
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, mode)| {
+                mode.map(|mode| ParameterBindingDescriptor::new(SymbolId(index), mode))
+            })
+            .collect();
         let diagnostics = ordered_diagnostics(self.sources, &self.diagnostics)?
             .into_iter()
             .cloned()
@@ -366,6 +377,7 @@ impl<'a> Checker<'a> {
                 expression_types,
                 type_ref_types,
                 symbol_types,
+                parameter_bindings,
                 nominals: self.nominals,
                 type_parameters: self.type_parameters,
                 delegations: self.delegations,
@@ -419,6 +431,10 @@ impl<'a> Checker<'a> {
 
     fn set_symbol(&mut self, id: SymbolId, ty: TypeId) {
         self.symbol_types[id.index()] = Some(ty);
+    }
+
+    fn set_parameter_mode(&mut self, id: SymbolId, mode: ParameterMode) {
+        self.parameter_modes[id.index()] = Some(mode);
     }
 
     fn symbol_type(&self, id: SymbolId) -> Option<TypeId> {

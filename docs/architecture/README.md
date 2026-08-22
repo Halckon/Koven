@@ -10,6 +10,8 @@ SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart ca
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
 类型、核心构造和 element-place 类型事实；SPEC-0027 已建立整变量所有权状态与
 use-after-move 检查；SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
+SPEC-0173 已让唯一期望函数类型的 lambda 采用 Value/Borrow/Inout 参数契约，并发布稳定
+parameter binding typed facts；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -48,10 +50,13 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   `when` 穷尽性、条件 `Copyable` 四态查询、名义内联递归检查、环境绑定的 intrinsic
   `Box`，局部 value-class 解构的 Copy/Consume descriptor，以及单态 source/external/
   function-value/member callable 选择、源码有序实参映射、`CallDescriptor` 和
-  `ExpressionCategory` place/temporary 事实，以及环境绑定的 `Array` / `List` / `MutableList`
+  `ExpressionCategory` place/temporary 事实；具名函数与成功采用唯一期望函数类型的 lambda
+  还按参数 `SymbolId` 发布 `ParameterBindingDescriptor`，Borrow/Inout lambda 不再被误判为
+  全 Value 结构不匹配。环境绑定的 `Array` / `List` / `MutableList`
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
-  实例化、callable reference、safe-call lifting 与所有权可用性仍使用逐类 `DeferredReason`
+  实例化、多 overload 候选的 lambda 隔离检查、callable reference、safe-call lifting 与所有权
+  可用性仍使用逐类 `DeferredReason`
   保留；普通名义主构造器字段已建立带实际泛型替换的 `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
 - `lang_frontend::ownership_checking` 已提供消费 ParsedFile、名称解析与类型事实的独立检查
@@ -881,10 +886,11 @@ fixture，包含名义类型、interface 实现、override、委托、`when`/sma
 Parser，共验证 98 个 Lexer 和 98 个 Parser 产物的 source identity、lexeme 连续覆盖、唯一 EOF、
 AST / diagnostic Span、file roots、directive Span 与完整公开产物确定性；既有领域断言继续消费
 首个已验证产物，本轮未发现生产缺陷。
-`tests/type_callable.rs` 的 6 个 integration test 各执行一条独立源码，并统一经相同 typed file
+`tests/type_callable.rs` 的 8 个 integration test 各执行一条独立源码，并统一经相同 typed file
 helper 进入名称解析与 callable 类型检查；每条源码执行两次 Lexer 与两次完整文件 Parser，共
-验证 12 个 Lexer 和 12 个 Parser 产物的相同公开不变量。callable target、实参映射、参数 mode、
-place / temporary、overload、deferred 与 L0119–L0124 领域断言保持不变，本轮未发现生产缺陷。
+验证 16 个 Lexer 和 16 个 Parser 产物的相同公开不变量。callable target、实参映射、参数 mode、
+place / temporary、overload、deferred 与 L0119–L0124 领域断言保持不变；新增矩阵锁定具名与
+lambda 参数的 Value/Borrow/Inout typed fact、move/arity 结构错误不发布模式，本轮未发现生产缺陷。
 `tests/type_containers.rs` 的 6 个 integration test 同样各执行一条独立源码，并统一经 typed file
 helper 进入名称解析与顺序容器类型检查；共验证 12 个 Lexer 和 12 个完整文件 Parser 产物的相同
 公开不变量。`Array` / `List` / `MutableList`、构造推导、元素可存储性、element place、intrinsic
@@ -963,7 +969,8 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构和字段 / 自动结构分量的部分移动拒绝已由独立 Phase 3 阶段实现；泛型 callable 实例化、
-`object` / `companion object` 关联成员，以及借用冲突、容器 element place 与析构点等后续
+多 overload 候选的 lambda 隔离检查、`object` / `companion object` 关联成员，以及借用冲突、
+容器 element place 与析构点等后续
 所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。

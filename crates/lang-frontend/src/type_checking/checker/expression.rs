@@ -486,11 +486,8 @@ impl Checker<'_> {
             _ => None,
         });
         if let Some((function, move_only, parameters, return_type)) = expected_function {
-            let structure_matches = move_only == move_span.is_some()
-                && parameters.len() == parameter_spans.len()
-                && parameters
-                    .iter()
-                    .all(|parameter| parameter.mode == ParameterMode::Value);
+            let structure_matches =
+                move_only == move_span.is_some() && parameters.len() == parameter_spans.len();
             if !structure_matches {
                 self.emit_with_label(
                     self.mismatch_code,
@@ -508,6 +505,7 @@ impl Checker<'_> {
             for (&parameter_span, parameter) in parameter_spans.iter().zip(&parameters) {
                 if let Some(symbol) = self.symbol_at(parameter_span) {
                     self.set_symbol(symbol, parameter.ty);
+                    self.set_parameter_mode(symbol, parameter.mode);
                 }
             }
             self.callables.push(CallableContext {

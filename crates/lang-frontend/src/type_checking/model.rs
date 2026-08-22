@@ -11,7 +11,8 @@ use crate::{
 
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ContainerConstructionDescriptor,
-    ElementPlaceDescriptor, ExpressionCategory, IntrinsicCallable,
+    ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType, IntrinsicCallable,
+    ParameterBindingDescriptor, ParameterMode,
 };
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
@@ -311,17 +312,6 @@ impl BuiltinType {
             Self::Any => "Any",
         }
     }
-}
-
-/// callable 参数的类型级模式。
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ParameterMode {
-    /// Passed by value.
-    Value,
-    /// Shared borrow.
-    Borrow,
-    /// Exclusive inout borrow.
-    Inout,
 }
 
 /// 编译器预声明、由后续阶段结构化求值的封闭能力。
@@ -675,15 +665,6 @@ pub enum IntegerConstraint {
     Unsigned,
 }
 
-/// 函数类型中的规范化参数。
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FunctionParameterType {
-    /// Parameter passing mode.
-    pub mode: ParameterMode,
-    /// Parameter type identity.
-    pub ty: TypeId,
-}
-
 /// 类型表中的规范化结构。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TypeKind {
@@ -811,6 +792,7 @@ pub struct TypedFile {
     expression_types: Vec<TypeId>,
     type_ref_types: Vec<TypeId>,
     symbol_types: Vec<TypeId>,
+    parameter_bindings: Vec<ParameterBindingDescriptor>,
     nominals: Vec<NominalDescriptor>,
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
@@ -830,6 +812,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) expression_types: Vec<TypeId>,
     pub(crate) type_ref_types: Vec<TypeId>,
     pub(crate) symbol_types: Vec<TypeId>,
+    pub(crate) parameter_bindings: Vec<ParameterBindingDescriptor>,
     pub(crate) nominals: Vec<NominalDescriptor>,
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
@@ -857,6 +840,7 @@ impl TypedFile {
             expression_types: parts.expression_types,
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
+            parameter_bindings: parts.parameter_bindings,
             nominals: parts.nominals,
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
@@ -901,6 +885,21 @@ impl TypedFile {
     /// 查询源码 symbol 类型。
     pub fn symbol_type(&self, id: SymbolId) -> Option<TypeId> {
         self.symbol_types.get(id.index()).copied()
+    }
+
+    /// 查询一个具名函数或已采用 expected contract 的 lambda 参数模式。
+    #[must_use]
+    pub fn parameter_mode(&self, id: SymbolId) -> Option<ParameterMode> {
+        self.parameter_bindings
+            .binary_search_by_key(&id.index(), |binding| binding.symbol().index())
+            .ok()
+            .map(|index| self.parameter_bindings[index].mode())
+    }
+
+    /// 返回稳定 symbol 顺序的 callable 参数绑定事实。
+    #[must_use]
+    pub fn parameter_bindings(&self) -> &[ParameterBindingDescriptor] {
+        &self.parameter_bindings
     }
 
     /// 返回源码声明顺序的名义类型描述符。
