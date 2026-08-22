@@ -594,6 +594,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   interpolation / outer string closer、outer tail、`outer_sentinel` 与 outer call closer；block / file
   还分别保留第二个 `val after = 0` local / root。全部公开产物确定且无 Parser 级联，本轮未发现
   生产缺陷；
+- `parser_long_invalid_number_boundaries` integration test 分别构造约 65 KiB 的长整数指数尾、长
+  浮点指数尾、合法 `uL` 后非法 identifier tail 与非法 `0x` radix tail，并把每个 L0008 候选放入
+  outer string interpolation 的 inner call 首个 `invalid + rhs` argument；四类候选经 expression、
+  declaration、block 与 file 四个公开入口执行 16 个源码。每例运行两次 Lexer 与两次对应 Parser，
+  共验证 32 个 Lexer 和 32 个 Parser 产物；唯一 L0008 与左侧 `Expression::Error` 精确覆盖完整
+  maximal ASCII region，并在真实 `+` operator Span 前停止。Parser 保留 `Error + rhs` Binary、
+  `inner_sentinel`、两层 call、interpolation、outer string / tail、`outer_sentinel` 与所有真实 closer；
+  block / file 还分别保留第二个 `val after = 0` local / root。全部公开产物确定且无 Parser 级联，
+  本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
