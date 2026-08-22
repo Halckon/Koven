@@ -621,6 +621,15 @@ MIR 或 LLVM / codegen handle；名称解析结果由独立 `NameResolution` 表
   declaration 保留换行后的 `left + right` Binary；block / file 在没有其他换行或分号时，仅凭该
   Newline trivia 保留 `val first = 0` 与 `val after = 1` 两个声明。全部公开产物确定且零诊断，
   本轮未发现生产缺陷；
+- `parser_large_file_header_stress` integration test 建立两个 4,096-import 完整文件：合法源按四项
+  循环混合 exact multi-segment、alias、wildcard 与长 qualified import；恢复源的每个 `import`
+  均缺 target。两源都含 `package stress.headers`、交替 LF / CRLF separator 与最终
+  `val after = 1` root；每源先双运行独立 Lexer，再由 file helper 双运行 Lexer / Parser，合计验证
+  8 个 Lexer 与 4 个 Parser 产物。每源精确保留 4,096 个 import keyword、2,049 个 LF 与 2,048 个
+  CRLF Newline trivia；合法源逐项保留全部 segment、wildcard / alias 与源码顺序，零诊断；恢复源
+  保留 4,096 个只有真实 keyword 的 ImportDirective，并在下一 header / root starter 处产生 4,096 条
+  有序空 Span L0049。两源的 package、imports、最终 Variable root、diagnostic / AST Span 全部
+  source-local、可切片且确定，本轮未发现生产缺陷；
 - `parser_recursion_boundary_matrix` integration test 以 34 个相邻深度源码锁定四个公开 Parser
   入口的递归预算边界。六类 expression 形状中，alternating prefix 与 group 分别接受 511 层、
   拒绝 512 层，assignment、Elvis、generic type 与 function type 分别接受 1,022 层、拒绝
