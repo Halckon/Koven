@@ -187,7 +187,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 | [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`done`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
-| 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |
+| [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`draft`） | 0020、0029 `done`；新 guide 封闭 capture/lifetime 与跨线程 effect identity |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
