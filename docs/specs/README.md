@@ -184,7 +184,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 | [0027](./0027-variable-ownership-use-after-move.md) | 建立变量所有权状态并检测 use-after-move（`done`） | 0019、0020、0022、0067 `done`；当前持续 Goal 的站立授权 |
 | [0028](./0028-conditional-copy-structural-move.md) | 实现条件复制、移动与消费式解构检查（`done`） | 0022、0027 `done`；当前持续 Goal 的站立授权 |
 | [0176](./0176-borrow-default-parameter-contracts.md) | 迁移无 marker `Borrow`、声明侧 `own` 与既有三态参数事实（`done`） | 0012、0067、0173、0028 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
-| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`approved`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
+| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`done`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |

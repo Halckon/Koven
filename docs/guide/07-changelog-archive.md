@@ -409,3 +409,9 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > 预声明 callable、既有所有权入口和 Tree-sitter 已采用“无标记或显式 `borrow` = `Borrow`、
 > 声明侧 `own` = `Value`”。MoveOnly 实参向 `own` 参数的无标记调用继续隐式移动；调用点
 > `own` 继续拒绝。SPEC-0029 的调用期 loan、L0133–L0135 与 ASAP drop-point 仍未实现。
+
+> 2026-08-23，SPEC-0029 完成实现：所有权产物可查询参数 binding、稳定名称/字段 place、
+> 同步调用期 shared/exclusive loan begin/end、owned-value ASAP drop facts 与后续工作 deferred
+> facts；L0133–L0135 已锁定 non-owning MoveOnly 移出、非法 `Inout` place 和有效 loan 冲突。
+> index element place、instance/delegation receiver 与 closure capture 仍按 v0.26 边界留给后续
+> Spec，本记录不改变语言语义。

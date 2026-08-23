@@ -1,6 +1,18 @@
 class Resource {}
 fun take(own item: Resource): Unit {}
+fun mutate(inout item: Resource): Unit {}
+fun mixed(inout first: Resource, second: Resource): Unit {}
 fun fail(own input: Resource): Unit {
     val first = take(input)
     val second = take(input)
+}
+fun borrowed(input: Resource): Unit {
+    val invalid = take(input)
+}
+fun immutable(own input: Resource): Unit {
+    val invalid = mutate(&input)
+}
+fun conflict(own input: Resource): Unit {
+    var local = input
+    val invalid = mixed(&local, local)
 }

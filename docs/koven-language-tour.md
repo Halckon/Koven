@@ -7,8 +7,9 @@
 Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase 2 已实现单文件名称解析、
 基础与名义/泛型/interface 类型检查、`when` 穷尽性与 smart cast、条件 `Copyable`、有限
 内联布局、结构化解构、单态 callable/member 选择与顺序容器类型检查。Phase 3 已实现整变量
-所有权状态、use-after-move、条件复制与结构化移动；调用期 loan、ASAP 析构点、代码生成
-（Phase 4）和标准库（Phase 5）仍待实施。跨文件 package/import 名称解析也尚未完成。
+所有权状态、use-after-move、条件复制、结构化移动、调用期 loan 与 owned-value ASAP
+析构点；顺序容器 element place、closure capture / `Transferable`、代码生成（Phase 4）和
+标准库（Phase 5）仍待实施。跨文件 package/import 名称解析也尚未完成。
 也就是说：
 
 - 本教程里的 Phase 1 语法——基础类型、变量、函数、`value class`/`class`、调用标注、lambda、
@@ -22,7 +23,7 @@ Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase
   已由 SPEC-0022 实现。**
 - **v0.26 已将普通 callable 的声明侧契约调整为“无标记 `Borrow`、显式 `own` 消费”；调用点
   仍不写 `own`，向 `own` 参数交付 MoveOnly place 时会隐式移动。该表面语法和 typed contract
-  已由 SPEC-0176 实现；调用期 loan 与 ASAP 析构点随后由 SPEC-0029 实施。**
+  已由 SPEC-0176 实现；调用期 loan 与 owned-value ASAP 析构点已由 SPEC-0029 实现。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -748,11 +749,11 @@ Koven 编译器按下面的阶段推进,每个阶段完成后才会开始下一�
 |---|---|---|
 | Phase 0 | 项目骨架(Cargo workspace、AST、诊断框架) | 已完成 |
 | Phase 1 | 词法 + 语法分析 | 已完成(`&`、callable、表达式、声明、block、lambda、局部解构、完整文件、`package`/`import`、控制流、postfix `?`、class-family 与接口委托均已实现) |
-| Phase 2 | 类型检查(不含所有权/借用) | 未开始 |
-| Phase 3 | 所有权 / 借用检查 | 未开始 |
+| Phase 2 | 类型检查(不含所有权/借用) | 主线已完成；多文件名称解析仍有 guide 门禁 |
+| Phase 3 | 所有权 / 借用检查 | 进行中（变量移动、结构移动、调用期 loan 与 ASAP drop facts 已实现） |
 | Phase 4 | LLVM 代码生成 | 未开始 |
 | Phase 5 | 最小标准库(用 Koven 自身编写) | 未开始 |
-| Phase 6 | 工具链(包管理器、LSP、格式化工具) | 未开始 |
+| Phase 6 | 工具链(包管理器、LSP、格式化工具) | 部分完成（TextMate 与 Tree-sitter grammar） |
 
 Phase 6 之后:并发编译期检查完善、泛型型变、`dyn` 动态分发、`async`/`await` 等按需排期,不在 v1 范围内。编译器本身"自举"(用 Koven 重写 Koven 编译器)是长期目标,排在 v4 之后。
 

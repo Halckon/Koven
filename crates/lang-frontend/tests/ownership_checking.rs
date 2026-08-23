@@ -5,10 +5,13 @@ use std::{fs, path::Path};
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, OwnershipCheckingError, check_ownership},
+    ownership_checking::{
+        DropPoint, DropTarget, LoanKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile,
+        OwnershipCheckingError, OwnershipDeferredReason, check_ownership,
+    },
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{BuiltinType, TypeEnvironment, check_types},
+    type_checking::{BuiltinType, IntrinsicTypeConstructor, TypeEnvironment, check_types},
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -43,9 +46,28 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             builtin,
         )
     });
+    let containers = [
+        (
+            names.declare_type("Array").expect("Array"),
+            IntrinsicTypeConstructor::Array,
+        ),
+        (
+            names.declare_type("List").expect("List"),
+            IntrinsicTypeConstructor::List,
+        ),
+        (
+            names.declare_type("MutableList").expect("MutableList"),
+            IntrinsicTypeConstructor::MutableList,
+        ),
+    ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types.bind_builtin(symbol, builtin).expect("binding");
+    }
+    for (symbol, container) in containers {
+        types
+            .bind_intrinsic(symbol, container)
+            .expect("container binding");
     }
     (names, types)
 }
@@ -275,6 +297,344 @@ fn shadowed_symbols_keep_independent_move_origins() {
         );
         assert_eq!(sources.slice(label).unwrap(), "input");
     }
+}
+
+#[test]
+fn parameter_bindings_and_successful_call_loans_are_queryable() {
+    let text = "class Resource {}\n\
+                fun inspect(item: Resource): Unit {}\n\
+                fun mutate(inout item: Resource): Unit {}\n\
+                fun exercise(own owned: Resource, shared: Resource, inout exclusive: Resource): Unit {\n\
+                    val first = inspect(owned)\n\
+                    val second = inspect(borrow shared)\n\
+                    val third = mutate(&exclusive)\n\
+                }";
+    let (_, parsed, checked) = checked(text);
+    assert!(checked.diagnostics().is_empty());
+
+    let parameter_kinds = checked
+        .bindings()
+        .iter()
+        .map(|binding| binding.kind())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        parameter_kinds,
+        [
+            OwnershipBindingKind::Shared,
+            OwnershipBindingKind::Exclusive,
+            OwnershipBindingKind::Owned,
+            OwnershipBindingKind::Shared,
+            OwnershipBindingKind::Exclusive,
+        ]
+    );
+    assert_eq!(checked.loans().len(), 3);
+    assert_eq!(
+        checked
+            .loans()
+            .iter()
+            .map(|loan| loan.kind())
+            .collect::<Vec<_>>(),
+        [LoanKind::Shared, LoanKind::Shared, LoanKind::Exclusive]
+    );
+    assert!(
+        checked
+            .loans()
+            .iter()
+            .all(|loan| matches!(loan.target(), LoanTarget::Place(_)))
+    );
+    for loan in checked.loans() {
+        assert_eq!(checked.loan_begin(loan.argument()), Some(loan));
+        assert_eq!(checked.loans_ending_at(loan.call()).count(), 1);
+        assert_eq!(
+            parsed.ast().expressions().get(loan.call()).unwrap().span(),
+            loan.end_span()
+        );
+    }
+}
+
+#[test]
+fn call_loans_apply_in_source_order_and_use_field_path_overlap() {
+    let passing = "class Resource {}\n\
+                   class Pair(var left: Resource, var right: Resource)\n\
+                   fun readBoth(left: Resource, right: Resource): Unit {}\n\
+                   fun mutateBoth(inout left: Resource, inout right: Resource): Unit {}\n\
+                   fun valid(own pair: Pair): Unit {\n\
+                       val first = readBoth(pair.left, pair.left)\n\
+                       val second = mutateBoth(&pair.left, &pair.right)\n\
+                   }";
+    let (_, _, passing_checked) = checked(passing);
+    assert!(
+        passing_checked.diagnostics().is_empty(),
+        "{:?}",
+        passing_checked.diagnostics()
+    );
+
+    for failing in [
+        "class Resource {}\nclass Pair(var left: Resource, var right: Resource)\nfun conflict(inout first: Resource, inout second: Resource): Unit {}\nfun bad(own pair: Pair): Unit { val result = conflict(&pair.left, &pair.left) }",
+        "class Resource {}\nfun mixed(inout first: Resource, second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(&local, local) }",
+        "class Resource {}\nfun mixed(first: Resource, inout second: Resource): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = mixed(local, &local) }",
+        "class Resource {}\nfun take(own input: Resource): Unit {}\nfun outer(first: Resource, own second: Unit): Unit {}\nfun bad(own input: Resource): Unit { var local = input\n val result = outer(local, take(local)) }",
+    ] {
+        let (_, _, checked) = checked(failing);
+        assert_eq!(codes(checked.diagnostics()), ["L0135"]);
+        assert!(
+            checked.loans().is_empty(),
+            "invalid plan must not be published"
+        );
+    }
+}
+
+#[test]
+fn non_owning_move_and_immutable_inout_have_dedicated_diagnostics() {
+    let text = "class Resource {}\n\
+                fun take(own item: Resource): Unit {}\n\
+                fun mutate(inout item: Resource): Unit {}\n\
+                fun borrowed(input: Resource): Unit { val result = take(input) }\n\
+                fun exclusive(inout input: Resource): Resource = input\n\
+                fun immutable(own input: Resource): Unit {\n\
+                    val local = input\n\
+                    val result = mutate(&local)\n\
+                }\n\
+                fun ownedParameter(own input: Resource): Unit { val result = mutate(&input) }\n\
+                fun movedInout(own input: Resource): Unit {\n\
+                    val moved = take(input)\n\
+                    val invalid = mutate(&input)\n\
+                }";
+    let (sources, _, checked) = checked(text);
+    assert_eq!(
+        codes(checked.diagnostics()),
+        ["L0133", "L0133", "L0134", "L0134", "L0131"]
+    );
+    for diagnostic in checked.diagnostics() {
+        assert!(
+            matches!(
+                sources.slice(diagnostic.primary_span()).unwrap(),
+                "input" | "&"
+            ),
+            "{:?}",
+            diagnostic
+        );
+        assert!(
+            diagnostic
+                .details()
+                .iter()
+                .any(|detail| matches!(detail, DiagnosticDetail::Label(_)))
+        );
+    }
+}
+
+#[test]
+fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
+    let text = "class Resource {}\n\
+                fun create(): Resource\n\
+                fun inspect(item: Resource): Unit {}\n\
+                fun drops(flag: Boolean, own unusedParameter: Resource, own branchOwner: Resource): Unit {\n\
+                    val unused = create()\n\
+                    val used = create()\n\
+                    val first = inspect(used)\n\
+                    var replaced = create()\n\
+                    { replaced = create() }\n\
+                    val temporary = inspect(create())\n\
+                    if (flag) {\n\
+                        val branchRead = inspect(branchOwner)\n\
+                        val early = create()\n\
+                        if (flag) { return }\n\
+                        val after = inspect(early)\n\
+                    } else {\n\
+                        val branch = create()\n\
+                    }\n\
+                    while (flag) {\n\
+                        val loopRead = inspect(replaced)\n\
+                        break\n\
+                    }\n\
+                }";
+    let (sources, _, checked) = checked(text);
+    assert!(
+        checked.diagnostics().is_empty(),
+        "{:?}",
+        checked.diagnostics()
+    );
+
+    let named_origins = checked
+        .drops()
+        .iter()
+        .filter_map(|fact| match fact.target() {
+            DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
+            DropTarget::Temporary(_) => None,
+        })
+        .collect::<Vec<_>>();
+    for expected in [
+        "unusedParameter",
+        "unused",
+        "used",
+        "replaced",
+        "early",
+        "branch",
+    ] {
+        assert!(
+            named_origins.contains(&expected),
+            "missing {expected}: {named_origins:?}"
+        );
+    }
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), DropPoint::FunctionEntry(_)))
+    );
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), DropPoint::CallReturn(_))
+                && matches!(
+                    fact.target(),
+                    DropTarget::Named(_) | DropTarget::Temporary(_)
+                ))
+    );
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), DropPoint::ControlTransfer(_)))
+    );
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), DropPoint::BranchExit { .. }))
+    );
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), DropPoint::LoopExit(_))),
+        "{:?}",
+        checked.drops()
+    );
+    assert!(
+        checked
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.target(), DropTarget::Temporary(_)))
+    );
+}
+
+#[test]
+fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
+    let text = "class Resource {}\n\
+                fun take(own item: Resource): Unit {}\n\
+                fun inspect(item: Resource): Unit {}\n\
+                fun valid(shared: Resource, inout exclusive: Resource, own owned: Resource, number: Int): Unit {\n\
+                    val moved = take(owned)\n\
+                    val sharedRead = inspect(shared)\n\
+                    val exclusiveRead = inspect(exclusive)\n\
+                    val copied = number\n\
+                }";
+    let (sources, _, checked) = checked(text);
+    assert!(checked.diagnostics().is_empty());
+    let origins = checked
+        .drops()
+        .iter()
+        .map(|fact| sources.slice(fact.value_origin()).unwrap())
+        .collect::<Vec<_>>();
+    assert!(!origins.contains(&"owned"));
+    assert!(!origins.contains(&"shared"));
+    assert!(!origins.contains(&"exclusive"));
+    assert!(!origins.contains(&"number"));
+}
+
+#[test]
+fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
+    let passing = "class Resource {}\n\
+                   class Holder(var payload: Resource)\n\
+                   value class Inline(var payload: Resource)\n\
+                   fun mutate(inout item: Resource): Unit {}\n\
+                   fun replace(inout target: Resource, own replacement: Resource): Unit {\n\
+                       { target = replacement }\n\
+                       val check = mutate(&target)\n\
+                   }\n\
+                   fun fields(own holder: Holder, own replacement: Resource): Unit {\n\
+                       val changed = mutate(&holder.payload)\n\
+                       var inline = Inline(replacement)\n\
+                       val inlineChanged = mutate(&inline.payload)\n\
+                   }";
+    let (_, _, passing_checked) = checked(passing);
+    assert!(
+        passing_checked.diagnostics().is_empty(),
+        "{:?}",
+        passing_checked.diagnostics()
+    );
+
+    let failing = "class Resource {}\n\
+                   class Holder(var payload: Resource)\n\
+                   value class Inline(var payload: Resource)\n\
+                   fun mutate(inout item: Resource): Unit {}\n\
+                   fun borrowed(holder: Holder): Unit { val bad = mutate(&holder.payload) }\n\
+                   fun inlineField(own item: Inline): Unit { val bad = mutate(&item.payload) }";
+    let (_, _, checked) = checked(failing);
+    assert_eq!(codes(checked.diagnostics()), ["L0134", "L0134"]);
+}
+
+#[test]
+fn index_member_receiver_and_lambda_capture_remain_explicitly_deferred() {
+    let text = "class Resource {}\n\
+                class Worker { fun inspect(item: Resource): Unit {} }\n\
+                fun mutate(inout item: Resource): Unit {}\n\
+                fun deferred(own worker: Worker, own list: MutableList<Resource>, own captured: Resource): Unit {\n\
+                    val indexed = mutate(&list[0])\n\
+                    val member = worker.inspect(captured)\n\
+                    val callback: (own Resource) -> Unit = { input -> val nested = worker.inspect(captured) }\n\
+                }";
+    let (_, _, checked) = checked(text);
+    assert!(
+        checked.diagnostics().is_empty(),
+        "{:?}",
+        checked.diagnostics()
+    );
+    let reasons = checked
+        .deferred()
+        .iter()
+        .map(|fact| fact.reason())
+        .collect::<Vec<_>>();
+    assert!(reasons.contains(&OwnershipDeferredReason::IndexPlace));
+    assert!(reasons.contains(&OwnershipDeferredReason::MemberReceiver));
+    assert!(reasons.contains(&OwnershipDeferredReason::LambdaCapture));
+    assert!(
+        checked.drops().is_empty(),
+        "captured owners must not receive an early plan"
+    );
+}
+
+#[test]
+fn ownership_facts_are_deterministic_across_repeated_checks() {
+    let text = "class Resource {}\n\
+                fun create(): Resource\n\
+                fun inspect(item: Resource): Unit {}\n\
+                fun stable(own input: Resource): Unit {\n\
+                    val local = create()\n\
+                    val first = inspect(input)\n\
+                    val second = inspect(local)\n\
+                }";
+    let (_, _, first) = checked(text);
+    let (_, _, second) = checked(text);
+
+    assert_eq!(first.bindings(), second.bindings());
+    // Span 保留所属 SourceMap 的 owner identity，跨 map 不直接相等；稳定 debug 只暴露
+    // 可复现的 map-local SourceId、byte offset 与 AST/symbol identity。
+    assert_eq!(
+        format!("{:?}", first.loans()),
+        format!("{:?}", second.loans())
+    );
+    assert_eq!(
+        format!("{:?}", first.drops()),
+        format!("{:?}", second.drops())
+    );
+    assert_eq!(first.deferred(), second.deferred());
+    assert_eq!(
+        format!("{:?}", first.diagnostics()),
+        format!("{:?}", second.diagnostics())
+    );
 }
 
 #[test]

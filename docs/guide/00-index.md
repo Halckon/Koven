@@ -51,7 +51,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   是同一契约的可选强调，不形成不同函数类型或 overload；声明端 `own` 映射既有
   `ParameterMode::Value`，调用点仍不接受 `own`，向该参数传入 `MoveOnly` place 时以无标记
   调用隐式移动；`inout` / 调用点 `&` 保持不变。语法与 typed-contract 已由 SPEC-0176
-  实现；调用期 loan 与 ASAP drop-point 等待 SPEC-0029，不能把参数迁移误写成借用检查完成。
+  实现；调用期 loan 与 owned-value ASAP drop-point 已由 SPEC-0029 实现。顺序容器 element
+  place、receiver 与 closure capture 仍按各自后续 Spec 保持 deferred。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -121,7 +122,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
-| v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 已实现参数迁移，loan/drop 待 SPEC-0029 |
+| v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
 
 ## 5. SPEC 编号索引
 
@@ -150,7 +151,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
 | SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
-| SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ⏳ v0.26 已启用，未实现 |
+| SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -188,7 +189,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0119–L0124 | callable target、命名/数量/模式映射、无匹配与歧义诊断；SPEC-0067 已实现 | `05-grammar-calls-lambda.md` §9 |
 | L0125–L0130 | 顺序容器元素、推导、核心构造、索引、只读 place 与禁用 `.get`/`.set` 诊断；SPEC-0023 已实现 | `01-design-decisions.md` §8 |
 | L0131–L0132 | use-after-move 与禁止不可复制分量部分移动；SPEC-0027/0028 已实现 | `../specs/0027-variable-ownership-use-after-move.md`、`../specs/0028-conditional-copy-structural-move.md` |
-| L0133–L0135 | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；v0.26 已启用，尚未实现 | `01-design-decisions.md` §26.5 |
+| L0133–L0135 | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；SPEC-0029 已实现 | `01-design-decisions.md` §26.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -213,7 +214,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 名义类型、泛型与 interface 实现（v0.23） | `01-design-decisions.md` §23 |
 | `when` 穷尽性与 smart cast（v0.24） | `01-design-decisions.md` §24 |
 | 条件 `Copyable`、内联布局、intrinsic `Box` 与结构化解构（v0.25） | `01-design-decisions.md` §25 |
-| 调用期借用与 ASAP 析构点（v0.26，实施待 SPEC-0029） | `01-design-decisions.md` §26 |
+| 调用期借用与 ASAP 析构点（v0.26，SPEC-0029 已实现） | `01-design-decisions.md` §26 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---

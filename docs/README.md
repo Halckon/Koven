@@ -34,7 +34,7 @@ Goal：提交成功后标记完成
 ```
 
 当前仓库已完成 Phase 0、Phase 1 与无 guide 门禁的 Phase 2 主线，并已进入 Phase 3：整变量
-use-after-move、条件复制、消费式解构、禁止结构分量部分移动，以及 v0.26 borrow-default
-参数声明与显式 `own` 的 Parser / typed facts 迁移已经实现。调用期 loan 与 ASAP 析构点仍未
-实现。Phase 6 已独立提供
+use-after-move、条件复制、消费式解构、禁止结构分量部分移动、v0.26 borrow-default
+参数契约、调用期 loan 与 owned-value ASAP 析构点已经实现；顺序容器 element place、closure
+capture 与 `Transferable` 仍待后续 Spec。Phase 6 已独立提供
 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。

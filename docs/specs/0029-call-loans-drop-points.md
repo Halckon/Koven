@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.26](../guide/00-index.md)：[调用期借用与 ASAP 析构点](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) |
 | 前置 Spec | SPEC-0176 `done` |
@@ -52,19 +52,19 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 5. 验收标准
 
-- [ ] shared/shared 同 place、shared 不同字段、Copyable borrowed copy 与合法 Inout replacement
+- [x] shared/shared 同 place、shared 不同字段、Copyable borrowed copy 与合法 Inout replacement
       compile-pass；loan begin/end 和参数 binding kind 可精确查询。
-- [ ] shared/exclusive、exclusive/read、loan 后 move/drop、parent/field 前缀重叠和 nested-call
+- [x] shared/exclusive、exclusive/read、loan 后 move/drop、parent/field 前缀重叠和 nested-call
       冲突产生精确 L0135；不同字段不误报。
-- [ ] 从 Borrow/Inout binding 移出 MoveOnly 值产生 L0133；`&val`、`&ValueParameter` 或不可变
+- [x] 从 Borrow/Inout binding 移出 MoveOnly 值产生 L0133；`&val`、`&ValueParameter` 或不可变
       field path 产生 L0134，primary/label 精确且无 L0131/L0132 级联；`&temporary` 保持 L0122。
-- [ ] unused、last-use、temporary borrow extension、replacement、normal/early scope exit、branch、
+- [x] unused、last-use、temporary borrow extension、replacement、normal/early scope exit、branch、
       loop 的 drop facts 与候选 guide 顺序一致；moved/Copyable/non-owning binding 不误生成 drop。
-- [ ] index、member receiver、lambda capture 保持明确 deferred；已有 use-after-move、结构移动、
+- [x] index、member receiver、lambda capture 保持明确 deferred；已有 use-after-move、结构移动、
       callable 与容器类型测试全部回归通过。
-- [ ] Phase 3 pass/fail fixture 被真实枚举；fail 至少断言 L0133–L0135 code、primary byte Span 与
+- [x] Phase 3 pass/fail fixture 被真实枚举；fail 至少断言 L0133–L0135 code、primary byte Span 与
       关键 label，零 fixture 失败。
-- [ ] 受影响 frontend 窄测和一次 workspace 标准基线通过；Architecture、roadmap、本 Spec
+- [x] 受影响 frontend 窄测和一次 workspace 标准基线通过；Architecture、roadmap、本 Spec
       验收与验证记录只陈述实际事实。
 
 ## 6. 技术方案与边界
@@ -82,12 +82,12 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 1. [x] SPEC-0176 完成并解除实现门禁，把本 Spec 推进到 `approved` → 验证：typed parameter
        facts、Architecture、路线图和 Spec 状态一致。
-2. [ ] 建立 parameter binding、place path、loan/drop 公开产物 → 验证：model 与 identity 单测。
-3. [ ] 实现源码顺序 call effects、reborrow、mutability 与冲突诊断 → 验证：L0133–L0135 窄测。
-4. [ ] 实现 owned-value liveness 和 ASAP drop facts → 验证：control-flow/drop matrix。
-5. [ ] 补 Phase 3 fixture 与相邻回归 → 验证：一次受影响 frontend 测试批次。
-6. [ ] 同步 Architecture/roadmap/验收并运行一次 workspace 基线 → 验证：实际退出状态。
-7. [ ] 暂存本 Spec 独立范围并审查 staged diff → 验证：无跨 Spec 或无关改动。
+2. [x] 建立 parameter binding、place path、loan/drop 公开产物 → 验证：model 与 identity 单测。
+3. [x] 实现源码顺序 call effects、reborrow、mutability 与冲突诊断 → 验证：L0133–L0135 窄测。
+4. [x] 实现 owned-value liveness 和 ASAP drop facts → 验证：control-flow/drop matrix。
+5. [x] 补 Phase 3 fixture 与相邻回归 → 验证：一次受影响 frontend 测试批次。
+6. [x] 同步 Architecture/roadmap/验收并运行一次 workspace 基线 → 验证：实际退出状态。
+7. [x] 暂存本 Spec 独立范围并审查 staged diff → 验证：无跨 Spec 或无关改动。
 
 ## 8. 提交计划
 
@@ -102,4 +102,11 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 10. 验证记录
 
-尚未实施；不得预填通过。
+- `cargo test -p lang-frontend --test ownership_checking --test ownership_structural --test diagnostic_model`
+  通过：分别执行 14、4、9 条测试，无 ignored / filtered。
+- `cargo test -p lang-frontend --all-targets` 通过，无失败、ignored 或 filtered。
+- `cargo fmt --all -- --check` 通过。
+- `cargo check --workspace --all-targets` 通过。
+- `cargo clippy --workspace --all-targets -- -D warnings` 通过。
+- `cargo test --workspace --all-targets` 通过，无失败、ignored 或 filtered。
+- `cargo build -p lang-cli` 通过。

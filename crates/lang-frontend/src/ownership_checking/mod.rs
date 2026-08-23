@@ -10,7 +10,11 @@ use crate::{
 };
 
 pub use error::OwnershipCheckingError;
-pub use model::OwnershipCheckedFile;
+pub use model::{
+    DropFact, DropPoint, DropTarget, LoanFact, LoanKind, LoanTarget, OwnershipBindingDescriptor,
+    OwnershipBindingKind, OwnershipCheckedFile, OwnershipDeferredFact, OwnershipDeferredReason,
+    OwnershipPlace,
+};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(

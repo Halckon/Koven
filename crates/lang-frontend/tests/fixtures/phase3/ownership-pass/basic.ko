@@ -1,10 +1,20 @@
 class Resource {}
+class Pair(var left: Resource, var right: Resource)
 fun take(own item: Resource): Unit {}
 fun inspect(item: Resource): Unit {}
+fun inspectPair(first: Resource, second: Resource): Unit {}
+fun mutatePair(inout first: Resource, inout second: Resource): Unit {}
+fun create(): Resource
 fun pass(own input: Resource, own replacement: Resource): Unit {
     var local = input
     val viewed = inspect(local)
     val moved = take(local)
     { local = replacement }
     val movedAgain = take(local)
+}
+fun loans(own pair: Pair, inout target: Resource): Unit {
+    val shared = inspectPair(pair.left, pair.left)
+    val distinct = mutatePair(&pair.left, &pair.right)
+    { target = create() }
+    val temporary = inspect(create())
 }

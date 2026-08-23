@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
 
+mod drop_planner;
+mod loan;
+
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
     parser::{
         AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
-        Statement, StringPart, WhenCondition,
+        Statement, StringPart, VariableKind, WhenCondition,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -14,14 +17,39 @@ use crate::{
     },
 };
 
-use super::{OwnershipCheckedFile, OwnershipCheckingError};
+use super::{
+    LoanFact, LoanKind, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
+    OwnershipCheckingError, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
+};
 
-type State = BTreeMap<SymbolId, Span>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ActiveLoan {
+    call: ExpressionId,
+    place: OwnershipPlace,
+    kind: LoanKind,
+    origin: Span,
+}
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct State {
+    moved: BTreeMap<SymbolId, Span>,
+    loans: Vec<ActiveLoan>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExpressionUse {
     Read,
     Consume,
+    Place,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AccessKind {
+    Read,
+    Move,
+    Mutation,
+    SharedLoan,
+    ExclusiveLoan,
 }
 
 #[derive(Default)]
@@ -64,9 +92,16 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
+    variable_kinds: BTreeMap<SymbolId, VariableKind>,
+    field_kinds: BTreeMap<SymbolId, VariableKind>,
     diagnostics: Vec<Diagnostic>,
+    loans: Vec<LoanFact>,
+    deferred: Vec<OwnershipDeferredFact>,
     use_after_move_code: DiagnosticCode,
     partial_move_code: DiagnosticCode,
+    borrowed_move_code: DiagnosticCode,
+    immutable_inout_code: DiagnosticCode,
+    loan_conflict_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -100,7 +135,7 @@ impl<'a> Checker<'a> {
                 (call.expression().index(), modes)
             })
             .collect();
-        Ok(Self {
+        let mut checker = Self {
             sources,
             parsed,
             names,
@@ -108,25 +143,93 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             references_by_span,
             calls_by_expression,
+            variable_kinds: BTreeMap::new(),
+            field_kinds: BTreeMap::new(),
             diagnostics: Vec::new(),
+            loans: Vec::new(),
+            deferred: Vec::new(),
             use_after_move_code: codes::catalog()?.resolve(codes::USE_AFTER_MOVE)?,
             partial_move_code: codes::catalog()?.resolve(codes::PARTIAL_MOVE)?,
-        })
+            borrowed_move_code: codes::catalog()?.resolve(codes::MOVE_FROM_BORROWED_BINDING)?,
+            immutable_inout_code: codes::catalog()?.resolve(codes::IMMUTABLE_INOUT_PLACE)?,
+            loan_conflict_code: codes::catalog()?.resolve(codes::LOAN_CONFLICT)?,
+        };
+        for (item, _) in parsed.ast().items().iter() {
+            checker.collect_mutability(item)?;
+        }
+        Ok(checker)
     }
 
     fn run(mut self) -> Result<OwnershipCheckedFile, OwnershipCheckingError> {
-        let mut state = State::new();
+        let mut state = State::default();
         for &root in self.parsed.roots() {
             self.check_item(root, &mut state)?;
         }
         let diagnostics = ordered_diagnostics(self.sources, &self.diagnostics)?
             .into_iter()
             .cloned()
+            .collect::<Vec<_>>();
+        if !diagnostics.is_empty() {
+            self.loans.clear();
+        }
+        let bindings = self
+            .typed
+            .parameter_bindings()
+            .iter()
+            .map(|binding| {
+                let kind = match binding.mode() {
+                    ParameterMode::Value => OwnershipBindingKind::Owned,
+                    ParameterMode::Borrow => OwnershipBindingKind::Shared,
+                    ParameterMode::Inout => OwnershipBindingKind::Exclusive,
+                };
+                OwnershipBindingDescriptor::new(binding.symbol(), kind)
+            })
             .collect();
+        let drops = if diagnostics.is_empty() {
+            drop_planner::plan(&self)?
+        } else {
+            Vec::new()
+        };
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
             diagnostics,
+            bindings,
+            self.loans,
+            drops,
+            self.deferred,
         ))
+    }
+
+    fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
+        match self.parsed.ast().items().get(id)?.payload().clone() {
+            Item::Error | Item::Constant { .. } | Item::Function { .. } => {}
+            Item::Modified { declaration, .. } => self.collect_mutability(declaration)?,
+            Item::Variable { kind, name, .. } => {
+                if let Some(symbol) = self.marker_symbol(name) {
+                    self.variable_kinds.insert(symbol, kind);
+                }
+            }
+            Item::Classifier(classifier) => {
+                if let Some(constructor) = classifier.primary_constructor {
+                    for field in constructor.fields {
+                        if let Some(symbol) = self.marker_symbol(field.name) {
+                            self.field_kinds.insert(symbol, field.kind);
+                        }
+                    }
+                }
+                if let Some(body) = classifier.body {
+                    for member in body.members {
+                        self.collect_mutability(member)?;
+                    }
+                }
+            }
+            Item::Companion(companion) => {
+                for member in companion.body.members {
+                    self.collect_mutability(member)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn check_item(&mut self, id: ItemId, state: &mut State) -> Result<(), OwnershipCheckingError> {
@@ -149,7 +252,7 @@ impl<'a> Checker<'a> {
             Item::Function {
                 parameters, form, ..
             } => {
-                let mut function_state = State::new();
+                let mut function_state = State::default();
                 for parameter in parameters {
                     self.mark_available(parameter.name, &mut function_state);
                 }
@@ -158,13 +261,13 @@ impl<'a> Checker<'a> {
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
                     for member in body.members {
-                        self.check_item(member, &mut State::new())?;
+                        self.check_item(member, &mut State::default())?;
                     }
                 }
             }
             Item::Companion(companion) => {
                 for member in companion.body.members {
-                    self.check_item(member, &mut State::new())?;
+                    self.check_item(member, &mut State::default())?;
                 }
             }
         }
@@ -299,7 +402,10 @@ impl<'a> Checker<'a> {
                 }
                 Ok(flows)
             }
-            Expression::Lambda { .. } => Ok(Flows::next(state)),
+            Expression::Lambda { .. } => {
+                self.defer(id, OwnershipDeferredReason::LambdaCapture);
+                Ok(Flows::next(state))
+            }
             Expression::If {
                 condition,
                 then_branch,
@@ -363,7 +469,21 @@ impl<'a> Checker<'a> {
                 ..
             } => {
                 let diagnostic_count = self.diagnostics.len();
-                let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
+                let mut state = state;
+                let flows = if self.place(id)?.is_some() {
+                    let access = match usage {
+                        ExpressionUse::Read => Some(AccessKind::Read),
+                        ExpressionUse::Consume => Some(AccessKind::Move),
+                        ExpressionUse::Place => None,
+                    };
+                    if let Some(access) = access {
+                        self.access_expression_place(id, access, name_span, &mut state)?;
+                    }
+                    Flows::next(state)
+                } else {
+                    self.defer(id, OwnershipDeferredReason::MemberReceiver);
+                    self.check_expression(receiver, state, ExpressionUse::Read)?
+                };
                 if matches!(usage, ExpressionUse::Consume)
                     && flows.next.is_some()
                     && self.diagnostics.len() == diagnostic_count
@@ -379,17 +499,21 @@ impl<'a> Checker<'a> {
                 let mut flows = self.check_expression(callee, state, ExpressionUse::Read)?;
                 let modes = self.calls_by_expression.get(&id.index()).cloned();
                 for (index, argument) in arguments.into_iter().enumerate() {
-                    let usage = if modes
-                        .as_ref()
-                        .and_then(|modes| modes.get(index))
-                        .is_some_and(|mode| *mode == ParameterMode::Value)
-                    {
-                        ExpressionUse::Consume
-                    } else {
-                        ExpressionUse::Read
+                    let mode = modes.as_ref().and_then(|modes| modes.get(index)).copied();
+                    let usage = match mode {
+                        Some(ParameterMode::Value) => ExpressionUse::Consume,
+                        Some(ParameterMode::Inout) => ExpressionUse::Place,
+                        Some(ParameterMode::Borrow) | None => ExpressionUse::Read,
                     };
+                    let argument_diagnostics = self.diagnostics.len();
                     flows = self.chain_expression(flows, argument.value, usage)?;
+                    if self.diagnostics.len() == argument_diagnostics
+                        && let Some(mode) = mode
+                    {
+                        self.apply_argument_contract(id, argument, mode, &mut flows)?;
+                    }
                 }
+                self.end_call_loans(id, &mut flows);
                 if flows.next.is_some()
                     && self.diagnostics.len() == diagnostic_count
                     && self
@@ -407,6 +531,7 @@ impl<'a> Checker<'a> {
                 Ok(flows)
             }
             Expression::Index { receiver, index } => {
+                self.defer(id, OwnershipDeferredReason::IndexPlace);
                 let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
                 self.chain_expression(flows, index, ExpressionUse::Read)
             }
@@ -511,7 +636,7 @@ impl<'a> Checker<'a> {
         let mut flows = self.check_expression(initializer, state, usage)?;
         if let Some(state) = flows.next.as_mut() {
             for binding in bindings {
-                state.remove(&binding);
+                state.moved.remove(&binding);
             }
         }
         Ok(flows)
@@ -525,22 +650,23 @@ impl<'a> Checker<'a> {
         value_is_valid: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let target_node = self.parsed.ast().expressions().get(target)?;
-        if matches!(target_node.payload(), Expression::Name) {
+        let mut flows = flows;
+        if let Some(state) = flows.next.as_mut()
+            && let Some(place) = self.place(target)?
+        {
             let span = target_node.span();
-            let mut flows = flows;
-            if let Some(state) = flows.next.as_mut() {
-                if operator == AssignmentOperator::Assign {
-                    if value_is_valid && let Some(symbol) = self.reference_symbol(span) {
-                        state.remove(&symbol);
-                    }
-                } else {
-                    self.use_name(span, ExpressionUse::Read, state)?;
-                }
+            let allowed = if operator == AssignmentOperator::Assign {
+                self.access_place(&place, AccessKind::Mutation, false, span, state)?
+            } else {
+                self.access_place(&place, AccessKind::Read, false, span, state)?
+                    && self.access_place(&place, AccessKind::Mutation, false, span, state)?
+            };
+            if allowed && value_is_valid && operator == AssignmentOperator::Assign {
+                state.moved.remove(&place.root());
             }
-            Ok(flows)
-        } else {
-            self.chain_expression(flows, target, ExpressionUse::Read)
+            return Ok(flows);
         }
+        self.chain_expression(flows, target, ExpressionUse::Read)
     }
 
     fn use_name(
@@ -552,7 +678,21 @@ impl<'a> Checker<'a> {
         let Some(symbol) = self.reference_symbol(span) else {
             return Ok(());
         };
-        if let Some(origin) = state.get(&symbol).copied() {
+        let access = match usage {
+            ExpressionUse::Read => AccessKind::Read,
+            ExpressionUse::Consume => AccessKind::Move,
+            ExpressionUse::Place => return Ok(()),
+        };
+        let place = OwnershipPlace::new(symbol, Vec::new());
+        let move_only = self
+            .typed
+            .symbol_type(symbol)
+            .and_then(|ty| self.typed.copyability(ty))
+            == Some(Copyability::MoveOnly);
+        if !self.access_place(&place, access, move_only, span, state)? {
+            return Ok(());
+        }
+        if let Some(origin) = state.moved.get(&symbol).copied() {
             let mut diagnostic = Diagnostic::new(
                 self.sources,
                 Severity::Error,
@@ -565,7 +705,7 @@ impl<'a> Checker<'a> {
             return Ok(());
         }
         if matches!(usage, ExpressionUse::Consume) && self.is_move_only_variable(symbol) {
-            state.insert(symbol, span);
+            state.moved.insert(symbol, span);
         }
         Ok(())
     }
@@ -628,11 +768,16 @@ impl<'a> Checker<'a> {
     }
 
     fn mark_available(&self, marker: NameMarker, state: &mut State) {
-        if let NameMarker::Present(span) = marker
-            && let Some(symbol) = self.symbols_by_span.get(&span_key(span))
-        {
-            state.remove(symbol);
+        if let Some(symbol) = self.marker_symbol(marker) {
+            state.moved.remove(&symbol);
         }
+    }
+
+    fn marker_symbol(&self, marker: NameMarker) -> Option<SymbolId> {
+        let NameMarker::Present(span) = marker else {
+            return None;
+        };
+        self.symbols_by_span.get(&span_key(span)).copied()
     }
 
     fn reference_symbol(&self, span: Span) -> Option<SymbolId> {
@@ -656,8 +801,10 @@ fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
 }
 
 fn merge_state(target: &mut State, source: State) {
-    for (symbol, origin) in source {
+    target.loans.retain(|loan| source.loans.contains(loan));
+    for (symbol, origin) in source.moved {
         target
+            .moved
             .entry(symbol)
             .and_modify(|current| {
                 if origin.start() < current.start() {

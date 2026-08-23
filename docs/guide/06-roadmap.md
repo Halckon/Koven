@@ -232,11 +232,12 @@ Spec 之前，本条限制不变。）
 ## Phase 3：所有权 / 借用检查
 
 v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-design-decisions.md#26-调用期借用与-asap-析构点v026)。
-SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 随后实现 loan / drop。以下未完成
-项仍不能因参数迁移完成而提前勾选。
+SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 已实现名称/字段 place 的同步
+call loan 与 owned-value drop facts。以下 element place、receiver 与 capture 项仍按独立 Spec
+保持未完成。
 
-- [ ] 实现简化版单一所有者 + ASAP 析构（不做完整 NLL）
-- [ ] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
+- [x] 在当前 named/field call 范围实现简化版单一所有者 + ASAP drop facts（不做完整 NLL）
+- [x] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
       与声明侧 `own`→Value、无标记 / `borrow`→Borrow、`inout`→Inout 契约，判定 place / temporary、可变性、复制 / 移动
       与借用冲突；不得按函数名猜测例外
 - [x] 移动后使用（use-after-move）检测

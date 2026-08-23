@@ -143,6 +143,9 @@ pub mod codes {
     pub(crate) const INVALID_CONTAINER_MEMBER: &str = "L0130";
     pub(crate) const USE_AFTER_MOVE: &str = "L0131";
     pub(crate) const PARTIAL_MOVE: &str = "L0132";
+    pub(crate) const MOVE_FROM_BORROWED_BINDING: &str = "L0133";
+    pub(crate) const IMMUTABLE_INOUT_PLACE: &str = "L0134";
+    pub(crate) const LOAN_CONFLICT: &str = "L0135";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -278,6 +281,9 @@ pub mod codes {
         INVALID_CONTAINER_MEMBER,
         USE_AFTER_MOVE,
         PARTIAL_MOVE,
+        MOVE_FROM_BORROWED_BINDING,
+        IMMUTABLE_INOUT_PLACE,
+        LOAN_CONFLICT,
     ];
 
     /// 由集中定义创建生产错误码目录。

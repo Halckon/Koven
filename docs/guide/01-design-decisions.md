@@ -1395,8 +1395,9 @@ SPEC-0022 不实现一般 callable/member/constructor 选择、独立 `component
 
 > **现行状态**：v0.26 已于 2026-08-23 由用户明确启用并取代 v0.25。本节及 L0133–L0135
 > 已成为现行语义。SPEC-0176 已完成声明语法、参数默认 mode、函数类型、lambda expected mode
-> 与预声明 callable contract 迁移；SPEC-0029 随后实现调用期 loan、冲突和 ASAP drop-point。
-> 不得把参数迁移完成误写为 loan / drop 已经实现。
+> 与预声明 callable contract 迁移；SPEC-0029 已实现名称/字段 place、调用期 loan、冲突诊断和
+> owned-value ASAP drop-point。receiver、index element place 与 closure capture 仍按本节边界
+> 保持 deferred。
 
 ### 26.1 所有者、参数绑定与调用期 loan
 

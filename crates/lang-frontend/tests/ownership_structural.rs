@@ -190,7 +190,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
     let (sources, _, names, typed, checked) = checked(text);
     assert_eq!(
         codes(checked.diagnostics()),
-        ["L0132", "L0132", "L0131", "L0132", "L0131"]
+        ["L0134", "L0132", "L0132", "L0131", "L0132", "L0131"]
     );
     assert_eq!(
         checked
@@ -198,7 +198,7 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
             .iter()
             .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
             .collect::<Vec<_>>(),
-        ["payload", "component1", "bundle", "payload", "holder"]
+        ["&", "payload", "component1", "bundle", "payload", "holder"]
     );
     for diagnostic in checked
         .diagnostics()
