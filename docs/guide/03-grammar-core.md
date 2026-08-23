@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（一）：表达式与类型引用基础
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §1–6），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
 > 原第四部分体量过大，本次拆分为三份，均保留原节号以维持既有 SPEC 引用与 Span 表述
 > 不变：本文档（§1–6）覆盖 primary/postfix/`type_ref`/运算符优先级/Lexer 错误交接/AST
 > `Span` 规则，是后续两份的共享基础；[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)（§7–8）覆盖
@@ -111,7 +111,7 @@ function_type     = [ "move" ], "(",
                       { ",", function_type_parameter } ],
                     ")", "->", type_ref ;
 function_type_parameter = [ explicit_parameter_mode ], type_ref ;
-explicit_parameter_mode = "borrow" | "inout" ;
+explicit_parameter_mode = "own" | "borrow" | "inout" ;
 ```
 
 限定类型路径只允许末段携带泛型实参；泛型实参可以递归包含任意本节 `type_ref`。限定类型
@@ -121,26 +121,29 @@ explicit_parameter_mode = "borrow" | "inout" ;
 不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 只可作为函数
 类型前缀；表达式位置的 `move { ... }` lambda 见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节。
 
-函数类型的每个参数都携带与具名函数 `value_parameter` 相同的三种契约：无标记表示
-`Value`，显式 `borrow` / `inout` 分别表示 `Borrow` / `Inout`（v0.12 取消了 v0.10/v0.11
-候选中独立的 `Own` 契约，并入 `Value`，详见[01-design-decisions.md](./01-design-decisions.md)第 5 节与本节末尾的设计说明）。
-`Value` 是普通按值参数：调用点从不需要写模式，按表达式求值产生完整值；若结果满足
-`Copyable` 则复制，否则移动。`Borrow` 表示共享借用，`Inout` 表示独占可变借用；二者在
-**声明侧**仍必须显式标注——callee 必须在自己的参数列表 / 函数类型里说明这是借用还是
-可变借用，这是所有权模型本身需要的信息，不属于“调用点书写负担”的范畴。`(T) -> R`、
-`(borrow T) -> R`、`(inout T) -> R` 是三种不同函数类型；v1 不再有第四种 `(own T) -> R`。
+函数类型的每个参数都携带与具名函数 `value_parameter` 相同的三种**语义契约**：无标记或
+显式 `borrow` 都表示 `Borrow`，显式 `own` 表示既有 `ParameterMode::Value`，显式 `inout`
+表示 `Inout`。v0.26 恢复的是 `Value` 的声明端 `own` 拼写，不是 v0.10/v0.11 那个还要求
+调用点写 `own` 的独立第四契约。`Value` 接收完整 owned value：结果满足 `Copyable` 时复制，
+否则移动；`Borrow` 表示调用期间的共享只读借用，`Inout` 表示独占可变借用。
 
-**调用点标注是否强制**是另一个独立问题，由[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节统一定义：`Value` 参数调用点
-从不需要标注（这一点自 v0.10 起就是如此，本次未变）；`Borrow` 参数调用点标注在 v0.12
-起改为可选，由编译器按 callee 已声明的契约自动判定，无论 operand 是已有 place 还是
-临时值；只有 `Inout` 参数仍然强制要求调用点标注，但拼写在 v0.14 从关键字 `inout` 改为
-符号 `&`（`&x`，声明侧的关键字 `inout` 不受影响）。这条规则同时适用于具名函数
+参数 mode 在函数类型身份中按上述语义先规范化：`(T) -> R` 与 `(borrow T) -> R` 是同一
+函数类型，不能仅凭是否写出 `borrow` 形成 overload 或让 override 不匹配；`(own T) -> R`
+与 `(inout T) -> R` 分别编码 `Value` 与 `Inout`，和 Borrow 函数类型不同。AST 仍保留显式
+`borrow` 的真实 token / `Span`，以便 formatter 与诊断忠实反映源码，但该表面差异不进入
+typed contract。
+
+**调用点标注是否强制**是另一个独立问题，由[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节统一定义：`Value` 参数虽然
+必须在声明端写 `own`，调用点仍不写 mode；向它传入 `MoveOnly` place 时无标记调用隐式
+移动，传入 `Copyable` place 时交付 owned copy。`Borrow` 参数同样默认不写 mode，调用点
+仍可选择写 `borrow` 强调；只有 `Inout` 参数强制要求调用点写符号 `&`（`&x`，不是关键字
+`inout`）。调用点 `own x` 不属于语法。这条规则同时适用于具名函数
 调用与函数类型值的调用，详见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节“调用点自动化的设计说明”。
 
 模式写在该参数 `type_ref` 之前，不能写在整个函数类型之前，也不能写在参数类型之后；
 `move` 仍只约束闭包捕获，与任一参数模式正交。`move (inout T) -> Unit` 同时编码
-move-capture 限制和可变借用参数。参数契约、顺序、数量、参数类型、返回类型及可选
-`move` 都属于函数类型身份；v1 不提供忽略参数契约的隐式函数类型转换。函数类型不编码
+move-capture 限制和可变借用参数。规范化后的参数契约、顺序、数量、参数类型、返回类型及
+可选 `move` 都属于函数类型身份；v1 不提供忽略参数契约的隐式函数类型转换。函数类型不编码
 具名函数的参数名称。Phase 1 对任何 call 都保留命名实参；Phase 2 解析 callee 后，只有直接
 解析到具有稳定参数名的具名 callable 声明时才允许按名匹配，经普通函数值调用时必须拒绝
 命名实参。模式兼容性与参数映射在 Phase 2 检查，并由该阶段标出类型层面的 place / temporary
@@ -240,9 +243,9 @@ assignment 是右结合表达式。parser 只建立 AST，不在 Phase 1 判断�
 lhs 合法性由 Phase 2 验证。调用参数对未加括号的 `Identifier = ...` 另有第 2 节的上下文
 保留规则。
 
-`borrow` / `inout` 不属于通用 prefix 层级；它们只在第 3、7、8 节明确给出的函数
-类型参数与具名值参数声明位置出现（`own` 曾属于这一类别，v0.12 起
-退役，不再出现在任何产生式中，见[02-lexical-spec.md](./02-lexical-spec.md)第 1 节）。SPEC-0012 调用实参
+`own` / `borrow` / `inout` 不属于通用 prefix 层级；它们只在第 3、7、8 节明确给出的函数
+类型参数与具名值参数声明位置出现。v0.26 的 `own` 只映射声明端 `Value`，不得据此接受
+调用点 `own expression`。SPEC-0012 调用实参
 专用入口自 v0.14 起改用符号 `&` 表达 `Inout` 调用点标注，`inout` 关键字不再出现在调用
 实参位置（`borrow` 关键字仍可在调用实参位置可选出现，语义与省略标注相同）；`&` 同样
 不属于通用 prefix 层级，只在[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节给出的调用实参入口
@@ -303,16 +306,18 @@ TypeRef 节点遵循以下唯一合成规则：
 |---|---|
 | qualified type | 从首段 `Identifier` 起，到末段 `Identifier` 终；若有 type arguments，则改为到匹配 `>` 终；若再有 nullable `?`，最终到该 `?` 终 |
 | function type | 若有 `move`，从 `move` 起，否则从 `(` 起；到 return `type_ref` 终；参数模式已包含在各参数完整范围内 |
-| function parameter | 若有模式，从真实 `borrow` / `inout` 起，否则从参数 `type_ref` 起；到参数 `type_ref` 终 |
+| function parameter | 若有模式，从真实 `own` / `borrow` / `inout` 起，否则从参数 `type_ref` 起；到参数 `type_ref` 终 |
 | type arguments | 从 `<` 起到匹配 `>` 终；若实现不为它单建节点，该范围仍完整纳入所属 qualified type |
 | TypeRef error | 与通用 error 相同：覆盖实际消费的错误区域；只有位于 stop token / delimiter / EOF 且没有可消费 token 时可以为空 |
 
 函数类型 AST 的 `parameters` 唯一改为源码顺序的 `Vec<FunctionTypeParameter>`；每项至少保存
 `span`、`mode_marker: Option<ParameterModeMarker>` 与唯一 `type_ref: TypeRefId`。marker 缺失
-直接表示 `Value`；显式 marker 使用
-封闭的 `ParameterModeMarker::{Borrow(Span), Inout(Span)}`（v0.12 移除 `Own` 变体），不得
-用两个独立 `Option` 制造“有模式无 Span”或“有 Span 无模式”的半状态。参数名不进入函数
-类型 AST。类型身份必须区分 marker 缺失的 `Value` 与两个显式契约。
+表示 `Borrow`；显式 marker 使用封闭的
+`ParameterModeMarker::{Own(Span), Borrow(Span), Inout(Span)}`，不得用多个独立 `Option`
+制造“有模式无 Span”或“有 Span 无模式”的半状态。语义层唯一映射为
+`None | Some(Borrow) -> ParameterMode::Borrow`、`Some(Own) -> ParameterMode::Value`、
+`Some(Inout) -> ParameterMode::Inout`。参数名不进入函数类型 AST；类型身份比较规范化后的
+语义 mode，而不是比较 `None` 与显式 `Borrow` 的源码形态。
 
 所有空 Error TypeRef / Expression 都位于下一 non-trivia boundary token 的起点（EOF 则为
 EOF offset），但**零宽插入范围不扩大父节点**。父函数类型参数、value parameter 或
@@ -327,7 +332,7 @@ CallArgument 的结束位置只取本构造最后实际消费的非 trivia / inv
 最后实际消费位置，不得越过外层 stop token 或 delimiter。所有表达式与 TypeRef 合成范围都
 不得用不存在的 token 伪造超出已消费输入的坐标。
 
-函数类型参数模式后的恢复复用现有 expected type reference：模式后若遇当前参数 `,`、所属
+函数类型参数模式后的恢复复用现有 expected type reference：`own` / `borrow` / `inout` 后若遇当前参数 `,`、所属
 `)`、调用方 TypeRef stop 或 EOF，则在该边界建立空 TypeRef error 并保留边界；遇其他不能
 开始 `type_ref` 的 token 时消费到同一组边界前，Error 只覆盖实际消费区域。连续第二个模式
 不是新的参数，而是当前参数的错误区域：保留首个模式，消费后续连续模式，并对每个多余
@@ -338,6 +343,6 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 `O(n)`。
 
 调用点类型实参的 strict trial 必须同步识别这里扩展后的 `function_type_parameter`；合法的
-`f<(borrow T) -> R>()`、嵌套泛型中的模式函数类型以及对应失败候选，都必须继续满足第 3 节
+`f<(borrow T) -> R>()`、`f<(own T) -> R>()`、嵌套泛型中的模式函数类型以及对应失败候选，都必须继续满足第 3 节
 既有的无副作用、Match / NoMatch 预算传播与整根 `O(n)` 预索引约束。不得在正式 TypeRef parser
 接受参数模式后，让 trial 仍按旧 `Vec<TypeRef>` 语法误回退为比较，也不得为每个 `<` 重新扫描。

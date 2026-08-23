@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -50,10 +50,11 @@ block-body 分支的“缺失标注”边界，表达式体分支仍保持显式
   `const x = 1` 或 `const var x = 1`。三者都必须有普通 `Identifier` 名称和 `=` 初始化式，
   可以省略类型标注；省略时由 Phase 2 推导。`const val` 初始化式是否可在编译期求值也由
   Phase 2 检查，parser 不按表达式内容提前判定。
-- `fun` 只声明具名函数。泛型参数表若存在，位于 `fun` 与函数名之间；参数必须是可选的
-  `borrow` / `inout` 后跟 `name: type_ref`。无标记表示 `Value`；两个显式模式分别
-  表示 `Borrow` / `Inout`（v0.12 取消 `own`，并入无标记 `Value`，详见[01-design-decisions.md](./01-design-decisions.md)第 5 节与
-  [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节）。模式只能在名称之前出现一次，不能写成
+- `fun` 只声明具名函数。泛型参数表若存在，位于 `fun` 与函数名之间；参数可以在
+  `name: type_ref` 前写一个 `own` / `borrow` / `inout` mode。无标记和显式 `borrow` 都表示
+  `Borrow`，显式 `own` 映射既有 `ParameterMode::Value`，显式 `inout` 表示 `Inout`。
+  `own` 没有恢复成独立第四契约，也不能出现在调用实参；详见[01-design-decisions.md](./01-design-decisions.md)第 5 节与
+  [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节。模式只能在名称之前出现一次，不能写成
   `name: borrow T`。
   SPEC-0008 已完成的历史子集要求函数返回类型显式写成 `: type_ref`；
   SPEC-0011 后，无体函数和 block-body 函数可以省略该标注，省略时精确表示 `Unit`，而
@@ -61,8 +62,8 @@ block-body 分支的“缺失标注”边界，表达式体分支仍保持显式
   block body。无体函数是否允许由将其放入顶层、接口或其他容器的后续上下文检查。任何
   分支都不恢复函数级返回类型推导。
 - 已出现的泛型参数表至少包含一个元素；函数参数列表可以是空列表。两类列表一旦包含元素，
-  都不接受空项、缺失逗号或 trailing comma。函数参数除上述三个模式外仍不接受默认值、
-  解构、`vararg`、`val` / `var` 或其他模式。这里的无标记 `Value` 契约不是“默认参数值”；
+  都不接受空项、缺失逗号或 trailing comma。函数参数除上述三个显式 mode 外仍不接受默认值、
+  解构、`vararg`、`val` / `var` 或其他模式。这里的无标记 `Borrow` 契约不是“默认参数值”；
   v1 继续完全不支持默认参数值和 `vararg`。
 - 类型参数可无上界，也可用单个 `: type_ref` 指定一个内联上界。v1 不接受多上界、默认类型
   实参、`where`、star projection 或声明处 / 使用处型变；重复名称、上界合法性及默认上界
@@ -97,10 +98,10 @@ body 引用现有 expression ID；显式类型标注、显式返回标注、参�
 差异。
 
 `ValueParameter` 唯一增加 `mode_marker: Option<ParameterModeMarker>`；使用与函数类型参数
-相同的封闭 marker（`Borrow` / `Inout` 两项，v0.12 起不再有 `Own`），不增加新的参数
-AST table。marker 缺失表示 `Value`，两个显式 marker 表示两种不同契约。参数名、`:` 与
-TypeRef 的既有字段不变；恢复出的 missing / error name 也不得丢失此前已消费的合法首个
-mode marker。
+相同的封闭 marker（`Own` / `Borrow` / `Inout` 三项），不增加新的参数 AST table。marker
+缺失与显式 `Borrow` 都规范化为 `ParameterMode::Borrow`，显式 `Own` 映射
+`ParameterMode::Value`，显式 `Inout` 映射 `ParameterMode::Inout`。参数名、`:` 与 TypeRef
+的既有字段不变；恢复出的 missing / error name 也不得丢失此前已消费的合法首个 mode marker。
 
 凡错误恢复后仍继续构造的声明、type parameter 或 value parameter，名称字段必须使用以下
 三态 marker 或可证明等价的表示，而不是让调用方从任意 `Span` 猜测状态：
@@ -707,8 +708,10 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 
 - `value class` 必须有一个非空主构造器字段列表；普通 `class` 可以省略构造器，等价于可调用
   的空构造器，也可以显式写空 `()`。两者的主构造器参数都必须以 `val` / `var` 声明存储字段，
-  不接受未存储参数、Value/Borrow/Inout marker、默认值、`vararg` 或 trailing comma。
-- 构造器调用向每个字段交付普通 Value 实参；复制、移动与字段可变性由 Phase 2/3 检查。
+  不接受未存储参数、callable 的 `own` / `borrow` / `inout` marker、默认值、`vararg` 或 trailing comma。
+- 主构造器 `val` / `var` 直接建立存储字段，因此是 v0.26 的专用天然-owned 形态：构造调用向
+  每个字段交付 `ParameterMode::Value`，但源码不重复写 `own val` / `own var`。复制、移动与
+  字段可变性由 Phase 2/3 检查；这项例外不能扩张到普通 callable 参数。
   v1 不提供 `constructor` 关键字、二级构造器、`init` block 或 body 内新增存储字段。
 - class-family 名称后的泛型参数复用单一内联上界规则。`object` 不携带类型参数；companion
   不能捕获 enclosing 类型参数，关联泛型函数必须自行声明类型参数。
@@ -718,7 +721,8 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - 修饰符顺序固定为 visibility 后接可选 `override`。`override` 只接受在 class/value/enum/
   object 的实例成员函数上；interface 成员只允许省略 visibility 或显式 `public`。顶层
   `override`、重复/逆序 visibility、`extern`、`operator`、`unsafe`、`own`、`nocopy` 及其他
-  未列修饰符均为 unsupported class-family form，不能由名称或 Kotlin 经验补齐。
+  未列修饰符均为 unsupported class-family form，不能由名称或 Kotlin 经验补齐。这里拒绝的
+  `own` 是成员声明的修饰符位置；成员函数参数列表内的 `own parameter: T` 仍按第 7 节合法。
 - `class`、`value class`、`enum class` 与具名 `object` 的 supertype list 在 Phase 1 保存
   TypeRef 源码顺序；interface 的同形列表表示父接口。Phase 2 必须证明每项都是接口，Koven
   不支持 class implementation inheritance、构造器调用、`by` 之外的 delegation specifier
@@ -742,7 +746,8 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - enum 必须至少有一个变体。变体使用 Kotlin 风格逗号分隔；有共享成员时，最后一个变体后
   必须有一个 `;`。无成员时不接受多余 `;`。无数据变体写 `Point`，不得写空 `Point()`；带
   数据变体参数必须非空且只写 `name: type_ref`，不写 `val` / `var` / marker / default。
-  变体和参数列表都不接受 trailing comma。
+  变体 payload 与构造器字段相同，是天然-owned 存储位置，调用时按 `ParameterMode::Value`
+  交付而不在声明中重复写 `own`。变体和参数列表都不接受 trailing comma。
 - 普通 body member 之间使用实际 LF/CRLF 或 `;`；同行多个 member 必须写 `;`，最后一个
   member 后允许一个可选 separator。该 separator 只属于 class-family body，不把 `;` 或换行
   提升为通用 block statement separator。enum 变体区的逗号与变体/成员之间的 `;` 不复用
@@ -760,7 +765,7 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - target 必须是同一主构造器的不可变 `val` 字段名称；不接受 `var`、任意表达式或未存储参数；
 - delegate 字段持有具体名义类型，Phase 2 必须证明该类型静态满足目标 interface；裸
   interface、`dyn`、反射代理或运行时查找不属于 v1；
-- 自动转发完整保持原成员的 receiver、Value/Borrow/Inout、返回类型与 `Result` 契约，不
+- 自动转发完整保持原成员的 receiver、规范化后的 Value/Borrow/Inout、返回类型与 `Result` 契约，不
   插入隐式 `?` 或异常层；手写 override 优先，多来源同签名冲突必须显式 override；
 - delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
 - `val/var property by expression` 属性委托明确不支持。

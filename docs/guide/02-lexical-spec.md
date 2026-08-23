@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 完整词法规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第三部分），完整文档
-> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.22。
+> 地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
 > v0.5 词法基线已由 SPEC-0006 实现并验收；v0.14 新增的单字符 `&` 已由 SPEC-0012
 > 增量实现并验收；v0.16 新增的 `;` 固定符号已由 SPEC-0062 实现并验收；v0.17 的
 > `module` → `package` 关键字替换已由 SPEC-0015 实现并验收。
@@ -45,14 +45,12 @@ super       this        true
 > 含义；`module` 自 v0.17 起按普通 `Identifier` 扫描。Koven 不保留 Rust 风格的 `mod` / `use`
 > 语法，也不把 `module` 作为它们的同义词。
 
-> `own` **仍在此表中，数量不变**——v0.10/v0.11 候选一度让它出现在函数类型、具名参数与
-> 调用实参三处产生式里；v0.12 取消了这一独立契约（并入 `Value`，见[01-design-decisions.md](./01-design-decisions.md)第 5 节与
-> [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节），`own` 因此不再被任何产生式接受。它**不**被移入第 3 节“保留但当前
-> 版本未使用”表：那份表的规则是“lexer 每次遇到都无条件产生诊断”，只适用于从未在任何
-> 已发布版本语法产生式中出现过的关键字；把已实现 lexer 行为不变的 `own` 塞进那份表会
-> 让它凭空获得那条无条件诊断规则，属于不必要的行为变化。`own` 目前的状态与同样“已是
-> 硬关键字、但没有任何产生式使用”的 `unsafe` 一致：词法层照常识别为 keyword token，
-> parser 找不到匹配产生式时按普通语法错误处理，不触发第 3 节的专属诊断。
+> `own` **仍在此表中，数量不变**。v0.12 取消了 v0.10/v0.11 的独立 `Own` 契约并把 owned
+> delivery 统一为 `Value`；v0.26 只恢复 `own` 的**声明端拼写**，把具名函数值参数或函数类型
+> 参数前的 `own` 映射到既有 `ParameterMode::Value`，没有重新增加第四种契约。`own` 不进入
+> 调用实参的 mode 字母表，也不是通用 prefix、声明修饰符或构造器字段 marker；调用 `Value`
+> 参数仍写 `consume(value)`，不写 `consume(own value)`。这一变化不改 lexer：词法层继续产生
+> 同一种 keyword token，合法上下文由 parser 判定。`unsafe` 仍是硬关键字但没有现行产生式。
 
 ## 2. 软关键字（仅特定上下文有特殊含义，其余场景可作普通标识符）
 
@@ -199,9 +197,9 @@ lexer 识别下列固定符号：
   ASCII `[A-Za-z0-9_]` 时才匹配；
   `!inside` 是 `!` 加 identifier `inside`。
 - `(` / `)` 和 `[` / `]` 始终是各自独立的 delimiter token，不是成对复合 token。
-- `inout`、`borrow`、`move`、`as`、`in`、`is` 的 keyword token 只记录词法分类；它们的
-  合法语法位置由 parser 决定。`own` 同样始终产生 keyword token（词法层不受本次影响），
-  但 v0.12 起没有任何产生式接受它，即合法语法位置的集合为空，见第 1 节。单字符 `&`
+- `inout`、`borrow`、`own`、`move`、`as`、`in`、`is` 的 keyword token 只记录词法分类；它们的
+  合法语法位置由 parser 决定。v0.26 的 `own` 只可作为具名值参数或函数类型参数的声明端
+  mode，不能出现在调用实参或普通表达式中，见第 1 节。单字符 `&`
   token 同样只记录词法分类，不预设语法位置：v1 唯一接受它的产生式是
   [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节的调用实参 `Inout` 标注入口，其余位置遇到 `&`
   一律是语法错误，不是词法错误；v1 不提供按位与运算符，`&` 不出现在通用表达式 prefix

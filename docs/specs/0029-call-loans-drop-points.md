@@ -6,14 +6,14 @@
 |---|---|
 | 状态 | `draft` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 当前仍为 [v0.25](../guide/00-index.md)；实施契约是尚未启用的 [v0.26 候选](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用) |
-| 前置 Spec | SPEC-0028 `done` |
+| 语言规范 | 现行 [v0.26](../guide/00-index.md)：[调用期借用与 ASAP 析构点](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) |
+| 前置 Spec | SPEC-0176 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 v0.26 并指定其取代 v0.25 |
+| 阻塞项 | SPEC-0176 尚未完成 borrow-default 参数源码、typed facts 与既有所有权检查迁移 |
 | 影响范围 | `lang-frontend` ownership place / loan / liveness、L0133–L0135、Phase 3 fixture、Architecture |
-| 语言语义变更 | 否；仅在 v0.26 启用后实施其已封闭语义 |
-| 批准依据 | 当前持续 Goal 的站立授权只适用于无阻塞 Spec；本 Spec 在 v0.26 启用前保持 `draft` |
+| 语言语义变更 | 否；实施 v0.26 已封闭语义 |
+| 批准依据 | 用户已明确启用 v0.26；当前持续 Goal 的站立授权只适用于无阻塞 Spec，本 Spec 在 SPEC-0176 `done` 前保持 `draft` |
 
 ## 2. Goal
 
@@ -25,8 +25,9 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 - 为可解析的名称/字段 place 建立稳定 root `SymbolId` + field path identity 和封闭 mutability；
   group 透明，index/receiver/capture 保持专用 deferred。
-- 具名函数参数保留声明侧 `ParameterMode`：`Value` 是 owned binding，`Borrow` / `Inout` 是
-  non-owning binding；按候选 guide 检查 read/copy/move/reborrow/replacement 能力。
+- 消费 SPEC-0176 规范化后的声明侧 `ParameterMode`：源码 `own` 对应 `Value` owned binding，
+  无 marker / 显式 `borrow` 对应 `Borrow`，`Inout` 是 exclusive non-owning binding；按现行
+  guide 检查 read/copy/move/reborrow/replacement 能力。
 - 调用先检查 callee，再按 argument 源码顺序各求值一次；每个 operand 完成后立即执行已选
   contract。shared/exclusive loan 覆盖其后的 argument 求值、nested call 和 callee 动态期间。
 - 对重叠 place 应用唯一冲突矩阵；不同稳定字段允许证明不重叠。失败不移动 owner、不生成
@@ -45,7 +46,9 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 - 不实现 closure capture、move closure 或 `Transferable`；这些属于 SPEC-0032。被 lambda 引用
   的外层 owner 保持 deferred，不生成提前 drop fact。
 - 不实现 borrow-return、引用类型、用户生命周期、跨调用 loan、完整 NLL、部分移动或 codegen。
-- 不新增语法、依赖、crate、LLVM 类型、日志框架或与本 Spec 无关的 assignment 类型规则。
+- 不迁移声明侧 `own`、borrow-default、函数类型、lambda expected contract、预声明 callable 或
+  Tree-sitter 参数语法；这些属于 SPEC-0176。本 Spec 不新增其他语法、依赖、crate、LLVM 类型、
+  日志框架或与本 Spec 无关的 assignment 类型规则。
 
 ## 5. 验收标准
 
@@ -77,8 +80,8 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 7. 实施计划
 
-1. [ ] 用户明确启用 v0.26，解除 guide 门禁并把本 Spec 推进到 `in-progress` → 验证：索引、
-       变更归档、Spec 状态一致。
+1. [ ] SPEC-0176 完成并解除实现门禁，把本 Spec 推进到 `in-progress` → 验证：typed parameter
+       facts、Architecture、路线图和 Spec 状态一致。
 2. [ ] 建立 parameter binding、place path、loan/drop 公开产物 → 验证：model 与 identity 单测。
 3. [ ] 实现源码顺序 call effects、reborrow、mutability 与冲突诊断 → 验证：L0133–L0135 窄测。
 4. [ ] 实现 owned-value liveness 和 ASAP drop facts → 验证：control-flow/drop matrix。
@@ -94,7 +97,8 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 9. 未决问题
 
-- 当前只有版本启用门禁；receiver、index 与 capture 已明确拆分，不阻塞本 Spec 的显式实参范围。
+- v0.26 已启用；当前实现门禁是 SPEC-0176。receiver、index 与 capture 已明确拆分，不阻塞
+  本 Spec 的显式实参范围。
 
 ## 10. 验证记录
 

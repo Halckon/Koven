@@ -1,10 +1,10 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.25。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.26。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
-> 第 25 节是 v0.25 已启用的现行规则；第 26 节是尚未启用的 v0.26 候选，不参与现行语义；
+> 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -87,12 +87,14 @@ val boundRef = obj::method
 
 - 函数类型 `(ParamTypes) -> ReturnType` 是一等类型。
 - `ParamTypes` 的每一项使用[03-grammar-core.md](./03-grammar-core.md)第 3 节与[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)
-  第 9 节的 callable 参数契约：无标记是 `Value`
-  （按值参数，`Copyable` 则复制、否则移动，调用点从不需要标注），也可显式写 `borrow` /
-  `inout`（分别是共享借用与独占可变借用）；具名函数参数使用同一契约。**调用点是否需要
-  重复书写 `borrow` 由编译器按 callee 已声明的契约自动判定；只有 `Inout` 契约仍要求调用点
+  第 9 节的 callable 参数契约：无标记或显式 `borrow` 都是共享借用 `Borrow`；显式 `own`
+  映射既有 `ParameterMode::Value`（`Copyable` 则复制、否则移动）；显式 `inout` 是独占可变
+  借用。具名函数参数使用同一契约，`(T) -> R` 与 `(borrow T) -> R` 规范化为同一函数类型，
+  `(own T) -> R` 则是不同的 Value contract。**调用点是否需要
+  书写 `borrow` 由编译器按 callee 已声明的契约自动判定；只有 `Inout` 契约仍要求调用点
   显式标注，但调用点的拼写是符号 `&` 而不是关键字 `inout`**（`&x` 而非 `inout x`），
-  详见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节的完整规则与设计说明（v0.12/v0.14 变更）。
+  Value 调用也保持无 marker：声明写 `own`，调用仍写 `consume(x)`，不写 `consume(own x)`。
+  详见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节的完整规则与设计说明。
 - 单态化为具体闭包结构体（捕获环境 + 函数指针），无捕获的函数值直接是裸函数指针，零成本抽象。
 - 函数类型可以带 `move` 前缀（`move (ParamTypes) -> ReturnType`），表示只接受不含任何借用捕获的闭包，详见第 9 节。
 - `::globalFunction` 与 `obj::method` 在 Phase 1 只建立未绑定 / 绑定 callable reference AST；
@@ -132,19 +134,24 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   唯一资源释放或其他非平凡析构义务。需要引用计数递增、深拷贝、用户 copy hook 或独占
   drop 的类型均不得满足 `Copyable`。标准库 Spec 指定任何额外 `Copyable` 类型时也必须满足
   这份契约，不能把 marker 当作绕过所有权检查的白名单。
-- **使用规则由能力决定**：满足 `Copyable` 的值在赋值、返回或传给按值参数时可以隐式复制，
+- **使用规则由能力决定**：满足 `Copyable` 的值在赋值、返回或传给声明端 `own` 的
+  `Value` 参数时可以隐式复制，
   原值仍可使用；不满足 `Copyable` 时，同样的位置转移所有权，原值随后不可使用。调用实参
   仍须遵守 callee 的 `Value` / `Borrow` / `Inout` 契约；`Inout` 在调用点仍强制要求显式
   标注，不因类型可复制而省略——**这是唯一强制要求调用点 marker 的契约，调用点写作符号
   `&`（例如 `mutate(&x)`），不是关键字 `inout`；关键字 `inout` 只出现在声明侧**，理由见
   [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节的设计说明。`Value` 与 `Borrow` 均不要求调用点 marker
   （`borrow` 仍可选择显式写出，纯粹为了可读性）。
-  因此 `consume(x)` 对 `Copyable` 的 `x` 交付一个 owned copy，对不可复制的 `x` 则移动
+  因此若声明是 `fun consume(own value: T)`，`consume(x)` 对 `Copyable` 的 `x` 交付一个
+  owned copy，对不可复制的 `x` 则移动
   原值，调用点都不需要额外标注。
-- 本文出现的“取得所有权的参数”专指普通 `Value` 参数接收一个不满足 `Copyable` 的按值结果
-  时发生的移动（v0.10/v0.11 曾经存在的独立 `Own` 契约已在 v0.12 并入 `Value`，不再是
-  单独概念）。标准库 Spec 必须按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节登记具体契约；不得按函数名或参数类型把
-  无标记 `Value` 猜成 `Borrow` 或 `Inout`。
+- 本文出现的“取得所有权的参数”专指声明端显式 `own` 所映射的 `Value` 参数；v0.26 没有
+  恢复 v0.10/v0.11 的独立 `Own` 契约，只恢复了 Value 的表面拼写。标准库 Spec 必须按
+  [05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节登记具体契约；不得按函数名或参数类型把
+  无标记 Borrow 猜成 `Value` 或 `Inout`。
+- class / value-class 主构造器的 `val` / `var` 字段与 enum payload 是天然-owned 存储形态，
+  构造时按 `ParameterMode::Value` 交付但不重复写 `own`。这只是存储声明的专用语法，不允许
+  普通 callable 用 `val` / `var` 代替 `own`，也不改变无标记 callable 参数的 Borrow 默认值。
 - **字段访问不允许隐式部分移动**：`aggregate.field` 是一个 place。`Copyable` 字段可复制
   读取；字段 place 可以在调用实参中被借用（`Borrow` 契约，标注可选）或（字段可变时）被
   `Inout` 契约借用（标注必须）。v1 禁止用普通字段读取从聚合中移出不可复制字段：不可复制
@@ -158,7 +165,7 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
 是 `value class`**；`Box<Node>` 这类把普通 `class` 再包一层的类型实例化必须产生类型错误。
 `Box<T>` 是不可复制的独占所有权类型，用于把一个 `value class` 实例显式搬到堆上。装箱
 取得传入值的所有权；对可复制值交付 owned copy，因此源值仍可用，对不可复制值则发生
-移动。`Box(...)` 的构造参数是 `Value` 契约，调用点不需要写任何标注：
+移动。`Box(...)` 的构造参数是声明端 `own` 所映射的 `Value` 契约，调用点不需要写任何标注：
 
 ```kotlin
 val point = Point(1, 2)
@@ -315,16 +322,17 @@ v1 只预声明以下顺序容器构造操作：
   同样不能据此确定可存储的 `T`。空调用必须由 expected type 或 SPEC-0008 的显式
   use-site 类型实参提供 `T`，否则产生“无法推导元素类型”的类型诊断；
 - `Array<T>(size, initializer)` 与 `List<T>(size, initializer)` 是运行时长度构造的调用
-  形式：callee contract 将 `size` 登记为 `Value`、`initializer` 登记为 `Borrow`；`size`
-  的类型为 `Int`，`initializer` 的类型为 `(Int) -> T`；随后按 `0` 到 `size - 1` 的升序，
+  形式：callee contract 将 `size`、`initializer` 都登记为 `Borrow`；`size`
+  的类型为 `Int`，`initializer` 的类型为 `(Int) -> T`，其中无标记的索引参数同样是 Borrow；
+  随后按 `0` 到 `size - 1` 的升序，
   以每个索引恰好调用一次。已有 place 或临时表达式作为实参都不需要写参数模式（`borrow`
   仍可选择显式写在 `initializer` 实参前，纯粹为了可读性）；
 - 空的 `MutableList<T>()` 配合取得元素所有权的 `add` 等 Phase 5 API，从未知数量的运行时
   数据源逐步构造动态容器。
 
 这些拼写是编译器预声明、不可被用户重载的核心构造操作，不依赖用户声明 `vararg`。它们在
-编译器的统一 callable contract 中保存有序参数契约；列表式构造使用内部重复 `Value` 形状，
-运行时长度构造使用上条固定的 `Value` / `Borrow` 形状。Parser 仍把它们解析为普通调用 AST；
+编译器的统一 callable contract 中保存有序参数契约；列表式构造使用内部重复 `Value`
+（等价于重复声明端 `own`）形状，运行时长度构造使用上条固定的两个 `Borrow`。Parser 仍把它们解析为普通调用 AST；
 名称解析确认预声明符号后，类型检查才建立专用的 typed construction 节点。因此 Phase 1
 不按名称硬编码语义，也不提前推导元素类型。
 
@@ -332,15 +340,15 @@ v1 只预声明以下顺序容器构造操作：
 表达式与已有 place 交付元素都写作普通调用实参，不需要额外标注，例如
 `listOf(endpoint)`。`Copyable` place 交付 owned copy，其他 place 发生移动。运行时长度
 构造遵守同一规则：无论 `size`、`initializer` 是已有 place 还是临时表达式，调用点都写作
-`Array<T>(size, initializer)`，不需要额外标注；编译器按 callee 已声明的 `Value` /
-`Borrow` 契约自动决定复制或移动 `size`，并在本次调用期内借用 `initializer`。构造先对
+`Array<T>(size, initializer)`，不需要额外标注；编译器按 callee 已声明的两个 `Borrow`
+契约在本次调用期内借用 `size` 与 `initializer`。构造先对
 `size` 求值一次并拒绝负值，再对 initializer 求值一次。随后以目标地址宽度受检计算
 `size * stride(T)` 并在需要物理字节时取得完整缓冲区；确定性大小溢出或分配失败发生在任何
 initializer 调用之前，但已经完成的 initializer 表达式求值副作用不回滚。分配成功后在整个
 同步调用期间共享借用来自已有 place 的 initializer，并按索引升序调用；构造器不消费该
 initializer，临时函数值在调用结束后按普通 ASAP 规则析构。每次返回的完整 `T` 直接交付对应
 槽位。
-`MutableList.add` 取得元素所有权（`Value` 契约），因此调用点写作 `list.add(element)` 即可，
+`MutableList.add` 取得元素所有权（声明端 `own` 映射的 `Value` 契约），因此调用点写作 `list.add(element)` 即可，
 无论 `element` 是已有 place 还是临时值都不需要标注；`Copyable` 元素交付 owned copy，否则
 移动。所有形式都不得隐式 clone、retain 或装箱。
 
@@ -367,8 +375,8 @@ owner 析构时按高索引到低索引的顺序恰好析构每个元素，随�
 一次，紧接着做边界检查，再形成绑定到 receiver 有效期的元素 place。`container[i] = value`
 是唯一例外，它不在 RHS 之前建立元素 place 或做边界检查，而是唯一遵循下文的替换顺序：
 
-- `T: Copyable` 时，普通值读取，或在按值调用实参中写 `consume(container[i])`（`Value`
-  契约，调用点不需要标注），都会从 place 取得 owned copy；
+- `T: Copyable` 时，普通值读取，或向声明端 `own` 的 `Value` 参数写
+  `consume(container[i])`（调用点不需要标注），都会从 place 取得 owned copy；
 - `T` 不满足 `Copyable` 时，普通 owned 读取和作为按值调用实参的 `container[i]` 都必须产生
   所有权诊断，不得移出元素、留下未初始化洞，也不得自动改为 `Box<T>`；
 - 在调用实参中，`use(container[i])` 对三种顺序容器都合法（`Borrow` 契约，标注可选，写作
@@ -591,7 +599,8 @@ val p = Point.origin()
 - 关联函数可以执行普通运行时代码、构造对象并返回 `Result`，但没有 `this`，也不能直接读取
   实例字段；“编译期可求值”只约束 `const val` initializer，不约束函数体；
 - companion 不实现接口，不捕获 enclosing 类型参数。泛型关联函数必须自行声明类型参数，
-  例如 `fun <T> identity(value: T): T = value`；这里不使用 `Box<T>` 作为示例，因为第 5 节
+  例如 `fun <T> identity(own value: T): T = value`；这里必须显式取得可能为 MoveOnly 的 `T`
+  才能把它作为 owned 返回值交付。这里不使用 `Box<T>` 作为示例，因为第 5 节
   已要求 `Box` 的实参是具体 `value class`，未约束的 `T` 不能证明这一点；
 - `Type.member` 在名称解析后直接指向关联函数符号或内联常量，不分配 singleton、不生成
   初始化 guard，也没有退出时析构。
@@ -627,7 +636,7 @@ v1 另保留窄化的**接口实现委托**作为组合工具：普通 `class` �
 `Interface by field`，其中 `field` 必须是同一主构造器中的不可变 `val` 字段，字段的具体类型
 必须静态满足该接口。`by` 只在此位置作为上下文软关键字；不允许任意 delegate expression、
 `var` delegate、value/enum/object delegation 或运行时代理。编译器生成保持原 callable
-Value/Borrow/Inout 与返回契约的转发，手写 `override` 优先，多来源冲突必须显式 override。
+规范化 Value/Borrow/Inout 与返回契约的转发，手写 `override` 优先，多来源冲突必须显式 override。
 这项语法由 class-family 之后的独立 Spec 实施，不混入 SPEC-0017。
 
 Kotlin 风格的属性委托 `val/var property by expression` 不属于 v1：它需要自定义 getter /
@@ -673,8 +682,9 @@ Phase 4，本节只封闭源语言可观察语义。
 第 9 节要求跨线程 API 检查 `Shareable`/`Transferable` 标记能力，但两者都没有给出
 具体判定规则。本节补齐，并简化范围：
 
-- **v1 的跨线程 API 只转移所有权**（`thread()`、`Sender.send()` 都是 `Value` 契约的按值
-  参数，没有“值仍保留在原线程、同时可被子线程引用”的共享原语），因此 v1 实际只需要判断“这个值能否被
+- **v1 的跨线程 API 只转移所有权**（`thread()`、`Sender.send()` 都使用声明端 `own` 映射的
+  `Value` 参数，调用点保持无 marker；没有“值仍保留在原线程、同时可被子线程引用”的共享
+  原语），因此 v1 实际只需要判断“这个值能否被
   安全地整体移动到另一个线程”，不需要“这个值能否被多个线程同时引用”——后者
   （`Shareable`，类似 Rust `Sync`）要等到共享 / 引用计数式跨线程原语被设计出来才有意义。
   **本节把 `Shareable` 的具体规则推迟到 v2**，与该跨线程共享原语一起设计；v1 只定义并
@@ -701,7 +711,8 @@ Phase 4，本节只封闭源语言可观察语义。
 ## 18. `Map` / `MutableMap` 所有权契约（候选设计，v0.11 新增）
 
 第 8 节把 `Map`/`MutableMap` 的可实施契约明确留给“后续 guide”。本节给出一份
-候选设计，风格上对齐第 8 节顺序容器已经采用的 place / temporary、`Value`/`Borrow`/`Inout`
+候选设计，风格上对齐第 8 节顺序容器已经采用的 place / temporary、声明端 `own` 所映射的
+`Value` / 默认 `Borrow` / `Inout`
 术语体系，但**这仍然是候选方向，不是本 candidate 直接批准的实施契约**——按本文档既有
 的治理惯例，它需要独立走完设计评审（类比第 8 节顺序容器从 v0.5 表面契约到
 现在走过的过程），才能进入实施 Spec。在被正式批准前，Phase 2/3/5 的编译器实现不得
@@ -758,7 +769,7 @@ mutableMap.put(key, value)   // 插入或覆盖,取得key与value的所有权,�
 mutableMap.remove(key)       // 按key删除,不取得key所有权,调用点不需要标注
 ```
 
-- `MutableMap.put(key, value)` 的契约固定为 `Value K`、`Value V`：插入新条目取得两者
+- `MutableMap.put(key, value)` 的契约固定为声明端 `own` 的 `Value K`、`Value V`：插入新条目取得两者
   所有权；覆盖已有 key 时，新 `value` 移入、旧 `value` 按顺序容器替换协议（
   第 8 节）的思路析构一次，旧 `key` 同样析构一次（`Hashable` 蕴含 `Copyable`，析构总是
   平凡的）。调用点不需要任何标注。
@@ -1109,11 +1120,13 @@ SPEC-0021 或 SPEC-0063 的既定责任，不能用单一 `Unsupported` 垃圾�
 - 同一文件或成员值作用域的 **overload shape** 由名称、callable 类型参数数量和源码顺序
   参数类型组成；
   参数名、返回类型、类型参数 bound 和 `Value`/`Borrow`/`Inout` 模式都不参与 overload
-  区分。原因是 `Borrow` 调用点 marker 可省略，按模式重载会让普通 `f(x)` 无法确定选择
-  Value 还是 Borrow。shape 相同的后一个声明是重复签名，即使返回类型、bound 或模式不同
+  区分。无标记参数与显式 `borrow` 先规范化为同一个 Borrow contract；声明端 `own` 是 Value，
+  但 Value 与 Borrow 的调用点都可写成普通 `f(x)`，按模式重载仍会产生重叠。shape 相同的
+  后一个声明是重复签名，即使返回类型、bound 或规范化模式不同
   也不能形成 overload。泛型参数只改名但结构相同的 shape 按 alpha-equivalent 视为重复。
   完整 callable contract 仍保存参数模式和返回类型；interface 替换/override 必须在 shape
-  匹配后再精确比较 contract，不能因为模式不参与 overload 就忽略模式不一致。
+  匹配后再精确比较**规范化后的** contract，不能因为模式不参与 overload 就忽略模式不一致，
+  也不能把无标记 Borrow 与显式 `borrow` 误判为不一致。
 - 顶层 overload 同样使用该 shape 拒绝重复。interface 成员可以无体（abstract requirement）
   或有体（default）。子 interface 的本地
   同键声明替换继承 requirement/default；由于 Phase 1 不接受 interface `override` token，
@@ -1378,16 +1391,18 @@ SPEC-0022 不实现一般 callable/member/constructor 选择、独立 `component
 
 ---
 
-## 26. 调用期借用与 ASAP 析构点（v0.26 候选，未启用）
+## 26. 调用期借用与 ASAP 析构点（v0.26）
 
-> **候选状态**：本节为解除 SPEC-0029 门禁而起草。当前唯一权威版本仍是 v0.25；只有用户
-> 明确启用 v0.26 并指定其取代 v0.25 后，本节才成为现行语义。在此之前不得按本节实现
-> L0133–L0135、借用冲突或析构点。
+> **现行状态**：v0.26 已于 2026-08-23 由用户明确启用并取代 v0.25。本节及 L0133–L0135
+> 已成为现行语义，但实现仍分阶段进行：SPEC-0176 迁移声明语法、参数默认 mode、函数类型、
+> lambda expected mode 与预声明 callable contract；SPEC-0029 随后实现调用期 loan、冲突和
+> ASAP drop-point。不得把规范启用误写为这些实现已经完成。
 
 ### 26.1 所有者、参数绑定与调用期 loan
 
 v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期参数或可存储的 borrow value。
-局部变量、临时值和 `Value` 参数在其值为 `MoveOnly` 时拥有唯一析构义务；`Borrow` / `Inout`
+局部变量、临时值和声明端 `own` 所映射的 `Value` 参数在其值为 `MoveOnly` 时拥有唯一析构
+义务；无标记或显式 `borrow` 的 `Borrow` 参数以及 `Inout`
 参数只是调用者 place 的非 owning 绑定，由调用者保持 owner，callee 退出时不得析构它们。
 `Copyable` 值不产生唯一析构义务，也不因借用而生成 copy / retain / clone glue。
 
@@ -1395,7 +1410,8 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
 
 1. 先求值 callee，再按**源码顺序**各求值一次 argument operand；命名实参映射不改变顺序。
 2. 每个 operand 求值完成后立即应用已由 Phase 2 选定的参数契约，再继续求值下一个 operand：
-   `Value` 对 `Copyable` 产生 owned copy，对 `MoveOnly` 转移 owner；`Borrow` 建立 shared loan；
+   声明端 `own` 的 `Value` 对 `Copyable` 产生 owned copy、对 `MoveOnly` 转移 owner；
+   `Borrow` 建立 shared loan；
    `Inout` 建立 exclusive loan。因而较早实参的 loan 在较晚实参及其嵌套调用求值期间已经有效。
 3. 所有成功建立的 loan 持续到同步 callee 返回；返回后同时结束。`Borrow temporary` 合法，
    temporary owner 延长到调用返回后再按本节析构。`Inout temporary` 继续非法。
@@ -1407,9 +1423,11 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
 
 ### 26.2 `Value` / `Borrow` / `Inout` 参数体内能力
 
-- `Value T` 参数是普通 owned local：满足 `Copyable` 时可复制，否则按普通移动规则使用；
+- 声明为 `own value: T` 的 `Value T` 参数是普通 owned local：满足 `Copyable` 时可复制，
+  否则按普通移动规则使用；
   未移动的 `MoveOnly` 参数由 callee 在本节确定的析构点负责析构。
-- `Borrow T` 参数允许读取、建立嵌套 shared reborrow，以及在 `T : Copyable` 时产生 owned
+- 无标记 `value: T` 或显式 `borrow value: T` 都是同一个 `Borrow T` 参数，允许读取、建立
+  嵌套 shared reborrow，以及在 `T : Copyable` 时产生 owned
   copy。它不允许赋值、建立 `Inout` reborrow、析构或从中移动 `MoveOnly` 值。
 - `Inout T` 参数是已初始化 place 的 exclusive 非 owning 绑定。它允许读取、shared/exclusive
   reborrow 和以完整新 `T` 替换原值；替换必须先求值 RHS，再析构旧值并提交新值。它不允许
@@ -1435,7 +1453,7 @@ index place 的逻辑索引证明、容器重分配冲突与 element replacement
 在该 Spec 完成前，SPEC-0029 必须把 index loan 保留为明确 deferred，不能当成已证明不重叠，
 也不能按内存地址或常量折叠自行接受。
 
-本候选中的 mutable place 也使用封闭规则，不等同于“任何 place”：完整 root 只有源码 `var`
+本节的 mutable place 也使用封闭规则，不等同于“任何 place”：完整 root 只有源码 `var`
 绑定或 `Inout` 参数可变；`val`、`Value` / `Borrow` 参数、解构绑定和 `for` binding 的完整值
 不可被 `&` 替换。字段必须声明为 `var`，并且普通 `class` 字段的 receiver owner 当前可独占，
 或内联 value/enum receiver path 自身递归满足 mutable place，才是 mutable field place。因此
@@ -1466,7 +1484,7 @@ owned-value liveness，不把调用期 loan 缩短为完整 NLL。所有权检�
 drop facts；Phase 4 消费这些事实生成 drop/free，不得重新猜测生命周期。
 
 - `MoveOnly` temporary 在所属完整表达式结束时析构；若作为 `Borrow` 实参，则延长到该调用
-  返回后；若被 `Value` 移走，则源 temporary 不再析构。
+  返回后；若被声明端 `own` 的 `Value` 参数移走，则源 temporary 不再析构。
 - named owner 在路径上的最后一次合法使用后析构。若 owner 从未使用，则在 initializer 完成
   且绑定建立后立即析构；initializer 自身仍只求值一次。
 - 普通 `var` 替换先完整求值 RHS；若 RHS 正常返回，再析构旧值并写入新值。RHS 可读取旧值，
@@ -1489,7 +1507,7 @@ drop facts；Phase 4 消费这些事实生成 drop/free，不得重新猜测生�
 
 ### 26.5 诊断、产物与实施边界
 
-| 错误码 | 候选稳定含义 | 主范围与关联信息 |
+| 错误码 | 稳定含义 | 主范围与关联信息 |
 |---|---|---|
 | L0133 | 从 `Borrow` / `Inout` 绑定移出 `MoveOnly` 值 | primary 为消费位置；label 指向参数声明或 loan 来源 |
 | L0134 | `Inout` operand 已是 place，但不是可独占的 mutable place | primary 为 `&`；label 可指向不可变声明 |
@@ -1500,8 +1518,9 @@ L0131 use-after-move 与 L0132 partial-move 的含义不变；同一根因先产
 拒绝，不迁移到 L0134。有效所有权产物至少能按 expression/control-flow edge 查询 loan begin、
 loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `Span`。
 
-本候选只解除 SPEC-0029 的显式 call argument、参数体内 reborrow 与 owned-value drop-point
-门禁。member/委托 receiver、index element place 与容器 relocation 属于 SPEC-0030 或后续
+本节只解除 SPEC-0029 的 call argument loan、参数体内 reborrow 与 owned-value drop-point
+语义门禁。v0.26 的声明端 `own`、默认 Borrow 与 typed contract 先由 SPEC-0176 实现；
+SPEC-0029 本身不再重复修改语法。member/委托 receiver、index element place 与容器 relocation 属于 SPEC-0030 或后续
 独立 Goal；closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
 跨调用 loan、完整 NLL 和部分移动不进入 v1。被 lambda 引用的外层 owner 在 SPEC-0032 前
 必须保留明确 deferred 且不得生成提前 drop fact，不能把“未检查 capture”误当成最后使用。
@@ -1540,7 +1559,7 @@ class Counter(var count: Int) {
     }
 }
 
-fun <T : Comparable<T>> max(a: T, b: T): T = if (a > b) a else b
+fun <T : Comparable<T>> max(own a: T, own b: T): T = if (a > b) a else b
 ```
 
 ---

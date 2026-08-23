@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.25。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -41,6 +41,10 @@
       命名实参与模式实参
       （声明侧关键字 `borrow` / `inout`；调用点关键字 `borrow` 与符号 `&`）的 Phase 1
       AST / parser；不实现 Phase 2 / 3 合法性检查
+- [ ] **SPEC-0176（v0.26 已明确启用）**：在 SPEC-0012 基线上让声明侧接受 `own`，把普通
+      callable / function-type 的无标记 mode 改为 Borrow，并保留显式 `borrow` 的同义源码
+      形态；调用点仍只接受 `borrow` / `&`，`own` 继续拒绝。同步迁移 typed contract、
+      预声明 API 与 lambda expected mode；不实现调用期 loan 或 drop-point
 - [x] **SPEC-0013（前置：SPEC-0012 `done`）**：只实现 block / lambda body 内局部 `val` 解构
 - [x] **SPEC-0014（前置：SPEC-0011、0013 `done`；v0.15 已明确启用）**：只把 SPEC-0007 至 SPEC-0013 的既有
       节点组合为完整文件，并实现声明
@@ -164,14 +168,18 @@ fun main(): Unit {
       [`01-design-decisions.md`](./01-design-decisions.md) §25 推导条件 `Copyable`，拒绝无限
       内联布局与非法 intrinsic `Box` 实参，并为局部 value-class 解构产出有序的
       Copy/Consume typed descriptor；L0115–L0118 已实施。
-- [x] **SPEC-0067（前置已完成；v0.25 callable 契约已生效）**：为具名与预声明 callable
+- [x] **SPEC-0067（前置已完成；v0.25 callable 契约基线）**：为具名与预声明 callable
       建立有序参数元数据；检查位置 / 命名映射、重复 / 缺失 / 多余
       实参、函数值禁用命名实参、argument 类型与 `Value` / `Borrow` / `Inout` 契约相符，
       并标记类型层面的 place / temporary 类别；不在本 Phase 判定该 place 此刻能否移动、借用、
       独占访问或是否与其他借用冲突
-- [x] **SPEC-0173（现行 callable 契约实现漂移修复）**：具有唯一期望函数类型的 lambda
+- [x] **SPEC-0173（v0.25 callable 契约实现漂移修复）**：具有唯一期望函数类型的 lambda
       逐项采用 Value/Borrow/Inout 参数契约，并按参数 SymbolId 发布 typed fact；结构错误不
       伪造模式
+- [ ] **SPEC-0176（v0.26 callable 契约迁移）**：无标记与显式 `borrow` 规范化为同一 Borrow，
+      显式 `own` 映射 `ParameterMode::Value`，`inout` 不变；函数类型、override/委托、预声明
+      callable、单态 call mapping 与 lambda expected facts 使用同一规范化 mode。Value 参数
+      对 `MoveOnly` 实参的调用仍无 marker，并在 Phase 3 形成移动
 - [ ] 多 overload 候选对 lambda expected contract/body 的 candidate-isolated 检查；由
       SPEC-0174 独立封闭 trial 与诊断回滚，不把无期望单次检查误报为完整实现
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
@@ -223,13 +231,13 @@ Spec 之前，本条限制不变。）
 
 ## Phase 3：所有权 / 借用检查
 
-SPEC-0029 的显式 call argument loan 与 ASAP drop-point 已在
-[v0.26 候选](./01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)中形成
-可执行草案，但候选尚未启用；当前权威版本仍是 v0.25，因此以下对应项不能提前勾选或实现。
+v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-design-decisions.md#26-调用期借用与-asap-析构点v026)。
+SPEC-0176 先迁移 callable 声明与 typed contract；SPEC-0029 随后实现 loan / drop。以下未完成
+项仍不能因 guide 已启用而提前勾选。
 
 - [ ] 实现简化版单一所有者 + ASAP 析构（不做完整 NLL）
 - [ ] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
-      与声明侧 `Value` / `Borrow` / `Inout` 契约，判定 place / temporary、可变性、复制 / 移动
+      与声明侧 `own`→Value、无标记 / `borrow`→Borrow、`inout`→Inout 契约，判定 place / temporary、可变性、复制 / 移动
       与借用冲突；不得按函数名猜测例外
 - [x] 移动后使用（use-after-move）检测
 - [x] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
@@ -254,7 +262,7 @@ SPEC-0029 的显式 call argument loan 与 ASAP drop-point 已在
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
 解构后再次使用源值也被拒绝；遗漏任一分量的消费式解构、普通字段读取 `pair.first` 这类
 移出不可复制字段的部分移动均被拒绝；能正确拒绝“把借用捕获的普通闭包传给 `thread()`”
-这类用例（必须报错要求改用 `move { ... }`）。泛型 `<T>` 的按值转移后再次使用源值被拒绝，
+这类用例（必须报错要求改用 `move { ... }`）。泛型 `<T>` 交给声明端 `own` 参数后再次使用源值被拒绝，
 而 `<T : Copyable>` 的同类操作交付 owned copy，源值仍可用。还必须覆盖 `List<Endpoint>` 的
 构造、整体移动和元素借用：`listOf(endpoint)` 对不可复制的 `endpoint` 直接移动该值（调用点
 不需要标注），移动后 `endpoint` 不可再使用；移动 List 后再次使用源 owner、把 `list[i]`
@@ -319,11 +327,12 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
 - [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）
-- [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class 并取得传入值所有权；`Rc<T>` 需要
+- [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class，参数声明端使用 `own` 并取得传入值所有权；`Rc<T>` 需要
       retain，因此本身不满足 `Copyable`）
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
-- [ ] 线程/channel API，`thread()` 签名使用 `move (...) -> Unit`
+- [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
+      `Sender.send` 的 value 参数同样声明 `own`
 - [ ] `@Test` 注解 + 断言函数，跑通自身的测试套件
 
 **验收标准**：标准库自身的测试套件全部用目标语言编写并通过；至少覆盖

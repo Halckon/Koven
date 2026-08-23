@@ -1,15 +1,20 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.25 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.26 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.24](../guide/00-index.md) 已由用户明确启用并取代 v0.23；它封闭 enum case type、`when`
-穷尽性与 smart cast，SPEC-0021 已完成实施与验收。
+[v0.26](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) 已由用户明确启用并
+取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部
+`Value` owned binding，同时封闭同步调用期 loan 与 ASAP 析构点。源码/typed/所有权参数
+契约迁移由 SPEC-0176 承担，完成后 SPEC-0029 才能实施 loan 与 drop facts。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
 解构契约，SPEC-0022 已完成实施与验收。
+
+[v0.24](../guide/00-index.md) 已由用户明确启用并取代 v0.23；它封闭 enum case type、`when`
+穷尽性与 smart cast，SPEC-0021 已完成实施与验收。
 
 [v0.23](../guide/00-index.md) 已由用户明确启用并取代 v0.22；它封闭 nominal/generic/interface/
 委托契约，SPEC-0020 已完成实施。
@@ -144,7 +149,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0113](./0113-parser-entry-trivia-lexer-invariants.md) | 强化独立入口 trivia 等价矩阵的双 Lexer 确定性不变量（`done`） | 0006–0009、0077、0091、0101、0103–0112 `done`；当前持续 Goal 的站立授权 |
 | [0114](./0114-parser-entry-mutation-lexer-invariants.md) | 强化六个独立入口 mutation 矩阵的共享双 Lexer 确定性不变量（`done`） | 0006–0009、0085–0090、0093、0103–0105、0111–0113 `done`；当前持续 Goal 的站立授权 |
 | [0115](./0115-fixture-frontend-output-invariants.md) | 强化 pass / fail fixture 的双 Lexer / 双 Parser 公开产物不变量（`done`） | 0005–0017、0062–0066、0103–0114 `done`；当前持续 Goal 的站立授权 |
-| [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；现行 v0.25；当前持续 Goal 的站立授权 |
+| [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
 
 ### Phase 2：名称与类型检查
 
@@ -155,14 +160,14 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0020](./0020-nominal-generic-interface-types.md) | 检查泛型及 class / interface / enum / value class 名义类型与窄化接口委托（`done`） | 0019、0017、0064 `done`；v0.23 已明确启用 |
 | [0021](./0021-when-exhaustiveness-smart-cast.md) | 实现 `when` 穷尽性与 smart cast（`done`） | 0020、0016 `done`；v0.24 已明确启用 |
 | [0022](./0022-copyable-structural-destructuring.md) | 推导条件 `Copyable`、检查有限内联布局与结构化解构类型（`done`） | 0019、0020 `done`；v0.25 已明确启用 |
-| [0067](./0067-callable-type-checking.md) | 检查 callable 选择、实参映射、参数模式与 place/temporary 类别（`done`） | 0019、0020、0022 `done`；v0.25 callable 契约已生效；当前持续 Goal 的站立授权 |
+| [0067](./0067-callable-type-checking.md) | 检查 callable 选择、实参映射、参数模式与 place/temporary 类别（`done`） | 0019、0020、0022 `done`；实施时适用 v0.25 callable 契约；当前持续 Goal 的站立授权 |
 | [0023](./0023-sequential-container-types.md) | 检查顺序容器的名义类型、元素可存储性、核心构造和索引 place 类型（`done`） | 0020、0022、0067 `done`；v0.6 已生效 |
 | [0130](./0130-name-resolution-frontend-input-invariants.md) | 强化名称解析 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0018、0093、0115、0128、0129 `done`；当前持续 Goal 的站立授权 |
 | [0131](./0131-type-checking-frontend-input-invariants.md) | 强化类型检查核心 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0019–0023、0067、0130 `done`；当前持续 Goal 的站立授权 |
 | [0132](./0132-callable-type-frontend-input-invariants.md) | 强化 callable 类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0067、0130、0131 `done`；当前持续 Goal 的站立授权 |
 | [0133](./0133-container-type-frontend-input-invariants.md) | 强化顺序容器类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0023、0130–0132 `done`；当前持续 Goal 的站立授权 |
 | [0134](./0134-copyability-type-frontend-input-invariants.md) | 强化 copyability 类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0022、0130–0133 `done`；当前持续 Goal 的站立授权 |
-| [0173](./0173-lambda-parameter-contract-facts.md) | 让唯一期望函数类型的 lambda 采用并保存 Value/Borrow/Inout 参数契约（`done`） | 0019、0067 `done`；现行 v0.25；当前持续 Goal 的站立授权 |
+| [0173](./0173-lambda-parameter-contract-facts.md) | 让唯一期望函数类型的 lambda 采用并保存 Value/Borrow/Inout 参数契约（`done`） | 0019、0067 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
 | 0174 | 对多 overload 候选逐一隔离检查 lambda expected contract/body | 0067、0173；独立 Spec 封闭 trial/diagnostic rollback 边界 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
@@ -178,7 +183,8 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 |---|---|---|
 | [0027](./0027-variable-ownership-use-after-move.md) | 建立变量所有权状态并检测 use-after-move（`done`） | 0019、0020、0022、0067 `done`；当前持续 Goal 的站立授权 |
 | [0028](./0028-conditional-copy-structural-move.md) | 实现条件复制、移动与消费式解构检查（`done`） | 0022、0027 `done`；当前持续 Goal 的站立授权 |
-| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 契约、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`draft`） | 0028 `done`；[v0.26 候选](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)已起草，等待用户明确启用 |
+| [0176](./0176-borrow-default-parameter-contracts.md) | 迁移无 marker `Borrow`、声明侧 `own` 与既有三态参数事实（`approved`） | 0012、0067、0173、0028 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
+| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`draft`） | 0176 `done` 后解除实现门禁；v0.26 已生效 |
 | 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |
@@ -284,18 +290,20 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.25 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.26 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
 
 ## 未决决策的推荐方向
+
+v0.26 的参数契约、调用期 loan 与 ASAP 析构点已经接受，不再属于未决推荐；其实现依次由
+SPEC-0176 与 SPEC-0029 推进。
 
 以下是起草后续 guide / ADR 时的默认推荐，不是已经接受的决策；触及对应 Spec 前仍需正式
 文档批准。
 
 | 决策 | 推荐方案 | 需要的权威文档 |
 |---|---|---|
-| 借用与析构 | 已形成 [v0.26 候选](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026-候选未启用)：v1 loan 限于一次同步调用，ASAP 析构按 owned-value liveness 的最早安全点；当前仍待用户明确启用 | 新 guide（候选已起草） |
 | `lang-std` bootstrap / runtime | `.ko` 标准库保持独立真源；最小 ABI 支撑先收敛在 codegen 的私有 runtime 边界，证明需要独立发布后再提新增 crate 的 ADR | ADR |
 | SSA | 采用 typed SSA + block parameters，显式表达 move / drop；用 verifier 锁定类型、CFG 与所有权不变量 | ADR |
 | LLVM / target / linker | 固定一组经兼容矩阵验证的 LLVM major 与 `inkwell` feature；先支持单一 host target，再扩展 CI 矩阵 | ADR |

@@ -1,24 +1,30 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.25 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.26 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
 Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase 2 已实现单文件名称解析、
-基础与名义/泛型/interface 类型检查、`when` 穷尽性与 smart cast，以及条件 `Copyable`、
-有限内联布局与结构化解构类型检查。call/member、容器及跨文件解析等后续 Phase 2 工作仍待实施；所有权/借用检查（Phase 3）、代码生成
-（Phase 4）和标准库（Phase 5）尚未开始。
+基础与名义/泛型/interface 类型检查、`when` 穷尽性与 smart cast、条件 `Copyable`、有限
+内联布局、结构化解构、单态 callable/member 选择与顺序容器类型检查。Phase 3 已实现整变量
+所有权状态、use-after-move、条件复制与结构化移动；调用期 loan、ASAP 析构点、代码生成
+（Phase 4）和标准库（Phase 5）仍待实施。跨文件 package/import 名称解析也尚未完成。
 也就是说：
 
 - 本教程里的 Phase 1 语法——基础类型、变量、函数、`value class`/`class`、调用标注、lambda、
-  control-flow 与文件结构——已经有完整、可执行的 Parser；已实施的类型语义以 Architecture
-  和完成的 Phase 2 Spec 为准，所有权语义仍按后续 Phase 实施。
+  control-flow 与文件结构——除 v0.26 的 callable 参数增量外，已经有完整、可执行的 Parser。
+  v0.26 已把声明侧默认参数改为 `Borrow`，并重新启用声明侧 `own` 作为 `Value` 契约的表面
+  拼写；当前 frontend 仍实现此前的“无标记 = `Value`”表面语法，这项迁移等待 SPEC-0176，
+  因而不能把下面的新写法误读成当前编译器已经接受。
 - **控制流已在 v0.18 定稿；class 家族、类型级 companion、匿名内部类边界与窄化接口委托已在 v0.20 定稿。**
 - **单文件名称、作用域、重载组与未解析名称诊断已在 v0.21 定稿，并由 SPEC-0018 实现。**
 - **名义/泛型/interface 类型检查已由 SPEC-0020 实现；v0.24 的 enum case type、有限域
   `when` 穷尽性与 smart cast 已由 SPEC-0021 实现。**
 - **v0.25 的条件 `Copyable`、intrinsic `Box`、有限内联布局和局部 value-class 解构类型事实
   已由 SPEC-0022 实现。**
+- **v0.26 已将普通 callable 的声明侧契约调整为“无标记 `Borrow`、显式 `own` 消费”；调用点
+  仍不写 `own`，向 `own` 参数交付 MoveOnly place 时会隐式移动。该表面语法尚待 SPEC-0176
+  实现，调用期 loan 与 ASAP 析构点随后由 SPEC-0029 实施。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -209,7 +215,7 @@ fun add(a: Int, b: Int): Int = a + b             // 表达式体,必须显式写
 ### 4.2 泛型参数
 
 ```kotlin
-fun <T : Comparable<T>> max(a: T, b: T): T = if (a > b) a else b
+fun <T : Comparable<T>> max(own a: T, own b: T): T = if (a > b) a else b
 ```
 
 v1 的泛型参数**最多只能有一个内联上界**,不支持多重上界、`where` 子句、默认类型实参,也不支持声明处型变(`in`/`out`)——所有泛型在 v1 里都是不变型(invariant),型变支持要等到 v2。
@@ -231,7 +237,10 @@ val boundRef = obj::method
 
 函数类型 `(ParamTypes) -> ReturnType` 是一等类型,会被单态化成"捕获环境 + 函数指针"的闭包结构体;不捕获任何变量的函数值会直接退化成裸函数指针,零成本。函数类型也能带 `move` 前缀(`move (Int) -> Unit`),表示只接受不含任何借用捕获的闭包——第 10 章讲并发的时候会用到。
 
-函数类型的每个参数使用第 5 章要讲的三种契约之一(`Value`/`Borrow`/`Inout`):无标记的 `(Int) -> Int` 是 `Value`,`(borrow Int) -> Int` 和 `(inout Int) -> Int` 则是两种借用函数类型。`own` 仍是硬关键字,但 v0.14 已没有任何产生式接受它。
+函数类型的每个参数使用第 5 章要讲的三种契约之一(`Value`/`Borrow`/`Inout`)：无标记的
+`(Int) -> Int` 是 `Borrow`，显式 `(borrow Int) -> Int` 是完全相同的可读性写法；
+`(own Int) -> Int` 是取得实参所有权的 `Value` 契约，`(inout Int) -> Int` 是独占可变借用。
+`(Int) -> Int` 与 `(borrow Int) -> Int` 是同一个函数类型，不能靠是否写出 `borrow` 区分重载。
 
 ---
 
@@ -241,23 +250,33 @@ val boundRef = obj::method
 
 ### 5.1 心智模型:没有 GC
 
-Koven 没有垃圾回收器。每个值在任意时刻都有唯一的所有者;所有者离开作用域时,值被自动析构。这和 Rust 是同一套底层思路,但 Koven 把参数契约写在函数声明上,调用点通常由编译器按 callee 契约自动判定;只有可变借用必须在实参前显式写 `&`。
+Koven 没有垃圾回收器。每个值在任意时刻都有唯一的所有者;所有者离开作用域时,值被自动析构。这和 Rust 是同一套底层思路,但 Koven 把参数契约写在函数声明上：普通参数默认共享借用，取得所有权必须显式声明 `own`。调用点通常由编译器按 callee 契约自动判定;只有可变借用必须在实参前显式写 `&`。
 
-在 Rust 里,把一个变量按值传给函数不需要写任何符号——是移动还是复制,完全由函数签名和类型是否实现 `Copy` 决定。Koven v0.14 也让 `Value` 契约的调用点保持无标记:满足 `Copyable` 时复制,否则移动。`Borrow` 契约由 callee 签名确定,调用点可选写 `borrow` 强调只读借用;只有 `Inout` 契约必须写 `&`,让可能修改调用者变量的副作用保持显眼。
+声明侧显式不等于调用点也重复标记。向 `own` 参数传值时仍直接写 `consume(value)`：实参满足
+`Copyable` 时复制，否则隐式移动；调用点写 `own value` 反而非法。`Borrow` 参数由 callee
+签名确定，调用点可选写 `borrow` 强调只读借用；只有 `Inout` 契约必须写 `&`，让可能修改
+调用者变量的副作用保持显眼。
 
 ### 5.2 三种参数契约
 
 ```kotlin
-fun consume(x: Point): Unit { }       // 无标记 = Value
-fun peek(borrow x: Point): Unit { }
+fun peek(x: Point): Unit { }           // 无标记 = Borrow
+fun verbosePeek(borrow x: Point): Unit { } // 与上一行相同，只是显式强调
+fun consume(own x: Point): Unit { }    // 显式 own = Value
 fun mutate(inout x: Point): Unit { }
 ```
 
 | 契约 | 标记 | 含义 |
 |---|---|---|
-| `Value` | 声明侧无标记;调用点无标记 | 普通按值参数;实参满足 `Copyable` 则复制,否则移动 |
-| `Borrow` | 声明侧 `borrow`;调用点可选 `borrow` | 调用期间共享借用 |
+| `Value` | 声明侧必须 `own`;调用点无标记 | callee 取得普通 owned value;实参满足 `Copyable` 则复制,否则移动 |
+| `Borrow` | 声明侧无标记或显式 `borrow`;调用点无标记或显式 `borrow` | 调用期间共享借用;两种声明拼写是同一个契约 |
 | `Inout` | 声明侧 `inout`;调用点必须 `&` | 调用期间独占可变借用,实参必须是可变的 place |
+
+这里的 `own` 只标记普通具名 callable 参数和函数类型参数，不能用 `val` / `var` 代替。
+主构造器的 `val` / `var` 字段和 enum case payload 是存储声明：存储本身已经明确表示构造器
+取得并保存一个值，所以它们天然按 `Value` 交付，不额外书写 `own`。例如
+`value class Point(val x: Int, val y: Int)` 与 `enum class Maybe<T> { Some(value: T), None }`
+保持原语法；这不是把普通函数参数的默认模式改回 `Value`。
 
 ### 5.3 调用点标注速查表
 
@@ -268,6 +287,7 @@ fun mutate(inout x: Point): Unit { }
 | 无标记 | 合法(复制或移动) | 合法(自动借用) | 不合法,缺 `&` |
 | `borrow x` | 不合法 | 合法,与无标记写法语义相同 | 不合法 |
 | `&x` | 不合法 | 不合法 | 仅当 `x` 是可变 place 时合法 |
+| `own x` | 非法；`own` 只写在声明侧 | 非法 | 非法 |
 
 ```kotlin
 val point = Point(1, 2)
@@ -279,6 +299,10 @@ val endpoint = Endpoint(sender)
 val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移动
 // 再用 endpoint 就是"移动后使用"错误
 ```
+
+`Box<T>` 的构造参数契约在声明元数据中是 `own T`，但调用仍写 `Box(endpoint)`。因此最后一行
+对 MoveOnly `Endpoint` 的移动既是隐式的，也是由 callee 的显式 `own` 契约静态决定的；
+编译器不会根据函数名或函数体猜测是否消费实参。
 
 ### 5.4 `Copyable`:什么类型可以随手复制
 
@@ -527,7 +551,11 @@ val m = mutableListOf<Int>()
 val runtime: Array<Point> = Array<Point>(3, { i -> Point(x = i, y = i) })
 ```
 
-`arrayOf`/`listOf`/`mutableListOf` 按元素类型检查,已有变量和临时值都直接传入:元素满足 `Copyable` 时复制,否则移动,不书写 `own`。运行时长度的构造函数 `Array<T>(size, initializer)` 会按索引从 `0` 到 `size - 1` 依次调用一次 `initializer`,负长度会直接终止进程。注意 Koven 不支持尾随 lambda 写法(`f { ... }`),lambda 实参必须写在括号内。
+`arrayOf`/`listOf`/`mutableListOf` 按元素类型检查，并在 callable 契约中把每个元素位置声明为
+`own T`；调用点仍不书写 `own`。已有变量和临时值都直接传入：元素满足 `Copyable` 时复制，
+否则移动。运行时长度的构造函数 `Array<T>(size, initializer)` 会按索引从 `0` 到 `size - 1`
+依次调用一次 `initializer`,负长度会直接终止进程。注意 Koven 不支持尾随 lambda 写法
+(`f { ... }`),lambda 实参必须写在括号内。
 
 ### 8.4 `Map` —— 候选设计,尚未授权实施
 
@@ -546,7 +574,10 @@ fun divide(a: Int, b: Int): Int {
 }
 ```
 
-`error()` 不是关键字,是标准库里一个普通的顶层函数:`fun error(message: String): Nothing`。名字和真实 Kotlin 的 `error()` 一样,**但语义完全不同**:真实 Kotlin 的 `error()` 会抛出可以被 `catch` 住的 `IllegalStateException`;Koven 的 `error()` 直接**终止进程(abort)**,不可捕获,也不做栈展开。
+`error()` 不是关键字,是标准库里一个普通的顶层函数:`fun error(message: String): Nothing`。
+无标记的 `message` 按 v0.26 是 `Borrow`，`error()` 不消费调用者的字符串。名字和真实 Kotlin
+的 `error()` 一样,**但语义完全不同**:真实 Kotlin 的 `error()` 会抛出可以被 `catch` 住的
+`IllegalStateException`;Koven 的 `error()` 直接**终止进程(abort)**,不可捕获,也不做栈展开。
 
 如果你是从 Kotlin 迁移过来,靠肌肉记忆写 `error(...)` 期待它能被上层 `catch` 住,在 Koven 里会直接让进程退出。这不是 bug,是刻意的设计,但确实是整门语言里名字相同、行为却南辕北辙的一个例子。
 
@@ -647,7 +678,9 @@ v1 只提供**同步阻塞 IO**(文件、网络),异步 IO 依赖协程,要等 v
 
 **如果你熟悉 Rust:**
 
-- 所有权模型的思路是一致的(单一所有者、移动语义、借用检查),`Value` 和 `Borrow` 调用由 callee 契约自动判定(`borrow` 可选写出),只有 `Inout` 实参必须显式写 `&`。
+- 所有权模型的思路是一致的(单一所有者、移动语义、借用检查),但 Koven 声明侧无标记参数
+  默认 `Borrow`，消费参数必须写 `own`；调用点仍由 callee 契约自动判定，向 `own` 参数交付
+  MoveOnly place 时不写 marker 而直接移动。`borrow` 可选写出，只有 `Inout` 实参必须显式写 `&`。
 - `Copyable` 是结构化自动推导、不能手动覆盖的,不像 Rust 的 `Copy` 需要显式 `derive` 且可以选择不加。
 - `?` 只传播 `Result<T, E>`；它不是 throw,lambda 内也不会非局部退出外层函数。
 - 没有 trait object(`dyn`),异构集合要用 `enum class` 包一层,这也是 Rust 早期没有 trait object 时的常见做法。
@@ -690,7 +723,9 @@ async await suspend actor spawn sealed dyn where yield macro reify
 
 **`error` 不是关键字**,是标准库函数,可以(但不建议)被用作标识符名。
 
-`own` 仍保留在硬关键字表中,但 v0.14 已没有任何产生式接受它;它不是可用的参数或调用点标记。
+`own` 在 v0.26 重新成为声明侧参数标记：`fun consume(own value: T)` 与 `(own T) -> R` 表示
+`Value` 契约。它不是调用点标记，调用仍写 `consume(value)`；`consume(own value)` 非法。
+主构造器 `val` / `var` 字段与 enum payload 由存储声明天然取得所有权，不额外写 `own`。
 
 固定运算符与标点见第 3.5 节的优先级表;完整符号集是:
 

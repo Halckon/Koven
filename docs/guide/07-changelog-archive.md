@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.25），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.26），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -381,3 +381,24 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 3 | 定义 SymbolId + field path 的 place 重叠与 shared/exclusive 冲突矩阵；不同已知字段可证明不重叠，index place 保持到 SPEC-0030 的明确 deferred | 🔴 候选别名边界 |
 | 4 | 把 ASAP 精确定义为路径敏感 owned-value liveness 的最早安全 drop point，封闭 temporary、赋值替换、scope exit、return/`?`、break/continue、分支合流和 loop backedge 规则 | 🔴 候选析构语义 |
 | 5 | 为 SPEC-0029 预分配 L0133–L0135，并要求所有权产物保存 loan begin/end 与 drop facts；非 place/temporary 的 `&` 保持既有 L0122，member/委托 receiver、容器 index、closure capture、借用返回与完整 NLL 继续后置 | 🟡 候选诊断与 Phase 边界 |
+
+## v0.26 启用前审计补充
+
+> 2026-08-23 启用审计在保留上述候选起草记录的前提下补齐 callable 声明默认值与实现边界；
+> 以下条目与候选表共同构成 v0.26，不回写 v0.12/v0.14 或本候选的历史措辞。
+
+| # | 审计补充 | 类型 |
+|---|---|---|
+| 1 | 普通 callable 与 function-type 参数的无标记 mode 从 `Value` 改为 `Borrow`；显式 `borrow` 是同一 contract 的可选源码强调，二者规范化后不构成不同函数类型、override contract 或 overload | 🔴 所有权默认值变更 |
+| 2 | 声明端恢复 `own`，但只映射既有 `ParameterMode::Value`，不恢复 v0.10 的独立第四种 `Own` contract；`inout` 与调用点强制 `&` 均不变 | 🔴 声明语法与 contract 映射变更 |
+| 3 | 调用实参 mode 字母表仍精确为 `borrow` / `&`，调用点 `own` 继续非法；向声明端 `own` 的 Value 参数传入 `MoveOnly` place 时仍以无 marker 调用隐式移动，`Copyable` place 则交付 owned copy | 🔴 调用匹配语义补全 |
+| 4 | class / value-class 主构造器的 `val` / `var` 字段及 enum payload 是天然-owned 存储形态，按 `ParameterMode::Value` 交付但不重复写 `own`；普通 callable 不得用 `val` / `var` 代替 `own` | 🟡 专用声明边界 |
+| 5 | lambda 参数继续不写 mode，并逐项采用 expected function type 的规范化 mode；预声明只读 API 默认 Borrow，`Box`、列表元素、`MutableList.add`、`thread` 与 `Sender.send` 等所有权 sink 使用声明端 `own` | 🔴 callable 契约同步 |
+| 6 | 声明侧 L0039 的 mode 字母表扩为 `own` / `borrow` / `inout`；调用点 `own` 复用既有 L0033 拒绝，不新增错误码。现有 parser/type checker 仍是 v0.25 行为，迁移由 SPEC-0176 实施 | 🟡 诊断与实现边界 |
+| 7 | SPEC-0176 只迁移语法、typed contract、预声明 API 与 lambda expected facts；SPEC-0029 在其后实现调用期 loan、冲突和 ASAP drop-point，不重复新增语法 | 🟡 Phase 与 Spec 边界 |
+
+## v0.26 启用记录
+
+> v0.26 于 2026-08-23 由用户明确启用并取代 v0.25；上述候选契约及启用前审计补充自此成为
+> 现行语义，L0133–L0135 获得稳定含义。SPEC-0176 与 SPEC-0029 尚未完成，规范启用不表示
+> parser、typed contract、loan 或 drop-point 已经实现。历史候选记录按只追加治理保留。

@@ -8,7 +8,9 @@
 > `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
 > 具名函数隐式 `Unit` 返回标注已实现；Phase 2 的单文件名称解析、基础类型检查以及完整
 > 名义类型、泛型、interface 实现与窄化委托检查、`when` 穷尽性与 smart cast，以及条件
-> `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查已完成；Phase 6
+> `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查已完成；Phase 3
+> 已建立整变量 use-after-move、条件复制、消费式解构与禁止结构分量部分移动检查，v0.26 的
+> borrow-default 参数契约迁移、调用期 loan 与 ASAP 析构点仍待后续 Spec；Phase 6
 > 已提供 TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析等待 guide 封闭 import 冲突与
 > 跨 package 可见性，`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
 > 类型。
@@ -25,7 +27,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动检查，borrow-default 参数契约迁移、调用期 loan 与 ASAP 析构点尚未实现；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -40,7 +42,7 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.25。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.26。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -71,7 +73,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.25 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.26 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
@@ -92,9 +94,12 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   `value class` 显式装箱；v1 的 intrinsic `Box<T>` 只接受具体 `value class` 实例，
   `Box<普通 class>` 与仅由类型参数表示的 `Box<T>` 是类型错误，同名源码 class 不获得
   intrinsic 身份。
-- `own` 仍是硬关键字，但 v0.14 没有任何产生式接受它。声明侧参数 marker 使用 `borrow` /
-  `inout`；调用点可选写 `borrow`，`Inout` 实参必须写 `&`。这些形式都不是 Pratt parser 中
-  的通用一元运算符，必须由各自的参数专用语法解析。
+- `own` 是硬关键字和声明侧参数 marker：它把参数规范化为内部 `Value` owned binding，不引入
+  第四种参数模式。具名函数与函数类型参数无 marker 时是 `Borrow`，也可显式写等价的
+  `borrow`；`inout` 仍显式表示独占非 owning binding。调用点无 marker 可按 callee 契约建立
+  Borrow，或向 `Value` 参数交付 owned copy / 隐式移动 MoveOnly 值；调用点 `borrow` 只强调
+  Borrow，`Inout` 实参必须写 `&`，调用点不接受 `own`。这些形式都不是 Pratt parser 中的
+  通用一元运算符，必须由各自的参数专用语法解析。
 - v1 采用简化单一所有者和 ASAP 析构，不实现完整 NLL。不得用 Rust 借用检查器的全部
   行为自行补齐本语言规则。
 - `move (...) -> T` 只接受不含借用捕获的闭包；跨线程 API 的闭包实参必须显式写

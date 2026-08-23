@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（三）：调用参数、Lambda 与解构
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.20。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
 > 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
 > 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
@@ -86,11 +86,12 @@ expression”。Phase 1 只保存该结构；参数类型、捕获、返回类�
 检查。v0.18 的 `return` 可作为 lambda body element，且退出最近 lambda；完整 jump 产生式、
 上下文与恢复规则见[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 12 节。
 
-Lambda 参数源码不重复书写 `borrow` / `inout`；其契约由 Phase 2 对该 lambda 应用的
-**期望函数类型**逐项提供。例如把 `{ x -> use(x) }` 检查为 `(borrow T) -> R` 时，body 中的
-`x` 是共享借用参数；检查为 `(T) -> R`（无标记）时，`x` 是按值参数，`Copyable` 时对应
-复制、否则移动。每个重载候选必须用自身
-期望函数类型独立检查 lambda，不能先默认成 `Value` 再做隐式模式转换；若无法得到唯一的参数
+Lambda 参数源码不重复书写 `own` / `borrow` / `inout`；其契约由 Phase 2 对该 lambda 应用的
+**期望函数类型**逐项提供。例如把 `{ x -> use(x) }` 检查为 `(T) -> R` 或
+`(borrow T) -> R` 时，body 中的 `x` 都是共享借用参数；检查为 `(own T) -> R` 时，`x` 是
+owned `Value` 参数，`Copyable` 时可复制、否则按普通移动规则使用；检查为 `(inout T) -> R`
+时则获得独占可变绑定。每个重载候选必须用自身
+期望函数类型独立检查 lambda，不能先默认成任一 mode 再做隐式模式转换；若无法得到唯一的参数
 类型 / 契约，沿用普通 lambda 上下文类型不足或重载歧义诊断。Phase 1 的 Lambda AST 仍只保存
 真实参数名 Span，不伪造 marker；typed AST 必须保存最终采用的函数参数契约。`move` 只约束
 捕获，与期望函数类型的参数契约正交。
@@ -178,14 +179,15 @@ argument_mode     = "borrow" | "&" ;
 ```
 
 调用实参的 `argument_mode` **自 v0.14 起不再复用**声明侧的 `explicit_parameter_mode`
-（`"borrow" | "inout"`，见[03-grammar-core.md](./03-grammar-core.md)第 3 节）：声明侧继续用关键字 `inout`
+（v0.26 为 `"own" | "borrow" | "inout"`，见[03-grammar-core.md](./03-grammar-core.md)第 3 节）：声明侧继续用关键字 `inout`
 标注一个参数是可变借用，但调用点表达“我要把这个 place 借给这次调用做可变修改”时改用
 符号 `&`，不再重复关键字 `inout`。`borrow` 在两侧都仍是同一个关键字，没有变化。
 
 唯一源码顺序是“可选名称、可选模式、表达式”：`f(e)`、`f(name = e)`、`f(borrow e)`、
 `f(&e)`、`f(name = borrow e)` 与 `f(name = &e)` 在 Phase 1 均可形成语法 AST。模式不是通用一元运算符；
-只有 call argument 入口可消费，且字母表精确为关键字 `borrow` 与符号 `&` 两项（v0.12
-移除 `own`，v0.14 把 `inout` 关键字换成 `&` 符号，见下文设计说明）。模式后直接出现顶层
+只有 call argument 入口可消费，且字母表精确为关键字 `borrow` 与符号 `&` 两项。v0.26
+恢复的 `own` 只属于声明端，所以 `f(own x)` 仍非法；v0.14 把调用点 `inout` 关键字换成
+`&` 符号，见下文设计说明。模式后直接出现顶层
 `Identifier =` 是错误的逆序组合；显式分组的
 `borrow (x = y)` 仍是以 assignment expression 为 operand 的模式实参，`&(x = y)` 同理。
 空列表合法，
@@ -260,34 +262,51 @@ v0.14 在保持“`Inout` 调用点标注仍是强制项”这一结论不变的
   背景的读者踩坑，教程文档需要用类似[01-design-decisions.md](./01-design-decisions.md)第 3 节 `error()` 的处理方式——单独一段
   显式提醒，不能只靠上下文让读者自己反应过来。
 
-三种契约的完整定义仍由本节剩余部分与下文的 Callable 参数契约与调用匹配 给出；`own`
-关键字的无产生式状态见 [02-lexical-spec.md](./02-lexical-spec.md) 第 1 节，`&` 符号的完整词法定义见
-[02-lexical-spec.md](./02-lexical-spec.md) 第 7 节。
+v0.26 在保持调用点自动化与三种语义契约不变的基础上，调整了**声明端默认值**：
+
+- 无标记参数从 `Value` 改为 `Borrow`；显式 `borrow` 继续合法，但只是同一 Borrow contract
+  的源码强调，`(T) -> R` 与 `(borrow T) -> R` 不形成不同函数类型或 overload；
+- 声明端恢复 `own`，并把它直接映射到既有 `ParameterMode::Value`。它不是 v0.10 的独立
+  `Own` contract，也不恢复调用点 `own` marker；`fun consume(own value: T)` 仍以
+  `consume(value)` 调用，`MoveOnly` place 在该无标记调用中隐式移动；
+- `inout` 声明和调用点强制 `&` 均不变；
+- 普通 class/value-class 主构造器的 `val` / `var` 字段与 enum payload 是天然-owned 存储
+  形态，不重复写 `own`；这项专用形态不改变普通 callable 的默认 Borrow。
+
+三种契约的完整定义仍由本节剩余部分与下文“Callable 参数契约与调用匹配”给出；`own`
+声明位置见 [02-lexical-spec.md](./02-lexical-spec.md) 第 1 节，`&` 符号的完整词法定义见
+[02-lexical-spec.md](./02-lexical-spec.md) 第 7 节。v0.26 的 parser / typed-contract 迁移由
+SPEC-0176 实施；guide 启用不表示当前实现已经接受新拼写。
 
 #### Callable 参数契约与调用匹配
 
-callee 的每个值参数具有 `Value`、`Borrow` 或 `Inout` 契约。无标记参数是 `Value`；声明侧
-显式关键字 `borrow` / `inout` 分别是另外两种契约。`Value` 接收普通按值表达式结果，满足 `Copyable`
-时复制，否则移动；调用点从不要求 marker。`Borrow` 表示调用期间共享借用，调用点标注
-可选——省略时编译器按 callee 已声明的契约自动借用，显式写 `borrow` 时效果相同，仅用于
-强调。`Inout` 表示调用期间独占可变借用，调用点**必须**显式标注，但拼写是符号 `&`，不是
-声明侧使用的关键字 `inout`（`mutate(&x)`，不是 `mutate(inout x)`）。默认参数**模式**
+callee 的每个值参数具有 `Value`、`Borrow` 或 `Inout` 契约。无标记或声明侧显式 `borrow`
+都是 `Borrow`；声明侧显式 `own` 映射 `Value`；显式 `inout` 映射 `Inout`。`Value` 接收
+完整 owned value，满足 `Copyable` 时复制，否则移动；声明必须写 `own`，调用点却始终不写
+marker。`Borrow` 表示调用期间共享借用，调用点标注可选——省略时编译器按 callee 已声明的
+契约自动借用，显式写 `borrow` 时效果相同，仅用于强调。`Inout` 表示调用期间独占可变借用，
+调用点**必须**显式标注，但拼写是符号 `&`，不是声明侧使用的关键字 `inout`
+（`mutate(&x)`，不是 `mutate(inout x)`）。默认参数**模式**
 不等于默认参数**值**；v1 继续禁止参数默认值与用户声明 `vararg`。
 
 调用点与 callee 契约的唯一兼容矩阵如下；“temporary”是本次 operand 求值新产生且没有既有
 place 身份的值，group 继承内部表达式的类别。名称、成员或索引只有在 Phase 2 把它标为
 place 时才属于 place；其他产生完整值的表达式均为 temporary。
 
-| 调用点形态 | `Value` | `Borrow` | `Inout` |
+| 调用点形态 | `Value`（声明端 `own`） | `Borrow`（无标记或声明端 `borrow`） | `Inout` |
 |---|---|---|---|
 | 无 marker、operand 为 place | 合法，按值复制或移动 | 合法，自动借用，借到同步调用结束 | 非法，缺 `&` |
 | 无 marker、operand 为 temporary | 合法，直接交付 | 合法，自动借用，借到同步调用结束 | 非法，始终要求可变 place |
 | `borrow operand` | 非法 | 合法；与省略标注语义完全相同，纯粹可选 | 非法 |
 | `&operand` | 非法 | 非法 | 仅 operand 为可变 place 时合法 |
 
-`Copyable` 只决定按值交付是复制还是移动，不改变矩阵，也不让 `Inout` place 省略 marker。
+`Copyable` 只决定向 `Value` 交付时是复制还是移动，不改变矩阵，也不让 `Inout` place 省略 marker。
 显式 `borrow temporary` 合法；显式 `&temporary` 非法。place、可变性、Copyable、移动
 与借用冲突由 Phase 3 判断，Phase 1 不据此拒绝语法。
+
+调用点 `own operand` 不在矩阵中，因为它不是合法 `argument_mode`。对
+`fun consume(own value: T)`，`consume(place)` 已由 callee contract 唯一决定 owned delivery；
+若 `place` 是 `MoveOnly`，该无标记调用移动 owner 并使源 place 后续不可用。
 
 Phase 2 先按源码顺序解析每个 argument 的类型和表达式类别，再对每个候选 callable 做映射：位置实参可以
 出现在第一个命名实参之前，并依次填充尚未匹配的参数；一旦出现命名实参，后续所有实参都
@@ -296,14 +315,17 @@ Phase 2 先按源码顺序解析每个 argument 的类型和表达式类别，�
 命名实参是类型诊断。一个参数不能被位置与名称重复填充，同一名称不能出现两次；v1 没有
 默认参数值，所以成功调用必须恰好填充全部参数且没有额外实参。每个重载候选独立应用这套
 映射与契约约束；无 marker 的 place 或 temporary 都可直接与 `Value` 或 `Borrow` 候选兼容，
-显式 `borrow` 只能与 `Borrow` 候选兼容。若类型检查后仍有多个候选，使用后续 Phase 2 Spec
+显式 `borrow` 只能与 `Borrow` 候选兼容，显式 `&` 只能与 `Inout` 候选兼容。参数 mode 不参与
+overload shape；即使 `borrow` 可以筛掉 Value 候选，也不允许声明只在 mode 上不同的 overload。
+若类型检查后仍有多个候选，使用后续 Phase 2 Spec
 的普通歧义诊断，不能通过重排求值或忽略契约择一。这里的表达式类别只区分类型层面已经
 建立的 place 与 temporary；Phase 2 不判断 place 此刻能否移动、借用或独占访问，这些动态
 所有权前提仍全部属于 Phase 3。无论名称把实参映射到哪个参数，operand 始终按**源码从左到右**各求值一次，
 随后才按映射交付；命名顺序不改变副作用顺序。
 
 所有编译器预声明 callable、核心构造器与后续标准库签名都必须使用同一有序参数元数据：
-参数契约、可选稳定名称及 TypeRef。列表式核心构造可使用内部“重复 `Value` 参数”形状，仍不
+参数契约、可选稳定名称及 TypeRef。列表式核心构造可使用内部“重复 `Value`（源码等价于
+重复 `own`）参数”形状，仍不
 向用户开放 `vararg` 声明语法；parser 始终生成普通 CallArgument，不按 `arrayOf`、`listOf`、
 `MutableList.add`、`println` 等名称硬编码模式或省略例外。预声明 API 的具体签名由对应标准库
 Spec 列出，但其调用必须服从上述统一匹配矩阵。
@@ -313,26 +335,25 @@ Spec 列出，但其调用必须服从上述统一匹配矩阵。
 
 | API 形状 | 有序参数契约 |
 |---|---|
-| `error(message)`、`println(value)` | 唯一参数为 `Value`；`println` 可有多个具体类型重载，但契约相同 |
-| `Box<T>(value)` | `Value T` |
-| `arrayOf(...)` / `listOf(...)` / `mutableListOf(...)` | 每个元素位置都是内部重复的 `Value T` |
-| `Array<T>(size, initializer)` / `List<T>(size, initializer)` | `Value` 的 `Int`、`Borrow` 的 `(Int) -> T` |
-| `MutableList<T>.add(value)` | `Value T` |
-| `thread(task)` | `Value (move () -> Unit)` |
+| `error(message)`、`println(value)` | 唯一参数为无标记 `Borrow`；`println` 可有多个具体类型重载，但契约相同 |
+| `Box<T>(value)` | `Value T`，声明等价于 `own value: T` |
+| `arrayOf(...)` / `listOf(...)` / `mutableListOf(...)` | 每个元素位置都是内部重复的 `Value T`，等价于重复 `own` |
+| `Array<T>(size, initializer)` / `List<T>(size, initializer)` | 两个参数均为 `Borrow`；类型依次为 `Int`、`(Int) -> T`，后者的无标记 `Int` 参数同样是 `Borrow` |
+| `MutableList<T>.add(value)` | `Value T`，声明端 `own` |
+| `thread(task)` | `Value (move () -> Unit)`，声明端 `own` |
 | `channel<T>()`、`join()`、`receive()` | 无参数 |
-| `Sender<T>.send(value)` | `Value T` |
+| `Sender<T>.send(value)` | `Value T`，声明端 `own` |
 
-其中 `(Int) -> T` 的 `Int` 参数无 marker，因此是 `Value`；表格中的“的”只区分参数契约与
-参数类型，不是额外源码语法。上表所有 `Value` 与 `Borrow` 参数在调用点都不需要标注
+其中 `(Int) -> T` 的 `Int` 参数无 marker，因此是 `Borrow`；表格中的“声明端 `own`”只解释
+规范签名，不是调用点语法。上表所有 `Value` 与 `Borrow` 参数在调用点都不需要标注
 （`Borrow` 位置仍可选择写 `borrow` 强调）。`println` 的可打印类型集合、channel / thread 的具体返回类型及普通集合算法仍由对应 Phase 2 / 5
 Spec 完成；这些留白不允许改变上表的模式或让 parser 按名称特判。
 
-这套契约解除 v0.9 的 SPEC-0012 设计门禁。SPEC-0012 的 Phase 1 Goal 同时迁移具名函数
-`ValueParameter`、函数类型参数和 `CallArgument` AST / parser，使三处共享同一
-`ParameterModeMarker` 语义枚举（`Borrow`/`Inout` 两个变体）——**但自 v0.14 起三处的
-调用点表面拼写不再完全相同**：`ValueParameter` 与函数类型参数（声明侧）用关键字
-`borrow` / `inout`；`CallArgument`（调用点）用关键字 `borrow` 与符号 `&`。Span 各自
-覆盖源码中实际出现的 token，语义枚举变体相同，surface spelling 因位置而异；Phase 2
+SPEC-0012 解除 v0.9 的原始调用边界门禁，并建立具名函数 `ValueParameter`、函数类型参数和
+`CallArgument` AST / parser。v0.26 的 SPEC-0176 在该基线上把声明 marker 扩为
+`Own` / `Borrow` / `Inout`，把 missing marker 的 typed mode 改为 `Borrow`；调用实参的表面
+字母表仍只有关键字 `borrow` 与符号 `&`。Span 各自
+覆盖源码中实际出现的 token；Phase 2
 实现名称、参数映射、类型与参数契约匹配并标记
 类型层面的 place / temporary 类别，Phase 3 才实现具体 place 的移动能力、可变性、复制 /
 移动与借用效果。不得在 SPEC-0012 中提前声称名称、类型或所有权检查已经完成。
@@ -343,8 +364,10 @@ payload，至少保存完整 `span`、`named_prefix: Option<NamedArgumentPrefix>
 `mode_marker: Option<ParameterModeMarker>` 及唯一 `value: ExpressionId`；
 `NamedArgumentPrefix` 封闭保存真实 `name_span` 与 `equals_span`，不能用两个独立 `Option` 构造
 只有名称或只有等号的半状态。mode marker 复用[03-grammar-core.md](./03-grammar-core.md)第 3、6 节封闭的
-`ParameterModeMarker::{Borrow(Span), Inout(Span)}`（v0.12 起不再有 `Own` 变体），自身封闭
-真实 kind / Span——**在 `CallArgument` 里，`Inout(Span)` 变体的 `Span` 覆盖的是符号 `&`
+`ParameterModeMarker::{Own(Span), Borrow(Span), Inout(Span)}`，自身封闭真实 kind / Span；
+但 `CallArgument` 的构造不变量只允许 `Borrow` / `Inout`，`Own` 只允许出现在声明端，parser
+遇到调用点 `own` 必须拒绝而不能构造 `CallArgument` 的 `Own` 半合法状态。**在
+`CallArgument` 里，`Inout(Span)` 变体的 `Span` 覆盖的是符号 `&`
 token，不是关键字 `inout` token**（value_parameter / function_type_parameter 的
 `Inout(Span)` 才覆盖 `inout` 关键字）；两处共享同一枚举变体名是因为语义相同，实现读取
 `Span` 时不能假设它一定是某个固定字符长度的 token。完整实参从名称或模式（存在时）
@@ -366,6 +389,10 @@ parser 在 `argument_mode` 位置看到的是一个不匹配 `"borrow" | "&"` �
 `expected argument value` 处理；只有写成 `f(& &x)`（中间有 trivia）才会产生两个独立
 `&` token，触发 `duplicate argument mode`。不得复用声明列表 L0024–L0026，`)`
 缺失只复用通用 expected closing delimiter。恢复分支精确如下：
+
+`f(own x)` 的 `own` 是不匹配调用点 mode 字母表、也不能开始 expression 的硬关键字，使用
+`L0033 expected argument value` 覆盖该 token 并按下表恢复；不得把它接受为模式，也不得为
+这一既有类别另分配错误码。
 
 | 分支 | 诊断、消费与 AST |
 |---|---|
@@ -471,6 +498,7 @@ Architecture。独立分支的草案编号顺序不构成未完成前一 Spec �
 | 0011 | 无体 / 空或非空 block body 的隐式 `Unit`，以及三种形态的显式返回标注 | 表达式体省略标注继续发 expected explicit return type；缺 `:` 与缺 TypeRef 恢复仍区分，AST 不伪造 `Unit` TypeRef / `:` Span |
 | 0012 | 声明侧无标记 / `borrow` / `inout` 的具名函数与函数类型参数，以及调用点位置、命名、模式（`borrow` 或 `&`）、命名加模式四种 call argument；覆盖 basic / typed / member / chained call、nested lambda / delimiter operand | 重复声明 / 函数类型参数模式、缺命名值、缺模式 operand、逆序或重复调用模式、空项 / trailing comma / 缺 `)`，并保留 outer owner closer；strict typed-call trial 同步识别带模式函数类型 |
 | 0013 | 单 / 多 binding、复杂 RHS、与前后 element 相邻、block 与 lambda body 内嵌套 | 空 binding、缺 separator / `)` / `=` / initializer，`var` / `const` / `_` / nested / typed pattern 均按稳定类别拒绝 |
+| 0176 | 声明侧无标记 / 显式 `borrow` 均形成 Borrow，显式 `own` 形成 Value，`inout` 不变；函数类型和 lambda expected mode 同步采用规范化 contract；`MoveOnly` 实参向 `own` 参数无 marker 移动 | 调用点 `own` 继续以既有类别拒绝；声明 mode 重复与恢复涵盖 `own`；`(T) -> R` / `(borrow T) -> R` 不形成不同类型或 overload，`(own T) -> R` 与 Borrow 区分 |
 
 SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历史负例在 SPEC-0010 后
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。

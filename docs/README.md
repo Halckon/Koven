@@ -5,7 +5,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.25](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+- [语言设计指南 v0.26](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
   多文档真源。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
@@ -33,10 +33,8 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库已完成 Phase 0 与 Phase 1，并以 SPEC-0018 进入 Phase 2；SPEC-0006 已建立确定性 Lexer，SPEC-0007 与
-SPEC-0008 已分别建立独立表达式和声明 Parser，SPEC-0009 已建立 block / statement 序列及
-函数 block body Parser，SPEC-0010 至 SPEC-0014 已实现 lambda literal、具名
-函数隐式 `Unit` 返回标注、callable 参数 marker / typed call argument，以及 block /
-lambda body 内的局部 `val` 解构、完整文件组合与跨声明恢复、Kotlin 风格的
-`package` / `import` 文件头和 control-flow。其余语法仍按后续 Specs 推进。
-各编译阶段的实际状态见 [架构快照](./architecture/README.md)。
+当前仓库已完成 Phase 0、Phase 1 与无 guide 门禁的 Phase 2 主线，并已进入 Phase 3：整变量
+use-after-move、条件复制、消费式解构与禁止结构分量部分移动检查已经实现。v0.26 已成为现行
+规范，但 borrow-default 参数声明、显式 `own` 的 Parser / typed facts 迁移，以及调用期 loan 与
+ASAP 析构点仍未实现；当前编译器在这部分存在已登记的规范—实现漂移。Phase 6 已独立提供
+TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。

@@ -12,10 +12,10 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 
 ## 1. 版本与状态
 
-- **当前唯一权威版本是本文档集的 v0.25**，已于 2026-08-21 由用户明确启用，取代 v0.24；
+- **当前唯一权威版本是本文档集的 v0.26**，已于 2026-08-23 由用户明确启用，取代 v0.25；
   v0.14 此前已取代 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md)。v0.12 及更早
   单文件 guide 只作为历史材料，不参与现行语义优先级。
-- **当前文档集版本是 v0.25**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
+- **当前文档集版本是 v0.26**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
   `Inout` 的调用点标注从关键字 `inout` 改写为符号 `&`；v0.15 封闭完整文件与跨声明恢复
@@ -27,7 +27,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   预声明环境和首批名称诊断；v0.22 封闭最小数值后缀、默认数值类型与基础类型检查契约；
   v0.23 封闭名义/泛型身份、interface 静态实现、override/default 冲突与窄化接口委托；
   v0.24 封闭 enum case type、`when` 穷尽性与 smart cast；v0.25 封闭条件 `Copyable`、有限
-  内联布局、intrinsic `Box` 与结构化解构类型契约。
+  内联布局、intrinsic `Box` 与结构化解构类型契约；v0.26 把 callable 的无标记参数改为
+  `Borrow`、恢复声明端 `own` 作为既有 `Value` 契约的显式拼写，并启用调用期 loan 与 ASAP
+  drop-point 契约。
   完整逐版本
   记录见下文
   “精简版本历史”与 [`07-changelog-archive.md`](./07-changelog-archive.md) 的完整表格。
@@ -37,15 +39,19 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   变更归档，因此没有进入语义变更记录表格，单独在下方“结构调整说明”里交代。除这一版
   外，版本号是单一递增序列，不再区分“语义
   版本”和“结构版本”两条轴——每份正文文档顶部标注的是它自己内容最近一次改动所在的
-  版本；本索引聚合记录整个文档集当前启用的 v0.25 状态。
-- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19–24 节是现行规范规则；
+  版本；本索引聚合记录整个文档集当前启用的 v0.26 状态。
+- [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19–26 节是现行规范规则；
   第 18 节仍明确标注为 Map 候选设计，在完成设计门禁并补充到对应实施 Spec 之前，
-  不得被 Phase 2/3/5 实现直接引用为已批准契约；第 26 节是 v0.26 调用期借用与 ASAP
-  析构点候选，在用户明确启用前同样不参与现行语义。v0.22 的数值后缀由 SPEC-0066 实施，
+  不得被 Phase 2/3/5 实现直接引用为已批准契约。v0.22 的数值后缀由 SPEC-0066 实施，
   L0082–L0090 与基础类型检查由 SPEC-0019 实施。
 - **v0.25 已明确启用**：[`01-design-decisions.md`](./01-design-decisions.md) §25 的条件
   `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构契约，以及 L0115–L0118 已成为
   现行语义；SPEC-0022 已完成实施。
+- **v0.26 已明确启用**：无标记 callable / function-type 参数是 `Borrow`；显式 `borrow`
+  是同一契约的可选强调，不形成不同函数类型或 overload；声明端 `own` 映射既有
+  `ParameterMode::Value`，调用点仍不接受 `own`，向该参数传入 `MoveOnly` place 时以无标记
+  调用隐式移动；`inout` / 调用点 `&` 保持不变。语法与 typed-contract 迁移等待
+  SPEC-0176，调用期 loan 与 ASAP drop-point 等待 SPEC-0029，不能把 guide 启用误写为实现完成。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -73,13 +79,13 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 25 节现行设计 + Map 候选 §18 + v0.26 候选 §26 + 原第二部分（现为附录） | ~1550 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 26 节现行设计 + Map 候选 §18 + 原第二部分（现为附录） | ~1550 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.25 完整记录（含 v0.13 结构调整与 v0.25 候选审计） | ~370 | 只追加，不修改 |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.26 完整记录（含 v0.13 结构调整与 v0.26 启用审计） | ~390 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -115,7 +121,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
-| v0.26（候选） | 起草显式实参调用期 loan、参数绑定能力与 ASAP drop-point；尚未启用 |
+| v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；已明确启用，实施待 SPEC-0176 / SPEC-0029 |
 
 ## 5. SPEC 编号索引
 
@@ -144,7 +150,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
 | SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
-| SPEC-0029 | 显式实参调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ⏳ v0.26 候选，未启用 |
+| SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ⏳ v0.26 已启用，未实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -152,6 +158,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0067 | 单态 callable/member 选择、实参映射与 place/temporary 分类 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0173 | 唯一期望函数类型的 lambda 参数契约 typed facts | `05-grammar-calls-lambda.md` §9、`../specs/0173-lambda-parameter-contract-facts.md` | ✅ 已实现 |
 | SPEC-0175 | block 内调用实参 lambda 边界修复 | `05-grammar-calls-lambda.md`、`../specs/0175-call-argument-lambda-boundary.md` | ✅ 已实现 |
+| SPEC-0176 | v0.26 无标记 Borrow、声明端 `own` 与 callable typed-contract 迁移 | `03-grammar-core.md` §3、`04-grammar-declarations-blocks.md` §7、`05-grammar-calls-lambda.md` §9、`../specs/0176-borrow-default-parameter-contracts.md` | ⏳ 已批准，未实现 |
 
 ## 6. 错误码索引（近似区间，精确定义以对应文档正文为准）
 
@@ -166,7 +173,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0016 | SPEC-0007 历史类别 `unsupported argument form`（SPEC-0012 后生产 Parser 不再发出，历史含义与编号保留不复用） | `05-grammar-calls-lambda.md` |
 | L0024–L0026 | SPEC-0008 声明列表诊断 | `04-grammar-declarations-blocks.md` |
 | L0031–L0032 | SPEC-0010 lambda body 诊断 | `05-grammar-calls-lambda.md` |
-| L0033–L0039 | SPEC-0012 call argument / 参数模式诊断（含 `duplicate argument mode` 等，v0.14 起调用点字母表为 `borrow` 关键字 + `&` 符号，诊断类别与编号不变） | `05-grammar-calls-lambda.md`，声明侧引用见 `03-grammar-core.md`、`04-grammar-declarations-blocks.md` |
+| L0033–L0039 | SPEC-0012 call argument / 参数模式诊断（含 `duplicate argument mode` 等；调用点字母表仍为 `borrow` 关键字 + `&` 符号，v0.26 声明侧字母表扩为 `own` / `borrow` / `inout`，诊断类别与编号不变） | `05-grammar-calls-lambda.md`，声明侧引用见 `03-grammar-core.md`、`04-grammar-declarations-blocks.md` |
 | L0040–L0046 | SPEC-0013 局部解构诊断 | `05-grammar-calls-lambda.md` |
 | L0047 | SPEC-0062 同行声明缺少 `;` | `04-grammar-declarations-blocks.md` §10 |
 | L0048–L0054 | SPEC-0015 package/import 名称、位置、分隔与 wildcard alias 诊断 | `04-grammar-declarations-blocks.md` §11 |
@@ -181,11 +188,11 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0119–L0124 | callable target、命名/数量/模式映射、无匹配与歧义诊断；SPEC-0067 已实现 | `05-grammar-calls-lambda.md` §9 |
 | L0125–L0130 | 顺序容器元素、推导、核心构造、索引、只读 place 与禁用 `.get`/`.set` 诊断；SPEC-0023 已实现 | `01-design-decisions.md` §8 |
 | L0131–L0132 | use-after-move 与禁止不可复制分量部分移动；SPEC-0027/0028 已实现 | `../specs/0027-variable-ownership-use-after-move.md`、`../specs/0028-conditional-copy-structural-move.md` |
-| L0133–L0135（候选） | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；尚未启用或实现 | `01-design-decisions.md` §26.5 |
+| L0133–L0135 | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；v0.26 已启用，尚未实现 | `01-design-decisions.md` §26.5 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
-声明侧 L0039 的 `borrow`/`inout` 字母表不变。v0.14 后裸 `&` 不再触发 L0001（`&` 现在是
+声明侧 L0039 的字母表在 v0.26 扩为 `own`/`borrow`/`inout`。v0.14 后裸 `&` 不再触发 L0001（`&` 现在是
 合法固定符号），但 L0001 类别仍用于其他非法字符；这里只移除了该字符的旧触发情形。
 
 ## 7. 核心概念速查（概念 → 主要讨论位置）
@@ -193,8 +200,8 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 概念 | 主要位置 |
 |---|---|
 | `Copyable` / `Transferable` / `Hashable` 标记能力 | `01-design-decisions.md` §5、§17、§18.1 |
-| `Value`/`Borrow`/`Inout` 调用点契约（v0.12 起三契约） | `01-design-decisions.md` §4-5、`03-grammar-core.md` §3、`05-grammar-calls-lambda.md` §9 |
-| `Own` 契约与 `own` 语法用途退役说明 | `02-lexical-spec.md` §1、`05-grammar-calls-lambda.md` §9 |
+| `Value`/`Borrow`/`Inout` 三契约与 v0.26 默认 Borrow | `01-design-decisions.md` §4-5、`03-grammar-core.md` §3、`05-grammar-calls-lambda.md` §9 |
+| 声明端 `own` → `ParameterMode::Value` 与调用点隐式 move | `02-lexical-spec.md` §1、`03-grammar-core.md` §3、`05-grammar-calls-lambda.md` §9 |
 | `Inout` 调用点符号 `&`（v0.14，区别于声明侧关键字 `inout`） | `02-lexical-spec.md` §7、`03-grammar-core.md` §3-4、`05-grammar-calls-lambda.md` §9 |
 | 顺序容器（`Array`/`List`/`MutableList`）所有权语义 | `01-design-decisions.md` §8 |
 | `Map`/`MutableMap` 候选设计（未批准） | `01-design-decisions.md` §18 |
@@ -206,11 +213,11 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 名义类型、泛型与 interface 实现（v0.23） | `01-design-decisions.md` §23 |
 | `when` 穷尽性与 smart cast（v0.24） | `01-design-decisions.md` §24 |
 | 条件 `Copyable`、内联布局、intrinsic `Box` 与结构化解构（v0.25） | `01-design-decisions.md` §25 |
-| 调用期借用与 ASAP 析构点（v0.26 候选，未启用） | `01-design-decisions.md` §26 |
+| 调用期借用与 ASAP 析构点（v0.26，实施待 SPEC-0029） | `01-design-decisions.md` §26 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---
 
-*除明确排除的候选 §18、§26 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
-v0.25；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
+*除明确排除的候选 §18 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
+v0.26；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*
