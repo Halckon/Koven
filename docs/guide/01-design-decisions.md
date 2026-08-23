@@ -1394,9 +1394,9 @@ SPEC-0022 不实现一般 callable/member/constructor 选择、独立 `component
 ## 26. 调用期借用与 ASAP 析构点（v0.26）
 
 > **现行状态**：v0.26 已于 2026-08-23 由用户明确启用并取代 v0.25。本节及 L0133–L0135
-> 已成为现行语义，但实现仍分阶段进行：SPEC-0176 迁移声明语法、参数默认 mode、函数类型、
-> lambda expected mode 与预声明 callable contract；SPEC-0029 随后实现调用期 loan、冲突和
-> ASAP drop-point。不得把规范启用误写为这些实现已经完成。
+> 已成为现行语义。SPEC-0176 已完成声明语法、参数默认 mode、函数类型、lambda expected mode
+> 与预声明 callable contract 迁移；SPEC-0029 随后实现调用期 loan、冲突和 ASAP drop-point。
+> 不得把参数迁移完成误写为 loan / drop 已经实现。
 
 ### 26.1 所有者、参数绑定与调用期 loan
 
@@ -1519,7 +1519,7 @@ L0131 use-after-move 与 L0132 partial-move 的含义不变；同一根因先产
 loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `Span`。
 
 本节只解除 SPEC-0029 的 call argument loan、参数体内 reborrow 与 owned-value drop-point
-语义门禁。v0.26 的声明端 `own`、默认 Borrow 与 typed contract 先由 SPEC-0176 实现；
+语义门禁。v0.26 的声明端 `own`、默认 Borrow 与 typed contract 已由 SPEC-0176 实现；
 SPEC-0029 本身不再重复修改语法。member/委托 receiver、index element place 与容器 relocation 属于 SPEC-0030 或后续
 独立 Goal；closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
 跨调用 loan、完整 NLL 和部分移动不进入 v1。被 lambda 引用的外层 owner 在 SPEC-0032 前

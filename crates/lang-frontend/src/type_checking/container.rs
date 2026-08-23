@@ -37,7 +37,7 @@ impl SequentialContainerKind {
 pub enum ContainerConstructionKind {
     /// `arrayOf` / `listOf` / `mutableListOf` 的内部重复 `Value T` 参数。
     ListForm,
-    /// `Array<T>(size, initializer)` / `List<T>(size, initializer)`。
+    /// `Array<T>(size, initializer)` / `List<T>(size, initializer)` 的两个 Borrow 参数。
     RuntimeLength,
     /// `MutableList<T>()`。
     EmptyMutableList,

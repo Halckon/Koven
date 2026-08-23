@@ -23,7 +23,7 @@ use crate::{
         EnumCase, EnumCaseId, ExternalSymbolId, NameResolution, Namespace, ReferenceTarget,
         ScopeId, ScopeKind, SymbolId, SymbolKind,
     },
-    parser::{ClassifierKind, Item, NameMarker, ParsedFile, SyntaxAst},
+    parser::{ClassifierKind, Item, NameMarker, ParameterModeMarker, ParsedFile, SyntaxAst},
     source::{SourceMap, Span},
 };
 
@@ -55,6 +55,15 @@ struct StatementCheck {
 struct CallableContext {
     return_type: TypeId,
     annotation_span: Option<Span>,
+}
+
+/// 把声明侧源码 marker 规范化为唯一的 typed 参数契约。
+const fn source_parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
+    match marker {
+        None | Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
+        Some(ParameterModeMarker::Own(_)) => ParameterMode::Value,
+        Some(ParameterModeMarker::Inout(_)) => ParameterMode::Inout,
+    }
 }
 
 pub(super) fn check(

@@ -4,16 +4,16 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.26](../guide/00-index.md)：[调用期借用与 ASAP 析构点](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) |
 | 前置 Spec | SPEC-0176 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | SPEC-0176 尚未完成 borrow-default 参数源码、typed facts 与既有所有权检查迁移 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` ownership place / loan / liveness、L0133–L0135、Phase 3 fixture、Architecture |
 | 语言语义变更 | 否；实施 v0.26 已封闭语义 |
-| 批准依据 | 用户已明确启用 v0.26；当前持续 Goal 的站立授权只适用于无阻塞 Spec，本 Spec 在 SPEC-0176 `done` 前保持 `draft` |
+| 批准依据 | 用户已明确启用 v0.26；SPEC-0176 已完成，当前持续 Goal 的站立授权适用 |
 
 ## 2. Goal
 
@@ -80,7 +80,7 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 7. 实施计划
 
-1. [ ] SPEC-0176 完成并解除实现门禁，把本 Spec 推进到 `in-progress` → 验证：typed parameter
+1. [x] SPEC-0176 完成并解除实现门禁，把本 Spec 推进到 `approved` → 验证：typed parameter
        facts、Architecture、路线图和 Spec 状态一致。
 2. [ ] 建立 parameter binding、place path、loan/drop 公开产物 → 验证：model 与 identity 单测。
 3. [ ] 实现源码顺序 call effects、reborrow、mutability 与冲突诊断 → 验证：L0133–L0135 窄测。
@@ -97,8 +97,8 @@ callable 拥有的 `MoveOnly` 值输出确定、路径敏感的 ASAP drop facts�
 
 ## 9. 未决问题
 
-- v0.26 已启用；当前实现门禁是 SPEC-0176。receiver、index 与 capture 已明确拆分，不阻塞
-  本 Spec 的显式实参范围。
+- v0.26 已启用，SPEC-0176 前置已完成。receiver、index 与 capture 已明确拆分，不阻塞本 Spec
+  的显式实参范围。
 
 ## 10. 验证记录
 

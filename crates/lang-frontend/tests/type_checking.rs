@@ -753,10 +753,14 @@ fn overload_shape_is_alpha_equivalent_and_concrete_members_need_bodies() {
                 fun <U> pick(other: U): Long = 1L\n\
                 fun mode(input: Int): Unit {}\n\
                 fun mode(borrow other: Int): Unit {}\n\
+                fun mode(own consumed: Int): Unit {}\n\
                 interface Contract { fun required(input: Int): Unit }\n\
                 class Concrete { fun missing(input: Int): Unit; fun okay(): Unit {} }";
     let (_, _, _, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0097", "L0097", "L0098"]);
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0097", "L0097", "L0097", "L0098"]
+    );
 }
 
 #[test]
@@ -771,13 +775,14 @@ fn interface_replacements_and_overrides_require_exact_contracts() {
                 class Missing : Required {}\n\
                 class NeedsOverride : Required { fun run(input: Int): Int = 1 }\n\
                 class BadReturn : Required { override fun run(input: Int): Long = 1L }\n\
+                class BadMode : Required { override fun run(own input: Int): Int = 1 }\n\
                 class Extra { override fun lone(): Unit {} }\n\
                 class Hidden : Required { private override fun run(input: Int): Int = 1 }\n\
-                class Good : Required { override fun run(input: Int): Int = 1 }";
+                class Good : Required { override fun run(borrow input: Int): Int = 1 }";
     let (_, _, _, typed) = checked(text);
     assert_eq!(
         codes(typed.diagnostics()),
-        ["L0101", "L0100", "L0100", "L0100", "L0100"]
+        ["L0101", "L0100", "L0100", "L0100", "L0100", "L0100"]
     );
 }
 

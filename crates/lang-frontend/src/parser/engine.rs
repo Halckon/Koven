@@ -406,7 +406,9 @@ fn marker_span(marker: NameMarker) -> Span {
 
 fn parameter_mode_span(marker: ParameterModeMarker) -> Span {
     match marker {
-        ParameterModeMarker::Borrow(span) | ParameterModeMarker::Inout(span) => span,
+        ParameterModeMarker::Own(span)
+        | ParameterModeMarker::Borrow(span)
+        | ParameterModeMarker::Inout(span) => span,
     }
 }
 

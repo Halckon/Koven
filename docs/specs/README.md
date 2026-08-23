@@ -7,7 +7,7 @@
 [v0.26](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) 已由用户明确启用并
 取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部
 `Value` owned binding，同时封闭同步调用期 loan 与 ASAP 析构点。源码/typed/所有权参数
-契约迁移由 SPEC-0176 承担，完成后 SPEC-0029 才能实施 loan 与 drop facts。
+契约迁移已由 SPEC-0176 完成；SPEC-0029 的 loan 与 drop facts 实现门禁已解除。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -183,8 +183,8 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 |---|---|---|
 | [0027](./0027-variable-ownership-use-after-move.md) | 建立变量所有权状态并检测 use-after-move（`done`） | 0019、0020、0022、0067 `done`；当前持续 Goal 的站立授权 |
 | [0028](./0028-conditional-copy-structural-move.md) | 实现条件复制、移动与消费式解构检查（`done`） | 0022、0027 `done`；当前持续 Goal 的站立授权 |
-| [0176](./0176-borrow-default-parameter-contracts.md) | 迁移无 marker `Borrow`、声明侧 `own` 与既有三态参数事实（`approved`） | 0012、0067、0173、0028 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
-| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`draft`） | 0176 `done` 后解除实现门禁；v0.26 已生效 |
+| [0176](./0176-borrow-default-parameter-contracts.md) | 迁移无 marker `Borrow`、声明侧 `own` 与既有三态参数事实（`done`） | 0012、0067、0173、0028 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
+| [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`approved`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | 0030 | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则 | 0023、0029；v0.6 生效 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | 0032 | 检查 move closure 与 `Transferable` | 0020、0029；适用 guide 明确标记能力推导 |
@@ -296,8 +296,8 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 
 ## 未决决策的推荐方向
 
-v0.26 的参数契约、调用期 loan 与 ASAP 析构点已经接受，不再属于未决推荐；其实现依次由
-SPEC-0176 与 SPEC-0029 推进。
+v0.26 的参数契约、调用期 loan 与 ASAP 析构点已经接受，不再属于未决推荐；参数契约已由
+SPEC-0176 实现，调用期 loan 与 ASAP 析构点由 SPEC-0029 继续推进。
 
 以下是起草后续 guide / ADR 时的默认推荐，不是已经接受的决策；触及对应 Spec 前仍需正式
 文档批准。

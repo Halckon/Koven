@@ -2487,6 +2487,10 @@
     "named": false
   },
   {
+    "type": "own",
+    "named": false
+  },
+  {
     "type": "package",
     "named": false
   },

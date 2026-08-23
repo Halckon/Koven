@@ -99,7 +99,7 @@ fn conditional_copyability_drives_the_same_variable_state_machine() {
     let text = "class Resource {}\n\
                 value class Pair<A, B>(val first: A, val second: B)\n\
                 enum class Choice { Empty, Full(item: Resource) }\n\
-                fun <T> genericMove(item: T): Unit {\n\
+                fun <T> genericMove(own item: T): Unit {\n\
                     val first = item\n\
                     val second = item\n\
                 }\n\
@@ -108,8 +108,8 @@ fn conditional_copyability_drives_the_same_variable_state_machine() {
                     val second = item\n\
                 }\n\
                 fun matrix(\n\
-                    copy: Pair<Int, Int>, moved: Pair<Int, Resource>,\n\
-                    boxed: Box<Pair<Int, Int>>, choice: Choice?\n\
+                    copy: Pair<Int, Int>, own moved: Pair<Int, Resource>,\n\
+                    own boxed: Box<Pair<Int, Int>>, own choice: Choice?\n\
                 ): Unit {\n\
                     val copyFirst = copy\n\
                     val copySecond = copy\n\
@@ -128,13 +128,13 @@ fn conditional_copyability_drives_the_same_variable_state_machine() {
 fn destructuring_copies_or_atomically_consumes_the_source_and_enables_bindings() {
     let text = "class Resource {}\n\
                 value class Pair<A, B>(val first: A, val second: B)\n\
-                fun take(item: Resource): Unit {}\n\
+                fun take(own item: Resource): Unit {}\n\
                 fun make(): Pair<Resource, Int>\n\
                 fun copy(pair: Pair<Int, Int>): Unit {\n\
                     val (first, second) = pair\n\
                     val stillAvailable = pair\n\
                 }\n\
-                fun consume(pair: Pair<Resource, Int>): Unit {\n\
+                fun consume(own pair: Pair<Resource, Int>): Unit {\n\
                     val (resource, count) = pair\n\
                     val movedSource = pair\n\
                     val firstUse = take(resource)\n\
@@ -167,11 +167,11 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
                 class Holder(val payload: Resource)\n\
                 fun inspect(borrow item: Resource): Unit {}\n\
                 fun mutate(inout item: Resource): Unit {}\n\
-                fun take(item: Resource): Unit {}\n\
-                fun takeBundle(item: Bundle<Resource>): Unit {}\n\
-                fun takeCustom(item: Custom): Unit {}\n\
-                fun takeHolder(item: Holder): Unit {}\n\
-                fun project(bundle: Bundle<Resource>, custom: Custom, holder: Holder): Unit {\n\
+                fun take(own item: Resource): Unit {}\n\
+                fun takeBundle(own item: Bundle<Resource>): Unit {}\n\
+                fun takeCustom(own item: Custom): Unit {}\n\
+                fun takeHolder(own item: Holder): Unit {}\n\
+                fun project(own bundle: Bundle<Resource>, own custom: Custom, own holder: Holder): Unit {\n\
                     val borrowed = inspect(bundle.payload)\n\
                     val mutated = mutate(&bundle.payload)\n\
                     val copiedField = bundle.count\n\

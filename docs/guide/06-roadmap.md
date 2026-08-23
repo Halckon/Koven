@@ -41,7 +41,7 @@
       命名实参与模式实参
       （声明侧关键字 `borrow` / `inout`；调用点关键字 `borrow` 与符号 `&`）的 Phase 1
       AST / parser；不实现 Phase 2 / 3 合法性检查
-- [ ] **SPEC-0176（v0.26 已明确启用）**：在 SPEC-0012 基线上让声明侧接受 `own`，把普通
+- [x] **SPEC-0176（v0.26 已明确启用）**：在 SPEC-0012 基线上让声明侧接受 `own`，把普通
       callable / function-type 的无标记 mode 改为 Borrow，并保留显式 `borrow` 的同义源码
       形态；调用点仍只接受 `borrow` / `&`，`own` 继续拒绝。同步迁移 typed contract、
       预声明 API 与 lambda expected mode；不实现调用期 loan 或 drop-point
@@ -176,7 +176,7 @@ fun main(): Unit {
 - [x] **SPEC-0173（v0.25 callable 契约实现漂移修复）**：具有唯一期望函数类型的 lambda
       逐项采用 Value/Borrow/Inout 参数契约，并按参数 SymbolId 发布 typed fact；结构错误不
       伪造模式
-- [ ] **SPEC-0176（v0.26 callable 契约迁移）**：无标记与显式 `borrow` 规范化为同一 Borrow，
+- [x] **SPEC-0176（v0.26 callable 契约迁移）**：无标记与显式 `borrow` 规范化为同一 Borrow，
       显式 `own` 映射 `ParameterMode::Value`，`inout` 不变；函数类型、override/委托、预声明
       callable、单态 call mapping 与 lambda expected facts 使用同一规范化 mode。Value 参数
       对 `MoveOnly` 实参的调用仍无 marker，并在 Phase 3 形成移动
@@ -232,8 +232,8 @@ Spec 之前，本条限制不变。）
 ## Phase 3：所有权 / 借用检查
 
 v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-design-decisions.md#26-调用期借用与-asap-析构点v026)。
-SPEC-0176 先迁移 callable 声明与 typed contract；SPEC-0029 随后实现 loan / drop。以下未完成
-项仍不能因 guide 已启用而提前勾选。
+SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 随后实现 loan / drop。以下未完成
+项仍不能因参数迁移完成而提前勾选。
 
 - [ ] 实现简化版单一所有者 + ASAP 析构（不做完整 NLL）
 - [ ] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`

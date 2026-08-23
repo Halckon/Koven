@@ -85,12 +85,15 @@ fn only_call(parsed: &ParsedExpression) -> (Span, &[CallArgument]) {
 
 fn mode_span(marker: ParameterModeMarker) -> Span {
     match marker {
-        ParameterModeMarker::Borrow(span) | ParameterModeMarker::Inout(span) => span,
+        ParameterModeMarker::Own(span)
+        | ParameterModeMarker::Borrow(span)
+        | ParameterModeMarker::Inout(span) => span,
     }
 }
 
 fn mode_name(marker: ParameterModeMarker) -> &'static str {
     match marker {
+        ParameterModeMarker::Own(_) => "own",
         ParameterModeMarker::Borrow(_) => "borrow",
         ParameterModeMarker::Inout(_) => "inout",
     }
@@ -334,7 +337,7 @@ fn grouped_assignments_remain_single_argument_values_with_optional_modes() {
 
 #[test]
 fn declarations_and_function_types_share_parameter_mode_markers() {
-    let text = "fun f(x: T, borrow y: U, inout z: V): R";
+    let text = "fun f(x: T, own consumed: S, borrow y: U, inout z: V): R";
     let (sources, parsed) = parsed_declaration(text);
     assert!(
         parsed.diagnostics().is_empty(),
@@ -350,15 +353,16 @@ fn declarations_and_function_types_share_parameter_mode_markers() {
     else {
         panic!("function item")
     };
-    assert_eq!(parameters.len(), 3);
+    assert_eq!(parameters.len(), 4);
     assert!(parameters[0].mode_marker.is_none());
     assert_eq!(
         sources.slice(parameters[0].span).expect("value parameter"),
         "x: T"
     );
     for (parameter, expected_kind, expected_marker, expected_name, expected_parameter) in [
-        (&parameters[1], "borrow", "borrow", "y", "borrow y: U"),
-        (&parameters[2], "inout", "inout", "z", "inout z: V"),
+        (&parameters[1], "own", "own", "consumed", "own consumed: S"),
+        (&parameters[2], "borrow", "borrow", "y", "borrow y: U"),
+        (&parameters[3], "inout", "inout", "z", "inout z: V"),
     ] {
         let marker = parameter.mode_marker.expect("explicit marker");
         assert_eq!(mode_name(marker), expected_kind);
@@ -376,7 +380,7 @@ fn declarations_and_function_types_share_parameter_mode_markers() {
         );
     }
 
-    let text = "input as move (T, borrow U, inout Box<V>) -> R";
+    let text = "input as move (T, own S, borrow U, inout Box<V>) -> R";
     let (sources, parsed) = parsed_expression_ok(text);
     let function = parsed
         .ast()
@@ -396,12 +400,13 @@ fn declarations_and_function_types_share_parameter_mode_markers() {
 }
 
 fn assert_function_type_parameters(sources: &SourceMap, parameters: &[FunctionTypeParameter]) {
-    assert_eq!(parameters.len(), 3);
+    assert_eq!(parameters.len(), 4);
     assert!(parameters[0].mode_marker.is_none());
     assert_eq!(sources.slice(parameters[0].span).expect("value type"), "T");
     for (parameter, kind, spelling, full) in [
-        (&parameters[1], "borrow", "borrow", "borrow U"),
-        (&parameters[2], "inout", "inout", "inout Box<V>"),
+        (&parameters[1], "own", "own", "own S"),
+        (&parameters[2], "borrow", "borrow", "borrow U"),
+        (&parameters[3], "inout", "inout", "inout Box<V>"),
     ] {
         let marker = parameter.mode_marker.expect("mode");
         assert_eq!(mode_name(marker), kind);
@@ -412,7 +417,7 @@ fn assert_function_type_parameters(sources: &SourceMap, parameters: &[FunctionTy
 
 #[test]
 fn strict_typed_call_trial_accepts_marker_function_type_arguments() {
-    let text = "f<Box<move (borrow T, inout Result<U>) -> R>>()";
+    let text = "f<Box<move (own T, borrow U, inout Result<V>) -> R>>()";
     let (sources, parsed) = parsed_expression_ok(text);
     let Expression::Call { type_arguments, .. } = expression(&parsed, parsed.root()) else {
         panic!("typed call")
@@ -435,20 +440,24 @@ fn strict_typed_call_trial_accepts_marker_function_type_arguments() {
         panic!("function type argument")
     };
     assert_eq!(sources.slice(move_span.expect("move")).unwrap(), "move");
-    assert_eq!(parameters.len(), 2);
+    assert_eq!(parameters.len(), 3);
     assert!(matches!(
         parameters[0].mode_marker,
-        Some(ParameterModeMarker::Borrow(_))
+        Some(ParameterModeMarker::Own(_))
     ));
     assert!(matches!(
         parameters[1].mode_marker,
+        Some(ParameterModeMarker::Borrow(_))
+    ));
+    assert!(matches!(
+        parameters[2].mode_marker,
         Some(ParameterModeMarker::Inout(_))
     ));
 }
 
 #[test]
 fn failed_marker_function_type_trial_has_no_public_parser_side_effects() {
-    let text = "f<Box<move (borrow T, inout Result<U>) -> R>> + tail";
+    let text = "f<Box<move (own T, borrow U, inout Result<V>) -> R>> + tail";
     let (_, first) = parsed_expression(text);
     let (_, second) = parsed_expression(text);
 
@@ -738,7 +747,7 @@ fn l0038_reports_each_extra_mode_and_logical_and_is_not_a_mode() {
 
 #[test]
 fn l0039_keeps_the_first_parameter_mode_and_recovers_following_parameters() {
-    let text = "fun f(borrow inout borrow x: T, y: U): R";
+    let text = "fun f(own borrow inout x: T, y: U): R";
     let (sources, parsed) = parsed_declaration(text);
     let duplicates = parsed
         .diagnostics()
@@ -753,15 +762,15 @@ fn l0039_keeps_the_first_parameter_mode_and_recovers_following_parameters() {
                 "L0039".to_owned(),
                 Severity::Error,
                 "duplicate parameter mode".to_owned(),
-                13,
-                18,
+                10,
+                16,
             ),
             (
                 "L0039".to_owned(),
                 Severity::Error,
                 "duplicate parameter mode".to_owned(),
-                19,
-                25,
+                17,
+                22,
             ),
         ]
     );
@@ -777,7 +786,7 @@ fn l0039_keeps_the_first_parameter_mode_and_recovers_following_parameters() {
     assert_eq!(parameters.len(), 2);
     assert!(matches!(
         parameters[0].mode_marker,
-        Some(ParameterModeMarker::Borrow(_))
+        Some(ParameterModeMarker::Own(_))
     ));
     assert_eq!(sources.slice(name_span(parameters[0].name)).unwrap(), "x");
     assert_eq!(sources.slice(name_span(parameters[1].name)).unwrap(), "y");

@@ -733,6 +733,10 @@
       "members": [
         {
           "type": "STRING",
+          "value": "own"
+        },
+        {
+          "type": "STRING",
           "value": "borrow"
         },
         {

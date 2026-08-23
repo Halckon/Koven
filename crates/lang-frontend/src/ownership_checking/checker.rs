@@ -614,6 +614,13 @@ impl<'a> Checker<'a> {
         ) {
             return false;
         }
+        if matches!(
+            symbol_data.kind(),
+            SymbolKind::ValueParameter | SymbolKind::LambdaParameter
+        ) && self.typed.parameter_mode(symbol) != Some(ParameterMode::Value)
+        {
+            return false;
+        }
         self.typed
             .symbol_type(symbol)
             .and_then(|ty| self.typed.copyability(ty))

@@ -6,7 +6,7 @@ package sample.syntax
 import sample.math.add as plus
 
 val answer: Int = plus(40, 2)
-fun <T: Any> identity(borrow item: T): T = item
+fun <T: Any> identity(own item: T): T = item
 
 ---
 
@@ -143,7 +143,7 @@ Calls and lambda
 ==================
 
 fun use(): Unit {
-    val transform: (Int) -> Int = { input -> input * 2 }
+    val transform: (own Int) -> Int = { input -> input * 2 }
     val result = receiver?.member<Int>(name = borrow input)[0]!!
     val reference = result::next
 }
@@ -164,6 +164,7 @@ fun use(): Unit {
           (type_annotation
             (function_type
               (function_type_parameter
+                (parameter_mode)
                 (qualified_type
                   (qualified_name
                     (identifier))))
@@ -216,6 +217,52 @@ fun use(): Unit {
               (expression
                 (identifier))
               (identifier))))))))
+
+==================
+Own remains declaration-only
+==================
+
+fun consume(own input: Int): Unit {}
+fun use(input: Int): Unit { consume(own input) }
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (value_parameter_list
+      (value_parameter
+        (parameter_mode)
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (block))
+  (function_declaration
+    (identifier)
+    (value_parameter_list
+      (value_parameter
+        (identifier)
+        (qualified_type
+          (qualified_name
+            (identifier)))))
+    (qualified_type
+      (qualified_name
+        (identifier)))
+    (block
+      (expression_statement
+        (expression
+          (call_expression
+            (expression
+              (identifier))
+            (argument_list
+              (ERROR)
+              (call_argument
+                (expression
+                  (identifier))))))))))
 
 ==================
 Control flow

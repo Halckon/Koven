@@ -14,19 +14,16 @@ SPEC-0173 已让唯一期望函数类型的 lambda 采用 Value/Borrow/Inout 参
 parameter binding typed facts；
 SPEC-0175 已让 block 内未分组 lambda 实参优先进入 expression parser，不再被 outer block stop
 误判为空实参；
+SPEC-0176 已把普通 callable 与 function-type 的无 marker / 显式 `borrow` 参数规范化为
+`Borrow`，并以声明侧 `own` 形成既有 `ParameterMode::Value`；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
 
-v0.26 已把 callable 声明的无 marker 参数改为 `Borrow`，并以声明侧显式 `own` 表达内部
-`ParameterMode::Value`。当前 Parser、typed parameter facts、所有权检查与 Tree-sitter grammar
-仍实现此前的“无 marker = `Value`、显式 `borrow` = `Borrow`”映射；这是已登记、等待
-SPEC-0176 迁移的规范—实现漂移，不应把下文的现有数据结构误读为 v0.26 规范本身。
-
 ## 当前状态
 
 仓库已完成 Phase 0、Phase 1 与当前无 guide 门禁的 Phase 2 主线，并已进入 Phase 3。v0.26
-参数契约迁移与调用期借用尚未实现。工程骨架按
+参数契约迁移已经实现，调用期借用尚未实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
 
 - 根目录是 resolver 3 的 virtual Cargo workspace；所有 package 使用 Rust edition 2024，
@@ -67,8 +64,12 @@ SPEC-0176 迁移的规范—实现漂移，不应把下文的现有数据结构�
   可用性仍使用逐类 `DeferredReason`
   保留；普通名义主构造器字段已建立带实际泛型替换的 `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
+  callable 参数只保留 `Value` / `Borrow` / `Inout` 三态 typed identity；无 marker 与显式
+  `borrow` 共享 `Borrow` identity，声明侧 `own` 形成 `Value`。预声明只读 API 使用 `Borrow`，
+  `Array` / `List` 的 runtime-length 构造器两个参数均为 `Borrow`；
 - `lang_frontend::ownership_checking` 已提供消费 ParsedFile、名称解析与类型事实的独立检查
-  入口，以稳定 `SymbolId` 跟踪局部整变量和参数的可用 / 已移动状态；MoveOnly 值在
+  入口，以稳定 `SymbolId` 跟踪局部整变量和规范化为 `Value` 的 owned 参数的可用 / 已移动
+  状态；Borrow/Inout 参数不进入 owner 状态。MoveOnly 值在
   initializer、当前 typed facts 标记的 Value 实参和显式 return 的按值交付点移动，Copyable 值
   保持可用，普通重新赋值恢复变量状态，分支与循环按可继续路径保守合流；L0131 同时定位
   非法使用与首次移动，
@@ -79,8 +80,7 @@ SPEC-0176 迁移的规范—实现漂移，不应把下文的现有数据结构�
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无 v0.26 borrow-default 参数契约迁移、泛型 callable 实例化、借用冲突 / 部分移动 /
-  析构点检查或 codegen 实现；
+- 尚无泛型 callable 实例化、调用期借用冲突 / 普通字段部分移动 / 析构点检查或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
@@ -176,10 +176,11 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - 声明入口消费 v0.7 的 `val`、`var`、`const val` 与具名 `fun`，保存三态名称 marker、参数与
   泛型列表；调用点 `<type_ref, ...>(...)` 由单次 O(N) 反向预索引无副作用判定，查询 O(1)，
   成功后才由正式 TypeRef parser 提交 AST；
-- 当前具名函数参数和函数类型参数共享封闭的 `ParameterModeMarker::{Borrow, Inout}`；无 marker
-  表示 `Value`。这是待 SPEC-0176 替换的旧实现映射，不是现行 v0.26 语义。函数类型使用内嵌
-  `FunctionTypeParameter`，strict typed-call 预索引同步识别
-  `borrow` / `inout` marker，失败仍不分配 AST、不发诊断或移动正式 cursor；
+- 当前具名函数参数和函数类型参数共享封闭的
+  `ParameterModeMarker::{Own, Borrow, Inout}`；无 marker 与显式 `borrow` 都规范化为 `Borrow`，
+  `own` 规范化为既有 `Value`，`inout` 保持 `Inout`。函数类型使用内嵌
+  `FunctionTypeParameter`，strict typed-call 预索引同步识别三种声明 marker，失败仍不分配
+  AST、不发诊断或移动正式 cursor；
 - basic、typed、member 与 chained call 统一保存源码有序的内嵌 `CallArgument`：可选命名
   前缀、调用点 `borrow` / `&` marker 和唯一 value 表达式。Parser 只保存 Phase 1 源码结构，
   不做名称映射、契约匹配、place、可变性或所有权检查；

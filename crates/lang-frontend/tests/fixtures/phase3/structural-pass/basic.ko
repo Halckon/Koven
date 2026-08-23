@@ -1,7 +1,7 @@
 class Resource {}
 value class Pair<A, B>(val first: A, val second: B)
-fun inspect(borrow item: Resource): Unit {}
-fun pass(copy: Pair<Int, Int>, moved: Pair<Resource, Int>): Unit {
+fun inspect(item: Resource): Unit {}
+fun pass(copy: Pair<Int, Int>, own moved: Pair<Resource, Int>): Unit {
     val (first, second) = copy
     val stillAvailable = copy
     val borrowed = inspect(moved.first)

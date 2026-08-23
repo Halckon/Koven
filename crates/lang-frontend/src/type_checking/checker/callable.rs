@@ -695,6 +695,8 @@ impl Checker<'_> {
 
 const fn parameter_mode_span(marker: ParameterModeMarker) -> Span {
     match marker {
-        ParameterModeMarker::Borrow(span) | ParameterModeMarker::Inout(span) => span,
+        ParameterModeMarker::Own(span)
+        | ParameterModeMarker::Borrow(span)
+        | ParameterModeMarker::Inout(span) => span,
     }
 }

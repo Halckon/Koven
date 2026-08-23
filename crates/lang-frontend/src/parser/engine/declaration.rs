@@ -455,7 +455,9 @@ impl Parser<'_> {
     pub(super) fn parse_parameter_mode_marker(
         &mut self,
     ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
-        let marker = if self.current_is_keyword(Keyword::Borrow) {
+        let marker = if self.current_is_keyword(Keyword::Own) {
+            Some(ParameterModeMarker::Own(self.bump()?.span()))
+        } else if self.current_is_keyword(Keyword::Borrow) {
             Some(ParameterModeMarker::Borrow(self.bump()?.span()))
         } else if self.current_is_keyword(Keyword::Inout) {
             Some(ParameterModeMarker::Inout(self.bump()?.span()))
@@ -465,7 +467,10 @@ impl Parser<'_> {
         if marker.is_none() {
             return Ok(None);
         }
-        while self.current_is_keyword(Keyword::Borrow) || self.current_is_keyword(Keyword::Inout) {
+        while self.current_is_keyword(Keyword::Own)
+            || self.current_is_keyword(Keyword::Borrow)
+            || self.current_is_keyword(Keyword::Inout)
+        {
             let duplicate = self.bump()?.span();
             self.emit(
                 codes::DUPLICATE_PARAMETER_MODE,

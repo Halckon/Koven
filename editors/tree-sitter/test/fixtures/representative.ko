@@ -17,7 +17,7 @@ class Circle(val radius: Double): Shape {
 enum class Result<T> {
     Ok(payload: T),
     Error(message: String);
-    fun valueOr(default: T): T = when (this) {
+    fun valueOr(own default: T): T = when (this) {
         is Result.Ok -> this.payload
         else -> default
     }
@@ -29,7 +29,7 @@ object Origin {
 
 fun compute(inout total: Int): Int {
     val (left, right) = pair()
-    val transform: (Int) -> Int = { input -> input * 2 }
+    val transform: (own Int) -> Int = { input -> input * 2 }
     val text = "value ${transform(left)}"
     while (total < 10) {
         total += 1

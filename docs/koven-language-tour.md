@@ -12,10 +12,8 @@ Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase
 也就是说：
 
 - 本教程里的 Phase 1 语法——基础类型、变量、函数、`value class`/`class`、调用标注、lambda、
-  control-flow 与文件结构——除 v0.26 的 callable 参数增量外，已经有完整、可执行的 Parser。
-  v0.26 已把声明侧默认参数改为 `Borrow`，并重新启用声明侧 `own` 作为 `Value` 契约的表面
-  拼写；当前 frontend 仍实现此前的“无标记 = `Value`”表面语法，这项迁移等待 SPEC-0176，
-  因而不能把下面的新写法误读成当前编译器已经接受。
+  control-flow 与文件结构——已经有完整、可执行的 Parser。SPEC-0176 已让 frontend 接受
+  v0.26 的“无标记 / 显式 `borrow` = `Borrow`、显式 `own` = `Value`”声明契约。
 - **控制流已在 v0.18 定稿；class 家族、类型级 companion、匿名内部类边界与窄化接口委托已在 v0.20 定稿。**
 - **单文件名称、作用域、重载组与未解析名称诊断已在 v0.21 定稿，并由 SPEC-0018 实现。**
 - **名义/泛型/interface 类型检查已由 SPEC-0020 实现；v0.24 的 enum case type、有限域
@@ -23,8 +21,8 @@ Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase
 - **v0.25 的条件 `Copyable`、intrinsic `Box`、有限内联布局和局部 value-class 解构类型事实
   已由 SPEC-0022 实现。**
 - **v0.26 已将普通 callable 的声明侧契约调整为“无标记 `Borrow`、显式 `own` 消费”；调用点
-  仍不写 `own`，向 `own` 参数交付 MoveOnly place 时会隐式移动。该表面语法尚待 SPEC-0176
-  实现，调用期 loan 与 ASAP 析构点随后由 SPEC-0029 实施。**
+  仍不写 `own`，向 `own` 参数交付 MoveOnly place 时会隐式移动。该表面语法和 typed contract
+  已由 SPEC-0176 实现；调用期 loan 与 ASAP 析构点随后由 SPEC-0029 实施。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。

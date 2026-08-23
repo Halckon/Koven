@@ -163,7 +163,7 @@ module.exports = grammar({
         field("type", $._type),
       ),
 
-    parameter_mode: () => choice("borrow", "inout"),
+    parameter_mode: () => choice("own", "borrow", "inout"),
 
     classifier_declaration: ($) =>
       choice(

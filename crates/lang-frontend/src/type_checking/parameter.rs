@@ -5,9 +5,9 @@ use super::TypeId;
 /// callable 参数的类型级模式。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ParameterMode {
-    /// Passed by value.
+    /// Owned delivery，源码声明侧拼写为 `own`。
     Value,
-    /// Shared borrow.
+    /// Shared borrow，源码声明侧无 marker 或显式 `borrow`。
     Borrow,
     /// Exclusive inout borrow.
     Inout,

@@ -1,1 +1,1 @@
-fun update(borrow source: Box<Int>, inout target: Int): (borrow Int, inout Box<Int>) -> Unit
+fun update(source: Box<Int>, own sink: Box<Int>, inout target: Int): (Int, own Box<Int>, inout Box<Int>) -> Unit

@@ -1,4 +1,4 @@
-fun take(input: Int): Unit {}
+fun take(own input: Int): Unit {}
 
 fun use(): Unit {
     val missing = take()

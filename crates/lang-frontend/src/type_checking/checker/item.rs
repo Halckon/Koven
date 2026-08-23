@@ -1,6 +1,4 @@
-use crate::parser::{
-    ClassifierBody, FunctionBody, FunctionForm, Item, NameMarker, ParameterModeMarker, Statement,
-};
+use crate::parser::{ClassifierBody, FunctionBody, FunctionForm, Item, NameMarker, Statement};
 
 use super::*;
 
@@ -40,7 +38,7 @@ impl Checker<'_> {
                     let mut has_deferred = false;
                     for parameter in parameters {
                         let ty = self.resolve_type_ref(parameter.type_ref)?;
-                        let mode = item_parameter_mode(parameter.mode_marker);
+                        let mode = source_parameter_mode(parameter.mode_marker);
                         has_error |= self.is_error(ty);
                         has_deferred |= self.is_deferred(ty);
                         self.set_marker_symbol(parameter.name, ty);
@@ -420,13 +418,5 @@ impl Checker<'_> {
                 .sources
                 .span(span.source_id(), span.end(), span.end())?)
         }
-    }
-}
-
-pub(super) fn item_parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
-    match marker {
-        None => ParameterMode::Value,
-        Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
-        Some(ParameterModeMarker::Inout(_)) => ParameterMode::Inout,
     }
 }

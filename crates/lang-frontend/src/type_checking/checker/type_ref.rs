@@ -1,6 +1,6 @@
 use crate::{
     name_resolution::{Namespace, ReferenceTarget},
-    parser::{ParameterModeMarker, TypePathSegment, TypeRef},
+    parser::{TypePathSegment, TypeRef},
 };
 
 use super::*;
@@ -60,7 +60,7 @@ impl Checker<'_> {
                     contains_deferred |= self.is_deferred(ty);
                     contains_error |= self.is_error(ty);
                     resolved.push(FunctionParameterType {
-                        mode: parameter_mode(parameter.mode_marker),
+                        mode: source_parameter_mode(parameter.mode_marker),
                         ty,
                     });
                 }
@@ -362,13 +362,5 @@ impl Checker<'_> {
             return Ok(self.error_type());
         };
         Ok(self.types.intern(TypeKind::EnumCase { case, root }))
-    }
-}
-
-fn parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
-    match marker {
-        None => ParameterMode::Value,
-        Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
-        Some(ParameterModeMarker::Inout(_)) => ParameterMode::Inout,
     }
 }

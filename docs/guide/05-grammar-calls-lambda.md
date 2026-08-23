@@ -275,8 +275,9 @@ v0.26 在保持调用点自动化与三种语义契约不变的基础上，调�
 
 三种契约的完整定义仍由本节剩余部分与下文“Callable 参数契约与调用匹配”给出；`own`
 声明位置见 [02-lexical-spec.md](./02-lexical-spec.md) 第 1 节，`&` 符号的完整词法定义见
-[02-lexical-spec.md](./02-lexical-spec.md) 第 7 节。v0.26 的 parser / typed-contract 迁移由
-SPEC-0176 实施；guide 启用不表示当前实现已经接受新拼写。
+[02-lexical-spec.md](./02-lexical-spec.md) 第 7 节。v0.26 的 parser、typed facts、预声明 API
+与既有所有权入口迁移已由 SPEC-0176 实施；调用期 loan、冲突与 drop-point 仍由 SPEC-0029
+实施。
 
 #### Callable 参数契约与调用匹配
 

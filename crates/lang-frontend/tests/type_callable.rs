@@ -3,7 +3,7 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     name_resolution::{NameEnvironment, SymbolKind, resolve_names},
-    parser::{Expression, ParsedFile},
+    parser::{Expression, ParsedFile, TypeRef},
     source::SourceMap,
     type_checking::{
         BuiltinType, CallableTarget, EnvironmentFunction, EnvironmentParameter, ExpressionCategory,
@@ -71,7 +71,7 @@ fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
 
 #[test]
 fn source_member_and_function_value_calls_record_stable_mappings() {
-    let text = "fun combine(first: Int, borrow second: Int): Long = 1L\n\
+    let text = "fun combine(own first: Int, second: Int): Long = 1L\n\
                 class Sample { fun convert(input: Int): Long = 1L }\n\
                 fun use(sample: Sample, callback: (Int) -> Long): Long {\n\
                     val local = 1\n\
@@ -120,12 +120,14 @@ fn source_member_and_function_value_calls_record_stable_mappings() {
 
 #[test]
 fn parameter_modes_accept_only_the_phase2_contract_matrix() {
-    let text = "fun read(borrow input: Int): Unit {}\n\
+    let text = "fun read(input: Int): Unit {}\n\
+                fun consume(own input: Int): Unit {}\n\
                 fun mutate(inout input: Int): Unit {}\n\
                 fun use(): Unit {\n\
                     var local = 1\n\
                     val automatic = read(local)\n\
                     val explicit = read(borrow 2)\n\
+                    val consumed = consume(local)\n\
                     val changed = mutate(&local)\n\
                     val temporary = mutate(&3)\n\
                     val wrong = read(&local)\n\
@@ -135,25 +137,30 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     assert_eq!(codes(typed.diagnostics()), ["L0122", "L0122"]);
-    assert_eq!(typed.calls().len(), 3);
+    assert_eq!(typed.calls().len(), 4);
+    assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Value);
     assert_eq!(
-        typed.calls()[2].arguments()[0].category(),
+        typed.calls()[3].arguments()[0].category(),
         ExpressionCategory::Place
     );
-    assert_eq!(typed.calls()[2].arguments()[0].mode(), ParameterMode::Inout);
+    assert_eq!(typed.calls()[3].arguments()[0].mode(), ParameterMode::Inout);
 }
 
 #[test]
 fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
     let text = "fun inspect(borrow input: Int): Unit {}\n\
                 fun mutate(inout input: Int): Unit {}\n\
+                fun consume(own input: Int): Unit {}\n\
                 fun applyBorrow(callback: (borrow Int) -> Unit): Unit {}\n\
+                fun applyOwn(callback: (own Int) -> Unit): Unit {}\n\
                 fun applyInout(callback: (inout Int) -> Unit): Unit {}\n\
                 fun use(): Unit {\n\
                     val reader: (borrow Int) -> Unit = { item -> inspect(item) }\n\
                     val writer: (inout Int) -> Unit = { item -> mutate(&item) }\n\
+                    val owner: (own Int) -> Unit = { item -> }\n\
                     val moved: move (borrow Int) -> Unit = move { item -> inspect(item) }\n\
                     val appliedBorrow = applyBorrow({ item -> })\n\
+                    val appliedOwn = applyOwn({ item -> })\n\
                     val appliedInout = applyInout({ item -> })\n\
                 }";
     let (sources, parsed) = parsed(text);
@@ -173,8 +180,10 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
         [
             ("input", Some(ParameterMode::Borrow)),
             ("input", Some(ParameterMode::Inout)),
-            ("callback", Some(ParameterMode::Value)),
-            ("callback", Some(ParameterMode::Value)),
+            ("input", Some(ParameterMode::Value)),
+            ("callback", Some(ParameterMode::Borrow)),
+            ("callback", Some(ParameterMode::Borrow)),
+            ("callback", Some(ParameterMode::Borrow)),
         ]
     );
 
@@ -189,8 +198,10 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
         [
             Some(ParameterMode::Borrow),
             Some(ParameterMode::Inout),
+            Some(ParameterMode::Value),
             Some(ParameterMode::Borrow),
             Some(ParameterMode::Borrow),
+            Some(ParameterMode::Value),
             Some(ParameterMode::Inout),
         ]
     );
@@ -215,11 +226,46 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
         [
             ParameterMode::Borrow,
             ParameterMode::Inout,
+            ParameterMode::Value,
             ParameterMode::Borrow,
             ParameterMode::Borrow,
+            ParameterMode::Value,
             ParameterMode::Inout,
         ]
     );
+}
+
+#[test]
+fn implicit_and_explicit_borrow_function_types_share_one_identity() {
+    let text = "val implicit: (Int) -> Unit = { input -> }\n\
+                val explicit: (borrow Int) -> Unit = { input -> }\n\
+                val owned: (own Int) -> Unit = { input -> }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let function_types = parsed
+        .ast()
+        .type_refs()
+        .iter()
+        .filter(|(_, node)| matches!(node.payload(), TypeRef::Function { .. }))
+        .map(|(id, _)| typed.type_ref_type(id).expect("function type fact"))
+        .collect::<Vec<_>>();
+    assert_eq!(function_types.len(), 3);
+    assert_eq!(function_types[0], function_types[1]);
+    assert_ne!(function_types[0], function_types[2]);
+    assert!(matches!(
+        typed.types().get(function_types[0]),
+        Some(TypeKind::Function { parameters, .. })
+            if parameters[0].mode == ParameterMode::Borrow
+    ));
+    assert!(matches!(
+        typed.types().get(function_types[2]),
+        Some(TypeKind::Function { parameters, .. })
+            if parameters[0].mode == ParameterMode::Value
+    ));
 }
 
 #[test]
@@ -284,10 +330,18 @@ fn overloads_filter_by_type_then_report_no_match_or_ambiguity() {
 }
 
 #[test]
-fn external_singleton_call_uses_the_same_positional_contract() {
-    let (sources, parsed) = parsed("val result: Long = external(1)");
+fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
+    let (sources, parsed) = parsed(
+        "val consumed: Long = consumeExternal(1)\n\
+         val inspected: Long = inspectExternal(2)",
+    );
     let (mut names, _) = environments();
-    let external = names.declare_function("external").expect("external");
+    let consume = names
+        .declare_function("consumeExternal")
+        .expect("consume external");
+    let inspect = names
+        .declare_function("inspectExternal")
+        .expect("inspect external");
     let mut types = TypeEnvironment::new(&names);
     for builtin in BUILTINS {
         let symbol = names
@@ -298,33 +352,48 @@ fn external_singleton_call_uses_the_same_positional_contract() {
             .id();
         types.bind_builtin(symbol, builtin).expect("binding");
     }
-    types
-        .bind_function(
-            external,
-            EnvironmentFunction {
-                parameters: vec![EnvironmentParameter {
-                    mode: ParameterMode::Value,
-                    ty: lang_frontend::type_checking::EnvironmentType::Builtin(BuiltinType::Int),
-                }],
-                return_type: lang_frontend::type_checking::EnvironmentType::Builtin(
-                    BuiltinType::Long,
-                ),
-            },
-        )
-        .expect("function binding");
+    for (symbol, mode) in [
+        (consume, ParameterMode::Value),
+        (inspect, ParameterMode::Borrow),
+    ] {
+        types
+            .bind_function(
+                symbol,
+                EnvironmentFunction {
+                    parameters: vec![EnvironmentParameter {
+                        mode,
+                        ty: lang_frontend::type_checking::EnvironmentType::Builtin(
+                            BuiltinType::Int,
+                        ),
+                    }],
+                    return_type: lang_frontend::type_checking::EnvironmentType::Builtin(
+                        BuiltinType::Long,
+                    ),
+                },
+            )
+            .expect("function binding");
+    }
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     assert!(typed.diagnostics().is_empty());
     assert!(matches!(
         typed.calls()[0].target(),
-        CallableTarget::External(target) if target == external
+        CallableTarget::External(target) if target == consume
     ));
     assert_eq!(typed.calls()[0].arguments()[0].mode(), ParameterMode::Value);
+    assert!(matches!(
+        typed.calls()[1].target(),
+        CallableTarget::External(target) if target == inspect
+    ));
+    assert_eq!(
+        typed.calls()[1].arguments()[0].mode(),
+        ParameterMode::Borrow
+    );
 }
 
 #[test]
 fn generic_reference_and_safe_calls_remain_explicitly_deferred() {
-    let text = "fun <T> identity(input: T): T = input\n\
+    let text = "fun <T> identity(own input: T): T = input\n\
                 fun mono(input: Int): Int = input\n\
                 class Sample { fun read(input: Int): Int = input }\n\
                 val generic = identity<Int>(1)\n\

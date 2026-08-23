@@ -402,3 +402,10 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > v0.26 于 2026-08-23 由用户明确启用并取代 v0.25；上述候选契约及启用前审计补充自此成为
 > 现行语义，L0133–L0135 获得稳定含义。SPEC-0176 与 SPEC-0029 尚未完成，规范启用不表示
 > parser、typed contract、loan 或 drop-point 已经实现。历史候选记录按只追加治理保留。
+
+## v0.26 实施记录
+
+> 2026-08-23，SPEC-0176 完成：Parser / AST、strict typed-call trial、typed parameter facts、
+> 预声明 callable、既有所有权入口和 Tree-sitter 已采用“无标记或显式 `borrow` = `Borrow`、
+> 声明侧 `own` = `Value`”。MoveOnly 实参向 `own` 参数的无标记调用继续隐式移动；调用点
+> `own` 继续拒绝。SPEC-0029 的调用期 loan、L0133–L0135 与 ASAP drop-point 仍未实现。

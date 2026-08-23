@@ -1,7 +1,7 @@
 class Resource {}
-fun take(item: Resource): Unit {}
-fun inspect(borrow item: Resource): Unit {}
-fun pass(input: Resource, replacement: Resource): Unit {
+fun take(own item: Resource): Unit {}
+fun inspect(item: Resource): Unit {}
+fun pass(own input: Resource, own replacement: Resource): Unit {
     var local = input
     val viewed = inspect(local)
     val moved = take(local)

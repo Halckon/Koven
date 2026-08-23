@@ -162,7 +162,7 @@ fn container_types_and_core_constructions_preserve_element_identity() {
     );
     assert_eq!(
         typed.container_constructions()[4].parameter_modes(),
-        [ParameterMode::Value, ParameterMode::Borrow]
+        [ParameterMode::Borrow, ParameterMode::Borrow]
     );
     assert!(
         typed

@@ -50,8 +50,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 - **v0.26 已明确启用**：无标记 callable / function-type 参数是 `Borrow`；显式 `borrow`
   是同一契约的可选强调，不形成不同函数类型或 overload；声明端 `own` 映射既有
   `ParameterMode::Value`，调用点仍不接受 `own`，向该参数传入 `MoveOnly` place 时以无标记
-  调用隐式移动；`inout` / 调用点 `&` 保持不变。语法与 typed-contract 迁移等待
-  SPEC-0176，调用期 loan 与 ASAP drop-point 等待 SPEC-0029，不能把 guide 启用误写为实现完成。
+  调用隐式移动；`inout` / 调用点 `&` 保持不变。语法与 typed-contract 已由 SPEC-0176
+  实现；调用期 loan 与 ASAP drop-point 等待 SPEC-0029，不能把参数迁移误写成借用检查完成。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -121,7 +121,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.23 | 封闭名义/泛型身份、interface 静态实现、override/default 冲突、窄化接口委托与 L0091–L0105 |
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
-| v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；已明确启用，实施待 SPEC-0176 / SPEC-0029 |
+| v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 已实现参数迁移，loan/drop 待 SPEC-0029 |
 
 ## 5. SPEC 编号索引
 
@@ -158,7 +158,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0067 | 单态 callable/member 选择、实参映射与 place/temporary 分类 | `05-grammar-calls-lambda.md` §9 | ✅ 已实现 |
 | SPEC-0173 | 唯一期望函数类型的 lambda 参数契约 typed facts | `05-grammar-calls-lambda.md` §9、`../specs/0173-lambda-parameter-contract-facts.md` | ✅ 已实现 |
 | SPEC-0175 | block 内调用实参 lambda 边界修复 | `05-grammar-calls-lambda.md`、`../specs/0175-call-argument-lambda-boundary.md` | ✅ 已实现 |
-| SPEC-0176 | v0.26 无标记 Borrow、声明端 `own` 与 callable typed-contract 迁移 | `03-grammar-core.md` §3、`04-grammar-declarations-blocks.md` §7、`05-grammar-calls-lambda.md` §9、`../specs/0176-borrow-default-parameter-contracts.md` | ⏳ 已批准，未实现 |
+| SPEC-0176 | v0.26 无标记 Borrow、声明端 `own` 与 callable typed-contract 迁移 | `03-grammar-core.md` §3、`04-grammar-declarations-blocks.md` §7、`05-grammar-calls-lambda.md` §9、`../specs/0176-borrow-default-parameter-contracts.md` | ✅ 已实现 |
 
 ## 6. 错误码索引（近似区间，精确定义以对应文档正文为准）
 

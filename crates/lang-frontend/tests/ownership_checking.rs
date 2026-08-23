@@ -119,15 +119,16 @@ fn ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs() {
 #[test]
 fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
     let text = "class Resource {}\n\
-                fun take(item: Resource): Unit {}\n\
+                fun take(own item: Resource): Unit {}\n\
                 fun create(): Resource\n\
-                fun inspect(borrow item: Resource): Unit {}\n\
+                fun inspect(item: Resource): Unit {}\n\
                 fun mutate(inout item: Resource): Unit {}\n\
-                fun local(input: Resource): Unit {\n\
+                fun takeNumber(own item: Int): Unit {}\n\
+                fun local(own input: Resource): Unit {\n\
                     val moved = input\n\
                     val after = take(input)\n\
                 }\n\
-                fun calls(input: Resource): Unit {\n\
+                fun calls(own input: Resource): Unit {\n\
                     val first = take(input)\n\
                     val second = take(input)\n\
                     val third = take(input)\n\
@@ -135,12 +136,14 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                 fun copy(number: Int): Unit {\n\
                     val first = number\n\
                     val second = number\n\
+                    val firstCall = takeNumber(number)\n\
+                    val secondCall = takeNumber(number)\n\
                 }\n\
                 fun temporary(): Unit {\n\
                     val first = take(create())\n\
                     val second = take(create())\n\
                 }\n\
-                fun borrows(input: Resource): Unit {\n\
+                fun borrows(own input: Resource): Unit {\n\
                     var local = input\n\
                     val first = inspect(local)\n\
                     val second = inspect(borrow local)\n\
@@ -148,7 +151,7 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                     val fourth = take(local)\n\
                     val fifth = take(local)\n\
                 }\n\
-                fun reset(input: Resource, replacement: Resource): Unit {\n\
+                fun reset(own input: Resource, own replacement: Resource): Unit {\n\
                     var local = input\n\
                     val first = take(local)\n\
                     { local = replacement }\n\
@@ -198,26 +201,26 @@ fn error_nodes_do_not_create_ownership_cascades() {
 #[test]
 fn control_flow_joins_possible_moves_but_ignores_returning_paths() {
     let text = "class Resource {}\n\
-                fun take(item: Resource): Unit {}\n\
-                fun branch(flag: Boolean, input: Resource): Unit {\n\
+                fun take(own item: Resource): Unit {}\n\
+                fun branch(flag: Boolean, own input: Resource): Unit {\n\
                     if (flag) { take(input) }\n\
                     take(input)\n\
                 }\n\
-                fun choose(number: Int, input: Resource): Unit {\n\
+                fun choose(number: Int, own input: Resource): Unit {\n\
                     when (number) {\n\
                         0 -> take(input)\n\
                         else -> {}\n\
                     }\n\
                     take(input)\n\
                 }\n\
-                fun looping(flag: Boolean, input: Resource): Unit {\n\
+                fun looping(flag: Boolean, own input: Resource): Unit {\n\
                     while (flag) {\n\
                         take(input)\n\
                         break\n\
                     }\n\
                     take(input)\n\
                 }\n\
-                fun terminating(flag: Boolean, input: Resource): Resource {\n\
+                fun terminating(flag: Boolean, own input: Resource): Resource {\n\
                     if (flag) { return input }\n\
                     return input\n\
                 }";
@@ -231,8 +234,8 @@ fn control_flow_joins_possible_moves_but_ignores_returning_paths() {
 #[test]
 fn shadowed_symbols_keep_independent_move_origins() {
     let text = "class Resource {}\n\
-                fun take(item: Resource): Unit {}\n\
-                fun shadow(input: Resource): Unit {\n\
+                fun take(own item: Resource): Unit {}\n\
+                fun shadow(own input: Resource): Unit {\n\
                     {\n\
                         val input = input\n\
                         val first = take(input)\n\

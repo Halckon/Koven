@@ -300,7 +300,8 @@ impl<'a> TrialBuilder<'a> {
         let mut explored_depth = 0;
         loop {
             if closer == Symbol::RightParen
-                && (self.is_keyword(cursor, Keyword::Borrow)
+                && (self.is_keyword(cursor, Keyword::Own)
+                    || self.is_keyword(cursor, Keyword::Borrow)
                     || self.is_keyword(cursor, Keyword::Inout))
             {
                 cursor += 1;

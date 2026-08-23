@@ -393,7 +393,7 @@ pub struct TypeParameter {
 pub struct ValueParameter {
     /// 完整参数范围。
     pub span: Span,
-    /// 声明侧显式参数模式；缺失表示按值参数。
+    /// 声明侧显式参数模式；缺失表示共享借用参数。
     pub mode_marker: Option<ParameterModeMarker>,
     /// 参数名称或恢复 marker。
     pub name: NameMarker,
@@ -406,6 +406,8 @@ pub struct ValueParameter {
 /// callable 参数契约的显式源码 marker。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParameterModeMarker {
+    /// 声明侧 `own` 关键字范围。
+    Own(Span),
     /// `borrow` 关键字范围。
     Borrow(Span),
     /// 声明侧 `inout` 或调用点 `&` 的真实范围。
@@ -417,7 +419,7 @@ pub enum ParameterModeMarker {
 pub struct FunctionTypeParameter {
     /// 从显式 marker（若有）或类型起点到类型结束的完整范围。
     pub span: Span,
-    /// 声明侧显式参数模式；缺失表示按值参数。
+    /// 声明侧显式参数模式；缺失表示共享借用参数。
     pub mode_marker: Option<ParameterModeMarker>,
     /// 唯一参数类型。
     pub type_ref: TypeRefId,

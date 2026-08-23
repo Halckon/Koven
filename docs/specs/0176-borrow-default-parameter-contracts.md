@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.26 callable 参数契约](../guide/05-grammar-calls-lambda.md#callable-参数契约与调用匹配) |
 | 前置 Spec | SPEC-0012、SPEC-0067、SPEC-0173、SPEC-0028 `done` |
@@ -57,19 +57,19 @@ expected contract、预声明 callable 与既有所有权检查统一迁移到 v
 
 ## 5. 验收标准
 
-- [ ] 具名函数与函数类型 compile-pass 覆盖无 marker Borrow、显式 `borrow`、显式 `own`、
+- [x] 具名函数与函数类型 compile-pass 覆盖无 marker Borrow、显式 `borrow`、显式 `own`、
       `inout`、nested / move function type 与 strict typed-call；AST marker 和参数 `Span` 精确。
-- [ ] declaration / TypeRef compile-fail 覆盖三个 marker 的重复与错误位置，L0039、恢复后的首个
+- [x] declaration / TypeRef compile-fail 覆盖三个 marker 的重复与错误位置，L0039、恢复后的首个
       marker、后续参数及正式 Parser / strict trial 一致性均保持稳定。
-- [ ] named 与 lambda 参数 typed facts 精确查询得到 `Value` / `Borrow` / `Inout`；无 marker 与
+- [x] named 与 lambda 参数 typed facts 精确查询得到 `Value` / `Borrow` / `Inout`；无 marker 与
       显式 `borrow` 等价，`own` 不产生第四种模式，模式不参与 overload shape。
-- [ ] 调用矩阵证明无 marker Borrow 不移动 MoveOnly 实参；显式 `own` callee 的无 marker 调用对
+- [x] 调用矩阵证明无 marker Borrow 不移动 MoveOnly 实参；显式 `own` callee 的无 marker 调用对
       Copyable 复制、对 MoveOnly 移动并由既有 L0131 拒绝后续使用；调用点 `own` 继续拒绝。
-- [ ] 预声明 consuming / read-only callable、class constructor field 例外与结构投影所有权回归
+- [x] 预声明 consuming / read-only callable、class constructor field 例外与结构投影所有权回归
       符合 v0.26，既有 L0119–L0132 含义和源码顺序不漂移。
-- [ ] Tree-sitter corpus 接受声明侧 `own` 且仍拒绝调用点 `own`；生成 parser / node types 与生产
+- [x] Tree-sitter corpus 接受声明侧 `own` 且仍拒绝调用点 `own`；生成 parser / node types 与生产
       Parser 交叉验收通过，TextMate keyword corpus 无回归。
-- [ ] 受影响 frontend / editor 窄测和一次 workspace 标准基线通过；Architecture、roadmap、本
+- [x] 受影响 frontend / editor 窄测和一次 workspace 标准基线通过；Architecture、roadmap、本
       Spec 验收与验证记录只陈述实际事实。
 
 ## 6. 技术方案与边界
@@ -84,13 +84,13 @@ expected contract、预声明 callable 与既有所有权检查统一迁移到 v
 
 ## 7. 实施计划
 
-1. [ ] 扩展声明 / 函数类型参数 marker 与 strict trial → 验证：Parser AST、L0039 与恢复窄测。
-2. [ ] 集中迁移 typed mode 规范化、lambda expected facts 与预声明 callable → 验证：type/callable
+1. [x] 扩展声明 / 函数类型参数 marker 与 strict trial → 验证：Parser AST、L0039 与恢复窄测。
+2. [x] 集中迁移 typed mode 规范化、lambda expected facts 与预声明 callable → 验证：type/callable
        mode matrix。
-3. [ ] 迁移既有所有权入口和 fixture → 验证：Borrow 不移动、Value copy/move 与 L0131/L0132。
-4. [ ] 更新 Tree-sitter grammar / 生成产物 / corpus → 验证：editor 窄测与生产 Parser 交叉验收。
-5. [ ] 同步 Architecture/roadmap/验收并运行 workspace 基线 → 验证：实际退出状态。
-6. [ ] 暂存本 Spec 独立范围并审查 staged diff → 验证：无 SPEC-0029 loan/drop 实现或无关改动。
+3. [x] 迁移既有所有权入口和 fixture → 验证：Borrow 不移动、Value copy/move 与 L0131/L0132。
+4. [x] 更新 Tree-sitter grammar / 生成产物 / corpus → 验证：editor 窄测与生产 Parser 交叉验收。
+5. [x] 同步 Architecture/roadmap/验收并运行 workspace 基线 → 验证：实际退出状态。
+6. [x] 暂存本 Spec 独立范围并审查 staged diff → 验证：无 SPEC-0029 loan/drop 实现或无关改动。
 
 ## 8. 提交计划
 
@@ -104,4 +104,12 @@ expected contract、预声明 callable 与既有所有权检查统一迁移到 v
 
 ## 10. 验证记录
 
-尚未实施；不得预填通过。
+- `cargo test -p lang-frontend --all-targets`：通过；包含 Parser、typed callable、容器与 Phase 3
+  所有权 / 结构移动窄测和 fixture。
+- `npm run generate`、`npm test`（`editors/tree-sitter`）：通过；8 个 corpus 全部通过，声明端
+  `own` 与调用点拒绝均由生成 grammar 验证。
+- `cargo fmt --all -- --check`：通过。
+- `cargo check --workspace --all-targets`：通过。
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过。
+- `cargo test --workspace --all-targets`：通过，无 ignored / filtered 用例。
+- `cargo build -p lang-cli`：通过。

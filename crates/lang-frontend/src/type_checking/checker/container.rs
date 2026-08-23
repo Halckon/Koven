@@ -228,7 +228,7 @@ impl Checker<'_> {
         let (shape, modes): (ContainerConstructionKind, Vec<ParameterMode>) = match kind {
             SequentialContainerKind::Array | SequentialContainerKind::List => (
                 ContainerConstructionKind::RuntimeLength,
-                vec![ParameterMode::Value, ParameterMode::Borrow],
+                vec![ParameterMode::Borrow, ParameterMode::Borrow],
             ),
             SequentialContainerKind::MutableList => {
                 (ContainerConstructionKind::EmptyMutableList, Vec::new())
@@ -247,7 +247,7 @@ impl Checker<'_> {
             let initializer = self.types.intern(TypeKind::Function {
                 move_only: false,
                 parameters: vec![FunctionParameterType {
-                    mode: ParameterMode::Value,
+                    mode: ParameterMode::Borrow,
                     ty: int,
                 }],
                 return_type: element,

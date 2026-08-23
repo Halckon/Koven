@@ -3,7 +3,6 @@ use crate::parser::{
     VisibilityModifier,
 };
 
-use super::item::item_parameter_mode;
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -503,7 +502,7 @@ impl Checker<'_> {
                 return Ok(None);
             };
             shape_parameters.push(shape);
-            modes.push(item_parameter_mode(parameter.mode_marker));
+            modes.push(source_parameter_mode(parameter.mode_marker));
         }
         let return_type = self.function_return_type(form)?;
         let return_type = self.substitute_type(return_type, substitutions)?;
