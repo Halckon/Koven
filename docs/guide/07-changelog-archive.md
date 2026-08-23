@@ -415,3 +415,8 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > facts；L0133–L0135 已锁定 non-owning MoveOnly 移出、非法 `Inout` place 和有效 loan 冲突。
 > index element place、instance/delegation receiver 与 closure capture 仍按 v0.26 边界留给后续
 > Spec，本记录不改变语言语义。
+
+> 2026-08-23，SPEC-0030 完成实现：顺序容器构造使用既有参数契约，intrinsic index 发布带
+> 逻辑索引身份的 element place，Copyable 读取、MoveOnly 的 L0136、共享/独占 loan、临时 owner
+> 延寿、固定顺序 replacement 与旧元素 drop fact 已锁定。Phase 5 尚未定义的增删/重排 API
+> 及 relocation effect 继续后置，本记录不改变 v0.26 语言语义。

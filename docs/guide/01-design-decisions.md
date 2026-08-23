@@ -1521,8 +1521,9 @@ loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `
 
 本节只解除 SPEC-0029 的 call argument loan、参数体内 reborrow 与 owned-value drop-point
 语义门禁。v0.26 的声明端 `own`、默认 Borrow 与 typed contract 已由 SPEC-0176 实现；
-SPEC-0029 本身不再重复修改语法。member/委托 receiver、index element place 与容器 relocation 属于 SPEC-0030 或后续
-独立 Goal；closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
+SPEC-0029 本身不再重复修改语法。index element place 的核心读取、loan、replacement 与 drop
+facts 已由 SPEC-0030 实现；member/委托 receiver 及 Phase 5 尚未定义 API 的容器 relocation
+属于后续独立 Goal。closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
 跨调用 loan、完整 NLL 和部分移动不进入 v1。被 lambda 引用的外层 owner 在 SPEC-0032 前
 必须保留明确 deferred 且不得生成提前 drop fact，不能把“未检查 capture”误当成最后使用。
 SPEC-0029 不新增语法、依赖或 LLVM 类型。

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+mod container;
 mod drop_planner;
 mod loan;
 
@@ -102,6 +103,7 @@ struct Checker<'a> {
     borrowed_move_code: DiagnosticCode,
     immutable_inout_code: DiagnosticCode,
     loan_conflict_code: DiagnosticCode,
+    container_element_move_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -124,7 +126,7 @@ impl<'a> Checker<'a> {
                 _ => None,
             })
             .collect();
-        let calls_by_expression = typed
+        let mut calls_by_expression: BTreeMap<usize, Vec<ParameterMode>> = typed
             .calls()
             .iter()
             .map(|call| {
@@ -135,6 +137,11 @@ impl<'a> Checker<'a> {
                 (call.expression().index(), modes)
             })
             .collect();
+        for construction in typed.container_constructions() {
+            calls_by_expression
+                .entry(construction.expression().index())
+                .or_insert_with(|| construction.parameter_modes().to_vec());
+        }
         let mut checker = Self {
             sources,
             parsed,
@@ -153,6 +160,8 @@ impl<'a> Checker<'a> {
             borrowed_move_code: codes::catalog()?.resolve(codes::MOVE_FROM_BORROWED_BINDING)?,
             immutable_inout_code: codes::catalog()?.resolve(codes::IMMUTABLE_INOUT_PLACE)?,
             loan_conflict_code: codes::catalog()?.resolve(codes::LOAN_CONFLICT)?,
+            container_element_move_code: codes::catalog()?
+                .resolve(codes::MOVE_FROM_CONTAINER_ELEMENT)?,
         };
         for (item, _) in parsed.ast().items().iter() {
             checker.collect_mutability(item)?;
@@ -454,6 +463,9 @@ impl<'a> Checker<'a> {
                 value,
                 ..
             } => {
+                if self.element_place_descriptor(target)?.is_some() {
+                    return self.check_element_assignment(target, operator, value, state);
+                }
                 let diagnostic_count = self.diagnostics.len();
                 let flows = self.check_expression(value, state, ExpressionUse::Consume)?;
                 self.finish_assignment(
@@ -478,8 +490,15 @@ impl<'a> Checker<'a> {
                     };
                     if let Some(access) = access {
                         self.access_expression_place(id, access, name_span, &mut state)?;
+                    } else if let Some(place) = self.place(id)? {
+                        self.ensure_place_available(&place, name_span, &state)?;
                     }
                     Flows::next(state)
+                } else if self.typed.aggregate_projection(id).is_some()
+                    && self.element_place_descriptor(receiver)?.is_some()
+                {
+                    self.defer(id, OwnershipDeferredReason::IndexPlace);
+                    self.check_expression(receiver, state, ExpressionUse::Place)?
                 } else {
                     self.defer(id, OwnershipDeferredReason::MemberReceiver);
                     self.check_expression(receiver, state, ExpressionUse::Read)?
@@ -487,6 +506,7 @@ impl<'a> Checker<'a> {
                 if matches!(usage, ExpressionUse::Consume)
                     && flows.next.is_some()
                     && self.diagnostics.len() == diagnostic_count
+                    && self.place(id)?.is_some()
                 {
                     self.reject_partial_move(id, name_span)?;
                 }
@@ -502,8 +522,8 @@ impl<'a> Checker<'a> {
                     let mode = modes.as_ref().and_then(|modes| modes.get(index)).copied();
                     let usage = match mode {
                         Some(ParameterMode::Value) => ExpressionUse::Consume,
-                        Some(ParameterMode::Inout) => ExpressionUse::Place,
-                        Some(ParameterMode::Borrow) | None => ExpressionUse::Read,
+                        Some(ParameterMode::Borrow | ParameterMode::Inout) => ExpressionUse::Place,
+                        None => ExpressionUse::Read,
                     };
                     let argument_diagnostics = self.diagnostics.len();
                     flows = self.chain_expression(flows, argument.value, usage)?;
@@ -531,9 +551,13 @@ impl<'a> Checker<'a> {
                 Ok(flows)
             }
             Expression::Index { receiver, index } => {
-                self.defer(id, OwnershipDeferredReason::IndexPlace);
-                let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
-                self.chain_expression(flows, index, ExpressionUse::Read)
+                if self.element_place_descriptor(id)?.is_some() {
+                    self.check_element_expression(id, state, usage)
+                } else {
+                    self.defer(id, OwnershipDeferredReason::IndexPlace);
+                    let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
+                    self.chain_expression(flows, index, ExpressionUse::Read)
+                }
             }
             Expression::CallableReference { receiver, .. } => {
                 if let Some(receiver) = receiver {
@@ -661,7 +685,11 @@ impl<'a> Checker<'a> {
                 self.access_place(&place, AccessKind::Read, false, span, state)?
                     && self.access_place(&place, AccessKind::Mutation, false, span, state)?
             };
-            if allowed && value_is_valid && operator == AssignmentOperator::Assign {
+            if allowed
+                && value_is_valid
+                && operator == AssignmentOperator::Assign
+                && place.is_root()
+            {
                 state.moved.remove(&place.root());
             }
             return Ok(flows);
@@ -678,10 +706,14 @@ impl<'a> Checker<'a> {
         let Some(symbol) = self.reference_symbol(span) else {
             return Ok(());
         };
+        if usage == ExpressionUse::Place {
+            let place = OwnershipPlace::new(symbol, Vec::new());
+            return self.ensure_place_available(&place, span, state);
+        }
         let access = match usage {
             ExpressionUse::Read => AccessKind::Read,
             ExpressionUse::Consume => AccessKind::Move,
-            ExpressionUse::Place => return Ok(()),
+            ExpressionUse::Place => unreachable!("place handled above"),
         };
         let place = OwnershipPlace::new(symbol, Vec::new());
         let move_only = self
@@ -707,6 +739,27 @@ impl<'a> Checker<'a> {
         if matches!(usage, ExpressionUse::Consume) && self.is_move_only_variable(symbol) {
             state.moved.insert(symbol, span);
         }
+        Ok(())
+    }
+
+    fn ensure_place_available(
+        &mut self,
+        place: &OwnershipPlace,
+        primary: Span,
+        state: &State,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(origin) = state.moved.get(&place.root()).copied() else {
+            return Ok(());
+        };
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.use_after_move_code,
+            "use of moved value",
+            primary,
+        )?;
+        diagnostic.add_label(self.sources, origin, "value was moved here")?;
+        self.diagnostics.push(diagnostic);
         Ok(())
     }
 

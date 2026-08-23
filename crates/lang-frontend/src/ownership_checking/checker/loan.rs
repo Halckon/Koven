@@ -1,16 +1,19 @@
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity},
-    parser::{CallArgument, Expression, ParameterModeMarker, VariableKind},
+    parser::{
+        CallArgument, Expression, LiteralKind, ParameterModeMarker, PrefixOperator, VariableKind,
+    },
     source::Span,
     type_checking::{
-        AggregateProjectionKind, Copyability, ExpressionCategory, NominalKind, ParameterMode,
-        TypeKind,
+        AggregateProjectionKind, Copyability, ElementPlaceDescriptor, ExpressionCategory,
+        NominalKind, ParameterMode, TypeKind,
     },
 };
 
 use crate::ownership_checking::{
-    LoanFact, LoanKind, LoanTarget, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
+    ElementIndexIdentity, LoanFact, LoanKind, LoanTarget, OwnershipDeferredFact,
+    OwnershipDeferredReason, OwnershipPlace,
 };
 
 use super::{AccessKind, ActiveLoan, Checker, Flows, OwnershipCheckingError, State};
@@ -36,12 +39,106 @@ impl Checker<'_> {
                 let Some(mut place) = self.place(projection.receiver())? else {
                     return Ok(None);
                 };
-                place.push_field(projection.field());
-                Ok(Some(place))
+                if place.push_field(projection.field()) {
+                    Ok(Some(place))
+                } else {
+                    Ok(None)
+                }
             }
-            Expression::Index { .. } => Ok(None),
+            Expression::Index { .. } => {
+                let Some(descriptor) = self.element_place_descriptor(expression)? else {
+                    return Ok(None);
+                };
+                let Some(mut place) = self.place(descriptor.receiver())? else {
+                    return Ok(None);
+                };
+                let index = self.element_index_identity(descriptor.index())?;
+                if place.push_element(index) {
+                    Ok(Some(place))
+                } else {
+                    Ok(None)
+                }
+            }
             _ => Ok(None),
         }
+    }
+
+    pub(super) fn temporary_element_owner(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
+        let node = self.parsed.ast().expressions().get(expression)?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.temporary_element_owner(*expression);
+        }
+        let Some(descriptor) = self.element_place_descriptor(expression)? else {
+            return Ok(None);
+        };
+        self.temporary_expression_origin(descriptor.receiver())
+    }
+
+    pub(super) fn element_place_descriptor(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<ElementPlaceDescriptor>, OwnershipCheckingError> {
+        if let Some(descriptor) = self.typed.element_place(expression) {
+            return Ok(Some(descriptor));
+        }
+        let node = self.parsed.ast().expressions().get(expression)?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.element_place_descriptor(*expression);
+        }
+        Ok(None)
+    }
+
+    fn temporary_expression_origin(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
+        if self.typed.expression_category(expression) == Some(ExpressionCategory::Temporary) {
+            return Ok(Some(expression));
+        }
+        let node = self.parsed.ast().expressions().get(expression)?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.temporary_expression_origin(*expression);
+        }
+        Ok(None)
+    }
+
+    fn element_index_identity(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<ElementIndexIdentity, OwnershipCheckingError> {
+        let node = self.parsed.ast().expressions().get(expression)?;
+        let value = match node.payload() {
+            Expression::Literal(LiteralKind::Integer(_)) => self
+                .sources
+                .slice(node.span())?
+                .trim_end_matches(['L', 'l', 'U', 'u'])
+                .parse::<i128>()
+                .ok(),
+            Expression::Group { expression } => {
+                return self.element_index_identity(*expression);
+            }
+            Expression::Prefix {
+                operator: PrefixOperator::Minus,
+                operand,
+                ..
+            } => match self.element_index_identity(*operand)? {
+                ElementIndexIdentity::Known(value) => value.checked_neg(),
+                ElementIndexIdentity::Unknown => None,
+            },
+            Expression::Prefix {
+                operator: PrefixOperator::Plus,
+                operand,
+                ..
+            } => match self.element_index_identity(*operand)? {
+                ElementIndexIdentity::Known(value) => Some(value),
+                ElementIndexIdentity::Unknown => None,
+            },
+            _ => None,
+        };
+        Ok(value.map_or(ElementIndexIdentity::Unknown, ElementIndexIdentity::Known))
     }
 
     pub(super) fn access_expression_place(
@@ -188,13 +285,17 @@ impl Checker<'_> {
                             origin: operand_span,
                         });
                     }
-                } else if self.typed.expression_category(argument.value)
-                    == Some(ExpressionCategory::Temporary)
+                } else if let Some(temporary) =
+                    self.temporary_element_owner(argument.value)?.or_else(|| {
+                        (self.typed.expression_category(argument.value)
+                            == Some(ExpressionCategory::Temporary))
+                        .then_some(argument.value)
+                    })
                 {
                     self.loans.push(LoanFact::new(
                         call,
                         argument.value,
-                        LoanTarget::Temporary(argument.value),
+                        LoanTarget::Temporary(temporary),
                         LoanKind::Shared,
                         operand_span,
                         call_span,
@@ -202,10 +303,14 @@ impl Checker<'_> {
                 }
             }
             ParameterMode::Inout => {
-                let Some(place) = self.place(argument.value)? else {
-                    return Ok(());
+                let primary = match argument.mode_marker {
+                    Some(ParameterModeMarker::Inout(span)) => span,
+                    _ => operand_span,
                 };
-                if let Some(origin) = state.moved.get(&place.root()).copied() {
+                let place = self.place(argument.value)?;
+                if let Some(place) = &place
+                    && let Some(origin) = state.moved.get(&place.root()).copied()
+                {
                     let mut diagnostic = Diagnostic::new(
                         self.sources,
                         Severity::Error,
@@ -217,10 +322,6 @@ impl Checker<'_> {
                     self.diagnostics.push(diagnostic);
                     return Ok(());
                 }
-                let primary = match argument.mode_marker {
-                    Some(ParameterModeMarker::Inout(span)) => span,
-                    _ => operand_span,
-                };
                 if !self.is_mutable_place(argument.value)? {
                     let mut diagnostic = Diagnostic::new(
                         self.sources,
@@ -229,7 +330,9 @@ impl Checker<'_> {
                         "inout argument is not a mutable place",
                         primary,
                     )?;
-                    if let Some(root) = self.names.symbols().get(place.root().index()) {
+                    if let Some(place) = &place
+                        && let Some(root) = self.names.symbols().get(place.root().index())
+                    {
                         diagnostic.add_label(
                             self.sources,
                             root.span(),
@@ -239,6 +342,19 @@ impl Checker<'_> {
                     self.diagnostics.push(diagnostic);
                     return Ok(());
                 }
+                let Some(place) = place else {
+                    if let Some(temporary) = self.temporary_element_owner(argument.value)? {
+                        self.loans.push(LoanFact::new(
+                            call,
+                            argument.value,
+                            LoanTarget::Temporary(temporary),
+                            LoanKind::Exclusive,
+                            primary,
+                            call_span,
+                        ));
+                    }
+                    return Ok(());
+                };
                 if self.access_place(&place, AccessKind::ExclusiveLoan, false, primary, state)? {
                     self.loans.push(LoanFact::new(
                         call,
@@ -300,6 +416,18 @@ impl Checker<'_> {
                     );
                 }
                 self.is_mutable_place(projection.receiver())
+            }
+            Expression::Index { .. } => {
+                let Some(descriptor) = self.element_place_descriptor(expression)? else {
+                    return Ok(false);
+                };
+                if !descriptor.is_mutable() {
+                    return Ok(false);
+                }
+                let Some(place) = self.place(expression)? else {
+                    return Ok(self.temporary_element_owner(expression)?.is_some());
+                };
+                Ok(self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow))
             }
             _ => Ok(false),
         }

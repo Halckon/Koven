@@ -18,6 +18,8 @@ SPEC-0176 已把普通 callable 与 function-type 的无 marker / 显式 `borrow
 `Borrow`，并以声明侧 `own` 形成既有 `ParameterMode::Value`；
 SPEC-0029 已建立参数 binding 能力、名称/字段 place、同步调用期 loan、L0133–L0135 与
 owned-value ASAP drop facts；
+SPEC-0030 已建立顺序容器构造效果、逻辑 element place、L0136、元素 loan/replacement 与
+旧元素 drop facts；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -25,14 +27,15 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、Phase 1 与当前无 guide 门禁的 Phase 2 主线，并已进入 Phase 3。v0.26
-参数契约、显式实参调用期 loan 与 owned-value ASAP drop facts 已经实现。工程骨架按
+参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
+所有权已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
 
 - 根目录是 resolver 3 的 virtual Cargo workspace；所有 package 使用 Rust edition 2024，
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0135` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0136` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -81,14 +84,17 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   shared/exclusive overlap、Borrow/Inout 移出、Inout 可变性和 nested call，L0133–L0135 分别
   锁定 non-owning move、非法可变 place 与有效 loan 冲突。named owner、temporary、replacement、
   return/`?`、branch 与 loop 的 ASAP drop facts 可供 Phase 4 查询；存在所有权诊断或未封闭
-  capture 时不发布提前 drop plan。顺序容器 element place、instance/delegation receiver 的完整
-  所有权契约与 closure capture 仍明确 deferred；
+  capture 时不发布提前 drop plan。顺序容器构造复用 typed 参数模式；intrinsic index 形成
+  root + field path + 逻辑索引 identity，支持 Copyable owned read、MoveOnly L0136、element
+  shared/exclusive loan、temporary owner 延寿、固定顺序 replacement 与旧元素 drop fact。
+  非 intrinsic index、post-index field projection、Phase 5 relocation effect、instance/delegation
+  receiver 的完整所有权契约与 closure capture 仍明确 deferred；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无泛型 callable 实例化、普通字段部分移动、顺序容器 element-place / relocation、closure
+- 尚无泛型 callable 实例化、普通字段部分移动、顺序容器 Phase 5 relocation effect、closure
   capture / `Transferable` 或 codegen 实现；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -926,6 +932,11 @@ SymbolId 遮蔽、错误 AST 去级联、参数 binding、place overlap、源码
 Inout mutability、ASAP drop matrix、deferred 边界、重复运行确定性和真实 pass / fail fixture；
 fixture runner 精确枚举一个正例与一个反例，并核对 L0131、L0133–L0135 的 code 与 primary
 byte Span，领域测试另核对冲突来源和 move/declaration label。
+`tests/ownership_containers.rs` 的 12 个 integration test 覆盖列表式/运行时长度构造、三种
+容器的 Copyable/MoveOnly element read、Borrow/Inout、逻辑索引 overlap、字段容器路径、owner
+move、replacement 提交顺序、temporary owner drop、deferred 边界与重复运行确定性；Phase 3
+fixture 同时核对新增 L0136 及相邻 L0131/L0135，Phase 2 `type_containers` 继续锁定 List Inout
+拒绝与 index mutability。
 `tests/ownership_structural.rs` 的 4 个 integration test 覆盖条件 value class、nullable enum、
 intrinsic Box、无 / 有 `Copyable` 上界类型参数、Copy/Consume 完整解构、temporary、字段的
 Borrow / Inout / Value 投影、自动 `componentN()`、显式成员优先及普通 class 字段；另精确枚举
@@ -991,10 +1002,10 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 基础类型检查、名义/泛型/interface 检查及分层 fixture harness 已存在；enum case type、
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
-解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan 与 owned-value ASAP drop facts 已由
-独立 Phase 3 阶段实现；泛型 callable 实例化、
+解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
+顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化、
 多 overload 候选的 lambda 隔离检查、`object` / `companion object` 关联成员，以及容器
-element place、closure capture / `Transferable` 等后续
+Phase 5 容器 relocation effect、closure capture / `Transferable` 等后续
 所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。

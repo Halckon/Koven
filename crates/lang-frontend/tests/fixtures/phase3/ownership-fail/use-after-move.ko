@@ -16,3 +16,8 @@ fun conflict(own input: Resource): Unit {
     var local = input
     val invalid = mixed(&local, local)
 }
+fun containerFail(own first: Resource): Unit {
+    val list = mutableListOf(first)
+    val movedAgain = take(first)
+    val invalidElement = take(list[0])
+}

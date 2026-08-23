@@ -320,11 +320,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         ExpressionUse::Consume => {
                             state.remove(symbol);
                         }
-                        ExpressionUse::Read | ExpressionUse::Place => {
+                        ExpressionUse::Read => {
                             if !self.liveness.expression_after[id.index()].contains(&symbol) {
                                 self.drop_named(DropPoint::AfterExpression(id), symbol, state);
                             }
                         }
+                        ExpressionUse::Place => {}
                     }
                 }
                 Ok(true)
@@ -445,9 +446,40 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 value,
                 ..
             } => {
+                if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
+                    self.expression(descriptor.receiver(), ExpressionUse::Place, state)?;
+                    self.expression(descriptor.index(), ExpressionUse::Read, state)?;
+                    self.expression(value, ExpressionUse::Consume, state)?;
+                    if self.checker.typed.copyability(descriptor.element_type())
+                        == Some(Copyability::MoveOnly)
+                    {
+                        self.push_fact(DropFact::new(
+                            DropPoint::AfterReplacement(id),
+                            DropTarget::ReplacedElement(id),
+                            self.checker.parsed.ast().expressions().get(target)?.span(),
+                        ));
+                    }
+                    if let Some(temporary) = self.checker.temporary_element_owner(target)? {
+                        self.push_fact(DropFact::new(
+                            DropPoint::AfterExpression(id),
+                            DropTarget::Temporary(temporary),
+                            self.checker
+                                .parsed
+                                .ast()
+                                .expressions()
+                                .get(temporary)?
+                                .span(),
+                        ));
+                    } else if let Some(place) = self.checker.place(target)?
+                        && !self.liveness.expression_after[id.index()].contains(&place.root())
+                    {
+                        self.drop_named(DropPoint::AfterExpression(id), place.root(), state);
+                    }
+                    return Ok(true);
+                }
                 self.expression(value, ExpressionUse::Consume, state)?;
                 if let Some(place) = self.checker.place(target)?
-                    && place.fields().is_empty()
+                    && place.is_root()
                 {
                     let symbol = place.root();
                     if operator != AssignmentOperator::Assign {
@@ -480,7 +512,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Member { receiver, .. } => {
                 if let Some(place) = self.checker.place(id)? {
                     let root = place.root();
-                    if usage == ExpressionUse::Consume && place.fields().is_empty() {
+                    if usage == ExpressionUse::Consume && place.is_root() {
                         state.remove(root);
                     } else if !self.liveness.expression_after[id.index()].contains(&root) {
                         self.drop_named(DropPoint::AfterExpression(id), root, state);
@@ -515,20 +547,26 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                     borrowed_roots.push(root);
                                 }
                             } else {
-                                self.expression(argument.value, ExpressionUse::Read, state)?;
-                                if mode == ParameterMode::Borrow
-                                    && self.is_move_only_temporary(argument.value)
+                                self.expression(argument.value, ExpressionUse::Place, state)?;
+                                if let Some(temporary) = self
+                                    .checker
+                                    .temporary_element_owner(argument.value)?
+                                    .or_else(|| {
+                                        (mode == ParameterMode::Borrow
+                                            && self.is_move_only_temporary(argument.value))
+                                        .then_some(argument.value)
+                                    })
                                 {
                                     let origin = self
                                         .checker
                                         .parsed
                                         .ast()
                                         .expressions()
-                                        .get(argument.value)?
+                                        .get(temporary)?
                                         .span();
                                     self.push_fact(DropFact::new(
                                         DropPoint::CallReturn(id),
-                                        DropTarget::Temporary(argument.value),
+                                        DropTarget::Temporary(temporary),
                                         origin,
                                     ));
                                 }
@@ -544,8 +582,28 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Index { receiver, index } => {
-                self.expression(receiver, ExpressionUse::Read, state)?;
-                self.expression(index, ExpressionUse::Read, state)
+                self.expression(receiver, ExpressionUse::Place, state)?;
+                self.expression(index, ExpressionUse::Read, state)?;
+                if usage != ExpressionUse::Place
+                    && let Some(temporary) = self.checker.temporary_element_owner(id)?
+                {
+                    self.push_fact(DropFact::new(
+                        DropPoint::AfterExpression(id),
+                        DropTarget::Temporary(temporary),
+                        self.checker
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(temporary)?
+                            .span(),
+                    ));
+                } else if usage != ExpressionUse::Place
+                    && let Some(place) = self.checker.place(id)?
+                    && !self.liveness.expression_after[id.index()].contains(&place.root())
+                {
+                    self.drop_named(DropPoint::AfterExpression(id), place.root(), state);
+                }
+                Ok(true)
             }
             Expression::CallableReference { receiver, .. } => {
                 if let Some(receiver) = receiver {

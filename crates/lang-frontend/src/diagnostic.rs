@@ -146,6 +146,7 @@ pub mod codes {
     pub(crate) const MOVE_FROM_BORROWED_BINDING: &str = "L0133";
     pub(crate) const IMMUTABLE_INOUT_PLACE: &str = "L0134";
     pub(crate) const LOAN_CONFLICT: &str = "L0135";
+    pub(crate) const MOVE_FROM_CONTAINER_ELEMENT: &str = "L0136";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -284,6 +285,7 @@ pub mod codes {
         MOVE_FROM_BORROWED_BINDING,
         IMMUTABLE_INOUT_PLACE,
         LOAN_CONFLICT,
+        MOVE_FROM_CONTAINER_ELEMENT,
     ];
 
     /// 由集中定义创建生产错误码目录。

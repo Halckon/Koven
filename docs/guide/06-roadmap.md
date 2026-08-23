@@ -233,8 +233,8 @@ Spec 之前，本条限制不变。）
 
 v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-design-decisions.md#26-调用期借用与-asap-析构点v026)。
 SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 已实现名称/字段 place 的同步
-call loan 与 owned-value drop facts。以下 element place、receiver 与 capture 项仍按独立 Spec
-保持未完成。
+call loan 与 owned-value drop facts；SPEC-0030 已实现顺序容器核心 construction / element
+place 所有权。以下 receiver、capture 与尚未定义 API 的 relocation 项仍按独立 Spec 保持未完成。
 
 - [x] 在当前 named/field call 范围实现简化版单一所有者 + ASAP drop facts（不做完整 NLL）
 - [x] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
@@ -247,14 +247,16 @@ call loan 与 owned-value drop facts。以下 element place、receiver 与 captu
       移动与借用冲突归入同一套所有权检查；不得把委托隐式升级成共享运行时代理
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
 - [x] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
-- [ ] 移动顺序容器时转移唯一缓冲区 owner，拒绝再次使用源容器；构造时按 `Copyable`
+- [x] 移动顺序容器时转移唯一缓冲区 owner，拒绝再次使用源容器；构造时按 `Copyable`
       能力处理已有 place：已有 place 与临时表达式同样不需要额外标注，按 `Copyable` 复制
       或移动元素，不插入 clone、retain 或 `Box`；initializer 返回值直接交付
-- [ ] 检查顺序容器 element place：可复制元素可读出 owned copy；不可复制元素只可借用，
+- [x] 检查顺序容器 element place：可复制元素可读出 owned copy；不可复制元素只可借用，
       禁止部分移出；`inout` 仅适用于 `Array` / `MutableList`
-- [ ] 跟踪元素借用与 `MutableList` 扩容、缩容、删除、替换、重排的冲突；按
-      [`01-design-decisions.md`](./01-design-decisions.md) 第 8 节固定的提交
-      顺序检查元素替换；所有正常构造、移动、替换、扩容和析构路径上，每个资源恰好析构一次
+- [x] 跟踪元素借用与内建元素替换的冲突；按 [`01-design-decisions.md`](./01-design-decisions.md)
+      第 8 节固定的提交顺序检查替换，并发布旧元素的唯一 drop fact
+- [ ] 在 Phase 5 明确 `MutableList` 增删/重排 API 及其 typed relocation effect 后，跟踪元素
+      借用与扩容、缩容、删除、重排的冲突，并验证所有正常 relocation / 析构路径资源恰好
+      析构一次；不得在此之前按成员名猜测 effect
 - [ ] `move (...) -> T` 函数类型的检查：验证传给此类参数的闭包字面量必须带 `move` 前缀，且闭包体内不能捕获任何借用语义的外部变量
 - [ ] `Transferable` 标记能力检查：跨线程 API（`thread` 等）转移的值类型必须满足对应约束；
       `Shareable` 延后到 v2

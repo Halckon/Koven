@@ -18,3 +18,9 @@ fun loans(own pair: Pair, inout target: Resource): Unit {
     { target = create() }
     val temporary = inspect(create())
 }
+fun containerPass(own first: Resource, own second: Resource, own replacement: Resource): Unit {
+    val list = mutableListOf(first, second)
+    val shared = inspectPair(list[0], list[0])
+    val distinct = mutatePair(&list[0], &list[1])
+    val changed = (list[1] = replacement)
+}

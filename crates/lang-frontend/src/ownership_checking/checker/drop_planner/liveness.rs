@@ -21,7 +21,7 @@ pub(super) struct Liveness<'a, 'checker> {
     loop_stack: Vec<(LiveSet, LiveSet)>,
     pub(super) skipped_functions: BTreeSet<usize>,
     pub(super) function_live_in: BTreeMap<usize, LiveSet>,
-    saw_lambda: bool,
+    saw_drop_deferred: bool,
 }
 
 impl<'a, 'checker> Liveness<'a, 'checker> {
@@ -33,7 +33,7 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
             loop_stack: Vec::new(),
             skipped_functions: BTreeSet::new(),
             function_live_in: BTreeMap::new(),
-            saw_lambda: false,
+            saw_drop_deferred: false,
         };
         for &root in checker.parsed.roots() {
             this.item(root)?;
@@ -45,7 +45,7 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
         match self.checker.parsed.ast().items().get(id)?.payload().clone() {
             Item::Modified { declaration, .. } => self.item(declaration)?,
             Item::Function { form, .. } => {
-                self.saw_lambda = false;
+                self.saw_drop_deferred = false;
                 let live_in = match form {
                     FunctionForm::ImplicitUnitAbsent => LiveSet::new(),
                     FunctionForm::ImplicitUnitBlock(body) => {
@@ -60,7 +60,7 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                     },
                 };
                 self.function_live_in.insert(id.index(), live_in);
-                if self.saw_lambda {
+                if self.saw_drop_deferred {
                     self.skipped_functions.insert(id.index());
                 }
             }
@@ -223,7 +223,7 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 Ok(live)
             }
             Expression::Lambda { .. } => {
-                self.saw_lambda = true;
+                self.saw_drop_deferred = true;
                 Ok(live_after)
             }
             Expression::If {
@@ -302,10 +302,15 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 value,
                 ..
             } => {
+                if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
+                    let live = self.expression(value, ExpressionUse::Consume, live_after)?;
+                    let live = self.expression(descriptor.index(), ExpressionUse::Read, live)?;
+                    return self.expression(descriptor.receiver(), ExpressionUse::Read, live);
+                }
                 let mut live = live_after;
                 if operator == AssignmentOperator::Assign
                     && let Some(place) = self.checker.place(target)?
-                    && place.fields().is_empty()
+                    && place.is_root()
                 {
                     live.remove(&place.root());
                 }
@@ -327,6 +332,11 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                     let Expression::Member { receiver, .. } = node.payload() else {
                         unreachable!()
                     };
+                    if self.checker.typed.aggregate_projection(id).is_some()
+                        && self.checker.element_place_descriptor(*receiver)?.is_some()
+                    {
+                        self.saw_drop_deferred = true;
+                    }
                     self.expression(*receiver, ExpressionUse::Read, live_after)
                 }
             }

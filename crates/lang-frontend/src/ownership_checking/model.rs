@@ -10,15 +10,32 @@ use crate::{
 pub struct OwnershipPlace {
     root: SymbolId,
     fields: Vec<SymbolId>,
+    element: Option<ElementIndexIdentity>,
 }
 
 impl OwnershipPlace {
     pub(crate) fn new(root: SymbolId, fields: Vec<SymbolId>) -> Self {
-        Self { root, fields }
+        Self {
+            root,
+            fields,
+            element: None,
+        }
     }
 
-    pub(crate) fn push_field(&mut self, field: SymbolId) {
+    pub(crate) fn push_field(&mut self, field: SymbolId) -> bool {
+        if self.element.is_some() {
+            return false;
+        }
         self.fields.push(field);
+        true
+    }
+
+    pub(crate) fn push_element(&mut self, element: ElementIndexIdentity) -> bool {
+        if self.element.is_some() {
+            return false;
+        }
+        self.element = Some(element);
+        true
     }
 
     /// 返回唯一根绑定。
@@ -33,15 +50,54 @@ impl OwnershipPlace {
         &self.fields
     }
 
+    /// 返回 terminal 顺序容器逻辑索引；非 element place 返回 `None`。
+    #[must_use]
+    pub const fn element(&self) -> Option<ElementIndexIdentity> {
+        self.element
+    }
+
+    /// 返回该 place 是否精确表示根绑定自身。
+    #[must_use]
+    pub const fn is_root(&self) -> bool {
+        self.fields.is_empty() && self.element.is_none()
+    }
+
     /// 判断两个 place 是否相同或具有 parent/child 前缀关系。
     #[must_use]
     pub fn overlaps(&self, other: &Self) -> bool {
-        self.root == other.root
-            && self
+        if self.root != other.root
+            || !self
                 .fields
                 .iter()
                 .zip(&other.fields)
                 .all(|(left, right)| left == right)
+        {
+            return false;
+        }
+        if self.fields.len() != other.fields.len() {
+            return true;
+        }
+        match (self.element, other.element) {
+            (Some(left), Some(right)) => left.may_alias(right),
+            (None, _) | (_, None) => true,
+        }
+    }
+}
+
+/// Phase 3 可证明的顺序容器逻辑索引身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ElementIndexIdentity {
+    /// 编译期可读取的 `Int` 整数字面量。
+    Known(i128),
+    /// 动态索引；与同一 container 的任意索引保守视为可能重叠。
+    Unknown,
+}
+
+impl ElementIndexIdentity {
+    /// 判断两个逻辑索引是否可能指向同一元素。
+    #[must_use]
+    pub const fn may_alias(self, other: Self) -> bool {
+        !matches!((self, other), (Self::Known(left), Self::Known(right)) if left != right)
     }
 }
 
@@ -188,6 +244,8 @@ pub enum DropPoint {
     LoopExit(StatementId),
     /// 无 body callable 的参数建立之后。
     FunctionEntry(ItemId),
+    /// element replacement 已提交新值之后。
+    AfterReplacement(ExpressionId),
 }
 
 /// 一个需要唯一析构的运行时值。
@@ -197,6 +255,8 @@ pub enum DropTarget {
     Named(SymbolId),
     /// 完整表达式产生的 anonymous temporary。
     Temporary(ExpressionId),
+    /// replacement 前原 element value；payload 是 assignment expression。
+    ReplacedElement(ExpressionId),
 }
 
 /// 一个确定的 ASAP 析构事实。

@@ -11,7 +11,9 @@ use lang_frontend::{
     },
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{BuiltinType, IntrinsicTypeConstructor, TypeEnvironment, check_types},
+    type_checking::{
+        BuiltinType, IntrinsicCallable, IntrinsicTypeConstructor, TypeEnvironment, check_types,
+    },
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -60,6 +62,22 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             IntrinsicTypeConstructor::MutableList,
         ),
     ];
+    let constructors = [
+        (
+            names.declare_function("arrayOf").expect("arrayOf"),
+            IntrinsicCallable::ArrayOf,
+        ),
+        (
+            names.declare_function("listOf").expect("listOf"),
+            IntrinsicCallable::ListOf,
+        ),
+        (
+            names
+                .declare_function("mutableListOf")
+                .expect("mutableListOf"),
+            IntrinsicCallable::MutableListOf,
+        ),
+    ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types.bind_builtin(symbol, builtin).expect("binding");
@@ -68,6 +86,11 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
         types
             .bind_intrinsic(symbol, container)
             .expect("container binding");
+    }
+    for (symbol, constructor) in constructors {
+        types
+            .bind_intrinsic_callable(symbol, constructor)
+            .expect("constructor binding");
     }
     (names, types)
 }
@@ -460,7 +483,7 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
         .iter()
         .filter_map(|fact| match fact.target() {
             DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
-            DropTarget::Temporary(_) => None,
+            DropTarget::Temporary(_) | DropTarget::ReplacedElement(_) => None,
         })
         .collect::<Vec<_>>();
     for expected in [
@@ -577,12 +600,13 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
 }
 
 #[test]
-fn index_member_receiver_and_lambda_capture_remain_explicitly_deferred() {
+fn intrinsic_index_closes_while_nonintrinsic_index_receiver_and_capture_remain_deferred() {
     let text = "class Resource {}\n\
                 class Worker { fun inspect(item: Resource): Unit {} }\n\
                 fun mutate(inout item: Resource): Unit {}\n\
                 fun deferred(own worker: Worker, own list: MutableList<Resource>, own captured: Resource): Unit {\n\
                     val indexed = mutate(&list[0])\n\
+                    val unknown = worker[0]\n\
                     val member = worker.inspect(captured)\n\
                     val callback: (own Resource) -> Unit = { input -> val nested = worker.inspect(captured) }\n\
                 }";
