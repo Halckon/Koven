@@ -563,6 +563,22 @@ mod tests {
                     && diagnostics[0].primary_span().start() == 12
         ));
 
+        let mut parser_sources = SourceMap::new();
+        let parser_error = parser_sources
+            .add_source("parser-error.ko", "val item =")
+            .expect("unique source");
+        let error = format_source(&parser_sources, parser_error).expect_err("invalid syntax");
+        assert!(
+            matches!(
+                &error,
+                FormattingError::Diagnostics(diagnostics)
+                    if diagnostic_codes(diagnostics) == ["L0009"]
+                        && diagnostics[0].primary_span().start() == 10
+                        && diagnostics[0].primary_span().is_empty()
+            ),
+            "{error:?}"
+        );
+
         let mut first = SourceMap::new();
         let foreign: SourceId = first.add_source("first.ko", "").expect("unique source");
         let second = SourceMap::new();
@@ -575,5 +591,18 @@ mod tests {
     #[test]
     fn removes_horizontal_space_from_empty_and_blank_lines() {
         assert_eq!(formatted(" \t\n\t\r\n"), "\n\r\n");
+    }
+
+    #[test]
+    fn deeply_nested_delimiters_use_iterative_formatting_state() {
+        let depth = 128;
+        let source = format!(
+            "fun f(): Unit {{\nval item = {}1{}\n}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let result = formatted(&source);
+        assert!(result.contains("\n    val item = "));
+        assert_eq!(formatted(&result), result);
     }
 }

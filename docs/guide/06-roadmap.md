@@ -421,7 +421,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 
 - [ ] 包管理器 CLI（`project.toml`/`project.lock`）
 - [ ] LSP 基础功能（语法高亮、诊断、跳转定义）
-- [ ] 代码格式化工具
+- [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
+      `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
 - [x] TextMate/Tree-sitter 语法文件
 
 **Phase 6 之后**：并发编译期检查完善、泛型型变、`dyn` 动态分发、`async`/`await` 等 v2/v3 特性按需排期，不在 v1 范围内。

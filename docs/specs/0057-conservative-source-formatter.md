@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P6-057` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 [v0.28 Lexer trivia 与 Phase 6](../guide/02-lexical-spec.md)、[roadmap](../guide/06-roadmap.md#phase-6工具链完善) |
@@ -67,12 +67,12 @@
 
 ## 5. 验收标准
 
-- [ ] frontend API 对完整合法 corpus 确定且幂等，格式化结果重解析零诊断。
-- [ ] 前后 significant token bytes/kind、comment bytes/kind/order 与每个 LF/CRLF lexeme 完全一致；
+- [x] frontend API 对完整合法 corpus 确定且幂等，格式化结果重解析零诊断。
+- [x] 前后 significant token bytes/kind、comment bytes/kind/order 与每个 LF/CRLF lexeme 完全一致；
       spacing/四空格 delimiter indentation 符合 ADR-0013。
-- [ ] lexer/parser diagnostics 保留 code/span，foreign source/internal error fail-loud；空 corpus 失败。
-- [ ] 真实 `kovenc format` stdout 与 `--check` 的 0/1/2 退出矩阵通过，输入文件字节不变。
-- [ ] `lang-frontend`、`lang-cli` 窄测及 workspace 五项基线通过；production 文件低于 1000 行，
+- [x] lexer/parser diagnostics 保留 code/span，foreign source/internal error fail-loud；空 corpus 失败。
+- [x] 真实 `kovenc format` stdout 与 `--check` 的 0/1/2 退出矩阵通过，输入文件字节不变。
+- [x] `lang-frontend`、`lang-cli` 窄测及 workspace 五项基线通过；production 文件低于 1000 行，
       Architecture/Spec/roadmap/ADR 索引只记录实际事实。
 
 ## 6. 技术方案与边界
@@ -86,12 +86,12 @@
 
 ## 7. 实施计划
 
-1. [ ] 实现 frontend formatting engine 与小型行为矩阵 → 验证：spacing/indent/comment/newline、
+1. [x] 实现 frontend formatting engine 与小型行为矩阵 → 验证：spacing/indent/comment/newline、
    diagnostics、foreign source 和线性深度。
-2. [ ] 建立全 parser-pass corpus 不变量 → 验证：非空枚举、token/comment/newline 保持、幂等和
+2. [x] 建立全 parser-pass corpus 不变量 → 验证：非空枚举、token/comment/newline 保持、幂等和
    重解析。
-3. [ ] 接入 `kovenc format` stdout/`--check` → 验证：真实 binary 退出码、输出、stderr 与文件不变。
-4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
+3. [x] 接入 `kovenc format` stdout/`--check` → 验证：真实 binary 退出码、输出、stderr 与文件不变。
+4. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
    状态、文件规模、文档与实现一致。
 
 ## 8. 提交计划
@@ -111,3 +111,12 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | SPEC-0006/0014 `done`；Lexer 公开完整 trivia/span，Parser 公开完整文件 diagnostics；ADR-0013 `accepted`；不依赖当前 Phase 4/5 门禁 |
+| `cargo test -p lang-frontend formatting --lib` | 通过 | spacing、缩进、LF/CRLF、注释、字符串、Lexer/Parser 诊断、foreign source 与 128 层 delimiter |
+| `cargo test -p lang-frontend --test formatting` | 通过 | 非空完整文件 pass corpus 与专用 fixture 的 token/comment/newline、重解析、幂等不变量 |
+| `cargo check -p lang-cli --all-targets`、`cargo clippy -p lang-cli --all-targets -- -D warnings`、`cargo test -p lang-cli --all-targets` | 通过 | 真实 binary stdout、`--check` 0/1、错误 2、UTF-8、诊断、输入不变和 writer failure |
+| `cargo fmt --all -- --check` | 通过 | 最终 workspace 基线 |
+| `cargo check --workspace --all-targets` | 通过 | 最终 workspace 基线 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 最终 workspace 基线 |
+| `cargo test --workspace --all-targets` | 通过 | 最终 workspace 全量测试，无跳过 |
+| `cargo build -p lang-cli` | 通过 | 最终 `kovenc` 构建 |
+| production 文件规模 | 通过 | frontend formatter 608 行，CLI format driver 119 行、main 115 行，均低于 1000 行软上限 |

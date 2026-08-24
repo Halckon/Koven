@@ -53,6 +53,10 @@ unknown entry、混用 analysis、frontend diagnostics 与 unsupported source �
 顶层 function identity，生成 object、复用既有 Clang linker 并运行；测试唯一枚举真实
 `lang-std/koven/prelude.ko`，其 Koven `bootstrapSmoke(): Unit` 已经完整链路退出 0。该仓库内部
 路径不发布通用 `main`、用户 CLI 参数或多文件构建语义；
+SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
+再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
+的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
+frontend 失败使用 2，均不修改输入文件；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -71,7 +75,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0142` 正式前端错误码与
-  确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
+  确定性聚合顺序，`kovenc` binary 内的最小纯文本 renderer 已由 formatter 用户诊断复用，
+  尚未接入公开 build 流水线；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&`、顶层分隔用 `;`，以及以
@@ -82,6 +87,11 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   Kotlin 风格 `import` 文件头、`if` / `when`、loop-family、jump、`super`、class-family
   及局部恢复，并
   确定性合并 Lexer / Parser 诊断；
+- `lang_frontend::formatting` 只接受 Lexer/完整文件 Parser 零诊断输入，直接消费完整 lexeme
+  流和原 `Span` slice；非 trivia token、line/block comment 及每个 LF/CRLF newline 字节保持
+  不变，单趟 delimiter state 只规范同行 gap 与四空格 block/continuation indentation。公开
+  `FormattingError` 区分 source、Lexer、Parser、用户 diagnostics 与内部 delimiter 不变量；
+  formatter corpus 枚举全部完整文件 pass fixture，验证 lexical snapshot、重解析和幂等；
 - `lang_frontend::name_resolution` 已提供显式 `NameEnvironment`、单文件类型 / 值双命名
   空间、稳定 `ScopeId` / `SymbolId`、有序 overload set、顺序 local 可见性、名称引用产物与
   L0079–L0081；enum case 的值构造器与 type-test 身份共享稳定 `EnumCaseId`，限定 case 尾段
@@ -1108,6 +1118,21 @@ Borrow / Inout / Value 投影、自动 `componentN()`、显式成员优先及普
 `this` 归一及 receiver-field loan、shared/move formation、loan ASAP 结束、owner/capture drop、L0137–L0139、
 `Transferable` 类型矩阵与 compiler-bound cross-thread effect；另精确枚举一个 closure pass 与
 一个 fail fixture，核对 L0137/L0138 primary byte Span。
+
+## Source formatter
+
+`lang_frontend::formatting::format_source` 是首个保守 formatter API。调用方提交 map-local
+`SourceId`；入口先运行生产 Lexer 与 `parse_file`，任一用户诊断整体返回而不产生部分文本。
+成功路径不维护第二份关键字或 symbol 拼写表，只复制原 lexeme slice；普通 horizontal
+whitespace 延迟到相邻内容已知后规范为零或一个 space，line start 根据 `{}` 与多行 `()` / `[]`
+栈输出四空格缩进。上下文相关 `<` / `>` / `+` / `-` 保留原邻接类别，字符串片段、comment
+正文及每个 newline lexeme 的 LF/CRLF 字节不改写。首版不折行、排序、合并空行或修改非法源码。
+
+`kovenc format <path>` 读取单个 UTF-8 `.ko` 文件并把结果写 stdout；
+`kovenc format --check <path>` 在规范时退出 0、有差异时退出 1，两种形式都不写回文件。固定
+参数错误、读取/UTF-8/internal failure 和 frontend diagnostics 退出 2，后者复用结构化诊断
+renderer。真实 binary 测试锁定 stdout、0/1/2 矩阵和输入不变，unit test 另锁定输出 writer
+失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
 
 ## TextMate grammar
 
