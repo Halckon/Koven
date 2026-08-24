@@ -367,7 +367,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       `() -> Unit` Koven entry，CLI 以 `/usr/bin/clang` 无 shell 链接，normal/SSA Abort object
       已真实运行；源码 entry 选择和标准库 `error()` identity 继续后置且不按名称猜测
 - [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
-- [ ] 把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort` primitive（不生成栈展开代码）
+- [ ] **SPEC-0043（实施中）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
+      primitive（不生成栈展开代码）
 - [ ] DWARF 调试信息生成
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构
