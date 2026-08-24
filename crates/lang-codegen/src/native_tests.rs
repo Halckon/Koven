@@ -272,3 +272,57 @@ fn standard_error_emits_object_while_interpolated_message_fails_before_writing()
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
 }
+
+#[test]
+fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
+    let directory = TestDirectory::create();
+    let declarative = analyze(
+        "declarative.ko",
+        "value class Pair<A, B>(val first: A, val second: B)\n\
+         class Holder(val item: Int)\n\
+         interface Marker\n\
+         enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
+         fun bootstrap(): Unit {}",
+    );
+    assert!(
+        declarative.parsed.diagnostics().is_empty(),
+        "{:?}",
+        declarative.parsed.diagnostics()
+    );
+    assert!(declarative.names.diagnostics().is_empty());
+    assert!(declarative.typed.diagnostics().is_empty());
+    assert!(declarative.owned.diagnostics().is_empty());
+    let object = directory.join("declarative.o");
+    emit_native_object(
+        &declarative.sources,
+        &declarative.parsed,
+        &declarative.names,
+        &declarative.typed,
+        &declarative.owned,
+        symbol(&declarative, "bootstrap", SymbolKind::Function),
+        &object,
+    )
+    .expect("pure type declarations must not block the scalar entry object");
+    assert!(object.is_file());
+
+    let runtime_value = analyze(
+        "object-root.ko",
+        "object Config {}\nfun bootstrap(): Unit {}",
+    );
+    assert!(runtime_value.names.diagnostics().is_empty());
+    assert!(runtime_value.typed.diagnostics().is_empty());
+    assert!(runtime_value.owned.diagnostics().is_empty());
+    let rejected = directory.join("object-root.o");
+    let error = emit_native_object(
+        &runtime_value.sources,
+        &runtime_value.parsed,
+        &runtime_value.names,
+        &runtime_value.typed,
+        &runtime_value.owned,
+        symbol(&runtime_value, "bootstrap", SymbolKind::Function),
+        &rejected,
+    )
+    .expect_err("object identity still requires an explicit runtime contract");
+    assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
+    assert!(!rejected.exists());
+}

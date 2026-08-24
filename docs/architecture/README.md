@@ -60,6 +60,9 @@ typed call descriptor 保留该 effect，frontend→SSA 只据此把非插值 St
 call、unwind 或 String ABI。同名源码函数不获得该 effect，插值及其他 String expression 在
 object 写盘前保持 unsupported。真实 `prelude.ko` 同时保留正常 smoke，并以独立 abort entry
 验证 object/link 后由进程失败边界观察到非零或 signal；
+SPEC-0185 已让 frontend-clean 的普通 class/value class/interface/enum class 顶层声明与既有
+标量 entry 共存：声明 root 不进入函数模板或可达实例图，不产生伪 SSA/LLVM 实体；具名 object、
+顶层 variable/constant 与实际尚未接线的 nominal constructor 仍结构化拒绝，native 失败不落盘；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -192,7 +195,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   direct-call contract，失败标志通过显式 CFG 导向 `Abort`。frontend→SSA lowering 已显式验证
   source 与逐阶段 analysis identity，拒绝任一 frontend diagnostic、ownership deferred 和非封闭
   节点；`lower_frontend::orchestrate` 负责文件门禁、标量类型预置、函数预声明与最终 verifier
-  编排，父模块负责 expression/body lowering，避免 CFG 扩展继续堆入单一超限文件。当前支持
+  编排，父模块负责 expression/body lowering，避免 CFG 扩展继续堆入单一超限文件。函数收集器
+  按 parser `ClassifierKind` 跳过无模块初始化动作的 class/value class/interface/enum class root，
+  但继续拒绝 object 与顶层存储；Error/Deferred call 没有 typed descriptor 时按 unsupported source
+  处理，真实缺失事实仍是内部 `MissingFact`。当前支持
   无泛型顶层 expression-body 与直线 block-body 函数的 Unit/Boolean 与全部
   8/16/32/64-bit 有符号/无符号整数、literal/name/group、前缀正负/Boolean not、checked
   arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
@@ -1210,8 +1216,8 @@ Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
-及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；源码 nominal
-constructor 接线仍等待候选 0183/0184。
+及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
+已允许未使用的声明型 type roots 共存，源码 nominal constructor 接线仍等待候选 0183/0184。
 
 ## 更新要求
 

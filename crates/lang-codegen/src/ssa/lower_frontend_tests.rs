@@ -92,6 +92,97 @@ fn lowers_only_the_standard_plain_string_error_call_to_abort() {
 }
 
 #[test]
+fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
+    let analysis = analyze(
+        "public value class Pair<A, B>(val first: A, val second: B)\n\
+         class Holder(val item: Int)\n\
+         interface Marker\n\
+         enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
+         fun entry(): Unit {}",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+
+    let lower = || {
+        lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .expect("declarative type roots have no module initialization action")
+    };
+    let program = lower();
+    let repeated = lower();
+    let ssa = render_program(&program);
+    assert_eq!(ssa, render_program(&repeated));
+    assert_eq!(ssa.matches("func \"").count(), 1, "{ssa}");
+    assert!(ssa.contains("func \"entry\""), "{ssa}");
+    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
+        assert!(!ssa.contains(declaration), "{ssa}");
+    }
+
+    let llvm = render_verified_program(&program).expect("declarative roots must reach LLVM");
+    assert_eq!(llvm.matches("define internal").count(), 1, "{llvm}");
+    for declaration in ["Pair", "Holder", "Marker", "Outcome"] {
+        assert!(!llvm.contains(declaration), "{llvm}");
+    }
+
+    for source in [
+        "object Config {}\nfun entry(): Unit {}",
+        "val state = 1\nfun entry(): Unit {}",
+        "const val STATE: Int = 1\nfun entry(): Unit {}",
+    ] {
+        let rejected = analyze(source);
+        assert!(rejected.names.diagnostics().is_empty());
+        assert!(rejected.typed.diagnostics().is_empty());
+        let error = match lower_scalar_file(
+            &rejected.sources,
+            &rejected.parsed,
+            &rejected.names,
+            &rejected.typed,
+            &rejected.owned,
+        ) {
+            Ok(_) => panic!("runtime-bearing roots remain outside this lowering slice"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        assert!(error.span.is_some());
+    }
+
+    let nominal_use = analyze(
+        "value class Wrapped(val item: Int)\n\
+         fun entry(): Unit { Wrapped(1) }",
+    );
+    let error = match lower_scalar_file(
+        &nominal_use.sources,
+        &nominal_use.parsed,
+        &nominal_use.names,
+        &nominal_use.typed,
+        &nominal_use.owned,
+    ) {
+        Ok(_) => panic!("constructor facts remain gated by SPEC-0183"),
+        Err(error) => error,
+    };
+    assert_eq!(
+        error.kind,
+        LoweringErrorKind::UnsupportedNode,
+        "{error:?}; source={:?}",
+        error
+            .span
+            .and_then(|span| nominal_use.sources.slice(span).ok())
+    );
+    assert!(error.span.is_some());
+}
+
+#[test]
 fn lowers_real_scalar_expression_functions_through_verified_ssa() {
     let analysis = analyze(
         "fun add(left: Int, right: Int): Int = left + right\n\

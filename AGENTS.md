@@ -22,6 +22,8 @@
 > 已提供非破坏性保守 formatter、TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析等待 guide 封闭 import 冲突与
 > 跨 package 可见性，`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
 > 类型。
+> SPEC-0185 已允许无模块初始化动作的 class/value class/interface/enum class 顶层声明与标量
+> entry 共存，但不表示 constructor、nominal operation 或具名 object runtime 已实现。
 > 已实现事实以 [`docs/architecture/README.md`](./docs/architecture/README.md) 为准。
 
 ---

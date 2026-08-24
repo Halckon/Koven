@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-185` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 class-family 契约](../guide/04-grammar-declarations-blocks.md#13-class-family-声明v020) 与 [Phase 4 roadmap](../guide/06-roadmap.md#phase-4llvm-代码生成) |
@@ -61,14 +61,14 @@
 
 ## 5. 验收标准
 
-- [ ] 带修饰符或无修饰符的普通 class/value class/interface/enum class roots 可与标量 entry 共存，
+- [x] 带修饰符或无修饰符的普通 class/value class/interface/enum class roots 可与标量 entry 共存，
       重复 lowering 产生相同 verified SSA/LLVM，且不出现 classifier 名称的伪 function/type。
-- [ ] native object API 可从同一 source 的显式 Unit entry 生成 Mach-O object；入口形状和输入
+- [x] native object API 可从同一 source 的显式 Unit entry 生成 Mach-O object；入口形状和输入
       analysis identity 规则保持不变。
-- [ ] `object`、顶层 variable/constant 仍以 `UnsupportedNode` 拒绝，native 失败不写 object。
-- [ ] 实际使用尚未接线的 nominal constructor/type 仍被 frontend deferred/diagnostic 或 lowering
+- [x] `object`、顶层 variable/constant 仍以 `UnsupportedNode` 拒绝，native 失败不写 object。
+- [x] 实际使用尚未接线的 nominal constructor/type 仍被 frontend deferred/diagnostic 或 lowering
       门禁拒绝，不因 type root 跳过而形成错误成功。
-- [ ] 受影响 codegen 窄测及 workspace 五项基线通过；Architecture、roadmap 与 Spec 只记录实际
+- [x] 受影响 codegen 窄测及 workspace 五项基线通过；Architecture、roadmap 与 Spec 只记录实际
       完成事实。
 
 ## 6. 技术方案与边界
@@ -81,10 +81,10 @@
 
 ## 7. 实施计划
 
-1. [ ] 收敛函数收集器的声明 root 分类 → 验证：四类 classifier pass，object/storage fail。
-2. [ ] 锁定 SSA/LLVM/object 与可达 nominal operation 门禁 → 验证：确定性文本、真实 object、失败
+1. [x] 收敛函数收集器的声明 root 分类 → 验证：四类 classifier pass，object/storage fail。
+2. [x] 锁定 SSA/LLVM/object 与可达 nominal operation 门禁 → 验证：确定性文本、真实 object、失败
    不落盘。
-3. [ ] 同步 Architecture/roadmap/Spec，运行 workspace 基线并审查 staged diff。
+3. [x] 同步 Architecture/roadmap/Spec，运行 workspace 基线并审查 staged diff。
 
 ## 8. 提交计划
 
@@ -102,3 +102,11 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | v0.28 已定义四类 type declaration；0020/0034 已完成 frontend/type 与标量 lowering；当前阻断来自 `collect_functions` 对所有非函数 root 的机械拒绝 |
+| `cargo test -p lang-codegen declarative_type_roots --lib` | 通过 | 两项定向测试覆盖四类 type root、确定性 SSA/LLVM、真实 object、object/storage/constructor 保守拒绝 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 | codegen 零 warning |
+| `cargo test -p lang-codegen --all-targets` | 通过 | 97 项测试通过，无失败或 ignored |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 所有 target 检查通过 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | 全部测试通过，无失败或 ignored |
+| `cargo build -p lang-cli` | 通过 | `kovenc` 构建成功 |

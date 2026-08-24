@@ -6,7 +6,7 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
     ownership_checking::OwnershipCheckedFile,
-    parser::{FunctionBody, FunctionForm, Item, ParsedFile},
+    parser::{ClassifierKind, FunctionBody, FunctionForm, Item, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{BuiltinType, CallableDescriptor, ParameterMode, TypeId, TypedFile},
 };
@@ -362,8 +362,20 @@ fn collect_functions(
             span: None,
         })?;
         let (item, span) = unwrap_modified(parsed, *root)?;
-        let Item::Function { name, .. } = &item else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
+        let name = match &item {
+            Item::Function { name, .. } => name,
+            Item::Classifier(declaration)
+                if matches!(
+                    declaration.kind,
+                    ClassifierKind::Class { .. }
+                        | ClassifierKind::ValueClass { .. }
+                        | ClassifierKind::Interface { .. }
+                        | ClassifierKind::EnumClass { .. }
+                ) =>
+            {
+                continue;
+            }
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, node.span())),
         };
         let name_span =
             present_name(*name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;

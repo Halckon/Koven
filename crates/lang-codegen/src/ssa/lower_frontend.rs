@@ -408,10 +408,20 @@ impl ExpressionLowerer<'_> {
         arguments: &[lang_frontend::parser::CallArgument],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let descriptor = self
-            .typed
-            .call(expression)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let descriptor = match self.typed.call(expression) {
+            Some(descriptor) => descriptor,
+            // 尚未封闭的 constructor 等 call family 使用 Error/Deferred 类型占位，但不会伪造
+            // CallDescriptor；这属于可预期的 source 边界，而非 typed 产物缺失内部事实。
+            None if self
+                .typed
+                .expression_type(expression)
+                .and_then(|ty| self.typed.types().get(ty))
+                .is_some_and(|kind| matches!(kind, TypeKind::Deferred(_) | TypeKind::Error)) =>
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            None => return Err(error(LoweringErrorKind::MissingFact, span)),
+        };
         if descriptor.aborts() {
             let [argument] = arguments else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
