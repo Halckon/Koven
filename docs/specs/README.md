@@ -202,7 +202,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`draft`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
+| [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`in-progress`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | 0034 | 把标量表达式和控制流 lower 到 LLVM | 0033；接受 LLVM / target ADR |
 | 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
 | 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |

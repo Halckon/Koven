@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-033` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与适用的已实现 frontend 契约 |
@@ -90,7 +90,7 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 
 ## 7. 实施计划
 
-1. [ ] 建立 SSA ID/type/origin/function/block/value model 与 debug rendering → 验证：model 单元测试。
+1. [x] 建立 SSA ID/type/origin/function/block/value model 与 debug rendering → 验证：model 单元测试。
 2. [ ] 实现结构、CFG、edge type 与 dominance verifier → 验证：结构/控制流正反矩阵。
 3. [ ] 实现 Copyable/MoveOnly consume/drop 与 block-edge 数据流 → 验证：线性所有权矩阵。
 4. [ ] 实现 root-place shared/exclusive loan begin/end 验证 → 验证：loan 冲突与跨 edge 矩阵。
@@ -115,4 +115,6 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-24 现状与边界审计 | 通过 | `lang-codegen` 只有空 crate；frontend 已提供 typed/ownership facts；ADR-0006 已封闭 IR 架构 |
-| 实现验收 | 未执行 | frontend 前置已完成，等待启动本 Spec |
+| 2026-08-24 实施门禁 | 通过 | SPEC-0174 已完成；依据持续 Goal 的站立授权进入 `in-progress` |
+| 2026-08-24 model/render 检查点 | 通过 | 建立隐藏 Program owner、module/function-owned ID、IR-local type/entity/operation/CFG model 与 source-anchored deterministic rendering；`cargo check -p lang-codegen --all-targets` 和 4 个 crate 窄测退出码 0 |
+| 实现验收 | 未执行 | 尚未完成 SPEC-0033 实施 |

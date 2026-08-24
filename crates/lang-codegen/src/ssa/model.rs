@@ -1,0 +1,738 @@
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fmt,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+use lang_frontend::source::Span;
+
+static NEXT_PROGRAM_OWNER: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct ProgramOwner(u64);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct ModuleId {
+    owner: ProgramOwner,
+    index: usize,
+}
+
+impl ModuleId {
+    pub(super) const fn index(self) -> usize {
+        self.index
+    }
+}
+
+impl fmt::Debug for ModuleId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Program owner identity only prevents cross-program ID mixing and is not stable output.
+        formatter
+            .debug_tuple("ModuleId")
+            .field(&self.index)
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct FunctionId {
+    module: ModuleId,
+    index: usize,
+}
+
+impl FunctionId {
+    pub(super) const fn module(self) -> ModuleId {
+        self.module
+    }
+
+    pub(super) const fn index(self) -> usize {
+        self.index
+    }
+}
+
+macro_rules! function_id {
+    ($name:ident) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub(super) struct $name {
+            function: FunctionId,
+            index: usize,
+        }
+
+        impl $name {
+            pub(super) const fn function(self) -> FunctionId {
+                self.function
+            }
+
+            pub(super) const fn index(self) -> usize {
+                self.index
+            }
+        }
+    };
+}
+
+function_id!(BlockId);
+function_id!(InstructionId);
+function_id!(ValueId);
+function_id!(PlaceId);
+function_id!(LoanId);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct SsaTypeId {
+    module: ModuleId,
+    index: usize,
+}
+
+impl SsaTypeId {
+    pub(super) const fn module(self) -> ModuleId {
+        self.module
+    }
+
+    pub(super) const fn index(self) -> usize {
+        self.index
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Origin {
+    Source(Span),
+    Synthetic { anchor: Span, reason: String },
+}
+
+impl Origin {
+    pub(super) const fn span(&self) -> Span {
+        match self {
+            Self::Source(span) | Self::Synthetic { anchor: span, .. } => *span,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Ownership {
+    Copyable,
+    MoveOnly,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum SsaTypeKind {
+    Unit,
+    Boolean,
+    Integer { bits: u16, signed: bool },
+    Opaque { name: String, ownership: Ownership },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum LoanKind {
+    Shared,
+    Exclusive,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum EntityType {
+    Value(SsaTypeId),
+    Place(SsaTypeId),
+    Loan { kind: LoanKind, target: SsaTypeId },
+}
+
+impl EntityType {
+    pub(super) const fn semantic_type(self) -> SsaTypeId {
+        match self {
+            Self::Value(ty) | Self::Place(ty) | Self::Loan { target: ty, .. } => ty,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) enum EntityId {
+    Value(ValueId),
+    Place(PlaceId),
+    Loan(LoanId),
+}
+
+impl EntityId {
+    pub(super) const fn function(self) -> FunctionId {
+        match self {
+            Self::Value(id) => id.function(),
+            Self::Place(id) => id.function(),
+            Self::Loan(id) => id.function(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Definition {
+    BlockParameter {
+        block: BlockId,
+        index: usize,
+    },
+    InstructionResult {
+        instruction: InstructionId,
+        index: usize,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct EntityData {
+    pub(super) ty: EntityType,
+    pub(super) definition: Definition,
+    pub(super) origin: Origin,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ScalarConstant {
+    Unit,
+    Boolean(bool),
+    Integer(i128),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Equal,
+    LessThan,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PlaceAccess {
+    Place(PlaceId),
+    Loan(LoanId),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Operation {
+    Constant(ScalarConstant),
+    Binary {
+        operator: BinaryOperator,
+        left: ValueId,
+        right: ValueId,
+    },
+    Copy {
+        source: ValueId,
+    },
+    Consume {
+        owner: ValueId,
+    },
+    RootPlace {
+        owner: ValueId,
+    },
+    BorrowBegin {
+        place: PlaceId,
+        kind: LoanKind,
+    },
+    BorrowEnd {
+        loan: LoanId,
+    },
+    Read {
+        source: PlaceAccess,
+    },
+    Mutate {
+        place: PlaceId,
+        value: ValueId,
+    },
+    Drop {
+        owner: ValueId,
+    },
+}
+
+impl Operation {
+    fn entities(&self) -> Vec<EntityId> {
+        match self {
+            Self::Constant(_) => Vec::new(),
+            Self::Binary { left, right, .. } => {
+                vec![EntityId::Value(*left), EntityId::Value(*right)]
+            }
+            Self::Copy { source } => vec![EntityId::Value(*source)],
+            Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
+                vec![EntityId::Value(*owner)]
+            }
+            Self::BorrowBegin { place, .. } => vec![EntityId::Place(*place)],
+            Self::BorrowEnd { loan } => vec![EntityId::Loan(*loan)],
+            Self::Read { source } => vec![match source {
+                PlaceAccess::Place(place) => EntityId::Place(*place),
+                PlaceAccess::Loan(loan) => EntityId::Loan(*loan),
+            }],
+            Self::Mutate { place, value } => {
+                vec![EntityId::Place(*place), EntityId::Value(*value)]
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Instruction {
+    pub(super) id: InstructionId,
+    pub(super) block: BlockId,
+    pub(super) operation: Operation,
+    pub(super) results: Vec<EntityId>,
+    pub(super) origin: Origin,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Edge {
+    pub(super) target: BlockId,
+    pub(super) arguments: Vec<EntityId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum TerminatorKind {
+    Branch(Edge),
+    Conditional {
+        condition: ValueId,
+        when_true: Edge,
+        when_false: Edge,
+    },
+    Return {
+        values: Vec<ValueId>,
+    },
+    Abort,
+}
+
+impl TerminatorKind {
+    fn entities(&self) -> Vec<EntityId> {
+        match self {
+            Self::Branch(edge) => edge.arguments.clone(),
+            Self::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                let mut entities = vec![EntityId::Value(*condition)];
+                entities.extend(when_true.arguments.iter().copied());
+                entities.extend(when_false.arguments.iter().copied());
+                entities
+            }
+            Self::Return { values } => values.iter().copied().map(EntityId::Value).collect(),
+            Self::Abort => Vec::new(),
+        }
+    }
+
+    fn targets(&self) -> Vec<BlockId> {
+        match self {
+            Self::Branch(edge) => vec![edge.target],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Self::Return { .. } | Self::Abort => Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Terminator {
+    pub(super) kind: TerminatorKind,
+    pub(super) origin: Origin,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Block {
+    pub(super) id: BlockId,
+    pub(super) parameters: Vec<EntityId>,
+    pub(super) instructions: Vec<InstructionId>,
+    pub(super) terminator: Option<Terminator>,
+    pub(super) origin: Origin,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Function {
+    pub(super) id: FunctionId,
+    pub(super) name: String,
+    pub(super) return_types: Vec<SsaTypeId>,
+    pub(super) blocks: Vec<Block>,
+    pub(super) instructions: Vec<Instruction>,
+    pub(super) values: Vec<EntityData>,
+    pub(super) places: Vec<EntityData>,
+    pub(super) loans: Vec<EntityData>,
+    pub(super) origin: Origin,
+}
+
+impl Function {
+    pub(super) const fn id(&self) -> FunctionId {
+        self.id
+    }
+
+    pub(super) fn entry_block(&self) -> Option<BlockId> {
+        self.blocks.first().map(|block| block.id)
+    }
+
+    pub(super) fn block(&self, id: BlockId) -> Option<&Block> {
+        (id.function() == self.id)
+            .then(|| self.blocks.get(id.index()))
+            .flatten()
+    }
+
+    pub(super) fn instruction(&self, id: InstructionId) -> Option<&Instruction> {
+        (id.function() == self.id)
+            .then(|| self.instructions.get(id.index()))
+            .flatten()
+    }
+
+    pub(super) fn entity(&self, id: EntityId) -> Option<&EntityData> {
+        if id.function() != self.id {
+            return None;
+        }
+        match id {
+            EntityId::Value(id) => self.values.get(id.index()),
+            EntityId::Place(id) => self.places.get(id.index()),
+            EntityId::Loan(id) => self.loans.get(id.index()),
+        }
+    }
+
+    pub(super) fn add_block(
+        &mut self,
+        parameter_types: Vec<EntityType>,
+        origin: Origin,
+    ) -> Result<BlockId, ModelError> {
+        for ty in &parameter_types {
+            self.check_type_owner(*ty)?;
+        }
+        let id = BlockId {
+            function: self.id,
+            index: self.blocks.len(),
+        };
+        let parameters = parameter_types
+            .into_iter()
+            .enumerate()
+            .map(|(index, ty)| {
+                self.allocate_entity(
+                    ty,
+                    Definition::BlockParameter { block: id, index },
+                    origin.clone(),
+                )
+            })
+            .collect();
+        self.blocks.push(Block {
+            id,
+            parameters,
+            instructions: Vec::new(),
+            terminator: None,
+            origin,
+        });
+        Ok(id)
+    }
+
+    pub(super) fn append_instruction(
+        &mut self,
+        block: BlockId,
+        operation: Operation,
+        result_types: Vec<EntityType>,
+        origin: Origin,
+    ) -> Result<(InstructionId, Vec<EntityId>), ModelError> {
+        self.check_block(block)?;
+        if self.blocks[block.index()].terminator.is_some() {
+            return Err(ModelError::BlockAlreadyTerminated { block });
+        }
+        for entity in operation.entities() {
+            self.check_entity(entity)?;
+        }
+        for ty in &result_types {
+            self.check_type_owner(*ty)?;
+        }
+        let id = InstructionId {
+            function: self.id,
+            index: self.instructions.len(),
+        };
+        let results = result_types
+            .into_iter()
+            .enumerate()
+            .map(|(index, ty)| {
+                self.allocate_entity(
+                    ty,
+                    Definition::InstructionResult {
+                        instruction: id,
+                        index,
+                    },
+                    origin.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        self.instructions.push(Instruction {
+            id,
+            block,
+            operation,
+            results: results.clone(),
+            origin,
+        });
+        self.blocks[block.index()].instructions.push(id);
+        Ok((id, results))
+    }
+
+    pub(super) fn set_terminator(
+        &mut self,
+        block: BlockId,
+        kind: TerminatorKind,
+        origin: Origin,
+    ) -> Result<(), ModelError> {
+        self.check_block(block)?;
+        if self.blocks[block.index()].terminator.is_some() {
+            return Err(ModelError::TerminatorAlreadySet { block });
+        }
+        for target in kind.targets() {
+            self.check_block(target)?;
+        }
+        for entity in kind.entities() {
+            self.check_entity(entity)?;
+        }
+        self.blocks[block.index()].terminator = Some(Terminator { kind, origin });
+        Ok(())
+    }
+
+    fn allocate_entity(
+        &mut self,
+        ty: EntityType,
+        definition: Definition,
+        origin: Origin,
+    ) -> EntityId {
+        let data = EntityData {
+            ty,
+            definition,
+            origin,
+        };
+        match ty {
+            EntityType::Value(_) => {
+                let id = ValueId {
+                    function: self.id,
+                    index: self.values.len(),
+                };
+                self.values.push(data);
+                EntityId::Value(id)
+            }
+            EntityType::Place(_) => {
+                let id = PlaceId {
+                    function: self.id,
+                    index: self.places.len(),
+                };
+                self.places.push(data);
+                EntityId::Place(id)
+            }
+            EntityType::Loan { .. } => {
+                let id = LoanId {
+                    function: self.id,
+                    index: self.loans.len(),
+                };
+                self.loans.push(data);
+                EntityId::Loan(id)
+            }
+        }
+    }
+
+    fn check_type_owner(&self, ty: EntityType) -> Result<(), ModelError> {
+        let ty = ty.semantic_type();
+        if ty.module() == self.id.module() {
+            Ok(())
+        } else {
+            Err(ModelError::WrongTypeOwner {
+                expected: self.id.module(),
+                actual: ty.module(),
+            })
+        }
+    }
+
+    fn check_block(&self, block: BlockId) -> Result<(), ModelError> {
+        if block.function() != self.id {
+            return Err(ModelError::WrongFunctionOwner {
+                expected: self.id,
+                actual: block.function(),
+            });
+        }
+        self.blocks
+            .get(block.index())
+            .map(|_| ())
+            .ok_or(ModelError::UnknownBlock { block })
+    }
+
+    fn check_entity(&self, entity: EntityId) -> Result<(), ModelError> {
+        if entity.function() != self.id {
+            return Err(ModelError::WrongFunctionOwner {
+                expected: self.id,
+                actual: entity.function(),
+            });
+        }
+        self.entity(entity)
+            .map(|_| ())
+            .ok_or(ModelError::UnknownEntity { entity })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct Module {
+    pub(super) id: ModuleId,
+    pub(super) name: String,
+    pub(super) types: Vec<SsaTypeKind>,
+    type_ids: BTreeMap<SsaTypeKind, SsaTypeId>,
+    pub(super) functions: Vec<Function>,
+}
+
+impl Module {
+    pub(super) const fn id(&self) -> ModuleId {
+        self.id
+    }
+
+    pub(super) fn intern_type(&mut self, kind: SsaTypeKind) -> SsaTypeId {
+        if let Some(id) = self.type_ids.get(&kind).copied() {
+            return id;
+        }
+        let id = SsaTypeId {
+            module: self.id,
+            index: self.types.len(),
+        };
+        self.types.push(kind.clone());
+        self.type_ids.insert(kind, id);
+        id
+    }
+
+    pub(super) fn type_kind(&self, id: SsaTypeId) -> Option<&SsaTypeKind> {
+        (id.module() == self.id)
+            .then(|| self.types.get(id.index()))
+            .flatten()
+    }
+
+    pub(super) fn add_function(
+        &mut self,
+        name: impl Into<String>,
+        return_types: Vec<SsaTypeId>,
+        origin: Origin,
+    ) -> Result<FunctionId, ModelError> {
+        for ty in &return_types {
+            if ty.module() != self.id {
+                return Err(ModelError::WrongTypeOwner {
+                    expected: self.id,
+                    actual: ty.module(),
+                });
+            }
+            if self.type_kind(*ty).is_none() {
+                return Err(ModelError::UnknownType { ty: *ty });
+            }
+        }
+        let id = FunctionId {
+            module: self.id,
+            index: self.functions.len(),
+        };
+        self.functions.push(Function {
+            id,
+            name: name.into(),
+            return_types,
+            blocks: Vec::new(),
+            instructions: Vec::new(),
+            values: Vec::new(),
+            places: Vec::new(),
+            loans: Vec::new(),
+            origin,
+        });
+        Ok(id)
+    }
+
+    pub(super) fn function(&self, id: FunctionId) -> Option<&Function> {
+        (id.module() == self.id)
+            .then(|| self.functions.get(id.index()))
+            .flatten()
+    }
+
+    pub(super) fn function_mut(&mut self, id: FunctionId) -> Option<&mut Function> {
+        (id.module() == self.id)
+            .then(|| self.functions.get_mut(id.index()))
+            .flatten()
+    }
+}
+
+pub(super) struct Program {
+    owner: ProgramOwner,
+    pub(super) modules: Vec<Module>,
+}
+
+impl Default for Program {
+    fn default() -> Self {
+        Self {
+            owner: ProgramOwner(NEXT_PROGRAM_OWNER.fetch_add(1, Ordering::Relaxed)),
+            modules: Vec::new(),
+        }
+    }
+}
+
+impl Program {
+    pub(super) fn add_module(&mut self, name: impl Into<String>) -> ModuleId {
+        let id = ModuleId {
+            owner: self.owner,
+            index: self.modules.len(),
+        };
+        self.modules.push(Module {
+            id,
+            name: name.into(),
+            types: Vec::new(),
+            type_ids: BTreeMap::new(),
+            functions: Vec::new(),
+        });
+        id
+    }
+
+    pub(super) fn module(&self, id: ModuleId) -> Option<&Module> {
+        (id.owner == self.owner)
+            .then(|| self.modules.get(id.index()))
+            .flatten()
+    }
+
+    pub(super) fn module_mut(&mut self, id: ModuleId) -> Option<&mut Module> {
+        (id.owner == self.owner)
+            .then(|| self.modules.get_mut(id.index()))
+            .flatten()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ModelError {
+    WrongTypeOwner {
+        expected: ModuleId,
+        actual: ModuleId,
+    },
+    WrongFunctionOwner {
+        expected: FunctionId,
+        actual: FunctionId,
+    },
+    UnknownBlock {
+        block: BlockId,
+    },
+    UnknownType {
+        ty: SsaTypeId,
+    },
+    UnknownEntity {
+        entity: EntityId,
+    },
+    BlockAlreadyTerminated {
+        block: BlockId,
+    },
+    TerminatorAlreadySet {
+        block: BlockId,
+    },
+}
+
+impl fmt::Display for ModelError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WrongTypeOwner { expected, actual } => {
+                write!(
+                    formatter,
+                    "type belongs to {actual:?}, expected {expected:?}"
+                )
+            }
+            Self::WrongFunctionOwner { expected, actual } => {
+                write!(
+                    formatter,
+                    "entity belongs to {actual:?}, expected {expected:?}"
+                )
+            }
+            Self::UnknownBlock { block } => write!(formatter, "unknown block {block:?}"),
+            Self::UnknownType { ty } => write!(formatter, "unknown type {ty:?}"),
+            Self::UnknownEntity { entity } => write!(formatter, "unknown entity {entity:?}"),
+            Self::BlockAlreadyTerminated { block } => {
+                write!(formatter, "cannot append to terminated block {block:?}")
+            }
+            Self::TerminatorAlreadySet { block } => {
+                write!(formatter, "block {block:?} already has a terminator")
+            }
+        }
+    }
+}
+
+impl Error for ModelError {}

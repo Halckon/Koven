@@ -114,8 +114,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   codegen 实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
-  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 的 frontend 前置已完成，仍为待启动的 `draft`，
-  `lang-codegen` 当前尚无 SSA model 或 verifier；
+  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已进入 `in-progress`：`lang-codegen` 已建立
+  crate-private、owner-aware 的索引式 SSA model、IR-local type/origin 与确定性 debug rendering，
+  结构、CFG、dominance、所有权和 loan verifier 仍待后续检查点完成；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
