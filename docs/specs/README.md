@@ -226,8 +226,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0042](./0042-standard-library-bootstrap.md) | 用编译器构建并运行 `lang-std` 目标语言源码（`done`） | 0039 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0043](./0043-standard-error-abort.md) | 发布标准 `error()` identity 并接入既有 Abort（`done`） | 0039、0042 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
-| 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035 |
-| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035 |
+| 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035、0185 `done`；0183、0184；新 guide 解决硬关键字 `value` 与规范示例 `Result.Ok(value: T)` 的冲突 |
+| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035、0185 `done`；0183、0184 |
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045 |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |

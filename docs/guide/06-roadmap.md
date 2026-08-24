@@ -400,9 +400,13 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
-- [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）
+- [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
+      完整运行实现等待候选 SPEC-0183/0184 发布并 lower constructor facts。当前规范同时把
+      `value` 列为硬关键字，却在核心 `Result` 声明中使用 `Ok(value: T)`；后续 guide 必须在
+      调整关键字分类与更改公共 payload 名称之间作出明确选择，不能由实现静默修补
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class，参数声明端使用 `own` 并取得传入值所有权；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）
+      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待候选 SPEC-0183/0184 的
+      nominal/intrinsic constructor facts 与 aggregate/heap-owner lowering
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；

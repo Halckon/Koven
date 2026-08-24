@@ -487,6 +487,9 @@ cargo build -p lang-cli
    调试映射仍待对应 guide/Spec/ADR。
 4. LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target 已由 ADR-0007 固定；多目标矩阵、机器
    可读诊断协议、包清单与锁文件 schema 仍未确定。
+5. 现行 guide 把 `value` 列为硬关键字，但核心 `Result` 声明仍写作 `Ok(value: T)`；
+   SPEC-0044 必须等待后续明确启用的 guide 选择调整关键字分类或更改公共 payload 名称，
+   实现不得自行把其中一方当作笔误。
 
 ---
 
