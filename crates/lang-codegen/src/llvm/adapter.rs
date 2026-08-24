@@ -318,6 +318,13 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             Operation::DirectCall { callee, arguments } => {
                 self.lower_call(*callee, arguments, &results)?;
             }
+            Operation::FunctionAddress { .. }
+            | Operation::ClosureConstruct { .. }
+            | Operation::CallableInvoke { .. } => {
+                return Err(unsupported(
+                    "closure LLVM lowering waits for the next SPEC-0038 slice",
+                ));
+            }
             Operation::AggregateConstruct { aggregate, fields } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count(

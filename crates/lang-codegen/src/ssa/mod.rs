@@ -1,5 +1,6 @@
 //! Target-independent typed SSA model、验证与确定性调试表示。
 
+mod closure;
 mod lower_frontend;
 pub(crate) mod model;
 mod render;
@@ -11,6 +12,8 @@ mod verify_types;
 
 #[cfg(test)]
 mod aggregate_operation_tests;
+#[cfg(test)]
+mod closure_operation_tests;
 #[cfg(test)]
 mod container_operation_tests;
 #[cfg(test)]

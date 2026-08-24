@@ -214,7 +214,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
 | 0184 | 把 0183 的 nominal/enum/Box constructor、projection、destructuring 与 drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA | 0183、0035 `done`；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
-| 0038 | 生成捕获闭包环境和无捕获函数指针 | 0034、0032 |
+| [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`in-progress`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | 0039 | 生成 object、链接 `main` 并把 `error()` 映射到 abort | 0035、0038；接受 linker 决策 |
 | 0040 | 生成 DWARF 并用首个支持平台的调试器验收 | 0039；接受 debug mapping ADR |
 | 0041 | 提供用户可见 `extern` FFI | 0039；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |

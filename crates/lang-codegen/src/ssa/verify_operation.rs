@@ -2,7 +2,8 @@
 
 use super::{
     model::{
-        BinaryOperator, ComparisonOperator, EntityId, EntityType, Function, Instruction, Module,
+        BinaryOperator, CallableSignature, ClosureCaptureMode, ClosureCaptureOperand,
+        ComparisonOperator, EntityId, EntityType, Function, FunctionId, Instruction, Module,
         Operation, PlaceAccess, ScalarConstant, SsaTypeId, SsaTypeKind, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
@@ -41,6 +42,18 @@ pub(super) fn verify_operation(
         Operation::DirectCall { callee, arguments } => {
             direct_call_contract(module, function, *callee, arguments, &results)
         }
+        Operation::FunctionAddress { target } => {
+            function_address_contract(module, *target, &results)
+        }
+        Operation::ClosureConstruct {
+            closure,
+            thunk,
+            captures,
+        } => closure_construct_contract(module, function, *closure, *thunk, captures, &results),
+        Operation::CallableInvoke {
+            callable,
+            arguments,
+        } => callable_invoke_contract(module, function, *callable, arguments, &results),
         Operation::AggregateConstruct { aggregate, fields } => {
             aggregate_construct_contract(module, function, *aggregate, fields, &results)
         }
@@ -447,6 +460,103 @@ fn direct_call_contract(
     arguments_match && results_match
 }
 
+fn function_address_contract(module: &Module, target: FunctionId, results: &[EntityType]) -> bool {
+    let Some(result) = single_value_result(results) else {
+        return false;
+    };
+    let Some(SsaTypeKind::FunctionPointer { signature }) = module.type_kind(result) else {
+        return false;
+    };
+    function_matches_signature(module, target, signature, None)
+}
+
+fn closure_construct_contract(
+    module: &Module,
+    function: &Function,
+    closure: SsaTypeId,
+    thunk: FunctionId,
+    operands: &[ClosureCaptureOperand],
+    results: &[EntityType],
+) -> bool {
+    let Some(SsaTypeKind::ConcreteClosure {
+        signature,
+        environment,
+        captures,
+        ..
+    }) = module.type_kind(closure)
+    else {
+        return false;
+    };
+    if single_value_result(results) != Some(closure)
+        || operands.len() != captures.len()
+        // Shared capture lifetime dependencies are enabled in SPEC-0038's third slice.
+        || captures
+            .iter()
+            .any(|capture| capture.mode == ClosureCaptureMode::Shared)
+    {
+        return false;
+    }
+    let captures_match = operands.iter().zip(captures).all(|(operand, capture)| {
+        matches!(
+            (operand, capture.mode),
+            (ClosureCaptureOperand::Owned(value), ClosureCaptureMode::Owned)
+                if value_type(function, *value) == Some(capture.ty)
+        )
+    });
+    captures_match && function_matches_signature(module, thunk, signature, Some(*environment))
+}
+
+fn callable_invoke_contract(
+    module: &Module,
+    function: &Function,
+    callable: ValueId,
+    arguments: &[ValueId],
+    results: &[EntityType],
+) -> bool {
+    let Some(signature) =
+        value_type(function, callable).and_then(|ty| module.callable_signature(ty))
+    else {
+        return false;
+    };
+    arguments.len() == signature.parameters.len()
+        && arguments
+            .iter()
+            .zip(&signature.parameters)
+            .all(|(argument, expected)| value_type(function, *argument) == Some(*expected))
+        && results
+            == signature
+                .returns
+                .iter()
+                .copied()
+                .map(EntityType::Value)
+                .collect::<Vec<_>>()
+}
+
+fn function_matches_signature(
+    module: &Module,
+    target: FunctionId,
+    signature: &CallableSignature,
+    environment: Option<SsaTypeId>,
+) -> bool {
+    let Some(function) = module.function(target) else {
+        return false;
+    };
+    let Some(entry) = function.blocks.first() else {
+        return false;
+    };
+    let mut expected = environment.into_iter().collect::<Vec<_>>();
+    expected.extend(&signature.parameters);
+    entry.parameters.len() == expected.len()
+        && entry
+            .parameters
+            .iter()
+            .zip(expected)
+            .all(|(parameter, ty)| {
+                function.entity(*parameter).map(|data| data.ty) == Some(EntityType::Value(ty))
+            })
+        && function.return_types == signature.returns
+}
+
 fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     if !(1..=128).contains(&bits) {
         return false;
@@ -481,6 +591,9 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::HeapOwner { .. }
                 | SsaTypeKind::SequentialContainer { .. }
                 | SsaTypeKind::ZeroSized { .. }
+                | SsaTypeKind::SharedReference { .. }
+                | SsaTypeKind::FunctionPointer { .. }
+                | SsaTypeKind::ConcreteClosure { .. }
         )
     )
 }

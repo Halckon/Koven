@@ -29,6 +29,10 @@ drop/free 后端基元；
 SPEC-0036 已完成顺序容器后端：container kind/element type、完整 construct/generate、length、
 checked element-place、replace 与 drop 的 SSA/verifier，以及固定 header、连续缓冲区、
 checked-index、replace/drop 与 MoveOnly ZST runtime 均已落地；
+SPEC-0038 已开始建立具体闭包后端，第一片已加入 function-pointer/concrete-closure/shared-reference
+IR-local type、owned/shared capture layout identity，以及 function-address、owned formation、
+非消费式 invoke 与 drop 的 SSA operation/verifier；shared formation 在 loan-owner 依赖完成前仍
+由 operation contract 明确拒绝；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -201,6 +205,14 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   container drop 对 MoveOnly 元素按 logical length 逆序调用 glue，Copyable 元素跳过该循环，
   最后只对真实非空 allocation 唯一 `free`。IR-local `ZeroSized` proof type 用于锁定 MoveOnly
   ZST 的逻辑析构次数：不形成零 stride GEP/load/store，也不调用 `malloc`/`free`；
+- [ADR-0009](../adr/0009-concrete-closure-internal-abi.md) 已接受 function pointer 与 inline
+  environment 的 concrete closure ABI：无捕获值使用裸 function pointer，capturing closure
+  使用不同 concrete identity，禁止隐式 heap/type-erased fat pointer。SPEC-0038 第一片已在
+  typed SSA 中实现 signature、capture mode/type 与 concrete environment identity；function
+  address 精确匹配普通 target，closure formation 精确匹配 environment-first thunk，invoke
+  只读取 callable owner而不消费它。owned MoveOnly capture 在 formation 时唯一消费，Copyable
+  capture 保持可用；shared capture type/layout 已可表达，但在 verifier 尚未把 loan 随 closure
+  owner/CFG transfer 绑定前不允许形成可执行 closure；LLVM layout/invoke/drop 仍属后续切片；
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

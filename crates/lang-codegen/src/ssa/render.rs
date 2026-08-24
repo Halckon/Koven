@@ -1,9 +1,10 @@
 use std::fmt::{self, Write};
 
 use super::model::{
-    BinaryOperator, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType,
-    Function, LoanKind, Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId,
-    SsaTypeKind, TerminatorKind,
+    BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureMode,
+    ClosureCaptureOperand, ComparisonOperator, Edge, EntityId, EntityType, Function, LoanKind,
+    Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, SsaTypeKind,
+    TerminatorKind,
 };
 
 /// 生成只用于调试和测试的确定性 SSA 文本。
@@ -82,7 +83,48 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             output.push('>');
             Ok(())
         }
+        SsaTypeKind::SharedReference { target } => {
+            output.write_str("shared_ref<")?;
+            write_type_id(output, *target)?;
+            output.push('>');
+            Ok(())
+        }
+        SsaTypeKind::FunctionPointer { signature } => {
+            output.write_str("function_pointer ")?;
+            write_callable_signature(output, signature)
+        }
+        SsaTypeKind::ConcreteClosure {
+            name,
+            signature,
+            environment,
+            captures,
+        } => {
+            write!(output, "closure {name:?} env ")?;
+            write_type_id(output, *environment)?;
+            output.write_str(" captures (")?;
+            for (index, capture) in captures.iter().enumerate() {
+                if index != 0 {
+                    output.write_str(", ")?;
+                }
+                output.write_str(match capture.mode {
+                    ClosureCaptureMode::Shared => "shared ",
+                    ClosureCaptureMode::Owned => "owned ",
+                })?;
+                write_type_id(output, capture.ty)?;
+            }
+            output.write_str(") ")?;
+            write_callable_signature(output, signature)
+        }
     }
+}
+
+fn write_callable_signature(output: &mut String, signature: &CallableSignature) -> fmt::Result {
+    output.push('(');
+    write_type_ids(output, &signature.parameters)?;
+    output.write_str(") -> (")?;
+    write_type_ids(output, &signature.returns)?;
+    output.push(')');
+    Ok(())
 }
 
 fn write_function(output: &mut String, function: &Function) -> fmt::Result {
@@ -277,6 +319,51 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::DirectCall { callee, arguments } => {
             write!(output, "call @f{}(", callee.index())?;
+            let arguments = arguments
+                .iter()
+                .copied()
+                .map(EntityId::Value)
+                .collect::<Vec<_>>();
+            write_entity_ids(output, &arguments)?;
+            output.push(')');
+            Ok(())
+        }
+        Operation::FunctionAddress { target } => {
+            write!(output, "function_address @f{}", target.index())
+        }
+        Operation::ClosureConstruct {
+            closure,
+            thunk,
+            captures,
+        } => {
+            output.write_str("closure.construct ")?;
+            write_type_id(output, *closure)?;
+            write!(output, ", @f{}(", thunk.index())?;
+            for (index, capture) in captures.iter().enumerate() {
+                if index != 0 {
+                    output.write_str(", ")?;
+                }
+                match capture {
+                    ClosureCaptureOperand::Shared(loan) => {
+                        output.write_str("shared ")?;
+                        write_entity_id(output, EntityId::Loan(*loan))?;
+                    }
+                    ClosureCaptureOperand::Owned(value) => {
+                        output.write_str("owned ")?;
+                        write_entity_id(output, EntityId::Value(*value))?;
+                    }
+                }
+            }
+            output.push(')');
+            Ok(())
+        }
+        Operation::CallableInvoke {
+            callable,
+            arguments,
+        } => {
+            output.write_str("invoke ")?;
+            write_entity_id(output, EntityId::Value(*callable))?;
+            output.push('(');
             let arguments = arguments
                 .iter()
                 .copied()

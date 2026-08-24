@@ -119,6 +119,24 @@ pub(crate) enum SequentialContainerKind {
     MutableList,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CallableSignature {
+    pub(crate) parameters: Vec<SsaTypeId>,
+    pub(crate) returns: Vec<SsaTypeId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ClosureCaptureMode {
+    Shared,
+    Owned,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ClosureCaptureType {
+    pub(crate) mode: ClosureCaptureMode,
+    pub(crate) ty: SsaTypeId,
+}
+
 impl SequentialContainerKind {
     pub(crate) const fn elements_are_mutable(self) -> bool {
         matches!(self, Self::Array | Self::MutableList)
@@ -153,6 +171,18 @@ pub(crate) enum SsaTypeKind {
     SequentialContainer {
         kind: SequentialContainerKind,
         element: SsaTypeId,
+    },
+    SharedReference {
+        target: SsaTypeId,
+    },
+    FunctionPointer {
+        signature: CallableSignature,
+    },
+    ConcreteClosure {
+        name: String,
+        signature: CallableSignature,
+        environment: SsaTypeId,
+        captures: Vec<ClosureCaptureType>,
     },
 }
 
@@ -254,6 +284,12 @@ pub(crate) enum PlaceAccess {
     Loan(LoanId),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ClosureCaptureOperand {
+    Shared(LoanId),
+    Owned(ValueId),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Operation {
     Constant(ScalarConstant),
@@ -280,6 +316,18 @@ pub(crate) enum Operation {
     },
     DirectCall {
         callee: FunctionId,
+        arguments: Vec<ValueId>,
+    },
+    FunctionAddress {
+        target: FunctionId,
+    },
+    ClosureConstruct {
+        closure: SsaTypeId,
+        thunk: FunctionId,
+        captures: Vec<ClosureCaptureOperand>,
+    },
+    CallableInvoke {
+        callable: ValueId,
         arguments: Vec<ValueId>,
     },
     AggregateConstruct {
@@ -364,6 +412,22 @@ impl Operation {
             }
             Self::DirectCall { arguments, .. } => {
                 arguments.iter().copied().map(EntityId::Value).collect()
+            }
+            Self::FunctionAddress { .. } => Vec::new(),
+            Self::ClosureConstruct { captures, .. } => captures
+                .iter()
+                .map(|capture| match capture {
+                    ClosureCaptureOperand::Shared(loan) => EntityId::Loan(*loan),
+                    ClosureCaptureOperand::Owned(value) => EntityId::Value(*value),
+                })
+                .collect(),
+            Self::CallableInvoke {
+                callable,
+                arguments,
+            } => {
+                let mut entities = vec![EntityId::Value(*callable)];
+                entities.extend(arguments.iter().copied().map(EntityId::Value));
+                entities
             }
             Self::AggregateConstruct { fields, .. } => {
                 fields.iter().copied().map(EntityId::Value).collect()
@@ -853,6 +917,9 @@ pub(crate) enum ModelError {
     ExpectedAggregate {
         ty: SsaTypeId,
     },
+    EmptyClosureCaptures,
+    InvalidCallableReturnArity,
+    InvalidClosureEnvironment,
     TypeAlreadyDefined {
         ty: SsaTypeId,
     },
@@ -890,6 +957,21 @@ impl fmt::Display for ModelError {
             }
             Self::ExpectedHeapOwner { ty } => write!(formatter, "type {ty:?} is not a heap owner"),
             Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
+            Self::EmptyClosureCaptures => {
+                write!(formatter, "concrete closure must capture a value")
+            }
+            Self::InvalidCallableReturnArity => {
+                write!(
+                    formatter,
+                    "callable signature supports at most one return type"
+                )
+            }
+            Self::InvalidClosureEnvironment => {
+                write!(
+                    formatter,
+                    "closure environment fields do not match its captures"
+                )
+            }
             Self::TypeAlreadyDefined { ty } => write!(formatter, "type {ty:?} is already defined"),
             Self::UnknownEntity { entity } => write!(formatter, "unknown entity {entity:?}"),
             Self::BlockAlreadyTerminated { block } => {

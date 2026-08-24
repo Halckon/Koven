@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod closure;
+
 use super::{
     model::{
         BlockId, Definition, Edge, EntityId, EntityType, Function, LoanId, LoanKind, Module,
@@ -196,6 +198,20 @@ fn apply_operation(
                     errors,
                 );
             }
+        }
+        Operation::FunctionAddress { .. } => {}
+        Operation::ClosureConstruct { captures, .. } => {
+            closure::apply_construct(
+                module, function, captures, aliases, state, location, origin, errors,
+            );
+        }
+        Operation::CallableInvoke {
+            callable,
+            arguments,
+        } => {
+            closure::apply_invoke(
+                module, function, *callable, arguments, aliases, state, location, origin, errors,
+            );
         }
         Operation::AggregateConstruct { fields, .. } => {
             for field in fields {

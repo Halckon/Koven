@@ -61,6 +61,9 @@ impl<'ctx> TypeMap<'ctx> {
                     Some(aggregate.into())
                 }
                 SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
+                SsaTypeKind::SharedReference { .. } | SsaTypeKind::FunctionPointer { .. } => {
+                    Some(pointer.into())
+                }
                 SsaTypeKind::SequentialContainer { kind, .. } => {
                     let container =
                         context.opaque_struct_type(&format!("koven.container.t{index}"));
@@ -77,7 +80,9 @@ impl<'ctx> TypeMap<'ctx> {
                     zst.set_body(&[], false);
                     Some(zst.into())
                 }
-                SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
+                SsaTypeKind::Unit
+                | SsaTypeKind::Opaque { .. }
+                | SsaTypeKind::ConcreteClosure { .. } => None,
             };
             if let Some(ty) = ty {
                 types.insert(id, ty);

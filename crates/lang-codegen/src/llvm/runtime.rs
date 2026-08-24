@@ -604,6 +604,17 @@ impl RuntimeRequirements {
                 ));
             }
             Some(SsaTypeKind::ZeroSized { .. }) => {}
+            Some(SsaTypeKind::FunctionPointer { .. }) => {}
+            Some(SsaTypeKind::ConcreteClosure { .. }) => {
+                return Err(LlvmAdapterError::Unsupported(
+                    "closure drop glue waits for the next SPEC-0038 slice".to_owned(),
+                ));
+            }
+            Some(SsaTypeKind::SharedReference { .. }) => {
+                return Err(LlvmAdapterError::InvalidSsa(
+                    "shared reference cannot enter owned drop glue collection".to_owned(),
+                ));
+            }
             Some(SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. }) | None => {
                 return Err(LlvmAdapterError::InvalidSsa(
                     "Copyable 或未知类型进入 drop glue 收集".to_owned(),

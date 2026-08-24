@@ -80,11 +80,15 @@ impl Module {
             SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
                 Some(Ownership::Copyable)
             }
+            SsaTypeKind::SharedReference { .. } => Some(Ownership::Copyable),
             SsaTypeKind::Opaque { ownership, .. }
             | SsaTypeKind::ZeroSized { ownership, .. }
             | SsaTypeKind::Aggregate { ownership, .. } => Some(*ownership),
             SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
+            SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {
+                Some(Ownership::MoveOnly)
+            }
         }
     }
 
@@ -137,7 +141,7 @@ impl Module {
         Ok(ownership)
     }
 
-    fn check_new_type_name(&self, name: &str) -> Result<(), ModelError> {
+    pub(super) fn check_new_type_name(&self, name: &str) -> Result<(), ModelError> {
         if name.is_empty() {
             return Err(ModelError::EmptyTypeName);
         }
@@ -149,7 +153,7 @@ impl Module {
         Ok(())
     }
 
-    fn push_named_type(&mut self, name: String, kind: SsaTypeKind) -> SsaTypeId {
+    pub(super) fn push_named_type(&mut self, name: String, kind: SsaTypeKind) -> SsaTypeId {
         let id = SsaTypeId {
             module: self.id,
             index: self.types.len(),
@@ -159,7 +163,7 @@ impl Module {
         id
     }
 
-    fn check_type_id(&self, ty: SsaTypeId) -> Result<(), ModelError> {
+    pub(super) fn check_type_id(&self, ty: SsaTypeId) -> Result<(), ModelError> {
         if ty.module() != self.id {
             return Err(ModelError::WrongTypeOwner {
                 expected: self.id,

@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    model::{Module, Ownership, SsaTypeId, SsaTypeKind},
+    model::{CallableSignature, ClosureCaptureMode, Module, Ownership, SsaTypeId, SsaTypeKind},
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
 
@@ -45,7 +45,9 @@ fn verify_named_identity(
     errors: &mut Vec<VerifyError>,
 ) {
     let name = match kind {
-        SsaTypeKind::Aggregate { name, .. } | SsaTypeKind::HeapOwner { name, .. } => name,
+        SsaTypeKind::Aggregate { name, .. }
+        | SsaTypeKind::HeapOwner { name, .. }
+        | SsaTypeKind::ConcreteClosure { name, .. } => name,
         _ => return,
     };
     if name.is_empty() {
@@ -126,6 +128,62 @@ fn verify_type_definition(
                 );
             }
         }
+        SsaTypeKind::SharedReference { target } => {
+            if target.module() != module.id
+                || module.type_kind(*target).is_none()
+                || !module.type_is_defined(*target)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "shared reference target must be defined in the same module",
+                );
+            }
+        }
+        SsaTypeKind::FunctionPointer { signature } => {
+            verify_callable_signature(module, id, signature, errors);
+        }
+        SsaTypeKind::ConcreteClosure {
+            signature,
+            environment,
+            captures,
+            ..
+        } => {
+            verify_callable_signature(module, id, signature, errors);
+            if captures.is_empty() {
+                push_type_error(
+                    errors,
+                    id,
+                    "concrete closure must have at least one capture",
+                );
+            }
+            let Some(fields) = module.aggregate_fields(*environment) else {
+                push_type_error(errors, id, "closure environment must be a local aggregate");
+                return;
+            };
+            if fields.len() != captures.len() {
+                push_type_error(errors, id, "closure environment must match capture slots");
+            } else {
+                for (field, capture) in fields.iter().zip(captures) {
+                    let expected = match capture.mode {
+                        ClosureCaptureMode::Owned => Some(capture.ty),
+                        ClosureCaptureMode::Shared => {
+                            module.types.iter().enumerate().find_map(|(index, kind)| {
+                                (*kind == SsaTypeKind::SharedReference { target: capture.ty })
+                                    .then_some(SsaTypeId {
+                                        module: module.id,
+                                        index,
+                                    })
+                            })
+                        }
+                    };
+                    if expected != Some(*field) {
+                        push_type_error(errors, id, "closure environment must match capture slots");
+                        break;
+                    }
+                }
+            }
+        }
         SsaTypeKind::Unit
         | SsaTypeKind::Boolean
         | SsaTypeKind::Integer { .. }
@@ -134,17 +192,52 @@ fn verify_type_definition(
     }
 }
 
+fn verify_callable_signature(
+    module: &Module,
+    id: SsaTypeId,
+    signature: &CallableSignature,
+    errors: &mut Vec<VerifyError>,
+) {
+    if signature.returns.len() > 1 {
+        push_type_error(
+            errors,
+            id,
+            "callable signature supports at most one return type",
+        );
+    }
+    for ty in signature.parameters.iter().chain(&signature.returns) {
+        if ty.module() != module.id
+            || module.type_kind(*ty).is_none()
+            || !module.type_is_defined(*ty)
+        {
+            push_type_error(
+                errors,
+                id,
+                "callable signature types must be defined in the same module",
+            );
+        }
+    }
+}
+
 fn verify_inline_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
     for (index, kind) in module.types.iter().enumerate() {
-        if !matches!(kind, SsaTypeKind::Aggregate { .. }) {
+        if !matches!(
+            kind,
+            SsaTypeKind::Aggregate { .. } | SsaTypeKind::ConcreteClosure { .. }
+        ) {
             continue;
         }
         let id = SsaTypeId {
             module: module.id,
             index,
         };
-        if aggregate_reaches(module, id, id, &mut BTreeSet::new()) {
-            push_type_error(errors, id, "aggregate fields must not form an inline cycle");
+        if inline_type_reaches(module, id, id, &mut BTreeSet::new()) {
+            let reason = if matches!(kind, SsaTypeKind::Aggregate { .. }) {
+                "aggregate fields must not form an inline cycle"
+            } else {
+                "closure environment must not form an inline cycle"
+            };
+            push_type_error(errors, id, reason);
         }
     }
 }
@@ -177,22 +270,26 @@ fn verify_container_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) 
     }
 }
 
-fn aggregate_reaches(
+fn inline_type_reaches(
     module: &Module,
     current: SsaTypeId,
     target: SsaTypeId,
     active: &mut BTreeSet<SsaTypeId>,
 ) -> bool {
-    let Some(SsaTypeKind::Aggregate { fields, .. }) = module.type_kind(current) else {
-        return false;
+    let fields = match module.type_kind(current) {
+        Some(SsaTypeKind::Aggregate { fields, .. }) => fields.as_slice(),
+        Some(SsaTypeKind::ConcreteClosure { environment, .. }) => std::slice::from_ref(environment),
+        _ => return false,
     };
     if !active.insert(current) {
         return current == target;
     }
     let reaches = fields.iter().copied().any(|field| {
         field == target
-            || matches!(module.type_kind(field), Some(SsaTypeKind::Aggregate { .. }))
-                && aggregate_reaches(module, field, target, active)
+            || matches!(
+                module.type_kind(field),
+                Some(SsaTypeKind::Aggregate { .. } | SsaTypeKind::ConcreteClosure { .. })
+            ) && inline_type_reaches(module, field, target, active)
     });
     active.remove(&current);
     reaches
