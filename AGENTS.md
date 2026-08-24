@@ -34,7 +34,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 4 已完成 owner-aware typed SSA/verifier 与封闭标量 frontend→SSA→AArch64 LLVM IR 主线；SPEC-0035 已完成 named aggregate/heap-owner SSA、first-class aggregate/DataLayout、系统 allocation、heap place 与 recursive drop/free 后端基元；SPEC-0036 已完成顺序容器固定 header、连续缓冲区、checked-index、replace/drop 与 MoveOnly ZST 后端基元；源码 nominal/enum/Box constructor 接线仍等待候选 0183/0184，完整 `for` 等待 typed iteration plan 与 provider runtime；Phase 5 尚未定义的容器增删/重排 relocation API 仍待后续 Spec；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、显式 native entry、Mach-O object 与 Clang link/run；SPEC-0040 的 DWARF 行表和 LLDB 静态断点解析已完成，真实 breakpoint hit 等待本机 Developer Mode；Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，公共 prelude/API 尚未实施，容器增删/重排 relocation API 仍待后续 Spec；源码 nominal/enum/Box constructor 接线仍等待候选 0183/0184，完整 `for` 等待 typed iteration plan 与 provider runtime；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -168,7 +168,7 @@ runtime 等 crate。
 | `lang-codegen` | 自建 SSA IR、lowering、LLVM IR、目标文件生成 | LLVM 细节只能从此边界向内扩散 |
 | `lang-cli` | 编译流水线编排、诊断渲染、进程退出码 | 不承载 lexer、类型检查或 codegen 核心算法 |
 | `lang-lsp` | 复用 frontend 提供诊断、跳转等编辑器能力 | 不复制 parser / type checker |
-| `lang-std` | 从第一天开始以目标语言自身编写的标准库源码 | 是否还需要 Rust runtime / ABI 支撑、其放置位置及早期 bootstrap 流程尚待明确 |
+| `lang-std` | 从第一天开始以目标语言自身编写的标准库源码 | 单文件早期 bootstrap 已由 ADR-0012 / SPEC-0042 在 CLI 内部 driver 实现；公共 API 与后续线程/IO runtime 支撑仍按独立 Spec 推进 |
 
 依赖必须单向、无环。通常由 codegen 和 LSP 复用 frontend，由 CLI 编排 frontend 与
 codegen；frontend 永远不能反向依赖外围工具。跨 crate API 才使用 `pub`，其余保持最小
@@ -476,9 +476,10 @@ cargo build -p lang-cli
 以下问题等待后续指导文档。任务没有触及时不需要停工；一旦触及，必须先确认，不能猜：
 
 1. `lang-std` 已确定使用目标语言源码；ADR-0008 已决定当前系统分配不增加 Rust allocator
-   shim，仍未确定的是标准库早期 bootstrap 以及线程、IO 等后续 runtime 支撑边界。
+   shim，ADR-0012 / SPEC-0042 已完成单文件早期 bootstrap；线程、IO 等后续 runtime 支撑边界
+   仍待对应 Spec。
 2. package 到 source root / 文件的映射已有 ADR-0005；import 冲突、跨 package 可见性、public
-   FFI、链接器、增量编译与跨平台发布策略仍未封闭。
+   FFI、增量编译与跨平台发布策略仍未封闭；首个 macOS Clang linker 边界已由 ADR-0010 实现。
 3. v0.26 已定义同步调用期 loan 与 ASAP 析构点；跨调用借用/借用返回、后续 SSA 指令增量和
    调试映射仍待对应 guide/Spec/ADR。
 4. LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target 已由 ADR-0007 固定；多目标矩阵、机器

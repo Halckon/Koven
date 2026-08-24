@@ -1,1 +1,2 @@
-// Phase 0 仅建立标准库源码包；公共声明将在对应 Phase 5 Spec 中实现。
+// SPEC-0042 先用最小目标语言 callable 验证标准库 bootstrap；公共 prelude 由 SPEC-0043 实现。
+fun bootstrapSmoke(): Unit {}

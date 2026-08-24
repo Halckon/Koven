@@ -44,12 +44,15 @@ SPEC-0040 前两片已让 debug-enabled lowering 显式接收原 `SourceMap`，�
 `DIFile`、Koven function `DISubprogram` 与 instruction/terminator location；foreign map fail-loud，
 无 debug LLVM 文本入口保持原产物；Mach-O 行表及 LLDB 静态 source breakpoint 解析已通过，
 真实 breakpoint hit 仍受本机 debugserver/task-port 授权阻塞；
-SPEC-0042 第一片已把 16 个 `BuiltinType` 的规范顺序收敛为 frontend 单一 production 环境
+SPEC-0042 已把 16 个 `BuiltinType` 的规范顺序收敛为 frontend 单一 production 环境
 构造入口，并建立 `lang-codegen::emit_native_object` workspace API：调用方提交同一条 frontend
 analysis chain、resolved 顶层 `SymbolId` entry 和输出路径，codegen 复用现有 scalar SSA、
 verifier、DWARF object emitter 与显式 `FunctionId` wrapper；参数化、泛型、非 Unit、非函数、
 unknown entry、混用 analysis、frontend diagnostics 与 unsupported source 均在 object 写盘前
-结构化失败。标准库磁盘源码的 CLI bootstrap/link/run 编排仍在实施；
+结构化失败。`lang-cli::bootstrap` 从显式磁盘 source path 运行全部 frontend pass，唯一解析配置的
+顶层 function identity，生成 object、复用既有 Clang linker 并运行；测试唯一枚举真实
+`lang-std/koven/prelude.ko`，其 Koven `bootstrapSmoke(): Unit` 已经完整链路退出 0。该仓库内部
+路径不发布通用 `main`、用户 CLI 参数或多文件构建语义；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -156,8 +159,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
   drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184。显式 verified
   SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
-  `SymbolId` 的单文件 source-analysis→object workspace API，但通用源码入口选择和完整 CLI
-  流水线仍未实现；
+  `SymbolId` 的单文件 source-analysis→object workspace API，并由仓库内部 bootstrap driver
+  完成真实标准库 Koven source 的 object/link/run；通用源码入口选择和公开 CLI 流水线仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -209,7 +212,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   调用；heap payload 完成后每个 owner helper 恰好调用一次 `free`，自引用 heap type 不导致
   codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
-  nominal/enum/Box constructor lowering、多目标平台、bootstrap 与 public FFI ABI 仍未确定。
+  nominal/enum/Box constructor lowering、多目标平台与 public FFI ABI 仍未确定；单文件标准库
+  bootstrap 已由 ADR-0012 / SPEC-0042 封闭并实现。
   SPEC-0036 已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
   MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
   replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。
@@ -254,7 +258,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   breakpoint hit 仍待环境门禁解除后完成；
 
 现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；resolved source entry→object 已形成
-workspace API，但完整 `.ko`→可执行文件 CLI、标准库 bootstrap link/run 与 LSP 行为仍未实现。
+workspace API，仓库拥有的标准库单文件 bootstrap 已真实 link/run。通用 `.ko`→可执行文件 CLI、
+标准库公共 API 与 LSP 行为仍未实现。
 
 ## Workspace 与 target
 
@@ -274,7 +279,9 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 - `lang-std` 无项目内依赖。
 
 `lang-std` 的 Rust target 仅提供 Cargo 与测试边界，其单元测试验证 `.ko` 源码包存在；标准库
-公共实现仍以 `koven/**/*.ko` 为唯一真源。Phase 0 不包含 runtime crate。
+公共实现仍以 `koven/**/*.ko` 为唯一真源。SPEC-0042 的 CLI 测试从磁盘唯一枚举
+`koven/prelude.ko` 并真实编译、链接和运行其中的 bootstrap smoke，不使用 `build.rs` 或 Rust
+行为镜像。Phase 0 不包含 runtime crate。
 
 ## Source 与 Span
 
@@ -1167,9 +1174,11 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
-`lang-std` 的 bootstrap 流程仍未确定；内部值/系统分配 ABI 及对应 LLVM aggregate、
-allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成，源码 constructor 接线、目标文件与
-链接后的可执行文件仍未实现。
+`lang-std` 的单文件 bootstrap 已由 ADR-0012 / SPEC-0042 实现：CLI 内部 driver 编排显式
+source/entry，复用 frontend、resolved-entry object API 和 Clang linker，真实 Koven prelude
+smoke 已运行；它不等于公开 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
+及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；源码 nominal
+constructor 接线仍等待候选 0183/0184。
 
 ## 更新要求
 

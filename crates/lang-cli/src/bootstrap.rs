@@ -1,0 +1,188 @@
+//! 仓库拥有的单文件标准库 bootstrap 编排。
+
+use std::{
+    fmt, fs, io,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+use lang_codegen::{NativeObjectError, emit_native_object};
+use lang_frontend::{
+    diagnostic::Diagnostic,
+    lexer::{LexerInternalError, lex},
+    name_resolution::{NameResolutionError, ScopeKind, SymbolKind, resolve_names},
+    ownership_checking::{OwnershipCheckingError, check_ownership},
+    parser::{ParserInternalError, parse_file},
+    source::{SourceError, SourceMap},
+    type_checking::{TypeCheckingError, check_types, standard_environments},
+};
+
+use crate::linker::{LinkerError, link_native_object};
+
+/// 仓库 bootstrap 中产生用户诊断的 frontend 阶段。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FrontendStage {
+    Lexer,
+    Parser,
+    NameResolution,
+    TypeChecking,
+    OwnershipChecking,
+}
+
+/// 一次显式单文件 bootstrap 的调用方拥有配置。
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BootstrapTarget<'a> {
+    pub(crate) source: &'a Path,
+    pub(crate) entry_name: &'a str,
+    pub(crate) object: &'a Path,
+    pub(crate) executable: &'a Path,
+}
+
+/// 标准库 bootstrap 各阶段的结构化失败。
+#[derive(Debug)]
+pub(crate) enum BootstrapError {
+    InvalidPaths,
+    OutputExists(PathBuf),
+    ReadSource {
+        path: PathBuf,
+        kind: io::ErrorKind,
+    },
+    NonUtf8SourcePath(PathBuf),
+    Source(SourceError),
+    Lexer(LexerInternalError),
+    Parser(ParserInternalError),
+    NameResolution(NameResolutionError),
+    TypeChecking(TypeCheckingError),
+    OwnershipChecking(OwnershipCheckingError),
+    FrontendDiagnostics {
+        stage: FrontendStage,
+        diagnostics: Vec<Diagnostic>,
+    },
+    MissingEntry(String),
+    AmbiguousEntry {
+        name: String,
+        count: usize,
+    },
+    Codegen(NativeObjectError),
+    Linker(LinkerError),
+    LaunchExecutable {
+        path: PathBuf,
+        kind: io::ErrorKind,
+    },
+    ProcessFailure {
+        status: Option<i32>,
+    },
+}
+
+impl fmt::Display for BootstrapError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "standard-library bootstrap failed: {self:?}")
+    }
+}
+
+impl std::error::Error for BootstrapError {}
+
+/// 从一份显式 Koven source 构建、链接并运行仓库 bootstrap target。
+pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
+    validate_paths(target)?;
+    let text = fs::read_to_string(target.source).map_err(|error| BootstrapError::ReadSource {
+        path: target.source.to_path_buf(),
+        kind: error.kind(),
+    })?;
+    let source_name = target
+        .source
+        .to_str()
+        .ok_or_else(|| BootstrapError::NonUtf8SourcePath(target.source.to_path_buf()))?;
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(source_name, text)
+        .map_err(BootstrapError::Source)?;
+
+    let lexed = lex(&sources, source).map_err(BootstrapError::Lexer)?;
+    reject_diagnostics(FrontendStage::Lexer, lexed.diagnostics())?;
+    let parsed = parse_file(&sources, &lexed).map_err(BootstrapError::Parser)?;
+    reject_diagnostics(FrontendStage::Parser, parsed.diagnostics())?;
+
+    let (name_environment, type_environment) = standard_environments();
+    let names = resolve_names(&sources, &parsed, &name_environment)
+        .map_err(BootstrapError::NameResolution)?;
+    reject_diagnostics(FrontendStage::NameResolution, names.diagnostics())?;
+    let typed = check_types(&sources, &parsed, &names, &type_environment)
+        .map_err(BootstrapError::TypeChecking)?;
+    reject_diagnostics(FrontendStage::TypeChecking, typed.diagnostics())?;
+    let owned = check_ownership(&sources, &parsed, &names, &typed)
+        .map_err(BootstrapError::OwnershipChecking)?;
+    reject_diagnostics(FrontendStage::OwnershipChecking, owned.diagnostics())?;
+
+    let mut entries = names.symbols().iter().filter(|symbol| {
+        symbol.name() == target.entry_name
+            && symbol.kind() == SymbolKind::Function
+            && names
+                .scopes()
+                .get(symbol.scope().index())
+                .is_some_and(|scope| scope.kind() == ScopeKind::File && scope.parent().is_none())
+    });
+    let entry = entries
+        .next()
+        .ok_or_else(|| BootstrapError::MissingEntry(target.entry_name.to_owned()))?;
+    let count = 1 + entries.count();
+    if count != 1 {
+        return Err(BootstrapError::AmbiguousEntry {
+            name: target.entry_name.to_owned(),
+            count,
+        });
+    }
+
+    emit_native_object(
+        &sources,
+        &parsed,
+        &names,
+        &typed,
+        &owned,
+        entry.id(),
+        target.object,
+    )
+    .map_err(BootstrapError::Codegen)?;
+    link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
+    let status = Command::new(target.executable).status().map_err(|error| {
+        BootstrapError::LaunchExecutable {
+            path: target.executable.to_path_buf(),
+            kind: error.kind(),
+        }
+    })?;
+    if !status.success() {
+        return Err(BootstrapError::ProcessFailure {
+            status: status.code(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_paths(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
+    if target.source == target.object
+        || target.source == target.executable
+        || target.object == target.executable
+    {
+        return Err(BootstrapError::InvalidPaths);
+    }
+    for output in [target.object, target.executable] {
+        if output.exists() {
+            return Err(BootstrapError::OutputExists(output.to_path_buf()));
+        }
+    }
+    Ok(())
+}
+
+fn reject_diagnostics(
+    stage: FrontendStage,
+    diagnostics: &[Diagnostic],
+) -> Result<(), BootstrapError> {
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(BootstrapError::FrontendDiagnostics {
+            stage,
+            diagnostics: diagnostics.to_vec(),
+        })
+    }
+}

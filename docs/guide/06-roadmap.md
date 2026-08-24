@@ -385,6 +385,10 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 
 ## Phase 5：最小标准库（用目标语言自身编写）
 
+- [x] **SPEC-0042（前置：SPEC-0039 `done`；ADR-0012 `accepted`）**：从磁盘唯一枚举
+      `lang-std/koven/prelude.ko`，以显式 repository bootstrap entry 经完整 frontend、verified
+      SSA、LLVM object、Clang link 流水线构建并运行；不把该 entry 扩张为通用 `main` 或 CLI
+      参数语义
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header

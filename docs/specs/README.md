@@ -223,7 +223,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| [0042](./0042-standard-library-bootstrap.md) | 用编译器构建并运行 `lang-std` 目标语言源码（`in-progress`） | 0039 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
+| [0042](./0042-standard-library-bootstrap.md) | 用编译器构建并运行 `lang-std` 目标语言源码（`done`） | 0039 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | 0043 | 实现 prelude、基础操作和 `error()` | 0042 |
 | 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035 |
 | 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035 |

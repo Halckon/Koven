@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P5-042` |
 | 所属 Phase | Phase 5 |
 | 语言规范 | 现行 [v0.28 Phase 5](../guide/06-roadmap.md#phase-5最小标准库用目标语言自身编写) |
@@ -76,11 +76,11 @@
       通过，CLI 没有复制 builtin 表。
 - [x] codegen 公共 API 只接受匹配 analysis chain 的 resolved `SymbolId` entry；合法 `() -> Unit`
       生成含唯一 C `_main` 的 object，foreign/unknown/泛型/错误签名及诊断链在写盘前失败。
-- [ ] bootstrap driver 对 source read、frontend diagnostics、entry resolution、codegen、linker 与
+- [x] bootstrap driver 对 source read、frontend diagnostics、entry resolution、codegen、linker 与
       process exit 失败分层建模，不按任意 `main`/声明顺序猜测入口，不经 shell。
-- [ ] 磁盘上的 `lang-std/koven/prelude.ko` 经完整流水线生成 executable 并真实运行退出 0；测试
+- [x] 磁盘上的 `lang-std/koven/prelude.ko` 经完整流水线生成 executable 并真实运行退出 0；测试
       证明非空 source 枚举、无 Rust 行为镜像、失败不复用旧产物。
-- [ ] `lang-frontend`、`lang-codegen`、`lang-cli`、`lang-std` 窄测与 workspace 五项标准基线通过；
+- [x] `lang-frontend`、`lang-codegen`、`lang-cli`、`lang-std` 窄测与 workspace 五项标准基线通过；
       production 文件遵守 1000 行软上限，Spec/Architecture/roadmap/ADR 索引只记录实际事实。
 
 ## 6. 技术方案与边界
@@ -97,9 +97,9 @@
 
 1. [x] 建立标准内建环境与显式 source-entry codegen facade → 验证：environment identity、entry
    正反矩阵、object symbol 与失败不落盘。
-2. [ ] 实现 CLI bootstrap driver 和 `prelude.ko` smoke → 验证：真实文件全链路 link/run、entry/
+2. [x] 实现 CLI bootstrap driver 和 `prelude.ko` smoke → 验证：真实文件全链路 link/run、entry/
    source/diagnostic/进程失败矩阵。
-3. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
+3. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
    状态、文件规模、文档与实现一致。
 
 ## 8. 提交计划
@@ -122,3 +122,9 @@
 | `cargo test -p lang-frontend type_checking::tests::standard_environments_declare_every_builtin_once_in_canonical_order` | 通过 | 16 个 builtin 的唯一名称、规范顺序、type binding 与重复构造一致性通过；该命令还枚举了 frontend 全部 integration target，过滤项未冒充执行 |
 | `cargo test -p lang-codegen --lib native_tests` | 通过 | 3 项；resolved Unit entry 生成 arm64 Mach-O 和唯一 `_main`，参数化/泛型/非 Unit/非 function/unknown、混用 analysis、frontend diagnostics 与 unsupported source 均失败不落盘 |
 | `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings` | 通过 | 无 warning；新增 `native.rs` 155 行、`native_tests.rs` 约 230 行，既有超限 `type_checking/model.rs` 因复用 canonical builtin 表减少重复而未继续承载独立职责 |
+| `cargo test -p lang-frontend --lib` | 通过 | 33 项；包含标准环境 production helper 的完整 frontend 单元矩阵 |
+| `cargo test -p lang-codegen --all-targets` | 通过 | 93 项；source object facade 与既有 SSA/LLVM/object/debug/link-run 回归均通过 |
+| `cargo test -p lang-cli --all-targets` | 通过 | 11 项；真实磁盘 `prelude.ko` bootstrap 退出 0，诊断、entry、路径、link 与 runtime abort 失败矩阵通过 |
+| `cargo test -p lang-std --all-targets` | 通过 | 1 项；Cargo source-package 边界仍可验证，公共实现未增加 Rust 镜像 |
+| workspace 五项标准基线 | 通过 | `cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace --all-targets`、`cargo build -p lang-cli` 均以退出码 0 完成 |
+| production 文件规模 | 通过 | 新增 `bootstrap.rs` 188 行、`native.rs` 155 行；新增职责均位于独立且低于软上限的模块。既有 `type_checking/model.rs` 1053 行是本 Spec 前已超限的集中模型表，本次只把其重复 builtin 初始化改为复用同一常量，未加入独立变化原因 |
