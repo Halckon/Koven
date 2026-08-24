@@ -11,6 +11,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0004](./0004-source-span-position-model.md) | accepted | 源码身份、半开字节范围与展示位置模型 |
 | [ADR-0005](./0005-package-source-root-mapping.md) | accepted | 显式 source root、逻辑路径与 package identity 的确定映射 |
 | [ADR-0006](./0006-typed-ssa-block-parameters.md) | accepted | typed SSA 使用 block parameters、IR-local 类型与显式所有权效果 |
+| [ADR-0007](./0007-llvm-toolchain-and-first-target.md) | proposed | 固定 LLVM 21 / Inkwell 0.8、显式 prefix 与首个 aarch64 macOS target |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份
