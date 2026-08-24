@@ -8,7 +8,7 @@ use lang_frontend::{
 };
 
 use super::{
-    lower_frontend::{LoweringErrorKind, lower_scalar_file},
+    lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
     render::render_program,
 };
 

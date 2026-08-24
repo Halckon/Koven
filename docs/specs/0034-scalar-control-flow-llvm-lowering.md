@@ -151,3 +151,5 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 32 项；新增直线/nested block、局部 `val`/`var`、checked 复合赋值、显式 return 与 Unit fallthrough 真实流水线覆盖 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | block/local/return 切片无 warning；生产 lowering 文件 977 行，未超过软上限，CFG 切片前拆分职责 |
 | 2026-08-25 block/local/return 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| frontend→SSA 模块职责拆分窄测 | 通过 | 32 项 lang-codegen 测试与 Clippy 通过；orchestration 与 expression/body 生产文件分别低于 1000 行，公开行为不变 |
+| 2026-08-25 frontend→SSA 模块拆分 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
