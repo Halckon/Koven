@@ -420,3 +420,16 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > 逻辑索引身份的 element place，Copyable 读取、MoveOnly 的 L0136、共享/独占 loan、临时 owner
 > 延寿、固定顺序 replacement 与旧元素 drop fact 已锁定。Phase 5 尚未定义的增删/重排 API
 > 及 relocation effect 继续后置，本记录不改变 v0.26 语言语义。
+
+## v0.27 变更与启用记录
+
+> v0.27 于 2026-08-24 由用户明确启用并取代 v0.26；SPEC-0032 的既有 capture 门禁自此解除，
+> 规范启用不表示 frontend 已完成实施。
+
+| # | 变更 | 类型 |
+|---|---|---|
+| 1 | 普通 capturing lambda 固定为 shared borrowed closure，loan 延续至 closure ASAP drop，允许 defining callable 内使用但禁止 return/字段存储/Value 交付 | 🔴 closure 所有权定案 |
+| 2 | `move` lambda 按值复制 Copyable capture、移动 owned MoveOnly capture；拒绝 MoveOnly Borrow/Inout 与 `this`/字段 owned capture | 🔴 move capture 定案 |
+| 3 | nested capture 经紧邻 environment，顶层函数/常量/object 不进入 capture；captured name 在 v1 内只读 | 🟡 简化边界 |
+| 4 | 补全 `Transferable` 的 nullable/nominal/intrinsic/type-parameter/function/closure 域，并明确与 `Copyable` bound 不互相蕴含 | 🔴 能力域补全 |
+| 5 | 跨线程转移由编译器绑定的 typed callable effect 标识，不按名称或 `move` 函数类型猜测；分配 L0137–L0139 | 🔴 effect 与诊断定案 |

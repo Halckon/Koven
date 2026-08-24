@@ -5,7 +5,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.26](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+- [语言设计指南 v0.27](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
   多文档真源。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。

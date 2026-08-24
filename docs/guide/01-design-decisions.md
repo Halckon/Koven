@@ -1,10 +1,11 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.26。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.27。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
-> 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；
+> 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
+> v0.27 已启用的现行规则；
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -1523,10 +1524,78 @@ loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `
 语义门禁。v0.26 的声明端 `own`、默认 Borrow 与 typed contract 已由 SPEC-0176 实现；
 SPEC-0029 本身不再重复修改语法。index element place 的核心读取、loan、replacement 与 drop
 facts 已由 SPEC-0030 实现；member/委托 receiver 及 Phase 5 尚未定义 API 的容器 relocation
-属于后续独立 Goal。closure capture / `Transferable` 属于 SPEC-0032；借用返回、用户生命周期语法、
-跨调用 loan、完整 NLL 和部分移动不进入 v1。被 lambda 引用的外层 owner 在 SPEC-0032 前
-必须保留明确 deferred 且不得生成提前 drop fact，不能把“未检查 capture”误当成最后使用。
+属于后续独立 Goal。closure capture / `Transferable` 由后续 v0.27 §27 与 SPEC-0032 接续；
+借用返回、用户生命周期语法、跨调用 loan、完整 NLL 和部分移动不进入 v1。在 SPEC-0032
+实施前，被 lambda 引用的外层 owner 仍须保留明确 deferred 且不得生成提前 drop fact。
 SPEC-0029 不新增语法、依赖或 LLVM 类型。
+
+---
+
+## 27. 简化 closure capture 与跨线程转移（v0.27）
+
+> **现行状态**：v0.27 已于 2026-08-24 由用户明确启用并取代 v0.26；本节是 SPEC-0032
+> 的实施契约，不引入引用类型、用户生命周期或完整 NLL。
+
+### 27.1 capture 身份与普通闭包
+
+lambda 的 capture 集由名称解析后的自由值引用决定，不按标识符文本猜测。local、参数、for /
+解构 binding 属于 capture 候选；顶层函数/常量和具名 object 是全局身份，不进入环境。重复引用
+只形成一个 capture，shadowing 按 `SymbolId` 区分；nested lambda 从紧邻 enclosing callable
+环境捕获，不能绕过中间环境直接取得更外层 owner。
+
+无 `move` 前缀且实际有 capture 的 lambda 是 **borrowed closure**：对每个候选只建立 shared
+capture；owned、Borrow 和 Inout binding 均只提供 shared read/reborrow，捕获名称在 lambda 内
+不能赋值或按值移出。loan 从 lambda 求值完成后持续到该 closure 值的 ASAP drop point。它可在
+当前具名函数/lambda 内绑定、移动和作为 Borrow 实参同步调用，但不得 return、写入字段、交给
+Value 参数或被 escaping move closure 捕获；这些逃逸产生 L0137。无 capture 的普通 lambda
+没有 loan，可按普通函数值使用。
+
+普通 closure 可 shared capture `this`；无前缀字段引用规范化为同一个 `this` capture。该规则
+只授予只读能力，不提前决定 instance method receiver 的其他契约。
+
+### 27.2 move closure
+
+`move { ... }` 对每个自由 binding 建立 owned capture：静态满足 `Copyable` 时复制 snapshot，
+否则必须从当前 owned、available binding 移动，lambda 形成后源 binding 不可再使用。Borrow /
+Inout binding 的 MoveOnly 值不能形成 owned capture，产生 L0138；Copyable 值可从其 shared read
+复制为 owned snapshot。local `var` 捕获的是形成时 snapshot，捕获名称在 v1 closure 内仍不可
+赋值，避免引入独立的 mutable closure receiver 模型。
+
+move closure 可以绑定、return、写入字段或交给 Value 参数。v1 的 move closure 不直接捕获
+显式/隐式 `this` 或字段；需要先把所需字段复制/移动到 local，再捕获该 local，否则产生 L0138。
+这条限制等待 instance receiver 所有权契约完成后再评估，不影响普通 shared `this` capture。
+
+### 27.3 `Transferable` 完整域与跨线程 effect
+
+`Transferable` 使用与 `Copyable` 相同的四态查询（满足、不满足、Unknown、Error），但两种
+能力互不蕴含。数值、`Boolean`、`Char`、`Unit`、`String`、`Nothing` 满足；nullable、value
+class、有限 enum、普通 class、`Box<T>` 与三种顺序容器按实际字段/payload/元素递归满足。
+`Rc<T>`、具名 object、`Any` 和带 capture 的 borrowed closure 不满足；裸 interface/capability
+与 Error 类型为 Error，deferred 为 Unknown。类型参数只在具有编译器绑定的
+`Transferable` 上界时满足；`Copyable` 上界不自动构成证明。
+
+无捕获函数引用/闭包满足 `Transferable`。move closure 当且仅当每个 owned capture 都满足。
+仅有 `move (...) -> T` 静态函数类型但 provenance 不可查询的普通函数值不能证明其环境满足；
+v1 跨线程入口只接受编译器可查询 capture facts 的 move lambda 或已知无捕获函数值。
+
+跨线程转移不是从函数名或 `move` 函数类型推测的效果。typed callable target 必须携带由
+`TypeEnvironment` 绑定的封闭 cross-thread effect；预声明 `thread(task)` 的 task 位置和
+`Sender.send(value)` 的 value 位置具有该 effect，源码同名函数不获得。对应 operand 或 move
+closure capture 不满足 `Transferable` 时产生 L0139。`Shareable`、跨线程借用和完整多线程
+数据流继续属于 v2。
+
+### 27.4 产物、析构与诊断
+
+Phase 3 产物必须按 lambda 查询 capture symbol、类型、Shared/Owned 模式、来源 Span 和 owned
+closure 的 `Transferable` 结果。borrowed closure loan 参与既有 move/mutation/drop 冲突；move
+capture 参与 Available/Moved 与 ASAP drop，closure drop 时按 capture 逆序析构 owned
+MoveOnly 字段。存在 capture/transfer 诊断时不发布可执行 capture/drop plan。
+
+| 错误码 | 稳定含义 | primary / 关联位置 |
+|---|---|---|
+| L0137 | borrowed closure 逃出其 defining callable | primary 为 return/Value 交付/字段存储位置；label 指向 lambda |
+| L0138 | move closure 不能取得当前 capture 的所有权 | primary 为 capture 引用；label 指向非 owning binding 或 `this` |
+| L0139 | 跨线程 effect 收到不能证明 `Transferable` 的值/capture | primary 为实参或 capture 引用；label 指向类型/字段/capture 来源 |
 
 ---
 

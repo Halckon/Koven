@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 开发阶段路线图与工程规范
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.27。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -235,6 +235,7 @@ v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-d
 SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 已实现名称/字段 place 的同步
 call loan 与 owned-value drop facts；SPEC-0030 已实现顺序容器核心 construction / element
 place 所有权。以下 receiver、capture 与尚未定义 API 的 relocation 项仍按独立 Spec 保持未完成。
+v0.27 已解除 SPEC-0032 的 capture / `Transferable` 语义门禁。
 
 - [x] 在当前 named/field call 范围实现简化版单一所有者 + ASAP drop facts（不做完整 NLL）
 - [x] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`

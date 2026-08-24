@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（三）：调用参数、Lambda 与解构
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.27。
 > 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
 > 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
@@ -94,7 +94,10 @@ owned `Value` 参数，`Copyable` 时可复制、否则按普通移动规则使�
 期望函数类型独立检查 lambda，不能先默认成任一 mode 再做隐式模式转换；若无法得到唯一的参数
 类型 / 契约，沿用普通 lambda 上下文类型不足或重载歧义诊断。Phase 1 的 Lambda AST 仍只保存
 真实参数名 Span，不伪造 marker；typed AST 必须保存最终采用的函数参数契约。`move` 只约束
-捕获，与期望函数类型的参数契约正交。
+捕获，与期望函数类型的参数契约正交。v0.27 的 capture 语义由
+[01-design-decisions.md](./01-design-decisions.md) §27 唯一定义：普通 capturing lambda 建立
+shared capture 且不得逃出 defining callable，`move` lambda 形成 owned capture 并可逃逸。
+Parser 不计算 capture；Phase 3 必须按解析后的 symbol identity 检查。
 
 lambda body 在最大 expression 已完整、没有子语法等待 token，且 delimiter / lexical owner
 回到 body baseline 时，额外把顶层 `,` 与 `->` 作为 body-dispatch soft stop。它们只把控制权

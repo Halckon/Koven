@@ -4,15 +4,15 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P3-032` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 现行 [v0.26](../guide/00-index.md)：[函数类型](../guide/01-design-decisions.md#4-高阶函数与一等公民支持)、[并发模型](../guide/01-design-decisions.md#9-并发模型v1-线程--channel跨线程闭包强制-move)、[`Transferable`](../guide/01-design-decisions.md#17-transferable-标记能力v011-新增) |
+| 语言规范 | 现行 [v0.27](../guide/00-index.md)：[简化 closure capture 与跨线程转移](../guide/01-design-decisions.md#27-简化-closure-capture-与跨线程转移v027) |
 | 批准依据 | 当前持续 Goal 的站立授权适用，但不能替代语言 guide 门禁 |
 | 前置 Spec | SPEC-0020、SPEC-0029 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 建议由 v0.27 一次封闭本 Spec §9 列出的 capture mode、逃逸/lifetime、嵌套/`this` 捕获、完整 `Transferable` 域与跨线程 callable effect identity |
+| 阻塞项 | 无；v0.27 已明确启用并封闭 capture mode、逃逸、`this` 边界、完整 `Transferable` 域与跨线程 callable effect identity |
 | 影响范围 | `lang-frontend` lambda capture facts、ownership state/drop、`Transferable` 推导、跨线程 call effect、Phase 3 fixture、Architecture |
 | 语言语义变更 | 否；本 Spec 只能实施后续明确启用的 guide，不能自行补齐当前留白 |
 
@@ -87,25 +87,11 @@
 
 ## 9. 未决问题
 
-现行 v0.26 只能证明“`move` 函数类型不允许借用 capture”和部分结构化 `Transferable` 规则，
-不足以唯一实现以下可观察行为；这些问题必须由用户明确启用的新 guide 一次封闭：
-
-1. 默认 lambda 对 owned local、Borrow/Inout 参数、local `var` 分别按 shared、exclusive 还是
-   按使用方式捕获；Copyable capture 是否仍建立 borrow。
-2. 捕获借用的普通 closure 能否存入 local/字段、交给 Value 参数或从 callable 返回；若只允许
-   non-escaping，哪些 syntactic/typed contexts 构成可证明的同步 non-escape。
-3. `move { ... }` 是否一律按值捕获所有外部 binding；Copyable Borrow 参数能否复制为 owned
-   capture，MoveOnly Borrow/Inout 是否必须拒绝。
-4. nested lambda 应捕获原始外层 symbol 还是经 enclosing environment reborrow/move；重复引用和
-   shadowing 如何形成唯一 capture。
-5. 隐式/显式 `this`、字段、具名 object、顶层 constant/function 是否形成 capture；对应 owner
-   与 drop 身份是什么。
-6. `Transferable` 对 `Nothing`/nullable/enum/object/function/closure/`Any`/deferred 的完整规则，
-   `Copyable` bound 是否蕴含 `Transferable`，以及 closure 由静态函数类型还是 capture env 判定。
-7. 哪个 typed identity 表示“跨线程转移”effect；普通用户函数即使接受 `move` closure 也不能
-   自动被视为跨线程 API。
+- 无。原七项门禁已由用户明确启用的 v0.27 §27 一次封闭；本 Spec 不再保留自行解释空间。
 
 ## 10. 验证记录
 
-- 2026-08-23：完成现行 guide、roadmap、typed/name/ownership facts 的只读审计；确认上述七项
-  尚无唯一答案，因此保持 `draft`，未修改生产代码、未运行实现验收。
+- 2026-08-23：完成 v0.26、roadmap、typed/name/ownership facts 的只读审计；确认七项门禁，
+  保持 `draft`，未修改生产代码、未运行实现验收。
+- 2026-08-24：用户明确启用 v0.27 与推荐的简化 capture 模型，七项门禁由 §27 解除；本 Spec
+  依站立授权进入 `approved`，实现验收尚未执行。
