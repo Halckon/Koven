@@ -512,6 +512,54 @@ fn callable_flow_reports_shape_missing_return_and_branch_join() {
 }
 
 #[test]
+fn jump_targets_stop_at_callable_boundaries() {
+    let (_, _, _, valid) = checked(
+        "fun valid(flag: Boolean): Unit {\n\
+         while (flag) { if (flag) { continue } else { break } }\n\
+         loop {\n\
+         val callback: () -> Unit = { loop { break } }\n\
+         break\n\
+         }\n\
+         }",
+    );
+    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
+
+    let (sources, _, _, invalid) = checked(
+        "val top = break\n\
+         fun invalid(): Unit {\n\
+         continue\n\
+         loop {\n\
+         val callback: () -> Unit = { break }\n\
+         break\n\
+         }\n\
+         }",
+    );
+    assert_eq!(codes(invalid.diagnostics()), ["L0142", "L0142", "L0142"]);
+    assert_eq!(
+        invalid
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.message())
+            .collect::<Vec<_>>(),
+        [
+            "break is not inside an enclosing loop in this callable",
+            "continue is not inside an enclosing loop in this callable",
+            "break is not inside an enclosing loop in this callable",
+        ]
+    );
+    let primary_text = invalid
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic primary span")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(primary_text, ["break", "continue", "break"]);
+}
+
+#[test]
 fn bottom_non_null_and_numeric_boundaries_do_not_widen_silently() {
     let (_, _, _, typed) = checked(
         "val outside = return\n\
@@ -990,7 +1038,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 8, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 9, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

@@ -197,6 +197,7 @@ impl Checker<'_> {
         self.callables.push(CallableContext {
             return_type,
             annotation_span,
+            loop_base: self.loop_depth,
         });
         match form {
             FunctionForm::ImplicitUnitAbsent => {}
@@ -298,7 +299,7 @@ impl Checker<'_> {
             } => {
                 let boolean = self.builtin(BuiltinType::Boolean);
                 self.check_expression(condition, Some(boolean), None)?;
-                self.check_statement(body)?;
+                self.check_loop_body(body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -306,14 +307,14 @@ impl Checker<'_> {
             }
             Statement::For { source, body, .. } => {
                 self.check_expression(source, None, None)?;
-                self.check_statement(body)?;
+                self.check_loop_body(body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
                 })
             }
             Statement::Loop { body, .. } => {
-                self.check_statement(body)?;
+                self.check_loop_body(body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -327,6 +328,13 @@ impl Checker<'_> {
                 })
             }
         }
+    }
+
+    fn check_loop_body(&mut self, body: StatementId) -> Result<StatementCheck, TypeCheckingError> {
+        self.loop_depth += 1;
+        let result = self.check_statement(body);
+        self.loop_depth -= 1;
+        result
     }
 
     pub(super) fn check_value_body(

@@ -678,7 +678,11 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     assert!(error.span.is_some());
 
     let invalid_jump = analyze("fun invalid(): Unit { break }");
-    assert!(invalid_jump.typed.diagnostics().is_empty());
+    assert_eq!(invalid_jump.typed.diagnostics().len(), 1);
+    assert_eq!(
+        invalid_jump.typed.diagnostics()[0].code().to_string(),
+        "L0142"
+    );
     let error = lower_scalar_file(
         &invalid_jump.sources,
         &invalid_jump.parsed,
@@ -687,9 +691,8 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
         &invalid_jump.owned,
     )
     .err()
-    .expect("a jump without a lexical loop must not construct SSA");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    .expect("Phase 2 jump diagnostics must gate SSA construction");
+    assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
 
     let for_loop = analyze("fun iterate(): Unit { for (item in 1) {} }");
     assert!(for_loop.typed.diagnostics().is_empty());

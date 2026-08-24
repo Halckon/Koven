@@ -152,6 +152,7 @@ pub mod codes {
     pub(crate) const NON_TRANSFERABLE_DELIVERY: &str = "L0139";
     pub(crate) const GENERIC_CALL_INFERENCE: &str = "L0140";
     pub(crate) const TRANSFERABLE_TYPE_ARGUMENT_BOUND: &str = "L0141";
+    pub(crate) const JUMP_OUTSIDE_LOOP: &str = "L0142";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -296,6 +297,7 @@ pub mod codes {
         NON_TRANSFERABLE_DELIVERY,
         GENERIC_CALL_INFERENCE,
         TRANSFERABLE_TYPE_ARGUMENT_BOUND,
+        JUMP_OUTSIDE_LOOP,
     ];
 
     /// 由集中定义创建生产错误码目录。

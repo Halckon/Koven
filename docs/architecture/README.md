@@ -8,7 +8,8 @@ SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interfa
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
-类型、核心构造和 element-place 类型事实；SPEC-0027 已建立整变量所有权状态与
+类型、核心构造和 element-place 类型事实；SPEC-0178 已检查 `break` / `continue` 的最近词法
+loop 与 callable boundary，并以 L0142 拒绝无目标 jump；SPEC-0027 已建立整变量所有权状态与
 use-after-move 检查；SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
 SPEC-0173 已让唯一期望函数类型的 lambda 采用 Value/Borrow/Inout 参数契约，并发布稳定
 parameter binding typed facts；
@@ -37,7 +38,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0141` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0142` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -112,9 +113,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
-  当前 type checker 只把 `break`/`continue` 定型为 `Nothing`，尚未诊断越过 callable 或缺少
-  enclosing loop 的 target；`for` 也只检查 source 表达式，尚未发布 iterator 选择、元素类型与
-  binding typed fact。这两项是进入完整 `for` lowering 前必须补齐的 Phase 2 漂移；
+  当前 type checker 已按当前 callable 的 loop base 检查 `break`/`continue`，合法 jump 定型为
+  `Nothing`，L0142 精确拒绝 loop 外或跨 lambda/function boundary 的 jump；`for` 仍只检查
+  source 表达式，尚未发布 iterator 选择、元素类型与 binding typed fact，这是进入完整 `for`
+  lowering 前剩余的 Phase 2 漂移；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已建立

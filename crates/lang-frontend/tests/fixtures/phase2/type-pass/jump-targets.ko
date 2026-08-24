@@ -1,0 +1,12 @@
+fun loops(flag: Boolean): Unit {
+    while (flag) {
+        continue
+    }
+    for (item in flag) {
+        break
+    }
+    loop {
+        val callback: () -> Unit = { loop { continue } }
+        break
+    }
+}

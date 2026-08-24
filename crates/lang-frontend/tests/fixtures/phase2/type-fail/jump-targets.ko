@@ -1,0 +1,9 @@
+val top = break
+
+fun invalid(): Unit {
+    continue
+    loop {
+        val callback: () -> Unit = { break }
+        break
+    }
+}

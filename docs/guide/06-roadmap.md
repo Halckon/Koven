@@ -159,6 +159,8 @@ fun main(): Unit {
 - [x] **SPEC-0019（前置：SPEC-0018、0066 `done`；v0.22 已明确启用）**：基础类型、数值
       字面量定型、局部推导、单向 expected type、隐式 `Unit` / 显式返回类型、`Nothing`
       bottom 与 L0082–L0090。
+- [x] **SPEC-0178（前置已完成；现行 v0.18/v0.28 语义）**：检查 `break` / `continue` 只控制
+      当前 callable 内最近的词法 enclosing loop，并以 L0142 拒绝 loop 外或跨 callable jump
 - [x] **SPEC-0020（前置已完成；v0.23 已明确启用）**：建立名义/泛型 identity 与替换、
       interface hierarchy/requirement/default、显式 override 和 `Interface by valField` 静态
       委托检查；诊断 L0091–L0105。

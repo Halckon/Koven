@@ -110,10 +110,14 @@ impl Checker<'_> {
                 keyword_span,
                 value,
             } => self.check_return(keyword_span, value)?,
-            Expression::Break { .. } | Expression::Continue { .. } => ExprCheck {
-                ty: self.builtin(BuiltinType::Nothing),
-                falls_through: false,
-            },
+            Expression::Break { keyword_span } => self.check_jump(
+                keyword_span,
+                "break is not inside an enclosing loop in this callable",
+            )?,
+            Expression::Continue { keyword_span } => self.check_jump(
+                keyword_span,
+                "continue is not inside an enclosing loop in this callable",
+            )?,
             Expression::SuperMember { interface, .. } => {
                 self.resolve_type_ref(interface)?;
                 ExprCheck {
@@ -511,6 +515,7 @@ impl Checker<'_> {
             self.callables.push(CallableContext {
                 return_type,
                 annotation_span: expected_span,
+                loop_base: self.loop_depth,
             });
             let body_result = self.check_value_body(body, Some(return_type), expected_span)?;
             self.callables.pop();
@@ -524,6 +529,7 @@ impl Checker<'_> {
             self.callables.push(CallableContext {
                 return_type,
                 annotation_span: None,
+                loop_base: self.loop_depth,
             });
             let body = self.check_value_body(body, None, None)?;
             self.callables.pop();
@@ -555,6 +561,7 @@ impl Checker<'_> {
         self.callables.push(CallableContext {
             return_type: error,
             annotation_span: None,
+            loop_base: self.loop_depth,
         });
         self.check_value_body(body, None, None)?;
         self.callables.pop();
@@ -605,6 +612,27 @@ impl Checker<'_> {
         }
         Ok(ExprCheck {
             ty: self.builtin(BuiltinType::Nothing),
+            falls_through: false,
+        })
+    }
+
+    fn check_jump(
+        &mut self,
+        keyword_span: Span,
+        message: &'static str,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let loop_base = self
+            .callables
+            .last()
+            .map_or(0, |callable| callable.loop_base);
+        let ty = if self.loop_depth > loop_base {
+            self.builtin(BuiltinType::Nothing)
+        } else {
+            self.emit(self.jump_outside_loop_code, message, keyword_span)?;
+            self.error_type()
+        };
+        Ok(ExprCheck {
+            ty,
             falls_through: false,
         })
     }

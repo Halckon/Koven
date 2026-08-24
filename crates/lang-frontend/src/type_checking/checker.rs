@@ -59,6 +59,7 @@ struct StatementCheck {
 struct CallableContext {
     return_type: TypeId,
     annotation_span: Option<Span>,
+    loop_base: usize,
 }
 
 /// 把声明侧源码 marker 规范化为唯一的 typed 参数契约。
@@ -128,6 +129,7 @@ struct Checker<'a> {
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
+    loop_depth: usize,
     classifiers: Vec<TypeId>,
     diagnostics: Vec<Diagnostic>,
     builtin_arguments_code: DiagnosticCode,
@@ -181,6 +183,7 @@ struct Checker<'a> {
     invalid_container_index_code: DiagnosticCode,
     immutable_container_place_code: DiagnosticCode,
     invalid_container_member_code: DiagnosticCode,
+    jump_outside_loop_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -282,6 +285,7 @@ impl<'a> Checker<'a> {
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
+            loop_depth: 0,
             classifiers: Vec::new(),
             diagnostics: Vec::new(),
             builtin_arguments_code: catalog.resolve(codes::BUILTIN_TYPE_ARGUMENTS)?,
@@ -341,6 +345,7 @@ impl<'a> Checker<'a> {
             invalid_container_index_code: catalog.resolve(codes::INVALID_CONTAINER_INDEX)?,
             immutable_container_place_code: catalog.resolve(codes::IMMUTABLE_CONTAINER_PLACE)?,
             invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
+            jump_outside_loop_code: catalog.resolve(codes::JUMP_OUTSIDE_LOOP)?,
         })
     }
 
