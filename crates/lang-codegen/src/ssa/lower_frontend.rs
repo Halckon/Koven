@@ -1,5 +1,6 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
+mod control;
 pub(super) mod orchestrate;
 
 use std::collections::BTreeMap;
@@ -39,7 +40,7 @@ pub(super) struct LoweringError {
     pub(super) span: Option<Span>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LoweredValue {
     Unit,
     Value(ValueId),
@@ -115,6 +116,15 @@ impl ExpressionLowerer<'_> {
                 ..
             } => self.lower_assignment(target, operator, value, span),
             Expression::Call { arguments, .. } => self.lower_call(expression, &arguments, span),
+            Expression::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => self.lower_if(expression, condition, then_branch, else_branch, span),
+            Expression::When {
+                subject, entries, ..
+            } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(value, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
@@ -269,6 +279,12 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if matches!(
+            operator,
+            AstBinaryOperator::LogicalAnd | AstBinaryOperator::LogicalOr
+        ) {
+            return self.lower_short_circuit(left, operator, right, expression, span);
+        }
         let left = self.require_value(left)?;
         let right = self.require_value(right)?;
         if let Some(operator) = checked_operator(operator) {

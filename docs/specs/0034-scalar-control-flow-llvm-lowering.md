@@ -114,6 +114,10 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
          block 尾部仍遵守 Unit 语境，不引入尾表达式值。
    - [ ] 接续具体泛型实例 lowering 后完成本步。
 4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
+   - [x] 完成 `if`、subjectful/subjectless Boolean `when`、多条件 entry 与 `&&`/`||` 的真实 CFG；
+         分支结果和分支内 local 更新通过确定顺序的 block parameter 合流，return 路径不产生
+         正常 successor，statement context 丢弃分支值。
+   - [ ] 接续 `while`/`for`/`loop` 与 `break`/`continue` 后完成本步。
 5. [ ] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
 6. [ ] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
 
@@ -153,3 +157,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | 2026-08-25 block/local/return 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
 | frontend→SSA 模块职责拆分窄测 | 通过 | 32 项 lang-codegen 测试与 Clippy 通过；orchestration 与 expression/body 生产文件分别低于 1000 行，公开行为不变 |
 | 2026-08-25 frontend→SSA 模块拆分 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 34 项；真实流水线覆盖 if、Boolean when、短路求值、分支 return、statement context 与 local block-parameter 合流；非 Boolean when 明确拒绝 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | CFG lowering 无 warning；expression/body、control 与 orchestration 生产文件均低于 1000 行软上限 |
+| 2026-08-25 if/Boolean when/short-circuit 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

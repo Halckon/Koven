@@ -134,8 +134,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   无泛型顶层 expression-body 与直线 block-body 函数的 Unit/Boolean 与全部
   8/16/32/64-bit 有符号/无符号整数、literal/name/group、前缀正负/Boolean not、checked
   arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
-  显式 return，并在返回前运行自建 verifier。branch/loop/short-circuit、具体泛型实例与
-  SSA→LLVM 映射仍未实现；
+  显式 return；`control` 子模块把 `if`、subjectful/subjectless Boolean `when` 和 `&&`/`||`
+  lower 为真实 CFG，以 block parameter 合流分支结果及分支内 local 更新，statement context
+  不为丢弃值伪造 payload，并在返回前运行自建 verifier。loop、具体泛型实例与 SSA→LLVM
+  映射仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

@@ -217,6 +217,151 @@ fn lowers_straight_line_blocks_locals_assignments_and_returns() {
 }
 
 #[test]
+fn lowers_if_short_circuit_and_branch_local_updates_as_cfg() {
+    let analysis = analyze(
+        "fun rhs(): Boolean = true\n\
+         fun choose(flag: Boolean, left: Int, right: Int): Int =\n\
+             if (flag) { left } else { right }\n\
+         fun conjunction(left: Boolean): Boolean = left && rhs()\n\
+         fun disjunction(left: Boolean): Boolean = left || rhs()\n\
+         fun update(flag: Boolean, input: Int): Int {\n\
+             var total: Int = input\n\
+             if (flag) { total = total + 1 } else { total = total + 2 }\n\
+             return total\n\
+         }\n\
+         fun same(flag: Boolean, input: Int, replacement: Int): Int {\n\
+             var total: Int = input\n\
+             if (flag) { total = replacement } else { total = replacement }\n\
+             return total\n\
+         }\n\
+         fun discard(flag: Boolean): Unit {\n\
+             if (flag) { 1 }\n\
+             when { flag -> 2 }\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("if and short-circuit expressions must lower through verified CFG");
+    let rendered = render_program(&program);
+    assert!(rendered.contains("func \"choose\""));
+    assert!(rendered.contains("func \"conjunction\""));
+    assert!(rendered.contains("func \"disjunction\""));
+    assert!(rendered.contains("func \"update\""));
+    assert!(rendered.contains("func \"same\""));
+    assert!(rendered.contains("func \"discard\""));
+    assert!(rendered.matches("cond %v").count() >= 4);
+    assert!(rendered.matches("branch bb").count() >= 8);
+    assert!(rendered.contains("call @f0()"));
+    assert!(rendered.contains("bb3(%v"));
+    let conjunction = rendered
+        .split("func \"conjunction\"")
+        .nth(1)
+        .and_then(|body| body.split("\n\n  func").next())
+        .expect("conjunction function must render");
+    assert!(
+        conjunction.find("cond %v").expect("short-circuit branch")
+            < conjunction.find("call @f0()").expect("right-hand call")
+    );
+    let same = rendered
+        .split("func \"same\"")
+        .nth(1)
+        .and_then(|body| body.split("\n\n  func").next())
+        .expect("same function must render");
+    assert!(same.contains("return %v2"));
+}
+
+#[test]
+fn lowers_boolean_when_subjectless_chains_and_diverging_entries() {
+    let analysis = analyze(
+        "fun select(flag: Boolean): Int = when (flag) {\n\
+             true -> 1\n\
+             false -> 2\n\
+         }\n\
+         fun predicate(left: Boolean, right: Boolean): Int = when {\n\
+             left && right -> 1\n\
+             left -> 2\n\
+             else -> 3\n\
+         }\n\
+         fun grouped(left: Boolean, right: Boolean): Int = when {\n\
+             left, right -> 7\n\
+             else -> 8\n\
+         }\n\
+         fun early(flag: Boolean): Int = when (flag) {\n\
+             true -> return 4\n\
+             false -> 5\n\
+         }\n\
+         fun update(flag: Boolean, input: Int): Int {\n\
+             var total: Int = input\n\
+             when { flag -> total = 6 }\n\
+             return total\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("Boolean when forms must lower through verified CFG");
+    let rendered = render_program(&program);
+    assert!(rendered.contains("func \"select\""));
+    assert!(rendered.contains("func \"predicate\""));
+    assert!(rendered.contains("func \"grouped\""));
+    assert!(rendered.contains("func \"early\""));
+    assert!(rendered.contains("func \"update\""));
+    assert!(rendered.matches("cond %v").count() >= 6);
+    assert!(rendered.matches("return %v").count() >= 4);
+    assert!(rendered.contains("bb3(%v"));
+}
+
+#[test]
 fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     let diagnostic = analyze("fun broken(input: Int): Int = missing");
     let error = lower_scalar_file(
@@ -240,6 +385,25 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     )
     .err()
     .expect("loop lowering belongs to the next control-flow slice");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+
+    let numeric_when = analyze(
+        "fun numeric(input: Int): Int = when (input) {\n\
+             1 -> 2\n\
+             else -> 3\n\
+         }",
+    );
+    assert!(numeric_when.typed.diagnostics().is_empty());
+    let error = lower_scalar_file(
+        &numeric_when.sources,
+        &numeric_when.parsed,
+        &numeric_when.names,
+        &numeric_when.typed,
+        &numeric_when.owned,
+    )
+    .err()
+    .expect("non-Boolean when remains outside the scalar control-flow slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 }
