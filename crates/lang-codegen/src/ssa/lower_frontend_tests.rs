@@ -450,6 +450,27 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
     assert!(first.contains("unreachable"));
     assert!(!first.contains("invoke "));
     assert!(!first.contains("landingpad"));
+
+    for function in ["divide", "remainder"] {
+        let body = llvm_function_body(&first, function);
+        assert!(body.contains(".zero = icmp eq i32"), "{body}");
+        assert!(body.contains(".min = icmp eq i32"), "{body}");
+        assert!(body.contains(", -2147483648"), "{body}");
+        assert!(body.contains(".minus_one = icmp eq i32"), "{body}");
+        assert!(body.contains(", -1"), "{body}");
+        assert!(body.contains(".signed_overflow = and i1"), "{body}");
+        assert!(body.contains(" = or i1 "), "{body}");
+        assert!(body.contains(" = select i1 "), "{body}");
+        assert!(body.contains("i32 1"), "{body}");
+    }
+    for function in ["divideUnsigned", "remainderUnsigned"] {
+        let body = llvm_function_body(&first, function);
+        assert!(body.contains(" = icmp eq i32 "), "{body}");
+        assert!(body.contains(", 0"), "{body}");
+        assert!(body.contains(" = select i1 "), "{body}");
+        assert!(body.contains("i32 1"), "{body}");
+        assert!(!body.contains(".signed_overflow"), "{body}");
+    }
 }
 
 #[test]

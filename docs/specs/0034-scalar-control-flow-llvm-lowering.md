@@ -80,19 +80,21 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 
 ## 5. 验收标准
 
-- [ ] frontend identity/diagnostic/deferred 门禁有独立正反例；非法输入不产生 SSA/LLVM module。
+- [x] frontend identity/diagnostic/deferred 门禁有独立正反例；非法输入不产生 SSA/LLVM module。
 - [x] Unit/Boolean 与全部 8/16/32/64-bit signed/unsigned integer 映射、literal 边界和类型替换
       由稳定测试锁定。
-- [ ] 顶层标量函数、局部绑定/赋值、direct call、if/Boolean when、loop、break/continue/return
+- [x] 顶层标量函数、局部绑定/赋值、direct call、if/Boolean when、loop、break/continue/return
       lower 后通过自建 verifier；source origin、实例 key 与求值顺序可查询且确定。
-- [ ] checked add/sub/mul、零除数、signed MIN/-1、比较和 short-circuit 正反矩阵在 SSA 与 LLVM
+- [ ] `for` 经候选 0179 的 typed iteration plan lower 为只求值一次 source 的合法 CFG；当前
+      frontend typed fact 尚未发布，必须保持明确拒绝。
+- [x] checked add/sub/mul、零除数、signed MIN/-1、比较和 short-circuit 正反矩阵在 SSA 与 LLVM
       文本中保留 abort edge，未出现 wrapping 或异常展开。
-- [ ] diamond、loop backedge、多 return 与 block parameters 生成合法 PHI incoming；人工损坏的
+- [x] diamond、loop backedge、多 return 与 block parameters 生成合法 PHI incoming；人工损坏的
       SSA 被自建 verifier 拦截，不进入 Inkwell。
-- [ ] LLVM module verifier 通过合法矩阵并拒绝 adapter 人工损坏产物；重复生成文本相同。
-- [ ] 依赖只存在于 `lang-codegen` LLVM adapter；manifest/lockfile、feature、license/build.rs
+- [x] LLVM module verifier 通过合法矩阵并拒绝人工构造的缺 terminator module；重复生成文本相同。
+- [x] 依赖只存在于 `lang-codegen` LLVM adapter；manifest/lockfile、feature、license/build.rs
       审计与 ADR-0007 一致，无 LLVM 类型泄漏到 frontend/SSA 公共模型。
-- [ ] `lang-codegen` 窄测和 workspace 标准基线通过；Architecture、Spec/ADR 索引与 roadmap
+- [x] `lang-codegen` 窄测和 workspace 标准基线通过；Architecture、Spec/ADR 索引与 roadmap
       只同步实际完成事实。
 
 ## 6. 技术方案与边界
@@ -181,3 +183,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen lowers_integer_literal_boundaries_without_runtime_overflow_checks -- --nocapture`（设置 LLVM prefix） | 通过 | 1 项；12 个整数边界经真实 frontend→SSA→LLVM，signed minimum 无 checked subtraction/trap，越界由 L0090 门禁拒绝 |
 | `cargo test -p lang-codegen --all-targets` / `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | 42 项全部通过；字面量边界切片无 warning，生产 lowering 文件 662 行 |
 | 2026-08-25 literal 边界检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen lowers_verified_frontend_ssa_to_deterministic_llvm_ir -- --nocapture`（设置 LLVM prefix） | 通过 | 1 项；signed div/rem 锁定 zero、MIN、-1、组合失败标志与 safe RHS，unsigned div/rem 锁定 zero/safe RHS 且无 signed-overflow 分支 |
+| 2026-08-25 SPEC-0034 可执行验收审计 | 部分通过 | 9 项验收中 8 项已有直接测试/依赖证据；仅 `for` 因候选 0179 尚未解除 guide/typed-fact 门禁而保持未勾选，Spec 状态仍为 `in-progress` |
+| 2026-08-25 division guard 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0；lang-codegen 42 项 |
