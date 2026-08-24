@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::Diagnostic,
-    name_resolution::SymbolId,
+    name_resolution::{NameResolution, SymbolId},
     source::{SourceId, Span},
-    type_checking::TypeId,
+    type_checking::{TypeId, TypedFile},
 };
 
 /// 可由 Phase 3 精确识别的源码 place。
@@ -492,6 +494,8 @@ impl OwnershipDeferredFact {
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
     source_id: SourceId,
+    environment_owner: Arc<()>,
+    typed_analysis_owner: Arc<()>,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<OwnershipBindingDescriptor>,
     loans: Vec<LoanFact>,
@@ -515,11 +519,15 @@ pub(crate) struct OwnershipCheckedParts {
 impl OwnershipCheckedFile {
     pub(crate) fn new(
         source_id: SourceId,
+        environment_owner: Arc<()>,
+        typed_analysis_owner: Arc<()>,
         diagnostics: Vec<Diagnostic>,
         parts: OwnershipCheckedParts,
     ) -> Self {
         Self {
             source_id,
+            environment_owner,
+            typed_analysis_owner,
             diagnostics,
             bindings: parts.bindings,
             loans: parts.loans,
@@ -535,6 +543,16 @@ impl OwnershipCheckedFile {
     #[must_use]
     pub const fn source_id(&self) -> SourceId {
         self.source_id
+    }
+
+    /// 返回本产物是否与名称、类型产物共享源码和显式环境身份。
+    #[must_use]
+    pub fn is_compatible_with(&self, names: &NameResolution, typed: &TypedFile) -> bool {
+        self.source_id == names.source_id()
+            && self.source_id == typed.source_id()
+            && typed.is_compatible_with_names(names)
+            && Arc::ptr_eq(&self.environment_owner, typed.environment_owner())
+            && Arc::ptr_eq(&self.typed_analysis_owner, typed.analysis_owner())
     }
 
     /// 返回稳定源码顺序的所有权诊断。

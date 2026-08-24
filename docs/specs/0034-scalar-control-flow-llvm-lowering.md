@@ -138,3 +138,4 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 28 项；五类 checked arithmetic、显式 abort CFG、六类 comparison、Boolean not、direct-call 正反矩阵 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | operation verifier 拆分后无 warning，全部生产文件低于 1000 行软上限 |
 | 2026-08-25 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-frontend --test ownership_checking` | 通过 | 14 项；新增同 source 下跨 environment、跨 name-analysis 与跨 typed-analysis 混用拒绝 |

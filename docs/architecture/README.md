@@ -82,6 +82,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   `EnvironmentFunctionEffect` 为精确参数绑定跨线程交付 effect，成功 call 通过 argument
   descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定 `Rc<T>` 只建立
   compiler intrinsic 类型身份，runtime API 仍属 Phase 5；
+- `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
+  identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
+  source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自
+  另一环境或另一分析链的 typed 产物，供 SPEC-0034 lowering 在构造任何 SSA 前执行完整门禁；
 - `lang_frontend::ownership_checking` 已提供消费 ParsedFile、名称解析与类型事实的独立检查
   入口，以稳定 `SymbolId` 跟踪局部整变量和规范化为 `Value` 的 owned 参数的可用 / 已移动
   状态；Borrow/Inout 参数不进入 owner 状态。MoveOnly 值在

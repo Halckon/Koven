@@ -13,6 +13,8 @@ pub enum OwnershipCheckingError {
     MismatchedNameSource,
     /// ParsedFile 与 TypedFile 不属于同一源码。
     MismatchedTypedSource,
+    /// NameResolution 与 TypedFile 不属于同一分析身份链。
+    MismatchedAnalysisIdentity,
     /// AST typed ID 不满足 Parser 前置不变量。
     Ast(AstError),
     /// 输入源码或 Span 不满足前置不变量。
@@ -32,6 +34,9 @@ impl fmt::Display for OwnershipCheckingError {
             Self::MismatchedTypedSource => {
                 formatter.write_str("typed file belongs to a different source")
             }
+            Self::MismatchedAnalysisIdentity => {
+                formatter.write_str("name and typed files belong to different analyses")
+            }
             Self::Ast(error) => write!(formatter, "ownership AST error: {error}"),
             Self::Source(error) => write!(formatter, "ownership source error: {error}"),
             Self::DiagnosticCode(error) => {
@@ -49,7 +54,9 @@ impl Error for OwnershipCheckingError {
             Self::Source(error) => Some(error),
             Self::DiagnosticCode(error) => Some(error),
             Self::Diagnostic(error) => Some(error),
-            Self::MismatchedNameSource | Self::MismatchedTypedSource => None,
+            Self::MismatchedNameSource
+            | Self::MismatchedTypedSource
+            | Self::MismatchedAnalysisIdentity => None,
         }
     }
 }

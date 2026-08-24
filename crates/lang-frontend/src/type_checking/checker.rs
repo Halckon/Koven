@@ -15,7 +15,10 @@ mod trial;
 mod type_ref;
 mod when;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
@@ -81,6 +84,7 @@ struct Checker<'a> {
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
     environment: &'a TypeEnvironment,
+    name_analysis_owner: Arc<()>,
     types: TypeTable,
     expression_types: Vec<Option<TypeId>>,
     expression_uses: Vec<ExpressionUse>,
@@ -227,6 +231,7 @@ impl<'a> Checker<'a> {
             sources,
             parsed,
             environment,
+            name_analysis_owner: names.analysis_owner().clone(),
             types: TypeTable::new(),
             expression_types: vec![None; parsed.ast().expressions().len()],
             expression_uses: collect_expression_uses(parsed),
@@ -387,6 +392,8 @@ impl<'a> Checker<'a> {
             .collect();
         Ok(TypedFile::new(
             self.parsed.source_id(),
+            self.environment.owner().clone(),
+            self.name_analysis_owner,
             self.types,
             TypedFileParts {
                 expression_types,

@@ -32,5 +32,8 @@ pub fn check_ownership(
     if typed.source_id() != source_id {
         return Err(OwnershipCheckingError::MismatchedTypedSource);
     }
+    if !typed.is_compatible_with_names(names) {
+        return Err(OwnershipCheckingError::MismatchedAnalysisIdentity);
+    }
     checker::check(sources, parsed, names, typed)
 }

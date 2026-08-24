@@ -243,6 +243,8 @@ impl<'a> Checker<'a> {
         };
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
+            self.typed.environment_owner().clone(),
+            self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
                 bindings,

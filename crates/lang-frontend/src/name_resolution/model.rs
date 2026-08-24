@@ -498,6 +498,7 @@ impl NameReference {
 pub struct NameResolution {
     source_id: SourceId,
     environment_owner: Arc<()>,
+    analysis_owner: Arc<()>,
     scopes: Vec<Scope>,
     symbols: Vec<Symbol>,
     enum_cases: Vec<EnumCase>,
@@ -517,6 +518,7 @@ impl NameResolution {
         Self {
             source_id,
             environment_owner,
+            analysis_owner: Arc::new(()),
             scopes,
             symbols,
             enum_cases,
@@ -557,5 +559,9 @@ impl NameResolution {
 
     pub(crate) fn environment_owner(&self) -> &Arc<()> {
         &self.environment_owner
+    }
+
+    pub(crate) fn analysis_owner(&self) -> &Arc<()> {
+        &self.analysis_owner
     }
 }

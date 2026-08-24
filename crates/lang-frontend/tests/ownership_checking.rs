@@ -143,10 +143,27 @@ fn ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs() {
     let second_names = resolve_names(&sources, &second, &environment).expect("second names");
     let first_typed = check_types(&sources, &first, &first_names, &types).expect("first types");
     let second_typed = check_types(&sources, &second, &second_names, &types).expect("second types");
+    let (foreign_environment, foreign_types) = environments();
+    let foreign_names =
+        resolve_names(&sources, &first, &foreign_environment).expect("foreign names");
+    let foreign_typed =
+        check_types(&sources, &first, &foreign_names, &foreign_types).expect("foreign types");
+    let repeated_names = resolve_names(&sources, &first, &environment).expect("repeated names");
+    let repeated_names_typed =
+        check_types(&sources, &first, &repeated_names, &types).expect("repeated names types");
+    let repeated_typed =
+        check_types(&sources, &first, &first_names, &types).expect("repeated typed analysis");
 
     let checked = check_ownership(&sources, &first, &first_names, &first_typed).expect("ownership");
     assert_eq!(checked.source_id(), first_source);
     assert!(checked.diagnostics().is_empty());
+    assert!(first_typed.is_compatible_with_names(&first_names));
+    assert!(checked.is_compatible_with(&first_names, &first_typed));
+    assert!(!foreign_typed.is_compatible_with_names(&first_names));
+    assert!(!repeated_names_typed.is_compatible_with_names(&first_names));
+    assert!(!checked.is_compatible_with(&first_names, &foreign_typed));
+    assert!(repeated_typed.is_compatible_with_names(&first_names));
+    assert!(!checked.is_compatible_with(&first_names, &repeated_typed));
     assert!(matches!(
         check_ownership(&sources, &first, &second_names, &first_typed),
         Err(OwnershipCheckingError::MismatchedNameSource)
@@ -154,6 +171,14 @@ fn ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs() {
     assert!(matches!(
         check_ownership(&sources, &first, &first_names, &second_typed),
         Err(OwnershipCheckingError::MismatchedTypedSource)
+    ));
+    assert!(matches!(
+        check_ownership(&sources, &first, &first_names, &foreign_typed),
+        Err(OwnershipCheckingError::MismatchedAnalysisIdentity)
+    ));
+    assert!(matches!(
+        check_ownership(&sources, &first, &first_names, &repeated_names_typed),
+        Err(OwnershipCheckingError::MismatchedAnalysisIdentity)
     ));
     assert!(matches!(
         check_ownership(&SourceMap::new(), &first, &first_names, &first_typed),

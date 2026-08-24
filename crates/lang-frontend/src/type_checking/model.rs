@@ -4,7 +4,7 @@ use crate::{
     ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::Diagnostic,
     name_resolution::{
-        EnumCaseId, ExternalSymbolId, ExternalSymbolKind, NameEnvironment, SymbolId,
+        EnumCaseId, ExternalSymbolId, ExternalSymbolKind, NameEnvironment, NameResolution, SymbolId,
     },
     source::SourceId,
 };
@@ -810,6 +810,9 @@ impl TypeTable {
 #[derive(Clone, Debug)]
 pub struct TypedFile {
     source_id: SourceId,
+    environment_owner: Arc<()>,
+    name_analysis_owner: Arc<()>,
+    analysis_owner: Arc<()>,
     types: TypeTable,
     expression_types: Vec<TypeId>,
     type_ref_types: Vec<TypeId>,
@@ -852,12 +855,17 @@ pub(crate) struct TypedFileParts {
 impl TypedFile {
     pub(crate) fn new(
         source_id: SourceId,
+        environment_owner: Arc<()>,
+        name_analysis_owner: Arc<()>,
         types: TypeTable,
         parts: TypedFileParts,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
             source_id,
+            environment_owner,
+            name_analysis_owner,
+            analysis_owner: Arc::new(()),
             types,
             expression_types: parts.expression_types,
             type_ref_types: parts.type_ref_types,
@@ -883,6 +891,22 @@ impl TypedFile {
     /// 返回来源文件身份。
     pub const fn source_id(&self) -> SourceId {
         self.source_id
+    }
+
+    /// 返回该 typed 产物是否与名称产物共享源码和显式环境身份。
+    #[must_use]
+    pub fn is_compatible_with_names(&self, names: &NameResolution) -> bool {
+        self.source_id == names.source_id()
+            && Arc::ptr_eq(&self.environment_owner, names.environment_owner())
+            && Arc::ptr_eq(&self.name_analysis_owner, names.analysis_owner())
+    }
+
+    pub(crate) fn environment_owner(&self) -> &Arc<()> {
+        &self.environment_owner
+    }
+
+    pub(crate) fn analysis_owner(&self) -> &Arc<()> {
+        &self.analysis_owner
     }
 
     #[must_use]
