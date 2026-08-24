@@ -26,9 +26,9 @@ SPEC-0032 已建立解析身份驱动的 closure capture、borrowed/move formati
 SPEC-0034 已完成标量 frontend→verified SSA→verified AArch64 LLVM IR 的封闭垂直切片；
 SPEC-0035 已完成聚合/heap-owner SSA、target DataLayout、系统 allocation、heap place 与递归
 drop/free 后端基元；
-SPEC-0036 已开始建立顺序容器后端，其中 container kind/element type、完整 construct/generate、
-length、checked element-place、replace 与 drop 的 SSA/verifier，以及固定 header、连续缓冲区
-构造的 LLVM 第二片已落地；checked-index、replace/drop runtime 仍在实施中；
+SPEC-0036 已完成顺序容器后端：container kind/element type、完整 construct/generate、length、
+checked element-place、replace 与 drop 的 SSA/verifier，以及固定 header、连续缓冲区、
+checked-index、replace/drop 与 MoveOnly ZST runtime 均已落地；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -36,7 +36,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
-SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至 v0.28
+SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序容器后端基元。截至 v0.28
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -186,7 +186,7 @@ SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至
   codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
   nominal/enum/Box constructor lowering、多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
-  SPEC-0036 的第一片已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
+  SPEC-0036 已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
   MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
   replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。
   element place alias root 追溯到 container owner，因而 move/drop 会使投影 place 失效，存续
@@ -196,7 +196,11 @@ SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至
   overflow intrinsic 受检计算 `length * stride`，零长度/ZST 选择 module-private 对齐 sentinel，
   其余路径只调用一次 `malloc`，null/overflow 进入 `abort` + `unreachable`。initializer 按升序
   显式循环且每个结果直接写入槽位，container header 作为 first-class value 参数/返回，不使用
-  隐式 `Box` 或动态 `alloca`；checked-index、replace 和 container drop 仍是后续切片；
+  隐式 `Box` 或动态 `alloca`。checked-index 先完成负值与上界检查再形成 element address；
+  replacement 先载入旧值、提交新值，再对 MoveOnly 旧元素调用 type-directed drop glue。
+  container drop 对 MoveOnly 元素按 logical length 逆序调用 glue，Copyable 元素跳过该循环，
+  最后只对真实非空 allocation 唯一 `free`。IR-local `ZeroSized` proof type 用于锁定 MoveOnly
+  ZST 的逻辑析构次数：不形成零 stride GEP/load/store，也不调用 `malloc`/`free`；
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

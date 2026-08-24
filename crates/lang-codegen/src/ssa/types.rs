@@ -80,9 +80,9 @@ impl Module {
             SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
                 Some(Ownership::Copyable)
             }
-            SsaTypeKind::Opaque { ownership, .. } | SsaTypeKind::Aggregate { ownership, .. } => {
-                Some(*ownership)
-            }
+            SsaTypeKind::Opaque { ownership, .. }
+            | SsaTypeKind::ZeroSized { ownership, .. }
+            | SsaTypeKind::Aggregate { ownership, .. } => Some(*ownership),
             SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
         }

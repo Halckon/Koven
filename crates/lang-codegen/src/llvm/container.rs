@@ -10,6 +10,7 @@ use inkwell::{
 };
 
 use crate::ssa::model::SsaTypeId;
+use crate::ssa::model::{Module, Ownership};
 
 use super::{LlvmAdapterError, runtime::RuntimeAbi, type_map::TypeMap};
 
@@ -139,6 +140,81 @@ pub(super) fn length<'ctx>(
     Ok(builder
         .build_extract_value(owner, 1, name)?
         .into_int_value())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn element_place<'ctx>(
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    index: IntValue<'ctx>,
+    name: &str,
+) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.buffer"))?
+        .into_pointer_value();
+    let length = builder
+        .build_extract_value(owner, 1, &format!("{name}.length"))?
+        .into_int_value();
+    let negative = builder.build_int_compare(
+        inkwell::IntPredicate::SLT,
+        index,
+        index.get_type().const_zero(),
+        &format!("{name}.negative"),
+    )?;
+    let beyond = builder.build_int_compare(
+        inkwell::IntPredicate::UGE,
+        index,
+        length,
+        &format!("{name}.beyond"),
+    )?;
+    let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
+    runtime.abort_if(builder, function, invalid, name)?;
+    if layout.stride == 0 {
+        return Ok(buffer);
+    }
+    // SAFETY: negative and unsigned upper-bound checks dominate this GEP; the buffer was allocated
+    // using the same logical length and target-derived element stride.
+    Ok(unsafe {
+        builder.build_in_bounds_gep(layout.element, buffer, &[index], &format!("{name}.slot"))?
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn replace<'ctx>(
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    index: IntValue<'ctx>,
+    value: BasicValueEnum<'ctx>,
+    name: &str,
+) -> Result<(), LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let (_, element) = module
+        .sequential_container(container)
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("replace owner 不是顺序容器".to_owned()))?;
+    let slot = element_place(
+        builder, function, types, runtime, container, owner, index, name,
+    )?;
+    let old = if layout.stride == 0 {
+        layout.element.const_zero()
+    } else {
+        let old = builder.build_load(layout.element, slot, &format!("{name}.old"))?;
+        builder.build_store(slot, value)?;
+        old
+    };
+    if module.type_ownership(element) == Some(Ownership::MoveOnly) {
+        runtime.emit_drop(builder, element, old)?;
+    }
+    Ok(())
 }
 
 fn build_header<'ctx>(

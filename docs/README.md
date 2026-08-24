@@ -39,7 +39,8 @@ use-after-move、条件复制、消费式解构、禁止结构分量部分移动
 读取/借用/替换所有权也已实现；v0.27 的简化 closure capture、逃逸/owned capture 诊断、
 capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect 也已实现。Phase 4
 已完成 typed SSA/verifier、标量 frontend→SSA→AArch64 LLVM IR，以及聚合/heap-owner、系统
-allocation 和递归 drop/free 后端基元；源码 constructor 接线仍等待候选 0183/0184。Phase 5
+allocation、递归 drop/free 与顺序容器连续缓冲区/checked-index/drop 后端基元；源码
+constructor 接线仍等待候选 0183/0184。Phase 5
 容器 relocation API 仍待后续 Spec。Phase 6 已独立提供
 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。
 
@@ -51,5 +52,5 @@ TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快�
 Phase 4 的独立架构门禁已由
 [ADR-0006](./adr/0006-typed-ssa-block-parameters.md) 封闭：自建 typed SSA 使用 IR-local type、
 block parameters 与显式 ownership effects。对应
-[SPEC-0033](./specs/0033-typed-ssa-ir-verifier.md) 与后续 SPEC-0034/0035 均已完成实施；后续
+[SPEC-0033](./specs/0033-typed-ssa-ir-verifier.md) 与后续 SPEC-0034/0035/0036 均已完成实施；后续
 Phase 4 Goal 仍按各自 guide、Spec 与 ADR 门禁推进。

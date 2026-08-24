@@ -168,6 +168,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ✅ 已实现 |
 | SPEC-0034 | 标量控制流 frontend→SSA→LLVM lowering | `06-roadmap.md` Phase 4、`../specs/0034-scalar-control-flow-llvm-lowering.md` | ✅ 已实现 |
 | SPEC-0035 | 聚合、class/Box allocation 与显式 drop/free 后端基元 | `06-roadmap.md` Phase 4、`../specs/0035-aggregate-class-allocation-drop.md` | ✅ 已实现 |
+| SPEC-0036 | 顺序容器连续缓冲区、checked-index 与 drop 后端基元 | `06-roadmap.md` Phase 4、`../specs/0036-sequential-container-runtime.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |

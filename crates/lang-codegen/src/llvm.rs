@@ -11,6 +11,7 @@ mod entities;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
+mod scalar;
 mod type_map;
 
 use inkwell::OptimizationLevel;

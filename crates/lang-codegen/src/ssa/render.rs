@@ -53,6 +53,9 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
         SsaTypeKind::Opaque { name, ownership } => {
             write!(output, "opaque {name:?} {:?}", ownership)
         }
+        SsaTypeKind::ZeroSized { name, ownership } => {
+            write!(output, "zst {name:?} {:?}", ownership)
+        }
         SsaTypeKind::Aggregate {
             name,
             fields,

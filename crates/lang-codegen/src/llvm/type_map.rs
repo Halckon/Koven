@@ -72,6 +72,11 @@ impl<'ctx> TypeMap<'ctx> {
                     containers.insert(id, container);
                     Some(container.into())
                 }
+                SsaTypeKind::ZeroSized { .. } => {
+                    let zst = context.opaque_struct_type(&format!("koven.zst.t{index}"));
+                    zst.set_body(&[], false);
+                    Some(zst.into())
+                }
                 SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
             };
             if let Some(ty) = ty {

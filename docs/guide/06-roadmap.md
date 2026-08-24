@@ -332,6 +332,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor、字段/解构与 drop facts 的接线仍等待候选 0183 完成后由候选
       0184 承接，不按名称猜测构造器
+- [x] **SPEC-0036（已实现）**：已建立顺序容器 owner、完整构造、length、checked element
+      place、替换与 drop 的 typed SSA/verifier，以及固定 header、单连续缓冲区、受检分配、
+      检查先于寻址、逆序元素析构、唯一释放和 MoveOnly ZST 逻辑析构；Phase 5 尚未定义的
+      增删/重排 relocation operation 明确不在本 Spec 内
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
@@ -340,17 +344,18 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不
       重复析构
 - [ ] `Copyable` 复制不调用 retain / clone glue，也不为被复制值生成唯一析构义务
-- [ ] 在 typed SSA 中保留顺序容器 owner、构造、length、checked-index、place load / borrow /
-      store、relocation 和 drop 基元；owned SSA 值在每条正常退出路径恰好消费或析构一次
-- [ ] 为单态化元素生成 size / alignment / stride，以系统堆基线生成固定大小 owner header、
+- [x] 在 typed SSA 中保留顺序容器 owner、构造、length、checked-index、place load / borrow /
+      store 和 drop 基元；owned SSA 值在每条正常退出路径恰好消费或析构一次；relocation
+      operation 等待 Phase 5 API/effect identity 封闭
+- [x] 为单态化元素生成 size / alignment / stride，以系统堆基线生成固定大小 owner header、
       单个连续缓冲区、受检分配大小和先检查后寻址的索引；不生成逐元素 `Box`
 - [ ] 在构造 LLVM 类型前拒绝目标 DataLayout 中的 size / alignment / stride 溢出和超过目标
       可表示对象大小的聚合，返回结构化用户诊断而不是 LLVM 错误或编译器崩溃
-- [ ] 大型聚合与容器 header 的 ABI 间接传递不得 lower 为隐式 `Box`，也不得仅因参数或返回
+- [x] 大型聚合与容器 header 的 ABI 间接传递不得 lower 为隐式 `Box`，也不得仅因参数或返回
       约定产生堆分配
-- [ ] 验证标准顺序容器不存在 small-buffer storage-kind tag、短 / 长双表示或按优化级别改变的
+- [x] 验证标准顺序容器不存在 small-buffer storage-kind tag、短 / 长双表示或按优化级别改变的
       静态类型
-- [ ] 构造和替换保持第 8 节的求值 / 提交 / 析构顺序；正常析构按元素逆序后释放缓冲区，
+- [x] 构造和替换保持第 8 节的求值 / 提交 / 析构顺序；正常析构按元素逆序后释放缓冲区，
       ZST 仍按逻辑 `size` 执行 drop；abort 路径不生成异常展开或部分构造 cleanup
 - [ ] 在目标布局确定后估算静态栈帧和实际仍存在的隐式大值复制，以对应 Spec 分配的稳定
       warning code 报告目标相关阈值超限，不因 warning 自动改变类型或表示

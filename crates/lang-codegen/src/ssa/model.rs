@@ -137,6 +137,10 @@ pub(crate) enum SsaTypeKind {
         name: String,
         ownership: Ownership,
     },
+    ZeroSized {
+        name: String,
+        ownership: Ownership,
+    },
     Aggregate {
         name: String,
         fields: Vec<SsaTypeId>,

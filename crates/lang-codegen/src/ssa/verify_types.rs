@@ -129,7 +129,8 @@ fn verify_type_definition(
         SsaTypeKind::Unit
         | SsaTypeKind::Boolean
         | SsaTypeKind::Integer { .. }
-        | SsaTypeKind::Opaque { .. } => {}
+        | SsaTypeKind::Opaque { .. }
+        | SsaTypeKind::ZeroSized { .. } => {}
     }
 }
 

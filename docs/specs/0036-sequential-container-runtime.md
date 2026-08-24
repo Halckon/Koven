@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-036` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成)、[§8 顺序容器](../guide/01-design-decisions.md#8-顺序容器内存表示与索引语义array--list--mutablelist) |
@@ -73,18 +73,19 @@
 
 ## 5. 验收标准
 
-- [ ] 顺序容器 type/kind/element identity、MoveOnly 能力、跨 module ID 与确定 debug text 正反矩阵通过。
-- [ ] 列表式/运行时长度构造、length、checked element place、替换和 drop 的 operation contract 与
+- [x] 顺序容器 type/kind/element identity、MoveOnly 能力、跨 module ID 与确定 debug text 正反矩阵通过。
+- [x] 列表式/运行时长度构造、length、checked element place、替换和 drop 的 operation contract 与
       CFG ownership 正反矩阵通过；`List` mutation 和 move 后访问被拒绝。
-- [ ] AArch64 LLVM IR 锁定两字段/三字段 header、单个连续 allocation、受检大小、OOM/负长度
+- [x] AArch64 LLVM IR 锁定两字段/三字段 header、单个连续 allocation、受检大小、OOM/负长度
       abort，以及不存在逐元素 allocation、storage tag 和动态 alloca。
-- [ ] checked-index 的负值/上界失败均在 GEP 前进入 abort；合法 Copyable/MoveOnly 元素 place
+- [x] checked-index 的负值/上界失败均在 GEP 前进入 abort；合法 Copyable/MoveOnly 元素 place
       load/borrow/store 使用相同 buffer 表示。
-- [ ] 正常 drop 对 MoveOnly 元素逆序调用 glue 并唯一 free；Copyable 元素不调用 glue；ZST 不
+- [x] 正常 drop 对 MoveOnly 元素逆序调用 glue 并唯一 free；Copyable 元素不调用 glue；ZST 不
       malloc/free、仍按 logical length drop，空容器不访问元素 storage。
-- [ ] 合法 module 通过自建 verifier 与 LLVM verifier并产生确定文本；人工损坏 SSA 在 LLVM
+- [x] 合法 module 通过自建 verifier 与 LLVM verifier并产生确定文本；人工损坏 SSA 在 LLVM
       construction 前被拒绝。
-- [ ] `lang-codegen` 窄测及 workspace 标准基线通过；生产 Rust 文件遵守 1000 行软上限，
+- [x] `lang-codegen` 窄测及 workspace 标准基线通过；本 Spec 涉及的 `lang-codegen` 生产 Rust
+      文件遵守 1000 行软上限，
       Architecture、Spec 索引和 roadmap 只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -104,9 +105,9 @@
    alias 与确定性矩阵。
 2. [x] 扩展 LLVM type map、固定 header 与连续 buffer allocation/构造 → 验证：DataLayout、
    overflow/OOM/负长度、单 allocation 与无第二表示矩阵。
-3. [ ] 实现 length、checked-index、element place/replace 与 container drop → 验证：检查先于 GEP、
+3. [x] 实现 length、checked-index、element place/replace 与 container drop → 验证：检查先于 GEP、
    loan/mutation、逆序 drop、ZST sentinel 与唯一 free 矩阵。
-4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 验收并审查 staged diff → 验证：实际
+4. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 验收并审查 staged diff → 验证：实际
    退出状态、文件规模和文档一致性。
 
 ## 8. 提交计划
@@ -134,3 +135,6 @@
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（buffer slice） | 通过 | 68 项；新增固定二/三字段 header、单连续 allocation、受检 size/OOM/负长度、direct initializer loop 与 ZST sentinel 三项 LLVM verifier/确定性矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（buffer slice） | 通过 | 无 warning；`adapter.rs` 969 行，aggregate/container/entity/runtime/type-map 按职责拆分且生产文件均低于 1000 行软上限 |
 | 2026-08-25 workspace 标准基线（buffer slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（runtime slice） | 通过 | 73 项；新增 checked-index、替换提交顺序、MoveOnly/Copyable/ZST container drop 五项 LLVM verifier/确定性矩阵 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（runtime slice） | 通过 | 无 warning；scalar predicate、container/runtime/type-map 职责分离，`adapter.rs` 994 行且本 Spec 涉及的 `lang-codegen` 生产 Rust 文件均低于 1000 行软上限 |
+| 2026-08-25 workspace 标准基线（最终验收） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |

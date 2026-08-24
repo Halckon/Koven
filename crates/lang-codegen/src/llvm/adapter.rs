@@ -17,7 +17,7 @@ use crate::ssa::{
     model::{
         BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
         Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
-        Program, ScalarConstant, SsaTypeKind, TerminatorKind, ValueId,
+        Program, ScalarConstant, TerminatorKind, ValueId,
     },
     verify::verify_program,
 };
@@ -29,6 +29,7 @@ use super::{
     },
     first_target_machine,
     runtime::RuntimeAbi,
+    scalar,
     type_map::TypeMap,
 };
 
@@ -160,6 +161,8 @@ struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
     values: BTreeMap<ValueId, BasicValueEnum<'ctx>>,
     places: BTreeMap<PlaceId, PointerValue<'ctx>>,
     loans: BTreeMap<LoanId, PointerValue<'ctx>>,
+    zero_sized_places: BTreeMap<PlaceId, BasicValueEnum<'ctx>>,
+    zero_sized_loans: BTreeMap<LoanId, BasicValueEnum<'ctx>>,
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
 }
 
@@ -184,6 +187,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             values: BTreeMap::new(),
             places: BTreeMap::new(),
             loans: BTreeMap::new(),
+            zero_sized_places: BTreeMap::new(),
+            zero_sized_loans: BTreeMap::new(),
             phis: BTreeMap::new(),
         }
     }
@@ -440,10 +445,47 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 )?;
                 self.values.insert(*result, value.into());
             }
-            Operation::ContainerElementPlace { .. } | Operation::ContainerReplace { .. } => {
-                return Err(unsupported(
-                    "顺序容器 LLVM lowering 等待 SPEC-0036 后续切片",
-                ));
+            Operation::ContainerElementPlace { owner, index } => {
+                let result = place_result(instruction)?;
+                let container_type = value_type(self.function, *owner)?;
+                let layout = self
+                    .dependencies
+                    .type_map
+                    .container_layout(container_type)?;
+                let pointer = container::element_place(
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    self.int_value(*index)?,
+                    &format!("p{}", result.index()),
+                )?;
+                self.places.insert(result, pointer);
+                if layout.stride == 0 {
+                    self.zero_sized_places
+                        .insert(result, layout.element.const_zero());
+                }
+            }
+            Operation::ContainerReplace {
+                owner,
+                index,
+                value,
+            } => {
+                let container_type = value_type(self.function, *owner)?;
+                container::replace(
+                    &self.builder,
+                    self.llvm_function,
+                    self.module,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    self.int_value(*index)?,
+                    self.value(*value)?,
+                    &format!("replace.i{}", instruction.id.index()),
+                )?;
             }
             Operation::FieldPlace { base, field } => {
                 let result = place_result(instruction)?;
@@ -488,27 +530,41 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             Operation::BorrowBegin { place, .. } => {
                 let result = loan_result(instruction)?;
                 self.loans.insert(result, self.place(*place)?);
+                if let Some(value) = self.zero_sized_places.get(place).copied() {
+                    self.zero_sized_loans.insert(result, value);
+                }
             }
             Operation::BorrowEnd { loan } => {
                 self.loans.remove(loan).ok_or_else(|| {
                     LlvmAdapterError::InvalidSsa("结束的 LLVM loan 映射不存在".to_owned())
                 })?;
+                self.zero_sized_loans.remove(loan);
             }
             Operation::Read { source } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("place read", 1, results.len()));
                 };
-                let source_type = access_type(self.function, *source)?;
-                let value = self.builder.build_load(
-                    self.dependencies.type_map.basic_type(source_type)?,
-                    self.access(*source)?,
-                    &value_name(*result),
-                )?;
+                let zero_sized = match source {
+                    PlaceAccess::Place(place) => self.zero_sized_places.get(place).copied(),
+                    PlaceAccess::Loan(loan) => self.zero_sized_loans.get(loan).copied(),
+                };
+                let value = if let Some(value) = zero_sized {
+                    value
+                } else {
+                    let source_type = access_type(self.function, *source)?;
+                    self.builder.build_load(
+                        self.dependencies.type_map.basic_type(source_type)?,
+                        self.access(*source)?,
+                        &value_name(*result),
+                    )?
+                };
                 self.values.insert(*result, value);
             }
             Operation::Mutate { place, value } => {
-                self.builder
-                    .build_store(self.place(*place)?, self.value(*value)?)?;
+                if !self.zero_sized_places.contains_key(place) {
+                    self.builder
+                        .build_store(self.place(*place)?, self.value(*value)?)?;
+                }
             }
         }
         Ok(())
@@ -540,7 +596,13 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                     .build_int_compare(IntPredicate::EQ, left_value, right_value, &name)?
             }
             BinaryOperator::LessThan => self.builder.build_int_compare(
-                self.ordering_predicate(left, IntPredicate::SLT, IntPredicate::ULT)?,
+                scalar::ordering_predicate(
+                    self.module,
+                    self.function,
+                    left,
+                    IntPredicate::SLT,
+                    IntPredicate::ULT,
+                )?,
                 left_value,
                 right_value,
                 &name,
@@ -580,7 +642,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         result: ValueId,
         failed: ValueId,
     ) -> Result<(), LlvmAdapterError> {
-        let signed = self.integer_signed(left)?;
+        let signed = scalar::integer_signed(self.module, self.function, left)?;
         let intrinsic_name = match (operator, signed) {
             (CheckedArithmeticOperator::Add, true) => "llvm.sadd.with.overflow",
             (CheckedArithmeticOperator::Add, false) => "llvm.uadd.with.overflow",
@@ -651,7 +713,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             zero,
             &format!("v{}.zero", failed.index()),
         )?;
-        let signed = self.integer_signed(left)?;
+        let signed = scalar::integer_signed(self.module, self.function, left)?;
         let failure = if signed {
             let bits = ty.get_bit_width();
             let minimum = ty.const_int(1_u64 << (bits - 1), false);
@@ -722,22 +784,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         let [result] = results else {
             return Err(invalid_result_count("comparison", 1, results.len()));
         };
-        let predicate = match operator {
-            ComparisonOperator::Equal => IntPredicate::EQ,
-            ComparisonOperator::NotEqual => IntPredicate::NE,
-            ComparisonOperator::LessThan => {
-                self.ordering_predicate(left, IntPredicate::SLT, IntPredicate::ULT)?
-            }
-            ComparisonOperator::LessThanOrEqual => {
-                self.ordering_predicate(left, IntPredicate::SLE, IntPredicate::ULE)?
-            }
-            ComparisonOperator::GreaterThan => {
-                self.ordering_predicate(left, IntPredicate::SGT, IntPredicate::UGT)?
-            }
-            ComparisonOperator::GreaterThanOrEqual => {
-                self.ordering_predicate(left, IntPredicate::SGE, IntPredicate::UGE)?
-            }
-        };
+        let predicate = scalar::comparison_predicate(self.module, self.function, left, operator)?;
         let value = self.builder.build_int_compare(
             predicate,
             self.int_value(left)?,
@@ -874,28 +921,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             phi.add_incoming(&[(&value, source)]);
         }
         Ok(())
-    }
-
-    fn ordering_predicate(
-        &self,
-        operand: ValueId,
-        signed: IntPredicate,
-        unsigned: IntPredicate,
-    ) -> Result<IntPredicate, LlvmAdapterError> {
-        Ok(if self.integer_signed(operand)? {
-            signed
-        } else {
-            unsigned
-        })
-    }
-
-    fn integer_signed(&self, value: ValueId) -> Result<bool, LlvmAdapterError> {
-        match self.module.type_kind(value_type(self.function, value)?) {
-            Some(SsaTypeKind::Integer { signed, .. }) => Ok(*signed),
-            _ => Err(LlvmAdapterError::InvalidSsa(
-                "integer operation 的 operand 不是整数".to_owned(),
-            )),
-        }
     }
 
     fn block(&self, id: BlockId) -> Result<BasicBlock<'ctx>, LlvmAdapterError> {
