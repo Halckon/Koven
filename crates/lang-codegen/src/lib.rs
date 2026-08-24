@@ -1,5 +1,11 @@
 //! Koven SSA 与本机代码生成的公共 crate 边界。
 
+mod native;
+#[cfg(test)]
+mod native_tests;
+
+pub use native::{NativeObjectError, NativeObjectErrorKind, emit_native_object};
+
 // SPEC-0034 完成 SSA→LLVM adapter 后移除该暂时的未使用门禁。
 #[allow(dead_code)]
 mod llvm;

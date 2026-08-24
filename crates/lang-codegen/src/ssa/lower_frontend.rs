@@ -25,7 +25,7 @@ use super::model::{
 use instances::FunctionInstanceKey;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum LoweringErrorKind {
+pub(crate) enum LoweringErrorKind {
     MismatchedSource,
     MismatchedAnalysis,
     FrontendDiagnostics,
@@ -39,9 +39,9 @@ pub(super) enum LoweringErrorKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct LoweringError {
-    pub(super) kind: LoweringErrorKind,
-    pub(super) span: Option<Span>,
+pub(crate) struct LoweringError {
+    pub(crate) kind: LoweringErrorKind,
+    pub(crate) span: Option<Span>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

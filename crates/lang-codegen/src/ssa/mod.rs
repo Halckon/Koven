@@ -2,6 +2,8 @@
 
 mod closure;
 mod lower_frontend;
+pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
+pub(crate) use lower_frontend::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
 mod render;
 mod types;

@@ -66,6 +66,41 @@ pub(in crate::ssa) fn lower_scalar_file(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
 ) -> Result<Program, LoweringError> {
+    Ok(lower_scalar_file_product(sources, parsed, names, typed, owned)?.program)
+}
+
+pub(crate) fn lower_scalar_file_with_entry(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    entry: SymbolId,
+) -> Result<(Program, FunctionId), LoweringError> {
+    let lowered = lower_scalar_file_product(sources, parsed, names, typed, owned)?;
+    let entry = lowered
+        .function_ids
+        .get(&FunctionInstanceKey::new(entry, Vec::new()))
+        .copied()
+        .ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    Ok((lowered.program, entry))
+}
+
+struct LoweredFile {
+    program: Program,
+    function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,
+}
+
+fn lower_scalar_file_product(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
     let file_anchor = sources
         .span(parsed.source_id(), 0, 0)
@@ -258,7 +293,10 @@ pub(in crate::ssa) fn lower_scalar_file(
         kind: LoweringErrorKind::InvalidSsa,
         span: None,
     })?;
-    Ok(program)
+    Ok(LoweredFile {
+        program,
+        function_ids,
+    })
 }
 
 fn validate_inputs(

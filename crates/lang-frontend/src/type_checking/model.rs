@@ -290,6 +290,26 @@ pub enum BuiltinType {
 }
 
 impl BuiltinType {
+    /// 全部编译器内建类型的规范声明顺序。
+    pub const ALL: [Self; 16] = [
+        Self::Byte,
+        Self::Short,
+        Self::Int,
+        Self::Long,
+        Self::UByte,
+        Self::UShort,
+        Self::UInt,
+        Self::ULong,
+        Self::Float,
+        Self::Double,
+        Self::Boolean,
+        Self::Char,
+        Self::String,
+        Self::Unit,
+        Self::Nothing,
+        Self::Any,
+    ];
+
     /// 返回规范源码名称。
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -751,24 +771,7 @@ impl TypeTable {
             kinds: Vec::new(),
             ids: BTreeMap::new(),
         };
-        for builtin in [
-            BuiltinType::Byte,
-            BuiltinType::Short,
-            BuiltinType::Int,
-            BuiltinType::Long,
-            BuiltinType::UByte,
-            BuiltinType::UShort,
-            BuiltinType::UInt,
-            BuiltinType::ULong,
-            BuiltinType::Float,
-            BuiltinType::Double,
-            BuiltinType::Boolean,
-            BuiltinType::Char,
-            BuiltinType::String,
-            BuiltinType::Unit,
-            BuiltinType::Nothing,
-            BuiltinType::Any,
-        ] {
+        for builtin in BuiltinType::ALL {
             table.intern(TypeKind::Builtin(builtin));
         }
         table.intern(TypeKind::IntegerLiteral(IntegerConstraint::Signed));

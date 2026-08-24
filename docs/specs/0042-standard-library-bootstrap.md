@@ -72,9 +72,9 @@
 
 ## 5. 验收标准
 
-- [ ] 标准内建环境由一个 production 入口确定构造，全部 builtin identity/顺序与重复构造测试
+- [x] 标准内建环境由一个 production 入口确定构造，全部 builtin identity/顺序与重复构造测试
       通过，CLI 没有复制 builtin 表。
-- [ ] codegen 公共 API 只接受匹配 analysis chain 的 resolved `SymbolId` entry；合法 `() -> Unit`
+- [x] codegen 公共 API 只接受匹配 analysis chain 的 resolved `SymbolId` entry；合法 `() -> Unit`
       生成含唯一 C `_main` 的 object，foreign/unknown/泛型/错误签名及诊断链在写盘前失败。
 - [ ] bootstrap driver 对 source read、frontend diagnostics、entry resolution、codegen、linker 与
       process exit 失败分层建模，不按任意 `main`/声明顺序猜测入口，不经 shell。
@@ -95,7 +95,7 @@
 
 ## 7. 实施计划
 
-1. [ ] 建立标准内建环境与显式 source-entry codegen facade → 验证：environment identity、entry
+1. [x] 建立标准内建环境与显式 source-entry codegen facade → 验证：environment identity、entry
    正反矩阵、object symbol 与失败不落盘。
 2. [ ] 实现 CLI bootstrap driver 和 `prelude.ko` smoke → 验证：真实文件全链路 link/run、entry/
    source/diagnostic/进程失败矩阵。
@@ -119,3 +119,6 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | SPEC-0039 `done`；ADR-0002/0007/0008/0010/0012 `accepted`；SPEC-0040 不在依赖链；现有 scalar frontend→SSA、object emitter 与 linker driver 可复用 |
+| `cargo test -p lang-frontend type_checking::tests::standard_environments_declare_every_builtin_once_in_canonical_order` | 通过 | 16 个 builtin 的唯一名称、规范顺序、type binding 与重复构造一致性通过；该命令还枚举了 frontend 全部 integration target，过滤项未冒充执行 |
+| `cargo test -p lang-codegen --lib native_tests` | 通过 | 3 项；resolved Unit entry 生成 arm64 Mach-O 和唯一 `_main`，参数化/泛型/非 Unit/非 function/unknown、混用 analysis、frontend diagnostics 与 unsupported source 均失败不落盘 |
+| `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings` | 通过 | 无 warning；新增 `native.rs` 155 行、`native_tests.rs` 约 230 行，既有超限 `type_checking/model.rs` 因复用 canonical builtin 表减少重复而未继续承载独立职责 |

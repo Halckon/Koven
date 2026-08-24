@@ -44,6 +44,12 @@ SPEC-0040 前两片已让 debug-enabled lowering 显式接收原 `SourceMap`，�
 `DIFile`、Koven function `DISubprogram` 与 instruction/terminator location；foreign map fail-loud，
 无 debug LLVM 文本入口保持原产物；Mach-O 行表及 LLDB 静态 source breakpoint 解析已通过，
 真实 breakpoint hit 仍受本机 debugserver/task-port 授权阻塞；
+SPEC-0042 第一片已把 16 个 `BuiltinType` 的规范顺序收敛为 frontend 单一 production 环境
+构造入口，并建立 `lang-codegen::emit_native_object` workspace API：调用方提交同一条 frontend
+analysis chain、resolved 顶层 `SymbolId` entry 和输出路径，codegen 复用现有 scalar SSA、
+verifier、DWARF object emitter 与显式 `FunctionId` wrapper；参数化、泛型、非 Unit、非函数、
+unknown entry、混用 analysis、frontend diagnostics 与 unsupported source 均在 object 写盘前
+结构化失败。标准库磁盘源码的 CLI bootstrap/link/run 编排仍在实施；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -149,8 +155,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
   drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184。显式 verified
-  SSA entry 已能生成 Mach-O object、经 clang 链接并运行，但源码 entry 选择和完整 CLI 流水线
-  仍未实现；
+  SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
+  `SymbolId` 的单文件 source-analysis→object workspace API，但通用源码入口选择和完整 CLI
+  流水线仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -246,8 +253,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   链接后程序正常返回 0；本机 debugserver 因 task-port 调试授权不可用而无法启动 inferior，真实
   breakpoint hit 仍待环境门禁解除后完成；
 
-现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；完整 `.ko`→可执行文件 CLI、标准库
-bootstrap 与 LSP 行为仍未实现。
+现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；resolved source entry→object 已形成
+workspace API，但完整 `.ko`→可执行文件 CLI、标准库 bootstrap link/run 与 LSP 行为仍未实现。
 
 ## Workspace 与 target
 
