@@ -150,6 +150,8 @@ pub mod codes {
     pub(crate) const BORROWED_CLOSURE_ESCAPE: &str = "L0137";
     pub(crate) const ILLEGAL_OWNED_CAPTURE: &str = "L0138";
     pub(crate) const NON_TRANSFERABLE_DELIVERY: &str = "L0139";
+    pub(crate) const GENERIC_CALL_INFERENCE: &str = "L0140";
+    pub(crate) const TRANSFERABLE_TYPE_ARGUMENT_BOUND: &str = "L0141";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -292,6 +294,8 @@ pub mod codes {
         BORROWED_CLOSURE_ESCAPE,
         ILLEGAL_OWNED_CAPTURE,
         NON_TRANSFERABLE_DELIVERY,
+        GENERIC_CALL_INFERENCE,
+        TRANSFERABLE_TYPE_ARGUMENT_BOUND,
     ];
 
     /// 由集中定义创建生产错误码目录。

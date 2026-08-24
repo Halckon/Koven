@@ -13,6 +13,8 @@ use crate::{
 
 use super::*;
 
+mod generic;
+
 #[derive(Clone)]
 struct CallParameter {
     name: Option<String>,
@@ -25,7 +27,8 @@ struct CallParameter {
 struct CallCandidate {
     target: CallableTarget,
     declaration_span: Option<Span>,
-    generic: bool,
+    type_parameters: Vec<SymbolId>,
+    instance_arguments: Vec<TypeId>,
     parameters: Vec<CallParameter>,
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
@@ -61,12 +64,22 @@ impl Checker<'_> {
         )? {
             return Ok(result);
         }
-        for &type_argument in &type_arguments {
-            self.resolve_type_ref(type_argument)?;
-        }
+        let explicit_types = type_arguments
+            .iter()
+            .map(|&type_argument| self.resolve_type_ref(type_argument))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let mut candidates = self.call_candidates(callee)?;
-        if !type_arguments.is_empty() || candidates.iter().any(|candidate| candidate.generic) {
+        let handles_source_instantiation = candidates.iter().any(|candidate| {
+            matches!(candidate.target, CallableTarget::Source(_))
+                && (!candidate.type_parameters.is_empty() || !type_arguments.is_empty())
+        });
+        if (!type_arguments.is_empty()
+            || candidates
+                .iter()
+                .any(|candidate| !candidate.type_parameters.is_empty()))
+            && !handles_source_instantiation
+        {
             self.check_deferred_arguments(callee, &arguments)?;
             return Ok(ExprCheck {
                 ty: self.deferred(DeferredReason::Call),
@@ -85,7 +98,8 @@ impl Checker<'_> {
                 candidates.push(CallCandidate {
                     target: CallableTarget::FunctionValue,
                     declaration_span: None,
-                    generic: false,
+                    type_parameters: Vec::new(),
+                    instance_arguments: Vec::new(),
                     parameters: parameters
                         .into_iter()
                         .map(|parameter| CallParameter {
@@ -131,6 +145,7 @@ impl Checker<'_> {
             }
         }
 
+        let initial_candidate_count = candidates.len();
         let mut mapped = Vec::new();
         let mut first_error = None;
         for candidate in candidates {
@@ -153,6 +168,51 @@ impl Checker<'_> {
                 falls_through: true,
             });
         }
+
+        let needs_inference = explicit_types.is_empty()
+            && mapped
+                .iter()
+                .any(|(candidate, _)| !candidate.type_parameters.is_empty());
+        let inference_types = if needs_inference {
+            self.check_inference_arguments(&arguments)?
+        } else {
+            vec![None; arguments.len()]
+        };
+        let mut instantiated = Vec::with_capacity(mapped.len());
+        let mut first_failure = None;
+        for (candidate, mapping) in mapped {
+            match self.instantiate_candidate(
+                candidate,
+                &mapping,
+                &arguments,
+                &inference_types,
+                (&type_arguments, &explicit_types),
+                self.ast().expressions().get(callee)?.span(),
+            )? {
+                Ok(candidate) => instantiated.push((candidate, mapping)),
+                Err(failure) => {
+                    first_failure.get_or_insert(failure);
+                }
+            }
+        }
+        if instantiated.is_empty() {
+            if initial_candidate_count == 1 {
+                if let Some(failure) = first_failure {
+                    self.emit_instantiation_failure(failure)?;
+                }
+            } else {
+                self.emit(
+                    self.no_matching_overload_code,
+                    "no overload matches the call arguments",
+                    self.ast().expressions().get(callee)?.span(),
+                )?;
+            }
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+        let mut mapped = instantiated;
 
         if mapped.len() == 1 {
             let (candidate, mapping) = mapped.pop().expect("one mapped candidate");
@@ -262,12 +322,15 @@ impl Checker<'_> {
         let target = self.reference(span, Namespace::Value).cloned();
         match target {
             Some(ReferenceTarget::Symbol(symbol)) => Ok(self
-                .source_candidate(symbol, BTreeMap::new())?
+                .source_candidate(symbol, BTreeMap::new(), Vec::new())?
                 .into_iter()
                 .collect()),
             Some(ReferenceTarget::OverloadSet(symbols)) => symbols
                 .into_iter()
-                .filter_map(|symbol| self.source_candidate(symbol, BTreeMap::new()).transpose())
+                .filter_map(|symbol| {
+                    self.source_candidate(symbol, BTreeMap::new(), Vec::new())
+                        .transpose()
+                })
                 .collect(),
             Some(ReferenceTarget::External(external)) => {
                 Ok(self.external_candidate(external)?.into_iter().collect())
@@ -327,7 +390,7 @@ impl Checker<'_> {
                 .type_parameters()
                 .iter()
                 .copied()
-                .zip(arguments)
+                .zip(arguments.iter().copied())
                 .collect::<BTreeMap<_, _>>();
             for descriptor in descriptors
                 .iter()
@@ -340,11 +403,13 @@ impl Checker<'_> {
                 {
                     continue;
                 }
-                if let Some(candidate) =
-                    self.source_candidate(descriptor.symbol(), owner_substitutions.clone())?
-                {
+                if let Some(candidate) = self.source_candidate(
+                    descriptor.symbol(),
+                    owner_substitutions.clone(),
+                    arguments.clone(),
+                )? {
                     let shape = (
-                        candidate.generic,
+                        !candidate.type_parameters.is_empty(),
                         candidate
                             .parameters
                             .iter()
@@ -364,6 +429,7 @@ impl Checker<'_> {
         &mut self,
         symbol: SymbolId,
         substitutions: BTreeMap<SymbolId, TypeId>,
+        owner_arguments: Vec<TypeId>,
     ) -> Result<Option<CallCandidate>, TypeCheckingError> {
         let Some(descriptor) = self
             .typed_callables
@@ -389,7 +455,8 @@ impl Checker<'_> {
         Ok(Some(CallCandidate {
             target: CallableTarget::Source(symbol),
             declaration_span: Some(self.symbol_spans[symbol.index()]),
-            generic: !descriptor.type_parameters().is_empty(),
+            type_parameters: descriptor.type_parameters().to_vec(),
+            instance_arguments: owner_arguments,
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
             cross_thread_parameters: BTreeSet::new(),
@@ -418,7 +485,8 @@ impl Checker<'_> {
         Ok(Some(CallCandidate {
             target: CallableTarget::External(external),
             declaration_span: None,
-            generic: false,
+            type_parameters: Vec::new(),
+            instance_arguments: Vec::new(),
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
             cross_thread_parameters: signature
@@ -518,10 +586,24 @@ impl Checker<'_> {
         let mut deferred = false;
         for (argument_index, argument) in arguments.iter().enumerate() {
             let parameter = &candidate.parameters[mapping[argument_index]];
+            let was_checked = self.expression_types[argument.value.index()].is_some();
             let result =
                 self.check_expression(argument.value, Some(parameter.ty), parameter.span)?;
             valid &= !self.is_error(result.ty);
             deferred |= self.is_deferred(result.ty);
+            if was_checked
+                && !self.is_error(result.ty)
+                && !self.is_deferred(result.ty)
+                && !self.assignable(result.ty, parameter.ty)
+            {
+                self.mismatch(
+                    self.ast().expressions().get(argument.value)?.span(),
+                    parameter.span,
+                    result.ty,
+                    parameter.ty,
+                )?;
+                valid = false;
+            }
             if !deferred
                 && matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
                 && (self.expression_categories[argument.value.index()] != ExpressionCategory::Place
@@ -583,6 +665,7 @@ impl Checker<'_> {
                     mapping[argument_index],
                     self.expression_categories[argument.value.index()],
                     candidate.parameters[mapping[argument_index]].mode,
+                    candidate.parameters[mapping[argument_index]].ty,
                     candidate
                         .cross_thread_parameters
                         .contains(&mapping[argument_index]),
@@ -592,6 +675,7 @@ impl Checker<'_> {
         self.calls.push(CallDescriptor::new(
             expression,
             candidate.target,
+            candidate.instance_arguments,
             candidate.return_type,
             descriptors,
         ));

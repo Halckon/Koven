@@ -103,6 +103,7 @@ impl Checker<'_> {
         self.calls.push(CallDescriptor::new(
             expression,
             CallableTarget::StructuralComponent(field),
+            Vec::new(),
             ty,
             Vec::new(),
         ));

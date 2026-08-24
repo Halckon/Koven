@@ -28,6 +28,34 @@ pub enum CallableTarget {
     StructuralComponent(SymbolId),
 }
 
+/// 一个已实例化 callable 的稳定类型层 identity。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableInstanceKey {
+    target: CallableTarget,
+    type_arguments: Vec<TypeId>,
+}
+
+impl CallableInstanceKey {
+    pub(crate) fn new(target: CallableTarget, type_arguments: Vec<TypeId>) -> Self {
+        Self {
+            target,
+            type_arguments,
+        }
+    }
+
+    /// 返回唯一静态 callable 目标。
+    #[must_use]
+    pub const fn target(&self) -> CallableTarget {
+        self.target
+    }
+
+    /// 返回 owner 参数在前、callable 参数在后的完整实例实参。
+    #[must_use]
+    pub fn type_arguments(&self) -> &[TypeId] {
+        &self.type_arguments
+    }
+}
+
 /// 一个源码实参到 callable 参数的稳定映射。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CallArgumentDescriptor {
@@ -35,6 +63,7 @@ pub struct CallArgumentDescriptor {
     parameter_index: usize,
     category: ExpressionCategory,
     mode: ParameterMode,
+    parameter_type: TypeId,
     cross_thread: bool,
 }
 
@@ -44,6 +73,7 @@ impl CallArgumentDescriptor {
         parameter_index: usize,
         category: ExpressionCategory,
         mode: ParameterMode,
+        parameter_type: TypeId,
         cross_thread: bool,
     ) -> Self {
         Self {
@@ -51,6 +81,7 @@ impl CallArgumentDescriptor {
             parameter_index,
             category,
             mode,
+            parameter_type,
             cross_thread,
         }
     }
@@ -79,6 +110,12 @@ impl CallArgumentDescriptor {
         self.mode
     }
 
+    /// 返回 callable 实例化后的参数类型。
+    #[must_use]
+    pub const fn parameter_type(self) -> TypeId {
+        self.parameter_type
+    }
+
     /// 返回该参数是否由 compiler-bound effect 跨线程交付。
     #[must_use]
     pub const fn crosses_thread(self) -> bool {
@@ -90,7 +127,7 @@ impl CallArgumentDescriptor {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallDescriptor {
     expression: ExpressionId,
-    target: CallableTarget,
+    instance: CallableInstanceKey,
     return_type: TypeId,
     arguments: Vec<CallArgumentDescriptor>,
 }
@@ -99,12 +136,13 @@ impl CallDescriptor {
     pub(crate) fn new(
         expression: ExpressionId,
         target: CallableTarget,
+        type_arguments: Vec<TypeId>,
         return_type: TypeId,
         arguments: Vec<CallArgumentDescriptor>,
     ) -> Self {
         Self {
             expression,
-            target,
+            instance: CallableInstanceKey::new(target, type_arguments),
             return_type,
             arguments,
         }
@@ -119,7 +157,13 @@ impl CallDescriptor {
     /// 返回唯一静态目标。
     #[must_use]
     pub const fn target(&self) -> CallableTarget {
-        self.target
+        self.instance.target()
+    }
+
+    /// 返回静态目标与完整类型实参组成的实例 key。
+    #[must_use]
+    pub const fn instance(&self) -> &CallableInstanceKey {
+        &self.instance
     }
 
     /// 返回实例化后的返回类型。

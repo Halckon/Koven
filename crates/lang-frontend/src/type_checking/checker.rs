@@ -168,6 +168,8 @@ struct Checker<'a> {
     call_argument_mode_code: DiagnosticCode,
     no_matching_overload_code: DiagnosticCode,
     ambiguous_call_code: DiagnosticCode,
+    generic_call_inference_code: DiagnosticCode,
+    transferable_type_argument_bound_code: DiagnosticCode,
     invalid_container_element_code: DiagnosticCode,
     cannot_infer_container_element_code: DiagnosticCode,
     invalid_container_construction_code: DiagnosticCode,
@@ -322,6 +324,9 @@ impl<'a> Checker<'a> {
             call_argument_mode_code: catalog.resolve(codes::CALL_ARGUMENT_MODE)?,
             no_matching_overload_code: catalog.resolve(codes::NO_MATCHING_OVERLOAD)?,
             ambiguous_call_code: catalog.resolve(codes::AMBIGUOUS_CALL)?,
+            generic_call_inference_code: catalog.resolve(codes::GENERIC_CALL_INFERENCE)?,
+            transferable_type_argument_bound_code: catalog
+                .resolve(codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND)?,
             invalid_container_element_code: catalog.resolve(codes::INVALID_CONTAINER_ELEMENT)?,
             cannot_infer_container_element_code: catalog
                 .resolve(codes::CANNOT_INFER_CONTAINER_ELEMENT)?,

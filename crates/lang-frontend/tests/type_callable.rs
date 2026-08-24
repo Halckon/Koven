@@ -6,8 +6,8 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, TypeRef},
     source::SourceMap,
     type_checking::{
-        BuiltinType, CallableTarget, EnvironmentFunction, EnvironmentParameter, ExpressionCategory,
-        ParameterMode, TypeEnvironment, TypeKind, check_types,
+        BuiltinType, CallableTarget, Capability, EnvironmentFunction, EnvironmentParameter,
+        ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, check_types,
     },
 };
 
@@ -55,9 +55,24 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             builtin,
         )
     });
+    let capabilities = [
+        (
+            names.declare_type("Copyable").expect("Copyable"),
+            Capability::Copyable,
+        ),
+        (
+            names.declare_type("Transferable").expect("Transferable"),
+            Capability::Transferable,
+        ),
+    ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types.bind_builtin(symbol, builtin).expect("binding");
+    }
+    for (symbol, capability) in capabilities {
+        types
+            .bind_capability(symbol, capability)
+            .expect("capability binding");
     }
     (names, types)
 }
@@ -393,7 +408,151 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
 }
 
 #[test]
-fn generic_reference_and_safe_calls_remain_explicitly_deferred() {
+fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
+    let text = "class Holder<A, B> {
+                    fun <T> select(own payload: T, fallback: A): T = payload
+                }
+                fun <T> identity(own input: T): T = input
+                fun <T> unwrap(input: Holder<T?, Long>): T? = null
+                fun <T> apply(input: T, callback: (T) -> T): T = callback(input)
+                fun use(holder: Holder<Int, Long>, nested: Holder<Int?, Long>): Unit {
+                    val explicit = identity<Int>(1)
+                    val inferred = identity(1)
+                    val member = holder.select<String>(\"value\", 1)
+                    val nestedValue = unwrap(nested)
+                    val lambdaValue = apply(1, { item -> item })
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 6);
+
+    let identity_calls = &typed.calls()[1..=2];
+    assert_eq!(identity_calls[0].instance(), identity_calls[1].instance());
+    assert!(matches!(
+        typed.types().get(identity_calls[0].return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed
+            .types()
+            .get(identity_calls[0].instance().type_arguments()[0]),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+
+    let member = &typed.calls()[3];
+    assert_eq!(member.instance().type_arguments().len(), 3);
+    assert!(matches!(
+        typed.types().get(member.instance().type_arguments()[0]),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed.types().get(member.instance().type_arguments()[1]),
+        Some(TypeKind::Builtin(BuiltinType::Long))
+    ));
+    assert!(matches!(
+        typed.types().get(member.instance().type_arguments()[2]),
+        Some(TypeKind::Builtin(BuiltinType::String))
+    ));
+    assert_eq!(member.arguments()[0].parameter_type(), member.return_type());
+    assert!(matches!(
+        typed.types().get(typed.calls()[4].return_type()),
+        Some(TypeKind::Nullable(inner))
+            if matches!(typed.types().get(*inner), Some(TypeKind::Builtin(BuiltinType::Int)))
+    ));
+    assert!(matches!(
+        typed.types().get(typed.calls()[5].return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+}
+
+#[test]
+fn generic_inference_does_not_use_return_context_and_reports_conflicts() {
+    let text = "fun <T> same(first: T, second: T): T = first
+                fun <T> factory(): T
+                fun <T> identity(input: T): T = input
+                fun use(): Unit {
+                    val conflict = same(1, 1L)
+                    val missing: Int = factory()
+                    val arity = identity<Int, Long>(1)
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert_eq!(codes(typed.diagnostics()), ["L0140", "L0140", "L0091"]);
+    assert_eq!(
+        sources.slice(typed.diagnostics()[0].primary_span()),
+        Ok("1L")
+    );
+    assert_eq!(
+        sources.slice(typed.diagnostics()[1].primary_span()),
+        Ok("factory")
+    );
+    assert_eq!(
+        sources.slice(typed.diagnostics()[2].primary_span()),
+        Ok("Long")
+    );
+}
+
+#[test]
+fn generic_bound_failures_filter_overloads_without_leaking_trial_diagnostics() {
+    let text = "interface Marker {}
+                class Good : Marker {}
+                class Bad {}
+                fun <T: Marker> interfaceBound(input: T): Unit {}
+                fun <T: Copyable> copyBound(input: T): Unit {}
+                fun <T: Transferable> transferBound(input: T): Unit {}
+                fun <T: Copyable> choose(input: T): Int = 1
+                fun <T: Transferable> choose(input: T?): Long = 1L
+                fun use(good: Good, bad: Bad, callback: (Int) -> Int, text: String?, absent: Nothing?): Unit {
+                    val goodInterface = interfaceBound(good)
+                    val badInterface = interfaceBound(bad)
+                    val copyable = copyBound(1)
+                    val notCopyable = copyBound(bad)
+                    val transferable = transferBound(\"ok\")
+                    val notTransferable = transferBound(callback)
+                    val selected = choose(text)
+                    val noMatch = choose(callback)
+                    val ambiguous = choose(absent)
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0093", "L0115", "L0141", "L0123", "L0124"]
+    );
+    assert_eq!(
+        sources.slice(typed.diagnostics()[0].primary_span()),
+        Ok("bad")
+    );
+    assert_eq!(
+        sources.slice(typed.diagnostics()[1].primary_span()),
+        Ok("bad")
+    );
+    assert_eq!(
+        sources.slice(typed.diagnostics()[2].primary_span()),
+        Ok("callback")
+    );
+    let selected = typed
+        .calls()
+        .iter()
+        .find(|call| {
+            matches!(
+                typed.types().get(call.return_type()),
+                Some(TypeKind::Builtin(BuiltinType::Long))
+            ) && call.instance().type_arguments().len() == 1
+        })
+        .expect("the Transferable overload must survive candidate filtering");
+    assert!(matches!(selected.target(), CallableTarget::Source(_)));
+}
+
+#[test]
+fn generic_source_calls_instantiate_while_reference_and_safe_calls_remain_deferred() {
     let text = "fun <T> identity(own input: T): T = input\n\
                 fun mono(input: Int): Int = input\n\
                 class Sample { fun read(input: Int): Int = input }\n\
@@ -414,13 +573,20 @@ fn generic_reference_and_safe_calls_remain_explicitly_deferred() {
         .filter_map(|(id, node)| matches!(node.payload(), Expression::Call { .. }).then_some(id))
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 3);
-    for call in calls {
+    assert!(matches!(
+        typed
+            .expression_type(calls[0])
+            .and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(typed.call(calls[0]).is_some());
+    for call in &calls[1..] {
         assert!(matches!(
             typed
-                .expression_type(call)
+                .expression_type(*call)
                 .and_then(|ty| typed.types().get(ty)),
             Some(TypeKind::Deferred(_))
         ));
-        assert!(typed.call(call).is_none());
+        assert!(typed.call(*call).is_none());
     }
 }
