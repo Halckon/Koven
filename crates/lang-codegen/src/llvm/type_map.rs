@@ -16,6 +16,7 @@ use super::LlvmAdapterError;
 pub(super) struct TypeMap<'ctx> {
     types: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
     aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
+    container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,10 +27,25 @@ pub(super) struct AggregateLayout {
     pub(super) field_offsets: Vec<u64>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct ContainerLayout<'ctx> {
+    pub(super) header: StructType<'ctx>,
+    pub(super) element: BasicTypeEnum<'ctx>,
+    pub(super) stride: u64,
+    pub(super) element_alignment: u32,
+}
+
 impl<'ctx> TypeMap<'ctx> {
-    pub(super) fn lower(context: &'ctx Context, module: &Module) -> Result<Self, LlvmAdapterError> {
+    pub(super) fn lower(
+        context: &'ctx Context,
+        module: &Module,
+        target: &TargetData,
+    ) -> Result<Self, LlvmAdapterError> {
         let mut types = BTreeMap::new();
         let mut aggregates = BTreeMap::new();
+        let mut containers = BTreeMap::new();
+        let pointer = context.ptr_type(AddressSpace::default());
+        let size_type = context.ptr_sized_int_type(target, None);
 
         for (index, kind) in module.types.iter().enumerate() {
             let id = SsaTypeId {
@@ -44,10 +60,18 @@ impl<'ctx> TypeMap<'ctx> {
                     aggregates.insert(id, aggregate);
                     Some(aggregate.into())
                 }
-                SsaTypeKind::HeapOwner { .. } => {
-                    Some(context.ptr_type(AddressSpace::default()).into())
+                SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
+                SsaTypeKind::SequentialContainer { kind, .. } => {
+                    let container =
+                        context.opaque_struct_type(&format!("koven.container.t{index}"));
+                    let mut fields = vec![pointer.into(), size_type.into()];
+                    if *kind == crate::ssa::model::SequentialContainerKind::MutableList {
+                        fields.push(size_type.into());
+                    }
+                    container.set_body(&fields, false);
+                    containers.insert(id, container);
+                    Some(container.into())
                 }
-                SsaTypeKind::SequentialContainer { .. } => None,
                 SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
             };
             if let Some(ty) = ty {
@@ -72,7 +96,30 @@ impl<'ctx> TypeMap<'ctx> {
             aggregate.set_body(&fields, false);
         }
 
-        Ok(Self { types, aggregates })
+        let mut container_layouts = BTreeMap::new();
+        for (id, header) in &containers {
+            let (_, element) = module.sequential_container(*id).ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa("顺序容器类型缺少元素定义".to_owned())
+            })?;
+            let element = types.get(&element).copied().ok_or_else(|| {
+                LlvmAdapterError::Unsupported("顺序容器元素不具有 LLVM storage 表示".to_owned())
+            })?;
+            container_layouts.insert(
+                *id,
+                ContainerLayout {
+                    header: *header,
+                    element,
+                    stride: target.get_abi_size(&element),
+                    element_alignment: target.get_abi_alignment(&element),
+                },
+            );
+        }
+
+        Ok(Self {
+            types,
+            aggregates,
+            container_layouts,
+        })
     }
 
     pub(super) fn basic_type(
@@ -124,6 +171,16 @@ impl<'ctx> TypeMap<'ctx> {
             abi_alignment: target.get_abi_alignment(&aggregate),
             field_offsets,
         })
+    }
+
+    pub(super) fn container_layout(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<ContainerLayout<'ctx>, LlvmAdapterError> {
+        self.container_layouts
+            .get(&ty)
+            .copied()
+            .ok_or_else(|| LlvmAdapterError::InvalidSsa("layout 查询目标不是顺序容器".to_owned()))
     }
 }
 

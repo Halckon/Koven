@@ -16,14 +16,19 @@ use inkwell::{
 use crate::ssa::{
     model::{
         BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-        EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess,
-        PlaceId, Program, ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
+        Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
+        Program, ScalarConstant, SsaTypeKind, TerminatorKind, ValueId,
     },
     verify::verify_program,
 };
 
 use super::{
-    LlvmAdapterError, configure_module, first_target_machine, runtime::RuntimeAbi,
+    LlvmAdapterError, aggregate, configure_module, container,
+    entities::{
+        access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
+    },
+    first_target_machine,
+    runtime::RuntimeAbi,
     type_map::TypeMap,
 };
 
@@ -68,7 +73,7 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
         ssa: &'ssa Module,
         target: &inkwell::targets::TargetData,
     ) -> Result<Self, LlvmAdapterError> {
-        let type_map = TypeMap::lower(context, ssa)?;
+        let type_map = TypeMap::lower(context, ssa, target)?;
         let runtime = RuntimeAbi::lower(context, llvm, ssa, &type_map, target)?;
         Ok(Self {
             context,
@@ -309,13 +314,43 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 self.lower_call(*callee, arguments, &results)?;
             }
             Operation::AggregateConstruct { aggregate, fields } => {
-                self.lower_aggregate_construct(*aggregate, fields, &results)?;
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "aggregate construct",
+                        1,
+                        results.len(),
+                    ));
+                };
+                let fields = fields
+                    .iter()
+                    .map(|field| self.value(*field))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value = aggregate::construct(
+                    &self.builder,
+                    self.dependencies.type_map,
+                    *aggregate,
+                    &fields,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
             }
             Operation::AggregateProject { aggregate, field } => {
-                self.lower_aggregate_project(*aggregate, *field, &results)?;
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("aggregate project", 1, results.len()));
+                };
+                let value = aggregate::project(
+                    &self.builder,
+                    self.struct_value(*aggregate)?,
+                    *field,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value);
             }
             Operation::AggregateExplode { aggregate } => {
-                self.lower_aggregate_explode(*aggregate, &results)?;
+                let names = results.iter().copied().map(value_name).collect::<Vec<_>>();
+                let values =
+                    aggregate::explode(&self.builder, self.struct_value(*aggregate)?, &names)?;
+                self.values.extend(results.iter().copied().zip(values));
             }
             Operation::HeapAllocate { owner, payload } => {
                 let [result] = results.as_slice() else {
@@ -335,11 +370,77 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 let result = place_result(instruction)?;
                 self.places.insert(result, self.pointer_value(*owner)?);
             }
-            Operation::ContainerConstruct { .. }
-            | Operation::ContainerGenerate { .. }
-            | Operation::ContainerLength { .. }
-            | Operation::ContainerElementPlace { .. }
-            | Operation::ContainerReplace { .. } => {
+            Operation::ContainerConstruct {
+                container,
+                elements,
+            } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "container construct",
+                        1,
+                        results.len(),
+                    ));
+                };
+                let elements = elements
+                    .iter()
+                    .map(|element| self.value(*element))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value = container::construct(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    *container,
+                    &elements,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::ContainerGenerate {
+                container,
+                length,
+                initializer,
+            } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container generate", 1, results.len()));
+                };
+                let initializer =
+                    *self
+                        .dependencies
+                        .functions
+                        .get(initializer)
+                        .ok_or_else(|| {
+                            LlvmAdapterError::InvalidSsa(
+                                "容器 initializer target 未声明".to_owned(),
+                            )
+                        })?;
+                let value = container::generate(
+                    self.context,
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    initializer,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    *container,
+                    self.int_value(*length)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::ContainerLength { owner } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container length", 1, results.len()));
+                };
+                let value = container::length(
+                    &self.builder,
+                    self.struct_value(*owner)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::ContainerElementPlace { .. } | Operation::ContainerReplace { .. } => {
                 return Err(unsupported(
                     "顺序容器 LLVM lowering 等待 SPEC-0036 后续切片",
                 ));
@@ -409,73 +510,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 self.builder
                     .build_store(self.place(*place)?, self.value(*value)?)?;
             }
-        }
-        Ok(())
-    }
-
-    fn lower_aggregate_construct(
-        &mut self,
-        aggregate: SsaTypeId,
-        fields: &[ValueId],
-        results: &[ValueId],
-    ) -> Result<(), LlvmAdapterError> {
-        let [result] = results else {
-            return Err(invalid_result_count(
-                "aggregate construct",
-                1,
-                results.len(),
-            ));
-        };
-        let mut value = self
-            .dependencies
-            .type_map
-            .aggregate_type(aggregate)?
-            .const_zero();
-        for (index, field) in fields.iter().enumerate() {
-            value = self
-                .builder
-                .build_insert_value(
-                    value,
-                    self.value(*field)?,
-                    index as u32,
-                    &format!("v{}.field{index}", result.index()),
-                )?
-                .into_struct_value();
-        }
-        value.set_name(&value_name(*result));
-        self.values.insert(*result, value.into());
-        Ok(())
-    }
-
-    fn lower_aggregate_project(
-        &mut self,
-        aggregate: ValueId,
-        field: usize,
-        results: &[ValueId],
-    ) -> Result<(), LlvmAdapterError> {
-        let [result] = results else {
-            return Err(invalid_result_count("aggregate project", 1, results.len()));
-        };
-        let field = self.builder.build_extract_value(
-            self.struct_value(aggregate)?,
-            field as u32,
-            &value_name(*result),
-        )?;
-        self.values.insert(*result, field);
-        Ok(())
-    }
-
-    fn lower_aggregate_explode(
-        &mut self,
-        aggregate: ValueId,
-        results: &[ValueId],
-    ) -> Result<(), LlvmAdapterError> {
-        let aggregate = self.struct_value(aggregate)?;
-        for (index, result) in results.iter().enumerate() {
-            let field =
-                self.builder
-                    .build_extract_value(aggregate, index as u32, &value_name(*result))?;
-            self.values.insert(*result, field);
         }
         Ok(())
     }
@@ -922,70 +956,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM loan 映射缺失".to_owned())),
         }
     }
-}
-
-fn value_type(function: &Function, value: ValueId) -> Result<SsaTypeId, LlvmAdapterError> {
-    match function.entity(EntityId::Value(value)).map(|data| data.ty) {
-        Some(EntityType::Value(ty)) => Ok(ty),
-        _ => Err(LlvmAdapterError::InvalidSsa(
-            "ValueId 缺少 value entity type".to_owned(),
-        )),
-    }
-}
-
-fn place_type(function: &Function, place: PlaceId) -> Result<SsaTypeId, LlvmAdapterError> {
-    match function.entity(EntityId::Place(place)).map(|data| data.ty) {
-        Some(EntityType::Place(ty)) => Ok(ty),
-        _ => Err(LlvmAdapterError::InvalidSsa(
-            "PlaceId 缺少 place entity type".to_owned(),
-        )),
-    }
-}
-
-fn access_type(function: &Function, access: PlaceAccess) -> Result<SsaTypeId, LlvmAdapterError> {
-    let entity = match access {
-        PlaceAccess::Place(place) => EntityId::Place(place),
-        PlaceAccess::Loan(loan) => EntityId::Loan(loan),
-    };
-    function
-        .entity(entity)
-        .map(|data| data.ty.semantic_type())
-        .ok_or_else(|| LlvmAdapterError::InvalidSsa("place access 缺少 entity type".to_owned()))
-}
-
-fn value_results(instruction: &Instruction) -> Result<Vec<ValueId>, LlvmAdapterError> {
-    instruction
-        .results
-        .iter()
-        .map(|entity| match entity {
-            EntityId::Value(value) => Ok(*value),
-            EntityId::Place(_) | EntityId::Loan(_) => {
-                Err(unsupported("LLVM instruction result 必须是 value"))
-            }
-        })
-        .collect()
-}
-
-fn place_result(instruction: &Instruction) -> Result<PlaceId, LlvmAdapterError> {
-    match instruction.results.as_slice() {
-        [EntityId::Place(place)] => Ok(*place),
-        _ => Err(LlvmAdapterError::InvalidSsa(
-            "place operation 必须产生一个 place".to_owned(),
-        )),
-    }
-}
-
-fn loan_result(instruction: &Instruction) -> Result<LoanId, LlvmAdapterError> {
-    match instruction.results.as_slice() {
-        [EntityId::Loan(loan)] => Ok(*loan),
-        _ => Err(LlvmAdapterError::InvalidSsa(
-            "borrow begin 必须产生一个 loan".to_owned(),
-        )),
-    }
-}
-
-fn value_name(value: ValueId) -> String {
-    format!("v{}", value.index())
 }
 
 fn invalid_result_count(operation: &str, expected: usize, actual: usize) -> LlvmAdapterError {

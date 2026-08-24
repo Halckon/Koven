@@ -27,8 +27,8 @@ SPEC-0034 已完成标量 frontend→verified SSA→verified AArch64 LLVM IR 的
 SPEC-0035 已完成聚合/heap-owner SSA、target DataLayout、系统 allocation、heap place 与递归
 drop/free 后端基元；
 SPEC-0036 已开始建立顺序容器后端，其中 container kind/element type、完整 construct/generate、
-length、checked element-place、replace 与 drop 的 SSA/verifier 第一片已落地；LLVM 连续缓冲区
-lowering 仍在实施中；
+length、checked element-place、replace 与 drop 的 SSA/verifier，以及固定 header、连续缓冲区
+构造的 LLVM 第二片已落地；checked-index、replace/drop runtime 仍在实施中；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -190,8 +190,13 @@ SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至
   MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
   replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。
   element place alias root 追溯到 container owner，因而 move/drop 会使投影 place 失效，存续
-  loan 会阻止 replace/drop；当前 LLVM adapter 对这些新 operation 明确 fail loud，固定 header、
-  连续 buffer、checked-index、ZST sentinel 与 container drop 仍是 SPEC-0036 后续切片；
+  loan 会阻止 replace/drop。LLVM type map 已按 ADR-0008 把 `Array`/`List` 映射为 `{ptr, size_t}`、
+  `MutableList` 映射为 `{ptr, size_t, size_t}`，元素 stride/alignment 来自同一 target DataLayout；
+  列表式构造与 direct initializer 运行时长度构造使用单连续 buffer，先拒绝负长度并以 LLVM
+  overflow intrinsic 受检计算 `length * stride`，零长度/ZST 选择 module-private 对齐 sentinel，
+  其余路径只调用一次 `malloc`，null/overflow 进入 `abort` + `unreachable`。initializer 按升序
+  显式循环且每个结果直接写入槽位，container header 作为 first-class value 参数/返回，不使用
+  隐式 `Box` 或动态 `alloca`；checked-index、replace 和 container drop 仍是后续切片；
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

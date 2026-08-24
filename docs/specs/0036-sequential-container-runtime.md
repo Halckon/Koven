@@ -102,7 +102,7 @@
 
 1. [x] 建立顺序容器 SSA type、operation、render 与 verifier → 验证：类型、操作、ownership、
    alias 与确定性矩阵。
-2. [ ] 扩展 LLVM type map、固定 header 与连续 buffer allocation/构造 → 验证：DataLayout、
+2. [x] 扩展 LLVM type map、固定 header 与连续 buffer allocation/构造 → 验证：DataLayout、
    overflow/OOM/负长度、单 allocation 与无第二表示矩阵。
 3. [ ] 实现 length、checked-index、element place/replace 与 container drop → 验证：检查先于 GEP、
    loan/mutation、逆序 drop、ZST sentinel 与唯一 free 矩阵。
@@ -131,3 +131,6 @@
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（SSA slice） | 通过 | 65 项；新增 6 项 container kind/element identity、结构 identity cycle、构造/generate/length/place/replace/drop、List mutation、move-after-drop 与 loan 冲突矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（SSA slice） | 通过 | 无 warning；生产 `model.rs` 901 行、`verify_ownership.rs` 906 行，后续 LLVM/runtime 职责不继续堆入这两个文件 |
 | 2026-08-25 workspace 标准基线（SSA slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（buffer slice） | 通过 | 68 项；新增固定二/三字段 header、单连续 allocation、受检 size/OOM/负长度、direct initializer loop 与 ZST sentinel 三项 LLVM verifier/确定性矩阵 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（buffer slice） | 通过 | 无 warning；`adapter.rs` 969 行，aggregate/container/entity/runtime/type-map 按职责拆分且生产文件均低于 1000 行软上限 |
+| 2026-08-25 workspace 标准基线（buffer slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |

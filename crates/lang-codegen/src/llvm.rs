@@ -1,8 +1,13 @@
 //! LLVM 21 / Inkwell 兼容边界。
 
 mod adapter;
+mod aggregate;
 #[cfg(test)]
 mod aggregate_tests;
+mod container;
+#[cfg(test)]
+mod container_tests;
+mod entities;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;

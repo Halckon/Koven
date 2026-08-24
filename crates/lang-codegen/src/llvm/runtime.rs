@@ -3,10 +3,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use inkwell::{
-    AddressSpace,
+    AddressSpace, IntPredicate,
     attributes::{Attribute, AttributeLoc},
     builder::Builder,
     context::Context,
+    intrinsics::Intrinsic,
     module::{Linkage, Module as LlvmModule},
     targets::TargetData,
     types::IntType,
@@ -26,6 +27,7 @@ pub(super) struct RuntimeAbi<'ctx> {
     abort: Option<FunctionValue<'ctx>>,
     free: Option<FunctionValue<'ctx>>,
     allocation_sizes: BTreeMap<SsaTypeId, u64>,
+    zst_sentinel: Option<PointerValue<'ctx>>,
     drop_functions: BTreeMap<SsaTypeId, FunctionValue<'ctx>>,
 }
 
@@ -56,6 +58,25 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 None,
             )
         });
+        let zst_sentinel = if requirements.container_allocations.is_empty() {
+            None
+        } else {
+            let alignment = requirements
+                .container_allocations
+                .iter()
+                .map(|ty| types.container_layout(*ty))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|layout| layout.element_alignment)
+                .max()
+                .unwrap_or(1);
+            let global = llvm.add_global(context.i8_type(), None, "koven.zst.sentinel");
+            global.set_linkage(Linkage::Private);
+            global.set_constant(true);
+            global.set_initializer(&context.i8_type().const_zero());
+            global.set_alignment(alignment.max(1));
+            Some(global.as_pointer_value())
+        };
 
         let mut allocation_sizes = BTreeMap::new();
         for owner in requirements.allocated_owners {
@@ -84,6 +105,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             abort,
             free,
             allocation_sizes,
+            zst_sentinel,
             drop_functions,
         };
         runtime.define_drop_functions(module, types)?;
@@ -155,6 +177,146 @@ impl<'ctx> RuntimeAbi<'ctx> {
         Ok(())
     }
 
+    pub(super) fn size_type(&self) -> IntType<'ctx> {
+        self.size_type
+    }
+
+    pub(super) fn allocate_buffer(
+        &self,
+        llvm: &LlvmModule<'ctx>,
+        builder: &Builder<'ctx>,
+        function: FunctionValue<'ctx>,
+        length: inkwell::values::IntValue<'ctx>,
+        stride: u64,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        if length.get_type().get_bit_width() != self.size_type.get_bit_width() {
+            return Err(LlvmAdapterError::Unsupported(
+                "当前 target 的 size_t 宽度必须与 Koven Int 一致".to_owned(),
+            ));
+        }
+        let abort = self
+            .abort
+            .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?;
+        let sentinel = self
+            .zst_sentinel
+            .ok_or_else(|| LlvmAdapterError::Build("容器 sentinel 未声明".to_owned()))?;
+        let failed = self
+            .context
+            .append_basic_block(function, &format!("{name}.abort"));
+        let valid = self
+            .context
+            .append_basic_block(function, &format!("{name}.valid"));
+        let negative = builder.build_int_compare(
+            IntPredicate::SLT,
+            length,
+            length.get_type().const_zero(),
+            &format!("{name}.negative"),
+        )?;
+        builder.build_conditional_branch(negative, failed, valid)?;
+
+        builder.position_at_end(failed);
+        builder.build_call(abort, &[], "")?;
+        builder.build_unreachable()?;
+
+        builder.position_at_end(valid);
+        if stride == 0 {
+            return Ok(sentinel);
+        }
+        let intrinsic = Intrinsic::find("llvm.umul.with.overflow")
+            .and_then(|intrinsic| intrinsic.get_declaration(llvm, &[self.size_type.into()]))
+            .ok_or_else(|| {
+                LlvmAdapterError::Build(
+                    "无法声明 LLVM unsigned multiply overflow intrinsic".to_owned(),
+                )
+            })?;
+        let product = match builder
+            .build_call(
+                intrinsic,
+                &[
+                    BasicMetadataValueEnum::from(length),
+                    BasicMetadataValueEnum::from(self.size_type.const_int(stride, false)),
+                ],
+                &format!("{name}.size"),
+            )?
+            .try_as_basic_value()
+        {
+            ValueKind::Basic(value) => value.into_struct_value(),
+            ValueKind::Instruction(_) => {
+                return Err(LlvmAdapterError::Build(
+                    "size overflow intrinsic 未返回 aggregate".to_owned(),
+                ));
+            }
+        };
+        let bytes = builder
+            .build_extract_value(product, 0, &format!("{name}.bytes"))?
+            .into_int_value();
+        let overflow = builder
+            .build_extract_value(product, 1, &format!("{name}.overflow"))?
+            .into_int_value();
+        let sized = self
+            .context
+            .append_basic_block(function, &format!("{name}.sized"));
+        builder.build_conditional_branch(overflow, failed, sized)?;
+
+        builder.position_at_end(sized);
+        let no_allocation = self
+            .context
+            .append_basic_block(function, &format!("{name}.empty"));
+        let allocate = self
+            .context
+            .append_basic_block(function, &format!("{name}.allocate"));
+        let ready = self
+            .context
+            .append_basic_block(function, &format!("{name}.ready"));
+        let empty = builder.build_int_compare(
+            IntPredicate::EQ,
+            bytes,
+            self.size_type.const_zero(),
+            &format!("{name}.zero_bytes"),
+        )?;
+        builder.build_conditional_branch(empty, no_allocation, allocate)?;
+
+        builder.position_at_end(no_allocation);
+        builder.build_unconditional_branch(ready)?;
+
+        builder.position_at_end(allocate);
+        let malloc = self
+            .malloc
+            .ok_or_else(|| LlvmAdapterError::Build("malloc 未声明".to_owned()))?;
+        let allocation = match builder
+            .build_call(
+                malloc,
+                &[BasicMetadataValueEnum::from(bytes)],
+                &format!("{name}.buffer"),
+            )?
+            .try_as_basic_value()
+        {
+            ValueKind::Basic(BasicValueEnum::PointerValue(pointer)) => pointer,
+            _ => {
+                return Err(LlvmAdapterError::Build(
+                    "malloc 未返回 LLVM pointer".to_owned(),
+                ));
+            }
+        };
+        let allocation_failed = builder.build_is_null(allocation, &format!("{name}.oom"))?;
+        let allocated = self
+            .context
+            .append_basic_block(function, &format!("{name}.allocated"));
+        builder.build_conditional_branch(allocation_failed, failed, allocated)?;
+
+        builder.position_at_end(allocated);
+        builder.build_unconditional_branch(ready)?;
+
+        builder.position_at_end(ready);
+        let pointer = builder.build_phi(
+            self.context.ptr_type(AddressSpace::default()),
+            &format!("{name}.pointer"),
+        )?;
+        pointer.add_incoming(&[(&sentinel, no_allocation), (&allocation, allocated)]);
+        Ok(pointer.as_basic_value().into_pointer_value())
+    }
+
     fn define_drop_functions(
         &self,
         module: &Module,
@@ -216,6 +378,7 @@ struct RuntimeRequirements {
     needs_allocation: bool,
     needs_free: bool,
     allocated_owners: BTreeSet<SsaTypeId>,
+    container_allocations: BTreeSet<SsaTypeId>,
     drop_types: BTreeSet<SsaTypeId>,
 }
 
@@ -225,6 +388,7 @@ impl RuntimeRequirements {
             needs_allocation: false,
             needs_free: false,
             allocated_owners: BTreeSet::new(),
+            container_allocations: BTreeSet::new(),
             drop_types: BTreeSet::new(),
         };
         for function in &module.functions {
@@ -233,6 +397,11 @@ impl RuntimeRequirements {
                     Operation::HeapAllocate { owner, .. } => {
                         requirements.needs_allocation = true;
                         requirements.allocated_owners.insert(owner);
+                    }
+                    Operation::ContainerConstruct { container, .. }
+                    | Operation::ContainerGenerate { container, .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.container_allocations.insert(container);
                     }
                     Operation::Drop { owner } => {
                         let ty = match function.entity(EntityId::Value(owner)).map(|data| data.ty) {

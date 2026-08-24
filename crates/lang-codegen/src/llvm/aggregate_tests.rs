@@ -40,7 +40,11 @@ fn target_data_layout_drives_aggregate_size_alignment_and_field_offsets() {
         .expect("aggregate type must be valid");
 
     let context = Context::create();
-    let types = TypeMap::lower(&context, module).expect("type lowering must succeed");
+    let target = super::first_target_machine()
+        .expect("target machine must exist")
+        .1
+        .get_target_data();
+    let types = TypeMap::lower(&context, module, &target).expect("type lowering must succeed");
     let (_, machine) = first_target_machine().expect("first target must be available");
     let layout = types
         .aggregate_layout(&machine.get_target_data(), aggregate)
