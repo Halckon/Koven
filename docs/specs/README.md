@@ -211,6 +211,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`done`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；完整 `for` 已按 runtime 依赖迁移至候选 0182 |
 | [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`done`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码构造器接线迁移至候选 0183/0184 |
 | [0036](./0036-sequential-container-runtime.md) | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径（`done`） | 0023、0030、0035 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
+| [0185](./0185-declarative-type-roots-codegen.md) | 让声明型 class/value class/interface/enum roots 与既有标量 entry 共存（`in-progress`） | 0020、0034 `done`；不实现 constructor 或 nominal operation |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
 | 0184 | 把 0183 的 nominal/enum/Box constructor、projection、destructuring 与 drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA | 0183、0035 `done`；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |

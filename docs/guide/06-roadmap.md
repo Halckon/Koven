@@ -336,6 +336,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       place、替换与 drop 的 typed SSA/verifier，以及固定 header、单连续缓冲区、受检分配、
       检查先于寻址、逆序元素析构、唯一释放和 MoveOnly ZST 逻辑析构；Phase 5 尚未定义的
       增删/重排 relocation operation 明确不在本 Spec 内
+- [ ] **SPEC-0185（实施中）**：让已通过 frontend 的普通 class/value class/interface/enum class
+      声明 roots 与既有标量 entry 共存；声明本身不进入函数实例图，不据此提前实现 constructor、
+      nominal operation、具名 object 或顶层存储初始化
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
