@@ -315,7 +315,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0033（已实现）**：建立 owner-aware、索引式的自建 typed SSA IR、确定性 debug
       rendering，以及结构 / CFG / dominance / MoveOnly / loan verifier；后续 SPEC-0034 再从
       AST/frontend facts lower 到该 IR
-- [ ] **SPEC-0034（实施中）**：LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target smoke、
+- [x] **SPEC-0034（已实现）**：LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target smoke、
       checked scalar operation / verifier contract，以及无泛型顶层 expression-body/直线 block、
       local、assignment、return、`if`、Boolean `when`、`&&`/`||` 和 block-parameter join 的
       frontend facts→verified SSA 切片已通过；`while`/`loop`、最近 loop 的 `break`/`continue`
@@ -323,7 +323,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       完成确定性单态化。verified SSA 已确定映射到 AArch64 LLVM IR，覆盖精确标量类型、PHI、
       checked arithmetic、比较、direct call、branch/return/trap，并在返回文本前通过 LLVM
       verifier；全部整数宽度和 literal 边界已锁定，直接有符号最小值按单个负常量 lower，
-      一般前缀负号仍保持 checked subtraction；`for` 仍等待 Phase 2 iterator/binding typed fact
+      一般前缀负号仍保持 checked subtraction
+- [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
+      provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
+      清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
       `Copyable` 能力保持正交
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不

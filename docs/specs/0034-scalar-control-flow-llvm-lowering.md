@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-034` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与 §16 checked integer 语义 |
 | 批准依据 | 当前持续 Goal 的站立授权；2026-08-24 LLVM 兼容门禁已实际通过 |
 | 前置 Spec | SPEC-0033 `done`；SPEC-0019、0021、0029、0177、0174 已由其前置链覆盖 |
 | 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 均 `accepted` |
-| 阻塞项 | 完整 `for` 等待 Phase 2 候选 0179 的 iterator/binding typed fact；其余封闭切片无阻塞，仍须按本 Spec 验收 |
+| 阻塞项 | 无；`for` 依赖本 Spec 明确排除的 iterator/container runtime，已迁移到后续候选 0182 |
 | 影响范围 | `lang-codegen` frontend→SSA lowering、scalar/control SSA operation、LLVM adapter、依赖与测试；Architecture |
 | 语言语义变更 | 否；只实施现行 guide 已封闭的标量、控制流、checked overflow/除零与 abort 语义 |
 
@@ -36,10 +36,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
   图必须有确定排序与显式递归/增长门禁，不能按源码名称合并 overload 或实例。
 - 支持标量参数、局部 `val`/`var`、赋值、block、`if`/Boolean `when`、`while`/`loop`、
   `return`/`break`/`continue`、直接单态 call，以及 checked operation 失败路径产生的 `Abort`
-  terminator。`for` 必须等待 Phase 2
-  发布 iterator 选择、元素类型和 binding typed fact，当前只能明确拒绝，不能按名称猜调用。Borrow
-  的 Copyable scalar 可按只读值 lower；`inout`、member/delegation receiver 与借用返回继续遵守
-  frontend deferred 边界，不在本 Spec 猜测 ABI。
+  terminator。Borrow 的 Copyable scalar 可按只读值 lower；`inout`、member/delegation receiver
+  与借用返回继续遵守 frontend deferred 边界，不在本 Spec 猜测 ABI。
 - 支持整数/Boolean literal、名称、group、guide 已定义的前缀、算术、比较、相等、逻辑与短路
   运算。必须保留 AST/source origin、源码求值顺序与控制边；unsupported typed node 返回明确
   `UnsupportedNode`，不能 panic、静默跳过或产生部分有效函数。
@@ -74,6 +72,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 - 不实现 aggregate/value class/class/Box/layout、heap/runtime、顺序容器、closure environment、
   object/companion、DWARF、object emission、链接或 CLI 编译流水线；直接源码 `error(String)`
   及任意 `Nothing` callable 的 runtime abort 同样不在本 Spec，由 SPEC-0039/0043 承接。
+- 不实现 `for`：它不存在脱离 iterator/provider runtime 的纯标量可执行形态；Phase 2 typed
+  iteration plan 由候选 0179 承接，SSA/LLVM、清理与 provider runtime 集成由候选 0182 承接。
 - 不实现 Map、Phase 5 API、receiver 所有权、callable reference、safe call、nullable lowering、
   exception/unwind、优化 pass、constant folding 或跨 target codegen。
 - 不以临时 C transpilation、JIT、解释执行或直接 AST→LLVM 绕过现行流水线。
@@ -85,8 +85,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
       由稳定测试锁定。
 - [x] 顶层标量函数、局部绑定/赋值、direct call、if/Boolean when、loop、break/continue/return
       lower 后通过自建 verifier；source origin、实例 key 与求值顺序可查询且确定。
-- [ ] `for` 经候选 0179 的 typed iteration plan lower 为只求值一次 source 的合法 CFG；当前
-      frontend typed fact 尚未发布，必须保持明确拒绝。
 - [x] checked add/sub/mul、零除数、signed MIN/-1、比较和 short-circuit 正反矩阵在 SSA 与 LLVM
       文本中保留 abort edge，未出现 wrapping 或异常展开。
 - [x] diamond、loop backedge、多 return 与 block parameters 生成合法 PHI incoming；人工损坏的
@@ -122,13 +120,12 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
    - [x] 从全部非泛型顶层入口构造可达具体泛型实例图；显式/推导得到的相同 key 去重，
          递归调用回到同一实例，不可达声明不生成，同名 overload 不按展示名称合并，并以
          1024 个具体泛型实例作为显式增长门禁。
-4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
+4. [x] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
    - [x] 完成 `if`、subjectful/subjectless Boolean `when`、多条件 entry 与 `&&`/`||` 的真实 CFG；
          分支结果和分支内 local 更新通过确定顺序的 block parameter 合流，return 路径不产生
          正常 successor，statement context 丢弃分支值。
    - [x] 完成 `while`/`loop`、最近词法 loop 的 `break`/`continue`、显式 header 参数与 backedge；
          自然 fallthrough 和每条 continue 均交付当前 loop-carried local，嵌套 break 只进入内层 exit。
-   - [ ] `for` 等待 Phase 2 候选 0179 发布 iterator/binding typed fact；补齐该前置后完成本步。
 5. [x] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
 6. [x] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
 
@@ -184,5 +181,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets` / `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | 42 项全部通过；字面量边界切片无 warning，生产 lowering 文件 662 行 |
 | 2026-08-25 literal 边界检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
 | `cargo test -p lang-codegen lowers_verified_frontend_ssa_to_deterministic_llvm_ir -- --nocapture`（设置 LLVM prefix） | 通过 | 1 项；signed div/rem 锁定 zero、MIN、-1、组合失败标志与 safe RHS，unsigned div/rem 锁定 zero/safe RHS 且无 signed-overflow 分支 |
-| 2026-08-25 SPEC-0034 可执行验收审计 | 部分通过 | 9 项验收中 8 项已有直接测试/依赖证据；仅 `for` 因候选 0179 尚未解除 guide/typed-fact 门禁而保持未勾选，Spec 状态仍为 `in-progress` |
+| 2026-08-25 SPEC-0034 可执行验收审计 | 通过 | 8 项范围内验收均有直接测试/依赖证据；`for` 没有脱离 iterator/container runtime 的纯标量形态，不属于本 Spec 可执行输入 |
 | 2026-08-25 division guard 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0；lang-codegen 42 项 |
+| 2026-08-25 `for` 依赖闭环审计 | 通过 | SPEC-0034 排除 container/runtime，而原 `for` 要求依赖 Phase 2/5 iterator 与 provider runtime；保留在 0034 会阻止其前置 container codegen，故完整迁移到候选 0182 |
