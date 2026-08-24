@@ -600,7 +600,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
 }
 
 #[test]
-fn intrinsic_index_closes_while_nonintrinsic_index_receiver_and_capture_remain_deferred() {
+fn intrinsic_index_closes_while_nonintrinsic_receiver_remains_deferred() {
     let text = "class Resource {}\n\
                 class Worker { fun inspect(item: Resource): Unit {} }\n\
                 fun mutate(inout item: Resource): Unit {}\n\
@@ -623,10 +623,9 @@ fn intrinsic_index_closes_while_nonintrinsic_index_receiver_and_capture_remain_d
         .collect::<Vec<_>>();
     assert!(reasons.contains(&OwnershipDeferredReason::IndexPlace));
     assert!(reasons.contains(&OwnershipDeferredReason::MemberReceiver));
-    assert!(reasons.contains(&OwnershipDeferredReason::LambdaCapture));
     assert!(
         checked.drops().is_empty(),
-        "captured owners must not receive an early plan"
+        "capture-aware drop planning is completed by the next SPEC-0032 checkpoint"
     );
 }
 

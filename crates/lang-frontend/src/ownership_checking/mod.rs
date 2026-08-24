@@ -1,5 +1,6 @@
 //! Phase 3 变量所有权状态与 use-after-move 检查。
 
+mod capture;
 mod checker;
 mod error;
 mod model;
@@ -11,9 +12,10 @@ use crate::{
 
 pub use error::OwnershipCheckingError;
 pub use model::{
-    DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanFact, LoanKind, LoanTarget,
-    OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile, OwnershipDeferredFact,
-    OwnershipDeferredReason, OwnershipPlace,
+    ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,
+    ClosureDescriptor, DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanFact, LoanKind,
+    LoanTarget, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
+    OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace, Transferability,
 };
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。

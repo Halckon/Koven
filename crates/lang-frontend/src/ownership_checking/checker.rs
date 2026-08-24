@@ -21,6 +21,7 @@ use crate::{
 use super::{
     LoanFact, LoanKind, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
     OwnershipCheckingError, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
+    capture, model::OwnershipCheckedParts,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -170,6 +171,11 @@ impl<'a> Checker<'a> {
     }
 
     fn run(mut self) -> Result<OwnershipCheckedFile, OwnershipCheckingError> {
+        let capture::Analysis {
+            captures,
+            closures,
+            transferabilities,
+        } = capture::analyze(self.parsed, self.names, self.typed)?;
         let mut state = State::default();
         for &root in self.parsed.roots() {
             self.check_item(root, &mut state)?;
@@ -199,13 +205,23 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        let captures = if diagnostics.is_empty() {
+            captures
+        } else {
+            Vec::new()
+        };
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
             diagnostics,
-            bindings,
-            self.loans,
-            drops,
-            self.deferred,
+            OwnershipCheckedParts {
+                bindings,
+                loans: self.loans,
+                drops,
+                captures,
+                closures,
+                transferabilities,
+                deferred: self.deferred,
+            },
         ))
     }
 
@@ -411,10 +427,7 @@ impl<'a> Checker<'a> {
                 }
                 Ok(flows)
             }
-            Expression::Lambda { .. } => {
-                self.defer(id, OwnershipDeferredReason::LambdaCapture);
-                Ok(Flows::next(state))
-            }
+            Expression::Lambda { .. } => Ok(Flows::next(state)),
             Expression::If {
                 condition,
                 then_branch,

@@ -3,6 +3,7 @@ use crate::{
     diagnostic::Diagnostic,
     name_resolution::SymbolId,
     source::{SourceId, Span},
+    type_checking::TypeId,
 };
 
 /// 可由 Phase 3 精确识别的源码 place。
@@ -267,6 +268,157 @@ pub struct DropFact {
     value_origin: Span,
 }
 
+/// lambda environment 中一个捕获来源的稳定身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ClosureCaptureSource {
+    /// 解析后的词法 binding。
+    Symbol(SymbolId),
+    /// 显式 `this` 或规范化为同一 receiver 的无前缀字段引用。
+    This,
+}
+
+/// closure 对捕获值持有的能力。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClosureCaptureMode {
+    /// 默认 lambda 延长 shared loan。
+    Shared,
+    /// `move` lambda 拥有独立 environment value。
+    Owned,
+}
+
+/// 形成 closure environment 时发生的值效果。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClosureCaptureEffect {
+    /// 建立 shared capture loan。
+    Borrow,
+    /// 将 `Copyable` 值复制进 owned environment。
+    Copy,
+    /// 将 MoveOnly 值移动进 owned environment。
+    Move,
+    /// 上游 deferred/error 类型阻止当前阶段确定效果。
+    Unknown,
+}
+
+/// 一个 lambda 对一个解析后来源的捕获事实。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClosureCaptureDescriptor {
+    lambda: ExpressionId,
+    source: ClosureCaptureSource,
+    ty: TypeId,
+    mode: ClosureCaptureMode,
+    effect: ClosureCaptureEffect,
+    reference_span: Span,
+}
+
+impl ClosureCaptureDescriptor {
+    pub(crate) const fn new(
+        lambda: ExpressionId,
+        source: ClosureCaptureSource,
+        ty: TypeId,
+        mode: ClosureCaptureMode,
+        effect: ClosureCaptureEffect,
+        reference_span: Span,
+    ) -> Self {
+        Self {
+            lambda,
+            source,
+            ty,
+            mode,
+            effect,
+            reference_span,
+        }
+    }
+
+    /// 返回拥有该 environment 的 lambda。
+    #[must_use]
+    pub const fn lambda(self) -> ExpressionId {
+        self.lambda
+    }
+
+    /// 返回解析后的 binding 或 receiver 来源。
+    #[must_use]
+    pub const fn source(self) -> ClosureCaptureSource {
+        self.source
+    }
+
+    /// 返回 capture 形成位置看到的规范化类型。
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+
+    /// 返回 shared/owned capture mode。
+    #[must_use]
+    pub const fn mode(self) -> ClosureCaptureMode {
+        self.mode
+    }
+
+    /// 返回 borrow/copy/move formation effect。
+    #[must_use]
+    pub const fn effect(self) -> ClosureCaptureEffect {
+        self.effect
+    }
+
+    /// 返回首次触发该 capture 的源码引用范围。
+    #[must_use]
+    pub const fn reference_span(self) -> Span {
+        self.reference_span
+    }
+}
+
+/// 一个规范化类型或具体 closure value 的跨线程转移能力。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Transferability {
+    /// 已结构化证明可跨线程交付。
+    Transferable,
+    /// 当前类型明确不满足该能力。
+    NotTransferable,
+    /// 仍依赖后续 typed selection。
+    Unknown,
+    /// 源码类型或能力位置无效。
+    Error,
+}
+
+/// 一个具体 lambda value 的 environment 与转移能力事实。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClosureDescriptor {
+    expression: ExpressionId,
+    move_owned: bool,
+    transferability: Transferability,
+}
+
+impl ClosureDescriptor {
+    pub(crate) const fn new(
+        expression: ExpressionId,
+        move_owned: bool,
+        transferability: Transferability,
+    ) -> Self {
+        Self {
+            expression,
+            move_owned,
+            transferability,
+        }
+    }
+
+    /// 返回 lambda expression identity。
+    #[must_use]
+    pub const fn expression(self) -> ExpressionId {
+        self.expression
+    }
+
+    /// 返回是否为显式 `move` lambda。
+    #[must_use]
+    pub const fn move_owned(self) -> bool {
+        self.move_owned
+    }
+
+    /// 返回考虑具体 capture environment 后的转移能力。
+    #[must_use]
+    pub const fn transferability(self) -> Transferability {
+        self.transferability
+    }
+}
+
 impl DropFact {
     pub(crate) const fn new(point: DropPoint, target: DropTarget, value_origin: Span) -> Self {
         Self {
@@ -302,8 +454,6 @@ pub enum OwnershipDeferredReason {
     IndexPlace,
     /// 未具有静态参数契约的 instance member receiver。
     MemberReceiver,
-    /// lambda capture 等待 SPEC-0032。
-    LambdaCapture,
 }
 
 /// 一个可查询的所有权 deferred 边界。
@@ -339,25 +489,38 @@ pub struct OwnershipCheckedFile {
     bindings: Vec<OwnershipBindingDescriptor>,
     loans: Vec<LoanFact>,
     drops: Vec<DropFact>,
+    captures: Vec<ClosureCaptureDescriptor>,
+    closures: Vec<ClosureDescriptor>,
+    transferabilities: Vec<Transferability>,
     deferred: Vec<OwnershipDeferredFact>,
 }
 
+pub(crate) struct OwnershipCheckedParts {
+    pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
+    pub(crate) loans: Vec<LoanFact>,
+    pub(crate) drops: Vec<DropFact>,
+    pub(crate) captures: Vec<ClosureCaptureDescriptor>,
+    pub(crate) closures: Vec<ClosureDescriptor>,
+    pub(crate) transferabilities: Vec<Transferability>,
+    pub(crate) deferred: Vec<OwnershipDeferredFact>,
+}
+
 impl OwnershipCheckedFile {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         source_id: SourceId,
         diagnostics: Vec<Diagnostic>,
-        bindings: Vec<OwnershipBindingDescriptor>,
-        loans: Vec<LoanFact>,
-        drops: Vec<DropFact>,
-        deferred: Vec<OwnershipDeferredFact>,
+        parts: OwnershipCheckedParts,
     ) -> Self {
         Self {
             source_id,
             diagnostics,
-            bindings,
-            loans,
-            drops,
-            deferred,
+            bindings: parts.bindings,
+            loans: parts.loans,
+            drops: parts.drops,
+            captures: parts.captures,
+            closures: parts.closures,
+            transferabilities: parts.transferabilities,
+            deferred: parts.deferred,
         }
     }
 
@@ -409,6 +572,37 @@ impl OwnershipCheckedFile {
     #[must_use]
     pub fn drops(&self) -> &[DropFact] {
         &self.drops
+    }
+
+    /// 返回 lambda/source 顺序稳定的 capture facts。
+    #[must_use]
+    pub fn captures(&self) -> &[ClosureCaptureDescriptor] {
+        &self.captures
+    }
+
+    /// 返回一个 lambda 的源码顺序 capture facts。
+    pub fn captures_of(
+        &self,
+        lambda: ExpressionId,
+    ) -> impl Iterator<Item = &ClosureCaptureDescriptor> {
+        self.captures
+            .iter()
+            .filter(move |capture| capture.lambda() == lambda)
+    }
+
+    /// 查询具体 lambda environment 的能力事实。
+    #[must_use]
+    pub fn closure(&self, expression: ExpressionId) -> Option<ClosureDescriptor> {
+        self.closures
+            .iter()
+            .copied()
+            .find(|closure| closure.expression() == expression)
+    }
+
+    /// 查询一个规范化类型的结构化跨线程转移能力。
+    #[must_use]
+    pub fn transferability(&self, ty: TypeId) -> Option<Transferability> {
+        self.transferabilities.get(ty.index()).copied()
     }
 
     /// 返回明确留给后续 Spec 的所有权事实。

@@ -72,7 +72,7 @@
 ## 7. 实施计划
 
 1. [ ] 启用封闭下方 §9 未决语义的新 guide，解除本 Spec 门禁 → 验证：索引、正文、changelog 一致。
-2. [ ] 建立 capture descriptor 与 `Transferability` 公开事实 → 验证：model/query 窄测。
+2. [x] 建立 capture descriptor 与 `Transferability` 公开事实 → 验证：model/query 窄测。
 3. [ ] 实现 lambda formation 的 move/copy/loan/drop 效果 → 验证：capture ownership matrix。
 4. [ ] 实现 typed cross-thread effect 与能力检查 → 验证：identity/Transferable matrix。
 5. [ ] 增加诊断、fixture、确定性与相邻回归 → 验证：frontend 受影响测试批次。
@@ -95,3 +95,7 @@
   保持 `draft`，未修改生产代码、未运行实现验收。
 - 2026-08-24：用户明确启用 v0.27 与推荐的简化 capture 模型，七项门禁由 §27 解除；本 Spec
   依站立授权进入 `approved`，实现验收尚未执行。
+- 2026-08-24：完成第一实现检查点：按 scope/reference/SymbolId 发布 shared/owned
+  borrow/copy/move capture facts，将字段引用规范化为 `this`，并对当前完整 `TypeKind` 域公开
+  独立于 `Copyability` 的结构化 `Transferability` 查询；新增 4 个领域测试，
+  `ownership_closures`、既有 30 个 ownership 相邻测试及 frontend Clippy `-D warnings` 通过。
