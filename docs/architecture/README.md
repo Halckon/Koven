@@ -141,7 +141,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   无泛型顶层 expression-body 与直线 block-body 函数的 Unit/Boolean 与全部
   8/16/32/64-bit 有符号/无符号整数、literal/name/group、前缀正负/Boolean not、checked
   arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
-  显式 return；`control` 子模块把 `if`、subjectful/subjectless Boolean `when` 和 `&&`/`||`
+  显式 return；直接负整数字面量以单个负常量表示，保证有符号最小值不被错误 lower 为
+  溢出的运行时 subtraction，一般前缀负号仍保留 checked operation；`control` 子模块把
+  `if`、subjectful/subjectless Boolean `when` 和 `&&`/`||`
   lower 为真实 CFG，以 block parameter 合流分支结果及分支内 local 更新，statement context
   不为丢弃值伪造 payload；`loop_control` 为 `while`/`loop` 建立显式 header 参数，preheader、
   自然 fallthrough 与每条 `continue` backedge 都传递当前 local，`break` 只进入最近 loop exit。

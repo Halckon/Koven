@@ -138,6 +138,109 @@ fn lowers_real_scalar_expression_functions_through_verified_ssa() {
 }
 
 #[test]
+fn lowers_integer_literal_boundaries_without_runtime_overflow_checks() {
+    let analysis = analyze(
+        "fun byteMin(): Byte = -128\n\
+         fun byteMax(): Byte = 127\n\
+         fun ubyteMax(): UByte = 255u\n\
+         fun shortMin(): Short = -32768\n\
+         fun shortMax(): Short = 32767\n\
+         fun ushortMax(): UShort = 65535u\n\
+         fun intMin(): Int = -2147483648\n\
+         fun intMax(): Int = 2147483647\n\
+         fun uintMax(): UInt = 4294967295u\n\
+         fun longMin(): Long = -9223372036854775808L\n\
+         fun longMax(): Long = 9223372036854775807L\n\
+         fun ulongMax(): ULong = 18446744073709551615uL",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("integer literal boundaries must lower through verified SSA");
+    let ssa = render_program(&program);
+    for constant in [
+        "const -128",
+        "const 127",
+        "const 255",
+        "const -32768",
+        "const 32767",
+        "const 65535",
+        "const -2147483648",
+        "const 2147483647",
+        "const 4294967295",
+        "const -9223372036854775808",
+        "const 9223372036854775807",
+        "const 18446744073709551615",
+    ] {
+        assert!(ssa.contains(constant), "missing {constant} in {ssa}");
+    }
+    assert!(!ssa.contains("checked.sub"));
+    assert!(!ssa.contains("abort @source"));
+
+    let llvm = render_verified_program(&program).expect("literal boundary SSA must lower to LLVM");
+    for (function, instruction) in [
+        ("byteMin", "ret i8 -128"),
+        ("byteMax", "ret i8 127"),
+        ("ubyteMax", "ret i8 -1"),
+        ("shortMin", "ret i16 -32768"),
+        ("shortMax", "ret i16 32767"),
+        ("ushortMax", "ret i16 -1"),
+        ("intMin", "ret i32 -2147483648"),
+        ("intMax", "ret i32 2147483647"),
+        ("uintMax", "ret i32 -1"),
+        ("longMin", "ret i64 -9223372036854775808"),
+        ("longMax", "ret i64 9223372036854775807"),
+        ("ulongMax", "ret i64 -1"),
+    ] {
+        let body = llvm_function_body(&llvm, function);
+        assert!(
+            body.contains(instruction),
+            "missing {instruction} in {body}"
+        );
+    }
+    assert!(!llvm.contains("llvm.ssub.with.overflow"));
+    assert!(!llvm.contains("llvm.trap"));
+
+    let invalid = analyze(
+        "fun byteTooLow(): Byte = -129\n\
+         fun ulongTooHigh(): ULong = 18446744073709551616uL",
+    );
+    assert_eq!(invalid.typed.diagnostics().len(), 2);
+    assert!(
+        invalid
+            .typed
+            .diagnostics()
+            .iter()
+            .all(|diagnostic| diagnostic.code().to_string() == "L0090")
+    );
+    let error = lower_scalar_file(
+        &invalid.sources,
+        &invalid.parsed,
+        &invalid.names,
+        &invalid.typed,
+        &invalid.owned,
+    )
+    .err()
+    .expect("out-of-range literals must be rejected before SSA construction");
+    assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
+}
+
+#[test]
 fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity() {
     let analysis = analyze(
         "fun <T> identity(own input: T): T = input\n\
@@ -724,4 +827,17 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     .err()
     .expect("non-scalar generic instances remain outside SPEC-0034");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}
+
+fn llvm_function_body<'a>(llvm: &'a str, source_name: &str) -> &'a str {
+    let marker = format!(".{source_name}(");
+    llvm.split("define ")
+        .skip(1)
+        .find(|definition| {
+            definition
+                .split_once('{')
+                .is_some_and(|(header, _)| header.contains(&marker))
+        })
+        .and_then(|definition| definition.split("\n}").next())
+        .expect("LLVM function definition")
 }

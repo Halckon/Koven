@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal 的站立授权；2026-08-24 LLVM 兼容门禁已实际通过 |
 | 前置 Spec | SPEC-0033 `done`；SPEC-0019、0021、0029、0177、0174 已由其前置链覆盖 |
 | 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 均 `accepted` |
-| 阻塞项 | 无；后续步骤仍须按本 Spec 验收，不能由 smoke 代替 |
+| 阻塞项 | 完整 `for` 等待 Phase 2 iterator/binding typed fact；其余封闭切片无阻塞，仍须按本 Spec 验收 |
 | 影响范围 | `lang-codegen` frontend→SSA lowering、scalar/control SSA operation、LLVM adapter、依赖与测试；Architecture |
 | 语言语义变更 | 否；只实施现行 guide 已封闭的标量、控制流、checked overflow/除零与 abort 语义 |
 
@@ -35,7 +35,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 - lower 非泛型顶层具名函数，以及 SPEC-0177 已给出具体实例 identity 的纯标量泛型实例；实例
   图必须有确定排序与显式递归/增长门禁，不能按源码名称合并 overload 或实例。
 - 支持标量参数、局部 `val`/`var`、赋值、block、`if`/Boolean `when`、`while`/`loop`、
-  `return`/`break`/`continue`、直接单态 call、`error()`/`Nothing` abort。`for` 必须等待 Phase 2
+  `return`/`break`/`continue`、直接单态 call，以及 checked operation 失败路径产生的 `Abort`
+  terminator。`for` 必须等待 Phase 2
   发布 iterator 选择、元素类型和 binding typed fact，当前只能明确拒绝，不能按名称猜调用。Borrow
   的 Copyable scalar 可按只读值 lower；`inout`、member/delegation receiver 与借用返回继续遵守
   frontend deferred 边界，不在本 Spec 猜测 ABI。
@@ -71,7 +72,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 ## 4. 非目标
 
 - 不实现 aggregate/value class/class/Box/layout、heap/runtime、顺序容器、closure environment、
-  object/companion、DWARF、object emission、链接或 CLI 编译流水线；分别由 SPEC-0035–0040 承接。
+  object/companion、DWARF、object emission、链接或 CLI 编译流水线；直接源码 `error(String)`
+  及任意 `Nothing` callable 的 runtime abort 同样不在本 Spec，由 SPEC-0039/0043 承接。
 - 不实现 Map、Phase 5 API、receiver 所有权、callable reference、safe call、nullable lowering、
   exception/unwind、优化 pass、constant folding 或跨 target codegen。
 - 不以临时 C transpilation、JIT、解释执行或直接 AST→LLVM 绕过现行流水线。
@@ -79,7 +81,7 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 ## 5. 验收标准
 
 - [ ] frontend identity/diagnostic/deferred 门禁有独立正反例；非法输入不产生 SSA/LLVM module。
-- [ ] Unit/Boolean 与全部 8/16/32/64-bit signed/unsigned integer 映射、literal 边界和类型替换
+- [x] Unit/Boolean 与全部 8/16/32/64-bit signed/unsigned integer 映射、literal 边界和类型替换
       由稳定测试锁定。
 - [ ] 顶层标量函数、局部绑定/赋值、direct call、if/Boolean when、loop、break/continue/return
       lower 后通过自建 verifier；source origin、实例 key 与求值顺序可查询且确定。
@@ -111,6 +113,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
    - [x] 完成无泛型顶层 expression-body 函数的 identity/diagnostic/deferred 门禁、标量类型、
          literal/name/group/prefix/checked arithmetic/comparison/direct-call lowering，并在返回前运行
          SPEC-0033 verifier。
+   - [x] 完成全部整数宽度的 literal 边界；直接负整数字面量形成单个负常量，使各有符号类型
+         的最小值不经过会误报溢出的运行时 `0 - magnitude`，一般前缀负号仍使用 checked subtraction。
    - [x] 完成直线 block、嵌套 block、局部 `val`/`var`、普通/复合赋值与显式 return lowering；
          block 尾部仍遵守 Unit 语境，不引入尾表达式值。
    - [x] 从全部非泛型顶层入口构造可达具体泛型实例图；显式/推导得到的相同 key 去重，
@@ -174,3 +178,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 41 项；新增 verified SSA 前置拒绝、unchecked scalar primitive，以及真实 frontend→SSA→LLVM 的全部整数宽度、signed/unsigned checked operation、PHI、loop、direct call、trap 与重复文本矩阵 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | verified SSA→LLVM adapter 无 warning；adapter 743 行，全部生产文件低于 1000 行软上限 |
 | 2026-08-25 verified SSA→LLVM 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen lowers_integer_literal_boundaries_without_runtime_overflow_checks -- --nocapture`（设置 LLVM prefix） | 通过 | 1 项；12 个整数边界经真实 frontend→SSA→LLVM，signed minimum 无 checked subtraction/trap，越界由 L0090 门禁拒绝 |
+| `cargo test -p lang-codegen --all-targets` / `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | 42 项全部通过；字面量边界切片无 warning，生产 lowering 文件 662 行 |
+| 2026-08-25 literal 边界检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

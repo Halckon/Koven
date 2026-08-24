@@ -206,22 +206,7 @@ impl ExpressionLowerer<'_> {
         let constant = match literal {
             LiteralKind::Boolean(value) => ScalarConstant::Boolean(value),
             LiteralKind::Integer(kind) => {
-                let text = self
-                    .source_text
-                    .get(span.start()..span.end())
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))?;
-                let digits = match kind {
-                    IntegerLiteralKind::Unsuffixed => text,
-                    IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => {
-                        &text[..text.len() - 1]
-                    }
-                    IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
-                };
-                ScalarConstant::Integer(
-                    digits
-                        .parse()
-                        .map_err(|_| error(LoweringErrorKind::InvalidLiteral, span))?,
-                )
+                ScalarConstant::Integer(self.parse_integer_literal(kind, span)?)
             }
             LiteralKind::Float(_) | LiteralKind::Char | LiteralKind::Null => {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -254,6 +239,30 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if operator == PrefixOperator::Minus {
+            let operand_node =
+                self.parsed
+                    .ast()
+                    .expressions()
+                    .get(operand)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
+            if let Expression::Literal(LiteralKind::Integer(kind)) = operand_node.payload() {
+                let constant = self
+                    .parse_integer_literal(*kind, operand_node.span())?
+                    .checked_neg()
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))?;
+                let ty = self.expression_ssa_type(expression, span)?;
+                let (_, results) = self.append(
+                    Operation::Constant(ScalarConstant::Integer(constant)),
+                    vec![EntityType::Value(ty)],
+                    span,
+                )?;
+                return Ok(LoweredValue::Value(value(results[0])));
+            }
+        }
         let operand = self.require_value(operand)?;
         match operator {
             PrefixOperator::Plus => Ok(LoweredValue::Value(operand)),
@@ -543,6 +552,22 @@ impl ExpressionLowerer<'_> {
         self.source_text
             .get(span.start()..span.end())
             .ok_or_else(|| error(LoweringErrorKind::MismatchedSource, span))
+    }
+
+    fn parse_integer_literal(
+        &self,
+        kind: IntegerLiteralKind,
+        span: Span,
+    ) -> Result<i128, LoweringError> {
+        let text = self.source_slice(span)?;
+        let digits = match kind {
+            IntegerLiteralKind::Unsuffixed => text,
+            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => &text[..text.len() - 1],
+            IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
+        };
+        digits
+            .parse()
+            .map_err(|_| error(LoweringErrorKind::InvalidLiteral, span))
     }
 
     fn expression_ssa_type(
