@@ -219,6 +219,20 @@ impl Checker<'_> {
             return self.finish_unique_call(expression, callee, &arguments, candidate, mapping);
         }
 
+        let lambda_arguments = arguments
+            .iter()
+            .map(|argument| self.is_lambda_literal(argument.value))
+            .collect::<Result<Vec<_>, _>>()?;
+        if lambda_arguments.iter().any(|is_lambda| *is_lambda) {
+            return self.finish_overload_lambda_call(
+                expression,
+                callee,
+                &arguments,
+                mapped,
+                &lambda_arguments,
+            );
+        }
+
         let mut argument_types = Vec::with_capacity(arguments.len());
         let mut poisoned = false;
         for argument in &arguments {
@@ -244,46 +258,140 @@ impl Checker<'_> {
                 })
         });
         match mapped.len() {
-            0 => {
-                self.emit(
-                    self.no_matching_overload_code,
-                    "no overload matches the call arguments",
-                    self.ast().expressions().get(callee)?.span(),
-                )?;
-                Ok(ExprCheck {
-                    ty: self.error_type(),
-                    falls_through: true,
-                })
-            }
+            0 => self.no_matching_overload(callee),
             1 => {
                 let (candidate, mapping) = mapped.pop().expect("one matching candidate");
                 self.record_call(expression, callee, &arguments, candidate, mapping)
             }
             _ => {
-                let primary = self.ast().expressions().get(callee)?.span();
-                let mut diagnostic = Diagnostic::new(
-                    self.sources,
-                    Severity::Error,
-                    self.ambiguous_call_code,
-                    "call remains ambiguous after argument type checking",
-                    primary,
-                )?;
-                for (candidate, _) in mapped.iter().take(2) {
-                    if let Some(span) = candidate.declaration_span {
-                        diagnostic.add_label(
-                            self.sources,
-                            span,
-                            "matching callable declared here",
-                        )?;
-                    }
-                }
-                self.diagnostics.push(diagnostic);
-                Ok(ExprCheck {
-                    ty: self.error_type(),
-                    falls_through: true,
-                })
+                let spans = mapped
+                    .iter()
+                    .filter_map(|(candidate, _)| candidate.declaration_span)
+                    .take(2)
+                    .collect::<Vec<_>>();
+                self.ambiguous_overload(callee, &spans)
             }
         }
+    }
+
+    fn finish_overload_lambda_call(
+        &mut self,
+        expression: ExpressionId,
+        callee: ExpressionId,
+        arguments: &[CallArgument],
+        mut candidates: Vec<(CallCandidate, Vec<usize>)>,
+        lambda_arguments: &[bool],
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let mut argument_types = vec![None; arguments.len()];
+        let mut poisoned = false;
+        for (index, argument) in arguments.iter().enumerate() {
+            if lambda_arguments[index] {
+                continue;
+            }
+            let result = self.check_expression(argument.value, None, None)?;
+            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            argument_types[index] = Some(result.ty);
+        }
+        if poisoned {
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+
+        candidates.retain(|(candidate, mapping)| {
+            argument_types
+                .iter()
+                .enumerate()
+                .all(|(argument_index, argument_type)| {
+                    argument_type.is_none_or(|argument_type| {
+                        self.assignable(
+                            argument_type,
+                            candidate.parameters[mapping[argument_index]].ty,
+                        )
+                    })
+                })
+        });
+        match candidates.len() {
+            0 => return self.no_matching_overload(callee),
+            1 => {
+                let (candidate, mapping) = candidates.pop().expect("one matching candidate");
+                return self.finish_unique_call(expression, callee, arguments, candidate, mapping);
+            }
+            _ => {}
+        }
+
+        let baseline = self.trial_state();
+        let baseline_diagnostics = self.diagnostics.len();
+        let mut successes = Vec::new();
+        for (candidate, mapping) in candidates {
+            self.restore_trial_state(baseline.clone());
+            let declaration_span = candidate.declaration_span;
+            let result =
+                self.finish_unique_call(expression, callee, arguments, candidate, mapping)?;
+            if self.diagnostics.len() == baseline_diagnostics
+                && !self.is_error(result.ty)
+                && !self.is_deferred(result.ty)
+            {
+                successes.push((self.trial_state(), result, declaration_span));
+            }
+        }
+        self.restore_trial_state(baseline);
+
+        match successes.len() {
+            0 => self.no_matching_overload(callee),
+            1 => {
+                let (state, result, _) = successes.pop().expect("one successful candidate trial");
+                self.restore_trial_state(state);
+                Ok(result)
+            }
+            _ => {
+                let spans = successes
+                    .iter()
+                    .filter_map(|(_, _, span)| *span)
+                    .take(2)
+                    .collect::<Vec<_>>();
+                self.ambiguous_overload(callee, &spans)
+            }
+        }
+    }
+
+    fn no_matching_overload(
+        &mut self,
+        callee: ExpressionId,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        self.emit(
+            self.no_matching_overload_code,
+            "no overload matches the call arguments",
+            self.ast().expressions().get(callee)?.span(),
+        )?;
+        Ok(ExprCheck {
+            ty: self.error_type(),
+            falls_through: true,
+        })
+    }
+
+    fn ambiguous_overload(
+        &mut self,
+        callee: ExpressionId,
+        declarations: &[Span],
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let primary = self.ast().expressions().get(callee)?.span();
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.ambiguous_call_code,
+            "call remains ambiguous after argument type checking",
+            primary,
+        )?;
+        for &span in declarations {
+            diagnostic.add_label(self.sources, span, "matching callable declared here")?;
+        }
+        self.diagnostics.push(diagnostic);
+        Ok(ExprCheck {
+            ty: self.error_type(),
+            falls_through: true,
+        })
     }
 
     fn check_deferred_arguments(

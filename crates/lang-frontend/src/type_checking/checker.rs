@@ -11,6 +11,7 @@ mod literal;
 mod members;
 mod nominal;
 mod projection;
+mod trial;
 mod type_ref;
 mod when;
 

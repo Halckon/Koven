@@ -258,7 +258,10 @@ impl Checker<'_> {
         }
     }
 
-    fn is_lambda_literal(&self, expression: ExpressionId) -> Result<bool, TypeCheckingError> {
+    pub(super) fn is_lambda_literal(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<bool, TypeCheckingError> {
         let node = self.ast().expressions().get(expression)?;
         match node.payload() {
             Expression::Lambda { .. } => Ok(true),

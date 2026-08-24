@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P2-174` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028) |
@@ -86,7 +86,7 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 
 ## 9. 未决问题
 
-- 无语言语义未决项；SPEC-0177 未完成前本 Spec 不能进入 `in-progress`。
+- 无语言语义未决项；SPEC-0177 已完成，本 Spec 可进入实施。
 
 ## 10. 验证记录
 
@@ -94,4 +94,5 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 |---|---|---|
 | 2026-08-24 现状审计 | 通过 | 确认多候选当前无 expected 检查 operand，带参数 lambda 无法形成可提交候选事实 |
 | 2026-08-24 v0.28 启用审计 | 通过 | guide 门禁已解除；SPEC-0177 前置仍未完成 |
-| 实现验收 | 未执行 | 等待 SPEC-0177 前置 |
+| 2026-08-24 实施门禁 | 通过 | SPEC-0177 已完成；依据持续 Goal 的站立授权进入 `in-progress` |
+| 实现验收 | 未执行 | 尚未完成 SPEC-0174 实施 |

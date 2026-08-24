@@ -1,0 +1,73 @@
+use std::collections::BTreeMap;
+
+use crate::{
+    diagnostic::Diagnostic,
+    name_resolution::ExternalSymbolId,
+    type_checking::{
+        AggregateProjectionDescriptor, CallDescriptor, ContainerConstructionDescriptor,
+        DestructuringDescriptor, ElementPlaceDescriptor, ExpressionCategory, ParameterMode, TypeId,
+        TypeTable,
+    },
+};
+
+use super::{Checker, FlowKey};
+
+/// 一个 callable candidate trial 可以改变的完整类型检查状态。
+///
+/// 声明索引、签名和名称解析事实在 trial 前已经封闭，因此不属于事务；表达式、局部 symbol、
+/// flow、诊断和所有后续阶段可见 descriptor 必须一起快照，避免失败候选泄漏半成品事实。
+#[derive(Clone)]
+pub(super) struct TrialState {
+    types: TypeTable,
+    expression_types: Vec<Option<TypeId>>,
+    type_ref_types: Vec<Option<TypeId>>,
+    symbol_types: Vec<Option<TypeId>>,
+    parameter_modes: Vec<Option<ParameterMode>>,
+    external_types: BTreeMap<ExternalSymbolId, TypeId>,
+    flow_facts: BTreeMap<FlowKey, TypeId>,
+    destructurings: Vec<DestructuringDescriptor>,
+    expression_categories: Vec<ExpressionCategory>,
+    calls: Vec<CallDescriptor>,
+    aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    container_constructions: Vec<ContainerConstructionDescriptor>,
+    element_places: Vec<ElementPlaceDescriptor>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl Checker<'_> {
+    pub(super) fn trial_state(&self) -> TrialState {
+        TrialState {
+            types: self.types.clone(),
+            expression_types: self.expression_types.clone(),
+            type_ref_types: self.type_ref_types.clone(),
+            symbol_types: self.symbol_types.clone(),
+            parameter_modes: self.parameter_modes.clone(),
+            external_types: self.external_types.clone(),
+            flow_facts: self.flow_facts.clone(),
+            destructurings: self.destructurings.clone(),
+            expression_categories: self.expression_categories.clone(),
+            calls: self.calls.clone(),
+            aggregate_projections: self.aggregate_projections.clone(),
+            container_constructions: self.container_constructions.clone(),
+            element_places: self.element_places.clone(),
+            diagnostics: self.diagnostics.clone(),
+        }
+    }
+
+    pub(super) fn restore_trial_state(&mut self, state: TrialState) {
+        self.types = state.types;
+        self.expression_types = state.expression_types;
+        self.type_ref_types = state.type_ref_types;
+        self.symbol_types = state.symbol_types;
+        self.parameter_modes = state.parameter_modes;
+        self.external_types = state.external_types;
+        self.flow_facts = state.flow_facts;
+        self.destructurings = state.destructurings;
+        self.expression_categories = state.expression_categories;
+        self.calls = state.calls;
+        self.aggregate_projections = state.aggregate_projections;
+        self.container_constructions = state.container_constructions;
+        self.element_places = state.element_places;
+        self.diagnostics = state.diagnostics;
+    }
+}

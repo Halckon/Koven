@@ -558,6 +558,159 @@ fn generic_bound_failures_filter_overloads_without_leaking_trial_diagnostics() {
 }
 
 #[test]
+fn overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call() {
+    let text = "fun resolve(callback: (Int) -> Int): Int = 1
+                fun resolve(callback: (String) -> String): String = \"text\"
+                fun intResult(input: Int): Int = input
+                fun use(): Unit {
+                    val selected = resolve({ item -> intResult(item) })
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls(), repeated.calls());
+    assert_eq!(typed.calls().len(), 2);
+    assert!(matches!(
+        typed.types().get(typed.calls()[0].return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed.types().get(typed.calls()[1].return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    let parameter = resolution
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+        .expect("committed lambda parameter");
+    assert_eq!(
+        typed.parameter_mode(parameter.id()),
+        Some(ParameterMode::Borrow)
+    );
+    assert!(matches!(
+        typed
+            .symbol_type(parameter.id())
+            .and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+}
+
+#[test]
+fn ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts() {
+    let text = "fun resolve(callback: (Int) -> Int): Int = 1
+                fun resolve(callback: (String) -> String): String = \"text\"
+                fun use(): Unit {
+                    val ambiguous = resolve({ item -> item })
+                    val noMatch = resolve({ item -> true })
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
+    assert_eq!(codes(typed.diagnostics()), ["L0124", "L0123"]);
+    assert_eq!(typed.diagnostics(), repeated.diagnostics());
+    assert_eq!(typed.calls(), repeated.calls());
+    assert!(typed.calls().is_empty());
+    for parameter in resolution
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+    {
+        assert_eq!(typed.parameter_mode(parameter.id()), None);
+    }
+    for (id, node) in parsed.ast().expressions().iter().filter(|(_, node)| {
+        matches!(
+            node.payload(),
+            Expression::Lambda { .. } | Expression::Call { .. }
+        )
+    }) {
+        assert!(
+            matches!(
+                typed
+                    .expression_type(id)
+                    .and_then(|ty| typed.types().get(ty)),
+                Some(TypeKind::Error)
+            ),
+            "trial fact leaked for {:?}",
+            node.span()
+        );
+    }
+}
+
+#[test]
+fn non_lambda_filter_to_one_candidate_preserves_direct_lambda_diagnostic() {
+    let text = "fun choose(tag: Int, callback: (Int) -> Int): Int = 1
+                fun choose(tag: String, callback: (String) -> String): String = \"text\"
+                fun use(): Unit {
+                    val invalid = choose(1, { item -> true })
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert_eq!(
+        sources.slice(typed.diagnostics()[0].primary_span()),
+        Ok("true")
+    );
+}
+
+#[test]
+fn generic_overload_trials_preserve_named_multi_lambda_modes_and_mapping_order() {
+    let text = "fun <T> dispatch(
+                    first: (borrow T) -> T,
+                    second: (own Int) -> Int,
+                    third: (inout Int) -> Int
+                ): Long = 1L
+                fun <T> dispatch(
+                    first: (borrow T) -> T,
+                    second: (own String) -> String,
+                    third: (inout String) -> String
+                ): String = \"text\"
+                fun use(): Unit {
+                    val selected = dispatch<String>(
+                        third = { changed -> changed + 1 },
+                        first = { borrowed -> borrowed },
+                        second = { owned -> owned + 1 }
+                    )
+                }";
+    let (sources, parsed) = parsed(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let call = typed.calls().last().expect("selected generic overload");
+    assert_eq!(
+        call.arguments()
+            .iter()
+            .map(|argument| argument.parameter_index())
+            .collect::<Vec<_>>(),
+        [2, 0, 1]
+    );
+    assert!(matches!(
+        typed.types().get(call.return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Long))
+    ));
+    assert_eq!(
+        resolution
+            .symbols()
+            .iter()
+            .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+            .map(|symbol| typed.parameter_mode(symbol.id()))
+            .collect::<Vec<_>>(),
+        [
+            Some(ParameterMode::Inout),
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Value),
+        ]
+    );
+}
+
+#[test]
 fn generic_source_calls_instantiate_while_reference_and_safe_calls_remain_deferred() {
     let text = "fun <T> identity(own input: T): T = input\n\
                 fun mono(input: Int): Int = input\n\
