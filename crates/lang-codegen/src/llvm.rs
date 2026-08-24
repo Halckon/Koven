@@ -4,6 +4,9 @@ mod adapter;
 mod aggregate;
 #[cfg(test)]
 mod aggregate_tests;
+mod closure;
+#[cfg(test)]
+mod closure_tests;
 mod container;
 #[cfg(test)]
 mod container_tests;

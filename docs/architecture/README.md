@@ -211,8 +211,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   typed SSA 中实现 signature、capture mode/type 与 concrete environment identity；function
   address 精确匹配普通 target，closure formation 精确匹配 environment-first thunk，invoke
   只读取 callable owner而不消费它。owned MoveOnly capture 在 formation 时唯一消费，Copyable
-  capture 保持可用；shared capture type/layout 已可表达，但在 verifier 尚未把 loan 随 closure
-  owner/CFG transfer 绑定前不允许形成可执行 closure；LLVM layout/invoke/drop 仍属后续切片；
+  capture 保持可用。第二片已将 function pointer 映射为裸 `ptr`，concrete closure 映射为
+  `{ptr, inline environment}`，支持 owned capture 构造、间接调用和逆序 drop glue，且 closure
+  自身不声明 allocator 或 type tag；shared capture type/layout 已可表达，但在 verifier 尚未把
+  loan 随 closure owner/CFG transfer 绑定前不允许形成可执行 closure；
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

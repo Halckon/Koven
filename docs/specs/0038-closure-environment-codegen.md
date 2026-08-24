@@ -109,7 +109,7 @@ ADR-0009 lower 为裸 LLVM function pointer 或 `{function pointer, inline envir
 
 1. [x] 建立 callable/closure SSA type、function-address/formation/invoke operation、render 与局部
    verifier → 验证：identity、signature、owned capture、target 与 operation 正反矩阵。
-2. [ ] 实现 owned/no-capture LLVM layout、indirect invoke 与 closure drop glue → 验证：裸 pointer、
+2. [x] 实现 owned/no-capture LLVM layout、indirect invoke 与 closure drop glue → 验证：裸 pointer、
    `{ptr, env}`、重复调用、逆序 drop、零 allocation 与 LLVM verifier 矩阵。
 3. [ ] 把 shared capture loan 依赖并入 ownership/CFG verifier 和 LLVM pointer slot → 验证：提前
    end、冲突、edge transfer、drop release 与混合 capture 矩阵。
@@ -136,3 +136,5 @@ ADR-0009 lower 为裸 LLVM function pointer 或 `{function pointer, inline envir
 | 2026-08-25 前置审计 | 通过 | SPEC-0032/0034/0035 `done`；ADR-0006–0009 `accepted`；v0.27 capture 与 Phase 4 concrete closure 要求已生效 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（SSA slice） | 通过 | 77 项；新增 4 项 callable/closure identity、inline cycle、function address、owned formation、重复 invoke、drop、错误 thunk/shared formation 与 move-after-capture 矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（SSA slice） | 通过 | 无 warning；closure type construction 与 ownership effect 已独立成模块，`model.rs` 987 行、`verify_ownership.rs` 922 行，后续 LLVM/shared-loan 职责不继续堆入两者 |
+| `cargo test -p lang-codegen --all-targets`（owned LLVM slice） | 通过 | 78 项；新增 concrete closure/function pointer 构造、重复间接调用、drop 与无隐式 allocator/type tag 验证 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（owned LLVM slice） | 通过 | 无 warning；callable adapter lowering 已提取为独立子模块 |

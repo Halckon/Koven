@@ -6,17 +6,22 @@ use inkwell::{
     AddressSpace,
     context::Context,
     targets::TargetData,
-    types::{BasicTypeEnum, IntType, StructType},
+    types::{
+        BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType, StructType,
+        VoidType,
+    },
 };
 
-use crate::ssa::model::{Module, SsaTypeId, SsaTypeKind};
+use crate::ssa::model::{CallableSignature, Module, SsaTypeId, SsaTypeKind};
 
 use super::LlvmAdapterError;
 
 pub(super) struct TypeMap<'ctx> {
+    void_type: VoidType<'ctx>,
     types: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
     aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
     container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
+    closure_layouts: BTreeMap<SsaTypeId, ClosureLayout<'ctx>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,6 +40,12 @@ pub(super) struct ContainerLayout<'ctx> {
     pub(super) element_alignment: u32,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct ClosureLayout<'ctx> {
+    pub(super) value: StructType<'ctx>,
+    pub(super) environment: StructType<'ctx>,
+}
+
 impl<'ctx> TypeMap<'ctx> {
     pub(super) fn lower(
         context: &'ctx Context,
@@ -44,6 +55,7 @@ impl<'ctx> TypeMap<'ctx> {
         let mut types = BTreeMap::new();
         let mut aggregates = BTreeMap::new();
         let mut containers = BTreeMap::new();
+        let mut closures = BTreeMap::new();
         let pointer = context.ptr_type(AddressSpace::default());
         let size_type = context.ptr_sized_int_type(target, None);
 
@@ -80,13 +92,39 @@ impl<'ctx> TypeMap<'ctx> {
                     zst.set_body(&[], false);
                     Some(zst.into())
                 }
-                SsaTypeKind::Unit
-                | SsaTypeKind::Opaque { .. }
-                | SsaTypeKind::ConcreteClosure { .. } => None,
+                SsaTypeKind::ConcreteClosure { .. } => {
+                    let closure = context.opaque_struct_type(&format!("koven.closure.t{index}"));
+                    closures.insert(id, closure);
+                    Some(closure.into())
+                }
+                SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
             };
             if let Some(ty) = ty {
                 types.insert(id, ty);
             }
+        }
+
+        let mut closure_layouts = BTreeMap::new();
+        for (id, closure) in closures {
+            let Some(SsaTypeKind::ConcreteClosure { environment, .. }) = module.type_kind(id)
+            else {
+                return Err(LlvmAdapterError::InvalidSsa(
+                    "closure type missing concrete definition".to_owned(),
+                ));
+            };
+            let environment = aggregates.get(environment).copied().ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa(
+                    "closure environment must lower as an aggregate".to_owned(),
+                )
+            })?;
+            closure.set_body(&[pointer.into(), environment.into()], false);
+            closure_layouts.insert(
+                id,
+                ClosureLayout {
+                    value: closure,
+                    environment,
+                },
+            );
         }
 
         for (id, aggregate) in &aggregates {
@@ -126,9 +164,11 @@ impl<'ctx> TypeMap<'ctx> {
         }
 
         Ok(Self {
+            void_type: context.void_type(),
             types,
             aggregates,
             container_layouts,
+            closure_layouts,
         })
     }
 
@@ -191,6 +231,40 @@ impl<'ctx> TypeMap<'ctx> {
             .get(&ty)
             .copied()
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("layout 查询目标不是顺序容器".to_owned()))
+    }
+
+    pub(super) fn closure_layout(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<ClosureLayout<'ctx>, LlvmAdapterError> {
+        self.closure_layouts.get(&ty).copied().ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa("layout query target is not a closure".to_owned())
+        })
+    }
+
+    pub(super) fn callable_function_type(
+        &self,
+        signature: &CallableSignature,
+        environment: Option<StructType<'ctx>>,
+    ) -> Result<FunctionType<'ctx>, LlvmAdapterError> {
+        let mut parameters = environment
+            .into_iter()
+            .map(BasicMetadataTypeEnum::from)
+            .collect::<Vec<_>>();
+        parameters.extend(
+            signature
+                .parameters
+                .iter()
+                .map(|ty| self.basic_type(*ty).map(BasicMetadataTypeEnum::from))
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        match signature.returns.as_slice() {
+            [] => Ok(self.void_type.fn_type(&parameters, false)),
+            [result] => Ok(self.basic_type(*result)?.fn_type(&parameters, false)),
+            _ => Err(LlvmAdapterError::InvalidSsa(
+                "callable signature has more than one return type".to_owned(),
+            )),
+        }
     }
 }
 

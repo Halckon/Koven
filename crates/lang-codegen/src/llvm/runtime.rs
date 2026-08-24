@@ -15,7 +15,7 @@ use inkwell::{
 };
 
 use crate::ssa::model::{
-    EntityId, EntityType, Module, Operation, Ownership, SsaTypeId, SsaTypeKind,
+    ClosureCaptureMode, EntityId, EntityType, Module, Operation, Ownership, SsaTypeId, SsaTypeKind,
 };
 
 use super::{LlvmAdapterError, type_map::TypeMap};
@@ -399,7 +399,30 @@ impl<'ctx> RuntimeAbi<'ctx> {
                         value.into_struct_value(),
                     )?;
                 }
-                Some(SsaTypeKind::ZeroSized { .. }) => {}
+                Some(SsaTypeKind::ConcreteClosure {
+                    environment,
+                    captures,
+                    ..
+                }) => {
+                    let closure = value.into_struct_value();
+                    let environment_value = builder
+                        .build_extract_value(closure, 1, "environment")?
+                        .into_struct_value();
+                    for (index, capture) in captures.iter().enumerate().rev() {
+                        if capture.mode == ClosureCaptureMode::Owned
+                            && module.type_ownership(capture.ty) == Some(Ownership::MoveOnly)
+                        {
+                            let captured = builder.build_extract_value(
+                                environment_value,
+                                index as u32,
+                                &format!("capture{index}"),
+                            )?;
+                            self.emit_drop(&builder, capture.ty, captured)?;
+                        }
+                    }
+                    let _ = environment;
+                }
+                Some(SsaTypeKind::ZeroSized { .. } | SsaTypeKind::FunctionPointer { .. }) => {}
                 _ => {
                     return Err(LlvmAdapterError::Unsupported(
                         "当前 LLVM drop glue 只支持 aggregate 与 heap owner".to_owned(),
@@ -605,10 +628,12 @@ impl RuntimeRequirements {
             }
             Some(SsaTypeKind::ZeroSized { .. }) => {}
             Some(SsaTypeKind::FunctionPointer { .. }) => {}
-            Some(SsaTypeKind::ConcreteClosure { .. }) => {
-                return Err(LlvmAdapterError::Unsupported(
-                    "closure drop glue waits for the next SPEC-0038 slice".to_owned(),
-                ));
+            Some(SsaTypeKind::ConcreteClosure { captures, .. }) => {
+                for capture in captures {
+                    if capture.mode == ClosureCaptureMode::Owned {
+                        self.collect_drop_type(module, capture.ty)?;
+                    }
+                }
             }
             Some(SsaTypeKind::SharedReference { .. }) => {
                 return Err(LlvmAdapterError::InvalidSsa(

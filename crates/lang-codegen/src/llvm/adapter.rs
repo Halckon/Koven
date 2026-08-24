@@ -1,5 +1,7 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
+mod callable;
+
 use std::collections::BTreeMap;
 
 use inkwell::{IntPredicate, basic_block::BasicBlock, builder::Builder, context::Context};
@@ -23,7 +25,7 @@ use crate::ssa::{
 };
 
 use super::{
-    LlvmAdapterError, aggregate, configure_module, container,
+    LlvmAdapterError, aggregate, closure, configure_module, container,
     entities::{
         access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
     },
@@ -318,12 +320,27 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             Operation::DirectCall { callee, arguments } => {
                 self.lower_call(*callee, arguments, &results)?;
             }
-            Operation::FunctionAddress { .. }
-            | Operation::ClosureConstruct { .. }
-            | Operation::CallableInvoke { .. } => {
-                return Err(unsupported(
-                    "closure LLVM lowering waits for the next SPEC-0038 slice",
-                ));
+            Operation::FunctionAddress { target } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("function address", 1, results.len()));
+                };
+                self.lower_function_address(*target, *result)?;
+            }
+            Operation::ClosureConstruct {
+                closure: closure_type,
+                thunk,
+                captures,
+            } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("closure construct", 1, results.len()));
+                };
+                self.lower_closure_construct(*closure_type, *thunk, captures, *result)?;
+            }
+            Operation::CallableInvoke {
+                callable,
+                arguments,
+            } => {
+                self.lower_callable_invoke(*callable, arguments, &results)?;
             }
             Operation::AggregateConstruct { aggregate, fields } => {
                 let [result] = results.as_slice() else {
