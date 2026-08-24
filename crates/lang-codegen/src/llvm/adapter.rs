@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use inkwell::{IntPredicate, basic_block::BasicBlock, builder::Builder, context::Context};
 use inkwell::{
     intrinsics::Intrinsic,
-    module::Module as LlvmModule,
+    module::{Linkage, Module as LlvmModule},
     types::{BasicMetadataTypeEnum, BasicType},
     values::{
         BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PhiValue, PointerValue,
@@ -30,13 +30,16 @@ use super::{
     entities::{
         access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
     },
-    first_target_machine,
+    entry, first_target_machine,
     runtime::RuntimeAbi,
     scalar,
     type_map::TypeMap,
 };
 
-pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
+pub(super) fn render_verified_program(
+    program: &Program,
+    native_entry: Option<FunctionId>,
+) -> Result<String, LlvmAdapterError> {
     verify_program(program).map_err(|error| LlvmAdapterError::InvalidSsa(error.to_string()))?;
     let [ssa_module] = program.modules.as_slice() else {
         return Err(LlvmAdapterError::Unsupported(
@@ -47,6 +50,9 @@ pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmA
     let context = Context::create();
     let llvm_module = context.create_module(&ssa_module.name);
     configure_module(&llvm_module, &triple, &target_machine);
+    if let Some(native_entry) = native_entry {
+        entry::validate(ssa_module, native_entry)?;
+    }
 
     ModuleLowerer::new(
         &context,
@@ -54,7 +60,7 @@ pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmA
         ssa_module,
         &target_machine.get_target_data(),
     )?
-    .lower()?;
+    .lower(native_entry)?;
     llvm_module
         .verify()
         .map_err(|error| LlvmAdapterError::Verify(error.to_string()))?;
@@ -89,7 +95,7 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
         })
     }
 
-    fn lower(mut self) -> Result<(), LlvmAdapterError> {
+    fn lower(mut self, native_entry: Option<FunctionId>) -> Result<(), LlvmAdapterError> {
         self.declare_functions()?;
         for function in &self.ssa.functions {
             let llvm_function = *self
@@ -109,6 +115,12 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 },
             )
             .lower()?;
+        }
+        if let Some(native_entry) = native_entry {
+            let target = *self.functions.get(&native_entry).ok_or_else(|| {
+                LlvmAdapterError::InvalidEntry("validated entry declaration is missing".to_owned())
+            })?;
+            entry::define_wrapper(self.context, self.llvm, target)?;
         }
         Ok(())
     }
@@ -138,7 +150,9 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 _ => return Err(unsupported("当前 LLVM adapter 不支持多返回值 ABI")),
             };
             let name = format!("f{}.{}", function.id.index(), function.name);
-            let llvm_function = self.llvm.add_function(&name, function_type, None);
+            let llvm_function =
+                self.llvm
+                    .add_function(&name, function_type, Some(Linkage::Internal));
             self.functions.insert(function.id, llvm_function);
         }
         Ok(())

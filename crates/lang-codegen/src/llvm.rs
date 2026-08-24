@@ -11,6 +11,9 @@ mod container;
 #[cfg(test)]
 mod container_tests;
 mod entities;
+mod entry;
+#[cfg(test)]
+mod entry_tests;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
@@ -32,6 +35,7 @@ const FIRST_TARGET: &str = "aarch64-apple-darwin";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum LlvmAdapterError {
     InvalidSsa(String),
+    InvalidEntry(String),
     Target(String),
     Build(String),
     Unsupported(String),
@@ -46,7 +50,15 @@ impl From<BuilderError> for LlvmAdapterError {
 
 /// 把已验证的 target-independent SSA 映射为首个 target 的 LLVM IR 文本。
 pub(crate) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
-    adapter::render_verified_program(program)
+    adapter::render_verified_program(program, None)
+}
+
+#[cfg(test)]
+pub(crate) fn render_verified_program_with_entry(
+    program: &Program,
+    entry: crate::ssa::model::FunctionId,
+) -> Result<String, LlvmAdapterError> {
+    adapter::render_verified_program(program, Some(entry))
 }
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。

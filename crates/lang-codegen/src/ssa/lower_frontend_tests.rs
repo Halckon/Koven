@@ -367,8 +367,16 @@ fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
     assert!(choices.contains(&one));
     assert!(choices.contains(&two));
     let llvm = render_verified_program(&program).expect("distinct overload instances must lower");
-    assert_eq!(llvm.matches("define i32 @\"f0.choose<Int>\"").count(), 1);
-    assert_eq!(llvm.matches("define i32 @\"f1.choose<Int>\"").count(), 1);
+    assert_eq!(
+        llvm.matches("define internal i32 @\"f0.choose<Int>\"")
+            .count(),
+        1
+    );
+    assert_eq!(
+        llvm.matches("define internal i32 @\"f1.choose<Int>\"")
+            .count(),
+        1
+    );
     assert!(llvm.contains("call i32 @\"f0.choose<Int>\""));
     assert!(llvm.contains("call i32 @\"f1.choose<Int>\""));
 }
@@ -428,11 +436,11 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
     let second = render_verified_program(&program).expect("repeated LLVM lowering must succeed");
     assert_eq!(first, second);
     assert!(first.contains("target triple = \"aarch64-apple-darwin\""));
-    assert!(first.contains("define i8 @f0.byte(i8 %v0)"));
-    assert!(first.contains("define i16 @f2.short(i16 %v0)"));
-    assert!(first.contains("define i32 @f4.int(i32 %v0)"));
-    assert!(first.contains("define i64 @f6.long(i64 %v0)"));
-    assert!(first.contains("define i1 @f8.boolean(i1 %v0)"));
+    assert!(first.contains("define internal i8 @f0.byte(i8 %v0)"));
+    assert!(first.contains("define internal i16 @f2.short(i16 %v0)"));
+    assert!(first.contains("define internal i32 @f4.int(i32 %v0)"));
+    assert!(first.contains("define internal i64 @f6.long(i64 %v0)"));
+    assert!(first.contains("define internal i1 @f8.boolean(i1 %v0)"));
     assert!(first.contains("llvm.sadd.with.overflow.i32"));
     assert!(first.contains("llvm.uadd.with.overflow.i32"));
     assert!(first.contains("llvm.usub.with.overflow.i32"));

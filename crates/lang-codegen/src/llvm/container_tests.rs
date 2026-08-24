@@ -398,7 +398,7 @@ fn replacement_commits_new_owner_before_dropping_the_old_element() {
 
     let llvm = render_verified_program(&program).expect("replacement LLVM must verify");
     let body = llvm
-        .split("define %koven.container.t3 @f0.replace")
+        .split("define internal %koven.container.t3 @f0.replace")
         .nth(1)
         .expect("replace body")
         .split("}\n")
