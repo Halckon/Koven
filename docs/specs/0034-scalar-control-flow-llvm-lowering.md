@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-034` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与 §16 checked integer 语义 |
-| 批准依据 | 当前持续 Goal 的站立授权可在全部门禁通过后批准；不能替代 LLVM 兼容验证 |
+| 批准依据 | 当前持续 Goal 的站立授权；2026-08-24 LLVM 兼容门禁已实际通过 |
 | 前置 Spec | SPEC-0033 `done`；SPEC-0019、0021、0029、0177、0174 已由其前置链覆盖 |
-| 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 当前 `proposed`，接受后解除门禁 |
-| 阻塞项 | 当前主机尚无 LLVM 21 `llvm-config`；ADR-0007 兼容矩阵未实际执行 |
+| 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 均 `accepted` |
+| 阻塞项 | 无；后续步骤仍须按本 Spec 验收，不能由 smoke 代替 |
 | 影响范围 | `lang-codegen` frontend→SSA lowering、scalar/control SSA operation、LLVM adapter、依赖与测试；Architecture |
 | 语言语义变更 | 否；只实施现行 guide 已封闭的标量、控制流、checked overflow/除零与 abort 语义 |
 
@@ -104,7 +104,7 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 
 ## 7. 实施计划
 
-1. [ ] 安装/验证 LLVM 21 工具链与 Inkwell 最小 smoke matrix，接受 ADR-0007。
+1. [x] 安装/验证 LLVM 21 工具链与 Inkwell 最小 smoke matrix，接受 ADR-0007。
 2. [ ] 扩展 scalar SSA operation/verifier contract → 验证：checked arithmetic/call 正反矩阵。
 3. [ ] 建立 frontend→SSA identity/type/function/body lowering → 验证：标量直线函数窄测。
 4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
@@ -122,7 +122,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 
 ## 9. 未决问题
 
-- ADR-0007 尚未通过实际 LLVM 21/Inkwell 构建矩阵，因此本 Spec 保持 `draft`。
 - frontend 当前对部分合法但非本 Spec 标量子集的节点只提供通用 typed facts；实现前需逐项
   确认公开 getter 足够，不为方便扩大整个 AST/typed model 的可变或 `pub` 边界。
 
@@ -131,4 +130,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-24 边界审计 | 通过 | 确认 SPEC-0034 采用 frontend→verified SSA→verified LLVM IR 的单一垂直 Goal；object/link/run 排除 |
-| 2026-08-24 工具链现状 | 阻塞 | `aarch64-apple-darwin` 只有 Apple Clang 21，未发现 LLVM 21 `llvm-config`；ADR-0007 保持 `proposed` |
+| `/opt/homebrew/opt/llvm@21/bin/llvm-config --version/--host-target/--shared-mode` | 通过 | LLVM 21.1.8；`arm64-apple-darwin25.2.0`；shared |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo check -p lang-codegen --all-targets` | 通过 | Inkwell 0.10.0 / llvm-sys 211.0.1 编译链接 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets` | 通过 | 25 项；含确定 AArch64 标量 IR 与 LLVM verifier 正反例 |
+| `otool -L <lang-codegen test binary>` | 通过 | 动态链接 `/opt/homebrew/opt/llvm@21/lib/libLLVM.dylib` 21.1.8；测试 binary hash 不作为稳定接口 |
+| workspace 标准基线（均设置 `LLVM_SYS_211_PREFIX`） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

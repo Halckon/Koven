@@ -2,12 +2,13 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）；当前站立授权可在兼容矩阵实际通过后用于接受，但不能替代工具链与
-依赖验证。
+2026-08-24 依据当前持续 Goal 的站立授权接受；接受前已实际安装 Homebrew LLVM 21.1.8，
+用 Inkwell 0.10.0 / llvm-sys 211.0.1 完成编译、动态链接、AArch64 target、合法模块与无效模块
+verifier smoke matrix。
 
 ## 背景
 
@@ -18,16 +19,16 @@ CI 和发布构建可能静默选择不同 C API；若直接使用 Rustc 自带 
 消费的受支持开发库与 `llvm-config` 边界。
 
 2026-08-24 的主机审计为 `aarch64-apple-darwin`：Rust 1.96.0 自身使用 LLVM 22.1.2，Xcode
-提供 Apple Clang 21，但系统没有 Homebrew LLVM 或可用的 `llvm-config`。Inkwell 0.8.0 是当前
-优先采用的 crates.io release，支持到 LLVM 21；上游尚未发布的 0.9 开发版本才增加 LLVM 22。
-Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x bottle。因而采用 LLVM 21 可以避免未固定 Git
-依赖，并允许通过显式 prefix 与宿主工具链共存。
+提供 Apple Clang 21，但系统最初没有 Homebrew LLVM 或可用的 `llvm-config`。Inkwell 0.10.0
+是当前 crates.io release，支持 LLVM 11–22；Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x
+bottle。采用 LLVM 21 与 Inkwell 0.10.0 均无需 Git 依赖，并允许通过显式 prefix 与宿主工具链
+共存。
 
 ## 决策
 
 - 首个受支持 codegen host/target 固定为 `aarch64-apple-darwin`。SPEC-0034 只验收该 host 上的
   LLVM IR；跨编译、Linux、x86_64 和多 target 初始化留给后续 CI/target Spec。
-- 固定 LLVM 21.1.x C API 与 Inkwell `0.8.0`，根 workspace 集中声明 Inkwell，`Cargo.lock`
+- 固定 LLVM 21.1.x C API 与 Inkwell `0.10.0`，根 workspace 集中声明 Inkwell，`Cargo.lock`
   固定实际 Rust 依赖版本。不得跟随 Inkwell `master`、未固定 branch 或任意更高 LLVM major。
 - Inkwell 禁用默认 `target-all`，只启用 `llvm21-1-prefer-dynamic`、`target-aarch64` 和
   `no-libffi-linking`。当前 AOT 路径不使用 JIT/ExecutionEngine；不为未使用目标和 libffi 扩大
@@ -36,8 +37,8 @@ Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x bottle。因而采用 LLVM 2
   Homebrew `llvm@21` 的稳定 keg。不得修改全局 PATH 来遮蔽 Apple Clang，也不得回退到 Rustc
   私有 LLVM。
 - 兼容门禁必须验证 `llvm-config --version` 为 21.1.x、Inkwell/llvm-sys 能编译和动态链接、
-  LLVM module verifier 能拒绝无效 IR，并在首个 target 上生成确定的标量模块。门禁通过前
-  本 ADR 保持 `proposed`，SPEC-0034 不进入 `in-progress`。
+  LLVM module verifier 能拒绝无效 IR，并在首个 target 上生成确定的标量模块。该门禁已于
+  2026-08-24 通过；升级 LLVM/Inkwell 或新增 target 时必须重新执行。
 - Inkwell 和 LLVM 只能位于 `lang-codegen` 的 LLVM adapter 内；`lang-frontend`、自建 SSA
   model/verifier 与外围 crate 不得暴露 LLVM context/type/value。LLVM 错误收敛为 codegen
   内部错误，不占用 frontend `Lxxxx`。
@@ -48,8 +49,8 @@ Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x bottle。因而采用 LLVM 2
 
 - **适配度**：Inkwell 提供 LLVM C API 的强类型安全封装，直接覆盖 module/type/builder/
   verifier/target 边界；Koven 仍掌控自建 SSA 与可观察语义。
-- **兼容性**：Inkwell 0.8.0 要求 Rust 1.85+ 并提供 `llvm21-1` feature；项目 Rust 1.96.0
-  满足。最终接受前必须用 Homebrew LLVM 21.1.x 实际构建，不以版本表替代验证。
+- **兼容性**：Inkwell 0.10.0 要求 Rust 1.85+ 并提供 `llvm21-1` feature；项目 Rust 1.96.0
+  满足。Homebrew LLVM 21.1.8 已实际构建并通过 smoke，不以版本表替代验证。
 - **维护与供应链**：直接依赖为 pre-1.0 Inkwell；其 `inkwell_internals` 过程宏和 `llvm-sys`
   `build.rs` 都是构建期执行代码，升级时必须单独审阅。native C API 与动态库被限制在
   `lang-codegen` adapter，保留以后替换版本的单一边界。
@@ -63,11 +64,12 @@ Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x bottle。因而采用 LLVM 2
 
 ## 替代方案
 
-### LLVM 22 + Inkwell 未发布开发版本
+### LLVM 22 + Inkwell 0.10.0
 
-暂不采用。它能与当前 Rustc LLVM major 和 Homebrew 最新公式对齐，但需要未发布的 Inkwell
-0.9 开发状态或 Git 依赖，违反优先使用 crates.io release 和固定供应链边界的要求。待 Inkwell
-稳定 release 支持 LLVM 22 后可用新 ADR 评估升级。
+暂不作为首个基线。它能与当前 Rustc LLVM major 和 Homebrew 最新公式对齐，且 Inkwell
+0.10.0 已提供对应 feature；但 LLVM 22 支持刚进入该 release，而 LLVM 21 路径已在更早 release
+中存在。首个后端优先固定已准备实测的 LLVM 21 矩阵，待 object/link 与 CI target 矩阵建立后
+再用新 ADR 评估升级，不能因为 Rustc 内部 LLVM major 相同就假定 C API 或链接契约兼容。
 
 ### LLVM 21 静态链接
 
@@ -104,7 +106,7 @@ Homebrew 同时提供 keg-only 的 `llvm@21` 21.1.x bottle。因而采用 LLVM 2
 - 相关 Spec：SPEC-0034–SPEC-0040
 - 相关 ADR：[ADR-0002](./0002-bootstrap-workspace-layout.md)、
   [ADR-0006](./0006-typed-ssa-block-parameters.md)
-- 上游依据：[Inkwell 0.8.0 manifest](https://github.com/TheDan64/inkwell/blob/0.8.0/Cargo.toml)、
+- 上游依据：[Inkwell 0.10.0 文档](https://docs.rs/crate/inkwell/0.10.0)、
   [llvm-sys discovery/compatibility](https://github.com/tari/llvm-sys.rs/blob/main/README.md)、
   [Homebrew llvm@21](https://formulae.brew.sh/formula/llvm@21)
 - 取代的 ADR：无

@@ -15,6 +15,7 @@ rust-version = "1.96.0"
 publish = false
 
 [workspace.dependencies]
+inkwell = { version = "0.10.0", default-features = false, features = ["llvm21-1-prefer-dynamic", "target-aarch64", "no-libffi-linking"] }
 lang-codegen = { path = "crates/lang-codegen" }
 lang-frontend = { path = "crates/lang-frontend" }
 

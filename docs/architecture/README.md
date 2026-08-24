@@ -28,7 +28,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
-仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2 主线，并已进入 Phase 3。截至 v0.28
+仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已进入 Phase 4。截至 v0.28
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -110,15 +110,19 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或
-  codegen 实现；
+- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect、frontend→SSA lowering 或完整
+  codegen；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
   crate-private、owner-aware 的索引式 SSA model、IR-local type/origin 与确定性 debug rendering，
   并完成 ID/归属、CFG/edge、operation/return type、dominance、MoveOnly 唯一消费与
-  shared/exclusive loan 数据流 verifier；AST/frontend lowering 仍属于后续 SPEC-0034；
-- LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
+  shared/exclusive loan 数据流 verifier；AST/frontend lowering 仍属于 SPEC-0034 后续步骤；
+- [ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 已接受 LLVM 21.1.x、Inkwell 0.10.0、
+  `LLVM_SYS_211_PREFIX` 显式发现、动态链接和首个 `aarch64-apple-darwin` target。SPEC-0034 已
+  以 crate-private LLVM adapter smoke 证明合法标量模块确定生成、LLVM verifier 拒绝无
+  terminator 模块，并由 `otool` 确认链接 Homebrew `libLLVM.dylib`；SSA→LLVM 映射仍未实现；
+- runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

@@ -295,7 +295,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0033（已实现）**：建立 owner-aware、索引式的自建 typed SSA IR、确定性 debug
       rendering，以及结构 / CFG / dominance / MoveOnly / loan verifier；后续 SPEC-0034 再从
       AST/frontend facts lower 到该 IR
-- [ ] IR 到 LLVM IR 的映射（用 `inkwell`）
+- [ ] **SPEC-0034（实施中）**：LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target smoke 已
+      通过；继续把标量表达式和控制流从 frontend facts lower 到 verified SSA，再映射为
+      verified LLVM IR
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
       `Copyable` 能力保持正交
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不

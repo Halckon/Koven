@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+inkwell.workspace = true
 lang-frontend.workspace = true
 
 [lints]

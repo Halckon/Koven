@@ -1,0 +1,96 @@
+//! LLVM 21 / Inkwell 兼容边界。
+
+use inkwell::OptimizationLevel;
+use inkwell::context::Context;
+use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetTriple};
+
+const FIRST_TARGET: &str = "aarch64-apple-darwin";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum LlvmAdapterError {
+    Target(String),
+    Build(String),
+    Verify(String),
+}
+
+/// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。
+pub(crate) fn render_scalar_smoke_module() -> Result<String, LlvmAdapterError> {
+    Target::initialize_aarch64(&InitializationConfig::default());
+
+    let triple = TargetTriple::create(FIRST_TARGET);
+    let target = Target::from_triple(&triple)
+        .map_err(|error| LlvmAdapterError::Target(error.to_string()))?;
+    let target_machine = target
+        .create_target_machine(
+            &triple,
+            "generic",
+            "",
+            OptimizationLevel::None,
+            RelocMode::PIC,
+            CodeModel::Default,
+        )
+        .ok_or_else(|| LlvmAdapterError::Target("无法创建 AArch64 target machine".to_owned()))?;
+
+    let context = Context::create();
+    let module = context.create_module("koven.scalar-smoke");
+    module.set_triple(&triple);
+    module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+
+    let int_type = context.i32_type();
+    let function_type = int_type.fn_type(&[int_type.into(), int_type.into()], false);
+    let function = module.add_function("add", function_type, None);
+    let entry = context.append_basic_block(function, "entry");
+    let builder = context.create_builder();
+    builder.position_at_end(entry);
+
+    let left = function
+        .get_nth_param(0)
+        .expect("函数签名固定包含第一个参数")
+        .into_int_value();
+    let right = function
+        .get_nth_param(1)
+        .expect("函数签名固定包含第二个参数")
+        .into_int_value();
+    let sum = builder
+        .build_int_add(left, right, "sum")
+        .map_err(|error| LlvmAdapterError::Build(error.to_string()))?;
+    builder
+        .build_return(Some(&sum))
+        .map_err(|error| LlvmAdapterError::Build(error.to_string()))?;
+
+    module
+        .verify()
+        .map_err(|error| LlvmAdapterError::Verify(error.to_string()))?;
+    Ok(module.print_to_string().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use inkwell::context::Context;
+
+    use super::{FIRST_TARGET, render_scalar_smoke_module};
+
+    #[test]
+    fn renders_deterministic_verified_aarch64_scalar_module() {
+        let first = render_scalar_smoke_module().expect("固定 LLVM 21 矩阵应生成合法模块");
+        let second = render_scalar_smoke_module().expect("重复生成应保持确定");
+
+        assert_eq!(first, second);
+        assert!(first.contains(&format!("target triple = \"{FIRST_TARGET}\"")));
+        assert!(first.contains("define i32 @add(i32 %0, i32 %1)"));
+        assert!(first.contains("%sum = add i32 %0, %1"));
+    }
+
+    #[test]
+    fn llvm_verifier_rejects_missing_terminator() {
+        let context = Context::create();
+        let module = context.create_module("invalid");
+        let function = module.add_function("broken", context.void_type().fn_type(&[], false), None);
+        context.append_basic_block(function, "entry");
+
+        let error = module
+            .verify()
+            .expect_err("缺少 terminator 的 basic block 必须被 LLVM verifier 拒绝");
+        assert!(error.to_string().contains("does not have terminator"));
+    }
+}
