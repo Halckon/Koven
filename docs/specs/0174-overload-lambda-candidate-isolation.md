@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-174` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028) |
@@ -50,15 +50,15 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 
 ## 5. 验收标准
 
-- [ ] 两个不同函数参数类型的 overload 可由 lambda body 相容性选出唯一候选，并发布正确
+- [x] 两个不同函数参数类型的 overload 可由 lambda body 相容性选出唯一候选，并发布正确
   lambda 参数 type/mode、nested call 与外层 call descriptor。
-- [ ] 两个成功 lambda trial 只产生 L0124；零成功只产生 L0123，不泄漏候选内 L0083/L0084/
+- [x] 两个成功 lambda trial 只产生 L0124；零成功只产生 L0123，不泄漏候选内 L0083/L0084/
   operand 诊断，也不保留任一 trial typed facts。
-- [ ] 唯一映射候选中的 lambda 错误仍产生精确 L0084 和 expected 参数 label。
-- [ ] 多个 lambda 实参、具名实参、Value/Borrow/Inout 函数参数及已实例化泛型候选均有正反例。
-- [ ] 每个 case 重复检查产物与诊断顺序一致；operand 的最终 call mapping 保持源码顺序。
-- [ ] Phase 2 pass/fail fixture、`type_callable` 领域测试与 workspace 标准基线通过。
-- [ ] Architecture、guide roadmap、Spec 状态与实际实现同步。
+- [x] 唯一映射候选中的 lambda 错误仍产生精确 L0084 和 expected 参数 label。
+- [x] 多个 lambda 实参、具名实参、Value/Borrow/Inout 函数参数及已实例化泛型候选均有正反例。
+- [x] 每个 case 重复检查产物与诊断顺序一致；operand 的最终 call mapping 保持源码顺序。
+- [x] Phase 2 pass/fail fixture、`type_callable` 领域测试与 workspace 标准基线通过。
+- [x] Architecture、guide roadmap、Spec 状态与实际实现同步。
 
 ## 6. 技术方案与边界
 
@@ -71,11 +71,11 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 
 ## 7. 实施计划
 
-1. [ ] 建立 typed candidate transaction 与完整回滚 characterization tests → 验证：失败 trial 零泄漏。
-2. [ ] 接入多候选 lambda expected-type 检查及唯一提交 → 验证：选择/无匹配/歧义矩阵。
-3. [ ] 覆盖多 lambda、named/mode、generic candidate 与确定性 → 验证：`type_callable` 窄测。
-4. [ ] 补 Phase 2 fixture并运行 workspace 标准基线 → 验证：实际退出状态。
-5. [ ] 同步 Architecture、guide、Spec 验收并检查 staged diff → 验证：提交仅含 SPEC-0174。
+1. [x] 建立 typed candidate transaction 与完整回滚 characterization tests → 验证：失败 trial 零泄漏。
+2. [x] 接入多候选 lambda expected-type 检查及唯一提交 → 验证：选择/无匹配/歧义矩阵。
+3. [x] 覆盖多 lambda、named/mode、generic candidate 与确定性 → 验证：`type_callable` 窄测。
+4. [x] 补 Phase 2 fixture并运行 workspace 标准基线 → 验证：实际退出状态。
+5. [x] 同步 Architecture、guide、Spec 验收并检查 staged diff → 验证：提交仅含 SPEC-0174。
 
 ## 8. 提交计划
 
@@ -95,4 +95,6 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 | 2026-08-24 现状审计 | 通过 | 确认多候选当前无 expected 检查 operand，带参数 lambda 无法形成可提交候选事实 |
 | 2026-08-24 v0.28 启用审计 | 通过 | guide 门禁已解除；SPEC-0177 前置仍未完成 |
 | 2026-08-24 实施门禁 | 通过 | SPEC-0177 已完成；依据持续 Goal 的站立授权进入 `in-progress` |
-| 实现验收 | 未执行 | 尚未完成 SPEC-0174 实施 |
+| `cargo test -p lang-frontend --test type_callable` | 通过 | 16 项领域测试覆盖唯一提交、零泄漏、多 lambda/mode、generic 与确定性 |
+| Phase 2 type pass/fail fixture | 通过 | 新增 overload-lambda 正反例；每类 fixture 均为 8 个 |
+| workspace 标准基线 | 通过 | fmt、check、clippy `-D warnings`、全目标 test 与 `lang-cli` build 均为退出码 0 |

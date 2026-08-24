@@ -8,7 +8,8 @@
 > `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
 > 具名函数隐式 `Unit` 返回标注已实现；Phase 2 的单文件名称解析、基础类型检查以及完整
 > 名义类型、泛型、interface 实现与窄化委托检查、`when` 穷尽性与 smart cast，以及条件
-> `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查已完成；Phase 3
+> `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与
+> 顺序容器类型检查已完成；Phase 3
 > 已完成整变量 use-after-move、条件复制、消费式解构、禁止结构分量部分移动、v0.26 的
 > borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点与顺序容器核心 element
 > place 所有权，以及 v0.27 的简化 closure capture、`Transferable` 与编译器绑定跨线程
@@ -29,7 +30,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、单态 callable 与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 5 尚未定义的容器增删/重排 relocation API 仍待后续 Spec；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 5 尚未定义的容器增删/重排 relocation API 仍待后续 Spec；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -83,7 +84,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
   等待后续 Spec / ADR。
 - 单文件名称解析使用类型 / 值双命名空间；顶层与成员先收集后解析，block local 从
   initializer 完成后可见，嵌套作用域允许遮蔽。同一值作用域的函数形成有序 overload set；
-  package/import 展开、member 与 overload 选择仍属于后续 Phase 2 Spec。
+  package/import 展开仍属于后续 Phase 2 Spec；member 与 overload 选择已实现。
 - `value class` 表示值语义和内联布局，不得描述成“永远在栈上”，也不天然等于可复制。
   它可以包含不可复制字段；仅当全部字段类型都满足 `Copyable` 时才自动满足 `Copyable`，
   否则转交所有权时发生移动。`Copyable` 可作泛型上界但不能由用户手动实现；不可复制字段

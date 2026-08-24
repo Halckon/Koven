@@ -15,8 +15,7 @@ closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable 
 
 [v0.28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028)
 已由用户明确启用并取代 v0.27；它封闭泛型 callable 实例化与 overload-lambda candidate
-isolation。两项 guide 门禁均已解除；SPEC-0177 已完成实施与验收，SPEC-0174 继续承接
-overload-lambda candidate isolation。
+isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -178,7 +177,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0134](./0134-copyability-type-frontend-input-invariants.md) | 强化 copyability 类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0022、0130–0133 `done`；当前持续 Goal 的站立授权 |
 | [0173](./0173-lambda-parameter-contract-facts.md) | 让唯一期望函数类型的 lambda 采用并保存 Value/Borrow/Inout 参数契约（`done`） | 0019、0067 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
 | [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`done`） | 0020、0022、0032、0067 `done`；v0.28 已生效 |
-| [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`draft`） | 0067、0173 `done`；等待 0177 `done` |
+| [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`done`） | 0067、0173、0177 `done` |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
@@ -203,7 +202,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`draft`） | 0021、0029、0177 `done`；要求 0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
+| [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`draft`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | 0034 | 把标量表达式和控制流 lower 到 LLVM | 0033；接受 LLVM / target ADR |
 | 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
 | 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |

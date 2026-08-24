@@ -69,9 +69,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；源码顶层与实例
   member 泛型 callable 已支持完整显式类型实参或由已定型非 lambda 实参执行 invariant 结构
   推导，并验证 interface / `Copyable` / `Transferable` bound，发布 owner 实参在前的稳定
-  `CallableInstanceKey`。多 overload 候选的 lambda 隔离检查、callable reference、safe-call
-  lifting 与所有权可用性仍使用逐类 `DeferredReason` 保留；其中 lambda 隔离已登记为 draft
-  SPEC-0174。普通名义主构造器字段已建立带实际
+  `CallableInstanceKey`。多 overload 候选会先过滤非 lambda 实参，再在完整 typed transaction
+  中按候选 expected function type 隔离检查 lambda；唯一成功 trial 原子提交，零个/多个只产生
+  L0123/L0124。callable reference、safe-call lifting 与所有权可用性仍使用逐类
+  `DeferredReason` 保留。普通名义主构造器字段已建立带实际
   泛型替换的
   `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
@@ -109,11 +110,11 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无多 overload 候选 lambda 隔离、普通字段部分移动、顺序容器 Phase 5 relocation effect 或
+- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或
   codegen 实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
-  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 仍是等待 SPEC-0174 的 `draft`，
+  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 的 frontend 前置已完成，仍为待启动的 `draft`，
   `lang-codegen` 当前尚无 SSA model 或 verifier；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -1027,7 +1028,7 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
 顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化已由
-SPEC-0177 实现，多 overload 候选的 lambda 隔离检查仍由 draft SPEC-0174 承接。
+SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与

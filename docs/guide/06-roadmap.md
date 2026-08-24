@@ -184,7 +184,7 @@ fun main(): Unit {
 - [x] **SPEC-0177（v0.28，已实现）**：泛型 callable 只接受完整显式类型实参，或仅从
       已定型非 lambda 实参做结构推导；发布 owner + callable 的有序实例 key、替换后参数/
       返回类型，并验证 interface / `Copyable` / `Transferable` bound
-- [ ] **SPEC-0174（前置：SPEC-0177；v0.28）**：多 overload 候选在映射、
+- [x] **SPEC-0174（前置：SPEC-0177；v0.28，已实现）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
@@ -291,7 +291,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 
 ## Phase 4：LLVM 代码生成
 
-- [ ] **SPEC-0033（前置：SPEC-0177 已完成、SPEC-0174 待完成；ADR-0006 已接受）**：建立自建 typed SSA IR 与
+- [ ] **SPEC-0033（frontend 前置已完成；ADR-0006 已接受）**：建立自建 typed SSA IR 与
       verifier；后续 SPEC-0034 再从 AST/frontend facts lower 到该 IR
 - [ ] IR 到 LLVM IR 的映射（用 `inkwell`）
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与

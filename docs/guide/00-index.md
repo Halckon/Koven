@@ -60,8 +60,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   move lambda 按值复制/移动 capture 并可逃逸；完整 `Transferable` 递归和显式 cross-thread
   typed effect 由 §27 定义，SPEC-0032 已完成实施。
 - **v0.28 已明确启用**：§28 的泛型 callable 实例化、稳定实例 key 与 overload-lambda
-  candidate isolation 已成为现行语义，L0140–L0141 获得现行诊断含义。SPEC-0177 已完成
-  泛型 callable 实例化；overload-lambda candidate isolation 仍由 SPEC-0174 承接。
+  candidate isolation 已成为现行语义，L0140–L0141 获得现行诊断含义，并已由
+  SPEC-0177 / SPEC-0174 完成 frontend 实施。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -133,7 +133,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
 | v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
 | v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 已实现 |
-| v0.28 | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；SPEC-0177 已实现，SPEC-0174 待实施 |
+| v0.28 | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；SPEC-0177 / SPEC-0174 已实现 |
 
 ## 5. SPEC 编号索引
 
@@ -165,8 +165,8 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0030 | 顺序容器 element place 所有权 | `01-design-decisions.md` §8、`../specs/0030-sequential-container-element-ownership.md` | ✅ 已实现 |
 | SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ✅ 已实现 |
-| SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ⏸️ draft，等待 SPEC-0174 |
-| SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ⏸️ draft，前置 SPEC-0177 |
+| SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ⏸️ draft，frontend 前置已完成 |
+| SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |

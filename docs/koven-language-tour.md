@@ -30,9 +30,8 @@ API、代码生成（Phase 4）和
   移出，借用按逻辑索引判定冲突，成功替换会记录旧元素的唯一析构点。**
 - **v0.27 的默认 shared capture、显式 `move` owned capture、borrowed closure 逃逸边界、
   结构化 `Transferable` 与 compiler-bound 跨线程检查已由 SPEC-0032 实现。**
-- **v0.28 已启用，但尚未由 frontend 实施。** 泛型 callable 实例化与 overload-lambda 候选
-  隔离已成为现行语义；泛型 callable 已由 SPEC-0177 实现，在 SPEC-0174 完成前可先把 lambda 绑定到带显式函数
-  类型的局部变量，再传给重载函数。
+- **v0.28 已启用并由 frontend 实施。** 泛型 callable 实例化与 overload-lambda 候选隔离
+  已分别由 SPEC-0177 / SPEC-0174 实现；显式函数类型的局部变量仍可作为主动消歧手段。
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -273,7 +272,7 @@ choose(intAction) // 明确选择第一个 overload
 当前推荐把“显式函数类型的局部绑定”作为歧义时的逃生口。它不引入转换，也不会依赖编译器
 猜测 lambda body。现行 v0.28 要求每个 overload 用自己的期望函数类型隔离检查
 同一个 lambda：只有一个候选检查成功时直接选中，多个候选都成功时仍报告歧义。该语义已
-启用，但 SPEC-0174 尚未实现，不能当作当前 frontend 已有能力。
+由 SPEC-0174 实现。
 
 Kotlin 调用中的 `a(Runnable { ... })` 不是通用的“给 lambda 标类型”语法，而是为单抽象方法接口
 创建实例的 [SAM constructor/conversion](https://kotlinlang.org/docs/fun-interfaces.html#sam-conversions)。Koven v1 的 lambda 只产生函数类型，不产生匿名

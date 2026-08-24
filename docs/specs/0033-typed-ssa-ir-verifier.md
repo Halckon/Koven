@@ -6,11 +6,11 @@
 | Goal ID | `KOV-P4-033` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与适用的已实现 frontend 契约 |
-| 批准依据 | 当前持续 Goal 的站立授权可在全部前置完成后批准；当前因前置 Spec 未完成保持 draft |
-| 前置 Spec | SPEC-0021、SPEC-0029、SPEC-0177 `done`；SPEC-0174 必须达到 `done`（当前为 `draft`） |
+| 批准依据 | 当前持续 Goal 的站立授权可在启动实现时批准；全部前置已完成 |
+| 前置 Spec | SPEC-0021、SPEC-0029、SPEC-0177、SPEC-0174 `done` |
 | 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | 关联 ADR | ADR-0002、ADR-0003、ADR-0004 |
-| 阻塞项 | SPEC-0174 尚未完成 |
+| 阻塞项 | 无；frontend 前置已完成 |
 | 影响范围 | `lang-codegen` 自建 SSA model/verifier/debug rendering 与 crate 内测试；Architecture |
 | 语言语义变更 | 否；只建立现行 guide 要求的内部 typed SSA，不新增源码行为或用户诊断 |
 
@@ -107,12 +107,12 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 
 ## 9. 未决问题
 
-- SPEC-0174 完成前，typed frontend 仍可能把 overload-lambda call 保留为
-  deferred；本 Spec 不能据此进入 `approved` / `in-progress`。
+- callable reference、safe call 等仍在 frontend 明确 deferred 的节点不得伪造 IR；本 Spec
+  不反向扩张 Phase 2 语义。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-24 现状与边界审计 | 通过 | `lang-codegen` 只有空 crate；frontend 已提供 typed/ownership facts；ADR-0006 已封闭 IR 架构 |
-| 实现验收 | 未执行 | 等待 SPEC-0174 前置完成 |
+| 实现验收 | 未执行 | frontend 前置已完成，等待启动本 Spec |

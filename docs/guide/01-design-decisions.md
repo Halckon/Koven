@@ -1602,7 +1602,7 @@ MoveOnly 字段。存在 capture/transfer 诊断时不发布可执行 capture/dr
 ## 28. 泛型 callable 实例化与 overload-lambda 隔离（v0.28）
 
 > **现行状态**：v0.28 已于 2026-08-24 由用户明确启用并取代 v0.27；本节、L0140–L0141
-> 已获得规范效力。frontend 已完成 SPEC-0177，SPEC-0174 仍待实施。目的不是引入
+> 已获得规范效力，frontend 已完成 SPEC-0177 / SPEC-0174。目的不是引入
 > Kotlin 的完整局部约束求解，而是封闭进入 typed SSA 前仍缺失的最小 callable 实例 identity。
 
 ### 28.1 范围与简化边界
@@ -1665,8 +1665,9 @@ trial 是类型检查事务，不是运行时求值。源码 operand 仍只按�
 | L0141 | callable 类型实参不满足编译器 `Transferable` bound | primary 为显式实参或触发推导的 operand；label 指向 bound 声明 |
 
 SPEC-0177 先实现泛型 callable 显式/推导实例化、bound 和 instance key；SPEC-0174 再在该
-实例化边界上实现 overload-lambda candidate isolation。二者完成前，相关调用继续精确保留
-`DeferredReason::Call`，不得携带伪造实例进入所有权检查或 SSA。
+实例化边界上实现 overload-lambda candidate isolation；二者均已完成。仍不在当前范围的
+callable reference、safe call 等调用继续精确保留对应 `DeferredReason`，不得携带伪造实例
+进入所有权检查或 SSA。
 
 ---
 

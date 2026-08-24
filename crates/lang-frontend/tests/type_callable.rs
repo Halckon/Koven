@@ -1,7 +1,7 @@
 //! SPEC-0067 callable 选择、实参映射与类型层面 place 分类测试。
 
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, SymbolKind, resolve_names},
     parser::{Expression, ParsedFile, TypeRef},
     source::SourceMap,
@@ -657,6 +657,9 @@ fn non_lambda_filter_to_one_candidate_preserves_direct_lambda_diagnostic() {
         sources.slice(typed.diagnostics()[0].primary_span()),
         Ok("true")
     );
+    assert!(typed.diagnostics()[0].details().iter().any(|detail| {
+        matches!(detail, DiagnosticDetail::Label(label) if sources.slice(label.span()) == Ok("callback"))
+    }));
 }
 
 #[test]

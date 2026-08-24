@@ -1,0 +1,7 @@
+fun resolve(callback: (Int) -> Int): Int = 1
+fun resolve(callback: (String) -> String): String = "text"
+
+fun use(): Unit {
+    val ambiguous = resolve({ item -> item })
+    val noMatch = resolve({ item -> true })
+}

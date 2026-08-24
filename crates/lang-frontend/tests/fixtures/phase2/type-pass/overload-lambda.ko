@@ -1,0 +1,7 @@
+fun resolve(callback: (Int) -> Int): Int = 1
+fun resolve(callback: (String) -> String): String = "text"
+fun intResult(input: Int): Int = input
+
+fun use(): Unit {
+    val selected = resolve({ item -> intResult(item) })
+}
