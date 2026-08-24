@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-033` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与适用的已实现 frontend 契约 |
@@ -66,16 +66,16 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
       通过 verifier，并具有稳定 debug text/source origin。
 - [x] entry/terminator、悬空/跨 owner ID、successor arity/type、result type、return type、
       use-before-def 与 non-dominating use 各有独立失败测试，错误定位和顺序确定。
-- [ ] Copyable 值可重复 read/copy；对 MoveOnly 使用 copy、消费后再用、同一路径重复 consume/drop、
-  正常 return 前遗漏义务均被拒绝。
-- [ ] MoveOnly 值在互斥 branch edge 可分别 transfer，join 只通过 block parameter 使用；隐藏
-  live-in、某条正常路径未消费或 edge 后继续使用均被拒绝。
-- [ ] shared/exclusive loan 的合法 read、冲突 borrow/mutation/owner consume、显式 end 与跨 edge
-  block parameter 状态均有正反例。
-- [ ] verifier 对人工损坏 IR 返回 `VerifyError` 而不 panic，不产生 frontend `Diagnostic`；同一
-  module 重复验证结果相同。
-- [ ] `lang-codegen` 窄测及 workspace 标准基线通过，Cargo manifest/lockfile 无新增依赖。
-- [ ] Architecture、ADR/Spec 索引和 roadmap 同步为实现后的事实。
+- [x] Copyable 值可重复 read/copy；对 MoveOnly 使用 copy、消费后再用、同一路径重复 consume/drop、
+      正常 return 前遗漏义务均被拒绝。
+- [x] MoveOnly 值在互斥 branch edge 可分别 transfer，join 只通过 block parameter 使用；隐藏
+      live-in、某条正常路径未消费或 edge 后继续使用均被拒绝。
+- [x] shared/exclusive loan 的合法 read、冲突 borrow/mutation/owner consume、显式 end 与跨 edge
+      block parameter 状态均有正反例。
+- [x] verifier 对人工损坏 IR 返回 `VerifyError` 而不 panic，不产生 frontend `Diagnostic`；同一
+      module 重复验证结果相同。
+- [x] `lang-codegen` 窄测及 workspace 标准基线通过，Cargo manifest/lockfile 无新增依赖。
+- [x] Architecture、ADR/Spec 索引和 roadmap 同步为实现后的事实。
 
 ## 6. 技术方案与边界
 
@@ -92,10 +92,10 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 
 1. [x] 建立 SSA ID/type/origin/function/block/value model 与 debug rendering → 验证：model 单元测试。
 2. [x] 实现结构、CFG、edge type 与 dominance verifier → 验证：结构/控制流正反矩阵。
-3. [ ] 实现 Copyable/MoveOnly consume/drop 与 block-edge 数据流 → 验证：线性所有权矩阵。
-4. [ ] 实现 root-place shared/exclusive loan begin/end 验证 → 验证：loan 冲突与跨 edge 矩阵。
-5. [ ] 运行 `lang-codegen` 窄测和 workspace 标准基线，同步 Architecture/Spec → 验证：实际退出状态。
-6. [ ] 检查 staged diff、manifest/lockfile 与文件规模 → 验证：提交只属于 SPEC-0033。
+3. [x] 实现 Copyable/MoveOnly consume/drop 与 block-edge 数据流 → 验证：线性所有权矩阵。
+4. [x] 实现 root-place shared/exclusive loan begin/end 验证 → 验证：loan 冲突与跨 edge 矩阵。
+5. [x] 运行 `lang-codegen` 窄测和 workspace 标准基线，同步 Architecture/Spec → 验证：实际退出状态。
+6. [x] 检查 staged diff、manifest/lockfile 与文件规模 → 验证：提交只属于 SPEC-0033。
 
 ## 8. 提交计划
 
@@ -118,4 +118,6 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 | 2026-08-24 实施门禁 | 通过 | SPEC-0174 已完成；依据持续 Goal 的站立授权进入 `in-progress` |
 | 2026-08-24 model/render 检查点 | 通过 | 建立隐藏 Program owner、module/function-owned ID、IR-local type/entity/operation/CFG model 与 source-anchored deterministic rendering；`cargo check -p lang-codegen --all-targets` 和 4 个 crate 窄测退出码 0 |
 | 2026-08-24 structure verifier 检查点 | 通过 | 分阶段拒绝 ID/owner、definition/placement、entry/terminator、edge/return/operation type、use-before-def 与 non-dominance 错误；合法 diamond、loop backedge 和多 return 覆盖在内的 12 个 crate 测试及 lang-codegen Clippy `-D warnings` 退出码 0 |
-| 实现验收 | 未执行 | 尚未完成 SPEC-0033 实施 |
+| 2026-08-24 ownership/loan 检查点 | 通过 | 以 block-local linear state 和 edge/block-parameter alias roots 检查 copy/consume/drop、互斥 edge transfer、隐藏 live-in、owner/place 失效、shared/exclusive loan、mutation 与跨 edge loan；23 个 lang-codegen 测试退出码 0 |
+| 2026-08-24 workspace 标准基线 | 通过 | `cargo fmt --all -- --check`、workspace check/Clippy/test 全 target 与 `cargo build -p lang-cli` 均退出码 0；manifest/lockfile 无变化，生产文件均未超过 1000 行软上限 |
+| 实现验收 | 通过 | SPEC-0033 全部验收项完成，Architecture、Spec 索引与 roadmap 已同步 |

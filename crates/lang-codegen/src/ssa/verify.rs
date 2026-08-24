@@ -42,6 +42,18 @@ pub(super) enum VerifyErrorKind {
     OperationContract { reason: &'static str },
     UseBeforeDefinition { entity: EntityId },
     NonDominatingUse { entity: EntityId },
+    HiddenLinearLiveIn { entity: EntityId },
+    CopyMoveOnly { value: super::model::ValueId },
+    DropCopyable { value: super::model::ValueId },
+    MoveOnlyPlaceRead { entity: EntityId },
+    ValueUnavailable { value: super::model::ValueId },
+    PlaceUnavailable { place: super::model::PlaceId },
+    LoanInactive { loan: super::model::LoanId },
+    BorrowConflict { place: super::model::PlaceId },
+    MutationConflict { place: super::model::PlaceId },
+    OwnerLoanConflict { value: super::model::ValueId },
+    MissingOwnedExit { value: super::model::ValueId },
+    ActiveLoanAtExit { loan: super::model::LoanId },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -128,6 +140,9 @@ fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
         if errors.len() == before {
             verify_cfg_types(module, function, errors);
             verify_dominance(function, errors);
+            if errors.len() == before {
+                super::verify_ownership::verify_ownership(module, function, errors);
+            }
         }
     }
 }

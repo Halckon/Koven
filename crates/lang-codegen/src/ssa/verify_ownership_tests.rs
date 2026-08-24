@@ -1,0 +1,829 @@
+use lang_frontend::source::SourceMap;
+
+use super::{
+    model::{
+        BlockId, Edge, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, ModuleId,
+        Operation, Origin, Ownership, PlaceAccess, PlaceId, Program, SsaTypeId, SsaTypeKind,
+        TerminatorKind, ValueId,
+    },
+    verify::{VerifyError, VerifyErrorKind, verify_program},
+};
+
+#[derive(Clone, Copy)]
+enum TestType {
+    Boolean,
+    Integer,
+    MoveOnly,
+}
+
+struct Harness {
+    program: Program,
+    module: ModuleId,
+    function: FunctionId,
+    entry: BlockId,
+    boolean: SsaTypeId,
+    integer: SsaTypeId,
+    move_only: SsaTypeId,
+    origin: Origin,
+}
+
+impl Harness {
+    fn new(parameters: &[TestType], returns: &[TestType]) -> Self {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("main");
+        let module = program.module_mut(module_id).expect("module must exist");
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let integer = module.intern_type(SsaTypeKind::Integer {
+            bits: 64,
+            signed: true,
+        });
+        let move_only = module.intern_type(SsaTypeKind::Opaque {
+            name: "Endpoint".to_owned(),
+            ownership: Ownership::MoveOnly,
+        });
+        let resolve = |ty| match ty {
+            TestType::Boolean => boolean,
+            TestType::Integer => integer,
+            TestType::MoveOnly => move_only,
+        };
+        let function_id = module
+            .add_function(
+                "ownership",
+                returns.iter().copied().map(resolve).collect(),
+                origin.clone(),
+            )
+            .expect("signature must be valid");
+        let function = module
+            .function_mut(function_id)
+            .expect("function must exist");
+        let entry = function
+            .add_block(
+                parameters
+                    .iter()
+                    .copied()
+                    .map(resolve)
+                    .map(EntityType::Value)
+                    .collect(),
+                origin.clone(),
+            )
+            .expect("entry block must be valid");
+        Self {
+            program,
+            module: module_id,
+            function: function_id,
+            entry,
+            boolean,
+            integer,
+            move_only,
+            origin,
+        }
+    }
+
+    fn function(&self) -> &Function {
+        self.program
+            .module(self.module)
+            .expect("module must exist")
+            .function(self.function)
+            .expect("function must exist")
+    }
+
+    fn function_mut(&mut self) -> &mut Function {
+        self.program
+            .module_mut(self.module)
+            .expect("module must exist")
+            .function_mut(self.function)
+            .expect("function must exist")
+    }
+
+    fn parameter(&self, index: usize) -> ValueId {
+        value(
+            self.function()
+                .block(self.entry)
+                .expect("entry must exist")
+                .parameters[index],
+        )
+    }
+
+    fn add_block(&mut self, parameters: Vec<EntityType>) -> BlockId {
+        let origin = self.origin.clone();
+        self.function_mut()
+            .add_block(parameters, origin)
+            .expect("block must be valid")
+    }
+
+    fn append(
+        &mut self,
+        block: BlockId,
+        operation: Operation,
+        results: Vec<EntityType>,
+    ) -> Vec<EntityId> {
+        let origin = self.origin.clone();
+        self.function_mut()
+            .append_instruction(block, operation, results, origin)
+            .expect("instruction must be valid")
+            .1
+    }
+
+    fn terminate(&mut self, block: BlockId, terminator: TerminatorKind) {
+        let origin = self.origin.clone();
+        self.function_mut()
+            .set_terminator(block, terminator, origin)
+            .expect("terminator must be valid");
+    }
+}
+
+fn origin() -> Origin {
+    let mut sources = SourceMap::default();
+    let source = sources
+        .add_source("ssa-ownership.ko", "fun own")
+        .expect("test source must be unique");
+    Origin::Source(sources.span(source, 0, 3).expect("test span must be valid"))
+}
+
+fn value(entity: EntityId) -> ValueId {
+    let EntityId::Value(value) = entity else {
+        panic!("expected value, got {entity:?}");
+    };
+    value
+}
+
+fn entity_place(entity: EntityId) -> PlaceId {
+    let EntityId::Place(place) = entity else {
+        panic!("expected place, got {entity:?}");
+    };
+    place
+}
+
+fn entity_loan(entity: EntityId) -> LoanId {
+    let EntityId::Loan(loan) = entity else {
+        panic!("expected loan, got {entity:?}");
+    };
+    loan
+}
+
+fn errors(program: &Program) -> Vec<VerifyError> {
+    verify_program(program)
+        .expect_err("fixture must fail ownership verification")
+        .errors
+}
+
+fn has_kind(errors: &[VerifyError], expected: impl Fn(&VerifyErrorKind) -> bool) -> bool {
+    errors.iter().any(|error| expected(&error.kind))
+}
+
+#[test]
+fn copyable_values_can_be_copied_and_read_repeatedly() {
+    let mut harness = Harness::new(&[TestType::Integer], &[TestType::Integer]);
+    let input = harness.parameter(0);
+    let entry = harness.entry;
+    let integer = harness.integer;
+    let first = value(
+        harness.append(
+            entry,
+            Operation::Copy { source: input },
+            vec![EntityType::Value(integer)],
+        )[0],
+    );
+    let second = value(
+        harness.append(
+            entry,
+            Operation::Copy { source: input },
+            vec![EntityType::Value(integer)],
+        )[0],
+    );
+    let sum = value(
+        harness.append(
+            entry,
+            Operation::Binary {
+                operator: super::model::BinaryOperator::Add,
+                left: first,
+                right: second,
+            },
+            vec![EntityType::Value(integer)],
+        )[0],
+    );
+    harness.terminate(entry, TerminatorKind::Return { values: vec![sum] });
+    assert_eq!(verify_program(&harness.program), Ok(()));
+}
+
+#[test]
+fn move_only_copy_reuse_double_drop_and_missing_exit_are_distinct() {
+    let mut copied = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = copied.parameter(0);
+    let entry = copied.entry;
+    let move_only = copied.move_only;
+    let duplicate = value(
+        copied.append(
+            entry,
+            Operation::Copy { source: owner },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    copied.append(entry, Operation::Consume { owner }, Vec::new());
+    copied.append(entry, Operation::Consume { owner: duplicate }, Vec::new());
+    copied.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&copied.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::CopyMoveOnly { .. }
+    )));
+
+    let mut reused = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = reused.parameter(0);
+    let entry = reused.entry;
+    reused.append(entry, Operation::Consume { owner }, Vec::new());
+    reused.append(entry, Operation::Consume { owner }, Vec::new());
+    reused.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&reused.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::ValueUnavailable { .. }
+    )));
+
+    let mut dropped = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = dropped.parameter(0);
+    let entry = dropped.entry;
+    dropped.append(entry, Operation::Drop { owner }, Vec::new());
+    dropped.append(entry, Operation::Drop { owner }, Vec::new());
+    dropped.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&dropped.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::ValueUnavailable { .. }
+    )));
+
+    let mut missing = Harness::new(&[TestType::MoveOnly], &[]);
+    let entry = missing.entry;
+    missing.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&missing.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::MissingOwnedExit { .. }
+    )));
+
+    let mut copyable_drop = Harness::new(&[TestType::Integer], &[]);
+    let value = copyable_drop.parameter(0);
+    let entry = copyable_drop.entry;
+    copyable_drop.append(entry, Operation::Drop { owner: value }, Vec::new());
+    copyable_drop.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&copyable_drop.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::DropCopyable { .. }
+    )));
+}
+
+#[test]
+fn move_only_return_mutation_and_abort_discharge_their_expected_obligations() {
+    let mut returned = Harness::new(&[TestType::MoveOnly], &[TestType::MoveOnly]);
+    let owner = returned.parameter(0);
+    let entry = returned.entry;
+    returned.terminate(
+        entry,
+        TerminatorKind::Return {
+            values: vec![owner],
+        },
+    );
+    assert_eq!(verify_program(&returned.program), Ok(()));
+
+    let mut mutated = Harness::new(&[TestType::MoveOnly, TestType::MoveOnly], &[]);
+    let owner = mutated.parameter(0);
+    let replacement = mutated.parameter(1);
+    let entry = mutated.entry;
+    let move_only = mutated.move_only;
+    let place = entity_place(
+        mutated.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    mutated.append(
+        entry,
+        Operation::Mutate {
+            place,
+            value: replacement,
+        },
+        Vec::new(),
+    );
+    mutated.append(entry, Operation::Drop { owner }, Vec::new());
+    mutated.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert_eq!(verify_program(&mutated.program), Ok(()));
+
+    let mut aborted = Harness::new(&[TestType::MoveOnly], &[]);
+    let entry = aborted.entry;
+    aborted.terminate(entry, TerminatorKind::Abort);
+    assert_eq!(verify_program(&aborted.program), Ok(()));
+}
+
+#[test]
+fn conditional_edges_can_transfer_one_owner_on_mutually_exclusive_paths() {
+    let mut harness = Harness::new(&[TestType::Boolean, TestType::MoveOnly], &[]);
+    let condition = harness.parameter(0);
+    let owner = harness.parameter(1);
+    let entry = harness.entry;
+    let move_only = harness.move_only;
+    let when_true = harness.add_block(vec![EntityType::Value(move_only)]);
+    let when_false = harness.add_block(vec![EntityType::Value(move_only)]);
+    let join = harness.add_block(vec![EntityType::Value(move_only)]);
+    harness.terminate(
+        entry,
+        TerminatorKind::Conditional {
+            condition,
+            when_true: Edge {
+                target: when_true,
+                arguments: vec![EntityId::Value(owner)],
+            },
+            when_false: Edge {
+                target: when_false,
+                arguments: vec![EntityId::Value(owner)],
+            },
+        },
+    );
+    let true_owner = value(
+        harness
+            .function()
+            .block(when_true)
+            .expect("block")
+            .parameters[0],
+    );
+    let false_owner = value(
+        harness
+            .function()
+            .block(when_false)
+            .expect("block")
+            .parameters[0],
+    );
+    harness.terminate(
+        when_true,
+        TerminatorKind::Branch(Edge {
+            target: join,
+            arguments: vec![EntityId::Value(true_owner)],
+        }),
+    );
+    harness.terminate(
+        when_false,
+        TerminatorKind::Branch(Edge {
+            target: join,
+            arguments: vec![EntityId::Value(false_owner)],
+        }),
+    );
+    let joined = value(harness.function().block(join).expect("block").parameters[0]);
+    harness.append(join, Operation::Drop { owner: joined }, Vec::new());
+    harness.terminate(join, TerminatorKind::Return { values: Vec::new() });
+    assert_eq!(verify_program(&harness.program), Ok(()));
+}
+
+#[test]
+fn hidden_live_in_and_one_branch_missing_transfer_are_rejected() {
+    let mut hidden = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = hidden.parameter(0);
+    let entry = hidden.entry;
+    let target = hidden.add_block(Vec::new());
+    hidden.terminate(
+        entry,
+        TerminatorKind::Branch(Edge {
+            target,
+            arguments: Vec::new(),
+        }),
+    );
+    hidden.append(target, Operation::Drop { owner }, Vec::new());
+    hidden.terminate(target, TerminatorKind::Return { values: Vec::new() });
+    let failures = errors(&hidden.program);
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::HiddenLinearLiveIn { .. }
+    )));
+
+    let mut missing = Harness::new(&[TestType::Boolean, TestType::MoveOnly], &[]);
+    let condition = missing.parameter(0);
+    let owner = missing.parameter(1);
+    let entry = missing.entry;
+    let move_only = missing.move_only;
+    let consumes = missing.add_block(vec![EntityType::Value(move_only)]);
+    let omits = missing.add_block(Vec::new());
+    missing.terminate(
+        entry,
+        TerminatorKind::Conditional {
+            condition,
+            when_true: Edge {
+                target: consumes,
+                arguments: vec![EntityId::Value(owner)],
+            },
+            when_false: Edge {
+                target: omits,
+                arguments: Vec::new(),
+            },
+        },
+    );
+    let consumed = value(
+        missing
+            .function()
+            .block(consumes)
+            .expect("block")
+            .parameters[0],
+    );
+    missing.append(consumes, Operation::Drop { owner: consumed }, Vec::new());
+    missing.terminate(consumes, TerminatorKind::Return { values: Vec::new() });
+    missing.terminate(omits, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&missing.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::MissingOwnedExit { .. }
+    )));
+}
+
+#[test]
+fn shared_loans_can_coexist_and_exclusive_loan_reads_are_legal() {
+    let mut shared = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = shared.parameter(0);
+    let entry = shared.entry;
+    let move_only = shared.move_only;
+    let place = entity_place(
+        shared.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let first = entity_loan(
+        shared.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    let second = entity_loan(
+        shared.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    shared.append(entry, Operation::BorrowEnd { loan: second }, Vec::new());
+    shared.append(entry, Operation::BorrowEnd { loan: first }, Vec::new());
+    shared.append(entry, Operation::Drop { owner }, Vec::new());
+    shared.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert_eq!(verify_program(&shared.program), Ok(()));
+
+    let mut exclusive = Harness::new(&[TestType::Integer], &[TestType::Integer]);
+    let owner = exclusive.parameter(0);
+    let entry = exclusive.entry;
+    let integer = exclusive.integer;
+    let place = entity_place(
+        exclusive.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(integer)],
+        )[0],
+    );
+    let loan = entity_loan(
+        exclusive.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: integer,
+            }],
+        )[0],
+    );
+    let read = value(
+        exclusive.append(
+            entry,
+            Operation::Read {
+                source: PlaceAccess::Loan(loan),
+            },
+            vec![EntityType::Value(integer)],
+        )[0],
+    );
+    exclusive.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    exclusive.terminate(entry, TerminatorKind::Return { values: vec![read] });
+    assert_eq!(verify_program(&exclusive.program), Ok(()));
+}
+
+#[test]
+fn conflicting_borrow_mutation_and_owner_drop_are_rejected() {
+    let mut borrow = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = borrow.parameter(0);
+    let entry = borrow.entry;
+    let move_only = borrow.move_only;
+    let place = entity_place(
+        borrow.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let shared = entity_loan(
+        borrow.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    let exclusive = entity_loan(
+        borrow.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: move_only,
+            }],
+        )[0],
+    );
+    borrow.append(entry, Operation::Drop { owner }, Vec::new());
+    borrow.append(entry, Operation::BorrowEnd { loan: exclusive }, Vec::new());
+    borrow.append(entry, Operation::BorrowEnd { loan: shared }, Vec::new());
+    borrow.append(entry, Operation::Drop { owner }, Vec::new());
+    borrow.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    let failures = errors(&borrow.program);
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::BorrowConflict { .. }
+    )));
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::OwnerLoanConflict { .. }
+    )));
+
+    let mut mutation = Harness::new(&[TestType::Integer, TestType::Integer], &[]);
+    let owner = mutation.parameter(0);
+    let replacement = mutation.parameter(1);
+    let entry = mutation.entry;
+    let integer = mutation.integer;
+    let place = entity_place(
+        mutation.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(integer)],
+        )[0],
+    );
+    let loan = entity_loan(
+        mutation.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+        )[0],
+    );
+    mutation.append(
+        entry,
+        Operation::Mutate {
+            place,
+            value: replacement,
+        },
+        Vec::new(),
+    );
+    mutation.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    mutation.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&mutation.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::MutationConflict { .. }
+    )));
+}
+
+#[test]
+fn move_only_place_reads_and_inactive_loan_end_are_rejected() {
+    let mut harness = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = harness.parameter(0);
+    let entry = harness.entry;
+    let move_only = harness.move_only;
+    let place = entity_place(
+        harness.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let loan = entity_loan(
+        harness.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    let read = value(
+        harness.append(
+            entry,
+            Operation::Read {
+                source: PlaceAccess::Loan(loan),
+            },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    harness.append(entry, Operation::Consume { owner: read }, Vec::new());
+    harness.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    harness.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    harness.append(entry, Operation::Drop { owner }, Vec::new());
+    harness.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    let failures = errors(&harness.program);
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::MoveOnlyPlaceRead { .. }
+    )));
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanInactive { .. }
+    )));
+}
+
+#[test]
+fn consuming_an_owner_invalidates_its_untransferred_places() {
+    let mut harness = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = harness.parameter(0);
+    let entry = harness.entry;
+    let move_only = harness.move_only;
+    let place = entity_place(
+        harness.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    harness.append(entry, Operation::Drop { owner }, Vec::new());
+    let loan = entity_loan(
+        harness.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    harness.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    harness.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&harness.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::PlaceUnavailable { .. }
+    )));
+}
+
+#[test]
+fn owner_place_and_loan_can_cross_an_edge_only_as_explicit_parameters() {
+    let mut harness = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = harness.parameter(0);
+    let entry = harness.entry;
+    let move_only = harness.move_only;
+    let place = entity_place(
+        harness.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let loan = entity_loan(
+        harness.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: move_only,
+            }],
+        )[0],
+    );
+    let target = harness.add_block(vec![
+        EntityType::Value(move_only),
+        EntityType::Place(move_only),
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: move_only,
+        },
+    ]);
+    harness.terminate(
+        entry,
+        TerminatorKind::Branch(Edge {
+            target,
+            arguments: vec![
+                EntityId::Value(owner),
+                EntityId::Place(place),
+                EntityId::Loan(loan),
+            ],
+        }),
+    );
+    let parameters = &harness.function().block(target).expect("target").parameters;
+    let target_owner = value(parameters[0]);
+    let target_loan = entity_loan(parameters[2]);
+    harness.append(
+        target,
+        Operation::BorrowEnd { loan: target_loan },
+        Vec::new(),
+    );
+    harness.append(
+        target,
+        Operation::Drop {
+            owner: target_owner,
+        },
+        Vec::new(),
+    );
+    harness.terminate(target, TerminatorKind::Return { values: Vec::new() });
+    assert_eq!(verify_program(&harness.program), Ok(()));
+    harness.function_mut().blocks[target.index()]
+        .instructions
+        .swap(0, 1);
+    assert!(has_kind(&errors(&harness.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::OwnerLoanConflict { .. }
+    )));
+
+    let mut missing = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = missing.parameter(0);
+    let entry = missing.entry;
+    let move_only = missing.move_only;
+    let place = entity_place(
+        missing.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let _loan = missing.append(
+        entry,
+        Operation::BorrowBegin {
+            place,
+            kind: LoanKind::Shared,
+        },
+        vec![EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: move_only,
+        }],
+    );
+    let target = missing.add_block(vec![EntityType::Value(move_only)]);
+    missing.terminate(
+        entry,
+        TerminatorKind::Branch(Edge {
+            target,
+            arguments: vec![EntityId::Value(owner)],
+        }),
+    );
+    let target_owner = value(missing.function().block(target).expect("target").parameters[0]);
+    missing.append(
+        target,
+        Operation::Drop {
+            owner: target_owner,
+        },
+        Vec::new(),
+    );
+    missing.terminate(target, TerminatorKind::Return { values: Vec::new() });
+    let failures = errors(&missing.program);
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::OwnerLoanConflict { .. }
+    )));
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::ActiveLoanAtExit { .. }
+    )));
+}
+
+#[test]
+fn ownership_errors_are_deterministic_and_do_not_use_frontend_diagnostics() {
+    let mut harness = Harness::new(&[TestType::MoveOnly], &[]);
+    let entry = harness.entry;
+    harness.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    let first = errors(&harness.program);
+    let second = errors(&harness.program);
+    assert_eq!(first, second);
+    assert_eq!(first.len(), 1);
+    assert!(first[0].origin.is_some());
+    assert!(matches!(
+        first[0].kind,
+        VerifyErrorKind::MissingOwnedExit { .. }
+    ));
+}
