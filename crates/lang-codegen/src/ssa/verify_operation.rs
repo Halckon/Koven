@@ -3,8 +3,8 @@
 use super::{
     model::{
         BinaryOperator, CallableSignature, ClosureCaptureMode, ClosureCaptureOperand,
-        ComparisonOperator, EntityId, EntityType, Function, FunctionId, Instruction, Module,
-        Operation, PlaceAccess, ScalarConstant, SsaTypeId, SsaTypeKind, ValueId,
+        ComparisonOperator, EntityId, EntityType, Function, FunctionId, Instruction, LoanKind,
+        Module, Operation, PlaceAccess, ScalarConstant, SsaTypeId, SsaTypeKind, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
@@ -487,21 +487,20 @@ fn closure_construct_contract(
     else {
         return false;
     };
-    if single_value_result(results) != Some(closure)
-        || operands.len() != captures.len()
-        // Shared capture lifetime dependencies are enabled in SPEC-0038's third slice.
-        || captures
-            .iter()
-            .any(|capture| capture.mode == ClosureCaptureMode::Shared)
-    {
+    if single_value_result(results) != Some(closure) || operands.len() != captures.len() {
         return false;
     }
     let captures_match = operands.iter().zip(captures).all(|(operand, capture)| {
-        matches!(
-            (operand, capture.mode),
-            (ClosureCaptureOperand::Owned(value), ClosureCaptureMode::Owned)
-                if value_type(function, *value) == Some(capture.ty)
-        )
+        match (operand, capture.mode) {
+            (ClosureCaptureOperand::Owned(value), ClosureCaptureMode::Owned) => {
+                value_type(function, *value) == Some(capture.ty)
+            }
+            (ClosureCaptureOperand::Shared(loan), ClosureCaptureMode::Shared) => matches!(
+                function.entity(EntityId::Loan(*loan)).map(|entity| entity.ty),
+                Some(EntityType::Loan { kind: LoanKind::Shared, target }) if target == capture.ty
+            ),
+            _ => false,
+        }
     });
     captures_match && function_matches_signature(module, thunk, signature, Some(*environment))
 }

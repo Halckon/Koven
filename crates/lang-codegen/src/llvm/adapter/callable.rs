@@ -1,18 +1,23 @@
 use crate::ssa::model::{ClosureCaptureOperand, FunctionId, SsaTypeId, ValueId};
 
-use super::{FunctionLowerer, LlvmAdapterError, closure, unsupported, value_name, value_type};
+use super::{
+    FunctionLowerer, LlvmAdapterError, closure, invalid_result_count, value_name, value_type,
+};
 
 impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
     pub(super) fn lower_function_address(
         &mut self,
         target: FunctionId,
-        result: ValueId,
+        results: &[ValueId],
     ) -> Result<(), LlvmAdapterError> {
+        let [result] = results else {
+            return Err(invalid_result_count("function address", 1, results.len()));
+        };
         let target = *self.dependencies.functions.get(&target).ok_or_else(|| {
             LlvmAdapterError::InvalidSsa("function address target was not declared".to_owned())
         })?;
         self.values
-            .insert(result, closure::function_address(target).into());
+            .insert(*result, closure::function_address(target).into());
         Ok(())
     }
 
@@ -21,8 +26,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         closure_type: SsaTypeId,
         thunk: FunctionId,
         captures: &[ClosureCaptureOperand],
-        result: ValueId,
+        results: &[ValueId],
     ) -> Result<(), LlvmAdapterError> {
+        let [result] = results else {
+            return Err(invalid_result_count("closure construct", 1, results.len()));
+        };
         let thunk = *self.dependencies.functions.get(&thunk).ok_or_else(|| {
             LlvmAdapterError::InvalidSsa("closure thunk was not declared".to_owned())
         })?;
@@ -30,9 +38,16 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             .iter()
             .map(|capture| match capture {
                 ClosureCaptureOperand::Owned(value) => self.value(*value),
-                ClosureCaptureOperand::Shared(_) => Err(unsupported(
-                    "shared closure formation waits for the final SPEC-0038 slice",
-                )),
+                ClosureCaptureOperand::Shared(loan) => self
+                    .loans
+                    .get(loan)
+                    .copied()
+                    .map(Into::into)
+                    .ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa(
+                            "shared closure capture loan has no LLVM pointer".to_owned(),
+                        )
+                    }),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let value = closure::construct(
@@ -41,9 +56,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             closure_type,
             thunk,
             &captures,
-            &value_name(result),
+            &value_name(*result),
         )?;
-        self.values.insert(result, value.into());
+        self.values.insert(*result, value.into());
         Ok(())
     }
 

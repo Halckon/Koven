@@ -359,7 +359,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       ZST 仍按逻辑 `size` 执行 drop；abort 路径不生成异常展开或部分构造 cleanup
 - [ ] 在目标布局确定后估算静态栈帧和实际仍存在的隐式大值复制，以对应 Spec 分配的稳定
       warning code 报告目标相关阈值超限，不因 warning 自动改变类型或表示
-- [ ] **闭包环境捕获的 codegen**：捕获环境结构体的内存布局设计，`move` 闭包与默认借用闭包在捕获方式上的差异实现，无捕获场景下降级为裸函数指针
+- [x] **SPEC-0038（已实现）闭包环境捕获的 codegen**：无捕获 callable 使用裸函数指针；
+      concrete closure 使用 `{ptr, inline environment}`，owned capture 按值存储并逆序析构，
+      shared capture 保存已有 loan pointer 且依赖随 closure owner/CFG transfer 存续
 - [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
 - [ ] `error()` 编译为 abort 语义（不生成栈展开代码）
 - [ ] DWARF 调试信息生成

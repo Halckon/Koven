@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-038` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 高阶函数](../guide/01-design-decisions.md#4-高阶函数与一等公民支持)、[v0.27 capture](../guide/01-design-decisions.md#27-简化-closure-capture-与跨线程转移v027) 与 [Phase 4 roadmap](../guide/06-roadmap.md#phase-4llvm-代码生成) |
@@ -78,20 +78,20 @@ ADR-0009 lower 为裸 LLVM function pointer 或 `{function pointer, inline envir
 
 ## 5. 验收标准
 
-- [ ] function-pointer/concrete-closure type identity、signature、capture mode/type、MoveOnly 能力、
+- [x] function-pointer/concrete-closure type identity、signature、capture mode/type、MoveOnly 能力、
       inline-cycle、跨 module ID 与确定 debug text 正反矩阵通过。
-- [ ] function address、owned/shared formation、indirect invoke、drop 的 operation contract 正反
+- [x] function address、owned/shared formation、indirect invoke、drop 的 operation contract 正反
       矩阵通过；错误 target/env/signature/arity/mode/result 在 LLVM construction 前拒绝。
-- [ ] owned MoveOnly capture 形成时消费且逆序 drop；Copyable capture 保持可用且无 glue；
+- [x] owned MoveOnly capture 形成时消费且逆序 drop；Copyable capture 保持可用且无 glue；
       callable 可重复 invoke，drop/use-after-drop/双 drop/正常出口遗漏被拒绝。
-- [ ] shared capture loan 随 closure owner 和 CFG edge 存续，阻止来源 move/mutation/drop；提前
+- [x] shared capture loan 随 closure owner 和 CFG edge 存续，阻止来源 move/mutation/drop；提前
       loan end 被拒绝，closure drop 后 loan 精确结束且来源恢复可用。
-- [ ] AArch64 LLVM IR 锁定裸 function pointer 与 `{ptr, environment}` 两种且仅两种表示、真实
+- [x] AArch64 LLVM IR 锁定裸 function pointer 与 `{ptr, environment}` 两种且仅两种表示、真实
       indirect call、environment 首参数和 capture 顺序；无 type tag、drop pointer、`malloc`、
       `free`、动态 `alloca` 或 erased `void*` environment。
-- [ ] closure drop 对 owned MoveOnly capture 逆序调用既有 glue，shared/Copyable slot 不析构
+- [x] closure drop 对 owned MoveOnly capture 逆序调用既有 glue，shared/Copyable slot 不析构
       来源；合法 module 同时通过自建 verifier 与 LLVM verifier并产生确定文本。
-- [ ] `lang-codegen` 窄测及 workspace 标准基线通过；本 Spec 涉及的 production Rust 文件遵守
+- [x] `lang-codegen` 窄测及 workspace 标准基线通过；本 Spec 涉及的 production Rust 文件遵守
       1000 行软上限，Architecture、Spec 索引和 roadmap 只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -111,9 +111,9 @@ ADR-0009 lower 为裸 LLVM function pointer 或 `{function pointer, inline envir
    verifier → 验证：identity、signature、owned capture、target 与 operation 正反矩阵。
 2. [x] 实现 owned/no-capture LLVM layout、indirect invoke 与 closure drop glue → 验证：裸 pointer、
    `{ptr, env}`、重复调用、逆序 drop、零 allocation 与 LLVM verifier 矩阵。
-3. [ ] 把 shared capture loan 依赖并入 ownership/CFG verifier 和 LLVM pointer slot → 验证：提前
+3. [x] 把 shared capture loan 依赖并入 ownership/CFG verifier 和 LLVM pointer slot → 验证：提前
    end、冲突、edge transfer、drop release 与混合 capture 矩阵。
-4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 验收并审查 staged diff → 验证：实际
+4. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 验收并审查 staged diff → 验证：实际
    退出状态、文件规模和文档一致性。
 
 ## 8. 提交计划
@@ -138,3 +138,6 @@ ADR-0009 lower 为裸 LLVM function pointer 或 `{function pointer, inline envir
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（SSA slice） | 通过 | 无 warning；closure type construction 与 ownership effect 已独立成模块，`model.rs` 987 行、`verify_ownership.rs` 922 行，后续 LLVM/shared-loan 职责不继续堆入两者 |
 | `cargo test -p lang-codegen --all-targets`（owned LLVM slice） | 通过 | 78 项；新增 concrete closure/function pointer 构造、重复间接调用、drop 与无隐式 allocator/type tag 验证 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（owned LLVM slice） | 通过 | 无 warning；callable adapter lowering 已提取为独立子模块 |
+| `cargo test -p lang-codegen --all-targets`（shared slice） | 通过 | 82 项；覆盖 shared loan 提前结束、CFG owner transfer、drop release、LLVM pointer slot 与 mixed capture 逆序 drop |
+| workspace 标准五项基线 | 通过 | `fmt --check`、`check --workspace --all-targets`、Clippy `-D warnings`、`test --workspace --all-targets`、`build -p lang-cli` 均退出 0 |
+| production 文件规模 | 通过 | `model.rs` 987、`verify_ownership.rs` 967、`llvm/adapter.rs` 986 行；closure/adapter storage 职责位于独立子模块 |

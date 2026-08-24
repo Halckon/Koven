@@ -1,6 +1,7 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
 mod callable;
+mod storage;
 
 use std::collections::BTreeMap;
 
@@ -321,20 +322,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 self.lower_call(*callee, arguments, &results)?;
             }
             Operation::FunctionAddress { target } => {
-                let [result] = results.as_slice() else {
-                    return Err(invalid_result_count("function address", 1, results.len()));
-                };
-                self.lower_function_address(*target, *result)?;
+                self.lower_function_address(*target, &results)?;
             }
             Operation::ClosureConstruct {
                 closure: closure_type,
                 thunk,
                 captures,
             } => {
-                let [result] = results.as_slice() else {
-                    return Err(invalid_result_count("closure construct", 1, results.len()));
-                };
-                self.lower_closure_construct(*closure_type, *thunk, captures, *result)?;
+                self.lower_closure_construct(*closure_type, *thunk, captures, &results)?;
             }
             Operation::CallableInvoke {
                 callable,
@@ -976,33 +971,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             _ => Err(LlvmAdapterError::InvalidSsa(
                 "aggregate operation 的 operand 不是 LLVM struct".to_owned(),
             )),
-        }
-    }
-
-    fn pointer_value(&self, id: ValueId) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
-        match self.value(id)? {
-            BasicValueEnum::PointerValue(value) => Ok(value),
-            _ => Err(LlvmAdapterError::InvalidSsa(
-                "heap owner operand 不是 LLVM pointer".to_owned(),
-            )),
-        }
-    }
-
-    fn place(&self, id: PlaceId) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
-        self.places
-            .get(&id)
-            .copied()
-            .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM place 映射缺失".to_owned()))
-    }
-
-    fn access(&self, access: PlaceAccess) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
-        match access {
-            PlaceAccess::Place(place) => self.place(place),
-            PlaceAccess::Loan(loan) => self
-                .loans
-                .get(&loan)
-                .copied()
-                .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM loan 映射缺失".to_owned())),
         }
     }
 }

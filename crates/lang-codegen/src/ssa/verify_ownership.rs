@@ -27,8 +27,9 @@ pub(super) fn verify_ownership(
     errors: &mut Vec<VerifyError>,
 ) {
     let aliases = AliasRoots::compute(function);
+    let closure_loans = closure::ClosureLoans::compute(function);
     for block in &function.blocks {
-        let mut state = entry_state(module, function, block.id);
+        let mut state = entry_state(module, function, block.id, &closure_loans);
         for instruction_id in &block.instructions {
             let instruction = function
                 .instruction(*instruction_id)
@@ -42,7 +43,15 @@ pub(super) fn verify_ownership(
                 &instruction.origin,
                 errors,
             );
-            apply_operation(module, function, instruction, &aliases, &mut state, errors);
+            apply_operation(
+                module,
+                function,
+                instruction,
+                &aliases,
+                &closure_loans,
+                &mut state,
+                errors,
+            );
             register_results(module, function, instruction, &mut state);
         }
 
@@ -67,6 +76,7 @@ pub(super) fn verify_ownership(
                 0,
                 edge,
                 &aliases,
+                &closure_loans,
                 state,
                 &terminator.origin,
                 errors,
@@ -83,6 +93,7 @@ pub(super) fn verify_ownership(
                     0,
                     when_true,
                     &aliases,
+                    &closure_loans,
                     state.clone(),
                     &terminator.origin,
                     errors,
@@ -94,6 +105,7 @@ pub(super) fn verify_ownership(
                     1,
                     when_false,
                     &aliases,
+                    &closure_loans,
                     state,
                     &terminator.origin,
                     errors,
@@ -126,12 +138,18 @@ pub(super) fn verify_ownership(
     }
 }
 
-fn entry_state(module: &Module, function: &Function, block: BlockId) -> BlockState {
+fn entry_state(
+    module: &Module,
+    function: &Function,
+    block: BlockId,
+    closure_loans: &closure::ClosureLoans,
+) -> BlockState {
     let mut state = BlockState::default();
     for entity in &function.block(block).expect("block must exist").parameters {
         match entity {
             EntityId::Value(value) if is_move_only(module, function, *value) => {
                 state.values.insert(*value);
+                closure_loans.activate_entry(*value, &mut state);
             }
             EntityId::Place(place) => {
                 state.places.insert(*place);
@@ -172,6 +190,7 @@ fn apply_operation(
     function: &Function,
     instruction: &super::model::Instruction,
     aliases: &AliasRoots,
+    closure_loans: &closure::ClosureLoans,
     state: &mut BlockState,
     errors: &mut Vec<VerifyError>,
 ) {
@@ -247,30 +266,34 @@ fn apply_operation(
                 ));
             }
         }
-        Operation::AggregateExplode { aggregate } => consume_value(
-            module,
-            function,
-            *aggregate,
-            aliases,
-            state,
-            &BTreeSet::new(),
-            &BTreeSet::new(),
-            location,
-            origin,
-            errors,
-        ),
-        Operation::HeapAllocate { payload, .. } => consume_value(
-            module,
-            function,
-            *payload,
-            aliases,
-            state,
-            &BTreeSet::new(),
-            &BTreeSet::new(),
-            location,
-            origin,
-            errors,
-        ),
+        Operation::AggregateExplode { aggregate } => {
+            consume_value(
+                module,
+                function,
+                *aggregate,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
+        Operation::HeapAllocate { payload, .. } => {
+            consume_value(
+                module,
+                function,
+                *payload,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
@@ -353,18 +376,20 @@ fn apply_operation(
                 ));
             }
         }
-        Operation::Consume { owner } => consume_value(
-            module,
-            function,
-            *owner,
-            aliases,
-            state,
-            &BTreeSet::new(),
-            &BTreeSet::new(),
-            location,
-            origin,
-            errors,
-        ),
+        Operation::Consume { owner } => {
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::RootPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
@@ -380,7 +405,13 @@ fn apply_operation(
             }
         }
         Operation::BorrowEnd { loan } => {
-            if !state.loans.remove(loan) {
+            if let Some(owner) = closure_loans.live_owner_holding(*loan, state) {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: owner },
+                    location,
+                    origin,
+                ));
+            } else if !state.loans.remove(loan) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *loan },
                     location,
@@ -453,7 +484,7 @@ fn apply_operation(
         }
         Operation::Drop { owner } => {
             if is_move_only(module, function, *owner) {
-                consume_value(
+                let consumed = consume_value(
                     module,
                     function,
                     *owner,
@@ -465,6 +496,9 @@ fn apply_operation(
                     origin,
                     errors,
                 );
+                if consumed {
+                    closure_loans.release(*owner, state);
+                }
             } else {
                 errors.push(error(
                     VerifyErrorKind::DropCopyable { value: *owner },
@@ -484,12 +518,13 @@ fn verify_edge_state(
     successor: usize,
     edge: &Edge,
     aliases: &AliasRoots,
+    closure_loans: &closure::ClosureLoans,
     mut state: BlockState,
     origin: &super::model::Origin,
     errors: &mut Vec<VerifyError>,
 ) {
     let location = VerifyLocation::Edge { source, successor };
-    let transferring_loans = edge
+    let mut transferring_loans = edge
         .arguments
         .iter()
         .filter_map(|entity| match entity {
@@ -497,6 +532,11 @@ fn verify_edge_state(
             EntityId::Value(_) | EntityId::Place(_) => None,
         })
         .collect::<BTreeSet<_>>();
+    for argument in &edge.arguments {
+        if let EntityId::Value(value) = argument {
+            transferring_loans.extend(closure_loans.dependencies(*value));
+        }
+    }
     let transferring_places = edge
         .arguments
         .iter()
@@ -505,20 +545,36 @@ fn verify_edge_state(
             EntityId::Value(_) | EntityId::Loan(_) => None,
         })
         .collect::<BTreeSet<_>>();
-    for argument in &edge.arguments {
-        match argument {
-            EntityId::Value(value) => consume_value(
-                module,
-                function,
-                *value,
-                aliases,
-                &mut state,
-                &transferring_loans,
-                &transferring_places,
+    for loan in edge.arguments.iter().filter_map(|entity| match entity {
+        EntityId::Loan(loan) => Some(*loan),
+        _ => None,
+    }) {
+        if !state.loans.remove(&loan) {
+            errors.push(error(
+                VerifyErrorKind::LoanInactive { loan },
                 location.clone(),
                 origin,
-                errors,
-            ),
+            ));
+        }
+    }
+    for argument in &edge.arguments {
+        match argument {
+            EntityId::Value(value) => {
+                if consume_value(
+                    module,
+                    function,
+                    *value,
+                    aliases,
+                    &mut state,
+                    &transferring_loans,
+                    &transferring_places,
+                    location.clone(),
+                    origin,
+                    errors,
+                ) {
+                    closure_loans.release(*value, &mut state);
+                }
+            }
             EntityId::Place(place) => {
                 if !state.places.remove(place) {
                     errors.push(error(
@@ -528,15 +584,7 @@ fn verify_edge_state(
                     ));
                 }
             }
-            EntityId::Loan(loan) => {
-                if !state.loans.remove(loan) {
-                    errors.push(error(
-                        VerifyErrorKind::LoanInactive { loan: *loan },
-                        location.clone(),
-                        origin,
-                    ));
-                }
-            }
+            EntityId::Loan(_) => {}
         }
     }
     verify_normal_exit(state, location, origin, errors);
@@ -554,9 +602,9 @@ fn consume_value(
     location: VerifyLocation,
     origin: &super::model::Origin,
     errors: &mut Vec<VerifyError>,
-) {
+) -> bool {
     if !is_move_only(module, function, value) {
-        return;
+        return true;
     }
     if !state.values.contains(&value) {
         errors.push(error(
@@ -564,7 +612,7 @@ fn consume_value(
             location,
             origin,
         ));
-        return;
+        return false;
     }
     if state.loans.iter().any(|loan| {
         !allowed_loans.contains(loan)
@@ -575,7 +623,7 @@ fn consume_value(
             location,
             origin,
         ));
-        return;
+        return false;
     }
     state.values.remove(&value);
     let invalidated_places = state
@@ -590,6 +638,7 @@ fn consume_value(
     for place in invalidated_places {
         state.places.remove(&place);
     }
+    true
 }
 
 fn require_value(

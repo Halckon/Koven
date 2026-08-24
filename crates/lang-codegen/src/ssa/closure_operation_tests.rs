@@ -2,7 +2,7 @@ use lang_frontend::source::SourceMap;
 
 use super::{
     model::{
-        BlockId, ClosureCaptureMode, ClosureCaptureOperand, ClosureCaptureType, EntityId,
+        BlockId, ClosureCaptureMode, ClosureCaptureOperand, ClosureCaptureType, Edge, EntityId,
         EntityType, Function, FunctionId, LoanKind, ModelError, Module, Operation, Origin,
         Ownership, Program, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
     },
@@ -343,7 +343,7 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         &[pointer],
         &origin,
     )[0];
-    append_values(
+    let _shared = append_values(
         function,
         entry,
         Operation::CallableInvoke {
@@ -421,6 +421,272 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
     assert!(rendered.contains("function_address @f0"));
     assert!(rendered.contains("closure.construct !t4, @f1(owned %v0)"));
     assert!(rendered.matches("invoke %v2(%v0)").count() == 2);
+}
+
+#[test]
+fn shared_capture_loan_follows_closure_across_edge_and_ends_on_drop() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("shared-closure");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let resource = module.intern_type(SsaTypeKind::ZeroSized {
+        name: "Resource".to_owned(),
+        ownership: Ownership::MoveOnly,
+    });
+    let shared_ref = module
+        .add_shared_reference_type(resource)
+        .expect("shared ref");
+    let environment = module
+        .add_aggregate_type("SharedEnv", vec![shared_ref])
+        .expect("env");
+    let closure = module
+        .add_concrete_closure_type(
+            "SharedClosure",
+            vec![],
+            vec![],
+            environment,
+            vec![ClosureCaptureType {
+                mode: ClosureCaptureMode::Shared,
+                ty: resource,
+            }],
+        )
+        .expect("closure");
+    let (thunk, thunk_entry, _) = add_function(module, "thunk", &[environment], vec![], &origin);
+    module
+        .function_mut(thunk)
+        .expect("thunk")
+        .set_terminator(
+            thunk_entry,
+            TerminatorKind::Return { values: vec![] },
+            origin.clone(),
+        )
+        .expect("return");
+    let (main, entry, parameters) = add_function(module, "main", &[resource], vec![], &origin);
+    let function = module.function_mut(main).expect("main");
+    let owner = parameters[0];
+    let EntityId::Place(place) = function
+        .append_instruction(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(resource)],
+            origin.clone(),
+        )
+        .expect("place")
+        .1[0]
+    else {
+        panic!("place")
+    };
+    let EntityId::Loan(loan) = function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: resource,
+            }],
+            origin.clone(),
+        )
+        .expect("loan")
+        .1[0]
+    else {
+        panic!("loan")
+    };
+    let closure_value = append_values(
+        function,
+        entry,
+        Operation::ClosureConstruct {
+            closure,
+            thunk,
+            captures: vec![ClosureCaptureOperand::Shared(loan)],
+        },
+        &[closure],
+        &origin,
+    )[0];
+    let continuation = function
+        .add_block(
+            vec![
+                EntityType::Value(closure),
+                EntityType::Value(resource),
+                EntityType::Place(resource),
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: resource,
+                },
+            ],
+            origin.clone(),
+        )
+        .expect("continuation");
+    function
+        .set_terminator(
+            entry,
+            TerminatorKind::Branch(Edge {
+                target: continuation,
+                arguments: vec![
+                    EntityId::Value(closure_value),
+                    EntityId::Value(owner),
+                    EntityId::Place(place),
+                    EntityId::Loan(loan),
+                ],
+            }),
+            origin.clone(),
+        )
+        .expect("branch");
+    let parameters = function
+        .block(continuation)
+        .expect("continuation")
+        .parameters
+        .clone();
+    let (
+        EntityId::Value(closure_value),
+        EntityId::Value(owner),
+        EntityId::Place(_place),
+        EntityId::Loan(_loan),
+    ) = (parameters[0], parameters[1], parameters[2], parameters[3])
+    else {
+        panic!("parameter kinds")
+    };
+    append_values(
+        function,
+        continuation,
+        Operation::CallableInvoke {
+            callable: closure_value,
+            arguments: vec![],
+        },
+        &[],
+        &origin,
+    );
+    append_values(
+        function,
+        continuation,
+        Operation::Drop {
+            owner: closure_value,
+        },
+        &[],
+        &origin,
+    );
+    append_values(
+        function,
+        continuation,
+        Operation::Drop { owner },
+        &[],
+        &origin,
+    );
+    function
+        .set_terminator(
+            continuation,
+            TerminatorKind::Return { values: vec![] },
+            origin,
+        )
+        .expect("return");
+
+    verify_program(&program).expect("shared closure loan must transfer and end with closure drop");
+}
+
+#[test]
+fn shared_capture_rejects_explicit_loan_end_before_closure_drop() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("early-end");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let reference = module
+        .add_shared_reference_type(integer)
+        .expect("reference");
+    let environment = module
+        .add_aggregate_type("Env", vec![reference])
+        .expect("env");
+    let closure = module
+        .add_concrete_closure_type(
+            "Borrowed",
+            vec![],
+            vec![],
+            environment,
+            vec![ClosureCaptureType {
+                mode: ClosureCaptureMode::Shared,
+                ty: integer,
+            }],
+        )
+        .expect("closure");
+    let (thunk, thunk_entry, _) = add_function(module, "thunk", &[environment], vec![], &origin);
+    module
+        .function_mut(thunk)
+        .expect("thunk")
+        .set_terminator(
+            thunk_entry,
+            TerminatorKind::Return { values: vec![] },
+            origin.clone(),
+        )
+        .expect("return");
+    let (main, entry, parameters) = add_function(module, "main", &[integer], vec![], &origin);
+    let function = module.function_mut(main).expect("main");
+    let EntityId::Place(place) = function
+        .append_instruction(
+            entry,
+            Operation::RootPlace {
+                owner: parameters[0],
+            },
+            vec![EntityType::Place(integer)],
+            origin.clone(),
+        )
+        .expect("place")
+        .1[0]
+    else {
+        panic!("place")
+    };
+    let EntityId::Loan(loan) = function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("loan")
+        .1[0]
+    else {
+        panic!("loan")
+    };
+    append_values(
+        function,
+        entry,
+        Operation::ClosureConstruct {
+            closure,
+            thunk,
+            captures: vec![ClosureCaptureOperand::Shared(loan)],
+        },
+        &[closure],
+        &origin,
+    );
+    function
+        .append_instruction(entry, Operation::BorrowEnd { loan }, vec![], origin.clone())
+        .expect("end");
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: vec![] }, origin)
+        .expect("return");
+
+    assert!(has_error(&program, |kind| matches!(
+        kind,
+        VerifyErrorKind::OwnerLoanConflict { .. }
+    )));
+    assert!(has_error(&program, |kind| matches!(
+        kind,
+        VerifyErrorKind::MissingOwnedExit { .. }
+    )));
+    assert!(has_error(&program, |kind| matches!(
+        kind,
+        VerifyErrorKind::ActiveLoanAtExit { .. }
+    )));
 }
 
 #[test]
@@ -530,6 +796,9 @@ fn wrong_thunk_shared_formation_and_move_after_capture_fail_before_llvm() {
         &[shared_closure],
         &origin,
     );
+    function
+        .append_instruction(entry, Operation::BorrowEnd { loan }, vec![], origin.clone())
+        .expect("borrow end must append");
     function
         .set_terminator(entry, TerminatorKind::Abort, origin.clone())
         .expect("invalid function still needs a terminator");
