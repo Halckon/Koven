@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal“继续推进 guide 主线，分阶段实施 specs”的站立授权 |
 | 前置 Spec | SPEC-0039 `done`；SPEC-0033/0034 verified SSA/LLVM 前置链已完成 |
 | 前置 ADR | [ADR-0004](../adr/0004-source-span-position-model.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted` |
-| 阻塞项 | 真实 breakpoint-hit 暂受本机 debugserver/task-port 调试授权阻塞；dwarfdump 与 LLDB 静态解析已可执行，设计和代码前置无阻塞 |
+| 阻塞项 | 真实 breakpoint-hit 暂受本机已禁用的 Developer Mode 阻塞；dwarfdump 与 LLDB 静态解析已可执行，设计和代码前置无阻塞 |
 | 影响范围 | `lang-codegen` LLVM debug metadata、object emission API 与测试；Architecture、roadmap |
 | 语言语义变更 | 否；只实施 ADR-0011 的首个 target 行表映射，不新增源码语义或调试表达式协议 |
 
@@ -132,4 +132,5 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（debug IR slice） | 通过 | 无 warning；`llvm/adapter.rs` 996 行，debug plan/emitter 位于独立 241 行模块 |
 | `cargo test -p lang-codegen --all-targets`（Mach-O/LLDB static slice） | 通过 | 90 项；dwarfdump 观察到真实 `.ko` line 4/column 5，LLDB 将该位置解析为一个 `app` breakpoint，链接后程序正常返回 0 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（Mach-O/LLDB static slice） | 通过 | 无 warning |
-| `/usr/bin/lldb --batch ... run`（沙箱内及批准的沙箱外窄验收） | 环境阻塞 | 两种执行边界均能解析 `debug.ko:4:5`，但 debugserver process launch 卡住；`DevToolsSecurity -status` 无法取得 `system.privilege.taskport.debug`，本机 Xcode/CommandLineTools debugserver 调试授权不可用，因此未勾选 breakpoint-hit 验收 |
+| workspace 五项标准基线 | 通过 | `cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace --all-targets`、`cargo build -p lang-cli` 均以退出码 0 完成；仍不以基线通过替代真实 breakpoint-hit 验收 |
+| `/usr/bin/lldb --batch ... run`（沙箱内及批准的沙箱外窄验收） | 环境阻塞 | 两种执行边界均能解析 `debug.ko:4:5`；沙箱外调试系统自带 `/usr/bin/true` 也以 `attach failed (Not allowed to attach to process)` 失败，系统日志明确记录 `task_for_pid` 返回 kern failure；沙箱外 `DevToolsSecurity -status` 返回 `Developer mode is currently disabled`，证明阻塞独立于 Koven object/DWARF，因此未勾选 breakpoint-hit 验收 |
