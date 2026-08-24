@@ -890,11 +890,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 _ => return Err(unsupported("SPEC-0034 不支持多返回值 return")),
             },
             TerminatorKind::Abort => {
-                let trap = Intrinsic::find("llvm.trap")
-                    .and_then(|intrinsic| intrinsic.get_declaration(self.llvm, &[]))
-                    .ok_or_else(|| LlvmAdapterError::Build("无法声明 llvm.trap".to_owned()))?;
-                self.builder.build_call(trap, &[], "")?;
-                self.builder.build_unreachable()?;
+                self.dependencies.runtime.emit_abort(&self.builder)?;
             }
         }
         Ok(())

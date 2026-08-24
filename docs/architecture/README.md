@@ -33,11 +33,12 @@ SPEC-0038 已完成具体闭包后端：function-pointer/concrete-closure/shared
 owned/shared capture layout identity、function-address、formation、非消费式 invoke 与 drop；
 shared loan 依赖随 closure owner 和 CFG transfer 存续，drop 后释放，LLVM 使用裸 function
 pointer 或 `{ptr, inline environment}`，不引入隐式 heap allocation 或类型擦除；
-SPEC-0039 第一片已建立显式 native entry 边界：只接受同 module 的 `() -> Unit` FunctionId，
+SPEC-0039 已建立显式 native entry 边界：只接受同 module 的 `() -> Unit` FunctionId，
 普通 Koven function 使用 internal linkage，唯一 C ABI `i32 main()` wrapper 调用指定 entry 后
-返回 0；第二片让 LLVM 文本和 object emission 复用同一个 verified module lowering，并由同一
-TargetMachine 直接生成 arm64 Mach-O object，锁定唯一 external `_main` 且失败不落盘；link/run
-仍由后续切片完成；
+返回 0；LLVM 文本和 object emission 复用同一个 verified module lowering，并由同一
+TargetMachine 直接生成 arm64 Mach-O object，锁定唯一 external `_main` 且失败不落盘；CLI
+链接边界以 `Command` 直接执行 `/usr/bin/clang`，区分启动失败与链接失败，真实 object 的正常
+entry 返回 0，SSA Abort 通过 C `abort` 非零终止且不生成 unwind；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -45,7 +46,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
-SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序容器后端基元。截至 v0.28
+SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
+闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.28
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -141,7 +143,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
-  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184，object/link/run
+  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184。显式 verified
+  SSA entry 已能生成 Mach-O object、经 clang 链接并运行，但源码 entry 选择和完整 CLI 流水线
   仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
@@ -175,7 +178,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   为有序 PHI。Boolean 使用 `i1`，
   整数保留 8/16/32/64-bit 宽度和操作 signedness；checked add/sub/mul 使用 LLVM overflow
   intrinsic，div/rem 在执行 LLVM 指令前以安全 divisor 避免失败路径触发 LLVM UB，失败 flag
-  继续流向既有 `llvm.trap` + `unreachable`。branch/conditional/return、六类比较、Boolean not、
+  继续流向 C `abort` + `unreachable`。branch/conditional/return、六类比较、Boolean not、
   direct call、scalar copy、first-class aggregate、heap owner value 和当前局部 place/loan 操作
   已映射，最终 module 必须通过 LLVM verifier；重复 lowering 文本
   相同。完整 `for` 仍未实现，由候选 0182 在 typed iteration plan 与 provider runtime 就绪后承接；
@@ -194,7 +197,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   调用；heap payload 完成后每个 owner helper 恰好调用一次 `free`，自引用 heap type 不导致
   codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
-  nominal/enum/Box constructor lowering、多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
+  nominal/enum/Box constructor lowering、多目标平台、bootstrap 与 public FFI ABI 仍未确定。
   SPEC-0036 已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
   MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
   replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。
@@ -220,8 +223,16 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner 与 SPEC-0036 顺序�
   `{ptr, inline environment}`，支持 owned capture 构造、间接调用和逆序 drop glue，且 closure
   自身不声明 allocator 或 type tag；shared capture 保存已有 loan pointer，loan 依赖随
   closure owner/CFG transfer 重绑定，提前结束被拒绝，并在 closure drop 后精确释放；
+- [ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) 已接受首个 AArch64 macOS
+  object/link 边界。SPEC-0039 复用 verified module lowering 与同一 TargetMachine 直接生成
+  Mach-O object；显式 `() -> Unit` FunctionId 获得唯一 external C `i32 main()` wrapper，普通
+  Koven function 保持 internal。`lang-cli` linker driver 不经 shell 调用 `/usr/bin/clang`，保留
+  status/stderr 并区分 driver 启动失败；test-only orchestration 已真实运行 normal 与 SSA Abort
+  object。源码 `main` 选择及标准库 `error()` identity 仍等待后续 frontend/Phase 5 接线，不按
+  名称猜测；
 
-现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
+现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；完整 `.ko`→可执行文件 CLI、标准库
+bootstrap 与 LSP 行为仍未实现。
 
 ## Workspace 与 target
 

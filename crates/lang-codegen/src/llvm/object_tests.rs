@@ -9,7 +9,7 @@ use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{EntityType, Origin, Program, SsaTypeKind, TerminatorKind};
 
-use super::{LlvmAdapterError, emit_verified_object};
+use super::{LlvmAdapterError, emit_verified_object, render_verified_program_with_entry};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -60,6 +60,45 @@ fn unit_entry_program() -> (Program, crate::ssa::model::FunctionId) {
         .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
         .expect("return");
     (program, entry)
+}
+
+fn abort_entry_program() -> (Program, crate::ssa::model::FunctionId) {
+    let mut sources = SourceMap::default();
+    let source = sources
+        .add_source("abort.ko", "fun app(): Nothing")
+        .expect("source");
+    let origin = Origin::Source(sources.span(source, 0, 3).expect("span"));
+    let mut program = Program::default();
+    let module_id = program.add_module("abort");
+    let module = program.module_mut(module_id).expect("module");
+    let entry = module
+        .add_function("app", vec![], origin.clone())
+        .expect("function");
+    let block = module
+        .function_mut(entry)
+        .expect("function")
+        .add_block(vec![], origin.clone())
+        .expect("block");
+    module
+        .function_mut(entry)
+        .expect("function")
+        .set_terminator(block, TerminatorKind::Abort, origin)
+        .expect("abort");
+    (program, entry)
+}
+
+fn link(object: &Path, executable: &Path) {
+    let output = Command::new("/usr/bin/clang")
+        .arg(object)
+        .arg("-o")
+        .arg(executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(
+        output.status.success(),
+        "link failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -128,4 +167,41 @@ fn invalid_entry_and_unwritable_parent_fail_without_object() {
         Err(LlvmAdapterError::Object(_))
     ));
     assert!(!Path::new(&missing_parent).exists());
+}
+
+#[test]
+fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
+    let directory = TestDirectory::create();
+    let (normal_program, normal_entry) = unit_entry_program();
+    let normal_object = directory.join("normal.o");
+    let normal_executable = directory.join("normal");
+    emit_verified_object(&normal_program, normal_entry, &normal_object).expect("normal object");
+    link(&normal_object, &normal_executable);
+    assert_eq!(
+        Command::new(&normal_executable)
+            .output()
+            .expect("normal run")
+            .status
+            .code(),
+        Some(0)
+    );
+
+    let (abort_program, abort_entry) = abort_entry_program();
+    let abort_llvm =
+        render_verified_program_with_entry(&abort_program, abort_entry).expect("abort IR");
+    assert!(abort_llvm.contains("call void @abort()"));
+    assert!(abort_llvm.contains("unreachable"));
+    assert!(!abort_llvm.contains("landingpad"));
+    assert!(!abort_llvm.contains("personality"));
+    let abort_object = directory.join("abort.o");
+    let abort_executable = directory.join("abort");
+    emit_verified_object(&abort_program, abort_entry, &abort_object).expect("abort object");
+    link(&abort_object, &abort_executable);
+    assert!(
+        !Command::new(&abort_executable)
+            .output()
+            .expect("abort run")
+            .status
+            .success()
+    );
 }

@@ -325,7 +325,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       frontend facts→verified SSA 切片已通过；`while`/`loop`、最近 loop 的 `break`/`continue`
       与 loop-carried header 参数也已通过；可达纯标量泛型 callable 已按 SPEC-0177 实例 key
       完成确定性单态化。verified SSA 已确定映射到 AArch64 LLVM IR，覆盖精确标量类型、PHI、
-      checked arithmetic、比较、direct call、branch/return/trap，并在返回文本前通过 LLVM
+      checked arithmetic、比较、direct call、branch/return/abort，并在返回文本前通过 LLVM
       verifier；全部整数宽度和 literal 边界已锁定，直接有符号最小值按单个负常量 lower，
       一般前缀负号仍保持 checked subtraction
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
@@ -362,8 +362,12 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0038（已实现）闭包环境捕获的 codegen**：无捕获 callable 使用裸函数指针；
       concrete closure 使用 `{ptr, inline environment}`，owned capture 按值存储并逆序析构，
       shared capture 保存已有 loan pointer 且依赖随 closure owner/CFG transfer 存续
+- [x] **SPEC-0039（已实现）本机 object、显式 entry 与链接边界**：同一 verified LLVM module
+      lowering/TargetMachine 生成 arm64 Mach-O object；唯一 external C ABI `main` 调用显式
+      `() -> Unit` Koven entry，CLI 以 `/usr/bin/clang` 无 shell 链接，normal/SSA Abort object
+      已真实运行；源码 entry 选择和标准库 `error()` identity 继续后置且不按名称猜测
 - [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
-- [ ] `error()` 编译为 abort 语义（不生成栈展开代码）
+- [ ] 把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort` primitive（不生成栈展开代码）
 - [ ] DWARF 调试信息生成
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构

@@ -16,6 +16,7 @@ use inkwell::{
 
 use crate::ssa::model::{
     ClosureCaptureMode, EntityId, EntityType, Module, Operation, Ownership, SsaTypeId, SsaTypeKind,
+    TerminatorKind,
 };
 
 use super::{LlvmAdapterError, type_map::TypeMap};
@@ -174,6 +175,17 @@ impl<'ctx> RuntimeAbi<'ctx> {
             LlvmAdapterError::Unsupported("MoveOnly 类型缺少 LLVM drop glue".to_owned())
         })?;
         builder.build_call(function, &[BasicMetadataValueEnum::from(value)], "")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_abort(&self, builder: &Builder<'ctx>) -> Result<(), LlvmAdapterError> {
+        builder.build_call(
+            self.abort
+                .ok_or_else(|| LlvmAdapterError::Build("abort 未声明".to_owned()))?,
+            &[],
+            "",
+        )?;
+        builder.build_unreachable()?;
         Ok(())
     }
 
@@ -589,6 +601,14 @@ impl RuntimeRequirements {
                     }
                     _ => {}
                 }
+            }
+            if function.blocks.iter().any(|block| {
+                matches!(
+                    block.terminator.as_ref().map(|terminator| &terminator.kind),
+                    Some(TerminatorKind::Abort)
+                )
+            }) {
+                requirements.needs_abort = true;
             }
         }
         Ok(requirements)

@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-039` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与 [`error()` abort 契约](../guide/01-design-decisions.md#3-error-与空安全相关运算符) |
@@ -66,17 +66,17 @@ TargetMachine 生成 AArch64 Mach-O object，以唯一 C ABI `main` wrapper 链�
 
 ## 5. 验收标准
 
-- [ ] module lowering 文本/object 共用同一 verified LLVM module；损坏 SSA 和错误 entry 在写盘前
+- [x] module lowering 文本/object 共用同一 verified LLVM module；损坏 SSA 和错误 entry 在写盘前
       被拒绝，失败路径不产生 object。
-- [ ] 显式零参数 Unit entry 生成唯一 `i32 @main()` wrapper，普通 Koven function 为 internal；
+- [x] 显式零参数 Unit entry 生成唯一 `i32 @main()` wrapper，普通 Koven function 为 internal；
       参数化、非 Unit、foreign/unknown entry 正反矩阵通过。
-- [ ] TargetMachine 生成的文件被识别为 arm64 Mach-O object，并包含唯一外部 `_main`；不调用
+- [x] TargetMachine 生成的文件被识别为 arm64 Mach-O object，并包含唯一外部 `_main`；不调用
       clang 生成 object。
-- [ ] CLI linker driver 不经 shell，成功、driver missing、linker non-zero 三类结果可区分，且
+- [x] CLI linker driver 不经 shell，成功、driver missing、linker non-zero 三类结果可区分，且
       不删除输入 object 或失败输出。
-- [ ] 真实 Koven object 经 `/usr/bin/clang` 链接并执行：正常 entry 返回 0；SSA Abort 非零终止；
+- [x] 真实 Koven object 经 `/usr/bin/clang` 链接并执行：正常 entry 返回 0；SSA Abort 非零终止；
       LLVM/object/link/run 全链路没有 unwind landing pad 或按名称特判 `error`。
-- [ ] `lang-codegen`、`lang-cli` 窄测及 workspace 五项标准基线通过；production 文件遵守 1000
+- [x] `lang-codegen`、`lang-cli` 窄测及 workspace 五项标准基线通过；production 文件遵守 1000
       行软上限，Spec/Architecture/roadmap 只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -95,9 +95,9 @@ TargetMachine 生成 AArch64 Mach-O object，以唯一 C ABI `main` wrapper 链�
 1. [x] 收敛共享 LLVM module lowering并生成显式 entry wrapper → 验证：IR wrapper、entry
    signature/identity 正反矩阵与 LLVM verifier。
 2. [x] 使用同一 TargetMachine 生成 object → 验证：object 存在、Mach-O arm64、符号与失败不落盘。
-3. [ ] 实现 CLI linker driver 与 test-only object/link/run orchestration → 验证：正常/abort、
+3. [x] 实现 CLI linker driver 与 test-only object/link/run orchestration → 验证：正常/abort、
    driver missing/link failure 和文件所有权矩阵。
-4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
+4. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
    状态、文件规模、文档与实现一致。
 
 ## 8. 提交计划
@@ -122,3 +122,12 @@ TargetMachine 生成 AArch64 Mach-O object，以唯一 C ABI `main` wrapper 链�
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（entry slice） | 通过 | 无 warning；`llvm/adapter.rs` 1000 行，entry 验证/wrapper 位于独立模块 |
 | `cargo test -p lang-codegen llvm::object_tests` | 通过 | 2 项；锁定 arm64 Mach-O header、唯一 external `_main`、Koven internal symbol 隐藏、invalid entry 与缺失父目录失败不落盘 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（object slice） | 通过 | 无 warning；共享 module lowering 提取后 `llvm/adapter.rs` 969 行 |
+| `cargo test -p lang-codegen --all-targets`（link/run slice） | 通过 | 87 项；真实 Koven normal/Abort object 均经 clang 链接并运行，SSA Abort lower 为 C `abort` + `unreachable` |
+| `cargo test -p lang-cli --all-targets` | 通过 | 8 项；链接成功、driver missing、linker non-zero 与带空格路径均通过 |
+| `cargo clippy -p lang-codegen -p lang-cli --all-targets -- -D warnings` | 通过 | 无 warning；production 文件均未超过 1000 行软上限 |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 全 target 构建检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | workspace 全量测试，无失败/忽略；包含真实 object/link/run |
+| `cargo build -p lang-cli` | 通过 | `kovenc` binary 构建成功 |
+| production 文件规模 | 通过 | `llvm/adapter.rs` 965 行、`llvm/runtime.rs` 681 行、`llvm/object_tests.rs` 207 行、`lang-cli/linker.rs` 136 行 |

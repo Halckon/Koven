@@ -6,5 +6,10 @@
     reason = "the Phase 0 renderer precedes CLI pipeline wiring"
 )]
 mod diagnostic_renderer;
+#[allow(
+    dead_code,
+    reason = "SPEC-0039 linker precedes source entry and CLI pipeline wiring"
+)]
+mod linker;
 
 fn main() {}
