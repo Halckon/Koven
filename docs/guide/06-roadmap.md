@@ -291,7 +291,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 
 ## Phase 4：LLVM 代码生成
 
-- [ ] 自建 SSA IR，从 AST/类型检查结果 lower 到该 IR
+- [ ] **SPEC-0033（前置：SPEC-0177、0174；ADR-0006 已接受）**：建立自建 typed SSA IR 与
+      verifier；后续 SPEC-0034 再从 AST/frontend facts lower 到该 IR
 - [ ] IR 到 LLVM IR 的映射（用 `inkwell`）
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
       `Copyable` 能力保持正交

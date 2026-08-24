@@ -108,6 +108,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无泛型 callable 实例化、普通字段部分移动、顺序容器 Phase 5 relocation effect 或
   codegen 实现；
+- [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
+  显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
+  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 仍是等待 SPEC-0177/0174 的 `draft`，
+  `lang-codegen` 当前尚无 SSA model 或 verifier；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

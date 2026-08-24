@@ -45,3 +45,9 @@ TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快�
 [SPEC-0177](./specs/0177-generic-callable-instantiation.md) 和
 [SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)；两者当前保持 `draft`，等待
 用户明确启用 [v0.28 候选](./guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用)。
+
+Phase 4 的独立架构门禁已由
+[ADR-0006](./adr/0006-typed-ssa-block-parameters.md) 封闭：自建 typed SSA 使用 IR-local type、
+block parameters 与显式 ownership effects。对应
+[SPEC-0033](./specs/0033-typed-ssa-ir-verifier.md) 已物化但保持 `draft`，必须等待上述两个
+Phase 2 Spec 完成后才能实施。

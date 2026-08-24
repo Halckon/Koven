@@ -164,6 +164,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0030 | 顺序容器 element place 所有权 | `01-design-decisions.md` §8、`../specs/0030-sequential-container-element-ownership.md` | ✅ 已实现 |
 | SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ✅ 已实现 |
+| SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ⏸️ draft，等待 SPEC-0177/0174 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28（候选）、`../specs/0174-overload-lambda-candidate-isolation.md` | ⏸️ draft，等待 v0.28 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28（候选）、`../specs/0177-generic-callable-instantiation.md` | ⏸️ draft，等待 v0.28 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
@@ -237,6 +238,7 @@ L0140–L0141 目前只在尚未启用的 v0.28 §28 中预留，不能由现行
 | closure capture 与跨线程转移（v0.27） | `01-design-decisions.md` §27 |
 | 泛型 callable 与 overload-lambda 隔离（v0.28 候选，未启用） | `01-design-decisions.md` §28 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
+| typed SSA 与 verifier（Phase 4；ADR-0006 accepted） | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` |
 
 ---
 
