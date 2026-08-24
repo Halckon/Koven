@@ -14,7 +14,7 @@ use inkwell::{
 
 use crate::ssa::model::{CallableSignature, Module, SsaTypeId, SsaTypeKind};
 
-use super::LlvmAdapterError;
+use super::{LlvmAdapterError, layout::TargetLayoutPlan};
 
 pub(super) struct TypeMap<'ctx> {
     void_type: VoidType<'ctx>,
@@ -52,6 +52,9 @@ impl<'ctx> TypeMap<'ctx> {
         module: &Module,
         target: &TargetData,
     ) -> Result<Self, LlvmAdapterError> {
+        // Validate the closed SSA type graph before creating any LLVM composite type. This keeps
+        // oversized layouts out of opaque struct bodies, GEPs, and allocator lowering.
+        let layout_plan = TargetLayoutPlan::build(context, module, target)?;
         let mut types = BTreeMap::new();
         let mut aggregates = BTreeMap::new();
         let mut containers = BTreeMap::new();
@@ -149,6 +152,7 @@ impl<'ctx> TypeMap<'ctx> {
             let (_, element) = module.sequential_container(*id).ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("顺序容器类型缺少元素定义".to_owned())
             })?;
+            let element_layout = layout_plan.layout(element)?;
             let element = types.get(&element).copied().ok_or_else(|| {
                 LlvmAdapterError::Unsupported("顺序容器元素不具有 LLVM storage 表示".to_owned())
             })?;
@@ -157,8 +161,8 @@ impl<'ctx> TypeMap<'ctx> {
                 ContainerLayout {
                     header: *header,
                     element,
-                    stride: target.get_abi_size(&element),
-                    element_alignment: target.get_abi_alignment(&element),
+                    stride: element_layout.size,
+                    element_alignment: element_layout.alignment,
                 },
             );
         }

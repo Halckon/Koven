@@ -17,6 +17,9 @@ mod entities;
 mod entry;
 #[cfg(test)]
 mod entry_tests;
+mod layout;
+#[cfg(test)]
+mod layout_tests;
 #[cfg(test)]
 mod object_tests;
 mod runtime;
@@ -43,6 +46,7 @@ pub(crate) enum LlvmAdapterError {
     InvalidSsa(String),
     InvalidEntry(String),
     Debug(String),
+    InvalidLayout(layout::TargetLayoutError),
     Object(String),
     Target(String),
     Build(String),

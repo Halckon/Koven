@@ -29,6 +29,10 @@ drop/free 后端基元；
 SPEC-0036 已完成顺序容器后端：container kind/element type、完整 construct/generate、length、
 checked element-place、replace 与 drop 的 SSA/verifier，以及固定 header、连续缓冲区、
 checked-index、replace/drop 与 MoveOnly ZST runtime 均已落地；
+SPEC-0186 已在任何 LLVM 复合类型创建前加入 target-layout preflight：从同一 `TargetData`
+取得 primitive/pointer/size_t 事实，以受检算术验证 aggregate、closure 与 container header 的
+size/alignment 和 element stride；超限或算术溢出稳定返回 IR-local `InvalidLayout`，不进入
+opaque struct body、GEP 或 allocator lowering；源码 `Span`/诊断映射等待 SPEC-0184；
 SPEC-0038 已完成具体闭包后端：function-pointer/concrete-closure/shared-reference IR-local type、
 owned/shared capture layout identity、function-address、formation、非消费式 invoke 与 drop；
 shared loan 依赖随 closure owner 和 CFG transfer 存续，drop 后释放，LLVM 使用裸 function
@@ -237,6 +241,15 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
   nominal/enum/Box constructor lowering、多目标平台与 public FFI ABI 仍未确定；单文件标准库
   bootstrap 已由 ADR-0012 / SPEC-0042 封闭并实现。
+  SPEC-0186 在 `TypeMap` 创建任何 opaque/composite LLVM type 前构建有序
+  `TargetLayoutPlan`：基础 scalar/pointer/size_t 布局来自最终 module 使用的同一 `TargetData`，
+  封闭 record universe 按 `SsaTypeId` 源序线性地以 `u128` checked align-up/add 计算 nested
+  aggregate、inline closure environment 和固定 container header，并以 default address-space
+  pointer width 的 unsigned 上限拒绝不可表示对象。计算不递归消耗 Rust 调用栈；
+  heap/shared/function handle 只计算 pointer，不展开递归 payload；
+  container stride 直接消费 element 的同一受检 alloc-size，ZST 保持 0。合法 padded/nested、
+  heap-recursive、closure 与二/三字段 header 均和 LLVM 实际 layout 对照；紧凑 61 层倍增聚合
+  在 `2^64` bytes 处确定失败。该事实只属于后端 preflight，不进入 frontend/SSA 类型身份。
   SPEC-0036 已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
   MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
   replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。

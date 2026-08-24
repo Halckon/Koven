@@ -339,7 +339,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0185（已实现）**：让已通过 frontend 的普通 class/value class/interface/enum class
       声明 roots 与既有标量 entry 共存；声明本身不进入函数实例图，不据此提前实现 constructor、
       nominal operation、具名 object 或顶层存储初始化
-- [ ] **SPEC-0186（实施中）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
+- [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界，源码 `Span` 与稳定用户诊断由 0184 接入 nominal 类型时承接
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
