@@ -176,7 +176,12 @@ fn apply_operation(
     let location = VerifyLocation::Instruction(instruction.id);
     let origin = &instruction.origin;
     match &instruction.operation {
-        Operation::Constant(_) | Operation::Binary { .. } => {}
+        Operation::Constant(_)
+        | Operation::Binary { .. }
+        | Operation::CheckedArithmetic { .. }
+        | Operation::Compare { .. }
+        | Operation::BooleanNot { .. }
+        | Operation::DirectCall { .. } => {}
         Operation::Copy { source } => {
             if is_move_only(module, function, *source) {
                 errors.push(error(

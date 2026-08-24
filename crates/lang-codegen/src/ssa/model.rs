@@ -194,6 +194,25 @@ pub(super) enum BinaryOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CheckedArithmeticOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ComparisonOperator {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PlaceAccess {
     Place(PlaceId),
     Loan(LoanId),
@@ -202,10 +221,30 @@ pub(super) enum PlaceAccess {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Operation {
     Constant(ScalarConstant),
+    /// SPEC-0033 的低层 primitive；算术变体只允许在范围证明后使用。
+    /// 源语言 `+`/`-`/`*` 必须先 lower 为 `CheckedArithmetic`。
     Binary {
         operator: BinaryOperator,
         left: ValueId,
         right: ValueId,
+    },
+    /// 返回算术结果与失败标志；lowering 必须把失败标志导向 `Abort`。
+    CheckedArithmetic {
+        operator: CheckedArithmeticOperator,
+        left: ValueId,
+        right: ValueId,
+    },
+    Compare {
+        operator: ComparisonOperator,
+        left: ValueId,
+        right: ValueId,
+    },
+    BooleanNot {
+        operand: ValueId,
+    },
+    DirectCall {
+        callee: FunctionId,
+        arguments: Vec<ValueId>,
     },
     Copy {
         source: ValueId,
@@ -239,9 +278,15 @@ impl Operation {
     pub(super) fn entities(&self) -> Vec<EntityId> {
         match self {
             Self::Constant(_) => Vec::new(),
-            Self::Binary { left, right, .. } => {
+            Self::Binary { left, right, .. }
+            | Self::CheckedArithmetic { left, right, .. }
+            | Self::Compare { left, right, .. } => {
                 vec![EntityId::Value(*left), EntityId::Value(*right)]
             }
+            Self::DirectCall { arguments, .. } => {
+                arguments.iter().copied().map(EntityId::Value).collect()
+            }
+            Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
                 vec![EntityId::Value(*owner)]

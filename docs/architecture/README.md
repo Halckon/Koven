@@ -121,7 +121,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 - [ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 已接受 LLVM 21.1.x、Inkwell 0.10.0、
   `LLVM_SYS_211_PREFIX` 显式发现、动态链接和首个 `aarch64-apple-darwin` target。SPEC-0034 已
   以 crate-private LLVM adapter smoke 证明合法标量模块确定生成、LLVM verifier 拒绝无
-  terminator 模块，并由 `otool` 确认链接 Homebrew `libLLVM.dylib`；SSA→LLVM 映射仍未实现；
+  terminator 模块，并由 `otool` 确认链接 Homebrew `libLLVM.dylib`；typed SSA 已新增返回
+  “结果 + 失败标志”的 checked add/sub/mul/div/rem、完整整数比较、Boolean not 与标量
+  direct-call contract，失败标志通过显式 CFG 导向 `Abort`。frontend→SSA 与 SSA→LLVM 映射
+  仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

@@ -2,8 +2,7 @@ use std::{collections::BTreeSet, error::Error, fmt};
 
 use super::model::{
     BlockId, Definition, EntityId, EntityType, Function, FunctionId, InstructionId, Module,
-    ModuleId, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, SsaTypeKind,
-    TerminatorKind,
+    ModuleId, Origin, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -451,7 +450,7 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
             let instruction = function
                 .instruction(*instruction_id)
                 .expect("structure phase proved instruction existence");
-            verify_operation(module, function, instruction, errors);
+            super::verify_operation::verify_operation(module, function, instruction, errors);
         }
         let terminator = block
             .terminator
@@ -574,174 +573,6 @@ fn verify_edge(
             });
         }
     }
-}
-
-fn verify_operation(
-    module: &Module,
-    function: &Function,
-    instruction: &super::model::Instruction,
-    errors: &mut Vec<VerifyError>,
-) {
-    let result_types = instruction
-        .results
-        .iter()
-        .map(|entity| {
-            function
-                .entity(*entity)
-                .expect("structure phase proved result existence")
-                .ty
-        })
-        .collect::<Vec<_>>();
-    let valid = match &instruction.operation {
-        Operation::Constant(constant) => {
-            result_types.len() == 1
-                && matches!(result_types[0], EntityType::Value(_))
-                && constant_matches_type(module, constant, result_types[0].semantic_type())
-        }
-        Operation::Binary {
-            operator,
-            left,
-            right,
-        } => {
-            let left = value_type(function, *left);
-            let right = value_type(function, *right);
-            let Some(result) = single_value_result(&result_types) else {
-                report_operation(
-                    instruction,
-                    "binary operation requires one value result",
-                    errors,
-                );
-                return;
-            };
-            if left != right {
-                false
-            } else {
-                match operator {
-                    super::model::BinaryOperator::Add
-                    | super::model::BinaryOperator::Subtract
-                    | super::model::BinaryOperator::Multiply => {
-                        left == Some(result)
-                            && matches!(module.type_kind(result), Some(SsaTypeKind::Integer { .. }))
-                    }
-                    super::model::BinaryOperator::Equal => {
-                        matches!(
-                            left.and_then(|ty| module.type_kind(ty)),
-                            Some(SsaTypeKind::Boolean | SsaTypeKind::Integer { .. })
-                        ) && matches!(module.type_kind(result), Some(SsaTypeKind::Boolean))
-                    }
-                    super::model::BinaryOperator::LessThan => {
-                        matches!(
-                            left.and_then(|ty| module.type_kind(ty)),
-                            Some(SsaTypeKind::Integer { .. })
-                        ) && matches!(module.type_kind(result), Some(SsaTypeKind::Boolean))
-                    }
-                }
-            }
-        }
-        Operation::Copy { source } => {
-            single_value_result(&result_types) == value_type(function, *source)
-        }
-        Operation::Consume { .. } | Operation::BorrowEnd { .. } | Operation::Drop { .. } => {
-            result_types.is_empty()
-        }
-        Operation::RootPlace { owner } => {
-            result_types
-                == [EntityType::Place(
-                    value_type(function, *owner).expect("valid value"),
-                )]
-        }
-        Operation::BorrowBegin { place, kind } => {
-            let target = entity_type(function, EntityId::Place(*place)).semantic_type();
-            result_types
-                == [EntityType::Loan {
-                    kind: *kind,
-                    target,
-                }]
-        }
-        Operation::Read { source } => {
-            let source_type = match source {
-                PlaceAccess::Place(place) => entity_type(function, EntityId::Place(*place)),
-                PlaceAccess::Loan(loan) => entity_type(function, EntityId::Loan(*loan)),
-            };
-            single_value_result(&result_types) == Some(source_type.semantic_type())
-        }
-        Operation::Mutate { place, value } => {
-            result_types.is_empty()
-                && entity_type(function, EntityId::Place(*place)).semantic_type()
-                    == value_type(function, *value).expect("valid value")
-        }
-    };
-    if !valid {
-        report_operation(
-            instruction,
-            "operand and result types do not match the operation contract",
-            errors,
-        );
-    }
-}
-
-fn constant_matches_type(module: &Module, constant: &ScalarConstant, ty: SsaTypeId) -> bool {
-    match (constant, module.type_kind(ty)) {
-        (ScalarConstant::Unit, Some(SsaTypeKind::Unit))
-        | (ScalarConstant::Boolean(_), Some(SsaTypeKind::Boolean)) => true,
-        (ScalarConstant::Integer(value), Some(SsaTypeKind::Integer { bits, signed })) => {
-            integer_fits(*value, *bits, *signed)
-        }
-        _ => false,
-    }
-}
-
-fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
-    if !(1..=128).contains(&bits) {
-        return false;
-    }
-    if signed {
-        if bits == 128 {
-            true
-        } else {
-            let limit = 1_i128 << (bits - 1);
-            (-limit..limit).contains(&value)
-        }
-    } else if value < 0 {
-        false
-    } else if bits == 128 {
-        true
-    } else {
-        value < (1_i128 << bits)
-    }
-}
-
-fn single_value_result(types: &[EntityType]) -> Option<SsaTypeId> {
-    match types {
-        [EntityType::Value(ty)] => Some(*ty),
-        _ => None,
-    }
-}
-
-fn value_type(function: &Function, value: super::model::ValueId) -> Option<SsaTypeId> {
-    match entity_type(function, EntityId::Value(value)) {
-        EntityType::Value(ty) => Some(ty),
-        EntityType::Place(_) | EntityType::Loan { .. } => None,
-    }
-}
-
-fn entity_type(function: &Function, entity: EntityId) -> EntityType {
-    function
-        .entity(entity)
-        .expect("structure phase proved entity existence")
-        .ty
-}
-
-fn report_operation(
-    instruction: &super::model::Instruction,
-    reason: &'static str,
-    errors: &mut Vec<VerifyError>,
-) {
-    errors.push(VerifyError {
-        kind: VerifyErrorKind::OperationContract { reason },
-        location: VerifyLocation::Instruction(instruction.id),
-        origin: Some(instruction.origin.clone()),
-    });
 }
 
 fn verify_dominance(function: &Function, errors: &mut Vec<VerifyError>) {

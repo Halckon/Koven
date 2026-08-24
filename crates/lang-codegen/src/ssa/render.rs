@@ -1,8 +1,9 @@
 use std::fmt::{self, Write};
 
 use super::model::{
-    BinaryOperator, Edge, EntityId, EntityType, Function, LoanKind, Module, Operation, Origin,
-    PlaceAccess, Program, ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind,
+    BinaryOperator, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType,
+    Function, LoanKind, Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId,
+    SsaTypeKind, TerminatorKind,
 };
 
 /// 生成只用于调试和测试的确定性 SSA 文本。
@@ -221,6 +222,41 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
         }
+        Operation::CheckedArithmetic {
+            operator,
+            left,
+            right,
+        } => {
+            write!(output, "checked.{} ", checked_arithmetic_name(*operator))?;
+            write_entity_id(output, EntityId::Value(*left))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*right))
+        }
+        Operation::Compare {
+            operator,
+            left,
+            right,
+        } => {
+            write!(output, "cmp.{} ", comparison_name(*operator))?;
+            write_entity_id(output, EntityId::Value(*left))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*right))
+        }
+        Operation::BooleanNot { operand } => {
+            output.write_str("not ")?;
+            write_entity_id(output, EntityId::Value(*operand))
+        }
+        Operation::DirectCall { callee, arguments } => {
+            write!(output, "call @f{}(", callee.index())?;
+            let arguments = arguments
+                .iter()
+                .copied()
+                .map(EntityId::Value)
+                .collect::<Vec<_>>();
+            write_entity_ids(output, &arguments)?;
+            output.push(')');
+            Ok(())
+        }
         Operation::Copy { source } => {
             output.write_str("copy ")?;
             write_entity_id(output, EntityId::Value(*source))
@@ -283,6 +319,27 @@ const fn binary_name(operator: BinaryOperator) -> &'static str {
         BinaryOperator::Multiply => "mul",
         BinaryOperator::Equal => "eq",
         BinaryOperator::LessThan => "lt",
+    }
+}
+
+const fn checked_arithmetic_name(operator: CheckedArithmeticOperator) -> &'static str {
+    match operator {
+        CheckedArithmeticOperator::Add => "add",
+        CheckedArithmeticOperator::Subtract => "sub",
+        CheckedArithmeticOperator::Multiply => "mul",
+        CheckedArithmeticOperator::Divide => "div",
+        CheckedArithmeticOperator::Remainder => "rem",
+    }
+}
+
+const fn comparison_name(operator: ComparisonOperator) -> &'static str {
+    match operator {
+        ComparisonOperator::Equal => "eq",
+        ComparisonOperator::NotEqual => "ne",
+        ComparisonOperator::LessThan => "lt",
+        ComparisonOperator::LessThanOrEqual => "le",
+        ComparisonOperator::GreaterThan => "gt",
+        ComparisonOperator::GreaterThanOrEqual => "ge",
     }
 }
 

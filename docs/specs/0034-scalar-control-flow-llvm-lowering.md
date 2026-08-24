@@ -105,7 +105,7 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 ## 7. 实施计划
 
 1. [x] 安装/验证 LLVM 21 工具链与 Inkwell 最小 smoke matrix，接受 ADR-0007。
-2. [ ] 扩展 scalar SSA operation/verifier contract → 验证：checked arithmetic/call 正反矩阵。
+2. [x] 扩展 scalar SSA operation/verifier contract → 验证：checked arithmetic/call 正反矩阵。
 3. [ ] 建立 frontend→SSA identity/type/function/body lowering → 验证：标量直线函数窄测。
 4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
 5. [ ] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
@@ -135,3 +135,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets` | 通过 | 25 项；含确定 AArch64 标量 IR 与 LLVM verifier 正反例 |
 | `otool -L <lang-codegen test binary>` | 通过 | 动态链接 `/opt/homebrew/opt/llvm@21/lib/libLLVM.dylib` 21.1.8；测试 binary hash 不作为稳定接口 |
 | workspace 标准基线（均设置 `LLVM_SYS_211_PREFIX`） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 28 项；五类 checked arithmetic、显式 abort CFG、六类 comparison、Boolean not、direct-call 正反矩阵 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | operation verifier 拆分后无 warning，全部生产文件低于 1000 行软上限 |
+| 2026-08-25 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
