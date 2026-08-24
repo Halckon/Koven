@@ -39,10 +39,11 @@ SPEC-0039 已建立显式 native entry 边界：只接受同 module 的 `() -> U
 TargetMachine 直接生成 arm64 Mach-O object，锁定唯一 external `_main` 且失败不落盘；CLI
 链接边界以 `Command` 直接执行 `/usr/bin/clang`，区分启动失败与链接失败，真实 object 的正常
 entry 返回 0，SSA Abort 通过 C `abort` 非零终止且不生成 unwind；
-SPEC-0040 第一片已让 debug-enabled lowering 显式接收原 `SourceMap`，在创建 LLVM module 前
+SPEC-0040 前两片已让 debug-enabled lowering 显式接收原 `SourceMap`，在创建 LLVM module 前
 预检全部 SSA origin，并生成 DW_LANG_C fallback 的 line-tables-only compile unit、按名称确定的
 `DIFile`、Koven function `DISubprogram` 与 instruction/terminator location；foreign map fail-loud，
-无 debug LLVM 文本入口保持原产物；
+无 debug LLVM 文本入口保持原产物；Mach-O 行表及 LLDB 静态 source breakpoint 解析已通过，
+真实 breakpoint hit 仍受本机 debugserver/task-port 授权阻塞；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -240,7 +241,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   foreign map 在 LLVM metadata 前返回独立 codegen 错误。独立 `llvm::debug` 模块按 entry source
   建立 compile unit，以 source name 原文建立确定性 `DIFile`，把 Koven display/linkage name 与
   1-based Unicode/CRLF 行列映射到 subprogram/location；synthetic origin 使用 anchor，C `main`
-  wrapper 不获得伪造 Koven subprogram。Mach-O 行表与 LLDB 真机验收仍待本 Spec 后续切片；
+  wrapper/runtime declaration 不获得伪造 Koven subprogram。Mach-O object 已由 `dwarfdump`
+  验证真实 `.ko` 行列，LLDB 可把 `debug.ko:4:5` 静态解析为 `app` 的唯一 source breakpoint，
+  链接后程序正常返回 0；本机 debugserver 因 task-port 调试授权不可用而无法启动 inferior，真实
+  breakpoint hit 仍待环境门禁解除后完成；
 
 现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；完整 `.ko`→可执行文件 CLI、标准库
 bootstrap 与 LSP 行为仍未实现。

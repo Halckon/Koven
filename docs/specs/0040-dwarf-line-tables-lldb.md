@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal“继续推进 guide 主线，分阶段实施 specs”的站立授权 |
 | 前置 Spec | SPEC-0039 `done`；SPEC-0033/0034 verified SSA/LLVM 前置链已完成 |
 | 前置 ADR | [ADR-0004](../adr/0004-source-span-position-model.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted` |
-| 阻塞项 | 无；本机 `/usr/bin/dwarfdump` 与 `/usr/bin/lldb` 均来自 Apple LLVM 21，首个 target/debugger 前提已满足 |
+| 阻塞项 | 真实 breakpoint-hit 暂受本机 debugserver/task-port 调试授权阻塞；dwarfdump 与 LLDB 静态解析已可执行，设计和代码前置无阻塞 |
 | 影响范围 | `lang-codegen` LLVM debug metadata、object emission API 与测试；Architecture、roadmap |
 | 语言语义变更 | 否；只实施 ADR-0011 的首个 target 行表映射，不新增源码语义或调试表达式协议 |
 
@@ -76,9 +76,9 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
       与 object 写盘前返回 `Debug` 错误，失败不产生 object。
 - [x] debug LLVM 文本包含唯一 compile unit、按 ADR-0011 映射的 file/subprogram/location；
       Unicode/CRLF、multi-source、synthetic anchor 与重复运行确定性矩阵通过。
-- [ ] Koven function 的 display/linkage name 和 internal linkage 保持区分；entry wrapper、runtime
+- [x] Koven function 的 display/linkage name 和 internal linkage 保持区分；entry wrapper、runtime
       与 helper 不获得伪造 Koven source subprogram/location，LLVM verifier 通过。
-- [ ] 同一 TargetMachine 生成的 arm64 Mach-O object 经 `dwarfdump --debug-line` 可见真实 `.ko`
+- [x] 同一 TargetMachine 生成的 arm64 Mach-O object 经 `dwarfdump --debug-line` 可见真实 `.ko`
       文件和预期行记录，既有唯一 `_main`/正常运行契约不退化。
 - [ ] 真实 executable 经 `/usr/bin/lldb --batch` 按 `.ko` 文件/行设置断点并运行，断点成功解析、
       命中 Koven frame 且报告预期源码位置。
@@ -103,9 +103,11 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
 
 1. [x] 建立 debug source preflight 与 metadata emitter，接入共享 module/function lowering → 验证：
    debug IR、foreign map、multi-source、Unicode/CRLF、synthetic anchor 与 LLVM verifier 矩阵。
-2. [ ] 让 object emission 携带行表并增加 dwarfdump/LLDB 真机验收 → 验证：Mach-O 行表、源码断点、
-   Koven frame、正常退出及既有 object 符号契约。
-3. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
+2. [x] 让 object emission 携带行表并增加 dwarfdump/LLDB 静态解析验收 → 验证：Mach-O 行表、
+   source breakpoint resolution、Koven symbol/source location、正常退出及既有 object 符号契约。
+3. [ ] 在允许 debugserver 取得 task port 的 macOS 环境运行 LLDB breakpoint-hit 验收 → 验证：
+   process launch、stop reason、Koven frame 与目标 source line。
+4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
    状态、文件规模、文档与实现一致。
 
 ## 8. 提交计划
@@ -113,7 +115,8 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | SourceMap preflight、DWARF compile unit/file/subprogram/location 与 debug IR 验收 | `feat(codegen): emit DWARF line tables (SPEC-0040)` |
-| 2 | Mach-O dwarfdump、真实 LLDB 验收、Architecture 与 done 记录 | `test(codegen): debug native Koven objects (SPEC-0040)` |
+| 2 | Mach-O dwarfdump、LLDB 静态断点解析与环境阻塞记录 | `test(codegen): inspect native DWARF objects (SPEC-0040)` |
+| 3 | 真实 LLDB breakpoint hit、Architecture 与 done 记录 | `test(codegen): debug native Koven objects (SPEC-0040)` |
 
 ## 9. 未决问题
 
@@ -127,3 +130,6 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
 | 2026-08-25 前置审计 | 通过 | SPEC-0039 `done`；ADR-0004/0007/0010/0011 `accepted`；Inkwell 0.10 提供 DIBuilder/LineTablesOnly API；本机 Apple LLVM 21 提供 dwarfdump/LLDB |
 | `cargo test -p lang-codegen --all-targets`（debug IR slice） | 通过 | 89 项；新增 SourceMap preflight、DW_LANG_C line tables、multi-source、Unicode/CRLF、synthetic anchor、display/linkage name 与确定性矩阵 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（debug IR slice） | 通过 | 无 warning；`llvm/adapter.rs` 996 行，debug plan/emitter 位于独立 241 行模块 |
+| `cargo test -p lang-codegen --all-targets`（Mach-O/LLDB static slice） | 通过 | 90 项；dwarfdump 观察到真实 `.ko` line 4/column 5，LLDB 将该位置解析为一个 `app` breakpoint，链接后程序正常返回 0 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（Mach-O/LLDB static slice） | 通过 | 无 warning |
+| `/usr/bin/lldb --batch ... run`（沙箱内及批准的沙箱外窄验收） | 环境阻塞 | 两种执行边界均能解析 `debug.ko:4:5`，但 debugserver process launch 卡住；`DevToolsSecurity -status` 无法取得 `system.privilege.taskport.debug`，本机 Xcode/CommandLineTools debugserver 调试授权不可用，因此未勾选 breakpoint-hit 验收 |
