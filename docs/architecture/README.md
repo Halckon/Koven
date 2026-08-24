@@ -116,7 +116,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已进入 `in-progress`：`lang-codegen` 已建立
   crate-private、owner-aware 的索引式 SSA model、IR-local type/origin 与确定性 debug rendering，
-  结构、CFG、dominance、所有权和 loan verifier 仍待后续检查点完成；
+  并完成 ID/归属、CFG/edge、operation/return type 与 dominance verifier；所有权和 loan
+  数据流 verifier 仍待后续检查点完成；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

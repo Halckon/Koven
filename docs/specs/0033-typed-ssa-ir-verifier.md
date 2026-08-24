@@ -62,10 +62,10 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 
 ## 5. 验收标准
 
-- [ ] 合法 scalar function、diamond CFG、loop backedge、多个 return block 与 block parameter 示例
-  通过 verifier，并具有稳定 debug text/source origin。
-- [ ] entry/terminator、悬空/跨 owner ID、successor arity/type、result type、return type、
-  use-before-def 与 non-dominating use 各有独立失败测试，错误定位和顺序确定。
+- [x] 合法 scalar function、diamond CFG、loop backedge、多个 return block 与 block parameter 示例
+      通过 verifier，并具有稳定 debug text/source origin。
+- [x] entry/terminator、悬空/跨 owner ID、successor arity/type、result type、return type、
+      use-before-def 与 non-dominating use 各有独立失败测试，错误定位和顺序确定。
 - [ ] Copyable 值可重复 read/copy；对 MoveOnly 使用 copy、消费后再用、同一路径重复 consume/drop、
   正常 return 前遗漏义务均被拒绝。
 - [ ] MoveOnly 值在互斥 branch edge 可分别 transfer，join 只通过 block parameter 使用；隐藏
@@ -91,7 +91,7 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 ## 7. 实施计划
 
 1. [x] 建立 SSA ID/type/origin/function/block/value model 与 debug rendering → 验证：model 单元测试。
-2. [ ] 实现结构、CFG、edge type 与 dominance verifier → 验证：结构/控制流正反矩阵。
+2. [x] 实现结构、CFG、edge type 与 dominance verifier → 验证：结构/控制流正反矩阵。
 3. [ ] 实现 Copyable/MoveOnly consume/drop 与 block-edge 数据流 → 验证：线性所有权矩阵。
 4. [ ] 实现 root-place shared/exclusive loan begin/end 验证 → 验证：loan 冲突与跨 edge 矩阵。
 5. [ ] 运行 `lang-codegen` 窄测和 workspace 标准基线，同步 Architecture/Spec → 验证：实际退出状态。
@@ -117,4 +117,5 @@ place、loan 和 drop 表达。ADR-0006 已决定采用 IR-local 类型、block 
 | 2026-08-24 现状与边界审计 | 通过 | `lang-codegen` 只有空 crate；frontend 已提供 typed/ownership facts；ADR-0006 已封闭 IR 架构 |
 | 2026-08-24 实施门禁 | 通过 | SPEC-0174 已完成；依据持续 Goal 的站立授权进入 `in-progress` |
 | 2026-08-24 model/render 检查点 | 通过 | 建立隐藏 Program owner、module/function-owned ID、IR-local type/entity/operation/CFG model 与 source-anchored deterministic rendering；`cargo check -p lang-codegen --all-targets` 和 4 个 crate 窄测退出码 0 |
+| 2026-08-24 structure verifier 检查点 | 通过 | 分阶段拒绝 ID/owner、definition/placement、entry/terminator、edge/return/operation type、use-before-def 与 non-dominance 错误；合法 diamond、loop backedge 和多 return 覆盖在内的 12 个 crate 测试及 lang-codegen Clippy `-D warnings` 退出码 0 |
 | 实现验收 | 未执行 | 尚未完成 SPEC-0033 实施 |

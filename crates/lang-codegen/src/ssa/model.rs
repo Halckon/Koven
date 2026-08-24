@@ -36,8 +36,8 @@ impl fmt::Debug for ModuleId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) struct FunctionId {
-    module: ModuleId,
-    index: usize,
+    pub(super) module: ModuleId,
+    pub(super) index: usize,
 }
 
 impl FunctionId {
@@ -54,8 +54,8 @@ macro_rules! function_id {
     ($name:ident) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub(super) struct $name {
-            function: FunctionId,
-            index: usize,
+            pub(super) function: FunctionId,
+            pub(super) index: usize,
         }
 
         impl $name {
@@ -78,8 +78,8 @@ function_id!(LoanId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) struct SsaTypeId {
-    module: ModuleId,
-    index: usize,
+    pub(super) module: ModuleId,
+    pub(super) index: usize,
 }
 
 impl SsaTypeId {
@@ -236,7 +236,7 @@ pub(super) enum Operation {
 }
 
 impl Operation {
-    fn entities(&self) -> Vec<EntityId> {
+    pub(super) fn entities(&self) -> Vec<EntityId> {
         match self {
             Self::Constant(_) => Vec::new(),
             Self::Binary { left, right, .. } => {
@@ -289,7 +289,7 @@ pub(super) enum TerminatorKind {
 }
 
 impl TerminatorKind {
-    fn entities(&self) -> Vec<EntityId> {
+    pub(super) fn entities(&self) -> Vec<EntityId> {
         match self {
             Self::Branch(edge) => edge.arguments.clone(),
             Self::Conditional {
@@ -307,7 +307,7 @@ impl TerminatorKind {
         }
     }
 
-    fn targets(&self) -> Vec<BlockId> {
+    pub(super) fn targets(&self) -> Vec<BlockId> {
         match self {
             Self::Branch(edge) => vec![edge.target],
             Self::Conditional {
