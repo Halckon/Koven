@@ -3,10 +3,14 @@
 mod lower_frontend;
 pub(crate) mod model;
 mod render;
+mod types;
 pub(crate) mod verify;
 mod verify_operation;
 mod verify_ownership;
+mod verify_types;
 
+#[cfg(test)]
+mod aggregate_operation_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

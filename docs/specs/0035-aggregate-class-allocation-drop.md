@@ -29,9 +29,10 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 - 为源码有序字段的内联 aggregate 与间接 heap owner 建立 IR-local 类型。aggregate 的
   `Copyable` 必须与全部字段能力一致；heap owner 始终 MoveOnly，其字段只描述 pointee payload，
   不把 payload 复制成 owner 本身。
-- 支持先声明、后定义递归 heap-owner 类型，使 `class Node(var next: Node?)` 这类由 pointer
-  打断的递归可表示；内联 aggregate 仍必须有限，未定义类型、跨 module type ID、重复定义、
-  非法 inline cycle 和同 module 重名均 fail loud。
+- 支持先声明 heap-owner，再把它定义为指向一个显式 aggregate payload 类型，使
+  `class Node(var next: Node?)` 这类由 pointer 打断的递归可表示，并让 payload place 具有独立
+  语义类型；内联 aggregate 仍必须有限，未定义类型、跨 module type ID、重复定义、非法
+  inline cycle 和同 module 重名均 fail loud。
 - SSA debug text 必须按 type/source/field 顺序稳定显示 aggregate 与 heap-owner 定义；类型
   identity 不依赖 hash、LLVM handle 或机器地址。
 
@@ -93,9 +94,9 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 
 - [x] aggregate/heap-owner type declaration/definition 正反矩阵锁定字段顺序、能力、递归 handle、
       inline cycle、跨 module ID、重复定义与确定 debug text。
-- [ ] construct/copy projection/consume-explode/heap allocate/payload+field place/drop operation 的
+- [x] construct/copy projection/consume-explode/heap allocate/payload+field place/drop operation 的
       operand/result/field-index 正反矩阵通过，非法部分移动和 Copyable drop 被 verifier 拒绝。
-- [ ] CFG ownership matrix证明 MoveOnly aggregate 与 heap owner 在每条正常路径恰好 consume 或
+- [x] CFG ownership matrix证明 MoveOnly aggregate 与 heap owner 在每条正常路径恰好 consume 或
       drop 一次，loan 与 field/payload drop 冲突仍由同一 verifier 拒绝。
 - [ ] AArch64 LLVM IR 锁定声明顺序 struct、first-class aggregate call/return、insert/extract、
       target-derived size/alignment，以及大型 aggregate 没有 `malloc`/implicit Box。
@@ -122,7 +123,7 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 
 1. [x] 建立 named aggregate/heap-owner SSA type declaration/definition、render 与 verifier →
    验证：类型图、能力、递归/循环和确定性矩阵。
-2. [ ] 增加 aggregate/heap/place/allocation operation 与 linear ownership contract →
+2. [x] 增加 aggregate/heap/place/allocation operation 与 linear ownership contract →
    验证：operation + CFG ownership 正反矩阵。
 3. [ ] 扩展 LLVM type/value/layout adapter并生成 first-class aggregate →
    验证：target DataLayout、call/return、insert/extract 与 verifier matrix。
@@ -154,6 +155,9 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 | `cargo fmt --all -- --check` | 通过 | aggregate/heap-owner type slice 格式无漂移 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets` | 通过 | 47 项；新增 5 项 named aggregate、递归 heap handle、跨 module、重复/未定义/inline cycle、能力与确定 debug text 矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 | 无 warning；生产 `model.rs` 940 行、`verify.rs` 872 行，仍低于 1000 行软上限，后续 operation/layout 职责不继续堆入这两个文件 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（operation slice） | 通过 | 52 项；新增 5 项 operation contract、线性消费、nested loan、显式 CFG edge transfer 与确定 debug text 矩阵 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（operation slice） | 通过 | 无 warning；named type builder/verifier 已拆至独立职责，生产文件均低于 1000 行软上限 |
+| 2026-08-25 workspace 标准基线（operation slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |
 | `cargo check --workspace --all-targets` | 通过 | workspace 全 target 检查通过 |
 | `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 无 warning |
 | `cargo test --workspace --all-targets` | 通过 | 全部被调用的 workspace test target 退出状态为 0 |

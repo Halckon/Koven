@@ -131,7 +131,7 @@ pub(crate) enum SsaTypeKind {
     },
     HeapOwner {
         name: String,
-        fields: Option<Vec<SsaTypeId>>,
+        payload: Option<SsaTypeId>,
     },
 }
 
@@ -261,6 +261,28 @@ pub(crate) enum Operation {
         callee: FunctionId,
         arguments: Vec<ValueId>,
     },
+    AggregateConstruct {
+        aggregate: SsaTypeId,
+        fields: Vec<ValueId>,
+    },
+    AggregateProject {
+        aggregate: ValueId,
+        field: usize,
+    },
+    AggregateExplode {
+        aggregate: ValueId,
+    },
+    HeapAllocate {
+        owner: SsaTypeId,
+        payload: ValueId,
+    },
+    HeapPayloadPlace {
+        owner: ValueId,
+    },
+    FieldPlace {
+        base: PlaceId,
+        field: usize,
+    },
     Copy {
         source: ValueId,
     },
@@ -301,6 +323,16 @@ impl Operation {
             Self::DirectCall { arguments, .. } => {
                 arguments.iter().copied().map(EntityId::Value).collect()
             }
+            Self::AggregateConstruct { fields, .. } => {
+                fields.iter().copied().map(EntityId::Value).collect()
+            }
+            Self::AggregateProject { aggregate, .. }
+            | Self::AggregateExplode { aggregate }
+            | Self::HeapPayloadPlace { owner: aggregate } => {
+                vec![EntityId::Value(*aggregate)]
+            }
+            Self::HeapAllocate { payload, .. } => vec![EntityId::Value(*payload)],
+            Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
             Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
@@ -621,8 +653,8 @@ pub(crate) struct Module {
     pub(crate) id: ModuleId,
     pub(crate) name: String,
     pub(crate) types: Vec<SsaTypeKind>,
-    type_ids: BTreeMap<SsaTypeKind, SsaTypeId>,
-    named_type_ids: BTreeMap<String, SsaTypeId>,
+    pub(super) type_ids: BTreeMap<SsaTypeKind, SsaTypeId>,
+    pub(super) named_type_ids: BTreeMap<String, SsaTypeId>,
     pub(crate) functions: Vec<Function>,
 }
 
@@ -642,136 +674,6 @@ impl Module {
         self.types.push(kind.clone());
         self.type_ids.insert(kind, id);
         id
-    }
-
-    pub(crate) fn add_aggregate_type(
-        &mut self,
-        name: impl Into<String>,
-        fields: Vec<SsaTypeId>,
-    ) -> Result<SsaTypeId, ModelError> {
-        let name = name.into();
-        self.check_new_type_name(&name)?;
-        let ownership = self.aggregate_ownership(&fields)?;
-        let id = self.push_named_type(
-            name.clone(),
-            SsaTypeKind::Aggregate {
-                name,
-                fields,
-                ownership,
-            },
-        );
-        Ok(id)
-    }
-
-    pub(crate) fn declare_heap_owner(
-        &mut self,
-        name: impl Into<String>,
-    ) -> Result<SsaTypeId, ModelError> {
-        let name = name.into();
-        self.check_new_type_name(&name)?;
-        Ok(self.push_named_type(name.clone(), SsaTypeKind::HeapOwner { name, fields: None }))
-    }
-
-    pub(crate) fn define_heap_owner(
-        &mut self,
-        id: SsaTypeId,
-        fields: Vec<SsaTypeId>,
-    ) -> Result<(), ModelError> {
-        if id.module() != self.id {
-            return Err(ModelError::WrongTypeOwner {
-                expected: self.id,
-                actual: id.module(),
-            });
-        }
-        for field in &fields {
-            self.check_type_id(*field)?;
-        }
-        let kind = self
-            .types
-            .get_mut(id.index())
-            .ok_or(ModelError::UnknownType { ty: id })?;
-        let SsaTypeKind::HeapOwner {
-            fields: definition, ..
-        } = kind
-        else {
-            return Err(ModelError::ExpectedHeapOwner { ty: id });
-        };
-        if definition.is_some() {
-            return Err(ModelError::TypeAlreadyDefined { ty: id });
-        }
-        *definition = Some(fields);
-        Ok(())
-    }
-
-    pub(crate) fn type_ownership(&self, id: SsaTypeId) -> Option<Ownership> {
-        match self.type_kind(id)? {
-            SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
-                Some(Ownership::Copyable)
-            }
-            SsaTypeKind::Opaque { ownership, .. } | SsaTypeKind::Aggregate { ownership, .. } => {
-                Some(*ownership)
-            }
-            SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
-        }
-    }
-
-    pub(crate) fn type_is_defined(&self, id: SsaTypeId) -> bool {
-        match self.type_kind(id) {
-            Some(SsaTypeKind::HeapOwner { fields, .. }) => fields.is_some(),
-            Some(_) => true,
-            None => false,
-        }
-    }
-
-    pub(crate) fn type_kind(&self, id: SsaTypeId) -> Option<&SsaTypeKind> {
-        (id.module() == self.id)
-            .then(|| self.types.get(id.index()))
-            .flatten()
-    }
-
-    fn aggregate_ownership(&self, fields: &[SsaTypeId]) -> Result<Ownership, ModelError> {
-        let mut ownership = Ownership::Copyable;
-        for field in fields {
-            self.check_type_id(*field)?;
-            if self.type_ownership(*field) == Some(Ownership::MoveOnly) {
-                ownership = Ownership::MoveOnly;
-            }
-        }
-        Ok(ownership)
-    }
-
-    fn check_new_type_name(&self, name: &str) -> Result<(), ModelError> {
-        if name.is_empty() {
-            return Err(ModelError::EmptyTypeName);
-        }
-        if self.named_type_ids.contains_key(name) {
-            return Err(ModelError::DuplicateTypeName {
-                name: name.to_owned(),
-            });
-        }
-        Ok(())
-    }
-
-    fn push_named_type(&mut self, name: String, kind: SsaTypeKind) -> SsaTypeId {
-        let id = SsaTypeId {
-            module: self.id,
-            index: self.types.len(),
-        };
-        self.types.push(kind);
-        self.named_type_ids.insert(name, id);
-        id
-    }
-
-    fn check_type_id(&self, ty: SsaTypeId) -> Result<(), ModelError> {
-        if ty.module() != self.id {
-            return Err(ModelError::WrongTypeOwner {
-                expected: self.id,
-                actual: ty.module(),
-            });
-        }
-        self.type_kind(ty)
-            .map(|_| ())
-            .ok_or(ModelError::UnknownType { ty })
     }
 
     pub(crate) fn add_function(
@@ -889,6 +791,9 @@ pub(crate) enum ModelError {
     ExpectedHeapOwner {
         ty: SsaTypeId,
     },
+    ExpectedAggregate {
+        ty: SsaTypeId,
+    },
     TypeAlreadyDefined {
         ty: SsaTypeId,
     },
@@ -925,6 +830,7 @@ impl fmt::Display for ModelError {
                 write!(formatter, "duplicate named SSA type {name:?}")
             }
             Self::ExpectedHeapOwner { ty } => write!(formatter, "type {ty:?} is not a heap owner"),
+            Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
             Self::TypeAlreadyDefined { ty } => write!(formatter, "type {ty:?} is already defined"),
             Self::UnknownEntity { entity } => write!(formatter, "unknown entity {entity:?}"),
             Self::BlockAlreadyTerminated { block } => {

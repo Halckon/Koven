@@ -63,12 +63,11 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             output.push(')');
             Ok(())
         }
-        SsaTypeKind::HeapOwner { name, fields } => {
+        SsaTypeKind::HeapOwner { name, payload } => {
             write!(output, "heap_owner {name:?}")?;
-            if let Some(fields) = fields {
-                output.write_str(" (")?;
-                write_type_ids(output, fields)?;
-                output.push(')');
+            if let Some(payload) = payload {
+                output.write_str(" payload ")?;
+                write_type_id(output, *payload)?;
             } else {
                 output.write_str(" <declared>")?;
             }
@@ -277,6 +276,43 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_ids(output, &arguments)?;
             output.push(')');
             Ok(())
+        }
+        Operation::AggregateConstruct { aggregate, fields } => {
+            output.write_str("aggregate.construct ")?;
+            write_type_id(output, *aggregate)?;
+            output.push('(');
+            let fields = fields
+                .iter()
+                .copied()
+                .map(EntityId::Value)
+                .collect::<Vec<_>>();
+            write_entity_ids(output, &fields)?;
+            output.push(')');
+            Ok(())
+        }
+        Operation::AggregateProject { aggregate, field } => {
+            output.write_str("aggregate.project ")?;
+            write_entity_id(output, EntityId::Value(*aggregate))?;
+            write!(output, ", {field}")
+        }
+        Operation::AggregateExplode { aggregate } => {
+            output.write_str("aggregate.explode ")?;
+            write_entity_id(output, EntityId::Value(*aggregate))
+        }
+        Operation::HeapAllocate { owner, payload } => {
+            output.write_str("heap.allocate ")?;
+            write_type_id(output, *owner)?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*payload))
+        }
+        Operation::HeapPayloadPlace { owner } => {
+            output.write_str("heap.payload_place ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::FieldPlace { base, field } => {
+            output.write_str("field_place ")?;
+            write_entity_id(output, EntityId::Place(*base))?;
+            write!(output, ", {field}")
         }
         Operation::Copy { source } => {
             output.write_str("copy ")?;

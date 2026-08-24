@@ -125,7 +125,9 @@ SPEC-0033/0034 标量主线。截至 v0.28
   frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，并把该封闭
   子集的 verified SSA 映射为 verified LLVM IR；完整 `for` 因依赖 typed iteration plan 与
   provider runtime 已迁移到候选 0182。SPEC-0035 已开始建立不依赖源码 constructor 选择的
-  named aggregate/heap-owner SSA type model；聚合 operation/LLVM/runtime、object/link/run 仍未实现；
+  named aggregate/heap-owner SSA type model，并已加入整体 aggregate construct/project/explode、
+  heap allocate、payload/field place 与对应线性 ownership/loan verifier；LLVM aggregate/runtime、
+  object/link/run 仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -163,9 +165,11 @@ SPEC-0033/0034 标量主线。截至 v0.28
 - [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) 已接受 target `DataLayout`、
   first-class aggregate、无对象 header 的 class/Box heap owner、集中系统 `malloc/free/abort`、
   固定顺序容器 header 与 ZST sentinel 边界。SPEC-0035 当前已为 named aggregate 自动推导
-  Copyable/MoveOnly，并支持普通 class handle 的先声明/后定义与递归字段、确定 debug rendering、
-  跨 module/重复/未定义/非法 inline cycle verifier；尚未生成 aggregate operation、LLVM layout、
-  allocation 或 drop/free。多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
+  Copyable/MoveOnly，并让 heap owner 的先声明/后定义指向显式 aggregate payload，从而以固定
+  pointer handle 打断递归；construct/project/explode、heap allocation effect、payload/field place、
+  确定 debug rendering、跨 module/重复/未定义/非法 inline cycle 以及 nested loan/CFG 唯一消费
+  verifier 已实现。LLVM layout、系统 allocation 与 drop/free glue 尚未生成。多目标平台、
+  linker、bootstrap 与 public FFI ABI 仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

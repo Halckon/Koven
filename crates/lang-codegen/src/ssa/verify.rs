@@ -102,33 +102,7 @@ pub(crate) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
 }
 
 fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
-    for (index, kind) in module.types.iter().enumerate() {
-        let expected = SsaTypeId {
-            module: module.id,
-            index,
-        };
-        if let SsaTypeKind::Integer { bits, .. } = kind
-            && !(1..=128).contains(bits)
-        {
-            errors.push(VerifyError {
-                kind: VerifyErrorKind::OperationContract {
-                    reason: "integer type width must be between 1 and 128 bits",
-                },
-                location: VerifyLocation::Type(expected),
-                origin: None,
-            });
-        }
-        if module.type_kind(expected) != Some(kind) {
-            errors.push(VerifyError {
-                kind: VerifyErrorKind::UnknownType(expected),
-                location: VerifyLocation::Module(module.id),
-                origin: None,
-            });
-        }
-        verify_type_definition(module, expected, kind, errors);
-    }
-
-    verify_inline_type_cycles(module, errors);
+    super::verify_types::verify_types(module, errors);
 
     for (function_index, function) in module.functions.iter().enumerate() {
         if function.id.module() != module.id || function.id.index() != function_index {
@@ -149,97 +123,6 @@ fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
             }
         }
     }
-}
-
-fn verify_type_definition(
-    module: &Module,
-    id: SsaTypeId,
-    kind: &SsaTypeKind,
-    errors: &mut Vec<VerifyError>,
-) {
-    let fields = match kind {
-        SsaTypeKind::Aggregate {
-            fields, ownership, ..
-        } => {
-            let derived = if fields.iter().any(|field| {
-                module.type_ownership(*field) == Some(super::model::Ownership::MoveOnly)
-            }) {
-                super::model::Ownership::MoveOnly
-            } else {
-                super::model::Ownership::Copyable
-            };
-            if *ownership != derived {
-                push_type_error(
-                    errors,
-                    id,
-                    "aggregate ownership must be derived from all fields",
-                );
-            }
-            fields.as_slice()
-        }
-        SsaTypeKind::HeapOwner {
-            fields: Some(fields),
-            ..
-        } => fields.as_slice(),
-        SsaTypeKind::HeapOwner { fields: None, .. } => {
-            push_type_error(errors, id, "heap owner declaration must be defined");
-            return;
-        }
-        SsaTypeKind::Unit
-        | SsaTypeKind::Boolean
-        | SsaTypeKind::Integer { .. }
-        | SsaTypeKind::Opaque { .. } => return,
-    };
-    for field in fields {
-        if field.module() != module.id || module.type_kind(*field).is_none() {
-            push_type_error(errors, id, "field type must exist in the same module");
-        }
-    }
-}
-
-fn verify_inline_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
-    for (index, kind) in module.types.iter().enumerate() {
-        if !matches!(kind, SsaTypeKind::Aggregate { .. }) {
-            continue;
-        }
-        let id = SsaTypeId {
-            module: module.id,
-            index,
-        };
-        let mut active = BTreeSet::new();
-        if aggregate_reaches(module, id, id, &mut active) {
-            push_type_error(errors, id, "aggregate fields must not form an inline cycle");
-        }
-    }
-}
-
-fn aggregate_reaches(
-    module: &Module,
-    current: SsaTypeId,
-    target: SsaTypeId,
-    active: &mut BTreeSet<SsaTypeId>,
-) -> bool {
-    let Some(SsaTypeKind::Aggregate { fields, .. }) = module.type_kind(current) else {
-        return false;
-    };
-    if !active.insert(current) {
-        return current == target;
-    }
-    let reaches = fields.iter().copied().any(|field| {
-        field == target
-            || matches!(module.type_kind(field), Some(SsaTypeKind::Aggregate { .. }))
-                && aggregate_reaches(module, field, target, active)
-    });
-    active.remove(&current);
-    reaches
-}
-
-fn push_type_error(errors: &mut Vec<VerifyError>, id: SsaTypeId, reason: &'static str) {
-    errors.push(VerifyError {
-        kind: VerifyErrorKind::InvalidTypeDefinition { reason },
-        location: VerifyLocation::Type(id),
-        origin: None,
-    });
 }
 
 fn verify_function_structure(module: &Module, function: &Function, errors: &mut Vec<VerifyError>) {

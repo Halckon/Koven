@@ -182,6 +182,70 @@ fn apply_operation(
         | Operation::Compare { .. }
         | Operation::BooleanNot { .. }
         | Operation::DirectCall { .. } => {}
+        Operation::AggregateConstruct { fields, .. } => {
+            for field in fields {
+                consume_value(
+                    module,
+                    function,
+                    *field,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &BTreeSet::new(),
+                    location.clone(),
+                    origin,
+                    errors,
+                );
+            }
+        }
+        Operation::AggregateProject { aggregate, .. } => {
+            if require_value(
+                module,
+                function,
+                *aggregate,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_exclusive_value_loan(function, *aggregate, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *aggregate },
+                    location,
+                    origin,
+                ));
+            }
+        }
+        Operation::AggregateExplode { aggregate } => consume_value(
+            module,
+            function,
+            *aggregate,
+            aliases,
+            state,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            location,
+            origin,
+            errors,
+        ),
+        Operation::HeapAllocate { payload, .. } => consume_value(
+            module,
+            function,
+            *payload,
+            aliases,
+            state,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            location,
+            origin,
+            errors,
+        ),
+        Operation::HeapPayloadPlace { owner } => {
+            require_value(module, function, *owner, state, location, origin, errors);
+        }
+        Operation::FieldPlace { base, .. } => {
+            require_place(*base, state, location, origin, errors);
+        }
         Operation::Copy { source } => {
             if is_move_only(module, function, *source) {
                 errors.push(error(
@@ -558,6 +622,18 @@ fn has_exclusive_loan(
     })
 }
 
+fn has_exclusive_value_loan(
+    function: &Function,
+    value: ValueId,
+    aliases: &AliasRoots,
+    state: &BlockState,
+) -> bool {
+    state.loans.iter().any(|loan| {
+        loan_kind(function, *loan) == LoanKind::Exclusive
+            && aliases.overlap(EntityId::Value(value), EntityId::Loan(*loan))
+    })
+}
+
 fn has_any_loan(place: PlaceId, aliases: &AliasRoots, state: &BlockState) -> bool {
     state
         .loans
@@ -660,6 +736,14 @@ impl AliasRoots {
                     Operation::BorrowBegin { place, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Place(*place));
+                    }
+                    Operation::HeapPayloadPlace { owner } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Value(*owner));
+                    }
+                    Operation::FieldPlace { base, .. } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Place(*base));
                     }
                     _ => {}
                 }

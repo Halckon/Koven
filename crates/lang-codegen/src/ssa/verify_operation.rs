@@ -41,6 +41,24 @@ pub(super) fn verify_operation(
         Operation::DirectCall { callee, arguments } => {
             direct_call_contract(module, function, *callee, arguments, &results)
         }
+        Operation::AggregateConstruct { aggregate, fields } => {
+            aggregate_construct_contract(module, function, *aggregate, fields, &results)
+        }
+        Operation::AggregateProject { aggregate, field } => {
+            aggregate_project_contract(module, function, *aggregate, *field, &results)
+        }
+        Operation::AggregateExplode { aggregate } => {
+            aggregate_explode_contract(module, function, *aggregate, &results)
+        }
+        Operation::HeapAllocate { owner, payload } => {
+            heap_allocate_contract(module, function, *owner, *payload, &results)
+        }
+        Operation::HeapPayloadPlace { owner } => {
+            heap_payload_place_contract(module, function, *owner, &results)
+        }
+        Operation::FieldPlace { base, field } => {
+            field_place_contract(module, function, *base, *field, &results)
+        }
         Operation::Copy { source } => {
             single_value_result(&results) == value_type(function, *source)
         }
@@ -83,6 +101,102 @@ pub(super) fn verify_operation(
             origin: Some(instruction.origin.clone()),
         });
     }
+}
+
+fn aggregate_construct_contract(
+    module: &Module,
+    function: &Function,
+    aggregate: SsaTypeId,
+    fields: &[ValueId],
+    results: &[EntityType],
+) -> bool {
+    let Some(expected_fields) = module.aggregate_fields(aggregate) else {
+        return false;
+    };
+    single_value_result(results) == Some(aggregate)
+        && fields.len() == expected_fields.len()
+        && fields
+            .iter()
+            .zip(expected_fields)
+            .all(|(field, expected)| value_type(function, *field) == Some(*expected))
+}
+
+fn aggregate_project_contract(
+    module: &Module,
+    function: &Function,
+    aggregate: ValueId,
+    field: usize,
+    results: &[EntityType],
+) -> bool {
+    let Some(aggregate) = value_type(function, aggregate) else {
+        return false;
+    };
+    let Some(field) = module
+        .aggregate_fields(aggregate)
+        .and_then(|fields| fields.get(field))
+        .copied()
+    else {
+        return false;
+    };
+    module.type_ownership(field) == Some(super::model::Ownership::Copyable)
+        && single_value_result(results) == Some(field)
+}
+
+fn aggregate_explode_contract(
+    module: &Module,
+    function: &Function,
+    aggregate: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some(aggregate) = value_type(function, aggregate) else {
+        return false;
+    };
+    module.type_ownership(aggregate) == Some(super::model::Ownership::MoveOnly)
+        && module.aggregate_fields(aggregate).is_some_and(|fields| {
+            results
+                == fields
+                    .iter()
+                    .copied()
+                    .map(EntityType::Value)
+                    .collect::<Vec<_>>()
+        })
+}
+
+fn heap_allocate_contract(
+    module: &Module,
+    function: &Function,
+    owner: SsaTypeId,
+    payload: ValueId,
+    results: &[EntityType],
+) -> bool {
+    module.heap_payload(owner).is_some_and(|expected| {
+        value_type(function, payload) == Some(expected)
+            && single_value_result(results) == Some(owner)
+    })
+}
+
+fn heap_payload_place_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    results: &[EntityType],
+) -> bool {
+    value_type(function, owner)
+        .and_then(|owner| module.heap_payload(owner))
+        .is_some_and(|payload| results == [EntityType::Place(payload)])
+}
+
+fn field_place_contract(
+    module: &Module,
+    function: &Function,
+    base: super::model::PlaceId,
+    field: usize,
+    results: &[EntityType],
+) -> bool {
+    place_type(function, base)
+        .and_then(|aggregate| module.aggregate_fields(aggregate))
+        .and_then(|fields| fields.get(field))
+        .is_some_and(|field| results == [EntityType::Place(*field)])
 }
 
 fn constant_contract(module: &Module, constant: &ScalarConstant, results: &[EntityType]) -> bool {
@@ -267,6 +381,13 @@ fn value_type(function: &Function, value: ValueId) -> Option<SsaTypeId> {
     match entity_type(function, EntityId::Value(value)) {
         EntityType::Value(ty) => Some(ty),
         EntityType::Place(_) | EntityType::Loan { .. } => None,
+    }
+}
+
+fn place_type(function: &Function, place: super::model::PlaceId) -> Option<SsaTypeId> {
+    match entity_type(function, EntityId::Place(place)) {
+        EntityType::Place(ty) => Some(ty),
+        EntityType::Value(_) | EntityType::Loan { .. } => None,
     }
 }
 

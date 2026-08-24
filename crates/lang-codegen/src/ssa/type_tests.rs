@@ -59,12 +59,15 @@ fn heap_owner_declaration_supports_recursive_handles_and_rejects_bad_definitions
     let node = module
         .declare_heap_owner("Node")
         .expect("heap owner declaration must be valid");
+    let payload = module
+        .add_aggregate_type("Node.payload", vec![node])
+        .expect("heap handles break inline payload recursion");
     module
-        .define_heap_owner(node, vec![node])
+        .define_heap_owner(node, payload)
         .expect("self-reference is indirect through the heap-owner handle");
     assert_eq!(module.type_ownership(node), Some(Ownership::MoveOnly));
     assert_eq!(
-        module.define_heap_owner(node, Vec::new()),
+        module.define_heap_owner(node, payload),
         Err(ModelError::TypeAlreadyDefined { ty: node })
     );
 
@@ -72,12 +75,25 @@ fn heap_owner_declaration_supports_recursive_handles_and_rejects_bad_definitions
         bits: 64,
         signed: false,
     });
+    let undeclared = module
+        .declare_heap_owner("UndeclaredPayload")
+        .expect("second heap declaration must be valid");
     assert_eq!(
-        module.define_heap_owner(integer, Vec::new()),
+        module.define_heap_owner(undeclared, integer),
+        Err(ModelError::ExpectedAggregate { ty: integer })
+    );
+    let empty_payload = module
+        .add_aggregate_type("UndeclaredPayload.payload", Vec::new())
+        .expect("empty payload aggregate must be valid");
+    module
+        .define_heap_owner(undeclared, empty_payload)
+        .expect("failed definition must not poison the declaration");
+    assert_eq!(
+        module.define_heap_owner(integer, payload),
         Err(ModelError::ExpectedHeapOwner { ty: integer })
     );
     verify_program(&program).expect("recursive heap-owner handle must verify");
-    assert!(render_program(&program).contains("heap_owner \"Node\" (!t0)"));
+    assert!(render_program(&program).contains("heap_owner \"Node\" payload !t1"));
 }
 
 #[test]
@@ -106,7 +122,7 @@ fn named_type_builder_rejects_cross_module_fields_and_accepts_declared_handles()
         Some(Ownership::MoveOnly)
     );
     first_module
-        .define_heap_owner(declared, Vec::new())
+        .define_heap_owner(declared, inline)
         .expect("the payload must still be defined before verification");
     verify_program(&program).expect("fully defined handle and aggregate must verify");
 }
@@ -153,6 +169,15 @@ fn verifier_rejects_undefined_mismatched_and_inline_cyclic_types() {
             )
     }));
     assert!(errors.errors.iter().any(|error| {
+        error.location == VerifyLocation::Type(mismatched)
+            && matches!(
+                error.kind,
+                VerifyErrorKind::InvalidTypeDefinition {
+                    reason: "named type identity must match the module name index"
+                }
+            )
+    }));
+    assert!(errors.errors.iter().any(|error| {
         error.location == VerifyLocation::Type(cyclic)
             && matches!(
                 error.kind,
@@ -184,6 +209,7 @@ fn named_types_can_be_used_in_function_signatures_after_definition() {
         .add_function("identity", vec![owner], origin())
         .expect("declarations can enter signatures before their payload is defined");
     module
-        .define_heap_owner(owner, Vec::new())
+        .add_aggregate_type("Owner.payload", Vec::new())
+        .and_then(|payload| module.define_heap_owner(owner, payload))
         .expect("payload definition must succeed");
 }
