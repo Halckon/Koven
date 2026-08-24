@@ -243,7 +243,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |
 | 0055 | 让 LSP 发布 frontend 诊断 | 0025、0021、0003 |
 | 0056 | 让 LSP 支持跳转定义 | 0055、0025、0021 |
-| 0057 | 实现稳定、幂等的格式化器 | 0014、0006 |
+| [0057](./0057-conservative-source-formatter.md) | 实现稳定、幂等的格式化器（`in-progress`） | 0014、0006 `done`；[ADR-0013](../adr/0013-conservative-source-formatting.md) `accepted` |
 | [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0059](./0059-tree-sitter-grammar.md) | 提供 Tree-sitter grammar 与 corpus（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0070](./0070-tree-sitter-word-contract.md) | 锁定 Tree-sitter external scanner 与生产 Lexer 词表契约（`done`） | 0006、0059 `done`；当前持续 Goal 的站立授权 |
