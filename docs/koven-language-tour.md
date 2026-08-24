@@ -30,6 +30,8 @@ API、代码生成（Phase 4）和
   移出，借用按逻辑索引判定冲突，成功替换会记录旧元素的唯一析构点。**
 - **v0.27 的默认 shared capture、显式 `move` owned capture、borrowed closure 逃逸边界、
   结构化 `Transferable` 与 compiler-bound 跨线程检查已由 SPEC-0032 实现。**
+- **v0.28 尚未启用。** 其中的泛型 callable 实例化与 overload-lambda 候选隔离仍是候选设计；
+  当前遇到多个函数类型候选时，可先把 lambda 绑定到带显式函数类型的局部变量，再传给重载函数。
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -71,8 +73,10 @@ Koven 想把两种开发体验拼接在一起:
 
 ### 1.3 现在能做、不能做什么
 
-- **已经有完整语法定义、编译器前端正在实现**:基础类型、变量与常量声明、函数(含泛型、高阶函数、闭包)、所有权标注体系、控制流、class-family、`Box<T>`、`Array`/`List`/`MutableList`。
-- **规范与 Parser 已完成、语义检查待后续 Phase**:`class`/`interface`/`enum class`/具名 `object` 家族与窄化接口委托。
+- **已完成当前前端主线**:基础类型、变量与常量声明、函数、控制流、class-family、单文件名称
+  解析、名义/泛型/interface 类型检查，以及本教程描述的 v0.27 核心所有权与 closure capture。
+- **仍有明确门禁**:跨文件 package/import 解析、容器增删/重排 relocation API、instance/delegation
+  receiver 所有权，以及代码生成与标准库实现仍待后续 Spec 或 guide 封闭。
 - **完全尚未设计**:`Map`/`MutableMap` 的可实施契约、用户自定义索引运算符。
 - **已确定不支持**:自定义属性访问器、扩展函数、异常。
 
@@ -251,6 +255,32 @@ MoveOnly capture，因而可以逃逸；Borrow/Inout 的 MoveOnly 值不能被�
 `(own Int) -> Int` 是取得实参所有权的 `Value` 契约，`(inout Int) -> Int` 是独占可变借用。
 `(Int) -> Int` 与 `(borrow Int) -> Int` 是同一个函数类型，不能靠是否写出 `borrow` 区分重载。
 
+### 4.4 重载中的 lambda：当前如何明确选择
+
+先区分两件容易混在一起的事：lambda 的**函数类型**决定它接收什么参数、返回什么值；重载
+选择决定这次调用指向哪一个具名函数。只要实参自身已经有确定的函数类型，普通重载选择就
+可以直接使用它：
+
+```kotlin
+fun choose(action: () -> Int): Unit { }
+fun choose(action: () -> String): Unit { }
+
+val intAction: () -> Int = { 42 }
+choose(intAction) // 明确选择第一个 overload
+```
+
+当前推荐把“显式函数类型的局部绑定”作为歧义时的逃生口。它不引入转换，也不会依赖编译器
+猜测 lambda body。v0.28 的候选设计会进一步让每个 overload 用自己的期望函数类型隔离检查
+同一个 lambda：只有一个候选检查成功时直接选中，多个候选都成功时仍报告歧义；该设计尚未
+启用，不能当作 v0.27 已实现能力。
+
+Kotlin 调用中的 `a(Runnable { ... })` 不是通用的“给 lambda 标类型”语法，而是为单抽象方法接口
+创建实例的 [SAM constructor/conversion](https://kotlinlang.org/docs/fun-interfaces.html#sam-conversions)。Koven v1 的 lambda 只产生函数类型，不产生匿名
+class/interface 实现，也没有 Kotlin 式 SAM 转换，因此不接受 `Runnable { ... }`。Koven 也
+不支持尾随 lambda，lambda 实参始终放在调用括号内。若未来确实需要单表达式的显式消歧，
+更合适的方向是为所有函数类型设计统一的 type-ascription 语法，而不是只为接口引入一套
+SAM 对象模型；这仍需要后续 guide 明确启用。
+
 ---
 
 ## 5. 所有权与借用:和 Kotlin 最大的不同
@@ -260,6 +290,17 @@ MoveOnly capture，因而可以逃逸；Borrow/Inout 的 MoveOnly 值不能被�
 ### 5.1 心智模型:没有 GC
 
 Koven 没有垃圾回收器。每个值在任意时刻都有唯一的所有者;所有者离开作用域时,值被自动析构。这和 Rust 是同一套底层思路,但 Koven 把参数契约写在函数声明上：普通参数默认共享借用，取得所有权必须显式声明 `own`。调用点通常由编译器按 callee 契约自动判定;只有可变借用必须在实参前显式写 `&`。
+
+`val` / `var` 只回答“这个绑定之后能不能重新赋值”，不回答“参数是 owning 还是 borrowed”。
+普通局部变量、字段和容器拥有其中保存的值；只有进入 callable 边界时，才由参数声明上的
+`Borrow` / `Value` / `Inout` 契约决定是临时借用、转交所有权还是独占修改：
+
+```kotlin
+class Session(val name: String)
+
+val fixed = Session("primary") // fixed 不能重新赋值，但拥有 Session
+var current = Session("backup") // current 可以重新赋值，也拥有 Session
+```
 
 声明侧显式不等于调用点也重复标记。向 `own` 参数传值时仍直接写 `consume(value)`：实参满足
 `Copyable` 时复制，否则隐式移动；调用点写 `own value` 反而非法。`Borrow` 参数由 callee
@@ -313,6 +354,27 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移�
 对 MoveOnly `Endpoint` 的移动既是隐式的，也是由 callee 的显式 `own` 契约静态决定的；
 编译器不会根据函数名或函数体猜测是否消费实参。
 
+把三种调用放在一起看更直观：
+
+```kotlin
+class Session(val name: String)
+
+fun inspect(session: Session): Unit { }       // Borrow
+fun close(own session: Session): Unit { }     // Value
+fun replace(inout session: Session): Unit { } // Inout
+
+var session = Session("primary")
+inspect(session)          // 自动共享借用，调用结束后 session 仍可用
+inspect(borrow session)   // 同一语义，只是把借用意图写出来
+replace(&session)         // 独占可变借用，调用点必须显式写 &
+close(session)            // Session 是 MoveOnly，这里隐式移动
+// inspect(session)       // 错误：移动后使用
+```
+
+因此阅读调用时应先看 callee 签名，而不是寻找调用点的 `move` / `own` 标记。Koven 没有
+`move value` 这种通用表达式，也不允许 `close(own session)`；MoveOnly 值是否移动由所有权
+交付位置和 callee 的 `own` 契约静态决定。
+
 ### 5.4 `Copyable`:什么类型可以随手复制
 
 `Copyable` 是编译器根据字段结构**自动、递归**推导出来的能力,不是用户手写的接口:
@@ -327,14 +389,86 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制,这里是移�
 
 不满足 `Copyable` 的值,一旦交出所有权(赋值、返回、传给取得所有权的参数),原绑定就不能再用,再用会在 Phase 3(所有权检查阶段)报"移动后使用"错误。
 
+“交出所有权”不只发生在函数调用中。用 MoveOnly 值初始化另一个 owning local、从函数返回
+它，或把它装入字段/容器，都会移动：
+
+```kotlin
+class Session(val name: String)
+
+val first = Session("primary")
+val second = first       // 移动；没有也不需要写 move first
+// println(first.name)   // 错误：first 已移动
+println(second.name)
+```
+
 字段访问同样遵守这套规则:`aggregate.field` 是一个 place,可复制字段能直接读出复制值,但**不能通过普通字段读取把一个不可复制字段单独"抠"出来**——不可复制的聚合类型只能整体移动,或者用解构一次性、完整地消费掉所有分量,不存在"这个字段已经被移走、那个还没有"的中间状态。
+
+### 5.6 借用只在需要的调用区间内有效
+
+无标记参数和显式 `borrow` 参数都建立共享 loan；`inout` 建立独占 loan。共享 loan 之间可以
+重叠，但同一 place 的共享 loan 与独占 loan、两个独占 loan 不能在同一有效区间重叠。Koven
+v1 使用按调用边界定义的简化检查，不实现 Rust 的完整 NLL：
+
+```kotlin
+fun compare(left: Session, right: Session): Unit { }
+fun update(inout session: Session): Unit { }
+
+var session = Session("primary")
+compare(session, session) // 两个共享借用可以共存
+update(&session)          // 上一次调用已经结束，可以独占借用
+```
+
+借用不能被移动出参数绑定，也不能被普通 closure 带出定义它的 callable。拥有者仍负责唯一
+析构；借用只提供临时访问能力。
+
+### 5.7 lambda capture：这里的 `move` 到底移动什么
+
+`move` 关键字在 v1 中只前缀 lambda literal 或函数类型。它控制的是**捕获环境**，不改变
+lambda 参数本身的契约；lambda 参数仍由期望函数类型提供 `Borrow` / `Value` / `Inout`，源码
+header 只写参数名，例如 `{ item -> use(item) }`。
+
+普通 capturing lambda 共享借用它使用的外层值：
+
+```kotlin
+class Session(val name: String)
+
+val session = Session("primary")
+val show = { println(session.name) } // shared capture，不消费 session
+show()
+println(session.name)                // session 仍归外层所有
+```
+
+`show` 的 shared loan 持续到这个 closure 的 ASAP drop point；在示例中 `show()` 是最后一次
+使用，loan 随后结束，所以外层可以继续访问 `session`。这种 borrowed closure 可以在当前
+callable 内保存和同步调用，但不能被返回、写入字段，或交给 `own` 参数。需要 closure 逃逸时
+显式写 `move`：
+
+```kotlin
+fun keep(own action: move () -> Unit): Unit { }
+
+val retries = 3
+val session = Session("primary")
+val job: move () -> Unit = move {
+    println(retries)     // Int 是 Copyable，capture 得到复制品
+    println(session.name) // Session 是 MoveOnly，capture 取得所有权
+}
+
+println(retries) // 仍可用
+// println(session.name) // 错误：创建 job 时 session 已移动进 closure
+keep(job)        // job 自身也是 owned value，这里把它交给 keep
+```
+
+`move` closure 不能从 Borrow/Inout 绑定中取得 MoveOnly 值，也不能直接捕获 `this` 或写成
+`this.field` 的隐式 capture；确实需要某个字段时，先在外层把所需值绑定到 local，再由 closure
+按上述规则捕获。跨线程还要额外满足 `Transferable`，见第 10 章。
 
 ---
 
 ## 6. 用类型建模
 
-> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定，基础 Parser 与窄化接口委托
-> 已分别由 SPEC-0017、SPEC-0064 实现；名称、类型与所有权检查仍属于后续 Phase。
+> **状态说明**:本章的 class-family 契约已由 v0.20 正式确定，Parser、单文件名称解析、
+> 名义/泛型/interface 类型检查与窄化接口委托检查已经实现；instance/delegation receiver 的
+> 所有权仍等待后续 Spec。
 
 ### 6.1 `value class`:内联值类型
 
@@ -671,6 +805,7 @@ v1 只提供**同步阻塞 IO**(文件、网络),异步 IO 依赖协程,要等 v
 | `Map` / `MutableMap` 可实施契约 | 有候选设计,尚未独立评审或授权实施 |
 | `object` / `companion object` 运行时存储状态或惰性初始化 | 延后到 v2；v1 的具名 `object` 可有普通函数,companion 是无对象身份的关联命名空间 |
 | 匿名内部类 / `object { ... }` expression | v1 不支持；单回调用 lambda,多方法用具名 class 或窄化接口委托 |
+| SAM conversion / `Runnable { ... }` | v1 不支持；lambda 只形成函数类型，歧义时先绑定到显式函数类型 local |
 | 属性委托 / 任意 delegate expression | v1 不支持；只保留 `Interface by valField` 接口实现委托 |
 | `Copyable` 用户手动实现/覆盖/opt-out | v1 不支持；v0.20 已明确不引入 `nocopy` |
 
@@ -683,6 +818,8 @@ v1 只提供**同步阻塞 IO**(文件、网络),异步 IO 依赖协程,要等 v
 - 语法上大部分能直接搬过来(`fun`/`val`/`var`/`when`/可见性修饰符),但**内存模型是所有权/借用,不是 GC**——不能假设值可以随便传来传去、随便持有多份引用。
 - `error()` 这个名字会骗人——它是 abort,不是可以 `catch` 的异常(见 9.1)。
 - 自定义属性访问器、扩展函数**没有了**,这两个是 Kotlin 里用得非常多的语法糖,迁移代码时要留意。
+- `Runnable { ... }` 属于 Kotlin 的 SAM conversion，不是普通 lambda 类型标注；Koven v1
+  没有 SAM 转换，重载歧义时使用带显式函数类型的 local。
 - `enum class` 反而比真实 Kotlin **更强**:可以直接给变体挂不同数据、共享方法(见 6.4),不需要绕道 `sealed class`。
 
 **如果你熟悉 Rust:**
