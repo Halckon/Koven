@@ -1602,7 +1602,7 @@ MoveOnly 字段。存在 capture/transfer 诊断时不发布可执行 capture/dr
 ## 28. 泛型 callable 实例化与 overload-lambda 隔离（v0.28）
 
 > **现行状态**：v0.28 已于 2026-08-24 由用户明确启用并取代 v0.27；本节、L0140–L0141
-> 已获得规范效力。规范启用不表示 frontend 已完成 SPEC-0177 / SPEC-0174。目的不是引入
+> 已获得规范效力。frontend 已完成 SPEC-0177，SPEC-0174 仍待实施。目的不是引入
 > Kotlin 的完整局部约束求解，而是封闭进入 typed SSA 前仍缺失的最小 callable 实例 identity。
 
 ### 28.1 范围与简化边界

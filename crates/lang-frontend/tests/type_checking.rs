@@ -911,7 +911,7 @@ fn deep_generic_and_long_interface_graphs_stay_deterministic() {
 
 #[test]
 fn later_phase_nodes_keep_distinct_deferred_reasons() {
-    let text = "fun <T> deferred(): T\n\
+    let text = "fun deferred(input: Int): Int = input\n\
                 val forward = later\n\
                 val later = 1\n\
                 class Sample {\n\
@@ -920,7 +920,8 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
                         val nominal: Sample = this\n\
                         val qualified: Sample.Inner = this\n\
                         val member = this.field\n\
-                        val called = deferred<Int>()\n\
+                        val callable = ::deferred\n\
+                        val called = callable<Int>(1)\n\
                         val indexed = this[0]\n\
                         val casted = this as Int\n\
                         val propagated = this?\n\
@@ -989,7 +990,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 6, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 7, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

@@ -415,19 +415,21 @@ fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
                 fun <T> identity(own input: T): T = input
                 fun <T> unwrap(input: Holder<T?, Long>): T? = null
                 fun <T> apply(input: T, callback: (T) -> T): T = callback(input)
-                fun use(holder: Holder<Int, Long>, nested: Holder<Int?, Long>): Unit {
+                fun <T> invoke(callback: (T) -> T): T
+                fun use(holder: Holder<Int, Long>, nested: Holder<Int?, Long>, callback: (Int) -> Int): Unit {
                     val explicit = identity<Int>(1)
                     val inferred = identity(1)
                     val member = holder.select<String>(\"value\", 1)
                     val nestedValue = unwrap(nested)
                     val lambdaValue = apply(1, { item -> item })
+                    val functionValue = invoke(callback)
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.calls().len(), 6);
+    assert_eq!(typed.calls().len(), 7);
 
     let identity_calls = &typed.calls()[1..=2];
     assert_eq!(identity_calls[0].instance(), identity_calls[1].instance());
@@ -464,6 +466,10 @@ fn explicit_inferred_and_member_generic_calls_publish_stable_instances() {
     ));
     assert!(matches!(
         typed.types().get(typed.calls()[5].return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed.types().get(typed.calls()[6].return_type()),
         Some(TypeKind::Builtin(BuiltinType::Int))
     ));
 }

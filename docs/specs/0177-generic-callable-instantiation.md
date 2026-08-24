@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-177` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028) |
@@ -52,16 +52,16 @@ SPEC-0020 已保存 callable 与 classifier 类型参数及 bound，SPEC-0067 �
 
 ## 5. 验收标准
 
-- [ ] 显式 `identity<Int>(1)` 与实参推导 `identity(1)` 产生相同 source target、实例实参和返回类型。
-- [ ] member callable 同时替换 owner 与 method 类型参数，实例 key 顺序稳定且重复检查确定。
-- [ ] nullable、function、nominal、intrinsic 嵌套位置的结构推导有正例；缺失、重复冲突和禁止
+- [x] 显式 `identity<Int>(1)` 与实参推导 `identity(1)` 产生相同 source target、实例实参和返回类型。
+- [x] member callable 同时替换 owner 与 method 类型参数，实例 key 顺序稳定且重复检查确定。
+- [x] nullable、function、nominal、intrinsic 嵌套位置的结构推导有正例；缺失、重复冲突和禁止
   的返回上下文推导产生 L0140，并断言 primary / declaration label。
-- [ ] interface、`Copyable`、`Transferable` bound 具有 compile-pass 与分别对应
+- [x] interface、`Copyable`、`Transferable` bound 具有 compile-pass 与分别对应
   L0093/L0115/L0141 的 compile-fail/Span。
-- [ ] overload 候选的推导/bound 失败只淘汰候选；零/多匹配仍使用 L0123/L0124，失败 trial
+- [x] overload 候选的推导/bound 失败只淘汰候选；零/多匹配仍使用 L0123/L0124，失败 trial
   不污染 expression/call facts。
-- [ ] Phase 2 pass/fail fixture、`type_callable` 领域测试与 workspace 标准基线通过。
-- [ ] Architecture、guide roadmap、Spec 状态与实际实现同步。
+- [x] Phase 2 pass/fail fixture、`type_callable` 领域测试与 workspace 标准基线通过。
+- [x] Architecture、guide roadmap、Spec 状态与实际实现同步。
 
 ## 6. 技术方案与边界
 
@@ -75,11 +75,11 @@ SPEC-0020 已保存 callable 与 classifier 类型参数及 bound，SPEC-0067 �
 
 ## 7. 实施计划
 
-1. [ ] 扩展 callable instance model 与 L0140–L0141 → 验证：model/diagnostic 窄测。
-2. [ ] 实现显式类型实参、结构推导与三类 bound → 验证：`type_callable` 正反例。
-3. [ ] 接入 overload 淘汰、member owner 替换与确定性 instance key → 验证：领域矩阵及重复运行。
-4. [ ] 补 Phase 2 fixture并运行 workspace 标准基线 → 验证：实际退出状态。
-5. [ ] 同步 Architecture、guide、Spec 验收并检查 staged diff → 验证：提交仅含 SPEC-0177。
+1. [x] 扩展 callable instance model 与 L0140–L0141 → 验证：model/diagnostic 窄测。
+2. [x] 实现显式类型实参、结构推导与三类 bound → 验证：`type_callable` 正反例。
+3. [x] 接入 overload 淘汰、member owner 替换与确定性 instance key → 验证：领域矩阵及重复运行。
+4. [x] 补 Phase 2 fixture并运行 workspace 标准基线 → 验证：实际退出状态。
+5. [x] 同步 Architecture、guide、Spec 验收并检查 staged diff → 验证：提交仅含 SPEC-0177。
 
 ## 8. 提交计划
 
@@ -98,4 +98,6 @@ SPEC-0020 已保存 callable 与 classifier 类型参数及 bound，SPEC-0067 �
 |---|---|---|
 | 2026-08-24 现状审计 | 通过 | 确认 generic call 当前统一保留 `DeferredReason::Call`，现有模型已保存 callable/owner 类型参数与三类 bound |
 | 2026-08-24 v0.28 启用审计 | 通过 | guide 门禁已解除；本次未改变 Spec 状态或生产代码 |
-| 实现验收 | 未执行 | 尚未开始 SPEC-0177 实施 |
+| `cargo test -p lang-frontend --test type_callable` | 通过 | 12 项领域测试覆盖实例、推导、bound、overload 与 deferred 边界 |
+| Phase 2 type pass/fail fixture | 通过 | 新增 generic-callable 正反例；每类 fixture 均为 7 个 |
+| workspace 标准基线 | 通过 | fmt、check、clippy `-D warnings`、全目标 test 与 `lang-cli` build 均为退出码 0 |

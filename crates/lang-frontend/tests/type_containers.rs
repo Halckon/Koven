@@ -8,7 +8,7 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
         IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeEnvironment,
-        TypedFile, check_types,
+        TypeKind, TypedFile, check_types,
     },
 };
 
@@ -272,10 +272,26 @@ fn source_names_cannot_impersonate_intrinsic_containers_or_constructors() {
 }
 
 #[test]
-fn deferred_generic_element_does_not_become_a_false_storable_error() {
-    let text = "fun <T> identity(input: T): T = input\n\
-                fun use(): Unit { val pending = listOf(identity(1)) }";
+fn deferred_callable_reference_element_does_not_become_a_false_storable_error() {
+    let text = "fun identity(input: Int): Int = input\n\
+                fun use(): Unit {\n\
+                    val reference = ::identity\n\
+                    val pending = listOf(reference(1))\n\
+                }";
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.container_constructions().is_empty());
+}
+
+#[test]
+fn generic_callable_infers_from_nested_intrinsic_container_type() {
+    let text = "fun <T> first(input: List<T>): T\n\
+                fun use(values: List<Int>): Unit { val selected = first(values) }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let call = typed.calls().last().expect("generic source call");
+    assert!(matches!(
+        typed.types().get(call.return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
 }

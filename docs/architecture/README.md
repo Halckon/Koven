@@ -28,7 +28,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
-仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2 主线，并已进入 Phase 3。截至 v0.27
+仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2 主线，并已进入 Phase 3。截至 v0.28
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -37,7 +37,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0139` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0141` 正式前端错误码与
   确定性聚合顺序，`kovenc` binary 内已有尚未接入编译流水线的最小纯文本 renderer；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
@@ -66,10 +66,12 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   还按参数 `SymbolId` 发布 `ParameterBindingDescriptor`，Borrow/Inout lambda 不再被误判为
   全 Value 结构不匹配。环境绑定的 `Array` / `List` / `MutableList`
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
-  `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
-  实例化、多 overload 候选的 lambda 隔离检查、callable reference、safe-call lifting 与所有权
-  可用性仍使用逐类 `DeferredReason` 保留；其中前两项已分别登记为 draft SPEC-0177 /
-  SPEC-0174，v0.28 guide 门禁已经解除但实现尚未开始。普通名义主构造器字段已建立带实际
+  `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；源码顶层与实例
+  member 泛型 callable 已支持完整显式类型实参或由已定型非 lambda 实参执行 invariant 结构
+  推导，并验证 interface / `Copyable` / `Transferable` bound，发布 owner 实参在前的稳定
+  `CallableInstanceKey`。多 overload 候选的 lambda 隔离检查、callable reference、safe-call
+  lifting 与所有权可用性仍使用逐类 `DeferredReason` 保留；其中 lambda 隔离已登记为 draft
+  SPEC-0174。普通名义主构造器字段已建立带实际
   泛型替换的
   `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
@@ -107,11 +109,11 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无泛型 callable 实例化、普通字段部分移动、顺序容器 Phase 5 relocation effect 或
+- 尚无多 overload 候选 lambda 隔离、普通字段部分移动、顺序容器 Phase 5 relocation effect 或
   codegen 实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
-  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 仍是等待 SPEC-0177/0174 的 `draft`，
+  [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 仍是等待 SPEC-0174 的 `draft`，
   `lang-codegen` 当前尚无 SSA model 或 verifier；
 - LLVM / `inkwell` 版本、runtime / ABI 和目标平台矩阵仍未确定。
 
@@ -1024,9 +1026,9 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
-顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化与
-多 overload 候选的 lambda 隔离检查已物化为 draft SPEC-0177 / SPEC-0174；v0.28 guide 门禁
-已经解除，当前仍未实现。`object` / `companion object` 关联成员，以及容器
+顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化已由
+SPEC-0177 实现，多 overload 候选的 lambda 隔离检查仍由 draft SPEC-0174 承接。
+`object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。

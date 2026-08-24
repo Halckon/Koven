@@ -1,0 +1,10 @@
+fun <T> same(first: T, second: T): T = first
+fun <T> factory(): T
+fun <T: Transferable> send(input: T): Unit {}
+
+fun use(callback: (Int) -> Int): Unit {
+    val conflict = same(1, 1L)
+    val missing: Int = factory()
+    val arity = same<Int, Long>(1, 2)
+    val notTransferable = send(callback)
+}

@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0067、SPEC-0173、SPEC-0177 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | SPEC-0177 尚未实施 |
+| 阻塞项 | 无；SPEC-0177 已完成 |
 | 影响范围 | `lang-frontend` callable candidate trial、typed expression/call/parameter facts、Phase 2 fixture、Architecture |
 | 语言语义变更 | 否；只实施现行 v0.28 封闭的 candidate isolation 契约 |
 

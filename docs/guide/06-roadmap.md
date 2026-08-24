@@ -181,7 +181,7 @@ fun main(): Unit {
       显式 `own` 映射 `ParameterMode::Value`，`inout` 不变；函数类型、override/委托、预声明
       callable、单态 call mapping 与 lambda expected facts 使用同一规范化 mode。Value 参数
       对 `MoveOnly` 实参的调用仍无 marker，并在 Phase 3 形成移动
-- [ ] **SPEC-0177（v0.28，guide 门禁已解除）**：泛型 callable 只接受完整显式类型实参，或仅从
+- [x] **SPEC-0177（v0.28，已实现）**：泛型 callable 只接受完整显式类型实参，或仅从
       已定型非 lambda 实参做结构推导；发布 owner + callable 的有序实例 key、替换后参数/
       返回类型，并验证 interface / `Copyable` / `Transferable` bound
 - [ ] **SPEC-0174（前置：SPEC-0177；v0.28）**：多 overload 候选在映射、
@@ -194,7 +194,7 @@ fun main(): Unit {
 - [x] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
       其静态具体类型满足接口；手写 `override` 优先，拒绝未消歧的多委托冲突
 - [x] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
-- [ ] 泛型单态化的类型层面准备（由 SPEC-0177 候选承接；类型替换与实例 key，不接编译期计算）
+- [x] 泛型单态化的类型层面准备（由 SPEC-0177 实现；类型替换与实例 key，不接编译期计算）
 - [x] `Nothing` 类型的 bottom-type 特殊处理
 - [x] 计算 `value class` / `enum class` 的条件 `Copyable`：允许不可复制字段或 payload，按
       实际类型实参递归推导；支持把预声明的 `Copyable` 用作泛型上界，但不接受用户手动实现、
@@ -291,7 +291,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 
 ## Phase 4：LLVM 代码生成
 
-- [ ] **SPEC-0033（前置：SPEC-0177、0174；ADR-0006 已接受）**：建立自建 typed SSA IR 与
+- [ ] **SPEC-0033（前置：SPEC-0177 已完成、SPEC-0174 待完成；ADR-0006 已接受）**：建立自建 typed SSA IR 与
       verifier；后续 SPEC-0034 再从 AST/frontend facts lower 到该 IR
 - [ ] IR 到 LLVM IR 的映射（用 `inkwell`）
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与

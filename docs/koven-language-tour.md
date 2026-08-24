@@ -31,7 +31,7 @@ API、代码生成（Phase 4）和
 - **v0.27 的默认 shared capture、显式 `move` owned capture、borrowed closure 逃逸边界、
   结构化 `Transferable` 与 compiler-bound 跨线程检查已由 SPEC-0032 实现。**
 - **v0.28 已启用，但尚未由 frontend 实施。** 泛型 callable 实例化与 overload-lambda 候选
-  隔离已成为现行语义；在 SPEC-0177 / SPEC-0174 完成前，可先把 lambda 绑定到带显式函数
+  隔离已成为现行语义；泛型 callable 已由 SPEC-0177 实现，在 SPEC-0174 完成前可先把 lambda 绑定到带显式函数
   类型的局部变量，再传给重载函数。
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 

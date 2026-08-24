@@ -1,0 +1,18 @@
+interface Marker {}
+class Good : Marker {}
+
+class Holder<A> {
+    fun <T> select(input: T, fallback: A): T = input
+}
+
+fun <T> identity(input: T): T = input
+fun <T: Marker> marked(input: T): Unit {}
+fun <T> apply(input: T, callback: (T) -> T): T = callback(input)
+
+fun use(holder: Holder<Int>, good: Good): Unit {
+    val explicit = identity<Int>(1)
+    val inferred = identity(1)
+    val member = holder.select<String>("selected", 1)
+    val bounded = marked(good)
+    val lambda = apply(1, { item -> item })
+}
