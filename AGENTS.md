@@ -14,7 +14,8 @@
 > borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点与顺序容器核心 element
 > place 所有权，以及 v0.27 的简化 closure capture、`Transferable` 与编译器绑定跨线程
 > effect；Phase 4 已完成 owner-aware typed SSA/verifier 与封闭标量 frontend→SSA→AArch64
-> LLVM IR 主线，完整 `for` 等待 typed iteration plan 与 provider runtime；Phase 6
+> LLVM IR 主线，SPEC-0035 已开始建立 named aggregate/heap-owner SSA 类型，完整 `for`
+> 等待 typed iteration plan 与 provider runtime；Phase 6
 > 已提供 TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析等待 guide 封闭 import 冲突与
 > 跨 package 可见性，`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
 > 类型。
@@ -31,7 +32,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 4 已完成 owner-aware typed SSA/verifier 与封闭标量 frontend→SSA→AArch64 LLVM IR 主线，完整 `for` 等待 typed iteration plan 与 provider runtime；Phase 5 尚未定义的容器增删/重排 relocation API 仍待后续 Spec；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离与顺序容器类型检查；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权，以及简化 closure capture、`Transferable` 和编译器绑定跨线程 effect；Phase 4 已完成 owner-aware typed SSA/verifier 与封闭标量 frontend→SSA→AArch64 LLVM IR 主线，SPEC-0035 正在建立 named aggregate/heap-owner SSA 类型与后续 allocation/drop 基元，完整 `for` 等待 typed iteration plan 与 provider runtime；Phase 5 尚未定义的容器增删/重排 relocation API 仍待后续 Spec；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供 TextMate 与 Tree-sitter grammar；确定性 Lexer、完整 Parser / AST、正式诊断与 pass / fail fixture 已建立 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -472,12 +473,14 @@ cargo build -p lang-cli
 
 以下问题等待后续指导文档。任务没有触及时不需要停工；一旦触及，必须先确认，不能猜：
 
-1. `lang-std` 已确定使用目标语言源码；未确定的是 Rust runtime / ABI 支撑是否存在、位于
-   何处，以及早期阶段如何 bootstrap。
-2. package 到 source root / 文件的映射、跨文件名称解析、ABI、FFI、目标三元组、链接器、
-   增量编译与跨平台发布策略。
-3. 借用生命周期与 ASAP 析构点的精确定义，自建 SSA IR 指令集和调试映射。
-4. LLVM / `inkwell` 版本及 feature 组合、机器可读诊断协议、包清单与锁文件 schema。
+1. `lang-std` 已确定使用目标语言源码；ADR-0008 已决定当前系统分配不增加 Rust allocator
+   shim，仍未确定的是标准库早期 bootstrap 以及线程、IO 等后续 runtime 支撑边界。
+2. package 到 source root / 文件的映射已有 ADR-0005；import 冲突、跨 package 可见性、public
+   FFI、链接器、增量编译与跨平台发布策略仍未封闭。
+3. v0.26 已定义同步调用期 loan 与 ASAP 析构点；跨调用借用/借用返回、后续 SSA 指令增量和
+   调试映射仍待对应 guide/Spec/ADR。
+4. LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target 已由 ADR-0007 固定；多目标矩阵、机器
+   可读诊断协议、包清单与锁文件 schema 仍未确定。
 
 ---
 

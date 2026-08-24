@@ -697,7 +697,10 @@ fn llvm_int_type<'ctx>(
         Some(SsaTypeKind::Integer { bits: 32, .. }) => Ok(context.i32_type()),
         Some(SsaTypeKind::Integer { bits: 64, .. }) => Ok(context.i64_type()),
         Some(SsaTypeKind::Unit) => Err(unsupported("Unit 不具有 LLVM first-class payload")),
-        Some(SsaTypeKind::Integer { .. }) | Some(SsaTypeKind::Opaque { .. }) => {
+        Some(SsaTypeKind::Integer { .. })
+        | Some(SsaTypeKind::Opaque { .. })
+        | Some(SsaTypeKind::Aggregate { .. })
+        | Some(SsaTypeKind::HeapOwner { .. }) => {
             Err(unsupported("SSA 类型不属于 SPEC-0034 LLVM 标量子集"))
         }
         None => Err(LlvmAdapterError::InvalidSsa(

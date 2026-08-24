@@ -124,7 +124,8 @@ SPEC-0033/0034 标量主线。截至 v0.28
 - 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已完成
   frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，并把该封闭
   子集的 verified SSA 映射为 verified LLVM IR；完整 `for` 因依赖 typed iteration plan 与
-  provider runtime 已迁移到候选 0182，聚合/runtime、object/link/run 仍未实现；
+  provider runtime 已迁移到候选 0182。SPEC-0035 已开始建立不依赖源码 constructor 选择的
+  named aggregate/heap-owner SSA type model；聚合 operation/LLVM/runtime、object/link/run 仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -159,7 +160,12 @@ SPEC-0033/0034 标量主线。截至 v0.28
   继续流向既有 `llvm.trap` + `unreachable`。branch/conditional/return、六类比较、Boolean not、
   direct call 与 scalar copy 已映射，最终 module 必须通过 LLVM verifier；重复 lowering 文本
   相同。完整 `for` 仍未实现，由候选 0182 在 typed iteration plan 与 provider runtime 就绪后承接；
-- runtime / ABI 与多目标平台矩阵仍未确定。
+- [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) 已接受 target `DataLayout`、
+  first-class aggregate、无对象 header 的 class/Box heap owner、集中系统 `malloc/free/abort`、
+  固定顺序容器 header 与 ZST sentinel 边界。SPEC-0035 当前已为 named aggregate 自动推导
+  Copyable/MoveOnly，并支持普通 class handle 的先声明/后定义与递归字段、确定 debug rendering、
+  跨 module/重复/未定义/非法 inline cycle verifier；尚未生成 aggregate operation、LLVM layout、
+  allocation 或 drop/free。多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 
@@ -1074,8 +1080,8 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
-`lang-std` 的 bootstrap 流程与
-runtime / ABI 布局仍未确定。
+`lang-std` 的 bootstrap 流程仍未确定；内部值/系统分配 ABI 已由 ADR-0008 接受，但对应 LLVM
+allocation/drop lowering 尚在 SPEC-0035 实施中。
 
 ## 更新要求
 

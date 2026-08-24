@@ -9,6 +9,8 @@ mod verify_ownership;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod type_tests;
 
 #[cfg(test)]
 mod verify_tests;

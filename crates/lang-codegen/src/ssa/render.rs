@@ -53,6 +53,27 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
         SsaTypeKind::Opaque { name, ownership } => {
             write!(output, "opaque {name:?} {:?}", ownership)
         }
+        SsaTypeKind::Aggregate {
+            name,
+            fields,
+            ownership,
+        } => {
+            write!(output, "aggregate {name:?} {:?} (", ownership)?;
+            write_type_ids(output, fields)?;
+            output.push(')');
+            Ok(())
+        }
+        SsaTypeKind::HeapOwner { name, fields } => {
+            write!(output, "heap_owner {name:?}")?;
+            if let Some(fields) = fields {
+                output.write_str(" (")?;
+                write_type_ids(output, fields)?;
+                output.push(')');
+            } else {
+                output.write_str(" <declared>")?;
+            }
+            Ok(())
+        }
     }
 }
 

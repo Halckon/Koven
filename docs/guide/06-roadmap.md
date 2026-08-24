@@ -193,6 +193,10 @@ fun main(): Unit {
 - [x] **SPEC-0174（前置：SPEC-0177；v0.28，已实现）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
+- [ ] 发布普通/泛型 nominal、enum case 与 intrinsic `Box` constructor 的 target、实例类型、
+      `Value` 参数映射和字段/case 顺序 typed fact；非泛型构造形状虽已由 class-family guide
+      封闭，但 v0.28 仍把 class/intrinsic 泛型构造留在 deferred 边界。候选 SPEC-0183 实施前
+      须由后续 guide 封闭显式/推导类型实参与 expected-result 是否参与推导
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
@@ -324,6 +328,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       checked arithmetic、比较、direct call、branch/return/trap，并在返回文本前通过 LLVM
       verifier；全部整数宽度和 literal 边界已锁定，直接有符号最小值按单个负常量 lower，
       一般前缀负号仍保持 checked subtraction
+- [ ] **SPEC-0035（实施中）**：先建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
+      class/Box heap owner、系统 allocation 与显式 drop/free 后端基元；源码 constructor、字段/
+      解构与 drop facts 的接线等待候选 0183 完成后由候选 0184 承接，不按名称猜测构造器
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034

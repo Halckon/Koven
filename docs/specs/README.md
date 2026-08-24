@@ -181,6 +181,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
 | 0179 | 为 `for` 发布 iterator 选择、元素类型与名称/解构 binding typed fact | 0016、0020、0022、0067；新 guide 封闭 Iterable/Iterator identity、receiver mode 与 `next()` 值交付所有权 |
 | 0180 | 发布 instance member 与委托转发所需的 receiver mode/place/callable effect typed fact | 0020、0067、0176；新 guide 封闭隐式 receiver 契约 |
+| 0183 | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact | 0020、0022、0067、0177；新 guide 封闭 class/intrinsic constructor 的显式/推导类型实参与 expected-result 规则 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
@@ -208,9 +209,10 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`done`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`done`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；完整 `for` 已按 runtime 依赖迁移至候选 0182 |
-| 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
+| [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`in-progress`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码构造器接线迁移至候选 0183/0184 |
 | 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
+| 0184 | 把 0183 的 nominal/enum/Box constructor、projection、destructuring 与 drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA | 0183、0035 `done`；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
 | 0038 | 生成捕获闭包环境和无捕获函数指针 | 0034、0032 |
 | 0039 | 生成 object、链接 `main` 并把 `error()` 映射到 abort | 0035、0038；接受 linker 决策 |

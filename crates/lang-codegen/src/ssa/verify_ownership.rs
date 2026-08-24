@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::{
     model::{
         BlockId, Definition, Edge, EntityId, EntityType, Function, LoanId, LoanKind, Module,
-        Operation, PlaceAccess, PlaceId, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
+        Operation, PlaceAccess, PlaceId, SsaTypeId, TerminatorKind, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
@@ -588,13 +588,7 @@ fn is_move_only(module: &Module, function: &Function, value: ValueId) -> bool {
 }
 
 fn type_is_move_only(module: &Module, ty: SsaTypeId) -> bool {
-    matches!(
-        module.type_kind(ty),
-        Some(SsaTypeKind::Opaque {
-            ownership: super::model::Ownership::MoveOnly,
-            ..
-        })
-    )
+    module.type_ownership(ty) == Some(super::model::Ownership::MoveOnly)
 }
 
 fn error(
