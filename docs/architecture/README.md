@@ -129,9 +129,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   “结果 + 失败标志”的 checked add/sub/mul/div/rem、完整整数比较、Boolean not 与标量
   direct-call contract，失败标志通过显式 CFG 导向 `Abort`。frontend→SSA lowering 已显式验证
   source 与逐阶段 analysis identity，拒绝任一 frontend diagnostic、ownership deferred 和非封闭
-  节点；当前支持无泛型顶层 expression-body 函数的 Unit/Boolean 与全部 8/16/32/64-bit 有符号/
-  无符号整数、literal/name/group、前缀正负/Boolean not、checked arithmetic、六类比较和源码
-  direct call，并在返回前运行自建 verifier。block/local/control-flow、具体泛型实例与
+  节点；当前支持无泛型顶层 expression-body 与直线 block-body 函数的 Unit/Boolean 与全部
+  8/16/32/64-bit 有符号/无符号整数、literal/name/group、前缀正负/Boolean not、checked
+  arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
+  显式 return，并在返回前运行自建 verifier。branch/loop/short-circuit、具体泛型实例与
   SSA→LLVM 映射仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 

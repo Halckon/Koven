@@ -3,12 +3,13 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    ast::{ExpressionId, ItemId},
+    ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
     ownership_checking::OwnershipCheckedFile,
     parser::{
-        BinaryOperator as AstBinaryOperator, Expression, FunctionBody, FunctionForm,
-        IntegerLiteralKind, Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator,
+        AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, FunctionBody,
+        FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker, ParsedFile,
+        PrefixOperator, Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -59,15 +60,23 @@ pub(super) struct LoweringError {
 
 struct FunctionPlan {
     id: FunctionId,
-    expression: ExpressionId,
+    body: FunctionPlanBody,
     parameter_symbols: Vec<SymbolId>,
     return_type: TypeId,
     span: Span,
 }
 
+#[derive(Clone, Copy)]
+enum FunctionPlanBody {
+    Expression(ExpressionId),
+    Block(StatementId),
+}
+
+#[derive(Clone, Copy)]
 enum LoweredValue {
     Unit,
     Value(ValueId),
+    Diverged,
 }
 
 pub(super) fn lower_scalar_file(
@@ -114,15 +123,19 @@ pub(super) fn lower_scalar_file(
         if !type_parameters.is_empty() || !callable.type_parameters().is_empty() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let expression = match form {
+        let body = match form {
             FunctionForm::Explicit {
                 body: FunctionBody::Expression { expression, .. },
                 ..
-            } => expression,
-            FunctionForm::ImplicitUnitAbsent
-            | FunctionForm::ImplicitUnitBlock(_)
+            } => FunctionPlanBody::Expression(expression),
+            FunctionForm::ImplicitUnitBlock(block)
             | FunctionForm::Explicit {
-                body: FunctionBody::Absent | FunctionBody::Block(_),
+                body: FunctionBody::Block(block),
+                ..
+            } => FunctionPlanBody::Block(block),
+            FunctionForm::ImplicitUnitAbsent
+            | FunctionForm::Explicit {
+                body: FunctionBody::Absent,
                 ..
             } => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
@@ -169,7 +182,7 @@ pub(super) fn lower_scalar_file(
         function_ids.insert(symbol, id);
         plans.push(FunctionPlan {
             id,
-            expression,
+            body,
             parameter_symbols,
             return_type: callable.return_type(),
             span,
@@ -211,11 +224,12 @@ pub(super) fn lower_scalar_file(
                 let EntityId::Value(value) = entity else {
                     unreachable!("scalar parameters are values");
                 };
-                (symbol, value)
+                (symbol, LoweredValue::Value(value))
             })
             .collect();
         let mut lowerer = ExpressionLowerer {
             parsed,
+            names,
             typed,
             source_text,
             references: &references,
@@ -224,23 +238,23 @@ pub(super) fn lower_scalar_file(
             function,
             block: entry,
             bindings,
+            return_type: plan.return_type,
         };
-        let result = lowerer.lower(plan.expression)?;
-        let values = match (builtin_type(typed, plan.return_type), result) {
-            (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
-            (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (Some(_), LoweredValue::Unit)
-            | (None, _) => return Err(error(LoweringErrorKind::MissingFact, plan.span)),
-            (Some(_), LoweredValue::Value(value)) => vec![value],
+        let result = match plan.body {
+            FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,
+            FunctionPlanBody::Block(block) => lowerer.lower_statement(block)?,
         };
-        lowerer
-            .function
-            .set_terminator(
-                lowerer.block,
-                TerminatorKind::Return { values },
-                Origin::Source(plan.span),
-            )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
+        if !matches!(result, LoweredValue::Diverged) {
+            let values = return_values(typed, plan.return_type, result, plan.span)?;
+            lowerer
+                .function
+                .set_terminator(
+                    lowerer.block,
+                    TerminatorKind::Return { values },
+                    Origin::Source(plan.span),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
+        }
     }
 
     verify_program(&program).map_err(|_| LoweringError {
@@ -418,8 +432,25 @@ fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     }
 }
 
+fn return_values(
+    typed: &TypedFile,
+    return_type: TypeId,
+    result: LoweredValue,
+    span: Span,
+) -> Result<Vec<ValueId>, LoweringError> {
+    match (builtin_type(typed, return_type), result) {
+        (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
+        (Some(BuiltinType::Unit), LoweredValue::Value(_))
+        | (Some(_), LoweredValue::Unit)
+        | (None, _)
+        | (_, LoweredValue::Diverged) => Err(error(LoweringErrorKind::MissingFact, span)),
+        (Some(_), LoweredValue::Value(value)) => Ok(vec![value]),
+    }
+}
+
 struct ExpressionLowerer<'a> {
     parsed: &'a ParsedFile,
+    names: &'a NameResolution,
     typed: &'a TypedFile,
     source_text: &'a str,
     references: &'a BTreeMap<(usize, usize), SymbolId>,
@@ -427,7 +458,8 @@ struct ExpressionLowerer<'a> {
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     function: &'a mut Function,
     block: BlockId,
-    bindings: BTreeMap<SymbolId, ValueId>,
+    bindings: BTreeMap<SymbolId, LoweredValue>,
+    return_type: TypeId,
 }
 
 impl ExpressionLowerer<'_> {
@@ -455,9 +487,70 @@ impl ExpressionLowerer<'_> {
                 right,
                 ..
             } => self.lower_binary(left, operator, right, expression, span),
+            Expression::Assignment {
+                target,
+                operator,
+                value,
+                ..
+            } => self.lower_assignment(target, operator, value, span),
             Expression::Call { arguments, .. } => self.lower_call(expression, &arguments, span),
+            Expression::Return { value, .. } => self.lower_return(value, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
+    }
+
+    fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .statements()
+            .get(statement)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let span = node.span();
+        match node.payload().clone() {
+            Statement::Block { elements } => {
+                for element in elements {
+                    if matches!(self.lower_statement(element)?, LoweredValue::Diverged) {
+                        return Ok(LoweredValue::Diverged);
+                    }
+                }
+                Ok(LoweredValue::Unit)
+            }
+            Statement::LocalVariable { declaration } => {
+                self.lower_local_variable(declaration, span)
+            }
+            Statement::Expression { expression } => self.lower(expression),
+            _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        }
+    }
+
+    fn lower_local_variable(
+        &mut self,
+        declaration: ItemId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let (item, _) = unwrap_modified(self.parsed, declaration)?;
+        let Item::Variable {
+            name, initializer, ..
+        } = item
+        else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let value = self.lower(initializer)?;
+        if matches!(value, LoweredValue::Diverged) {
+            return Ok(value);
+        }
+        let name_span =
+            present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.source_slice(name_span)? == "_" {
+            return Ok(LoweredValue::Unit);
+        }
+        let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
+        self.bindings.insert(symbol, value);
+        Ok(LoweredValue::Unit)
     }
 
     fn lower_literal(
@@ -507,7 +600,6 @@ impl ExpressionLowerer<'_> {
         self.bindings
             .get(symbol)
             .copied()
-            .map(LoweredValue::Value)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))
     }
 
@@ -575,6 +667,80 @@ impl ExpressionLowerer<'_> {
             span,
         )?;
         Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    fn lower_assignment(
+        &mut self,
+        target: ExpressionId,
+        operator: AssignmentOperator,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let target_node =
+            self.parsed
+                .ast()
+                .expressions()
+                .get(target)
+                .map_err(|_| LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?;
+        if !matches!(target_node.payload(), Expression::Name) {
+            return Err(error(
+                LoweringErrorKind::UnsupportedNode,
+                target_node.span(),
+            ));
+        }
+        let symbol = *self
+            .references
+            .get(&span_key(target_node.span()))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, target_node.span()))?;
+        let assigned = match operator {
+            AssignmentOperator::Assign => self.lower(expression)?,
+            AssignmentOperator::AddAssign
+            | AssignmentOperator::SubtractAssign
+            | AssignmentOperator::MultiplyAssign
+            | AssignmentOperator::DivideAssign
+            | AssignmentOperator::RemainderAssign => {
+                let left = match self.bindings.get(&symbol).copied() {
+                    Some(LoweredValue::Value(value)) => value,
+                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
+                        return Err(error(LoweringErrorKind::MissingFact, target_node.span()));
+                    }
+                };
+                let right = self.require_value(expression)?;
+                let ty = self.expression_ssa_type(target, target_node.span())?;
+                self.checked(assignment_operator(operator), left, right, ty, span)?
+            }
+        };
+        if matches!(assigned, LoweredValue::Diverged) {
+            return Ok(assigned);
+        }
+        self.bindings.insert(symbol, assigned);
+        Ok(LoweredValue::Unit)
+    }
+
+    fn lower_return(
+        &mut self,
+        expression: Option<ExpressionId>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let result = match expression {
+            Some(expression) => self.lower(expression)?,
+            None => LoweredValue::Unit,
+        };
+        if matches!(result, LoweredValue::Diverged) {
+            return Ok(result);
+        }
+        let values = return_values(self.typed, self.return_type, result, span)?;
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Return { values },
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(LoweredValue::Diverged)
     }
 
     fn lower_call(
@@ -693,7 +859,7 @@ impl ExpressionLowerer<'_> {
     fn require_value(&mut self, expression: ExpressionId) -> Result<ValueId, LoweringError> {
         match self.lower(expression)? {
             LoweredValue::Value(value) => Ok(value),
-            LoweredValue::Unit => {
+            LoweredValue::Unit | LoweredValue::Diverged => {
                 let span = self
                     .parsed
                     .ast()
@@ -707,6 +873,21 @@ impl ExpressionLowerer<'_> {
                 Err(error(LoweringErrorKind::UnsupportedNode, span))
             }
         }
+    }
+
+    fn declaration_symbol(&self, span: Span, kind: SymbolKind) -> Result<SymbolId, LoweringError> {
+        self.names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span() == span && symbol.kind() == kind)
+            .map(|symbol| symbol.id())
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    }
+
+    fn source_slice(&self, span: Span) -> Result<&str, LoweringError> {
+        self.source_text
+            .get(span.start()..span.end())
+            .ok_or_else(|| error(LoweringErrorKind::MismatchedSource, span))
     }
 
     fn expression_ssa_type(
@@ -744,6 +925,17 @@ fn checked_operator(operator: AstBinaryOperator) -> Option<CheckedArithmeticOper
         AstBinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
         AstBinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
         _ => None,
+    }
+}
+
+fn assignment_operator(operator: AssignmentOperator) -> CheckedArithmeticOperator {
+    match operator {
+        AssignmentOperator::AddAssign => CheckedArithmeticOperator::Add,
+        AssignmentOperator::SubtractAssign => CheckedArithmeticOperator::Subtract,
+        AssignmentOperator::MultiplyAssign => CheckedArithmeticOperator::Multiply,
+        AssignmentOperator::DivideAssign => CheckedArithmeticOperator::Divide,
+        AssignmentOperator::RemainderAssign => CheckedArithmeticOperator::Remainder,
+        AssignmentOperator::Assign => unreachable!("plain assignment has no arithmetic operator"),
     }
 }
 

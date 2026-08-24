@@ -296,9 +296,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       rendering，以及结构 / CFG / dominance / MoveOnly / loan verifier；后续 SPEC-0034 再从
       AST/frontend facts lower 到该 IR
 - [ ] **SPEC-0034（实施中）**：LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target smoke、
-      checked scalar operation / verifier contract，以及无泛型顶层 expression-body 标量函数的
-      frontend facts→verified SSA 首个切片已通过；继续 lower block/local/control-flow 与具体
-      泛型实例，再映射为 verified LLVM IR
+      checked scalar operation / verifier contract，以及无泛型顶层 expression-body/直线 block、
+      local、assignment、return 的 frontend facts→verified SSA 切片已通过；继续 lower CFG
+      control-flow 与具体泛型实例，再映射为 verified LLVM IR
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
       `Copyable` 能力保持正交
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不

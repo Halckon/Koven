@@ -110,7 +110,9 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
    - [x] 完成无泛型顶层 expression-body 函数的 identity/diagnostic/deferred 门禁、标量类型、
          literal/name/group/prefix/checked arithmetic/comparison/direct-call lowering，并在返回前运行
          SPEC-0033 verifier。
-   - [ ] 接续 block、局部 `val`/`var`、赋值、显式 return 与具体泛型实例 lowering 后完成本步。
+   - [x] 完成直线 block、嵌套 block、局部 `val`/`var`、普通/复合赋值与显式 return lowering；
+         block 尾部仍遵守 Unit 语境，不引入尾表达式值。
+   - [ ] 接续具体泛型实例 lowering 后完成本步。
 4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
 5. [ ] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
 6. [ ] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
@@ -146,3 +148,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 31 项；真实 Lexer→Parser→名称→类型→所有权→SSA 流水线覆盖顶层 expression-body 标量函数、命名实参 direct call、checked abort CFG、分析链混用和 unsupported body 拒绝 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | frontend→SSA 首个切片无 warning；生产 lowering 文件低于 1000 行软上限 |
 | 2026-08-25 frontend→SSA 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 32 项；新增直线/nested block、局部 `val`/`var`、checked 复合赋值、显式 return 与 Unit fallthrough 真实流水线覆盖 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | block/local/return 切片无 warning；生产 lowering 文件 977 行，未超过软上限，CFG 切片前拆分职责 |
+| 2026-08-25 block/local/return 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

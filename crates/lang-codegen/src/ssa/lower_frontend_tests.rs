@@ -168,6 +168,55 @@ fn rejects_mixed_analysis_chains_before_constructing_ssa() {
 }
 
 #[test]
+fn lowers_straight_line_blocks_locals_assignments_and_returns() {
+    let analysis = analyze(
+        "fun compute(input: Int): Int {\n\
+             val doubled: Int = input + input\n\
+             var total: Int = doubled\n\
+             { total += 1 }\n\
+             return total\n\
+         }\n\
+         fun observe(input: Int): Unit {\n\
+             val local: Int = input\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("straight-line scalar blocks must lower");
+    let rendered = render_program(&program);
+    assert!(rendered.contains("func \"compute\""));
+    assert!(rendered.contains("func \"observe\""));
+    assert_eq!(rendered.matches("checked.add").count(), 2);
+    assert_eq!(rendered.matches("abort @source").count(), 2);
+}
+
+#[test]
 fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     let diagnostic = analyze("fun broken(input: Int): Int = missing");
     let error = lower_scalar_file(
@@ -181,7 +230,7 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     .expect("frontend diagnostics must gate lowering");
     assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
 
-    let block = analyze("fun block(input: Int): Int { return input }");
+    let block = analyze("fun repeat(input: Int): Unit { while (true) { return } }");
     let error = lower_scalar_file(
         &block.sources,
         &block.parsed,
@@ -190,7 +239,7 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
         &block.owned,
     )
     .err()
-    .expect("block lowering belongs to the next control-flow slice");
+    .expect("loop lowering belongs to the next control-flow slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 }
