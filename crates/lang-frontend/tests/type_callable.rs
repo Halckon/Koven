@@ -400,7 +400,8 @@ fn overloads_filter_by_type_then_report_no_match_or_ambiguity() {
 fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
     let (sources, parsed) = parsed(
         "val consumed: Long = consumeExternal(1)\n\
-         val inspected: Long = inspectExternal(2)",
+         val inspected: Long = inspectExternal(2)\n\
+         fun unreachable(): Unit { stopExternal(\"message\") }",
     );
     let (mut names, _) = environments();
     let consume = names
@@ -409,6 +410,9 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
     let inspect = names
         .declare_function("inspectExternal")
         .expect("inspect external");
+    let stop = names
+        .declare_function("stopExternal")
+        .expect("stop external");
     let mut types = TypeEnvironment::new(&names);
     for builtin in BUILTINS {
         let symbol = names
@@ -441,6 +445,21 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
             )
             .expect("function binding");
     }
+    types
+        .bind_function(
+            stop,
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Borrow,
+                    ty: lang_frontend::type_checking::EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: lang_frontend::type_checking::EnvironmentType::Builtin(
+                    BuiltinType::Nothing,
+                ),
+                effects: Vec::new(),
+            },
+        )
+        .expect("effect-free Nothing function binding");
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
     assert!(typed.diagnostics().is_empty());
@@ -457,6 +476,11 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
         typed.calls()[1].arguments()[0].mode(),
         ParameterMode::Borrow
     );
+    assert!(matches!(
+        typed.calls()[2].target(),
+        CallableTarget::External(target) if target == stop
+    ));
+    assert!(!typed.calls()[2].aborts());
 }
 
 #[test]

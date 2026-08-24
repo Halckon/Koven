@@ -1,2 +1,6 @@
-// SPEC-0042 先用最小目标语言 callable 验证标准库 bootstrap；公共 prelude 由 SPEC-0043 实现。
+// SPEC-0042/0043 的仓库 bootstrap 入口；error identity 由标准分析环境发布。
 fun bootstrapSmoke(): Unit {}
+
+fun bootstrapAbort(): Unit {
+    error("standard error abort smoke")
+}

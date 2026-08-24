@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P5-043` |
 | 所属 Phase | Phase 5 |
 | 语言规范 | 现行 [v0.28 `error()` 契约](../guide/01-design-decisions.md#3-error-与空安全相关运算符) 与 [Phase 4/5 roadmap](../guide/06-roadmap.md#phase-4llvm-代码生成) |
@@ -61,18 +61,18 @@
 
 ## 5. 验收标准
 
-- [ ] 标准环境按确定顺序发布 16 个 builtin type 与唯一 `error` function；签名和 Abort effect
+- [x] 标准环境按确定顺序发布 16 个 builtin type 与唯一 `error` function；签名和 Abort effect
       可查询，错误 effect/signature 组合 fail-loud。
-- [ ] frontend compile-pass 证明标准 `error` 参与普通 Borrow call、产生 `Nothing` bottom typing
+- [x] frontend compile-pass 证明标准 `error` 参与普通 Borrow call、产生 `Nothing` bottom typing
       和 typed Abort effect；参数错误保留现有诊断 code/Span。
-- [ ] 同名源码函数与无 effect 的外部 `Nothing` function 均不获得 Abort，重复分析结果确定。
-- [ ] canonical `error("message")` 经 verified SSA 产生 source-anchored Abort、LLVM `abort` +
+- [x] 同名源码函数与无 effect 的外部 `Nothing` function 均不获得 Abort，重复分析结果确定。
+- [x] canonical `error("message")` 经 verified SSA 产生 source-anchored Abort、LLVM `abort` +
       `unreachable`，不生成同名 direct call、landing pad 或 String ABI。
-- [ ] 非插值之外的 String message 和伪造/missing effect 结构化失败，不输出 object；正常标量 call
+- [x] 非插值之外的 String message 和伪造/missing effect 结构化失败，不输出 object；正常标量 call
       和 checked arithmetic Abort 回归不变。
-- [ ] 真实 `prelude.ko` 的正常 entry 退出 0，abort entry 由进程失败边界观察到非零/signal；源码
+- [x] 真实 `prelude.ko` 的正常 entry 退出 0，abort entry 由进程失败边界观察到非零/signal；源码
       和调用方拥有的输入均不被修改。
-- [ ] 受影响 crate 窄测与 workspace 五项基线通过；Architecture、roadmap、Spec 状态和验证记录
+- [x] 受影响 crate 窄测与 workspace 五项基线通过；Architecture、roadmap、Spec 状态和验证记录
       只描述实际完成事实。
 
 ## 6. 技术方案与边界
@@ -86,12 +86,12 @@
 
 ## 7. 实施计划
 
-1. [ ] 发布标准 `error` environment identity 与 typed Abort effect → 验证：环境、call mapping、
+1. [x] 发布标准 `error` environment identity 与 typed Abort effect → 验证：环境、call mapping、
    bottom typing、shadowing 和错误绑定窄测。
-2. [ ] 把 canonical standard error call lower 到既有 SSA Abort → 验证：SSA/LLVM 文本、unsupported
+2. [x] 把 canonical standard error call lower 到既有 SSA Abort → 验证：SSA/LLVM 文本、unsupported
    message、非 intrinsic 同名 call 与失败不落盘。
-3. [ ] 扩展真实 prelude abort entry 与进程验收 → 验证：正常 0、abort 非零/signal、输入不变。
-4. [ ] 同步 Architecture/roadmap/Spec，运行 workspace 基线并审查 staged diff。
+3. [x] 扩展真实 prelude abort entry 与进程验收 → 验证：正常 0、abort 非零/signal、输入不变。
+4. [x] 同步 Architecture/roadmap/Spec，运行 workspace 基线并审查 staged diff。
 
 ## 8. 提交计划
 
@@ -109,3 +109,12 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | v0.28 已固定签名、Borrow 参数、Nothing 与 abort；ADR-0010 已固定 stable identity→SSA Abort 边界；0039/0042 已有真实 Abort backend 与磁盘 prelude bootstrap |
+| `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings` | 通过 | frontend/codegen 实现切片零 warning |
+| `cargo test -p lang-frontend --all-targets` | 通过 | 标准环境、callable mapping、shadowing、错误签名与既有 frontend 回归全部通过 |
+| `cargo test -p lang-codegen --all-targets` | 通过 | 95 项测试通过；含 SSA/LLVM Abort、插值拒绝与 object 不落盘 |
+| `cargo test -p lang-cli repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs --bin kovenc` | 通过 | 真实 prelude 正常入口退出 0；abort 入口被归类为进程失败，object/executable 均生成且源码未变 |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 所有 target 检查通过 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | 全部测试通过，无失败或 ignored |
+| `cargo build -p lang-cli` | 通过 | `kovenc` 构建成功 |

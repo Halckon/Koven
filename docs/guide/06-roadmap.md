@@ -365,9 +365,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0039（已实现）本机 object、显式 entry 与链接边界**：同一 verified LLVM module
       lowering/TargetMachine 生成 arm64 Mach-O object；唯一 external C ABI `main` 调用显式
       `() -> Unit` Koven entry，CLI 以 `/usr/bin/clang` 无 shell 链接，normal/SSA Abort object
-      已真实运行；源码 entry 选择和标准库 `error()` identity 继续后置且不按名称猜测
+      已真实运行；源码 entry 选择继续后置，标准库 `error()` identity 已由 SPEC-0043 接线且
+      不按名称猜测
 - [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
-- [ ] **SPEC-0043（实施中）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
+- [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [ ] DWARF 调试信息生成
 
@@ -390,6 +391,9 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `lang-std/koven/prelude.ko`，以显式 repository bootstrap entry 经完整 frontend、verified
       SSA、LLVM object、Clang link 流水线构建并运行；不把该 entry 扩张为通用 `main` 或 CLI
       参数语义
+- [x] **SPEC-0043（前置：SPEC-0039、0042 `done`）**：在标准分析环境发布唯一
+      `error(message: String): Nothing` identity 与 compiler-bound Abort effect；只把非插值
+      String literal 消息接入既有 SSA/C `abort`，并由真实 prelude entry 验证非零进程终止
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header

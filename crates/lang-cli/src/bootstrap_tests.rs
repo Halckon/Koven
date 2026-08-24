@@ -68,6 +68,11 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
             .windows("bootstrapSmoke".len())
             .any(|window| window == b"bootstrapSmoke")
     );
+    assert!(
+        original
+            .windows("bootstrapAbort".len())
+            .any(|window| window == b"bootstrapAbort")
+    );
 
     let directory = TestDirectory::create();
     let object = directory.join("prelude.o");
@@ -82,6 +87,21 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
 
     assert!(object.is_file());
     assert!(executable.is_file());
+
+    let abort_object = directory.join("prelude-abort.o");
+    let abort_executable = directory.join("prelude-abort");
+    let abort = bootstrap_and_run(BootstrapTarget {
+        source: &prelude,
+        entry_name: "bootstrapAbort",
+        object: &abort_object,
+        executable: &abort_executable,
+    });
+    assert!(
+        matches!(abort, Err(BootstrapError::ProcessFailure { .. })),
+        "{abort:?}"
+    );
+    assert!(abort_object.is_file());
+    assert!(abort_executable.is_file());
     assert_eq!(
         fs::read(&prelude).expect("prelude remains caller-owned"),
         original

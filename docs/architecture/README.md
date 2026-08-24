@@ -53,6 +53,13 @@ unknown entry、混用 analysis、frontend diagnostics 与 unsupported source �
 顶层 function identity，生成 object、复用既有 Clang linker 并运行；测试唯一枚举真实
 `lang-std/koven/prelude.ko`，其 Koven `bootstrapSmoke(): Unit` 已经完整链路退出 0。该仓库内部
 路径不发布通用 `main`、用户 CLI 参数或多文件构建语义；
+SPEC-0043 已在该 production 环境的 16 个 builtin type 后发布唯一外部
+`error(message: String): Nothing`，签名使用 Borrow 参数并携带 compiler-bound Abort effect；
+typed call descriptor 保留该 effect，frontend→SSA 只据此把非插值 String literal 消息的调用
+终结为 source-anchored Abort，LLVM 继续使用既有 C `abort` + `unreachable`，不生成同名 direct
+call、unwind 或 String ABI。同名源码函数不获得该 effect，插值及其他 String expression 在
+object 写盘前保持 unsupported。真实 `prelude.ko` 同时保留正常 smoke，并以独立 abort entry
+验证 object/link 后由进程失败边界观察到非零或 signal；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -254,8 +261,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   Mach-O object；显式 `() -> Unit` FunctionId 获得唯一 external C `i32 main()` wrapper，普通
   Koven function 保持 internal。`lang-cli` linker driver 不经 shell 调用 `/usr/bin/clang`，保留
   status/stderr 并区分 driver 启动失败；test-only orchestration 已真实运行 normal 与 SSA Abort
-  object。源码 `main` 选择及标准库 `error()` identity 仍等待后续 frontend/Phase 5 接线，不按
-  名称猜测；
+  object。源码 `main` 选择仍等待后续 frontend 接线；标准库 `error()` identity 已由 SPEC-0043
+  通过 typed effect 接入，未按名称猜测；
 - [ADR-0011](../adr/0011-first-dwarf-line-mapping.md) 已接受首个 line-tables-only DWARF 映射。
   SPEC-0040 当前第一片保持 SSA `Program` 不持有源码 owner，由 debug-enabled object/text lowering
   显式接收同一 `SourceMap`；preflight 解析 function/block/entity/instruction/terminator origin，
@@ -289,9 +296,9 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 - `lang-std` 无项目内依赖。
 
 `lang-std` 的 Rust target 仅提供 Cargo 与测试边界，其单元测试验证 `.ko` 源码包存在；标准库
-公共实现仍以 `koven/**/*.ko` 为唯一真源。SPEC-0042 的 CLI 测试从磁盘唯一枚举
-`koven/prelude.ko` 并真实编译、链接和运行其中的 bootstrap smoke，不使用 `build.rs` 或 Rust
-行为镜像。Phase 0 不包含 runtime crate。
+公共实现仍以 `koven/**/*.ko` 为唯一真源。SPEC-0042/0043 的 CLI 测试从磁盘唯一枚举
+`koven/prelude.ko`，分别真实编译、链接和运行正常/Abort bootstrap entry，不使用 `build.rs`
+或 Rust 行为镜像。Phase 0 不包含 runtime crate。
 
 ## Source 与 Span
 
@@ -1200,8 +1207,9 @@ SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的单文件 bootstrap 已由 ADR-0012 / SPEC-0042 实现：CLI 内部 driver 编排显式
-source/entry，复用 frontend、resolved-entry object API 和 Clang linker，真实 Koven prelude
-smoke 已运行；它不等于公开 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
+source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
+Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
+`kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；源码 nominal
 constructor 接线仍等待候选 0183/0184。
 
