@@ -1,9 +1,9 @@
 //! Target-independent typed SSA model、验证与确定性调试表示。
 
 mod lower_frontend;
-mod model;
+pub(crate) mod model;
 mod render;
-mod verify;
+pub(crate) mod verify;
 mod verify_operation;
 mod verify_ownership;
 

@@ -300,7 +300,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       local、assignment、return、`if`、Boolean `when`、`&&`/`||` 和 block-parameter join 的
       frontend facts→verified SSA 切片已通过；`while`/`loop`、最近 loop 的 `break`/`continue`
       与 loop-carried header 参数也已通过；可达纯标量泛型 callable 已按 SPEC-0177 实例 key
-      完成确定性单态化。`for` 等待 Phase 2 iterator/binding typed fact；继续映射为 verified LLVM IR
+      完成确定性单态化。verified SSA 已确定映射到 AArch64 LLVM IR，覆盖精确标量类型、PHI、
+      checked arithmetic、比较、direct call、branch/return/trap，并在返回文本前通过 LLVM
+      verifier；`for` 仍等待 Phase 2 iterator/binding typed fact
 - [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
       `Copyable` 能力保持正交
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不

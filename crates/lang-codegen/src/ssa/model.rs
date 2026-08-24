@@ -13,13 +13,13 @@ static NEXT_PROGRAM_OWNER: AtomicU64 = AtomicU64::new(1);
 struct ProgramOwner(u64);
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct ModuleId {
+pub(crate) struct ModuleId {
     owner: ProgramOwner,
     index: usize,
 }
 
 impl ModuleId {
-    pub(super) const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self.index
     }
 }
@@ -35,17 +35,17 @@ impl fmt::Debug for ModuleId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct FunctionId {
-    pub(super) module: ModuleId,
-    pub(super) index: usize,
+pub(crate) struct FunctionId {
+    pub(crate) module: ModuleId,
+    pub(crate) index: usize,
 }
 
 impl FunctionId {
-    pub(super) const fn module(self) -> ModuleId {
+    pub(crate) const fn module(self) -> ModuleId {
         self.module
     }
 
-    pub(super) const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self.index
     }
 }
@@ -53,17 +53,17 @@ impl FunctionId {
 macro_rules! function_id {
     ($name:ident) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub(super) struct $name {
-            pub(super) function: FunctionId,
-            pub(super) index: usize,
+        pub(crate) struct $name {
+            pub(crate) function: FunctionId,
+            pub(crate) index: usize,
         }
 
         impl $name {
-            pub(super) const fn function(self) -> FunctionId {
+            pub(crate) const fn function(self) -> FunctionId {
                 self.function
             }
 
-            pub(super) const fn index(self) -> usize {
+            pub(crate) const fn index(self) -> usize {
                 self.index
             }
         }
@@ -77,29 +77,29 @@ function_id!(PlaceId);
 function_id!(LoanId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct SsaTypeId {
-    pub(super) module: ModuleId,
-    pub(super) index: usize,
+pub(crate) struct SsaTypeId {
+    pub(crate) module: ModuleId,
+    pub(crate) index: usize,
 }
 
 impl SsaTypeId {
-    pub(super) const fn module(self) -> ModuleId {
+    pub(crate) const fn module(self) -> ModuleId {
         self.module
     }
 
-    pub(super) const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self.index
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Origin {
+pub(crate) enum Origin {
     Source(Span),
     Synthetic { anchor: Span, reason: String },
 }
 
 impl Origin {
-    pub(super) const fn span(&self) -> Span {
+    pub(crate) const fn span(&self) -> Span {
         match self {
             Self::Source(span) | Self::Synthetic { anchor: span, .. } => *span,
         }
@@ -107,13 +107,13 @@ impl Origin {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum Ownership {
+pub(crate) enum Ownership {
     Copyable,
     MoveOnly,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum SsaTypeKind {
+pub(crate) enum SsaTypeKind {
     Unit,
     Boolean,
     Integer { bits: u16, signed: bool },
@@ -121,20 +121,20 @@ pub(super) enum SsaTypeKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum LoanKind {
+pub(crate) enum LoanKind {
     Shared,
     Exclusive,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum EntityType {
+pub(crate) enum EntityType {
     Value(SsaTypeId),
     Place(SsaTypeId),
     Loan { kind: LoanKind, target: SsaTypeId },
 }
 
 impl EntityType {
-    pub(super) const fn semantic_type(self) -> SsaTypeId {
+    pub(crate) const fn semantic_type(self) -> SsaTypeId {
         match self {
             Self::Value(ty) | Self::Place(ty) | Self::Loan { target: ty, .. } => ty,
         }
@@ -142,14 +142,14 @@ impl EntityType {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) enum EntityId {
+pub(crate) enum EntityId {
     Value(ValueId),
     Place(PlaceId),
     Loan(LoanId),
 }
 
 impl EntityId {
-    pub(super) const fn function(self) -> FunctionId {
+    pub(crate) const fn function(self) -> FunctionId {
         match self {
             Self::Value(id) => id.function(),
             Self::Place(id) => id.function(),
@@ -159,7 +159,7 @@ impl EntityId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Definition {
+pub(crate) enum Definition {
     BlockParameter {
         block: BlockId,
         index: usize,
@@ -171,21 +171,21 @@ pub(super) enum Definition {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct EntityData {
-    pub(super) ty: EntityType,
-    pub(super) definition: Definition,
-    pub(super) origin: Origin,
+pub(crate) struct EntityData {
+    pub(crate) ty: EntityType,
+    pub(crate) definition: Definition,
+    pub(crate) origin: Origin,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ScalarConstant {
+pub(crate) enum ScalarConstant {
     Unit,
     Boolean(bool),
     Integer(i128),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum BinaryOperator {
+pub(crate) enum BinaryOperator {
     Add,
     Subtract,
     Multiply,
@@ -194,7 +194,7 @@ pub(super) enum BinaryOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum CheckedArithmeticOperator {
+pub(crate) enum CheckedArithmeticOperator {
     Add,
     Subtract,
     Multiply,
@@ -203,7 +203,7 @@ pub(super) enum CheckedArithmeticOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ComparisonOperator {
+pub(crate) enum ComparisonOperator {
     Equal,
     NotEqual,
     LessThan,
@@ -213,13 +213,13 @@ pub(super) enum ComparisonOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum PlaceAccess {
+pub(crate) enum PlaceAccess {
     Place(PlaceId),
     Loan(LoanId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Operation {
+pub(crate) enum Operation {
     Constant(ScalarConstant),
     /// SPEC-0033 的低层 primitive；算术变体只允许在范围证明后使用。
     /// 源语言 `+`/`-`/`*` 必须先 lower 为 `CheckedArithmetic`。
@@ -275,7 +275,7 @@ pub(super) enum Operation {
 }
 
 impl Operation {
-    pub(super) fn entities(&self) -> Vec<EntityId> {
+    pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
             Self::Constant(_) => Vec::new(),
             Self::Binary { left, right, .. }
@@ -305,22 +305,22 @@ impl Operation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Instruction {
-    pub(super) id: InstructionId,
-    pub(super) block: BlockId,
-    pub(super) operation: Operation,
-    pub(super) results: Vec<EntityId>,
-    pub(super) origin: Origin,
+pub(crate) struct Instruction {
+    pub(crate) id: InstructionId,
+    pub(crate) block: BlockId,
+    pub(crate) operation: Operation,
+    pub(crate) results: Vec<EntityId>,
+    pub(crate) origin: Origin,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Edge {
-    pub(super) target: BlockId,
-    pub(super) arguments: Vec<EntityId>,
+pub(crate) struct Edge {
+    pub(crate) target: BlockId,
+    pub(crate) arguments: Vec<EntityId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum TerminatorKind {
+pub(crate) enum TerminatorKind {
     Branch(Edge),
     Conditional {
         condition: ValueId,
@@ -334,7 +334,7 @@ pub(super) enum TerminatorKind {
 }
 
 impl TerminatorKind {
-    pub(super) fn entities(&self) -> Vec<EntityId> {
+    pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
             Self::Branch(edge) => edge.arguments.clone(),
             Self::Conditional {
@@ -352,7 +352,7 @@ impl TerminatorKind {
         }
     }
 
-    pub(super) fn targets(&self) -> Vec<BlockId> {
+    pub(crate) fn targets(&self) -> Vec<BlockId> {
         match self {
             Self::Branch(edge) => vec![edge.target],
             Self::Conditional {
@@ -366,55 +366,55 @@ impl TerminatorKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Terminator {
-    pub(super) kind: TerminatorKind,
-    pub(super) origin: Origin,
+pub(crate) struct Terminator {
+    pub(crate) kind: TerminatorKind,
+    pub(crate) origin: Origin,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Block {
-    pub(super) id: BlockId,
-    pub(super) parameters: Vec<EntityId>,
-    pub(super) instructions: Vec<InstructionId>,
-    pub(super) terminator: Option<Terminator>,
-    pub(super) origin: Origin,
+pub(crate) struct Block {
+    pub(crate) id: BlockId,
+    pub(crate) parameters: Vec<EntityId>,
+    pub(crate) instructions: Vec<InstructionId>,
+    pub(crate) terminator: Option<Terminator>,
+    pub(crate) origin: Origin,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Function {
-    pub(super) id: FunctionId,
-    pub(super) name: String,
-    pub(super) return_types: Vec<SsaTypeId>,
-    pub(super) blocks: Vec<Block>,
-    pub(super) instructions: Vec<Instruction>,
-    pub(super) values: Vec<EntityData>,
-    pub(super) places: Vec<EntityData>,
-    pub(super) loans: Vec<EntityData>,
-    pub(super) origin: Origin,
+pub(crate) struct Function {
+    pub(crate) id: FunctionId,
+    pub(crate) name: String,
+    pub(crate) return_types: Vec<SsaTypeId>,
+    pub(crate) blocks: Vec<Block>,
+    pub(crate) instructions: Vec<Instruction>,
+    pub(crate) values: Vec<EntityData>,
+    pub(crate) places: Vec<EntityData>,
+    pub(crate) loans: Vec<EntityData>,
+    pub(crate) origin: Origin,
 }
 
 impl Function {
-    pub(super) const fn id(&self) -> FunctionId {
+    pub(crate) const fn id(&self) -> FunctionId {
         self.id
     }
 
-    pub(super) fn entry_block(&self) -> Option<BlockId> {
+    pub(crate) fn entry_block(&self) -> Option<BlockId> {
         self.blocks.first().map(|block| block.id)
     }
 
-    pub(super) fn block(&self, id: BlockId) -> Option<&Block> {
+    pub(crate) fn block(&self, id: BlockId) -> Option<&Block> {
         (id.function() == self.id)
             .then(|| self.blocks.get(id.index()))
             .flatten()
     }
 
-    pub(super) fn instruction(&self, id: InstructionId) -> Option<&Instruction> {
+    pub(crate) fn instruction(&self, id: InstructionId) -> Option<&Instruction> {
         (id.function() == self.id)
             .then(|| self.instructions.get(id.index()))
             .flatten()
     }
 
-    pub(super) fn entity(&self, id: EntityId) -> Option<&EntityData> {
+    pub(crate) fn entity(&self, id: EntityId) -> Option<&EntityData> {
         if id.function() != self.id {
             return None;
         }
@@ -425,7 +425,7 @@ impl Function {
         }
     }
 
-    pub(super) fn add_block(
+    pub(crate) fn add_block(
         &mut self,
         parameter_types: Vec<EntityType>,
         origin: Origin,
@@ -458,7 +458,7 @@ impl Function {
         Ok(id)
     }
 
-    pub(super) fn append_instruction(
+    pub(crate) fn append_instruction(
         &mut self,
         block: BlockId,
         operation: Operation,
@@ -504,7 +504,7 @@ impl Function {
         Ok((id, results))
     }
 
-    pub(super) fn set_terminator(
+    pub(crate) fn set_terminator(
         &mut self,
         block: BlockId,
         kind: TerminatorKind,
@@ -602,20 +602,20 @@ impl Function {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct Module {
-    pub(super) id: ModuleId,
-    pub(super) name: String,
-    pub(super) types: Vec<SsaTypeKind>,
+pub(crate) struct Module {
+    pub(crate) id: ModuleId,
+    pub(crate) name: String,
+    pub(crate) types: Vec<SsaTypeKind>,
     type_ids: BTreeMap<SsaTypeKind, SsaTypeId>,
-    pub(super) functions: Vec<Function>,
+    pub(crate) functions: Vec<Function>,
 }
 
 impl Module {
-    pub(super) const fn id(&self) -> ModuleId {
+    pub(crate) const fn id(&self) -> ModuleId {
         self.id
     }
 
-    pub(super) fn intern_type(&mut self, kind: SsaTypeKind) -> SsaTypeId {
+    pub(crate) fn intern_type(&mut self, kind: SsaTypeKind) -> SsaTypeId {
         if let Some(id) = self.type_ids.get(&kind).copied() {
             return id;
         }
@@ -628,13 +628,13 @@ impl Module {
         id
     }
 
-    pub(super) fn type_kind(&self, id: SsaTypeId) -> Option<&SsaTypeKind> {
+    pub(crate) fn type_kind(&self, id: SsaTypeId) -> Option<&SsaTypeKind> {
         (id.module() == self.id)
             .then(|| self.types.get(id.index()))
             .flatten()
     }
 
-    pub(super) fn add_function(
+    pub(crate) fn add_function(
         &mut self,
         name: impl Into<String>,
         return_types: Vec<SsaTypeId>,
@@ -669,22 +669,22 @@ impl Module {
         Ok(id)
     }
 
-    pub(super) fn function(&self, id: FunctionId) -> Option<&Function> {
+    pub(crate) fn function(&self, id: FunctionId) -> Option<&Function> {
         (id.module() == self.id)
             .then(|| self.functions.get(id.index()))
             .flatten()
     }
 
-    pub(super) fn function_mut(&mut self, id: FunctionId) -> Option<&mut Function> {
+    pub(crate) fn function_mut(&mut self, id: FunctionId) -> Option<&mut Function> {
         (id.module() == self.id)
             .then(|| self.functions.get_mut(id.index()))
             .flatten()
     }
 }
 
-pub(super) struct Program {
+pub(crate) struct Program {
     owner: ProgramOwner,
-    pub(super) modules: Vec<Module>,
+    pub(crate) modules: Vec<Module>,
 }
 
 impl Default for Program {
@@ -697,7 +697,7 @@ impl Default for Program {
 }
 
 impl Program {
-    pub(super) fn add_module(&mut self, name: impl Into<String>) -> ModuleId {
+    pub(crate) fn add_module(&mut self, name: impl Into<String>) -> ModuleId {
         let id = ModuleId {
             owner: self.owner,
             index: self.modules.len(),
@@ -712,13 +712,13 @@ impl Program {
         id
     }
 
-    pub(super) fn module(&self, id: ModuleId) -> Option<&Module> {
+    pub(crate) fn module(&self, id: ModuleId) -> Option<&Module> {
         (id.owner == self.owner)
             .then(|| self.modules.get(id.index()))
             .flatten()
     }
 
-    pub(super) fn module_mut(&mut self, id: ModuleId) -> Option<&mut Module> {
+    pub(crate) fn module_mut(&mut self, id: ModuleId) -> Option<&mut Module> {
         (id.owner == self.owner)
             .then(|| self.modules.get_mut(id.index()))
             .flatten()
@@ -726,7 +726,7 @@ impl Program {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ModelError {
+pub(crate) enum ModelError {
     WrongTypeOwner {
         expected: ModuleId,
         actual: ModuleId,

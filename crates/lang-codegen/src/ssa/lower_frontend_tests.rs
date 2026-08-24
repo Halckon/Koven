@@ -12,6 +12,7 @@ use super::{
     model::Operation,
     render::render_program,
 };
+use crate::llvm::render_verified_program;
 
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
@@ -262,6 +263,90 @@ fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
     assert_ne!(one, two);
     assert!(choices.contains(&one));
     assert!(choices.contains(&two));
+    let llvm = render_verified_program(&program).expect("distinct overload instances must lower");
+    assert_eq!(llvm.matches("define i32 @\"f0.choose<Int>\"").count(), 1);
+    assert_eq!(llvm.matches("define i32 @\"f1.choose<Int>\"").count(), 1);
+    assert!(llvm.contains("call i32 @\"f0.choose<Int>\""));
+    assert!(llvm.contains("call i32 @\"f1.choose<Int>\""));
+}
+
+#[test]
+fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
+    let analysis = analyze(
+        "fun byte(input: Byte): Byte = input\n\
+         fun ubyte(input: UByte): UByte = input\n\
+         fun short(input: Short): Short = input\n\
+         fun ushort(input: UShort): UShort = input\n\
+         fun int(input: Int): Int = input\n\
+         fun uint(input: UInt): UInt = input\n\
+         fun long(input: Long): Long = input\n\
+         fun ulong(input: ULong): ULong = input\n\
+         fun boolean(input: Boolean): Boolean = !input\n\
+         fun addSigned(left: Int, right: Int): Int = left + right\n\
+         fun addUnsigned(left: UInt, right: UInt): UInt = left + right\n\
+         fun subtractUnsigned(left: UInt, right: UInt): UInt = left - right\n\
+         fun multiplyUnsigned(left: UInt, right: UInt): UInt = left * right\n\
+         fun subtract(left: Int, right: Int): Int = left - right\n\
+         fun multiply(left: Int, right: Int): Int = left * right\n\
+         fun divide(left: Int, right: Int): Int = left / right\n\
+         fun remainder(left: Int, right: Int): Int = left % right\n\
+         fun divideUnsigned(left: UInt, right: UInt): UInt = left / right\n\
+         fun remainderUnsigned(left: UInt, right: UInt): UInt = left % right\n\
+         fun choose(flag: Boolean, left: Int, right: Int): Int =\n\
+             if (flag) { left } else { right }\n\
+         fun increment(limit: Int): Int {\n\
+             var current: Int = 0\n\
+             while (current < limit) { current += 1 }\n\
+             return current\n\
+         }\n\
+         fun invoke(left: Int, right: Int): Int = addSigned(left, right)\n\
+         fun unit(flag: Boolean): Unit { if (flag) { 1 } }",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("frontend scalar matrix must produce verified SSA");
+    let first =
+        render_verified_program(&program).expect("verified SSA must lower to verified LLVM");
+    let second = render_verified_program(&program).expect("repeated LLVM lowering must succeed");
+    assert_eq!(first, second);
+    assert!(first.contains("target triple = \"aarch64-apple-darwin\""));
+    assert!(first.contains("define i8 @f0.byte(i8 %v0)"));
+    assert!(first.contains("define i16 @f2.short(i16 %v0)"));
+    assert!(first.contains("define i32 @f4.int(i32 %v0)"));
+    assert!(first.contains("define i64 @f6.long(i64 %v0)"));
+    assert!(first.contains("define i1 @f8.boolean(i1 %v0)"));
+    assert!(first.contains("llvm.sadd.with.overflow.i32"));
+    assert!(first.contains("llvm.uadd.with.overflow.i32"));
+    assert!(first.contains("llvm.usub.with.overflow.i32"));
+    assert!(first.contains("llvm.umul.with.overflow.i32"));
+    assert!(first.contains("llvm.ssub.with.overflow.i32"));
+    assert!(first.contains("llvm.smul.with.overflow.i32"));
+    assert!(first.contains(" sdiv i32 "));
+    assert!(first.contains(" udiv i32 "));
+    assert!(first.contains(" srem i32 "));
+    assert!(first.contains(" urem i32 "));
+    assert!(first.contains("phi i32"));
+    assert!(first.contains("br i1"));
+    assert!(first.contains("call i32 @f9.addSigned"));
+    assert!(first.contains("call void @llvm.trap()"));
+    assert!(first.contains("unreachable"));
+    assert!(!first.contains("invoke "));
+    assert!(!first.contains("landingpad"));
 }
 
 #[test]

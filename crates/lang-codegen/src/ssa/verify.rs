@@ -63,7 +63,7 @@ pub(super) struct VerifyError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct VerifyErrors {
+pub(crate) struct VerifyErrors {
     pub(super) errors: Vec<VerifyError>,
 }
 
@@ -79,7 +79,7 @@ impl fmt::Display for VerifyErrors {
 
 impl Error for VerifyErrors {}
 
-pub(super) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
+pub(crate) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
     let mut errors = Vec::new();
     for (module_index, module) in program.modules.iter().enumerate() {
         if module.id.index() != module_index || program.module(module.id).is_none() {

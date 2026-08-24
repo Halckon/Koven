@@ -123,8 +123,8 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
    - [x] 完成 `while`/`loop`、最近词法 loop 的 `break`/`continue`、显式 header 参数与 backedge；
          自然 fallthrough 和每条 continue 均交付当前 loop-carried local，嵌套 break 只进入内层 exit。
    - [ ] `for` 等待 Phase 2 发布 iterator/binding typed fact；补齐该前置后完成本步。
-5. [ ] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
-6. [ ] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
+5. [x] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
+6. [x] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
 
 ## 8. 提交计划
 
@@ -171,3 +171,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 38 项；新增显式/推导实例去重、多标量替换、同 key 递归、不可达泛型、省略非标量实例和同名 overload 静态目标隔离矩阵 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | 具体实例 planning/lowering 无 warning；新增 `instances` 生产模块低于 250 行 |
 | 2026-08-25 具体泛型实例检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 41 项；新增 verified SSA 前置拒绝、unchecked scalar primitive，以及真实 frontend→SSA→LLVM 的全部整数宽度、signed/unsigned checked operation、PHI、loop、direct call、trap 与重复文本矩阵 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | verified SSA→LLVM adapter 无 warning；adapter 743 行，全部生产文件低于 1000 行软上限 |
+| 2026-08-25 verified SSA→LLVM 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

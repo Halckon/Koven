@@ -118,7 +118,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已建立
-  frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，但 SSA→LLVM
+  frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，并把该封闭
+  子集的 verified SSA 映射为 verified LLVM IR；完整 `for`、聚合/runtime、object/link/run
   仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
@@ -144,7 +145,14 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   自然 fallthrough 与每条 `continue` backedge 都传递当前 local，`break` 只进入最近 loop exit。
   `instances` 从非泛型顶层入口构造确定的可达实例图，按 SPEC-0177 key 替换泛型体内直接类型
   参数；同 key 递归去重、不可达泛型不生成、同名 overload 保持不同 `FunctionId`，并以 1024
-  个具体泛型实例作为显式增长门禁。完整 `for` 与 SSA→LLVM 映射仍未实现；
+  个具体泛型实例作为显式增长门禁。`llvm::adapter` 在构造 LLVM 前再次运行 SPEC-0033
+  verifier，只接受单一 module 和标量 value，按 `FunctionId` 生成不混淆 overload/实例的稳定
+  symbol；entry 参数映射为 LLVM 参数，非 entry block 参数映射为有序 PHI。Boolean 使用 `i1`，
+  整数保留 8/16/32/64-bit 宽度和操作 signedness；checked add/sub/mul 使用 LLVM overflow
+  intrinsic，div/rem 在执行 LLVM 指令前以安全 divisor 避免失败路径触发 LLVM UB，失败 flag
+  继续流向既有 `llvm.trap` + `unreachable`。branch/conditional/return、六类比较、Boolean not、
+  direct call 与 scalar copy 已映射，最终 module 必须通过 LLVM verifier；重复 lowering 文本
+  相同。完整 `for` 仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
