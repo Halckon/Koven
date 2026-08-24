@@ -239,8 +239,8 @@ Spec 之前，本条限制不变。）
 v0.26 已明确启用[默认 Borrow、调用期 loan 与 ASAP drop-point](./01-design-decisions.md#26-调用期借用与-asap-析构点v026)。
 SPEC-0176 已迁移 callable 声明与 typed contract；SPEC-0029 已实现名称/字段 place 的同步
 call loan 与 owned-value drop facts；SPEC-0030 已实现顺序容器核心 construction / element
-place 所有权。以下 receiver、capture 与尚未定义 API 的 relocation 项仍按独立 Spec 保持未完成。
-v0.27 已解除 SPEC-0032 的 capture / `Transferable` 语义门禁。
+place 所有权。以下 receiver 与尚未定义 API 的 relocation 项仍按独立 Spec 保持未完成。
+v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 
 - [x] 在当前 named/field call 范围实现简化版单一所有者 + ASAP drop facts（不做完整 NLL）
 - [x] 按[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)第 9 节已封闭的 callable contract 检查调用点无 marker / `borrow` / `&`
@@ -263,8 +263,9 @@ v0.27 已解除 SPEC-0032 的 capture / `Transferable` 语义门禁。
 - [ ] 在 Phase 5 明确 `MutableList` 增删/重排 API 及其 typed relocation effect 后，跟踪元素
       借用与扩容、缩容、删除、重排的冲突，并验证所有正常 relocation / 析构路径资源恰好
       析构一次；不得在此之前按成员名猜测 effect
-- [ ] `move (...) -> T` 函数类型的检查：验证传给此类参数的闭包字面量必须带 `move` 前缀，且闭包体内不能捕获任何借用语义的外部变量
-- [ ] `Transferable` 标记能力检查：跨线程 API（`thread` 等）转移的值类型必须满足对应约束；
+- [x] **SPEC-0032（v0.27，已实现）**：默认 lambda 建立 shared capture，`move` lambda
+      复制 / 移动 owned capture；借用闭包不得逃逸，跨线程 typed effect 只接受可证明满足
+      `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
 
 **验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
