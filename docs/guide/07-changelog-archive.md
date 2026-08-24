@@ -433,3 +433,21 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 3 | nested capture 经紧邻 environment，顶层函数/常量/object 不进入 capture；captured name 在 v1 内只读 | 🟡 简化边界 |
 | 4 | 补全 `Transferable` 的 nullable/nominal/intrinsic/type-parameter/function/closure 域，并明确与 `Copyable` bound 不互相蕴含 | 🔴 能力域补全 |
 | 5 | 跨线程转移由编译器绑定的 typed callable effect 标识，不按名称或 `move` 函数类型猜测；分配 L0137–L0139 | 🔴 effect 与诊断定案 |
+
+## v0.27 实施记录
+
+> 2026-08-24，SPEC-0032 完成：frontend 已发布 shared/owned capture、borrow/copy/move effect、
+> closure provenance 与结构化 `Transferable`，并检查 borrowed closure 逃逸、capture loan、
+> owned capture 逆序析构和 compiler-bound 跨线程交付；L0137–L0139 及 Phase 3 fixture 已锁定。
+
+## v0.28 候选变更记录（未启用）
+
+> 以下规则仍是候选，不参与现行 v0.27 语义。只有用户明确启用 v0.28 并指定其取代 v0.27
+> 后，SPEC-0177 / SPEC-0174 才能进入 `approved` / `in-progress`。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 泛型 callable 类型实参只允许全部显式或完全省略；省略时仅从已定型非 lambda 实参做精确结构推导，不读取返回 expected type、lambda body 或后续使用 | 🔴 泛型调用边界 |
+| 2 | 成功泛型调用发布 owner + callable 有序替换形成的稳定实例 key，为 typed SSA/单态化提供 recipe；Phase 2 不生成 IR 或展开 body | 🟡 分阶段产物 |
+| 3 | overload lambda 在映射、泛型实例化和非 lambda 过滤后逐候选隔离检查；只提交唯一成功 trial，零/多成功沿用 L0123/L0124 | 🔴 overload 选择语义 |
+| 4 | 分配 L0140（唯一泛型调用推导失败）与 L0141（`Transferable` bound 失败）；interface/`Copyable` bound 继续复用 L0093/L0115 | 🟡 诊断闭包 |

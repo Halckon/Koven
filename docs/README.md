@@ -40,3 +40,8 @@ use-after-move、条件复制、消费式解构、禁止结构分量部分移动
 capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect 也已实现；Phase 5
 容器 relocation API 仍待后续 Spec。Phase 6 已独立提供
 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。
+
+进入 typed SSA 前仍缺少的泛型 callable 实例化与 overload-lambda 隔离，已分别物化为
+[SPEC-0177](./specs/0177-generic-callable-instantiation.md) 和
+[SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)；两者当前保持 `draft`，等待
+用户明确启用 [v0.28 候选](./guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用)。

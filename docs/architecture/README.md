@@ -68,8 +68,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
   实例化、多 overload 候选的 lambda 隔离检查、callable reference、safe-call lifting 与所有权
-  可用性仍使用逐类 `DeferredReason`
-  保留；普通名义主构造器字段已建立带实际泛型替换的 `AggregateProjectionDescriptor`，
+  可用性仍使用逐类 `DeferredReason` 保留；其中前两项已分别登记为等待 v0.28 启用的 draft
+  SPEC-0177 / SPEC-0174。普通名义主构造器字段已建立带实际泛型替换的
+  `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
   callable 参数只保留 `Value` / `Borrow` / `Inout` 三态 typed identity；无 marker 与显式
   `borrow` 共享 `Borrow` identity，声明侧 `own` 形成 `Value`。预声明只读 API 使用 `Borrow`，
@@ -1018,8 +1019,9 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
-顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化、
-多 overload 候选的 lambda 隔离检查、`object` / `companion object` 关联成员，以及容器
+顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化与
+多 overload 候选的 lambda 隔离检查已物化为等待 v0.28 启用的 draft SPEC-0177 / SPEC-0174，
+当前仍未实现；`object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。

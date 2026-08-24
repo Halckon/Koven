@@ -1,11 +1,12 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.27。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.27；
+> 第 28 节是尚未启用的 v0.28 候选，不参与现行语义。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
-> v0.27 已启用的现行规则；
+> v0.27 已启用的现行规则；第 28 节只有在用户明确启用 v0.28 后才获得规范效力；
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -1596,6 +1597,77 @@ MoveOnly 字段。存在 capture/transfer 诊断时不发布可执行 capture/dr
 | L0137 | borrowed closure 逃出其 defining callable | primary 为 return/Value 交付/字段存储位置；label 指向 lambda |
 | L0138 | move closure 不能取得当前 capture 的所有权 | primary 为 capture 引用；label 指向非 owning binding 或 `this` |
 | L0139 | 跨线程 effect 收到不能证明 `Transferable` 的值/capture | primary 为实参或 capture 引用；label 指向类型/字段/capture 来源 |
+
+---
+
+## 28. 泛型 callable 实例化与 overload-lambda 隔离（v0.28 候选，未启用）
+
+> **候选状态**：本节不属于现行 v0.27 语义。只有用户明确启用 v0.28 并指定其取代 v0.27
+> 后，本节、L0140–L0141 及 SPEC-0177 / SPEC-0174 才能进入实施。候选目的不是引入 Kotlin
+> 的完整局部约束求解，而是封闭进入 typed SSA 前仍缺失的最小 callable 实例 identity。
+
+### 28.1 范围与简化边界
+
+v1 只为源码具名顶层函数和实例 member 函数实例化 callable 类型参数。调用可以写完整显式
+类型实参 `f<A, B>(...)`，也可以完全省略并从实参推导；不接受部分类型实参、`_` 占位、默认
+类型实参、`where` 约束或把未填项留给返回上下文。普通函数值没有 callable 泛型参数，class
+constructor、callable reference、safe call、跨文件 overload 与 intrinsic 泛型核心构造继续
+遵守各自既有 Spec 边界。
+
+泛型推导保持单向和局部：只读取本次调用中已经具有确定类型的非 lambda 实参，包括具名
+函数值；不从调用结果的 expected type、赋值后的使用、lambda body、未定型 lambda 参数或
+另一个文件反推类型实参。没有 expected type 的数字字面量先按 §22 的既有默认规则定型，再
+参与推导。因此 `identity(1)` 推导 `T = Int`，而仅在 `factory<T>(): T` 返回位置出现的 `T`
+不能从 `val value: String = factory()` 推导。
+
+### 28.2 候选实例化与 bound
+
+显式类型实参数量必须精确等于 callable 自身的类型参数数量；不匹配复用 L0091。省略类型
+实参时，对候选参数类型与已定型实参类型做结构匹配：同一类型参数的每次出现必须得到完全
+相同的规范化 `TypeId`；nullable、函数、名义和 intrinsic 类型只在外层身份、参数模式及
+有序结构相同的路径上递归提取，不做型变、数值 widening、接口反向猜测或“最佳公共类型”
+合并。每个 callable 类型参数都必须得到唯一解，否则该候选推导失败。
+
+候选获得完整替换后，先替换其参数和返回类型，再执行既有 assignability 与参数 mode 检查。
+interface、`Copyable` 和 `Transferable` bound 分别按现有静态能力查询验证；显式或唯一候选的
+interface / `Copyable` 失败继续使用 L0093 / L0115，`Transferable` 失败使用 L0141。overload
+trial 中某候选无法推导或不满足 bound 时只淘汰该候选，不泄漏试探诊断；全部候选被淘汰时
+使用 L0123。唯一直接泛型候选无法得到完整一致替换时使用 L0140。
+
+member 泛型实例先应用 receiver 的 classifier 类型实参，再解析 callable 自身类型实参。
+typed 产物为每个成功调用发布实例 key：静态 callable target，以及按“owner 参数在前、
+callable 参数在后”的声明顺序排列的完整替换类型。参数与返回类型必须已经替换；非泛型
+call 的实例实参为空。该 key 是后续单态化的类型层 recipe，不在 Phase 2 克隆函数 body、
+生成 IR 或判断递归实例图是否有限。
+
+### 28.3 多 overload 候选中的 lambda
+
+候选按源码顺序完成名称、实参映射、mode、泛型实例化和所有非 lambda 实参过滤后，才检查
+lambda literal。每个剩余候选在隔离的 typed trial 中把对应函数类型单向传播给 lambda，
+检查 move-only 形状、参数数量/mode、body 与嵌套调用，并保存完整的候选局部 typed 增量。
+失败 trial 的 expression type、lambda 参数 mode、nested call descriptor 与诊断必须全部
+丢弃，不能污染下一个候选或最终产物。
+
+若恰有一个 trial 成功，只提交该候选的完整增量并记录一次 call；没有成功候选时只产生
+L0123，多个成功候选时只产生 L0124，均不发布任何 trial 的 lambda/call facts。只有一个完成
+映射的候选时沿用普通 expected-type 检查并保留 L0084 等精确诊断。lambda body 可以证明某个
+候选不相容，但不会触发隐式转换、返回上下文推导或候选优先级；源码声明顺序只稳定输出，
+不用于打破歧义。
+
+trial 是类型检查事务，不是运行时求值。源码 operand 仍只按源码顺序求值一次；Phase 3 只
+消费最终提交的 call / lambda facts。实现必须显式快照或使用候选局部结果，禁止依靠“先写
+全局表、失败后只删诊断”的不完整回滚。
+
+### 28.4 诊断与分阶段实施
+
+| 错误码 | 候选稳定含义 | primary / 关联位置 |
+|---|---|---|
+| L0140 | 唯一泛型 callable 无法从合法输入得到完整一致的类型实参 | primary 为 callee；label 指向未解/冲突的类型参数声明 |
+| L0141 | callable 类型实参不满足编译器 `Transferable` bound | primary 为显式实参或触发推导的 operand；label 指向 bound 声明 |
+
+SPEC-0177 先实现泛型 callable 显式/推导实例化、bound 和 instance key；SPEC-0174 再在该
+实例化边界上实现 overload-lambda candidate isolation。二者完成前，相关调用继续精确保留
+`DeferredReason::Call`，不得携带伪造实例进入所有权检查或 SSA。
 
 ---
 

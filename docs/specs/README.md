@@ -13,6 +13,10 @@
 明确启用并取代 v0.26；它封闭默认 shared capture、显式 `move` owned capture、borrowed
 closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable effect。
 
+[v0.28 候选](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用)
+尚未启用；它拟封闭泛型 callable 实例化与 overload-lambda candidate isolation。依赖它的
+SPEC-0177 / SPEC-0174 必须保持 `draft`，不能依据当前 Spec 站立授权越过 guide 门禁。
+
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
 解构契约，SPEC-0022 已完成实施与验收。
@@ -172,14 +176,15 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0133](./0133-container-type-frontend-input-invariants.md) | 强化顺序容器类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0023、0130–0132 `done`；当前持续 Goal 的站立授权 |
 | [0134](./0134-copyability-type-frontend-input-invariants.md) | 强化 copyability 类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0022、0130–0133 `done`；当前持续 Goal 的站立授权 |
 | [0173](./0173-lambda-parameter-contract-facts.md) | 让唯一期望函数类型的 lambda 采用并保存 Value/Borrow/Inout 参数契约（`done`） | 0019、0067 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
-| 0174 | 对多 overload 候选逐一隔离检查 lambda expected contract/body | 0067、0173；独立 Spec 封闭 trial/diagnostic rollback 边界 |
+| [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`draft`） | 0020、0022、0032、0067 `done`；等待用户明确启用 v0.28 |
+| [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`draft`） | 0067、0173 `done`；0177 `done`；等待用户明确启用 v0.28 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
 
-Phase 2 roadmap 中的“泛型单态化类型层面准备”仍是未物化 Goal。SPEC-0067 明确把泛型
-callable 调用点推导与实例化留在后续；它不是 SPEC-0027–0029 的前置，但进入依赖具体实例的
-SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实例 identity 与诊断边界。
+Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
+完成 overload-lambda 候选隔离。两项均依赖尚未启用的 v0.28 候选语义；它们不是
+SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal 前必须完成。
 
 ### Phase 3：所有权与借用
 
@@ -197,7 +202,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0033 | 实现最小 typed SSA IR 与 verifier | 0021、0029；接受 SSA ADR |
+| 0033 | 实现最小 typed SSA IR 与 verifier | 0021、0029、0177、0174；接受 SSA ADR |
 | 0034 | 把标量表达式和控制流 lower 到 LLVM | 0033；接受 LLVM / target ADR |
 | 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
 | 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |
@@ -300,8 +305,8 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 
 ## 未决决策的推荐方向
 
-v0.26 的参数契约、调用期 loan 与 ASAP 析构点已经接受，不再属于未决推荐；参数契约已由
-SPEC-0176 实现，调用期 loan 与 ASAP 析构点由 SPEC-0029 继续推进。
+v0.26 的参数契约、调用期 loan 与 ASAP 析构点已经接受并实现，不再属于未决推荐；参数契约
+由 SPEC-0176 实现，调用期 loan 与 ASAP 析构点由 SPEC-0029 实现。
 
 以下是起草后续 guide / ADR 时的默认推荐，不是已经接受的决策；触及对应 Spec 前仍需正式
 文档批准。

@@ -53,11 +53,14 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   `ParameterMode::Value`，调用点仍不接受 `own`，向该参数传入 `MoveOnly` place 时以无标记
   调用隐式移动；`inout` / 调用点 `&` 保持不变。语法与 typed-contract 已由 SPEC-0176
   实现；调用期 loan 与 owned-value ASAP drop-point 已由 SPEC-0029 实现；顺序容器核心
-  element place 所有权已由 SPEC-0030 实现。Phase 5 尚未定义的容器 relocation API、receiver
-  与 closure capture 仍按各自后续 Spec 保持 deferred。
+  element place 所有权已由 SPEC-0030 实现。Phase 5 尚未定义的容器 relocation API，以及
+  尚未封闭的 instance/delegation receiver 所有权仍按各自后续 Spec 保持 deferred。
 - **v0.27 已明确启用**：普通 capturing lambda 建立 defining-callable 内的 shared capture，
   move lambda 按值复制/移动 capture 并可逃逸；完整 `Transferable` 递归和显式 cross-thread
-  typed effect 由 §27 定义。SPEC-0032 负责实施，现行规范不等于实现已经完成。
+  typed effect 由 §27 定义，SPEC-0032 已完成实施。
+- **v0.28 尚未启用**：§28 只是泛型 callable 实例化与 overload-lambda 隔离检查的候选设计；
+  在用户明确指定 v0.28 取代 v0.27 前，L0140–L0141 没有现行诊断含义，SPEC-0177 / 0174
+  必须保持 `draft`。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -129,6 +132,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
 | v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
 | v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 已实现 |
+| v0.28（候选，未启用） | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；等待用户明确启用 |
 
 ## 5. SPEC 编号索引
 
@@ -160,6 +164,8 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0030 | 顺序容器 element place 所有权 | `01-design-decisions.md` §8、`../specs/0030-sequential-container-element-ownership.md` | ✅ 已实现 |
 | SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ✅ 已实现 |
+| SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28（候选）、`../specs/0174-overload-lambda-candidate-isolation.md` | ⏸️ draft，等待 v0.28 |
+| SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28（候选）、`../specs/0177-generic-callable-instantiation.md` | ⏸️ draft，等待 v0.28 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -201,6 +207,9 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0136 | 禁止从顺序容器 element place 按 owned value 移出 MoveOnly 元素；SPEC-0030 已实现 | `01-design-decisions.md` §8 |
 | L0137–L0139 | borrowed closure 逃逸、非法 owned capture 与 non-`Transferable` 跨线程交付；SPEC-0032 已实现 | `01-design-decisions.md` §27.4 |
 
+L0140–L0141 目前只在尚未启用的 v0.28 §28 中预留，不能由现行 frontend 发出或登记为生产
+诊断；若 v0.28 获得明确启用，将分别交给 SPEC-0177 的泛型推导与 `Transferable` bound 检查。
+
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
 声明侧 L0039 的字母表在 v0.26 扩为 `own`/`borrow`/`inout`。v0.14 后裸 `&` 不再触发 L0001（`&` 现在是
@@ -226,10 +235,11 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 条件 `Copyable`、内联布局、intrinsic `Box` 与结构化解构（v0.25） | `01-design-decisions.md` §25 |
 | 调用期借用与 ASAP 析构点（v0.26，SPEC-0029 已实现） | `01-design-decisions.md` §26 |
 | closure capture 与跨线程转移（v0.27） | `01-design-decisions.md` §27 |
+| 泛型 callable 与 overload-lambda 隔离（v0.28 候选，未启用） | `01-design-decisions.md` §28 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 
 ---
 
-*除明确排除的候选 §18 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
+*除明确排除的候选 §18、§28 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
 v0.27；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*
