@@ -1,0 +1,11 @@
+package demo.formatter
+import demo.other.*
+
+value class Point(val x: Int, val y: Int)
+
+fun apply(own point: Point, callback: (Int) -> Int): Int {
+    val first = callback(
+        point.x
+    )
+    return first + point.y
+}

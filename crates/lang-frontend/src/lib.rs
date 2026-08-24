@@ -6,6 +6,9 @@ pub mod ast;
 /// 结构化诊断模型、错误码目录与稳定排序。
 pub mod diagnostic;
 
+/// 保留 token、注释与换行边界的源码格式化。
+pub mod formatting;
+
 /// 确定性 Koven 词法分析与逐字节源码范围。
 pub mod lexer;
 
