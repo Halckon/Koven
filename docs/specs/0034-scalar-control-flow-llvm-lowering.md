@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal 的站立授权；2026-08-24 LLVM 兼容门禁已实际通过 |
 | 前置 Spec | SPEC-0033 `done`；SPEC-0019、0021、0029、0177、0174 已由其前置链覆盖 |
 | 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) 均 `accepted` |
-| 阻塞项 | 完整 `for` 等待 Phase 2 iterator/binding typed fact；其余封闭切片无阻塞，仍须按本 Spec 验收 |
+| 阻塞项 | 完整 `for` 等待 Phase 2 候选 0179 的 iterator/binding typed fact；其余封闭切片无阻塞，仍须按本 Spec 验收 |
 | 影响范围 | `lang-codegen` frontend→SSA lowering、scalar/control SSA operation、LLVM adapter、依赖与测试；Architecture |
 | 语言语义变更 | 否；只实施现行 guide 已封闭的标量、控制流、checked overflow/除零与 abort 语义 |
 
@@ -126,7 +126,7 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
          正常 successor，statement context 丢弃分支值。
    - [x] 完成 `while`/`loop`、最近词法 loop 的 `break`/`continue`、显式 header 参数与 backedge；
          自然 fallthrough 和每条 continue 均交付当前 loop-carried local，嵌套 break 只进入内层 exit。
-   - [ ] `for` 等待 Phase 2 发布 iterator/binding typed fact；补齐该前置后完成本步。
+   - [ ] `for` 等待 Phase 2 候选 0179 发布 iterator/binding typed fact；补齐该前置后完成本步。
 5. [x] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
 6. [x] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
 

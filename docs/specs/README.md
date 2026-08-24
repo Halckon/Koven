@@ -179,6 +179,8 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`done`） | 0020、0022、0032、0067 `done`；v0.28 已生效 |
 | [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`done`） | 0067、0173、0177 `done` |
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
+| 0179 | 为 `for` 发布 iterator 选择、元素类型与名称/解构 binding typed fact | 0016、0020、0022、0067；新 guide 封闭 Iterable/Iterator identity、receiver mode 与 `next()` 值交付所有权 |
+| 0180 | 发布 instance member 与委托转发所需的 receiver mode/place/callable effect typed fact | 0020、0067、0176；新 guide 封闭隐式 receiver 契约 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
@@ -196,6 +198,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0176](./0176-borrow-default-parameter-contracts.md) | 迁移无 marker `Borrow`、声明侧 `own` 与既有三态参数事实（`done`） | 0012、0067、0173、0028 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`done`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
+| 0181 | 检查 instance member 与接口委托 receiver 的字段访问、loan、移动和冲突 | 0029、0180；新 guide 封闭隐式 receiver 契约 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 
@@ -204,7 +207,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
 | [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`done`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
-| [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`in-progress`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；LLVM 21 / Inkwell 0.10 smoke 已通过 |
+| [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`in-progress`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；LLVM 21 / Inkwell 0.10 smoke 已通过；完整 `for` 等待候选 0179 |
 | 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
 | 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；接受 runtime ABI ADR、Map 存储策略 ADR |

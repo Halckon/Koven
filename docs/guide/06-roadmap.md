@@ -152,6 +152,10 @@ fun main(): Unit {
 
 ## Phase 2：类型检查（不含所有权/借用）
 
+当前已完成进入 Phase 3 与封闭标量 Phase 4 切片所需的核心 typed facts；这表示主线前置已满足，
+不表示 Phase 2 的全部延后能力已经关闭。剩余项必须各自满足下列 guide 门禁，不能为追求阶段
+全勾选而从实现反推语义。
+
 - [x] **SPEC-0018（前置：SPEC-0014 `done`；v0.21 已明确启用）**：按
       [`01-design-decisions.md`](./01-design-decisions.md) 第 21 节建立单文件双命名空间、
       确定性 `ScopeId` / `SymbolId`、函数 overload set、顺序 local 可见性、显式
@@ -191,6 +195,9 @@ fun main(): Unit {
       trial，不把无期望单次检查误报为完整实现
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
+- [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
+      `Iterable<T>` / `Iterator<T>` identity、隐式 receiver mode、`next()` 的值交付所有权，
+      以及名称/解构 binding 的类型规则。当前只检查 source 表达式，不按方法名猜测迭代协议
 - [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
       或 override
 - [x] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
@@ -222,7 +229,11 @@ Map 不是 Phase 2 的本版实施项。在后续 guide 定义 key 等价性与�
 [01-design-decisions.md](./01-design-decisions.md)第 18 节给出了一份候选设计，可作为后续 guide 的起点，但在其完成独立评审并进入实施
 Spec 之前，本条限制不变。）
 
-**验收标准**：能对 Phase 1 能解析的全部语法结构做类型检查，类型错误有清晰的错误码和
+多文件 `package` / `import` 名称解析同样是延后能力：
+[ADR-0005](../adr/0005-package-source-root-mapping.md) 已封闭 source-root 映射，
+但 import 冲突与跨 package 可见性仍等待后续 guide；它和 Map 均不阻塞上述单文件核心主线。
+
+**当前核心验收标准**：能对 Phase 1 已纳入本 Phase 封闭切片的语法结构做类型检查，类型错误有清晰的错误码和
 定位；`when (this) { is Circle -> radius }` 这类智能类型转换场景能正确通过类型检查；包含
 不可复制字段的 `value class` 以及 `Pair<Sender<Int>, Receiver<Int>>` 均是合法类型，而
 `Pair<Int, Int>` 被推导为 `Copyable`；`<T : Copyable>` 可以满足要求该上界的调用或类型
@@ -235,6 +246,8 @@ Spec 之前，本条限制不变。）
 `list.get(0)` 必须被拒绝。直接
 递归或经多个 `value class` 形成的无限内联布局必须报错，经 `Box` 或动态容器打断的递归布局
 必须合法。本 Phase 不以 Map 正反例作为验收，也不将任何 Map 所有权策略固化到 typed AST。
+`for` iteration plan、`object` / `companion object`、多文件 package/import 与 Map 各自在门禁
+解除后形成独立增量验收；它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -251,6 +264,8 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [x] 移动后使用（use-after-move）检测
 - [x] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
+- [ ] 封闭 instance member 的隐式 receiver mode，并发布 member/委托转发所需的 receiver
+      place 与 callable effect typed fact；当前不得从方法名、函数体或字段可变性猜测 Borrow/Inout
 - [ ] 接口委托生成的转发调用保持原方法的 `Value` / `Borrow` / `Inout` 契约，并把字段访问、
       移动与借用冲突归入同一套所有权检查；不得把委托隐式升级成共享运行时代理
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
@@ -270,7 +285,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
 
-**验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
+**当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
 解构后再次使用源值也被拒绝；遗漏任一分量的消费式解构、普通字段读取 `pair.first` 这类
 移出不可复制字段的部分移动均被拒绝；能正确拒绝“把借用捕获的普通闭包传给 `thread()`”
@@ -278,17 +293,20 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 而 `<T : Copyable>` 的同类操作交付 owned copy，源值仍可用。还必须覆盖 `List<Endpoint>` 的
 构造、整体移动和元素借用：`listOf(endpoint)` 对不可复制的 `endpoint` 直接移动该值（调用点
 不需要标注），移动后 `endpoint` 不可再使用；移动 List 后再次使用源 owner、把 `list[i]`
-用作按值调用实参来移出不可复制元素、元素借用存续期间触发 `MutableList` 重分配都必须
-报错。显式 `List<Box<Endpoint>>` 继续按 `Box` 所有权检查，不获得特殊规则。**`&`（`Inout`）
-标注的元素借用必须并入同一套借用冲突检查，不能因为拼写是符号而不是关键字就被当成
-独立类别**：`mutate(&list[i])` 存续期间对同一 `list` 触发扩容/`add`/`removeAt` 必须报错，
-且必须与既有的 `use(borrow list[i])` 场景共享同一条“任意有效元素借用都阻塞重分配”规则
-（见[01-design-decisions.md](./01-design-decisions.md)第 8 节），不允许出现“`borrow` 标注的元素借用被拦截、
-但 `&` 标注的元素借用被放过”这类不一致；`&list[i]` 与 `borrow list[i]` 在同一调用
+用作按值调用实参来移出不可复制元素必须报错。显式 `List<Box<Endpoint>>` 继续按 `Box`
+所有权检查，不获得特殊规则。
+
+`&`（`Inout`）标注的元素借用必须并入同一套借用冲突检查，不能因为拼写是符号而不是
+关键字就被当成独立类别。`&list[i]` 与 `borrow list[i]` 在同一调用
 的不同实参位置同时出现时（例如 `swapInto(&list[i], borrow list[j])`，`i != j`）必须按
 索引证明不重叠才能放行，索引相同或无法证明不同则保守拒绝，与第 8 节“索引确定相同则
 冲突，无法证明不同则保守视为可能冲突”的规则完全一致，不因为一边是 `&`、一边是
 `borrow` 而有特殊豁免。
+
+**Phase 5 API 就绪后的延后验收**：任意有效元素借用都必须阻止 owner relocation；
+`mutate(&list[i])` 与 `use(borrow list[i])` 存续期间，对同一 `MutableList` 触发扩容、`add`、
+`removeAt` 或重排都必须报错，不允许只拦截其中一种参数 marker。具体 API 和 effect identity
+未定义前不执行这组验收，也不反向否定当前核心所有权矩阵。
 Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求的后续 guide（候选设计见
 [01-design-decisions.md](./01-design-decisions.md)第 18 节，尚未批准为实施契约）。
 
