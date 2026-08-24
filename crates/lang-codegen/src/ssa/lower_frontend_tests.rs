@@ -362,6 +362,75 @@ fn lowers_boolean_when_subjectless_chains_and_diverging_entries() {
 }
 
 #[test]
+fn lowers_while_loop_break_continue_and_nested_loop_targets() {
+    let analysis = analyze(
+        "fun increment(limit: Int): Int {\n\
+             var current: Int = 0\n\
+             while (current < limit) { current += 1 }\n\
+             return current\n\
+         }\n\
+         fun exits(flag: Boolean): Int {\n\
+             var result: Int = 0\n\
+             loop {\n\
+                 if (flag) { { result = 1 } break } else { continue }\n\
+             }\n\
+             return result\n\
+         }\n\
+         fun nested(outer: Boolean, inner: Boolean): Int {\n\
+             var total: Int = 0\n\
+             loop {\n\
+                 while (inner) { break }\n\
+                 if (outer) { { total = 2 } break } else { continue }\n\
+             }\n\
+             return total\n\
+         }\n\
+         fun spin(): Unit { loop { continue } }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("while/loop and nearest break/continue targets must lower through verified SSA");
+    let rendered = render_program(&program);
+    assert!(rendered.contains("func \"increment\""));
+    assert!(rendered.contains("func \"exits\""));
+    assert!(rendered.contains("func \"nested\""));
+    assert!(rendered.contains("func \"spin\""));
+    assert!(rendered.matches("branch bb1(").count() >= 6);
+    assert!(rendered.matches("bb1(%v").count() >= 3);
+    let spin = rendered
+        .split("func \"spin\"")
+        .nth(1)
+        .and_then(|body| body.split("\n\n  func").next())
+        .expect("spin function must render");
+    assert!(!spin.contains("return"));
+}
+
+#[test]
 fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     let diagnostic = analyze("fun broken(input: Int): Int = missing");
     let error = lower_scalar_file(
@@ -374,19 +443,6 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     .err()
     .expect("frontend diagnostics must gate lowering");
     assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
-
-    let block = analyze("fun repeat(input: Int): Unit { while (true) { return } }");
-    let error = lower_scalar_file(
-        &block.sources,
-        &block.parsed,
-        &block.names,
-        &block.typed,
-        &block.owned,
-    )
-    .err()
-    .expect("loop lowering belongs to the next control-flow slice");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
 
     let numeric_when = analyze(
         "fun numeric(input: Int): Int = when (input) {\n\
@@ -404,6 +460,34 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     )
     .err()
     .expect("non-Boolean when remains outside the scalar control-flow slice");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+
+    let invalid_jump = analyze("fun invalid(): Unit { break }");
+    assert!(invalid_jump.typed.diagnostics().is_empty());
+    let error = lower_scalar_file(
+        &invalid_jump.sources,
+        &invalid_jump.parsed,
+        &invalid_jump.names,
+        &invalid_jump.typed,
+        &invalid_jump.owned,
+    )
+    .err()
+    .expect("a jump without a lexical loop must not construct SSA");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+
+    let for_loop = analyze("fun iterate(): Unit { for (item in 1) {} }");
+    assert!(for_loop.typed.diagnostics().is_empty());
+    let error = lower_scalar_file(
+        &for_loop.sources,
+        &for_loop.parsed,
+        &for_loop.names,
+        &for_loop.typed,
+        &for_loop.owned,
+    )
+    .err()
+    .expect("for lowering must wait for iterable and binding typed facts");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 }

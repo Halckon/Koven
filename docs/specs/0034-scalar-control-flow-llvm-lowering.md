@@ -34,8 +34,9 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
   aggregate/class/container/closure/interface/dyn 不伪装成整数或 opaque scalar。
 - lower 非泛型顶层具名函数，以及 SPEC-0177 已给出具体实例 identity 的纯标量泛型实例；实例
   图必须有确定排序与显式递归/增长门禁，不能按源码名称合并 overload 或实例。
-- 支持标量参数、局部 `val`/`var`、赋值、block、`if`/Boolean `when`、`while`/`for` 已封闭的
-  标量控制形式、`return`/`break`/`continue`、直接单态 call、`error()`/`Nothing` abort。Borrow
+- 支持标量参数、局部 `val`/`var`、赋值、block、`if`/Boolean `when`、`while`/`loop`、
+  `return`/`break`/`continue`、直接单态 call、`error()`/`Nothing` abort。`for` 必须等待 Phase 2
+  发布 iterator 选择、元素类型和 binding typed fact，当前只能明确拒绝，不能按名称猜调用。Borrow
   的 Copyable scalar 可按只读值 lower；`inout`、member/delegation receiver 与借用返回继续遵守
   frontend deferred 边界，不在本 Spec 猜测 ABI。
 - 支持整数/Boolean literal、名称、group、guide 已定义的前缀、算术、比较、相等、逻辑与短路
@@ -117,7 +118,9 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
    - [x] 完成 `if`、subjectful/subjectless Boolean `when`、多条件 entry 与 `&&`/`||` 的真实 CFG；
          分支结果和分支内 local 更新通过确定顺序的 block parameter 合流，return 路径不产生
          正常 successor，statement context 丢弃分支值。
-   - [ ] 接续 `while`/`for`/`loop` 与 `break`/`continue` 后完成本步。
+   - [x] 完成 `while`/`loop`、最近词法 loop 的 `break`/`continue`、显式 header 参数与 backedge；
+         自然 fallthrough 和每条 continue 均交付当前 loop-carried local，嵌套 break 只进入内层 exit。
+   - [ ] `for` 等待 Phase 2 发布 iterator/binding typed fact；补齐该前置后完成本步。
 5. [ ] 实现 SSA→LLVM type/function/operation/terminator adapter → 验证：LLVM verifier/text matrix。
 6. [ ] 运行 workspace 基线、同步事实并审查依赖/diff → 验证：实际退出状态与独立提交。
 
@@ -160,3 +163,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 34 项；真实流水线覆盖 if、Boolean when、短路求值、分支 return、statement context 与 local block-parameter 合流；非 Boolean when 明确拒绝 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | CFG lowering 无 warning；expression/body、control 与 orchestration 生产文件均低于 1000 行软上限 |
 | 2026-08-25 if/Boolean when/short-circuit 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 35 项；真实流水线覆盖 while 自然 backedge、loop、break/continue、嵌套最近目标和无 exit 自循环；loop 外 jump 与缺 typed iteration plan 的 for 明确拒绝 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | loop CFG lowering 无 warning；独立 `loop_control` 生产模块 300 行以内 |
+| 2026-08-25 while/loop/break/continue 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

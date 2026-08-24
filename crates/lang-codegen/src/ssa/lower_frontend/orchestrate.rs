@@ -210,6 +210,7 @@ pub(in crate::ssa) fn lower_scalar_file(
             block: entry,
             bindings,
             return_type: plan.return_type,
+            loops: Vec::new(),
         };
         let result = match plan.body {
             FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,

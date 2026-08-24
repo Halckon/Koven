@@ -112,10 +112,14 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
+  当前 type checker 只把 `break`/`continue` 定型为 `Nothing`，尚未诊断越过 callable 或缺少
+  enclosing loop 的 target；`for` 也只检查 source 表达式，尚未发布 iterator 选择、元素类型与
+  binding typed fact。这两项是进入完整 `for` lowering 前必须补齐的 Phase 2 漂移；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已建立
-  frontend→SSA 的首个封闭切片，但 block/control-flow、泛型实例和 SSA→LLVM 仍未实现；
+  frontend→SSA 的标量 expression、block、branch 与 loop 封闭切片，但泛型实例和 SSA→LLVM
+  仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -136,8 +140,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
   显式 return；`control` 子模块把 `if`、subjectful/subjectless Boolean `when` 和 `&&`/`||`
   lower 为真实 CFG，以 block parameter 合流分支结果及分支内 local 更新，statement context
-  不为丢弃值伪造 payload，并在返回前运行自建 verifier。loop、具体泛型实例与 SSA→LLVM
-  映射仍未实现；
+  不为丢弃值伪造 payload；`loop_control` 为 `while`/`loop` 建立显式 header 参数，preheader、
+  自然 fallthrough 与每条 `continue` backedge 都传递当前 local，`break` 只进入最近 loop exit。
+  完整 `for`、具体泛型实例与 SSA→LLVM 映射仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。

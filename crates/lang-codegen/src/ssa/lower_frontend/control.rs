@@ -17,10 +17,10 @@ use crate::ssa::model::{
     TerminatorKind, ValueId,
 };
 
-struct BranchExit {
-    block: BlockId,
-    result: LoweredValue,
-    bindings: BTreeMap<SymbolId, LoweredValue>,
+pub(super) struct BranchExit {
+    pub(super) block: BlockId,
+    pub(super) result: LoweredValue,
+    pub(super) bindings: BTreeMap<SymbolId, LoweredValue>,
 }
 
 #[derive(Clone, Copy)]
@@ -401,7 +401,7 @@ impl ExpressionLowerer<'_> {
         self.lower_statement(last)
     }
 
-    fn merge_exits(
+    pub(super) fn merge_exits(
         &mut self,
         exits: Vec<BranchExit>,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
@@ -531,7 +531,7 @@ impl ExpressionLowerer<'_> {
         ty.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
-    fn add_empty_block(&mut self, span: Span) -> Result<BlockId, LoweringError> {
+    pub(super) fn add_empty_block(&mut self, span: Span) -> Result<BlockId, LoweringError> {
         self.function
             .add_block(Vec::new(), Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))

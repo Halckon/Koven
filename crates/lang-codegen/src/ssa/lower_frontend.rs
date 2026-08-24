@@ -1,6 +1,7 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod control;
+mod loop_control;
 pub(super) mod orchestrate;
 
 use std::collections::BTreeMap;
@@ -82,6 +83,7 @@ struct ExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
     return_type: TypeId,
+    loops: Vec<loop_control::LoopContext>,
 }
 
 impl ExpressionLowerer<'_> {
@@ -126,6 +128,8 @@ impl ExpressionLowerer<'_> {
                 subject, entries, ..
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(value, span),
+            Expression::Break { .. } => self.lower_break(span),
+            Expression::Continue { .. } => self.lower_continue(span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -154,6 +158,11 @@ impl ExpressionLowerer<'_> {
                 self.lower_local_variable(declaration, span)
             }
             Statement::Expression { expression } => self.lower(expression),
+            Statement::While {
+                condition, body, ..
+            } => self.lower_while(condition, body, span),
+            Statement::Loop { body, .. } => self.lower_loop(body, span),
+            Statement::For { .. } => Err(error(LoweringErrorKind::UnsupportedNode, span)),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
