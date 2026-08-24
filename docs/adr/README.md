@@ -16,6 +16,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0009](./0009-concrete-closure-internal-abi.md) | accepted | 具体闭包使用函数指针与内联环境，无捕获值退化为裸函数指针 |
 | [ADR-0010](./0010-first-native-object-and-linker-contract.md) | accepted | LLVM TargetMachine 生成 Mach-O object，系统 Clang driver 链接，显式 Koven entry 由 C ABI `main` wrapper 调用 |
 | [ADR-0011](./0011-first-dwarf-line-mapping.md) | accepted | 显式 SourceMap 驱动首个 DWARF 行表映射，synthetic code 不伪造源码位置 |
+| [ADR-0012](./0012-standard-library-bootstrap.md) | accepted | 标准库 bootstrap 由 CLI 编排显式源码/entry，Koven 源码保持唯一真源且不提前定义通用入口 |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份
