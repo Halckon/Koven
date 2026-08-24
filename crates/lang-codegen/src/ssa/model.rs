@@ -112,6 +112,19 @@ pub(crate) enum Ownership {
     MoveOnly,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum SequentialContainerKind {
+    Array,
+    List,
+    MutableList,
+}
+
+impl SequentialContainerKind {
+    pub(crate) const fn elements_are_mutable(self) -> bool {
+        matches!(self, Self::Array | Self::MutableList)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SsaTypeKind {
     Unit,
@@ -132,6 +145,10 @@ pub(crate) enum SsaTypeKind {
     HeapOwner {
         name: String,
         payload: Option<SsaTypeId>,
+    },
+    SequentialContainer {
+        kind: SequentialContainerKind,
+        element: SsaTypeId,
     },
 }
 
@@ -279,6 +296,27 @@ pub(crate) enum Operation {
     HeapPayloadPlace {
         owner: ValueId,
     },
+    ContainerConstruct {
+        container: SsaTypeId,
+        elements: Vec<ValueId>,
+    },
+    ContainerGenerate {
+        container: SsaTypeId,
+        length: ValueId,
+        initializer: FunctionId,
+    },
+    ContainerLength {
+        owner: ValueId,
+    },
+    ContainerElementPlace {
+        owner: ValueId,
+        index: ValueId,
+    },
+    ContainerReplace {
+        owner: ValueId,
+        index: ValueId,
+        value: ValueId,
+    },
     FieldPlace {
         base: PlaceId,
         field: usize,
@@ -332,6 +370,23 @@ impl Operation {
                 vec![EntityId::Value(*aggregate)]
             }
             Self::HeapAllocate { payload, .. } => vec![EntityId::Value(*payload)],
+            Self::ContainerConstruct { elements, .. } => {
+                elements.iter().copied().map(EntityId::Value).collect()
+            }
+            Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
+            Self::ContainerLength { owner } => vec![EntityId::Value(*owner)],
+            Self::ContainerElementPlace { owner, index } => {
+                vec![EntityId::Value(*owner), EntityId::Value(*index)]
+            }
+            Self::ContainerReplace {
+                owner,
+                index,
+                value,
+            } => vec![
+                EntityId::Value(*owner),
+                EntityId::Value(*index),
+                EntityId::Value(*value),
+            ],
             Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
             Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
             Self::Copy { source } => vec![EntityId::Value(*source)],

@@ -255,6 +255,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             instruction.operation,
             Operation::HeapPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
+                | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
                 | Operation::BorrowBegin { .. }
         ) {
@@ -333,6 +334,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             Operation::HeapPayloadPlace { owner } => {
                 let result = place_result(instruction)?;
                 self.places.insert(result, self.pointer_value(*owner)?);
+            }
+            Operation::ContainerConstruct { .. }
+            | Operation::ContainerGenerate { .. }
+            | Operation::ContainerLength { .. }
+            | Operation::ContainerElementPlace { .. }
+            | Operation::ContainerReplace { .. } => {
+                return Err(unsupported(
+                    "顺序容器 LLVM lowering 等待 SPEC-0036 后续切片",
+                ));
             }
             Operation::FieldPlace { base, field } => {
                 let result = place_result(instruction)?;

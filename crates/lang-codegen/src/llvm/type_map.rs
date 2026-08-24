@@ -47,6 +47,7 @@ impl<'ctx> TypeMap<'ctx> {
                 SsaTypeKind::HeapOwner { .. } => {
                     Some(context.ptr_type(AddressSpace::default()).into())
                 }
+                SsaTypeKind::SequentialContainer { .. } => None,
                 SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
             };
             if let Some(ty) = ty {

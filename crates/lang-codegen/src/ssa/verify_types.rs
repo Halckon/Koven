@@ -34,6 +34,7 @@ pub(super) fn verify_types(module: &Module, errors: &mut Vec<VerifyError>) {
         verify_type_definition(module, id, kind, errors);
     }
     verify_inline_type_cycles(module, errors);
+    verify_container_type_cycles(module, errors);
 }
 
 fn verify_named_identity(
@@ -113,6 +114,18 @@ fn verify_type_definition(
         SsaTypeKind::HeapOwner { payload: None, .. } => {
             push_type_error(errors, id, "heap owner declaration must be defined");
         }
+        SsaTypeKind::SequentialContainer { element, .. } => {
+            if element.module() != module.id
+                || module.type_kind(*element).is_none()
+                || !module.type_is_defined(*element)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "sequential container element type must be defined in the same module",
+                );
+            }
+        }
         SsaTypeKind::Unit
         | SsaTypeKind::Boolean
         | SsaTypeKind::Integer { .. }
@@ -131,6 +144,34 @@ fn verify_inline_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
         };
         if aggregate_reaches(module, id, id, &mut BTreeSet::new()) {
             push_type_error(errors, id, "aggregate fields must not form an inline cycle");
+        }
+    }
+}
+
+fn verify_container_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
+    for (index, kind) in module.types.iter().enumerate() {
+        if !matches!(kind, SsaTypeKind::SequentialContainer { .. }) {
+            continue;
+        }
+        let id = SsaTypeId {
+            module: module.id,
+            index,
+        };
+        let mut current = id;
+        let mut visited = BTreeSet::new();
+        while visited.insert(current) {
+            let Some(SsaTypeKind::SequentialContainer { element, .. }) = module.type_kind(current)
+            else {
+                break;
+            };
+            current = *element;
+        }
+        if current == id {
+            push_type_error(
+                errors,
+                id,
+                "sequential container identity must not form a structural cycle",
+            );
         }
     }
 }

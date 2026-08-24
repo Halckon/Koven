@@ -12,6 +12,8 @@ mod verify_types;
 #[cfg(test)]
 mod aggregate_operation_tests;
 #[cfg(test)]
+mod container_operation_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod type_tests;

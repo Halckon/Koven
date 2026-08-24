@@ -56,6 +56,33 @@ pub(super) fn verify_operation(
         Operation::HeapPayloadPlace { owner } => {
             heap_payload_place_contract(module, function, *owner, &results)
         }
+        Operation::ContainerConstruct {
+            container,
+            elements,
+        } => container_construct_contract(module, function, *container, elements, &results),
+        Operation::ContainerGenerate {
+            container,
+            length,
+            initializer,
+        } => container_generate_contract(
+            module,
+            function,
+            *container,
+            *length,
+            *initializer,
+            &results,
+        ),
+        Operation::ContainerLength { owner } => {
+            container_length_contract(module, function, *owner, &results)
+        }
+        Operation::ContainerElementPlace { owner, index } => {
+            container_element_place_contract(module, function, *owner, *index, &results)
+        }
+        Operation::ContainerReplace {
+            owner,
+            index,
+            value,
+        } => container_replace_contract(module, function, *owner, *index, *value, &results),
         Operation::FieldPlace { base, field } => {
             field_place_contract(module, function, *base, *field, &results)
         }
@@ -197,6 +224,96 @@ fn field_place_contract(
         .and_then(|aggregate| module.aggregate_fields(aggregate))
         .and_then(|fields| fields.get(field))
         .is_some_and(|field| results == [EntityType::Place(*field)])
+}
+
+fn container_construct_contract(
+    module: &Module,
+    function: &Function,
+    container: SsaTypeId,
+    elements: &[ValueId],
+    results: &[EntityType],
+) -> bool {
+    module
+        .sequential_container(container)
+        .is_some_and(|(_, element)| {
+            single_value_result(results) == Some(container)
+                && elements
+                    .iter()
+                    .all(|value| value_type(function, *value) == Some(element))
+        })
+}
+
+fn container_generate_contract(
+    module: &Module,
+    function: &Function,
+    container: SsaTypeId,
+    length: ValueId,
+    initializer: super::model::FunctionId,
+    results: &[EntityType],
+) -> bool {
+    let Some((_, element)) = module.sequential_container(container) else {
+        return false;
+    };
+    let Some(initializer) = module.function(initializer) else {
+        return false;
+    };
+    let Some(entry) = initializer.blocks.first() else {
+        return false;
+    };
+    value_type(function, length).is_some_and(|ty| is_koven_int(module, ty))
+        && single_value_result(results) == Some(container)
+        && initializer.return_types == [element]
+        && entry.parameters.len() == 1
+        && entry.parameters.first().is_some_and(|parameter| {
+            matches!(initializer.entity(*parameter).map(|data| data.ty), Some(EntityType::Value(ty)) if is_koven_int(module, ty))
+        })
+}
+
+fn container_length_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    results: &[EntityType],
+) -> bool {
+    value_type(function, owner)
+        .and_then(|ty| module.sequential_container(ty))
+        .is_some()
+        && single_value_result(results).is_some_and(|ty| is_koven_int(module, ty))
+}
+
+fn container_element_place_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    index: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some((_, element)) =
+        value_type(function, owner).and_then(|container| module.sequential_container(container))
+    else {
+        return false;
+    };
+    value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+        && results == [EntityType::Place(element)]
+}
+
+fn container_replace_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    index: ValueId,
+    value: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some((kind, element)) =
+        value_type(function, owner).and_then(|container| module.sequential_container(container))
+    else {
+        return false;
+    };
+    results.is_empty()
+        && kind.elements_are_mutable()
+        && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+        && value_type(function, value) == Some(element)
 }
 
 fn constant_contract(module: &Module, constant: &ScalarConstant, results: &[EntityType]) -> bool {
@@ -362,7 +479,18 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::Integer { .. }
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::HeapOwner { .. }
+                | SsaTypeKind::SequentialContainer { .. }
         )
+    )
+}
+
+fn is_koven_int(module: &Module, ty: SsaTypeId) -> bool {
+    matches!(
+        module.type_kind(ty),
+        Some(SsaTypeKind::Integer {
+            bits: 64,
+            signed: true
+        })
     )
 }
 

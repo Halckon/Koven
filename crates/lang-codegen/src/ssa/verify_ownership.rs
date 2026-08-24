@@ -258,6 +258,73 @@ fn apply_operation(
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
+        Operation::ContainerConstruct { elements, .. } => {
+            for element in elements {
+                consume_value(
+                    module,
+                    function,
+                    *element,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &BTreeSet::new(),
+                    location.clone(),
+                    origin,
+                    errors,
+                );
+            }
+        }
+        Operation::ContainerGenerate { length, .. } => {
+            require_value(module, function, *length, state, location, origin, errors);
+        }
+        Operation::ContainerLength { owner } | Operation::ContainerElementPlace { owner, .. } => {
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_exclusive_value_loan(function, *owner, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                    location,
+                    origin,
+                ));
+            }
+        }
+        Operation::ContainerReplace { owner, value, .. } => {
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_any_value_loan(*owner, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *value,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::FieldPlace { base, .. } => {
             require_place(*base, state, location, origin, errors);
         }
@@ -656,6 +723,13 @@ fn has_any_loan(place: PlaceId, aliases: &AliasRoots, state: &BlockState) -> boo
         .any(|loan| aliases.overlap(EntityId::Place(place), EntityId::Loan(*loan)))
 }
 
+fn has_any_value_loan(value: ValueId, aliases: &AliasRoots, state: &BlockState) -> bool {
+    state
+        .loans
+        .iter()
+        .any(|loan| aliases.overlap(EntityId::Value(value), EntityId::Loan(*loan)))
+}
+
 fn loan_kind(function: &Function, loan: LoanId) -> LoanKind {
     let EntityType::Loan { kind, .. } = function
         .entity(EntityId::Loan(loan))
@@ -753,6 +827,10 @@ impl AliasRoots {
                             union_from(&mut roots, instruction.results[0], EntityId::Place(*place));
                     }
                     Operation::HeapPayloadPlace { owner } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Value(*owner));
+                    }
+                    Operation::ContainerElementPlace { owner, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Value(*owner));
                     }

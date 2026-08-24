@@ -73,6 +73,12 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             }
             Ok(())
         }
+        SsaTypeKind::SequentialContainer { kind, element } => {
+            write!(output, "container {kind:?}<")?;
+            write_type_id(output, *element)?;
+            output.push('>');
+            Ok(())
+        }
     }
 }
 
@@ -308,6 +314,55 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         Operation::HeapPayloadPlace { owner } => {
             output.write_str("heap.payload_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::ContainerConstruct {
+            container,
+            elements,
+        } => {
+            output.write_str("container.construct ")?;
+            write_type_id(output, *container)?;
+            output.push('(');
+            let elements = elements
+                .iter()
+                .copied()
+                .map(EntityId::Value)
+                .collect::<Vec<_>>();
+            write_entity_ids(output, &elements)?;
+            output.push(')');
+            Ok(())
+        }
+        Operation::ContainerGenerate {
+            container,
+            length,
+            initializer,
+        } => {
+            output.write_str("container.generate ")?;
+            write_type_id(output, *container)?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*length))?;
+            write!(output, ", @f{}", initializer.index())
+        }
+        Operation::ContainerLength { owner } => {
+            output.write_str("container.length ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::ContainerElementPlace { owner, index } => {
+            output.write_str("container.element_place ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*index))
+        }
+        Operation::ContainerReplace {
+            owner,
+            index,
+            value,
+        } => {
+            output.write_str("container.replace ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*index))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*value))
         }
         Operation::FieldPlace { base, field } => {
             output.write_str("field_place ")?;

@@ -1,6 +1,8 @@
 //! Target-independent named aggregate and heap-owner type construction.
 
-use super::model::{ModelError, Module, Ownership, SsaTypeId, SsaTypeKind};
+use super::model::{
+    ModelError, Module, Ownership, SequentialContainerKind, SsaTypeId, SsaTypeKind,
+};
 
 impl Module {
     pub(crate) fn add_aggregate_type(
@@ -64,6 +66,15 @@ impl Module {
         Ok(())
     }
 
+    pub(crate) fn add_sequential_container_type(
+        &mut self,
+        kind: SequentialContainerKind,
+        element: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(element)?;
+        Ok(self.intern_type(SsaTypeKind::SequentialContainer { kind, element }))
+    }
+
     pub(crate) fn type_ownership(&self, id: SsaTypeId) -> Option<Ownership> {
         match self.type_kind(id)? {
             SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
@@ -73,6 +84,7 @@ impl Module {
                 Some(*ownership)
             }
             SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
+            SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
         }
     }
 
@@ -100,6 +112,16 @@ impl Module {
     pub(crate) fn heap_payload(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
             SsaTypeKind::HeapOwner { payload, .. } => *payload,
+            _ => None,
+        }
+    }
+
+    pub(crate) fn sequential_container(
+        &self,
+        id: SsaTypeId,
+    ) -> Option<(SequentialContainerKind, SsaTypeId)> {
+        match self.type_kind(id)? {
+            SsaTypeKind::SequentialContainer { kind, element } => Some((*kind, *element)),
             _ => None,
         }
     }

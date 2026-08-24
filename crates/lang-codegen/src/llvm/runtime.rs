@@ -275,6 +275,11 @@ impl RuntimeRequirements {
                 })?;
                 self.collect_drop_type(module, payload)?;
             }
+            Some(SsaTypeKind::SequentialContainer { .. }) => {
+                return Err(LlvmAdapterError::Unsupported(
+                    "顺序容器 drop glue 等待 SPEC-0036 后续切片".to_owned(),
+                ));
+            }
             Some(SsaTypeKind::Opaque { .. }) => {
                 return Err(LlvmAdapterError::Unsupported(
                     "opaque MoveOnly 类型没有可生成的 drop glue".to_owned(),

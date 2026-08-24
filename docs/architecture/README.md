@@ -26,6 +26,9 @@ SPEC-0032 已建立解析身份驱动的 closure capture、borrowed/move formati
 SPEC-0034 已完成标量 frontend→verified SSA→verified AArch64 LLVM IR 的封闭垂直切片；
 SPEC-0035 已完成聚合/heap-owner SSA、target DataLayout、系统 allocation、heap place 与递归
 drop/free 后端基元；
+SPEC-0036 已开始建立顺序容器后端，其中 container kind/element type、完整 construct/generate、
+length、checked element-place、replace 与 drop 的 SSA/verifier 第一片已落地；LLVM 连续缓冲区
+lowering 仍在实施中；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -183,6 +186,12 @@ SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至
   codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
   nominal/enum/Box constructor lowering、多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
+  SPEC-0036 的第一片已新增三个 IR-local 顺序容器 kind，identity 保留具体元素类型且始终
+  MoveOnly；列表式完整构造、直接 initializer 运行时长度构造、length、element place 和原子
+  replace operation 已进入确定性 render、局部类型契约与线性 ownership/loan verifier。
+  element place alias root 追溯到 container owner，因而 move/drop 会使投影 place 失效，存续
+  loan 会阻止 replace/drop；当前 LLVM adapter 对这些新 operation 明确 fail loud，固定 header、
+  连续 buffer、checked-index、ZST sentinel 与 container drop 仍是 SPEC-0036 后续切片；
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 
