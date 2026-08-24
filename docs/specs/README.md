@@ -208,10 +208,10 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`done`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`done`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；完整 `for` 已按 runtime 依赖迁移至候选 0182 |
-| 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；接受 runtime ABI ADR |
-| 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；接受 runtime ABI ADR |
+| 0035 | 生成聚合、class 分配和显式 drop / free | 0034、0029；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
+| 0036 | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径 | 0023、0030、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
-| 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；接受 runtime ABI ADR、Map 存储策略 ADR |
+| 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
 | 0038 | 生成捕获闭包环境和无捕获函数指针 | 0034、0032 |
 | 0039 | 生成 object、链接 `main` 并把 `error()` 映射到 abort | 0035、0038；接受 linker 决策 |
 | 0040 | 生成 DWARF 并用首个支持平台的调试器验收 | 0039；接受 debug mapping ADR |
@@ -221,7 +221,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
-| 0042 | 用编译器构建并运行 `lang-std` 目标语言源码 | 0039；接受 bootstrap / runtime ADR |
+| 0042 | 用编译器构建并运行 `lang-std` 目标语言源码 | 0039；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 bootstrap ADR |
 | 0043 | 实现 prelude、基础操作和 `error()` | 0042 |
 | 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035 |
 | 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035 |
