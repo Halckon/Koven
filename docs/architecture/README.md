@@ -35,7 +35,9 @@ shared loan 依赖随 closure owner 和 CFG transfer 存续，drop 后释放，L
 pointer 或 `{ptr, inline environment}`，不引入隐式 heap allocation 或类型擦除；
 SPEC-0039 第一片已建立显式 native entry 边界：只接受同 module 的 `() -> Unit` FunctionId，
 普通 Koven function 使用 internal linkage，唯一 C ABI `i32 main()` wrapper 调用指定 entry 后
-返回 0；普通 LLVM 文本 lowering 不生成 wrapper，object/link 仍由后续切片完成；
+返回 0；第二片让 LLVM 文本和 object emission 复用同一个 verified module lowering，并由同一
+TargetMachine 直接生成 arm64 Mach-O object，锁定唯一 external `_main` 且失败不落盘；link/run
+仍由后续切片完成；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。

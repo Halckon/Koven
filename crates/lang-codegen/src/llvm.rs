@@ -14,6 +14,8 @@ mod entities;
 mod entry;
 #[cfg(test)]
 mod entry_tests;
+#[cfg(test)]
+mod object_tests;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
@@ -36,6 +38,7 @@ const FIRST_TARGET: &str = "aarch64-apple-darwin";
 pub(crate) enum LlvmAdapterError {
     InvalidSsa(String),
     InvalidEntry(String),
+    Object(String),
     Target(String),
     Build(String),
     Unsupported(String),
@@ -59,6 +62,14 @@ pub(crate) fn render_verified_program_with_entry(
     entry: crate::ssa::model::FunctionId,
 ) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, Some(entry))
+}
+
+pub(crate) fn emit_verified_object(
+    program: &Program,
+    entry: crate::ssa::model::FunctionId,
+    path: &std::path::Path,
+) -> Result<(), LlvmAdapterError> {
+    adapter::emit_verified_object(program, entry, path)
 }
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。

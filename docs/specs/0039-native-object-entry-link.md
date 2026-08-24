@@ -94,7 +94,7 @@ TargetMachine 生成 AArch64 Mach-O object，以唯一 C ABI `main` wrapper 链�
 
 1. [x] 收敛共享 LLVM module lowering并生成显式 entry wrapper → 验证：IR wrapper、entry
    signature/identity 正反矩阵与 LLVM verifier。
-2. [ ] 使用同一 TargetMachine 生成 object → 验证：object 存在、Mach-O arm64、符号与失败不落盘。
+2. [x] 使用同一 TargetMachine 生成 object → 验证：object 存在、Mach-O arm64、符号与失败不落盘。
 3. [ ] 实现 CLI linker driver 与 test-only object/link/run orchestration → 验证：正常/abort、
    driver missing/link failure 和文件所有权矩阵。
 4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
@@ -120,3 +120,5 @@ TargetMachine 生成 AArch64 Mach-O object，以唯一 C ABI `main` wrapper 链�
 | 2026-08-25 前置审计 | 通过 | SPEC-0035/0038 `done`；ADR-0007/0008/0010 `accepted`；本机 `arm64`，`/usr/bin/clang` 为 Apple Clang 21 |
 | `cargo test -p lang-codegen --all-targets`（entry slice） | 通过 | 84 项；显式 Unit entry wrapper 与参数化/非 Unit entry 正反矩阵通过，既有 LLVM 文本 ABI 断言同步锁定 internal Koven functions |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（entry slice） | 通过 | 无 warning；`llvm/adapter.rs` 1000 行，entry 验证/wrapper 位于独立模块 |
+| `cargo test -p lang-codegen llvm::object_tests` | 通过 | 2 项；锁定 arm64 Mach-O header、唯一 external `_main`、Koven internal symbol 隐藏、invalid entry 与缺失父目录失败不落盘 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（object slice） | 通过 | 无 warning；共享 module lowering 提取后 `llvm/adapter.rs` 969 行 |

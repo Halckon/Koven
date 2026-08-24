@@ -1,6 +1,7 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
 mod callable;
+mod module_lowering;
 mod storage;
 
 use std::collections::BTreeMap;
@@ -16,56 +17,24 @@ use inkwell::{
     },
 };
 
-use crate::ssa::{
-    model::{
-        BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-        Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
-        Program, ScalarConstant, TerminatorKind, ValueId,
-    },
-    verify::verify_program,
+use crate::ssa::model::{
+    BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
+    Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
+    ScalarConstant, TerminatorKind, ValueId,
 };
 
 use super::{
-    LlvmAdapterError, aggregate, closure, configure_module, container,
+    LlvmAdapterError, aggregate, closure, container,
     entities::{
         access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
     },
-    entry, first_target_machine,
+    entry,
     runtime::RuntimeAbi,
     scalar,
     type_map::TypeMap,
 };
 
-pub(super) fn render_verified_program(
-    program: &Program,
-    native_entry: Option<FunctionId>,
-) -> Result<String, LlvmAdapterError> {
-    verify_program(program).map_err(|error| LlvmAdapterError::InvalidSsa(error.to_string()))?;
-    let [ssa_module] = program.modules.as_slice() else {
-        return Err(LlvmAdapterError::Unsupported(
-            "当前 LLVM adapter 只接受一个 SSA module".to_owned(),
-        ));
-    };
-    let (triple, target_machine) = first_target_machine()?;
-    let context = Context::create();
-    let llvm_module = context.create_module(&ssa_module.name);
-    configure_module(&llvm_module, &triple, &target_machine);
-    if let Some(native_entry) = native_entry {
-        entry::validate(ssa_module, native_entry)?;
-    }
-
-    ModuleLowerer::new(
-        &context,
-        &llvm_module,
-        ssa_module,
-        &target_machine.get_target_data(),
-    )?
-    .lower(native_entry)?;
-    llvm_module
-        .verify()
-        .map_err(|error| LlvmAdapterError::Verify(error.to_string()))?;
-    Ok(llvm_module.print_to_string().to_string())
-}
+pub(super) use module_lowering::{emit_verified_object, render_verified_program};
 
 struct ModuleLowerer<'ctx, 'llvm, 'ssa> {
     context: &'ctx Context,
