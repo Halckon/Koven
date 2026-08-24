@@ -5,13 +5,14 @@ use inkwell::{
     module::Module as LlvmModule,
     targets::{FileType, TargetMachine, TargetTriple},
 };
+use lang_frontend::source::SourceMap;
 
 use crate::ssa::{
     model::{FunctionId, Program},
     verify::verify_program,
 };
 
-use super::super::{LlvmAdapterError, configure_module, entry, first_target_machine};
+use super::super::{LlvmAdapterError, configure_module, debug, entry, first_target_machine};
 use super::ModuleLowerer;
 
 pub(crate) fn render_verified_program(
@@ -20,13 +21,38 @@ pub(crate) fn render_verified_program(
 ) -> Result<String, LlvmAdapterError> {
     let (triple, target_machine) = first_target_machine()?;
     let context = Context::create();
-    let llvm_module =
-        lower_verified_module(&context, program, native_entry, &triple, &target_machine)?;
+    let llvm_module = lower_verified_module(
+        &context,
+        program,
+        native_entry,
+        None,
+        &triple,
+        &target_machine,
+    )?;
+    Ok(llvm_module.print_to_string().to_string())
+}
+
+pub(crate) fn render_verified_program_with_debug(
+    program: &Program,
+    sources: &SourceMap,
+    native_entry: FunctionId,
+) -> Result<String, LlvmAdapterError> {
+    let (triple, target_machine) = first_target_machine()?;
+    let context = Context::create();
+    let llvm_module = lower_verified_module(
+        &context,
+        program,
+        Some(native_entry),
+        Some(sources),
+        &triple,
+        &target_machine,
+    )?;
     Ok(llvm_module.print_to_string().to_string())
 }
 
 pub(crate) fn emit_verified_object(
     program: &Program,
+    sources: &SourceMap,
     native_entry: FunctionId,
     path: &Path,
 ) -> Result<(), LlvmAdapterError> {
@@ -36,6 +62,7 @@ pub(crate) fn emit_verified_object(
         &context,
         program,
         Some(native_entry),
+        Some(sources),
         &triple,
         &target_machine,
     )?;
@@ -48,6 +75,7 @@ fn lower_verified_module<'ctx>(
     context: &'ctx Context,
     program: &Program,
     native_entry: Option<FunctionId>,
+    debug_sources: Option<&SourceMap>,
     triple: &TargetTriple,
     target_machine: &TargetMachine,
 ) -> Result<LlvmModule<'ctx>, LlvmAdapterError> {
@@ -57,16 +85,27 @@ fn lower_verified_module<'ctx>(
             "当前 LLVM adapter 只接受一个 SSA module".to_owned(),
         ));
     };
-    let llvm_module = context.create_module(&ssa_module.name);
-    configure_module(&llvm_module, triple, target_machine);
     if let Some(native_entry) = native_entry {
         entry::validate(ssa_module, native_entry)?;
     }
+    let debug_plan = match debug_sources {
+        Some(sources) => {
+            let native_entry = native_entry.ok_or_else(|| {
+                LlvmAdapterError::Debug("debug lowering 缺少 native entry".to_owned())
+            })?;
+            Some(debug::DebugPlan::build(sources, ssa_module, native_entry)?)
+        }
+        None => None,
+    };
+    let llvm_module = context.create_module(&ssa_module.name);
+    configure_module(&llvm_module, triple, target_machine);
+    let debug = debug_plan.map(|plan| debug::DebugEmitter::new(context, &llvm_module, plan));
     ModuleLowerer::new(
         context,
         &llvm_module,
         ssa_module,
         &target_machine.get_target_data(),
+        debug,
     )?
     .lower(native_entry)?;
     llvm_module

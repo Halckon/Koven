@@ -10,6 +10,9 @@ mod closure_tests;
 mod container;
 #[cfg(test)]
 mod container_tests;
+mod debug;
+#[cfg(test)]
+mod debug_tests;
 mod entities;
 mod entry;
 #[cfg(test)]
@@ -29,6 +32,7 @@ use inkwell::module::Module;
 use inkwell::targets::{
     CodeModel, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
 };
+use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::Program;
 
@@ -38,6 +42,7 @@ const FIRST_TARGET: &str = "aarch64-apple-darwin";
 pub(crate) enum LlvmAdapterError {
     InvalidSsa(String),
     InvalidEntry(String),
+    Debug(String),
     Object(String),
     Target(String),
     Build(String),
@@ -66,10 +71,20 @@ pub(crate) fn render_verified_program_with_entry(
 
 pub(crate) fn emit_verified_object(
     program: &Program,
+    sources: &SourceMap,
     entry: crate::ssa::model::FunctionId,
     path: &std::path::Path,
 ) -> Result<(), LlvmAdapterError> {
-    adapter::emit_verified_object(program, entry, path)
+    adapter::emit_verified_object(program, sources, entry, path)
+}
+
+#[cfg(test)]
+pub(crate) fn render_verified_program_with_debug(
+    program: &Program,
+    sources: &SourceMap,
+    entry: crate::ssa::model::FunctionId,
+) -> Result<String, LlvmAdapterError> {
+    adapter::render_verified_program_with_debug(program, sources, entry)
 }
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。

@@ -4,7 +4,9 @@ use crate::ssa::model::{PlaceAccess, PlaceId, ValueId};
 
 use super::{FunctionLowerer, LlvmAdapterError};
 
-impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
+impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+    FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+{
     pub(super) fn pointer_value(
         &self,
         id: ValueId,

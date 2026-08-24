@@ -4,7 +4,9 @@ use super::{
     FunctionLowerer, LlvmAdapterError, closure, invalid_result_count, value_name, value_type,
 };
 
-impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
+impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+    FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+{
     pub(super) fn lower_function_address(
         &mut self,
         target: FunctionId,

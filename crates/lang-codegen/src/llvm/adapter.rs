@@ -25,6 +25,7 @@ use crate::ssa::model::{
 
 use super::{
     LlvmAdapterError, aggregate, closure, container,
+    debug::DebugEmitter,
     entities::{
         access_type, loan_result, place_result, place_type, value_name, value_results, value_type,
     },
@@ -34,23 +35,27 @@ use super::{
     type_map::TypeMap,
 };
 
+#[cfg(test)]
+pub(super) use module_lowering::render_verified_program_with_debug;
 pub(super) use module_lowering::{emit_verified_object, render_verified_program};
 
-struct ModuleLowerer<'ctx, 'llvm, 'ssa> {
+struct ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
     context: &'ctx Context,
     llvm: &'llvm LlvmModule<'ctx>,
     ssa: &'ssa Module,
     type_map: TypeMap<'ctx>,
     runtime: RuntimeAbi<'ctx>,
     functions: BTreeMap<FunctionId, FunctionValue<'ctx>>,
+    debug: Option<DebugEmitter<'ctx, 'sources>>,
 }
 
-impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
+impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
     fn new(
         context: &'ctx Context,
         llvm: &'llvm LlvmModule<'ctx>,
         ssa: &'ssa Module,
         target: &inkwell::targets::TargetData,
+        debug: Option<DebugEmitter<'ctx, 'sources>>,
     ) -> Result<Self, LlvmAdapterError> {
         let type_map = TypeMap::lower(context, ssa, target)?;
         let runtime = RuntimeAbi::lower(context, llvm, ssa, &type_map, target)?;
@@ -61,6 +66,7 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
             type_map,
             runtime,
             functions: BTreeMap::new(),
+            debug,
         })
     }
 
@@ -81,6 +87,7 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                     type_map: &self.type_map,
                     runtime: &self.runtime,
                     functions: &self.functions,
+                    debug: self.debug.as_ref(),
                 },
             )
             .lower()?;
@@ -90,6 +97,9 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 LlvmAdapterError::InvalidEntry("validated entry declaration is missing".to_owned())
             })?;
             entry::define_wrapper(self.context, self.llvm, target)?;
+        }
+        if let Some(debug) = &self.debug {
+            debug.finalize();
         }
         Ok(())
     }
@@ -122,6 +132,9 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
             let llvm_function =
                 self.llvm
                     .add_function(&name, function_type, Some(Linkage::Internal));
+            if let Some(debug) = &mut self.debug {
+                debug.attach_function(function, llvm_function)?;
+            }
             self.functions.insert(function.id, llvm_function);
         }
         Ok(())
@@ -129,19 +142,20 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
 }
 
 #[derive(Clone, Copy)]
-struct FunctionDependencies<'ctx, 'functions> {
+struct FunctionDependencies<'ctx, 'functions, 'sources> {
     type_map: &'functions TypeMap<'ctx>,
     runtime: &'functions RuntimeAbi<'ctx>,
     functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
+    debug: Option<&'functions DebugEmitter<'ctx, 'sources>>,
 }
 
-struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
+struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources> {
     context: &'ctx Context,
     llvm: &'llvm LlvmModule<'ctx>,
     module: &'ssa Module,
     function: &'ssa Function,
     llvm_function: FunctionValue<'ctx>,
-    dependencies: FunctionDependencies<'ctx, 'functions>,
+    dependencies: FunctionDependencies<'ctx, 'functions, 'sources>,
     builder: Builder<'ctx>,
     blocks: BTreeMap<BlockId, BasicBlock<'ctx>>,
     values: BTreeMap<ValueId, BasicValueEnum<'ctx>>,
@@ -152,14 +166,16 @@ struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
 }
 
-impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
+impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+    FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
+{
     fn new(
         context: &'ctx Context,
         llvm: &'llvm LlvmModule<'ctx>,
         module: &'ssa Module,
         function: &'ssa Function,
         llvm_function: FunctionValue<'ctx>,
-        dependencies: FunctionDependencies<'ctx, 'functions>,
+        dependencies: FunctionDependencies<'ctx, 'functions, 'sources>,
     ) -> Self {
         Self {
             context,
@@ -184,17 +200,21 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         for block in &self.function.blocks {
             let llvm_block = self.block(block.id)?;
             self.builder.position_at_end(llvm_block);
+            self.builder.unset_current_debug_location();
             for instruction in &block.instructions {
                 let instruction = self.function.instruction(*instruction).ok_or_else(|| {
                     LlvmAdapterError::InvalidSsa("block 引用未知 instruction".to_owned())
                 })?;
+                self.set_debug_location(&instruction.origin)?;
                 self.lower_instruction(instruction)?;
             }
             let terminator = block.terminator.as_ref().ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("basic block 缺少 terminator".to_owned())
             })?;
+            self.set_debug_location(&terminator.origin)?;
             self.lower_terminator(&terminator.kind)?;
         }
+        self.builder.unset_current_debug_location();
         Ok(())
     }
 
@@ -229,6 +249,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
 
         for block in self.function.blocks.iter().skip(1) {
             self.builder.position_at_end(self.block(block.id)?);
+            self.set_debug_location(&block.origin)?;
             for entity in &block.parameters {
                 let EntityId::Value(value) = entity else {
                     return Err(unsupported("LLVM block 参数不能是 place 或 loan"));
@@ -242,6 +263,16 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 self.values.insert(*value, phi.as_basic_value());
                 self.phis.insert(*value, phi);
             }
+        }
+        Ok(())
+    }
+
+    fn set_debug_location(
+        &self,
+        origin: &crate::ssa::model::Origin,
+    ) -> Result<(), LlvmAdapterError> {
+        if let Some(debug) = self.dependencies.debug {
+            debug.set_location(self.context, &self.builder, self.function.id, origin)?;
         }
         Ok(())
     }

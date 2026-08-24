@@ -37,7 +37,7 @@ impl Drop for TestDirectory {
     }
 }
 
-fn unit_entry_program() -> (Program, crate::ssa::model::FunctionId) {
+fn unit_entry_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) {
     let mut sources = SourceMap::default();
     let source = sources
         .add_source("object.ko", "fun app() {}")
@@ -59,10 +59,10 @@ fn unit_entry_program() -> (Program, crate::ssa::model::FunctionId) {
         .expect("function")
         .set_terminator(block, TerminatorKind::Return { values: vec![] }, origin)
         .expect("return");
-    (program, entry)
+    (sources, program, entry)
 }
 
-fn abort_entry_program() -> (Program, crate::ssa::model::FunctionId) {
+fn abort_entry_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) {
     let mut sources = SourceMap::default();
     let source = sources
         .add_source("abort.ko", "fun app(): Nothing")
@@ -84,7 +84,7 @@ fn abort_entry_program() -> (Program, crate::ssa::model::FunctionId) {
         .expect("function")
         .set_terminator(block, TerminatorKind::Abort, origin)
         .expect("abort");
-    (program, entry)
+    (sources, program, entry)
 }
 
 fn link(object: &Path, executable: &Path) {
@@ -103,10 +103,10 @@ fn link(object: &Path, executable: &Path) {
 
 #[test]
 fn target_machine_emits_arm64_mach_object_with_one_external_main() {
-    let (program, entry) = unit_entry_program();
+    let (sources, program, entry) = unit_entry_program();
     let directory = TestDirectory::create();
     let object = directory.join("entry.o");
-    emit_verified_object(&program, entry, &object).expect("object emission must succeed");
+    emit_verified_object(&program, &sources, entry, &object).expect("object emission must succeed");
 
     let bytes = fs::read(&object).expect("object must be readable");
     assert_eq!(&bytes[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
@@ -132,7 +132,7 @@ fn target_machine_emits_arm64_mach_object_with_one_external_main() {
 
 #[test]
 fn invalid_entry_and_unwritable_parent_fail_without_object() {
-    let (mut program, _) = unit_entry_program();
+    let (sources, mut program, _) = unit_entry_program();
     let module = program.modules.first_mut().expect("module");
     let integer = module.intern_type(SsaTypeKind::Integer {
         bits: 64,
@@ -155,15 +155,15 @@ fn invalid_entry_and_unwritable_parent_fail_without_object() {
     let directory = TestDirectory::create();
     let invalid_path = directory.join("invalid.o");
     assert!(matches!(
-        emit_verified_object(&program, invalid, &invalid_path),
+        emit_verified_object(&program, &sources, invalid, &invalid_path),
         Err(LlvmAdapterError::InvalidEntry(_))
     ));
     assert!(!invalid_path.exists());
 
     let missing_parent = directory.join("missing/entry.o");
-    let (program, entry) = unit_entry_program();
+    let (sources, program, entry) = unit_entry_program();
     assert!(matches!(
-        emit_verified_object(&program, entry, &missing_parent),
+        emit_verified_object(&program, &sources, entry, &missing_parent),
         Err(LlvmAdapterError::Object(_))
     ));
     assert!(!Path::new(&missing_parent).exists());
@@ -172,10 +172,16 @@ fn invalid_entry_and_unwritable_parent_fail_without_object() {
 #[test]
 fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
     let directory = TestDirectory::create();
-    let (normal_program, normal_entry) = unit_entry_program();
+    let (normal_sources, normal_program, normal_entry) = unit_entry_program();
     let normal_object = directory.join("normal.o");
     let normal_executable = directory.join("normal");
-    emit_verified_object(&normal_program, normal_entry, &normal_object).expect("normal object");
+    emit_verified_object(
+        &normal_program,
+        &normal_sources,
+        normal_entry,
+        &normal_object,
+    )
+    .expect("normal object");
     link(&normal_object, &normal_executable);
     assert_eq!(
         Command::new(&normal_executable)
@@ -186,7 +192,7 @@ fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
         Some(0)
     );
 
-    let (abort_program, abort_entry) = abort_entry_program();
+    let (abort_sources, abort_program, abort_entry) = abort_entry_program();
     let abort_llvm =
         render_verified_program_with_entry(&abort_program, abort_entry).expect("abort IR");
     assert!(abort_llvm.contains("call void @abort()"));
@@ -195,7 +201,8 @@ fn emitted_koven_objects_link_and_run_normal_and_abort_entries() {
     assert!(!abort_llvm.contains("personality"));
     let abort_object = directory.join("abort.o");
     let abort_executable = directory.join("abort");
-    emit_verified_object(&abort_program, abort_entry, &abort_object).expect("abort object");
+    emit_verified_object(&abort_program, &abort_sources, abort_entry, &abort_object)
+        .expect("abort object");
     link(&abort_object, &abort_executable);
     assert!(
         !Command::new(&abort_executable)
