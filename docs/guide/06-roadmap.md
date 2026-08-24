@@ -2,7 +2,7 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.27；SPEC-0177 / 0174 条目是 v0.28 候选，尚未授权实施。
+> v0.28；SPEC-0177 / 0174 的 guide 门禁已解除，仍按各自 Spec 状态和前置关系实施。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -181,10 +181,10 @@ fun main(): Unit {
       显式 `own` 映射 `ParameterMode::Value`，`inout` 不变；函数类型、override/委托、预声明
       callable、单态 call mapping 与 lambda expected facts 使用同一规范化 mode。Value 参数
       对 `MoveOnly` 实参的调用仍无 marker，并在 Phase 3 形成移动
-- [ ] **SPEC-0177（v0.28 候选，未启用）**：泛型 callable 只接受完整显式类型实参，或仅从
+- [ ] **SPEC-0177（v0.28，guide 门禁已解除）**：泛型 callable 只接受完整显式类型实参，或仅从
       已定型非 lambda 实参做结构推导；发布 owner + callable 的有序实例 key、替换后参数/
       返回类型，并验证 interface / `Copyable` / `Transferable` bound
-- [ ] **SPEC-0174（前置：SPEC-0177；v0.28 候选，未启用）**：多 overload 候选在映射、
+- [ ] **SPEC-0174（前置：SPEC-0177；v0.28）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`

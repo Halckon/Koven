@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-033` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 [v0.27 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与适用的已实现 frontend 契约 |
+| 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) 与适用的已实现 frontend 契约 |
 | 批准依据 | 当前持续 Goal 的站立授权可在全部前置完成后批准；当前因前置 Spec 未完成保持 draft |
 | 前置 Spec | SPEC-0021、SPEC-0029 `done`；SPEC-0177、SPEC-0174 必须达到 `done`（当前均为 `draft`） |
 | 前置 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | 关联 ADR | ADR-0002、ADR-0003、ADR-0004 |
-| 阻塞项 | SPEC-0177 / SPEC-0174 尚未完成；二者等待用户明确启用 v0.28 |
+| 阻塞项 | SPEC-0177 / SPEC-0174 尚未完成 |
 | 影响范围 | `lang-codegen` 自建 SSA model/verifier/debug rendering 与 crate 内测试；Architecture |
 | 语言语义变更 | 否；只建立现行 guide 要求的内部 typed SSA，不新增源码行为或用户诊断 |
 

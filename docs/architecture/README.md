@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.27 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.28 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -28,8 +28,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
-仓库已完成 Phase 0、Phase 1 与当前无 guide 门禁的 Phase 2 主线，并已进入 Phase 3。v0.27
-参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
+仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2 主线，并已进入 Phase 3。截至 v0.27
+已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
 
@@ -68,8 +68,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
   `ElementPlaceDescriptor`、只读 `size` 与封闭 `[]` 规则，覆盖 L0082–L0130；泛型 callable
   实例化、多 overload 候选的 lambda 隔离检查、callable reference、safe-call lifting 与所有权
-  可用性仍使用逐类 `DeferredReason` 保留；其中前两项已分别登记为等待 v0.28 启用的 draft
-  SPEC-0177 / SPEC-0174。普通名义主构造器字段已建立带实际泛型替换的
+  可用性仍使用逐类 `DeferredReason` 保留；其中前两项已分别登记为 draft SPEC-0177 /
+  SPEC-0174，v0.28 guide 门禁已经解除但实现尚未开始。普通名义主构造器字段已建立带实际
+  泛型替换的
   `AggregateProjectionDescriptor`，
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
   callable 参数只保留 `Value` / `Borrow` / `Inout` 三态 typed identity；无 marker 与显式
@@ -1024,8 +1025,8 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
 顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化与
-多 overload 候选的 lambda 隔离检查已物化为等待 v0.28 启用的 draft SPEC-0177 / SPEC-0174，
-当前仍未实现；`object` / `companion object` 关联成员，以及容器
+多 overload 候选的 lambda 隔离检查已物化为 draft SPEC-0177 / SPEC-0174；v0.28 guide 门禁
+已经解除，当前仍未实现。`object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的 bootstrap 流程与
 runtime / ABI 布局仍未确定。

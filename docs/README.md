@@ -5,7 +5,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.27](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+- [语言设计指南 v0.28](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
   多文档真源。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
@@ -43,8 +43,8 @@ TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快�
 
 进入 typed SSA 前仍缺少的泛型 callable 实例化与 overload-lambda 隔离，已分别物化为
 [SPEC-0177](./specs/0177-generic-callable-instantiation.md) 和
-[SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)；两者当前保持 `draft`，等待
-用户明确启用 [v0.28 候选](./guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用)。
+[SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)。v0.28 已解除两者的 guide
+门禁；它们当前仍保持 `draft`，按 SPEC-0177 → SPEC-0174 的前置顺序推进。
 
 Phase 4 的独立架构门禁已由
 [ADR-0006](./adr/0006-typed-ssa-block-parameters.md) 封闭：自建 typed SSA 使用 IR-local type、

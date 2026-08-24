@@ -1,6 +1,6 @@
 # Koven 语言教程
 
-> 本教程基于当前权威的 Koven 语言设计规范 v0.27 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
+> 本教程基于当前权威的 Koven 语言设计规范 v0.28 文档集整理,面向使用 Koven 编写程序的开发者,组织方式参考了 Go Tour、The Rust Book 与 Kotlin 官方文档。原始设计规范是写给负责实现编译器的 AI agent 看的实现契约,充满词法/语法分析的内部细节;这份教程要做的事情,是把其中已经确定的语言设计,重新组织成一份面向人的语言导览。
 
 ## 关于当前状态,需要提前说明
 
@@ -30,8 +30,9 @@ API、代码生成（Phase 4）和
   移出，借用按逻辑索引判定冲突，成功替换会记录旧元素的唯一析构点。**
 - **v0.27 的默认 shared capture、显式 `move` owned capture、borrowed closure 逃逸边界、
   结构化 `Transferable` 与 compiler-bound 跨线程检查已由 SPEC-0032 实现。**
-- **v0.28 尚未启用。** 其中的泛型 callable 实例化与 overload-lambda 候选隔离仍是候选设计；
-  当前遇到多个函数类型候选时，可先把 lambda 绑定到带显式函数类型的局部变量，再传给重载函数。
+- **v0.28 已启用，但尚未由 frontend 实施。** 泛型 callable 实例化与 overload-lambda 候选
+  隔离已成为现行语义；在 SPEC-0177 / SPEC-0174 完成前，可先把 lambda 绑定到带显式函数
+  类型的局部变量，再传给重载函数。
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。
@@ -270,9 +271,9 @@ choose(intAction) // 明确选择第一个 overload
 ```
 
 当前推荐把“显式函数类型的局部绑定”作为歧义时的逃生口。它不引入转换，也不会依赖编译器
-猜测 lambda body。v0.28 的候选设计会进一步让每个 overload 用自己的期望函数类型隔离检查
-同一个 lambda：只有一个候选检查成功时直接选中，多个候选都成功时仍报告歧义；该设计尚未
-启用，不能当作 v0.27 已实现能力。
+猜测 lambda body。现行 v0.28 要求每个 overload 用自己的期望函数类型隔离检查
+同一个 lambda：只有一个候选检查成功时直接选中，多个候选都成功时仍报告歧义。该语义已
+启用，但 SPEC-0174 尚未实现，不能当作当前 frontend 已有能力。
 
 Kotlin 调用中的 `a(Runnable { ... })` 不是通用的“给 lambda 标类型”语法，而是为单抽象方法接口
 创建实例的 [SAM constructor/conversion](https://kotlinlang.org/docs/fun-interfaces.html#sam-conversions)。Koven v1 的 lambda 只产生函数类型，不产生匿名

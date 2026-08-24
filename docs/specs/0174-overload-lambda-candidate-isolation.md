@@ -5,14 +5,14 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-174` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 [v0.27](../guide/00-index.md)；实施候选为尚未启用的 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用) |
-| 批准依据 | 当前持续 Goal 对 Spec 有站立授权，但新 guide 不在授权范围内；v0.28 明确启用后才能批准 |
+| 语言规范 | 现行 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028) |
+| 批准依据 | 用户已明确启用 v0.28；当前持续 Goal 对 Spec 有站立授权，前置完成后可据此批准 |
 | 前置 Spec | SPEC-0067、SPEC-0173、SPEC-0177 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 v0.28；SPEC-0177 尚未实施 |
+| 阻塞项 | SPEC-0177 尚未实施 |
 | 影响范围 | `lang-frontend` callable candidate trial、typed expression/call/parameter facts、Phase 2 fixture、Architecture |
-| 语言语义变更 | 否；启用后只实施 v0.28 封闭的 candidate isolation 契约 |
+| 语言语义变更 | 否；只实施现行 v0.28 封闭的 candidate isolation 契约 |
 
 ## 1. Goal
 
@@ -24,7 +24,7 @@ trial 不泄漏诊断与事实。
 
 SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参数 lambda 因此产生 L0083
 或 deferred，不能利用候选的函数参数类型。SPEC-0173 只覆盖唯一期望函数类型，并明确把
-候选隔离登记为本 Spec。v0.28 候选要求在泛型实例化完成后建立可回滚的 typed trial，而不是
+候选隔离登记为本 Spec。现行 v0.28 要求在泛型实例化完成后建立可回滚的 typed trial，而不是
 在共享 checker 表上反复写入后只删除诊断。
 
 ## 3. 范围与需求
@@ -86,11 +86,12 @@ SPEC-0067 为多个候选先以无 expected type 检查每个 operand；带参�
 
 ## 9. 未决问题
 
-- v0.28 尚未明确启用；SPEC-0177 未完成前本 Spec 也不能进入 `in-progress`。
+- 无语言语义未决项；SPEC-0177 未完成前本 Spec 不能进入 `in-progress`。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-24 现状审计 | 通过 | 确认多候选当前无 expected 检查 operand，带参数 lambda 无法形成可提交候选事实 |
-| 实现验收 | 未执行 | 等待 v0.28 与 SPEC-0177 前置 |
+| 2026-08-24 v0.28 启用审计 | 通过 | guide 门禁已解除；SPEC-0177 前置仍未完成 |
+| 实现验收 | 未执行 | 等待 SPEC-0177 前置 |

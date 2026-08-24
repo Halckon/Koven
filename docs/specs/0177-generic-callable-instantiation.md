@@ -5,14 +5,14 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-177` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 [v0.27](../guide/00-index.md)；实施候选为尚未启用的 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用) |
-| 批准依据 | 当前持续 Goal 对 Spec 有站立授权，但新 guide 不在授权范围内；v0.28 明确启用后才能批准 |
+| 语言规范 | 现行 [v0.28 §28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028) |
+| 批准依据 | 用户已明确启用 v0.28；当前持续 Goal 对 Spec 有站立授权，进入实现时可据此批准 |
 | 前置 Spec | SPEC-0020、SPEC-0067、SPEC-0022、SPEC-0032 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 v0.28；候选 L0140–L0141 不是现行诊断 |
+| 阻塞项 | 无；v0.28 guide 门禁已解除 |
 | 影响范围 | `lang-frontend` callable candidate/typed model、泛型 bound 查询、Phase 2 fixture、Architecture |
-| 语言语义变更 | 否；启用后只实施 v0.28 封闭的泛型调用契约 |
+| 语言语义变更 | 否；只实施现行 v0.28 封闭的泛型调用契约 |
 
 ## 1. Goal
 
@@ -71,7 +71,7 @@ SPEC-0020 已保存 callable 与 classifier 类型参数及 bound，SPEC-0067 �
   不依赖 hash 迭代或类型名称文本。
 - 非 lambda operand 仍只建立一次基础类型事实；候选层只读取该事实提取约束和验证替换，
   不重复执行源码表达式的可观察语义。
-- L0140–L0141 只有 v0.28 启用后才加入生产诊断 catalog。
+- L0140–L0141 已有现行规范含义，由本 Spec 实施时加入生产诊断 catalog。
 
 ## 7. 实施计划
 
@@ -90,11 +90,12 @@ SPEC-0020 已保存 callable 与 classifier 类型参数及 bound，SPEC-0067 �
 
 ## 9. 未决问题
 
-- v0.28 尚未明确启用；启用前不得改变生产代码或诊断 catalog。
+- 无语言语义未决项；实现仍必须严格遵守 §3–§6 的简化边界。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-24 现状审计 | 通过 | 确认 generic call 当前统一保留 `DeferredReason::Call`，现有模型已保存 callable/owner 类型参数与三类 bound |
-| 实现验收 | 未执行 | 等待 v0.28 明确启用 |
+| 2026-08-24 v0.28 启用审计 | 通过 | guide 门禁已解除；本次未改变 Spec 状态或生产代码 |
+| 实现验收 | 未执行 | 尚未开始 SPEC-0177 实施 |

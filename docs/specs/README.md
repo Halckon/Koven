@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.27 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.28 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -13,9 +13,9 @@
 明确启用并取代 v0.26；它封闭默认 shared capture、显式 `move` owned capture、borrowed
 closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable effect。
 
-[v0.28 候选](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028-候选未启用)
-尚未启用；它拟封闭泛型 callable 实例化与 overload-lambda candidate isolation。依赖它的
-SPEC-0177 / SPEC-0174 必须保持 `draft`，不能依据当前 Spec 站立授权越过 guide 门禁。
+[v0.28](../guide/01-design-decisions.md#28-泛型-callable-实例化与-overload-lambda-隔离v028)
+已由用户明确启用并取代 v0.27；它封闭泛型 callable 实例化与 overload-lambda candidate
+isolation。SPEC-0177 / SPEC-0174 的 guide 门禁已经解除，但规范启用不等于实现验收。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -176,14 +176,14 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0133](./0133-container-type-frontend-input-invariants.md) | 强化顺序容器类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0023、0130–0132 `done`；当前持续 Goal 的站立授权 |
 | [0134](./0134-copyability-type-frontend-input-invariants.md) | 强化 copyability 类型 suite 前置双 Lexer / 双 Parser 公开产物不变量（`done`） | 0022、0130–0133 `done`；当前持续 Goal 的站立授权 |
 | [0173](./0173-lambda-parameter-contract-facts.md) | 让唯一期望函数类型的 lambda 采用并保存 Value/Borrow/Inout 参数契约（`done`） | 0019、0067 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
-| [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`draft`） | 0020、0022、0032、0067 `done`；等待用户明确启用 v0.28 |
-| [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`draft`） | 0067、0173 `done`；0177 `done`；等待用户明确启用 v0.28 |
+| [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`draft`） | 0020、0022、0032、0067 `done`；v0.28 guide 门禁已解除 |
+| [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`draft`） | 0067、0173 `done`；等待 0177 `done` |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
 
 Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
-完成 overload-lambda 候选隔离。两项均依赖尚未启用的 v0.28 候选语义；它们不是
+完成 overload-lambda 候选隔离。两项均实施现行 v0.28 语义；它们不是
 SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal 前必须完成。
 
 ### Phase 3：所有权与借用
@@ -299,7 +299,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.27 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.28 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 
