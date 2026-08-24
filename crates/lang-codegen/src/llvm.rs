@@ -3,6 +3,9 @@
 mod adapter;
 #[cfg(test)]
 mod aggregate_tests;
+mod runtime;
+#[cfg(test)]
+mod runtime_tests;
 mod type_map;
 
 use inkwell::OptimizationLevel;

@@ -328,9 +328,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       checked arithmetic、比较、direct call、branch/return/trap，并在返回文本前通过 LLVM
       verifier；全部整数宽度和 literal 边界已锁定，直接有符号最小值按单个负常量 lower，
       一般前缀负号仍保持 checked subtraction
-- [ ] **SPEC-0035（实施中）**：先建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
-      class/Box heap owner、系统 allocation 与显式 drop/free 后端基元；源码 constructor、字段/
-      解构与 drop facts 的接线等待候选 0183 完成后由候选 0184 承接，不按名称猜测构造器
+- [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
+      class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
+      基元；源码 constructor、字段/解构与 drop facts 的接线仍等待候选 0183 完成后由候选
+      0184 承接，不按名称猜测构造器
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034

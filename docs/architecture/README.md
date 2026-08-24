@@ -24,6 +24,8 @@ SPEC-0030 已建立顺序容器构造效果、逻辑 element place、L0136、元
 SPEC-0032 已建立解析身份驱动的 closure capture、borrowed/move formation effect、逃逸与
 跨线程 `Transferable` 检查、L0137–L0139、capture loan 和 closure/capture drop facts；
 SPEC-0034 已完成标量 frontend→verified SSA→verified AArch64 LLVM IR 的封闭垂直切片；
+SPEC-0035 已完成聚合/heap-owner SSA、target DataLayout、系统 allocation、heap place 与递归
+drop/free 后端基元；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -31,7 +33,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
-SPEC-0033/0034 标量主线。截至 v0.28
+SPEC-0033/0034 标量主线及 SPEC-0035 聚合/heap-owner 后端基元。截至 v0.28
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -121,13 +123,14 @@ SPEC-0033/0034 标量主线。截至 v0.28
   lowering 前剩余的 Phase 2 漂移；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已完成
+- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整源码 codegen；SPEC-0034 已完成
   frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，并把该封闭
   子集的 verified SSA 映射为 verified LLVM IR；完整 `for` 因依赖 typed iteration plan 与
-  provider runtime 已迁移到候选 0182。SPEC-0035 已开始建立不依赖源码 constructor 选择的
-  named aggregate/heap-owner SSA type model，并已加入整体 aggregate construct/project/explode、
-  heap allocate、payload/field place 与对应线性 ownership/loan verifier；LLVM first-class
-  aggregate/DataLayout lowering 已完成，runtime allocation/drop/free、object/link/run 仍未实现；
+  provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
+  aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
+  线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
+  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184，object/link/run
+  仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -155,24 +158,31 @@ SPEC-0033/0034 标量主线。截至 v0.28
   `instances` 从非泛型顶层入口构造确定的可达实例图，按 SPEC-0177 key 替换泛型体内直接类型
   参数；同 key 递归去重、不可达泛型不生成、同名 overload 保持不同 `FunctionId`，并以 1024
   个具体泛型实例作为显式增长门禁。`llvm::adapter` 在构造 LLVM 前再次运行 SPEC-0033
-  verifier，只接受单一 module 和标量 value，按 `FunctionId` 生成不混淆 overload/实例的稳定
-  symbol；entry 参数映射为 LLVM 参数，非 entry block 参数映射为有序 PHI。Boolean 使用 `i1`，
+  verifier，只接受单一 module 及当前封闭的标量/聚合/heap-owner value，按 `FunctionId` 生成不
+  混淆 overload/实例的稳定 symbol；entry 参数映射为 LLVM 参数，非 entry value block 参数映射
+  为有序 PHI。Boolean 使用 `i1`，
   整数保留 8/16/32/64-bit 宽度和操作 signedness；checked add/sub/mul 使用 LLVM overflow
   intrinsic，div/rem 在执行 LLVM 指令前以安全 divisor 避免失败路径触发 LLVM UB，失败 flag
   继续流向既有 `llvm.trap` + `unreachable`。branch/conditional/return、六类比较、Boolean not、
-  direct call 与 scalar copy 已映射，最终 module 必须通过 LLVM verifier；重复 lowering 文本
+  direct call、scalar copy、first-class aggregate、heap owner value 和当前局部 place/loan 操作
+  已映射，最终 module 必须通过 LLVM verifier；重复 lowering 文本
   相同。完整 `for` 仍未实现，由候选 0182 在 typed iteration plan 与 provider runtime 就绪后承接；
 - [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) 已接受 target `DataLayout`、
   first-class aggregate、无对象 header 的 class/Box heap owner、集中系统 `malloc/free/abort`、
-  固定顺序容器 header 与 ZST sentinel 边界。SPEC-0035 当前已为 named aggregate 自动推导
+  固定顺序容器 header 与 ZST sentinel 边界。SPEC-0035 已为 named aggregate 自动推导
   Copyable/MoveOnly，并让 heap owner 的先声明/后定义指向显式 aggregate payload，从而以固定
   pointer handle 打断递归；construct/project/explode、heap allocation effect、payload/field place、
   确定 debug rendering、跨 module/重复/未定义/非法 inline cycle 以及 nested loan/CFG 唯一消费
   verifier 已实现。LLVM adapter 已用 target `DataLayout` 映射声明顺序 identified struct，支持
   aggregate 参数、返回、PHI、direct call、insert/extract 与大型 first-class value，并让
-  MoveOnly direct-call 实参发生唯一消费；未实现的 MoveOnly drop 会 fail loud，不会被静默擦除。
-  系统 allocation 与递归 drop/free glue 尚未生成。多目标平台、linker、bootstrap 与 public
-  FFI ABI 仍未确定。
+  MoveOnly direct-call 实参发生唯一消费。集中 `llvm::runtime` 只在实际需要时声明目标 C runtime
+  的 `malloc`/`abort`/`free`：payload 大小来自同一 target `DataLayout` 并以 `max(size, 1)` 支持
+  ZST owner，null 分支调用带 `noreturn` 属性的 `abort` 后 `unreachable`，成功分支完整 store
+  payload。MoveOnly aggregate/heap owner 的内部 drop helper 先按 type ID 预声明，再逆字段递归
+  调用；heap payload 完成后每个 owner helper 恰好调用一次 `free`，自引用 heap type 不导致
+  codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
+  storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
+  nominal/enum/Box constructor lowering、多目标平台、linker、bootstrap 与 public FFI ABI 仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 
@@ -1087,8 +1097,9 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
-`lang-std` 的 bootstrap 流程仍未确定；内部值/系统分配 ABI 已由 ADR-0008 接受，但对应 LLVM
-allocation/drop lowering 尚在 SPEC-0035 实施中。
+`lang-std` 的 bootstrap 流程仍未确定；内部值/系统分配 ABI 及对应 LLVM aggregate、
+allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成，源码 constructor 接线、目标文件与
+链接后的可执行文件仍未实现。
 
 ## 更新要求
 

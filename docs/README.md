@@ -33,21 +33,23 @@ Spec：验收完成并标记 done
 Goal：提交成功后标记完成
 ```
 
-当前仓库已完成 Phase 0、Phase 1 与无 guide 门禁的 Phase 2 主线，并已进入 Phase 3：整变量
+当前仓库已完成 Phase 0、Phase 1 与无 guide 门禁的 Phase 2/Phase 3 主线：整变量
 use-after-move、条件复制、消费式解构、禁止结构分量部分移动、v0.26 borrow-default
 参数契约、调用期 loan 与 owned-value ASAP 析构点已经实现；顺序容器 element place 的核心
 读取/借用/替换所有权也已实现；v0.27 的简化 closure capture、逃逸/owned capture 诊断、
-capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect 也已实现；Phase 5
+capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect 也已实现。Phase 4
+已完成 typed SSA/verifier、标量 frontend→SSA→AArch64 LLVM IR，以及聚合/heap-owner、系统
+allocation 和递归 drop/free 后端基元；源码 constructor 接线仍等待候选 0183/0184。Phase 5
 容器 relocation API 仍待后续 Spec。Phase 6 已独立提供
 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。
 
-进入 typed SSA 前仍缺少的泛型 callable 实例化与 overload-lambda 隔离，已分别物化为
+进入 typed SSA 前所需的泛型 callable 实例化与 overload-lambda 隔离，已分别由
 [SPEC-0177](./specs/0177-generic-callable-instantiation.md) 和
 [SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)。v0.28 已解除两者的 guide
-门禁；它们当前仍保持 `draft`，按 SPEC-0177 → SPEC-0174 的前置顺序推进。
+门禁并完成实施。
 
 Phase 4 的独立架构门禁已由
 [ADR-0006](./adr/0006-typed-ssa-block-parameters.md) 封闭：自建 typed SSA 使用 IR-local type、
 block parameters 与显式 ownership effects。对应
-[SPEC-0033](./specs/0033-typed-ssa-ir-verifier.md) 已物化但保持 `draft`，必须等待上述两个
-Phase 2 Spec 完成后才能实施。
+[SPEC-0033](./specs/0033-typed-ssa-ir-verifier.md) 与后续 SPEC-0034/0035 均已完成实施；后续
+Phase 4 Goal 仍按各自 guide、Spec 与 ADR 门禁推进。

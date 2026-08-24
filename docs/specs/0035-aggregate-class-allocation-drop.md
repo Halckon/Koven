@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-035` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成)、§5 值/引用表示、§25 条件 `Copyable` 与 §26 ASAP drop facts |
@@ -100,10 +100,10 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
       drop 一次，loan 与 field/payload drop 冲突仍由同一 verifier 拒绝。
 - [x] AArch64 LLVM IR 锁定声明顺序 struct、first-class aggregate call/return、insert/extract、
       target-derived size/alignment，以及大型 aggregate 没有 `malloc`/implicit Box。
-- [ ] class/Box 形状的 heap owner IR 锁定 `malloc(max(size,1))`、null→abort、payload 初始化、
+- [x] class/Box 形状的 heap owner IR 锁定 `malloc(max(size,1))`、null→abort、payload 初始化、
       递归 field drop 和唯一 `free`；Copyable payload copy 不调用 glue/free。
 - [x] 人工损坏 SSA 在 LLVM construction 前被拒绝；合法 module 通过 LLVM verifier且重复文本相同。
-- [ ] `lang-codegen` 窄测与 workspace 标准基线通过；全部生产 Rust 文件遵守 1000 行软上限，
+- [x] `lang-codegen` 窄测与 workspace 标准基线通过；全部生产 Rust 文件遵守 1000 行软上限，
       Architecture、Spec 索引与 roadmap 只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -127,9 +127,9 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
    验证：operation + CFG ownership 正反矩阵。
 3. [x] 扩展 LLVM type/value/layout adapter并生成 first-class aggregate →
    验证：target DataLayout、call/return、insert/extract 与 verifier matrix。
-4. [ ] 接入系统 malloc/abort/free 与递归 drop glue →
+4. [x] 接入系统 malloc/abort/free 与递归 drop glue →
    验证：class/Box/ZST payload、OOM branch、唯一 free 与无 unwind 文本矩阵。
-5. [ ] 运行 workspace 基线、同步事实并审查 staged diff →
+5. [x] 运行 workspace 基线、同步事实并审查 staged diff →
    验证：实际退出状态、文件规模、Architecture/roadmap/Spec 一致。
 
 ## 8. 提交计划
@@ -165,3 +165,6 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 | `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 无 warning |
 | `cargo test --workspace --all-targets` | 通过 | 全部被调用的 workspace test target 退出状态为 0 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo build -p lang-cli` | 通过 | CLI dev 构建完成 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（runtime/drop slice） | 通过 | 59 项；新增系统 allocation/ZST/OOM/payload place、逆字段递归与自引用 drop glue、唯一 free、allocation split 后 PHI predecessor 矩阵 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（runtime/drop slice） | 通过 | 无 warning；生产 `adapter.rs` 989 行、`runtime.rs` 301 行，其余本次触及生产文件更小，均低于 1000 行软上限 |
+| 2026-08-25 workspace 标准基线（SPEC-0035 final） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0；最终 staged diff/check 通过 |

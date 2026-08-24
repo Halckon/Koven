@@ -8,21 +8,24 @@ use inkwell::{
     module::Module as LlvmModule,
     types::{BasicMetadataTypeEnum, BasicType},
     values::{
-        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PhiValue, StructValue,
-        ValueKind,
+        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PhiValue, PointerValue,
+        StructValue, ValueKind,
     },
 };
 
 use crate::ssa::{
     model::{
         BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-        EntityType, Function, FunctionId, Instruction, Module, Operation, Program, ScalarConstant,
-        SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
+        EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess,
+        PlaceId, Program, ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
     },
     verify::verify_program,
 };
 
-use super::{LlvmAdapterError, configure_module, first_target_machine, type_map::TypeMap};
+use super::{
+    LlvmAdapterError, configure_module, first_target_machine, runtime::RuntimeAbi,
+    type_map::TypeMap,
+};
 
 pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
     verify_program(program).map_err(|error| LlvmAdapterError::InvalidSsa(error.to_string()))?;
@@ -36,7 +39,13 @@ pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmA
     let llvm_module = context.create_module(&ssa_module.name);
     configure_module(&llvm_module, &triple, &target_machine);
 
-    ModuleLowerer::new(&context, &llvm_module, ssa_module)?.lower()?;
+    ModuleLowerer::new(
+        &context,
+        &llvm_module,
+        ssa_module,
+        &target_machine.get_target_data(),
+    )?
+    .lower()?;
     llvm_module
         .verify()
         .map_err(|error| LlvmAdapterError::Verify(error.to_string()))?;
@@ -48,6 +57,7 @@ struct ModuleLowerer<'ctx, 'llvm, 'ssa> {
     llvm: &'llvm LlvmModule<'ctx>,
     ssa: &'ssa Module,
     type_map: TypeMap<'ctx>,
+    runtime: RuntimeAbi<'ctx>,
     functions: BTreeMap<FunctionId, FunctionValue<'ctx>>,
 }
 
@@ -56,12 +66,16 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
         context: &'ctx Context,
         llvm: &'llvm LlvmModule<'ctx>,
         ssa: &'ssa Module,
+        target: &inkwell::targets::TargetData,
     ) -> Result<Self, LlvmAdapterError> {
+        let type_map = TypeMap::lower(context, ssa)?;
+        let runtime = RuntimeAbi::lower(context, llvm, ssa, &type_map, target)?;
         Ok(Self {
             context,
             llvm,
             ssa,
-            type_map: TypeMap::lower(context, ssa)?,
+            type_map,
+            runtime,
             functions: BTreeMap::new(),
         })
     }
@@ -79,8 +93,11 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 self.ssa,
                 function,
                 llvm_function,
-                &self.type_map,
-                &self.functions,
+                FunctionDependencies {
+                    type_map: &self.type_map,
+                    runtime: &self.runtime,
+                    functions: &self.functions,
+                },
             )
             .lower()?;
         }
@@ -119,17 +136,25 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct FunctionDependencies<'ctx, 'functions> {
+    type_map: &'functions TypeMap<'ctx>,
+    runtime: &'functions RuntimeAbi<'ctx>,
+    functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
+}
+
 struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
     context: &'ctx Context,
     llvm: &'llvm LlvmModule<'ctx>,
     module: &'ssa Module,
     function: &'ssa Function,
     llvm_function: FunctionValue<'ctx>,
-    type_map: &'functions TypeMap<'ctx>,
-    functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
+    dependencies: FunctionDependencies<'ctx, 'functions>,
     builder: Builder<'ctx>,
     blocks: BTreeMap<BlockId, BasicBlock<'ctx>>,
     values: BTreeMap<ValueId, BasicValueEnum<'ctx>>,
+    places: BTreeMap<PlaceId, PointerValue<'ctx>>,
+    loans: BTreeMap<LoanId, PointerValue<'ctx>>,
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
 }
 
@@ -140,8 +165,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         module: &'ssa Module,
         function: &'ssa Function,
         llvm_function: FunctionValue<'ctx>,
-        type_map: &'functions TypeMap<'ctx>,
-        functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
+        dependencies: FunctionDependencies<'ctx, 'functions>,
     ) -> Self {
         Self {
             context,
@@ -149,11 +173,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             module,
             function,
             llvm_function,
-            type_map,
-            functions,
+            dependencies,
             builder: context.create_builder(),
             blocks: BTreeMap::new(),
             values: BTreeMap::new(),
+            places: BTreeMap::new(),
+            loans: BTreeMap::new(),
             phis: BTreeMap::new(),
         }
     }
@@ -172,7 +197,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             let terminator = block.terminator.as_ref().ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("basic block 缺少 terminator".to_owned())
             })?;
-            self.lower_terminator(block.id, &terminator.kind)?;
+            self.lower_terminator(&terminator.kind)?;
         }
         Ok(())
     }
@@ -213,7 +238,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                     return Err(unsupported("LLVM block 参数不能是 place 或 loan"));
                 };
                 let phi = self.builder.build_phi(
-                    self.type_map
+                    self.dependencies
+                        .type_map
                         .basic_type(value_type(self.function, *value)?)?,
                     &value_name(*value),
                 )?;
@@ -225,13 +251,24 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
     }
 
     fn lower_instruction(&mut self, instruction: &Instruction) -> Result<(), LlvmAdapterError> {
-        let results = value_results(instruction)?;
+        let results = if matches!(
+            instruction.operation,
+            Operation::HeapPayloadPlace { .. }
+                | Operation::FieldPlace { .. }
+                | Operation::RootPlace { .. }
+                | Operation::BorrowBegin { .. }
+        ) {
+            Vec::new()
+        } else {
+            value_results(instruction)?
+        };
         match &instruction.operation {
             Operation::Constant(constant) => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("constant", 1, results.len()));
                 };
                 let ty = self
+                    .dependencies
                     .type_map
                     .int_type(value_type(self.function, *result)?)?;
                 let value = match constant {
@@ -279,12 +316,34 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             Operation::AggregateExplode { aggregate } => {
                 self.lower_aggregate_explode(*aggregate, &results)?;
             }
-            Operation::HeapAllocate { .. }
-            | Operation::HeapPayloadPlace { .. }
-            | Operation::FieldPlace { .. } => {
-                return Err(unsupported(
-                    "SPEC-0035 aggregate operation 等待后续 LLVM lowering 切片",
-                ));
+            Operation::HeapAllocate { owner, payload } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("heap allocate", 1, results.len()));
+                };
+                let allocation = self.dependencies.runtime.allocate(
+                    &self.builder,
+                    self.llvm_function,
+                    *owner,
+                    self.value(*payload)?,
+                    &value_name(*result),
+                )?;
+                allocation.set_name(&value_name(*result));
+                self.values.insert(*result, allocation.into());
+            }
+            Operation::HeapPayloadPlace { owner } => {
+                let result = place_result(instruction)?;
+                self.places.insert(result, self.pointer_value(*owner)?);
+            }
+            Operation::FieldPlace { base, field } => {
+                let result = place_result(instruction)?;
+                let aggregate = place_type(self.function, *base)?;
+                let pointer = self.builder.build_struct_gep(
+                    self.dependencies.type_map.aggregate_type(aggregate)?,
+                    self.place(*base)?,
+                    *field as u32,
+                    &format!("p{}", result.index()),
+                )?;
+                self.places.insert(result, pointer);
             }
             Operation::Copy { source } => {
                 let [result] = results.as_slice() else {
@@ -297,19 +356,48 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                     return Err(invalid_result_count("ownership effect", 0, results.len()));
                 }
             }
-            Operation::Drop { .. } => {
-                return Err(unsupported(
-                    "SPEC-0035 MoveOnly drop 等待 recursive glue lowering 切片",
-                ));
+            Operation::Drop { owner } => {
+                self.dependencies.runtime.emit_drop(
+                    &self.builder,
+                    value_type(self.function, *owner)?,
+                    self.value(*owner)?,
+                )?;
             }
-            Operation::RootPlace { .. }
-            | Operation::BorrowBegin { .. }
-            | Operation::BorrowEnd { .. }
-            | Operation::Read { .. }
-            | Operation::Mutate { .. } => {
-                return Err(unsupported(
-                    "SPEC-0034 LLVM adapter 不接受 place/loan operation",
-                ));
+            Operation::RootPlace { owner } => {
+                let result = place_result(instruction)?;
+                let pointer = self.builder.build_alloca(
+                    self.dependencies
+                        .type_map
+                        .basic_type(value_type(self.function, *owner)?)?,
+                    &format!("p{}", result.index()),
+                )?;
+                self.builder.build_store(pointer, self.value(*owner)?)?;
+                self.places.insert(result, pointer);
+            }
+            Operation::BorrowBegin { place, .. } => {
+                let result = loan_result(instruction)?;
+                self.loans.insert(result, self.place(*place)?);
+            }
+            Operation::BorrowEnd { loan } => {
+                self.loans.remove(loan).ok_or_else(|| {
+                    LlvmAdapterError::InvalidSsa("结束的 LLVM loan 映射不存在".to_owned())
+                })?;
+            }
+            Operation::Read { source } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("place read", 1, results.len()));
+                };
+                let source_type = access_type(self.function, *source)?;
+                let value = self.builder.build_load(
+                    self.dependencies.type_map.basic_type(source_type)?,
+                    self.access(*source)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value);
+            }
+            Operation::Mutate { place, value } => {
+                self.builder
+                    .build_store(self.place(*place)?, self.value(*value)?)?;
             }
         }
         Ok(())
@@ -328,7 +416,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 results.len(),
             ));
         };
-        let mut value = self.type_map.aggregate_type(aggregate)?.const_zero();
+        let mut value = self
+            .dependencies
+            .type_map
+            .aggregate_type(aggregate)?
+            .const_zero();
         for (index, field) in fields.iter().enumerate() {
             value = self
                 .builder
@@ -454,7 +546,10 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             (CheckedArithmeticOperator::Multiply, false) => "llvm.umul.with.overflow",
             _ => return Err(unsupported("非法 overflow intrinsic operator")),
         };
-        let int_type = self.type_map.int_type(value_type(self.function, left)?)?;
+        let int_type = self
+            .dependencies
+            .type_map
+            .int_type(value_type(self.function, left)?)?;
         let intrinsic = Intrinsic::find(intrinsic_name)
             .and_then(|intrinsic| intrinsic.get_declaration(self.llvm, &[int_type.into()]))
             .ok_or_else(|| {
@@ -615,10 +710,10 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         arguments: &[ValueId],
         results: &[ValueId],
     ) -> Result<(), LlvmAdapterError> {
-        let llvm_callee = *self
-            .functions
-            .get(&callee)
-            .ok_or_else(|| LlvmAdapterError::InvalidSsa("direct call target 不存在".to_owned()))?;
+        let llvm_callee =
+            *self.dependencies.functions.get(&callee).ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa("direct call target 不存在".to_owned())
+            })?;
         let arguments = arguments
             .iter()
             .map(|argument| self.value(*argument).map(BasicMetadataValueEnum::from))
@@ -657,12 +752,10 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         Ok(())
     }
 
-    fn lower_terminator(
-        &mut self,
-        source: BlockId,
-        terminator: &TerminatorKind,
-    ) -> Result<(), LlvmAdapterError> {
-        let llvm_source = self.block(source)?;
+    fn lower_terminator(&mut self, terminator: &TerminatorKind) -> Result<(), LlvmAdapterError> {
+        let llvm_source = self.builder.get_insert_block().ok_or_else(|| {
+            LlvmAdapterError::Build("terminator lowering 缺少当前 LLVM block".to_owned())
+        })?;
         match terminator {
             TerminatorKind::Branch(edge) => {
                 self.add_edge_incoming(llvm_source, edge)?;
@@ -792,6 +885,33 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             )),
         }
     }
+
+    fn pointer_value(&self, id: ValueId) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        match self.value(id)? {
+            BasicValueEnum::PointerValue(value) => Ok(value),
+            _ => Err(LlvmAdapterError::InvalidSsa(
+                "heap owner operand 不是 LLVM pointer".to_owned(),
+            )),
+        }
+    }
+
+    fn place(&self, id: PlaceId) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        self.places
+            .get(&id)
+            .copied()
+            .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM place 映射缺失".to_owned()))
+    }
+
+    fn access(&self, access: PlaceAccess) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        match access {
+            PlaceAccess::Place(place) => self.place(place),
+            PlaceAccess::Loan(loan) => self
+                .loans
+                .get(&loan)
+                .copied()
+                .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM loan 映射缺失".to_owned())),
+        }
+    }
 }
 
 fn value_type(function: &Function, value: ValueId) -> Result<SsaTypeId, LlvmAdapterError> {
@@ -801,6 +921,26 @@ fn value_type(function: &Function, value: ValueId) -> Result<SsaTypeId, LlvmAdap
             "ValueId 缺少 value entity type".to_owned(),
         )),
     }
+}
+
+fn place_type(function: &Function, place: PlaceId) -> Result<SsaTypeId, LlvmAdapterError> {
+    match function.entity(EntityId::Place(place)).map(|data| data.ty) {
+        Some(EntityType::Place(ty)) => Ok(ty),
+        _ => Err(LlvmAdapterError::InvalidSsa(
+            "PlaceId 缺少 place entity type".to_owned(),
+        )),
+    }
+}
+
+fn access_type(function: &Function, access: PlaceAccess) -> Result<SsaTypeId, LlvmAdapterError> {
+    let entity = match access {
+        PlaceAccess::Place(place) => EntityId::Place(place),
+        PlaceAccess::Loan(loan) => EntityId::Loan(loan),
+    };
+    function
+        .entity(entity)
+        .map(|data| data.ty.semantic_type())
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("place access 缺少 entity type".to_owned()))
 }
 
 fn value_results(instruction: &Instruction) -> Result<Vec<ValueId>, LlvmAdapterError> {
@@ -814,6 +954,24 @@ fn value_results(instruction: &Instruction) -> Result<Vec<ValueId>, LlvmAdapterE
             }
         })
         .collect()
+}
+
+fn place_result(instruction: &Instruction) -> Result<PlaceId, LlvmAdapterError> {
+    match instruction.results.as_slice() {
+        [EntityId::Place(place)] => Ok(*place),
+        _ => Err(LlvmAdapterError::InvalidSsa(
+            "place operation 必须产生一个 place".to_owned(),
+        )),
+    }
+}
+
+fn loan_result(instruction: &Instruction) -> Result<LoanId, LlvmAdapterError> {
+    match instruction.results.as_slice() {
+        [EntityId::Loan(loan)] => Ok(*loan),
+        _ => Err(LlvmAdapterError::InvalidSsa(
+            "borrow begin 必须产生一个 loan".to_owned(),
+        )),
+    }
 }
 
 fn value_name(value: ValueId) -> String {

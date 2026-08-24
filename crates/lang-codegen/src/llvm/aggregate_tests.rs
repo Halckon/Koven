@@ -5,7 +5,7 @@ use crate::ssa::model::{
     Edge, EntityId, EntityType, Operation, Origin, Program, SsaTypeKind, TerminatorKind, ValueId,
 };
 
-use super::{LlvmAdapterError, first_target_machine, render_verified_program, type_map::TypeMap};
+use super::{first_target_machine, render_verified_program, type_map::TypeMap};
 
 fn origin() -> Origin {
     let mut sources = SourceMap::default();
@@ -251,10 +251,11 @@ fn aggregate_values_calls_returns_and_phi_lower_as_first_class_llvm_values() {
     assert!(first.contains("phi %koven.t2"));
     assert!(!first.contains("malloc"));
     assert!(!first.contains("free"));
+    assert!(!first.contains("koven.drop"));
 }
 
 #[test]
-fn aggregate_lowering_does_not_silently_erase_pending_move_only_drop() {
+fn heap_owner_drop_lowers_to_explicit_unique_free_glue() {
     let origin = origin();
     let mut program = Program::default();
     let module_id = program.add_module("pending_drop");
@@ -285,7 +286,8 @@ fn aggregate_lowering_does_not_silently_erase_pending_move_only_drop() {
         .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
         .expect("return must be valid");
 
-    let error = render_verified_program(&program)
-        .expect_err("pending drop glue must not be silently erased");
-    assert!(matches!(error, LlvmAdapterError::Unsupported(message) if message.contains("drop")));
+    let llvm = render_verified_program(&program).expect("heap owner drop glue must lower");
+    assert!(llvm.contains("define internal void @koven.drop.t1(ptr %0)"));
+    assert_eq!(llvm.matches("call void @free(ptr %0)").count(), 1);
+    assert_eq!(llvm.matches("call void @koven.drop.t1").count(), 1);
 }

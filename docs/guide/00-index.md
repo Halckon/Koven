@@ -165,7 +165,9 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0030 | 顺序容器 element place 所有权 | `01-design-decisions.md` §8、`../specs/0030-sequential-container-element-ownership.md` | ✅ 已实现 |
 | SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ✅ 已实现 |
-| SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ⏸️ draft，frontend 前置已完成 |
+| SPEC-0033 | 最小 typed SSA IR 与 verifier | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` | ✅ 已实现 |
+| SPEC-0034 | 标量控制流 frontend→SSA→LLVM lowering | `06-roadmap.md` Phase 4、`../specs/0034-scalar-control-flow-llvm-lowering.md` | ✅ 已实现 |
+| SPEC-0035 | 聚合、class/Box allocation 与显式 drop/free 后端基元 | `06-roadmap.md` Phase 4、`../specs/0035-aggregate-class-allocation-drop.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
