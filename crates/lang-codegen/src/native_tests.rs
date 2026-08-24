@@ -227,3 +227,48 @@ fn frontend_diagnostics_and_unsupported_source_do_not_write_objects() {
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!unsupported_output.exists());
 }
+
+#[test]
+fn standard_error_emits_object_while_interpolated_message_fails_before_writing() {
+    let directory = TestDirectory::create();
+    let canonical = analyze(
+        "error-entry.ko",
+        "fun abortEntry(): Unit { error(\"fatal\") }",
+    );
+    assert!(canonical.names.diagnostics().is_empty());
+    assert!(canonical.typed.diagnostics().is_empty());
+    assert!(canonical.owned.diagnostics().is_empty());
+    let object = directory.join("error.o");
+    emit_native_object(
+        &canonical.sources,
+        &canonical.parsed,
+        &canonical.names,
+        &canonical.typed,
+        &canonical.owned,
+        symbol(&canonical, "abortEntry", SymbolKind::Function),
+        &object,
+    )
+    .expect("canonical standard error must emit an object");
+    assert!(object.is_file());
+
+    let unsupported = analyze(
+        "interpolated-error.ko",
+        "fun abortEntry(): Unit { error(\"${1}\") }",
+    );
+    assert!(unsupported.names.diagnostics().is_empty());
+    assert!(unsupported.typed.diagnostics().is_empty());
+    assert!(unsupported.owned.diagnostics().is_empty());
+    let rejected = directory.join("interpolated.o");
+    let error = emit_native_object(
+        &unsupported.sources,
+        &unsupported.parsed,
+        &unsupported.names,
+        &unsupported.typed,
+        &unsupported.owned,
+        symbol(&unsupported, "abortEntry", SymbolKind::Function),
+        &rejected,
+    )
+    .expect_err("interpolated String remains unsupported");
+    assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
+    assert!(!rejected.exists());
+}

@@ -12,7 +12,7 @@ use lang_frontend::{
     name_resolution::{NameResolution, SymbolId, SymbolKind},
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
-        Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement,
+        Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement, StringPart,
     },
     source::Span,
     type_checking::{BuiltinType, CallableTarget, TypeId, TypeKind, TypedFile},
@@ -412,6 +412,29 @@ impl ExpressionLowerer<'_> {
             .typed
             .call(expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.aborts() {
+            let [argument] = arguments else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            if !self.is_plain_string_literal(argument.value)? {
+                return Err(error(
+                    LoweringErrorKind::UnsupportedNode,
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(argument.value)
+                        .map_err(|_| LoweringError {
+                            kind: LoweringErrorKind::MissingFact,
+                            span: None,
+                        })?
+                        .span(),
+                ));
+            }
+            self.function
+                .set_terminator(self.block, TerminatorKind::Abort, Origin::Source(span))
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Diverged);
+        }
         let CallableTarget::Source(symbol) = descriptor.target() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
@@ -461,6 +484,25 @@ impl ExpressionLowerer<'_> {
             [] => Ok(LoweredValue::Unit),
             [entity] => Ok(LoweredValue::Value(value(*entity))),
             _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+        }
+    }
+
+    fn is_plain_string_literal(&self, expression: ExpressionId) -> Result<bool, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        match node.payload() {
+            Expression::Group { expression } => self.is_plain_string_literal(*expression),
+            Expression::String { parts } => {
+                Ok(parts.iter().all(|part| matches!(part, StringPart::Text(_))))
+            }
+            _ => Ok(false),
         }
     }
 

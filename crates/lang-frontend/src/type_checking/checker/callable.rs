@@ -32,6 +32,7 @@ struct CallCandidate {
     parameters: Vec<CallParameter>,
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
+    aborts: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -111,6 +112,7 @@ impl Checker<'_> {
                         .collect(),
                     return_type,
                     cross_thread_parameters: BTreeSet::new(),
+                    aborts: false,
                 });
             } else if self.aggregate_projection_for(callee).is_none()
                 && let Some(result) = self.check_structural_component_call(
@@ -568,6 +570,7 @@ impl Checker<'_> {
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
             cross_thread_parameters: BTreeSet::new(),
+            aborts: false,
         }))
     }
 
@@ -600,10 +603,16 @@ impl Checker<'_> {
             cross_thread_parameters: signature
                 .effects
                 .iter()
-                .map(|effect| match effect {
-                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => *parameter,
+                .filter_map(|effect| match effect {
+                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => {
+                        Some(*parameter)
+                    }
+                    EnvironmentFunctionEffect::Abort => None,
                 })
                 .collect(),
+            aborts: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::Abort),
         }))
     }
 
@@ -786,10 +795,11 @@ impl Checker<'_> {
             candidate.instance_arguments,
             candidate.return_type,
             descriptors,
+            candidate.aborts,
         ));
         Ok(ExprCheck {
             ty: candidate.return_type,
-            falls_through: true,
+            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
     }
 

@@ -1,10 +1,10 @@
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{NameEnvironment, NameResolution, resolve_names},
+    name_resolution::{NameResolution, resolve_names},
     ownership_checking::{OwnershipCheckedFile, check_ownership},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::{BuiltinType, TypeEnvironment, TypedFile, check_types},
+    type_checking::{TypeEnvironment, TypedFile, check_types, standard_environments},
 };
 
 use super::{
@@ -13,25 +13,6 @@ use super::{
     render::render_program,
 };
 use crate::llvm::render_verified_program;
-
-const BUILTINS: [BuiltinType; 16] = [
-    BuiltinType::Byte,
-    BuiltinType::Short,
-    BuiltinType::Int,
-    BuiltinType::Long,
-    BuiltinType::UByte,
-    BuiltinType::UShort,
-    BuiltinType::UInt,
-    BuiltinType::ULong,
-    BuiltinType::Float,
-    BuiltinType::Double,
-    BuiltinType::Boolean,
-    BuiltinType::Char,
-    BuiltinType::String,
-    BuiltinType::Unit,
-    BuiltinType::Nothing,
-    BuiltinType::Any,
-];
 
 struct Analysis {
     sources: SourceMap,
@@ -42,23 +23,6 @@ struct Analysis {
     owned: OwnershipCheckedFile,
 }
 
-fn environments() -> (NameEnvironment, TypeEnvironment) {
-    let mut names = NameEnvironment::new();
-    let declarations = BUILTINS.map(|builtin| {
-        (
-            names.declare_type(builtin.name()).expect("builtin name"),
-            builtin,
-        )
-    });
-    let mut types = TypeEnvironment::new(&names);
-    for (symbol, builtin) in declarations {
-        types
-            .bind_builtin(symbol, builtin)
-            .expect("builtin binding");
-    }
-    (names, types)
-}
-
 fn analyze(text: &str) -> Analysis {
     let mut sources = SourceMap::new();
     let source = sources
@@ -66,7 +30,7 @@ fn analyze(text: &str) -> Analysis {
         .expect("source must be unique");
     let lexed = lex(&sources, source).expect("lexing must succeed internally");
     let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
-    let (environment, types) = environments();
+    let (environment, types) = standard_environments();
     let names =
         resolve_names(&sources, &parsed, &environment).expect("names must resolve internally");
     let typed =
@@ -81,6 +45,50 @@ fn analyze(text: &str) -> Analysis {
         typed,
         owned,
     }
+}
+
+#[test]
+fn lowers_only_the_standard_plain_string_error_call_to_abort() {
+    let analysis = analyze(
+        "fun normal(): Unit {}\n\
+         fun abortNow(): Unit { error(\"fatal\") }",
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("standard error must lower to verified SSA Abort");
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
+    assert!(!ssa.contains("call @error"), "{ssa}");
+
+    let llvm = render_verified_program(&program).expect("Abort SSA must lower to LLVM");
+    let body = llvm_function_body(&llvm, "abortNow");
+    assert!(body.contains("call void @abort()"), "{body}");
+    assert!(body.contains("unreachable"), "{body}");
+    assert!(!body.contains("invoke "), "{body}");
+    assert!(!llvm.contains("@error"), "{llvm}");
+    assert!(!llvm.contains("landingpad"), "{llvm}");
+
+    let unsupported = analyze("fun abortInterpolated(): Unit { error(\"${1}\") }");
+    let error = match lower_scalar_file(
+        &unsupported.sources,
+        &unsupported.parsed,
+        &unsupported.names,
+        &unsupported.typed,
+        &unsupported.owned,
+    ) {
+        Ok(_) => panic!("String interpolation remains outside this native slice"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
 }
 
 #[test]

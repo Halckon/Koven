@@ -500,6 +500,8 @@ pub enum EnvironmentFunctionEffect {
         /// Zero-based parameter index in the same environment signature.
         parameter: usize,
     },
+    /// The call terminates the process through the compiler-owned abort primitive.
+    Abort,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -594,6 +596,14 @@ impl TypeEnvironment {
                 .parameters
                 .get(*parameter)
                 .is_none_or(|parameter| parameter.mode != ParameterMode::Value),
+            EnvironmentFunctionEffect::Abort => {
+                signature.parameters.as_slice()
+                    != [EnvironmentParameter {
+                        mode: ParameterMode::Borrow,
+                        ty: EnvironmentType::Builtin(BuiltinType::String),
+                    }]
+                    || signature.return_type != EnvironmentType::Builtin(BuiltinType::Nothing)
+            }
         }) {
             return Err(TypeCheckingError::InvalidExternalBinding);
         }

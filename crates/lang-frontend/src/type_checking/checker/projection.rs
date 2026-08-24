@@ -106,6 +106,7 @@ impl Checker<'_> {
             Vec::new(),
             ty,
             Vec::new(),
+            false,
         ));
         self.aggregate_projections
             .push(AggregateProjectionDescriptor::new(

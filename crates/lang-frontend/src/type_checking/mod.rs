@@ -36,12 +36,28 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
             .expect("BuiltinType::ALL names must remain unique");
         (symbol, builtin)
     });
+    let error = names
+        .declare_function("error")
+        .expect("the standard error function name must remain unique");
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
         types
             .bind_builtin(symbol, builtin)
             .expect("fresh builtin symbols must match their type environment");
     }
+    types
+        .bind_function(
+            error,
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Borrow,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Nothing),
+                effects: vec![EnvironmentFunctionEffect::Abort],
+            },
+        )
+        .expect("the standard error signature must satisfy its compiler-bound effect");
     (names, types)
 }
 
@@ -75,7 +91,13 @@ pub fn check_types(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{BuiltinType, standard_environments};
+    use crate::name_resolution::NameEnvironment;
+
+    use super::{
+        BuiltinType, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
+        EnvironmentType, ExternalTypeBinding, ParameterMode, TypeCheckingError, TypeEnvironment,
+        standard_environments,
+    };
 
     #[test]
     fn standard_environments_declare_every_builtin_once_in_canonical_order() {
@@ -88,20 +110,78 @@ mod tests {
             .map(|symbol| symbol.name())
             .collect::<Vec<_>>();
 
-        assert_eq!(actual, expected);
-        assert_eq!(actual.iter().copied().collect::<BTreeSet<_>>().len(), 16);
+        assert_eq!(&actual[..BuiltinType::ALL.len()], expected);
+        assert_eq!(actual.last(), Some(&"error"));
+        assert_eq!(actual.iter().copied().collect::<BTreeSet<_>>().len(), 17);
         assert_eq!(
             second_names
                 .symbols()
                 .iter()
                 .map(|symbol| symbol.name())
                 .collect::<Vec<_>>(),
-            expected
+            actual
         );
-        for (symbol, builtin) in first_names.symbols().iter().zip(BuiltinType::ALL) {
+        for (symbol, builtin) in first_names
+            .symbols()
+            .iter()
+            .take(BuiltinType::ALL.len())
+            .zip(BuiltinType::ALL)
+        {
             assert!(matches!(
                 first_types.binding(symbol.id()),
                 Some(super::ExternalTypeBinding::Builtin(bound)) if *bound == builtin
+            ));
+        }
+        let error = first_names.symbols().last().expect("standard error symbol");
+        assert!(matches!(
+            first_types.binding(error.id()),
+            Some(ExternalTypeBinding::Function(signature))
+                if signature.parameters.len() == 1
+                    && signature.parameters[0].mode == ParameterMode::Borrow
+                    && signature.parameters[0].ty
+                        == EnvironmentType::Builtin(BuiltinType::String)
+                    && signature.return_type
+                        == EnvironmentType::Builtin(BuiltinType::Nothing)
+                    && signature.effects == [EnvironmentFunctionEffect::Abort]
+        ));
+    }
+
+    #[test]
+    fn abort_effect_accepts_only_the_standard_error_signature() {
+        for (index, signature) in [
+            EnvironmentFunction {
+                parameters: Vec::new(),
+                return_type: EnvironmentType::Builtin(BuiltinType::Nothing),
+                effects: vec![EnvironmentFunctionEffect::Abort],
+            },
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Value,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Nothing),
+                effects: vec![EnvironmentFunctionEffect::Abort],
+            },
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Borrow,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Unit),
+                effects: vec![EnvironmentFunctionEffect::Abort],
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut names = NameEnvironment::new();
+            let symbol = names
+                .declare_function(format!("invalid{index}"))
+                .expect("unique function");
+            let mut types = TypeEnvironment::new(&names);
+            assert!(matches!(
+                types.bind_function(symbol, signature),
+                Err(TypeCheckingError::InvalidExternalBinding)
             ));
         }
     }

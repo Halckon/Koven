@@ -8,6 +8,7 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, CallableTarget, Capability, EnvironmentFunction, EnvironmentParameter,
         ExpressionCategory, ParameterMode, TypeEnvironment, TypeKind, check_types,
+        standard_environments,
     },
 };
 
@@ -82,6 +83,57 @@ fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
         .iter()
         .map(|diagnostic| diagnostic.code().to_string())
         .collect()
+}
+
+#[test]
+fn standard_error_has_a_stable_abort_identity_and_nothing_result() {
+    let text = "fun choose(flag: Boolean): Int = if (flag) 1 else error(\"failed\")";
+    let (sources, parsed_file) = parsed(text);
+    let (names, types) = standard_environments();
+    let resolution = resolve_names(&sources, &parsed_file, &names).expect("names");
+    assert!(resolution.diagnostics().is_empty());
+    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 1);
+    let call = &typed.calls()[0];
+    assert!(matches!(call.target(), CallableTarget::External(_)));
+    assert!(call.aborts());
+    assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
+    assert!(matches!(
+        typed.types().get(call.return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Nothing))
+    ));
+
+    let shadowing = "fun error(message: String): Nothing = error(message)";
+    let (sources, shadowed_file) = parsed(shadowing);
+    let resolution = resolve_names(&sources, &shadowed_file, &names).expect("shadow names");
+    let typed = check_types(&sources, &shadowed_file, &resolution, &types).expect("shadow types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 1);
+    assert!(matches!(
+        typed.calls()[0].target(),
+        CallableTarget::Source(_)
+    ));
+    assert!(!typed.calls()[0].aborts());
+
+    let invalid = "fun missing(): Unit { val item = error() }\n\
+                   fun wrong(): Unit { val item = error(1) }";
+    let (sources, invalid_file) = parsed(invalid);
+    let resolution = resolve_names(&sources, &invalid_file, &names).expect("invalid names");
+    let typed = check_types(&sources, &invalid_file, &resolution, &types).expect("invalid types");
+    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0084"]);
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| {
+                sources
+                    .slice(diagnostic.primary_span())
+                    .expect("diagnostic span")
+            })
+            .collect::<Vec<_>>(),
+        ["error()", "1"]
+    );
 }
 
 #[test]

@@ -130,6 +130,7 @@ pub struct CallDescriptor {
     instance: CallableInstanceKey,
     return_type: TypeId,
     arguments: Vec<CallArgumentDescriptor>,
+    aborts: bool,
 }
 
 impl CallDescriptor {
@@ -139,12 +140,14 @@ impl CallDescriptor {
         type_arguments: Vec<TypeId>,
         return_type: TypeId,
         arguments: Vec<CallArgumentDescriptor>,
+        aborts: bool,
     ) -> Self {
         Self {
             expression,
             instance: CallableInstanceKey::new(target, type_arguments),
             return_type,
             arguments,
+            aborts,
         }
     }
 
@@ -176,5 +179,11 @@ impl CallDescriptor {
     #[must_use]
     pub fn arguments(&self) -> &[CallArgumentDescriptor] {
         &self.arguments
+    }
+
+    /// 返回该静态 call target 是否具有编译器绑定的不可捕获 abort effect。
+    #[must_use]
+    pub const fn aborts(&self) -> bool {
+        self.aborts
     }
 }
