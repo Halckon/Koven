@@ -154,6 +154,7 @@ impl ExpressionLowerer<'_> {
                     .typed
                     .expression_type(subject)
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let ty = self.resolve_type(ty, span)?;
                 if builtin_type(self.typed, ty)
                     != Some(lang_frontend::type_checking::BuiltinType::Boolean)
                 {
@@ -570,6 +571,7 @@ impl ExpressionLowerer<'_> {
             .typed
             .expression_type(expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let ty = self.resolve_type(ty, span)?;
         Ok(builtin_type(self.typed, ty) == Some(lang_frontend::type_checking::BuiltinType::Unit))
     }
 }

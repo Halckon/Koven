@@ -13,6 +13,7 @@ use lang_frontend::{
 
 use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
+    instances::{FunctionInstanceKey, FunctionTemplate, plan_instances, resolve_concrete_type},
     present_name, return_values, span_key,
 };
 use crate::ssa::{
@@ -41,6 +42,14 @@ struct FunctionPlan {
     body: FunctionPlanBody,
     parameter_symbols: Vec<SymbolId>,
     return_type: TypeId,
+    substitutions: BTreeMap<SymbolId, TypeId>,
+    span: Span,
+}
+
+struct FunctionDeclaration {
+    item: Item,
+    symbol: SymbolId,
+    callable: CallableDescriptor,
     span: Span,
 }
 
@@ -79,31 +88,41 @@ pub(in crate::ssa) fn lower_scalar_file(
         intern_scalar_type(module, typed, &mut type_ids, ty, file_anchor)?;
     }
     let declarations = collect_functions(parsed, names, typed)?;
+    let templates = declarations
+        .iter()
+        .map(|declaration| FunctionTemplate {
+            symbol: declaration.symbol,
+            type_parameters: declaration.callable.type_parameters().to_vec(),
+            span: declaration.span,
+        })
+        .collect::<Vec<_>>();
+    let instances = plan_instances(parsed, typed, &templates)?;
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
 
-    for (item, symbol, callable, span) in declarations {
-        let Item::Function {
-            type_parameters,
-            form,
-            ..
-        } = item
-        else {
+    for instance in instances {
+        let declaration = declarations
+            .get(instance.template_index)
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let item = &declaration.item;
+        let callable = &declaration.callable;
+        let span = declaration.span;
+        let Item::Function { form, .. } = item else {
             unreachable!("collector returns only functions");
         };
-        if !type_parameters.is_empty() || !callable.type_parameters().is_empty() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let body = match form {
             FunctionForm::Explicit {
                 body: FunctionBody::Expression { expression, .. },
                 ..
-            } => FunctionPlanBody::Expression(expression),
+            } => FunctionPlanBody::Expression(*expression),
             FunctionForm::ImplicitUnitBlock(block)
             | FunctionForm::Explicit {
                 body: FunctionBody::Block(block),
                 ..
-            } => FunctionPlanBody::Block(block),
+            } => FunctionPlanBody::Block(*block),
             FunctionForm::ImplicitUnitAbsent
             | FunctionForm::Explicit {
                 body: FunctionBody::Absent,
@@ -123,24 +142,28 @@ pub(in crate::ssa) fn lower_scalar_file(
                 if parameter.mode == ParameterMode::Inout {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 }
-                let ty = intern_scalar_type(module, typed, &mut type_ids, parameter.ty, span)?;
+                let concrete =
+                    resolve_concrete_type(typed, parameter.ty, &instance.substitutions, span)?;
+                let ty = intern_scalar_type(module, typed, &mut type_ids, concrete, span)?;
                 Ok(EntityType::Value(ty))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let return_types = match builtin_type(typed, callable.return_type()) {
+        let return_type =
+            resolve_concrete_type(typed, callable.return_type(), &instance.substitutions, span)?;
+        let return_types = match builtin_type(typed, return_type) {
             Some(BuiltinType::Unit) => Vec::new(),
             Some(_) => vec![intern_scalar_type(
                 module,
                 typed,
                 &mut type_ids,
-                callable.return_type(),
+                return_type,
                 span,
             )?],
             None => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
         let id = module
             .add_function(
-                callable_symbol_name(names, symbol)?,
+                instance_function_name(names, typed, &instance.key, span)?,
                 return_types,
                 Origin::Source(span),
             )
@@ -150,12 +173,13 @@ pub(in crate::ssa) fn lower_scalar_file(
             .expect("new function must exist")
             .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        function_ids.insert(symbol, id);
+        function_ids.insert(instance.key.clone(), id);
         plans.push(FunctionPlan {
             id,
             body,
             parameter_symbols,
-            return_type: callable.return_type(),
+            return_type,
+            substitutions: instance.substitutions,
             span,
         });
     }
@@ -206,6 +230,7 @@ pub(in crate::ssa) fn lower_scalar_file(
             references: &references,
             function_ids: &function_ids,
             type_ids: &type_ids,
+            substitutions: &plan.substitutions,
             function,
             block: entry,
             bindings,
@@ -291,7 +316,7 @@ fn collect_functions(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
-) -> Result<Vec<(Item, SymbolId, CallableDescriptor, Span)>, LoweringError> {
+) -> Result<Vec<FunctionDeclaration>, LoweringError> {
     let mut functions = Vec::new();
     for root in parsed.roots() {
         let node = parsed.ast().items().get(*root).map_err(|_| LoweringError {
@@ -316,7 +341,12 @@ fn collect_functions(
             .find(|callable| callable.symbol() == symbol && callable.owner().is_none())
             .cloned()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))?;
-        functions.push((item, symbol, callable, span));
+        functions.push(FunctionDeclaration {
+            item,
+            symbol,
+            callable,
+            span,
+        });
     }
     Ok(functions)
 }
@@ -346,6 +376,32 @@ fn callable_symbol_name(names: &NameResolution, symbol: SymbolId) -> Result<Stri
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })
+}
+
+fn instance_function_name(
+    names: &NameResolution,
+    typed: &TypedFile,
+    instance: &FunctionInstanceKey,
+    span: Span,
+) -> Result<String, LoweringError> {
+    let mut name = callable_symbol_name(names, instance.symbol())?;
+    if instance.type_arguments().is_empty() {
+        return Ok(name);
+    }
+    name.push('<');
+    for (index, ty) in instance.type_arguments().iter().copied().enumerate() {
+        if index != 0 {
+            name.push(',');
+        }
+        let builtin = builtin_type(typed, ty)
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        if !LOWERED_BUILTINS.contains(&builtin) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        name.push_str(builtin.name());
+    }
+    name.push('>');
+    Ok(name)
 }
 
 fn intern_scalar_type(

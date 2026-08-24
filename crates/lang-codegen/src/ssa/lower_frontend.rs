@@ -1,6 +1,7 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod control;
+mod instances;
 mod loop_control;
 pub(super) mod orchestrate;
 
@@ -21,6 +22,7 @@ use super::model::{
     BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType, Function,
     FunctionId, ModelError, Operation, Origin, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
 };
+use instances::FunctionInstanceKey;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LoweringErrorKind {
@@ -28,6 +30,7 @@ pub(super) enum LoweringErrorKind {
     MismatchedAnalysis,
     FrontendDiagnostics,
     BlockingDeferred,
+    InstanceLimitExceeded,
     UnsupportedNode,
     MissingFact,
     InvalidLiteral,
@@ -77,8 +80,9 @@ struct ExpressionLowerer<'a> {
     typed: &'a TypedFile,
     source_text: &'a str,
     references: &'a BTreeMap<(usize, usize), SymbolId>,
-    function_ids: &'a BTreeMap<SymbolId, FunctionId>,
+    function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
+    substitutions: &'a BTreeMap<SymbolId, TypeId>,
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
@@ -402,12 +406,16 @@ impl ExpressionLowerer<'_> {
         let CallableTarget::Source(symbol) = descriptor.target() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if !descriptor.instance().type_arguments().is_empty() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        let type_arguments = descriptor
+            .instance()
+            .type_arguments()
+            .iter()
+            .map(|ty| self.resolve_type(*ty, span))
+            .collect::<Result<Vec<_>, _>>()?;
+        let instance = FunctionInstanceKey::new(symbol, type_arguments);
         let callee = *self
             .function_ids
-            .get(&symbol)
+            .get(&instance)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let mut ordered = vec![None; descriptor.arguments().len()];
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -427,7 +435,8 @@ impl ExpressionLowerer<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let result_types = match builtin_type(self.typed, descriptor.return_type()) {
+        let return_type = self.resolve_type(descriptor.return_type(), span)?;
+        let result_types = match builtin_type(self.typed, return_type) {
             Some(BuiltinType::Unit) => Vec::new(),
             Some(_) => vec![EntityType::Value(
                 self.expression_ssa_type(expression, span)?,
@@ -545,10 +554,15 @@ impl ExpressionLowerer<'_> {
             .typed
             .expression_type(expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let ty = self.resolve_type(ty, span)?;
         self.type_ids
             .get(&ty)
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))
+    }
+
+    fn resolve_type(&self, ty: TypeId, span: Span) -> Result<TypeId, LoweringError> {
+        instances::resolve_concrete_type(self.typed, ty, self.substitutions, span)
     }
 
     fn append(

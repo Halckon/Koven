@@ -107,13 +107,15 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 
 1. [x] 安装/验证 LLVM 21 工具链与 Inkwell 最小 smoke matrix，接受 ADR-0007。
 2. [x] 扩展 scalar SSA operation/verifier contract → 验证：checked arithmetic/call 正反矩阵。
-3. [ ] 建立 frontend→SSA identity/type/function/body lowering → 验证：标量直线函数窄测。
+3. [x] 建立 frontend→SSA identity/type/function/body lowering → 验证：标量直线函数窄测。
    - [x] 完成无泛型顶层 expression-body 函数的 identity/diagnostic/deferred 门禁、标量类型、
          literal/name/group/prefix/checked arithmetic/comparison/direct-call lowering，并在返回前运行
          SPEC-0033 verifier。
    - [x] 完成直线 block、嵌套 block、局部 `val`/`var`、普通/复合赋值与显式 return lowering；
          block 尾部仍遵守 Unit 语境，不引入尾表达式值。
-   - [ ] 接续具体泛型实例 lowering 后完成本步。
+   - [x] 从全部非泛型顶层入口构造可达具体泛型实例图；显式/推导得到的相同 key 去重，
+         递归调用回到同一实例，不可达声明不生成，同名 overload 不按展示名称合并，并以
+         1024 个具体泛型实例作为显式增长门禁。
 4. [ ] lower branch/loop/return/short-circuit 与 block parameters → 验证：CFG/PHI 前置矩阵。
    - [x] 完成 `if`、subjectful/subjectless Boolean `when`、多条件 entry 与 `&&`/`||` 的真实 CFG；
          分支结果和分支内 local 更新通过确定顺序的 block parameter 合流，return 路径不产生
@@ -166,3 +168,6 @@ verifier 的 typed SSA，再把该 SSA 映射为通过 LLVM verifier 的 LLVM IR
 | `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 35 项；真实流水线覆盖 while 自然 backedge、loop、break/continue、嵌套最近目标和无 exit 自循环；loop 外 jump 与缺 typed iteration plan 的 for 明确拒绝 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | loop CFG lowering 无 warning；独立 `loop_control` 生产模块 300 行以内 |
 | 2026-08-25 while/loop/break/continue 检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |
+| `cargo test -p lang-codegen --all-targets`（设置 LLVM prefix） | 通过 | 38 项；新增显式/推导实例去重、多标量替换、同 key 递归、不可达泛型、省略非标量实例和同名 overload 静态目标隔离矩阵 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`（设置 LLVM prefix） | 通过 | 具体实例 planning/lowering 无 warning；新增 `instances` 生产模块低于 250 行 |
+| 2026-08-25 具体泛型实例检查点 workspace 标准基线（均设置 LLVM prefix） | 通过 | fmt、check、Clippy `-D warnings`、all-targets test、`lang-cli` build 均退出 0 |

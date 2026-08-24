@@ -9,6 +9,7 @@ use lang_frontend::{
 
 use super::{
     lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
+    model::Operation,
     render::render_program,
 };
 
@@ -133,6 +134,134 @@ fn lowers_real_scalar_expression_functions_through_verified_ssa() {
     assert!(first.contains("not %v"));
     assert!(first.contains("call @f0("));
     assert_eq!(first.matches("abort @source").count(), 2);
+}
+
+#[test]
+fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity() {
+    let analysis = analyze(
+        "fun <T> identity(own input: T): T = input\n\
+         fun <T> relay(own input: T): T = identity(input)\n\
+         fun <T> recurse(own input: T): T = recurse(input)\n\
+         fun <T> unused(own input: T): T = input\n\
+         fun useInt(input: Int): Int = relay<Int>(input)\n\
+         fun useIntAgain(input: Int): Int = relay(input)\n\
+         fun useLong(input: Long): Long = relay(input)\n\
+         fun recursive(input: Int): Int = recurse(input)",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("reachable concrete scalar generic instances must lower");
+    let rendered = render_program(&program);
+    let repeated = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("repeated instance planning must lower");
+    assert_eq!(rendered, render_program(&repeated));
+    assert_eq!(rendered.matches("func \"identity<Int>\"").count(), 1);
+    assert_eq!(rendered.matches("func \"identity<Long>\"").count(), 1);
+    assert_eq!(rendered.matches("func \"relay<Int>\"").count(), 1);
+    assert_eq!(rendered.matches("func \"relay<Long>\"").count(), 1);
+    assert_eq!(rendered.matches("func \"recurse<Int>\"").count(), 1);
+    assert!(!rendered.contains("unused<"));
+
+    let module = &program.modules[0];
+    let recursive = module
+        .functions
+        .iter()
+        .find(|function| function.name == "recurse<Int>")
+        .expect("recursive generic instance must exist");
+    let recursive_body = rendered
+        .split("func \"recurse<Int>\"")
+        .nth(1)
+        .and_then(|body| body.split("\n\n  func").next())
+        .expect("recursive instance body must render");
+    assert!(recursive_body.contains(&format!("call @f{}(", recursive.id.index())));
+}
+
+#[test]
+fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
+    let analysis = analyze(
+        "fun <T> choose(own input: T): T = input\n\
+         fun <T> choose(own input: T, fallback: Boolean): T = input\n\
+         fun one(input: Int): Int = choose(input)\n\
+         fun two(input: Int): Int = choose(input, true)",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("generic overload instances must lower independently");
+    let module = &program.modules[0];
+    let choices = module
+        .functions
+        .iter()
+        .filter(|function| function.name == "choose<Int>")
+        .map(|function| function.id)
+        .collect::<Vec<_>>();
+    assert_eq!(choices.len(), 2);
+    let target_of = |name: &str| {
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == name)
+            .expect("caller must exist");
+        function
+            .instructions
+            .iter()
+            .find_map(|instruction| match instruction.operation {
+                Operation::DirectCall { callee, .. } => Some(callee),
+                _ => None,
+            })
+            .expect("caller must contain one direct call")
+    };
+    let one = target_of("one");
+    let two = target_of("two");
+    assert_ne!(one, two);
+    assert!(choices.contains(&one));
+    assert!(choices.contains(&two));
 }
 
 #[test]
@@ -490,4 +619,21 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     .expect("for lowering must wait for iterable and binding typed facts");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+
+    let non_scalar_instance = analyze(
+        "fun <T> identity(own input: T): T = input\n\
+         fun text(own input: String): String = identity(input)",
+    );
+    assert!(non_scalar_instance.typed.diagnostics().is_empty());
+    assert!(non_scalar_instance.owned.diagnostics().is_empty());
+    let error = lower_scalar_file(
+        &non_scalar_instance.sources,
+        &non_scalar_instance.parsed,
+        &non_scalar_instance.names,
+        &non_scalar_instance.typed,
+        &non_scalar_instance.owned,
+    )
+    .err()
+    .expect("non-scalar generic instances remain outside SPEC-0034");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }

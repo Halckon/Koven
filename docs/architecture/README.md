@@ -118,7 +118,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
 - 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已建立
-  frontend→SSA 的标量 expression、block、branch 与 loop 封闭切片，但泛型实例和 SSA→LLVM
+  frontend→SSA 的标量 expression、block、branch、loop 与具体泛型实例封闭切片，但 SSA→LLVM
   仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
@@ -142,7 +142,9 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   lower 为真实 CFG，以 block parameter 合流分支结果及分支内 local 更新，statement context
   不为丢弃值伪造 payload；`loop_control` 为 `while`/`loop` 建立显式 header 参数，preheader、
   自然 fallthrough 与每条 `continue` backedge 都传递当前 local，`break` 只进入最近 loop exit。
-  完整 `for`、具体泛型实例与 SSA→LLVM 映射仍未实现；
+  `instances` 从非泛型顶层入口构造确定的可达实例图，按 SPEC-0177 key 替换泛型体内直接类型
+  参数；同 key 递归去重、不可达泛型不生成、同名 overload 保持不同 `FunctionId`，并以 1024
+  个具体泛型实例作为显式增长门禁。完整 `for` 与 SSA→LLVM 映射仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
