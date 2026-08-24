@@ -13,6 +13,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0006](./0006-typed-ssa-block-parameters.md) | accepted | typed SSA 使用 block parameters、IR-local 类型与显式所有权效果 |
 | [ADR-0007](./0007-llvm-toolchain-and-first-target.md) | accepted | 固定 LLVM 21 / Inkwell 0.10、显式 prefix 与首个 aarch64 macOS target |
 | [ADR-0008](./0008-internal-value-and-allocation-abi.md) | accepted | 使用 target DataLayout、first-class aggregate、无对象 header 的独占 handle 与集中系统分配边界 |
+| [ADR-0009](./0009-concrete-closure-internal-abi.md) | accepted | 具体闭包使用函数指针与内联环境，无捕获值退化为裸函数指针 |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份
