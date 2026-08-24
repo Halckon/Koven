@@ -126,8 +126,8 @@ SPEC-0033/0034 标量主线。截至 v0.28
   子集的 verified SSA 映射为 verified LLVM IR；完整 `for` 因依赖 typed iteration plan 与
   provider runtime 已迁移到候选 0182。SPEC-0035 已开始建立不依赖源码 constructor 选择的
   named aggregate/heap-owner SSA type model，并已加入整体 aggregate construct/project/explode、
-  heap allocate、payload/field place 与对应线性 ownership/loan verifier；LLVM aggregate/runtime、
-  object/link/run 仍未实现；
+  heap allocate、payload/field place 与对应线性 ownership/loan verifier；LLVM first-class
+  aggregate/DataLayout lowering 已完成，runtime allocation/drop/free、object/link/run 仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -168,8 +168,11 @@ SPEC-0033/0034 标量主线。截至 v0.28
   Copyable/MoveOnly，并让 heap owner 的先声明/后定义指向显式 aggregate payload，从而以固定
   pointer handle 打断递归；construct/project/explode、heap allocation effect、payload/field place、
   确定 debug rendering、跨 module/重复/未定义/非法 inline cycle 以及 nested loan/CFG 唯一消费
-  verifier 已实现。LLVM layout、系统 allocation 与 drop/free glue 尚未生成。多目标平台、
-  linker、bootstrap 与 public FFI ABI 仍未确定。
+  verifier 已实现。LLVM adapter 已用 target `DataLayout` 映射声明顺序 identified struct，支持
+  aggregate 参数、返回、PHI、direct call、insert/extract 与大型 first-class value，并让
+  MoveOnly direct-call 实参发生唯一消费；未实现的 MoveOnly drop 会 fail loud，不会被静默擦除。
+  系统 allocation 与递归 drop/free glue 尚未生成。多目标平台、linker、bootstrap 与 public
+  FFI ABI 仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
 

@@ -837,3 +837,59 @@ fn owner_drop_and_aggregate_projection_respect_nested_loans() {
         VerifyErrorKind::DropCopyable { .. }
     )));
 }
+
+#[test]
+fn direct_call_consumes_move_only_aggregate_arguments() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("aggregate_call");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let types = add_types(module);
+
+    let (callee_id, callee_entry, parameters) =
+        add_function(module, "consume_pair", &[types.pair], Vec::new(), &origin);
+    let parameter = parameters[0];
+    let callee = module.function_mut(callee_id).expect("callee must exist");
+    append(
+        callee,
+        callee_entry,
+        Operation::Drop { owner: parameter },
+        Vec::new(),
+        &origin,
+    );
+    terminate(callee, callee_entry, &origin);
+
+    let (caller_id, caller_entry, parameters) = add_function(
+        module,
+        "reuse_after_call",
+        &[types.pair],
+        Vec::new(),
+        &origin,
+    );
+    let argument = parameters[0];
+    let caller = module.function_mut(caller_id).expect("caller must exist");
+    append(
+        caller,
+        caller_entry,
+        Operation::DirectCall {
+            callee: callee_id,
+            arguments: vec![argument],
+        },
+        Vec::new(),
+        &origin,
+    );
+    let (reuse, _) = append(
+        caller,
+        caller_entry,
+        Operation::Drop { owner: argument },
+        Vec::new(),
+        &origin,
+    );
+    terminate(caller, caller_entry, &origin);
+
+    let errors = errors(&program);
+    assert!(has_error_at(&errors, reuse, |kind| matches!(
+        kind,
+        VerifyErrorKind::ValueUnavailable { .. }
+    )));
+}

@@ -1,6 +1,9 @@
 //! LLVM 21 / Inkwell 兼容边界。
 
 mod adapter;
+#[cfg(test)]
+mod aggregate_tests;
+mod type_map;
 
 use inkwell::OptimizationLevel;
 use inkwell::builder::BuilderError;

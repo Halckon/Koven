@@ -1,4 +1,4 @@
-//! verified typed SSA 到 LLVM IR 的标量适配器。
+//! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
 use std::collections::BTreeMap;
 
@@ -6,8 +6,11 @@ use inkwell::{IntPredicate, basic_block::BasicBlock, builder::Builder, context::
 use inkwell::{
     intrinsics::Intrinsic,
     module::Module as LlvmModule,
-    types::{BasicMetadataTypeEnum, IntType},
-    values::{BasicMetadataValueEnum, FunctionValue, IntValue, PhiValue, ValueKind},
+    types::{BasicMetadataTypeEnum, BasicType},
+    values::{
+        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PhiValue, StructValue,
+        ValueKind,
+    },
 };
 
 use crate::ssa::{
@@ -19,13 +22,13 @@ use crate::ssa::{
     verify::verify_program,
 };
 
-use super::{LlvmAdapterError, configure_module, first_target_machine};
+use super::{LlvmAdapterError, configure_module, first_target_machine, type_map::TypeMap};
 
 pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
     verify_program(program).map_err(|error| LlvmAdapterError::InvalidSsa(error.to_string()))?;
     let [ssa_module] = program.modules.as_slice() else {
         return Err(LlvmAdapterError::Unsupported(
-            "SPEC-0034 只接受一个 SSA module".to_owned(),
+            "当前 LLVM adapter 只接受一个 SSA module".to_owned(),
         ));
     };
     let (triple, target_machine) = first_target_machine()?;
@@ -33,7 +36,7 @@ pub(super) fn render_verified_program(program: &Program) -> Result<String, LlvmA
     let llvm_module = context.create_module(&ssa_module.name);
     configure_module(&llvm_module, &triple, &target_machine);
 
-    ModuleLowerer::new(&context, &llvm_module, ssa_module).lower()?;
+    ModuleLowerer::new(&context, &llvm_module, ssa_module)?.lower()?;
     llvm_module
         .verify()
         .map_err(|error| LlvmAdapterError::Verify(error.to_string()))?;
@@ -44,17 +47,23 @@ struct ModuleLowerer<'ctx, 'llvm, 'ssa> {
     context: &'ctx Context,
     llvm: &'llvm LlvmModule<'ctx>,
     ssa: &'ssa Module,
+    type_map: TypeMap<'ctx>,
     functions: BTreeMap<FunctionId, FunctionValue<'ctx>>,
 }
 
 impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
-    fn new(context: &'ctx Context, llvm: &'llvm LlvmModule<'ctx>, ssa: &'ssa Module) -> Self {
-        Self {
+    fn new(
+        context: &'ctx Context,
+        llvm: &'llvm LlvmModule<'ctx>,
+        ssa: &'ssa Module,
+    ) -> Result<Self, LlvmAdapterError> {
+        Ok(Self {
             context,
             llvm,
             ssa,
+            type_map: TypeMap::lower(context, ssa)?,
             functions: BTreeMap::new(),
-        }
+        })
     }
 
     fn lower(mut self) -> Result<(), LlvmAdapterError> {
@@ -70,6 +79,7 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 self.ssa,
                 function,
                 llvm_function,
+                &self.type_map,
                 &self.functions,
             )
             .lower()?;
@@ -87,26 +97,25 @@ impl<'ctx, 'llvm, 'ssa> ModuleLowerer<'ctx, 'llvm, 'ssa> {
                 .iter()
                 .map(|entity| {
                     let EntityId::Value(value) = entity else {
-                        return Err(unsupported("LLVM 标量参数不能是 place 或 loan"));
+                        return Err(unsupported("LLVM function 参数不能是 place 或 loan"));
                     };
                     let ty = value_type(function, *value)?;
-                    Ok(BasicMetadataTypeEnum::from(self.llvm_int_type(ty)?))
+                    Ok(BasicMetadataTypeEnum::from(self.type_map.basic_type(ty)?))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let function_type = match function.return_types.as_slice() {
                 [] => self.context.void_type().fn_type(&parameters, false),
-                [result] => self.llvm_int_type(*result)?.fn_type(&parameters, false),
-                _ => return Err(unsupported("SPEC-0034 不支持多返回值 LLVM ABI")),
+                [result] => self
+                    .type_map
+                    .basic_type(*result)?
+                    .fn_type(&parameters, false),
+                _ => return Err(unsupported("当前 LLVM adapter 不支持多返回值 ABI")),
             };
             let name = format!("f{}.{}", function.id.index(), function.name);
             let llvm_function = self.llvm.add_function(&name, function_type, None);
             self.functions.insert(function.id, llvm_function);
         }
         Ok(())
-    }
-
-    fn llvm_int_type(&self, ty: SsaTypeId) -> Result<IntType<'ctx>, LlvmAdapterError> {
-        llvm_int_type(self.context, self.ssa, ty)
     }
 }
 
@@ -116,10 +125,11 @@ struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions> {
     module: &'ssa Module,
     function: &'ssa Function,
     llvm_function: FunctionValue<'ctx>,
+    type_map: &'functions TypeMap<'ctx>,
     functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
     builder: Builder<'ctx>,
     blocks: BTreeMap<BlockId, BasicBlock<'ctx>>,
-    values: BTreeMap<ValueId, IntValue<'ctx>>,
+    values: BTreeMap<ValueId, BasicValueEnum<'ctx>>,
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
 }
 
@@ -130,6 +140,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         module: &'ssa Module,
         function: &'ssa Function,
         llvm_function: FunctionValue<'ctx>,
+        type_map: &'functions TypeMap<'ctx>,
         functions: &'functions BTreeMap<FunctionId, FunctionValue<'ctx>>,
     ) -> Self {
         Self {
@@ -138,6 +149,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             module,
             function,
             llvm_function,
+            type_map,
             functions,
             builder: context.create_builder(),
             blocks: BTreeMap::new(),
@@ -184,13 +196,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         }
         for (index, entity) in entry.parameters.iter().enumerate() {
             let EntityId::Value(value) = entity else {
-                return Err(unsupported("LLVM 标量 entry 参数不能是 place 或 loan"));
+                return Err(unsupported("LLVM entry 参数不能是 place 或 loan"));
             };
             let llvm_value = self
                 .llvm_function
                 .get_nth_param(index as u32)
-                .ok_or_else(|| LlvmAdapterError::Build("缺少 LLVM function 参数".to_owned()))?
-                .into_int_value();
+                .ok_or_else(|| LlvmAdapterError::Build("缺少 LLVM function 参数".to_owned()))?;
             llvm_value.set_name(&value_name(*value));
             self.values.insert(*value, llvm_value);
         }
@@ -199,14 +210,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             self.builder.position_at_end(self.block(block.id)?);
             for entity in &block.parameters {
                 let EntityId::Value(value) = entity else {
-                    return Err(unsupported("LLVM 标量 block 参数不能是 place 或 loan"));
+                    return Err(unsupported("LLVM block 参数不能是 place 或 loan"));
                 };
                 let phi = self.builder.build_phi(
-                    self.llvm_int_type(value_type(self.function, *value)?)?,
+                    self.type_map
+                        .basic_type(value_type(self.function, *value)?)?,
                     &value_name(*value),
                 )?;
-                self.values
-                    .insert(*value, phi.as_basic_value().into_int_value());
+                self.values.insert(*value, phi.as_basic_value());
                 self.phis.insert(*value, phi);
             }
         }
@@ -220,7 +231,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("constant", 1, results.len()));
                 };
-                let ty = self.llvm_int_type(value_type(self.function, *result)?)?;
+                let ty = self
+                    .type_map
+                    .int_type(value_type(self.function, *result)?)?;
                 let value = match constant {
                     ScalarConstant::Boolean(value) => ty.const_int(u64::from(*value), false),
                     ScalarConstant::Integer(value) => ty.const_int(*value as u64, *value < 0),
@@ -228,7 +241,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                         return Err(unsupported("Unit constant 不产生 LLVM payload"));
                     }
                 };
-                self.values.insert(*result, value);
+                self.values.insert(*result, value.into());
             }
             Operation::Binary {
                 operator,
@@ -251,16 +264,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 };
                 let value = self
                     .builder
-                    .build_not(self.value(*operand)?, &value_name(*result))?;
-                self.values.insert(*result, value);
+                    .build_not(self.int_value(*operand)?, &value_name(*result))?;
+                self.values.insert(*result, value.into());
             }
             Operation::DirectCall { callee, arguments } => {
                 self.lower_call(*callee, arguments, &results)?;
             }
-            Operation::AggregateConstruct { .. }
-            | Operation::AggregateProject { .. }
-            | Operation::AggregateExplode { .. }
-            | Operation::HeapAllocate { .. }
+            Operation::AggregateConstruct { aggregate, fields } => {
+                self.lower_aggregate_construct(*aggregate, fields, &results)?;
+            }
+            Operation::AggregateProject { aggregate, field } => {
+                self.lower_aggregate_project(*aggregate, *field, &results)?;
+            }
+            Operation::AggregateExplode { aggregate } => {
+                self.lower_aggregate_explode(*aggregate, &results)?;
+            }
+            Operation::HeapAllocate { .. }
             | Operation::HeapPayloadPlace { .. }
             | Operation::FieldPlace { .. } => {
                 return Err(unsupported(
@@ -273,10 +292,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 };
                 self.values.insert(*result, self.value(*source)?);
             }
-            Operation::Consume { .. } | Operation::Drop { .. } => {
+            Operation::Consume { .. } => {
                 if !results.is_empty() {
                     return Err(invalid_result_count("ownership effect", 0, results.len()));
                 }
+            }
+            Operation::Drop { .. } => {
+                return Err(unsupported(
+                    "SPEC-0035 MoveOnly drop 等待 recursive glue lowering 切片",
+                ));
             }
             Operation::RootPlace { .. }
             | Operation::BorrowBegin { .. }
@@ -291,6 +315,69 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         Ok(())
     }
 
+    fn lower_aggregate_construct(
+        &mut self,
+        aggregate: SsaTypeId,
+        fields: &[ValueId],
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        let [result] = results else {
+            return Err(invalid_result_count(
+                "aggregate construct",
+                1,
+                results.len(),
+            ));
+        };
+        let mut value = self.type_map.aggregate_type(aggregate)?.const_zero();
+        for (index, field) in fields.iter().enumerate() {
+            value = self
+                .builder
+                .build_insert_value(
+                    value,
+                    self.value(*field)?,
+                    index as u32,
+                    &format!("v{}.field{index}", result.index()),
+                )?
+                .into_struct_value();
+        }
+        value.set_name(&value_name(*result));
+        self.values.insert(*result, value.into());
+        Ok(())
+    }
+
+    fn lower_aggregate_project(
+        &mut self,
+        aggregate: ValueId,
+        field: usize,
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        let [result] = results else {
+            return Err(invalid_result_count("aggregate project", 1, results.len()));
+        };
+        let field = self.builder.build_extract_value(
+            self.struct_value(aggregate)?,
+            field as u32,
+            &value_name(*result),
+        )?;
+        self.values.insert(*result, field);
+        Ok(())
+    }
+
+    fn lower_aggregate_explode(
+        &mut self,
+        aggregate: ValueId,
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        let aggregate = self.struct_value(aggregate)?;
+        for (index, result) in results.iter().enumerate() {
+            let field =
+                self.builder
+                    .build_extract_value(aggregate, index as u32, &value_name(*result))?;
+            self.values.insert(*result, field);
+        }
+        Ok(())
+    }
+
     fn lower_binary(
         &mut self,
         operator: BinaryOperator,
@@ -301,8 +388,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         let [result] = results else {
             return Err(invalid_result_count("binary", 1, results.len()));
         };
-        let left_value = self.value(left)?;
-        let right_value = self.value(right)?;
+        let left_value = self.int_value(left)?;
+        let right_value = self.int_value(right)?;
         let name = value_name(*result);
         let value = match operator {
             BinaryOperator::Add => self.builder.build_int_add(left_value, right_value, &name)?,
@@ -323,7 +410,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 &name,
             )?,
         };
-        self.values.insert(*result, value);
+        self.values.insert(*result, value.into());
         Ok(())
     }
 
@@ -367,15 +454,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             (CheckedArithmeticOperator::Multiply, false) => "llvm.umul.with.overflow",
             _ => return Err(unsupported("非法 overflow intrinsic operator")),
         };
-        let int_type = self.llvm_int_type(value_type(self.function, left)?)?;
+        let int_type = self.type_map.int_type(value_type(self.function, left)?)?;
         let intrinsic = Intrinsic::find(intrinsic_name)
             .and_then(|intrinsic| intrinsic.get_declaration(self.llvm, &[int_type.into()]))
             .ok_or_else(|| {
                 LlvmAdapterError::Build(format!("无法声明 LLVM intrinsic {intrinsic_name}"))
             })?;
         let arguments = [
-            BasicMetadataValueEnum::from(self.value(left)?),
-            BasicMetadataValueEnum::from(self.value(right)?),
+            BasicMetadataValueEnum::from(self.int_value(left)?),
+            BasicMetadataValueEnum::from(self.int_value(right)?),
         ];
         let aggregate = match self
             .builder
@@ -401,8 +488,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             .builder
             .build_extract_value(aggregate, 1, &value_name(failed))?
             .into_int_value();
-        self.values.insert(result, value);
-        self.values.insert(failed, overflow);
+        self.values.insert(result, value.into());
+        self.values.insert(failed, overflow.into());
         Ok(())
     }
 
@@ -414,8 +501,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         result: ValueId,
         failed: ValueId,
     ) -> Result<(), LlvmAdapterError> {
-        let left_value = self.value(left)?;
-        let right_value = self.value(right)?;
+        let left_value = self.int_value(left)?;
+        let right_value = self.int_value(right)?;
         let ty = left_value.get_type();
         let zero = ty.const_zero();
         let one = ty.const_int(1, false);
@@ -481,8 +568,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             }
             _ => return Err(unsupported("非法 checked division operator")),
         };
-        self.values.insert(result, value);
-        self.values.insert(failed, failure);
+        self.values.insert(result, value.into());
+        self.values.insert(failed, failure.into());
         Ok(())
     }
 
@@ -514,11 +601,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         };
         let value = self.builder.build_int_compare(
             predicate,
-            self.value(left)?,
-            self.value(right)?,
+            self.int_value(left)?,
+            self.int_value(right)?,
             &value_name(*result),
         )?;
-        self.values.insert(*result, value);
+        self.values.insert(*result, value.into());
         Ok(())
     }
 
@@ -555,7 +642,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             }
             [result] => {
                 let value = match call.try_as_basic_value() {
-                    ValueKind::Basic(value) => value.into_int_value(),
+                    ValueKind::Basic(value) => value,
                     ValueKind::Instruction(_) => {
                         return Err(LlvmAdapterError::InvalidSsa(
                             "value SSA call 对应 LLVM void call".to_owned(),
@@ -565,7 +652,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                 value.set_name(&value_name(*result));
                 self.values.insert(*result, value);
             }
-            _ => return Err(unsupported("SPEC-0034 不支持多返回值 direct call")),
+            _ => return Err(unsupported("当前 LLVM adapter 不支持多返回值 direct call")),
         }
         Ok(())
     }
@@ -601,7 +688,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
                     self.add_edge_incoming(llvm_source, when_false)?;
                 }
                 self.builder.build_conditional_branch(
-                    self.value(*condition)?,
+                    self.int_value(*condition)?,
                     self.block(when_true.target)?,
                     self.block(when_false.target)?,
                 )?;
@@ -638,12 +725,10 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("edge target block 不存在".to_owned()))?;
         for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
             let EntityId::Value(argument) = argument else {
-                return Err(unsupported("LLVM 标量 edge argument 不能是 place 或 loan"));
+                return Err(unsupported("LLVM edge argument 不能是 place 或 loan"));
             };
             let EntityId::Value(parameter) = parameter else {
-                return Err(unsupported(
-                    "LLVM 标量 block parameter 不能是 place 或 loan",
-                ));
+                return Err(unsupported("LLVM block parameter 不能是 place 或 loan"));
             };
             let value = self.value(*argument)?;
             let phi = self.phis.get(parameter).ok_or_else(|| {
@@ -676,10 +761,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
         }
     }
 
-    fn llvm_int_type(&self, ty: SsaTypeId) -> Result<IntType<'ctx>, LlvmAdapterError> {
-        llvm_int_type(self.context, self.module, ty)
-    }
-
     fn block(&self, id: BlockId) -> Result<BasicBlock<'ctx>, LlvmAdapterError> {
         self.blocks
             .get(&id)
@@ -687,35 +768,29 @@ impl<'ctx, 'llvm, 'ssa, 'functions> FunctionLowerer<'ctx, 'llvm, 'ssa, 'function
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM basic block 映射缺失".to_owned()))
     }
 
-    fn value(&self, id: ValueId) -> Result<IntValue<'ctx>, LlvmAdapterError> {
+    fn value(&self, id: ValueId) -> Result<BasicValueEnum<'ctx>, LlvmAdapterError> {
         self.values
             .get(&id)
             .copied()
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM value 映射缺失".to_owned()))
     }
-}
 
-fn llvm_int_type<'ctx>(
-    context: &'ctx Context,
-    module: &Module,
-    ty: SsaTypeId,
-) -> Result<IntType<'ctx>, LlvmAdapterError> {
-    match module.type_kind(ty) {
-        Some(SsaTypeKind::Boolean) => Ok(context.bool_type()),
-        Some(SsaTypeKind::Integer { bits: 8, .. }) => Ok(context.i8_type()),
-        Some(SsaTypeKind::Integer { bits: 16, .. }) => Ok(context.i16_type()),
-        Some(SsaTypeKind::Integer { bits: 32, .. }) => Ok(context.i32_type()),
-        Some(SsaTypeKind::Integer { bits: 64, .. }) => Ok(context.i64_type()),
-        Some(SsaTypeKind::Unit) => Err(unsupported("Unit 不具有 LLVM first-class payload")),
-        Some(SsaTypeKind::Integer { .. })
-        | Some(SsaTypeKind::Opaque { .. })
-        | Some(SsaTypeKind::Aggregate { .. })
-        | Some(SsaTypeKind::HeapOwner { .. }) => {
-            Err(unsupported("SSA 类型不属于 SPEC-0034 LLVM 标量子集"))
+    fn int_value(&self, id: ValueId) -> Result<IntValue<'ctx>, LlvmAdapterError> {
+        match self.value(id)? {
+            BasicValueEnum::IntValue(value) => Ok(value),
+            _ => Err(LlvmAdapterError::InvalidSsa(
+                "integer operation 的 operand 不是 LLVM integer".to_owned(),
+            )),
         }
-        None => Err(LlvmAdapterError::InvalidSsa(
-            "SSA type identity 不存在".to_owned(),
-        )),
+    }
+
+    fn struct_value(&self, id: ValueId) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+        match self.value(id)? {
+            BasicValueEnum::StructValue(value) => Ok(value),
+            _ => Err(LlvmAdapterError::InvalidSsa(
+                "aggregate operation 的 operand 不是 LLVM struct".to_owned(),
+            )),
+        }
     }
 }
 
@@ -734,9 +809,9 @@ fn value_results(instruction: &Instruction) -> Result<Vec<ValueId>, LlvmAdapterE
         .iter()
         .map(|entity| match entity {
             EntityId::Value(value) => Ok(*value),
-            EntityId::Place(_) | EntityId::Loan(_) => Err(unsupported(
-                "SPEC-0034 LLVM instruction result 必须是 value",
-            )),
+            EntityId::Place(_) | EntityId::Loan(_) => {
+                Err(unsupported("LLVM instruction result 必须是 value"))
+            }
         })
         .collect()
 }

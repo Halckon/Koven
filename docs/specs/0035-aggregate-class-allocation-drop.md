@@ -98,11 +98,11 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
       operand/result/field-index 正反矩阵通过，非法部分移动和 Copyable drop 被 verifier 拒绝。
 - [x] CFG ownership matrix证明 MoveOnly aggregate 与 heap owner 在每条正常路径恰好 consume 或
       drop 一次，loan 与 field/payload drop 冲突仍由同一 verifier 拒绝。
-- [ ] AArch64 LLVM IR 锁定声明顺序 struct、first-class aggregate call/return、insert/extract、
+- [x] AArch64 LLVM IR 锁定声明顺序 struct、first-class aggregate call/return、insert/extract、
       target-derived size/alignment，以及大型 aggregate 没有 `malloc`/implicit Box。
 - [ ] class/Box 形状的 heap owner IR 锁定 `malloc(max(size,1))`、null→abort、payload 初始化、
       递归 field drop 和唯一 `free`；Copyable payload copy 不调用 glue/free。
-- [ ] 人工损坏 SSA 在 LLVM construction 前被拒绝；合法 module 通过 LLVM verifier且重复文本相同。
+- [x] 人工损坏 SSA 在 LLVM construction 前被拒绝；合法 module 通过 LLVM verifier且重复文本相同。
 - [ ] `lang-codegen` 窄测与 workspace 标准基线通过；全部生产 Rust 文件遵守 1000 行软上限，
       Architecture、Spec 索引与 roadmap 只记录实际完成事实。
 
@@ -125,7 +125,7 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
    验证：类型图、能力、递归/循环和确定性矩阵。
 2. [x] 增加 aggregate/heap/place/allocation operation 与 linear ownership contract →
    验证：operation + CFG ownership 正反矩阵。
-3. [ ] 扩展 LLVM type/value/layout adapter并生成 first-class aggregate →
+3. [x] 扩展 LLVM type/value/layout adapter并生成 first-class aggregate →
    验证：target DataLayout、call/return、insert/extract 与 verifier matrix。
 4. [ ] 接入系统 malloc/abort/free 与递归 drop glue →
    验证：class/Box/ZST payload、OOM branch、唯一 free 与无 unwind 文本矩阵。
@@ -158,6 +158,9 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（operation slice） | 通过 | 52 项；新增 5 项 operation contract、线性消费、nested loan、显式 CFG edge transfer 与确定 debug text 矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（operation slice） | 通过 | 无 warning；named type builder/verifier 已拆至独立职责，生产文件均低于 1000 行软上限 |
 | 2026-08-25 workspace 标准基线（operation slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets`（LLVM aggregate slice） | 通过 | 56 项；新增 target DataLayout、first-class aggregate call/return/PHI/insert/extract、大 aggregate 无隐式 allocation、pending drop fail-loud 与 MoveOnly call consumption 矩阵 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings`（LLVM aggregate slice） | 通过 | 无 warning；LLVM type/layout map 与 value lowering 维持独立职责 |
+| 2026-08-25 workspace 标准基线（LLVM aggregate slice） | 通过 | fmt、workspace check、workspace clippy `-D warnings`、workspace all-target test 与 `lang-cli` build 全部退出 0 |
 | `cargo check --workspace --all-targets` | 通过 | workspace 全 target 检查通过 |
 | `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 无 warning |
 | `cargo test --workspace --all-targets` | 通过 | 全部被调用的 workspace test target 退出状态为 0 |

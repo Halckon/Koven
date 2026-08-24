@@ -306,8 +306,11 @@ fn direct_call_contract(
     if parameter_types.len() != arguments.len()
         || !parameter_types
             .iter()
-            .all(|ty| is_scalar_value(module, *ty))
-        || !callee.return_types.iter().all(|ty| is_scalar(module, *ty))
+            .all(|ty| is_first_class_value(module, *ty))
+        || !callee
+            .return_types
+            .iter()
+            .all(|ty| is_first_class(module, *ty))
     {
         return false;
     }
@@ -347,8 +350,20 @@ fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     }
 }
 
-fn is_scalar_value(module: &Module, ty: EntityType) -> bool {
-    matches!(ty, EntityType::Value(ty) if is_scalar(module, ty))
+fn is_first_class_value(module: &Module, ty: EntityType) -> bool {
+    matches!(ty, EntityType::Value(ty) if is_first_class(module, ty))
+}
+
+fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
+    matches!(
+        module.type_kind(ty),
+        Some(
+            SsaTypeKind::Boolean
+                | SsaTypeKind::Integer { .. }
+                | SsaTypeKind::Aggregate { .. }
+                | SsaTypeKind::HeapOwner { .. }
+        )
+    )
 }
 
 fn is_scalar(module: &Module, ty: SsaTypeId) -> bool {

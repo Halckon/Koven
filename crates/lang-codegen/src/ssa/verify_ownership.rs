@@ -180,8 +180,23 @@ fn apply_operation(
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
         | Operation::Compare { .. }
-        | Operation::BooleanNot { .. }
-        | Operation::DirectCall { .. } => {}
+        | Operation::BooleanNot { .. } => {}
+        Operation::DirectCall { arguments, .. } => {
+            for argument in arguments {
+                consume_value(
+                    module,
+                    function,
+                    *argument,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &BTreeSet::new(),
+                    location.clone(),
+                    origin,
+                    errors,
+                );
+            }
+        }
         Operation::AggregateConstruct { fields, .. } => {
             for field in fields {
                 consume_value(
