@@ -339,6 +339,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0185（已实现）**：让已通过 frontend 的普通 class/value class/interface/enum class
       声明 roots 与既有标量 entry 共存；声明本身不进入函数实例图，不据此提前实现 constructor、
       nominal operation、具名 object 或顶层存储初始化
+- [ ] **SPEC-0186（实施中）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
+      DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
+      IR-local 结构化失败边界，源码 `Span` 与稳定用户诊断由 0184 接入 nominal 类型时承接
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
@@ -353,7 +356,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] 为单态化元素生成 size / alignment / stride，以系统堆基线生成固定大小 owner header、
       单个连续缓冲区、受检分配大小和先检查后寻址的索引；不生成逐元素 `Box`
 - [ ] 在构造 LLVM 类型前拒绝目标 DataLayout 中的 size / alignment / stride 溢出和超过目标
-      可表示对象大小的聚合，返回结构化用户诊断而不是 LLVM 错误或编译器崩溃
+      可表示对象大小的聚合，返回结构化用户诊断而不是 LLVM 错误或编译器崩溃；SPEC-0186
+      先完成 IR-local preflight，源码诊断映射等待 0184 后再完成本项总验收
 - [x] 大型聚合与容器 header 的 ABI 间接传递不得 lower 为隐式 `Box`，也不得仅因参数或返回
       约定产生堆分配
 - [x] 验证标准顺序容器不存在 small-buffer storage-kind tag、短 / 长双表示或按优化级别改变的
