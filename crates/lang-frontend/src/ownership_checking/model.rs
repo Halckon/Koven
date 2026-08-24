@@ -258,6 +258,13 @@ pub enum DropTarget {
     Temporary(ExpressionId),
     /// replacement 前原 element value；payload 是 assignment expression。
     ReplacedElement(ExpressionId),
+    /// `move` closure environment 中一个 owned MoveOnly capture。
+    Captured {
+        /// 拥有 environment 的 lambda。
+        closure: ExpressionId,
+        /// 被析构的捕获来源。
+        source: ClosureCaptureSource,
+    },
 }
 
 /// 一个确定的 ASAP 析构事实。

@@ -1,6 +1,7 @@
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity},
+    name_resolution::SymbolKind,
     parser::{
         CallArgument, Expression, LiteralKind, ParameterModeMarker, PrefixOperator, VariableKind,
     },
@@ -16,7 +17,27 @@ use crate::ownership_checking::{
     OwnershipDeferredReason, OwnershipPlace,
 };
 
-use super::{AccessKind, ActiveLoan, Checker, Flows, OwnershipCheckingError, State};
+use super::{AccessKind, Checker, Flows, OwnershipCheckingError, State};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ActiveLoan {
+    pub(super) owner: ActiveLoanOwner,
+    pub(super) target: ActiveLoanTarget,
+    pub(super) kind: LoanKind,
+    pub(super) origin: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ActiveLoanTarget {
+    Place(OwnershipPlace),
+    This,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActiveLoanOwner {
+    Call(ExpressionId),
+    Closure(ExpressionId),
+}
 
 impl Checker<'_> {
     pub(super) fn place(
@@ -169,10 +190,10 @@ impl Checker<'_> {
     ) -> Result<bool, OwnershipCheckingError> {
         if access == AccessKind::Move
             && move_only
-            && matches!(
+            && (matches!(
                 self.typed.parameter_mode(place.root()),
                 Some(ParameterMode::Borrow | ParameterMode::Inout)
-            )
+            ) || state.non_owning.contains_key(&place.root()))
         {
             let Some(binding) = self.names.symbols().get(place.root().index()) else {
                 return Ok(false);
@@ -186,8 +207,12 @@ impl Checker<'_> {
             )?;
             diagnostic.add_label(
                 self.sources,
-                binding.span(),
-                "non-owning parameter declared here",
+                state
+                    .non_owning
+                    .get(&place.root())
+                    .copied()
+                    .unwrap_or_else(|| binding.span()),
+                "non-owning binding established here",
             )?;
             self.diagnostics.push(diagnostic);
             return Ok(false);
@@ -207,8 +232,27 @@ impl Checker<'_> {
             return Ok(false);
         }
 
+        if access == AccessKind::Mutation
+            && let Some(origin) = state.immutable_captures.get(&place.root()).copied()
+        {
+            self.emit_loan_conflict(
+                primary,
+                origin,
+                "captured bindings are immutable in v1 closures",
+            )?;
+            return Ok(false);
+        }
+
         let conflict = state.loans.iter().find(|loan| {
-            loan.place.overlaps(place)
+            let overlaps = match &loan.target {
+                ActiveLoanTarget::Place(loaned) => loaned.overlaps(place),
+                ActiveLoanTarget::This => self
+                    .names
+                    .symbols()
+                    .get(place.root().index())
+                    .is_some_and(|symbol| symbol.kind() == SymbolKind::Field),
+            };
+            overlaps
                 && !matches!(
                     (loan.kind, access),
                     (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
@@ -279,8 +323,8 @@ impl Checker<'_> {
                             call_span,
                         ));
                         state.loans.push(ActiveLoan {
-                            call,
-                            place,
+                            owner: ActiveLoanOwner::Call(call),
+                            target: ActiveLoanTarget::Place(place),
                             kind: LoanKind::Shared,
                             origin: operand_span,
                         });
@@ -365,8 +409,8 @@ impl Checker<'_> {
                         call_span,
                     ));
                     state.loans.push(ActiveLoan {
-                        call,
-                        place,
+                        owner: ActiveLoanOwner::Call(call),
+                        target: ActiveLoanTarget::Place(place),
                         kind: LoanKind::Exclusive,
                         origin: primary,
                     });
@@ -381,7 +425,9 @@ impl Checker<'_> {
             .into_iter()
             .flatten()
         {
-            state.loans.retain(|loan| loan.call != call);
+            state
+                .loans
+                .retain(|loan| loan.owner != ActiveLoanOwner::Call(call));
         }
     }
 

@@ -35,6 +35,7 @@ pub struct CallArgumentDescriptor {
     parameter_index: usize,
     category: ExpressionCategory,
     mode: ParameterMode,
+    cross_thread: bool,
 }
 
 impl CallArgumentDescriptor {
@@ -43,12 +44,14 @@ impl CallArgumentDescriptor {
         parameter_index: usize,
         category: ExpressionCategory,
         mode: ParameterMode,
+        cross_thread: bool,
     ) -> Self {
         Self {
             argument_index,
             parameter_index,
             category,
             mode,
+            cross_thread,
         }
     }
 
@@ -74,6 +77,12 @@ impl CallArgumentDescriptor {
     #[must_use]
     pub const fn mode(self) -> ParameterMode {
         self.mode
+    }
+
+    /// 返回该参数是否由 compiler-bound effect 跨线程交付。
+    #[must_use]
+    pub const fn crosses_thread(self) -> bool {
+        self.cross_thread
     }
 }
 

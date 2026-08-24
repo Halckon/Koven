@@ -1,0 +1,9 @@
+class Resource {}
+fun inspect(item: Resource): Unit {}
+fun escape(own item: Resource): () -> Unit {
+    val borrowed: () -> Unit = { val read = inspect(item) }
+    return borrowed
+}
+fun illegal(item: Resource): Unit {
+    val owned: move () -> Unit = move { val read = inspect(item) }
+}

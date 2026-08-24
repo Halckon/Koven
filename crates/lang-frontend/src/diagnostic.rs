@@ -147,6 +147,9 @@ pub mod codes {
     pub(crate) const IMMUTABLE_INOUT_PLACE: &str = "L0134";
     pub(crate) const LOAN_CONFLICT: &str = "L0135";
     pub(crate) const MOVE_FROM_CONTAINER_ELEMENT: &str = "L0136";
+    pub(crate) const BORROWED_CLOSURE_ESCAPE: &str = "L0137";
+    pub(crate) const ILLEGAL_OWNED_CAPTURE: &str = "L0138";
+    pub(crate) const NON_TRANSFERABLE_DELIVERY: &str = "L0139";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -286,6 +289,9 @@ pub mod codes {
         IMMUTABLE_INOUT_PLACE,
         LOAN_CONFLICT,
         MOVE_FROM_CONTAINER_ELEMENT,
+        BORROWED_CLOSURE_ESCAPE,
+        ILLEGAL_OWNED_CAPTURE,
+        NON_TRANSFERABLE_DELIVERY,
     ];
 
     /// 由集中定义创建生产错误码目录。

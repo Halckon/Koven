@@ -13,7 +13,9 @@ use crate::{
     type_checking::{Copyability, DestructuringMode, ExpressionCategory, ParameterMode},
 };
 
-use crate::ownership_checking::{DropFact, DropPoint, DropTarget};
+use crate::ownership_checking::{
+    ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropFact, DropPoint, DropTarget,
+};
 
 use super::{Checker, ExpressionUse, OwnershipCheckingError};
 
@@ -22,6 +24,21 @@ use self::liveness::Liveness;
 pub(super) fn plan(checker: &Checker<'_>) -> Result<Vec<DropFact>, OwnershipCheckingError> {
     let liveness = Liveness::build(checker)?;
     DropPlanner::new(checker, liveness).run()
+}
+
+pub(super) struct CaptureLiveness {
+    pub(super) expression_after: Vec<std::collections::BTreeSet<SymbolId>>,
+    pub(super) statement_after: Vec<std::collections::BTreeSet<SymbolId>>,
+}
+
+pub(super) fn capture_liveness(
+    checker: &Checker<'_>,
+) -> Result<CaptureLiveness, OwnershipCheckingError> {
+    let liveness = Liveness::build(checker)?;
+    Ok(CaptureLiveness {
+        expression_after: liveness.expression_after,
+        statement_after: liveness.statement_after,
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +51,7 @@ struct OwnedValue {
 #[derive(Clone, Debug, Default)]
 struct ValueState {
     values: Vec<OwnedValue>,
+    closures: BTreeMap<SymbolId, ExpressionId>,
 }
 
 impl ValueState {
@@ -41,12 +59,17 @@ impl ValueState {
         self.values.iter().position(|value| value.symbol == symbol)
     }
 
-    fn remove(&mut self, symbol: SymbolId) -> Option<OwnedValue> {
+    fn remove_value(&mut self, symbol: SymbolId) -> Option<OwnedValue> {
         self.position(symbol).map(|index| self.values.remove(index))
     }
 
+    fn take(&mut self, symbol: SymbolId) -> Option<OwnedValue> {
+        self.closures.remove(&symbol);
+        self.remove_value(symbol)
+    }
+
     fn insert(&mut self, value: OwnedValue) {
-        self.remove(value.symbol);
+        self.remove_value(value.symbol);
         self.values.push(value);
     }
 }
@@ -206,6 +229,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 else {
                     return Ok(true);
                 };
+                let closure = self.closure_origin(initializer, state)?;
                 self.expression(initializer, ExpressionUse::Consume, state)?;
                 if let Some(symbol) = self.checker.marker_symbol(name)
                     && self.checker.is_move_only_variable(symbol)
@@ -216,6 +240,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         origin: marker_span(name),
                         scope_depth: self.scope_depth,
                     });
+                    if let Some(closure) = closure {
+                        state.closures.insert(symbol, closure);
+                    }
                     if !self.liveness.statement_after[id.index()].contains(&symbol) {
                         self.drop_named(DropPoint::AfterStatement(id), symbol, state);
                     }
@@ -312,13 +339,23 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Error
             | Expression::This
             | Expression::Literal(_)
-            | Expression::SuperMember { .. }
-            | Expression::Lambda { .. } => Ok(true),
+            | Expression::SuperMember { .. } => Ok(true),
+            Expression::Lambda { .. } => {
+                for capture in self.checker.captures_of(id) {
+                    if capture.mode() == ClosureCaptureMode::Owned
+                        && capture.effect() == ClosureCaptureEffect::Move
+                        && let ClosureCaptureSource::Symbol(symbol) = capture.source()
+                    {
+                        state.take(symbol);
+                    }
+                }
+                Ok(true)
+            }
             Expression::Name => {
                 if let Some(symbol) = self.checker.reference_symbol(node.span()) {
                     match usage {
                         ExpressionUse::Consume => {
-                            state.remove(symbol);
+                            state.take(symbol);
                         }
                         ExpressionUse::Read => {
                             if !self.liveness.expression_after[id.index()].contains(&symbol) {
@@ -485,7 +522,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     if operator != AssignmentOperator::Assign {
                         self.expression(target, ExpressionUse::Read, state)?;
                     }
-                    let old = state.remove(symbol);
+                    let old = state.remove_value(symbol);
+                    state.closures.remove(&symbol);
                     if let Some(old) = old {
                         self.push_fact(DropFact::new(
                             DropPoint::AfterExpression(value),
@@ -513,7 +551,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(place) = self.checker.place(id)? {
                     let root = place.root();
                     if usage == ExpressionUse::Consume && place.is_root() {
-                        state.remove(root);
+                        state.take(root);
                     } else if !self.liveness.expression_after[id.index()].contains(&root) {
                         self.drop_named(DropPoint::AfterExpression(id), root, state);
                     }
@@ -626,22 +664,69 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_named(&mut self, point: DropPoint, symbol: SymbolId, state: &mut ValueState) {
-        if let Some(value) = state.remove(symbol) {
+        let closure = state.closures.remove(&symbol);
+        if let Some(value) = state.remove_value(symbol) {
+            let mut shared_sources = Vec::new();
+            if let Some(closure) = closure {
+                let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
+                for capture in captures.into_iter().rev() {
+                    if capture.mode() == ClosureCaptureMode::Owned
+                        && capture.effect() == ClosureCaptureEffect::Move
+                    {
+                        self.push_fact(DropFact::new(
+                            point,
+                            DropTarget::Captured {
+                                closure,
+                                source: capture.source(),
+                            },
+                            capture.reference_span(),
+                        ));
+                    } else if capture.mode() == ClosureCaptureMode::Shared
+                        && let ClosureCaptureSource::Symbol(source) = capture.source()
+                    {
+                        shared_sources.push(source);
+                    }
+                }
+            }
             self.push_fact(DropFact::new(
                 point,
                 DropTarget::Named(symbol),
                 value.origin,
             ));
+            for source in shared_sources {
+                let still_captured = state.closures.values().any(|&closure| {
+                    self.checker.captures_of(closure).any(|capture| {
+                        capture.mode() == ClosureCaptureMode::Shared
+                            && capture.source() == ClosureCaptureSource::Symbol(source)
+                    })
+                });
+                if !still_captured && !self.live_after(point).contains(&source) {
+                    self.drop_named(point, source, state);
+                }
+            }
+        }
+    }
+
+    fn closure_origin(
+        &self,
+        expression: ExpressionId,
+        state: &ValueState,
+    ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
+        let node = self.checker.parsed.ast().expressions().get(expression)?;
+        match node.payload() {
+            Expression::Lambda { .. } => Ok(Some(expression)),
+            Expression::Group { expression } => self.closure_origin(*expression, state),
+            Expression::Name => Ok(self
+                .checker
+                .reference_symbol(node.span())
+                .and_then(|symbol| state.closures.get(&symbol).copied())),
+            _ => Ok(None),
         }
     }
 
     fn drop_all(&mut self, point: DropPoint, state: &mut ValueState) {
-        while let Some(value) = state.values.pop() {
-            self.push_fact(DropFact::new(
-                point,
-                DropTarget::Named(value.symbol),
-                value.origin,
-            ));
+        while let Some(symbol) = state.values.last().map(|value| value.symbol) {
+            self.drop_named(point, symbol, state);
         }
     }
 
@@ -652,12 +737,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if state.values[index].scope_depth != depth {
                 continue;
             }
-            let value = state.values.remove(index);
-            self.push_fact(DropFact::new(
-                point,
-                DropTarget::Named(value.symbol),
-                value.origin,
-            ));
+            let symbol = state.values[index].symbol;
+            self.drop_named(point, symbol, state);
         }
     }
 
@@ -668,12 +749,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if state.values[index].scope_depth <= depth {
                 continue;
             }
-            let value = state.values.remove(index);
-            self.push_fact(DropFact::new(
-                point,
-                DropTarget::Named(value.symbol),
-                value.origin,
-            ));
+            let symbol = state.values[index].symbol;
+            self.drop_named(point, symbol, state);
         }
     }
 
@@ -706,6 +783,23 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn push_fact(&mut self, fact: DropFact) {
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
+        }
+    }
+
+    fn live_after(&self, point: DropPoint) -> &std::collections::BTreeSet<SymbolId> {
+        match point {
+            DropPoint::AfterExpression(expression)
+            | DropPoint::CallReturn(expression)
+            | DropPoint::ControlTransfer(expression)
+            | DropPoint::AfterReplacement(expression)
+            | DropPoint::BranchExit {
+                control: expression,
+                ..
+            } => &self.liveness.expression_after[expression.index()],
+            DropPoint::AfterStatement(statement) | DropPoint::LoopExit(statement) => {
+                &self.liveness.statement_after[statement.index()]
+            }
+            DropPoint::FunctionEntry(item) => &self.liveness.function_live_in[&item.index()],
         }
     }
 }

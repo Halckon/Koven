@@ -6,8 +6,8 @@ use crate::{
     parser::{CallArgument, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
-        CallArgumentDescriptor, CallDescriptor, CallableTarget, ExpressionCategory,
-        ExternalTypeBinding,
+        CallArgumentDescriptor, CallDescriptor, CallableTarget, EnvironmentFunctionEffect,
+        ExpressionCategory, ExternalTypeBinding,
     },
 };
 
@@ -28,6 +28,7 @@ struct CallCandidate {
     generic: bool,
     parameters: Vec<CallParameter>,
     return_type: TypeId,
+    cross_thread_parameters: BTreeSet<usize>,
 }
 
 #[derive(Clone, Copy)]
@@ -95,6 +96,7 @@ impl Checker<'_> {
                         })
                         .collect(),
                     return_type,
+                    cross_thread_parameters: BTreeSet::new(),
                 });
             } else if self.aggregate_projection_for(callee).is_none()
                 && let Some(result) = self.check_structural_component_call(
@@ -390,6 +392,7 @@ impl Checker<'_> {
             generic: !descriptor.type_parameters().is_empty(),
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
+            cross_thread_parameters: BTreeSet::new(),
         }))
     }
 
@@ -418,6 +421,13 @@ impl Checker<'_> {
             generic: false,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
+            cross_thread_parameters: signature
+                .effects
+                .iter()
+                .map(|effect| match effect {
+                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => *parameter,
+                })
+                .collect(),
         }))
     }
 
@@ -573,6 +583,9 @@ impl Checker<'_> {
                     mapping[argument_index],
                     self.expression_categories[argument.value.index()],
                     candidate.parameters[mapping[argument_index]].mode,
+                    candidate
+                        .cross_thread_parameters
+                        .contains(&mapping[argument_index]),
                 )
             })
             .collect();

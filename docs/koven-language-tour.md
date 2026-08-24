@@ -8,8 +8,9 @@ Koven 编译器已经完成 **Phase 1（词法分析 + 语法分析）**，Phase
 基础与名义/泛型/interface 类型检查、`when` 穷尽性与 smart cast、条件 `Copyable`、有限
 内联布局、结构化解构、单态 callable/member 选择与顺序容器类型检查。Phase 3 已实现整变量
 所有权状态、use-after-move、条件复制、结构化移动、调用期 loan 与 owned-value ASAP
-析构点，以及顺序容器核心 element place 的读取、借用与替换所有权；Phase 5 容器增删/重排
-relocation API、closure capture / `Transferable`、代码生成（Phase 4）和
+析构点、顺序容器核心 element place 的读取、借用与替换所有权，以及 v0.27 的简化 closure
+capture、`Transferable` 与 compiler-bound 跨线程 effect；Phase 5 容器增删/重排 relocation
+API、代码生成（Phase 4）和
 标准库（Phase 5）仍待实施。跨文件 package/import 名称解析也尚未完成。
 也就是说：
 
@@ -27,6 +28,8 @@ relocation API、closure capture / `Transferable`、代码生成（Phase 4）和
   已由 SPEC-0176 实现；调用期 loan 与 owned-value ASAP 析构点已由 SPEC-0029 实现。**
 - **顺序容器核心 element place 所有权已由 SPEC-0030 实现：MoveOnly 元素不能按值从索引
   移出，借用按逻辑索引判定冲突，成功替换会记录旧元素的唯一析构点。**
+- **v0.27 的默认 shared capture、显式 `move` owned capture、borrowed closure 逃逸边界、
+  结构化 `Transferable` 与 compiler-bound 跨线程检查已由 SPEC-0032 实现。**
 - `Map`/`MutableMap` 的所有权契约仍是候选设计；`Copyable` opt-out 已明确不进入 v1；错误传播 `?` 已由 v0.19 定稿并完成 Phase 1 Parser。
 
 换句话说,这份教程描述的是 Koven v1 **应该长成的样子**,而不是"现在就能装个编译器跑起来"的使用手册。

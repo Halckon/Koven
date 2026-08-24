@@ -128,7 +128,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.24 | enum case type、流敏感 smart cast、有限域 `when` 穷尽性与 L0106–L0114 |
 | v0.25 | 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构；已明确启用 |
 | v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
-| v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 待实施 |
+| v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 已实现 |
 
 ## 5. SPEC 编号索引
 
@@ -159,7 +159,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
 | SPEC-0030 | 顺序容器 element place 所有权 | `01-design-decisions.md` §8、`../specs/0030-sequential-container-element-ownership.md` | ✅ 已实现 |
-| SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ⏳ 待实施 |
+| SPEC-0032 | move closure capture 与 `Transferable` | `01-design-decisions.md` §27、`../specs/0032-move-closure-transferable.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -199,7 +199,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0131–L0132 | use-after-move 与禁止不可复制分量部分移动；SPEC-0027/0028 已实现 | `../specs/0027-variable-ownership-use-after-move.md`、`../specs/0028-conditional-copy-structural-move.md` |
 | L0133–L0135 | borrowed value 移出、非法 `Inout` place 与有效 loan 冲突；SPEC-0029 已实现 | `01-design-decisions.md` §26.5 |
 | L0136 | 禁止从顺序容器 element place 按 owned value 移出 MoveOnly 元素；SPEC-0030 已实现 | `01-design-decisions.md` §8 |
-| L0137–L0139 | borrowed closure 逃逸、非法 owned capture 与 non-`Transferable` 跨线程交付；SPEC-0032 待实施 | `01-design-decisions.md` §27.4 |
+| L0137–L0139 | borrowed closure 逃逸、非法 owned capture 与 non-`Transferable` 跨线程交付；SPEC-0032 已实现 | `01-design-decisions.md` §27.4 |
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

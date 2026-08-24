@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+mod closure;
 mod container;
 mod drop_planner;
 mod loan;
@@ -19,23 +20,19 @@ use crate::{
 };
 
 use super::{
-    LoanFact, LoanKind, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
+    LoanFact, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
     OwnershipCheckingError, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
     capture, model::OwnershipCheckedParts,
 };
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ActiveLoan {
-    call: ExpressionId,
-    place: OwnershipPlace,
-    kind: LoanKind,
-    origin: Span,
-}
+use loan::ActiveLoan;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
     moved: BTreeMap<SymbolId, Span>,
     loans: Vec<ActiveLoan>,
+    closures: BTreeMap<SymbolId, ExpressionId>,
+    non_owning: BTreeMap<SymbolId, Span>,
+    immutable_captures: BTreeMap<SymbolId, Span>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,17 +91,26 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
+    cross_thread_by_expression: BTreeMap<usize, Vec<bool>>,
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
     diagnostics: Vec<Diagnostic>,
     loans: Vec<LoanFact>,
     deferred: Vec<OwnershipDeferredFact>,
+    captures: Vec<super::ClosureCaptureDescriptor>,
+    closures: Vec<super::ClosureDescriptor>,
+    transferabilities: Vec<super::Transferability>,
+    expression_live_after: Vec<std::collections::BTreeSet<SymbolId>>,
+    statement_live_after: Vec<std::collections::BTreeSet<SymbolId>>,
     use_after_move_code: DiagnosticCode,
     partial_move_code: DiagnosticCode,
     borrowed_move_code: DiagnosticCode,
     immutable_inout_code: DiagnosticCode,
     loan_conflict_code: DiagnosticCode,
     container_element_move_code: DiagnosticCode,
+    borrowed_closure_escape_code: DiagnosticCode,
+    illegal_owned_capture_code: DiagnosticCode,
+    non_transferable_delivery_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -138,11 +144,27 @@ impl<'a> Checker<'a> {
                 (call.expression().index(), modes)
             })
             .collect();
+        let cross_thread_by_expression = typed
+            .calls()
+            .iter()
+            .map(|call| {
+                let mut effects = vec![false; call.arguments().len()];
+                for argument in call.arguments() {
+                    effects[argument.argument_index()] = argument.crosses_thread();
+                }
+                (call.expression().index(), effects)
+            })
+            .collect();
         for construction in typed.container_constructions() {
             calls_by_expression
                 .entry(construction.expression().index())
                 .or_insert_with(|| construction.parameter_modes().to_vec());
         }
+        let capture::Analysis {
+            captures,
+            closures,
+            transferabilities,
+        } = capture::analyze(parsed, names, typed)?;
         let mut checker = Self {
             sources,
             parsed,
@@ -151,11 +173,17 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             references_by_span,
             calls_by_expression,
+            cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             diagnostics: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
+            captures,
+            closures,
+            transferabilities,
+            expression_live_after: Vec::new(),
+            statement_live_after: Vec::new(),
             use_after_move_code: codes::catalog()?.resolve(codes::USE_AFTER_MOVE)?,
             partial_move_code: codes::catalog()?.resolve(codes::PARTIAL_MOVE)?,
             borrowed_move_code: codes::catalog()?.resolve(codes::MOVE_FROM_BORROWED_BINDING)?,
@@ -163,6 +191,11 @@ impl<'a> Checker<'a> {
             loan_conflict_code: codes::catalog()?.resolve(codes::LOAN_CONFLICT)?,
             container_element_move_code: codes::catalog()?
                 .resolve(codes::MOVE_FROM_CONTAINER_ELEMENT)?,
+            borrowed_closure_escape_code: codes::catalog()?
+                .resolve(codes::BORROWED_CLOSURE_ESCAPE)?,
+            illegal_owned_capture_code: codes::catalog()?.resolve(codes::ILLEGAL_OWNED_CAPTURE)?,
+            non_transferable_delivery_code: codes::catalog()?
+                .resolve(codes::NON_TRANSFERABLE_DELIVERY)?,
         };
         for (item, _) in parsed.ast().items().iter() {
             checker.collect_mutability(item)?;
@@ -171,11 +204,9 @@ impl<'a> Checker<'a> {
     }
 
     fn run(mut self) -> Result<OwnershipCheckedFile, OwnershipCheckingError> {
-        let capture::Analysis {
-            captures,
-            closures,
-            transferabilities,
-        } = capture::analyze(self.parsed, self.names, self.typed)?;
+        let liveness = drop_planner::capture_liveness(&self)?;
+        self.expression_live_after = liveness.expression_after;
+        self.statement_live_after = liveness.statement_after;
         let mut state = State::default();
         for &root in self.parsed.roots() {
             self.check_item(root, &mut state)?;
@@ -206,7 +237,7 @@ impl<'a> Checker<'a> {
             Vec::new()
         };
         let captures = if diagnostics.is_empty() {
-            captures
+            self.captures
         } else {
             Vec::new()
         };
@@ -218,8 +249,8 @@ impl<'a> Checker<'a> {
                 loans: self.loans,
                 drops,
                 captures,
-                closures,
-                transferabilities,
+                closures: self.closures,
+                transferabilities: self.transferabilities,
                 deferred: self.deferred,
             },
         ))
@@ -267,10 +298,20 @@ impl<'a> Checker<'a> {
             | Item::Constant {
                 name, initializer, ..
             } => {
+                let closure = self.closure_origin(initializer, state)?;
+                let moved_closure = self.expression_root_symbol(initializer)?;
                 let flows =
                     self.check_expression(initializer, state.clone(), ExpressionUse::Consume)?;
                 if let Some(mut next) = flows.next {
                     self.mark_available(name, &mut next);
+                    if let Some(source) = moved_closure {
+                        next.closures.remove(&source);
+                    }
+                    if let Some(symbol) = self.marker_symbol(name)
+                        && let Some(closure) = closure
+                    {
+                        next.closures.insert(symbol, closure);
+                    }
                     *state = next;
                 }
             }
@@ -335,6 +376,18 @@ impl<'a> Checker<'a> {
             Statement::LocalVariable { declaration } => {
                 let mut state = state;
                 self.check_item(declaration, &mut state)?;
+                if let Item::Variable { name, .. } = self
+                    .parsed
+                    .ast()
+                    .items()
+                    .get(declaration)?
+                    .payload()
+                    .clone()
+                    && let Some(symbol) = self.marker_symbol(name)
+                    && !self.statement_live_after[id.index()].contains(&symbol)
+                {
+                    self.release_closure(symbol, &mut state);
+                }
                 Ok(Flows::next(state))
             }
             Statement::LocalDestructuring { initializer, .. } => {
@@ -427,7 +480,9 @@ impl<'a> Checker<'a> {
                 }
                 Ok(flows)
             }
-            Expression::Lambda { .. } => Ok(Flows::next(state)),
+            Expression::Lambda {
+                parameters, body, ..
+            } => self.check_lambda(id, &parameters, body, state),
             Expression::If {
                 condition,
                 then_branch,
@@ -440,6 +495,9 @@ impl<'a> Checker<'a> {
             Expression::Return { value, .. } => {
                 let mut flows = Flows::next(state);
                 if let Some(value) = value {
+                    if let Some(next) = flows.next.as_ref() {
+                        self.reject_borrowed_closure_escape(value, next)?;
+                    }
                     flows = self.chain_expression(flows, value, ExpressionUse::Consume)?;
                 }
                 flows.next = None;
@@ -480,6 +538,12 @@ impl<'a> Checker<'a> {
                     return self.check_element_assignment(target, operator, value, state);
                 }
                 let diagnostic_count = self.diagnostics.len();
+                if self
+                    .place(target)?
+                    .is_some_and(|place| !place.fields().is_empty())
+                {
+                    self.reject_borrowed_closure_escape(value, &state)?;
+                }
                 let flows = self.check_expression(value, state, ExpressionUse::Consume)?;
                 self.finish_assignment(
                     flows,
@@ -531,15 +595,37 @@ impl<'a> Checker<'a> {
                 let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_expression(callee, state, ExpressionUse::Read)?;
                 let modes = self.calls_by_expression.get(&id.index()).cloned();
+                let cross_thread = self.cross_thread_by_expression.get(&id.index()).cloned();
+                let argument_expressions = arguments
+                    .iter()
+                    .map(|argument| argument.value)
+                    .collect::<Vec<_>>();
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let mode = modes.as_ref().and_then(|modes| modes.get(index)).copied();
+                    let crosses_thread = cross_thread
+                        .as_ref()
+                        .and_then(|effects| effects.get(index))
+                        .copied()
+                        .unwrap_or(false);
                     let usage = match mode {
                         Some(ParameterMode::Value) => ExpressionUse::Consume,
                         Some(ParameterMode::Borrow | ParameterMode::Inout) => ExpressionUse::Place,
                         None => ExpressionUse::Read,
                     };
+                    if mode == Some(ParameterMode::Value)
+                        && !crosses_thread
+                        && let Some(next) = flows.next.as_ref()
+                    {
+                        self.reject_borrowed_closure_escape(argument.value, next)?;
+                    }
                     let argument_diagnostics = self.diagnostics.len();
                     flows = self.chain_expression(flows, argument.value, usage)?;
+                    if crosses_thread
+                        && self.diagnostics.len() == argument_diagnostics
+                        && let Some(next) = flows.next.as_ref()
+                    {
+                        self.check_cross_thread_delivery(argument.value, next)?;
+                    }
                     if self.diagnostics.len() == argument_diagnostics
                         && let Some(mode) = mode
                     {
@@ -547,6 +633,9 @@ impl<'a> Checker<'a> {
                     }
                 }
                 self.end_call_loans(id, &mut flows);
+                for expression in std::iter::once(callee).chain(argument_expressions) {
+                    self.release_last_closure_use(expression, &mut flows)?;
+                }
                 if flows.next.is_some()
                     && self.diagnostics.len() == diagnostic_count
                     && self
@@ -849,6 +938,16 @@ impl<'a> Checker<'a> {
     fn reference_symbol(&self, span: Span) -> Option<SymbolId> {
         self.references_by_span.get(&span_key(span)).copied()
     }
+
+    pub(super) fn captures_of(
+        &self,
+        lambda: ExpressionId,
+    ) -> impl Iterator<Item = super::ClosureCaptureDescriptor> + '_ {
+        self.captures
+            .iter()
+            .copied()
+            .filter(move |capture| capture.lambda() == lambda)
+    }
 }
 
 fn span_key(span: Span) -> (usize, usize) {
@@ -868,6 +967,15 @@ fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
 
 fn merge_state(target: &mut State, source: State) {
     target.loans.retain(|loan| source.loans.contains(loan));
+    target
+        .closures
+        .retain(|symbol, closure| source.closures.get(symbol) == Some(closure));
+    target
+        .non_owning
+        .retain(|symbol, origin| source.non_owning.get(symbol) == Some(origin));
+    target
+        .immutable_captures
+        .retain(|symbol, origin| source.immutable_captures.get(symbol) == Some(origin));
     for (symbol, origin) in source.moved {
         target
             .moved

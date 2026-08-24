@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（一）：表达式与类型引用基础
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §1–6），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.26。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.27。
 > 原第四部分体量过大，本次拆分为三份，均保留原节号以维持既有 SPEC 引用与 Span 表述
 > 不变：本文档（§1–6）覆盖 primary/postfix/`type_ref`/运算符优先级/Lexer 错误交接/AST
 > `Span` 规则，是后续两份的共享基础；[04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)（§7–8）覆盖

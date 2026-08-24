@@ -288,6 +288,10 @@ impl<'a> TransferabilityEvaluator<'a> {
                 self.nominal(*nominal, arguments, substitutions, active)
             }
             TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Rc,
+                ..
+            } => Transferability::NotTransferable,
+            TypeKind::Intrinsic {
                 constructor:
                     IntrinsicTypeConstructor::Box
                     | IntrinsicTypeConstructor::Array

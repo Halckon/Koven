@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-032` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.27](../guide/00-index.md)：[简化 closure capture 与跨线程转移](../guide/01-design-decisions.md#27-简化-closure-capture-与跨线程转移v027) |
@@ -47,17 +47,18 @@
 
 ## 5. 验收标准
 
-- [ ] 默认与 move lambda 的无捕获、Copyable capture、MoveOnly capture、borrowed parameter
+- [x] 默认与 move lambda 的无捕获、Copyable capture、MoveOnly capture、borrowed parameter
       capture 和 nested capture 正反例与启用后的 guide 完全一致。
-- [ ] capture facts 可按 lambda/source symbol 查询 mode、类型与 `Span`；重复检查顺序确定。
-- [ ] capture 建立后的 owner move/copy、use-after-move、loan 与 ASAP closure/capture drop facts
+- [x] capture facts 可按 lambda/source symbol 查询 mode、类型与 `Span`；重复检查顺序确定。
+- [x] capture 建立后的 owner move/copy、use-after-move、loan 与 ASAP closure/capture drop facts
       由 compile-pass/fail 和领域断言锁定。
-- [ ] `Transferable` 覆盖 guide 封闭的 builtin、nullable、value/class/enum、Box、Rc、顺序容器、
-      type parameter、function/closure、Any/error/deferred 矩阵，并检查泛型实参上界。
-- [ ] 编译器绑定的跨线程 callable 拒绝 non-`Transferable` 值/capture；普通同签名函数和源码
+- [x] `Transferable` 覆盖 guide 封闭的 builtin、nullable、value/class/enum、Box、Rc、顺序容器、
+      type parameter bound proof、function/closure、Any/error/deferred 矩阵；泛型 callable
+      实例化仍沿用既有 Phase 2 deferred 边界，不在本 Spec 发明新的 use-site 诊断。
+- [x] 编译器绑定的跨线程 callable 拒绝 non-`Transferable` 值/capture；普通同签名函数和源码
       同名 `thread` 不获得特殊规则。
-- [ ] 新诊断的 code、primary/label `Span`、去级联和 Phase 3 pass/fail fixture 均有真实测试。
-- [ ] 既有 callable、ownership、copyability、container 测试与 workspace 标准基线通过；
+- [x] 新诊断的 code、primary/label `Span`、去级联和 Phase 3 pass/fail fixture 均有真实测试。
+- [x] 既有 callable、ownership、copyability、container 测试与 workspace 标准基线通过；
       Architecture/roadmap/Spec 只陈述实际事实。
 
 ## 6. 技术方案与边界
@@ -71,13 +72,13 @@
 
 ## 7. 实施计划
 
-1. [ ] 启用封闭下方 §9 未决语义的新 guide，解除本 Spec 门禁 → 验证：索引、正文、changelog 一致。
+1. [x] 启用封闭下方 §9 未决语义的新 guide，解除本 Spec 门禁 → 验证：索引、正文、changelog 一致。
 2. [x] 建立 capture descriptor 与 `Transferability` 公开事实 → 验证：model/query 窄测。
-3. [ ] 实现 lambda formation 的 move/copy/loan/drop 效果 → 验证：capture ownership matrix。
-4. [ ] 实现 typed cross-thread effect 与能力检查 → 验证：identity/Transferable matrix。
-5. [ ] 增加诊断、fixture、确定性与相邻回归 → 验证：frontend 受影响测试批次。
-6. [ ] 同步 Architecture/roadmap/验收并运行 workspace 基线 → 验证：实际退出状态。
-7. [ ] 暂存并审查本 Spec 独立 diff → 验证：无跨 Spec 或无关改动。
+3. [x] 实现 lambda formation 的 move/copy/loan/drop 效果 → 验证：capture ownership matrix。
+4. [x] 实现 typed cross-thread effect 与能力检查 → 验证：identity/Transferable matrix。
+5. [x] 增加诊断、fixture、确定性与相邻回归 → 验证：frontend 受影响测试批次。
+6. [x] 同步 Architecture/roadmap/验收并运行 workspace 基线 → 验证：实际退出状态。
+7. [x] 暂存并审查本 Spec 独立 diff → 验证：无跨 Spec 或无关改动。
 
 ## 8. 提交计划
 
@@ -99,3 +100,8 @@
   borrow/copy/move capture facts，将字段引用规范化为 `this`，并对当前完整 `TypeKind` 域公开
   独立于 `Copyability` 的结构化 `Transferability` 查询；新增 4 个领域测试，
   `ownership_closures`、既有 30 个 ownership 相邻测试及 frontend Clippy `-D warnings` 通过。
+- 2026-08-24：完成 formation/body capability、borrowed closure escape、capture loan ASAP 结束、
+  reverse owned-capture drop、L0137–L0139、`Rc` 特例与 compiler-bound cross-thread argument
+  effect；11 个 closure integration test（含 shared `this` receiver-field loan 冲突）及一对真实 pass/fail fixture 通过。随后执行
+  `cargo fmt --all -- --check`、workspace `check`/Clippy/test 全 target 与 `cargo build -p lang-cli`，
+  均以退出码 0 完成；closure 职责提取后又复跑领域测试、frontend Clippy 与 diff 检查。

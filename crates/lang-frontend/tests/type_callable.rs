@@ -369,6 +369,7 @@ fn external_singleton_calls_preserve_predeclared_owned_and_borrow_contracts() {
                     return_type: lang_frontend::type_checking::EnvironmentType::Builtin(
                         BuiltinType::Long,
                     ),
+                    effects: Vec::new(),
                 },
             )
             .expect("function binding");

@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.26 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.27 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -8,6 +8,10 @@
 取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部
 `Value` owned binding，同时封闭同步调用期 loan 与 ASAP 析构点。源码/typed/所有权参数
 契约迁移已由 SPEC-0176 完成；SPEC-0029 的 loan 与 drop facts 实现门禁已解除。
+
+[v0.27](../guide/01-design-decisions.md#27-简化-closure-capture-与跨线程转移v027) 已由用户
+明确启用并取代 v0.26；它封闭默认 shared capture、显式 `move` owned capture、borrowed
+closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable effect。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -26,7 +30,7 @@ Phase 2 实现边界交给 SPEC-0018。
 v0.20 已封闭 class-family、类型级 companion、匿名内部类边界与窄化接口委托，并把委托
 Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
-SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0027、SPEC-0028、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079、SPEC-0080、SPEC-0081、SPEC-0082、SPEC-0083、SPEC-0084、SPEC-0085、SPEC-0086、SPEC-0087、SPEC-0088、SPEC-0089、SPEC-0090、SPEC-0091、SPEC-0092、SPEC-0093、SPEC-0094、SPEC-0095、SPEC-0096、SPEC-0097、SPEC-0098、SPEC-0099、SPEC-0100、SPEC-0101、SPEC-0102、SPEC-0103、SPEC-0104、SPEC-0105、SPEC-0106、SPEC-0107、SPEC-0108、SPEC-0109、SPEC-0110、SPEC-0111、SPEC-0112、SPEC-0113、SPEC-0114、SPEC-0115、SPEC-0116、SPEC-0117、SPEC-0118、SPEC-0119、SPEC-0120、SPEC-0121、SPEC-0122、SPEC-0123、SPEC-0124、SPEC-0125、SPEC-0126、SPEC-0127、SPEC-0128、SPEC-0129、SPEC-0130、SPEC-0131、SPEC-0132、SPEC-0133、SPEC-0134、SPEC-0135、SPEC-0136、SPEC-0137、SPEC-0138、SPEC-0139、SPEC-0140、SPEC-0141、SPEC-0142、SPEC-0143、SPEC-0144、SPEC-0145、SPEC-0146、SPEC-0147、SPEC-0148、SPEC-0149、SPEC-0150、SPEC-0151、SPEC-0152、SPEC-0153、SPEC-0154、SPEC-0155、SPEC-0156、SPEC-0157、SPEC-0158、SPEC-0159、SPEC-0160、SPEC-0161、SPEC-0162、SPEC-0163、SPEC-0164、SPEC-0165、SPEC-0166、SPEC-0167、SPEC-0168、SPEC-0169、SPEC-0170、SPEC-0171、SPEC-0172、SPEC-0173、SPEC-0175 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
+SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0027、SPEC-0028、SPEC-0032、SPEC-0058、SPEC-0059、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079、SPEC-0080、SPEC-0081、SPEC-0082、SPEC-0083、SPEC-0084、SPEC-0085、SPEC-0086、SPEC-0087、SPEC-0088、SPEC-0089、SPEC-0090、SPEC-0091、SPEC-0092、SPEC-0093、SPEC-0094、SPEC-0095、SPEC-0096、SPEC-0097、SPEC-0098、SPEC-0099、SPEC-0100、SPEC-0101、SPEC-0102、SPEC-0103、SPEC-0104、SPEC-0105、SPEC-0106、SPEC-0107、SPEC-0108、SPEC-0109、SPEC-0110、SPEC-0111、SPEC-0112、SPEC-0113、SPEC-0114、SPEC-0115、SPEC-0116、SPEC-0117、SPEC-0118、SPEC-0119、SPEC-0120、SPEC-0121、SPEC-0122、SPEC-0123、SPEC-0124、SPEC-0125、SPEC-0126、SPEC-0127、SPEC-0128、SPEC-0129、SPEC-0130、SPEC-0131、SPEC-0132、SPEC-0133、SPEC-0134、SPEC-0135、SPEC-0136、SPEC-0137、SPEC-0138、SPEC-0139、SPEC-0140、SPEC-0141、SPEC-0142、SPEC-0143、SPEC-0144、SPEC-0145、SPEC-0146、SPEC-0147、SPEC-0148、SPEC-0149、SPEC-0150、SPEC-0151、SPEC-0152、SPEC-0153、SPEC-0154、SPEC-0155、SPEC-0156、SPEC-0157、SPEC-0158、SPEC-0159、SPEC-0160、SPEC-0161、SPEC-0162、SPEC-0163、SPEC-0164、SPEC-0165、SPEC-0166、SPEC-0167、SPEC-0168、SPEC-0169、SPEC-0170、SPEC-0171、SPEC-0172、SPEC-0173、SPEC-0175 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
 自动获得实现授权。
 
 ## Goal 与提交工作流
@@ -187,7 +191,7 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 | [0029](./0029-call-loans-drop-points.md) | 检查 `Value` / `Borrow` / `Inout` 调用效果、调用点 `borrow` / `&` 冲突并确定 ASAP 析构点（`done`） | 0176 `done`；v0.26 已生效；当前持续 Goal 的站立授权 |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
-| [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`approved`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
+| [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
@@ -290,9 +294,9 @@ SSA / codegen Goal 前，必须先由独立 Spec 封闭类型实参推导、实�
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.26 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.27 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
-延后到 v2。这是已批准但尚待 Phase 3 实施的规则，不属于下列未决推荐。
+延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 
 ## 未决决策的推荐方向
 

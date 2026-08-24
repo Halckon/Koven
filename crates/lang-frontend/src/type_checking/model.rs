@@ -328,6 +328,8 @@ pub enum Capability {
 pub enum IntrinsicTypeConstructor {
     /// Exclusive heap owner for one concrete value-class instance.
     Box,
+    /// Reference-counted shared owner; runtime API remains a Phase 5 concern.
+    Rc,
     /// Fixed-length mutable-element sequential owner.
     Array,
     /// Read-only sequential owner.
@@ -466,6 +468,18 @@ pub struct EnvironmentFunction {
     pub parameters: Vec<EnvironmentParameter>,
     /// Declared return type.
     pub return_type: EnvironmentType,
+    /// Compiler-bound effects; source callables cannot acquire these by spelling.
+    pub effects: Vec<EnvironmentFunctionEffect>,
+}
+
+/// An effect attached to a predeclared callable identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnvironmentFunctionEffect {
+    /// The selected parameter crosses a thread boundary.
+    CrossThreadTransfer {
+        /// Zero-based parameter index in the same environment signature.
+        parameter: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -555,6 +569,14 @@ impl TypeEnvironment {
         symbol: ExternalSymbolId,
         signature: EnvironmentFunction,
     ) -> Result<(), TypeCheckingError> {
+        if signature.effects.iter().any(|effect| match effect {
+            EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => signature
+                .parameters
+                .get(*parameter)
+                .is_none_or(|parameter| parameter.mode != ParameterMode::Value),
+        }) {
+            return Err(TypeCheckingError::InvalidExternalBinding);
+        }
         self.bind(
             symbol,
             ExternalTypeBinding::Function(signature),

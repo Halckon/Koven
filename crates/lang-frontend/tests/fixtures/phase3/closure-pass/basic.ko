@@ -1,0 +1,8 @@
+class Resource {}
+fun inspect(item: Resource): Unit {}
+fun run(action: () -> Unit): Unit {}
+fun pass(own item: Resource): Unit {
+    val borrowed: () -> Unit = { val read = inspect(item) }
+    val invoked = run(borrowed)
+    val owned: move () -> Unit = move { val read = inspect(item) }
+}

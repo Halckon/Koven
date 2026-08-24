@@ -223,8 +223,15 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 Ok(live)
             }
             Expression::Lambda { .. } => {
-                self.saw_drop_deferred = true;
-                Ok(live_after)
+                let mut live = live_after;
+                for capture in self.checker.captures_of(id) {
+                    if let super::super::super::ClosureCaptureSource::Symbol(symbol) =
+                        capture.source()
+                    {
+                        live.insert(symbol);
+                    }
+                }
+                Ok(live)
             }
             Expression::If {
                 condition,

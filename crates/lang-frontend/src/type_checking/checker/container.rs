@@ -570,7 +570,7 @@ impl Checker<'_> {
             IntrinsicTypeConstructor::Array => Some(SequentialContainerKind::Array),
             IntrinsicTypeConstructor::List => Some(SequentialContainerKind::List),
             IntrinsicTypeConstructor::MutableList => Some(SequentialContainerKind::MutableList),
-            IntrinsicTypeConstructor::Box => None,
+            IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc => None,
         }
     }
 

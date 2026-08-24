@@ -596,6 +596,7 @@ impl<'a> Checker<'a> {
                 "{}<{}>",
                 match constructor {
                     IntrinsicTypeConstructor::Box => "Box",
+                    IntrinsicTypeConstructor::Rc => "Rc",
                     IntrinsicTypeConstructor::Array => "Array",
                     IntrinsicTypeConstructor::List => "List",
                     IntrinsicTypeConstructor::MutableList => "MutableList",

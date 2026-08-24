@@ -483,7 +483,9 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
         .iter()
         .filter_map(|fact| match fact.target() {
             DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
-            DropTarget::Temporary(_) | DropTarget::ReplacedElement(_) => None,
+            DropTarget::Temporary(_)
+            | DropTarget::ReplacedElement(_)
+            | DropTarget::Captured { .. } => None,
         })
         .collect::<Vec<_>>();
     for expected in [
@@ -623,10 +625,8 @@ fn intrinsic_index_closes_while_nonintrinsic_receiver_remains_deferred() {
         .collect::<Vec<_>>();
     assert!(reasons.contains(&OwnershipDeferredReason::IndexPlace));
     assert!(reasons.contains(&OwnershipDeferredReason::MemberReceiver));
-    assert!(
-        checked.drops().is_empty(),
-        "capture-aware drop planning is completed by the next SPEC-0032 checkpoint"
-    );
+    assert_eq!(checked.captures().len(), 2);
+    assert!(!checked.drops().is_empty());
 }
 
 #[test]
