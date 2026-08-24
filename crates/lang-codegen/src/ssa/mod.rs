@@ -1,5 +1,6 @@
 //! Target-independent typed SSA model、验证与确定性调试表示。
 
+mod lower_frontend;
 mod model;
 mod render;
 mod verify;
@@ -17,3 +18,6 @@ mod verify_ownership_tests;
 
 #[cfg(test)]
 mod verify_scalar_tests;
+
+#[cfg(test)]
+mod lower_frontend_tests;

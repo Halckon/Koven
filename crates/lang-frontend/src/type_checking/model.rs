@@ -793,6 +793,12 @@ impl TypeTable {
         self.kinds.get(id.index())
     }
 
+    /// 查询本次 typed 产物中的内建类型身份。
+    #[must_use]
+    pub fn builtin(&self, builtin: BuiltinType) -> Option<TypeId> {
+        self.ids.get(&TypeKind::Builtin(builtin)).copied()
+    }
+
     /// 返回类型表大小。
     #[must_use]
     pub fn len(&self) -> usize {

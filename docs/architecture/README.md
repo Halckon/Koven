@@ -114,8 +114,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
 - `editors/textmate` 已提供 `source.koven` / `.ko` grammar、正常与 reserved corpus、scope
   expectation，并由 `lang-frontend` integration test 复用生产 Lexer 做漂移回归；
-- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect、frontend→SSA lowering 或完整
-  codegen；
+- 尚无普通字段部分移动、顺序容器 Phase 5 relocation effect 或完整 codegen；SPEC-0034 已建立
+  frontend→SSA 的首个封闭切片，但 block/control-flow、泛型实例和 SSA→LLVM 仍未实现；
 - [ADR-0006](../adr/0006-typed-ssa-block-parameters.md) 已接受 IR-local type、block parameters、
   显式 ownership effect 与独立 verifier 的 typed SSA 架构；对应
   [SPEC-0033](../specs/0033-typed-ssa-ir-verifier.md) 已完成：`lang-codegen` 已建立
@@ -127,8 +127,12 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
   以 crate-private LLVM adapter smoke 证明合法标量模块确定生成、LLVM verifier 拒绝无
   terminator 模块，并由 `otool` 确认链接 Homebrew `libLLVM.dylib`；typed SSA 已新增返回
   “结果 + 失败标志”的 checked add/sub/mul/div/rem、完整整数比较、Boolean not 与标量
-  direct-call contract，失败标志通过显式 CFG 导向 `Abort`。frontend→SSA 与 SSA→LLVM 映射
-  仍未实现；
+  direct-call contract，失败标志通过显式 CFG 导向 `Abort`。frontend→SSA lowering 已显式验证
+  source 与逐阶段 analysis identity，拒绝任一 frontend diagnostic、ownership deferred 和非封闭
+  节点；当前支持无泛型顶层 expression-body 函数的 Unit/Boolean 与全部 8/16/32/64-bit 有符号/
+  无符号整数、literal/name/group、前缀正负/Boolean not、checked arithmetic、六类比较和源码
+  direct call，并在返回前运行自建 verifier。block/local/control-flow、具体泛型实例与
+  SSA→LLVM 映射仍未实现；
 - runtime / ABI 与多目标平台矩阵仍未确定。
 
 现有 target 只证明工程与 crate 边界可构建，不承诺尚未实现的编译、CLI 或 LSP 行为。
