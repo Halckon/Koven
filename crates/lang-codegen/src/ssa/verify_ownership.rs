@@ -198,6 +198,7 @@ fn apply_operation(
     let origin = &instruction.origin;
     match &instruction.operation {
         Operation::Constant(_)
+        | Operation::PrintLiteral { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
         | Operation::Compare { .. }

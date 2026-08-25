@@ -53,6 +53,11 @@ fn lowers_only_the_standard_plain_string_error_call_to_abort() {
         "fun normal(): Unit {}\n\
          fun abortNow(): Unit { error(\"fatal\") }",
     );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
     assert!(analysis.names.diagnostics().is_empty());
     assert!(analysis.typed.diagnostics().is_empty());
     assert!(analysis.owned.diagnostics().is_empty());
@@ -89,6 +94,82 @@ fn lowers_only_the_standard_plain_string_error_call_to_abort() {
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+}
+
+#[test]
+fn lowers_plain_string_println_calls_in_source_order_with_decoded_utf8() {
+    let analysis = analyze(
+        r#"fun output(): Unit {
+            if (true) { println("") }
+            if (true) { println("Hello") }
+            if (true) { println("你好") }
+            if (true) { println("\\\'\"\n\r\t\0\$") }
+        }"#,
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("plain String println calls must lower");
+    let bytes = program.modules[0].functions[0]
+        .instructions
+        .iter()
+        .filter_map(|instruction| match &instruction.operation {
+            Operation::PrintLiteral { bytes } => Some(bytes.as_slice()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        bytes,
+        [
+            b"\n".as_slice(),
+            b"Hello\n".as_slice(),
+            "你好\n".as_bytes(),
+            b"\\\'\"\n\r\t\0$\n".as_slice(),
+        ]
+    );
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("print.literal").count(), 4, "{ssa}");
+    let llvm = render_verified_program(&program).expect("println SSA must lower to LLVM");
+    assert_eq!(llvm.matches("call i64 @write").count(), 4, "{llvm}");
+    assert!(!llvm.contains("@malloc"), "{llvm}");
+
+    let unsupported = analyze("fun output(): Unit { println(\"${1}\") }");
+    let error = match lower_scalar_file(
+        &unsupported.sources,
+        &unsupported.parsed,
+        &unsupported.names,
+        &unsupported.typed,
+        &unsupported.owned,
+    ) {
+        Ok(_) => panic!("interpolated println remains outside this native slice"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+
+    let nonliteral = analyze("fun output(input: String): Unit { println(input) }");
+    let error = match lower_scalar_file(
+        &nonliteral.sources,
+        &nonliteral.parsed,
+        &nonliteral.names,
+        &nonliteral.typed,
+        &nonliteral.owned,
+    ) {
+        Ok(_) => panic!("runtime String println remains outside this native slice"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
 
 #[test]

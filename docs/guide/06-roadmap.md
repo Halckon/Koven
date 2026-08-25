@@ -410,6 +410,10 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [x] **SPEC-0043（前置：SPEC-0039、0042 `done`）**：在标准分析环境发布唯一
       `error(message: String): Nothing` identity 与 compiler-bound Abort effect；只把非插值
       String literal 消息接入既有 SSA/C `abort`，并由真实 prelude entry 验证非零进程终止
+- [x] **SPEC-0189（前置：SPEC-0039、0042、0043、0184 `done`）**：发布首个
+      `println(value: String): Unit` Borrow identity，把非插值 UTF-8 literal lower 为 verified
+      SSA `PrintLiteral` 和系统 stdout `write`，并由真实 prelude entry 精确验证
+      `Hello, World!\n`；一般 String runtime、其他重载和公开 build/run CLI 仍后置
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
@@ -427,6 +431,8 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [ ] `@Test` 注解 + 断言函数，跑通自身的测试套件
 
 **验收标准**：标准库自身的测试套件全部用目标语言编写并通过；至少覆盖
+标准 `println("Hello, World!")` 的 UTF-8 stdout 精确字节、空串/Unicode/合法转义与插值拒绝；
+并覆盖
 `Pair<Int, Int>` 的复制、`Pair<Sender<Int>, Receiver<Int>>` 的构造与消费式解构，以及把
 可复制 `Point` 交给 `Box` 后继续使用源值、把不可复制 `value class` 移入 `Box` 后禁止再次
 使用源值、`Box<Node>` 的 compile-fail 和 `Rc<T>` 不被误判为 `Copyable`。顺序容器测试还

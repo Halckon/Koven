@@ -22,6 +22,7 @@ pub(super) fn verify_operation(
         .collect::<Vec<_>>();
     let valid = match &instruction.operation {
         Operation::Constant(constant) => constant_contract(module, constant, &results),
+        Operation::PrintLiteral { bytes } => results.is_empty() && bytes.last() == Some(&b'\n'),
         Operation::Binary {
             operator,
             left,

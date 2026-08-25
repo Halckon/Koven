@@ -1,6 +1,10 @@
 // SPEC-0042/0043 的仓库 bootstrap 入口；error identity 由标准分析环境发布。
 fun bootstrapSmoke(): Unit {}
 
+fun bootstrapHello(): Unit {
+    println("Hello, World!")
+}
+
 fun bootstrapAbort(): Unit {
     error("standard error abort smoke")
 }

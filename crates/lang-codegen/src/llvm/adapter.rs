@@ -308,6 +308,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 };
                 self.values.insert(*result, value.into());
             }
+            Operation::PrintLiteral { bytes } => {
+                if !results.is_empty() {
+                    return Err(invalid_result_count("print literal", 0, results.len()));
+                }
+                self.dependencies.runtime.emit_print_literal(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    bytes,
+                    &format!(
+                        "print.f{}.i{}",
+                        self.function.id.index(),
+                        instruction.id.index()
+                    ),
+                )?;
+            }
             Operation::Binary {
                 operator,
                 left,

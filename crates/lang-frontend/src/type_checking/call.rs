@@ -131,6 +131,7 @@ pub struct CallDescriptor {
     return_type: TypeId,
     arguments: Vec<CallArgumentDescriptor>,
     aborts: bool,
+    prints_line: bool,
 }
 
 impl CallDescriptor {
@@ -141,6 +142,7 @@ impl CallDescriptor {
         return_type: TypeId,
         arguments: Vec<CallArgumentDescriptor>,
         aborts: bool,
+        prints_line: bool,
     ) -> Self {
         Self {
             expression,
@@ -148,6 +150,7 @@ impl CallDescriptor {
             return_type,
             arguments,
             aborts,
+            prints_line,
         }
     }
 
@@ -185,5 +188,11 @@ impl CallDescriptor {
     #[must_use]
     pub const fn aborts(&self) -> bool {
         self.aborts
+    }
+
+    /// 返回该静态 call target 是否具有编译器绑定的 stdout 行输出 effect。
+    #[must_use]
+    pub const fn prints_line(&self) -> bool {
+        self.prints_line
     }
 }

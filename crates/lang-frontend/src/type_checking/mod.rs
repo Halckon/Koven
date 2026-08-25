@@ -70,6 +70,9 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
     let error = names
         .declare_function("error")
         .expect("the standard error function name must remain unique");
+    let println = names
+        .declare_function("println")
+        .expect("the standard println function name must remain unique");
     let intrinsic_callables = [
         ("arrayOf", IntrinsicCallable::ArrayOf),
         ("listOf", IntrinsicCallable::ListOf),
@@ -112,6 +115,19 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
             },
         )
         .expect("the standard error signature must satisfy its compiler-bound effect");
+    types
+        .bind_function(
+            println,
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Borrow,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Unit),
+                effects: vec![EnvironmentFunctionEffect::PrintLine],
+            },
+        )
+        .expect("the standard println signature must satisfy its compiler-bound effect");
     for (symbol, callable) in intrinsic_callables {
         types
             .bind_intrinsic_callable(symbol, callable)
@@ -176,6 +192,7 @@ mod tests {
             "List",
             "MutableList",
             "error",
+            "println",
             "arrayOf",
             "listOf",
             "mutableListOf",
@@ -261,6 +278,22 @@ mod tests {
                         == EnvironmentType::Builtin(BuiltinType::Nothing)
                     && signature.effects == [EnvironmentFunctionEffect::Abort]
         ));
+        let println = first_names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "println")
+            .expect("standard println symbol");
+        assert!(matches!(
+            first_types.binding(println.id()),
+            Some(ExternalTypeBinding::Function(signature))
+                if signature.parameters.len() == 1
+                    && signature.parameters[0].mode == ParameterMode::Borrow
+                    && signature.parameters[0].ty
+                        == EnvironmentType::Builtin(BuiltinType::String)
+                    && signature.return_type
+                        == EnvironmentType::Builtin(BuiltinType::Unit)
+                    && signature.effects == [EnvironmentFunctionEffect::PrintLine]
+        ));
     }
 
     #[test]
@@ -286,6 +319,46 @@ mod tests {
                 }],
                 return_type: EnvironmentType::Builtin(BuiltinType::Unit),
                 effects: vec![EnvironmentFunctionEffect::Abort],
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut names = NameEnvironment::new();
+            let symbol = names
+                .declare_function(format!("invalid{index}"))
+                .expect("unique function");
+            let mut types = TypeEnvironment::new(&names);
+            assert!(matches!(
+                types.bind_function(symbol, signature),
+                Err(TypeCheckingError::InvalidExternalBinding)
+            ));
+        }
+    }
+
+    #[test]
+    fn print_line_effect_accepts_only_the_standard_println_signature() {
+        for (index, signature) in [
+            EnvironmentFunction {
+                parameters: Vec::new(),
+                return_type: EnvironmentType::Builtin(BuiltinType::Unit),
+                effects: vec![EnvironmentFunctionEffect::PrintLine],
+            },
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Value,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Unit),
+                effects: vec![EnvironmentFunctionEffect::PrintLine],
+            },
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Borrow,
+                    ty: EnvironmentType::Builtin(BuiltinType::String),
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Nothing),
+                effects: vec![EnvironmentFunctionEffect::PrintLine],
             },
         ]
         .into_iter()

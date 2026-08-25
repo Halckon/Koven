@@ -305,6 +305,10 @@ pub(crate) enum ClosureCaptureOperand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Operation {
     Constant(ScalarConstant),
+    /// 编译器封闭的 UTF-8 stdout 行输出；bytes 必须以 `\n` 结尾。
+    PrintLiteral {
+        bytes: Vec<u8>,
+    },
     /// SPEC-0033 的低层 primitive；算术变体只允许在范围证明后使用。
     /// 源语言 `+`/`-`/`*` 必须先 lower 为 `CheckedArithmetic`。
     Binary {
@@ -431,7 +435,7 @@ pub(crate) enum Operation {
 impl Operation {
     pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
-            Self::Constant(_) => Vec::new(),
+            Self::Constant(_) | Self::PrintLiteral { .. } => Vec::new(),
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::Compare { left, right, .. } => {

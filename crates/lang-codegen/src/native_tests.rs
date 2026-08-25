@@ -283,6 +283,61 @@ fn standard_error_emits_object_while_interpolated_message_fails_before_writing()
 }
 
 #[test]
+fn standard_println_links_and_writes_exact_utf8_stdout() {
+    let analysis = analyze(
+        "println-entry.ko",
+        "fun output(): Unit { if (true) { println(\"Hello, World!\") }\nif (true) { println(\"你好\") } }",
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let directory = TestDirectory::create();
+    let object = directory.join("println.o");
+    let executable = directory.join("println");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, "output", SymbolKind::Function),
+        &object,
+    )
+    .expect("standard println must emit an object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, "Hello, World!\n你好\n".as_bytes());
+    assert!(run.stderr.is_empty(), "{run:?}");
+
+    let unsupported = analyze(
+        "interpolated-println.ko",
+        "fun output(): Unit { println(\"${1}\") }",
+    );
+    let rejected = directory.join("interpolated-println.o");
+    let error = emit_native_object(
+        &unsupported.sources,
+        &unsupported.parsed,
+        &unsupported.names,
+        &unsupported.typed,
+        &unsupported.owned,
+        symbol(&unsupported, "output", SymbolKind::Function),
+        &rejected,
+    )
+    .expect_err("interpolated println must fail before writing an object");
+    assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
+    assert!(!rejected.exists());
+}
+
+#[test]
 fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
     let directory = TestDirectory::create();
     let declarative = analyze(

@@ -1,6 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -73,6 +74,11 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
             .windows("bootstrapAbort".len())
             .any(|window| window == b"bootstrapAbort")
     );
+    assert!(
+        original
+            .windows("bootstrapHello".len())
+            .any(|window| window == b"bootstrapHello")
+    );
 
     let directory = TestDirectory::create();
     let object = directory.join("prelude.o");
@@ -87,6 +93,22 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
 
     assert!(object.is_file());
     assert!(executable.is_file());
+
+    let hello_object = directory.join("prelude-hello.o");
+    let hello_executable = directory.join("prelude-hello");
+    bootstrap_and_run(BootstrapTarget {
+        source: &prelude,
+        entry_name: "bootstrapHello",
+        object: &hello_object,
+        executable: &hello_executable,
+    })
+    .expect("Koven prelude println entry must run");
+    let hello = Command::new(&hello_executable)
+        .output()
+        .expect("linked Koven prelude entry must launch");
+    assert!(hello.status.success(), "{hello:?}");
+    assert_eq!(hello.stdout, b"Hello, World!\n");
+    assert!(hello.stderr.is_empty(), "{hello:?}");
 
     let abort_object = directory.join("prelude-abort.o");
     let abort_executable = directory.join("prelude-abort");

@@ -25,6 +25,7 @@ struct CallCandidate {
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,
+    prints_line: bool,
 }
 
 impl Checker<'_> {
@@ -105,6 +106,7 @@ impl Checker<'_> {
                     return_type,
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
+                    prints_line: false,
                 });
             } else if self.aggregate_projection_for(callee).is_none()
                 && let Some(result) = self.check_structural_component_call(
@@ -566,6 +568,7 @@ impl Checker<'_> {
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
+            prints_line: false,
         }))
     }
 
@@ -603,11 +606,15 @@ impl Checker<'_> {
                         Some(*parameter)
                     }
                     EnvironmentFunctionEffect::Abort => None,
+                    EnvironmentFunctionEffect::PrintLine => None,
                 })
                 .collect(),
             aborts: signature
                 .effects
                 .contains(&EnvironmentFunctionEffect::Abort),
+            prints_line: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::PrintLine),
         }))
     }
 
@@ -716,6 +723,7 @@ impl Checker<'_> {
             candidate.return_type,
             descriptors,
             candidate.aborts,
+            candidate.prints_line,
         ));
         Ok(ExprCheck {
             ty: candidate.return_type,

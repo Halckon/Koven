@@ -175,11 +175,12 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0035 | 聚合、class/Box allocation 与显式 drop/free 后端基元 | `06-roadmap.md` Phase 4、`../specs/0035-aggregate-class-allocation-drop.md` | ✅ 已实现 |
 | SPEC-0036 | 顺序容器连续缓冲区、checked-index 与 drop 后端基元 | `06-roadmap.md` Phase 4、`../specs/0036-sequential-container-runtime.md` | ✅ 已实现 |
 | SPEC-0042 | 标准库目标语言 bootstrap 闭环 | `06-roadmap.md` Phase 5、`../specs/0042-standard-library-bootstrap.md` | ✅ 已实现 |
+| SPEC-0189 | 标准 `println(String)` 与最小 stdout 输出 | `06-roadmap.md` Phase 5、`../specs/0189-standard-println-output.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |
 | SPEC-0188 | constructor Value delivery 与 ownership facts | `01-design-decisions.md` §29、`../specs/0188-constructor-ownership-effects.md` | ✅ 已实现 |
-| SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29、`../specs/0184-nominal-construction-lowering.md` | 📝 draft，前置已完成 |
+| SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29、`../specs/0184-nominal-construction-lowering.md` | ✅ 已实现 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |

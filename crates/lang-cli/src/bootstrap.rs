@@ -144,15 +144,15 @@ pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), Boots
     )
     .map_err(BootstrapError::Codegen)?;
     link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
-    let status = Command::new(target.executable).status().map_err(|error| {
+    let output = Command::new(target.executable).output().map_err(|error| {
         BootstrapError::LaunchExecutable {
             path: target.executable.to_path_buf(),
             kind: error.kind(),
         }
     })?;
-    if !status.success() {
+    if !output.status.success() {
         return Err(BootstrapError::ProcessFailure {
-            status: status.code(),
+            status: output.status.code(),
         });
     }
     Ok(())

@@ -7,6 +7,7 @@ mod instances;
 mod loop_control;
 mod nominal;
 pub(super) mod orchestrate;
+mod string_literal;
 
 use std::collections::BTreeMap;
 
@@ -18,7 +19,7 @@ use lang_frontend::{
     },
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
-        Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement, StringPart,
+        Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement,
     },
     source::Span,
     type_checking::{
@@ -691,7 +692,9 @@ impl ExpressionLowerer<'_> {
             let [argument] = arguments else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            if !self.is_plain_string_literal(argument.value)? {
+            if string_literal::decode_plain(self.parsed, self.source_text, argument.value)?
+                .is_none()
+            {
                 return Err(error(
                     LoweringErrorKind::UnsupportedNode,
                     self.parsed
@@ -709,6 +712,31 @@ impl ExpressionLowerer<'_> {
                 .set_terminator(self.block, TerminatorKind::Abort, Origin::Source(span))
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
             return Ok(LoweredValue::Diverged);
+        }
+        if descriptor.prints_line() {
+            let [argument] = arguments else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let Some(mut bytes) =
+                string_literal::decode_plain(self.parsed, self.source_text, argument.value)?
+            else {
+                let span = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(argument.value)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?
+                    .span();
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            bytes.push(b'\n');
+            self.append(Operation::PrintLiteral { bytes }, Vec::new(), span)?;
+            // 该封闭 effect 把唯一允许的 String literal 直接物化为静态 bytes，不创建需要
+            // 执行 Phase 3 drop fact 的运行时 String temporary。
+            return Ok(LoweredValue::Unit);
         }
         let CallableTarget::Source(symbol) = descriptor.target() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -760,25 +788,6 @@ impl ExpressionLowerer<'_> {
             [] => Ok(LoweredValue::Unit),
             [entity] => Ok(LoweredValue::Value(value(*entity))),
             _ => Err(error(LoweringErrorKind::InvalidModel, span)),
-        }
-    }
-
-    fn is_plain_string_literal(&self, expression: ExpressionId) -> Result<bool, LoweringError> {
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        match node.payload() {
-            Expression::Group { expression } => self.is_plain_string_literal(*expression),
-            Expression::String { parts } => {
-                Ok(parts.iter().all(|part| matches!(part, StringPart::Text(_))))
-            }
-            _ => Ok(false),
         }
     }
 

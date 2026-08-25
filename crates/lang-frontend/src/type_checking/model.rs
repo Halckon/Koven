@@ -502,6 +502,8 @@ pub enum EnvironmentFunctionEffect {
     },
     /// The call terminates the process through the compiler-owned abort primitive.
     Abort,
+    /// The call writes one UTF-8 line through the compiler-owned stdout primitive.
+    PrintLine,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -603,6 +605,14 @@ impl TypeEnvironment {
                         ty: EnvironmentType::Builtin(BuiltinType::String),
                     }]
                     || signature.return_type != EnvironmentType::Builtin(BuiltinType::Nothing)
+            }
+            EnvironmentFunctionEffect::PrintLine => {
+                signature.parameters.as_slice()
+                    != [EnvironmentParameter {
+                        mode: ParameterMode::Borrow,
+                        ty: EnvironmentType::Builtin(BuiltinType::String),
+                    }]
+                    || signature.return_type != EnvironmentType::Builtin(BuiltinType::Unit)
             }
         }) {
             return Err(TypeCheckingError::InvalidExternalBinding);

@@ -26,6 +26,7 @@ pub(super) struct RuntimeAbi<'ctx> {
     size_type: IntType<'ctx>,
     malloc: Option<FunctionValue<'ctx>>,
     abort: Option<FunctionValue<'ctx>>,
+    write: Option<FunctionValue<'ctx>>,
     free: Option<FunctionValue<'ctx>>,
     allocation_sizes: BTreeMap<SsaTypeId, u64>,
     zst_sentinel: Option<PointerValue<'ctx>>,
@@ -51,6 +52,16 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 llvm.add_function("abort", context.void_type().fn_type(&[], false), None);
             add_noreturn_attribute(context, function);
             function
+        });
+        let write = requirements.needs_print.then(|| {
+            llvm.add_function(
+                "write",
+                size_type.fn_type(
+                    &[context.i32_type().into(), pointer.into(), size_type.into()],
+                    false,
+                ),
+                None,
+            )
         });
         let free = requirements.needs_free.then(|| {
             llvm.add_function(
@@ -104,6 +115,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             size_type,
             malloc,
             abort,
+            write,
             free,
             allocation_sizes,
             zst_sentinel,
@@ -187,6 +199,48 @@ impl<'ctx> RuntimeAbi<'ctx> {
         )?;
         builder.build_unreachable()?;
         Ok(())
+    }
+
+    pub(super) fn emit_print_literal(
+        &self,
+        llvm: &LlvmModule<'ctx>,
+        builder: &Builder<'ctx>,
+        function: FunctionValue<'ctx>,
+        bytes: &[u8],
+        name: &str,
+    ) -> Result<(), LlvmAdapterError> {
+        let length = u64::try_from(bytes.len())
+            .map_err(|_| LlvmAdapterError::Build("stdout literal 长度超出 u64".to_owned()))?;
+        let constant = self.context.const_string(bytes, false);
+        let global = llvm.add_global(constant.get_type(), None, &format!("{name}.bytes"));
+        global.set_linkage(Linkage::Private);
+        global.set_constant(true);
+        global.set_initializer(&constant);
+        let call = builder.build_call(
+            self.write
+                .ok_or_else(|| LlvmAdapterError::Build("write 未声明".to_owned()))?,
+            &[
+                BasicMetadataValueEnum::from(self.context.i32_type().const_int(1, false)),
+                BasicMetadataValueEnum::from(global.as_pointer_value()),
+                BasicMetadataValueEnum::from(self.size_type.const_int(length, false)),
+            ],
+            &format!("{name}.written"),
+        )?;
+        let written = match call.try_as_basic_value() {
+            ValueKind::Basic(BasicValueEnum::IntValue(value)) => value,
+            _ => {
+                return Err(LlvmAdapterError::Build(
+                    "write 未返回整数 byte count".to_owned(),
+                ));
+            }
+        };
+        let incomplete = builder.build_int_compare(
+            IntPredicate::NE,
+            written,
+            self.size_type.const_int(length, false),
+            &format!("{name}.incomplete"),
+        )?;
+        self.abort_if(builder, function, incomplete, name)
     }
 
     pub(super) fn size_type(&self) -> IntType<'ctx> {
@@ -577,6 +631,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
 struct RuntimeRequirements {
     needs_allocation: bool,
     needs_abort: bool,
+    needs_print: bool,
     needs_free: bool,
     allocated_owners: BTreeSet<SsaTypeId>,
     container_allocations: BTreeSet<SsaTypeId>,
@@ -588,6 +643,7 @@ impl RuntimeRequirements {
         let mut requirements = Self {
             needs_allocation: false,
             needs_abort: false,
+            needs_print: false,
             needs_free: false,
             allocated_owners: BTreeSet::new(),
             container_allocations: BTreeSet::new(),
@@ -600,6 +656,10 @@ impl RuntimeRequirements {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                         requirements.allocated_owners.insert(owner);
+                    }
+                    Operation::PrintLiteral { .. } => {
+                        requirements.needs_print = true;
+                        requirements.needs_abort = true;
                     }
                     Operation::ContainerConstruct { container, .. }
                     | Operation::ContainerGenerate { container, .. } => {

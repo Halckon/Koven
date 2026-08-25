@@ -29,6 +29,59 @@ fn value(entity: EntityId) -> ValueId {
 }
 
 #[test]
+fn print_literal_requires_no_results_and_one_trailing_line_feed() {
+    let origin = origin();
+    let mut valid = Program::default();
+    let module_id = valid.add_module("print-valid");
+    let module = valid.module_mut(module_id).expect("module must exist");
+    let function_id = module
+        .add_function("print", Vec::new(), origin.clone())
+        .expect("function must exist");
+    let function = module
+        .function_mut(function_id)
+        .expect("function must exist");
+    let entry = function
+        .add_block(Vec::new(), origin.clone())
+        .expect("entry must exist");
+    function
+        .append_instruction(
+            entry,
+            Operation::PrintLiteral {
+                bytes: b"hello\n".to_vec(),
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("print operation must append");
+    function
+        .set_terminator(
+            entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("function must return");
+    verify_program(&valid).expect("newline-terminated print literal must verify");
+
+    let mut invalid = valid;
+    for bytes in [Vec::new(), b"missing-newline".to_vec()] {
+        invalid
+            .module_mut(module_id)
+            .expect("module remains available")
+            .function_mut(function_id)
+            .expect("function remains available")
+            .instructions[0]
+            .operation = Operation::PrintLiteral { bytes };
+        assert!(
+            verify_program(&invalid)
+                .expect_err("invalid stdout bytes must fail")
+                .errors
+                .iter()
+                .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+        );
+    }
+}
+
+#[test]
 fn checked_arithmetic_exposes_failure_and_routes_it_to_abort() {
     let origin = origin();
     let mut program = Program::default();

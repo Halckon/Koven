@@ -66,6 +66,14 @@ typed call descriptor 保留该 effect，frontend→SSA 只据此把非插值 St
 call、unwind 或 String ABI。同名源码函数不获得该 effect，插值及其他 String expression 在
 object 写盘前保持 unsupported。真实 `prelude.ko` 同时保留正常 smoke，并以独立 abort entry
 验证 object/link 后由进程失败边界观察到非零或 signal；
+SPEC-0189 已在同一 production 环境中继续发布唯一外部
+`println(value: String): Unit`，无 marker 参数规范化为 Borrow，typed call 仅通过
+compiler-bound `PrintLine` effect 进入后端。同名源码函数不获得 effect；当前只解码非插值
+String literal 的 UTF-8 与合法 escape，并生成无 operand/结果、末尾固定 LF 的 verified SSA
+`PrintLiteral`。LLVM 按需声明系统 `write`，以 private constant 写 fd 1，short/error write
+进入既有 Abort；不引入 String heap、malloc/retain/clone、stdio buffering 或 unwind。真实
+`prelude.ko` 的 `bootstrapHello` 已经 object/Clang link/run，stdout 精确为
+`Hello, World!\n`；插值与一般 String expression 在 object 写盘前保持 unsupported；
 SPEC-0185 已让 frontend-clean 的普通 class/value class/interface/enum class 顶层声明与既有
 标量 entry 共存：声明 root 不进入函数模板或可达实例图，不产生伪 SSA/LLVM 实体；具名 object、
 顶层 variable/constant 仍结构化拒绝，native 失败不落盘；
@@ -1298,7 +1306,9 @@ Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的单文件 bootstrap 已由 ADR-0012 / SPEC-0042 实现：CLI 内部 driver 编排显式
 source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
-`kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
+`kovenc build`、多文件标准库或完整公共 prelude。SPEC-0189 已增加标准 `println(String)` 的
+首个 literal-only stdout slice 与真实 Hello World entry，但一般 String runtime、其他 printable
+重载和公开 build/run 仍未实现。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。

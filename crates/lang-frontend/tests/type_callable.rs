@@ -137,6 +137,35 @@ fn standard_error_has_a_stable_abort_identity_and_nothing_result() {
 }
 
 #[test]
+fn standard_println_has_a_stable_borrow_effect_and_source_shadowing_has_none() {
+    let (sources, parsed_file) = parsed("fun output(): Unit { println(\"hello\") }");
+    let (names, types) = standard_environments();
+    let resolution = resolve_names(&sources, &parsed_file, &names).expect("names");
+    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 1);
+    let call = &typed.calls()[0];
+    assert!(matches!(call.target(), CallableTarget::External(_)));
+    assert!(call.prints_line());
+    assert!(!call.aborts());
+    assert_eq!(call.arguments()[0].mode(), ParameterMode::Borrow);
+    assert!(matches!(
+        typed.types().get(call.return_type()),
+        Some(TypeKind::Builtin(BuiltinType::Unit))
+    ));
+
+    let shadowing =
+        "fun println(message: String): Unit {}\nfun output(): Unit { println(\"hello\") }";
+    let (sources, parsed_file) = parsed(shadowing);
+    let resolution = resolve_names(&sources, &parsed_file, &names).expect("shadow names");
+    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("shadow types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let call = typed.calls().last().expect("source println call");
+    assert!(matches!(call.target(), CallableTarget::Source(_)));
+    assert!(!call.prints_line());
+}
+
+#[test]
 fn source_member_and_function_value_calls_record_stable_mappings() {
     let text = "fun combine(own first: Int, second: Int): Long = 1L\n\
                 class Sample { fun convert(input: Int): Long = 1L }\n\

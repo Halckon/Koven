@@ -293,6 +293,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("const ")?;
             write_constant(output, constant)
         }
+        Operation::PrintLiteral { bytes } => write!(output, "print.literal {bytes:?}"),
         Operation::Binary {
             operator,
             left,
