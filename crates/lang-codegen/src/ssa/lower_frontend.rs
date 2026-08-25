@@ -3,6 +3,7 @@
 mod control;
 mod instances;
 mod loop_control;
+mod nominal;
 pub(super) mod orchestrate;
 
 use std::collections::BTreeMap;
@@ -10,12 +11,16 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, SymbolId, SymbolKind},
+    ownership_checking::{ConstructionDeliveryKind, ConstructionRootKind, OwnershipCheckedFile},
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
         Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement, StringPart,
     },
     source::Span,
-    type_checking::{BuiltinType, CallableTarget, TypeId, TypeKind, TypedFile},
+    type_checking::{
+        BuiltinType, CallableTarget, ConstructionTarget, Copyability, NominalKind, TypeId,
+        TypeKind, TypedFile,
+    },
 };
 
 use super::model::{
@@ -68,9 +73,11 @@ fn return_values(
         (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
         (Some(BuiltinType::Unit), LoweredValue::Value(_))
         | (Some(_), LoweredValue::Unit)
-        | (None, _)
+        | (None, LoweredValue::Unit)
         | (_, LoweredValue::Diverged) => Err(error(LoweringErrorKind::MissingFact, span)),
-        (Some(_), LoweredValue::Value(value)) => Ok(vec![value]),
+        (Some(_), LoweredValue::Value(value)) | (None, LoweredValue::Value(value)) => {
+            Ok(vec![value])
+        }
     }
 }
 
@@ -78,10 +85,12 @@ struct ExpressionLowerer<'a> {
     parsed: &'a ParsedFile,
     names: &'a NameResolution,
     typed: &'a TypedFile,
+    owned: &'a OwnershipCheckedFile,
     source_text: &'a str,
     references: &'a BTreeMap<(usize, usize), SymbolId>,
     function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
+    heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     substitutions: &'a BTreeMap<SymbolId, TypeId>,
     function: &'a mut Function,
     block: BlockId,
@@ -92,6 +101,9 @@ struct ExpressionLowerer<'a> {
 
 impl ExpressionLowerer<'_> {
     fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
+        if self.typed.construction(expression).is_some() {
+            return self.lower_construction(expression);
+        }
         let node = self
             .parsed
             .ast()
@@ -135,6 +147,187 @@ impl ExpressionLowerer<'_> {
             Expression::Break { .. } => self.lower_break(span),
             Expression::Continue { .. } => self.lower_continue(span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        }
+    }
+
+    fn lower_construction(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self.typed.construction(expression).ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        let span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        let plan = self
+            .owned
+            .construction_plan(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if plan.target() != descriptor.target()
+            || (plan.terminating_operand().is_none()
+                && plan.deliveries().len() != descriptor.arguments().len())
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        self.validate_construction_root(descriptor.result_type(), descriptor.target(), plan, span)?;
+
+        let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
+        arguments.sort_by_key(|argument| argument.evaluation_index());
+        let mut fields = vec![None; arguments.len()];
+        for (evaluation_index, argument) in arguments.into_iter().enumerate() {
+            if plan.terminating_operand() == Some(argument.argument()) {
+                return match self.lower(argument.argument())? {
+                    LoweredValue::Diverged => Ok(LoweredValue::Diverged),
+                    LoweredValue::Unit | LoweredValue::Value(_) => {
+                        Err(error(LoweringErrorKind::MissingFact, span))
+                    }
+                };
+            }
+            let effect = plan
+                .deliveries()
+                .get(evaluation_index)
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if argument.evaluation_index() != evaluation_index
+                || effect.argument() != argument.argument()
+                || effect.parameter_index() != argument.parameter_index()
+                || effect.parameter_symbol() != argument.parameter_symbol()
+                || effect.evaluation_index() != evaluation_index
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            let LoweredValue::Value(mut field) = self.lower(argument.argument())? else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            if effect.kind() == ConstructionDeliveryKind::Copy {
+                let ty = self.expression_ssa_type(argument.argument(), span)?;
+                let (_, results) = self.append(
+                    Operation::Copy { source: field },
+                    vec![EntityType::Value(ty)],
+                    span,
+                )?;
+                field = value(results[0]);
+            }
+            let slot = fields
+                .get_mut(argument.parameter_index())
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if slot.replace(field).is_some() {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        if plan.terminating_operand().is_some() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let fields = fields
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let result_type = self.expression_ssa_type(expression, span)?;
+        let result = match descriptor.target() {
+            ConstructionTarget::Nominal(target) => {
+                let nominal = self
+                    .typed
+                    .nominals()
+                    .iter()
+                    .find(|nominal| nominal.id() == target)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let aggregate = match nominal.kind() {
+                    NominalKind::ValueClass => result_type,
+                    NominalKind::Class => self
+                        .heap_payloads
+                        .get(&result_type)
+                        .copied()
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?,
+                    _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                };
+                let (_, aggregate_results) = self.append(
+                    Operation::AggregateConstruct { aggregate, fields },
+                    vec![EntityType::Value(aggregate)],
+                    span,
+                )?;
+                let payload = value(aggregate_results[0]);
+                if nominal.kind() == NominalKind::Class {
+                    let (_, owner_results) = self.append(
+                        Operation::HeapAllocate {
+                            owner: result_type,
+                            payload,
+                        },
+                        vec![EntityType::Value(result_type)],
+                        span,
+                    )?;
+                    value(owner_results[0])
+                } else {
+                    payload
+                }
+            }
+            ConstructionTarget::IntrinsicBox => {
+                let [payload] = fields.as_slice() else {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                };
+                let (_, results) = self.append(
+                    Operation::HeapAllocate {
+                        owner: result_type,
+                        payload: *payload,
+                    },
+                    vec![EntityType::Value(result_type)],
+                    span,
+                )?;
+                value(results[0])
+            }
+            ConstructionTarget::EnumCase(_) => {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        };
+        Ok(LoweredValue::Value(result))
+    }
+
+    fn validate_construction_root(
+        &self,
+        result_type: TypeId,
+        target: ConstructionTarget,
+        plan: &lang_frontend::ownership_checking::ConstructionOwnershipPlan,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if plan.terminating_operand().is_some() {
+            return if plan.root_obligation().is_none() {
+                Ok(())
+            } else {
+                Err(error(LoweringErrorKind::MissingFact, span))
+            };
+        }
+        let expected_kind = match target {
+            ConstructionTarget::IntrinsicBox => Some(ConstructionRootKind::HeapOwner),
+            ConstructionTarget::EnumCase(_) => Some(ConstructionRootKind::Inline),
+            ConstructionTarget::Nominal(target) => self
+                .typed
+                .nominals()
+                .iter()
+                .find(|nominal| nominal.id() == target)
+                .and_then(|nominal| match nominal.kind() {
+                    NominalKind::ValueClass => Some(ConstructionRootKind::Inline),
+                    NominalKind::Class => Some(ConstructionRootKind::HeapOwner),
+                    NominalKind::Interface | NominalKind::EnumClass | NominalKind::Object => None,
+                }),
+        };
+        match (self.typed.copyability(result_type), plan.root_obligation()) {
+            (Some(Copyability::Copyable), None) => Ok(()),
+            (Some(Copyability::MoveOnly), Some(obligation))
+                if obligation.construction() == plan.construction()
+                    && obligation.result_type() == result_type
+                    && Some(obligation.kind()) == expected_kind =>
+            {
+                Ok(())
+            }
+            _ => Err(error(LoweringErrorKind::MissingFact, span)),
         }
     }
 
@@ -478,12 +671,12 @@ impl ExpressionLowerer<'_> {
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let return_type = self.resolve_type(descriptor.return_type(), span)?;
-        let result_types = match builtin_type(self.typed, return_type) {
-            Some(BuiltinType::Unit) => Vec::new(),
-            Some(_) => vec![EntityType::Value(
+        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
+            Vec::new()
+        } else {
+            vec![EntityType::Value(
                 self.expression_ssa_type(expression, span)?,
-            )],
-            None => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+            )]
         };
         let (_, results) = self.append(
             Operation::DirectCall { callee, arguments },

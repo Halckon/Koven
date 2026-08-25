@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P4-184` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.29 §29](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029) |
@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0035、0039、0185、0186 `done`；SPEC-0183、0188 `done` 后方可实施 |
 | 前置 ADR | [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | 关联 ADR | [ADR-0006](../adr/0006-typed-ssa-block-parameters.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) |
-| 阻塞项 | SPEC-0183/0188 未完成 |
+| 阻塞项 | 无；SPEC-0183/0188 已于 2026-08-25 完成 |
 | 影响范围 | `lang-codegen` frontend→SSA、SSA enum/value operations、LLVM adapter、L0145、native tests；Architecture、Roadmap |
 | 语言语义变更 | 否；实现已启用 guide、ADR-0008 与 frontend facts，不反推源码语义 |
 
@@ -88,7 +88,7 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 ## 7. 实施计划
 
-1. [ ] 建立 frontend nominal type mapper 与 value/class/Box construction lowering → 验证：SSA/
+1. [x] 建立 frontend nominal type mapper 与 value/class/Box construction lowering → 验证：SSA/
    LLVM 窄矩阵和 verifier。
 2. [ ] 增加 enum tag/payload SSA/LLVM、projection/destructuring/drop 接线 → 验证：case/ZST/
    MoveOnly 正反矩阵。
@@ -104,10 +104,13 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 ## 9. 未决问题
 
-- 无设计留白；版本门禁与 SPEC-0183/0188 前置未解除。
+- 无设计留白；版本门禁与 SPEC-0183/0188 前置已解除。enum、projection/destructuring/drop 与
+  L0145/native 闭环仍按本 Spec 后续步骤实施，不属于新的设计门禁。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 等待前置 | ADR-0008、SPEC-0035/0186 已封闭后端表示/preflight；已明确 constructor key 不进入函数实例图、root-type-driven drop glue 与 codegen/native L0145 诊断桥；v0.29/0183/0188 尚未解除门禁 |
+| 2026-08-25 前置审计 | 通过 | ADR-0008、SPEC-0035/0186 已封闭后端表示/preflight；v0.29 已启用，SPEC-0183/0188 已完成，实施门禁解除 |
+| `cargo test -p lang-codegen` | 通过 | 101 passed，1 个既有 LLDB 权限用例 ignored；value/class/Box construction 已通过 verified SSA→LLVM 窄矩阵 |
+| workspace 五项标准基线 | 通过 | `fmt --check`、`check --workspace`、Clippy `-D warnings`、`test --workspace`、`build -p lang-cli` 全部退出 0；一个既有 LLDB 权限用例 ignored |

@@ -159,27 +159,32 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
 
     let nominal_use = analyze(
         "value class Wrapped(val item: Int)\n\
-         fun entry(): Unit { Wrapped(1) }",
+         class Holder(val item: Int)\n\
+         fun wrapped(): Wrapped = Wrapped(1)\n\
+         fun holder(): Holder = Holder(2)\n\
+         fun boxed(): Box<Wrapped> = Box(Wrapped(3))",
     );
-    let error = match lower_scalar_file(
+    assert!(nominal_use.typed.diagnostics().is_empty());
+    assert!(nominal_use.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
         &nominal_use.sources,
         &nominal_use.parsed,
         &nominal_use.names,
         &nominal_use.typed,
         &nominal_use.owned,
-    ) {
-        Ok(_) => panic!("constructor ownership/lowering facts remain gated by SPEC-0188/0184"),
-        Err(error) => error,
-    };
-    assert_eq!(
-        error.kind,
-        LoweringErrorKind::MissingFact,
-        "{error:?}; source={:?}",
-        error
-            .span
-            .and_then(|span| nominal_use.sources.slice(span).ok())
-    );
-    assert!(error.span.is_some());
+    )
+    .expect("value/class/Box construction facts must lower to verified SSA");
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("aggregate.construct").count(), 3, "{ssa}");
+    assert_eq!(ssa.matches("heap.allocate").count(), 2, "{ssa}");
+    assert!(ssa.contains("Wrapped#t"), "{ssa}");
+    assert!(ssa.contains("Holder#t"), "{ssa}");
+    assert!(ssa.contains("Box#t"), "{ssa}");
+
+    let llvm = render_verified_program(&program).expect("nominal SSA must lower to LLVM");
+    assert_eq!(llvm.matches("call ptr @malloc").count(), 2, "{llvm}");
+    assert!(!llvm.contains("retain"), "{llvm}");
+    assert!(!llvm.contains("clone"), "{llvm}");
 }
 
 #[test]

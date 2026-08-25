@@ -14,13 +14,11 @@ use lang_frontend::{
 use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
     instances::{FunctionInstanceKey, FunctionTemplate, plan_instances, resolve_concrete_type},
+    nominal::NominalTypeMapper,
     present_name, return_values, span_key,
 };
 use crate::ssa::{
-    model::{
-        EntityId, EntityType, FunctionId, Module, Origin, Program, SsaTypeId, SsaTypeKind,
-        TerminatorKind,
-    },
+    model::{EntityId, EntityType, FunctionId, Origin, Program, TerminatorKind},
     verify::verify_program,
 };
 
@@ -114,13 +112,25 @@ fn lower_scalar_file_product(
     let module = program
         .module_mut(module_id)
         .expect("new module must exist");
-    let mut type_ids = BTreeMap::new();
+    let mut type_mapper = NominalTypeMapper::new(typed)?;
     for builtin in LOWERED_BUILTINS {
         let ty = typed.types().builtin(builtin).ok_or(LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
-        intern_scalar_type(module, typed, &mut type_ids, ty, file_anchor)?;
+        type_mapper.intern(module, names, typed, ty, file_anchor)?;
+    }
+    for construction in typed.constructions() {
+        type_mapper.intern(
+            module,
+            names,
+            typed,
+            construction.result_type(),
+            file_anchor,
+        )?;
+        for argument in construction.arguments() {
+            type_mapper.intern(module, names, typed, argument.parameter_type(), file_anchor)?;
+        }
     }
     let declarations = collect_functions(parsed, names, typed)?;
     let templates = declarations
@@ -179,22 +189,16 @@ fn lower_scalar_file_product(
                 }
                 let concrete =
                     resolve_concrete_type(typed, parameter.ty, &instance.substitutions, span)?;
-                let ty = intern_scalar_type(module, typed, &mut type_ids, concrete, span)?;
+                let ty = type_mapper.intern(module, names, typed, concrete, span)?;
                 Ok(EntityType::Value(ty))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let return_type =
             resolve_concrete_type(typed, callable.return_type(), &instance.substitutions, span)?;
-        let return_types = match builtin_type(typed, return_type) {
-            Some(BuiltinType::Unit) => Vec::new(),
-            Some(_) => vec![intern_scalar_type(
-                module,
-                typed,
-                &mut type_ids,
-                return_type,
-                span,
-            )?],
-            None => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+            Vec::new()
+        } else {
+            vec![type_mapper.intern(module, names, typed, return_type, span)?]
         };
         let id = module
             .add_function(
@@ -219,6 +223,7 @@ fn lower_scalar_file_product(
         });
     }
 
+    let (type_ids, heap_payloads) = type_mapper.into_parts();
     let source_text = sources
         .source_text(parsed.source_id())
         .map_err(|_| LoweringError {
@@ -261,10 +266,12 @@ fn lower_scalar_file_product(
             parsed,
             names,
             typed,
+            owned,
             source_text,
             references: &references,
             function_ids: &function_ids,
             type_ids: &type_ids,
+            heap_payloads: &heap_payloads,
             substitutions: &plan.substitutions,
             function,
             block: entry,
@@ -452,56 +459,4 @@ fn instance_function_name(
     }
     name.push('>');
     Ok(name)
-}
-
-fn intern_scalar_type(
-    module: &mut Module,
-    typed: &TypedFile,
-    type_ids: &mut BTreeMap<TypeId, SsaTypeId>,
-    ty: TypeId,
-    span: Span,
-) -> Result<SsaTypeId, LoweringError> {
-    if let Some(mapped) = type_ids.get(&ty).copied() {
-        return Ok(mapped);
-    }
-    let kind = match builtin_type(typed, ty) {
-        Some(BuiltinType::Boolean) => SsaTypeKind::Boolean,
-        Some(BuiltinType::Byte) => SsaTypeKind::Integer {
-            bits: 8,
-            signed: true,
-        },
-        Some(BuiltinType::UByte) => SsaTypeKind::Integer {
-            bits: 8,
-            signed: false,
-        },
-        Some(BuiltinType::Short) => SsaTypeKind::Integer {
-            bits: 16,
-            signed: true,
-        },
-        Some(BuiltinType::UShort) => SsaTypeKind::Integer {
-            bits: 16,
-            signed: false,
-        },
-        Some(BuiltinType::Int) => SsaTypeKind::Integer {
-            bits: 32,
-            signed: true,
-        },
-        Some(BuiltinType::UInt) => SsaTypeKind::Integer {
-            bits: 32,
-            signed: false,
-        },
-        Some(BuiltinType::Long) => SsaTypeKind::Integer {
-            bits: 64,
-            signed: true,
-        },
-        Some(BuiltinType::ULong) => SsaTypeKind::Integer {
-            bits: 64,
-            signed: false,
-        },
-        Some(BuiltinType::Unit) => SsaTypeKind::Unit,
-        Some(_) | None => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
-    };
-    let mapped = module.intern_type(kind);
-    type_ids.insert(ty, mapped);
-    Ok(mapped)
 }
