@@ -71,6 +71,10 @@ SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
 frontend 失败使用 2，均不修改输入文件；
+SPEC-0060 已在 `lang-cli` 增加 ADR-0014 schema v1 adapter：显式
+`kovenc --message-format=json format ...` 把完整 frontend 诊断按确定顺序逐条写为 stderr JSON
+Lines，保留 `Ldddd`、原始消息、UTF-8 半开 byte range、1-based Unicode-scalar 行列与有序
+label/note/help；默认 human renderer、formatter stdout/0/1 和 operational error 保持不变；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -89,8 +93,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0142` 正式前端错误码与
-  确定性聚合顺序，`kovenc` binary 内的最小纯文本 renderer 已由 formatter 用户诊断复用，
-  尚未接入公开 build 流水线；
+  确定性聚合顺序。`kovenc` binary 的默认纯文本 renderer 与显式 schema v1 JSON Lines
+  renderer 均由 formatter 用户诊断复用；machine location 同时携带半开 UTF-8 byte range 与
+  1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range，也尚未接入未实现的公开 build 流水线；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&`、顶层分隔用 `;`，以及以
@@ -311,6 +316,7 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 
 - `lang-codegen` → `lang-frontend`；
 - `lang-cli` → `lang-frontend`、`lang-codegen`；
+- `lang-cli` 在机器诊断展示边界直接使用 workspace 锁定的 `serde_json`；
 - `lang-lsp` → `lang-frontend`，并在外围 transport 边界使用 `lsp-server`、`lsp-types` 与
   `serde_json`；
 - `lang-std` 无项目内依赖。
@@ -520,9 +526,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 语义模型：
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
-  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现精确注册 `L0001`–`L0008` 八个
-  Lexer 错误码、`L0009`–`L0078` Parser 错误码与 `L0079`–`L0081` 名称错误码；`L0016` 为
-  不再由生产 Parser 发出的历史类别，`L9xxx` 样例编号仍只在测试 target 内注册；
+  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0142`，覆盖
+  Lexer、Parser、名称、类型和所有权错误；`L0016` 为不再由生产 Parser 发出的历史类别，
+  `L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
   生产者给出的语义顺序；
@@ -532,10 +538,14 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - `lang-cli` 的 `diagnostic_renderer` 是 `kovenc` binary 内的私有纯转换：接收
   `Diagnostic + SourceMap`，返回确定性无颜色文本或 frontend 内部错误，不读取文件、不直接
   写 stdout / stderr。它复用 source 模块的 1-based 位置换算，并只转义 source 名称中的
-  反斜杠、CR、LF 来保持单行输出，不做路径发现或规范化。
-
-renderer 当前只由同 target 测试调用；CLI 参数、编译流水线、stderr、颜色、退出码和机器
-可读诊断协议均尚未实现。人类可读 Phase 0 文本也不是版本化机器协议。
+  反斜杠、CR、LF 来保持单行输出，不做路径发现或规范化；
+- `lang-cli` 的 `machine_diagnostic_renderer` 按
+  [ADR-0014](../adr/0014-versioned-machine-diagnostics.md) 输出 schema/version、severity、code、
+  message、primary 和有序 details。location 保留 source 原文、UTF-8 半开 byte range 与
+  1-based scalar 位置；完整集合先验证和编码，foreign span 不产生部分 JSON Lines；
+- `kovenc --message-format=json format ...` 才选择 machine renderer，记录继续写 stderr；默认
+  human、格式化源码 stdout、`--check` 0/1 及 usage/I/O/internal error 保持原边界。颜色、完整
+  build event stream 与机器化 operational error 尚未实现。
 
 ## 单文档 LSP 诊断
 
@@ -558,7 +568,8 @@ package/import。
   JSON-RPC method-not-found，未知 notification 与 unopened-document change 不改变状态；
 - `Connection::memory` 测试覆盖初始化、版本更新、清空、shutdown/exit、非法 full change 与
   unknown message；纯 adapter 测试覆盖 surrogate pair、CRLF、EOF 空 span、严重度和 detail
-  顺序。该 LSP 消息不是 Koven 自有的版本化机器诊断协议，候选 SPEC-0060 仍未实施。
+  顺序。该 LSP 消息不是 ADR-0014 的 CLI 机器协议；两个 adapter 分别保持 UTF-16/URI 与
+  UTF-8 byte/scalar 位置契约，不互相序列化。
 
 ## 索引式 AST 存储
 
@@ -1182,8 +1193,9 @@ whitespace 延迟到相邻内容已知后规范为零或一个 space，line star
 `kovenc format <path>` 读取单个 UTF-8 `.ko` 文件并把结果写 stdout；
 `kovenc format --check <path>` 在规范时退出 0、有差异时退出 1，两种形式都不写回文件。固定
 参数错误、读取/UTF-8/internal failure 和 frontend diagnostics 退出 2，后者复用结构化诊断
-renderer。真实 binary 测试锁定 stdout、0/1/2 矩阵和输入不变，unit test 另锁定输出 writer
-失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
+renderer；显式全局 `--message-format=json` 仅把该诊断分支切换为 ADR-0014 JSON Lines。
+真实 binary 测试锁定 human/machine stderr、stdout、0/1/2 矩阵和输入不变，unit test 另锁定
+输出 writer 失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
 
 ## TextMate grammar
 

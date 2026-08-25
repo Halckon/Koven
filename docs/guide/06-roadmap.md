@@ -441,6 +441,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [ ] LSP 跨文件诊断与跳转定义（诊断等待 SPEC-0025；跳转定义候选 SPEC-0056）
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
+- [x] **SPEC-0060（已实现）**：显式 `--message-format=json` 把 frontend 结构化诊断按
+      ADR-0014 schema v1 输出为确定性 stderr JSON Lines；默认 human 与 operational error 不变
 - [x] TextMate/Tree-sitter 语法文件
 
 **Phase 6 之后**：并发编译期检查完善、泛型型变、`dyn` 动态分发、`async`/`await` 等 v2/v3 特性按需排期，不在 v1 范围内。

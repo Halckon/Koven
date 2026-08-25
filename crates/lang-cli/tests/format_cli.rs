@@ -1,4 +1,4 @@
-//! SPEC-0057 真实 `kovenc format` 进程边界。
+//! SPEC-0057/0060 真实 `kovenc format` 进程与诊断展示边界。
 
 use std::{
     ffi::OsStr,
@@ -119,6 +119,70 @@ fn arguments_io_utf8_and_frontend_diagnostics_exit_two() {
         String::from_utf8(rejected.stderr)
             .expect("UTF-8 error")
             .contains("is not valid UTF-8")
+    );
+}
+
+#[test]
+fn machine_diagnostics_are_json_lines_without_mixing_formatter_stdout() {
+    let directory = TestDirectory::create();
+    let invalid = directory.join("invalid machine.ko");
+    fs::write(&invalid, b"val item = $").expect("invalid source write");
+
+    let machine = run([
+        OsStr::new("--message-format=json"),
+        OsStr::new("format"),
+        invalid.as_os_str(),
+    ]);
+    assert_eq!(machine.status.code(), Some(2));
+    assert!(machine.stdout.is_empty());
+    let stderr = String::from_utf8(machine.stderr).expect("UTF-8 JSON Lines");
+    let records = stderr
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("one JSON object"))
+        .collect::<Vec<_>>();
+    assert!(!records.is_empty());
+    assert!(records.iter().all(|record| {
+        record["schema"] == "koven.diagnostic"
+            && record["version"] == 1
+            && record["primary"]["source"] == invalid.to_string_lossy().as_ref()
+    }));
+    assert!(records.iter().any(|record| record["code"] == "L0001"));
+
+    let human = run([
+        OsStr::new("--message-format=human"),
+        OsStr::new("format"),
+        invalid.as_os_str(),
+    ]);
+    assert_eq!(human.status.code(), Some(2));
+    assert!(human.stdout.is_empty());
+    assert!(
+        String::from_utf8(human.stderr)
+            .expect("UTF-8 human diagnostic")
+            .contains("error[L0001]")
+    );
+
+    let valid = directory.join("valid.ko");
+    fs::write(&valid, b"fun  entry():Unit {}").expect("valid source write");
+    let formatted = run([
+        OsStr::new("--message-format=json"),
+        OsStr::new("format"),
+        valid.as_os_str(),
+    ]);
+    assert_eq!(formatted.status.code(), Some(0));
+    assert_eq!(formatted.stdout, b"fun entry(): Unit {}");
+    assert!(formatted.stderr.is_empty());
+
+    let misplaced = run([
+        OsStr::new("format"),
+        OsStr::new("--message-format=json"),
+        valid.as_os_str(),
+    ]);
+    assert_eq!(misplaced.status.code(), Some(2));
+    assert!(misplaced.stdout.is_empty());
+    assert!(
+        String::from_utf8(misplaced.stderr)
+            .expect("UTF-8 usage error")
+            .contains("unknown format option --message-format=json")
     );
 }
 

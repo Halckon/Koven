@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-060` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 [`guide/00-index.md`](../guide/00-index.md) v0.28；[`guide/06-roadmap.md`](../guide/06-roadmap.md) Phase 6 |
@@ -54,16 +54,16 @@ LSP adapter 发布。候选 0060 的代码前置已经闭合；ADR-0014 进一�
 
 ## 5. 验收标准
 
-- [ ] v1 每条 JSON Line 包含固定 schema/version、完整主诊断和生产者顺序 detail，精确范围矩阵
+- [x] v1 每条 JSON Line 包含固定 schema/version、完整主诊断和生产者顺序 detail，精确范围矩阵
       通过；空集合为空，重复运行和 source load/input order 不改变字节。
-- [ ] foreign/invalid span 返回具体内部错误且不产生部分输出；JSON 文本与 source name 只由
+- [x] foreign/invalid span 返回具体内部错误且不产生部分输出；JSON 文本与 source name 只由
       `serde_json` 合法转义。
-- [ ] 默认 `kovenc format` 人类诊断快照不变；显式 machine mode 的 stderr 每行可独立解析且
+- [x] 默认 `kovenc format` 人类诊断快照不变；显式 machine mode 的 stderr 每行可独立解析且
       stdout 为空、退出码 2。
-- [ ] formatter 成功与 `--check` 继续使用原 stdout/0/1；usage/I/O/UTF-8/internal error 保持
+- [x] formatter 成功与 `--check` 继续使用原 stdout/0/1；usage/I/O/UTF-8/internal error 保持
       非协议 stderr 和退出码 2。
-- [ ] `serde_json` 只进入 `lang-cli` 展示边界，frontend 和 LSP 依赖/协议不改变。
-- [ ] `lang-cli` 窄测试与 workspace 五项标准基线通过；Architecture、Roadmap、ADR/Spec 索引
+- [x] `serde_json` 只进入 `lang-cli` 展示边界，frontend 和 LSP 依赖/协议不改变。
+- [x] `lang-cli` 窄测试与 workspace 五项标准基线通过；Architecture、Roadmap、ADR/Spec 索引
       只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -77,11 +77,11 @@ LSP adapter 发布。候选 0060 的代码前置已经闭合；ADR-0014 进一�
 
 ## 7. 实施计划
 
-1. [ ] 接受 ADR-0014 并建立 Spec/索引 → 验证：相对链接、术语和 diff 自检。
-2. [ ] 实现 machine renderer 与范围/详情/确定性/错误矩阵 → 验证：renderer 窄测。
-3. [ ] 接入全局 CLI 选择并扩展单元/真实进程测试 → 验证：`cargo test -p lang-cli --all-targets`。
-4. [ ] 同步 Architecture、Roadmap 与验收记录 → 验证：文档和代码事实一致。
-5. [ ] 运行 workspace 五项标准基线并独立提交 → 验证：全部实际退出码为 0。
+1. [x] 接受 ADR-0014 并建立 Spec/索引 → 验证：相对链接、术语和 diff 自检。
+2. [x] 实现 machine renderer 与范围/详情/确定性/错误矩阵 → 验证：renderer 窄测。
+3. [x] 接入全局 CLI 选择并扩展单元/真实进程测试 → 验证：`cargo test -p lang-cli --all-targets`。
+4. [x] 同步 Architecture、Roadmap 与验收记录 → 验证：文档和代码事实一致。
+5. [x] 运行 workspace 五项标准基线并独立提交 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
 
@@ -99,5 +99,11 @@ LSP adapter 发布。候选 0060 的代码前置已经闭合；ADR-0014 进一�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | SPEC-0003/0055 `done`；ADR-0003/0004 `accepted`；当前 formatter 已是唯一公开结构化 CLI 诊断出口 |
-| `cargo tree -p lang-cli` | 待执行 | 确认新增直接 serde_json 边界和实际 lockfile 图 |
-| workspace 基线 | 未执行 | 实现完成后执行 |
+| `cargo tree -p lang-cli` | 通过 | `lang-cli` 新增直接 `serde_json 1.0.151`；其余既有 frontend/codegen 图不变 |
+| `cargo test -p lang-cli --all-targets` | 通过 | 19 unit + 3 真实 binary tests；覆盖 human/machine、schema/range/detail/escaping/确定性/foreign span 与 CLI 0/1/2 |
+| `cargo clippy -p lang-cli --all-targets -- -D warnings` | 通过 | 无 warning；machine renderer 134 行，测试独立 155 行 |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 构建检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | 完整 frontend、codegen、CLI、LSP、stdlib 测试矩阵 |
+| `cargo build -p lang-cli` | 通过 | CLI 构建基线 |

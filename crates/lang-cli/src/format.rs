@@ -7,7 +7,10 @@ use lang_frontend::{
     source::SourceMap,
 };
 
-use crate::diagnostic_renderer::render_diagnostics;
+use crate::{
+    MessageFormat, diagnostic_renderer::render_diagnostics,
+    machine_diagnostic_renderer::render_machine_diagnostics,
+};
 
 const USAGE: &str = "usage: kovenc format [--check] <path>\n";
 
@@ -38,7 +41,7 @@ impl CommandOutput {
         }
     }
 
-    fn error(message: String) -> Self {
+    pub(super) fn error(message: String) -> Self {
         Self {
             status: 2,
             stdout: Vec::new(),
@@ -47,7 +50,7 @@ impl CommandOutput {
     }
 }
 
-pub(super) fn execute(arguments: &[OsString]) -> CommandOutput {
+pub(super) fn execute(arguments: &[OsString], message_format: MessageFormat) -> CommandOutput {
     let (check, path) = match arguments {
         [path] if path != "--check" && !is_option(path) => (false, PathBuf::from(path)),
         [option, path] if option == "--check" && !is_option(path) => (true, PathBuf::from(path)),
@@ -91,11 +94,18 @@ pub(super) fn execute(arguments: &[OsString]) -> CommandOutput {
     let formatted = match format_source(&sources, source_id) {
         Ok(formatted) => formatted,
         Err(FormattingError::Diagnostics(diagnostics)) => {
-            return match render_diagnostics(&sources, &diagnostics) {
+            let rendered = match message_format {
+                MessageFormat::Human => render_diagnostics(&sources, &diagnostics)
+                    .map_err(|error| format!("formatter diagnostic rendering failed: {error}")),
+                MessageFormat::Json => {
+                    render_machine_diagnostics(&sources, &diagnostics).map_err(|error| {
+                        format!("formatter machine diagnostic rendering failed: {error}")
+                    })
+                }
+            };
+            return match rendered {
                 Ok(rendered) => CommandOutput::error(rendered),
-                Err(error) => CommandOutput::error(format!(
-                    "error: formatter diagnostic rendering failed: {error}\n"
-                )),
+                Err(error) => CommandOutput::error(format!("error: {error}\n")),
             };
         }
         Err(error) => {
