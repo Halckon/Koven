@@ -7,6 +7,9 @@ publish.workspace = true
 
 [dependencies]
 lang-frontend.workspace = true
+lsp-server.workspace = true
+lsp-types.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

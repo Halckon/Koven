@@ -436,7 +436,9 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 ## Phase 6：工具链完善
 
 - [ ] 包管理器 CLI（`project.toml`/`project.lock`）
-- [ ] LSP 基础功能（语法高亮、诊断、跳转定义）
+- [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
+      完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
+- [ ] LSP 跨文件诊断与跳转定义（诊断等待 SPEC-0025；跳转定义候选 SPEC-0056）
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
 - [x] TextMate/Tree-sitter 语法文件

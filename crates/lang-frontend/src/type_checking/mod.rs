@@ -30,20 +30,72 @@ pub use projection::*;
 #[must_use]
 pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
     let mut names = NameEnvironment::new();
-    let declarations = BuiltinType::ALL.map(|builtin| {
+    let builtins = BuiltinType::ALL.map(|builtin| {
         let symbol = names
             .declare_type(builtin.name())
             .expect("BuiltinType::ALL names must remain unique");
         (symbol, builtin)
     });
+    let capabilities = [
+        (
+            names
+                .declare_type("Copyable")
+                .expect("the Copyable capability name must remain unique"),
+            Capability::Copyable,
+        ),
+        (
+            names
+                .declare_type("Transferable")
+                .expect("the Transferable capability name must remain unique"),
+            Capability::Transferable,
+        ),
+    ];
+    let intrinsics = [
+        ("Box", IntrinsicTypeConstructor::Box),
+        ("Rc", IntrinsicTypeConstructor::Rc),
+        ("Array", IntrinsicTypeConstructor::Array),
+        ("List", IntrinsicTypeConstructor::List),
+        ("MutableList", IntrinsicTypeConstructor::MutableList),
+    ]
+    .map(|(name, intrinsic)| {
+        (
+            names
+                .declare_type(name)
+                .expect("intrinsic type names must remain unique"),
+            intrinsic,
+        )
+    });
     let error = names
         .declare_function("error")
         .expect("the standard error function name must remain unique");
+    let intrinsic_callables = [
+        ("arrayOf", IntrinsicCallable::ArrayOf),
+        ("listOf", IntrinsicCallable::ListOf),
+        ("mutableListOf", IntrinsicCallable::MutableListOf),
+    ]
+    .map(|(name, callable)| {
+        (
+            names
+                .declare_function(name)
+                .expect("intrinsic callable names must remain unique"),
+            callable,
+        )
+    });
     let mut types = TypeEnvironment::new(&names);
-    for (symbol, builtin) in declarations {
+    for (symbol, builtin) in builtins {
         types
             .bind_builtin(symbol, builtin)
             .expect("fresh builtin symbols must match their type environment");
+    }
+    for (symbol, capability) in capabilities {
+        types
+            .bind_capability(symbol, capability)
+            .expect("fresh capability symbols must match their type environment");
+    }
+    for (symbol, intrinsic) in intrinsics {
+        types
+            .bind_intrinsic(symbol, intrinsic)
+            .expect("fresh intrinsic type symbols must match their type environment");
     }
     types
         .bind_function(
@@ -58,6 +110,11 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
             },
         )
         .expect("the standard error signature must satisfy its compiler-bound effect");
+    for (symbol, callable) in intrinsic_callables {
+        types
+            .bind_intrinsic_callable(symbol, callable)
+            .expect("fresh intrinsic callable symbols must match their type environment");
+    }
     (names, types)
 }
 
@@ -94,25 +151,44 @@ mod tests {
     use crate::name_resolution::NameEnvironment;
 
     use super::{
-        BuiltinType, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
-        EnvironmentType, ExternalTypeBinding, ParameterMode, TypeCheckingError, TypeEnvironment,
+        BuiltinType, Capability, EnvironmentFunction, EnvironmentFunctionEffect,
+        EnvironmentParameter, EnvironmentType, ExternalTypeBinding, IntrinsicCallable,
+        IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeEnvironment,
         standard_environments,
     };
 
     #[test]
-    fn standard_environments_declare_every_builtin_once_in_canonical_order() {
+    fn standard_environments_declare_all_compiler_bound_identities_once() {
         let (first_names, first_types) = standard_environments();
         let (second_names, _second_types) = standard_environments();
-        let expected = BuiltinType::ALL.map(BuiltinType::name);
+        let mut expected = BuiltinType::ALL
+            .map(BuiltinType::name)
+            .into_iter()
+            .collect::<Vec<_>>();
+        expected.extend([
+            "Copyable",
+            "Transferable",
+            "Box",
+            "Rc",
+            "Array",
+            "List",
+            "MutableList",
+            "error",
+            "arrayOf",
+            "listOf",
+            "mutableListOf",
+        ]);
         let actual = first_names
             .symbols()
             .iter()
             .map(|symbol| symbol.name())
             .collect::<Vec<_>>();
 
-        assert_eq!(&actual[..BuiltinType::ALL.len()], expected);
-        assert_eq!(actual.last(), Some(&"error"));
-        assert_eq!(actual.iter().copied().collect::<BTreeSet<_>>().len(), 17);
+        assert_eq!(actual, expected);
+        assert_eq!(
+            actual.iter().copied().collect::<BTreeSet<_>>().len(),
+            expected.len()
+        );
         assert_eq!(
             second_names
                 .symbols()
@@ -132,7 +208,46 @@ mod tests {
                 Some(super::ExternalTypeBinding::Builtin(bound)) if *bound == builtin
             ));
         }
-        let error = first_names.symbols().last().expect("standard error symbol");
+        let binding = |name: &str| {
+            let symbol = first_names
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.name() == name)
+                .expect("standard symbol");
+            first_types.binding(symbol.id()).expect("standard binding")
+        };
+        assert_eq!(
+            binding("Copyable"),
+            &ExternalTypeBinding::Capability(Capability::Copyable)
+        );
+        assert_eq!(
+            binding("Transferable"),
+            &ExternalTypeBinding::Capability(Capability::Transferable)
+        );
+        for (name, intrinsic) in [
+            ("Box", IntrinsicTypeConstructor::Box),
+            ("Rc", IntrinsicTypeConstructor::Rc),
+            ("Array", IntrinsicTypeConstructor::Array),
+            ("List", IntrinsicTypeConstructor::List),
+            ("MutableList", IntrinsicTypeConstructor::MutableList),
+        ] {
+            assert_eq!(binding(name), &ExternalTypeBinding::Intrinsic(intrinsic));
+        }
+        for (name, callable) in [
+            ("arrayOf", IntrinsicCallable::ArrayOf),
+            ("listOf", IntrinsicCallable::ListOf),
+            ("mutableListOf", IntrinsicCallable::MutableListOf),
+        ] {
+            assert_eq!(
+                binding(name),
+                &ExternalTypeBinding::IntrinsicCallable(callable)
+            );
+        }
+        let error = first_names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "error")
+            .expect("standard error symbol");
         assert!(matches!(
             first_types.binding(error.id()),
             Some(ExternalTypeBinding::Function(signature))

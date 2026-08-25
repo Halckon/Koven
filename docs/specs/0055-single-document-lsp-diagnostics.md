@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | done |
 | Goal ID | `KOV-P6-0055` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 [`guide/00-index.md`](../guide/00-index.md) v0.28；[`guide/06-roadmap.md`](../guide/06-roadmap.md) Phase 6 |
@@ -57,18 +57,18 @@ visibility。
 
 ## 5. 验收标准
 
-- [ ] 初始化结果声明 UTF-16 与 full-document open/change/close sync，且不声明未实现能力。
-- [ ] open/change 对合法源码发布空集合，对 Lexer/Parser、名称、类型和所有权错误发布原有
+- [x] 初始化结果声明 UTF-16 与 full-document open/change/close sync，且不声明未实现能力。
+- [x] open/change 对合法源码发布空集合，对 Lexer/Parser、名称、类型和所有权错误发布原有
       `Ldddd`；诊断顺序与 `ordered_diagnostics` 一致，change 携带新版本。
-- [ ] UTF-8 多字节字符、UTF-16 surrogate pair、LF/CRLF、EOF/空 `Span` 的零基 LSP 范围均有
+- [x] UTF-8 多字节字符、UTF-16 surrogate pair、LF/CRLF、EOF/空 `Span` 的零基 LSP 范围均有
       精确测试；label、note、help 不丢失或乱序。
-- [ ] close 发布空集合并移除文档；后续没有 open buffer 时的 change 不产生陈旧诊断。
-- [ ] shutdown/exit 正常结束；未知 request 返回 method-not-found；畸形或不支持 notification
+- [x] close 发布空集合并移除文档；后续没有 open buffer 时的 change 不产生陈旧诊断。
+- [x] shutdown/exit 正常结束；未知 request 返回 method-not-found；畸形或不支持 notification
       不触发 panic，也不污染其他文档状态。
-- [ ] `lsp-server 0.10.0`、`lsp-types 0.97.0` 与直接 `serde_json` 依赖经 lockfile 固定；只在
+- [x] `lsp-server 0.10.0`、`lsp-types 0.97.0` 与直接 `serde_json` 依赖经 lockfile 固定；只在
       `lang-lsp` 边界使用，不泄漏到 frontend。
-- [ ] `lang-lsp` Rust 测试和 workspace 标准基线全部通过。
-- [ ] Architecture 与 Roadmap 只把单文档诊断记为已实现，跨文件诊断和跳转定义继续标为未完成。
+- [x] `lang-lsp` Rust 测试和 workspace 标准基线全部通过。
+- [x] Architecture 与 Roadmap 只把单文档诊断记为已实现，跨文件诊断和跳转定义继续标为未完成。
 
 ## 6. 技术方案与边界
 
@@ -82,7 +82,7 @@ visibility。
 | 适配度 | 提供 stdio/memory connection、初始化与 shutdown helper | 提供 LSP 3.x typed params/capabilities/diagnostics |
 | 许可 | MIT OR Apache-2.0 | MIT |
 | Rust/feature | edition 2024；workspace Rust 1.96 实际编译验收 | edition 2018；default feature 为空，不启用不稳定 `proposed` |
-| 构建时执行 | 无 `build.rs`、无过程宏入口 | 无 `build.rs`；自身 `forbid(unsafe_code)` |
+| 构建时执行 | 无 `build.rs`；自身不是过程宏 | 无 `build.rs`；自身 `forbid(unsafe_code)` |
 | 直接依赖面 | crossbeam-channel、log、serde/derive、serde_json | bitflags、fluent-uri、serde/serde_json/serde_repr |
 | 隔离 | 只进入 `lang-lsp` | 只进入 `lang-lsp` |
 
@@ -100,10 +100,10 @@ scalar column，再只在 adapter 边界把该列换算为 UTF-16 code unit；�
 
 ## 7. 实施计划
 
-1. [ ] 集中声明依赖并建立 server/analysis/diagnostic adapter 模块 → 验证：`cargo check -p lang-lsp`
-2. [ ] 实现 lifecycle 与 open/change/close 全量同步 → 验证：memory connection 生命周期测试
-3. [ ] 接入完整单文件 frontend 流水线与 UTF-16 映射 → 验证：各阶段、Unicode/CRLF 精确测试
-4. [ ] 同步 Spec 验收记录、Architecture 与 Roadmap → 验证：文档和实现一致
+1. [x] 集中声明依赖并建立 server/analysis/diagnostic adapter 模块 → 验证：`cargo check -p lang-lsp`
+2. [x] 实现 lifecycle 与 open/change/close 全量同步 → 验证：memory connection 生命周期测试
+3. [x] 接入完整单文件 frontend 流水线与 UTF-16 映射 → 验证：各阶段、Unicode/CRLF 精确测试
+4. [x] 同步 Spec 验收记录、Architecture 与 Roadmap → 验证：文档和实现一致
 
 ## 8. 提交计划
 
@@ -122,5 +122,11 @@ scalar column，再只在 adapter 边界把该列换算为 UTF-16 code unit；�
 |---|---|---|
 | `cargo info lsp-server@0.10.0` | 通过 | 版本 0.10.0；MIT OR Apache-2.0；无声明 MSRV |
 | `cargo info lsp-types` | 通过 | 当前版本 0.97.0；MIT；default feature 为空；无声明 MSRV |
-| registry manifest/source 审计 | 通过 | 两者无 `build.rs`；生产源码未发现 `unsafe` 块/函数/impl |
-| workspace 基线 | 未执行 | 实现完成后执行 |
+| registry manifest/source 审计 | 通过 | 两者无 `build.rs`；生产源码未发现 `unsafe` 块/函数/impl；Serde derive/serde_repr 是实际依赖图中的过程宏 |
+| `cargo tree -p lang-lsp` | 通过 | 直接依赖仅 frontend、lsp-server、lsp-types、serde_json；实际版本由 lockfile 固定 |
+| `cargo test -p lang-lsp --all-targets` | 通过 | 5 项：分析、UTF-16/detail 映射与两组 memory connection 会话测试 |
+| `cargo fmt --all -- --check` | 通过 | workspace 格式基线 |
+| `cargo check --workspace --all-targets` | 通过 | workspace 构建检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 零 warning |
+| `cargo test --workspace --all-targets` | 通过 | 完整 frontend、codegen、CLI、LSP、stdlib 测试矩阵 |
+| `cargo build -p lang-cli` | 通过 | CLI 构建基线 |

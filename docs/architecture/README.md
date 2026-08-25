@@ -295,7 +295,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 
 现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；resolved source entry→object 已形成
 workspace API，仓库拥有的标准库单文件 bootstrap 已真实 link/run。通用 `.ko`→可执行文件 CLI、
-标准库公共 API 与 LSP 行为仍未实现。
+标准库公共 API、跨文件 LSP 分析与跳转定义仍未实现；单文档 LSP 诊断已由 SPEC-0055 接通。
 
 ## Workspace 与 target
 
@@ -311,7 +311,8 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 
 - `lang-codegen` → `lang-frontend`；
 - `lang-cli` → `lang-frontend`、`lang-codegen`；
-- `lang-lsp` → `lang-frontend`；
+- `lang-lsp` → `lang-frontend`，并在外围 transport 边界使用 `lsp-server`、`lsp-types` 与
+  `serde_json`；
 - `lang-std` 无项目内依赖。
 
 `lang-std` 的 Rust target 仅提供 Cargo 与测试边界，其单元测试验证 `.ko` 源码包存在；标准库
@@ -365,8 +366,8 @@ crate；终端视觉宽度、文件发现、路径规范化和增量更新尚未
 - `TokenKind`、`Keyword`、`ReservedWord`、`Symbol`、`TriviaKind` 与 `InvalidKind` 是 Lexer
   面向后续 Parser 的最小分类 API；它们只表达词法拼写，不提前判断语法位置或运算符语义。
 
-Lexer 尚未接入 `kovenc` 或 LSP；`LexedFile` 是 Parser 的唯一词法输入，而不是完整编译
-产物或公共机器诊断协议。
+Lexer 已通过 Parser 接入 CLI bootstrap driver 与单文档 LSP；`LexedFile` 仍只是 Parser 的
+唯一词法输入，不是独立完整编译产物或公共机器诊断协议。
 
 ## 表达式、声明、Block、Lambda 与隐式 Unit Parser
 
@@ -489,7 +490,8 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   含词法 poison 或终止恢复的 segmented string 收敛为一个 `NameMarker::Error`，保留既有
   L0067 且不从 owner 中部继续解析；
   后续拆分和顺序见 [Spec 路线图](../specs/README.md)；
-  Parser 自身仍不做名称 / 类型 / 所有权检查，CLI / LSP 接线仍属后续 Phase。
+  Parser 自身仍不做名称 / 类型 / 所有权检查；CLI bootstrap 与单文档 LSP 分别在外围显式
+  编排后续阶段，通用 CLI 和跨文件 LSP 仍属后续 Phase。
 
 ## 单文件名称解析
 
@@ -534,6 +536,29 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 
 renderer 当前只由同 target 测试调用；CLI 参数、编译流水线、stderr、颜色、退出码和机器
 可读诊断协议均尚未实现。人类可读 Phase 0 文本也不是版本化机器协议。
+
+## 单文档 LSP 诊断
+
+SPEC-0055 已把 `lang-lsp` 从空 binary 接通为标准 stdio LSP server。它声明 UTF-16 position
+encoding 与 full-document open/change/close sync，只保存客户端已打开文档的 URI 字符串、版本
+和完整文本；状态使用按 URI 字符串排序的 `BTreeMap`，不读取磁盘、扫描 workspace 或解释
+package/import。
+
+- `analysis` 为每个文档版本新建 `SourceMap`，按 `lex → parse_file → resolve_names →
+  check_types → check_ownership` 运行完整单文件流水线。`standard_environments()` 现在集中绑定
+  全部标量 builtin、`Copyable`/`Transferable`、`Box`/`Rc`/顺序容器、三个列表式核心构造和
+  标准 `error()` identity，LSP 不复制这些身份；
+- Parser 诊断已经包含 Lexer 诊断，adapter 只再合并名称、类型和所有权集合，然后调用
+  frontend `ordered_diagnostics` 建立全序。内部错误通过 `window/logMessage` 暴露，不伪造成
+  `Ldddd` 用户错误；
+- `diagnostic_adapter` 复用 `SourceMap::position` 的 line/CRLF/scalar 语义，只把该行已有 scalar
+  column 转换为 LSP 要求的 UTF-16 code units。主 span 成为 range，错误码、严重度与 source
+  进入标准字段，label 成为 related information，note/help 保持原顺序附在 message；
+- open/change 发布对应 buffer version，close 发布无 version 的空集合。未知 request 返回
+  JSON-RPC method-not-found，未知 notification 与 unopened-document change 不改变状态；
+- `Connection::memory` 测试覆盖初始化、版本更新、清空、shutdown/exit、非法 full change 与
+  unknown message；纯 adapter 测试覆盖 surrogate pair、CRLF、EOF 空 span、严重度和 detail
+  顺序。该 LSP 消息不是 Koven 自有的版本化机器诊断协议，候选 SPEC-0060 仍未实施。
 
 ## 索引式 AST 存储
 
