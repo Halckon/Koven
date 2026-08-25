@@ -196,8 +196,8 @@ fun main(): Unit {
       trial，不把无期望单次检查误报为完整实现
 - [ ] **SPEC-0183（v0.29 候选，未启用）**：发布普通/泛型 nominal、enum case 与 intrinsic
       `Box` constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact；候选
-      采用“operand 优先、同 root expected result 只补未决项”的受控推导，在 v0.29 明确启用前
-      继续保持 deferred
+      采用“operand 优先、独立确定的同 root complete expected result 只补未决项”的受控推导，
+      尚未决 overload candidate-local expected 不参与；在 v0.29 明确启用前继续保持 deferred
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
@@ -290,8 +290,9 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
 - [ ] **SPEC-0188（v0.29 候选，前置 SPEC-0183）**：消费 construction descriptor，检查每个
-      Value operand 的 copy/move、构造 temporary owner、ASAP drop 与聚合字段 drop facts；不在
-      Phase 3 重新选择 constructor 或推导类型实参
+      Value operand 的 copy/move、构造 temporary owner、ASAP drop，发布有序 delivery effects
+      与 root drop obligation；不在 Phase 3 重新选择 constructor、推导类型实参或制造逐字段
+      source DropFact
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式

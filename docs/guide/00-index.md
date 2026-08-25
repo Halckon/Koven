@@ -137,7 +137,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
 | v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 已实现 |
 | v0.28 | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；SPEC-0177 / SPEC-0174 已实现 |
-| v0.29（候选，未启用） | nominal/enum case/intrinsic Box constructor target、受控 expected-result 推导与分阶段 typed/ownership/lowering 交接；等待用户明确启用 |
+| v0.29（候选，未启用） | nominal/enum case/intrinsic Box constructor target、仅使用独立完整上下文的受控 expected-result 推导，以及分阶段 typed/ownership/lowering 交接；等待用户明确启用 |
 
 ## 5. SPEC 编号索引
 

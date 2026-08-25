@@ -39,13 +39,16 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 - enum root 使用 ADR-0008 的源码顺序零起 tag 与最大 payload storage；每个 case construction
   写入唯一 tag 和该 case payload，投影/drop 先由已知静态/flow case fact 选择合法 payload，
   不引入通用 RTTI、niche 或动态 interface。
-- construction operand 的 SSA evaluation/transfer 顺序来自 SPEC-0188；聚合槽位使用 SPEC-0183
-  参数声明顺序。正常路径按 drop facts 对 root/字段恰好消费或析构一次，abort 不 unwind。
+- construction operand 的 SSA evaluation/transfer 顺序来自 SPEC-0188 的 ordered delivery
+  effects；聚合槽位使用 SPEC-0183 参数声明顺序。正常路径只消费 frontend 发布的 root drop
+  obligation，再按完整单态 result type 生成递归字段/payload drop glue，保证 root 及其资源恰好
+  消费或析构一次；不要求 frontend 伪造逐字段源码 DropFact，abort 不 unwind。
 - 字段投影接入既有 place/load/loan；完整 value-class destructuring 使用单次 aggregate explode，
   Copy descriptor 保留源值，Consume descriptor 转移全部分量。普通字段仍不支持 MoveOnly 部分移出。
 - 把 SPEC-0186 aggregate/enum payload/class/Box 的 size/alignment/stride 失败映射为 L0145，保留
-  constructor/type use primary 与来源声明 label；失败不创建 LLVM module type、GEP、allocation
-  或旧 object。
+  constructor/type use primary 与来源声明 label；frontend 仍不读取 target/DataLayout，native/codegen
+  诊断桥使用 frontend 集中 catalog/model 构造用户诊断。失败不创建 LLVM module type、GEP、
+  allocation 或旧 object。
 - debug-enabled object 继续使用真实 source origin；显式 Unit entry 的真实 `.ko` fixture 经
   object/link/run 验证 value/class/enum/Box 构造、投影、解构与 drop 行为。
 
@@ -59,24 +62,29 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 ## 5. 验收标准
 
 - [ ] verified SSA 正反矩阵覆盖 value aggregate、class/Box heap owner、enum tag/payload、字段 place、
-      Copy/Consume explode 与递归 drop；corrupt target/order/ownership plan 被 verifier/adapter 拒绝。
+      Copy/Consume explode 与由单态 root type 派生的递归 drop；corrupt target/order/ownership plan
+      被 verifier/adapter 拒绝，缺少逐字段 source DropFact 不是错误。
 - [ ] debug LLVM/object 文本证明布局、tag、单次 malloc/free、无隐式 Box/retain/clone/unwind；ZST、
       空 class、无 payload enum 和 MoveOnly nested payload 均有边界测试。
 - [ ] 真实 `.ko` source 经 frontend→verified SSA→LLVM object→Clang link/run，观察构造结果、分支
       case、投影/解构和正常退出；MoveOnly 资源恰好析构/释放一次。
 - [ ] 超限 aggregate/enum payload/class/Box 产生 L0145 精确 Span，且 LLVM 类型、allocation、object
-      均未产生；SPEC-0186 既有 IR-local preflight 回归通过。
+      均未产生；测试证明 L0145 由 codegen/native 桥接且 frontend 保持 target-independent，
+      SPEC-0186 既有 IR-local preflight 回归通过。
 - [ ] `lang-codegen`/frontend/CLI 受影响窄测及 workspace 五项标准基线通过；Architecture/Roadmap/
       Spec 只记录真实源码闭环，production 文件遵守 1000 行软上限。
 
 ## 6. 技术方案与边界
 
-- 扩展 `lower_frontend` 的单态 type mapper，以 frontend nominal/enum/intrinsic instance key
-  memoize SSA named type；声明 root 仍不进入函数实例图，只有可达 construction/operation 触发。
+- 在 `lower_frontend` 门面下分别建立 nominal type mapping、construction lowering 与 drop planning
+  模块，以 frontend nominal/enum/intrinsic instance key memoize SSA named type；constructor instance
+  key 不进入 callable `instances` 函数可达图，声明 root 也不产生伪函数实例，只有可达
+  construction/operation 触发类型与操作 lowering。
 - enum 增加职责明确的 SSA tagged-payload operation 与 verifier 契约；LLVM adapter 在独立模块
   实现 payload storage，不把 byte offset/DataLayout 计算泄漏到 frontend。
-- native facade 在完整 frontend diagnostics 与 L0145 映射完成后才调用 object emitter，保持
-  SPEC-0042 的失败不落盘边界。
+- native facade 通过显式 codegen→frontend diagnostic bridge 把 SPEC-0186 layout error 映射为
+  集中注册的 L0145；完整 diagnostics 返回后才调用 object emitter，保持 SPEC-0042 的失败不
+  落盘边界，不把 LLVM/native error string 冒充 frontend 类型诊断。
 
 ## 7. 实施计划
 
@@ -102,4 +110,4 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 等待前置 | ADR-0008、SPEC-0035/0186 已封闭后端表示/preflight；v0.29/0183/0188 尚未解除门禁 |
+| 2026-08-25 前置审计 | 等待前置 | ADR-0008、SPEC-0035/0186 已封闭后端表示/preflight；已明确 constructor key 不进入函数实例图、root-type-driven drop glue 与 codegen/native L0145 诊断桥；v0.29/0183/0188 尚未解除门禁 |

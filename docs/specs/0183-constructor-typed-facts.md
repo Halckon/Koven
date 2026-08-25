@@ -32,17 +32,24 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 - 名称/类型入口只识别 v0.29 §29 封闭的 source nominal、enum case 与环境绑定 intrinsic
   `Box`；interface/object/enum root 使用 L0143，源码同名 `Box` 保持普通 class identity。
 - 普通 class 缺显式主构造器时发布零参数构造；value class 使用非空字段序列；payload case
-  使用 payload symbol 序列，无 payload case 的值表达式发布零参数 descriptor。
+  使用 payload symbol 序列；无 payload case 直接在解析后的 `Name` / `Member` 值表达式发布
+  零参数 descriptor，不伪造成 function value 或空参数 `Call`。
 - 完整显式类型实参复用 L0091 和既有 bound；完全省略时严格按“已定型非 lambda operand →
-  同 root expected result 补未决项”求解。冲突/缺失使用 L0144，不接受部分实参、`_`、后续
-  使用或普通 callable 式返回推导。
+  独立确定的同 root complete expected result 补未决项”求解。expected type 不得包含本次
+  constructor/deferred unknown，也不得来自尚未唯一的 overload candidate 或仍待本次构造反向
+  完成的外层泛型 callable 参数。冲突/缺失使用 L0144，不接受部分实参、`_`、后续使用或普通
+  callable 式返回推导。
 - 参数名称、位置/命名混排、arity、mode 与类型筛选复用 SPEC-0067 的 L0120–L0123；全部字段、
   payload 与 `Box.element` 均规范化为 `ParameterMode::Value`，显式 `borrow` / `&` 不匹配。
 - `TypedFile` 发布 source-ordered `ConstructionDescriptor`：expression、`ConstructionTarget`
   （Nominal/EnumCase/IntrinsicBox）、target + 完整类型实参 instance key、result `TypeId`，以及按
   参数声明顺序的 symbol/稳定名称/Value mode/source argument/evaluation index。
 - descriptor 只能在 target、实例化、bound、映射和 operand 类型全部成功后原子提交；错误或
-  deferred 节点不得留下可被 ownership/codegen 消费的半成品。
+  deferred 节点不得留下可被 ownership/codegen 消费的半成品。construction descriptors 必须
+  纳入 overload/lambda `TrialState` 的完整 snapshot/restore，失败或非唯一 trial 不得泄漏 nested
+  construction fact。
+- constructor 专项分派优先于 ordinary callable/function-value 分派；成功 construction 不发布
+  `CallDescriptor`，type/case callee 或 receiver 也不属于后续 ownership/runtime 的求值 operand。
 - `Result` payload 拼写变化只属于后续 SPEC-0044；本 Spec 不修改 Lexer、Parser 或标准库源码。
 
 ## 4. 非目标
@@ -59,9 +66,13 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 - [ ] compile-pass 覆盖非泛型/泛型 class 与 value class、显式/operand/expected-result 实例化、
       payload/无 payload enum case、显式/推导 `Box`、位置/命名参数和同名 source `Box`。
 - [ ] compile-fail 覆盖 interface/object/enum-root target（L0143），无约束/冲突推导（L0144），
-      arity/bound/参数 name-count-mode-type 复用诊断，并断言 primary/label `Span`。
+      arity/bound/参数 name-count-mode-type 复用诊断，并断言 primary/label `Span`；尚未决 overload
+      的 candidate-local expected type 与未实例化外层泛型参数都不能补齐 constructor 类型实参。
 - [ ] 白盒测试证明 target/instance/result/参数声明顺序/evaluation index 精确，成功重复运行确定，
-      失败不发布 descriptor；generic no-payload case 只从同 root expected type 得到实例。
+      失败不发布 descriptor；generic no-payload case 只从独立确定的同 root expected type 得到
+      实例，并且 descriptor 绑定裸 `Name` / `Member` expression。
+- [ ] trial 回归证明失败/歧义 overload 丢弃 nested construction descriptor；成功 construction
+      没有普通 `CallDescriptor`，Phase 3 可只遍历源码 operand 而不读取 type/case callee。
 - [ ] ordinary generic call、container intrinsic、overload-lambda、field projection、when smart cast
       与 `Box<T>` kind 检查回归不变。
 - [ ] `lang-frontend` 窄测试和 workspace 五项标准基线通过；Architecture/Roadmap/Spec 只陈述
@@ -69,12 +80,19 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 
 ## 6. 技术方案与边界
 
-- 在现有 callable/container 专项分派前增加职责单一的 constructor checker；复用 generic
-  structural matcher 与 argument mapping 的内部算法，不把 constructor 伪造成环境 function。
-- `ConstructionTarget` 与 descriptor 是 frontend model，不包含 SSA/LLVM 类型；source target
-  使用已有 `NominalId` / `EnumCaseId`，intrinsic 使用编译器 identity。
-- expected-result 只由 `check_expression` 当前入参传入 constructor trial，不读取 parent AST 或
-  symbol initializer，防止形成第二套全局约束求解。
+- 在 `type_checking/checker/construction.rs` 增加先于 callable/container 的职责单一 constructor
+  checker；把 callable 内现有 structural matcher 与 argument mapping 分别提取到
+  `checker/type_inference.rs`、`checker/argument_mapping.rs` 作为 constructor-neutral 内部模块
+  后共同复用，不复制两套确定性映射/推导算法，也不把 constructor 伪造成环境 function。
+- `ConstructionTarget`、instance/argument descriptor 等 model 放入
+  `type_checking/construction.rs` 并由既有门面最小 re-export，避免继续扩大集中 model/callable
+  文件；frontend model 不包含 SSA/LLVM 类型，source target 使用已有 `NominalId` / `EnumCaseId`，
+  intrinsic 使用编译器 identity。
+- expected-result 只由 `check_expression` 当前入参及其“独立、完整”来源标记传入 constructor
+  checker，不读取 parent AST 或 symbol initializer；多候选 trial 的 candidate-local expected
+  不获得该标记，防止形成第二套全局约束求解。
+- `ConstructionDescriptor` 的 table 与 `TrialState` 同步 snapshot/restore；无 payload case 和
+  payload call 都经过同一原子提交入口。
 
 ## 7. 实施计划
 
@@ -97,4 +115,4 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 通过但有版本门禁 | 0020/0022/0067/0177 `done`；所需 identity、字段/case 顺序与泛型 matcher 已存在；v0.29 尚未启用 |
+| 2026-08-25 前置审计 | 通过但有版本门禁 | 0020/0022/0067/0177 `done`；所需 identity、字段/case 顺序、expected-type 入口、trial 与泛型 matcher 已存在；已收紧 expected 来源、裸 no-payload descriptor 和 trial 回滚契约；v0.29 尚未启用 |

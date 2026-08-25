@@ -1689,7 +1689,9 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
 - `enum class E` 的每个 case 使用既有 `EnumCaseId` 作为构造身份。有 payload 的 case 写
   `E.C(args)`，无 payload 的 case 仍写值表达式 `E.C`，不得为泛型推导改写成禁止的空 `E.C()`。
   enum 本体内允许既有短名。case 构造结果的公开静态类型始终是替换后的 root `E<...>`，
-  不把仅供 smart cast 使用的 case type 暴露为值类型。
+  不把仅供 smart cast 使用的 case type 暴露为值类型。前者在 `Call` expression 上发布
+  descriptor；后者直接在解析后的 `Name` / `Member` expression 上发布零 operand descriptor，
+  不能先伪装成函数值或普通 call 再补写 construction identity。
 - intrinsic `Box` 只有在 `TypeEnvironment` 显式绑定时是构造目标；源码同名 class 继续是普通
   nominal constructor。`Box<T>(operand)` 与 `Box(operand)` 都只有一个稳定名称为 `element` 的
   `Value T` 参数，结果为
@@ -1708,18 +1710,24 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
 
 1. 先按源码顺序检查已经定型的非 lambda 构造 operand，并用 §28.2 的精确结构匹配从对应
    字段/payload/Box 参数提取类型参数；无 expected type 的数字字面量先按 §22 默认定型。
-2. 若仍有未决参数，且当前表达式具有 expected type，只有 expected type 的外层 identity
-   精确等于本次 nominal root 或 intrinsic Box 时，才按声明顺序补齐其实参。operand 与 expected
-   type 对同一参数给出不同规范化 `TypeId` 时推导失败，不做 common type、widening 或型变。
+2. 若仍有未决参数，只能读取在进入本次 construction 检查前已经独立确定、完整规范化且不含
+   constructor-local / deferred unknown 的 expected type，例如显式变量/返回标注、已定型的
+   enclosing context，或唯一且已经实例化的 callable 参数。只有其外层 identity 精确等于本次
+   nominal root 或 intrinsic Box 时，才按声明顺序补齐类型实参。尚有多个 overload 候选时的
+   candidate-local expected type，以及仍需由本次 construction 反向完成的外层泛型 callable
+   参数，都不能作为第 2 步输入；此时必须由 operand 得到完整解或显式写出 constructor 类型
+   实参。operand 与合法 expected type 对同一参数给出不同规范化 `TypeId` 时推导失败，不做
+   common type、widening 或型变。
 3. 获得完整替换后检查 interface、`Copyable`、`Transferable` bound，再用替换后的 Value 参数
    类型单向检查全部 operand 与 lambda。lambda body 不参与第 1/2 步推导；只剩 lambda 能提供
-   类型信息时必须写显式类型实参或提供同 root expected type。
+   类型信息时必须写显式类型实参或提供第 2 步允许的独立、完整同 root expected type。
 
 这项 expected-result 规则是 constructor/case 的窄化例外，不改变 §28 普通泛型 callable 的
 单向规则。它使 `val ok: Result<Int, String> = Result.Ok(1)`、
 `val empty: Empty<String> = Empty()` 和泛型无 payload case
 `val none: Option<Int> = Option.None` 可确定；脱离同 root expected type 的 `Empty()` /
-`Option.None` 使用 L0144，而不是发明 `Option<Int>.None` 新语法。成功实例 key 由构造 target
+`Option.None`，或只有被第 2 步排除的 candidate-local expected 时使用 L0144，而不是发明
+`Option<Int>.None` 新语法。成功实例 key 由构造 target
 和声明顺序的完整类型实参组成，与源码是否显式无关。
 
 ### 29.3 参数映射、所有权与求值
@@ -1735,11 +1743,15 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
   移动到尚未发布的 construction owner。
 - 成功 typed 产物保存 expression、稳定 target/instance key、结果类型，以及按参数声明顺序的
   field/payload symbol、Value mode、源码 argument 与 argument evaluation index。无 payload case
-  发布零参数 construction descriptor。失败构造不发布部分 descriptor 或伪造结果 owner。
+  发布零参数 construction descriptor。constructor 专项分派优先于 ordinary callable/function-value
+  分派；成功 construction 不发布 `CallDescriptor`，也不把 type/case callee 或 receiver 当作运行时
+  operand 求值。descriptor 属于 §28.3 的完整 typed trial 状态，失败或未唯一提交的 overload trial
+  必须连同 nested construction facts 一起回滚，不能只删除诊断。
 - SPEC-0183 只发布上述名称/类型事实；SPEC-0188 再把 Value delivery、construction temporary、
-  move/copy、失败后 use、ASAP drop 与聚合字段 drop facts 接入既有所有权产物；SPEC-0184 只
-  消费已验证 typed/ownership facts lower 到 ADR-0008 的 aggregate/class/enum/Box 表示，不在
-  Phase 4 重新推导参数映射或 owner liveness。
+  move/copy、失败后 use、ASAP drop 接入既有所有权产物，并发布源码求值顺序的 delivery effects
+  与 construction root 的唯一 drop obligation。普通字段仍不形成可独立移动/析构的源码 place；
+  SPEC-0184 按完整单态结果类型为该 root 生成递归字段/payload drop glue，再把已验证 facts lower
+  到 ADR-0008 的 aggregate/class/enum/Box 表示，不在 Phase 4 重新推导参数映射或 owner liveness。
 
 ### 29.4 `Result` payload 勘误与诊断
 
@@ -1751,12 +1763,14 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
 | 错误码 | 候选稳定含义 | primary / 关联位置 |
 |---|---|---|
 | L0143 | type-position callee 不是可构造的 class/value class/case/intrinsic Box | primary 为 callee 名称；label 指向实际 type 声明（若有） |
-| L0144 | constructor/case 无法从 operand 与同 root expected type 得到完整一致的类型实参 | primary 为 constructor/case 名称；labels 指向未决/冲突类型参数声明 |
+| L0144 | constructor/case 无法从 operand 与合法的独立同 root expected type 得到完整一致的类型实参 | primary 为 constructor/case 名称；labels 指向未决/冲突类型参数声明 |
 | L0145 | 单态 nominal/enum/Box 的 target size/alignment/payload storage 无法表示 | primary 为触发实例化的 constructor/type use；label 指向来源类型声明或超限字段/case |
 
 L0091、L0093、L0115、L0141 继续分别表示 arity、interface、`Copyable`、`Transferable` bound；
 L0120–L0123 继续表示参数名称/数量/mode/类型候选失败。L0145 只把 SPEC-0186 已有 IR-local
-preflight 映射为源码诊断，不把 target 阈值变成新的静态类型或隐式 boxing 规则。
+preflight 映射为源码诊断，不把 target 阈值变成新的静态类型或隐式 boxing 规则。frontend
+继续保持 target / LLVM 无关；L0145 由 codegen/native 边界使用 frontend 集中诊断目录和来源
+`Span` 构造，在调用 LLVM object emitter 前返回，不能把 target 布局判断倒灌到类型检查器。
 
 ---
 

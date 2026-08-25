@@ -17,8 +17,8 @@
 ## 1. Goal
 
 完成后，ownership checker 能把每个成功 construction 作为一次源码有序的 Value delivery 与
-新 owner 建立动作，准确发布 copy/move、construction temporary、ASAP drop 和递归字段 drop
-facts，并拒绝构造参数移动后的再次使用或从 non-owning binding 移出。
+新 owner 建立动作，准确发布 copy/move delivery effect、construction temporary 与 root ASAP
+drop obligation，并拒绝构造参数移动后的再次使用或从 non-owning binding 移出。
 
 ## 2. 背景
 
@@ -31,14 +31,21 @@ Phase 3 Goal。
 
 - 只消费成功且 owner 一致的 `ConstructionDescriptor`；descriptor 缺失、foreign analysis 或
   参数 identity 不一致是内部错误，不按源码名称重新选择 constructor。
+- 在普通 `Name` / `Member` / `Call` ownership 分派前按 expression identity 拦截 construction；
+  type/case callee 或 receiver 不求值，只按 descriptor 的 operand 序列检查实际运行时表达式。
 - operand 始终按 descriptor 的 evaluation index 源码顺序各处理一次；每个 Value 参数对
   `Copyable` 建立 owned copy，对 MoveOnly place 转移 owner，对 temporary 直接交付。
 - 较早参数移动/loan/drop 效果在较晚 operand 求值时已生效；命名参数映射不能重排所有权动作。
 - construction 成功后建立 result owner：value/enum 是内联 owner，class/Box 是唯一 heap-owner
   handle。直接 return/继续 Value 交付可以转移该 owner；未转移的 local/temporary 在 SPEC-0029
   的最早安全点析构。
-- 为正常路径发布按实际单态字段/payload 的递归 drop facts；无 payload/全 Copyable 形态不制造
-  虚假唯一析构义务。abort 路径继续不 unwind，不发布部分构造 cleanup。
+- 发布 source-ordered `ConstructionDeliveryEffect` 与 construction root 的唯一 drop obligation；
+  field/payload 不形成独立源码 `DropFact` 或部分移动状态。SPEC-0184 按 descriptor 的完整单态
+  result type 派生递归 drop glue。无 payload/全 Copyable 形态不制造虚假唯一析构义务；abort
+  路径继续不 unwind，不发布部分构造 cleanup。
+- 每个 `ConstructionDeliveryEffect` 保存 construction/argument/parameter identity、evaluation
+  index 与 `Copy` / `Move` / `DeliverTemporary` kind。operand 为 `Nothing` 时计划在该 operand
+  终止，不发布后续 delivery 或 result root obligation；存在所有权诊断时不发布半成品 plan。
 - 非 owning Borrow/Inout 参数中的 MoveOnly 值构造交付复用 L0133；已移动 operand 后使用复用
   L0131；普通字段部分移动继续 L0132。成功结果与现有 loan/place 冲突使用既有 L0135。
 
@@ -56,25 +63,32 @@ Phase 3 Goal。
 - [ ] 位置/命名参数的求值与 effect 始终按源码顺序，参数声明顺序只决定最终字段槽位；嵌套
       construction、`Nothing` operand 和较早移动影响较晚 operand 均有测试。
 - [ ] construction result 的 local/temporary/return/再次 Value delivery/分支/loop 正常路径 owner
-      与 ASAP drop facts 精确；MoveOnly 字段每条正常路径恰好一个最终 drop obligation。
+      与 ASAP drop facts 精确；含 MoveOnly 字段的 root 每条正常路径恰好一个最终 drop obligation。
 - [ ] 无 payload enum、全 Copyable value/enum 不获得虚假 drop；class/Box handle 只产生一个
-      root owner，字段不变成可独立部分移动状态。
+      root owner，字段不产生独立源码 DropFact 或可部分移动状态。
+- [ ] 白盒测试证明 payload `Call` 与无 payload `Name` / `Member` 都跳过 type/case callee 求值；
+      position/named operand 的 ordered delivery effects 可由 SPEC-0184 直接消费。
 - [ ] Phase 3 fixtures、ownership 白盒窄测和 workspace 五项标准基线通过；Architecture/Roadmap/
       Spec 同步，production 文件遵守 1000 行软上限。
 
 ## 6. 技术方案与边界
 
-- 在 ownership checker 建立 constructor 专项入口，把 descriptor arguments 规范化为既有
-  Value delivery primitive，并复用 `PlaceState`、copyability、loan 与 drop-point 数据流。
+- 在 `ownership_checking/checker/construction.rs` 建立 constructor 专项入口，把 descriptor
+  arguments 规范化为既有 Value delivery primitive，并复用 `PlaceState`、copyability、loan 与
+  drop-point 数据流；现有接近 1000 行软上限的 `checker.rs` 只保留 expression dispatch。
+- 在 `ownership_checking/construction.rs` 保存 ordered effect/root plan model，并由现有门面最小
+  re-export；不把新的独立职责继续堆入集中 `model.rs`。
 - construction result 使用 expression identity 作为 temporary owner key；字段 drop 仍附属于
   root owner，不扩张为普通源码 place 的部分移动状态。
-- 产物发布 source expression → ordered delivery/drop plan，供 SPEC-0184 直接消费。
+- 产物发布 source expression → ordered delivery effects + root drop plan，供 SPEC-0184 直接消费；
+  recursive field/payload glue 不是 Phase 3 source fact。
 
 ## 7. 实施计划
 
 1. [ ] 建立 construction ownership plan/model → 验证：foreign/invalid descriptor 内部边界。
 2. [ ] 接入 Value copy/move、result owner 与 ASAP drop → 验证：领域正反矩阵和诊断 Span。
-3. [ ] 接入递归字段/payload drop facts与 Phase 3 fixtures → 验证：路径/顺序/确定性白盒测试。
+3. [ ] 接入 root drop obligation 与 Phase 3 fixtures → 验证：路径/顺序/确定性白盒测试，确认
+   不生成独立字段 DropFact。
 4. [ ] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
@@ -91,4 +105,4 @@ Phase 3 Goal。
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 等待前置 | SPEC-0029 已具备 Value delivery/ASAP drop 基元；v0.29/0183 尚未解除门禁 |
+| 2026-08-25 前置审计 | 等待前置 | SPEC-0029 已具备 Value delivery/ASAP drop 基元；已把现有 root DropFact/temporary 模型与 constructor 交接收敛为 ordered delivery effects + root obligation；v0.29/0183 尚未解除门禁 |

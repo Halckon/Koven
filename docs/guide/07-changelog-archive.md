@@ -477,3 +477,6 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 3 | class 字段、enum payload 与 Box 参数统一为源码无 marker 的 Value delivery；typed、ownership、SSA lowering 分拆为 SPEC-0183、0188、0184，失败阶段不发布部分事实 | 🔴 候选所有权/Phase 边界 |
 | 4 | 保持 `value` 为硬关键字，把标准 `Result.Ok` payload 候选名称改为 `success`，避免为单一公共字段扩大 Lexer/Parser 兼容面 | 🔴 候选标准库表面契约 |
 | 5 | 预留 L0143 非构造目标、L0144 constructor 推导失败、L0145 target layout 源码诊断；参数映射与既有 bound 继续复用 L0091/L0093/L0115/L0120–L0123/L0141 | 🟡 候选诊断闭包 |
+| 6 | 前置审计把 expected-result 输入收紧为 independently-established complete type；尚未决的 overload candidate-local expected 或外层泛型 unknown 不参与 constructor 推导 | 🔴 候选局部推导语义 |
+| 7 | 无 payload case 在裸 Name/Member 上直接发布零 operand descriptor；construction facts 进入完整 typed trial 回滚，且不生成普通 CallDescriptor 或运行时 callee 求值 | 🔴 候选 typed fact 边界 |
+| 8 | ownership 只发布有序 Value delivery effect 与 root drop obligation；递归字段/payload drop glue 由单态结果类型在 backend 派生，L0145 在 codegen/native 诊断桥接层形成 | 🟡 候选跨阶段交接 |
