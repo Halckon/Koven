@@ -1,6 +1,8 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
+mod aggregate;
 mod control;
+mod drops;
 mod instances;
 mod loop_control;
 mod nominal;
@@ -10,8 +12,10 @@ use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
-    name_resolution::{NameResolution, SymbolId, SymbolKind},
-    ownership_checking::{ConstructionDeliveryKind, ConstructionRootKind, OwnershipCheckedFile},
+    name_resolution::{EnumCaseId, NameResolution, SymbolId, SymbolKind},
+    ownership_checking::{
+        ConstructionDeliveryKind, ConstructionRootKind, DropPoint, OwnershipCheckedFile,
+    },
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
         Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator, Statement, StringPart,
@@ -91,18 +95,45 @@ struct ExpressionLowerer<'a> {
     function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
     substitutions: &'a BTreeMap<SymbolId, TypeId>,
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
+    temporaries: BTreeMap<usize, ValueId>,
     return_type: TypeId,
     loops: Vec<loop_control::LoopContext>,
 }
 
 impl ExpressionLowerer<'_> {
     fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
+        let result = self.lower_expression(expression)?;
+        if let LoweredValue::Value(value) = result
+            && self.typed.expression_category(expression)
+                == Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+            && self
+                .typed
+                .expression_type(expression)
+                .and_then(|ty| self.typed.copyability(ty))
+                == Some(Copyability::MoveOnly)
+        {
+            self.temporaries.insert(expression.index(), value);
+        }
+        if !matches!(result, LoweredValue::Diverged) {
+            self.emit_drops(DropPoint::AfterExpression(expression))?;
+        }
+        Ok(result)
+    }
+
+    fn lower_expression(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
+        }
+        if self.typed.aggregate_projection(expression).is_some() {
+            return self.lower_aggregate_projection(expression);
         }
         let node = self
             .parsed
@@ -143,7 +174,7 @@ impl ExpressionLowerer<'_> {
             Expression::When {
                 subject, entries, ..
             } => self.lower_when(expression, subject, &entries, span),
-            Expression::Return { value, .. } => self.lower_return(value, span),
+            Expression::Return { value, .. } => self.lower_return(expression, value, span),
             Expression::Break { .. } => self.lower_break(span),
             Expression::Continue { .. } => self.lower_continue(span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
@@ -284,7 +315,32 @@ impl ExpressionLowerer<'_> {
                 value(results[0])
             }
             ConstructionTarget::EnumCase(_) => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                let ConstructionTarget::EnumCase(case) = descriptor.target() else {
+                    unreachable!();
+                };
+                let (variant, payload_type) = self
+                    .enum_payloads
+                    .get(&(result_type, case))
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let (_, payload_results) = self.append(
+                    Operation::AggregateConstruct {
+                        aggregate: payload_type,
+                        fields,
+                    },
+                    vec![EntityType::Value(payload_type)],
+                    span,
+                )?;
+                let (_, results) = self.append(
+                    Operation::TaggedConstruct {
+                        tagged: result_type,
+                        variant,
+                        payload: value(payload_results[0]),
+                    },
+                    vec![EntityType::Value(result_type)],
+                    span,
+                )?;
+                value(results[0])
             }
         };
         Ok(LoweredValue::Value(result))
@@ -332,6 +388,17 @@ impl ExpressionLowerer<'_> {
     }
 
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+        let result = self.lower_statement_inner(statement)?;
+        if !matches!(result, LoweredValue::Diverged) {
+            self.emit_drops(DropPoint::AfterStatement(statement))?;
+        }
+        Ok(result)
+    }
+
+    fn lower_statement_inner(
+        &mut self,
+        statement: StatementId,
+    ) -> Result<LoweredValue, LoweringError> {
         let node = self
             .parsed
             .ast()
@@ -353,6 +420,9 @@ impl ExpressionLowerer<'_> {
             }
             Statement::LocalVariable { declaration } => {
                 self.lower_local_variable(declaration, span)
+            }
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.lower_destructuring(statement, initializer, span)
             }
             Statement::Expression { expression } => self.lower(expression),
             Statement::While {
@@ -574,6 +644,7 @@ impl ExpressionLowerer<'_> {
 
     fn lower_return(
         &mut self,
+        return_expression: ExpressionId,
         expression: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -584,6 +655,7 @@ impl ExpressionLowerer<'_> {
         if matches!(result, LoweredValue::Diverged) {
             return Ok(result);
         }
+        self.emit_drops(DropPoint::ControlTransfer(return_expression))?;
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function
             .set_terminator(
@@ -683,6 +755,7 @@ impl ExpressionLowerer<'_> {
             result_types,
             span,
         )?;
+        self.emit_drops(DropPoint::CallReturn(expression))?;
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [entity] => Ok(LoweredValue::Value(value(*entity))),
@@ -893,6 +966,13 @@ fn value(entity: EntityId) -> ValueId {
         unreachable!("scalar lowering only requests value results");
     };
     value
+}
+
+fn place(entity: EntityId) -> super::model::PlaceId {
+    let EntityId::Place(place) = entity else {
+        unreachable!("frontend lowering requested a place result");
+    };
+    place
 }
 
 fn span_key(span: Span) -> (usize, usize) {

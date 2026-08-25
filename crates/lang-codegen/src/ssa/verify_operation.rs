@@ -63,6 +63,30 @@ pub(super) fn verify_operation(
         Operation::AggregateExplode { aggregate } => {
             aggregate_explode_contract(module, function, *aggregate, &results)
         }
+        Operation::AggregateCopyExplode { aggregate } => {
+            aggregate_copy_explode_contract(module, function, *aggregate, &results)
+        }
+        Operation::TaggedConstruct {
+            tagged,
+            variant,
+            payload,
+        } => tagged_construct_contract(module, function, *tagged, *variant, *payload, &results),
+        Operation::TaggedPayloadPlace { owner, variant } => {
+            tagged_payload_place_contract(module, function, *owner, *variant, &results)
+        }
+        Operation::TaggedDiscriminant { owner } => {
+            value_type(function, *owner).is_some_and(|ty| {
+                matches!(module.type_kind(ty), Some(SsaTypeKind::TaggedUnion { .. }))
+            }) && single_value_result(&results).is_some_and(|ty| {
+                matches!(
+                    module.type_kind(ty),
+                    Some(SsaTypeKind::Integer {
+                        bits: 32,
+                        signed: true
+                    })
+                )
+            })
+        }
         Operation::HeapAllocate { owner, payload } => {
             heap_allocate_contract(module, function, *owner, *payload, &results)
         }
@@ -213,6 +237,56 @@ fn heap_allocate_contract(
         value_type(function, payload) == Some(expected)
             && single_value_result(results) == Some(owner)
     })
+}
+
+fn tagged_construct_contract(
+    module: &Module,
+    function: &Function,
+    tagged: SsaTypeId,
+    variant: usize,
+    payload: ValueId,
+    results: &[EntityType],
+) -> bool {
+    module
+        .tagged_variants(tagged)
+        .and_then(|variants| variants.get(variant))
+        .is_some_and(|expected| {
+            value_type(function, payload) == Some(*expected)
+                && single_value_result(results) == Some(tagged)
+        })
+}
+
+fn aggregate_copy_explode_contract(
+    module: &Module,
+    function: &Function,
+    aggregate: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some(aggregate) = value_type(function, aggregate) else {
+        return false;
+    };
+    module.type_ownership(aggregate) == Some(super::model::Ownership::Copyable)
+        && module.aggregate_fields(aggregate).is_some_and(|fields| {
+            results
+                == fields
+                    .iter()
+                    .copied()
+                    .map(EntityType::Value)
+                    .collect::<Vec<_>>()
+        })
+}
+
+fn tagged_payload_place_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    variant: usize,
+    results: &[EntityType],
+) -> bool {
+    value_type(function, owner)
+        .and_then(|tagged| module.tagged_variants(tagged))
+        .and_then(|variants| variants.get(variant))
+        .is_some_and(|payload| results == [EntityType::Place(*payload)])
 }
 
 fn heap_payload_place_contract(
@@ -587,6 +661,7 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
             SsaTypeKind::Boolean
                 | SsaTypeKind::Integer { .. }
                 | SsaTypeKind::Aggregate { .. }
+                | SsaTypeKind::TaggedUnion { .. }
                 | SsaTypeKind::HeapOwner { .. }
                 | SsaTypeKind::SequentialContainer { .. }
                 | SsaTypeKind::ZeroSized { .. }

@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::SymbolId,
-    parser::{BinaryOperator, Expression, LiteralKind, Statement, WhenCondition, WhenEntry},
+    parser::{
+        BinaryOperator, Expression, LiteralKind, Statement, TypeRef, WhenCondition, WhenEntry,
+    },
     source::Span,
 };
 
@@ -155,20 +157,22 @@ impl ExpressionLowerer<'_> {
                     .expression_type(subject)
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                 let ty = self.resolve_type(ty, span)?;
-                if builtin_type(self.typed, ty)
-                    != Some(lang_frontend::type_checking::BuiltinType::Boolean)
-                {
+                let ssa_type = self.expression_ssa_type(subject, self.expression_span(subject)?)?;
+                let is_boolean = builtin_type(self.typed, ty)
+                    == Some(lang_frontend::type_checking::BuiltinType::Boolean);
+                let is_tagged = self.enum_payloads.keys().any(|(root, _)| *root == ssa_type);
+                if !is_boolean && !is_tagged {
                     return Err(error(
                         LoweringErrorKind::UnsupportedNode,
                         self.expression_span(subject)?,
                     ));
                 }
-                Some(self.require_value(subject)?)
+                Some((self.require_value(subject)?, is_tagged.then_some(ssa_type)))
             }
             None => None,
         };
         let baseline = self.bindings.clone();
-        if let Some(subject) = subject
+        if let Some((subject, None)) = subject
             && let Some((when_true, when_false)) = self.boolean_literal_entries(entries)?
         {
             return self.lower_boolean_literal_when(
@@ -240,13 +244,24 @@ impl ExpressionLowerer<'_> {
 
         if !has_else {
             if !discard_result {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
+                    self.function
+                        .set_terminator(
+                            unmatched_block,
+                            TerminatorKind::Abort,
+                            Origin::Source(span),
+                        )
+                        .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                } else {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                }
+            } else {
+                exits.push(BranchExit {
+                    block: unmatched_block,
+                    result: LoweredValue::Unit,
+                    bindings: unmatched_bindings,
+                });
             }
-            exits.push(BranchExit {
-                block: unmatched_block,
-                result: LoweredValue::Unit,
-                bindings: unmatched_bindings,
-            });
         }
         if discard_result {
             discard_exit_results(&mut exits);
@@ -332,15 +347,80 @@ impl ExpressionLowerer<'_> {
 
     fn lower_when_condition(
         &mut self,
-        subject: Option<ValueId>,
+        subject: Option<(ValueId, Option<crate::ssa::model::SsaTypeId>)>,
         condition: &WhenCondition,
         span: Span,
     ) -> Result<ValueId, LoweringError> {
+        if let WhenCondition::TypeTest {
+            negated, type_ref, ..
+        } = condition
+        {
+            let Some((owner, Some(tagged))) = subject else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            let node = self
+                .parsed
+                .ast()
+                .type_refs()
+                .get(*type_ref)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            let TypeRef::Qualified { segments, .. } = node.payload() else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
+            };
+            let symbol = segments
+                .last()
+                .and_then(|segment| self.references.get(&super::span_key(segment.name_span)))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
+            let case = self
+                .typed
+                .enum_cases()
+                .iter()
+                .find(|case| case.type_symbol() == symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
+            let (variant, _) = self
+                .enum_payloads
+                .get(&(tagged, case.id()))
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
+            let integer = self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Int, span)?;
+            let boolean =
+                self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Boolean, span)?;
+            let (_, tag) = self.append(
+                Operation::TaggedDiscriminant { owner },
+                vec![EntityType::Value(integer)],
+                span,
+            )?;
+            let (_, expected) = self.append(
+                Operation::Constant(ScalarConstant::Integer(variant as i128)),
+                vec![EntityType::Value(integer)],
+                span,
+            )?;
+            let (_, matches) = self.append(
+                Operation::Compare {
+                    operator: ComparisonOperator::Equal,
+                    left: value(tag[0]),
+                    right: value(expected[0]),
+                },
+                vec![EntityType::Value(boolean)],
+                span,
+            )?;
+            let matches = value(matches[0]);
+            if !negated {
+                return Ok(matches);
+            }
+            let (_, result) = self.append(
+                Operation::BooleanNot { operand: matches },
+                vec![EntityType::Value(boolean)],
+                span,
+            )?;
+            return Ok(value(result[0]));
+        }
         let WhenCondition::Expression(expression) = condition else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
         let candidate = self.require_value(*expression)?;
-        let Some(subject) = subject else {
+        let Some((subject, None)) = subject else {
             return Ok(candidate);
         };
         let ty = self.expression_ssa_type(*expression, span)?;
@@ -354,6 +434,19 @@ impl ExpressionLowerer<'_> {
             span,
         )?;
         Ok(value(results[0]))
+    }
+
+    fn ssa_builtin(
+        &self,
+        builtin: lang_frontend::type_checking::BuiltinType,
+        span: Span,
+    ) -> Result<crate::ssa::model::SsaTypeId, LoweringError> {
+        self.type_ids
+            .iter()
+            .find_map(|(frontend, ssa)| {
+                (builtin_type(self.typed, *frontend) == Some(builtin)).then_some(*ssa)
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
     fn lower_control_branch(

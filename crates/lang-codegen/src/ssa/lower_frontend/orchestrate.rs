@@ -121,15 +121,30 @@ fn lower_scalar_file_product(
         type_mapper.intern(module, names, typed, ty, file_anchor)?;
     }
     for construction in typed.constructions() {
+        let construction_span = parsed
+            .ast()
+            .expressions()
+            .get(construction.expression())
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
         type_mapper.intern(
             module,
             names,
             typed,
             construction.result_type(),
-            file_anchor,
+            construction_span,
         )?;
         for argument in construction.arguments() {
-            type_mapper.intern(module, names, typed, argument.parameter_type(), file_anchor)?;
+            type_mapper.intern(
+                module,
+                names,
+                typed,
+                argument.parameter_type(),
+                construction_span,
+            )?;
         }
     }
     let declarations = collect_functions(parsed, names, typed)?;
@@ -223,7 +238,7 @@ fn lower_scalar_file_product(
         });
     }
 
-    let (type_ids, heap_payloads) = type_mapper.into_parts();
+    let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();
     let source_text = sources
         .source_text(parsed.source_id())
         .map_err(|_| LoweringError {
@@ -272,10 +287,12 @@ fn lower_scalar_file_product(
             function_ids: &function_ids,
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
+            enum_payloads: &enum_payloads,
             substitutions: &plan.substitutions,
             function,
             block: entry,
             bindings,
+            temporaries: BTreeMap::new(),
             return_type: plan.return_type,
             loops: Vec::new(),
         };

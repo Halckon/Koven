@@ -155,6 +155,8 @@ pub mod codes {
     pub(crate) const JUMP_OUTSIDE_LOOP: &str = "L0142";
     pub(crate) const INVALID_CONSTRUCTION_TARGET: &str = "L0143";
     pub(crate) const CONSTRUCTION_INFERENCE: &str = "L0144";
+    /// 当前 native target 无法表示来源类型的存储布局。
+    pub const TARGET_LAYOUT: &str = "L0145";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -302,6 +304,7 @@ pub mod codes {
         JUMP_OUTSIDE_LOOP,
         INVALID_CONSTRUCTION_TARGET,
         CONSTRUCTION_INFERENCE,
+        TARGET_LAYOUT,
     ];
 
     /// 由集中定义创建生产错误码目录。

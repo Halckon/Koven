@@ -67,6 +67,16 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             output.push(')');
             Ok(())
         }
+        SsaTypeKind::TaggedUnion {
+            name,
+            variants,
+            ownership,
+        } => {
+            write!(output, "tagged_union {name:?} {:?} (", ownership)?;
+            write_type_ids(output, variants)?;
+            output.push(')');
+            Ok(())
+        }
         SsaTypeKind::HeapOwner { name, payload } => {
             write!(output, "heap_owner {name:?}")?;
             if let Some(payload) = payload {
@@ -394,6 +404,29 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         Operation::AggregateExplode { aggregate } => {
             output.write_str("aggregate.explode ")?;
             write_entity_id(output, EntityId::Value(*aggregate))
+        }
+        Operation::AggregateCopyExplode { aggregate } => {
+            output.write_str("aggregate.copy_explode ")?;
+            write_entity_id(output, EntityId::Value(*aggregate))
+        }
+        Operation::TaggedConstruct {
+            tagged,
+            variant,
+            payload,
+        } => {
+            output.write_str("tagged.construct ")?;
+            write_type_id(output, *tagged)?;
+            write!(output, ", {variant}, ")?;
+            write_entity_id(output, EntityId::Value(*payload))
+        }
+        Operation::TaggedPayloadPlace { owner, variant } => {
+            output.write_str("tagged.payload_place ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            write!(output, ", {variant}")
+        }
+        Operation::TaggedDiscriminant { owner } => {
+            output.write_str("tagged.discriminant ")?;
+            write_entity_id(output, EntityId::Value(*owner))
         }
         Operation::HeapAllocate { owner, payload } => {
             output.write_str("heap.allocate ")?;

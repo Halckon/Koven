@@ -280,6 +280,31 @@ fn apply_operation(
                 errors,
             );
         }
+        Operation::AggregateCopyExplode { aggregate } => {
+            require_value(
+                module, function, *aggregate, state, location, origin, errors,
+            );
+        }
+        Operation::TaggedConstruct { payload, .. } => {
+            consume_value(
+                module,
+                function,
+                *payload,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
+        Operation::TaggedPayloadPlace { owner, .. } => {
+            require_value(module, function, *owner, state, location, origin, errors);
+        }
+        Operation::TaggedDiscriminant { owner } => {
+            require_value(module, function, *owner, state, location, origin, errors);
+        }
         Operation::HeapAllocate { payload, .. } => {
             consume_value(
                 module,

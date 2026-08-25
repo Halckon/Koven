@@ -19,7 +19,7 @@ use crate::ssa::model::{
     TerminatorKind,
 };
 
-use super::{LlvmAdapterError, type_map::TypeMap};
+use super::{LlvmAdapterError, tagged, type_map::TypeMap};
 
 pub(super) struct RuntimeAbi<'ctx> {
     context: &'ctx Context,
@@ -381,6 +381,47 @@ impl<'ctx> RuntimeAbi<'ctx> {
                         }
                     }
                 }
+                Some(SsaTypeKind::TaggedUnion { variants, .. }) => {
+                    let tagged_value = value.into_struct_value();
+                    let tag = builder
+                        .build_extract_value(tagged_value, 0, "tag")?
+                        .into_int_value();
+                    let done = self.context.append_basic_block(*function, "done");
+                    let cases = variants
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| {
+                            (
+                                self.context.i32_type().const_int(index as u64, false),
+                                self.context
+                                    .append_basic_block(*function, &format!("case{index}")),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    builder.build_switch(tag, done, &cases)?;
+                    for (index, (payload, (_, block))) in variants.iter().zip(&cases).enumerate() {
+                        builder.position_at_end(*block);
+                        let payload_ty = *payload;
+                        if module.type_ownership(payload_ty) == Some(Ownership::MoveOnly) {
+                            let place = tagged::payload_place(
+                                &builder,
+                                types,
+                                *ty,
+                                index,
+                                tagged_value,
+                                &format!("case{index}.payload"),
+                            )?;
+                            let payload = builder.build_load(
+                                types.basic_type(payload_ty)?,
+                                place,
+                                &format!("case{index}.value"),
+                            )?;
+                            self.emit_drop(&builder, payload_ty, payload)?;
+                        }
+                        builder.build_unconditional_branch(done)?;
+                    }
+                    builder.position_at_end(done);
+                }
                 Some(SsaTypeKind::HeapOwner { payload, .. }) => {
                     let payload = payload.ok_or_else(|| {
                         LlvmAdapterError::InvalidSsa(
@@ -626,6 +667,11 @@ impl RuntimeRequirements {
             Some(SsaTypeKind::Aggregate { fields, .. }) => {
                 for field in fields {
                     self.collect_drop_type(module, *field)?;
+                }
+            }
+            Some(SsaTypeKind::TaggedUnion { variants, .. }) => {
+                for payload in variants {
+                    self.collect_drop_type(module, *payload)?;
                 }
             }
             Some(SsaTypeKind::HeapOwner { payload, .. }) => {

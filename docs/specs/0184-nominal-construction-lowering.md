@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-184` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.29 §29](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029) |
@@ -61,17 +61,17 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 ## 5. 验收标准
 
-- [ ] verified SSA 正反矩阵覆盖 value aggregate、class/Box heap owner、enum tag/payload、字段 place、
+- [x] verified SSA 正反矩阵覆盖 value aggregate、class/Box heap owner、enum tag/payload、字段 place、
       Copy/Consume explode 与由单态 root type 派生的递归 drop；corrupt target/order/ownership plan
       被 verifier/adapter 拒绝，缺少逐字段 source DropFact 不是错误。
-- [ ] debug LLVM/object 文本证明布局、tag、单次 malloc/free、无隐式 Box/retain/clone/unwind；ZST、
+- [x] debug LLVM/object 文本证明布局、tag、单次 malloc/free、无隐式 Box/retain/clone/unwind；ZST、
       空 class、无 payload enum 和 MoveOnly nested payload 均有边界测试。
-- [ ] 真实 `.ko` source 经 frontend→verified SSA→LLVM object→Clang link/run，观察构造结果、分支
+- [x] 真实 `.ko` source 经 frontend→verified SSA→LLVM object→Clang link/run，观察构造结果、分支
       case、投影/解构和正常退出；MoveOnly 资源恰好析构/释放一次。
-- [ ] 超限 aggregate/enum payload/class/Box 产生 L0145 精确 Span，且 LLVM 类型、allocation、object
+- [x] 超限 aggregate/enum payload/class/Box 产生 L0145 精确 Span，且 LLVM 类型、allocation、object
       均未产生；测试证明 L0145 由 codegen/native 桥接且 frontend 保持 target-independent，
       SPEC-0186 既有 IR-local preflight 回归通过。
-- [ ] `lang-codegen`/frontend/CLI 受影响窄测及 workspace 五项标准基线通过；Architecture/Roadmap/
+- [x] `lang-codegen`/frontend/CLI 受影响窄测及 workspace 五项标准基线通过；Architecture/Roadmap/
       Spec 只记录真实源码闭环，production 文件遵守 1000 行软上限。
 
 ## 6. 技术方案与边界
@@ -90,10 +90,10 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 1. [x] 建立 frontend nominal type mapper 与 value/class/Box construction lowering → 验证：SSA/
    LLVM 窄矩阵和 verifier。
-2. [ ] 增加 enum tag/payload SSA/LLVM、projection/destructuring/drop 接线 → 验证：case/ZST/
+2. [x] 增加 enum tag/payload SSA/LLVM、projection/destructuring/drop 接线 → 验证：case/ZST/
    MoveOnly 正反矩阵。
-3. [ ] 映射 L0145 并完成真实 source object/link/run → 验证：失败不落盘和 native 行为。
-4. [ ] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
+3. [x] 映射 L0145 并完成真实 source object/link/run → 验证：失败不落盘和 native 行为。
+4. [x] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
 
@@ -104,8 +104,8 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 
 ## 9. 未决问题
 
-- 无设计留白；版本门禁与 SPEC-0183/0188 前置已解除。enum、projection/destructuring/drop 与
-  L0145/native 闭环仍按本 Spec 后续步骤实施，不属于新的设计门禁。
+- 无设计留白；enum、projection/destructuring/drop、L0145 与 native 闭环均已完成。instance
+  receiver、公开 CLI build 命令与标准输出仍分别属于既有后续 Goal，不由本 Spec 扩张。
 
 ## 10. 验证记录
 
@@ -114,3 +114,6 @@ class/Box allocation 和递归 drop/free，SPEC-0186 已建立 IR-local target l
 | 2026-08-25 前置审计 | 通过 | ADR-0008、SPEC-0035/0186 已封闭后端表示/preflight；v0.29 已启用，SPEC-0183/0188 已完成，实施门禁解除 |
 | `cargo test -p lang-codegen` | 通过 | 101 passed，1 个既有 LLDB 权限用例 ignored；value/class/Box construction 已通过 verified SSA→LLVM 窄矩阵 |
 | workspace 五项标准基线 | 通过 | `fmt --check`、`check --workspace`、Clippy `-D warnings`、`test --workspace`、`build -p lang-cli` 全部退出 0；一个既有 LLDB 权限用例 ignored |
+| `cargo test -p lang-codegen`（最终） | 通过 | 105 passed，1 个既有 LLDB 权限用例 ignored；新增 tagged 正反矩阵、L0145 bridge 与 source object/link/run |
+| `nominal_enum_box_source_emits_links_and_runs` | 通过 | 真实 `.ko` 的 value/class/enum/Box、投影/解构、MoveOnly 递归 drop 经 Clang 链接后退出 0 |
+| production 文件规模审计 | 通过（记录例外） | 新模块均低于 1000 行；既有集中 exhaustive dispatcher `llvm/adapter.rs` 为 1051 行，tagged 实现已隔离到 80 行模块，后续新增独立 operation family 前拆分 dispatcher |

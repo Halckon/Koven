@@ -149,6 +149,19 @@ impl LayoutCalculator<'_, '_> {
                 }
                 self.record(ty, &layouts)?
             }
+            Some(SsaTypeKind::TaggedUnion { variants, .. }) => {
+                let mut payload = RawLayout {
+                    size: 0,
+                    alignment: 1,
+                };
+                for variant in variants {
+                    let layout = self.dependency(*variant)?;
+                    payload.size = payload.size.max(layout.size);
+                    payload.alignment = payload.alignment.max(layout.alignment);
+                }
+                let tag = self.llvm_layout(self.context.i32_type().into());
+                self.record(ty, &[tag, payload])?
+            }
             Some(SsaTypeKind::SequentialContainer { kind, element }) => {
                 let element = *element;
                 let element_layout = self.dependency(element)?;

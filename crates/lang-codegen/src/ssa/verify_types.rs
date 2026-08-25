@@ -46,6 +46,7 @@ fn verify_named_identity(
 ) {
     let name = match kind {
         SsaTypeKind::Aggregate { name, .. }
+        | SsaTypeKind::TaggedUnion { name, .. }
         | SsaTypeKind::HeapOwner { name, .. }
         | SsaTypeKind::ConcreteClosure { name, .. } => name,
         _ => return,
@@ -93,6 +94,37 @@ fn verify_type_definition(
             for field in fields {
                 if field.module() != module.id || module.type_kind(*field).is_none() {
                     push_type_error(errors, id, "field type must exist in the same module");
+                }
+            }
+        }
+        SsaTypeKind::TaggedUnion {
+            variants,
+            ownership,
+            ..
+        } => {
+            let derived = if variants
+                .iter()
+                .any(|variant| module.type_ownership(*variant) == Some(Ownership::MoveOnly))
+            {
+                Ownership::MoveOnly
+            } else {
+                Ownership::Copyable
+            };
+            if variants.is_empty() || *ownership != derived {
+                push_type_error(
+                    errors,
+                    id,
+                    "tagged union must have variants and derive ownership from payloads",
+                );
+            }
+            for variant in variants {
+                if variant.module() != module.id
+                    || !matches!(
+                        module.type_kind(*variant),
+                        Some(SsaTypeKind::Aggregate { .. })
+                    )
+                {
+                    push_type_error(errors, id, "tagged union payloads must be local aggregates");
                 }
             }
         }
@@ -223,7 +255,9 @@ fn verify_inline_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
     for (index, kind) in module.types.iter().enumerate() {
         if !matches!(
             kind,
-            SsaTypeKind::Aggregate { .. } | SsaTypeKind::ConcreteClosure { .. }
+            SsaTypeKind::Aggregate { .. }
+                | SsaTypeKind::TaggedUnion { .. }
+                | SsaTypeKind::ConcreteClosure { .. }
         ) {
             continue;
         }
@@ -232,10 +266,12 @@ fn verify_inline_type_cycles(module: &Module, errors: &mut Vec<VerifyError>) {
             index,
         };
         if inline_type_reaches(module, id, id, &mut BTreeSet::new()) {
-            let reason = if matches!(kind, SsaTypeKind::Aggregate { .. }) {
-                "aggregate fields must not form an inline cycle"
-            } else {
-                "closure environment must not form an inline cycle"
+            let reason = match kind {
+                SsaTypeKind::Aggregate { .. } => "aggregate fields must not form an inline cycle",
+                SsaTypeKind::TaggedUnion { .. } => {
+                    "tagged union payloads must not form an inline cycle"
+                }
+                _ => "closure environment must not form an inline cycle",
             };
             push_type_error(errors, id, reason);
         }
@@ -278,6 +314,7 @@ fn inline_type_reaches(
 ) -> bool {
     let fields = match module.type_kind(current) {
         Some(SsaTypeKind::Aggregate { fields, .. }) => fields.as_slice(),
+        Some(SsaTypeKind::TaggedUnion { variants, .. }) => variants.as_slice(),
         Some(SsaTypeKind::ConcreteClosure { environment, .. }) => std::slice::from_ref(environment),
         _ => return false,
     };
@@ -288,7 +325,11 @@ fn inline_type_reaches(
         field == target
             || matches!(
                 module.type_kind(field),
-                Some(SsaTypeKind::Aggregate { .. } | SsaTypeKind::ConcreteClosure { .. })
+                Some(
+                    SsaTypeKind::Aggregate { .. }
+                        | SsaTypeKind::TaggedUnion { .. }
+                        | SsaTypeKind::ConcreteClosure { .. }
+                )
             ) && inline_type_reaches(module, field, target, active)
     });
     active.remove(&current);

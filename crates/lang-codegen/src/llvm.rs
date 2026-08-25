@@ -17,7 +17,7 @@ mod entities;
 mod entry;
 #[cfg(test)]
 mod entry_tests;
-mod layout;
+pub(crate) mod layout;
 #[cfg(test)]
 mod layout_tests;
 #[cfg(test)]
@@ -26,6 +26,7 @@ mod runtime;
 #[cfg(test)]
 mod runtime_tests;
 mod scalar;
+mod tagged;
 mod type_map;
 
 use inkwell::OptimizationLevel;

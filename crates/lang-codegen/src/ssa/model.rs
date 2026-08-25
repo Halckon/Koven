@@ -82,6 +82,13 @@ pub(crate) struct SsaTypeId {
     pub(crate) index: usize,
 }
 
+/// 源码 lowering 创建的存储类型对应的使用位置与声明位置。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TypeOrigin {
+    pub(crate) primary: Span,
+    pub(crate) declaration: Span,
+}
+
 impl SsaTypeId {
     pub(crate) const fn module(self) -> ModuleId {
         self.module
@@ -162,6 +169,11 @@ pub(crate) enum SsaTypeKind {
     Aggregate {
         name: String,
         fields: Vec<SsaTypeId>,
+        ownership: Ownership,
+    },
+    TaggedUnion {
+        name: String,
+        variants: Vec<SsaTypeId>,
         ownership: Ownership,
     },
     HeapOwner {
@@ -341,6 +353,21 @@ pub(crate) enum Operation {
     AggregateExplode {
         aggregate: ValueId,
     },
+    AggregateCopyExplode {
+        aggregate: ValueId,
+    },
+    TaggedConstruct {
+        tagged: SsaTypeId,
+        variant: usize,
+        payload: ValueId,
+    },
+    TaggedPayloadPlace {
+        owner: ValueId,
+        variant: usize,
+    },
+    TaggedDiscriminant {
+        owner: ValueId,
+    },
     HeapAllocate {
         owner: SsaTypeId,
         payload: ValueId,
@@ -434,9 +461,13 @@ impl Operation {
             }
             Self::AggregateProject { aggregate, .. }
             | Self::AggregateExplode { aggregate }
+            | Self::AggregateCopyExplode { aggregate }
             | Self::HeapPayloadPlace { owner: aggregate } => {
                 vec![EntityId::Value(*aggregate)]
             }
+            Self::TaggedConstruct { payload, .. } => vec![EntityId::Value(*payload)],
+            Self::TaggedPayloadPlace { owner, .. } => vec![EntityId::Value(*owner)],
+            Self::TaggedDiscriminant { owner } => vec![EntityId::Value(*owner)],
             Self::HeapAllocate { payload, .. } => vec![EntityId::Value(*payload)],
             Self::ContainerConstruct { elements, .. } => {
                 elements.iter().copied().map(EntityId::Value).collect()
@@ -778,6 +809,7 @@ pub(crate) struct Module {
     pub(crate) types: Vec<SsaTypeKind>,
     pub(super) type_ids: BTreeMap<SsaTypeKind, SsaTypeId>,
     pub(super) named_type_ids: BTreeMap<String, SsaTypeId>,
+    pub(super) type_origins: BTreeMap<SsaTypeId, TypeOrigin>,
     pub(crate) functions: Vec<Function>,
 }
 
@@ -845,6 +877,16 @@ impl Module {
             .then(|| self.functions.get_mut(id.index()))
             .flatten()
     }
+
+    pub(crate) fn set_type_origin(&mut self, ty: SsaTypeId, origin: TypeOrigin) {
+        self.type_origins.entry(ty).or_insert(origin);
+    }
+
+    pub(crate) fn type_origin(&self, ty: SsaTypeId) -> Option<TypeOrigin> {
+        (ty.module() == self.id)
+            .then(|| self.type_origins.get(&ty).copied())
+            .flatten()
+    }
 }
 
 pub(crate) struct Program {
@@ -873,6 +915,7 @@ impl Program {
             types: Vec::new(),
             type_ids: BTreeMap::new(),
             named_type_ids: BTreeMap::new(),
+            type_origins: BTreeMap::new(),
             functions: Vec::new(),
         });
         id
@@ -888,6 +931,10 @@ impl Program {
         (id.owner == self.owner)
             .then(|| self.modules.get_mut(id.index()))
             .flatten()
+    }
+
+    pub(crate) fn type_origin(&self, ty: SsaTypeId) -> Option<TypeOrigin> {
+        self.module(ty.module())?.type_origin(ty)
     }
 }
 

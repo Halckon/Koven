@@ -34,7 +34,7 @@ checked-index、replace/drop 与 MoveOnly ZST runtime 均已落地；
 SPEC-0186 已在任何 LLVM 复合类型创建前加入 target-layout preflight：从同一 `TargetData`
 取得 primitive/pointer/size_t 事实，以受检算术验证 aggregate、closure 与 container header 的
 size/alignment 和 element stride；超限或算术溢出稳定返回 IR-local `InvalidLayout`，不进入
-opaque struct body、GEP 或 allocator lowering；源码 `Span`/诊断映射等待 SPEC-0184；
+opaque struct body、GEP 或 allocator lowering；SPEC-0184 已把来源类型映射到 L0145；
 SPEC-0038 已完成具体闭包后端：function-pointer/concrete-closure/shared-reference IR-local type、
 owned/shared capture layout identity、function-address、formation、非消费式 invoke 与 drop；
 shared loan 依赖随 closure owner 和 CFG transfer 存续，drop 后释放，LLVM 使用裸 function
@@ -68,7 +68,13 @@ object 写盘前保持 unsupported。真实 `prelude.ko` 同时保留正常 smok
 验证 object/link 后由进程失败边界观察到非零或 signal；
 SPEC-0185 已让 frontend-clean 的普通 class/value class/interface/enum class 顶层声明与既有
 标量 entry 共存：声明 root 不进入函数模板或可达实例图，不产生伪 SSA/LLVM 实体；具名 object、
-顶层 variable/constant 与实际尚未接线的 nominal constructor 仍结构化拒绝，native 失败不落盘；
+顶层 variable/constant 仍结构化拒绝，native 失败不落盘；
+SPEC-0184 已把 v0.29 construction/ownership facts 接到 named aggregate、heap owner 与新增
+tagged-union SSA：value class、普通 class、enum case 与 intrinsic Box 按声明顺序构造，Copy/
+Consume 解构保持不同线性契约，字段 place、enum discriminant/静态 payload place 与 root drop
+均由 verifier 检查。LLVM 使用 `i32` 源序 tag 加最大 payload storage，递归 drop glue 按 tag
+选择 payload；native bridge 用 SSA 类型来源生成 L0145 使用主范围与声明标签。真实 `.ko` 已覆盖
+value/class/enum/Box、投影/解构、MoveOnly nested payload，并完成 object/Clang link/run；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -94,7 +100,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0144` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0145` 正式错误码与
   确定性聚合顺序。`kovenc` binary 的默认纯文本 renderer 与显式 schema v1 JSON Lines
   renderer 均由 formatter 用户诊断复用；machine location 同时携带半开 UTF-8 byte range 与
   1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range，也尚未接入未实现的公开 build 流水线；
@@ -196,8 +202,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
-  drop/free；源码 constructor 已发布 Phase 2 typed facts 与 Phase 3 ordered Value
-  delivery/root drop facts，SSA 接线仍等待 SPEC-0184。显式 verified
+  drop/free；SPEC-0184 已把源码 constructor、ordered delivery/root drop、enum tagged payload
+  与 projection/destructuring 接入 verified SSA/LLVM。显式 verified
   SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
   `SymbolId` 的单文件 source-analysis→object workspace API，并由仓库内部 bootstrap driver
   完成真实标准库 Koven source 的 object/link/run；通用源码入口选择和公开 CLI 流水线仍未实现；
@@ -224,7 +230,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   arithmetic、六类比较、源码 direct call、嵌套 block、局部 `val`/`var`、普通/复合赋值与
   显式 return；直接负整数字面量以单个负常量表示，保证有符号最小值不被错误 lower 为
   溢出的运行时 subtraction，一般前缀负号仍保留 checked operation；`control` 子模块把
-  `if`、subjectful/subjectless Boolean `when` 和 `&&`/`||`
+  `if`、subjectful/subjectless Boolean `when`、enum case type-test `when` 和 `&&`/`||`
   lower 为真实 CFG，以 block parameter 合流分支结果及分支内 local 更新，statement context
   不为丢弃值伪造 payload；`loop_control` 为 `while`/`loop` 建立显式 header 参数，preheader、
   自然 fallthrough 与每条 `continue` backedge 都传递当前 local，`break` 只进入最近 loop exit。
@@ -255,7 +261,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   调用；heap payload 完成后每个 owner helper 恰好调用一次 `free`，自引用 heap type 不导致
   codegen 递归，abort 路径没有 unwind cleanup。payload/field/root place 与同步 loan 映射为现有
   storage pointer，allocation 引入的真实成功 block 会作为后续 PHI predecessor。源码
-  nominal/enum/Box constructor lowering、多目标平台与 public FFI ABI 仍未确定；单文件标准库
+  多目标平台与 public FFI ABI 仍未确定；单文件标准库
   bootstrap 已由 ADR-0012 / SPEC-0042 封闭并实现。
   SPEC-0186 在 `TypeMap` 创建任何 opaque/composite LLVM type 前构建有序
   `TargetLayoutPlan`：基础 scalar/pointer/size_t 布局来自最终 module 使用的同一 `TargetData`，
@@ -538,7 +544,7 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 语义模型：
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
-  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0144`，覆盖
+  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0145`，覆盖
   Lexer、Parser、名称、类型和所有权错误；`L0016` 为不再由生产 Parser 发出的历史类别，
   `L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
@@ -1294,8 +1300,8 @@ source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SP
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
-已允许未使用的声明型 type roots 共存；源码 nominal constructor 的 Phase 2 选择/实例化和
-Phase 3 所有权 facts 已完成，codegen 接线仍等待 SPEC-0184。
+已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
+投影/解构、root drop、L0145 与真实 native link/run 接线。
 
 ## 更新要求
 

@@ -20,6 +20,7 @@ pub(super) struct TypeMap<'ctx> {
     void_type: VoidType<'ctx>,
     types: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
     aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
+    tagged_layouts: BTreeMap<SsaTypeId, TaggedLayout<'ctx>>,
     container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
     closure_layouts: BTreeMap<SsaTypeId, ClosureLayout<'ctx>>,
 }
@@ -46,6 +47,12 @@ pub(super) struct ClosureLayout<'ctx> {
     pub(super) environment: StructType<'ctx>,
 }
 
+#[derive(Clone)]
+pub(super) struct TaggedLayout<'ctx> {
+    pub(super) value: StructType<'ctx>,
+    pub(super) payloads: Vec<StructType<'ctx>>,
+}
+
 impl<'ctx> TypeMap<'ctx> {
     pub(super) fn lower(
         context: &'ctx Context,
@@ -59,6 +66,7 @@ impl<'ctx> TypeMap<'ctx> {
         let mut aggregates = BTreeMap::new();
         let mut containers = BTreeMap::new();
         let mut closures = BTreeMap::new();
+        let mut tagged = BTreeMap::new();
         let pointer = context.ptr_type(AddressSpace::default());
         let size_type = context.ptr_sized_int_type(target, None);
 
@@ -74,6 +82,11 @@ impl<'ctx> TypeMap<'ctx> {
                     let aggregate = context.opaque_struct_type(&format!("koven.t{index}"));
                     aggregates.insert(id, aggregate);
                     Some(aggregate.into())
+                }
+                SsaTypeKind::TaggedUnion { .. } => {
+                    let value = context.opaque_struct_type(&format!("koven.enum.t{index}"));
+                    tagged.insert(id, value);
+                    Some(value.into())
                 }
                 SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
                 SsaTypeKind::SharedReference { .. } | SsaTypeKind::FunctionPointer { .. } => {
@@ -147,6 +160,50 @@ impl<'ctx> TypeMap<'ctx> {
             aggregate.set_body(&fields, false);
         }
 
+        let mut tagged_layouts = BTreeMap::new();
+        for (id, value) in tagged {
+            let variants = module.tagged_variants(id).ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa("tagged union 缺少 payload 定义".to_owned())
+            })?;
+            let payloads = variants
+                .iter()
+                .map(|variant| {
+                    aggregates.get(variant).copied().ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa(
+                            "tagged union payload 必须 lower 为 aggregate".to_owned(),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let maximum_size = payloads
+                .iter()
+                .map(|payload| target.get_store_size(payload))
+                .max()
+                .unwrap_or(0);
+            let maximum_alignment = payloads
+                .iter()
+                .map(|payload| target.get_abi_alignment(payload))
+                .max()
+                .unwrap_or(1)
+                .max(1);
+            let storage_unit = integer_for_alignment(context, target, maximum_alignment)?;
+            let unit_size = target.get_store_size(&storage_unit).max(1);
+            let units = maximum_size.div_ceil(unit_size);
+            let units = u32::try_from(units).map_err(|_| {
+                LlvmAdapterError::InvalidLayout(crate::llvm::layout::TargetLayoutError {
+                    ty: id,
+                    quantity: crate::llvm::layout::LayoutQuantity::Size,
+                    failure: crate::llvm::layout::LayoutFailure::ExceedsTarget {
+                        value: u128::from(maximum_size),
+                        maximum: u128::from(u32::MAX) * u128::from(unit_size),
+                    },
+                })
+            })?;
+            let storage = storage_unit.array_type(units);
+            value.set_body(&[context.i32_type().into(), storage.into()], false);
+            tagged_layouts.insert(id, TaggedLayout { value, payloads });
+        }
+
         let mut container_layouts = BTreeMap::new();
         for (id, header) in &containers {
             let (_, element) = module.sequential_container(*id).ok_or_else(|| {
@@ -171,8 +228,18 @@ impl<'ctx> TypeMap<'ctx> {
             void_type: context.void_type(),
             types,
             aggregates,
+            tagged_layouts,
             container_layouts,
             closure_layouts,
+        })
+    }
+
+    pub(super) fn tagged_layout(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<&TaggedLayout<'ctx>, LlvmAdapterError> {
+        self.tagged_layouts.get(&ty).ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa("SSA value 类型不是 tagged union".to_owned())
         })
     }
 
@@ -270,6 +337,27 @@ impl<'ctx> TypeMap<'ctx> {
             )),
         }
     }
+}
+
+fn integer_for_alignment<'ctx>(
+    context: &'ctx Context,
+    target: &TargetData,
+    alignment: u32,
+) -> Result<IntType<'ctx>, LlvmAdapterError> {
+    for candidate in [
+        context.i8_type(),
+        context.i16_type(),
+        context.i32_type(),
+        context.i64_type(),
+        context.i128_type(),
+    ] {
+        if target.get_abi_alignment(&candidate) == alignment {
+            return Ok(candidate);
+        }
+    }
+    Err(LlvmAdapterError::Unsupported(
+        "tagged union payload alignment has no supported integer storage unit".to_owned(),
+    ))
 }
 
 fn integer_type<'ctx>(

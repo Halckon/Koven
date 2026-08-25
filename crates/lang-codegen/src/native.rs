@@ -3,6 +3,7 @@
 use std::{fmt, path::Path};
 
 use lang_frontend::{
+    diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{NameResolution, ScopeKind, SymbolId, SymbolKind},
     ownership_checking::OwnershipCheckedFile,
     parser::ParsedFile,
@@ -32,6 +33,8 @@ pub enum NativeObjectErrorKind {
     InvalidModel,
     /// LLVM target、验证或 object emission 失败。
     Backend,
+    /// 当前 target 无法表示来源类型的存储布局。
+    TargetLayout,
 }
 
 /// 一次本机 object emission 的结构化错误。
@@ -40,6 +43,7 @@ pub struct NativeObjectError {
     kind: NativeObjectErrorKind,
     span: Option<Span>,
     detail: String,
+    diagnostic: Option<Box<Diagnostic>>,
 }
 
 impl NativeObjectError {
@@ -53,6 +57,12 @@ impl NativeObjectError {
     #[must_use]
     pub const fn span(&self) -> Option<Span> {
         self.span
+    }
+
+    /// 返回可直接交给现有 renderer 的用户诊断。
+    #[must_use]
+    pub fn diagnostic(&self) -> Option<&Diagnostic> {
+        self.diagnostic.as_deref()
     }
 }
 
@@ -81,13 +91,8 @@ pub fn emit_native_object(
     let (program, entry) =
         lower_scalar_file_with_entry(sources, parsed, names, typed, owned, entry)
             .map_err(map_lowering_error)?;
-    llvm::emit_verified_object(&program, sources, entry, output).map_err(|error| {
-        NativeObjectError {
-            kind: NativeObjectErrorKind::Backend,
-            span: None,
-            detail: format!("{error:?}"),
-        }
-    })
+    llvm::emit_verified_object(&program, sources, entry, output)
+        .map_err(|error| map_backend_error(sources, &program, error))
 }
 
 fn validate_entry(
@@ -129,6 +134,7 @@ fn invalid_entry(span: Option<Span>) -> NativeObjectError {
         kind: NativeObjectErrorKind::InvalidEntry,
         span,
         detail: "entry must identify one top-level non-generic () -> Unit function".to_owned(),
+        diagnostic: None,
     }
 }
 
@@ -151,5 +157,59 @@ fn map_lowering_error(error: LoweringError) -> NativeObjectError {
         kind,
         span: error.span,
         detail: format!("frontend lowering failed with {:?}", error.kind),
+        diagnostic: None,
+    }
+}
+
+pub(crate) fn map_backend_error(
+    sources: &SourceMap,
+    program: &crate::ssa::model::Program,
+    error: llvm::LlvmAdapterError,
+) -> NativeObjectError {
+    let llvm::LlvmAdapterError::InvalidLayout(layout) = error else {
+        return NativeObjectError {
+            kind: NativeObjectErrorKind::Backend,
+            span: None,
+            detail: format!("{error:?}"),
+            diagnostic: None,
+        };
+    };
+    let Some(origin) = program.type_origin(layout.ty) else {
+        return NativeObjectError {
+            kind: NativeObjectErrorKind::Backend,
+            span: None,
+            detail: format!("source origin missing for {layout:?}"),
+            diagnostic: None,
+        };
+    };
+    let diagnostic = (|| {
+        let catalog = codes::catalog().ok()?;
+        let code = catalog.resolve(codes::TARGET_LAYOUT).ok()?;
+        let mut diagnostic = Diagnostic::new(
+            sources,
+            Severity::Error,
+            code,
+            "类型布局超出当前编译目标的表示能力",
+            origin.primary,
+        )
+        .ok()?;
+        if origin.declaration != origin.primary {
+            diagnostic
+                .add_label(sources, origin.declaration, "该类型在此声明")
+                .ok()?;
+        }
+        diagnostic
+            .add_note(format!(
+                "目标布局检查失败：{:?} {:?}",
+                layout.quantity, layout.failure
+            ))
+            .ok()?;
+        Some(diagnostic)
+    })();
+    NativeObjectError {
+        kind: NativeObjectErrorKind::TargetLayout,
+        span: Some(origin.primary),
+        detail: format!("{layout:?}"),
+        diagnostic: diagnostic.map(Box::new),
     }
 }

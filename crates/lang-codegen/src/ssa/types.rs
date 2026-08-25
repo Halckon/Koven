@@ -23,6 +23,37 @@ impl Module {
         ))
     }
 
+    pub(crate) fn add_tagged_union_type(
+        &mut self,
+        name: impl Into<String>,
+        variants: Vec<SsaTypeId>,
+    ) -> Result<SsaTypeId, ModelError> {
+        let name = name.into();
+        self.check_new_type_name(&name)?;
+        if variants.iter().any(|variant| {
+            !matches!(
+                self.type_kind(*variant),
+                Some(SsaTypeKind::Aggregate { .. })
+            )
+        }) {
+            return Err(ModelError::ExpectedAggregate {
+                ty: variants.first().copied().unwrap_or(SsaTypeId {
+                    module: self.id,
+                    index: self.types.len(),
+                }),
+            });
+        }
+        let ownership = self.aggregate_ownership(&variants)?;
+        Ok(self.push_named_type(
+            name.clone(),
+            SsaTypeKind::TaggedUnion {
+                name,
+                variants,
+                ownership,
+            },
+        ))
+    }
+
     pub(crate) fn declare_heap_owner(
         &mut self,
         name: impl Into<String>,
@@ -83,7 +114,8 @@ impl Module {
             SsaTypeKind::SharedReference { .. } => Some(Ownership::Copyable),
             SsaTypeKind::Opaque { ownership, .. }
             | SsaTypeKind::ZeroSized { ownership, .. }
-            | SsaTypeKind::Aggregate { ownership, .. } => Some(*ownership),
+            | SsaTypeKind::Aggregate { ownership, .. }
+            | SsaTypeKind::TaggedUnion { ownership, .. } => Some(*ownership),
             SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {
@@ -116,6 +148,13 @@ impl Module {
     pub(crate) fn heap_payload(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
             SsaTypeKind::HeapOwner { payload, .. } => *payload,
+            _ => None,
+        }
+    }
+
+    pub(crate) fn tagged_variants(&self, id: SsaTypeId) -> Option<&[SsaTypeId]> {
+        match self.type_kind(id)? {
+            SsaTypeKind::TaggedUnion { variants, .. } => Some(variants),
             _ => None,
         }
     }

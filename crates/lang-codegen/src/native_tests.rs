@@ -6,6 +6,7 @@ use std::{
 };
 
 use lang_frontend::{
+    diagnostic::DiagnosticDetail,
     lexer::lex,
     name_resolution::{NameResolution, SymbolId, SymbolKind, resolve_names},
     ownership_checking::{OwnershipCheckedFile, check_ownership},
@@ -15,6 +16,14 @@ use lang_frontend::{
 };
 
 use super::{NativeObjectErrorKind, emit_native_object};
+use crate::{
+    llvm::{
+        LlvmAdapterError,
+        layout::{LayoutFailure, LayoutQuantity, TargetLayoutError},
+    },
+    native::map_backend_error,
+    ssa::model::{Program, SsaTypeKind, TypeOrigin},
+};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -325,4 +334,120 @@ fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsup
     .expect_err("object identity still requires an explicit runtime contract");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
+}
+
+#[test]
+fn target_layout_failure_bridges_to_l0145_with_use_and_declaration_spans() {
+    let source = "value class Huge(val item: Int)\nfun bootstrap(): Unit { Huge(1) }";
+    let analysis = analyze("layout-failure.ko", source);
+    let declaration = analysis
+        .sources
+        .span(analysis.parsed.source_id(), 12, 16)
+        .expect("declaration span must be valid");
+    let use_start = source.rfind("Huge(1)").expect("constructor use must exist");
+    let primary = analysis
+        .sources
+        .span(analysis.parsed.source_id(), use_start, use_start + 7)
+        .expect("constructor span must be valid");
+    let mut program = Program::default();
+    let module_id = program.add_module("layout_bridge");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let aggregate = module
+        .add_aggregate_type("Huge", vec![integer])
+        .expect("aggregate must be valid");
+    module.set_type_origin(
+        aggregate,
+        TypeOrigin {
+            primary,
+            declaration,
+        },
+    );
+
+    let error = map_backend_error(
+        &analysis.sources,
+        &program,
+        LlvmAdapterError::InvalidLayout(TargetLayoutError {
+            ty: aggregate,
+            quantity: LayoutQuantity::Size,
+            failure: LayoutFailure::ExceedsTarget {
+                value: u128::MAX,
+                maximum: u64::MAX.into(),
+            },
+        }),
+    );
+
+    assert_eq!(error.kind(), NativeObjectErrorKind::TargetLayout);
+    assert_eq!(error.span(), Some(primary));
+    let diagnostic = error.diagnostic().expect("L0145 diagnostic must exist");
+    assert_eq!(diagnostic.code().to_string(), "L0145");
+    assert_eq!(diagnostic.primary_span(), primary);
+    assert!(diagnostic.details().iter().any(|detail| matches!(
+        detail,
+        DiagnosticDetail::Label(label) if label.span() == declaration
+    )));
+}
+
+#[test]
+fn nominal_enum_box_source_emits_links_and_runs() {
+    let analysis = analyze(
+        "nominal-run.ko",
+        "value class Wrapped(val item: Int)\n\
+         class Holder(val item: Int)\n\
+         class Resource {}\n\
+         enum class Maybe<T> { Some(item: T), None }\n\
+         enum class Owned<T> { Some(item: T), None }\n\
+         fun bootstrap(): Unit {\n\
+             val wrapped = Wrapped(11)\n\
+             val (item) = wrapped\n\
+             if (item != 11) { error(\"bad value destructuring\") }\n\
+             val holder = Holder(12)\n\
+             if (holder.item != 12) { error(\"bad class projection\") }\n\
+             val maybe: Maybe<Int> = Maybe.Some(13)\n\
+             val selected: Int = when (maybe) {\n\
+                 is Maybe.Some<Int> -> 13\n\
+                 is Maybe.None<Int> -> 0\n\
+             }\n\
+             if (selected != 13) { error(\"bad enum tag\") }\n\
+             val boxed = Box(Wrapped(14))\n\
+             val owned: Owned<Resource> = Owned.Some(Resource())\n\
+         }",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let directory = TestDirectory::create();
+    let object = directory.join("nominal.o");
+    let executable = directory.join("nominal");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, "bootstrap", SymbolKind::Function),
+        &object,
+    )
+    .expect("nominal source must emit an object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked executable must launch");
+    assert!(run.status.success(), "{run:?}");
 }

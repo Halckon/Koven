@@ -160,11 +160,29 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     let nominal_use = analyze(
         "value class Wrapped(val item: Int)\n\
          class Holder(val item: Int)\n\
+         class Resource {}\n\
+         enum class Flag { On, Off }\n\
+         enum class Maybe<T> { Some(item: T), None }\n\
+         enum class Owned<T> { Some(item: T), None }\n\
          fun wrapped(): Wrapped = Wrapped(1)\n\
          fun holder(): Holder = Holder(2)\n\
-         fun boxed(): Box<Wrapped> = Box(Wrapped(3))",
+         fun boxed(): Box<Wrapped> = Box(Wrapped(3))\n\
+         fun flag(): Flag = Flag.On\n\
+         fun some(): Maybe<Int> = Maybe.Some(4)\n\
+         fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8) val result: Int = when (maybe) {\n\
+             is Maybe.Some<Int> -> 8\n\
+             is Maybe.None<Int> -> 0\n\
+         } return result }\n\
+         fun projected(): Int { val wrapped = Wrapped(5) return wrapped.item }\n\
+         fun destructured(): Int { val (item) = Wrapped(6) return item }\n\
+         fun classProjected(): Int { val holder = Holder(7) return holder.item }\n\
+         fun dropEnum(): Unit { val event: Owned<Resource> = Owned.Some(Resource()) }",
     );
-    assert!(nominal_use.typed.diagnostics().is_empty());
+    assert!(
+        nominal_use.typed.diagnostics().is_empty(),
+        "{:?}",
+        nominal_use.typed.diagnostics()
+    );
     assert!(nominal_use.owned.diagnostics().is_empty());
     let program = lower_scalar_file(
         &nominal_use.sources,
@@ -175,14 +193,25 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     )
     .expect("value/class/Box construction facts must lower to verified SSA");
     let ssa = render_program(&program);
-    assert_eq!(ssa.matches("aggregate.construct").count(), 3, "{ssa}");
-    assert_eq!(ssa.matches("heap.allocate").count(), 2, "{ssa}");
+    assert_eq!(ssa.matches("aggregate.construct").count(), 11, "{ssa}");
+    assert_eq!(ssa.matches("heap.allocate").count(), 4, "{ssa}");
+    assert_eq!(ssa.matches("tagged.construct").count(), 4, "{ssa}");
+    assert_eq!(ssa.matches("aggregate.project").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("aggregate.copy_explode").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("heap.payload_place").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("tagged.discriminant").count(), 2, "{ssa}");
+    assert_eq!(ssa.matches("drop ").count(), 2, "{ssa}");
     assert!(ssa.contains("Wrapped#t"), "{ssa}");
     assert!(ssa.contains("Holder#t"), "{ssa}");
     assert!(ssa.contains("Box#t"), "{ssa}");
+    assert!(ssa.contains("Flag#t"), "{ssa}");
+    assert!(ssa.contains("Maybe#t"), "{ssa}");
+    assert!(ssa.contains("Owned#t"), "{ssa}");
 
     let llvm = render_verified_program(&program).expect("nominal SSA must lower to LLVM");
-    assert_eq!(llvm.matches("call ptr @malloc").count(), 2, "{llvm}");
+    assert_eq!(llvm.matches("call ptr @malloc").count(), 4, "{llvm}");
+    assert_eq!(llvm.matches("call void @free").count(), 2, "{llvm}");
+    assert!(llvm.contains("%koven.enum.t"), "{llvm}");
     assert!(!llvm.contains("retain"), "{llvm}");
     assert!(!llvm.contains("clone"), "{llvm}");
 }
