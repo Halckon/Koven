@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.28；SPEC-0177 / 0174 的 guide 门禁已解除并完成。SPEC-0183 / 0188 / 0184 仍受尚未
-> 启用的 v0.29 constructor 候选门禁，不得提前实施。
+> v0.29；SPEC-0177 / 0174 的 guide 门禁已解除并完成。v0.29 已解除 constructor 版本门禁，
+> SPEC-0183 / 0188 / 0184 仍按自身前置顺序实施。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -194,10 +194,10 @@ fun main(): Unit {
 - [x] **SPEC-0174（前置：SPEC-0177；v0.28，已实现）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
-- [ ] **SPEC-0183（v0.29 候选，未启用）**：发布普通/泛型 nominal、enum case 与 intrinsic
+- [ ] **SPEC-0183（v0.29，guide 门禁已解除）**：发布普通/泛型 nominal、enum case 与 intrinsic
       `Box` constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact；候选
       采用“operand 优先、独立确定的同 root complete expected result 只补未决项”的受控推导，
-      尚未决 overload candidate-local expected 不参与；在 v0.29 明确启用前继续保持 deferred
+      尚未决 overload candidate-local expected 不参与；完成前继续保持 deferred
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
@@ -289,7 +289,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       复制 / 移动 owned capture；借用闭包不得逃逸，跨线程 typed effect 只接受可证明满足
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
-- [ ] **SPEC-0188（v0.29 候选，前置 SPEC-0183）**：消费 construction descriptor，检查每个
+- [ ] **SPEC-0188（v0.29，前置 SPEC-0183）**：消费 construction descriptor，检查每个
       Value operand 的 copy/move、构造 temporary owner、ASAP drop，发布有序 delivery effects
       与 root drop obligation；不在 Phase 3 重新选择 constructor、推导类型实参或制造逐字段
       source DropFact

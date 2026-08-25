@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P3-188` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 现行 [v0.28](../guide/00-index.md)；尚未启用的 [v0.29 §29 候选](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029-候选未启用) |
-| 批准依据 | 无；语言 guide 不适用站立授权，等待用户明确启用 v0.29 |
+| 语言规范 | 现行 [v0.29 §29](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029) |
+| 批准依据 | 用户于 2026-08-25 明确启用 v0.29；实现状态仍按本 Spec 推进 |
 | 前置 Spec | SPEC-0029 `done`；SPEC-0183 `done` 后方可实施 |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) |
-| 阻塞项 | v0.29 未启用且 SPEC-0183 未完成 |
+| 阻塞项 | SPEC-0183 未完成 |
 | 影响范围 | `lang-frontend` ownership checker/model、Phase 3 fixtures；Architecture、Roadmap |
 | 语言语义变更 | 否；只消费已启用 guide 与 SPEC-0183 typed facts |
 

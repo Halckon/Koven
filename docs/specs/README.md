@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.28 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.29 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -17,9 +17,8 @@ closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable 
 已由用户明确启用并取代 v0.27；它封闭泛型 callable 实例化与 overload-lambda candidate
 isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
-[v0.29 constructor 候选](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029-候选未启用)
-尚未启用，不参与现行 v0.28 语义；SPEC-0183 / 0188 / 0184 保持 `draft`，直到用户明确指定
-v0.29 取代 v0.28。
+[v0.29 constructor 契约](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029)
+已于 2026-08-25 明确启用并取代 v0.28；SPEC-0183 / 0188 / 0184 按自身前置顺序推进。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -186,7 +185,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
 | 0179 | 为 `for` 发布 iterator 选择、元素类型与名称/解构 binding typed fact | 0016、0020、0022、0067；新 guide 封闭 Iterable/Iterator identity、receiver mode 与 `next()` 值交付所有权 |
 | 0180 | 发布 instance member 与委托转发所需的 receiver mode/place/callable effect typed fact | 0020、0067、0176；新 guide 封闭隐式 receiver 契约 |
-| [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`draft`） | 0020、0022、0067、0177 `done`；等待用户明确启用 v0.29 |
+| [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`draft`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | 0025 | 建立多文件 package / import 名称解析 | 0015、0018；[ADR-0005](../adr/0005-package-source-root-mapping.md) `accepted`；新 guide 封闭 import 冲突与跨 package 可见性 |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
@@ -207,7 +206,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0181 | 检查 instance member 与接口委托 receiver 的字段访问、loan、移动和冲突 | 0029、0180；新 guide 封闭隐式 receiver 契约 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
-| [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`draft`） | 0183；0029 `done`；等待用户明确启用 v0.29 |
+| [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`draft`） | 0183；0029 `done`；v0.29 已生效 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
@@ -220,7 +219,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0185](./0185-declarative-type-roots-codegen.md) | 让声明型 class/value class/interface/enum roots 与既有标量 entry 共存（`done`） | 0020、0034 `done`；不实现 constructor 或 nominal operation |
 | [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射留给 0184 |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
-| [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`draft`） | 0183、0188；0035、0186 `done`；等待用户明确启用 v0.29；instance method receiver 仍排除 |
+| [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`draft`） | 0183、0188；0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |
@@ -315,7 +314,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.28 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.29 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 

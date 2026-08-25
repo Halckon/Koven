@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.28），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.29），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -480,3 +480,9 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 6 | 前置审计把 expected-result 输入收紧为 independently-established complete type；尚未决的 overload candidate-local expected 或外层泛型 unknown 不参与 constructor 推导 | 🔴 候选局部推导语义 |
 | 7 | 无 payload case 在裸 Name/Member 上直接发布零 operand descriptor；construction facts 进入完整 typed trial 回滚，且不生成普通 CallDescriptor 或运行时 callee 求值 | 🔴 候选 typed fact 边界 |
 | 8 | ownership 只发布有序 Value delivery effect 与 root drop obligation；递归字段/payload drop glue 由单态结果类型在 backend 派生，L0145 在 codegen/native 诊断桥接层形成 | 🟡 候选跨阶段交接 |
+
+## v0.29 启用记录
+
+> v0.29 于 2026-08-25 由用户明确启用并取代 v0.28；上述候选契约及前置审计补充自此成为
+> 现行语义，§29 与 L0143–L0145 获得规范效力。SPEC-0183 / 0188 / 0184 的版本门禁解除，
+> 但不表示任何 constructor frontend/ownership/codegen 实现已经完成；三项仍按前置顺序验收。
