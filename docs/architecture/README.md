@@ -300,7 +300,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 
 现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；resolved source entry→object 已形成
 workspace API，仓库拥有的标准库单文件 bootstrap 已真实 link/run。通用 `.ko`→可执行文件 CLI、
-标准库公共 API、跨文件 LSP 分析与跳转定义仍未实现；单文档 LSP 诊断已由 SPEC-0055 接通。
+标准库公共 API、跨文件 LSP 分析与跳转定义仍未实现；单文档 LSP 诊断与语义跳转定义已分别
+由 SPEC-0055、SPEC-0056 接通。
 
 ## Workspace 与 target
 
@@ -547,12 +548,12 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   human、格式化源码 stdout、`--check` 0/1 及 usage/I/O/internal error 保持原边界。颜色、完整
   build event stream 与机器化 operational error 尚未实现。
 
-## 单文档 LSP 诊断
+## 单文档 LSP 诊断与跳转定义
 
-SPEC-0055 已把 `lang-lsp` 从空 binary 接通为标准 stdio LSP server。它声明 UTF-16 position
-encoding 与 full-document open/change/close sync，只保存客户端已打开文档的 URI 字符串、版本
-和完整文本；状态使用按 URI 字符串排序的 `BTreeMap`，不读取磁盘、扫描 workspace 或解释
-package/import。
+SPEC-0055 已把 `lang-lsp` 从空 binary 接通为标准 stdio LSP server，SPEC-0056 在同一单文档
+边界增加标准 `textDocument/definition`。server 声明 UTF-16 position encoding、definition
+provider 与 full-document open/change/close sync；每个打开 URI 保存版本和对应完整 `Analysis`，
+状态使用按 URI 字符串排序的 `BTreeMap`，不读取磁盘、扫描 workspace 或解释 package/import。
 
 - `analysis` 为每个文档版本新建 `SourceMap`，按 `lex → parse_file → resolve_names →
   check_types → check_ownership` 运行完整单文件流水线。`standard_environments()` 现在集中绑定
@@ -564,11 +565,19 @@ package/import。
 - `diagnostic_adapter` 复用 `SourceMap::position` 的 line/CRLF/scalar 语义，只把该行已有 scalar
   column 转换为 LSP 要求的 UTF-16 code units。主 span 成为 range，错误码、严重度与 source
   进入标准字段，label 成为 related information，note/help 保持原顺序附在 message；
+- `position_adapter` 集中维护 `Span ↔ UTF-16 position/range` 边界，反向 cursor 映射拒绝
+  surrogate pair 中间位置并对越界返回无目标；`definition` 从 `NameReference` / `Symbol` 建立
+  source-local 稳定索引，再用成功的 `CallDescriptor` / `AggregateProjectionDescriptor` 把
+  overload/member/field 宽候选收敛到 typed 唯一源码目标；external/unresolved 不伪造声明；
+- definition 只查询当前打开 buffer：声明自身、普通名称、类型、enum case、稍后局部和已知
+  overload candidates 均返回同 URI location；full change 先完整分析与发布下一版本，再原子替换
+  状态，close/unopened/outside 返回 JSON `null`；畸形 params 返回 invalid-params 且会话继续；
 - open/change 发布对应 buffer version，close 发布无 version 的空集合。未知 request 返回
   JSON-RPC method-not-found，未知 notification 与 unopened-document change 不改变状态；
-- `Connection::memory` 测试覆盖初始化、版本更新、清空、shutdown/exit、非法 full change 与
-  unknown message；纯 adapter 测试覆盖 surrogate pair、CRLF、EOF 空 span、严重度和 detail
-  顺序。该 LSP 消息不是 ADR-0014 的 CLI 机器协议；两个 adapter 分别保持 UTF-16/URI 与
+- `Connection::memory` 测试覆盖初始化、版本更新、清空、definition 生命周期、shutdown/exit、
+  非法 full change/definition params 与 unknown message；纯 adapter/index 测试覆盖 surrogate
+  pair、CRLF、EOF 空 span、Identifier 半开边界、诊断 detail 顺序和名称/typed target 收敛。
+  该 LSP 消息不是 ADR-0014 的 CLI 机器协议；LSP 与 CLI adapter 分别保持 UTF-16/URI 与
   UTF-8 byte/scalar 位置契约，不互相序列化。
 
 ## 索引式 AST 存储

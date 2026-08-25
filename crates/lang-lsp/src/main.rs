@@ -1,7 +1,9 @@
 //! Koven 语言服务器入口。
 
 mod analysis;
+mod definition;
 mod diagnostic_adapter;
+mod position_adapter;
 mod server;
 
 use std::error::Error;

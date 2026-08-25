@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-056` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 [`guide/00-index.md`](../guide/00-index.md) v0.28；[`guide/06-roadmap.md`](../guide/06-roadmap.md) Phase 6 |
@@ -62,16 +62,16 @@ Identifier 保存 `ReferenceTarget`，每个源码 `Symbol` 已保存声明名�
 
 ## 5. 验收标准
 
-- [ ] pure definition index 覆盖声明自身、local/parameter/type/enum 引用、LaterLocal、唯一 typed
+- [x] pure definition index 覆盖声明自身、local/parameter/type/enum 引用、LaterLocal、唯一 typed
       overload/member call、字段投影、宽候选排序去重及 external/unresolved null。
-- [ ] UTF-16↔UTF-8 adapter 精确覆盖 emoji surrogate、LF/CRLF、EOF、行/列越界、surrogate 中间
+- [x] UTF-16↔UTF-8 adapter 精确覆盖 emoji surrogate、LF/CRLF、EOF、行/列越界、surrogate 中间
       和 Identifier 半开末端；诊断 range 既有矩阵不回归。
-- [ ] 初始化 capability 只新增 definition provider；打开文档的真实 request 返回同 URI 精确
+- [x] 初始化 capability 只新增 definition provider；打开文档的真实 request 返回同 URI 精确
       range，change 后使用新 analysis，close/unopened/outside 返回 `null`。
-- [ ] 畸形 definition params 返回 invalid-params 且不终止会话；未知 request 继续 method-not-found，
+- [x] 畸形 definition params 返回 invalid-params 且不终止会话；未知 request 继续 method-not-found，
       notification/diagnostic 生命周期不回归。
-- [ ] `lang-lsp` 窄测试和 workspace 五项标准基线全部通过；production 文件遵守 1000 行软上限。
-- [ ] Architecture、Roadmap 和候选队列只把单文档跳转标为已实现，跨文件能力继续依赖
+- [x] `lang-lsp` 窄测试和 workspace 五项标准基线全部通过；production 文件遵守 1000 行软上限。
+- [x] Architecture、Roadmap 和候选队列只把单文档跳转标为已实现，跨文件能力继续依赖
       SPEC-0025。
 
 ## 6. 技术方案与边界
@@ -87,12 +87,12 @@ Identifier 保存 `ReferenceTarget`，每个源码 `Symbol` 已保存声明名�
 
 ## 7. 实施计划
 
-1. [ ] 建立 definition index 与名称/typed target 测试 → 验证：`cargo test -p lang-lsp definition`。
-2. [ ] 提取双向 UTF-16 position adapter 并回归诊断映射 → 验证：position/diagnostic adapter 窄测。
-3. [ ] 接入 capability、request 与原子 document analysis 生命周期 → 验证：memory connection
+1. [x] 建立 definition index 与名称/typed target 测试 → 验证：`cargo test -p lang-lsp definition`。
+2. [x] 提取双向 UTF-16 position adapter 并回归诊断映射 → 验证：position/diagnostic adapter 窄测。
+3. [x] 接入 capability、request 与原子 document analysis 生命周期 → 验证：memory connection
    open/change/close/malformed request 测试。
-4. [ ] 同步 Architecture、Roadmap、Spec 验收 → 验证：文档与实现事实一致。
-5. [ ] 运行 workspace 五项标准基线并创建独立提交 → 验证：全部实际退出码为 0。
+4. [x] 同步 Architecture、Roadmap、Spec 验收 → 验证：文档与实现事实一致。
+5. [x] 运行 workspace 五项标准基线并创建独立提交 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
 
@@ -110,4 +110,10 @@ Identifier 保存 `ReferenceTarget`，每个源码 `Symbol` 已保存声明名�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-25 前置审计 | 通过 | SPEC-0055/0018–0023/0067 `done`；NameReference/Symbol、CallDescriptor 与 AggregateProjectionDescriptor 已公开所需 identity/span |
-| workspace 基线 | 未执行 | 实现完成后执行 |
+| `cargo test -p lang-lsp --all-targets` | 通过 | 11 tests passed；覆盖 index、双向 position adapter 与 memory connection 生命周期 |
+| `cargo fmt --all -- --check` | 通过 | 退出码 0 |
+| `cargo check --workspace --all-targets` | 通过 | 退出码 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 退出码 0 |
+| `cargo test --workspace --all-targets --quiet` | 通过 | 全部 workspace targets 通过，退出码 0 |
+| `cargo build -p lang-cli` | 通过 | 退出码 0 |
+| production 文件行数 | 通过 | 新增 `definition.rs`、`position_adapter.rs` 与修改后的 `server.rs` 均未超过 1000 行软上限 |

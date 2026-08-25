@@ -12,6 +12,8 @@ use lang_frontend::{
     type_checking::{TypeCheckingError, check_types, standard_environments},
 };
 
+use crate::definition::{DefinitionIndex, DefinitionIndexError};
+
 /// 对一份内存文档运行全部已实现的单文件 frontend 阶段。
 pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, AnalysisError> {
     let mut sources = SourceMap::new();
@@ -21,6 +23,7 @@ pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, Analysi
     let (name_environment, type_environment) = standard_environments();
     let names = resolve_names(&sources, &parsed, &name_environment)?;
     let typed = check_types(&sources, &parsed, &names, &type_environment)?;
+    let definitions = DefinitionIndex::build(&parsed, &names, &typed)?;
     let owned = check_ownership(&sources, &parsed, &names, &typed)?;
 
     let mut diagnostics = parsed.diagnostics().to_vec();
@@ -35,6 +38,7 @@ pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, Analysi
     Ok(Analysis {
         sources,
         diagnostics,
+        definitions,
     })
 }
 
@@ -42,6 +46,7 @@ pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, Analysi
 pub(crate) struct Analysis {
     pub(crate) sources: SourceMap,
     pub(crate) diagnostics: Vec<Diagnostic>,
+    pub(crate) definitions: DefinitionIndex,
 }
 
 /// 单文档 frontend 编排的内部失败。
@@ -54,6 +59,7 @@ pub(crate) enum AnalysisError {
     Type(TypeCheckingError),
     Ownership(OwnershipCheckingError),
     Diagnostic(DiagnosticError),
+    Definition(DefinitionIndexError),
 }
 
 impl fmt::Display for AnalysisError {
@@ -70,6 +76,7 @@ impl fmt::Display for AnalysisError {
             Self::Diagnostic(error) => {
                 write!(formatter, "diagnostic ordering failed internally: {error}")
             }
+            Self::Definition(error) => write!(formatter, "definition indexing failed: {error}"),
         }
     }
 }
@@ -93,6 +100,7 @@ analysis_error_from!(NameResolutionError, Name);
 analysis_error_from!(TypeCheckingError, Type);
 analysis_error_from!(OwnershipCheckingError, Ownership);
 analysis_error_from!(DiagnosticError, Diagnostic);
+analysis_error_from!(DefinitionIndexError, Definition);
 
 #[cfg(test)]
 mod tests {

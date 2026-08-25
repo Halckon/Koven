@@ -1,15 +1,14 @@
 //! frontend 结构化诊断到标准 LSP diagnostic 的纯转换。
 
-use std::{error::Error, fmt};
-
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
-    source::{SourceError, SourceId, SourceMap, Span},
+    source::SourceMap,
 };
-use lsp_types::{
-    DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Position, Range,
-    Uri,
-};
+use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Uri};
+
+use crate::position_adapter::{PositionMappingError, span_range};
+
+pub(crate) type DiagnosticMappingError = PositionMappingError;
 
 /// 把确定性 frontend 诊断转换为同序的 LSP 诊断。
 pub(crate) fn convert_diagnostics(
@@ -61,63 +60,6 @@ fn convert_diagnostic(
         (!related.is_empty()).then_some(related),
         None,
     ))
-}
-
-fn span_range(sources: &SourceMap, span: Span) -> Result<Range, DiagnosticMappingError> {
-    Ok(Range::new(
-        utf16_position(sources, span.source_id(), span.start())?,
-        utf16_position(sources, span.source_id(), span.end())?,
-    ))
-}
-
-fn utf16_position(
-    sources: &SourceMap,
-    source_id: SourceId,
-    offset: usize,
-) -> Result<Position, DiagnosticMappingError> {
-    let source_position = sources.position(source_id, offset)?;
-    let text = sources.source_text(source_id)?;
-    let scalar_column = source_position.column() - 1;
-    // SourceMap owns line/CRLF semantics. Walking exactly its reported scalar column only adapts
-    // that column to the UTF-16 code units required by the LSP boundary.
-    let utf16_column = text[..offset]
-        .chars()
-        .rev()
-        .take(scalar_column)
-        .map(char::len_utf16)
-        .sum::<usize>();
-
-    Ok(Position::new(
-        u32::try_from(source_position.line() - 1)
-            .map_err(|_| DiagnosticMappingError::PositionOverflow)?,
-        u32::try_from(utf16_column).map_err(|_| DiagnosticMappingError::PositionOverflow)?,
-    ))
-}
-
-/// frontend span 无法表示为 LSP range。
-#[derive(Debug)]
-pub(crate) enum DiagnosticMappingError {
-    Source(SourceError),
-    PositionOverflow,
-}
-
-impl fmt::Display for DiagnosticMappingError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Source(error) => write!(formatter, "invalid diagnostic source span: {error}"),
-            Self::PositionOverflow => {
-                formatter.write_str("source position exceeds the LSP u32 range")
-            }
-        }
-    }
-}
-
-impl Error for DiagnosticMappingError {}
-
-impl From<SourceError> for DiagnosticMappingError {
-    fn from(error: SourceError) -> Self {
-        Self::Source(error)
-    }
 }
 
 #[cfg(test)]

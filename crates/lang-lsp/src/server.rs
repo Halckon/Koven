@@ -2,21 +2,24 @@
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
-use lsp_server::{Connection, ErrorCode, Message, Notification, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, InitializeResult, LogMessageParams, MessageType, PositionEncodingKind,
-    PublishDiagnosticsParams, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, Uri,
+    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, InitializeResult, Location,
+    LogMessageParams, MessageType, OneOf, PositionEncodingKind, PublishDiagnosticsParams,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, Uri,
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
         Notification as LspNotification, PublishDiagnostics,
     },
+    request::{GotoDefinition, Request as LspRequest},
 };
 
 use crate::{
-    analysis::{AnalysisError, analyze},
+    analysis::{Analysis, AnalysisError, analyze},
     diagnostic_adapter::{DiagnosticMappingError, convert_diagnostics},
+    position_adapter::{PositionMappingError, byte_offset, span_range},
 };
 
 /// 运行一个已建立 transport 的 Koven LSP 会话。
@@ -38,6 +41,10 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
+                }
+                if request.method == GotoDefinition::METHOD {
+                    handle_definition_request(&connection, request, &documents)?;
+                    continue;
                 }
                 send_response(
                     &connection,
@@ -71,13 +78,23 @@ fn capabilities() -> ServerCapabilities {
                 save: None,
             },
         )),
+        definition_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
 
 struct OpenDocument {
     version: i32,
-    text: String,
+    analysis: Analysis,
+}
+
+impl OpenDocument {
+    fn analyze(uri: &Uri, version: i32, text: &str) -> Result<Self, AnalysisError> {
+        Ok(Self {
+            version,
+            analysis: analyze(uri.as_str(), text)?,
+        })
+    }
 }
 
 fn handle_notification(
@@ -89,16 +106,17 @@ fn handle_notification(
         DidOpenTextDocument::METHOD => {
             let params: DidOpenTextDocumentParams = serde_json::from_value(notification.params)?;
             let uri = params.text_document.uri;
-            let document = OpenDocument {
-                version: params.text_document.version,
-                text: params.text_document.text,
-            };
+            let document = OpenDocument::analyze(
+                &uri,
+                params.text_document.version,
+                &params.text_document.text,
+            )?;
             publish_document(connection, &uri, &document)?;
             documents.insert(uri.as_str().to_owned(), document);
         }
         DidChangeTextDocument::METHOD => {
             let params: DidChangeTextDocumentParams = serde_json::from_value(notification.params)?;
-            let Some(document) = documents.get_mut(params.text_document.uri.as_str()) else {
+            let Some(_) = documents.get(params.text_document.uri.as_str()) else {
                 return Ok(());
             };
             let [change] = params.content_changes.as_slice() else {
@@ -107,9 +125,13 @@ fn handle_notification(
             if change.range.is_some() || change.range_length.is_some() {
                 return Err(NotificationError::ExpectedSingleFullChange);
             }
-            document.version = params.text_document.version;
-            document.text.clone_from(&change.text);
-            publish_document(connection, &params.text_document.uri, document)?;
+            let document = OpenDocument::analyze(
+                &params.text_document.uri,
+                params.text_document.version,
+                &change.text,
+            )?;
+            publish_document(connection, &params.text_document.uri, &document)?;
+            documents.insert(params.text_document.uri.as_str().to_owned(), document);
         }
         DidCloseTextDocument::METHOD => {
             let params: DidCloseTextDocumentParams = serde_json::from_value(notification.params)?;
@@ -126,9 +148,75 @@ fn publish_document(
     uri: &Uri,
     document: &OpenDocument,
 ) -> Result<(), NotificationError> {
-    let analysis = analyze(uri.as_str(), &document.text)?;
-    let diagnostics = convert_diagnostics(&analysis.sources, uri, &analysis.diagnostics)?;
+    let diagnostics = convert_diagnostics(
+        &document.analysis.sources,
+        uri,
+        &document.analysis.diagnostics,
+    )?;
     publish(connection, uri.clone(), Some(document.version), diagnostics)
+}
+
+fn handle_definition_request(
+    connection: &Connection,
+    request: Request,
+    documents: &BTreeMap<String, OpenDocument>,
+) -> Result<(), ServerError> {
+    let response = match definition_response(request.params, documents) {
+        Ok(result) => Response::new_ok(request.id, serde_json::to_value(result)?),
+        Err(RequestError::InvalidParams(message)) => {
+            Response::new_err(request.id, ErrorCode::InvalidParams as i32, message)
+        }
+        Err(RequestError::Internal(message)) => {
+            Response::new_err(request.id, ErrorCode::InternalError as i32, message)
+        }
+    };
+    send_response(connection, response)
+}
+
+fn definition_response(
+    params: serde_json::Value,
+    documents: &BTreeMap<String, OpenDocument>,
+) -> Result<Option<GotoDefinitionResponse>, RequestError> {
+    let params: GotoDefinitionParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let position = params.text_document_position_params;
+    let Some(document) = documents.get(position.text_document.uri.as_str()) else {
+        return Ok(None);
+    };
+    let source_id = document.analysis.definitions.source_id();
+    let offset = match byte_offset(&document.analysis.sources, source_id, position.position) {
+        Ok(offset) => offset,
+        Err(PositionMappingError::InsideSurrogatePair) => {
+            return Err(RequestError::InvalidParams(
+                "definition position splits a UTF-16 surrogate pair".to_owned(),
+            ));
+        }
+        Err(error) => return Err(RequestError::Internal(error.to_string())),
+    };
+    let Some(offset) = offset else {
+        return Ok(None);
+    };
+    let locations = document
+        .analysis
+        .definitions
+        .targets_at(offset)
+        .iter()
+        .map(|target| {
+            span_range(&document.analysis.sources, *target)
+                .map(|range| Location::new(position.text_document.uri.clone(), range))
+                .map_err(|error| RequestError::Internal(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(match locations.as_slice() {
+        [] => None,
+        [location] => Some(GotoDefinitionResponse::Scalar(location.clone())),
+        _ => Some(GotoDefinitionResponse::Array(locations)),
+    })
+}
+
+enum RequestError {
+    InvalidParams(String),
+    Internal(String),
 }
 
 fn publish(
@@ -255,14 +343,14 @@ mod tests {
     use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId};
     use lsp_types::{
         DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-        InitializeParams, InitializeResult, InitializedParams, PublishDiagnosticsParams,
-        TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-        VersionedTextDocumentIdentifier,
+        GotoDefinitionResponse, InitializeParams, InitializeResult, InitializedParams, Position,
+        PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+        TextDocumentItem, VersionedTextDocumentIdentifier,
         notification::{
             DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Exit, Initialized,
             Notification as LspNotification, PublishDiagnostics,
         },
-        request::{Initialize, Request as LspRequest, Shutdown},
+        request::{GotoDefinition, Initialize, Request as LspRequest, Shutdown},
     };
 
     use super::run;
@@ -407,6 +495,105 @@ mod tests {
             .expect("server result");
     }
 
+    #[test]
+    fn definition_uses_utf16_latest_version_and_open_document_lifecycle() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        initialize(&client);
+        let uri: lsp_types::Uri = "file:///definition.ko".parse().expect("uri");
+        let source = "fun target(): Unit {}\nfun use(): Unit { /* 😀 */ target() }";
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "koven".to_owned(),
+                    1,
+                    source.to_owned(),
+                ),
+            })
+            .expect("open params"),
+        );
+        receive_diagnostics(&client);
+
+        let malformed_id = RequestId::from(20_i32);
+        send_request(
+            &client,
+            malformed_id.clone(),
+            GotoDefinition::METHOD,
+            serde_json::Value::Null,
+        );
+        let malformed = receive_response(&client);
+        assert_eq!(malformed.id, malformed_id);
+        assert_eq!(
+            malformed.response_result.expect_err("invalid params").code,
+            ErrorCode::InvalidParams as i32
+        );
+
+        let first = request_definition(
+            &client,
+            RequestId::from(21_i32),
+            &uri,
+            position_of(source, "target", 1),
+        )
+        .expect("definition response");
+        let GotoDefinitionResponse::Scalar(first) = first else {
+            panic!("expected one definition");
+        };
+        assert_eq!(first.uri, uri);
+        assert_eq!(first.range.start, Position::new(0, 4));
+        assert_eq!(first.range.end, Position::new(0, 10));
+
+        let changed_source = "\nfun target(): Unit {}\nfun use(): Unit { target() }";
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: changed_source.to_owned(),
+                }],
+            })
+            .expect("change params"),
+        );
+        assert_eq!(receive_diagnostics(&client).version, Some(2));
+        let changed = request_definition(
+            &client,
+            RequestId::from(22_i32),
+            &uri,
+            position_of(changed_source, "target", 1),
+        )
+        .expect("changed definition");
+        let GotoDefinitionResponse::Scalar(changed) = changed else {
+            panic!("expected one changed definition");
+        };
+        assert_eq!(changed.range.start, Position::new(1, 4));
+
+        send_notification(
+            &client,
+            DidCloseTextDocument::METHOD,
+            serde_json::to_value(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+            })
+            .expect("close params"),
+        );
+        receive_diagnostics(&client);
+        assert!(
+            request_definition(&client, RequestId::from(23_i32), &uri, Position::new(1, 4),)
+                .is_none()
+        );
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
     fn initialize(client: &Connection) {
         client
             .sender
@@ -437,6 +624,10 @@ mod tests {
                 if options.open_close == Some(true)
                     && options.change == Some(lsp_types::TextDocumentSyncKind::FULL)
         ));
+        assert_eq!(
+            result.capabilities.definition_provider,
+            Some(lsp_types::OneOf::Left(true))
+        );
         send_notification(
             client,
             Initialized::METHOD,
@@ -475,6 +666,67 @@ mod tests {
                 params,
             }))
             .expect("notification");
+    }
+
+    fn request_definition(
+        client: &Connection,
+        id: RequestId,
+        uri: &lsp_types::Uri,
+        position: Position,
+    ) -> Option<GotoDefinitionResponse> {
+        send_request(
+            client,
+            id.clone(),
+            GotoDefinition::METHOD,
+            serde_json::json!({
+                "textDocument": { "uri": uri },
+                "position": position,
+            }),
+        );
+        let response = receive_response(client);
+        assert_eq!(response.id, id);
+        serde_json::from_value(response.response_result.expect("definition result"))
+            .expect("typed definition response")
+    }
+
+    fn send_request(
+        client: &Connection,
+        id: RequestId,
+        method: &'static str,
+        params: serde_json::Value,
+    ) {
+        client
+            .sender
+            .send(Message::Request(Request {
+                id,
+                method: method.to_owned(),
+                params,
+            }))
+            .expect("request");
+    }
+
+    fn receive_response(client: &Connection) -> lsp_server::Response {
+        let Message::Response(response) = client.receiver.recv_timeout(TIMEOUT).expect("response")
+        else {
+            panic!("expected response");
+        };
+        response
+    }
+
+    fn position_of(source: &str, needle: &str, index: usize) -> Position {
+        let offset = source
+            .match_indices(needle)
+            .nth(index)
+            .map(|(offset, _)| offset)
+            .expect("needle occurrence");
+        let prefix = &source[..offset];
+        let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+        let line_start = prefix.rfind('\n').map_or(0, |newline| newline + 1);
+        let character = source[line_start..offset].encode_utf16().count();
+        Position::new(
+            u32::try_from(line).expect("line"),
+            u32::try_from(character).expect("character"),
+        )
     }
 
     fn receive_diagnostics(client: &Connection) -> PublishDiagnosticsParams {

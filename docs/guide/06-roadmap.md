@@ -438,7 +438,9 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [ ] 包管理器 CLI（`project.toml`/`project.lock`）
 - [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
-- [ ] LSP 跨文件诊断与跳转定义（诊断等待 SPEC-0025；跳转定义候选 SPEC-0056）
+- [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，
+      支持 UTF-16 cursor、overload/member 精确目标与版本生命周期
+- [ ] LSP 跨文件诊断与跳转定义（等待 SPEC-0025 与候选 SPEC-0187）
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
 - [x] **SPEC-0060（已实现）**：显式 `--message-format=json` 把 frontend 结构化诊断按
