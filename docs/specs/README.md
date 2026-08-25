@@ -302,7 +302,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0170](./0170-parser-large-file-header-stress.md) | 建立 Parser 4,096 项合法 / 恢复 package-import 文件头压力矩阵（`done`） | 0002、0006、0014–0015、0093、0103、0128–0129、0150–0151、0168–0169 `done`；当前持续 Goal 的站立授权 |
 | [0171](./0171-parser-large-qualified-header-paths.md) | 建立 Parser 4,096-segment package/import 路径与末尾恢复矩阵（`done`） | 0002、0006、0014–0015、0093、0103、0128–0129、0150–0151、0170 `done`；当前持续 Goal 的站立授权 |
 | [0172](./0172-parser-large-file-header-separators.md) | 建立 Parser 4,096-import 混合文件头分隔与 L0053 恢复矩阵（`done`） | 0002、0006、0014–0015、0062、0078、0093、0103、0128–0129、0150–0151、0170–0171 `done`；当前持续 Goal 的站立授权 |
-| 0060 | 提供版本化机器可读诊断协议 | 0003、0055；接受协议 ADR |
+| [0060](./0060-machine-readable-diagnostics.md) | 提供版本化 JSON Lines 机器诊断协议（`in-progress`） | 0003、0055 `done`；ADR-0014 `accepted`；当前持续 Goal 的站立授权 |
 | 0061 | 构建首个支持平台的 compiler + stdlib 发行包 | 0040、0042–0051、0054；接受发布矩阵 ADR |
 
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
