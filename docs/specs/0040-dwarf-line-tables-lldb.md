@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-040` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.28 Phase 4](../guide/06-roadmap.md#phase-4llvm-代码生成) |
 | 批准依据 | 当前持续 Goal“继续推进 guide 主线，分阶段实施 specs”的站立授权 |
 | 前置 Spec | SPEC-0039 `done`；SPEC-0033/0034 verified SSA/LLVM 前置链已完成 |
 | 前置 ADR | [ADR-0004](../adr/0004-source-span-position-model.md)、[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted` |
-| 阻塞项 | 真实 breakpoint-hit 暂受本机已禁用的 Developer Mode 阻塞；dwarfdump 与 LLDB 静态解析已可执行，设计和代码前置无阻塞 |
+| 阻塞项 | 无；批准的沙箱外执行边界已实际启动 debugserver 并命中源码断点 |
 | 影响范围 | `lang-codegen` LLVM debug metadata、object emission API 与测试；Architecture、roadmap |
 | 语言语义变更 | 否；只实施 ADR-0011 的首个 target 行表映射，不新增源码语义或调试表达式协议 |
 
@@ -80,9 +80,9 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
       与 helper 不获得伪造 Koven source subprogram/location，LLVM verifier 通过。
 - [x] 同一 TargetMachine 生成的 arm64 Mach-O object 经 `dwarfdump --debug-line` 可见真实 `.ko`
       文件和预期行记录，既有唯一 `_main`/正常运行契约不退化。
-- [ ] 真实 executable 经 `/usr/bin/lldb --batch` 按 `.ko` 文件/行设置断点并运行，断点成功解析、
+- [x] 真实 executable 经 `/usr/bin/lldb --batch` 按 `.ko` 文件/行设置断点并运行，断点成功解析、
       命中 Koven frame 且报告预期源码位置。
-- [ ] `lang-codegen` 窄测和 workspace 五项标准基线通过；production 文件遵守 1000 行软上限，
+- [x] `lang-codegen` 窄测和 workspace 五项标准基线通过；production 文件遵守 1000 行软上限，
       Spec/Architecture/roadmap/ADR 索引只记录实际完成事实。
 
 ## 6. 技术方案与边界
@@ -105,9 +105,9 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
    debug IR、foreign map、multi-source、Unicode/CRLF、synthetic anchor 与 LLVM verifier 矩阵。
 2. [x] 让 object emission 携带行表并增加 dwarfdump/LLDB 静态解析验收 → 验证：Mach-O 行表、
    source breakpoint resolution、Koven symbol/source location、正常退出及既有 object 符号契约。
-3. [ ] 在允许 debugserver 取得 task port 的 macOS 环境运行 LLDB breakpoint-hit 验收 → 验证：
+3. [x] 在允许 debugserver 取得 task port 的 macOS 环境运行 LLDB breakpoint-hit 验收 → 验证：
    process launch、stop reason、Koven frame 与目标 source line。
-4. [ ] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
+4. [x] 运行 workspace 基线、同步 Architecture/roadmap/Spec 并审查 staged diff → 验证：实际退出
    状态、文件规模、文档与实现一致。
 
 ## 8. 提交计划
@@ -134,3 +134,6 @@ source、synthetic glue 与尚未定义的变量/类型调试不会被静默伪�
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`（Mach-O/LLDB static slice） | 通过 | 无 warning |
 | workspace 五项标准基线 | 通过 | `cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace --all-targets`、`cargo build -p lang-cli` 均以退出码 0 完成；仍不以基线通过替代真实 breakpoint-hit 验收 |
 | `/usr/bin/lldb --batch ... run`（沙箱内及批准的沙箱外窄验收） | 环境阻塞 | 两种执行边界均能解析 `debug.ko:4:5`；沙箱外调试系统自带 `/usr/bin/true` 也以 `attach failed (Not allowed to attach to process)` 失败，系统日志明确记录 `task_for_pid` 返回 kern failure；沙箱外 `DevToolsSecurity -status` 返回 `Developer mode is currently disabled`，证明阻塞独立于 Koven object/DWARF，因此未勾选 breakpoint-hit 验收 |
+| `cargo test -p lang-codegen --all-targets llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame -- --ignored --exact --nocapture` | 通过 | 批准的沙箱外执行边界实际 launch 临时 Koven executable，命中 `breakpoint 1.1`；frame #0 报告 `app at debug.ko:4:5` |
+| `cargo test -p lang-codegen --all-targets`（最终窄测） | 通过 | 101 项常规测试通过；live-hit 测试因普通环境不保证 debugserver 权限而显式 ignored，本轮已由上一条命令实际执行通过 |
+| workspace 五项标准基线（最终） | 通过 | fmt/check/clippy/test/build 均以退出码 0 完成；workspace test 明确报告 1 项权限型 ignored，且其显式验收已通过 |

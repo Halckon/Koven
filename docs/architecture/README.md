@@ -43,11 +43,11 @@ SPEC-0039 已建立显式 native entry 边界：只接受同 module 的 `() -> U
 TargetMachine 直接生成 arm64 Mach-O object，锁定唯一 external `_main` 且失败不落盘；CLI
 链接边界以 `Command` 直接执行 `/usr/bin/clang`，区分启动失败与链接失败，真实 object 的正常
 entry 返回 0，SSA Abort 通过 C `abort` 非零终止且不生成 unwind；
-SPEC-0040 前两片已让 debug-enabled lowering 显式接收原 `SourceMap`，在创建 LLVM module 前
+SPEC-0040 已让 debug-enabled lowering 显式接收原 `SourceMap`，在创建 LLVM module 前
 预检全部 SSA origin，并生成 DW_LANG_C fallback 的 line-tables-only compile unit、按名称确定的
 `DIFile`、Koven function `DISubprogram` 与 instruction/terminator location；foreign map fail-loud，
-无 debug LLVM 文本入口保持原产物；Mach-O 行表及 LLDB 静态 source breakpoint 解析已通过，
-真实 breakpoint hit 仍受本机 debugserver/task-port 授权阻塞；
+无 debug LLVM 文本入口保持原产物；Mach-O 行表、LLDB 静态 source breakpoint 解析及真实
+process launch/breakpoint hit 均已通过，frame 精确报告 Koven `app` 与 `debug.ko:4:5`；
 SPEC-0042 已把 16 个 `BuiltinType` 的规范顺序收敛为 frontend 单一 production 环境
 构造入口，并建立 `lang-codegen::emit_native_object` workspace API：调用方提交同一条 frontend
 analysis chain、resolved 顶层 `SymbolId` entry 和输出路径，codegen 复用现有 scalar SSA、
@@ -288,15 +288,15 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   object。源码 `main` 选择仍等待后续 frontend 接线；标准库 `error()` identity 已由 SPEC-0043
   通过 typed effect 接入，未按名称猜测；
 - [ADR-0011](../adr/0011-first-dwarf-line-mapping.md) 已接受首个 line-tables-only DWARF 映射。
-  SPEC-0040 当前第一片保持 SSA `Program` 不持有源码 owner，由 debug-enabled object/text lowering
+  SPEC-0040 保持 SSA `Program` 不持有源码 owner，由 debug-enabled object/text lowering
   显式接收同一 `SourceMap`；preflight 解析 function/block/entity/instruction/terminator origin，
   foreign map 在 LLVM metadata 前返回独立 codegen 错误。独立 `llvm::debug` 模块按 entry source
   建立 compile unit，以 source name 原文建立确定性 `DIFile`，把 Koven display/linkage name 与
   1-based Unicode/CRLF 行列映射到 subprogram/location；synthetic origin 使用 anchor，C `main`
   wrapper/runtime declaration 不获得伪造 Koven subprogram。Mach-O object 已由 `dwarfdump`
   验证真实 `.ko` 行列，LLDB 可把 `debug.ko:4:5` 静态解析为 `app` 的唯一 source breakpoint，
-  链接后程序正常返回 0；本机 debugserver 因 task-port 调试授权不可用而无法启动 inferior，真实
-  breakpoint hit 仍待环境门禁解除后完成；
+  链接后程序正常返回 0；显式 live 验收还实际启动该进程、命中 `breakpoint 1.1`，并由 frame #0
+  报告 `app at debug.ko:4:5`；
 
 现有 target 已证明上述封闭 SSA/LLVM/object/link 行为；resolved source entry→object 已形成
 workspace API，仓库拥有的标准库单文件 bootstrap 已真实 link/run。通用 `.ko`→可执行文件 CLI、

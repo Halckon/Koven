@@ -374,3 +374,52 @@ fn macho_line_table_resolves_a_koven_source_breakpoint_in_lldb() {
     assert!(lldb_text.contains("locations = 1"), "{lldb_text}");
     assert!(lldb_text.contains("app + 4 at debug.ko:4:5"), "{lldb_text}");
 }
+
+#[test]
+#[ignore = "requires debugserver task-port permission unavailable in ordinary sandbox or CI"]
+fn lldb_hits_a_koven_source_breakpoint_and_reports_the_frame() {
+    let directory = TestDirectory::create();
+    let source = directory.join("debug.ko");
+    let source_name = source.to_str().expect("temporary path must be UTF-8");
+    let (sources, program, entry) = native_debug_program(source_name);
+    fs::write(&source, NATIVE_SOURCE).expect("source snapshot write");
+    let object = directory.join("debug.o");
+    let executable = directory.join("debug");
+    emit_verified_object(&program, &sources, entry, &object).expect("debug object");
+
+    let link = run(
+        Command::new("/usr/bin/clang")
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable),
+        "clang link",
+    );
+    assert_success(&link, "clang link");
+
+    let lldb = run(
+        Command::new("/usr/bin/lldb")
+            .arg("--batch")
+            .arg("--file")
+            .arg(&executable)
+            .arg("-o")
+            .arg("breakpoint set --file debug.ko --line 4")
+            .arg("-o")
+            .arg("run")
+            .arg("-o")
+            .arg("thread backtrace"),
+        "lldb breakpoint hit",
+    );
+    assert_success(&lldb, "lldb breakpoint hit");
+    let lldb_text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&lldb.stdout),
+        String::from_utf8_lossy(&lldb.stderr)
+    );
+    assert!(lldb_text.contains("Breakpoint 1: where ="), "{lldb_text}");
+    assert!(
+        lldb_text.contains("stop reason = breakpoint 1."),
+        "{lldb_text}"
+    );
+    assert!(lldb_text.contains("frame #0:"), "{lldb_text}");
+    assert!(lldb_text.contains("app at debug.ko:4:5"), "{lldb_text}");
+}

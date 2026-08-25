@@ -383,7 +383,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
-- [ ] DWARF 调试信息生成
+- [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，
+      LLDB 静态解析并真实启动进程命中 Koven `app` 源码断点与 frame
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构
 右值只执行一次，消费式解构后的每个不可复制字段恰好析构一次，不可复制 `value class`
