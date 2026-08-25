@@ -457,3 +457,23 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > v0.28 于 2026-08-24 由用户明确启用并取代 v0.27；上方候选记录保留其形成历史，§28、
 > L0140–L0141 自此获得现行规范效力，SPEC-0177 / SPEC-0174 的 guide 门禁解除。规范启用
 > 不表示 frontend 已完成实施，两项 Spec 仍按自身状态和前置关系推进。
+
+## v0.28 实施记录
+
+> 2026-08-24，SPEC-0177 / SPEC-0174 已完成：frontend 已发布完整泛型 callable 实例 key、
+> 显式/实参推导与 bound 诊断，并对多 overload 候选隔离检查 lambda expected contract/body；
+> L0140–L0141 与候选 trial 回滚矩阵已锁定。
+
+## v0.29 候选变更记录（未启用）
+
+> 本候选于 2026-08-25 根据 Phase 2/3 剩余项门禁审计起草。当前唯一权威版本仍是 v0.28；
+> 只有用户明确启用 v0.29 并指定其取代 v0.28 后，SPEC-0183 / SPEC-0188 / SPEC-0184 才能
+> 进入 `approved` / `in-progress`。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 封闭普通/value class、enum case 与 compiler-bound Box 的唯一 constructor target；constructor 使用名义/case/intrinsic identity，不伪造普通函数 symbol 或 function value | 🔴 候选名称/类型语义 |
+| 2 | constructor 类型实参只允许全部显式或完全省略；省略时先从已定型非 lambda operand 精确推导，未决项才可由同 root expected result 补齐，不读取后续使用 | 🔴 候选局部推导语义 |
+| 3 | class 字段、enum payload 与 Box 参数统一为源码无 marker 的 Value delivery；typed、ownership、SSA lowering 分拆为 SPEC-0183、0188、0184，失败阶段不发布部分事实 | 🔴 候选所有权/Phase 边界 |
+| 4 | 保持 `value` 为硬关键字，把标准 `Result.Ok` payload 候选名称改为 `success`，避免为单一公共字段扩大 Lexer/Parser 兼容面 | 🔴 候选标准库表面契约 |
+| 5 | 预留 L0143 非构造目标、L0144 constructor 推导失败、L0145 target layout 源码诊断；参数映射与既有 bound 继续复用 L0091/L0093/L0115/L0120–L0123/L0141 | 🟡 候选诊断闭包 |

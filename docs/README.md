@@ -6,7 +6,7 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 ## 当前入口
 
 - [语言设计指南 v0.28](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
-  多文档真源。
+  多文档真源；§29 的 v0.29 constructor 提案仍是未启用候选。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
 - [Specs 与路线图](./specs/)：单次功能或行为变更的范围、Goal、计划、依赖和验收标准。
@@ -40,14 +40,21 @@ use-after-move、条件复制、消费式解构、禁止结构分量部分移动
 capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect 也已实现。Phase 4
 已完成 typed SSA/verifier、标量 frontend→SSA→AArch64 LLVM IR，以及聚合/heap-owner、系统
 allocation、递归 drop/free 与顺序容器连续缓冲区/checked-index/drop 后端基元；源码
-constructor 接线仍等待候选 0183/0184。Phase 5
-容器 relocation API 仍待后续 Spec。Phase 6 已独立提供
-TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见[架构快照](./architecture/README.md)。
+constructor 接线仍等待候选 0183/0188/0184。Phase 5
+容器 relocation API 仍待后续 Spec。Phase 6 已提供机器可读诊断、LSP diagnostics/definition、
+formatter，以及 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见
+[架构快照](./architecture/README.md)。
 
 进入 typed SSA 前所需的泛型 callable 实例化与 overload-lambda 隔离，已分别由
 [SPEC-0177](./specs/0177-generic-callable-instantiation.md) 和
 [SPEC-0174](./specs/0174-overload-lambda-candidate-isolation.md)。v0.28 已解除两者的 guide
 门禁并完成实施。
+
+下一条高杠杆主线已起草为尚未启用的 v0.29 constructor 候选，并拆为
+[SPEC-0183](./specs/0183-constructor-typed-facts.md) typed facts、
+[SPEC-0188](./specs/0188-constructor-ownership-effects.md) ownership effects 与
+[SPEC-0184](./specs/0184-nominal-construction-lowering.md) SSA/LLVM lowering；三者在用户明确
+启用 v0.29 前都保持 `draft`。
 
 Phase 4 的独立架构门禁已由
 [ADR-0006](./adr/0006-typed-ssa-block-parameters.md) 封闭：自建 typed SSA 使用 IR-local type、

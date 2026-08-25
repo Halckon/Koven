@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal“继续推进 guide 主线，分阶段实施 specs”的站立授权 |
 | 前置 Spec | SPEC-0033、SPEC-0035、SPEC-0036、SPEC-0038 `done` |
 | 前置 ADR | [ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
-| 阻塞项 | 无；源码 nominal/enum/Box 类型到稳定用户诊断的映射继续等待 SPEC-0183/0184 |
+| 阻塞项 | 无；源码 nominal/enum/Box 类型到稳定用户诊断的映射继续等待 SPEC-0183/0188/0184 |
 | 影响范围 | `lang-codegen` LLVM target-layout 预检、type map 与测试；Architecture、roadmap |
 | 语言语义变更 | 否；只实现现行 guide 与 ADR 已要求的目标相关失败边界 |
 
@@ -43,7 +43,7 @@ pointer 与 `size_t` 布局验证 verified SSA 中的 aggregate、closure enviro
 ## 4. 非目标
 
 - 不接入尚未实现的源码 nominal/enum/Box constructor、projection、destructuring 或 DropFact；
-  不据此完成 SPEC-0183/0184。
+  不据此完成 SPEC-0183/0188/0184。
 - 不分配新的 `Lxxxx` 诊断码，不把只有 IR-local identity 的失败虚报成已有源码 `Span`。0184
   接入来源类型后必须把本 Spec 的结构化错误映射为用户诊断，roadmap 对应总验收在此前不勾选。
 - 不实现 enum tag/payload、nullable layout、多目标 codegen、公开 FFI ABI、large-stack/copy
@@ -103,7 +103,7 @@ pointer 与 `size_t` 布局验证 verified SSA 中的 aggregate、closure enviro
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 通过 | 0033/0035/0036/0038 `done`、ADR-0007/0008 `accepted`；ASAP drop/source warning 仍依赖 0183/0184，layout preflight 可独立实施 |
+| 2026-08-25 前置审计 | 通过 | 0033/0035/0036/0038 `done`、ADR-0007/0008 `accepted`；ASAP drop/source warning 仍依赖 0183/0188/0184，layout preflight 可独立实施 |
 | `cargo test -p lang-codegen layout --lib` | 通过 | 5 项 layout 定向测试；合法复合形状与 target 实际结果一致，4096 层内联图迭代完成，`2^64` 超限和 `u128` 算术溢出稳定失败 |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 | 0 warnings；`llvm/layout.rs` 335 行，全部触及 production 文件低于 1000 行软上限 |
 | `cargo test -p lang-codegen --all-targets` | 通过 | 101 passed；0 failed / ignored / filtered，aggregate/container/closure/object/debug 回归全部通过 |

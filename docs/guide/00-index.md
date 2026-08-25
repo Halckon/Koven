@@ -62,6 +62,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 - **v0.28 已明确启用**：§28 的泛型 callable 实例化、稳定实例 key 与 overload-lambda
   candidate isolation 已成为现行语义，L0140–L0141 获得现行诊断含义，并已由
   SPEC-0177 / SPEC-0174 完成 frontend 实施。
+- **v0.29 尚未启用**：§29 只是 nominal/enum case/intrinsic Box constructor 的候选设计；
+  在用户明确指定 v0.29 取代 v0.28 前，L0143–L0145 没有现行诊断含义，SPEC-0183 / 0188 /
+  0184 必须保持 `draft`，现行 frontend 继续保留 constructor deferred。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -89,13 +92,13 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 26 节现行设计 + Map 候选 §18 + 原第二部分（现为附录） | ~1550 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 28 节现行设计 + Map 候选 §18 + constructor 候选 §29 + 原第二部分（现为附录） | ~1700 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~290 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.28 完整记录（含 v0.13 结构调整与 v0.26–v0.28 启用审计） | ~450 | 只追加，不修改 |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.28 完整记录及 v0.29 未启用候选（含 v0.13 结构调整与 v0.26–v0.28 启用审计） | ~470 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -134,6 +137,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.26 | 无标记参数改为 Borrow，声明端 `own` 映射既有 Value 契约；启用调用期 loan、参数绑定能力与 ASAP drop-point；SPEC-0176 与 SPEC-0029 已实现 |
 | v0.27 | 简化 borrowed/move closure capture、逃逸边界、完整 `Transferable` 域与显式跨线程 typed effect；SPEC-0032 已实现 |
 | v0.28 | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；SPEC-0177 / SPEC-0174 已实现 |
+| v0.29（候选，未启用） | nominal/enum case/intrinsic Box constructor target、受控 expected-result 推导与分阶段 typed/ownership/lowering 交接；等待用户明确启用 |
 
 ## 5. SPEC 编号索引
 
@@ -172,6 +176,9 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0042 | 标准库目标语言 bootstrap 闭环 | `06-roadmap.md` Phase 5、`../specs/0042-standard-library-bootstrap.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
+| SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29（候选）、`../specs/0183-constructor-typed-facts.md` | ⏸️ draft，等待 v0.29 |
+| SPEC-0188 | constructor Value delivery 与 ownership facts | `01-design-decisions.md` §29（候选）、`../specs/0188-constructor-ownership-effects.md` | ⏸️ draft，等待 v0.29/0183 |
+| SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29（候选）、`../specs/0184-nominal-construction-lowering.md` | ⏸️ draft，等待 v0.29/0183/0188 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |
@@ -214,7 +221,10 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | L0137–L0139 | borrowed closure 逃逸、非法 owned capture 与 non-`Transferable` 跨线程交付；SPEC-0032 已实现 | `01-design-decisions.md` §27.4 |
 
 L0140–L0141 已由现行 v0.28 §28 分配，分别交给 SPEC-0177 的泛型推导与 `Transferable`
-bound 检查；在 SPEC-0177 实施前，frontend 尚不会产生这两个诊断。
+bound 检查，并已由 SPEC-0177 登记为生产诊断。
+
+L0142 已由 SPEC-0178 分配给非法 `break` / `continue` target。L0143–L0145 目前只在尚未
+启用的 v0.29 §29 中预留，不能由现行 frontend/codegen 发出或登记为生产诊断。
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -242,11 +252,12 @@ bound 检查；在 SPEC-0177 实施前，frontend 尚不会产生这两个诊断
 | 调用期借用与 ASAP 析构点（v0.26，SPEC-0029 已实现） | `01-design-decisions.md` §26 |
 | closure capture 与跨线程转移（v0.27） | `01-design-decisions.md` §27 |
 | 泛型 callable 与 overload-lambda 隔离（v0.28） | `01-design-decisions.md` §28 |
+| nominal/enum case/intrinsic Box 构造（v0.29 候选，未启用） | `01-design-decisions.md` §29 |
 | 所有权检查 Phase 3 验收标准 | `06-roadmap.md` Phase 3 |
 | typed SSA 与 verifier（Phase 4；ADR-0006 accepted） | `06-roadmap.md` Phase 4、`../specs/0033-typed-ssa-ir-verifier.md` |
 
 ---
 
-*除明确排除的候选 §18 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
+*除明确排除的候选 §18、§29 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
 v0.28；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*

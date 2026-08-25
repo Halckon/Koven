@@ -58,6 +58,9 @@ owned binding，并封闭同步调用期 loan 与 ASAP 析构点契约，v0.27 �
 capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例化与 overload-lambda
 候选隔离契约。
 
+`guide/01-design-decisions.md` §29 是尚未启用的 v0.29 constructor 候选，只用于版本级评审；
+在用户明确指定 v0.29 取代 v0.28 前，不解除 SPEC-0183 / 0188 / 0184 的实现门禁。
+
 ---
 
 ## 2. 推进顺序

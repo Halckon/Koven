@@ -1,11 +1,13 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.28。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.28；
+> 第 29 节是尚未启用的 v0.29 候选，不参与现行语义。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
-> v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；
+> v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节只有在用户明确
+> 启用 v0.29 后才获得规范效力；
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -1668,6 +1670,93 @@ SPEC-0177 先实现泛型 callable 显式/推导实例化、bound 和 instance k
 实例化边界上实现 overload-lambda candidate isolation；二者均已完成。仍不在当前范围的
 callable reference、safe call 等调用继续精确保留对应 `DeferredReason`，不得携带伪造实例
 进入所有权检查或 SSA。
+
+---
+
+## 29. 名义、enum case 与 intrinsic `Box` 构造（v0.29 候选，未启用）
+
+> **候选状态**：本节不属于现行 v0.28 语义。只有用户明确启用 v0.29 并指定其取代 v0.28
+> 后，本节、L0143–L0145 及 SPEC-0183 / SPEC-0188 / SPEC-0184 才能进入实施。候选只封闭
+> 已由 v0.20/v0.25 保存的构造表面形态到 typed/ownership/backend 的最小闭环，不引入二级
+> 构造器、默认参数、继承构造、工厂优先级或完整 Kotlin 约束求解。
+
+### 29.1 可构造目标与唯一身份
+
+- 普通 `class` 和 `value class` 的类型名称是其唯一主构造目标；普通 class 省略显式主构造器
+  时等价于零字段构造器。`interface`、`object` 与 enum root 不是构造目标。源码类型名称与
+  value 函数同名时沿用双命名空间既有规则：value binding 优先，只有没有 value binding 时
+  才把 type binding 解释为 constructor，不能把二者合成 overload set。
+- `enum class E` 的每个 case 使用既有 `EnumCaseId` 作为构造身份。有 payload 的 case 写
+  `E.C(args)`，无 payload 的 case 仍写值表达式 `E.C`，不得为泛型推导改写成禁止的空 `E.C()`。
+  enum 本体内允许既有短名。case 构造结果的公开静态类型始终是替换后的 root `E<...>`，
+  不把仅供 smart cast 使用的 case type 暴露为值类型。
+- intrinsic `Box` 只有在 `TypeEnvironment` 显式绑定时是构造目标；源码同名 class 继续是普通
+  nominal constructor。`Box<T>(operand)` 与 `Box(operand)` 都只有一个稳定名称为 `element` 的
+  `Value T` 参数，结果为
+  `Box<T>`，并继续服从 §25.3 的具体 value-class kind 限制。
+- constructor 不声明或分配普通函数 `SymbolId`，也不伪装成 function value。typed target 使用
+  `NominalId`、`EnumCaseId` 或 `IntrinsicTypeConstructor::Box`；callable reference、把构造器
+  赋给变量和 constructor overload 都不在 v1 范围。
+
+### 29.2 类型实参与受控 expected-result 推导
+
+泛型 nominal/case/Box 构造只接受两种源码形态：完整显式类型实参，或完全省略。显式实参
+写在现有 typed-call callee 后：`Pair<Int, String>(...)`、`Result.Ok<Int, Error>(...)`、
+`Box<Point>(...)`；数量不匹配复用 L0091，不接受部分列表、`_`、默认实参或 `where`。
+
+省略类型实参时按以下封闭顺序求解，不能交换步骤或从后续使用反推：
+
+1. 先按源码顺序检查已经定型的非 lambda 构造 operand，并用 §28.2 的精确结构匹配从对应
+   字段/payload/Box 参数提取类型参数；无 expected type 的数字字面量先按 §22 默认定型。
+2. 若仍有未决参数，且当前表达式具有 expected type，只有 expected type 的外层 identity
+   精确等于本次 nominal root 或 intrinsic Box 时，才按声明顺序补齐其实参。operand 与 expected
+   type 对同一参数给出不同规范化 `TypeId` 时推导失败，不做 common type、widening 或型变。
+3. 获得完整替换后检查 interface、`Copyable`、`Transferable` bound，再用替换后的 Value 参数
+   类型单向检查全部 operand 与 lambda。lambda body 不参与第 1/2 步推导；只剩 lambda 能提供
+   类型信息时必须写显式类型实参或提供同 root expected type。
+
+这项 expected-result 规则是 constructor/case 的窄化例外，不改变 §28 普通泛型 callable 的
+单向规则。它使 `val ok: Result<Int, String> = Result.Ok(1)`、
+`val empty: Empty<String> = Empty()` 和泛型无 payload case
+`val none: Option<Int> = Option.None` 可确定；脱离同 root expected type 的 `Empty()` /
+`Option.None` 使用 L0144，而不是发明 `Option<Int>.None` 新语法。成功实例 key 由构造 target
+和声明顺序的完整类型实参组成，与源码是否显式无关。
+
+### 29.3 参数映射、所有权与求值
+
+- class/value-class 主构造器字段与 enum payload 按声明顺序形成稳定、可命名的参数；intrinsic
+  Box 只有稳定参数名 `element`。位置/命名混排、重复、缺失、额外参数及 type/mode 检查复用
+  §9 的 L0120–L0123 规则。字段 visibility 不删除 constructor 参数名；跨 package 可见性仍
+  等待 SPEC-0025。
+- 所有构造参数都是 v0.26 已规定的 `ParameterMode::Value`：class 字段与 enum payload 沿用
+  §13 的天然-owned 声明形态，intrinsic Box 只有编译器内建抽象签名；两者调用点都不写
+  `own`。显式 `borrow` / `&` 与 Value 参数不匹配并复用 L0122。operand 按源码顺序各求值
+  一次，命名映射不改变求值顺序；每个 operand 完成后立即按 `Copyable` 复制或按 MoveOnly
+  移动到尚未发布的 construction owner。
+- 成功 typed 产物保存 expression、稳定 target/instance key、结果类型，以及按参数声明顺序的
+  field/payload symbol、Value mode、源码 argument 与 argument evaluation index。无 payload case
+  发布零参数 construction descriptor。失败构造不发布部分 descriptor 或伪造结果 owner。
+- SPEC-0183 只发布上述名称/类型事实；SPEC-0188 再把 Value delivery、construction temporary、
+  move/copy、失败后 use、ASAP drop 与聚合字段 drop facts 接入既有所有权产物；SPEC-0184 只
+  消费已验证 typed/ownership facts lower 到 ADR-0008 的 aggregate/class/enum/Box 表示，不在
+  Phase 4 重新推导参数映射或 owner liveness。
+
+### 29.4 `Result` payload 勘误与诊断
+
+现行词法规范把 `value` 保持为硬关键字；v0.29 候选不为一个标准库字段把它改成上下文软词，
+避免扩大 Lexer/Parser 兼容面。若本候选启用，核心 `Result` 声明固定为
+`Ok(success: T), Err(error: E)`，取代附录中不可解析的 `Ok(value: T)` 示例；这只改 payload
+名称，不改变 `Result<T, E>`、postfix `?` 或错误传播语义。
+
+| 错误码 | 候选稳定含义 | primary / 关联位置 |
+|---|---|---|
+| L0143 | type-position callee 不是可构造的 class/value class/case/intrinsic Box | primary 为 callee 名称；label 指向实际 type 声明（若有） |
+| L0144 | constructor/case 无法从 operand 与同 root expected type 得到完整一致的类型实参 | primary 为 constructor/case 名称；labels 指向未决/冲突类型参数声明 |
+| L0145 | 单态 nominal/enum/Box 的 target size/alignment/payload storage 无法表示 | primary 为触发实例化的 constructor/type use；label 指向来源类型声明或超限字段/case |
+
+L0091、L0093、L0115、L0141 继续分别表示 arity、interface、`Copyable`、`Transferable` bound；
+L0120–L0123 继续表示参数名称/数量/mode/类型候选失败。L0145 只把 SPEC-0186 已有 IR-local
+preflight 映射为源码诊断，不把 target 阈值变成新的静态类型或隐式 boxing 规则。
 
 ---
 

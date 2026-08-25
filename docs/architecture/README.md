@@ -186,7 +186,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
-  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0184。显式 verified
+  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0188/0184。显式 verified
   SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
   `SymbolId` 的单文件 source-analysis→object workspace API，并由仓库内部 bootstrap driver
   完成真实标准库 Koven source 的 object/link/run；通用源码入口选择和公开 CLI 流水线仍未实现；
@@ -1276,7 +1276,8 @@ source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SP
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
-已允许未使用的声明型 type roots 共存，源码 nominal constructor 接线仍等待候选 0183/0184。
+已允许未使用的声明型 type roots 共存，源码 nominal constructor 接线仍等待候选
+0183/0188/0184。
 
 ## 更新要求
 

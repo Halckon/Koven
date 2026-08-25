@@ -2,7 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.28；SPEC-0177 / 0174 的 guide 门禁已解除，仍按各自 Spec 状态和前置关系实施。
+> v0.28；SPEC-0177 / 0174 的 guide 门禁已解除并完成。SPEC-0183 / 0188 / 0184 仍受尚未
+> 启用的 v0.29 constructor 候选门禁，不得提前实施。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -193,10 +194,10 @@ fun main(): Unit {
 - [x] **SPEC-0174（前置：SPEC-0177；v0.28，已实现）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
-- [ ] 发布普通/泛型 nominal、enum case 与 intrinsic `Box` constructor 的 target、实例类型、
-      `Value` 参数映射和字段/case 顺序 typed fact；非泛型构造形状虽已由 class-family guide
-      封闭，但 v0.28 仍把 class/intrinsic 泛型构造留在 deferred 边界。候选 SPEC-0183 实施前
-      须由后续 guide 封闭显式/推导类型实参与 expected-result 是否参与推导
+- [ ] **SPEC-0183（v0.29 候选，未启用）**：发布普通/泛型 nominal、enum case 与 intrinsic
+      `Box` constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact；候选
+      采用“operand 优先、同 root expected result 只补未决项”的受控推导，在 v0.29 明确启用前
+      继续保持 deferred
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
@@ -288,6 +289,9 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       复制 / 移动 owned capture；借用闭包不得逃逸，跨线程 typed effect 只接受可证明满足
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
+- [ ] **SPEC-0188（v0.29 候选，前置 SPEC-0183）**：消费 construction descriptor，检查每个
+      Value operand 的 copy/move、构造 temporary owner、ASAP drop 与聚合字段 drop facts；不在
+      Phase 3 重新选择 constructor 或推导类型实参
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -345,7 +349,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
-- [ ] `value class`（内联布局）vs `class`（堆分配）的 codegen 差异实现；布局策略与
+- [ ] **SPEC-0184（v0.29 候选，前置 SPEC-0183/0188）**：把 nominal/enum/Box construction、
+      projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
+      value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与
       `Copyable` 能力保持正交
 - [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不
       重复析构
@@ -405,11 +411,13 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
 - [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
-      完整运行实现等待候选 SPEC-0183/0184 发布并 lower constructor facts。当前规范同时把
+      完整运行实现等待候选 SPEC-0183/0188/0184 发布并 lower constructor facts。当前规范同时把
       `value` 列为硬关键字，却在核心 `Result` 声明中使用 `Ok(value: T)`；后续 guide 必须在
-      调整关键字分类与更改公共 payload 名称之间作出明确选择，不能由实现静默修补
-- [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class，参数声明端使用 `own` 并取得传入值所有权；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待候选 SPEC-0183/0184 的
+      调整关键字分类与更改公共 payload 名称之间作出明确选择，不能由实现静默修补。尚未启用
+      的 v0.29 候选推荐保持硬关键字并改为 `Ok(success: T)`，启用前不改变现行正文
+- [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
+      传入值所有权，调用点无 marker；`Rc<T>` 需要
+      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待候选 SPEC-0183/0188/0184 的
       nominal/intrinsic constructor facts 与 aggregate/heap-owner lowering
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流

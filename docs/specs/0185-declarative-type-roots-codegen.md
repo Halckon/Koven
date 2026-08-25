@@ -46,7 +46,7 @@
 
 - 回归测试使用代表性的声明型 roots 与显式 `() -> Unit` entry，证明同一 source 可生成 verified
   SSA、LLVM 与 Mach-O object；不在本 Spec 中修改 `prelude.ko` 或提前声明 `Pair`/`Result`。
-- 该能力只解除“声明存在即失败”的机械门禁；SPEC-0183/0184 仍负责 nominal/enum/Box
+- 该能力只解除“声明存在即失败”的机械门禁；SPEC-0183/0188/0184 仍负责 nominal/enum/Box
   constructor typed fact 与 aggregate lowering，完成后才可执行依赖构造值的标准库验收。
 
 ## 4. 非目标
@@ -95,7 +95,7 @@
 
 ## 9. 未决问题
 
-- 无。type root 对应的运行时构造与布局继续由现有 0183/0184 边界决定。
+- 无。type root 对应的运行时构造与布局继续由现有 0183/0188/0184 边界决定。
 
 ## 10. 验证记录
 
