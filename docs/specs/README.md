@@ -18,7 +18,7 @@ closure 逃逸、结构化 `Transferable` 与 compiler-bound 跨线程 callable 
 isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.29 constructor 契约](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029)
-已于 2026-08-25 明确启用并取代 v0.28；SPEC-0183 / 0188 / 0184 按自身前置顺序推进。
+已于 2026-08-25 明确启用并取代 v0.28；SPEC-0183 / 0188 已完成，SPEC-0184 的前置已解除。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -206,7 +206,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0181 | 检查 instance member 与接口委托 receiver 的字段访问、loan、移动和冲突 | 0029、0180；新 guide 封闭隐式 receiver 契约 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
-| [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`draft`） | 0183；0029 `done`；v0.29 已生效 |
+| [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
@@ -214,12 +214,12 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`done`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`done`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；完整 `for` 已按 runtime 依赖迁移至候选 0182 |
-| [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`done`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；0183 typed facts 已完成，ownership/lowering 由 0188/0184 承接 |
+| [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`done`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；0183/0188 facts 已完成，lowering 由 0184 承接 |
 | [0036](./0036-sequential-container-runtime.md) | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径（`done`） | 0023、0030、0035 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | [0185](./0185-declarative-type-roots-codegen.md) | 让声明型 class/value class/interface/enum roots 与既有标量 entry 共存（`done`） | 0020、0034 `done`；不实现 constructor 或 nominal operation |
 | [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射留给 0184 |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
-| [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`draft`） | 0183、0188；0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
+| [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`draft`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |

@@ -118,6 +118,6 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 | 2026-08-25 前置审计 | 通过但有版本门禁 | 0020/0022/0067/0177 `done`；所需 identity、字段/case 顺序、expected-type 入口、trial 与泛型 matcher 已存在；已收紧 expected 来源、裸 no-payload descriptor 和 trial 回滚契约；v0.29 尚未启用 |
 | 2026-08-25 v0.29 启用 | 通过 | 用户明确指定 v0.29 取代 v0.28；版本门禁解除，尚未开始实现 |
 | `cargo test -p lang-frontend --test diagnostic_model --test type_checking --test type_callable` | 通过 | 67 项；覆盖 L0143–L0144 catalog、构造正反矩阵、共享推断/映射与 overload trial 回滚 |
-| `cargo test -p lang-codegen --lib ssa::lower_frontend_tests::declarative_type_roots_do_not_enter_the_scalar_instance_graph` | 通过 | Phase 2 构造事实存在后，锁定 SPEC-0188/0184 缺失事实门禁 |
+| `cargo test -p lang-codegen --lib ssa::lower_frontend_tests::declarative_type_roots_do_not_enter_the_scalar_instance_graph` | 通过 | Phase 2 构造事实存在后锁定后续门禁；SPEC-0188 现已完成，仍等待 0184 lowering |
 | `cargo test --workspace --all-targets` | 通过 | workspace 全量通过；1 项 LLDB/debugserver 权限测试按既有配置 ignored |
 | workspace fmt/check/Clippy/build 标准基线 | 通过 | `cargo fmt --all -- --check`、workspace all-targets check、Clippy `-D warnings`、`cargo build -p lang-cli` 均退出 0 |

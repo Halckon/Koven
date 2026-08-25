@@ -1,0 +1,8 @@
+class Resource {}
+value class Holder(val resource: Resource)
+enum class Flag { On, Off }
+
+fun build(own resource: Resource): Holder {
+    val flag = Flag.On
+    return Holder(resource)
+}

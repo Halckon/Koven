@@ -334,6 +334,24 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         usage: ExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if let Some(descriptor) = self
+            .checker
+            .construction
+            .descriptors
+            .get(&id.index())
+            .cloned()
+        {
+            let mut arguments = descriptor.arguments().to_vec();
+            arguments.sort_by_key(|argument| argument.evaluation_index());
+            for argument in arguments {
+                if !self.expression(argument.argument(), ExpressionUse::Consume, state)?
+                    || self.checker.is_nothing_expression(argument.argument())
+                {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
         let node = self.checker.parsed.ast().expressions().get(id)?;
         match node.payload().clone() {
             Expression::Error

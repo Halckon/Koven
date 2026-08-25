@@ -197,6 +197,29 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
         live_after: LiveSet,
     ) -> Result<LiveSet, OwnershipCheckingError> {
         self.expression_after[id.index()] = live_after.clone();
+        if let Some(descriptor) = self
+            .checker
+            .construction
+            .descriptors
+            .get(&id.index())
+            .cloned()
+        {
+            let mut arguments = descriptor.arguments().to_vec();
+            arguments.sort_by_key(|argument| argument.evaluation_index());
+            let terminating = arguments
+                .iter()
+                .position(|argument| self.checker.is_nothing_expression(argument.argument()));
+            let evaluated = terminating.map_or(arguments.len(), |index| index + 1);
+            let mut live = if terminating.is_some() {
+                LiveSet::new()
+            } else {
+                live_after
+            };
+            for argument in arguments[..evaluated].iter().rev() {
+                live = self.expression(argument.argument(), ExpressionUse::Consume, live)?;
+            }
+            return Ok(live);
+        }
         let node = self.checker.parsed.ast().expressions().get(id)?;
         match node.payload().clone() {
             Expression::Error

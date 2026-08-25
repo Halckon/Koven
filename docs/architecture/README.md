@@ -85,7 +85,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
-闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.28
+闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.29
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -139,6 +139,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `DeferredReason` 保留。普通名义主构造器字段已建立带实际
   泛型替换的
   `AggregateProjectionDescriptor`，
+  nominal/value-class、enum case 与 intrinsic `Box` 构造已发布稳定 target/instance、完整
+  result type 及声明顺序参数到源码求值顺序 operand 的 `ConstructionDescriptor`；
   `value class` 在无显式同名 callable 时提供零参数自动 `componentN()` typed target；
   callable 参数只保留 `Value` / `Borrow` / `Inout` 三态 typed identity；无 marker 与显式
   `borrow` 共享 `Borrow` identity，声明侧 `own` 形成 `Value`。预声明只读 API 使用 `Borrow`，
@@ -168,7 +170,13 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   Value 交付和字段存储逃逸；L0138 拒绝从 borrowed/Inout 或 `this` 建立 owned capture。
   `Transferability` 与 `Copyability` 独立结构化求值，编译器绑定跨线程 effect 以 L0139 拒绝
   non-Transferable value/environment；drop planner 在 closure 最后使用后结束 loan、析构 owner，
-  并逆序发布 owned capture drop。存在所有权诊断时不发布 capture/drop plan。顺序容器构造复用 typed 参数模式；intrinsic index 形成
+  并逆序发布 owned capture drop。存在所有权诊断时不发布 capture/drop plan。construction
+  专项分派在 ordinary call/member/name 前消费 Phase 2 descriptor，只求值源码
+  operand，不求值 type/case callee；`ConstructionOwnershipPlan` 按源码求值顺序发布
+  copy/move/temporary delivery，并为 MoveOnly value/enum inline root 或 class/Box heap-owner
+  handle 建立唯一 `ConstructionRootDropObligation`。全 Copyable/no-payload construction 不制造
+  root obligation，`Nothing` operand 截断后续 delivery 和 root 建立；任一所有权诊断会原子
+  清空 construction plan 与 drop facts。顺序容器构造复用 typed 参数模式；intrinsic index 形成
   root + field path + 逻辑索引 identity，支持 Copyable owned read、MoveOnly L0136、element
   shared/exclusive loan、temporary owner 延寿、固定顺序 replacement 与旧元素 drop fact。
   非 intrinsic index、post-index field projection、Phase 5 relocation effect 与
@@ -188,8 +196,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
-  drop/free；源码 constructor 已发布 Phase 2 typed facts，Value delivery/root drop 与
-  SSA 接线仍分别等待 SPEC-0188/0184。显式 verified
+  drop/free；源码 constructor 已发布 Phase 2 typed facts 与 Phase 3 ordered Value
+  delivery/root drop facts，SSA 接线仍等待 SPEC-0184。显式 verified
   SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
   `SymbolId` 的单文件 source-analysis→object workspace API，并由仓库内部 bootstrap driver
   完成真实标准库 Koven source 的 object/link/run；通用源码入口选择和公开 CLI 流水线仍未实现；
@@ -1179,6 +1187,11 @@ SymbolId 遮蔽、错误 AST 去级联、参数 binding、place overlap、源码
 Inout mutability、ASAP drop matrix、deferred 边界、重复运行确定性和真实 pass / fail fixture；
 fixture runner 精确枚举一个正例与一个反例，并核对 L0131、L0133–L0135 的 code 与 primary
 byte Span，领域测试另核对冲突来源和 move/declaration label。
+`tests/ownership_construction.rs` 的 6 个 integration test 覆盖 nominal/value-class、payload 与
+bare enum case、intrinsic `Box`、位置/命名参数源码求值顺序、copy/move/temporary delivery、
+inline/heap root obligation、嵌套构造、`Nothing` 截断、active loan，以及 local/temporary/
+return/branch/loop 的 transfer/drop；独立 Phase 3 fixture 精确核对 L0131，生产单元测试另锁定
+无效 construction descriptor 的内部错误边界。
 `tests/ownership_containers.rs` 的 12 个 integration test 覆盖列表式/运行时长度构造、三种
 容器的 Copyable/MoveOnly element read、Borrow/Inout、逻辑索引 overlap、字段容器路径、owner
 move、replacement 提交顺序、temporary owner drop、deferred 边界与重复运行确定性；Phase 3
@@ -1271,7 +1284,8 @@ control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返
 类型事实，以及 nominal/enum/Box construction target、实例化和 Value operand 映射也已实现；
 整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
-顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化已由
+顺序容器核心 element place 所有权，以及 construction ordered delivery/root obligation 已由
+独立 Phase 3 阶段实现；泛型 callable 实例化已由
 SPEC-0177 / SPEC-0174 实现。
 `object` / `companion object` 关联成员，以及容器
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
@@ -1280,8 +1294,8 @@ source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SP
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
-已允许未使用的声明型 type roots 共存；源码 nominal constructor 的 Phase 2 选择/实例化已完成，
-所有权与 codegen 接线仍等待 SPEC-0188/0184。
+已允许未使用的声明型 type roots 共存；源码 nominal constructor 的 Phase 2 选择/实例化和
+Phase 3 所有权 facts 已完成，codegen 接线仍等待 SPEC-0184。
 
 ## 更新要求
 

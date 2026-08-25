@@ -41,7 +41,7 @@ capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect
 已完成 typed SSA/verifier、标量 frontend→SSA→AArch64 LLVM IR，以及聚合/heap-owner、系统
 allocation、递归 drop/free、顺序容器连续缓冲区/checked-index/drop 后端基元，以及真实
 LLDB Koven 源码断点命中；SPEC-0183 已发布源码 constructor 的 Phase 2 typed facts，完整
-ownership 与 lowering 接线仍等待 0188/0184。Phase 5
+ownership facts 已由 SPEC-0188 发布，lowering 接线仍等待 0184。Phase 5
 容器 relocation API 仍待后续 Spec。Phase 6 已提供机器可读诊断、LSP diagnostics/definition、
 formatter，以及 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见
 [架构快照](./architecture/README.md)。

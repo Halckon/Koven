@@ -1,0 +1,7 @@
+class Resource {}
+value class Holder(val resource: Resource)
+
+fun invalid(own resource: Resource): Unit {
+    val holder = Holder(resource)
+    val reused = resource
+}

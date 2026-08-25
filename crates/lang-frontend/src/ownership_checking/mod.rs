@@ -2,6 +2,7 @@
 
 mod capture;
 mod checker;
+mod construction;
 mod error;
 mod model;
 
@@ -10,6 +11,10 @@ use crate::{
     type_checking::TypedFile,
 };
 
+pub use construction::{
+    ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,
+    ConstructionRootDropObligation, ConstructionRootKind,
+};
 pub use error::OwnershipCheckingError;
 pub use model::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,

@@ -65,7 +65,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   SPEC-0177 / SPEC-0174 完成 frontend 实施。
 - **v0.29 已明确启用**：§29 的 nominal/enum case/intrinsic Box constructor target、受控
   expected-result 推导及分阶段交接已成为现行语义，L0143–L0145 获得现行诊断含义；
-  SPEC-0183 / 0188 / 0184 仍按自身前置顺序实施，当前 frontend 继续保留 constructor deferred。
+  SPEC-0183 / 0188 已完成 typed 与 ownership facts，frontend→SSA/LLVM 接线由 SPEC-0184 承接。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -178,8 +178,8 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |
-| SPEC-0188 | constructor Value delivery 与 ownership facts | `01-design-decisions.md` §29、`../specs/0188-constructor-ownership-effects.md` | 📝 draft，前置 0183 已完成 |
-| SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29、`../specs/0184-nominal-construction-lowering.md` | ⏸️ draft，等待 0188 |
+| SPEC-0188 | constructor Value delivery 与 ownership facts | `01-design-decisions.md` §29、`../specs/0188-constructor-ownership-effects.md` | ✅ 已实现 |
+| SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29、`../specs/0184-nominal-construction-lowering.md` | 📝 draft，前置已完成 |
 | SPEC-0062 | v0.16 顶层声明换行 / 分号分隔增量 | `04-grammar-declarations-blocks.md` §10 | ✅ 已实现 |
 | SPEC-0063 | v0.19 postfix `?` 错误传播增量 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4/§6 | ✅ 已实现 |
 | SPEC-0064 | v0.20 `Interface by valField` 接口实现委托 Parser 增量 | `04-grammar-declarations-blocks.md` §13.3 | ✅ 已实现 |

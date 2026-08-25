@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 mod closure;
+mod construction;
 mod container;
 mod drop_planner;
 mod loan;
@@ -91,6 +92,7 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
+    construction: construction::Analysis,
     cross_thread_by_expression: BTreeMap<usize, Vec<bool>>,
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
@@ -173,6 +175,7 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             references_by_span,
             calls_by_expression,
+            construction: construction::Analysis::new(parsed, typed)?,
             cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
@@ -236,6 +239,7 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        let construction_plans = self.construction.finish(diagnostics.is_empty());
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
@@ -250,6 +254,7 @@ impl<'a> Checker<'a> {
                 bindings,
                 loans: self.loans,
                 drops,
+                construction_plans,
                 captures,
                 closures: self.closures,
                 transferabilities: self.transferabilities,
@@ -460,6 +465,9 @@ impl<'a> Checker<'a> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if let Some(descriptor) = self.construction.descriptor(id) {
+            return self.check_construction(descriptor, state, usage);
+        }
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {

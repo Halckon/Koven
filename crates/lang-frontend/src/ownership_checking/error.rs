@@ -15,6 +15,11 @@ pub enum OwnershipCheckingError {
     MismatchedTypedSource,
     /// NameResolution 与 TypedFile 不属于同一分析身份链。
     MismatchedAnalysisIdentity,
+    /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
+    InvalidConstructionDescriptor {
+        /// 无效 descriptor 的 expression arena 下标。
+        expression: usize,
+    },
     /// AST typed ID 不满足 Parser 前置不变量。
     Ast(AstError),
     /// 输入源码或 Span 不满足前置不变量。
@@ -37,6 +42,12 @@ impl fmt::Display for OwnershipCheckingError {
             Self::MismatchedAnalysisIdentity => {
                 formatter.write_str("name and typed files belong to different analyses")
             }
+            Self::InvalidConstructionDescriptor { expression } => {
+                write!(
+                    formatter,
+                    "invalid construction descriptor for expression {expression}"
+                )
+            }
             Self::Ast(error) => write!(formatter, "ownership AST error: {error}"),
             Self::Source(error) => write!(formatter, "ownership source error: {error}"),
             Self::DiagnosticCode(error) => {
@@ -56,7 +67,8 @@ impl Error for OwnershipCheckingError {
             Self::Diagnostic(error) => Some(error),
             Self::MismatchedNameSource
             | Self::MismatchedTypedSource
-            | Self::MismatchedAnalysisIdentity => None,
+            | Self::MismatchedAnalysisIdentity
+            | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }
 }

@@ -290,7 +290,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       复制 / 移动 owned capture；借用闭包不得逃逸，跨线程 typed effect 只接受可证明满足
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
       `Shareable` 延后到 v2
-- [ ] **SPEC-0188（v0.29，前置 SPEC-0183）**：消费 construction descriptor，检查每个
+- [x] **SPEC-0188（v0.29，已实现）**：消费 construction descriptor，检查每个
       Value operand 的 copy/move、构造 temporary owner、ASAP drop，发布有序 delivery effects
       与 root drop obligation；不在 Phase 3 重新选择 constructor、推导类型实参或制造逐字段
       source DropFact
@@ -336,8 +336,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       一般前缀负号仍保持 checked subtraction
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
-      基元；源码 constructor 已由 SPEC-0183 发布 typed facts，Value delivery/drop 与 SSA 接线
-      仍等待 SPEC-0188/0184，不按名称猜测构造器
+      基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，SSA 接线
+      仍等待 SPEC-0184，不按名称猜测构造器
 - [x] **SPEC-0036（已实现）**：已建立顺序容器 owner、完整构造、length、checked element
       place、替换与 drop 的 typed SSA/verifier，以及固定 header、单连续缓冲区、受检分配、
       检查先于寻址、逆序元素析构、唯一释放和 MoveOnly ZST 逻辑析构；Phase 5 尚未定义的
@@ -351,7 +351,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
-- [ ] **SPEC-0184（v0.29 候选，前置 SPEC-0183/0188）**：把 nominal/enum/Box construction、
+- [ ] **SPEC-0184（v0.29，前置 SPEC-0183/0188，前置已完成）**：把 nominal/enum/Box construction、
       projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
       value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与
       `Copyable` 能力保持正交
@@ -414,12 +414,12 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
 - [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
-      完整运行实现等待 SPEC-0188/0184 发布 ownership 与 lowering facts；现行 v0.29 已保持
+      完整运行实现等待 SPEC-0184 发布 lowering facts；现行 v0.29 已保持
       `value` 为硬关键字，并把核心 payload 名称封闭为 `Ok(success: T)`
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
       传入值所有权，调用点无 marker；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待 SPEC-0188/0184 的
-      ownership facts 与 aggregate/heap-owner lowering
+      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待 SPEC-0184 的
+      aggregate/heap-owner lowering
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；

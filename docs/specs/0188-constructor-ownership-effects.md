@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-188` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.29 §29](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029) |
@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0029 `done`；SPEC-0183 `done` 后方可实施 |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) |
-| 阻塞项 | SPEC-0183 未完成 |
+| 阻塞项 | 无；SPEC-0183 已完成 |
 | 影响范围 | `lang-frontend` ownership checker/model、Phase 3 fixtures；Architecture、Roadmap |
 | 语言语义变更 | 否；只消费已启用 guide 与 SPEC-0183 typed facts |
 
@@ -58,17 +58,17 @@ Phase 3 Goal。
 
 ## 5. 验收标准
 
-- [ ] Copyable/MoveOnly field、payload 与 Box operand 分别产生 copy/move，MoveOnly 源的后续使用
+- [x] Copyable/MoveOnly field、payload 与 Box operand 分别产生 copy/move，MoveOnly 源的后续使用
       L0131，Borrow/Inout 来源非法 owned delivery 产生 L0133，primary/label 精确。
-- [ ] 位置/命名参数的求值与 effect 始终按源码顺序，参数声明顺序只决定最终字段槽位；嵌套
+- [x] 位置/命名参数的求值与 effect 始终按源码顺序，参数声明顺序只决定最终字段槽位；嵌套
       construction、`Nothing` operand 和较早移动影响较晚 operand 均有测试。
-- [ ] construction result 的 local/temporary/return/再次 Value delivery/分支/loop 正常路径 owner
+- [x] construction result 的 local/temporary/return/再次 Value delivery/分支/loop 正常路径 owner
       与 ASAP drop facts 精确；含 MoveOnly 字段的 root 每条正常路径恰好一个最终 drop obligation。
-- [ ] 无 payload enum、全 Copyable value/enum 不获得虚假 drop；class/Box handle 只产生一个
+- [x] 无 payload enum、全 Copyable value/enum 不获得虚假 drop；class/Box handle 只产生一个
       root owner，字段不产生独立源码 DropFact 或可部分移动状态。
-- [ ] 白盒测试证明 payload `Call` 与无 payload `Name` / `Member` 都跳过 type/case callee 求值；
+- [x] 白盒测试证明 payload `Call` 与无 payload `Name` / `Member` 都跳过 type/case callee 求值；
       position/named operand 的 ordered delivery effects 可由 SPEC-0184 直接消费。
-- [ ] Phase 3 fixtures、ownership 白盒窄测和 workspace 五项标准基线通过；Architecture/Roadmap/
+- [x] Phase 3 fixtures、ownership 白盒窄测和 workspace 五项标准基线通过；Architecture/Roadmap/
       Spec 同步，production 文件遵守 1000 行软上限。
 
 ## 6. 技术方案与边界
@@ -85,11 +85,11 @@ Phase 3 Goal。
 
 ## 7. 实施计划
 
-1. [ ] 建立 construction ownership plan/model → 验证：foreign/invalid descriptor 内部边界。
-2. [ ] 接入 Value copy/move、result owner 与 ASAP drop → 验证：领域正反矩阵和诊断 Span。
-3. [ ] 接入 root drop obligation 与 Phase 3 fixtures → 验证：路径/顺序/确定性白盒测试，确认
+1. [x] 建立 construction ownership plan/model → 验证：foreign/invalid descriptor 内部边界。
+2. [x] 接入 Value copy/move、result owner 与 ASAP drop → 验证：领域正反矩阵和诊断 Span。
+3. [x] 接入 root drop obligation 与 Phase 3 fixtures → 验证：路径/顺序/确定性白盒测试，确认
    不生成独立字段 DropFact。
-4. [ ] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
+4. [x] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
 
@@ -99,10 +99,14 @@ Phase 3 Goal。
 
 ## 9. 未决问题
 
-- 无设计留白；版本门禁与 SPEC-0183 前置未解除。
+- 无设计留白；版本门禁与 SPEC-0183 前置均已解除。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 等待前置 | SPEC-0029 已具备 Value delivery/ASAP drop 基元；已把现有 root DropFact/temporary 模型与 constructor 交接收敛为 ordered delivery effects + root obligation；v0.29/0183 尚未解除门禁 |
+| 2026-08-25 前置审计 | 通过 | v0.29 已生效，SPEC-0029/0183 `done`；现有 Value delivery、loan 与 ASAP drop 基元可直接复用，无 ADR 或新诊断前置 |
+| `cargo test -p lang-frontend --test ownership_checking --test ownership_structural --test ownership_containers --test ownership_closures --test ownership_construction` | 通过 | 47 项 Phase 3 integration tests；construction 新增 6 项，覆盖 ordered effects、root obligation、诊断原子性、路径与 fixture |
+| `cargo test -p lang-frontend ownership_checking::checker::construction::tests::invalid_argument_identity_is_an_internal_error` | 通过 | 生产单元测试锁定无效 descriptor 内部错误；其余 test binaries 以 filter 运行 0 项 |
+| `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | 无 warning；主 checker 保持 1000 行软上限，新职责位于独立 construction 模块 |
+| 2026-08-25 workspace 五项标准基线 | 通过 | `cargo fmt --all -- --check`、workspace check、Clippy `-D warnings`、workspace all-target tests、`cargo build -p lang-cli` 均退出 0；codegen 101 passed / 1 个既有 LLDB 权限测试 ignored，frontend unit 40 passed，construction integration 6 passed |

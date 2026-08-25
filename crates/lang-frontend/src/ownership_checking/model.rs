@@ -8,6 +8,8 @@ use crate::{
     type_checking::{TypeId, TypedFile},
 };
 
+use super::ConstructionOwnershipPlan;
+
 /// 可由 Phase 3 精确识别的源码 place。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OwnershipPlace {
@@ -500,6 +502,7 @@ pub struct OwnershipCheckedFile {
     bindings: Vec<OwnershipBindingDescriptor>,
     loans: Vec<LoanFact>,
     drops: Vec<DropFact>,
+    construction_plans: Vec<ConstructionOwnershipPlan>,
     captures: Vec<ClosureCaptureDescriptor>,
     closures: Vec<ClosureDescriptor>,
     transferabilities: Vec<Transferability>,
@@ -510,6 +513,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
     pub(crate) loans: Vec<LoanFact>,
     pub(crate) drops: Vec<DropFact>,
+    pub(crate) construction_plans: Vec<ConstructionOwnershipPlan>,
     pub(crate) captures: Vec<ClosureCaptureDescriptor>,
     pub(crate) closures: Vec<ClosureDescriptor>,
     pub(crate) transferabilities: Vec<Transferability>,
@@ -532,6 +536,7 @@ impl OwnershipCheckedFile {
             bindings: parts.bindings,
             loans: parts.loans,
             drops: parts.drops,
+            construction_plans: parts.construction_plans,
             captures: parts.captures,
             closures: parts.closures,
             transferabilities: parts.transferabilities,
@@ -597,6 +602,23 @@ impl OwnershipCheckedFile {
     #[must_use]
     pub fn drops(&self) -> &[DropFact] {
         &self.drops
+    }
+
+    /// 返回运行时求值顺序稳定的 construction ownership plans。
+    #[must_use]
+    pub fn construction_plans(&self) -> &[ConstructionOwnershipPlan] {
+        &self.construction_plans
+    }
+
+    /// 查询指定 typed construction 的 ordered-delivery/root plan。
+    #[must_use]
+    pub fn construction_plan(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&ConstructionOwnershipPlan> {
+        self.construction_plans
+            .iter()
+            .find(|plan| plan.construction() == expression)
     }
 
     /// 返回 lambda/source 顺序稳定的 capture facts。
