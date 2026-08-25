@@ -16,33 +16,15 @@ use super::*;
 mod generic;
 
 #[derive(Clone)]
-struct CallParameter {
-    name: Option<String>,
-    mode: ParameterMode,
-    ty: TypeId,
-    span: Option<Span>,
-}
-
-#[derive(Clone)]
 struct CallCandidate {
     target: CallableTarget,
     declaration_span: Option<Span>,
     type_parameters: Vec<SymbolId>,
     instance_arguments: Vec<TypeId>,
-    parameters: Vec<CallParameter>,
+    parameters: Vec<MappedParameter>,
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,
-}
-
-#[derive(Clone, Copy)]
-enum MappingError {
-    Named(Span),
-    Arity(Span),
-    Mode {
-        primary: Span,
-        parameter: Option<Span>,
-    },
 }
 
 impl Checker<'_> {
@@ -55,6 +37,16 @@ impl Checker<'_> {
         arguments: Vec<CallArgument>,
         expected: Option<TypeId>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        if let Some(result) = self.check_construction_call(
+            expression,
+            call_span,
+            callee,
+            &type_arguments,
+            &arguments,
+            expected,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_intrinsic_container_call(
             expression,
             call_span,
@@ -103,7 +95,7 @@ impl Checker<'_> {
                     instance_arguments: Vec::new(),
                     parameters: parameters
                         .into_iter()
-                        .map(|parameter| CallParameter {
+                        .map(|parameter| MappedParameter {
                             name: None,
                             mode: parameter.mode,
                             ty: parameter.ty,
@@ -151,7 +143,7 @@ impl Checker<'_> {
         let mut mapped = Vec::new();
         let mut first_error = None;
         for candidate in candidates {
-            match self.map_arguments(&candidate, &arguments, call_span)? {
+            match self.map_arguments(&candidate.parameters, &arguments, call_span)? {
                 Ok(mapping) => mapped.push((candidate, mapping)),
                 Err(error) => {
                     first_error.get_or_insert(error);
@@ -326,6 +318,8 @@ impl Checker<'_> {
         let baseline = self.trial_state();
         let baseline_diagnostics = self.diagnostics.len();
         let mut successes = Vec::new();
+        let previous_candidate_local_expected = self.candidate_local_expected;
+        self.candidate_local_expected = true;
         for (candidate, mapping) in candidates {
             self.restore_trial_state(baseline.clone());
             let declaration_span = candidate.declaration_span;
@@ -338,6 +332,7 @@ impl Checker<'_> {
                 successes.push((self.trial_state(), result, declaration_span));
             }
         }
+        self.candidate_local_expected = previous_candidate_local_expected;
         self.restore_trial_state(baseline);
 
         match successes.len() {
@@ -552,7 +547,7 @@ impl Checker<'_> {
         let mut parameters = Vec::with_capacity(descriptor.parameters().len());
         for (index, parameter) in descriptor.parameters().iter().enumerate() {
             let symbol = descriptor.parameter_symbols()[index];
-            parameters.push(CallParameter {
+            parameters.push(MappedParameter {
                 name: symbol
                     .map(|symbol| self.sources.slice(self.symbol_spans[symbol.index()]))
                     .transpose()?
@@ -586,7 +581,7 @@ impl Checker<'_> {
         let parameters = signature
             .parameters
             .iter()
-            .map(|parameter| CallParameter {
+            .map(|parameter| MappedParameter {
                 name: None,
                 mode: parameter.mode,
                 ty: self.normalize_environment_type(&parameter.ty),
@@ -614,81 +609,6 @@ impl Checker<'_> {
                 .effects
                 .contains(&EnvironmentFunctionEffect::Abort),
         }))
-    }
-
-    fn map_arguments(
-        &self,
-        candidate: &CallCandidate,
-        arguments: &[CallArgument],
-        call_span: Span,
-    ) -> Result<Result<Vec<usize>, MappingError>, TypeCheckingError> {
-        let mut mapping = Vec::with_capacity(arguments.len());
-        let mut used = BTreeSet::new();
-        let mut next_position = 0;
-        let mut saw_named = false;
-        for argument in arguments {
-            let parameter_index = if let Some(prefix) = argument.named_prefix {
-                saw_named = true;
-                let name = self.sources.slice(prefix.name_span)?;
-                let Some(index) = candidate
-                    .parameters
-                    .iter()
-                    .position(|parameter| parameter.name.as_deref() == Some(name))
-                else {
-                    return Ok(Err(MappingError::Named(prefix.name_span)));
-                };
-                if !used.insert(index) {
-                    return Ok(Err(MappingError::Named(prefix.name_span)));
-                }
-                index
-            } else {
-                if saw_named {
-                    return Ok(Err(MappingError::Named(argument.span)));
-                }
-                while used.contains(&next_position) {
-                    next_position += 1;
-                }
-                if next_position >= candidate.parameters.len() {
-                    return Ok(Err(MappingError::Arity(argument.span)));
-                }
-                let index = next_position;
-                used.insert(index);
-                next_position += 1;
-                index
-            };
-            let parameter = &candidate.parameters[parameter_index];
-            let mode_matches = match (argument.mode_marker, parameter.mode) {
-                (None, ParameterMode::Value | ParameterMode::Borrow) => true,
-                (Some(ParameterModeMarker::Borrow(_)), ParameterMode::Borrow) => true,
-                (Some(ParameterModeMarker::Inout(_)), ParameterMode::Inout) => {
-                    self.expression_types[argument.value.index()].map_or_else(
-                        || self.is_syntactic_place(argument.value),
-                        |_| {
-                            self.expression_categories[argument.value.index()]
-                                == ExpressionCategory::Place
-                                && self
-                                    .is_mutable_element_place(argument.value)
-                                    .unwrap_or(true)
-                        },
-                    )
-                }
-                _ => false,
-            };
-            if !mode_matches {
-                return Ok(Err(MappingError::Mode {
-                    primary: argument
-                        .mode_marker
-                        .map(parameter_mode_span)
-                        .unwrap_or(argument.span),
-                    parameter: parameter.span,
-                }));
-            }
-            mapping.push(parameter_index);
-        }
-        if used.len() != candidate.parameters.len() {
-            return Ok(Err(MappingError::Arity(call_span)));
-        }
-        Ok(Ok(mapping))
     }
 
     fn finish_unique_call(
@@ -803,38 +723,6 @@ impl Checker<'_> {
         })
     }
 
-    fn emit_mapping_error(&mut self, error: MappingError) -> Result<(), TypeCheckingError> {
-        match error {
-            MappingError::Named(primary) => self.emit(
-                self.invalid_named_argument_code,
-                "named argument does not map uniquely to a callable parameter",
-                primary,
-            ),
-            MappingError::Arity(primary) => self.emit(
-                self.call_argument_arity_code,
-                "call must fill every parameter exactly once",
-                primary,
-            ),
-            MappingError::Mode { primary, parameter } => {
-                if let Some(parameter) = parameter {
-                    self.emit_with_label(
-                        self.call_argument_mode_code,
-                        "argument marker does not match the parameter contract",
-                        primary,
-                        parameter,
-                        "parameter contract declared here",
-                    )
-                } else {
-                    self.emit(
-                        self.call_argument_mode_code,
-                        "argument marker does not match the parameter contract",
-                        primary,
-                    )
-                }
-            }
-        }
-    }
-
     pub(super) fn classify_expression_category(
         &self,
         expression: ExpressionId,
@@ -883,7 +771,7 @@ impl Checker<'_> {
         }
     }
 
-    fn is_syntactic_place(&self, expression: ExpressionId) -> bool {
+    pub(super) fn is_syntactic_place(&self, expression: ExpressionId) -> bool {
         let Ok(node) = self.ast().expressions().get(expression) else {
             return false;
         };
@@ -905,13 +793,5 @@ impl Checker<'_> {
             Expression::Group { expression } => self.is_syntactic_place(*expression),
             _ => false,
         }
-    }
-}
-
-const fn parameter_mode_span(marker: ParameterModeMarker) -> Span {
-    match marker {
-        ParameterModeMarker::Own(span)
-        | ParameterModeMarker::Borrow(span)
-        | ParameterModeMarker::Inout(span) => span,
     }
 }

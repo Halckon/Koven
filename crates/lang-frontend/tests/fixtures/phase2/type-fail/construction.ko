@@ -1,0 +1,7 @@
+interface Contract
+class Marker<T> {}
+
+fun invalid(): Unit {
+    val contract = Contract()
+    val marker = Marker()
+}

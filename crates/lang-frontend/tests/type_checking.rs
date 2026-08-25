@@ -69,6 +69,10 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     ];
     let containers = [
         (
+            names.declare_type("Box").expect("Box"),
+            IntrinsicTypeConstructor::Box,
+        ),
+        (
             names.declare_type("Array").expect("Array"),
             IntrinsicTypeConstructor::Array,
         ),
@@ -344,6 +348,211 @@ fn generic_enum_case_tests_substitute_root_arguments_for_payloads() {
                 }";
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn bare_enum_cases_publish_zero_operand_construction_facts() {
+    let text = "enum class Flag { On, Off }
+                enum class Maybe<T> { Some(item: T), None }
+                fun flag(): Flag = Flag.On
+                fun none(): Maybe<Int> = Maybe.None";
+    let (_, _, names, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constructions().len(), 2);
+    assert_eq!(typed.constructions()[0].arguments(), []);
+    assert_eq!(typed.constructions()[1].arguments(), []);
+    assert_eq!(
+        typed.constructions()[0].target(),
+        lang_frontend::type_checking::ConstructionTarget::EnumCase(names.enum_cases()[0].id())
+    );
+    assert_eq!(
+        typed.constructions()[1].instance().type_arguments().len(),
+        1
+    );
+    assert!(typed.calls().is_empty());
+}
+
+#[test]
+fn generic_bare_enum_case_requires_an_independent_expected_root() {
+    let text = "enum class Maybe<T> { Some(item: T), None }
+                fun invalid(): Unit { val result = Maybe.None }";
+    let (sources, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0144"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("constructor span"),
+        "None"
+    );
+    assert!(typed.constructions().is_empty());
+}
+
+#[test]
+fn nominal_and_payload_constructions_publish_instantiated_value_mappings() {
+    let text = "class Resource {}
+                class Holder<T>(val item: T)
+                value class Pair<T>(val first: T, val second: T)
+                enum class Maybe<T> { Some(item: T), None }
+                fun resource(): Resource = Resource()
+                fun holder(): Holder<Int> = Holder(1)
+                fun pair(): Pair<Int> = Pair(second = 2, first = 1)
+                fun some(): Maybe<Int> = Maybe.Some(1)";
+    let (sources, parsed) = parse(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constructions(), repeated.constructions());
+    assert_eq!(typed.constructions().len(), 4);
+    assert!(typed.calls().is_empty());
+    assert_eq!(typed.constructions()[0].arguments(), []);
+    assert_eq!(
+        typed.constructions()[1].instance().type_arguments().len(),
+        1
+    );
+    let pair = &typed.constructions()[2];
+    assert_eq!(pair.arguments()[0].parameter_name(), "first");
+    assert_eq!(pair.arguments()[0].evaluation_index(), 1);
+    assert_eq!(pair.arguments()[1].parameter_name(), "second");
+    assert_eq!(pair.arguments()[1].evaluation_index(), 0);
+    assert!(matches!(
+        typed.constructions()[3].target(),
+        lang_frontend::type_checking::ConstructionTarget::EnumCase(_)
+    ));
+    for construction in typed.constructions() {
+        assert_eq!(
+            typed.expression_type(construction.expression()),
+            Some(construction.result_type())
+        );
+    }
+}
+
+#[test]
+fn expected_result_and_intrinsic_box_complete_construction_instances() {
+    let text = "class Marker<T> {}
+                value class Point(val x: Int)
+                fun marker(): Marker<Int> = Marker()
+                fun boxed(): Box<Point> = Box(Point(1))
+                fun explicit(): Box<Point> = Box<Point>(Point(2))";
+    let (_, _, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constructions().len(), 5);
+    assert!(matches!(
+        typed.constructions()[2].target(),
+        lang_frontend::type_checking::ConstructionTarget::IntrinsicBox
+    ));
+    assert!(typed.calls().is_empty());
+}
+
+#[test]
+fn invalid_and_underconstrained_constructions_fail_without_typed_facts() {
+    let text = "interface Contract
+                enum class Choice { One }
+                class Marker<T> {}
+                fun invalidTargets(): Unit {
+                    val contract = Contract()
+                    val choice = Choice()
+                }
+                fun missing(): Unit { val result = Marker() }";
+    let (sources, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0143", "L0143", "L0144"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("span"),
+        "Contract"
+    );
+    assert!(typed.constructions().is_empty());
+}
+
+#[test]
+fn uninstantiated_outer_type_parameters_do_not_complete_constructor_inference() {
+    let text = "class Marker<T> {}
+                fun <T> invalid(): Marker<T> = Marker()";
+    let (_, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0144"]);
+    assert!(typed.constructions().is_empty());
+}
+
+#[test]
+fn constructor_overload_trials_commit_only_the_unique_nested_fact() {
+    let text = "class Marker<T> {}
+                fun choose(action: () -> Marker<Int>): Int = 1
+                fun choose(action: () -> Marker<Long>): Long = 1L
+                fun selected(): Int = choose({ Marker<Int>() })";
+    let (_, _, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constructions().len(), 1);
+    assert_eq!(
+        typed.constructions()[0].instance().type_arguments().len(),
+        1
+    );
+}
+
+#[test]
+fn candidate_local_expected_does_not_infer_nested_constructor_arguments() {
+    let text = "class Marker<T> {}
+                fun choose(action: () -> Marker<Int>): Int = 1
+                fun choose(action: () -> Marker<Long>): Long = 1L
+                fun rejected(): Unit { val result = choose({ Marker() }) }";
+    let (_, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0123"]);
+    assert!(typed.constructions().is_empty());
+}
+
+#[test]
+fn source_box_name_keeps_nominal_constructor_identity() {
+    let text = "class Box<T>(val item: T)
+                fun source(): Box<Int> = Box(1)";
+    let (_, _, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(matches!(
+        typed.constructions()[0].target(),
+        lang_frontend::type_checking::ConstructionTarget::Nominal(_)
+    ));
+}
+
+#[test]
+fn construction_reuses_named_arity_mode_and_type_diagnostics() {
+    let text = "class Pair(val first: Int, val second: Int)
+                fun named(): Unit { val result = Pair(missing = 1, second = 2) }
+                fun arity(): Unit { val result = Pair(1) }
+                fun mode(): Unit { val result = Pair(borrow 1, 2) }
+                fun typed(): Unit { val result = Pair(true, 2) }";
+    let (sources, _, _, typed) = checked(text);
+
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0120", "L0121", "L0122", "L0084"]
+    );
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("named span"),
+        "missing"
+    );
+    assert!(typed.constructions().is_empty());
+}
+
+#[test]
+fn construction_reuses_capability_bound_diagnostics() {
+    let text = "class Resource {}
+                class NeedsCopy<T: Copyable> {}
+                fun invalid(): Unit { val result = NeedsCopy<Resource>() }";
+    let (_, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0115"]);
+    assert!(typed.constructions().is_empty());
 }
 
 #[test]
@@ -1038,7 +1247,7 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
             .map(|entry| entry.expect("fixture entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
             .collect::<Vec<_>>();
-        assert_eq!(files.len(), 9, "zero or unexpected {directory} fixtures");
+        assert_eq!(files.len(), 10, "zero or unexpected {directory} fixtures");
         for path in files {
             let text = fs::read_to_string(&path).expect("UTF-8 fixture");
             let (_, _, _, typed) = checked(&text);

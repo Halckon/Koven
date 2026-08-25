@@ -1,4 +1,6 @@
+mod argument_mapping;
 mod callable;
+mod construction;
 mod container;
 mod copyability;
 mod delegation;
@@ -12,6 +14,7 @@ mod members;
 mod nominal;
 mod projection;
 mod trial;
+mod type_inference;
 mod type_ref;
 mod when;
 
@@ -33,14 +36,15 @@ use crate::{
 
 use super::{
     AggregateProjectionDescriptor, BuiltinType, CallDescriptor, CallableDescriptor, Capability,
-    ContainerConstructionDescriptor, Copyability, DeferredReason, DelegationPlan,
-    DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor, EnvironmentFunction,
-    EnvironmentType, ExpressionCategory, ExternalTypeBinding, FunctionParameterType,
-    IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
+    ConstructionDescriptor, ContainerConstructionDescriptor, Copyability, DeferredReason,
+    DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
+    EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
+    FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
     ParameterBindingDescriptor, ParameterMode, SequentialContainerKind, TypeCheckingError,
     TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
     TypedFile, TypedFileParts,
 };
+use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
 
 #[derive(Clone, Copy)]
@@ -125,11 +129,13 @@ struct Checker<'a> {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
     loop_depth: usize,
+    candidate_local_expected: bool,
     classifiers: Vec<TypeId>,
     diagnostics: Vec<Diagnostic>,
     builtin_arguments_code: DiagnosticCode,
@@ -176,6 +182,8 @@ struct Checker<'a> {
     no_matching_overload_code: DiagnosticCode,
     ambiguous_call_code: DiagnosticCode,
     generic_call_inference_code: DiagnosticCode,
+    invalid_construction_target_code: DiagnosticCode,
+    construction_inference_code: DiagnosticCode,
     transferable_type_argument_bound_code: DiagnosticCode,
     invalid_container_element_code: DiagnosticCode,
     cannot_infer_container_element_code: DiagnosticCode,
@@ -281,11 +289,13 @@ impl<'a> Checker<'a> {
                 parsed.ast().expressions().len()
             ],
             calls: Vec::new(),
+            constructions: Vec::new(),
             aggregate_projections: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
             loop_depth: 0,
+            candidate_local_expected: false,
             classifiers: Vec::new(),
             diagnostics: Vec::new(),
             builtin_arguments_code: catalog.resolve(codes::BUILTIN_TYPE_ARGUMENTS)?,
@@ -335,6 +345,9 @@ impl<'a> Checker<'a> {
             no_matching_overload_code: catalog.resolve(codes::NO_MATCHING_OVERLOAD)?,
             ambiguous_call_code: catalog.resolve(codes::AMBIGUOUS_CALL)?,
             generic_call_inference_code: catalog.resolve(codes::GENERIC_CALL_INFERENCE)?,
+            invalid_construction_target_code: catalog
+                .resolve(codes::INVALID_CONSTRUCTION_TARGET)?,
+            construction_inference_code: catalog.resolve(codes::CONSTRUCTION_INFERENCE)?,
             transferable_type_argument_bound_code: catalog
                 .resolve(codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND)?,
             invalid_container_element_code: catalog.resolve(codes::INVALID_CONTAINER_ELEMENT)?,
@@ -414,6 +427,7 @@ impl<'a> Checker<'a> {
                 destructurings: self.destructurings,
                 expression_categories: self.expression_categories,
                 calls: self.calls,
+                constructions: self.constructions,
                 aggregate_projections: self.aggregate_projections,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,

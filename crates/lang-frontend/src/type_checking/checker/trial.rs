@@ -4,9 +4,9 @@ use crate::{
     diagnostic::Diagnostic,
     name_resolution::ExternalSymbolId,
     type_checking::{
-        AggregateProjectionDescriptor, CallDescriptor, ContainerConstructionDescriptor,
-        DestructuringDescriptor, ElementPlaceDescriptor, ExpressionCategory, ParameterMode, TypeId,
-        TypeTable,
+        AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
+        ContainerConstructionDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
+        ExpressionCategory, ParameterMode, TypeId, TypeTable,
     },
 };
 
@@ -28,6 +28,7 @@ pub(super) struct TrialState {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
@@ -47,6 +48,7 @@ impl Checker<'_> {
             destructurings: self.destructurings.clone(),
             expression_categories: self.expression_categories.clone(),
             calls: self.calls.clone(),
+            constructions: self.constructions.clone(),
             aggregate_projections: self.aggregate_projections.clone(),
             container_constructions: self.container_constructions.clone(),
             element_places: self.element_places.clone(),
@@ -65,6 +67,7 @@ impl Checker<'_> {
         self.destructurings = state.destructurings;
         self.expression_categories = state.expression_categories;
         self.calls = state.calls;
+        self.constructions = state.constructions;
         self.aggregate_projections = state.aggregate_projections;
         self.container_constructions = state.container_constructions;
         self.element_places = state.element_places;

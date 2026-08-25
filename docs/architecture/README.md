@@ -2,15 +2,17 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.28 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.29 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
 建立条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构类型事实；SPEC-0067 已
 建立单态 callable/member 选择、实参映射与类型层面 place 分类；SPEC-0023 已建立顺序容器
 类型、核心构造和 element-place 类型事实；SPEC-0178 已检查 `break` / `continue` 的最近词法
-loop 与 callable boundary，并以 L0142 拒绝无目标 jump；SPEC-0027 已建立整变量所有权状态与
-use-after-move 检查；SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
+loop 与 callable boundary，并以 L0142 拒绝无目标 jump；SPEC-0183 已发布 nominal、enum case
+与 intrinsic `Box` 的构造目标、完整实例和有序 Value operand typed facts，并以 L0143–L0144
+拒绝非法目标和不完整/冲突推断；SPEC-0027 已建立整变量所有权状态与 use-after-move 检查；
+SPEC-0028 已建立条件复制、消费式解构和结构分量移动检查；
 SPEC-0173 已让唯一期望函数类型的 lambda 采用 Value/Borrow/Inout 参数契约，并发布稳定
 parameter binding typed facts；
 SPEC-0175 已让 block 内未分组 lambda 实参优先进入 expression parser，不再被 outer block stop
@@ -92,7 +94,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0142` 正式前端错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0144` 正式前端错误码与
   确定性聚合顺序。`kovenc` binary 的默认纯文本 renderer 与显式 schema v1 JSON Lines
   renderer 均由 formatter 用户诊断复用；machine location 同时携带半开 UTF-8 byte range 与
   1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range，也尚未接入未实现的公开 build 流水线；
@@ -186,7 +188,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   provider runtime 已迁移到候选 0182。SPEC-0035 已完成不依赖源码 constructor 选择的 named
   aggregate/heap-owner SSA、整体 construct/project/explode、heap allocate、payload/field place、
   线性 ownership/loan verifier、LLVM first-class aggregate/DataLayout、系统 allocation 与递归
-  drop/free；源码 constructor/field/destructuring facts 接线仍等待候选 0183/0188/0184。显式 verified
+  drop/free；源码 constructor 已发布 Phase 2 typed facts，Value delivery/root drop 与
+  SSA 接线仍分别等待 SPEC-0188/0184。显式 verified
   SSA entry 已能生成 Mach-O object、经 clang 链接并运行；SPEC-0042 已提供仅接收 resolved
   `SymbolId` 的单文件 source-analysis→object workspace API，并由仓库内部 bootstrap driver
   完成真实标准库 Koven source 的 object/link/run；通用源码入口选择和公开 CLI 流水线仍未实现；
@@ -527,7 +530,7 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 语义模型：
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
-  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0142`，覆盖
+  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0144`，覆盖
   Lexer、Parser、名称、类型和所有权错误；`L0016` 为不再由生产 Parser 发出的历史类别，
   `L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
@@ -1265,7 +1268,8 @@ callable 参数与 typed call argument、局部解构、完整文件与 package 
 control-flow、class-family、窄化接口委托、具名函数隐式 `Unit` 返回标注、单文件名称解析、
 基础类型检查、名义/泛型/interface 检查及分层 fixture harness 已存在；enum case type、
 `when` 穷尽性、smart cast、条件 `Copyable`、单态 callable/member 选择与顺序容器 Phase 2
-类型事实也已实现；整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
+类型事实，以及 nominal/enum/Box construction target、实例化和 Value operand 映射也已实现；
+整变量 MoveOnly / Copyable 状态、use-after-move、消费式 value-class
 解构、字段 / 自动结构分量的部分移动拒绝、调用期 loan、owned-value ASAP drop facts 与
 顺序容器核心 element place 所有权已由独立 Phase 3 阶段实现；泛型 callable 实例化已由
 SPEC-0177 / SPEC-0174 实现。
@@ -1276,8 +1280,8 @@ source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SP
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
 `kovenc build`、多文件标准库或公共 prelude。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
-已允许未使用的声明型 type roots 共存，源码 nominal constructor 接线仍等待候选
-0183/0188/0184。
+已允许未使用的声明型 type roots 共存；源码 nominal constructor 的 Phase 2 选择/实例化已完成，
+所有权与 codegen 接线仍等待 SPEC-0188/0184。
 
 ## 更新要求
 

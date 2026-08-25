@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-183` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.29 §29](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029) |
@@ -63,19 +63,19 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 
 ## 5. 验收标准
 
-- [ ] compile-pass 覆盖非泛型/泛型 class 与 value class、显式/operand/expected-result 实例化、
+- [x] compile-pass 覆盖非泛型/泛型 class 与 value class、显式/operand/expected-result 实例化、
       payload/无 payload enum case、显式/推导 `Box`、位置/命名参数和同名 source `Box`。
-- [ ] compile-fail 覆盖 interface/object/enum-root target（L0143），无约束/冲突推导（L0144），
+- [x] compile-fail 覆盖 interface/object/enum-root target（L0143），无约束/冲突推导（L0144），
       arity/bound/参数 name-count-mode-type 复用诊断，并断言 primary/label `Span`；尚未决 overload
       的 candidate-local expected type 与未实例化外层泛型参数都不能补齐 constructor 类型实参。
-- [ ] 白盒测试证明 target/instance/result/参数声明顺序/evaluation index 精确，成功重复运行确定，
+- [x] 白盒测试证明 target/instance/result/参数声明顺序/evaluation index 精确，成功重复运行确定，
       失败不发布 descriptor；generic no-payload case 只从独立确定的同 root expected type 得到
       实例，并且 descriptor 绑定裸 `Name` / `Member` expression。
-- [ ] trial 回归证明失败/歧义 overload 丢弃 nested construction descriptor；成功 construction
+- [x] trial 回归证明失败/歧义 overload 丢弃 nested construction descriptor；成功 construction
       没有普通 `CallDescriptor`，Phase 3 可只遍历源码 operand 而不读取 type/case callee。
-- [ ] ordinary generic call、container intrinsic、overload-lambda、field projection、when smart cast
+- [x] ordinary generic call、container intrinsic、overload-lambda、field projection、when smart cast
       与 `Box<T>` kind 检查回归不变。
-- [ ] `lang-frontend` 窄测试和 workspace 五项标准基线通过；Architecture/Roadmap/Spec 只陈述
+- [x] `lang-frontend` 窄测试和 workspace 五项标准基线通过；Architecture/Roadmap/Spec 只陈述
       已实现 typed facts，production 文件遵守 1000 行软上限。
 
 ## 6. 技术方案与边界
@@ -96,10 +96,10 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 
 ## 7. 实施计划
 
-1. [ ] 注册 L0143–L0144 与 construction model → 验证：catalog/model 单测。
-2. [ ] 实现 target 识别、受控实例化与参数映射 → 验证：constructor type 专测正反矩阵。
-3. [ ] 发布原子 descriptor 并接入 Phase 2 fixtures → 验证：白盒 facts、determinism、相邻回归。
-4. [ ] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
+1. [x] 注册 L0143–L0144 与 construction model → 验证：catalog/model 单测。
+2. [x] 实现 target 识别、受控实例化与参数映射 → 验证：constructor type 专测正反矩阵。
+3. [x] 发布原子 descriptor 并接入 Phase 2 fixtures → 验证：白盒 facts、determinism、相邻回归。
+4. [x] 同步 Architecture/Roadmap/Spec，运行 workspace 基线 → 验证：全部实际退出码为 0。
 
 ## 8. 提交计划
 
@@ -117,3 +117,7 @@ Phase 4 也不能把源码构造接到 SPEC-0035/ADR-0008 的聚合与 heap-owne
 |---|---|---|
 | 2026-08-25 前置审计 | 通过但有版本门禁 | 0020/0022/0067/0177 `done`；所需 identity、字段/case 顺序、expected-type 入口、trial 与泛型 matcher 已存在；已收紧 expected 来源、裸 no-payload descriptor 和 trial 回滚契约；v0.29 尚未启用 |
 | 2026-08-25 v0.29 启用 | 通过 | 用户明确指定 v0.29 取代 v0.28；版本门禁解除，尚未开始实现 |
+| `cargo test -p lang-frontend --test diagnostic_model --test type_checking --test type_callable` | 通过 | 67 项；覆盖 L0143–L0144 catalog、构造正反矩阵、共享推断/映射与 overload trial 回滚 |
+| `cargo test -p lang-codegen --lib ssa::lower_frontend_tests::declarative_type_roots_do_not_enter_the_scalar_instance_graph` | 通过 | Phase 2 构造事实存在后，锁定 SPEC-0188/0184 缺失事实门禁 |
+| `cargo test --workspace --all-targets` | 通过 | workspace 全量通过；1 项 LLDB/debugserver 权限测试按既有配置 ignored |
+| workspace fmt/check/Clippy/build 标准基线 | 通过 | `cargo fmt --all -- --check`、workspace all-targets check、Clippy `-D warnings`、`cargo build -p lang-cli` 均退出 0 |

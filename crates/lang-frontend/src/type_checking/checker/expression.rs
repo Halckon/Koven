@@ -37,10 +37,16 @@ impl Checker<'_> {
                 ty: self.error_type(),
                 falls_through: true,
             },
-            Expression::Name => ExprCheck {
-                ty: self.name_expression_type(id, span)?,
-                falls_through: true,
-            },
+            Expression::Name => {
+                if let Some(result) = self.check_bare_enum_construction(id, expected)? {
+                    result
+                } else {
+                    ExprCheck {
+                        ty: self.name_expression_type(id, span)?,
+                        falls_through: true,
+                    }
+                }
+            }
             Expression::This => ExprCheck {
                 ty: self
                     .flow_facts
@@ -213,7 +219,13 @@ impl Checker<'_> {
                 name_span,
                 safe,
                 ..
-            } => self.check_member(id, receiver, name_span, safe)?,
+            } => {
+                if let Some(result) = self.check_bare_enum_construction(id, expected)? {
+                    result
+                } else {
+                    self.check_member(id, receiver, name_span, safe)?
+                }
+            }
             Expression::Call {
                 callee,
                 type_arguments,

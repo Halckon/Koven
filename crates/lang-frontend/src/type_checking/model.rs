@@ -10,9 +10,9 @@ use crate::{
 };
 
 use super::{
-    AggregateProjectionDescriptor, CallDescriptor, ContainerConstructionDescriptor,
-    ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType, IntrinsicCallable,
-    ParameterBindingDescriptor, ParameterMode,
+    AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
+    ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
+    FunctionParameterType, IntrinsicCallable, ParameterBindingDescriptor, ParameterMode,
 };
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
@@ -846,6 +846,7 @@ pub struct TypedFile {
     destructurings: Vec<DestructuringDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
+    constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
@@ -866,6 +867,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) destructurings: Vec<DestructuringDescriptor>,
     pub(crate) expression_categories: Vec<ExpressionCategory>,
     pub(crate) calls: Vec<CallDescriptor>,
+    pub(crate) constructions: Vec<ConstructionDescriptor>,
     pub(crate) aggregate_projections: Vec<AggregateProjectionDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
@@ -899,6 +901,7 @@ impl TypedFile {
             destructurings: parts.destructurings,
             expression_categories: parts.expression_categories,
             calls: parts.calls,
+            constructions: parts.constructions,
             aggregate_projections: parts.aggregate_projections,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
@@ -1033,6 +1036,20 @@ impl TypedFile {
     #[must_use]
     pub fn call(&self, expression: ExpressionId) -> Option<&CallDescriptor> {
         self.calls
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码 expression 顺序的成功 construction descriptors。
+    #[must_use]
+    pub fn constructions(&self) -> &[ConstructionDescriptor] {
+        &self.constructions
+    }
+
+    /// 查询指定 expression 的成功 construction descriptor。
+    #[must_use]
+    pub fn construction(&self, expression: ExpressionId) -> Option<&ConstructionDescriptor> {
+        self.constructions
             .iter()
             .find(|descriptor| descriptor.expression() == expression)
     }

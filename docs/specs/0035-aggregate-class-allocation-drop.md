@@ -11,7 +11,7 @@
 | 批准依据 | 当前持续 Goal“继续推进 guide 主线，分阶段实施 specs”的站立授权 |
 | 前置 Spec | SPEC-0034、SPEC-0029 `done`；SPEC-0033 typed SSA/verifier 前置链已完成 |
 | 前置 ADR | [ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；其首个 target 前置 ADR-0007 已 `accepted` |
-| 阻塞项 | 无；源码 nominal/enum/Box constructor typed/ownership facts 尚未发布，按下述边界迁移到候选 0183/0188/0184，不阻塞本 Spec 的后端基元 |
+| 阻塞项 | 无；SPEC-0183 已发布源码 nominal/enum/Box constructor typed facts，ownership/lowering 仍由 0188/0184 承接，不阻塞本 Spec 的后端基元 |
 | 影响范围 | `lang-codegen` aggregate/heap-owner SSA type 与 operation、verifier、LLVM type/layout/runtime adapter、测试；Architecture |
 | 语言语义变更 | 否；实现现行 guide 与 ADR-0008 已封闭的后端表示，不新增构造器选择或推导规则 |
 
@@ -71,9 +71,10 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 - 本 Spec 允许用手工构造且通过 verifier 的 SSA 做直接后端验收，因为 frontend 当前没有
   nominal/enum/Box constructor descriptor。测试必须明确证明输入经过自建 verifier，不能绕过
   SSA 直接拼 LLVM。
-- 候选 SPEC-0183 负责发布构造器 target、实例类型、Value 参数映射与字段/case 顺序 typed
-  facts；候选 SPEC-0184 在其完成后负责源码/frontend facts→本 Spec SSA operation 的 lowering
-  和端到端回归。两者未完成不得被表述为“源码 aggregate codegen 已完成”。
+- SPEC-0183 已发布构造器 target、实例类型、Value 参数映射与字段/case 顺序 typed facts；
+  SPEC-0188 负责补齐 ownership facts，候选 SPEC-0184 在其完成后负责源码/frontend facts→本
+  Spec SSA operation 的 lowering 和端到端回归。0188/0184 未完成不得被表述为“源码 aggregate
+  codegen 已完成”。
 
 ## 4. 非目标
 
@@ -151,7 +152,7 @@ Copyable/MoveOnly 和唯一消费不变量，LLVM adapter 能按目标 `DataLayo
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-25 前置审计 | 通过 | SPEC-0034/0029 `done`、ADR-0008 `accepted`；发现 frontend constructor descriptor 缺口并迁移至候选 0183/0188/0184 |
+| 2026-08-25 前置审计 | 通过 | SPEC-0034/0029 `done`、ADR-0008 `accepted`；发现 frontend constructor descriptor 缺口并迁移至 0183/0188/0184；其中 0183 现已完成 |
 | `cargo fmt --all -- --check` | 通过 | aggregate/heap-owner type slice 格式无漂移 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --all-targets` | 通过 | 47 项；新增 5 项 named aggregate、递归 heap handle、跨 module、重复/未定义/inline cycle、能力与确定 debug text 矩阵 |
 | `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 | 无 warning；生产 `model.rs` 940 行、`verify.rs` 872 行，仍低于 1000 行软上限，后续 operation/layout 职责不继续堆入这两个文件 |

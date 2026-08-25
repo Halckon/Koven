@@ -153,6 +153,8 @@ pub mod codes {
     pub(crate) const GENERIC_CALL_INFERENCE: &str = "L0140";
     pub(crate) const TRANSFERABLE_TYPE_ARGUMENT_BOUND: &str = "L0141";
     pub(crate) const JUMP_OUTSIDE_LOOP: &str = "L0142";
+    pub(crate) const INVALID_CONSTRUCTION_TARGET: &str = "L0143";
+    pub(crate) const CONSTRUCTION_INFERENCE: &str = "L0144";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -298,6 +300,8 @@ pub mod codes {
         GENERIC_CALL_INFERENCE,
         TRANSFERABLE_TYPE_ARGUMENT_BOUND,
         JUMP_OUTSIDE_LOOP,
+        INVALID_CONSTRUCTION_TARGET,
+        CONSTRUCTION_INFERENCE,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -194,10 +194,11 @@ fun main(): Unit {
 - [x] **SPEC-0174（前置：SPEC-0177；v0.28，已实现）**：多 overload 候选在映射、
       泛型实例化与非 lambda 过滤后隔离检查 lambda expected contract/body；只提交唯一成功
       trial，不把无期望单次检查误报为完整实现
-- [ ] **SPEC-0183（v0.29，guide 门禁已解除）**：发布普通/泛型 nominal、enum case 与 intrinsic
+- [x] **SPEC-0183（v0.29，已实现）**：发布普通/泛型 nominal、enum case 与 intrinsic
       `Box` constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact；候选
       采用“operand 优先、独立确定的同 root complete expected result 只补未决项”的受控推导，
-      尚未决 overload candidate-local expected 不参与；完成前继续保持 deferred
+      尚未决 overload candidate-local expected 不参与；成功构造不再以 ordinary call/deferred
+      fact 冒充，所有权效果继续由 SPEC-0188 承接
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
@@ -335,8 +336,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       一般前缀负号仍保持 checked subtraction
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
-      基元；源码 constructor、字段/解构与 drop facts 的接线仍等待候选 0183 完成后由候选
-      0184 承接，不按名称猜测构造器
+      基元；源码 constructor 已由 SPEC-0183 发布 typed facts，Value delivery/drop 与 SSA 接线
+      仍等待 SPEC-0188/0184，不按名称猜测构造器
 - [x] **SPEC-0036（已实现）**：已建立顺序容器 owner、完整构造、length、checked element
       place、替换与 drop 的 typed SSA/verifier，以及固定 header、单连续缓冲区、受检分配、
       检查先于寻址、逆序元素析构、唯一释放和 MoveOnly ZST 逻辑析构；Phase 5 尚未定义的
@@ -413,14 +414,12 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
 - [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
-      完整运行实现等待候选 SPEC-0183/0188/0184 发布并 lower constructor facts。当前规范同时把
-      `value` 列为硬关键字，却在核心 `Result` 声明中使用 `Ok(value: T)`；后续 guide 必须在
-      调整关键字分类与更改公共 payload 名称之间作出明确选择，不能由实现静默修补。尚未启用
-      的 v0.29 候选推荐保持硬关键字并改为 `Ok(success: T)`，启用前不改变现行正文
+      完整运行实现等待 SPEC-0188/0184 发布 ownership 与 lowering facts；现行 v0.29 已保持
+      `value` 为硬关键字，并把核心 payload 名称封闭为 `Ok(success: T)`
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
       传入值所有权，调用点无 marker；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待候选 SPEC-0183/0188/0184 的
-      nominal/intrinsic constructor facts 与 aggregate/heap-owner lowering
+      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待 SPEC-0188/0184 的
+      ownership facts 与 aggregate/heap-owner lowering
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；

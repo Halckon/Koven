@@ -1,0 +1,10 @@
+class Resource {}
+class Holder<T>(val item: T)
+value class Point(val x: Int)
+enum class Maybe<T> { Some(item: T), None }
+
+fun resource(): Resource = Resource()
+fun holder(): Holder<Int> = Holder(1)
+fun some(): Maybe<Int> = Maybe.Some(1)
+fun none(): Maybe<Int> = Maybe.None
+fun boxed(): Box<Point> = Box(Point(1))

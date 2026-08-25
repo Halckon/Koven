@@ -168,12 +168,12 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
         &nominal_use.typed,
         &nominal_use.owned,
     ) {
-        Ok(_) => panic!("constructor facts remain gated by SPEC-0183"),
+        Ok(_) => panic!("constructor ownership/lowering facts remain gated by SPEC-0188/0184"),
         Err(error) => error,
     };
     assert_eq!(
         error.kind,
-        LoweringErrorKind::UnsupportedNode,
+        LoweringErrorKind::MissingFact,
         "{error:?}; source={:?}",
         error
             .span
