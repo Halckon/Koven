@@ -3,8 +3,10 @@
 use std::{
     fmt, fs, io,
     path::{Path, PathBuf},
-    process::Command,
 };
+
+#[cfg(test)]
+use std::process::Command;
 
 use lang_codegen::{NativeObjectError, emit_native_object};
 use lang_frontend::{
@@ -18,6 +20,10 @@ use lang_frontend::{
 };
 
 use crate::linker::{LinkerError, link_native_object};
+use crate::{
+    diagnostic_renderer::render_diagnostics,
+    machine_diagnostic_renderer::render_machine_diagnostics,
+};
 
 /// 仓库 bootstrap 中产生用户诊断的 frontend 阶段。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,7 +63,10 @@ pub(crate) enum BootstrapError {
     FrontendDiagnostics {
         stage: FrontendStage,
         diagnostics: Vec<Diagnostic>,
+        human: String,
+        json: String,
     },
+    DiagnosticRendering(String),
     MissingEntry(String),
     AmbiguousEntry {
         name: String,
@@ -65,10 +74,12 @@ pub(crate) enum BootstrapError {
     },
     Codegen(NativeObjectError),
     Linker(LinkerError),
+    #[cfg(test)]
     LaunchExecutable {
         path: PathBuf,
         kind: io::ErrorKind,
     },
+    #[cfg(test)]
     ProcessFailure {
         status: Option<i32>,
     },
@@ -76,14 +87,66 @@ pub(crate) enum BootstrapError {
 
 impl fmt::Display for BootstrapError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "standard-library bootstrap failed: {self:?}")
+        match self {
+            Self::InvalidPaths => {
+                formatter.write_str("source, object and executable paths overlap")
+            }
+            Self::OutputExists(path) => {
+                write!(formatter, "output already exists: {}", path.display())
+            }
+            Self::ReadSource { path, kind } => {
+                write!(formatter, "cannot read {}: {kind}", path.display())
+            }
+            Self::NonUtf8SourcePath(path) => {
+                write!(
+                    formatter,
+                    "source path is not valid UTF-8: {}",
+                    path.display()
+                )
+            }
+            Self::Source(error) => write!(formatter, "source setup failed: {error}"),
+            Self::Lexer(error) => write!(formatter, "lexer failed: {error}"),
+            Self::Parser(error) => write!(formatter, "parser failed: {error}"),
+            Self::NameResolution(error) => write!(formatter, "name resolution failed: {error}"),
+            Self::TypeChecking(error) => write!(formatter, "type checking failed: {error}"),
+            Self::OwnershipChecking(error) => {
+                write!(formatter, "ownership checking failed: {error}")
+            }
+            Self::FrontendDiagnostics {
+                stage, diagnostics, ..
+            } => write!(
+                formatter,
+                "{stage:?} produced {} diagnostic(s)",
+                diagnostics.len()
+            ),
+            Self::DiagnosticRendering(error) => {
+                write!(formatter, "diagnostic rendering failed: {error}")
+            }
+            Self::MissingEntry(name) => write!(formatter, "entry `{name}` was not found"),
+            Self::AmbiguousEntry { name, count } => {
+                write!(
+                    formatter,
+                    "entry `{name}` is ambiguous ({count} candidates)"
+                )
+            }
+            Self::Codegen(error) => write!(formatter, "{error}"),
+            Self::Linker(error) => write!(formatter, "linker failed: {error:?}"),
+            #[cfg(test)]
+            Self::LaunchExecutable { path, kind } => {
+                write!(formatter, "cannot launch {}: {kind}", path.display())
+            }
+            #[cfg(test)]
+            Self::ProcessFailure { status } => {
+                write!(formatter, "process failed with status {status:?}")
+            }
+        }
     }
 }
 
 impl std::error::Error for BootstrapError {}
 
-/// 从一份显式 Koven source 构建、链接并运行仓库 bootstrap target。
-pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
+/// 从一份显式 Koven source 构建并链接一个 native target。
+pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
     validate_paths(target)?;
     let text = fs::read_to_string(target.source).map_err(|error| BootstrapError::ReadSource {
         path: target.source.to_path_buf(),
@@ -99,20 +162,24 @@ pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), Boots
         .map_err(BootstrapError::Source)?;
 
     let lexed = lex(&sources, source).map_err(BootstrapError::Lexer)?;
-    reject_diagnostics(FrontendStage::Lexer, lexed.diagnostics())?;
+    reject_diagnostics(FrontendStage::Lexer, &sources, lexed.diagnostics())?;
     let parsed = parse_file(&sources, &lexed).map_err(BootstrapError::Parser)?;
-    reject_diagnostics(FrontendStage::Parser, parsed.diagnostics())?;
+    reject_diagnostics(FrontendStage::Parser, &sources, parsed.diagnostics())?;
 
     let (name_environment, type_environment) = standard_environments();
     let names = resolve_names(&sources, &parsed, &name_environment)
         .map_err(BootstrapError::NameResolution)?;
-    reject_diagnostics(FrontendStage::NameResolution, names.diagnostics())?;
+    reject_diagnostics(FrontendStage::NameResolution, &sources, names.diagnostics())?;
     let typed = check_types(&sources, &parsed, &names, &type_environment)
         .map_err(BootstrapError::TypeChecking)?;
-    reject_diagnostics(FrontendStage::TypeChecking, typed.diagnostics())?;
+    reject_diagnostics(FrontendStage::TypeChecking, &sources, typed.diagnostics())?;
     let owned = check_ownership(&sources, &parsed, &names, &typed)
         .map_err(BootstrapError::OwnershipChecking)?;
-    reject_diagnostics(FrontendStage::OwnershipChecking, owned.diagnostics())?;
+    reject_diagnostics(
+        FrontendStage::OwnershipChecking,
+        &sources,
+        owned.diagnostics(),
+    )?;
 
     let mut entries = names.symbols().iter().filter(|symbol| {
         symbol.name() == target.entry_name
@@ -144,6 +211,13 @@ pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), Boots
     )
     .map_err(BootstrapError::Codegen)?;
     link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
+    Ok(())
+}
+
+/// 从一份显式 Koven source 构建、链接并运行仓库 bootstrap target。
+#[cfg(test)]
+pub(crate) fn bootstrap_and_run(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
+    bootstrap_build(target)?;
     let output = Command::new(target.executable).output().map_err(|error| {
         BootstrapError::LaunchExecutable {
             path: target.executable.to_path_buf(),
@@ -175,14 +249,21 @@ fn validate_paths(target: BootstrapTarget<'_>) -> Result<(), BootstrapError> {
 
 fn reject_diagnostics(
     stage: FrontendStage,
+    sources: &SourceMap,
     diagnostics: &[Diagnostic],
 ) -> Result<(), BootstrapError> {
     if diagnostics.is_empty() {
         Ok(())
     } else {
+        let human = render_diagnostics(sources, diagnostics)
+            .map_err(|error| BootstrapError::DiagnosticRendering(error.to_string()))?;
+        let json = render_machine_diagnostics(sources, diagnostics)
+            .map_err(|error| BootstrapError::DiagnosticRendering(error.to_string()))?;
         Err(BootstrapError::FrontendDiagnostics {
             stage,
             diagnostics: diagnostics.to_vec(),
+            human,
+            json,
         })
     }
 }

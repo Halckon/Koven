@@ -42,8 +42,8 @@ capture loan/drop、结构化 `Transferable` 与 compiler-bound 跨线程 effect
 allocation、递归 drop/free、顺序容器连续缓冲区/checked-index/drop 后端基元，以及真实
 LLDB Koven 源码断点命中；SPEC-0183/0188/0184 已完成源码 constructor 的 typed、ownership 与
 SSA/LLVM native 闭环。Phase 5 已发布标准 `error()` Abort 与首个 literal-only
-`println(String)` stdout/Hello World 闭环；一般 String runtime、公开 build/run CLI 和容器
-relocation API 仍待后续 Spec。Phase 6 已提供机器可读诊断、LSP diagnostics/definition、
+`println(String)` stdout/Hello World 闭环；一般 String runtime 和容器 relocation API 仍待后续
+Spec。Phase 6 已提供公开单文件显式 entry `kovenc build/run`、机器可读诊断、LSP diagnostics/definition、
 formatter，以及 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见
 [架构快照](./architecture/README.md)。
 

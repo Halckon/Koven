@@ -148,6 +148,7 @@ fn source_diagnostics_and_entry_selection_fail_before_link_or_run() {
         Err(BootstrapError::FrontendDiagnostics {
             stage: FrontendStage::NameResolution,
             diagnostics,
+            ..
         }) if !diagnostics.is_empty()
     ));
     assert!(!diagnostic_directory.join("fixture.o").exists());

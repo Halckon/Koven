@@ -88,9 +88,15 @@ SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
 frontend 失败使用 2，均不修改输入文件；
 SPEC-0060 已在 `lang-cli` 增加 ADR-0014 schema v1 adapter：显式
-`kovenc --message-format=json format ...` 把完整 frontend 诊断按确定顺序逐条写为 stderr JSON
+`kovenc --message-format=json <format|build|run> ...` 把完整 frontend 诊断按确定顺序逐条写为 stderr JSON
 Lines，保留 `Ldddd`、原始消息、UTF-8 半开 byte range、1-based Unicode-scalar 行列与有序
 label/note/help；默认 human renderer、formatter stdout/0/1 和 operational error 保持不变；
+SPEC-0190 已把 repository bootstrap 的 build-only 边界复用于公开固定参数的单文件
+`kovenc build` / `run`：调用方必须显式 source、顶层 entry 和 build output，CLI 使用进程拥有的
+唯一临时 object/directory 并清理，复用全部 frontend、resolved-entry object emitter 与 Clang
+linker。build 成功静默退出 0，run 精确返回程序 stdout/stderr/status；真实仓库外 `hello.ko`
+已分别通过 build 后启动与直接 run 输出 `Hello, World!\n`。隐式 main、默认 output、程序参数、
+多文件/package/project 仍未实现；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -111,7 +117,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 - `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0145` 正式错误码与
   确定性聚合顺序。`kovenc` binary 的默认纯文本 renderer 与显式 schema v1 JSON Lines
   renderer 均由 formatter 用户诊断复用；machine location 同时携带半开 UTF-8 byte range 与
-  1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range，也尚未接入未实现的公开 build 流水线；
+  1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range；formatter 与公开单文件 build/run 均复用；
 - `lang_frontend::ast` 已提供四类 typed ID 与带 `Span` 的通用索引存储骨架；
 - `lang_frontend::lexer` 已提供覆盖 v0.22 已实施词法契约的确定性扫描、完整 lexeme 流与
   结构化恢复诊断，包括保持 `&&` 最长匹配的单字符 `&`、顶层分隔用 `;`，以及以
@@ -1236,6 +1242,14 @@ renderer；显式全局 `--message-format=json` 仅把该诊断分支切换为 A
 真实 binary 测试锁定 human/machine stderr、stdout、0/1/2 矩阵和输入不变，unit test 另锁定
 输出 writer 失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
 
+## Single-file native CLI
+
+`kovenc build <source.ko> --entry <name> -o <executable>` 与
+`kovenc run <source.ko> --entry <name>` 是 SPEC-0190 的公开 native 入口。两者固定参数顺序，
+不猜测 entry/output；frontend diagnostics 服从全局 human/JSON Lines 选择。build 在 output
+目录使用唯一临时 object，run 在系统临时目录使用唯一 object/executable，均不把中间产物作为
+公共 API。当前只支持单文件、显式 `() -> Unit` 顶层函数和首个 AArch64 macOS target。
+
 ## TextMate grammar
 
 `editors/textmate/syntaxes/koven.tmLanguage.json` 是不依赖 LSP 的 TextMate JSON grammar，声明
@@ -1305,10 +1319,10 @@ SPEC-0177 / SPEC-0174 实现。
 Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的单文件 bootstrap 已由 ADR-0012 / SPEC-0042 实现：CLI 内部 driver 编排显式
 source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
-Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。它不等于公开
-`kovenc build`、多文件标准库或完整公共 prelude。SPEC-0189 已增加标准 `println(String)` 的
+Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。SPEC-0189 已增加标准 `println(String)` 的
 首个 literal-only stdout slice 与真实 Hello World entry，但一般 String runtime、其他 printable
-重载和公开 build/run 仍未实现。内部值/系统分配 ABI
+重载仍未实现。SPEC-0190 已公开单文件显式 entry build/run，但不等于多文件标准库、隐式 main
+或项目构建模型。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。

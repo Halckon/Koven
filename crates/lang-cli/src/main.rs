@@ -1,28 +1,20 @@
 //! `kovenc` 编译器命令行入口。
 
-#[allow(
-    dead_code,
-    reason = "SPEC-0042 bootstrap driver precedes the public CLI argument contract"
-)]
 mod bootstrap;
 #[cfg(test)]
 mod bootstrap_tests;
 
-// SPEC-0057 复用纯 renderer 输出 formatter 诊断；公开 build 流水线仍未接入。
 mod diagnostic_renderer;
 mod format;
-#[allow(
-    dead_code,
-    reason = "SPEC-0039 linker precedes source entry and CLI pipeline wiring"
-)]
 mod linker;
 mod machine_diagnostic_renderer;
+mod native_command;
 
 use std::{ffi::OsString, io::Write, process::ExitCode};
 
 use format::CommandOutput;
 
-const GLOBAL_USAGE: &str = "usage: kovenc [--message-format=human|json] format [--check] <path>\n";
+const GLOBAL_USAGE: &str = "usage: kovenc [--message-format=human|json] <format|build|run> ...\n";
 
 #[derive(Clone, Copy)]
 enum MessageFormat {
@@ -44,11 +36,17 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
     };
     let output = match arguments.split_first() {
         Some((command, rest)) if command == "format" => format::execute(rest, message_format),
-        Some((command, _)) => CommandOutput::usage(format!(
-            "unknown command {}; expected `format`",
+        Some((command, rest)) if command == "build" => {
+            native_command::execute_build(rest, message_format)
+        }
+        Some((command, rest)) if command == "run" => {
+            native_command::execute_run(rest, message_format)
+        }
+        Some((command, _)) => global_usage(format!(
+            "unknown command {}; expected `format`, `build` or `run`",
             command.to_string_lossy()
         )),
-        None => CommandOutput::usage("expected `format` command"),
+        None => global_usage("expected `format`, `build` or `run` command"),
     };
 
     write_output(output, stdout, stderr)
@@ -127,7 +125,8 @@ mod tests {
         assert!(stdout.is_empty());
         assert_eq!(
             String::from_utf8(stderr).expect("UTF-8 stderr"),
-            "error: expected `format` command\nusage: kovenc format [--check] <path>\n"
+            "error: expected `format`, `build` or `run` command\n\
+             usage: kovenc [--message-format=human|json] <format|build|run> ...\n"
         );
 
         let mut stdout = Vec::new();

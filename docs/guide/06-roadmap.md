@@ -451,6 +451,10 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 ## Phase 6：工具链完善
 
 - [ ] 包管理器 CLI（`project.toml`/`project.lock`）
+- [x] **SPEC-0190（前置：SPEC-0039、0042、0043、0184、0189 `done`）**：公开固定参数的
+      单文件 `kovenc build <source> --entry <name> -o <executable>` 与
+      `kovenc run <source> --entry <name>`，复用 verified native pipeline、human/JSON Lines
+      diagnostics 和临时产物清理；不引入隐式 main、多文件或项目模型
 - [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
 - [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，
