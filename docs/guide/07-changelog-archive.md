@@ -4,7 +4,7 @@
 > 索引见 [`00-index.md`](./00-index.md)。
 
 本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，现行含至 v0.32，并附
-v0.33–v0.35 未启用候选），供需要
+v0.33–v0.36 未启用候选），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -589,3 +589,19 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 5 | 不提供 place-preserving borrow unwrap；非消费访问使用显式 null check/nullable `when` view，borrow-return 继续延后 | 🟡 候选边界 |
 | 6 | 实施拆为 0202/0203/0204 nullable when typed→ownership→native 与 0205/0206/0207 `!!` typed→ownership→native | 🟡 候选 Phase 交接 |
 | 7 | 首轮 native 仅接 ADR-0017 的 owned whole-root/temporary pointer-like class/Box/Rc；loan/place branch 与 inline/tagged nullable 各需后继 ABI ADR，Elvis/safe-call/`as?` 不在本候选实施链 | 🟡 候选 ABI/非目标 |
+
+## v0.36 候选变更记录（未启用）
+
+> 本候选于 2026-08-27 对 iteration 与 const/object 的依赖图交叉审计后起草。它直接基于
+> v0.32，不包含未启用 §33–§35；当前唯一权威版本仍是 v0.32，本节不授权实现。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 顶层、具名 object 与 companion const 是 compile-time identity；`Object.CONST`/`Type.CONST` 选择关联 symbol，不产生 singleton/global/init/drop | 🔴 候选常量/命名语义 |
+| 2 | 首轮 const 类型封闭为 Boolean、八整数、Char、String；scalar inline，String 每次 use 从 UTF-8 bytes 重新物化独立 owner | 🔴 候选类型/所有权语义 |
+| 3 | const expression 封闭为 literal/reference/group、有限 prefix、整数/Boolean/String 运算；不执行用户函数或 control/container/nullable 表达式 | 🔴 候选编译期求值语义 |
+| 4 | 前向引用合法；稳定依赖图按 SCC 报 cycle，checked overflow/除零在编译期报错而非 runtime Abort | 🔴 候选求值/诊断语义 |
+| 5 | L0153–L0158 分别预留 companion context、visibility、const type/expression、cycle、evaluation failure | 🟡 候选诊断分配 |
+| 6 | exact import 终端只允许顶层声明/函数组；enum case 与 object/companion member 必须 qualified，`import p.Type.CONST` 使用 L0148 | 🔴 候选 v0.32 勘误 |
+| 7 | 实施拆为 0026 单文件 typed/evaluator、0208 ownership、0209 native 与等待 0025/0197 的 0210 unit integration | 🟡 候选 Phase 交接 |
+| 8 | 不引入 CTFE VM、runtime global、associated function、object receiver 或新 runtime/global ABI；Char 采用独立 IR-local contract，iteration 另需 provider ownership guide 与 ADR | 🟡 候选非目标 |

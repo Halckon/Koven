@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30–32 节分别是 v0.30–v0.32 已启用的现行规则；
-> 第 33–35 节分别是尚未启用的 v0.33–v0.35 候选；附录收录原第二部分的核心结构声明总览。
+> 第 33–36 节分别是尚未启用的 v0.33–v0.36 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2279,6 +2279,86 @@ loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定�
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
 也继续延后。v0.35 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
+
+---
+
+## 36. 无运行时存储的关联常量与封闭求值（v0.36 候选，未启用）
+
+> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 §33–§35。只有用户
+> 明确启用 v0.36 并指定其取代 v0.32 后，本节才成为常量求值、关联选择和 import 终端的
+> 现行契约；SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
+> singleton 初始化或 object instance receiver。
+
+### 36.1 关联命名空间与 target 选择
+
+- 顶层 `const val`、具名 object body 的 `const val` 及 class/value class/enum class/interface
+  companion 的 `const val` 是 compile-time declaration identity。companion 仍是匿名关联命名
+  空间，不产生 `Type.Companion` 值；常量声明本身没有运行时地址、owner、init guard 或 drop。
+- 同文件 `Object.CONST` 与 `Type.CONST` 直接选择关联常量 symbol。具名 object 同时具有
+  type/value identity 时，该形态优先解释为 object declaration 的关联常量；它不据此获得
+  `Object.instanceMethod()` 能力，普通 object instance call 仍等待 §34 receiver 链。
+- companion 与 instance member scope 不互相注入。companion initializer 不能使用 `this`、实例
+  field/member 或 enclosing classifier type parameter；关联泛型函数只使用自身声明的类型参数，
+  但关联函数的选择/lowering 不属于本候选实施链。
+- `private` associated const 仅在 declaring classifier 内可见；interface companion 常量不被
+  实现类型继承或 override。不存在 target/member 使用 L0080；非法 companion context 与越界
+  访问分别使用 L0153/L0154。
+
+### 36.2 const 类型、值与重新物化
+
+- v1 首轮 const 类型封闭为 `Boolean`、`Byte`/`Short`/`Int`/`Long`、`UByte`/`UShort`/`UInt`/
+  `ULong`、`Char` 与 `String`。整数值按声明类型的精确 width/signedness 规范化，`Char` 是 Unicode
+  scalar，`String` 是 compiler-owned UTF-8 bytes。其他 builtin、nullable、function、nominal、
+  enum、value class、Box/Rc/容器或类型参数使用 L0155；Float/Double 等待后继扩展。
+- const declaration 不是普通 variable owner。const initializer 内的依赖只读取 compiler value，
+  不产生 runtime value；每个运行时 use 才内联或重新物化：Boolean/整数/Char 直接产生
+  Copyable value；String use 从同一 UTF-8 bytes 新建一个普通 String literal temporary owner，
+  按 §31 的 Value/Borrow/return/ASAP drop 规则处理。两个运行时 use 不共享 String owner，也不
+  隐式 Rc/retain。
+- constant identity 不进入 closure capture environment、loan graph 或 runtime reachability root。
+  引用 object/companion 常量不捕获 object/Type，也不产生 singleton 地址或退出析构。
+
+### 36.3 封闭 const expression 与求值失败
+
+- initializer 只接受上述类型的 literal、group、其他 const reference（含 `Type.CONST`）、prefix
+  `+`/`-`/`!`、整数 `+ - * / %` 与比较/相等、Boolean `&&`/`||`、String `+`/相等。所有 operand
+  仍先按普通 Phase 2 类型规则检查；本列表只决定通过类型检查后是否可在编译期求值。
+- 普通 `val`/参数/field/`this`、call、constructor、lambda、assignment、`if`/`when`、Elvis、
+  safe call、`!!`、postfix `?`、range/`to`、container/index 与 String interpolation 均不是 const
+  expression。编译器不执行“看起来纯”的用户函数；首个非法子表达式使用 L0156。
+- 所有常量先收集再建立稳定 dependency graph，因此同文件前向引用合法。self/mutual cycle 每个
+  strongly connected component 产生一个 L0157；primary/labels 按稳定 declaration key 与源码
+  Span 排序，不依赖 HashMap 或输入遍历顺序。已有 unresolved/Error dependency 不追加 cycle/
+  evaluation 级联。
+- dependency graph 按语法引用建立：`&&`/`||` 的两个 operand 都先检查类型与 const-expression
+  资格，RHS 中的 const reference 即使运行时会短路也形成 edge 并参与 SCC/L0157。实际值求值
+  保留 short-circuit；未求值 RHS 不产生 L0158。因此 `false && (1 / 0 == 0)` 不报 L0158，但
+  short-circuit RHS 中的非法表达式仍报 L0156，RHS 形成的常量环仍报 L0157。
+- 整数 `+/-/*` overflow、`/`/`%` 除零及 signed MIN/-1 在编译期产生 L0158，不生成运行时
+  checked operation 或 Abort。literal representability、operand/type mismatch 继续分别使用
+  L0090、L0085、L0084，不以 L0158 覆盖既有诊断。
+
+### 36.4 import 勘误、分阶段交接与非目标
+
+- v0.36 启用时，§32.3/§32.4 的歧义按最小规则收口：exact import 的终端只能是可见顶层类型、
+  顶层值或同 package 函数 overload set；enum case、companion/object member 都不是 import target。
+  因此 `import p.Type.CONST` 使用 L0148；应写 `import p.Type` 后使用 `Type.CONST`，或使用绝对
+  `p.Type.CONST`。wildcard 同样不导入 member。
+- SPEC-0026 先在既有单文件 analysis chain 发布 associated target、typed ConstValue、依赖图与
+  use descriptor；它不等待 SPEC-0025，也不把跨文件事实伪装成单文件结果。
+- SPEC-0208 消费 0026，发布 scalar inline 与 String temporary materialization 的 ownership/
+  liveness/drop/capture facts；SPEC-0209 再接到现有 scalar/String SSA/LLVM/object/link/run。
+- SPEC-0210 等待 0025/0197 后，以稳定 DeclarationId 和 visibility/import facts复用同一 evaluator，
+  只完成 compilation-unit typed const graph并发布 const-enabled validated unit；它不重开已经完成的
+  0198/0199。跨文件 const ownership/native 必须另立后继 Spec，显式消费 0210、0208/0209 与
+  0198/0199 的既有产物。
+
+本候选不实现 associated function 调用、object instance method、用户可观察常量地址、runtime
+global/init、序列化 constant object、跨 compilation-unit ABI 或通用 CTFE VM。Boolean、整数和
+String 可复用现有 lowering；Char 必须新增独立的 IR-local Char type/constant contract，由 verifier
+验证 Unicode scalar，并映射为 LLVM `i32`，不得擦除成 `UInt32`。这不新增 runtime/global ABI，
+仍可复用 ADR-0008 的标量直接传递规则，因此不需要新 ADR；若未来执行用户函数、引入持久
+global/init 或稳定跨 object 常量 ABI，则必须另行 guide/ADR。
 
 ---
 

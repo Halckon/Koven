@@ -40,6 +40,9 @@
 - 不实现每文件 object、增量缓存、动态链接、公共 package ABI、manifest、source discovery、
   全局 conventional-main 选择或公开多文件 CLI；SPEC-0052 只提供 source snapshot，项目
   entry/CLI 属于 SPEC-0054。
+- 不消费 SPEC-0210 的 const-enabled typed unit，也不 lower 跨文件 const use；该能力必须由
+  显式消费 0199、0210、0208/0209 及 unit const ownership 产物的后继 Spec 增量发布，不能
+  隐式重开本 Spec。
 
 ## 5. 验收标准
 

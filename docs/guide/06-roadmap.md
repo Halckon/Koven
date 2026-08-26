@@ -5,7 +5,8 @@
 > v0.32；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
-> SPEC-0025→0197→0198→{0199,0187} 推进，首项 SPEC-0025 的 guide/ADR 门禁已解除。
+> SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 Stage 1 的 guide/ADR 门禁已解除并完成，
+> Stage 2 import/visibility 仍等待明确启用 v0.36 的 exact-import 勘误，或对现行 v0.32 正式勘误。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
 > `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
@@ -13,6 +14,10 @@
 > 2026-08-27 对 nullable、iteration、const/Map 再审计后，选择不依赖 exact-import 或 receiver
 > 的 nullable 控制流作为下一候选，并在 §35 物化 v0.35 与
 > SPEC-0202→0203→0204、SPEC-0205→0206→0207 两条 Phase 2→3→4 链；候选未启用。
+> 随后对 iteration/provider 与 const/object 做交叉审计：iteration 仍缺 provider ownership、
+> Phase 3 lifecycle Spec 和 SSA/runtime ADR，因此先在 §36 物化无新 runtime/global ABI 的 v0.36
+> const 候选，
+> 单文件按 SPEC-0026→0208→0209 推进，SPEC-0210 单列跨文件 typed 集成；候选未启用。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -278,10 +283,18 @@ Spec 之前，本条限制不变。）
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
       operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
+- [ ] **[SPEC-0026](../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
+      选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
+      exact-import 不阻塞本节点，等待候选启用。
+- [ ] **[SPEC-0210](../specs/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
+      完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
+      不复制 evaluator 或提前生成 native unit。
 
-`for` iteration plan、`object` / `companion object`、Map 与 receiver 各自在门禁解除后形成独立
-增量验收；它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025 已解除 guide/ADR 门禁；后继节点仍由前置 Spec 与各自 ADR 状态阻塞。
+`for` iteration plan、Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 已物化
+为未启用 v0.36 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
+其中 SPEC-0025 仅 Stage 1 已解除 guide/ADR 门禁并完成；Stage 2 import/visibility 仍等待明确
+启用 v0.36 的 exact-import 勘误，或另行对现行 v0.32 作正式勘误。后继节点仍由前置 Spec 与
+各自 ADR 状态阻塞。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -331,6 +344,9 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
+- [ ] **[SPEC-0208](../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
+      把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
+      owner，禁止 global owner/capture/init/drop；等待候选启用。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -386,6 +402,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0207](../specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
+- [ ] **[SPEC-0209](../specs/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
+      把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
+      singleton/global/init 或第二套 String runtime。
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由
@@ -400,9 +419,11 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [ ] **候选 SPEC-0182**：在候选 0179、SPEC-0181/0191 与具体 iterator/container
-      provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
-      清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
+- [ ] **候选 SPEC-0182**：roadmap 审计已确认现有 0179→0182 写法缺独立 Phase 3 iteration
+      lifecycle，且 compiler-bound provider 不必依赖普通 receiver。先由新 iteration guide 与
+      SSA/runtime ADR 固定 provider identity、source/element loan、binding mode和清理，再物化
+      typed→ownership→provider→frontend integration 链；不得继续把 0181/0191 冒充 iteration
+      ownership，也不得把 0046 的公共容器 API冒充未编号 provider runtime。
 - [x] **SPEC-0184（v0.29，已实现）**：把 nominal/enum/Box construction、
       projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
       value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与

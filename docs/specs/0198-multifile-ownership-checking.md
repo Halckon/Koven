@@ -32,6 +32,8 @@
 ## 4. 非目标
 
 - 不改变所有权语义，不实现 SSA/LLVM、跨 compilation-unit ABI、LSP 或项目构建。
+- 不消费 SPEC-0210 的 const-enabled typed unit，也不实现跨文件 const materialization；该能力
+  必须由显式消费 0198、0210 与 0208 的后继 Spec 增量发布，不能隐式重开本 Spec。
 
 ## 5. 验收标准
 

@@ -11,7 +11,7 @@
 | 批准依据 | 2026-08-26 用户明确启用 v0.32；当前持续 Goal 授权按依赖图推进已完成审计的 Spec |
 | 前置 Spec | SPEC-0015、0018 `done` |
 | 前置 ADR | ADR-0005、[ADR-0020](../adr/0020-multifile-compilation-unit.md) `accepted` |
-| 阻塞项 | 第 1 步无；exact import 是否覆盖 enum case / companion 静态成员须在第 2 步前消除 guide 冲突 |
+| 阻塞项 | Stage 1 无；exact import 是否覆盖 enum case / companion 静态成员须在 import/visibility 阶段前消除 guide 冲突 |
 | 影响范围 | `lang-frontend` source/package index、名称解析、诊断、fixtures；Architecture/Roadmap |
 | 语言语义变更 | 否；实施现行 v0.32 |
 
@@ -54,7 +54,7 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
   `ParsedFile`/`SourceId` 与稳定 source key，内部校验并排序，返回 recovery
   `CompilationUnitIndex`；其 validated marker 只证明 Parser、package/path 与跨文件声明冲突
   无 error，类型上不得冒充最终名称产物。
-- 第 2 步的 `resolve_compilation_unit_names(index, environment)` 才解析 import 与 body 名称；
+- import/visibility 阶段的 `resolve_compilation_unit_names(index, environment)` 才解析 import 与 body 名称；
   保留现有 `resolve_names`、`NameEnvironment`、`NameResolution` 的精确单文件语义。
 - `CompilationUnitNames` 共同拥有 package/declaration/source tables、每文件 local resolution、
   `UnitSymbolId`/`DeclarationId` 与并行的 `UnitReferenceTarget`；不把 package binding 塞进
@@ -84,7 +84,9 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 - v0.32 §32.3 与 grammar §11.1 把 exact import 限于顶层声明，§32.4 的“import target 和静态
   限定名称”又可能允许继续选择 enum case / companion 静态成员。第 1 步只建立与该选择无关的
-  unit/package/declaration 基础；第 3 步不得静默选择，须先由 guide 勘误明确范围。
+  unit/package/declaration 基础；第 3 步不得静默选择，须先由 guide 勘误明确范围。未启用的
+  v0.36 §36.4 已记录推荐勘误（exact import 只到顶层，case/member 必须 qualified），但在
+  v0.36 被明确启用前仍不能用候选文本解除本 Spec 的现行门禁。
 
 ## 10. 验证记录
 

@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含现行 v0.32 名称绑定解释；§13.5 同步未启用的 v0.34 receiver grammar 候选，二者
-> 均不改变现行 Parser。
+> §11.1 含现行 v0.32 名称绑定解释；§13.5/§13.6 分别同步未启用的 v0.34 receiver grammar
+> 与 v0.36 const expression 候选，均不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -545,6 +545,11 @@ SPEC-0025：
 - import 和 package 限定名使用绝对路径与最长 package 前缀；package 不是表达式值或运行时
   receiver。完整身份、可见性、诊断和阶段边界见 `01-design-decisions.md` §32。
 
+**v0.36 候选勘误（未启用）**：若 v0.36 被明确启用，exact import 的终端继续严格限于上述
+顶层声明/函数组；enum case 与 object/companion member 只能在导入/限定顶层 Type 后继续以
+`Type.member` 选择，不能写 `import p.Type.member`。在此之前 §32.3/§32.4 的冲突仍是
+SPEC-0025 Stage 2 门禁，候选文字不能提前改变现行 v0.32 resolver。
+
 ## 12. SPEC-0016 control-flow、jump 与 `super`
 
 ```ebnf
@@ -852,6 +857,23 @@ enum_member = method_modifiers, function_declaration
 - 本候选不改变普通 callable 参数、调用点 argument marker、function type、extension receiver、
   callable reference 或 safe-call grammar；formatter 与 grammar bridge 必须保存原 token，不能
   把省略形式重写成显式 `borrow`。
+
+### 13.6 v0.36 const expression 解释（候选，未启用）
+
+本小节不新增 Parser 产生式：`constant_declaration` 的 initializer 继续解析普通 `expression`，
+由候选设计正文 §36 和 SPEC-0026 在 Phase 2 选择封闭子集。只有用户明确启用 v0.36 后以下
+解释才生效；现行版本仍为 v0.32。
+
+- 合法子集为 Boolean/整数/Char/plain String literal、group、const reference（含
+  `Object.CONST`/`Type.CONST`）、`+`/`-`/`!`、整数算术/比较/相等、Boolean `&&`/`||` 与
+  String concat/equality。Parser 不根据 declaration context 构造第二套 expression AST。
+- call、constructor、lambda、assignment、control expression、nullable/postfix、range/`to`、
+  container/index 与 interpolation 均保持可恢复的普通 AST，由 Phase 2 在首个非法子表达式
+  产生 L0156；不得在 Parser 阶段改报 L0009/L0015 或吞掉后续 sibling member。
+- `Object.CONST`/`Type.CONST` 沿用普通 member expression 的 source shape；type/value target、
+  visibility和 companion scope 是 typed selection，不以大小写或名称文本在 Parser 中猜测。
+- 本候选不改变 `const val` 的合法声明位置、modifier 顺序、member separator、Span 或 owner-aware
+  recovery；formatter、TextMate 与 Tree-sitter 无新增 token/grammar 工作。
 
 SPEC-0017 只交付 Phase 1 Parser/AST/诊断、恢复、复杂度与真实 file fixture；名称重复、
 visibility、接口归属、override、enum 穷尽性、object/companion 常量求值和类型/所有权规则

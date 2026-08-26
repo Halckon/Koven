@@ -33,6 +33,9 @@ call、nominal、generic、constructor、enum 与 interface 引用发布可供 o
 ## 4. 非目标
 
 - 不新增类型语义，不实现跨文件所有权、codegen、manifest 或 LSP 生命周期。
+- 在 SPEC-0210 前，跨文件关联常量选择、依赖与求值不是本 Spec 发布的 typed surface；遇到该
+  候选语义必须确定性标记为 unsupported/deferred，不能把缺失 const facts 的 unit 发布为
+  const-enabled。这里的 validated typed unit 只保证现行 v0.32 已支持的基础表面。
 
 ## 5. 验收标准
 
@@ -49,6 +52,8 @@ call、nominal、generic、constructor、enum 与 interface 引用发布可供 o
 各 source/body；`TypeEnvironment` 名称继续专用于 compiler-bound 外部绑定，不能兼任源码 unit
 签名表。产物保存 `DeclarationId -> (SourceUnitId, local item/body)` locator、每文件 typed facts、
 diagnostics 与 validated gate；不在类型阶段重新展开 import。既有单文件 API 与事实必须精确兼容。
+后继 SPEC-0210 在此基础上发布独立的 const-enabled capability marker（或等价类型状态），而不是
+回写或重新定义本 Spec 已发布的基础 validated product。
 
 ## 7. 实施计划
 
