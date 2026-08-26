@@ -426,8 +426,8 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
 - [ ] **SPEC-0045（v0.30 guide 门禁已解除）**：实现 compiler-bound `Rc<T>` 构造、显式
       `.share()`、Borrow-only `.value`、ASAP 自动 release 与归零析构；`Rc<T>` 始终 MoveOnly 且
-      不满足 Transferable。全部代码前置已完成，当前唯一门禁是先接受共享 owner runtime ABI
-      ADR；不引入 Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
+      不满足 Transferable。全部代码前置已完成，ADR-0015 已接受；不引入 Arc/Weak/Shareable、
+      一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 一般 UTF-8 `String` runtime；当前只有 SPEC-0189 的 literal-only `println` 路径，候选
       SPEC-0192 等待新 guide 与 String runtime ABI ADR

@@ -78,12 +78,12 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 队列 | 候选 | 审计结论 |
 |---|---|---|
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
-| 只差 ADR | SPEC-0045 Rc shared owner | 代码前置全部完成，v0.30 已生效；先接受共享 owner runtime ABI ADR，再实施 |
+| 可直接物化 | SPEC-0045 Rc shared owner | 代码前置全部完成，v0.30 已生效，ADR-0015 已接受；当前依赖前沿 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此当前依赖前沿已推进到 `共享 owner ABI ADR → SPEC-0045`；参数化 main 排在 String runtime
+因此当前依赖前沿已推进到 `SPEC-0045`；参数化 main 排在 String runtime
 之后。后续若 guide/ADR 改变门禁，先更新本审计再物化下一份 Spec。
 
 ## Phase 0 Spec 队列
@@ -255,7 +255,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0043](./0043-standard-error-abort.md) | 发布标准 `error()` identity 并接入既有 Abort（`done`） | 0039、0042 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0189](./0189-standard-println-output.md) | 发布 `println(String)` Borrow identity，并把非插值 UTF-8 literal 接入 stdout native runtime（`done`） | 0039、0042、0043、0184 `done`；当前持续 Goal 的站立授权 |
 | [0044](./0044-standard-pair-result.md) | 实现条件可复制的 `Pair` 与 `Result`（`done`） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.29 固定且 v0.30 沿用 `Result.Ok(success: T)`；当前持续 Goal 的站立授权 |
-| 0045 | 实现共享 `Rc` 所有权类型（独占 intrinsic `Box` 已由 0184 完成） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.30 已生效；接受共享所有权 runtime ABI ADR |
+| 0045 | 实现共享 `Rc` 所有权类型（独占 intrinsic `Box` 已由 0184 完成） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.30 已生效；[ADR-0015](../adr/0015-shared-owner-runtime-abi.md) `accepted` |
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
