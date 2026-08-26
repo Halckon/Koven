@@ -12,6 +12,12 @@ use super::{
     UnitTypeKind, UnitTypeParameterBound,
 };
 
+#[path = "members.rs"]
+mod members;
+
+#[path = "capabilities.rs"]
+mod capabilities;
+
 impl SignatureCollector<'_> {
     pub(super) fn collect_direct_interfaces(
         &mut self,
@@ -238,7 +244,9 @@ impl SignatureCollector<'_> {
         }
         for owner in order {
             let direct = self.nominals[&owner].direct_interfaces().to_vec();
-            let mut closure = direct.clone();
+            let mut accepted_direct = Vec::new();
+            let mut closure = Vec::new();
+            let mut first_by_declaration = BTreeMap::<DeclarationId, UnitTypeId>::new();
             for interface in direct {
                 let Some(target) = self.nominal_declaration(interface) else {
                     continue;
@@ -254,19 +262,51 @@ impl SignatureCollector<'_> {
                     .copied()
                     .zip(arguments)
                     .collect::<BTreeMap<_, _>>();
+                let mut branch = vec![interface];
                 for inherited in target_signature.interfaces() {
                     let inherited = self.substitute_type(*inherited, &substitutions)?;
-                    if !closure.contains(&inherited) {
-                        closure.push(inherited);
+                    if !branch.contains(&inherited) {
+                        branch.push(inherited);
+                    }
+                }
+                let conflict = branch.iter().find_map(|instance| {
+                    let declaration = self.nominal_declaration(*instance)?;
+                    first_by_declaration
+                        .get(&declaration)
+                        .is_some_and(|accepted| *accepted != *instance)
+                        .then_some(declaration)
+                });
+                if let Some(declaration) = conflict {
+                    let primary = self.interface_edge_spans[&(owner, target)];
+                    self.emit_with_label(
+                        codes::INVALID_SUPERTYPE,
+                        "interface is inherited with conflicting invariant type arguments",
+                        primary,
+                        self.names.index().declarations()[declaration.index()].name_span(),
+                        "conflicting interface declared here",
+                    )?;
+                    self.interface_edge_spans.remove(&(owner, target));
+                    continue;
+                }
+                accepted_direct.push(interface);
+                for instance in branch {
+                    let Some(declaration) = self.nominal_declaration(instance) else {
+                        continue;
+                    };
+                    first_by_declaration.entry(declaration).or_insert(instance);
+                    if !closure.contains(&instance) {
+                        closure.push(instance);
                     }
                 }
             }
-            self.nominals
+            let nominal = self
+                .nominals
                 .get_mut(&owner)
-                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
-                .set_interfaces(closure);
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            nominal.set_direct_interfaces(accepted_direct);
+            nominal.set_interfaces(closure);
         }
-        Ok(())
+        self.check_member_interface_contracts()
     }
 
     pub(super) fn validate_type_argument_bounds(&mut self) -> Result<(), CompilationUnitTypeError> {
@@ -341,7 +381,7 @@ impl SignatureCollector<'_> {
                 }
             }
         }
-        Ok(())
+        self.validate_capabilities_and_layout()
     }
 
     fn direct_interface_targets(&self, owner: DeclarationId) -> Vec<DeclarationId> {

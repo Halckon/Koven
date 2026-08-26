@@ -79,7 +79,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 
 1. [x] 补齐 declaration→unit symbol 名称事实，建立防碰撞 unit type/signature identity → 验证：
    mixed-input、相同 local ID 与输入置换矩阵。
-2. [ ] 收集跨文件 nominal/callable/field/enum/interface 签名与图诊断 → 验证：递归、L0097、
+2. [x] 收集跨文件 nominal/callable/field/enum/interface 签名与图诊断 → 验证：递归、L0097、
    generic/constructor/interface 正反矩阵。
 3. [ ] 接 body、overload/generic/constructor facts与 recovery/validated gate → 验证：
    `multifile_type_checking` 及既有
@@ -91,7 +91,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | declaration/unit type identity 与 unit-wide signatures | `feat(frontend): collect unit type signatures (SPEC-0197)` |
-| 2 | body typed facts、validated gate 与完成文档 | `feat(frontend): type check compilation units (SPEC-0197)` |
+| 2 | interface/member/capability/layout signature graph 与 provenance 门禁 | `feat(frontend): complete unit signature graphs (SPEC-0197)` |
+| 3 | body typed facts、validated gate 与完成文档 | `feat(frontend): type check compilation units (SPEC-0197)` |
 
 ## 9. 未决问题
 
@@ -105,6 +106,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | 2026-08-27 实施前审计 | 通过 | SPEC-0025 done、ADR-0020 accepted；收紧 unit identity、all-error validated gate、private/const/诊断与 mixed-input 验收 |
 | 2026-08-27 L0097 guide 审计 | 通过 | §23.3 已明确顶层 overload 同样拒绝重复 shape；诊断表“成员作用域”遗漏已作不改变语义的纯勘误 |
 | `cargo test -p lang-frontend --test multifile_type_signatures --locked --offline` | 通过 | 7 tests；递归签名、输入置换、local ID 防碰撞、alpha/mode L0097、arity、mixed analysis boundary、interface closure/bound/cycle |
+| `cargo test -p lang-frontend --test multifile_type_signatures --test multifile_type_signature_provenance --test multifile_type_capability_graph --test multifile_type_member_graph --test multifile_type_signature_determinism --locked --offline` | 通过 | 22 tests；provenance、L0094/L0098–L0105/L0115/L0116/L0141、invariant branch 抑制、delegation plan、instance/companion scope、全 source-local identity 与跨 source 诊断置换 |
 | `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 tests；declaration→unit symbol 名称事实与旧多文件名称语义无回归 |
-| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | signature API、测试与既有 frontend targets 无 warning |
-| `cargo test --workspace --locked --offline` | 通过 | workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
+| `cargo test -p lang-frontend --locked --offline` | 通过 | 新旧 frontend 全量通过，含现有单文件 type/ownership 回归 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 完整 signature graph API、测试与既有 frontend targets 无 warning |
+| `cargo test --workspace --locked --offline` | 通过 | 完整 signature graph 合入后 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |

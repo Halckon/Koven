@@ -20,10 +20,11 @@ use crate::{
 };
 
 use super::{
-    CompilationUnitSignatures, CompilationUnitTypeError, UnitCallableParameter,
-    UnitCallableSignature, UnitCallableTarget, UnitDeclarationSignature, UnitEnumCaseSignature,
-    UnitFieldSignature, UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
-    UnitTypeParameterBound, UnitTypeParameterDescriptor, UnitTypeTable,
+    CompilationUnitSignatures, CompilationUnitTypeError, SignatureProvenance,
+    UnitCallableParameter, UnitCallableSignature, UnitCallableTarget, UnitDeclarationSignature,
+    UnitDelegationPlan, UnitEnumCaseSignature, UnitFieldSignature, UnitFunctionParameterType,
+    UnitNominalSignature, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
+    UnitTypeParameterDescriptor, UnitTypeTable,
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
 
@@ -84,6 +85,7 @@ struct SignatureCollector<'a> {
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     interface_edge_spans: BTreeMap<(DeclarationId, DeclarationId), Span>,
     type_ref_types: BTreeMap<(SourceUnitId, usize), UnitTypeId>,
+    delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -138,6 +140,7 @@ impl<'a> SignatureCollector<'a> {
             type_parameters: BTreeMap::new(),
             interface_edge_spans: BTreeMap::new(),
             type_ref_types: BTreeMap::new(),
+            delegations: Vec::new(),
             diagnostics: Vec::new(),
         })
     }
@@ -160,11 +163,23 @@ impl<'a> SignatureCollector<'a> {
         .into_iter()
         .cloned()
         .collect();
+        let input_index = self.names.index().clone();
+        let environment_owner = self.environment.owner().clone();
+        let name_analysis_owners = self
+            .names
+            .source_units()
+            .iter()
+            .map(|source| source.resolution().analysis_owner().clone())
+            .collect();
+        let provenance =
+            SignatureProvenance::new(input_index, environment_owner, name_analysis_owners);
         Ok(CompilationUnitSignatures::new(
+            provenance,
             self.types,
             declarations,
             self.symbol_types,
             self.type_parameters,
+            self.delegations,
             diagnostics,
         ))
     }
@@ -264,10 +279,12 @@ impl<'a> SignatureCollector<'a> {
             }
             let enum_cases = self.collect_enum_cases(source, classifier, id)?;
             let mut members = Vec::new();
+            let mut companion_members = Vec::new();
             if let Some(body) = &classifier.body {
-                self.collect_member_callables(source, body, &mut members)?;
+                self.collect_member_callables(source, body, &mut members, &mut companion_members)?;
             }
             self.check_duplicate_member_shapes(&members)?;
+            self.check_duplicate_member_shapes(&companion_members)?;
             let nominal = self
                 .nominals
                 .get_mut(&id)
@@ -276,6 +293,7 @@ impl<'a> SignatureCollector<'a> {
             nominal.set_fields(fields);
             nominal.set_enum_cases(enum_cases);
             nominal.set_members(members);
+            nominal.set_companion_members(companion_members);
         }
         Ok(())
     }
@@ -359,11 +377,12 @@ impl<'a> SignatureCollector<'a> {
         &mut self,
         source: SourceUnitId,
         body: &ClassifierBody,
-        output: &mut Vec<UnitCallableSignature>,
+        members: &mut Vec<UnitCallableSignature>,
+        companion_members: &mut Vec<UnitCallableSignature>,
     ) -> Result<(), CompilationUnitTypeError> {
         for item in &body.members {
             match unwrapped_item(self.inputs[source.index()].ast(), *item)? {
-                Item::Function { .. } => output.push(
+                Item::Function { .. } => members.push(
                     self.callable_signature(
                         source,
                         *item,
@@ -374,7 +393,25 @@ impl<'a> SignatureCollector<'a> {
                     )?,
                 ),
                 Item::Companion(companion) => {
-                    self.collect_member_callables(source, &companion.body, output)?;
+                    for companion_item in &companion.body.members {
+                        if !matches!(
+                            unwrapped_item(self.inputs[source.index()].ast(), *companion_item)?,
+                            Item::Function { .. }
+                        ) {
+                            continue;
+                        }
+                        companion_members.push(
+                            self.callable_signature(
+                                source,
+                                *companion_item,
+                                UnitCallableTarget::Symbol(
+                                    self.item_symbol(source, *companion_item)?.ok_or(
+                                        CompilationUnitTypeError::MissingDeclarationSymbol,
+                                    )?,
+                                ),
+                            )?,
+                        );
+                    }
                 }
                 _ => {}
             }

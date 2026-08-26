@@ -194,7 +194,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   declaration identity；`resolve_compilation_unit_names` 在核对 inputs/index 后解析 same-package、
   exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
-  `for` binding；跨文件类型与控制流判断仍等待 SPEC-0197；
+  `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、基础 signature 收集及部分
+  interface/bound 图验证，完整 signature graph、body 与控制流判断仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -672,9 +673,16 @@ SPEC-0197 第一阶段新增纯内存的
   支持同 package 跨文件递归签名且不依赖调用方输入顺序；
 - 类型参数上界规范化为 `Any`、interface instance、compiler capability 或 Error；直接 supertype
   拒绝非 interface 与重复 root，interface cycle 按稳定边删除并发布 L0096，合法 DAG 再完成带
-  泛型替换的传递 closure。interface type-argument bound 在签名使用处复用 L0093；
+  泛型替换的传递 closure；同一 interface 经不同路径形成冲突的 invariant instance 时拒绝后续
+  direct edge 及其整条 branch。interface type-argument bound 在签名使用处复用 L0093；
 - 顶层 package overload 与 member overload 共用 alpha-equivalent 参数 shape 判定，重复 shape
-  发 L0097；类型实参数量错误沿用 L0082/L0091。诊断只包含本类型签名阶段并继续使用 unit 稳定排序；
+  发 L0097，instance 与 companion scope 独立；member contract、override/default 与窄化委托
+  复用 L0098–L0105，并发布带 `DeclarationId` / `UnitSymbolId` 的合法 delegation plan；
+- runtime interface position、跨文件 `Copyable` / `Transferable` bound 与 value/enum inline layout
+  graph 分别复用 L0094、L0115/L0141 与 L0116；类型实参数量错误沿用 L0082/L0091；
+- signature product 绑定 canonical input index、逐 source 名称 analysis owner 与类型环境 owner，
+  clone 保持同一分析身份，结构相同但来源不同的产品不能进入后续阶段；诊断只包含本类型签名
+  阶段并继续使用 unit 稳定排序；
 - recovery `CompilationUnitSignatures` 可带签名诊断，只有无 error 时才能取得
   `ValidatedCompilationUnitSignatures`。该 marker 仍不是完整 typed unit：函数体、调用选择、
   flow facts 与 ownership 交接属于 SPEC-0197 第二阶段。

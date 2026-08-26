@@ -1,12 +1,15 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{DeclarationId, PackageId, UnitSymbolId},
-    source::Span,
+    name_resolution::{
+        CompilationUnitIndex, DeclarationId, PackageId, SourceUnitInput, UnitSymbolId,
+        ValidatedCompilationUnitNames, index_compilation_unit,
+    },
+    source::{SourceMap, Span},
     type_checking::{
         BuiltinType, Capability, DeferredReason, IntrinsicTypeConstructor, NominalKind,
-        ParameterMode,
+        ParameterMode, TypeEnvironment,
     },
 };
 
@@ -353,6 +356,64 @@ pub struct UnitFieldSignature {
     span: Span,
 }
 
+/// 一个已验证、可供后续 body 与 lowering 消费的 interface 委托计划。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitDelegationPlan {
+    owner: DeclarationId,
+    interface: UnitTypeId,
+    target: UnitSymbolId,
+    delegation_span: Span,
+    by_span: Span,
+}
+
+impl UnitDelegationPlan {
+    pub(crate) const fn new(
+        owner: DeclarationId,
+        interface: UnitTypeId,
+        target: UnitSymbolId,
+        delegation_span: Span,
+        by_span: Span,
+    ) -> Self {
+        Self {
+            owner,
+            interface,
+            target,
+            delegation_span,
+            by_span,
+        }
+    }
+
+    /// 返回声明委托的 concrete classifier。
+    #[must_use]
+    pub const fn owner(self) -> DeclarationId {
+        self.owner
+    }
+
+    /// 返回包含完整类型实参的目标 interface instance。
+    #[must_use]
+    pub const fn interface(self) -> UnitTypeId {
+        self.interface
+    }
+
+    /// 返回同一主构造器中的 immutable delegate field。
+    #[must_use]
+    pub const fn target(self) -> UnitSymbolId {
+        self.target
+    }
+
+    /// 返回从 `by` 到 target 的完整 delegation clause 范围。
+    #[must_use]
+    pub const fn delegation_span(self) -> Span {
+        self.delegation_span
+    }
+
+    /// 返回真实 `by` token 范围。
+    #[must_use]
+    pub const fn by_span(self) -> Span {
+        self.by_span
+    }
+}
+
 /// 一个 enum case 的 unit-global signature；case identity 由带 source 的 symbol 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitEnumCaseSignature {
@@ -478,6 +539,7 @@ pub struct UnitNominalSignature {
     fields: Vec<UnitFieldSignature>,
     enum_cases: Vec<UnitEnumCaseSignature>,
     members: Vec<UnitCallableSignature>,
+    companion_members: Vec<UnitCallableSignature>,
 }
 
 impl UnitNominalSignature {
@@ -499,6 +561,7 @@ impl UnitNominalSignature {
             fields: Vec::new(),
             enum_cases: Vec::new(),
             members: Vec::new(),
+            companion_members: Vec::new(),
         }
     }
 
@@ -556,10 +619,16 @@ impl UnitNominalSignature {
         &self.enum_cases
     }
 
-    /// 返回 instance/companion callable signatures。
+    /// 返回 instance callable signatures。
     #[must_use]
     pub fn members(&self) -> &[UnitCallableSignature] {
         &self.members
+    }
+
+    /// 返回 companion object callable signatures。
+    #[must_use]
+    pub fn companion_members(&self) -> &[UnitCallableSignature] {
+        &self.companion_members
     }
 
     pub(crate) fn set_direct_interfaces(&mut self, interfaces: Vec<UnitTypeId>) {
@@ -580,6 +649,10 @@ impl UnitNominalSignature {
 
     pub(crate) fn set_members(&mut self, members: Vec<UnitCallableSignature>) {
         self.members = members;
+    }
+
+    pub(crate) fn set_companion_members(&mut self, members: Vec<UnitCallableSignature>) {
+        self.companion_members = members;
     }
 }
 
@@ -653,28 +726,89 @@ impl UnitDeclarationSignature {
 /// SPEC-0197 第 1 阶段的 recovery signature product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitSignatures {
+    provenance: SignatureProvenance,
     types: UnitTypeTable,
     declarations: Vec<UnitDeclarationSignature>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+    delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SignatureProvenance {
+    input_index: CompilationUnitIndex,
+    environment_owner: Arc<()>,
+    name_analysis_owners: Vec<Arc<()>>,
+    analysis_owner: Arc<()>,
+}
+
+impl SignatureProvenance {
+    pub(crate) fn new(
+        input_index: CompilationUnitIndex,
+        environment_owner: Arc<()>,
+        name_analysis_owners: Vec<Arc<()>>,
+    ) -> Self {
+        Self {
+            input_index,
+            environment_owner,
+            name_analysis_owners,
+            analysis_owner: Arc::new(()),
+        }
+    }
 }
 
 impl CompilationUnitSignatures {
     pub(crate) fn new(
+        provenance: SignatureProvenance,
         types: UnitTypeTable,
         declarations: Vec<UnitDeclarationSignature>,
         symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
         type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+        delegations: Vec<UnitDelegationPlan>,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
+            provenance,
             types,
             declarations,
             symbol_types,
             type_parameters,
+            delegations,
             diagnostics,
         }
+    }
+
+    /// 检查本签名产物是否来自给定 inputs、名称分析与类型环境身份链。
+    #[must_use]
+    pub fn is_compatible_with(
+        &self,
+        sources: &SourceMap,
+        inputs: &[SourceUnitInput<'_>],
+        names: &ValidatedCompilationUnitNames,
+        environment: &TypeEnvironment,
+    ) -> bool {
+        let unit_names = names.names();
+        index_compilation_unit(sources, inputs)
+            .is_ok_and(|index| index == self.provenance.input_index)
+            && unit_names.index() == &self.provenance.input_index
+            && Arc::ptr_eq(&self.provenance.environment_owner, environment.owner())
+            && self.provenance.name_analysis_owners.len() == unit_names.source_units().len()
+            && self
+                .provenance
+                .name_analysis_owners
+                .iter()
+                .zip(unit_names.source_units())
+                .all(|(owner, source)| Arc::ptr_eq(owner, source.resolution().analysis_owner()))
+    }
+
+    /// 判断两个签名产物是否来自同一次签名分析；克隆产物保持该身份。
+    #[must_use]
+    pub fn is_same_analysis(&self, other: &Self) -> bool {
+        Arc::ptr_eq(
+            &self.provenance.analysis_owner,
+            &other.provenance.analysis_owner,
+        )
     }
 
     /// 返回唯一 unit-global type table。
@@ -711,6 +845,12 @@ impl CompilationUnitSignatures {
     #[must_use]
     pub fn type_parameter(&self, symbol: UnitSymbolId) -> Option<UnitTypeParameterDescriptor> {
         self.type_parameters.get(&symbol).copied()
+    }
+
+    /// 返回源码顺序的合法 interface 委托计划。
+    #[must_use]
+    pub fn delegations(&self) -> &[UnitDelegationPlan] {
+        &self.delegations
     }
 
     /// 返回仅属于类型签名阶段的稳定诊断。

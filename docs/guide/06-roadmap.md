@@ -283,8 +283,9 @@ Spec 之前，本条限制不变。）
       import、visibility、qualified/static member lookup、L0146–L0151 和独立 recovery/validated
       名称产物；旧 resolver 的 `_` discard 已收窄到 `for` binding。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（in-progress）**：在 SPEC-0025 后
-      已建立防碰撞 unit type/signature identity，继续完成跨文件签名图诊断与 body 类型检查；不得把
-      0025 的名称产物或仅签名产物直接冒充完整 typed unit。
+      已建立防碰撞 unit type/signature identity、完整跨文件 signature graph、provenance 与
+      L0092–L0116/L0141 相关验证；下一阶段接入统一 body 类型检查。不得把 0025 的名称产物或
+      仅签名产物直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
