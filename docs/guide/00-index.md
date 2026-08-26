@@ -65,7 +65,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   SPEC-0177 / SPEC-0174 完成 frontend 实施。
 - **v0.29 已明确启用**：§29 的 nominal/enum case/intrinsic Box constructor target、受控
   expected-result 推导及分阶段交接已成为现行语义，L0143–L0145 获得现行诊断含义；
-  SPEC-0183 / 0188 已完成 typed 与 ownership facts，frontend→SSA/LLVM 接线由 SPEC-0184 承接。
+  SPEC-0183 / 0188 已完成 typed 与 ownership facts，SPEC-0184 已完成 frontend→SSA/LLVM
+  接线与 native 闭环。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续

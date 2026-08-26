@@ -214,10 +214,10 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0033](./0033-typed-ssa-ir-verifier.md) | 实现最小 typed SSA IR 与 verifier（`done`） | 0021、0029、0177、0174 `done`；[ADR-0006](../adr/0006-typed-ssa-block-parameters.md) `accepted` |
 | [0034](./0034-scalar-control-flow-llvm-lowering.md) | 把标量表达式和控制流经 verified SSA lower 到 verified LLVM IR（`done`） | 0033 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md) `accepted`；完整 `for` 已按 runtime 依赖迁移至候选 0182 |
-| [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`done`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；0183/0188 facts 已完成，lowering 由 0184 承接 |
+| [0035](./0035-aggregate-class-allocation-drop.md) | 建立 typed SSA/LLVM 聚合、class/Box heap owner、allocation 与显式 drop/free 后端基元（`done`） | 0034、0029 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；0183/0188 facts 与 0184 lowering 已完成 |
 | [0036](./0036-sequential-container-runtime.md) | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径（`done`） | 0023、0030、0035 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | [0185](./0185-declarative-type-roots-codegen.md) | 让声明型 class/value class/interface/enum roots 与既有标量 entry 共存（`done`） | 0020、0034 `done`；不实现 constructor 或 nominal operation |
-| [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射留给 0184 |
+| [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射已由 0184 完成 |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
@@ -233,8 +233,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0042](./0042-standard-library-bootstrap.md) | 用编译器构建并运行 `lang-std` 目标语言源码（`done`） | 0039 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0043](./0043-standard-error-abort.md) | 发布标准 `error()` identity 并接入既有 Abort（`done`） | 0039、0042 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0189](./0189-standard-println-output.md) | 发布 `println(String)` Borrow identity，并把非插值 UTF-8 literal 接入 stdout native runtime（`done`） | 0039、0042、0043、0184 `done`；当前持续 Goal 的站立授权 |
-| 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035、0185 `done`；0183、0188、0184；v0.29 候选启用后采用 `Result.Ok(success: T)` |
-| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035、0185 `done`；0183、0188、0184 |
+| 0044 | 实现条件可复制的 `Pair` 与 `Result` | 0042、0028、0035、0183、0185、0188、0184 `done`；现行 v0.29 固定 `Result.Ok(success: T)`；可物化 |
+| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035、0183、0185、0188、0184 `done`；可物化 |
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045 |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |

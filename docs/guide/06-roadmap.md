@@ -336,8 +336,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       一般前缀负号仍保持 checked subtraction
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
-      基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，SSA 接线
-      仍等待 SPEC-0184，不按名称猜测构造器
+      基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由
+      SPEC-0184 接入 SSA/LLVM，不按名称猜测构造器
 - [x] **SPEC-0036（已实现）**：已建立顺序容器 owner、完整构造、length、checked element
       place、替换与 drop 的 typed SSA/verifier，以及固定 header、单连续缓冲区、受检分配、
       检查先于寻址、逆序元素析构、唯一释放和 MoveOnly ZST 逻辑析构；Phase 5 尚未定义的
@@ -347,25 +347,26 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       nominal operation、具名 object 或顶层存储初始化
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
-      IR-local 结构化失败边界，源码 `Span` 与稳定用户诊断由 0184 接入 nominal 类型时承接
+      IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
 - [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
-- [ ] **SPEC-0184（v0.29，前置 SPEC-0183/0188，前置已完成）**：把 nominal/enum/Box construction、
+- [x] **SPEC-0184（v0.29，已实现）**：把 nominal/enum/Box construction、
       projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
       value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与
       `Copyable` 能力保持正交
-- [ ] 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联字段转移后不
-      重复析构
-- [ ] `Copyable` 复制不调用 retain / clone glue，也不为被复制值生成唯一析构义务
+- [x] 由 SPEC-0184 生成复制/移动/消费式解构：复制只用于 `Copyable` 类型，非可复制内联
+      字段转移后不重复析构
+- [x] SPEC-0184 保证 `Copyable` 复制不调用 retain / clone glue，也不为被复制值生成唯一
+      析构义务
 - [x] 在 typed SSA 中保留顺序容器 owner、构造、length、checked-index、place load / borrow /
       store 和 drop 基元；owned SSA 值在每条正常退出路径恰好消费或析构一次；relocation
       operation 等待 Phase 5 API/effect identity 封闭
 - [x] 为单态化元素生成 size / alignment / stride，以系统堆基线生成固定大小 owner header、
       单个连续缓冲区、受检分配大小和先检查后寻址的索引；不生成逐元素 `Box`
-- [ ] 在构造 LLVM 类型前拒绝目标 DataLayout 中的 size / alignment / stride 溢出和超过目标
-      可表示对象大小的聚合，返回结构化用户诊断而不是 LLVM 错误或编译器崩溃；SPEC-0186
-      先完成 IR-local preflight，源码诊断映射等待 0184 后再完成本项总验收
+- [x] SPEC-0186/0184 在构造 LLVM 类型前拒绝目标 DataLayout 中的 size / alignment / stride
+      溢出和超过目标可表示对象大小的聚合，返回结构化 L0145 用户诊断而不是 LLVM 错误或
+      编译器崩溃
 - [x] 大型聚合与容器 header 的 ABI 间接传递不得 lower 为隐式 `Box`，也不得仅因参数或返回
       约定产生堆分配
 - [x] 验证标准顺序容器不存在 small-buffer storage-kind tag、短 / 长双表示或按优化级别改变的
@@ -418,12 +419,12 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
 - [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
-      完整运行实现等待 SPEC-0184 发布 lowering facts；现行 v0.29 已保持
-      `value` 为硬关键字，并把核心 payload 名称封闭为 `Ok(success: T)`
+      SPEC-0184 lowering 前置已完成；现行 v0.29 已保持 `value` 为硬关键字，并把核心 payload
+      名称封闭为 `Ok(success: T)`；候选 SPEC-0044 可物化
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
       传入值所有权，调用点无 marker；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）；完整运行实现同样等待 SPEC-0184 的
-      aggregate/heap-owner lowering
+      retain，因此本身不满足 `Copyable`）；SPEC-0184 aggregate/heap-owner lowering 前置已完成，
+      候选 SPEC-0045 可物化
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
