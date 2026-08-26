@@ -7,11 +7,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-197` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 v0.31；候选 v0.32 §32 |
-| 批准依据 | 无；v0.32 尚未启用 |
+| 语言规范 | 现行 v0.32 §32 |
+| 批准依据 | 无；等待前置 SPEC-0025 |
 | 前置 Spec | SPEC-0020、0021、0174、0177 `done`；SPEC-0025 待完成 |
-| 前置 ADR | ADR-0020 待接受 |
-| 阻塞项 | v0.32 启用；SPEC-0025 `done`；ADR-0020 `accepted` |
+| 前置 ADR | ADR-0020 `accepted` |
+| 阻塞项 | SPEC-0025 `done` |
 | 影响范围 | `lang-frontend` compilation-unit type environment/facts、fixtures；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 

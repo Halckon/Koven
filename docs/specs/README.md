@@ -1,13 +1,13 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.31 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.32 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
-[v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032-候选未启用)
-目前只是未启用候选。它用于提前审查 SPEC-0025/0197/0198/0199/0187 的依赖边界，不改变
-现行 v0.31，也不构成这些 Spec 的批准依据。SPEC-0052/ADR-0022 另把后继本地 manifest/source
-provider 物化为候选，不把项目 IO 反向塞入 frontend 或 LSP。
+[v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032)
+已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020 已接受，
+SPEC-0025→0197→0198→{0199,0187} 按依赖推进。SPEC-0052/ADR-0022 另把后继本地
+manifest/source provider 物化为候选，不把项目 IO 反向塞入 frontend 或 LSP。
 
 [v0.33 §33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
 是 v0.32 的未启用后继候选：它只为无依赖本地 project 定义显式 package-qualified entry 与
@@ -104,13 +104,13 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
 | 已物化 receiver 候选 | SPEC-0201→0180→0181→0191 | v0.34 §34 已起草；Parser、typed、ownership、native 分层，复用 ADR-0016；未启用，全部保持 draft |
 | 仍有 iteration 门禁 | SPEC-0179、0182、0046 | receiver 是前置但不定义 provider lifetime/ownership；仍需独立 iteration guide/runtime 决策 |
-| 已选下一 guide 候选 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 与 ADR-0020/0021 已起草；0025→0197→0198 后分叉到 0199/0187；未启用/未接受，全部保持 draft |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025→0197→0198 后分叉到 0199/0187，首项 0025 可推进 |
 | 仍有 const/Map 门禁 | SPEC-0024、0026、0031、0037 | 保持候选，不能从已有 parser 或单文件工具反推语义 |
 | 项目构建后继 | SPEC-0052–0054、0200 | ADR-0022/SPEC-0052 只产出本地 base snapshot；v0.33/SPEC-0054 等待 0052/0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
 
-审计据解锁价值选择 package/import 作为下一 guide 候选，并把原先从 SPEC-0025 直接跳向
-LSP/项目构建的缺口补成名称→类型→所有权，再分叉到 native 与 LSP。当前仍无可直接实施的相邻节点：
-必须先由用户明确启用 v0.32；随后各分支仍须接受 ADR-0020/0021/0022 并完成前置 Spec。
+审计据解锁价值选择 package/import，并把原先从 SPEC-0025 直接跳向 LSP/项目构建的缺口补成
+名称→类型→所有权，再分叉到 native 与 LSP。v0.32 与 ADR-0020 门禁已经解除，SPEC-0025
+成为当前可直接实施节点；后继分支仍须接受适用的 ADR-0021/0022 并完成前置 Spec。
 公开 project build 还必须另行启用 v0.33；receiver 主线已物化为 v0.34 候选但同样等待明确
 启用。nullable `when`/`!!`、iteration 与 const/Map 继续保持各自门禁。
 
@@ -236,8 +236,8 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201；v0.34 待启用 |
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
-| [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`draft`） | 0015、0018 `done`；v0.32 待启用；ADR-0005 `accepted`、[ADR-0020](../adr/0020-multifile-compilation-unit.md) `proposed` |
-| [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`draft`） | 0025；v0.32 待启用；ADR-0020 待接受 |
+| [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`draft`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
+| [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`draft`） | 0025；v0.32 已启用；ADR-0020 `accepted` |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
 
 Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
@@ -257,7 +257,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |
-| [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`draft`） | 0197；v0.32 待启用；ADR-0020 待接受 |
+| [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`draft`） | 0197；v0.32 已启用；ADR-0020 `accepted` |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 
@@ -276,7 +276,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |
 | [0040](./0040-dwarf-line-tables-lldb.md) | 生成首个 DWARF 行表并用 LLDB 验收源码断点（`done`） | 0039 `done`；[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`draft`） | 0198；v0.32 待启用；ADR-0020 待接受 |
+| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`draft`） | 0198；v0.32 已启用；ADR-0020 `accepted` |
 | 0041 | 提供用户可见 `extern` FFI | 0039；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |
 
 ### Phase 5：最小标准库
@@ -305,13 +305,13 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0194](./0194-parameterized-main-argv.md) | 接入 `fun main(args: Array<String>): Unit` 与 argv owner（`done`） | 0193 `done`、0192 `done`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted`；v0.31 现行语义 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0052](./0052-minimal-project-manifest-source-set.md) | 解析最小 `project.toml` 并产生本地 base source-set snapshot（`draft`） | 0025；v0.32 待启用；ADR-0020/0022 待接受 |
+| [0052](./0052-minimal-project-manifest-source-set.md) | 解析最小 `project.toml` 并产生本地 base source-set snapshot（`draft`） | 0025；v0.32 已启用；ADR-0020 `accepted`、ADR-0022 待接受 |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
-| [0054](./0054-local-project-build-run.md) | 由 package CLI 编排显式 entry 的无依赖本地 project build/run（`draft`） | 0052、0199；v0.33 待启用；ADR-0020/0022 待接受；不等待 0053 |
+| [0054](./0054-local-project-build-run.md) | 由 package CLI 编排显式 entry 的无依赖本地 project build/run（`draft`） | 0052、0199；v0.33 待启用；ADR-0020 `accepted`、ADR-0022 待接受；不等待 0053 |
 | 0200 | 编排 dependency-aware project build | 0053、0054；跨 compilation-unit export/ABI guide 与 ADR |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |
-| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 待启用；ADR-0020/0021 待接受 |
+| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 已启用；ADR-0020 `accepted`、ADR-0021 待接受 |
 | [0057](./0057-conservative-source-formatter.md) | 实现稳定、幂等的格式化器（`done`） | 0014、0006 `done`；[ADR-0013](../adr/0013-conservative-source-formatting.md) `accepted` |
 | [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0059](./0059-tree-sitter-grammar.md) | 提供 Tree-sitter grammar 与 corpus（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
@@ -375,7 +375,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.31 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.32 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 

@@ -6,8 +6,8 @@ proposed
 
 ## 接受依据
 
-不适用（`proposed`）。guide v0.32 尚未启用；本 ADR 只为候选 SPEC-0187 封闭 host 到 LSP
-的 source-set provider，启用后仍须按现行文档治理规则接受。
+不适用（`proposed`）。guide v0.32 已启用，但 SPEC-0187 的前置多文件类型/所有权链尚未完成；
+本 ADR 只为该后继 Spec 封闭 host 到 LSP 的 source-set provider，仍须按现行文档治理规则接受。
 
 ## 背景
 

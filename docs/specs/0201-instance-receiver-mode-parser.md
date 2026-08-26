@@ -5,7 +5,7 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P1-201` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 v0.31；候选 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
+| 语言规范 | 现行 v0.32；候选 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
 | 批准依据 | 无；v0.34 尚未启用 |
 | 前置 Spec | SPEC-0017、0064、0176 `done` |
 | 前置 ADR | 无 |

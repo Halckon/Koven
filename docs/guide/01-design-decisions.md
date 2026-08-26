@@ -1,13 +1,13 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.31。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.32。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
-> 现行规则；第 30、31 节分别是 v0.30、v0.31 已启用的现行规则；
-> 第 32–34 节分别是尚未启用的 v0.32–v0.34 候选；附录收录原第二部分的核心结构声明总览。
+> 现行规则；第 30–32 节分别是 v0.30–v0.32 已启用的现行规则；
+> 第 33、34 节分别是尚未启用的 v0.33、v0.34 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -1933,11 +1933,11 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ---
 
-## 32. package/import 绑定、跨文件可见性与 compilation unit（v0.32 候选，未启用）
+## 32. package/import 绑定、跨文件可见性与 compilation unit（v0.32）
 
-> **候选状态**：本节只记录 roadmap 审计后的推荐契约。当前唯一权威版本仍是 v0.31；只有
-> 用户明确启用 v0.32 并指定其取代 v0.31 后，本节及预留诊断才能成为现行语义。候选 Spec
-> 可以据此起草，但不得进入 `approved` / `in-progress` 或反向改变现有单文件行为。
+> **现行状态**：v0.32 已于 2026-08-26 由用户明确启用并取代 v0.31。本节及 L0146–L0151
+> 已成为现行语义；ADR-0020 已接受，具体实现仍按 SPEC-0025→0197→0198 后分叉到
+> SPEC-0199/0187 的依赖顺序推进。
 
 ### 32.1 compilation unit、package 与声明身份
 
@@ -1966,7 +1966,7 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
   时，`internal` 的边界就是 driver 本次显式交付的 compilation unit。
 - 顶层 `private` 声明只在其 source unit 内可见，不能由同 package 的其他文件导入或限定。
   member `private` 继续是 declaring classifier 内可见，不因多文件而扩大。
-- 默认可见性继续遵守既有声明规则；本候选不新增 package-private 修饰符，也不让 import
+- 默认可见性继续遵守既有声明规则；本节不新增 package-private 修饰符，也不让 import
   绕过可见性检查。
 
 ### 32.3 exact、alias 与 wildcard import
@@ -1992,7 +1992,7 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
   及现行允许的静态成员/case；路径必须整体成功，不得把“已解析前缀 + deferred 尾部”伪装
   为成功。import 始终是绝对 package 路径。
 - 普通表达式中的裸名称先执行 §21 的词法/文件查询。package 只存在于静态名称路径，不是
-  runtime value，不能赋值、传参、捕获或作为 member receiver；本候选不引入 Kotlin/Rust
+  runtime value，不能赋值、传参、捕获或作为 member receiver；本节不引入 Kotlin/Rust
   风格的相对 package 别名、`self` / `super` / `crate` 路径。
 - 单段 exact import 可引用默认 package 的顶层声明；同样的 `Foo.*` 仍按 package wildcard
   解释，要求存在 package `Foo`。import 的终端名称、alias 与普通/限定引用都必须发布目标
@@ -2000,7 +2000,7 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 32.5 诊断与分阶段交接
 
-候选预留 L0146–L0151：package 与逻辑路径不匹配、同 package 跨文件声明冲突、import target
+v0.32 分配 L0146–L0151：package 与逻辑路径不匹配、同 package 跨文件声明冲突、import target
 未解析、目标不可见、exact import 绑定冲突、wildcard 实际使用歧义。诊断必须包含发生使用或
 声明冲突的主 `Span`，并在可用时附带目标/冲突声明位置；排序由稳定 source-unit key、字节
 位置和错误码决定。省略 package 但文件不在 source root 根目录时，L0146 的 primary 是文件
@@ -2016,17 +2016,17 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
    不能维护第二套 resolver；首个 host provider 候选由 ADR-0021 的版本化初始化 source set
    提供，不把打开 URI 集合或磁盘扫描当成隐式 unit。
 
-本候选不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
+本节不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
 ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。
 ADR-0022/SPEC-0052 可独立起草工具侧 manifest→source-set adapter，但它不因此成为语言语义、
-不解除本节启用门禁，也不定义 dependency、target 或 process entry。
+也不定义 dependency、target 或 process entry。
 
 ---
 
 ## 33. 本地 project process entry 与公开 build/run（v0.33 候选，未启用）
 
-> **候选状态**：本节是 v0.32 多文件语义的后继工具契约。当前唯一权威版本仍是 v0.31；只有
-> 用户明确启用包含 §32/§33 的后续 guide 并指定其取代 v0.31 后，本节才能约束公开 CLI。
+> **候选状态**：本节是 v0.32 多文件语义的后继工具契约。当前唯一权威版本仍是 v0.32；只有
+> 用户明确启用 v0.33 并指定其取代 v0.32 后，本节才能约束公开 CLI。
 > SPEC-0054 在此之前保持 `draft`；本候选不改变 ADR-0022 manifest version 1，因此不另建
 > project-target schema ADR。
 
@@ -2097,8 +2097,8 @@ fun start(args: Array<String>): Unit { ... }
 
 ## 34. 显式 instance receiver 契约与静态 member 调用（v0.34 候选，未启用）
 
-> **候选状态**：本节是 v0.33 的后继语言候选。当前唯一权威版本仍是 v0.31；只有用户明确
-> 启用 v0.34 并指定其取代 v0.31 后，本节才能改变 member 声明或调用。SPEC-0201、0180、
+> **候选状态**：本节是 v0.33 的后继语言候选。当前唯一权威版本仍是 v0.32；只有用户明确
+> 启用 v0.34 并指定其取代 v0.32 后，本节才能改变 member 声明或调用。SPEC-0201、0180、
 > 0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的 Value/Borrow/Inout 内部
 > callable ABI，不新增 receiver ABI ADR。
 

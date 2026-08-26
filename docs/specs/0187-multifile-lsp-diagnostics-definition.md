@@ -7,11 +7,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P6-187` |
 | 所属 Phase | Phase 6 |
-| 语言规范 | 现行 v0.31；候选 v0.32 §32 |
-| 批准依据 | 无；v0.32 尚未启用 |
+| 语言规范 | 现行 v0.32 §32 |
+| 批准依据 | 无；等待前置 Spec 与 ADR-0021 |
 | 前置 Spec | SPEC-0055、0056 `done`；SPEC-0025、0197、0198 待完成 |
-| 前置 ADR | ADR-0020、[ADR-0021](../adr/0021-lsp-explicit-source-set-protocol.md) 待接受 |
-| 阻塞项 | v0.32 启用；0025/0197/0198 `done`；ADR-0020/0021 `accepted` |
+| 前置 ADR | ADR-0020 `accepted`；[ADR-0021](../adr/0021-lsp-explicit-source-set-protocol.md) 待接受 |
+| 阻塞项 | 0025/0197/0198 `done`；ADR-0021 `accepted` |
 | 影响范围 | `lang-lsp` workspace/source-set state，frontend API integration，LSP tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -80,7 +80,7 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 ## 9. 未决问题
 
 - 无；host wire、单 unit、任意合法绝对 URI、固定 membership 与 legacy fallback 由 ADR-0021
-  封闭。状态门禁仍由元数据中的 v0.32、前置 Spec 与 proposed ADR 表达。
+  封闭。状态门禁仍由元数据中的前置 Spec 与 proposed ADR-0021 表达。
 
 ## 10. 验证记录
 

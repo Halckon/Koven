@@ -23,8 +23,8 @@
 > 把首个 `println(String)` Borrow identity 与非插值 literal 接入 stdout，SPEC-0044 已在
 > `prelude.ko` 实现条件 `Copyable` 的 `Pair` / `Result` 并完成 native 正反验收；Phase 6
 > 已提供单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性保守 formatter、
-> TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析等待 guide 封闭 import 冲突与
-> 跨 package 可见性，`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
+> TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析语义已由 v0.32 封闭，等待
+> SPEC-0025 起的分阶段实现；`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
 > 类型。
 > SPEC-0185 已允许无模块初始化动作的 class/value class/interface/enum class 顶层声明与标量
 > entry 共存，但不表示 constructor、nominal operation 或具名 object runtime 已实现。
@@ -41,7 +41,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查，以及 v0.29 nominal/enum/Box constructor typed facts；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中、SPEC-0184 的 nominal/enum/Box constructor/投影/解构/drop/L0145 native 闭环、SPEC-0195 的 callable Borrow loan operand/frontend LoanFact/LLVM pointer ABI，以及 SPEC-0196 的 pointer-like nullable `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 和 class/Box/Rc native 闭环；inline nullable、nullable `when` 与 `!!` 消费 lowering 尚待后续 Spec。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime，并由 SPEC-0044 在标准源码实现条件 `Copyable` 的 `Pair` / `Result` 与 native 正反验收；SPEC-0045 已完成非 nullable `Rc<T>` construction/share/Copyable payload read、target preflight、retain/release 和真实 native build/run，pointer-like nullable lowering已由 SPEC-0196 完成；SPEC-0192 已完成一般 UTF-8 String owner、连接/相等/动态输出、Borrow/Value/return、aggregate/Rc/顺序容器/move closure capture 与精确析构 native 闭环；其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供公开单文件显式 entry、零参数与参数化 conventional `main` 的 `kovenc build/run`、原始 argv 转交、单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；跨文件诊断与跳转定义及项目构建仍等待后续 Spec |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查，以及 v0.29 nominal/enum/Box constructor typed facts；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中、SPEC-0184 的 nominal/enum/Box constructor/投影/解构/drop/L0145 native 闭环、SPEC-0195 的 callable Borrow loan operand/frontend LoanFact/LLVM pointer ABI，以及 SPEC-0196 的 pointer-like nullable `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 和 class/Box/Rc native 闭环；inline nullable、nullable `when` 与 `!!` 消费 lowering 尚待后续 Spec。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime，并由 SPEC-0044 在标准源码实现条件 `Copyable` 的 `Pair` / `Result` 与 native 正反验收；SPEC-0045 已完成非 nullable `Rc<T>` construction/share/Copyable payload read、target preflight、retain/release 和真实 native build/run，pointer-like nullable lowering已由 SPEC-0196 完成；SPEC-0192 已完成一般 UTF-8 String owner、连接/相等/动态输出、Borrow/Value/return、aggregate/Rc/顺序容器/move closure capture 与精确析构 native 闭环；其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；多文件 package / import 语义已由 v0.32 封闭并等待 SPEC-0025 起的实现链，`object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供公开单文件显式 entry、零参数与参数化 conventional `main` 的 `kovenc build/run`、原始 argv 转交、单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；跨文件诊断与跳转定义及项目构建仍等待后续 Spec |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -56,8 +56,8 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.31；§30 的 conventional main /
-   显式 Rc 与 §31 的一般 String 契约已成为现行语义。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.32；§30 的 conventional main /
+   显式 Rc、§31 的一般 String 与 §32 的多文件 package/import 契约已成为现行语义。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -88,15 +88,16 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.31 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.32 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的
-  `mod` / `use` / `::` 或花括号分组导入。package 到文件系统的映射与跨文件名称解析仍
-  等待后续 Spec / ADR。
+  `mod` / `use` / `::` 或花括号分组导入。v0.32 已定义显式 source root / logical path 映射与
+  跨文件名称语义；实际 frontend 支持按 SPEC-0025 起的实现链推进。
 - 单文件名称解析使用类型 / 值双命名空间；顶层与成员先收集后解析，block local 从
   initializer 完成后可见，嵌套作用域允许遮蔽。同一值作用域的函数形成有序 overload set；
-  package/import 展开仍属于后续 Phase 2 Spec；member 与 overload 选择已实现。
+  package/import 展开已由 v0.32 定义、仍属于 SPEC-0025 的 Phase 2 实现范围；member 与
+  overload 选择已实现。
 - `value class` 表示值语义和内联布局，不得描述成“永远在栈上”，也不天然等于可复制。
   它可以包含不可复制字段；仅当全部字段类型都满足 `Copyable` 时才自动满足 `Copyable`，
   否则转交所有权时发生移动。`Copyable` 可作泛型上界但不能由用户手动实现；不可复制字段

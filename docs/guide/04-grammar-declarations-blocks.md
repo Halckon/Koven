@@ -2,7 +2,7 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含未启用的 v0.32 名称绑定候选解释，不改变现行 Parser。
+> §11.1 含现行 v0.32 名称绑定解释，不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -528,10 +528,10 @@ SPEC-0015 只交付 Phase 1 Lexer / Parser / AST / 诊断与恢复。package 到
 映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。上述 Phase 1
 增量已由 SPEC-0015 实现并验收。
 
-### 11.1 v0.32 候选绑定解释（未启用）
+### 11.1 v0.32 绑定解释
 
-本小节不改变上述 grammar、AST 或 Parser 恢复。当前现行规范仍是 v0.31；以下解释只有在
-v0.32 被明确启用后才约束 SPEC-0025：
+本小节不改变上述 grammar、AST 或 Parser 恢复。v0.32 已明确启用；以下解释约束
+SPEC-0025：
 
 - exact import 只能绑定可见的顶层类型、顶层值或同 package 同名函数 overload set；alias
   只创建当前文件的本地绑定名；

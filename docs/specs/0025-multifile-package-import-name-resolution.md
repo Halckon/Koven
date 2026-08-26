@@ -7,13 +7,13 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-025` |
 | 所属 Phase | Phase 2（名称解析） |
-| 语言规范 | 现行 v0.31；候选 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032-候选未启用) |
-| 批准依据 | 无；v0.32 尚未启用 |
+| 语言规范 | 现行 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032) |
+| 批准依据 | 2026-08-26 用户明确启用 v0.32；实施前仍须完成本 Spec 审计 |
 | 前置 Spec | SPEC-0015、0018 `done` |
-| 前置 ADR | ADR-0005 `accepted`；[ADR-0020](../adr/0020-multifile-compilation-unit.md) 待接受 |
-| 阻塞项 | 用户明确启用 v0.32；ADR-0020 `accepted` |
+| 前置 ADR | ADR-0005、[ADR-0020](../adr/0020-multifile-compilation-unit.md) `accepted` |
+| 阻塞项 | 无；guide/ADR 门禁已解除，尚未进入实施状态 |
 | 影响范围 | `lang-frontend` source/package index、名称解析、诊断、fixtures；Architecture/Roadmap |
-| 语言语义变更 | 否；仅可实施未来启用后的 v0.32 |
+| 语言语义变更 | 否；实施现行 v0.32 |
 
 ## 2. Goal
 
@@ -76,10 +76,10 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 ## 9. 未决问题
 
-- 无；语言门禁由候选 v0.32 的启用状态表达。
+- 无；现行 v0.32 已封闭本 Spec 所需语言语义。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 roadmap 审计 | 通过 | Spec 已物化；因 v0.32/ADR-0020 未生效而保持 draft |
+| 2026-08-26 roadmap 审计 | 通过 | v0.32 已启用、ADR-0020 已接受；实施前仍须核对代码边界与验收矩阵 |

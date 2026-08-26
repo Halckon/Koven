@@ -5,7 +5,7 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P3-181` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 现行 v0.31；候选 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
+| 语言规范 | 现行 v0.32；候选 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
 | 批准依据 | 无；v0.34 尚未启用 |
 | 前置 Spec | SPEC-0029、0032 `done`；SPEC-0180 待完成 |
 | 前置 ADR | 无 |

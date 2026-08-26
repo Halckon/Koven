@@ -2,12 +2,12 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.31；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
+> v0.32；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
-> roadmap 审计已把 package/import 选为下一候选切片，并在 §32 起草 v0.32 候选；该版本尚未
-> 启用，ADR-0020 与 SPEC-0025/0197/0198/0199/0187 均不得进入实施状态。
+> v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
+> SPEC-0025→0197→0198→{0199,0187} 推进，首项 SPEC-0025 的 guide/ADR 门禁已解除。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
-> SPEC-0201→0180→0181→0191；当前同样未启用，不改变 v0.31 实现。
+> SPEC-0201→0180→0181→0191；当前仍未启用，不改变 v0.32 实现。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -272,7 +272,7 @@ Spec 之前，本条限制不变。）
 
 `for` iteration plan、`object` / `companion object`、Map 与 receiver 各自在门禁解除后形成独立
 增量验收；它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-但在 v0.32 未启用时仍全部阻塞。
+其中 SPEC-0025 已解除 guide/ADR 门禁；后继节点仍由前置 Spec 与各自 ADR 状态阻塞。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -316,7 +316,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       source DropFact
 - [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（draft）**：在 SPEC-0197
       后消费完整 typed unit，发布跨文件 call/constructor 的 loan、move、drop 与 capture facts；
-      body 数据流仍保持局部，不新增跨过程所有权分析；v0.32/ADR-0020 未生效前不得实施。
+      body 数据流仍保持局部，不新增跨过程所有权分析；当前等待 SPEC-0197 完成。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式

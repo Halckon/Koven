@@ -7,11 +7,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-199` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 v0.31；候选 v0.32 §32 |
-| 批准依据 | 无；v0.32 尚未启用 |
+| 语言规范 | 现行 v0.32 §32 |
+| 批准依据 | 无；等待前置 SPEC-0198 |
 | 前置 Spec | SPEC-0034、0035、0036、0038、0039、0184、0192、0195、0196 `done`；SPEC-0198 待完成 |
-| 前置 ADR | ADR-0010 `accepted`；ADR-0020 待接受 |
-| 阻塞项 | v0.32 启用；SPEC-0198 `done`；ADR-0020 `accepted` |
+| 前置 ADR | ADR-0010、ADR-0020 `accepted` |
+| 阻塞项 | SPEC-0198 `done` |
 | 影响范围 | `lang-codegen` unit lowering/SSA/LLVM/object，native integration tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
