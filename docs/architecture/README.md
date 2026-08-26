@@ -90,6 +90,12 @@ Consume 解构保持不同线性契约，字段 place、enum discriminant/静态
 均由 verifier 检查。LLVM 使用 `i32` 源序 tag 加最大 payload storage，递归 drop glue 按 tag
 选择 payload；native bridge 用 SSA 类型来源生成 L0145 使用主范围与声明标签。真实 `.ko` 已覆盖
 value/class/enum/Box、投影/解构、MoveOnly nested payload，并完成 object/Clang link/run；
+SPEC-0045 已完成 frontend 与 SSA 两个阶段切片：compiler-bound `Rc(value)`、显式 `.share()`
+和只读 `.value` 发布独立 typed/ownership facts，construction 建立 `SharedOwner` root；typed SSA
+新增先声明后定义且恒 MoveOnly 的 `SharedOwner<payload>`，以及消费 payload 的
+`SharedAllocate`、非消费 receiver 并产生新 owner 的 `SharedRetain`、只产生 payload place 的
+`SharedPayloadPlace`。三者已进入确定性 render、局部类型契约和线性 ownership verifier；LLVM
+adapter 仍明确拒绝这些 operation，control block、retain/release 与归零 drop/free 正由下一切片实施；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -175,10 +181,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `borrow` 共享 `Borrow` identity，声明侧 `own` 形成 `Value`。预声明只读 API 使用 `Borrow`，
   `Array` / `List` 的 runtime-length 构造器两个参数均为 `Borrow`；预声明 callable 可由
   `EnvironmentFunctionEffect` 为精确参数绑定跨线程交付 effect，成功 call 通过 argument
-  descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定 `Rc<T>` 只建立
-  compiler intrinsic 类型身份，runtime API 仍属 Phase 5；现有 SSA/LLVM heap owner 只覆盖
-  无 header 的独占 class/Box，`Rc` 的共享 owner header、retain/release 与 payload 访问 ABI
-  尚未定义；
+  descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定的 intrinsic `Rc<T>`
+  已实现 construction、share、payload read 的 typed/ownership identity，源码同名 class/member
+  不获得特权；SharedOwner SSA 已实现，LLVM control block 与 retain/release lowering 尚未实现；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自

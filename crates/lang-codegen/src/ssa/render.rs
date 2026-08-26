@@ -87,6 +87,16 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             }
             Ok(())
         }
+        SsaTypeKind::SharedOwner { name, payload } => {
+            write!(output, "shared_owner {name:?}")?;
+            if let Some(payload) = payload {
+                output.write_str(" payload ")?;
+                write_type_id(output, *payload)?;
+            } else {
+                output.write_str(" <declared>")?;
+            }
+            Ok(())
+        }
         SsaTypeKind::SequentialContainer { kind, element } => {
             write!(output, "container {kind:?}<")?;
             write_type_id(output, *element)?;
@@ -437,6 +447,20 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::HeapPayloadPlace { owner } => {
             output.write_str("heap.payload_place ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::SharedAllocate { owner, payload } => {
+            output.write_str("shared.allocate ")?;
+            write_type_id(output, *owner)?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*payload))
+        }
+        Operation::SharedRetain { owner } => {
+            output.write_str("shared.retain ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::SharedPayloadPlace { owner } => {
+            output.write_str("shared.payload_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
         Operation::ContainerConstruct {

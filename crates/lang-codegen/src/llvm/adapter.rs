@@ -282,6 +282,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             instruction.operation,
             Operation::TaggedPayloadPlace { .. }
                 | Operation::HeapPayloadPlace { .. }
+                | Operation::SharedPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
@@ -670,6 +671,13 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.builder
                         .build_store(self.place(*place)?, self.value(*value)?)?;
                 }
+            }
+            Operation::SharedAllocate { .. }
+            | Operation::SharedRetain { .. }
+            | Operation::SharedPayloadPlace { .. } => {
+                return Err(unsupported(
+                    "shared owner operations require SPEC-0045 LLVM lowering",
+                ));
             }
         }
         Ok(())

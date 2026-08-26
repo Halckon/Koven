@@ -79,7 +79,7 @@ fun main(): Unit {
 - [x] valid Rc construction/share/value typed facts 与源码同名负例通过；参数形状错误复用现行诊断。
 - [x] 普通赋值移动、`.share()` 保留源 owner、payload Borrow/Copy 和禁止 MoveOnly 移出有正反例。
 - [x] Rc 恒 MoveOnly/非 Transferable，并与 closure/call/drop facts 保持确定性。
-- [ ] SharedOwner SSA 类型/operation/render/verifier 正反矩阵通过。
+- [x] SharedOwner SSA 类型/operation/render/verifier 正反矩阵通过。
 - [ ] LLVM IR 锁定 `{usize,payload}` target layout、非原子 checked retain、release-to-zero drop/free、
       nullable/ZST/nested payload 与 verifier-before-LLVM。
 - [ ] 真实 `kovenc build/run` Rc 程序退出 0，输出精确且无临时产物泄漏。
@@ -96,7 +96,7 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 
 1. [x] Rc construction/share/value typed facts与 Phase 2 正反测试。
 2. [x] Rc ownership/share/payload loan/drop facts与 Phase 3 正反测试。
-3. [ ] SharedOwner SSA type/operation/render/verifier 与直接 IR 测试。
+3. [x] SharedOwner SSA type/operation/render/verifier 与直接 IR 测试。
 4. [ ] LLVM control block、retain/release/drop glue 与布局/runtime 测试。
 5. [ ] frontend→SSA lowering、真实 native build/run、Architecture 与 workspace 基线。
 
@@ -121,3 +121,4 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 | `cargo test -p lang-frontend --tests` | 通过 | 完整 frontend 单元、集成、fixture 与 adversarial 矩阵；新增 Rc typed/ownership/parser 测试全部通过 |
 | `cargo check --workspace` | 通过 | Rc 在下一阶段 SharedOwner SSA 落地前由 codegen 明确返回 `UnsupportedNode`，workspace 不接收错误的 Box 映射 |
 | `cargo fmt --all` / `git diff --check` | 通过 | frontend 第一切片格式与 whitespace 基线通过 |
+| `cargo test -p lang-codegen` | 通过 | 112 passed，1 个既有 LLDB 权限测试 ignored；SharedOwner 类型、operation、render、类型/ownership verifier 正反矩阵通过 |

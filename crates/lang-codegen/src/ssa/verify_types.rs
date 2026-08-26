@@ -48,6 +48,7 @@ fn verify_named_identity(
         SsaTypeKind::Aggregate { name, .. }
         | SsaTypeKind::TaggedUnion { name, .. }
         | SsaTypeKind::HeapOwner { name, .. }
+        | SsaTypeKind::SharedOwner { name, .. }
         | SsaTypeKind::ConcreteClosure { name, .. } => name,
         _ => return,
     };
@@ -147,6 +148,24 @@ fn verify_type_definition(
         }
         SsaTypeKind::HeapOwner { payload: None, .. } => {
             push_type_error(errors, id, "heap owner declaration must be defined");
+        }
+        SsaTypeKind::SharedOwner {
+            payload: Some(payload),
+            ..
+        } => {
+            if payload.module() != module.id
+                || module.type_kind(*payload).is_none()
+                || !module.type_is_defined(*payload)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "shared owner payload must be a defined local type",
+                );
+            }
+        }
+        SsaTypeKind::SharedOwner { payload: None, .. } => {
+            push_type_error(errors, id, "shared owner declaration must be defined");
         }
         SsaTypeKind::SequentialContainer { element, .. } => {
             if element.module() != module.id

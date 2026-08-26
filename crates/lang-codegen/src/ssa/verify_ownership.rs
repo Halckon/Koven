@@ -320,6 +320,23 @@ fn apply_operation(
                 errors,
             );
         }
+        Operation::SharedAllocate { payload, .. } => {
+            consume_value(
+                module,
+                function,
+                *payload,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
+        Operation::SharedRetain { owner } | Operation::SharedPayloadPlace { owner } => {
+            require_value(module, function, *owner, state, location, origin, errors);
+        }
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }

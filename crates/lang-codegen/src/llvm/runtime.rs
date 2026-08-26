@@ -743,6 +743,11 @@ impl RuntimeRequirements {
                 })?;
                 self.collect_drop_type(module, payload)?;
             }
+            Some(SsaTypeKind::SharedOwner { .. }) => {
+                return Err(LlvmAdapterError::Unsupported(
+                    "shared owner drop glue requires SPEC-0045 LLVM lowering".to_owned(),
+                ));
+            }
             Some(SsaTypeKind::SequentialContainer { element, .. }) => {
                 self.needs_free = true;
                 self.collect_drop_type(module, *element)?;

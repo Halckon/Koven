@@ -180,6 +180,10 @@ pub(crate) enum SsaTypeKind {
         name: String,
         payload: Option<SsaTypeId>,
     },
+    SharedOwner {
+        name: String,
+        payload: Option<SsaTypeId>,
+    },
     SequentialContainer {
         kind: SequentialContainerKind,
         element: SsaTypeId,
@@ -379,6 +383,16 @@ pub(crate) enum Operation {
     HeapPayloadPlace {
         owner: ValueId,
     },
+    SharedAllocate {
+        owner: SsaTypeId,
+        payload: ValueId,
+    },
+    SharedRetain {
+        owner: ValueId,
+    },
+    SharedPayloadPlace {
+        owner: ValueId,
+    },
     ContainerConstruct {
         container: SsaTypeId,
         elements: Vec<ValueId>,
@@ -466,13 +480,16 @@ impl Operation {
             Self::AggregateProject { aggregate, .. }
             | Self::AggregateExplode { aggregate }
             | Self::AggregateCopyExplode { aggregate }
-            | Self::HeapPayloadPlace { owner: aggregate } => {
+            | Self::HeapPayloadPlace { owner: aggregate }
+            | Self::SharedRetain { owner: aggregate }
+            | Self::SharedPayloadPlace { owner: aggregate } => {
                 vec![EntityId::Value(*aggregate)]
             }
             Self::TaggedConstruct { payload, .. } => vec![EntityId::Value(*payload)],
             Self::TaggedPayloadPlace { owner, .. } => vec![EntityId::Value(*owner)],
             Self::TaggedDiscriminant { owner } => vec![EntityId::Value(*owner)],
             Self::HeapAllocate { payload, .. } => vec![EntityId::Value(*payload)],
+            Self::SharedAllocate { payload, .. } => vec![EntityId::Value(*payload)],
             Self::ContainerConstruct { elements, .. } => {
                 elements.iter().copied().map(EntityId::Value).collect()
             }
@@ -965,6 +982,9 @@ pub(crate) enum ModelError {
     ExpectedHeapOwner {
         ty: SsaTypeId,
     },
+    ExpectedSharedOwner {
+        ty: SsaTypeId,
+    },
     ExpectedAggregate {
         ty: SsaTypeId,
     },
@@ -1007,6 +1027,9 @@ impl fmt::Display for ModelError {
                 write!(formatter, "duplicate named SSA type {name:?}")
             }
             Self::ExpectedHeapOwner { ty } => write!(formatter, "type {ty:?} is not a heap owner"),
+            Self::ExpectedSharedOwner { ty } => {
+                write!(formatter, "type {ty:?} is not a shared owner")
+            }
             Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
             Self::EmptyClosureCaptures => {
                 write!(formatter, "concrete closure must capture a value")

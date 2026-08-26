@@ -34,3 +34,6 @@ mod verify_scalar_tests;
 
 #[cfg(test)]
 mod lower_frontend_tests;
+
+#[cfg(test)]
+mod shared_owner_operation_tests;

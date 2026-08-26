@@ -97,6 +97,49 @@ impl Module {
         Ok(())
     }
 
+    pub(crate) fn declare_shared_owner(
+        &mut self,
+        name: impl Into<String>,
+    ) -> Result<SsaTypeId, ModelError> {
+        let name = name.into();
+        self.check_new_type_name(&name)?;
+        Ok(self.push_named_type(
+            name.clone(),
+            SsaTypeKind::SharedOwner {
+                name,
+                payload: None,
+            },
+        ))
+    }
+
+    pub(crate) fn define_shared_owner(
+        &mut self,
+        id: SsaTypeId,
+        payload: SsaTypeId,
+    ) -> Result<(), ModelError> {
+        self.check_type_id(id)?;
+        self.check_type_id(payload)?;
+        if !self.type_is_defined(payload) {
+            return Err(ModelError::UnknownType { ty: payload });
+        }
+        let kind = self
+            .types
+            .get_mut(id.index())
+            .ok_or(ModelError::UnknownType { ty: id })?;
+        let SsaTypeKind::SharedOwner {
+            payload: definition,
+            ..
+        } = kind
+        else {
+            return Err(ModelError::ExpectedSharedOwner { ty: id });
+        };
+        if definition.is_some() {
+            return Err(ModelError::TypeAlreadyDefined { ty: id });
+        }
+        *definition = Some(payload);
+        Ok(())
+    }
+
     pub(crate) fn add_sequential_container_type(
         &mut self,
         kind: SequentialContainerKind,
@@ -116,7 +159,9 @@ impl Module {
             | SsaTypeKind::ZeroSized { ownership, .. }
             | SsaTypeKind::Aggregate { ownership, .. }
             | SsaTypeKind::TaggedUnion { ownership, .. } => Some(*ownership),
-            SsaTypeKind::HeapOwner { .. } => Some(Ownership::MoveOnly),
+            SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. } => {
+                Some(Ownership::MoveOnly)
+            }
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {
                 Some(Ownership::MoveOnly)
@@ -126,7 +171,9 @@ impl Module {
 
     pub(crate) fn type_is_defined(&self, id: SsaTypeId) -> bool {
         match self.type_kind(id) {
-            Some(SsaTypeKind::HeapOwner { payload, .. }) => payload.is_some(),
+            Some(
+                SsaTypeKind::HeapOwner { payload, .. } | SsaTypeKind::SharedOwner { payload, .. },
+            ) => payload.is_some(),
             Some(_) => true,
             None => false,
         }
@@ -148,6 +195,13 @@ impl Module {
     pub(crate) fn heap_payload(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
             SsaTypeKind::HeapOwner { payload, .. } => *payload,
+            _ => None,
+        }
+    }
+
+    pub(crate) fn shared_payload(&self, id: SsaTypeId) -> Option<SsaTypeId> {
+        match self.type_kind(id)? {
+            SsaTypeKind::SharedOwner { payload, .. } => *payload,
             _ => None,
         }
     }

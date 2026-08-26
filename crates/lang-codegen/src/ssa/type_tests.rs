@@ -97,6 +97,36 @@ fn heap_owner_declaration_supports_recursive_handles_and_rejects_bad_definitions
 }
 
 #[test]
+fn shared_owner_is_move_only_accepts_any_defined_payload_and_renders_stably() {
+    let mut program = Program::default();
+    let module_id = program.add_module("shared");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let owner = module
+        .declare_shared_owner("Rc<Int>")
+        .expect("shared owner declaration must be valid");
+    module
+        .define_shared_owner(owner, integer)
+        .expect("a defined scalar payload must be valid");
+
+    assert_eq!(module.type_ownership(owner), Some(Ownership::MoveOnly));
+    assert_eq!(module.shared_payload(owner), Some(integer));
+    assert_eq!(
+        module.define_shared_owner(owner, integer),
+        Err(ModelError::TypeAlreadyDefined { ty: owner })
+    );
+    assert_eq!(
+        module.define_shared_owner(integer, integer),
+        Err(ModelError::ExpectedSharedOwner { ty: integer })
+    );
+    verify_program(&program).expect("defined shared owner must verify");
+    assert!(render_program(&program).contains("shared_owner \"Rc<Int>\" payload !t0"));
+}
+
+#[test]
 fn named_type_builder_rejects_cross_module_fields_and_accepts_declared_handles() {
     let mut program = Program::default();
     let first = program.add_module("first");

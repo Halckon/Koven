@@ -94,6 +94,15 @@ pub(super) fn verify_operation(
         Operation::HeapPayloadPlace { owner } => {
             heap_payload_place_contract(module, function, *owner, &results)
         }
+        Operation::SharedAllocate { owner, payload } => {
+            shared_allocate_contract(module, function, *owner, *payload, &results)
+        }
+        Operation::SharedRetain { owner } => value_type(function, *owner).is_some_and(|ty| {
+            module.shared_payload(ty).is_some() && single_value_result(&results) == Some(ty)
+        }),
+        Operation::SharedPayloadPlace { owner } => {
+            shared_payload_place_contract(module, function, *owner, &results)
+        }
         Operation::ContainerConstruct {
             container,
             elements,
@@ -240,6 +249,19 @@ fn heap_allocate_contract(
     })
 }
 
+fn shared_allocate_contract(
+    module: &Module,
+    function: &Function,
+    owner: SsaTypeId,
+    payload: ValueId,
+    results: &[EntityType],
+) -> bool {
+    module.shared_payload(owner).is_some_and(|expected| {
+        value_type(function, payload) == Some(expected)
+            && single_value_result(results) == Some(owner)
+    })
+}
+
 fn tagged_construct_contract(
     module: &Module,
     function: &Function,
@@ -298,6 +320,17 @@ fn heap_payload_place_contract(
 ) -> bool {
     value_type(function, owner)
         .and_then(|owner| module.heap_payload(owner))
+        .is_some_and(|payload| results == [EntityType::Place(payload)])
+}
+
+fn shared_payload_place_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    results: &[EntityType],
+) -> bool {
+    value_type(function, owner)
+        .and_then(|owner| module.shared_payload(owner))
         .is_some_and(|payload| results == [EntityType::Place(payload)])
 }
 

@@ -88,7 +88,9 @@ impl<'ctx> TypeMap<'ctx> {
                     tagged.insert(id, value);
                     Some(value.into())
                 }
-                SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
+                SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. } => {
+                    Some(pointer.into())
+                }
                 SsaTypeKind::SharedReference { .. } | SsaTypeKind::FunctionPointer { .. } => {
                     Some(pointer.into())
                 }
