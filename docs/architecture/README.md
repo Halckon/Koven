@@ -689,6 +689,11 @@ SPEC-0197 第一阶段新增纯内存的
 - recovery `CompilationUnitSignatures` 可带签名诊断，只有无 error 时才能取得
   `ValidatedCompilationUnitSignatures`。该 marker 仍不是完整 typed unit：函数体、调用选择、
   flow facts 与 ownership 交接属于 SPEC-0197 第二阶段。
+- body 阶段的模型边界已预声明 `UnitExpressionId`、`UnitStatementId`、`UnitTypeRefId`，把文件局部
+  AST identity 与 canonical `SourceUnitId` 组成不可碰撞身份；最小 `CompilationUnitTypes` 同时绑定
+  signature analysis owner，并以独立 recovery/validated gate 阻止 signature 或 body error 进入
+  ownership。生产 body checker、完整诊断聚合与 call/construction/flow facts 尚未接线，因此当前
+  不存在把空 body 伪装成完整 typed unit 的公开构造入口。
 
 ## 结构化诊断与 renderer
 

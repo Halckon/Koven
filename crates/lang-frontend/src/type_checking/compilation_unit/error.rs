@@ -15,6 +15,8 @@ pub enum CompilationUnitTypeError {
     MismatchedNameEnvironment,
     /// 名称产物缺少声明到 unit symbol 的不变量映射。
     MissingDeclarationSymbol,
+    /// body 阶段收到了另一次 signature 分析或名称分析的产物。
+    MismatchedSignatures,
     /// 单文件类型基础设施返回内部错误。
     Type(TypeCheckingError),
     /// unit 诊断无法建立稳定全序。
@@ -35,6 +37,9 @@ impl fmt::Display for CompilationUnitTypeError {
             Self::MissingDeclarationSymbol => {
                 formatter.write_str("validated names are missing a declaration-to-symbol mapping")
             }
+            Self::MismatchedSignatures => formatter.write_str(
+                "compilation-unit body inputs do not belong to the validated signature analysis",
+            ),
             Self::Type(error) => write!(formatter, "unit type collection failed: {error}"),
             Self::DiagnosticOrder(error) => {
                 write!(formatter, "unit diagnostic ordering failed: {error}")

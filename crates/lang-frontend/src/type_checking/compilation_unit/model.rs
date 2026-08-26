@@ -831,6 +831,10 @@ impl CompilationUnitSignatures {
         )
     }
 
+    pub(crate) const fn analysis_owner(&self) -> &Arc<()> {
+        &self.provenance.analysis_owner
+    }
+
     /// 返回唯一 unit-global type table。
     #[must_use]
     pub const fn types(&self) -> &UnitTypeTable {

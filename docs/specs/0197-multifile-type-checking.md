@@ -86,6 +86,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    `type_checking`、`type_callable`、`type_copyability`、`type_containers` suite。
    - [x] local/unit 类型表复用同一插入有序、结构去重核心，并为 unit body 建立与单文件一致的
      builtin、Signed/Unsigned integer literal、Error 初始种子；两类公开 TypeId 仍保持隔离。
+   - [x] 建立 `UnitExpressionId` / `UnitStatementId` / `UnitTypeRefId`、最小 recovery/validated
+     typed-unit 模型与 signature-analysis provenance 门禁；尚不发布空 body checker 或伪完整 facts。
 4. [ ] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -112,6 +114,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 tests；declaration→unit symbol 名称事实与旧多文件名称语义无回归 |
 | `cargo test -p lang-frontend --locked --offline` | 通过 | 新旧 frontend 全量通过，含现有单文件 type/ownership 回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 完整 signature graph API、测试与既有 frontend targets 无 warning |
-| `cargo test --workspace --locked --offline` | 通过 | 完整 signature graph 合入后 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
+| `cargo test --workspace --locked --offline` | 通过 | body identity/model 状态下 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
 | `cargo test -p lang-frontend type_checking::canonical::tests::local_and_unit_seed_kinds_have_the_same_exact_tail_order --locked --offline -- --exact` | 通过 | 白盒锁定两类表的 Signed/Unsigned/Error 精确尾部顺序与长度 |
 | `cargo test -p lang-frontend --test canonical_type_tables --locked --offline` | 通过 | 公开产物锁定 local/unit builtin identity 与完整初始类型表长度 |
+| `cargo test -p lang-frontend --lib type_checking::compilation_unit::bodies::tests --locked --offline` | 通过 | 5 tests；source-qualified AST identity、防混用 UnitTypeId、signature owner/input/environment 门禁与 validated gate |
