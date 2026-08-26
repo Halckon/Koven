@@ -13,7 +13,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-        TypeCheckingError,
+        TypeCheckingError, UnitTypeRefId,
     },
 };
 
@@ -149,7 +149,7 @@ impl SignatureCollector<'_> {
                 };
                 let interface = self
                     .type_ref_types
-                    .get(&(source, supertype.type_ref.index()))
+                    .get(&UnitTypeRefId::new(source, supertype.type_ref))
                     .copied()
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                 let interface_span = self.inputs[source.index()]

@@ -1,95 +1,16 @@
-use std::{
-    cmp::Ordering,
-    collections::BTreeMap,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
-    ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
+    name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
     source::SourceMap,
     type_checking::TypeEnvironment,
 };
 
 use super::{
-    CompilationUnitSignatures, CompilationUnitTypeError, UnitTypeId, UnitTypeTable,
-    ValidatedCompilationUnitSignatures,
+    CompilationUnitSignatures, CompilationUnitTypeError, UnitExpressionId, UnitTypeId,
+    UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
 };
-
-macro_rules! define_unit_ast_id {
-    ($name:ident, $local:ty, $field:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub struct $name {
-            source_unit: SourceUnitId,
-            $field: $local,
-        }
-
-        impl $name {
-            /// 从 source-unit 与文件局部 AST identity 构造不可碰撞的 unit identity。
-            #[must_use]
-            pub const fn new(source_unit: SourceUnitId, $field: $local) -> Self {
-                Self {
-                    source_unit,
-                    $field,
-                }
-            }
-
-            /// 返回 AST 节点所属的 source unit。
-            #[must_use]
-            pub const fn source_unit(self) -> SourceUnitId {
-                self.source_unit
-            }
-
-            /// 返回所属文件内的局部 AST identity。
-            #[must_use]
-            pub const fn $field(self) -> $local {
-                self.$field
-            }
-        }
-
-        impl PartialOrd for $name {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl Ord for $name {
-            fn cmp(&self, other: &Self) -> Ordering {
-                (self.source_unit, self.$field.index())
-                    .cmp(&(other.source_unit, other.$field.index()))
-            }
-        }
-
-        impl Hash for $name {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                self.source_unit.hash(state);
-                self.$field.index().hash(state);
-            }
-        }
-    };
-}
-
-define_unit_ast_id!(
-    UnitExpressionId,
-    ExpressionId,
-    expression,
-    "compilation unit 中一个带 source-unit 限定的 expression identity。"
-);
-define_unit_ast_id!(
-    UnitStatementId,
-    StatementId,
-    statement,
-    "compilation unit 中一个带 source-unit 限定的 statement identity。"
-);
-define_unit_ast_id!(
-    UnitTypeRefId,
-    TypeRefId,
-    type_ref,
-    "compilation unit 中一个带 source-unit 限定的 type-reference identity。"
-);
 
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Default)]
@@ -195,7 +116,10 @@ impl CompilationUnitTypes {
     /// 查询 source-qualified type reference 的规范类型。
     #[must_use]
     pub fn type_ref_type(&self, type_ref: UnitTypeRefId) -> Option<UnitTypeId> {
-        self.type_ref_types.get(&type_ref).copied()
+        self.type_ref_types
+            .get(&type_ref)
+            .copied()
+            .or_else(|| self.signatures.type_ref_type(type_ref))
     }
 
     /// 返回 source-qualified type-reference typed facts。
@@ -310,7 +234,7 @@ mod tests {
         parser::{ParsedFile, parse_file},
         source::{SourceId, SourceMap},
         type_checking::{
-            BuiltinType, TypeEnvironment, collect_compilation_unit_signatures,
+            BuiltinType, TypeEnvironment, UnitStatementId, collect_compilation_unit_signatures,
             standard_environments,
         },
     };
@@ -417,9 +341,6 @@ mod tests {
         parts
             .expression_types
             .insert(UnitExpressionId::new(source_unit, expression), int);
-        parts
-            .type_ref_types
-            .insert(UnitTypeRefId::new(source_unit, type_ref), int);
         let product = CompilationUnitTypes::new(signatures, parts, Vec::new());
 
         assert_eq!(
@@ -430,6 +351,7 @@ mod tests {
             product.type_ref_type(UnitTypeRefId::new(source_unit, type_ref)),
             Some(int)
         );
+        assert!(product.type_ref_types().is_empty());
         assert_eq!(
             product.types().get(int),
             Some(&super::super::UnitTypeKind::Builtin(BuiltinType::Int))

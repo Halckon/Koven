@@ -1,6 +1,12 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use crate::{
+    ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
         CompilationUnitIndex, DeclarationId, PackageId, SourceUnitInput, UnitSymbolId,
@@ -13,6 +19,82 @@ use crate::{
         canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
     },
 };
+
+macro_rules! define_unit_ast_id {
+    ($name:ident, $local:ty, $field:ident, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub struct $name {
+            source_unit: crate::name_resolution::SourceUnitId,
+            $field: $local,
+        }
+
+        impl $name {
+            /// 从 source-unit 与文件局部 AST identity 构造不可碰撞的 unit identity。
+            #[must_use]
+            pub const fn new(
+                source_unit: crate::name_resolution::SourceUnitId,
+                $field: $local,
+            ) -> Self {
+                Self {
+                    source_unit,
+                    $field,
+                }
+            }
+
+            /// 返回 AST 节点所属的 source unit。
+            #[must_use]
+            pub const fn source_unit(self) -> crate::name_resolution::SourceUnitId {
+                self.source_unit
+            }
+
+            /// 返回所属文件内的局部 AST identity。
+            #[must_use]
+            pub const fn $field(self) -> $local {
+                self.$field
+            }
+        }
+
+        impl PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for $name {
+            fn cmp(&self, other: &Self) -> Ordering {
+                (self.source_unit, self.$field.index())
+                    .cmp(&(other.source_unit, other.$field.index()))
+            }
+        }
+
+        impl Hash for $name {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.source_unit.hash(state);
+                self.$field.index().hash(state);
+            }
+        }
+    };
+}
+
+define_unit_ast_id!(
+    UnitExpressionId,
+    ExpressionId,
+    expression,
+    "compilation unit 中一个带 source-unit 限定的 expression identity。"
+);
+define_unit_ast_id!(
+    UnitStatementId,
+    StatementId,
+    statement,
+    "compilation unit 中一个带 source-unit 限定的 statement identity。"
+);
+define_unit_ast_id!(
+    UnitTypeRefId,
+    TypeRefId,
+    type_ref,
+    "compilation unit 中一个带 source-unit 限定的 type-reference identity。"
+);
 
 /// 一次 compilation-unit signature product 内的规范类型身份。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -750,9 +832,19 @@ pub struct CompilationUnitSignatures {
     types: UnitTypeTable,
     declarations: Vec<UnitDeclarationSignature>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompilationUnitSignatureFacts {
+    pub(crate) declarations: Vec<UnitDeclarationSignature>,
+    pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
+    pub(crate) type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+    pub(crate) delegations: Vec<UnitDelegationPlan>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -782,19 +874,17 @@ impl CompilationUnitSignatures {
     pub(crate) fn new(
         provenance: SignatureProvenance,
         types: UnitTypeTable,
-        declarations: Vec<UnitDeclarationSignature>,
-        symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
-        type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
-        delegations: Vec<UnitDelegationPlan>,
+        facts: CompilationUnitSignatureFacts,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
             provenance,
             types,
-            declarations,
-            symbol_types,
-            type_parameters,
-            delegations,
+            declarations: facts.declarations,
+            symbol_types: facts.symbol_types,
+            type_ref_types: facts.type_ref_types,
+            type_parameters: facts.type_parameters,
+            delegations: facts.delegations,
             diagnostics,
         }
     }
@@ -857,6 +947,18 @@ impl CompilationUnitSignatures {
     #[must_use]
     pub fn symbol_type(&self, symbol: UnitSymbolId) -> Option<UnitTypeId> {
         self.symbol_types.get(&symbol).copied()
+    }
+
+    /// 查询签名收集阶段已经解析的 source-qualified type reference。
+    #[must_use]
+    pub fn type_ref_type(&self, type_ref: UnitTypeRefId) -> Option<UnitTypeId> {
+        self.type_ref_types.get(&type_ref).copied()
+    }
+
+    /// 返回签名收集阶段发布的 source-qualified type-reference facts。
+    #[must_use]
+    pub const fn type_ref_types(&self) -> &BTreeMap<UnitTypeRefId, UnitTypeId> {
+        &self.type_ref_types
     }
 
     /// 返回 source-qualified 类型参数描述表。

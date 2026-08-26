@@ -20,11 +20,11 @@ use crate::{
 };
 
 use super::{
-    CompilationUnitSignatures, CompilationUnitTypeError, SignatureProvenance,
-    UnitCallableParameter, UnitCallableSignature, UnitCallableTarget, UnitDeclarationSignature,
-    UnitDelegationPlan, UnitEnumCaseSignature, UnitFieldSignature, UnitFunctionParameterType,
-    UnitNominalSignature, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
-    UnitTypeParameterDescriptor, UnitTypeTable,
+    CompilationUnitSignatureFacts, CompilationUnitSignatures, CompilationUnitTypeError,
+    SignatureProvenance, UnitCallableParameter, UnitCallableSignature, UnitCallableTarget,
+    UnitDeclarationSignature, UnitDelegationPlan, UnitEnumCaseSignature, UnitFieldSignature,
+    UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+    UnitTypeParameterBound, UnitTypeParameterDescriptor, UnitTypeRefId, UnitTypeTable,
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
 
@@ -84,7 +84,7 @@ struct SignatureCollector<'a> {
     nominals: BTreeMap<DeclarationId, UnitNominalSignature>,
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     interface_edge_spans: BTreeMap<(DeclarationId, DeclarationId), Span>,
-    type_ref_types: BTreeMap<(SourceUnitId, usize), UnitTypeId>,
+    type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -176,10 +176,13 @@ impl<'a> SignatureCollector<'a> {
         Ok(CompilationUnitSignatures::new(
             provenance,
             self.types,
-            declarations,
-            self.symbol_types,
-            self.type_parameters,
-            self.delegations,
+            CompilationUnitSignatureFacts {
+                declarations,
+                symbol_types: self.symbol_types,
+                type_ref_types: self.type_ref_types,
+                type_parameters: self.type_parameters,
+                delegations: self.delegations,
+            },
             diagnostics,
         ))
     }
@@ -558,7 +561,8 @@ impl<'a> SignatureCollector<'a> {
         source: SourceUnitId,
         id: TypeRefId,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        if let Some(ty) = self.type_ref_types.get(&(source, id.index())).copied() {
+        let unit_type_ref = UnitTypeRefId::new(source, id);
+        if let Some(ty) = self.type_ref_types.get(&unit_type_ref).copied() {
             return Ok(ty);
         }
         let payload = self.inputs[source.index()]
@@ -603,7 +607,7 @@ impl<'a> SignatureCollector<'a> {
                 base
             }
         };
-        self.type_ref_types.insert((source, id.index()), ty);
+        self.type_ref_types.insert(unit_type_ref, ty);
         Ok(ty)
     }
 

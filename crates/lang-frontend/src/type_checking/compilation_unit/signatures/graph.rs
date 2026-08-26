@@ -4,7 +4,7 @@ use crate::{
     diagnostic::codes,
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
     parser::{ClassifierDeclaration, Item, NameMarker, TypeParameter, TypeRef},
-    type_checking::{BuiltinType, Capability, NominalKind, TypeCheckingError},
+    type_checking::{BuiltinType, Capability, NominalKind, TypeCheckingError, UnitTypeRefId},
 };
 
 use super::{
@@ -325,7 +325,11 @@ impl SignatureCollector<'_> {
                 let Some(segment) = segments.last() else {
                     continue;
                 };
-                let Some(mut ty) = self.type_ref_types.get(&(source, id.index())).copied() else {
+                let Some(mut ty) = self
+                    .type_ref_types
+                    .get(&UnitTypeRefId::new(source, id))
+                    .copied()
+                else {
                     continue;
                 };
                 if let Some(UnitTypeKind::Nullable(inner)) = self.types.get(ty) {

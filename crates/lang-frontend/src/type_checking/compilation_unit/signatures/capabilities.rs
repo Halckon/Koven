@@ -8,7 +8,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, Capability, DeferredReason, IntrinsicTypeConstructor, NominalKind,
-        TypeCheckingError,
+        TypeCheckingError, UnitTypeRefId,
     },
 };
 
@@ -64,7 +64,11 @@ impl SignatureCollector<'_> {
                 if static_refs.contains(&(source, id.index())) {
                     continue;
                 }
-                let Some(ty) = self.type_ref_types.get(&(source, id.index())).copied() else {
+                let Some(ty) = self
+                    .type_ref_types
+                    .get(&UnitTypeRefId::new(source, id))
+                    .copied()
+                else {
                     continue;
                 };
                 let ty = match self.types.get(ty) {
@@ -291,7 +295,7 @@ impl SignatureCollector<'_> {
                 for field in &constructor.fields {
                     let ty = self
                         .type_ref_types
-                        .get(&(source, field.type_ref.index()))
+                        .get(&UnitTypeRefId::new(source, field.type_ref))
                         .copied()
                         .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                     let span = self.inputs[source.index()]
@@ -308,7 +312,7 @@ impl SignatureCollector<'_> {
                 for parameter in &variant.parameters {
                     let ty = self
                         .type_ref_types
-                        .get(&(source, parameter.type_ref.index()))
+                        .get(&UnitTypeRefId::new(source, parameter.type_ref))
                         .copied()
                         .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                     let span = self.inputs[source.index()]
@@ -410,7 +414,11 @@ impl SignatureCollector<'_> {
                 let Some(segment) = segments.last() else {
                     continue;
                 };
-                let Some(mut ty) = self.type_ref_types.get(&(source, id.index())).copied() else {
+                let Some(mut ty) = self
+                    .type_ref_types
+                    .get(&UnitTypeRefId::new(source, id))
+                    .copied()
+                else {
                     continue;
                 };
                 if let Some(UnitTypeKind::Nullable(inner)) = self.types.get(ty) {

@@ -88,6 +88,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      builtin、Signed/Unsigned integer literal、Error 初始种子；两类公开 TypeId 仍保持隔离。
    - [x] 建立 `UnitExpressionId` / `UnitStatementId` / `UnitTypeRefId`、最小 recovery/validated
      typed-unit 模型与 signature-analysis provenance 门禁；尚不发布空 body checker 或伪完整 facts。
+   - [x] 签名收集产物发布全部 source-qualified `UnitTypeRefId -> UnitTypeId` facts，body product
+     查询先读 body 覆盖再回退签名事实，不再丢弃已经规范化的参数、返回、field/supertype 类型。
 4. [ ] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -109,12 +111,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | 2026-08-26 roadmap 审计 | 通过 | 补齐 0025 与 ownership/codegen 之间缺失的 Phase 2 层 |
 | 2026-08-27 实施前审计 | 通过 | SPEC-0025 done、ADR-0020 accepted；收紧 unit identity、all-error validated gate、private/const/诊断与 mixed-input 验收 |
 | 2026-08-27 L0097 guide 审计 | 通过 | §23.3 已明确顶层 overload 同样拒绝重复 shape；诊断表“成员作用域”遗漏已作不改变语义的纯勘误 |
-| `cargo test -p lang-frontend --test multifile_type_signatures --locked --offline` | 通过 | 7 tests；递归签名、输入置换、local ID 防碰撞、alpha/mode L0097、arity、mixed analysis boundary、interface closure/bound/cycle |
+| `cargo test -p lang-frontend --test multifile_type_signatures --locked --offline` | 通过 | 8 tests；递归签名、输入置换、local ID 防碰撞、source-qualified TypeRef facts、alpha/mode L0097、arity、mixed analysis boundary、interface closure/bound/cycle |
 | `cargo test -p lang-frontend --test multifile_type_signatures --test multifile_type_signature_provenance --test multifile_type_capability_graph --test multifile_type_member_graph --test multifile_type_signature_determinism --locked --offline` | 通过 | 22 tests；provenance、L0094/L0098–L0105/L0115/L0116/L0141、invariant branch 抑制、delegation plan、instance/companion scope、全 source-local identity 与跨 source 诊断置换 |
 | `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 tests；declaration→unit symbol 名称事实与旧多文件名称语义无回归 |
 | `cargo test -p lang-frontend --locked --offline` | 通过 | 新旧 frontend 全量通过，含现有单文件 type/ownership 回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 完整 signature graph API、测试与既有 frontend targets 无 warning |
-| `cargo test --workspace --locked --offline` | 通过 | body identity/model 状态下 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
+| `cargo test --workspace --locked --offline` | 通过 | signature TypeRef facts/body fallback 状态下 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
 | `cargo test -p lang-frontend type_checking::canonical::tests::local_and_unit_seed_kinds_have_the_same_exact_tail_order --locked --offline -- --exact` | 通过 | 白盒锁定两类表的 Signed/Unsigned/Error 精确尾部顺序与长度 |
 | `cargo test -p lang-frontend --test canonical_type_tables --locked --offline` | 通过 | 公开产物锁定 local/unit builtin identity 与完整初始类型表长度 |
 | `cargo test -p lang-frontend --lib type_checking::compilation_unit::bodies::tests --locked --offline` | 通过 | 5 tests；source-qualified AST identity、防混用 UnitTypeId、signature owner/input/environment 门禁与 validated gate |
+| `cargo test -p lang-frontend --test multifile_type_signatures signature_type_refs_are_published_with_source_qualified_identities --locked --offline -- --exact` | 通过 | 两个 source 中相同 local TypeRefId 保持不同 unit identity，4 个签名 TypeRef facts 完整发布 |

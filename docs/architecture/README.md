@@ -668,6 +668,9 @@ SPEC-0197 第一阶段新增纯内存的
 - `UnitTypeTable` 是一次 compilation unit 唯一的结构化类型空间。源码 nominal 使用
   `DeclarationId`，类型参数、field、member 与 enum case/payload 使用 `UnitSymbolId`，因此不同
   source 中数值相同的 `SymbolId` 不会碰撞；
+- 签名 collector 解析过的参数、返回、field、supertype 与 bound `TypeRef` 以
+  `UnitTypeRefId -> UnitTypeId` 完整进入 signature product；后续 body product 对局部标注可追加
+  facts，并在查询时回退签名 facts，不重新解析或丢弃已经确定的 unit 类型；
 - 单文件 `TypeTable` 与 `UnitTypeTable` 复用同一个插入有序、结构去重核心，并以相同顺序建立
   builtin、Signed/Unsigned integer literal 与 Error 初始种子；公开 `TypeId` / `UnitTypeId` 仍是
   两个不可混用的身份域，unit integer literal 仅供后续 body expected-type 定型使用；

@@ -11,7 +11,7 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
     type_checking::{
         CompilationUnitSignatures, CompilationUnitTypeError, UnitTypeKind, UnitTypeParameterBound,
-        collect_compilation_unit_signatures, standard_environments,
+        UnitTypeRefId, collect_compilation_unit_signatures, standard_environments,
     },
 };
 
@@ -136,6 +136,62 @@ fn source_local_type_parameter_identities_do_not_collide() {
             Some(&UnitTypeKind::TypeParameter(nominal.type_parameters()[0]))
         );
     }
+}
+
+#[test]
+fn signature_type_refs_are_published_with_source_qualified_identities() {
+    let mut sources = SourceMap::new();
+    let (left_id, left) = parsed(
+        &mut sources,
+        "left.ko",
+        "package p\nfun left(input: Int): Long",
+    );
+    let (right_id, right) = parsed(
+        &mut sources,
+        "right.ko",
+        "package p\nfun right(input: Int): String",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/right.ko", right_id, &right),
+        SourceUnitInput::new("root", "p/left.ko", left_id, &left),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let validated = names(&sources, &inputs, &name_environment)
+        .validate()
+        .expect("valid names");
+    let signatures =
+        collect_compilation_unit_signatures(&sources, &inputs, &validated, &type_environment)
+            .expect("signature collection succeeds");
+    let left_unit = validated
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .find(|source| source.source_id() == left_id)
+        .expect("left source is indexed")
+        .id();
+    let right_unit = validated
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .find(|source| source.source_id() == right_id)
+        .expect("right source is indexed")
+        .id();
+    let left_ref = left.ast().type_refs().iter().next().expect("left Int").0;
+    let right_ref = right.ast().type_refs().iter().next().expect("right Int").0;
+
+    assert_eq!(left_ref.index(), right_ref.index());
+    let left_ref = UnitTypeRefId::new(left_unit, left_ref);
+    let right_ref = UnitTypeRefId::new(right_unit, right_ref);
+    assert_ne!(left_ref, right_ref);
+    let int = signatures
+        .types()
+        .builtin(lang_frontend::type_checking::BuiltinType::Int)
+        .expect("Int builtin");
+    assert_eq!(signatures.type_ref_type(left_ref), Some(int));
+    assert_eq!(signatures.type_ref_type(right_ref), Some(int));
+    assert_eq!(signatures.type_ref_types().len(), 4);
 }
 
 #[test]
