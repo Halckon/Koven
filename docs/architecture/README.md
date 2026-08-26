@@ -143,7 +143,13 @@ Array 和 String SSA identity。参数化 wrapper 使用 `i32 main(i32 argc, ptr
 pointer ABI 调用 Koven main，返回后复用既有 drop glue 逆序析构 String 并唯一释放 buffer。
 frontend→SSA 同时只为 Borrow 调用实参接通 active shared `Array<T>` loan 的 checked element
 place，不开放 owned element extraction、replace 或 relocation。`kovenc run` 通过 `--` 分隔
-compiler/program 参数，并以 `OsString` 原样转交；默认 output、多文件/package/project 仍未实现；
+compiler/program 参数，并以 `OsString` 原样转交；默认 output、多文件/package/project build 仍未实现；
+SPEC-0052 已在 `lang-cli::project` 建立内部 version 1 `project.toml` provider：调用方显式提供
+manifest，strict schema 拒绝未知 dependency/target/entry 字段，manifest-relative roots 经路径、
+symlink、重叠和物理 identity 检查后递归读取普通 `.ko`，最终发布按 `(root identity, logical path)`
+排序的不可变 root/logical/text/presentation snapshot。该模块不调用 frontend、不查询 cwd、不选择
+entry，也没有公开 project CLI；若宿主不能提供可靠的普通文件物理 identity 则 fail loud。加载期
+项目树并发替换不在首版原子保证内；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -152,7 +158,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
-闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.31
+闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至现行 v0.32
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -409,6 +415,8 @@ workspace 采用 `crates/` 布局，五个 member 及 target 为：
 - `lang-codegen` → `lang-frontend`；
 - `lang-cli` → `lang-frontend`、`lang-codegen`；
 - `lang-cli` 在机器诊断展示边界直接使用 workspace 锁定的 `serde_json`；
+- `lang-cli` 的内部 project provider 使用精确锁定的 `toml 1.1.4`，关闭默认 feature，只启用
+  `std`、`parse`、`serde`；不使用 derive、display 或 preserve-order；
 - `lang-lsp` → `lang-frontend`，并在外围 transport 边界使用 `lsp-server`、`lsp-types` 与
   `serde_json`；
 - `lang-std` 无项目内依赖。
@@ -1326,6 +1334,19 @@ renderer；显式全局 `--message-format=json` 仅把该诊断分支切换为 A
 真实 binary 测试锁定 human/machine stderr、stdout、0/1/2 矩阵和输入不变，unit test 另锁定
 输出 writer 失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
 
+## Local project source-set provider
+
+`lang-cli::project::load_project_source_set` 接受显式、文件名精确为 `project.toml` 的路径，只负责
+manifest IO、严格 version 1 value 校验与本地 filesystem discovery。root identity 是已验证并排序的
+manifest-relative `/` 路径；source identity 是 root-relative UTF-8 logical path，presentation path
+和完整 UTF-8 text 只作为后继 driver 输入，不参与 identity。root 路径段中的 symlink 被拒绝，root
+内部 symlink entry 被忽略；逻辑/物理 root overlap、hard link 重复与无法取得可靠 physical-file
+identity 均作为 project operational error fail loud，不产生 `Ldddd`。
+
+provider 读取完成后才发布不可变 snapshot，目录项错误和成功 source 均先稳定选择/排序；空 root
+与空 source set 合法。当前没有公开 project check/build/run 命令，也不运行 package directive、
+frontend、entry 或 dependency 分析；单次加载期间项目树不被并发替换是首版 operational assumption。
+
 ## Single-file native CLI
 
 `kovenc build <source.ko> --entry <name> -o <executable>` 与
@@ -1414,7 +1435,8 @@ interpolation、`String?` native ABI、String member 与其他 printable 重载�
 SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
 MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/0193 已公开单文件显式 entry
 和零参数 conventional main build/run；SPEC-0194 已增加参数化 main/argv，但仍不等于多文件
-标准库或项目构建模型。
+标准库或项目构建模型。SPEC-0052 已提供 manifest→immutable base source-set 的内部 provider，
+但尚未把 snapshot 送入 frontend 或公开 project build。
 内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、

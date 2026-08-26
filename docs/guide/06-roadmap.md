@@ -548,13 +548,15 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 
 ## Phase 6：工具链完善
 
-- [ ] **[SPEC-0052](../specs/0052-minimal-project-manifest-source-set.md)（draft）**：在
-      SPEC-0025 完成后，由已接受 ADR-0022 的严格 version 1 `project.toml` 与安全 filesystem
-      discovery 产生 deterministic base source-set snapshot；不做依赖、entry、build 或 LSP overlay。
+- [x] **[SPEC-0052](../specs/0052-minimal-project-manifest-source-set.md)（已实现）**：消费
+      SPEC-0025 已完成的 Stage 1 source-unit input contract，由已接受 ADR-0022 的严格 version 1
+      `project.toml` 与安全 filesystem discovery 产生 deterministic base source-set snapshot；
+      不等待无关的 Stage 2 import/visibility，也不做依赖、entry、build 或 LSP overlay。
 - [ ] SPEC-0053：在独立 dependency/lock ADR 后实现依赖解析与确定性 `project.lock`；每个依赖
       仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界。
-- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（draft）**：在 SPEC-0052/0199
-      后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地 project build/run；不做跨
+- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（draft）**：在已完成的 SPEC-0052 与
+      待完成的 SPEC-0199 后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地
+      project build/run；不做跨
       package 隐式 `main` 搜索或 manifest target。dependency-aware build 另交 SPEC-0200。
 - [x] **SPEC-0190（前置：SPEC-0039、0042、0043、0184、0189 `done`）**：公开固定参数的
       单文件 `kovenc build <source> --entry <name> -o <executable>` 与
@@ -575,7 +577,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       SPEC-0025/0197/0198 的 compilation-unit frontend 产物提供跨文件诊断与跳转定义；不得在
       LSP 内复制 resolver；它与 SPEC-0199 并行，不依赖 native。ADR-0021 已接受并封闭版本化
       显式 base source-set wire；SPEC-0187 仍等待 0025/0197/0198 完成。project CLI
-      discovery/build 分别等待 SPEC-0052/0054，不成为 LSP 隐式输入。
+      manifest discovery 已由 SPEC-0052 完成，project build 等待 SPEC-0054；二者不成为 LSP 隐式输入。
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
 - [x] **SPEC-0060（已实现）**：显式 `--message-format=json` 把 frontend 结构化诊断按

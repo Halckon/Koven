@@ -9,9 +9,9 @@
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 v0.32 §32；候选 v0.33 §33 |
 | 批准依据 | 无；v0.33 尚未启用 |
-| 前置 Spec | SPEC-0052、0199 待完成；SPEC-0060、0190、0193、0194 `done` |
+| 前置 Spec | SPEC-0052、0060、0190、0193、0194 `done`；SPEC-0199 待完成 |
 | 前置 ADR | ADR-0010、0019、0020、0022 `accepted` |
-| 阻塞项 | v0.33 启用；SPEC-0052/0199 `done`；ADR-0022 `accepted` |
+| 阻塞项 | v0.33 启用；SPEC-0199 `done`；ADR-0022 `accepted` |
 | 影响范围 | `lang-cli` project build/run、entry selection、产物提交、CLI integration tests；Architecture/Roadmap |
 | 语言语义变更 | 否；实施候选 guide 的公开工具契约 |
 
