@@ -38,7 +38,8 @@
 ## 4. 非目标
 
 - 不实现每文件 object、增量缓存、动态链接、公共 package ABI、manifest、source discovery、
-  全局 conventional-main 选择或公开多文件 CLI；项目 entry/CLI 属于 SPEC-0052/0054。
+  全局 conventional-main 选择或公开多文件 CLI；SPEC-0052 只提供 source snapshot，项目
+  entry/CLI 属于 SPEC-0054。
 
 ## 5. 验收标准
 

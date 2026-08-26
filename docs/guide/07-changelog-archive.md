@@ -540,3 +540,17 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 8 | 实施前审计补齐 unit-wide symbol/type identity、recovery/validated 阶段门禁、单 SSA/LLVM/object 与 LSP snapshot 约束；0199 和 0187 在 ownership 后并行，0187 因完整 source-set provider 未决继续阻塞 | 🟡 候选架构收敛 |
 | 9 | ADR-0021 候选以版本化 initialization option 固定 LSP base source set：server 不扫描磁盘，open/change 只建 overlay，close 回落 base，缺席时保持单文档模式 | 🟡 候选工具协议 |
 | 10 | ADR-0022/SPEC-0052 候选把严格 project.toml、安全本地 `.ko` discovery 与稳定 base snapshot 独立成工具层；dependency、entry、build 与 LSP overlay 不混入 provider | 🟡 候选项目边界 |
+
+## v0.33 候选变更记录（未启用）
+
+> 本候选于 2026-08-26 在 ADR-0022/SPEC-0052 物化后起草，是 v0.32 多文件语义的后继工具契约。
+> 当前唯一权威版本仍是 v0.31；v0.33 不因文档存在而自动启用 v0.32 或授权 SPEC-0054。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | project mode 使用固定 `--project <project.toml> --entry <qualified-name>`，不从位置参数/cwd/祖先目录猜项目 | 🔴 候选 CLI 契约 |
+| 2 | entry selector 是绝对 package-qualified 顶层函数路径；允许 public/internal，拒绝 private/member/local/external，不经过 import/alias | 🔴 候选入口语义 |
+| 3 | project 显式 entry 支持 `() -> Unit` 与 Borrow `(Array<String>) -> Unit`，按合法 shape 过滤 overload，并区分 missing/inaccessible/invalid/ambiguous | 🔴 候选入口语义 |
+| 4 | project mode 强制显式 entry，不做全 unit conventional `main`；单文件显式 entry 与 conventional main 行为保持不变 | 🔴 候选兼容边界 |
+| 5 | build 通过临时 object/executable 与原子 no-replace commit 发布产物；run 复用 argv/stdout/stderr/exit 契约且不丢失程序结果 | 🟡 候选产物边界 |
+| 6 | SPEC-0054 等待 0052/0199；manifest target/default、dependency-aware build、跨 unit ABI 与多 object 延后 | 🟡 候选 Phase 交接 |

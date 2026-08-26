@@ -60,8 +60,8 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 
 以 ADR-0021 的 immutable base、overlay map 与 unit snapshot store 取代“每 URI 一个独立 frontend
 分析”的多文件语义 store；候选 overlays、共同 `SourceMap`、frontend facts 和全部 publish payload
-先完整构造，再替换 live state。项目 manifest discovery 由后续 SPEC-0052/0054 提供，不是本
-Spec 的隐式输入或依赖。
+先完整构造，再替换 live state。filesystem manifest discovery 由 SPEC-0052 提供给 project CLI、
+由 SPEC-0054 消费，不是本 Spec 的隐式输入或依赖。
 
 ## 7. 实施计划
 

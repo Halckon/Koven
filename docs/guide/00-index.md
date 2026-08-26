@@ -24,6 +24,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   ADR-0022/SPEC-0052 还物化了后继本地 manifest provider，但不定义 project build。本轮审计
   同时修正 §18 旧 Map 候选中
   `Hashable ⇒ Copyable` 与 MoveOnly String 的矛盾，但不因此启用 Map。
+- **v0.33 目前只是后继候选，未启用**：§33 为无依赖本地 project 固定显式
+  package-qualified entry、两种 process shape 与失败原子 build/run；候选文档的存在不启用
+  v0.32/v0.33，不改变单文件 main，也不定义 manifest target/default 或 dependency build。
 - **当前文档集版本是 v0.31**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把

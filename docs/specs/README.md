@@ -9,6 +9,10 @@
 现行 v0.31，也不构成这些 Spec 的批准依据。SPEC-0052/ADR-0022 另把后继本地 manifest/source
 provider 物化为候选，不把项目 IO 反向塞入 frontend 或 LSP。
 
+[v0.33 §33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
+是 v0.32 的未启用后继候选：它只为无依赖本地 project 定义显式 package-qualified entry 与
+公开 build/run，不改变单文件 main，也不引入 manifest target/default 或 dependency build。
+
 [v0.26](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) 已由用户明确启用并
 取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部
 `Value` owned binding，同时封闭同步调用期 loan 与 ASAP 析构点。源码/typed/所有权参数
@@ -96,11 +100,12 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 已选下一 guide 候选 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 与 ADR-0020/0021 已起草；0025→0197→0198 后分叉到 0199/0187；未启用/未接受，全部保持 draft |
 | 仍有 const/Map 门禁 | SPEC-0024、0026、0031、0037 | 保持候选，不能从已有 parser 或单文件工具反推语义 |
-| 项目构建后继 | SPEC-0052–0054、0200 | ADR-0022/SPEC-0052 只产出本地 base snapshot；0054 等待 0052/0199 做无依赖本地 build；0053/0200 独立承接依赖 lock/build |
+| 项目构建后继 | SPEC-0052–0054、0200 | ADR-0022/SPEC-0052 只产出本地 base snapshot；v0.33/SPEC-0054 等待 0052/0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
 
 审计据解锁价值选择 package/import 作为下一 guide 候选，并把原先从 SPEC-0025 直接跳向
 LSP/项目构建的缺口补成名称→类型→所有权，再分叉到 native 与 LSP。当前仍无可直接实施的相邻节点：
 必须先由用户明确启用 v0.32；随后各分支仍须接受 ADR-0020/0021/0022 并完成前置 Spec。
+公开 project build 还必须另行启用 v0.33；
 nullable `when`/`!!`、receiver/iteration 与
 const/Map 继续保持各自门禁。
 
@@ -296,7 +301,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | [0052](./0052-minimal-project-manifest-source-set.md) | 解析最小 `project.toml` 并产生本地 base source-set snapshot（`draft`） | 0025；v0.32 待启用；ADR-0020/0022 待接受 |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
-| 0054 | 由 package CLI 编排无依赖本地 project build/run | 0052、0199；显式 target/entry guide 与 ADR；不等待 0053 |
+| [0054](./0054-local-project-build-run.md) | 由 package CLI 编排显式 entry 的无依赖本地 project build/run（`draft`） | 0052、0199；v0.33 待启用；ADR-0020/0022 待接受；不等待 0053 |
 | 0200 | 编排 dependency-aware project build | 0053、0054；跨 compilation-unit export/ABI guide 与 ADR |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |

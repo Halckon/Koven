@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30、31 节分别是 v0.30、v0.31 已启用的现行规则；
-> 第 32 节是尚未启用的 v0.32 候选；附录收录原第二部分的核心结构声明总览。
+> 第 32、33 节分别是尚未启用的 v0.32、v0.33 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2020,6 +2020,78 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。
 ADR-0022/SPEC-0052 可独立起草工具侧 manifest→source-set adapter，但它不因此成为语言语义、
 不解除本节启用门禁，也不定义 dependency、target 或 process entry。
+
+---
+
+## 33. 本地 project process entry 与公开 build/run（v0.33 候选，未启用）
+
+> **候选状态**：本节是 v0.32 多文件语义的后继工具契约。当前唯一权威版本仍是 v0.31；只有
+> 用户明确启用包含 §32/§33 的后续 guide 并指定其取代 v0.31 后，本节才能约束公开 CLI。
+> SPEC-0054 在此之前保持 `draft`；本候选不改变 ADR-0022 manifest version 1，因此不另建
+> project-target schema ADR。
+
+### 33.1 project mode 与 entry selector
+
+公开 project mode 使用与单文件位置参数不可混淆的固定形式：
+
+```text
+kovenc build --project <project.toml> --entry <qualified-name> -o <executable>
+kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>...]
+```
+
+- `<project.toml>` 必须显式提供并遵守 ADR-0022/SPEC-0052；CLI 不从 cwd、源码路径或祖先目录
+  搜索 manifest，也不按参数是文件还是目录猜测模式。现有 `build/run <source.ko> ...` 单文件
+  形式及 §30.1 的 conventional `main` 行为完全不变。
+- project mode 首版强制 `--entry`，不扫描整个 unit 寻找 `main`，不读取 manifest target/entry
+  默认值，也不猜默认 package。`main` 在 project mode 仍只是普通函数名。
+- selector 是一个或多个点分 Koven Identifier：最后一段是顶层函数名，之前各段是绝对 package；
+  单段 selector 精确表示默认 package 的函数。它不经过当前文件 import，不接受 alias、wildcard、
+  root identity、logical file path、类型 member 或 overload signature 文本。不能按该 grammar
+  解析的 selector 是 CLI usage error，不进入 package lookup。
+- selector 在完整、validated compilation unit 的 package/declaration index 上解析。entry 必须是
+  有 body、顶层、非泛型的 `public` 或 `internal` 具名函数；顶层 `private` 只具有 source-unit identity，
+  不能由 project selector 绕过可见性或用文件路径消歧。
+
+### 33.2 process shape 与选择失败
+
+project selector 允许与 conventional main 相同的两个完整 process shape：
+
+```kotlin
+fun start(): Unit { ... }
+fun start(args: Array<String>): Unit { ... }
+```
+
+- 零参数与参数化 shape 精确复用 §30.1 / ADR-0019：返回 `Unit`，参数化形式只有一个默认/shared
+  Borrow `Array<String>` 参数；参数名不参与匹配。generic、`own`/`inout`、其他参数或返回类型
+  都不是合法 process entry。
+- 先按 selector 找到目标 package 的同名 declaration/overload set，再过滤可见、合法 shape。
+  不存在目标、只有 private 目标、存在目标但没有合法 shape、存在多个合法 shape 分别形成
+  missing、inaccessible、invalid-shape、ambiguous project-entry operational failure。一个合法
+  shape 与任意数量非法 overload 共存时选择该唯一合法 shape。
+- 这些失败不分配 `Ldddd`。所有 source/package/import/name/type/ownership 诊断必须先完成并按
+  unit 规则发布；只有 validated unit 才进行 entry selection。CLI 把选中的 `DeclarationId` 和
+  process shape 交给 codegen，SSA/LLVM/linker 不按字符串重新查找。
+- project 显式 selector 支持两个 process shape；这不改变单文件显式 `--entry <name>` 已发布的
+  零参数-only 兼容契约。`kovenc run -- ...` 的 argv 排除 executable name、UTF-8 预检、顺序、
+  Borrow Array/String owner 与析构继续精确复用 §30.1/SPEC-0194。
+
+### 33.3 产物、失败原子性与 Phase 边界
+
+- `build` 仍要求显式 `-o` 并拒绝已经存在的最终路径；object 和 linker output 使用输出目录内
+  的唯一临时路径，只有 codegen、link 与最终 no-clobber commit 全部成功才发布 executable。
+  manifest、任一 source、object、临时 executable 与 final 不能重合。失败清理本次临时产物，
+  不删除/覆盖调用者已有文件。`run` 继续使用进程拥有的临时目录并在
+  子进程结束后清理。
+- manifest/provider、entry/link/launch/cleanup failure 是具体 operational error；frontend
+  diagnostics 继续遵守 human/JSON Lines 选择，项目错误不得伪造成语言 diagnostic。成功 build
+  stdout/stderr 为空；run 继续转发程序 stdout/stderr 与可表示的退出状态。
+- 实施顺序固定为：SPEC-0052 产生 base source set；SPEC-0025/0197/0198 形成 validated unit；
+  SPEC-0199 生成单 object；SPEC-0054 才增加公开 project CLI、entry selection 与 executable
+  commit。任一前置未完成时不得用拼接源码、逐文件 object 或单文件 bootstrap 循环假实现。
+
+本候选不定义 manifest target/default entry、依赖解析、lock、跨 compilation-unit import/ABI、
+多 object、library artifact、安装/发布、cross target、缓存或全项目 conventional main。无依赖
+本地 executable 完成后，dependency-aware build 继续等待 SPEC-0053/0200 与新的 ABI 决策。
 
 ---
 

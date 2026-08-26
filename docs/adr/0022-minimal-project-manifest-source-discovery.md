@@ -114,7 +114,8 @@ selector 与 process shape；它们都不是“从磁盘产生 base snapshot”�
 
 ## 关联
 
-- 相关 Spec：[SPEC-0052](../specs/0052-minimal-project-manifest-source-set.md)、SPEC-0053、SPEC-0054
+- 相关 Spec：[SPEC-0052](../specs/0052-minimal-project-manifest-source-set.md)、SPEC-0053、
+  [SPEC-0054](../specs/0054-local-project-build-run.md)
 - 相关 ADR：[ADR-0002](./0002-bootstrap-workspace-layout.md)、
   [ADR-0005](./0005-package-source-root-mapping.md)、
   [ADR-0020](./0020-multifile-compilation-unit.md)、
