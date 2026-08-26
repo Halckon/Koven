@@ -102,7 +102,9 @@ fn shared_allocate_retain_payload_place_and_drop_verify_and_render() {
         append(
             function,
             entry,
-            Operation::SharedRetain { owner },
+            Operation::SharedRetain {
+                owner: EntityId::Value(owner),
+            },
             vec![EntityType::Value(owner_ty)],
             &origin,
         )
@@ -111,7 +113,9 @@ fn shared_allocate_retain_payload_place_and_drop_verify_and_render() {
     append(
         function,
         entry,
-        Operation::SharedPayloadPlace { owner },
+        Operation::SharedPayloadPlace {
+            owner: EntityId::Value(owner),
+        },
         vec![EntityType::Place(payload)],
         &origin,
     );
@@ -167,7 +171,7 @@ fn shared_operation_type_contracts_reject_non_shared_owners() {
             function,
             entry,
             Operation::SharedRetain {
-                owner: payload_value,
+                owner: EntityId::Value(payload_value),
             },
             vec![EntityType::Value(owner_ty)],
             &origin,
@@ -177,7 +181,7 @@ fn shared_operation_type_contracts_reject_non_shared_owners() {
             function,
             entry,
             Operation::SharedPayloadPlace {
-                owner: payload_value,
+                owner: EntityId::Value(payload_value),
             },
             vec![EntityType::Place(payload)],
             &origin,
@@ -226,7 +230,9 @@ fn shared_allocate_consumes_move_only_payload_but_retain_preserves_source_owner(
         append(
             function,
             entry,
-            Operation::SharedRetain { owner },
+            Operation::SharedRetain {
+                owner: EntityId::Value(owner),
+            },
             vec![EntityType::Value(owner_ty)],
             &origin,
         )

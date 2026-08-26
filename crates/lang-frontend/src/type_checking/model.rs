@@ -134,6 +134,38 @@ pub struct NonNullUseDescriptor {
     pub(crate) narrowed_type: TypeId,
 }
 
+/// 一个 null equality condition 对稳定 symbol 建立的 edge fact。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NullComparisonDescriptor {
+    pub(crate) expression: ExpressionId,
+    pub(crate) symbol: SymbolId,
+    pub(crate) nullable_type: TypeId,
+    pub(crate) non_null_when_true: bool,
+}
+
+impl NullComparisonDescriptor {
+    /// 返回产生 edge fact 的 equality expression。
+    #[must_use]
+    pub const fn expression(self) -> ExpressionId {
+        self.expression
+    }
+    /// 返回被比较的稳定 symbol。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.symbol
+    }
+    /// 返回 symbol 的 nullable 声明类型。
+    #[must_use]
+    pub const fn nullable_type(self) -> TypeId {
+        self.nullable_type
+    }
+    /// 返回非空事实是否建立在 condition 的 true edge。
+    #[must_use]
+    pub const fn non_null_when_true(self) -> bool {
+        self.non_null_when_true
+    }
+}
+
 impl NonNullUseDescriptor {
     /// 返回被窄化的具体表达式使用点。
     #[must_use]
@@ -886,6 +918,7 @@ pub struct TypedFile {
     symbol_types: Vec<TypeId>,
     parameter_bindings: Vec<ParameterBindingDescriptor>,
     non_null_uses: Vec<NonNullUseDescriptor>,
+    null_comparisons: Vec<NullComparisonDescriptor>,
     nominals: Vec<NominalDescriptor>,
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
@@ -909,6 +942,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) symbol_types: Vec<TypeId>,
     pub(crate) parameter_bindings: Vec<ParameterBindingDescriptor>,
     pub(crate) non_null_uses: Vec<NonNullUseDescriptor>,
+    pub(crate) null_comparisons: Vec<NullComparisonDescriptor>,
     pub(crate) nominals: Vec<NominalDescriptor>,
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
@@ -945,6 +979,7 @@ impl TypedFile {
             symbol_types: parts.symbol_types,
             parameter_bindings: parts.parameter_bindings,
             non_null_uses: parts.non_null_uses,
+            null_comparisons: parts.null_comparisons,
             nominals: parts.nominals,
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
@@ -1039,6 +1074,17 @@ impl TypedFile {
             })
             .ok()
             .map(|index| self.non_null_uses[index])
+    }
+
+    /// 查询一个 equality expression 发布的 null/non-null edge fact。
+    #[must_use]
+    pub fn null_comparison(&self, expression: ExpressionId) -> Option<NullComparisonDescriptor> {
+        self.null_comparisons
+            .binary_search_by_key(&expression.index(), |descriptor| {
+                descriptor.expression.index()
+            })
+            .ok()
+            .map(|index| self.null_comparisons[index])
     }
 
     /// 返回源码声明顺序的名义类型描述符。

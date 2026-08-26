@@ -97,9 +97,11 @@ pub(super) fn verify_operation(
         Operation::SharedAllocate { owner, payload } => {
             shared_allocate_contract(module, function, *owner, *payload, &results)
         }
-        Operation::SharedRetain { owner } => value_type(function, *owner).is_some_and(|ty| {
-            module.shared_payload(ty).is_some() && single_value_result(&results) == Some(ty)
-        }),
+        Operation::SharedRetain { owner } => {
+            shared_owner_type(function, *owner).is_some_and(|ty| {
+                module.shared_payload(ty).is_some() && single_value_result(&results) == Some(ty)
+            })
+        }
         Operation::SharedPayloadPlace { owner } => {
             shared_payload_place_contract(module, function, *owner, &results)
         }
@@ -369,10 +371,10 @@ fn heap_payload_place_contract(
 fn shared_payload_place_contract(
     module: &Module,
     function: &Function,
-    owner: ValueId,
+    owner: EntityId,
     results: &[EntityType],
 ) -> bool {
-    value_type(function, owner)
+    shared_owner_type(function, owner)
         .and_then(|owner| module.shared_payload(owner))
         .is_some_and(|payload| results == [EntityType::Place(payload)])
 }
@@ -797,6 +799,13 @@ fn value_type(function: &Function, value: ValueId) -> Option<SsaTypeId> {
     match entity_type(function, EntityId::Value(value)) {
         EntityType::Value(ty) => Some(ty),
         EntityType::Place(_) | EntityType::Loan { .. } => None,
+    }
+}
+
+fn shared_owner_type(function: &Function, owner: EntityId) -> Option<SsaTypeId> {
+    match entity_type(function, owner) {
+        EntityType::Value(ty) | EntityType::Loan { target: ty, .. } => Some(ty),
+        EntityType::Place(_) => None,
     }
 }
 

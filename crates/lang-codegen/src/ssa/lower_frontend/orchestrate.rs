@@ -299,6 +299,7 @@ fn lower_scalar_file_product(
             block: entry,
             bindings,
             borrow_bindings,
+            non_null_bindings: BTreeMap::new(),
             temporaries: BTreeMap::new(),
             return_type: plan.return_type,
             loops: Vec::new(),

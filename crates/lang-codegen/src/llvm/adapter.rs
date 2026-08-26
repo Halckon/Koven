@@ -19,8 +19,8 @@ use inkwell::{
 
 use crate::ssa::model::{
     BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-    Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
-    ScalarConstant, TerminatorKind, ValueId,
+    EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
+    ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
 };
 
 use super::{
@@ -167,6 +167,7 @@ struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources> {
     zero_sized_places: BTreeMap<PlaceId, BasicValueEnum<'ctx>>,
     zero_sized_loans: BTreeMap<LoanId, BasicValueEnum<'ctx>>,
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
+    loan_phis: BTreeMap<LoanId, PhiValue<'ctx>>,
 }
 
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
@@ -195,6 +196,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             zero_sized_places: BTreeMap::new(),
             zero_sized_loans: BTreeMap::new(),
             phis: BTreeMap::new(),
+            loan_phis: BTreeMap::new(),
         }
     }
 
@@ -267,17 +269,30 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             self.builder.position_at_end(self.block(block.id)?);
             self.set_debug_location(&block.origin)?;
             for entity in &block.parameters {
-                let EntityId::Value(value) = entity else {
-                    return Err(unsupported("LLVM block 参数不能是 place 或 loan"));
-                };
-                let phi = self.builder.build_phi(
-                    self.dependencies
-                        .type_map
-                        .basic_type(value_type(self.function, *value)?)?,
-                    &value_name(*value),
-                )?;
-                self.values.insert(*value, phi.as_basic_value());
-                self.phis.insert(*value, phi);
+                match entity {
+                    EntityId::Value(value) => {
+                        let phi = self.builder.build_phi(
+                            self.dependencies
+                                .type_map
+                                .basic_type(value_type(self.function, *value)?)?,
+                            &value_name(*value),
+                        )?;
+                        self.values.insert(*value, phi.as_basic_value());
+                        self.phis.insert(*value, phi);
+                    }
+                    EntityId::Loan(loan) => {
+                        let phi = self.builder.build_phi(
+                            self.context.ptr_type(inkwell::AddressSpace::default()),
+                            &format!("l{}", loan.index()),
+                        )?;
+                        self.loans
+                            .insert(*loan, phi.as_basic_value().into_pointer_value());
+                        self.loan_phis.insert(*loan, phi);
+                    }
+                    EntityId::Place(_) => {
+                        return Err(unsupported("LLVM block 参数不能是 place"));
+                    }
+                }
             }
         }
         Ok(())
@@ -515,25 +530,25 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("shared retain", 1, results.len()));
                 };
-                let owner_type = value_type(self.function, *owner)?;
+                let owner_type = self.shared_owner_type(*owner)?;
                 let retained = self.dependencies.runtime.retain_shared(
                     &self.builder,
                     self.llvm_function,
                     self.dependencies.type_map,
                     owner_type,
-                    self.pointer_value(*owner)?,
+                    self.shared_owner_pointer(*owner)?,
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, retained.into());
             }
             Operation::SharedPayloadPlace { owner } => {
                 let result = place_result(instruction)?;
-                let owner_type = value_type(self.function, *owner)?;
+                let owner_type = self.shared_owner_type(*owner)?;
                 let place = self.dependencies.runtime.shared_payload_place(
                     &self.builder,
                     self.dependencies.type_map,
                     owner_type,
-                    self.pointer_value(*owner)?,
+                    self.shared_owner_pointer(*owner)?,
                     &format!("p{}", result.index()),
                 )?;
                 self.places.insert(result, place);
@@ -661,13 +676,41 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.places.insert(result, pointer);
             }
-            Operation::NullableWrap { .. }
-            | Operation::NullableNull { .. }
-            | Operation::NullableIsNull { .. }
-            | Operation::NullableTake { .. } => {
-                return Err(unsupported(
-                    "nullable handle operations 尚未接入 LLVM adapter",
-                ));
+            Operation::NullableWrap { owner, .. } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("nullable wrap", 1, results.len()));
+                };
+                self.values.insert(*result, self.value(*owner)?);
+            }
+            Operation::NullableNull { .. } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("nullable null", 1, results.len()));
+                };
+                let null = self
+                    .context
+                    .ptr_type(inkwell::AddressSpace::default())
+                    .const_null();
+                self.values.insert(*result, null.into());
+            }
+            Operation::NullableIsNull { owner } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("nullable is-null", 1, results.len()));
+                };
+                let is_null = self
+                    .builder
+                    .build_is_null(self.pointer_value(*owner)?, &value_name(*result))?;
+                self.values.insert(*result, is_null.into());
+            }
+            Operation::NullableTake { owner, proof } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("nullable take", 1, results.len()));
+                };
+                self.loans.remove(proof).ok_or_else(|| {
+                    LlvmAdapterError::InvalidSsa(
+                        "nullable proof 的 LLVM loan 映射不存在".to_owned(),
+                    )
+                })?;
+                self.values.insert(*result, self.value(*owner)?);
             }
             Operation::Copy { source } => {
                 let [result] = results.as_slice() else {
@@ -1056,10 +1099,25 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.block(when_false.target)?,
                 )?;
             }
-            TerminatorKind::NullableBranch { .. } => {
-                return Err(unsupported(
-                    "nullable non-null edge/view 尚未接入 LLVM adapter",
-                ));
+            TerminatorKind::NullableBranch {
+                owner,
+                when_null,
+                when_non_null,
+                view,
+            } => {
+                self.add_edge_incoming(llvm_source, when_null)?;
+                self.add_edge_incoming(llvm_source, when_non_null)?;
+                let pointer = self.pointer_value(*owner)?;
+                let phi = self.loan_phis.get(view).ok_or_else(|| {
+                    LlvmAdapterError::InvalidSsa("non-null view 缺少 LLVM PHI".to_owned())
+                })?;
+                phi.add_incoming(&[(&pointer, llvm_source)]);
+                let is_null = self.builder.build_is_null(pointer, "nullable.is_null")?;
+                self.builder.build_conditional_branch(
+                    is_null,
+                    self.block(when_null.target)?,
+                    self.block(when_non_null.target)?,
+                )?;
             }
             TerminatorKind::Return { values } => match values.as_slice() {
                 [] => {
@@ -1088,17 +1146,25 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .block(edge.target)
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("edge target block 不存在".to_owned()))?;
         for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
-            let EntityId::Value(argument) = argument else {
-                return Err(unsupported("LLVM edge argument 不能是 place 或 loan"));
-            };
-            let EntityId::Value(parameter) = parameter else {
-                return Err(unsupported("LLVM block parameter 不能是 place 或 loan"));
-            };
-            let value = self.value(*argument)?;
-            let phi = self.phis.get(parameter).ok_or_else(|| {
-                LlvmAdapterError::InvalidSsa("非 entry block 参数缺少 LLVM PHI".to_owned())
-            })?;
-            phi.add_incoming(&[(&value, source)]);
+            match (argument, parameter) {
+                (EntityId::Value(argument), EntityId::Value(parameter)) => {
+                    let value = self.value(*argument)?;
+                    let phi = self.phis.get(parameter).ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("非 entry value 参数缺少 LLVM PHI".to_owned())
+                    })?;
+                    phi.add_incoming(&[(&value, source)]);
+                }
+                (EntityId::Loan(argument), EntityId::Loan(parameter)) => {
+                    let value = self.loans.get(argument).copied().ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("LLVM edge loan 映射缺失".to_owned())
+                    })?;
+                    let phi = self.loan_phis.get(parameter).ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("非 entry loan 参数缺少 LLVM PHI".to_owned())
+                    })?;
+                    phi.add_incoming(&[(&value, source)]);
+                }
+                _ => return Err(unsupported("LLVM edge 不支持 place 或不同 entity kind")),
+            }
         }
         Ok(())
     }
@@ -1115,6 +1181,35 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .get(&id)
             .copied()
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM value 映射缺失".to_owned()))
+    }
+
+    fn shared_owner_type(&self, owner: EntityId) -> Result<SsaTypeId, LlvmAdapterError> {
+        match self
+            .function
+            .entity(owner)
+            .ok_or_else(|| LlvmAdapterError::InvalidSsa("shared owner 不存在".to_owned()))?
+            .ty
+        {
+            EntityType::Value(ty) | EntityType::Loan { target: ty, .. } => Ok(ty),
+            EntityType::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                "shared owner 不能是 place".to_owned(),
+            )),
+        }
+    }
+
+    fn shared_owner_pointer(
+        &self,
+        owner: EntityId,
+    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        match owner {
+            EntityId::Value(owner) => self.pointer_value(owner),
+            EntityId::Loan(owner) => self.loans.get(&owner).copied().ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa("shared owner loan 映射缺失".to_owned())
+            }),
+            EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                "shared owner 不能是 place".to_owned(),
+            )),
+        }
     }
 
     fn int_value(&self, id: ValueId) -> Result<IntValue<'ctx>, LlvmAdapterError> {

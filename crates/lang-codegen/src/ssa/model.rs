@@ -391,10 +391,10 @@ pub(crate) enum Operation {
         payload: ValueId,
     },
     SharedRetain {
-        owner: ValueId,
+        owner: EntityId,
     },
     SharedPayloadPlace {
-        owner: ValueId,
+        owner: EntityId,
     },
     NullableWrap {
         nullable: SsaTypeId,
@@ -495,11 +495,10 @@ impl Operation {
             Self::AggregateProject { aggregate, .. }
             | Self::AggregateExplode { aggregate }
             | Self::AggregateCopyExplode { aggregate }
-            | Self::HeapPayloadPlace { owner: aggregate }
-            | Self::SharedRetain { owner: aggregate }
-            | Self::SharedPayloadPlace { owner: aggregate } => {
+            | Self::HeapPayloadPlace { owner: aggregate } => {
                 vec![EntityId::Value(*aggregate)]
             }
+            Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],
             Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
                 vec![EntityId::Value(*owner)]
             }

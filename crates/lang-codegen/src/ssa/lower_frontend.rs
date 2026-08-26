@@ -104,6 +104,7 @@ struct ExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<SymbolId, LoanId>,
+    non_null_bindings: BTreeMap<SymbolId, LoanId>,
     temporaries: BTreeMap<usize, ValueId>,
     return_type: TypeId,
     loops: Vec<loop_control::LoopContext>,
@@ -154,7 +155,7 @@ impl ExpressionLowerer<'_> {
         let span = node.span();
         match node.payload().clone() {
             Expression::Literal(literal) => self.lower_literal(literal, expression, span),
-            Expression::Name => self.lower_name(span),
+            Expression::Name => self.lower_name(expression, span),
             Expression::Group { expression } => self.lower(expression),
             Expression::Prefix {
                 operator, operand, ..
@@ -399,7 +400,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let owner = self.require_value(descriptor.receiver())?;
+        let owner = self.shared_owner_operand(descriptor.receiver(), span)?;
         match descriptor.kind() {
             RcOperationKind::Share => {
                 let result_type = self.expression_ssa_type(expression, span)?;
@@ -431,6 +432,24 @@ impl ExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(value(results[0])))
             }
         }
+    }
+
+    fn shared_owner_operand(
+        &mut self,
+        receiver: ExpressionId,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        if let Some(non_null) = self.typed.non_null_use(receiver)
+            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
+        {
+            return Ok(EntityId::Loan(view));
+        }
+        self.require_value(receiver)
+            .map(EntityId::Value)
+            .map_err(|mut error| {
+                error.span.get_or_insert(span);
+                error
+            })
     }
 
     fn validate_construction_root(
@@ -534,9 +553,9 @@ impl ExpressionLowerer<'_> {
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        let value = self.lower(initializer)?;
-        if matches!(value, LoweredValue::Diverged) {
-            return Ok(value);
+        let mut lowered = self.lower(initializer)?;
+        if matches!(lowered, LoweredValue::Diverged) {
+            return Ok(lowered);
         }
         let name_span =
             present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -544,7 +563,29 @@ impl ExpressionLowerer<'_> {
             return Ok(LoweredValue::Unit);
         }
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
-        self.bindings.insert(symbol, value);
+        let declared = self
+            .typed
+            .symbol_type(symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(TypeKind::Nullable(inner)) = self.typed.types().get(declared)
+            && self.typed.expression_type(initializer) == Some(*inner)
+        {
+            let nullable = self
+                .type_ids
+                .get(&self.resolve_type(declared, span)?)
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+            let LoweredValue::Value(owner) = lowered else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let (_, results) = self.append(
+                Operation::NullableWrap { nullable, owner },
+                vec![EntityType::Value(nullable)],
+                span,
+            )?;
+            lowered = LoweredValue::Value(value(results[0]));
+        }
+        self.bindings.insert(symbol, lowered);
         Ok(LoweredValue::Unit)
     }
 
@@ -554,14 +595,24 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if literal == LiteralKind::Null {
+            let ty = self.expression_ssa_type(expression, span)?;
+            let (_, results) = self.append(
+                Operation::NullableNull { nullable: ty },
+                vec![EntityType::Value(ty)],
+                span,
+            )?;
+            return Ok(LoweredValue::Value(value(results[0])));
+        }
         let constant = match literal {
             LiteralKind::Boolean(value) => ScalarConstant::Boolean(value),
             LiteralKind::Integer(kind) => {
                 ScalarConstant::Integer(self.parse_integer_literal(kind, span)?)
             }
-            LiteralKind::Float(_) | LiteralKind::Char | LiteralKind::Null => {
+            LiteralKind::Float(_) | LiteralKind::Char => {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
+            LiteralKind::Null => unreachable!("handled above"),
         };
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
@@ -572,11 +623,20 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_name(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+    fn lower_name(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
         let symbol = self
             .references
             .get(&span_key(span))
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.non_null_use(expression).is_some()
+            && self.non_null_bindings.contains_key(symbol)
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if let Some(value) = self.bindings.get(symbol).copied() {
             return Ok(value);
         }
@@ -932,6 +992,11 @@ impl ExpressionLowerer<'_> {
         argument: ExpressionId,
         span: Span,
     ) -> Result<(LoanId, bool), LoweringError> {
+        if let Some(non_null) = self.typed.non_null_use(argument)
+            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
+        {
+            return Ok((view, false));
+        }
         let fact = self
             .owned
             .loan_begin(argument)
@@ -974,7 +1039,7 @@ impl ExpressionLowerer<'_> {
         if let Some(operation) = self.typed.rc_operation(argument)
             && operation.kind() == RcOperationKind::Value
         {
-            let owner = self.require_value(operation.receiver())?;
+            let owner = self.shared_owner_operand(operation.receiver(), span)?;
             let payload = self.expression_ssa_type(argument, span)?;
             let (_, results) = self.append(
                 Operation::SharedPayloadPlace { owner },

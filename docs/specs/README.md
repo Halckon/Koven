@@ -22,9 +22,9 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.30 入口与共享所有权契约](../guide/01-design-decisions.md#30-约定程序入口与显式共享所有权v030)
 已于 2026-08-26 明确启用并取代 v0.29；零参数 conventional main 可在 SPEC-0193 直接推进，
-参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的非 nullable Rc core 已完成，
-通用 Borrow lowering 已由 SPEC-0195 完成，nullable lowering 按 ADR-0017 进入 SPEC-0196。Arena/Arc/Weak 没有
-因本版本获得实现授权。
+参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的非 nullable Rc core、SPEC-0195
+的通用 Borrow lowering 与 SPEC-0196 的 pointer-like nullable lowering 均已完成。Arena/Arc/Weak
+没有因本版本获得实现授权。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -81,13 +81,14 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
 | 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
-| 实施中/当前前沿 | SPEC-0196 nullable handle lowering | frontend non-null use descriptor 与 nullable SSA/verifier 已完成；LLVM null niche、conditional drop 与 native 接线待实施 |
+| 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此当前依赖前沿已推进到 `SPEC-0196`；参数化 main 排在 String runtime
-之后。后续若 guide/ADR 改变门禁，先更新本审计再物化下一份 Spec。
+因此当前无可越过门禁继续实施的节点：参数化 main 排在 String runtime 之后，nullable
+`when`/`!!` 需要各自的 flow/消费 descriptor，其他候选仍受表中 guide/runtime 门禁约束。后续先
+封闭相应 guide/ADR，再物化下一份 Spec。
 
 ## Phase 0 Spec 队列
 
@@ -275,7 +276,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
 | 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；argv Array runtime 已完成；v0.30 已生效 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`in-progress`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
+| [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
 | 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |

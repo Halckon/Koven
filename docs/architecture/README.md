@@ -109,14 +109,17 @@ callable CFG 的函数参数，正常退出时隐式结束，内部 `BorrowBegin
 edge 转移。frontend 按 parameter mode、argument mapping 与 `LoanFact` 生成 root/Rc payload
 place、shared loan、call、`BorrowEnd`，Borrow 参数的 Copyable read 使用 `PlaceAccess::Loan`；LLVM
 统一以 target-storage pointer 传递。Rc MoveOnly payload call 后继续 share/drop、普通 class/Box
-重复 Borrow、function-pointer Borrow invoke 与真实 object/Clang link/run 均已验收；pointer-like
-nullable lowering仍由 SPEC-0196 实施；SPEC-0196 的首个切片已让 frontend 以
-`NonNullUseDescriptor` 发布稳定 symbol 使用点的 nullable 声明类型与 inner 窄化类型，并建立
-独立 `NullableHandle<inner>` SSA identity、wrap/null/is-null/take operation、专用
-`NullableBranch` non-null edge/shared-loan view 及 path/owner-sensitive verifier。普通 Borrow
-参数不能伪造 proof，另一 owner 的 view 不能用于 take，active view 阻止 owner move/drop；
-LLVM adapter 当前只承认 pointer layout，operation、PHI、conditional drop 与 native lowering
-仍由 SPEC-0196 后续切片实施；
+重复 Borrow、function-pointer Borrow invoke 与真实 object/Clang link/run 均已验收。SPEC-0196
+进一步让 frontend 以 `NonNullUseDescriptor` 与 `NullComparisonDescriptor` 发布稳定 symbol 的
+nullable 声明类型、inner 窄化类型及真假 edge proof；任意非空 `T` 适配 `T?` 的既有 guide
+规则也已对 nominal/Box/Rc 恢复。typed SSA 建立独立 `NullableHandle<inner>` identity、
+wrap/null/is-null/take operation、专用 `NullableBranch` non-null edge/shared-loan view 及
+path/owner-sensitive verifier。普通 Borrow 参数不能伪造 proof，另一 owner 的 view 不能用于
+take，active view 阻止 owner move/drop；Rc retain/payload projection 可读取 active non-null
+view，但不把它转换为第二个 owner。LLVM 以同宽 pointer PHI/null compare 实现 null niche，
+nullable drop 仅在非空路径调用 inner drop glue，不增加 tag、allocation 或 retain；class/Box/Rc
+的 null/non-null frontend→object→Clang link/run 已通过。inline nullable、nullable `when` 与
+`!!` 消费 lowering 当前确定性返回 unsupported；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -183,8 +186,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `Box`，局部 value-class 解构的 Copy/Consume descriptor，以及单态 source/external/
   function-value/member callable 选择、源码有序实参映射、`CallDescriptor` 和
   `ExpressionCategory` place/temporary 事实；nullable smart-cast 另以按 expression identity
-  排序的 `NonNullUseDescriptor` 发布稳定 symbol、nullable 声明类型与 inner 窄化类型，后端无需
-  重解条件 AST；具名函数与成功采用唯一期望函数类型的 lambda
+  排序的 `NonNullUseDescriptor` 发布稳定 symbol、nullable 声明类型与 inner 窄化类型，并由
+  `NullComparisonDescriptor` 发布 `== null` / `!= null` 的证明 edge，后端无需重解条件 AST；
+  expected-type 适配遵循任意非空 `T` 可进入 `T?` 的 guide 规则。具名函数与成功采用唯一期望
+  函数类型的 lambda
   还按参数 `SymbolId` 发布 `ParameterBindingDescriptor`，Borrow/Inout lambda 不再被误判为
   全 Value 结构不匹配。环境绑定的 `Array` / `List` / `MutableList`
   identity、storable 元素检查、`ContainerConstructionDescriptor`、带可变性的
@@ -209,7 +214,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   不获得特权；SharedOwner SSA、核心 LLVM control block/retain/release、intrinsic construction/
   share 与 Copyable payload read lowering 及真实 native 验收已实现；MoveOnly payload、普通
   class/Box 与 callable value 的 Borrow-call SSA/LLVM 交接已由 SPEC-0195 完成；SPEC-0196 已完成
-  nullable handle SSA/verifier，LLVM null niche 与 native 接线仍在实施；
+  pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional
+  drop 与 class/Box/Rc native 接线；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自
@@ -1373,7 +1379,7 @@ MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/01
 SPEC-0045 已把非 nullable `Rc<T>` 的 construction、显式 share、Copyable payload read、target
 preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线并完成；SPEC-0195 已完成
 通用 Borrow callable signature、frontend loan、LLVM pointer ABI 及 Rc/class/Box native 接线；
-nullable Rc 由 SPEC-0196 接续。
+SPEC-0196 已完成 nullable Rc/class/Box 的 `if` proof、null niche、conditional drop 与 native 接线。
 
 ## 更新要求
 

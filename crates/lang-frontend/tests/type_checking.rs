@@ -212,6 +212,20 @@ fn numeric_defaults_suffixes_and_contextual_integer_types_are_stable() {
 }
 
 #[test]
+fn nominal_box_and_rc_values_adapt_to_their_nullable_types() {
+    let text = "class Node {}\n\
+                value class Token(val item: Int)\n\
+                fun accepted(): Unit {\n\
+                    val node: Node? = Node()\n\
+                    val boxed: Box<Token>? = Box(Token(1))\n\
+                    val owner: Rc<Int>? = Rc(2)\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constructions().len(), 4);
+}
+
+#[test]
 fn enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests() {
     let text = "enum class Shape {\n\
                     Circle(radius: Int), Point;\n\
@@ -284,6 +298,20 @@ fn type_tests_drive_enum_payload_and_nullable_smart_casts() {
         typed.non_null_use(non_null_use.expression()),
         Some(*non_null_use)
     );
+    let comparison = typed
+        .null_comparison(
+            parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok("input != null"))
+                .expect("null comparison")
+                .0,
+        )
+        .expect("typed null comparison fact");
+    assert!(comparison.non_null_when_true());
+    assert_eq!(comparison.symbol(), non_null_use.symbol());
+    assert_eq!(comparison.nullable_type(), non_null_use.declared_type());
 }
 
 #[test]

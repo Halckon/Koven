@@ -323,6 +323,135 @@ fn lowers_repeated_class_and_box_root_borrows_without_rc_special_cases() {
 }
 
 #[test]
+fn lowers_nullable_class_parameter_smart_cast_to_non_null_borrow_view() {
+    let analysis = analyze(
+        "class Node()\n\
+         fun observe(node: Node): Unit {}\n\
+         fun inspect(own node: Node?): Unit {\n\
+             if (node != null) { observe(node) }\n\
+         }",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("nullable smart-cast Borrow must lower");
+    let ssa = render_program(&program);
+    assert!(ssa.contains("nullable_handle<"), "{ssa}");
+    assert!(ssa.contains("nullable.branch"), "{ssa}");
+    assert!(ssa.contains("view %l"), "{ssa}");
+    let llvm = render_verified_program(&program).expect("nullable smart cast LLVM");
+    assert!(llvm.contains("icmp eq ptr"), "{llvm}");
+    assert!(llvm.contains("phi ptr"), "{llvm}");
+}
+
+#[test]
+fn lowers_nullable_rc_operations_through_the_proven_non_null_view() {
+    let analysis = analyze(
+        "fun inspect(own owner: Rc<Int>?): Unit {\n\
+             if (owner != null) {\n\
+                 val retained = owner.share()\n\
+                 val copied = owner.value\n\
+             }\n\
+         }",
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("nullable Rc operations must use the proven non-null view");
+    let ssa = render_program(&program);
+    assert!(ssa.contains("shared.retain %l"), "{ssa}");
+    assert!(ssa.contains("shared.payload_place %l"), "{ssa}");
+    assert!(ssa.contains("end_borrow"), "{ssa}");
+    let llvm = render_verified_program(&program).expect("nullable Rc view LLVM");
+    assert!(llvm.contains("icmp eq ptr"), "{llvm}");
+    assert!(llvm.contains(".next = add i64"), "{llvm}");
+}
+
+#[test]
+fn rejects_inline_nullable_lowering_without_panicking() {
+    let analysis = analyze(
+        "value class Token(val item: Int)\n\
+         fun inspect(own token: Token?): Unit {\n\
+             if (token != null) {}\n\
+         }",
+    );
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let error = match lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    ) {
+        Ok(_) => panic!("inline nullable ABI remains outside SPEC-0196"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}
+
+#[test]
+fn rejects_unimplemented_nullable_when_and_non_null_assertion_without_panicking() {
+    for source in [
+        "class Node {}\n\
+         fun inspect(own node: Node?): Unit {\n\
+             when (node) { null -> {}; else -> {} }\n\
+         }",
+        "class Node {}\n\
+         fun inspect(own node: Node?): Unit {\n\
+             val actual = node!!\n\
+         }",
+    ] {
+        let analysis = analyze(source);
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(analysis.owned.diagnostics().is_empty());
+        let error = match lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        ) {
+            Ok(_) => panic!("unimplemented nullable control form must not silently lower"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    }
+}
+
+#[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     let analysis = analyze(
         "public value class Pair<A, B>(val first: A, val second: B)\n\

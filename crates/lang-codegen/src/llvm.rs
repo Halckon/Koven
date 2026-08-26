@@ -21,6 +21,8 @@ pub(crate) mod layout;
 #[cfg(test)]
 mod layout_tests;
 #[cfg(test)]
+mod nullable_tests;
+#[cfg(test)]
 mod object_tests;
 mod runtime;
 #[cfg(test)]

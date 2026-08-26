@@ -276,6 +276,7 @@ impl Checker<'_> {
             result.ty = self.error_type();
         }
         self.record_non_null_use(id, result.ty);
+        self.record_null_comparison(id);
         let category = self.classify_expression_category(id, result.ty);
         self.set_expression_category(id, category);
         self.set_expression(id, result.ty);
@@ -303,6 +304,50 @@ impl Checker<'_> {
             symbol,
             declared_type,
             narrowed_type,
+        });
+    }
+
+    fn record_null_comparison(&mut self, expression: ExpressionId) {
+        let Ok(node) = self.ast().expressions().get(expression) else {
+            return;
+        };
+        let Expression::Binary {
+            left,
+            operator,
+            right,
+            ..
+        } = node.payload()
+        else {
+            return;
+        };
+        if !matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual) {
+            return;
+        }
+        let is_null = |id| {
+            self.ast()
+                .expressions()
+                .get(id)
+                .is_ok_and(|node| matches!(node.payload(), Expression::Literal(LiteralKind::Null)))
+        };
+        let candidate = match (is_null(*left), is_null(*right)) {
+            (true, false) => *right,
+            (false, true) => *left,
+            _ => return,
+        };
+        let Some(FlowKey::Symbol(symbol)) = self.stable_flow_key(candidate) else {
+            return;
+        };
+        let Some(nullable_type) = self.symbol_type(symbol) else {
+            return;
+        };
+        if !matches!(self.kind(nullable_type), TypeKind::Nullable(_)) {
+            return;
+        }
+        self.null_comparisons.push(NullComparisonDescriptor {
+            expression,
+            symbol,
+            nullable_type,
+            non_null_when_true: *operator == BinaryOperator::NotEqual,
         });
     }
 

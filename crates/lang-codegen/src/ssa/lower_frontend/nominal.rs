@@ -144,6 +144,12 @@ impl NominalTypeMapper {
                 );
                 owner
             }
+            Some(TypeKind::Nullable(inner)) => {
+                let inner = self.intern(module, names, typed, *inner, span)?;
+                module
+                    .add_nullable_handle_type(inner)
+                    .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?
+            }
             Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             None => return Err(error(LoweringErrorKind::MissingFact, span)),
         };

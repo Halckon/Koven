@@ -382,6 +382,86 @@ fn move_only_rc_payload_borrow_call_links_runs_and_releases_once() {
 }
 
 #[test]
+fn nullable_class_box_and_rc_sources_link_run_and_release() {
+    let analysis = analyze(
+        "nullable-owners.ko",
+        "class Node {}\n\
+         value class Token(val item: Int)\n\
+         fun observeNode(node: Node): Unit {}\n\
+         fun observeBox(boxed: Box<Token>): Unit {}\n\
+         fun inspectNode(own node: Node?): Unit {\n\
+             if (node != null) { observeNode(node) }\n\
+         }\n\
+         fun inspectBox(own boxed: Box<Token>?): Unit {\n\
+             if (boxed != null) { observeBox(boxed) }\n\
+         }\n\
+         fun inspectRc(own owner: Rc<Int>?): Unit {\n\
+             if (owner != null) {\n\
+                 val retained = owner.share()\n\
+                 val copied = owner.value\n\
+                 if (copied != 41) { error(\"bad nullable Rc payload\") }\n\
+             }\n\
+         }\n\
+         fun nullableEntry(): Unit {\n\
+             val node: Node? = Node()\n\
+             val observedNode = inspectNode(node)\n\
+             val boxed: Box<Token>? = Box(Token(1))\n\
+             val observedBox = inspectBox(boxed)\n\
+             val owner: Rc<Int>? = Rc(41)\n\
+             val observedRc = inspectRc(owner)\n\
+             val absent: Rc<Int>? = null\n\
+             val observedAbsent = inspectRc(absent)\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let directory = TestDirectory::create();
+    let object = directory.join("nullable-owners.o");
+    let executable = directory.join("nullable-owners");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, "nullableEntry", SymbolKind::Function),
+        &object,
+    )
+    .expect("nullable class, Box, and Rc source must emit an object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked nullable owner executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
 fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
     let directory = TestDirectory::create();
     let declarative = analyze(

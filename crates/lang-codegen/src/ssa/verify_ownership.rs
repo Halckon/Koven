@@ -427,7 +427,21 @@ fn apply_operation(
             );
         }
         Operation::SharedRetain { owner } | Operation::SharedPayloadPlace { owner } => {
-            require_value(module, function, *owner, state, location, origin, errors);
+            match owner {
+                EntityId::Value(owner) => {
+                    require_value(module, function, *owner, state, location, origin, errors);
+                }
+                EntityId::Loan(loan) => {
+                    if !state.loans.contains(loan) {
+                        errors.push(error(
+                            VerifyErrorKind::LoanInactive { loan: *loan },
+                            location,
+                            origin,
+                        ));
+                    }
+                }
+                EntityId::Place(_) => unreachable!("operation contract rejects place owners"),
+            }
         }
         Operation::NullableWrap { owner, .. } => {
             consume_value(
@@ -1084,6 +1098,9 @@ impl AliasRoots {
                     Operation::HeapPayloadPlace { owner } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Value(*owner));
+                    }
+                    Operation::SharedPayloadPlace { owner } => {
+                        changed |= union_from(&mut roots, instruction.results[0], *owner);
                     }
                     Operation::ContainerElementPlace { owner, .. } => {
                         changed |=

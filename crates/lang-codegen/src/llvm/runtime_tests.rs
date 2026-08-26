@@ -307,7 +307,9 @@ fn shared_owner_uses_non_atomic_checked_retain_and_release_to_zero_drop() {
         function
             .append_instruction(
                 entry,
-                Operation::SharedRetain { owner },
+                Operation::SharedRetain {
+                    owner: EntityId::Value(owner),
+                },
                 vec![EntityType::Value(owner_type)],
                 origin.clone(),
             )
@@ -318,7 +320,9 @@ fn shared_owner_uses_non_atomic_checked_retain_and_release_to_zero_drop() {
         function
             .append_instruction(
                 entry,
-                Operation::SharedPayloadPlace { owner: retained },
+                Operation::SharedPayloadPlace {
+                    owner: EntityId::Value(retained),
+                },
                 vec![EntityType::Place(integer)],
                 origin.clone(),
             )

@@ -40,6 +40,9 @@ impl ExpressionLowerer<'_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(descriptor) = self.typed.null_comparison(condition) {
+            return self.lower_nullable_if(expression, descriptor, then_branch, else_branch, span);
+        }
         let condition = self.require_value(condition)?;
         let baseline = self.bindings.clone();
         let then_block = self.add_empty_block(self.statement_span(then_branch)?)?;
@@ -75,6 +78,146 @@ impl ExpressionLowerer<'_> {
                 bindings: baseline.clone(),
             });
         }
+        if self.expression_is_unit(expression, span)? {
+            discard_exit_results(&mut exits);
+        }
+        self.merge_exits(exits, &baseline, span)
+    }
+
+    fn lower_nullable_if(
+        &mut self,
+        expression: ExpressionId,
+        descriptor: lang_frontend::type_checking::NullComparisonDescriptor,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let symbol = descriptor.symbol();
+        let owner = match self.bindings.get(&symbol).copied() {
+            Some(LoweredValue::Value(owner)) => owner,
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        let nullable = *self
+            .type_ids
+            .get(&self.resolve_type(descriptor.nullable_type(), span)?)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let inner = self
+            .typed
+            .types()
+            .get(descriptor.nullable_type())
+            .and_then(|kind| match kind {
+                lang_frontend::type_checking::TypeKind::Nullable(inner) => Some(*inner),
+                _ => None,
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let inner = *self
+            .type_ids
+            .get(&self.resolve_type(inner, span)?)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let branch_types = |proven| {
+            let mut types = vec![EntityType::Value(nullable)];
+            if proven {
+                types.push(EntityType::Loan {
+                    kind: crate::ssa::model::LoanKind::Shared,
+                    target: inner,
+                });
+            }
+            types
+        };
+        let then_block = self
+            .function
+            .add_block(
+                branch_types(descriptor.non_null_when_true()),
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        let else_block = self
+            .function
+            .add_block(
+                branch_types(!descriptor.non_null_when_true()),
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        let non_null_block = if descriptor.non_null_when_true() {
+            then_block
+        } else {
+            else_block
+        };
+        let view = self
+            .function
+            .block(non_null_block)
+            .expect("new block exists")
+            .parameters[1];
+        let EntityId::Loan(view) = view else {
+            unreachable!("loan parameter requested")
+        };
+        let make_edge = |target| Edge {
+            target,
+            arguments: vec![EntityId::Value(owner)],
+        };
+        let (when_null, when_non_null) = if descriptor.non_null_when_true() {
+            (make_edge(else_block), make_edge(then_block))
+        } else {
+            (make_edge(then_block), make_edge(else_block))
+        };
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::NullableBranch {
+                    owner,
+                    when_null,
+                    when_non_null,
+                    view,
+                },
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+
+        let baseline = self.bindings.clone();
+        let outer_non_null = self.non_null_bindings.clone();
+        let mut exits = Vec::new();
+        for (branch, block, statement, proven) in [
+            (
+                0,
+                then_block,
+                Some(then_branch),
+                descriptor.non_null_when_true(),
+            ),
+            (1, else_block, else_branch, !descriptor.non_null_when_true()),
+        ] {
+            self.block = block;
+            self.bindings.clone_from(&baseline);
+            let parameter = self
+                .function
+                .block(block)
+                .expect("branch block exists")
+                .parameters[0];
+            self.bindings
+                .insert(symbol, LoweredValue::Value(value(parameter)));
+            self.non_null_bindings.clone_from(&outer_non_null);
+            if proven {
+                self.non_null_bindings.insert(symbol, view);
+            }
+            let result = match statement {
+                Some(statement) => self.lower_control_body(statement)?,
+                None => LoweredValue::Unit,
+            };
+            if !matches!(result, LoweredValue::Diverged) {
+                self.emit_drops(lang_frontend::ownership_checking::DropPoint::BranchExit {
+                    control: expression,
+                    branch,
+                })?;
+                if proven && self.non_null_bindings.remove(&symbol).is_some() {
+                    self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
+                }
+                exits.push(BranchExit {
+                    block: self.block,
+                    result,
+                    bindings: self.bindings.clone(),
+                });
+            }
+        }
+        self.non_null_bindings = outer_non_null;
         if self.expression_is_unit(expression, span)? {
             discard_exit_results(&mut exits);
         }
@@ -519,24 +662,19 @@ impl ExpressionLowerer<'_> {
             slots.push(MergeSlot::Result);
         }
         for &symbol in baseline.keys() {
-            let first_value = first
-                .bindings
-                .get(&symbol)
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            if exits
+            let values = exits
                 .iter()
-                .any(|exit| exit.bindings.get(&symbol).copied() != Some(first_value))
-            {
-                let values = exits
-                    .iter()
-                    .map(|exit| {
-                        exit.bindings
-                            .get(&symbol)
-                            .copied()
-                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                .map(|exit| exit.bindings.get(&symbol).copied())
+                .collect::<Vec<_>>();
+            if values.iter().all(Option::is_none) {
+                continue;
+            }
+            let values = values
+                .into_iter()
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let first_value = values[0];
+            if values.iter().copied().any(|value| value != first_value) {
                 parameter_types.push(self.merged_value_type(values.into_iter(), span)?);
                 slots.push(MergeSlot::Binding(symbol));
             }
@@ -581,15 +719,14 @@ impl ExpressionLowerer<'_> {
         let mut result = first_result;
         let mut bindings = baseline
             .keys()
-            .map(|symbol| {
+            .filter_map(|symbol| {
                 first
                     .bindings
                     .get(symbol)
                     .copied()
                     .map(|binding| (*symbol, binding))
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
             })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
+            .collect::<BTreeMap<_, _>>();
         for (slot, parameter) in slots.into_iter().zip(parameters) {
             let parameter = LoweredValue::Value(value(parameter));
             match slot {

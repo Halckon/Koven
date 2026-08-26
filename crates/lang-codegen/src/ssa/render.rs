@@ -458,11 +458,11 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::SharedRetain { owner } => {
             output.write_str("shared.retain ")?;
-            write_entity_id(output, EntityId::Value(*owner))
+            write_entity_id(output, *owner)
         }
         Operation::SharedPayloadPlace { owner } => {
             output.write_str("shared.payload_place ")?;
-            write_entity_id(output, EntityId::Value(*owner))
+            write_entity_id(output, *owner)
         }
         Operation::NullableWrap { nullable, owner } => {
             output.write_str("nullable.wrap ")?;

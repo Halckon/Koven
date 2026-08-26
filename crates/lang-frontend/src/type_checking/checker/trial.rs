@@ -6,8 +6,8 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerConstructionDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
-        ExpressionCategory, NonNullUseDescriptor, ParameterMode, RcOperationDescriptor, TypeId,
-        TypeTable,
+        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor, ParameterMode,
+        RcOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -25,6 +25,7 @@ pub(super) struct TrialState {
     symbol_types: Vec<Option<TypeId>>,
     parameter_modes: Vec<Option<ParameterMode>>,
     non_null_uses: Vec<NonNullUseDescriptor>,
+    null_comparisons: Vec<NullComparisonDescriptor>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     destructurings: Vec<DestructuringDescriptor>,
@@ -47,6 +48,7 @@ impl Checker<'_> {
             symbol_types: self.symbol_types.clone(),
             parameter_modes: self.parameter_modes.clone(),
             non_null_uses: self.non_null_uses.clone(),
+            null_comparisons: self.null_comparisons.clone(),
             external_types: self.external_types.clone(),
             flow_facts: self.flow_facts.clone(),
             destructurings: self.destructurings.clone(),
@@ -68,6 +70,7 @@ impl Checker<'_> {
         self.symbol_types = state.symbol_types;
         self.parameter_modes = state.parameter_modes;
         self.non_null_uses = state.non_null_uses;
+        self.null_comparisons = state.null_comparisons;
         self.external_types = state.external_types;
         self.flow_facts = state.flow_facts;
         self.destructurings = state.destructurings;
