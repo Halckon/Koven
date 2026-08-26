@@ -78,7 +78,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 队列 | 候选 | 审计结论 |
 |---|---|---|
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
-| 实施中 | SPEC-0045 Rc shared owner | 代码前置全部完成，v0.30 已生效，ADR-0015 已接受；当前依赖前沿 |
+| 实施中 | SPEC-0045 Rc shared owner | 非 nullable core native 主线已完成；nullable Rc 与 MoveOnly payload borrow-call SSA 交接仍是当前依赖前沿 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |

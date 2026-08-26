@@ -42,6 +42,15 @@ fn preflight_matches_the_first_target_for_closed_composite_shapes() {
     module
         .define_heap_owner(owner, payload)
         .expect("owner definition must be valid");
+    let shared = module
+        .declare_shared_owner("Shared")
+        .expect("shared owner declaration must be valid");
+    let shared_payload = module
+        .add_aggregate_type("Shared.payload", vec![byte, word])
+        .expect("shared payload must be valid");
+    module
+        .define_shared_owner(shared, shared_payload)
+        .expect("shared owner definition must be valid");
     let environment = module
         .add_aggregate_type("Closure.environment", vec![word])
         .expect("closure environment must be valid");
@@ -85,6 +94,9 @@ fn preflight_matches_the_first_target_for_closed_composite_shapes() {
     assert_eq!(first.layout(padded).unwrap().alignment, 8);
     assert_eq!(first.layout(nested).unwrap().size, 32);
     assert_eq!(first.layout(owner).unwrap().size, 8);
+    assert_eq!(first.layout(shared).unwrap().size, 8);
+    assert_eq!(first.shared_control_layout(shared).unwrap().size, 24);
+    assert_eq!(first.shared_control_layout(shared).unwrap().alignment, 8);
     assert_eq!(first.layout(payload).unwrap().size, 40);
     assert_eq!(first.layout(environment).unwrap().size, 8);
     assert_eq!(first.layout(closure).unwrap().size, 16);
@@ -92,7 +104,7 @@ fn preflight_matches_the_first_target_for_closed_composite_shapes() {
     assert_eq!(first.layout(zst).unwrap().size, 0);
     assert_eq!(first.layout(mutable_zst).unwrap().size, 24);
 
-    for aggregate in [padded, nested, payload, environment] {
+    for aggregate in [padded, nested, payload, shared_payload, environment] {
         let planned = first.layout(aggregate).unwrap();
         let actual = types.aggregate_type(aggregate).unwrap();
         assert_eq!(planned.size, target.get_abi_size(&actual));
@@ -103,6 +115,12 @@ fn preflight_matches_the_first_target_for_closed_composite_shapes() {
         first.layout(owner).unwrap().size,
         target.get_abi_size(&actual_owner)
     );
+    let actual_control = types.shared_control(shared).unwrap();
+    assert_eq!(
+        first.shared_control_layout(shared).unwrap().size,
+        target.get_abi_size(&actual_control)
+    );
+    assert_eq!(types.shared_control_size(shared).unwrap(), 24);
     let actual_closure = types.closure_layout(closure).unwrap().value;
     assert_eq!(
         first.layout(closure).unwrap().size,

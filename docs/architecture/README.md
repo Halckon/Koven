@@ -98,7 +98,11 @@ SPEC-0045 已完成 frontend 与 SSA 两个阶段切片：compiler-bound `Rc(val
 已把 handle 映射为 pointer、control block 映射为 target `{usize strong, payload}`，allocation
 初始化 strong=1，retain 用非原子 max-check/add 并在溢出时 abort，drop 用非原子 decrement，
 仅归零分支递归 drop payload 并 free。direct-SSA 已覆盖普通、nested 与 ZST payload；frontend
-lowering、nullable Rc 和 shared-control 专用 target preflight 仍由 SPEC-0045 最后切片收口；
+已把 intrinsic construction/share 与 Copyable payload read lower 到上述 operation，Rc receiver
+liveness 以完整 intrinsic operation 为 drop 边界；shared-control `{usize,payload}` 已进入 LLVM
+复合类型创建前的 target preflight。真实 `kovenc build/run` 已覆盖 Point payload、多次 share、
+Copyable payload read 与 conventional `main`。nullable Rc 和 MoveOnly payload 的 SSA borrow-call
+交接仍待 SPEC-0045 后续切片，因此本 Spec 尚未完成；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -186,8 +190,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `EnvironmentFunctionEffect` 为精确参数绑定跨线程交付 effect，成功 call 通过 argument
   descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定的 intrinsic `Rc<T>`
   已实现 construction、share、payload read 的 typed/ownership identity，源码同名 class/member
-  不获得特权；SharedOwner SSA 与核心 LLVM control block/retain/release 已实现，frontend→SSA
-  operation lowering 与 native 验收尚未完成；
+  不获得特权；SharedOwner SSA、核心 LLVM control block/retain/release、intrinsic construction/
+  share 与 Copyable payload read lowering 及真实 native 验收已实现；nullable Rc 和 MoveOnly
+  payload 的 borrow-call SSA 交接尚未完成；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自
@@ -1348,6 +1353,9 @@ MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/01
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。
+SPEC-0045 已把非 nullable `Rc<T>` 的 construction、显式 share、Copyable payload read、target
+preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线；nullable Rc 与 MoveOnly
+payload borrow-call lowering 仍属于该 Spec 的未完成边界。
 
 ## 更新要求
 

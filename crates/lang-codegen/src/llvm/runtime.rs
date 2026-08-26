@@ -101,7 +101,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         }
         let mut shared_allocation_sizes = BTreeMap::new();
         for owner in requirements.shared_allocated_owners {
-            let size = target.get_store_size(&types.shared_control(owner)?).max(1);
+            let size = types.shared_control_size(owner)?.max(1);
             shared_allocation_sizes.insert(owner, size);
         }
 

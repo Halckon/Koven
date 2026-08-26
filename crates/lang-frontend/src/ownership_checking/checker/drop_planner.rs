@@ -334,6 +334,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         usage: ExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if let Some(operation) = self.checker.typed.rc_operation(id) {
+            if let Some(place) = self.checker.place(operation.receiver())? {
+                let root = place.root();
+                if !self.liveness.expression_after[id.index()].contains(&root) {
+                    self.drop_named(DropPoint::AfterExpression(id), root, state);
+                }
+                return Ok(true);
+            }
+            return self.expression(operation.receiver(), ExpressionUse::Read, state);
+        }
         if let Some(descriptor) = self
             .checker
             .construction

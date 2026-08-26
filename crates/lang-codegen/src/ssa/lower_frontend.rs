@@ -16,6 +16,7 @@ use lang_frontend::{
     name_resolution::{EnumCaseId, NameResolution, SymbolId, SymbolKind},
     ownership_checking::{
         ConstructionDeliveryKind, ConstructionRootKind, DropPoint, OwnershipCheckedFile,
+        RcOwnershipEffectKind,
     },
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
@@ -23,8 +24,8 @@ use lang_frontend::{
     },
     source::Span,
     type_checking::{
-        BuiltinType, CallableTarget, ConstructionTarget, Copyability, NominalKind, TypeId,
-        TypeKind, TypedFile,
+        BuiltinType, CallableTarget, ConstructionTarget, Copyability, NominalKind, RcOperationKind,
+        TypeId, TypeKind, TypedFile,
     },
 };
 
@@ -132,6 +133,9 @@ impl ExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
+        }
+        if self.typed.rc_operation(expression).is_some() {
+            return self.lower_rc_operation(expression);
         }
         if self.typed.aggregate_projection(expression).is_some() {
             return self.lower_aggregate_projection(expression);
@@ -316,7 +320,18 @@ impl ExpressionLowerer<'_> {
                 value(results[0])
             }
             ConstructionTarget::IntrinsicRc => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                let [payload] = fields.as_slice() else {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                };
+                let (_, results) = self.append(
+                    Operation::SharedAllocate {
+                        owner: result_type,
+                        payload: *payload,
+                    },
+                    vec![EntityType::Value(result_type)],
+                    span,
+                )?;
+                value(results[0])
             }
             ConstructionTarget::EnumCase(_) => {
                 let ConstructionTarget::EnumCase(case) = descriptor.target() else {
@@ -348,6 +363,72 @@ impl ExpressionLowerer<'_> {
             }
         };
         Ok(LoweredValue::Value(result))
+    }
+
+    fn lower_rc_operation(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self.typed.rc_operation(expression).ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        let effect = self.owned.rc_effect(expression).ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        let span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        let expected_effect = match descriptor.kind() {
+            RcOperationKind::Share => RcOwnershipEffectKind::Retain,
+            RcOperationKind::Value => RcOwnershipEffectKind::BorrowPayload,
+        };
+        if effect.receiver() != descriptor.receiver()
+            || effect.payload_type() != descriptor.payload_type()
+            || effect.kind() != expected_effect
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let owner = self.require_value(descriptor.receiver())?;
+        match descriptor.kind() {
+            RcOperationKind::Share => {
+                let result_type = self.expression_ssa_type(expression, span)?;
+                let (_, results) = self.append(
+                    Operation::SharedRetain { owner },
+                    vec![EntityType::Value(result_type)],
+                    span,
+                )?;
+                Ok(LoweredValue::Value(value(results[0])))
+            }
+            RcOperationKind::Value => {
+                if self.typed.copyability(descriptor.payload_type()) != Some(Copyability::Copyable)
+                {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                let result_type = self.expression_ssa_type(expression, span)?;
+                let (_, places) = self.append(
+                    Operation::SharedPayloadPlace { owner },
+                    vec![EntityType::Place(result_type)],
+                    span,
+                )?;
+                let (_, results) = self.append(
+                    Operation::Read {
+                        source: super::model::PlaceAccess::Place(place(places[0])),
+                    },
+                    vec![EntityType::Value(result_type)],
+                    span,
+                )?;
+                Ok(LoweredValue::Value(value(results[0])))
+            }
+        }
     }
 
     fn validate_construction_root(

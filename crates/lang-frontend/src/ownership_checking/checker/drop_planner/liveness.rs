@@ -197,6 +197,16 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
         live_after: LiveSet,
     ) -> Result<LiveSet, OwnershipCheckingError> {
         self.expression_after[id.index()] = live_after.clone();
+        if let Some(operation) = self.checker.typed.rc_operation(id) {
+            if let Some(place) = self.checker.place(operation.receiver())? {
+                let mut live = live_after;
+                if self.checker.is_move_only_variable(place.root()) {
+                    live.insert(place.root());
+                }
+                return Ok(live);
+            }
+            return self.expression(operation.receiver(), ExpressionUse::Read, live_after);
+        }
         if let Some(descriptor) = self
             .checker
             .construction

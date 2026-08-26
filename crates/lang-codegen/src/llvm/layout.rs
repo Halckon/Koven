@@ -46,6 +46,7 @@ pub(super) struct RawLayout {
 #[derive(Debug)]
 pub(super) struct TargetLayoutPlan {
     layouts: BTreeMap<SsaTypeId, CheckedLayout>,
+    shared_controls: BTreeMap<SsaTypeId, CheckedLayout>,
 }
 
 impl TargetLayoutPlan {
@@ -93,13 +94,46 @@ impl TargetLayoutPlan {
             let raw = calculator.layout(ty)?;
             layouts.insert(ty, calculator.checked(ty, LayoutQuantity::Size, raw)?);
         }
-        Ok(Self { layouts })
+        let mut shared_controls = BTreeMap::new();
+        for index in 0..module.types.len() {
+            let owner = SsaTypeId {
+                module: module.id,
+                index,
+            };
+            let Some(SsaTypeKind::SharedOwner {
+                payload: Some(payload),
+                ..
+            }) = module.type_kind(owner)
+            else {
+                continue;
+            };
+            let payload = calculator.dependency(*payload)?;
+            let raw = calculator.record(owner, &[size_layout, payload])?;
+            calculator.check_quantity(owner, LayoutQuantity::Size, raw.size)?;
+            calculator.check_quantity(owner, LayoutQuantity::Alignment, raw.alignment)?;
+            shared_controls.insert(owner, calculator.checked(owner, LayoutQuantity::Size, raw)?);
+        }
+        Ok(Self {
+            layouts,
+            shared_controls,
+        })
     }
 
     pub(super) fn layout(&self, ty: SsaTypeId) -> Result<CheckedLayout, LlvmAdapterError> {
         self.layouts.get(&ty).copied().ok_or_else(|| {
             LlvmAdapterError::Unsupported(
                 "SSA type does not have a preflighted storage layout".to_owned(),
+            )
+        })
+    }
+
+    pub(super) fn shared_control_layout(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<CheckedLayout, LlvmAdapterError> {
+        self.shared_controls.get(&ty).copied().ok_or_else(|| {
+            LlvmAdapterError::Unsupported(
+                "SSA type does not have a preflighted shared control layout".to_owned(),
             )
         })
     }

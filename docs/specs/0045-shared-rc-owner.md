@@ -82,7 +82,7 @@ fun main(): Unit {
 - [x] SharedOwner SSA 类型/operation/render/verifier 正反矩阵通过。
 - [ ] LLVM IR 锁定 `{usize,payload}` target layout、非原子 checked retain、release-to-zero drop/free、
       nullable/ZST/nested payload 与 verifier-before-LLVM。
-- [ ] 真实 `kovenc build/run` Rc 程序退出 0，输出精确且无临时产物泄漏。
+- [x] 真实 `kovenc build/run` Rc 程序退出 0，输出精确且无临时产物泄漏。
 - [ ] Architecture、Roadmap、Spec 与 workspace 标准基线同步，最终提交均包含 `SPEC-0045`。
 
 ## 6. 技术方案与边界
@@ -97,9 +97,11 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 1. [x] Rc construction/share/value typed facts与 Phase 2 正反测试。
 2. [x] Rc ownership/share/payload loan/drop facts与 Phase 3 正反测试。
 3. [x] SharedOwner SSA type/operation/render/verifier 与直接 IR 测试。
-4. [ ] LLVM control block、retain/release/drop glue 与布局/runtime 测试（核心 ABI、嵌套/ZST
-       direct-SSA 测试已完成；nullable Rc 与 shared-control target preflight 随 frontend lowering 收口）。
-5. [ ] frontend→SSA lowering、真实 native build/run、Architecture 与 workspace 基线。
+4. [ ] LLVM control block、retain/release/drop glue 与布局/runtime 测试（核心 ABI、嵌套/ZST、
+       shared-control target preflight 已完成；nullable Rc 尚未完成）。
+5. [x] 非 nullable frontend→SSA construction/share/Copyable payload read lowering、真实 native
+       build/run 与 Architecture 当前事实同步。
+6. [ ] nullable Rc 与 MoveOnly payload borrow-call SSA 交接、workspace 最终基线和完成文档。
 
 ## 8. 提交计划
 
@@ -108,7 +110,8 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 | 1 | Rc typed/ownership facts | `feat(frontend): model Rc ownership facts (SPEC-0045)` |
 | 2 | SharedOwner SSA/verifier | `feat(codegen): verify shared owner operations (SPEC-0045)` |
 | 3 | LLVM Rc runtime ABI | `feat(codegen): lower shared owners to LLVM (SPEC-0045)` |
-| 4 | frontend lowering、native 验收与完成文档 | `feat(std): complete Rc native pipeline (SPEC-0045)` |
+| 4 | 非 nullable frontend lowering、native 验收与当前事实文档 | `feat(codegen): connect Rc frontend to native (SPEC-0045)` |
+| 5 | nullable/MoveOnly borrow-call 收口与完成文档 | `feat(codegen): complete Rc native pipeline (SPEC-0045)` |
 
 ## 9. 未决问题
 
@@ -124,3 +127,10 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 | `cargo fmt --all` / `git diff --check` | 通过 | frontend 第一切片格式与 whitespace 基线通过 |
 | `cargo test -p lang-codegen` | 通过 | 112 passed，1 个既有 LLDB 权限测试 ignored；SharedOwner 类型、operation、render、类型/ownership verifier 正反矩阵通过 |
 | `cargo test -p lang-codegen`（LLVM shared-owner 切片） | 通过 | 114 passed，1 个既有 LLDB 权限测试 ignored；`{usize,payload}`、non-atomic checked retain、release-to-zero、nested/ZST recursive free 通过 |
+| `cargo test -p lang-frontend --test ownership_rc` | 通过 | 4 passed；Rc retain/payload loan、MoveOnly/inout 负例保持通过，drop planner 以完整 Rc operation 作为 receiver 最后使用边界 |
+| `cargo test -p lang-codegen`（frontend lowering 切片） | 通过 | 115 passed，1 个既有 LLDB 权限测试 ignored；Rc construction/share/Copyable payload read、shared-control target preflight 与 LLVM 通过 |
+| `cargo test -p lang-cli --test native_cli` | 通过 | 5 passed；真实 build、外部启动与 run 均输出精确 `shared\n`，并覆盖 Point payload、多次 share 与 payload 值读取 |
+| `cargo check --workspace` | 通过 | 非 nullable Rc frontend→native 切片 workspace 可检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 全 workspace 与全部 target 无 warning |
+| `cargo test --workspace` | 通过 | workspace 全量单元、集成、fixture、adversarial 与 doc-test 通过；1 个既有 LLDB task-port 权限用例 ignored |
+| `cargo fmt --all` / `git diff --check` | 通过 | frontend→native 切片格式与 whitespace 基线通过 |

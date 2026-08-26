@@ -50,14 +50,10 @@ impl NominalTypeMapper {
                     (construction.result_type(), case),
                     fields,
                 ),
-                ConstructionTarget::Nominal(_) | ConstructionTarget::IntrinsicBox => {
+                ConstructionTarget::Nominal(_)
+                | ConstructionTarget::IntrinsicBox
+                | ConstructionTarget::IntrinsicRc => {
                     insert_fields(&mut construction_fields, construction.result_type(), fields)
-                }
-                ConstructionTarget::IntrinsicRc => {
-                    return Err(LoweringError {
-                        kind: LoweringErrorKind::UnsupportedNode,
-                        span: None,
-                    });
                 }
             };
             if !inserted {
@@ -125,8 +121,29 @@ impl NominalTypeMapper {
             }
             Some(TypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::Rc,
-                ..
-            }) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                arguments,
+            }) => {
+                let [payload] = arguments.as_slice() else {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                };
+                let payload_type = *payload;
+                let owner = module
+                    .declare_shared_owner(format!("Rc#t{}", ty.index()))
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                self.type_ids.insert(ty, owner);
+                let payload = self.intern(module, names, typed, payload_type, span)?;
+                module
+                    .define_shared_owner(owner, payload)
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                module.set_type_origin(
+                    owner,
+                    TypeOrigin {
+                        primary: span,
+                        declaration: declaration_span_for_type(names, typed, payload_type, span),
+                    },
+                );
+                owner
+            }
             Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             None => return Err(error(LoweringErrorKind::MissingFact, span)),
         };

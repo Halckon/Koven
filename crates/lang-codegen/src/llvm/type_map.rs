@@ -24,6 +24,7 @@ pub(super) struct TypeMap<'ctx> {
     container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
     closure_layouts: BTreeMap<SsaTypeId, ClosureLayout<'ctx>>,
     shared_controls: BTreeMap<SsaTypeId, StructType<'ctx>>,
+    shared_control_sizes: BTreeMap<SsaTypeId, u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -159,6 +160,14 @@ impl<'ctx> TypeMap<'ctx> {
             })?;
             control.set_body(&[size_type.into(), payload], false);
         }
+        let shared_control_sizes = shared_controls
+            .keys()
+            .map(|owner| {
+                layout_plan
+                    .shared_control_layout(*owner)
+                    .map(|layout| (*owner, layout.size))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
 
         for (id, aggregate) in &aggregates {
             let fields = module.aggregate_fields(*id).ok_or_else(|| {
@@ -249,6 +258,7 @@ impl<'ctx> TypeMap<'ctx> {
             container_layouts,
             closure_layouts,
             shared_controls,
+            shared_control_sizes,
         })
     }
 
@@ -257,6 +267,12 @@ impl<'ctx> TypeMap<'ctx> {
         ty: SsaTypeId,
     ) -> Result<StructType<'ctx>, LlvmAdapterError> {
         self.shared_controls.get(&ty).copied().ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa("SSA type is not a shared owner".to_owned())
+        })
+    }
+
+    pub(super) fn shared_control_size(&self, ty: SsaTypeId) -> Result<u64, LlvmAdapterError> {
+        self.shared_control_sizes.get(&ty).copied().ok_or_else(|| {
             LlvmAdapterError::InvalidSsa("SSA type is not a shared owner".to_owned())
         })
     }

@@ -117,6 +117,48 @@ fn conventional_main_builds_and_runs_without_an_entry_option() {
 }
 
 #[test]
+fn conventional_main_builds_and_runs_intrinsic_rc_owners() {
+    let directory = TestDirectory::create();
+    let source = directory.join("shared.ko");
+    let executable = directory.join("shared");
+    fs::write(
+        &source,
+        "value class Point(val x: Int)\n\
+         fun main(): Unit {\n\
+             val first = Rc(Point(41))\n\
+             val second = first.share()\n\
+             val third = second.share()\n\
+             val number = Rc(41)\n\
+             val copied = number.value\n\
+             if (copied != 41) { error(\"bad shared payload\") }\n\
+             println(\"shared\")\n\
+         }\n",
+    )
+    .expect("source write");
+
+    let built = run([
+        OsStr::new("build"),
+        source.as_os_str(),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    assert!(built.stdout.is_empty());
+    assert!(built.stderr.is_empty());
+    let launched = Command::new(&executable)
+        .output()
+        .expect("executable launch");
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, b"shared\n");
+    assert!(launched.stderr.is_empty());
+
+    let executed = run([OsStr::new("run"), source.as_os_str()]);
+    assert_eq!(executed.status.code(), Some(0), "{executed:?}");
+    assert_eq!(executed.stdout, b"shared\n");
+    assert!(executed.stderr.is_empty());
+}
+
+#[test]
 fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() {
     let directory = TestDirectory::create();
 

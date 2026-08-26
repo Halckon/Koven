@@ -173,6 +173,52 @@ fn lowers_plain_string_println_calls_in_source_order_with_decoded_utf8() {
 }
 
 #[test]
+fn lowers_intrinsic_rc_construction_share_and_copyable_payload_read() {
+    let analysis = analyze(
+        "fun shared(): Int {\n\
+             val first = Rc(40)\n\
+             val second = first.share()\n\
+             val copied = second.value\n\
+             return copied + first.value\n\
+         }",
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("intrinsic Rc facts must lower through verified SSA");
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("shared.allocate").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("shared.retain").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("shared.payload_place").count(), 2, "{ssa}");
+    assert_eq!(ssa.matches("drop ").count(), 2, "{ssa}");
+    assert!(ssa.contains("shared_owner \"Rc#t"), "{ssa}");
+
+    let llvm = render_verified_program(&program).expect("Rc SSA must lower to verified LLVM");
+    assert_eq!(llvm.matches("call ptr @malloc").count(), 1, "{llvm}");
+    assert_eq!(llvm.matches("call void @free").count(), 1, "{llvm}");
+    assert!(llvm.contains(".overflow = icmp eq"), "{llvm}");
+    assert_eq!(llvm.matches("strong.next = sub").count(), 1, "{llvm}");
+    assert!(!llvm.contains("atomicrmw"), "{llvm}");
+    assert!(!llvm.contains("cmpxchg"), "{llvm}");
+}
+
+#[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     let analysis = analyze(
         "public value class Pair<A, B>(val first: A, val second: B)\n\
