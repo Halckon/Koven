@@ -100,9 +100,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通基础 `if` 切片：Boolean condition、control body 尾值与 expected type、同型/`Nothing`/
      `Error` join、缺 `else` statement `Unit`、falls-through/L0089、嵌套 return annotation、跨文件 call
      与输入置换；同步修正单文件无花括号分支遗漏 expected-type 下传的 guide 漂移。
-   - [ ] 接完 local destructuring/assignment/type-test/smart-cast/`when`/loop/jump/lambda、generic local type、
+   - [x] 接通 type-test/smart-cast 切片：跨文件 nominal/enum case `is`/`!is` 与 L0106/L0114、参数和
+     local 稳定 place、`!`/`&&`/`||` 条件事实、then/else 与 `Nothing` 出口合并、enum case/root 及
+     既有 v0.24 `T`/`T?` join；输入置换保持 expression/TypeRef facts 与诊断一致，不启用 v0.35
+     nullable `when`/`!!` 候选。
+   - [ ] 接完 local destructuring/assignment及其 fact kill、`when`/loop/jump/lambda、generic local type、
      generic/external/function-value call、constructor/enum/member、
-     container/nullable 等现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
+     container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
@@ -138,3 +142,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test type_callable --test type_checking --locked --offline` | 通过 | 64 tests；另锁定无花括号 `if` 分支的 expected-type 下传，既有 callable/construction 行为无回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit `if`/control-body checker、测试与既有 frontend targets 无 warning |
 | `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 13 tests；另覆盖 `if` control body、expected type、`Nothing`/L0089/falls-through、嵌套 return annotation、分支跨文件 call 与输入置换 |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 15 tests；新增跨文件 enum/nominal `is`/`!is`、参数/local 稳定 place、短路与退出事实、nullable join、L0106/L0114 和输入置换 |
+| `cargo test -p lang-frontend --locked --offline` | 通过 | type-test/smart-cast 切片后 frontend 全量与 doc tests 通过 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit flow/type-ref/control 实现与全部 frontend targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

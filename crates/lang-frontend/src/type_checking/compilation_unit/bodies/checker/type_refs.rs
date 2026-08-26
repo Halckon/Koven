@@ -12,7 +12,22 @@ use crate::{
 
 use super::BodyChecker;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BodyTypeUse {
+    Runtime,
+    TypeTest,
+}
+
 impl BodyChecker<'_> {
+    /// 解析 `is` / `!is` 的目标类型；case refinement 只由该调用路径消费。
+    pub(super) fn resolve_type_test_ref(
+        &mut self,
+        source: SourceUnitId,
+        id: TypeRefId,
+    ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        self.resolve_body_type_ref_for(source, id, BodyTypeUse::TypeTest)
+    }
+
     /// 解析首批 body-local 标注，并把结果写回 body 自己的 source-qualified facts。
     ///
     /// 泛型实参与函数类型仍由后续 SPEC-0197 子切片承接；在此之前显式 fail-loud，避免
@@ -21,6 +36,15 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         id: TypeRefId,
+    ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        self.resolve_body_type_ref_for(source, id, BodyTypeUse::Runtime)
+    }
+
+    fn resolve_body_type_ref_for(
+        &mut self,
+        source: SourceUnitId,
+        id: TypeRefId,
+        usage: BodyTypeUse,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
         let key = UnitTypeRefId::new(source, id);
         if let Some(ty) = self
@@ -39,7 +63,7 @@ impl BodyChecker<'_> {
             .get(id)
             .map_err(TypeCheckingError::from)?;
         let span = node.span();
-        let ty = match node.payload().clone() {
+        let mut ty = match node.payload().clone() {
             TypeRef::Error => self.error_type(),
             TypeRef::Function { .. } => {
                 return Err(CompilationUnitTypeError::UnsupportedBody(span));
@@ -99,6 +123,42 @@ impl BodyChecker<'_> {
                 base
             }
         };
+        let case_root = match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::EnumCase { root, .. }) => Some(*root),
+            Some(UnitTypeKind::Nullable(inner)) => match self.signatures.types().get(*inner) {
+                Some(UnitTypeKind::EnumCase { root, .. }) => Some(*root),
+                _ => None,
+            },
+            _ => None,
+        };
+        if usage == BodyTypeUse::Runtime
+            && let Some(root) = case_root
+        {
+            let UnitTypeKind::Nominal { declaration, .. } = self
+                .signatures
+                .types()
+                .get(root)
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
+            else {
+                return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+            };
+            let root_span = self
+                .names
+                .names()
+                .index()
+                .declarations()
+                .get(declaration.index())
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
+                .name_span();
+            self.emit_maybe_label(
+                crate::diagnostic::codes::ENUM_CASE_TYPE_POSITION,
+                "enum case type is only allowed as an is or !is target",
+                span,
+                Some(root_span),
+                "root enum declared here",
+            )?;
+            ty = self.error_type();
+        }
         self.parts.type_ref_types.insert(key, ty);
         Ok(ty)
     }

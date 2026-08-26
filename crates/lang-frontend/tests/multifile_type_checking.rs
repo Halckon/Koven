@@ -1,7 +1,7 @@
 //! SPEC-0197 production compilation-unit body driver integration tests.
 
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, TypeRefId},
     diagnostic::DiagnosticDetail,
     lexer::lex,
     name_resolution::{
@@ -13,7 +13,8 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
     type_checking::{
         BuiltinType, ExpressionCategory, ParameterMode, TypeEnvironment, UnitCallTarget,
-        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, standard_environments,
+        UnitExpressionId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -70,6 +71,22 @@ fn expression_with_text(sources: &SourceMap, file: &ParsedFile, text: &str) -> E
         .find(|(_, node)| sources.slice(node.span()) == Ok(text))
         .expect("expression text exists")
         .0
+}
+
+fn expressions_with_text(sources: &SourceMap, file: &ParsedFile, text: &str) -> Vec<ExpressionId> {
+    file.ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| (sources.slice(node.span()) == Ok(text)).then_some(id))
+        .collect()
+}
+
+fn type_refs_with_text(sources: &SourceMap, file: &ParsedFile, text: &str) -> Vec<TypeRefId> {
+    file.ast()
+        .type_refs()
+        .iter()
+        .filter_map(|(id, node)| (sources.slice(node.span()) == Ok(text)).then_some(id))
+        .collect()
 }
 
 fn symbol_for_expression(
@@ -729,5 +746,210 @@ fn nested_if_return_uses_the_callable_return_annotation() {
         })
         .expect("return mismatch labels the callable annotation");
     assert_eq!(sources.slice(label.span()), Ok("Int"));
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn cross_file_enum_tests_publish_stable_flow_facts_under_input_permutation() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\n\
+         enum class Shape { Circle(radius: Int), Point }\n\
+         class Token {}",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun choose(shape: Shape): Shape =\n\
+             if (shape is Shape.Circle) shape else shape\n\
+         fun afterExit(shape: Shape): Shape {\n\
+             if (shape !is Shape.Circle) { return shape }\n\
+             return shape\n\
+         }\n\
+         fun conjunction(shape: Shape): Boolean =\n\
+             shape is Shape.Circle && shape is Shape.Circle\n\
+         fun disjunction(shape: Shape): Boolean =\n\
+             shape !is Shape.Circle || shape is Shape.Circle\n\
+         fun local(initial: Shape): Shape {\n\
+             var current = initial\n\
+             if (current is Shape.Circle) return current\n\
+             return initial\n\
+         }\n\
+         fun grouped(shape: Shape): Shape =\n\
+             if (!(shape !is Shape.Circle)) shape else shape\n\
+         fun nullable(input: Token?): Token? =\n\
+             if (input is Token) input else input",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward enum-flow unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse enum-flow unit succeeds");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.type_ref_types(), reverse.type_ref_types());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let root = forward
+        .signatures()
+        .declaration(declaration(&forward_names, "Shape"))
+        .expect("Shape signature")
+        .ty();
+    let shape_uses = expressions_with_text(&sources, &uses, "shape");
+    assert_eq!(shape_uses.len(), 13);
+    let actual_kinds = shape_uses
+        .iter()
+        .map(|&expression| {
+            forward
+                .expression_type(UnitExpressionId::new(uses_unit, expression))
+                .and_then(|ty| forward.types().get(ty))
+                .expect("every shape use has a type")
+        })
+        .collect::<Vec<_>>();
+    for index in [0, 2, 3, 4, 6, 8, 10, 12] {
+        assert_eq!(
+            actual_kinds[index],
+            &UnitTypeKind::Nominal {
+                declaration: declaration(&forward_names, "Shape"),
+                arguments: Vec::new(),
+            }
+        );
+    }
+    for index in [1, 5, 7, 9, 11] {
+        assert!(matches!(
+            actual_kinds[index],
+            UnitTypeKind::EnumCase { root: case_root, .. } if *case_root == root
+        ));
+    }
+    let case_refs = type_refs_with_text(&sources, &uses, "Shape.Circle");
+    assert_eq!(case_refs.len(), 8);
+    assert!(case_refs.iter().all(|&type_ref| matches!(
+        forward
+            .type_ref_type(UnitTypeRefId::new(uses_unit, type_ref))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::EnumCase { root: case_root, .. }) if *case_root == root
+    )));
+    let current_uses = expressions_with_text(&sources, &uses, "current");
+    assert_eq!(current_uses.len(), 2);
+    assert_eq!(
+        forward
+            .expression_type(UnitExpressionId::new(uses_unit, current_uses[0]))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(&UnitTypeKind::Nominal {
+            declaration: declaration(&forward_names, "Shape"),
+            arguments: Vec::new(),
+        })
+    );
+    assert!(matches!(
+        forward
+            .expression_type(UnitExpressionId::new(uses_unit, current_uses[1]))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::EnumCase { root: case_root, .. }) if *case_root == root
+    ));
+    let token = forward
+        .signatures()
+        .declaration(declaration(&forward_names, "Token"))
+        .expect("Token signature")
+        .ty();
+    let input_uses = expressions_with_text(&sources, &uses, "input");
+    assert_eq!(input_uses.len(), 3);
+    let input_types = input_uses
+        .iter()
+        .map(|&expression| {
+            forward
+                .expression_type(UnitExpressionId::new(uses_unit, expression))
+                .expect("every nullable input use has a type")
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        forward.types().get(input_types[0]),
+        Some(UnitTypeKind::Nullable(inner)) if *inner == token
+    ));
+    assert_eq!(input_types[1], token);
+    assert_eq!(input_types[2], input_types[0]);
+}
+
+#[test]
+fn invalid_cross_file_type_tests_and_case_annotations_keep_precise_diagnostics() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\n\
+         enum class Shape { Circle, Point }\n\
+         class Other {}\n\
+         interface Marker",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun unrelated(shape: Shape): Boolean = shape is Other\n\
+         fun interfaceTest(shape: Shape): Boolean = shape !is Marker\n\
+         fun illegalAnnotation(shape: Shape): Unit {\n\
+             val case: Shape.Circle? = shape\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid tests stay in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0106", "L0106", "L0114"]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic span belongs to source"))
+            .collect::<Vec<_>>(),
+        ["is", "!is", "Shape.Circle?"]
+    );
+    let labels = typed
+        .body_diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => sources.slice(label.span()).ok(),
+                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+                })
+                .expect("diagnostic has a source label")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(labels, ["Other", "Marker", "Shape"]);
     assert!(typed.validate().is_err());
 }

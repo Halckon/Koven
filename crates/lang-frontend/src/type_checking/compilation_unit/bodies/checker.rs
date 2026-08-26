@@ -6,7 +6,7 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
+        Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{
@@ -23,9 +23,12 @@ use crate::{
 };
 
 mod control;
+mod flow;
 mod literals;
 mod operators;
 mod type_refs;
+
+use flow::FlowKey;
 
 use super::{
     CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes,
@@ -61,6 +64,8 @@ pub(super) struct BodyChecker<'a> {
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
+    symbol_kinds: BTreeMap<UnitSymbolId, SymbolKind>,
+    flow_facts: BTreeMap<FlowKey, UnitTypeId>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
     current_return_span: Option<Span>,
@@ -120,6 +125,19 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
+        let symbol_kinds = names
+            .names()
+            .source_units()
+            .iter()
+            .flat_map(|unit| {
+                unit.resolution().symbols().iter().map(move |symbol| {
+                    (
+                        UnitSymbolId::new(unit.source_unit(), symbol.id()),
+                        symbol.kind(),
+                    )
+                })
+            })
+            .collect();
         Ok(Self {
             sources,
             names,
@@ -128,6 +146,8 @@ impl<'a> BodyChecker<'a> {
             signatures,
             references,
             symbols_by_span,
+            symbol_kinds,
+            flow_facts: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
             current_return_span: None,
@@ -189,6 +209,7 @@ impl<'a> BodyChecker<'a> {
         form: FunctionForm,
         callable: &UnitCallableSignature,
     ) -> Result<(), CompilationUnitTypeError> {
+        self.flow_facts.clear();
         let expected_span = match form {
             FunctionForm::Explicit { type_ref, .. } => Some(
                 self.file(source)
@@ -415,6 +436,12 @@ impl<'a> BodyChecker<'a> {
                 expected_span,
                 return_type,
             )?,
+            Expression::TypeTest {
+                expression,
+                operator_span,
+                type_ref,
+                ..
+            } => self.check_type_test(source, expression, operator_span, type_ref, return_type)?,
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
         if let Some(expected) = expected
@@ -648,6 +675,12 @@ impl<'a> BodyChecker<'a> {
         source: SourceUnitId,
         span: Span,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        if let Some(UnitReferenceTarget::Symbol(symbol)) =
+            self.reference(source, span, Namespace::Value)
+            && let Some(ty) = self.flow_facts.get(&FlowKey::Symbol(*symbol)).copied()
+        {
+            return Ok(ty);
+        }
         match self.reference(source, span, Namespace::Value) {
             Some(UnitReferenceTarget::Declaration(declaration)) => self
                 .signatures
@@ -738,6 +771,19 @@ impl<'a> BodyChecker<'a> {
             || self.is_error(actual)
             || self.is_error(expected)
             || self.is_builtin(actual, BuiltinType::Nothing)
+            || matches!(
+                self.signatures.types().get(actual),
+                Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
+            )
+            || matches!(
+                self.signatures.types().get(expected),
+                Some(UnitTypeKind::Nullable(inner))
+                    if actual == *inner
+                        || matches!(
+                            self.signatures.types().get(actual),
+                            Some(UnitTypeKind::EnumCase { root, .. }) if root == inner
+                        )
+            )
     }
 
     fn builtin_kind(&self, ty: UnitTypeId) -> Option<BuiltinType> {

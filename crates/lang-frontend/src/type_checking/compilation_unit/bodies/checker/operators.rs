@@ -8,7 +8,7 @@ use crate::{
     type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
-use super::{BodyChecker, ExpressionCheck};
+use super::{BodyChecker, ExpressionCheck, flow::extend_facts};
 
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -104,6 +104,45 @@ impl BodyChecker<'_> {
                 | BinaryOperator::NotIn
         ) {
             return Err(CompilationUnitTypeError::UnsupportedBody(operator_span));
+        }
+        if matches!(
+            operator,
+            BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+        ) {
+            let left_result = self.check_expression(source, left, None, None, return_type)?;
+            let (left_true, left_false) = self.condition_facts(source, left)?;
+            let baseline = self.flow_facts.clone();
+            let right_entry = if operator == BinaryOperator::LogicalAnd {
+                &left_true
+            } else {
+                &left_false
+            };
+            self.flow_facts = extend_facts(&baseline, right_entry);
+            let right_result = self.check_expression(source, right, None, None, return_type);
+            self.flow_facts = baseline;
+            let right_result = right_result?;
+            let boolean = self.builtin(BuiltinType::Boolean);
+            let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)
+                && self.is_builtin(right_result.ty, BuiltinType::Boolean)
+            {
+                boolean
+            } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
+                self.error_type()
+            } else {
+                self.emit_binary_operand_error(
+                    source,
+                    operator_span,
+                    left,
+                    left_result.ty,
+                    right,
+                    right_result.ty,
+                )?;
+                self.error_type()
+            };
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: left_result.falls_through && right_result.falls_through,
+            });
         }
         let left_result = self.check_expression(source, left, None, None, return_type)?;
         let right_result = self.check_expression(source, right, None, None, return_type)?;

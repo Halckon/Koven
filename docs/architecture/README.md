@@ -712,9 +712,15 @@ SPEC-0197 第一阶段新增纯内存的
   falls-through 合并，以及 L0089；嵌套 `return` 始终引用 callable 返回标注，不会误用局部或分支
   expected span；同期修正单文件 checker，使无花括号 control 分支也遵守 §22.3 的 expected-type
   下传，分支内跨文件 call 与局部事实沿用同一 unit identity；
-- top-level variable/const initializer、member body、local destructuring、assignment、type-test/smart-cast、
+- 第四个 body 切片已支持跨文件 nominal/enum case `is`/`!is`，为参数与未发生赋值的 local
+  `val`/`var` 建立 source-qualified 稳定 place key；`!`、`&&`、`||` 分别交换或短路传播事实，
+  `if` 按全部 fall-through 出口求交并排除 `Nothing` 出口。enum case 可赋给/join 回 root，既有
+  v0.24 `T? is T` 同样产生 non-null flow type 并支持 `T`/`T?` join；非法关系与 case type 的普通
+  标注分别复用 L0106/L0114。该切片不包含候选 v0.35 nullable `when`/`!!`；
+- top-level variable/const initializer、member body、local destructuring、assignment及其 fact kill、
   `when`、loop/jump、
-  lambda、generic local type、generic/external/function-value call、constructor/container/nullable 等
+  lambda、generic local type、generic/external/function-value call、constructor/container、null literal /
+  null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
   后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。
