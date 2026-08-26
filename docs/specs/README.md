@@ -220,6 +220,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射已由 0184 完成 |
 | 0182 | 把 `for` typed iteration plan、provider runtime 与正常/提前退出清理 lower 到 SSA/LLVM | 0179；接受 iteration runtime 决策；具体 provider 的 codegen/runtime Spec `done` |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
+| 0191 | 把 instance member receiver 与静态接口委托转发 lower 到 SSA/LLVM | 0180、0181、0034、0035；新 guide 封闭隐式 receiver 契约 |
 | 0037 | 生成 `Map` / `MutableMap` 查询与修改的 runtime 基元 | 0024、0031、0035；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；接受 Map 存储策略 ADR |
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |
@@ -235,11 +236,12 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0189](./0189-standard-println-output.md) | 发布 `println(String)` Borrow identity，并把非插值 UTF-8 literal 接入 stdout native runtime（`done`） | 0039、0042、0043、0184 `done`；当前持续 Goal 的站立授权 |
 | [0044](./0044-standard-pair-result.md) | 实现条件可复制的 `Pair` 与 `Result`（`done`） | 0042、0028、0035、0183、0185、0188、0184 `done`；现行 v0.29 固定 `Result.Ok(success: T)`；当前持续 Goal 的站立授权 |
 | 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035、0183、0185、0188、0184 `done`；新 guide 封闭 `Rc` 构造、共享与 payload 访问/释放契约；接受共享所有权 runtime ABI ADR |
-| 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045 |
+| 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
-| 0049 | 实现同步 File / BufferedReader / 标准流 | 0043、0039 |
-| 0050 | 实现 thread / channel | 0042、0032 |
+| 0192 | 实现可持有、传递和返回的 UTF-8 `String` runtime | 0042、0043、0184、0189；新 guide 封闭一般 String 最小 API；接受 String runtime ABI ADR |
+| 0049 | 实现同步 File / BufferedReader / 标准流 | 0026、0039、0043、0180、0181、0191、0192；新 guide 封闭具体 IO API；接受同步 IO runtime ABI ADR |
+| 0050 | 实现 thread / channel | 0032、0042、0044、0180、0181、0191；新 guide 封闭具体返回类型与 API；接受 thread/channel runtime ABI ADR |
 | 0051 | 实现目标语言测试发现与断言 runner | 0042；新 guide 定义最小 `@Test` 语法 |
 
 ### Phase 6：工具链

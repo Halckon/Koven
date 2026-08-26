@@ -383,7 +383,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       `() -> Unit` Koven entry，CLI 以 `/usr/bin/clang` 无 shell 链接，normal/SSA Abort object
       已真实运行；源码 entry 选择继续后置，标准库 `error()` identity 已由 SPEC-0043 接线且
       不按名称猜测
-- [ ] 析构函数插入（对应 Phase 3 的 ASAP 析构点）
+- [x] SPEC-0035/0038/0184 已消费 Phase 3 drop facts，为聚合、heap owner、容器和 closure
+      插入正常路径析构；abort 路径不生成 unwind cleanup
+- [ ] 在 SPEC-0180/0181 封闭 receiver typed/ownership facts 后，由候选 SPEC-0191 把 instance
+      member receiver 与静态接口委托转发 lower 到 SSA/LLVM
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，
@@ -427,9 +430,13 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       但现行 guide 尚未封闭 `Rc` 的构造、显式共享、payload 访问与释放契约，ADR-0008 也明确
       未定义共享 owner header；候选 SPEC-0045 等待新 guide 与共享所有权 runtime ABI ADR
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
-- [ ] 基础 IO：`File`、`BufferedReader`、标准流
+- [ ] 一般 UTF-8 `String` runtime；当前只有 SPEC-0189 的 literal-only `println` 路径，候选
+      SPEC-0192 等待新 guide 与 String runtime ABI ADR
+- [ ] 基础 IO：`File`、`BufferedReader`、标准流；除一般 String runtime 外，还等待关联/实例
+      member、receiver lowering、具体 API guide 与同步 IO runtime ABI ADR
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
-      `Sender.send` 的 value 参数同样声明 `own`
+      `Sender.send` 的 value 参数同样声明 `own`；具体返回类型、member receiver lowering 与
+      thread/channel runtime ABI 仍是实施门禁
 - [ ] `@Test` 注解 + 断言函数，跑通自身的测试套件
 
 **验收标准**：标准库自身的测试套件全部用目标语言编写并通过；至少覆盖
