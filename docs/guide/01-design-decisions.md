@@ -1941,8 +1941,9 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 32.1 compilation unit、package 与声明身份
 
-- 编译 driver 向 frontend 显式交付一个 compilation unit：有序 source root 集合，以及每个
-  source unit 的稳定 root identity、root 内逻辑路径和源码。frontend 不读取文件系统，也不从
+- 编译 driver 向 frontend 显式交付一个 compilation unit：有限、显式且枚举顺序无语义的
+  source root/source unit 集合，以及每个 source unit 的稳定 root identity、root 内逻辑路径和
+  源码。frontend 不读取文件系统，也不从
   进程当前目录、绝对路径或输入枚举顺序猜测 package；路径映射继续遵守 ADR-0005。
 - 有 `package a.b` 的文件，其 package 必须精确等于逻辑父目录 `a/b`；省略 package 只允许
   位于 source root 根目录。多个 source root 可以向同一 package 贡献文件，输入顺序不改变
@@ -2012,7 +2013,8 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 3. SPEC-0198 在 0197 之后检查跨文件调用/构造的所有权效果和 drop facts；
 4. SPEC-0199 在 0198 之后完成 compilation-unit reachability、单态化、SSA/LLVM 与单 object；
 5. SPEC-0187 同样在 0198 之后复用同一 package/typed/ownership 产物扩展 LSP，与 0199 并行，
-   不能维护第二套 resolver；其完整 source-set provider 仍须由后续项目/source-set 决策封闭。
+   不能维护第二套 resolver；首个 host provider 候选由 ADR-0021 的版本化初始化 source set
+   提供，不把打开 URI 集合或磁盘扫描当成隐式 unit。
 
 本候选不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
 ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。

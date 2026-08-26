@@ -47,7 +47,7 @@ v1 需要一个最小 compilation-unit 架构承接候选 guide §32，同时避
   API 保持不变。渲染时仍使用 presentation source name，不得用 map-local `SourceId` 排序。
 - LSP 与 CLI 复用相同 frontend API。LSP snapshot 必须共同拥有同一 `SourceMap` 与各阶段产物，
   buffer 更新后整体替换 snapshot，不能混用新旧 map 的 Span。磁盘/base source set 如何提供
-  不由本 ADR 决定，SPEC-0187 在该 provider 契约确定前保持阻塞。
+  不由本 ADR 决定；首个 LSP host 协议由 ADR-0021 的显式初始化 source set 封闭。
 
 ### native 边界
 
@@ -95,6 +95,7 @@ v1 需要一个最小 compilation-unit 架构承接候选 guide §32，同时避
 - 候选实施 Spec：SPEC-0025、SPEC-0197、SPEC-0198、SPEC-0199、SPEC-0187
 - 相关 ADR：[ADR-0004](./0004-source-span-position-model.md)、
   [ADR-0005](./0005-package-source-root-mapping.md)、
-  [ADR-0010](./0010-first-native-object-and-linker-contract.md)
+  [ADR-0010](./0010-first-native-object-and-linker-contract.md)、
+  [ADR-0021](./0021-lsp-explicit-source-set-protocol.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
