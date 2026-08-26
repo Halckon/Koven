@@ -3,7 +3,8 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.31），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，现行含至 v0.31，并附
+v0.32–v0.34 未启用候选），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -554,3 +555,17 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 4 | project mode 强制显式 entry，不做全 unit conventional `main`；单文件显式 entry 与 conventional main 行为保持不变 | 🔴 候选兼容边界 |
 | 5 | build 通过临时 object/executable 与原子 no-replace commit 发布产物；run 复用 argv/stdout/stderr/exit 契约且不丢失程序结果 | 🟡 候选产物边界 |
 | 6 | SPEC-0054 等待 0052/0199；manifest target/default、dependency-aware build、跨 unit ABI 与多 object 延后 | 🟡 候选 Phase 交接 |
+
+## v0.34 候选变更记录（未启用）
+
+> 本候选于 2026-08-26 在 package/project 候选之后，对 receiver、nullable 与 const 三条门禁按
+> 解锁面复审后起草。当前唯一权威版本仍是 v0.31；本节不因文档存在而授权任何实现。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | instance member 固定 `[visibility] [override] [borrow|inout|own] fun`；缺省与显式 Borrow 等价 | 🔴 候选声明语义 |
+| 2 | receiver 是隐藏 first operand；静态调用先求值 receiver 一次，再按 contract 建 loan/copy/move，随后求值显式实参 | 🔴 候选调用语义 |
+| 3 | `this` 的读写、reborrow、move 与 drop 能力来自 receiver mode，不从 body 或字段名推断 | 🔴 候选所有权语义 |
+| 4 | member/default/override/`super<I>` 保持静态分发；无 runtime interface value、vtable 或 proxy | 🔴 候选分发边界 |
+| 5 | 窄化 `Interface by valField` 仅转发 Borrow receiver；Inout/Value requirement 形成 L0152 并要求手写 override | 🔴 候选委托收敛 |
+| 6 | 实施拆为 0201 Parser→0180 typed→0181 ownership→0191 native；iteration/provider 与具体标准库 API 继续独立 | 🟡 候选 Phase 交接 |

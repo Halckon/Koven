@@ -6,6 +6,8 @@
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > roadmap 审计已把 package/import 选为下一候选切片，并在 §32 起草 v0.32 候选；该版本尚未
 > 启用，ADR-0020 与 SPEC-0025/0197/0198/0199/0187 均不得进入实施状态。
+> 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
+> SPEC-0201→0180→0181→0191；当前同样未启用，不改变 v0.31 实现。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -153,6 +155,10 @@ fun main(): Unit {
 }
 ```
 
+- [ ] **[SPEC-0201](../specs/0201-instance-receiver-mode-parser.md)（draft）**：按 v0.34 固定
+      `[visibility] [override] [borrow|inout|own] fun` member modifier、AST Span 与恢复；
+      不把 receiver 语义混入 Parser。
+
 ## Phase 2：类型检查（不含所有权/借用）
 
 当前已完成进入 Phase 3 与封闭标量 Phase 4 切片所需的核心 typed facts；这表示主线前置已满足，
@@ -203,8 +209,11 @@ fun main(): Unit {
       fact 冒充，所有权效果继续由 SPEC-0188 承接
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
+- [ ] **[SPEC-0180](../specs/0180-instance-receiver-typed-facts.md)（draft）**：在 0201 后规范化
+      instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
+      不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
 - [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
-      `Iterable<T>` / `Iterator<T>` identity、隐式 receiver mode、`next()` 的值交付所有权，
+      `Iterable<T>` / `Iterator<T>` identity、provider ownership、`next()` 的值交付所有权，
       以及名称/解构 binding 的类型规则。当前只检查 source 表达式，不按方法名猜测迭代协议
 - [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
       或 override
@@ -280,10 +289,11 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [x] 移动后使用（use-after-move）检测
 - [x] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
-- [ ] 封闭 instance member 的隐式 receiver mode，并发布 member/委托转发所需的 receiver
-      place 与 callable effect typed fact；当前不得从方法名、函数体或字段可变性猜测 Borrow/Inout
-- [ ] 接口委托生成的转发调用保持原方法的 `Value` / `Borrow` / `Inout` 契约，并把字段访问、
-      移动与借用冲突归入同一套所有权检查；不得把委托隐式升级成共享运行时代理
+- [ ] **[SPEC-0181](../specs/0181-instance-receiver-ownership.md)（draft）**：消费 0180 facts，
+      检查 receiver/`this` 的 shared/exclusive loan、Value copy/move、字段/capture 冲突与 drop；
+      移除一般 MemberReceiver deferred。
+- [ ] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
+      按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
 - [x] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
 - [x] 移动顺序容器时转移唯一缓冲区 owner，拒绝再次使用源容器；构造时按 `Copyable`
@@ -370,7 +380,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [ ] **候选 SPEC-0182**：在候选 0179 发布 typed iteration plan，且具体 iterator/container
+- [ ] **候选 SPEC-0182**：在候选 0179、SPEC-0181/0191 与具体 iterator/container
       provider runtime 已可生成后，实现 `for` 的 SSA/LLVM、正常/`break`/`continue`/`return`
       清理路径；`for` 不存在脱离 provider runtime 的纯标量形态，因而不属于 SPEC-0034
 - [x] **SPEC-0184（v0.29，已实现）**：把 nominal/enum/Box construction、
@@ -407,8 +417,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       不按名称猜测
 - [x] SPEC-0035/0038/0184 已消费 Phase 3 drop facts，为聚合、heap owner、容器和 closure
       插入正常路径析构；abort 路径不生成 unwind cleanup
-- [ ] 在 SPEC-0180/0181 封闭 receiver typed/ownership facts 后，由候选 SPEC-0191 把 instance
-      member receiver 与静态接口委托转发 lower 到 SSA/LLVM
+- [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（draft）**：在 SPEC-0180/0181
+      后把 instance member receiver、default/override/`super<I>` 与 Borrow-only 静态接口委托
+      lower 到 SSA/LLVM；复用 ADR-0016，不生成 vtable/proxy/隐式 retain。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，

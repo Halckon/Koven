@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30、31 节分别是 v0.30、v0.31 已启用的现行规则；
-> 第 32、33 节分别是尚未启用的 v0.32、v0.33 候选；附录收录原第二部分的核心结构声明总览。
+> 第 32–34 节分别是尚未启用的 v0.32–v0.34 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2092,6 +2092,110 @@ fun start(args: Array<String>): Unit { ... }
 本候选不定义 manifest target/default entry、依赖解析、lock、跨 compilation-unit import/ABI、
 多 object、library artifact、安装/发布、cross target、缓存或全项目 conventional main。无依赖
 本地 executable 完成后，dependency-aware build 继续等待 SPEC-0053/0200 与新的 ABI 决策。
+
+---
+
+## 34. 显式 instance receiver 契约与静态 member 调用（v0.34 候选，未启用）
+
+> **候选状态**：本节是 v0.33 的后继语言候选。当前唯一权威版本仍是 v0.31；只有用户明确
+> 启用 v0.34 并指定其取代 v0.31 后，本节才能改变 member 声明或调用。SPEC-0201、0180、
+> 0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的 Value/Borrow/Inout 内部
+> callable ABI，不新增 receiver ABI ADR。
+
+### 34.1 声明语法与规范化 receiver
+
+instance member 在既有固定 modifier 顺序末尾增加可选 receiver mode：
+
+```text
+method_receiver_mode = "borrow" | "inout" | "own" ;
+method_modifiers = [ visibility_modifier ], [ "override" ],
+                   [ method_receiver_mode ] ;
+interface_member = [ "public" ], [ method_receiver_mode ],
+                   function_declaration ;
+```
+
+```kotlin
+class Buffer(var size: Int) {
+    fun inspect(): Int = this.size
+    borrow fun sameInspect(): Int = this.size
+    inout fun clear(): Unit { this.size = 0 }
+    own fun finish(): Int = this.size
+}
+```
+
+- 缺失 marker 与显式 `borrow` 精确规范化为 `Borrow` receiver；`inout` 形成 exclusive
+  non-owning receiver，`own` 形成内部 `Value` receiver。receiver 是隐藏的第一个 callable
+  operand，类型为替换 owner 实参后的名义实例；interface body 中使用保持静态分发的 `Self`。
+- receiver mode 只允许修饰 class/value class/interface/enum class/object 的实例函数；具名
+  `object` 没有运行时状态，只接受缺省或显式 Borrow。顶层函数、companion 关联函数与其他
+  声明不接受 receiver marker。顺序固定为 visibility、`override`、receiver mode、`fun`；
+  重复或乱序使用既有 invalid/unsupported declaration modifier 诊断，不把 marker 当成函数名。
+- 本节启用后，整体取代 §13.1 对 instance-function modifier 的旧封闭列表：`borrow`、`inout`、
+  `own` 只按本节位置合法，`nocopy` 及其他未列 modifier 继续 unsupported；在 v0.34 未启用时，
+  §13.1 的现行 Parser 规则继续有效。
+- receiver mode 不参与 overload shape；缺省 Borrow 与显式 Borrow 不能形成重载。interface
+  replacement、concrete `override`、default 冲突与 `super<I>` 选择必须精确比较规范化 receiver
+  mode，如同既有显式参数 contract，不允许用返回类型或 mode 区分同 shape overload。
+
+### 34.2 调用顺序、`this` 与所有权能力
+
+- `receiver.member(arguments)` 只按 receiver 的静态名义类型、完整 interface closure 与已替换的
+  owner/callable 类型实参选择 target；不产生 interface runtime value、vtable、RTTI 或代理。
+  receiver expression 精确求值一次并先于显式 argument；选定 mode 的 loan/copy/move 在第一个
+  argument 求值前生效，随后沿用 §26.1 的源码顺序 argument 交付与同步调用期 loan。
+- 调用点不新增 receiver marker。Borrow receiver 对 stable place 或 temporary 建 shared loan，
+  temporary 延命到返回；Inout receiver 要求 §26.3 意义上的可独占 receiver place且拒绝
+  temporary；Value receiver 对 `Copyable` 产生 owned copy，对 MoveOnly 移动整个 owner。
+  Inout receiver 的 loan identity 覆盖整个 owner place，callee 不得重新绑定或完整替换 `this`，
+  只能修改允许写入的 `var` 字段。普通 class 的不可变 handle binding 可在 owner 可独占时调用
+  Inout method：内部 ABI 仍借用现有 handle storage，callee load 同一非空 handle 后修改 payload，
+  不得写回另一 handle；内联 value/enum 会直接修改 storage，因而继续要求递归 mutable root。
+- `this` 是不可重新绑定的隐式 binding。Borrow `this` 只读或 shared reborrow；Inout `this`
+  还可修改 `var` 字段和建立 exclusive reborrow，但不能把普通字段移出后留下洞；Value `this`
+  是 owned binding，可整体移动，未消费时由 callable 在正常退出路径负责唯一 drop。普通字段
+  部分移动禁令对三种 receiver 都不放宽。
+- 裸 instance field/member 先按 §21 的局部词法规则解析；没有局部/参数遮蔽时精确等价于同一
+  receiver binding 上的 `this.name`。显式 `this.name` 可绕过局部遮蔽，但不得为一次调用构造
+  第二个 receiver 求值。§27.2 对直接捕获 `this`/field 的禁令保持不变，三种 receiver mode
+  都不能让 `move` closure 直接捕获 `this`；Value `this` 可先显式整体移动到 local，再按普通
+  local capture、`Transferable` 与 use-after-move 规则处理。
+- `super<I>.method()` 仍是对当前 `this` 的静态 default 调用。当前 receiver capability 必须能
+  满足目标 contract：Borrow 只能提供 Borrow，Inout 可 shared/exclusive reborrow，Value 可
+  Borrow 或整体 Value 交付；只有当前 `this` 按 §26.3 另外构成合法 exclusive place 时才可从
+  Value 提供 Inout。Value 交付后当前 `this` 不再可用。
+
+### 34.3 窄化接口委托
+
+v1 的 `Interface by valField` 只接受**全部可转发 requirement 都是 Borrow receiver** 的接口。
+编译器生成的 forwarder 精确复制 interface member 的显式参数 mode/type、泛型参数、返回类型
+与 effect，并依次 shared-borrow outer receiver、投影唯一 delegate field、以 Borrow receiver
+静态调用 delegate 实现；receiver 与每个显式 argument 都只求值一次，不创建隐藏 AST、owner、
+retain、proxy 或 `dyn`。
+
+若经过手写 override/default 解析后仍需由 delegate 提供的有效 requirement 中存在 Inout 或
+Value receiver，使用 `by` 形成 L0152；调用者必须写显式 `override`，自行决定如何取得可变
+receiver 或消费 owner。该限制取代 §13.3 中
+“自动转发保持任意 receiver mode”的未封闭表述，避免从不可变 delegate 字段隐式部分移动、
+替换或授予特殊 exclusive access。手写 override、default 与多 delegate 冲突仍沿用 §23 的
+优先级和 L0100/L0105 级联抑制。
+
+### 34.4 分阶段交接与非目标
+
+1. SPEC-0201 只扩展 member modifier Parser/AST/恢复；
+2. SPEC-0180 发布规范化 receiver contract、`this`/member call 与 Borrow-only delegate
+   forwarder typed facts；
+3. SPEC-0181 消费上述 facts，建立 receiver loan/move/drop、字段冲突与 capture 所有权事实；
+4. SPEC-0191 把隐藏 receiver lower 到既有 Value ABI 或 ADR-0016 Borrow/Inout pointer ABI，
+   完成静态 member/default/override/delegate native 闭环。
+
+本候选不定义 callable reference/绑定 method value、extension method、safe call、borrow-return、
+动态 interface value、反射或 vtable。`for` 仍需独立候选封闭 Iterable/Iterator identity、provider
+是否拥有 source、`next()` Value delivery 与提前退出清理；receiver 完成不自动授权 SPEC-0179/
+0182。具体集合、IO、thread API 也仍由各自 guide/Spec 定义，不能按 member 名称硬编码。
+
+L0152 自 v0.34 启用后稳定表示“interface delegation cannot forward a non-Borrow receiver”；
+primary 为 `by`/delegate target，label 指向首个不兼容 interface member。其余 receiver 失败复用
+L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得另造重叠错误类别。
 
 ---
 
