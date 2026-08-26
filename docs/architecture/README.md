@@ -101,8 +101,9 @@ SPEC-0045 已完成 frontend 与 SSA 两个阶段切片：compiler-bound `Rc(val
 已把 intrinsic construction/share 与 Copyable payload read lower 到上述 operation，Rc receiver
 liveness 以完整 intrinsic operation 为 drop 边界；shared-control `{usize,payload}` 已进入 LLVM
 复合类型创建前的 target preflight。真实 `kovenc build/run` 已覆盖 Point payload、多次 share、
-Copyable payload read 与 conventional `main`。nullable Rc 和 MoveOnly payload 的 SSA borrow-call
-交接仍待 SPEC-0045 后续切片，因此本 Spec 尚未完成；
+Copyable payload read 与 conventional `main`，SPEC-0045 已按该非 nullable core 完成。源码级
+验收暴露的通用 MoveOnly Borrow call 与 pointer-like nullable lowering 已分别迁移到
+SPEC-0195/0196，不能描述为 Rc adapter 已支持；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -192,7 +193,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   已实现 construction、share、payload read 的 typed/ownership identity，源码同名 class/member
   不获得特权；SharedOwner SSA、核心 LLVM control block/retain/release、intrinsic construction/
   share 与 Copyable payload read lowering 及真实 native 验收已实现；nullable Rc 和 MoveOnly
-  payload 的 borrow-call SSA 交接尚未完成；
+  payload 的 borrow-call SSA 交接由 SPEC-0195 实施，nullable handle 由 SPEC-0196 实施；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自
@@ -1354,8 +1355,8 @@ MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/01
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。
 SPEC-0045 已把非 nullable `Rc<T>` 的 construction、显式 share、Copyable payload read、target
-preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线；nullable Rc 与 MoveOnly
-payload borrow-call lowering 仍属于该 Spec 的未完成边界。
+preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线并完成；nullable Rc 与
+MoveOnly payload borrow-call lowering 分别由 SPEC-0196/0195 接续。
 
 ## 更新要求
 

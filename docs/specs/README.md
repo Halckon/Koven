@@ -22,8 +22,9 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.30 入口与共享所有权契约](../guide/01-design-decisions.md#30-约定程序入口与显式共享所有权v030)
 已于 2026-08-26 明确启用并取代 v0.29；零参数 conventional main 可在 SPEC-0193 直接推进，
-参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的代码前置均已完成，但必须先
-接受共享 owner runtime ABI ADR。Arena/Arc/Weak 没有因本版本获得实现授权。
+参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的非 nullable Rc core 已完成，
+通用 Borrow/nullable lowering 已按 ADR-0016/0017 迁移到 SPEC-0195/0196。Arena/Arc/Weak 没有
+因本版本获得实现授权。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -44,7 +45,7 @@ Parser 拆为 SPEC-0064；
 v0.12、v0.13 内容已合入 v0.14。
 此外，SPEC-0056 已完成单文档语义跳转定义。
 SPEC-0010、SPEC-0011、SPEC-0012、SPEC-0013、SPEC-0014、SPEC-0015、SPEC-0016、SPEC-0017、SPEC-0018、SPEC-0019、SPEC-0020、SPEC-0021、SPEC-0022、SPEC-0023、SPEC-0027、SPEC-0028、SPEC-0029、SPEC-0030、SPEC-0032、SPEC-0033、SPEC-0034、SPEC-0035、SPEC-0036、SPEC-0043、SPEC-0055、SPEC-0057、SPEC-0058、SPEC-0059、SPEC-0060、SPEC-0062、SPEC-0063、SPEC-0064、SPEC-0065、SPEC-0066、SPEC-0067、SPEC-0068、SPEC-0069、SPEC-0070、SPEC-0071、SPEC-0072、SPEC-0073、SPEC-0074、SPEC-0075、SPEC-0076、SPEC-0077、SPEC-0078、SPEC-0079、SPEC-0080、SPEC-0081、SPEC-0082、SPEC-0083、SPEC-0084、SPEC-0085、SPEC-0086、SPEC-0087、SPEC-0088、SPEC-0089、SPEC-0090、SPEC-0091、SPEC-0092、SPEC-0093、SPEC-0094、SPEC-0095、SPEC-0096、SPEC-0097、SPEC-0098、SPEC-0099、SPEC-0100、SPEC-0101、SPEC-0102、SPEC-0103、SPEC-0104、SPEC-0105、SPEC-0106、SPEC-0107、SPEC-0108、SPEC-0109、SPEC-0110、SPEC-0111、SPEC-0112、SPEC-0113、SPEC-0114、SPEC-0115、SPEC-0116、SPEC-0117、SPEC-0118、SPEC-0119、SPEC-0120、SPEC-0121、SPEC-0122、SPEC-0123、SPEC-0124、SPEC-0125、SPEC-0126、SPEC-0127、SPEC-0128、SPEC-0129、SPEC-0130、SPEC-0131、SPEC-0132、SPEC-0133、SPEC-0134、SPEC-0135、SPEC-0136、SPEC-0137、SPEC-0138、SPEC-0139、SPEC-0140、SPEC-0141、SPEC-0142、SPEC-0143、SPEC-0144、SPEC-0145、SPEC-0146、SPEC-0147、SPEC-0148、SPEC-0149、SPEC-0150、SPEC-0151、SPEC-0152、SPEC-0153、SPEC-0154、SPEC-0155、SPEC-0156、SPEC-0157、SPEC-0158、SPEC-0159、SPEC-0160、SPEC-0161、SPEC-0162、SPEC-0163、SPEC-0164、SPEC-0165、SPEC-0166、SPEC-0167、SPEC-0168、SPEC-0169、SPEC-0170、SPEC-0171、SPEC-0172、SPEC-0173、SPEC-0174、SPEC-0175、SPEC-0176、SPEC-0177、SPEC-0178、SPEC-0183、SPEC-0184、SPEC-0185、SPEC-0186 已完成；尚未物化的条目仍只是候选 Goal，不因编号预留而
-自动获得实现授权；SPEC-0044、SPEC-0189、SPEC-0190 也已完成。
+自动获得实现授权；SPEC-0044、SPEC-0045、SPEC-0189、SPEC-0190 也已完成。
 
 ## Goal 与提交工作流
 
@@ -78,12 +79,14 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 队列 | 候选 | 审计结论 |
 |---|---|---|
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
-| 实施中 | SPEC-0045 Rc shared owner | 非 nullable core native 主线已完成；nullable Rc 与 MoveOnly payload borrow-call SSA 交接仍是当前依赖前沿 |
+| 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
+| 实施中 | SPEC-0195 跨 callable Borrow lowering | 承接 MoveOnly Rc payload Borrow，并为 receiver/inout 后续提供统一 internal reference ABI |
+| 已批准/等待 | SPEC-0196 nullable handle lowering | ADR-0017 已接受；等待 SPEC-0195 的 internal reference/non-null view 基础 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此当前依赖前沿已推进到 `SPEC-0045`；参数化 main 排在 String runtime
+因此当前依赖前沿已推进到 `SPEC-0195`，随后是 `SPEC-0196`；参数化 main 排在 String runtime
 之后。后续若 guide/ADR 改变门禁，先更新本审计再物化下一份 Spec。
 
 ## Phase 0 Spec 队列
@@ -255,7 +258,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0043](./0043-standard-error-abort.md) | 发布标准 `error()` identity 并接入既有 Abort（`done`） | 0039、0042 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0189](./0189-standard-println-output.md) | 发布 `println(String)` Borrow identity，并把非插值 UTF-8 literal 接入 stdout native runtime（`done`） | 0039、0042、0043、0184 `done`；当前持续 Goal 的站立授权 |
 | [0044](./0044-standard-pair-result.md) | 实现条件可复制的 `Pair` 与 `Result`（`done`） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.29 固定且 v0.30 沿用 `Result.Ok(success: T)`；当前持续 Goal 的站立授权 |
-| [0045](./0045-shared-rc-owner.md) | 实现共享 `Rc` 所有权类型（`in-progress`；独占 intrinsic `Box` 已由 0184 完成） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.30 已生效；[ADR-0015](../adr/0015-shared-owner-runtime-abi.md) `accepted`；当前持续 Goal 的站立授权 |
+| [0045](./0045-shared-rc-owner.md) | 实现非 nullable 共享 `Rc` owner core（`done`；通用 Borrow/nullable 后继为 0195/0196） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.30 已生效；[ADR-0015](../adr/0015-shared-owner-runtime-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
@@ -271,6 +274,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0190](./0190-public-single-file-build-run.md) | 公开单文件 `kovenc build/run` 并验证仓库外 Hello World（`done`） | 0039、0042、0043、0184、0189 `done`；当前持续 Goal 的站立授权 |
 | [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
 | 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；argv Array runtime 已完成；v0.30 已生效 |
+| [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`in-progress`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
+| [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`approved`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
 | 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |

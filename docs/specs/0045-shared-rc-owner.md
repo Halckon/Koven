@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P5-045` |
 | 所属 Phase | Phase 2/3/4/5 纵向切片 |
 | 语言规范 | 现行 [`guide/01-design-decisions.md` §30.2](../guide/01-design-decisions.md#302-rct-的共享所有权契约) |
@@ -33,6 +33,14 @@ fun main(): Unit {
 每次 `.share()` 显式增加一个单线程 strong owner，普通赋值仍移动；每个 handle 在 ASAP drop
 自动 release，最后一个 handle 精确析构 payload 并释放 control block。
 
+### 2.1 依赖审计后的边界校正
+
+2026-08-26 的源码级 lowering 验收确认，nullable owner 与跨 callable MoveOnly Borrow 不是 Rc
+runtime 的局部实现：前者需要通用 pointer-like nullable SSA/flow proof，后者需要通用 Borrow
+调用 ABI。依据站立授权和单一职责要求，原 3.2/3.3 中尚未完成的 native 验收完整迁移到
+SPEC-0195/0196；本 Spec 以已通过全 workspace 验收的非 nullable Rc core 收口。该校正不删除
+语言契约，也不把未实现能力记为完成。
+
 ## 3. 范围与需求
 
 ### 3.1 Frontend typed facts
@@ -49,8 +57,9 @@ fun main(): Unit {
 - Rc construction 沿用 ordered Value delivery，并建立 shared-owner root drop obligation。
 - `.share()` shared-read receiver、不消费源 owner，建立新的 MoveOnly root obligation；源 owner
   move/drop 后禁止再次 share。
-- `.value` 只建立与 Rc owner 重叠的 shared payload loan；允许 Borrow 和 `T: Copyable` read，
-  拒绝 Inout、MoveOnly owned read、payload move 与 owner 存活期外逃逸。
+- `.value` 建立与 Rc owner 重叠的 shared payload loan；本 Spec native lowering 覆盖
+  `T: Copyable` read，MoveOnly Borrow 的通用 call ABI 由 SPEC-0195 接续；仍拒绝 Inout、
+  MoveOnly owned read、payload move 与 owner 存活期外逃逸。
 
 ### 3.3 SSA/verifier 与 LLVM runtime
 
@@ -58,8 +67,8 @@ fun main(): Unit {
   `SharedPayloadPlace` operations；model/operation/ownership verifier 锁定类型与新 owner obligation。
 - LLVM control block、checked allocation、retain overflow abort、release-to-zero payload drop/free
   精确遵守 ADR-0015；counter 非原子且不暴露。
-- nullable Rc 使用 null niche；ZST、嵌套 Rc、Copyable/MoveOnly payload 和循环不发生编译器
-  panic。strong cycle 不承诺回收。
+- 非 nullable Rc 覆盖 ZST、嵌套 Rc、Copyable/MoveOnly payload runtime glue 和循环不 panic；
+  nullable Rc 的通用 null-niche/flow lowering 迁移到 SPEC-0196。strong cycle 不承诺回收。
 
 ### 3.4 Native/stdlib 验收
 
@@ -80,10 +89,11 @@ fun main(): Unit {
 - [x] 普通赋值移动、`.share()` 保留源 owner、payload Borrow/Copy 和禁止 MoveOnly 移出有正反例。
 - [x] Rc 恒 MoveOnly/非 Transferable，并与 closure/call/drop facts 保持确定性。
 - [x] SharedOwner SSA 类型/operation/render/verifier 正反矩阵通过。
-- [ ] LLVM IR 锁定 `{usize,payload}` target layout、非原子 checked retain、release-to-zero drop/free、
-      nullable/ZST/nested payload 与 verifier-before-LLVM。
+- [x] LLVM IR 锁定 `{usize,payload}` target layout、非原子 checked retain、release-to-zero drop/free、
+      ZST/nested payload 与 verifier-before-LLVM；nullable 验收已迁移到 SPEC-0196。
 - [x] 真实 `kovenc build/run` Rc 程序退出 0，输出精确且无临时产物泄漏。
-- [ ] Architecture、Roadmap、Spec 与 workspace 标准基线同步，最终提交均包含 `SPEC-0045`。
+- [x] Architecture、Roadmap、Spec 与 workspace 标准基线同步，全部实现提交包含 `SPEC-0045`。
+- [x] 未完成的 MoveOnly Borrow/native nullable 验收完整迁移到 SPEC-0195/0196，未静默豁免。
 
 ## 6. 技术方案与边界
 
@@ -97,11 +107,11 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 1. [x] Rc construction/share/value typed facts与 Phase 2 正反测试。
 2. [x] Rc ownership/share/payload loan/drop facts与 Phase 3 正反测试。
 3. [x] SharedOwner SSA type/operation/render/verifier 与直接 IR 测试。
-4. [ ] LLVM control block、retain/release/drop glue 与布局/runtime 测试（核心 ABI、嵌套/ZST、
-       shared-control target preflight 已完成；nullable Rc 尚未完成）。
+4. [x] LLVM control block、retain/release/drop glue、嵌套/ZST 与 shared-control target preflight。
 5. [x] 非 nullable frontend→SSA construction/share/Copyable payload read lowering、真实 native
        build/run 与 Architecture 当前事实同步。
-6. [ ] nullable Rc 与 MoveOnly payload borrow-call SSA 交接、workspace 最终基线和完成文档。
+6. [x] 依赖审计将 nullable Rc 与 MoveOnly payload borrow-call SSA 交接迁移到 SPEC-0196/0195，
+       并完成本 Spec workspace 基线与收口文档。
 
 ## 8. 提交计划
 
@@ -111,11 +121,12 @@ typed Rc operation 使用独立 descriptor，不伪造普通 `CallDescriptor` �
 | 2 | SharedOwner SSA/verifier | `feat(codegen): verify shared owner operations (SPEC-0045)` |
 | 3 | LLVM Rc runtime ABI | `feat(codegen): lower shared owners to LLVM (SPEC-0045)` |
 | 4 | 非 nullable frontend lowering、native 验收与当前事实文档 | `feat(codegen): connect Rc frontend to native (SPEC-0045)` |
-| 5 | nullable/MoveOnly borrow-call 收口与完成文档 | `feat(codegen): complete Rc native pipeline (SPEC-0045)` |
 
-## 9. 未决问题
+## 9. 后继能力
 
-- 无。Arc/Weak/Arena 是已明确排除的后续能力，不阻塞本 Spec。
+- SPEC-0195：通用跨 callable Borrow SSA/LLVM lowering，承接 MoveOnly Rc payload Borrow native。
+- SPEC-0196：通用 pointer-like nullable handle lowering，承接 `Rc<T>?` null niche/native。
+- Arc/Weak/Arena 仍是明确排除的后续能力。
 
 ## 10. 验证记录
 
