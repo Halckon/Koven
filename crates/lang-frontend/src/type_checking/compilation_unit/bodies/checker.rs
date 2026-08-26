@@ -3,15 +3,15 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    ast::{ExpressionId, StatementId},
+    ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget,
+        Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{
-        CallArgument, Expression, FloatLiteralKind, FunctionBody, FunctionForm, IntegerLiteralKind,
-        Item, LiteralKind, ParsedFile, Statement,
+        CallArgument, Expression, FunctionBody, FunctionForm, Item, LiteralKind, NameMarker,
+        ParsedFile, Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -22,6 +22,10 @@ use crate::{
     },
 };
 
+mod literals;
+mod operators;
+mod type_refs;
+
 use super::{
     CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes,
     UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget, UnitCallableInstanceKey,
@@ -29,9 +33,9 @@ use super::{
 };
 
 #[derive(Clone, Copy)]
-struct ExpressionCheck {
-    ty: UnitTypeId,
-    falls_through: bool,
+pub(super) struct ExpressionCheck {
+    pub(super) ty: UnitTypeId,
+    pub(super) falls_through: bool,
 }
 
 /// 收集 unit-wide signatures，并在同一个类型空间检查当前已接通的顶层 callable body。
@@ -45,15 +49,17 @@ pub fn check_compilation_unit_types(
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
     let signatures = collect_compilation_unit_signatures(sources, inputs, names, environment)?;
-    BodyChecker::new(sources, inputs, names, signatures)?.run()
+    BodyChecker::new(sources, inputs, names, environment, signatures)?.run()
 }
 
-struct BodyChecker<'a> {
+pub(super) struct BodyChecker<'a> {
     sources: &'a SourceMap,
     names: &'a ValidatedCompilationUnitNames,
+    environment: &'a TypeEnvironment,
     files: Vec<&'a ParsedFile>,
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
+    symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
 }
@@ -63,6 +69,7 @@ impl<'a> BodyChecker<'a> {
         sources: &'a SourceMap,
         inputs: &[SourceUnitInput<'a>],
         names: &'a ValidatedCompilationUnitNames,
+        environment: &'a TypeEnvironment,
         signatures: CompilationUnitSignatures,
     ) -> Result<Self, CompilationUnitTypeError> {
         let index = names.names().index();
@@ -93,12 +100,32 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
+        let symbols_by_span = names
+            .names()
+            .source_units()
+            .iter()
+            .flat_map(|unit| {
+                unit.resolution().symbols().iter().map(move |symbol| {
+                    (
+                        (
+                            unit.source_unit(),
+                            symbol.span().start(),
+                            symbol.span().end(),
+                            namespace_rank(symbol.namespace()),
+                        ),
+                        UnitSymbolId::new(unit.source_unit(), symbol.id()),
+                    )
+                })
+            })
+            .collect();
         Ok(Self {
             sources,
             names,
+            environment,
             files,
             signatures,
             references,
+            symbols_by_span,
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
         })
@@ -249,6 +276,9 @@ impl<'a> BodyChecker<'a> {
             Statement::Expression { expression } => {
                 self.check_expression(source, expression, None, return_span, return_type)
             }
+            Statement::LocalVariable { declaration } => {
+                self.check_local_variable(source, declaration, return_type)
+            }
             Statement::Error => Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -294,7 +324,7 @@ impl<'a> BodyChecker<'a> {
                 return Err(CompilationUnitTypeError::UnsupportedBody(span));
             }
             Expression::Literal(literal) => ExpressionCheck {
-                ty: self.literal_type(span, literal, expected, expected_span)?,
+                ty: self.literal_type(span, literal, expected, expected_span, false)?,
                 falls_through: true,
             },
             Expression::String { parts } => {
@@ -346,6 +376,25 @@ impl<'a> BodyChecker<'a> {
                     falls_through: false,
                 }
             }
+            Expression::Prefix {
+                operator,
+                operator_span,
+                operand,
+            } => self.check_prefix(
+                source,
+                operator,
+                operator_span,
+                operand,
+                expected,
+                expected_span,
+                return_type,
+            )?,
+            Expression::Binary {
+                left,
+                operator,
+                operator_span,
+                right,
+            } => self.check_binary(source, left, operator, operator_span, right, return_type)?,
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
         if let Some(expected) = expected
@@ -366,11 +415,52 @@ impl<'a> BodyChecker<'a> {
             )?;
             result.ty = self.error_type();
         }
-        self.parts.expression_types.insert(key, result.ty);
-        self.parts
-            .expression_categories
-            .insert(key, self.expression_category(source, expression));
+        self.record_expression(source, expression, result.ty);
         Ok(result)
+    }
+
+    fn check_local_variable(
+        &mut self,
+        source: SourceUnitId,
+        declaration: ItemId,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let Item::Variable {
+            name,
+            type_ref,
+            initializer,
+            ..
+        } = unwrapped_item(self.file(source), declaration)?.clone()
+        else {
+            let span = self
+                .file(source)
+                .ast()
+                .items()
+                .get(declaration)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            return Err(CompilationUnitTypeError::UnsupportedBody(span));
+        };
+        let expected = type_ref
+            .map(|type_ref| self.resolve_body_type_ref(source, type_ref))
+            .transpose()?;
+        let expected_span = type_ref
+            .map(|type_ref| {
+                self.file(source)
+                    .ast()
+                    .type_refs()
+                    .get(type_ref)
+                    .map(|node| node.span())
+                    .map_err(TypeCheckingError::from)
+            })
+            .transpose()?;
+        let initializer =
+            self.check_expression(source, initializer, expected, expected_span, return_type)?;
+        self.set_marker_symbol(source, name, expected.unwrap_or(initializer.ty));
+        Ok(ExpressionCheck {
+            ty: self.builtin(BuiltinType::Unit),
+            falls_through: initializer.falls_through,
+        })
     }
 
     fn check_call(
@@ -555,104 +645,6 @@ impl<'a> BodyChecker<'a> {
         }
     }
 
-    fn literal_type(
-        &mut self,
-        span: Span,
-        literal: LiteralKind,
-        expected: Option<UnitTypeId>,
-        expected_span: Option<Span>,
-    ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        let selected = match literal {
-            LiteralKind::Integer(kind) => {
-                let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;
-                let suffix_len = match kind {
-                    IntegerLiteralKind::Unsuffixed => 0,
-                    IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => 1,
-                    IntegerLiteralKind::UnsignedLong => 2,
-                };
-                let magnitude = text[..text.len() - suffix_len].parse::<u128>().ok();
-                let selected = match kind {
-                    IntegerLiteralKind::Unsuffixed => {
-                        let expected = expected
-                            .and_then(|ty| self.builtin_kind(ty))
-                            .filter(|builtin| is_signed_integer(*builtin));
-                        if let Some(expected) = expected {
-                            magnitude
-                                .filter(|value| fits_integer(*value, expected))
-                                .map(|_| expected)
-                        } else {
-                            magnitude
-                                .filter(|value| fits_integer(*value, BuiltinType::Int))
-                                .map(|_| BuiltinType::Int)
-                                .or_else(|| {
-                                    magnitude
-                                        .filter(|value| fits_integer(*value, BuiltinType::Long))
-                                        .map(|_| BuiltinType::Long)
-                                })
-                        }
-                    }
-                    IntegerLiteralKind::Long => magnitude
-                        .filter(|value| fits_integer(*value, BuiltinType::Long))
-                        .map(|_| BuiltinType::Long),
-                    IntegerLiteralKind::Unsigned => {
-                        let expected = expected
-                            .and_then(|ty| self.builtin_kind(ty))
-                            .filter(|builtin| is_unsigned_integer(*builtin));
-                        if let Some(expected) = expected {
-                            magnitude
-                                .filter(|value| fits_integer(*value, expected))
-                                .map(|_| expected)
-                        } else {
-                            magnitude
-                                .filter(|value| fits_integer(*value, BuiltinType::UInt))
-                                .map(|_| BuiltinType::UInt)
-                                .or_else(|| {
-                                    magnitude
-                                        .filter(|value| fits_integer(*value, BuiltinType::ULong))
-                                        .map(|_| BuiltinType::ULong)
-                                })
-                        }
-                    }
-                    IntegerLiteralKind::UnsignedLong => magnitude
-                        .filter(|value| fits_integer(*value, BuiltinType::ULong))
-                        .map(|_| BuiltinType::ULong),
-                };
-                selected.map(|builtin| self.builtin(builtin))
-            }
-            LiteralKind::Float(kind) => {
-                let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;
-                let number = match kind {
-                    FloatLiteralKind::Double => text,
-                    FloatLiteralKind::Float => &text[..text.len() - 1],
-                };
-                let finite = match kind {
-                    FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
-                    FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
-                };
-                finite.then(|| {
-                    self.builtin(match kind {
-                        FloatLiteralKind::Double => BuiltinType::Double,
-                        FloatLiteralKind::Float => BuiltinType::Float,
-                    })
-                })
-            }
-            LiteralKind::Char => Some(self.builtin(BuiltinType::Char)),
-            LiteralKind::Boolean(_) => Some(self.builtin(BuiltinType::Boolean)),
-            LiteralKind::Null => unreachable!("null is rejected before literal typing"),
-        };
-        if let Some(ty) = selected {
-            return Ok(ty);
-        }
-        self.emit_maybe_label(
-            codes::NUMERIC_LITERAL_OUT_OF_RANGE,
-            "numeric literal is outside the representable range",
-            span,
-            expected_span,
-            "expected type introduced here",
-        )?;
-        Ok(self.error_type())
-    }
-
     fn expression_category(
         &self,
         source: SourceUnitId,
@@ -663,6 +655,38 @@ impl<'a> BodyChecker<'a> {
         } else {
             ExpressionCategory::Temporary
         }
+    }
+
+    pub(super) fn record_expression(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        ty: UnitTypeId,
+    ) {
+        let key = UnitExpressionId::new(source, expression);
+        self.parts.expression_types.insert(key, ty);
+        self.parts
+            .expression_categories
+            .insert(key, self.expression_category(source, expression));
+    }
+
+    fn set_marker_symbol(&mut self, source: SourceUnitId, marker: NameMarker, ty: UnitTypeId) {
+        if let NameMarker::Present(span) = marker
+            && let Some(symbol) = self.symbol_at(source, span, Namespace::Value)
+        {
+            self.parts.symbol_types.insert(symbol, ty);
+        }
+    }
+
+    fn symbol_at(
+        &self,
+        source: SourceUnitId,
+        span: Span,
+        namespace: Namespace,
+    ) -> Option<UnitSymbolId> {
+        self.symbols_by_span
+            .get(&(source, span.start(), span.end(), namespace_rank(namespace)))
+            .copied()
     }
 
     fn is_syntactic_place(&self, source: SourceUnitId, expression: ExpressionId) -> bool {
@@ -689,7 +713,7 @@ impl<'a> BodyChecker<'a> {
             .get(&(source, span.start(), span.end(), namespace_rank(namespace)))
     }
 
-    fn assignable(&self, actual: UnitTypeId, expected: UnitTypeId) -> bool {
+    pub(super) fn assignable(&self, actual: UnitTypeId, expected: UnitTypeId) -> bool {
         actual == expected
             || self.is_error(actual)
             || self.is_error(expected)
@@ -703,11 +727,11 @@ impl<'a> BodyChecker<'a> {
         }
     }
 
-    fn is_builtin(&self, ty: UnitTypeId, builtin: BuiltinType) -> bool {
+    pub(super) fn is_builtin(&self, ty: UnitTypeId, builtin: BuiltinType) -> bool {
         self.signatures.types().get(ty) == Some(&UnitTypeKind::Builtin(builtin))
     }
 
-    fn is_error(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn is_error(&self, ty: UnitTypeId) -> bool {
         matches!(self.signatures.types().get(ty), Some(UnitTypeKind::Error))
     }
 
@@ -718,11 +742,11 @@ impl<'a> BodyChecker<'a> {
             .expect("UnitTypeTable seeds every builtin")
     }
 
-    fn error_type(&mut self) -> UnitTypeId {
+    pub(super) fn error_type(&mut self) -> UnitTypeId {
         self.signatures.types_mut().intern(UnitTypeKind::Error)
     }
 
-    fn type_name(&self, ty: UnitTypeId) -> String {
+    pub(super) fn type_name(&self, ty: UnitTypeId) -> String {
         match self.signatures.types().get(ty) {
             Some(UnitTypeKind::Builtin(builtin)) => builtin.name().to_owned(),
             Some(UnitTypeKind::Nominal { declaration, .. }) => {
@@ -756,7 +780,7 @@ impl<'a> BodyChecker<'a> {
         }
     }
 
-    fn emit(
+    pub(super) fn emit(
         &mut self,
         code: &str,
         message: &str,
@@ -791,7 +815,7 @@ impl<'a> BodyChecker<'a> {
         Ok(())
     }
 
-    fn file(&self, source: SourceUnitId) -> &'a ParsedFile {
+    pub(super) fn file(&self, source: SourceUnitId) -> &'a ParsedFile {
         self.files[source.index()]
     }
 }
@@ -821,33 +845,4 @@ fn item_requires_body_check(item: &Item) -> bool {
         Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
         Item::Error | Item::Function { .. } | Item::Companion(_) => false,
     }
-}
-
-fn is_signed_integer(ty: BuiltinType) -> bool {
-    matches!(
-        ty,
-        BuiltinType::Byte | BuiltinType::Short | BuiltinType::Int | BuiltinType::Long
-    )
-}
-
-fn is_unsigned_integer(ty: BuiltinType) -> bool {
-    matches!(
-        ty,
-        BuiltinType::UByte | BuiltinType::UShort | BuiltinType::UInt | BuiltinType::ULong
-    )
-}
-
-fn fits_integer(value: u128, ty: BuiltinType) -> bool {
-    value
-        <= match ty {
-            BuiltinType::Byte => i8::MAX as u128,
-            BuiltinType::Short => i16::MAX as u128,
-            BuiltinType::Int => i32::MAX as u128,
-            BuiltinType::Long => i64::MAX as u128,
-            BuiltinType::UByte => u8::MAX as u128,
-            BuiltinType::UShort => u16::MAX as u128,
-            BuiltinType::UInt => u32::MAX as u128,
-            BuiltinType::ULong => u64::MAX as u128,
-            _ => return false,
-        }
 }

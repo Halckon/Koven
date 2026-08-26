@@ -194,8 +194,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   declaration identity；`resolve_compilation_unit_names` 在核对 inputs/index 后解析 same-package、
   exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
-  `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、基础 signature 收集及部分
-  interface/bound 图验证，完整 signature graph、body 与控制流判断仍在实施；
+  `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，以及首批
+  顶层 callable/call、局部变量与基础运算 body facts，控制流等剩余 body 判断仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -703,8 +703,13 @@ SPEC-0197 第一阶段新增纯内存的
   非插值 String literal、参数/顶层名称，以及非泛型顶层 source direct/overload call；成功调用发布
   `UnitCallTarget::Declaration`、源码实参到参数的映射、mode、place/temporary category 与统一
   `UnitTypeId`。错误 body 不阻止其他 source facts，signature/body 任一 error 都阻止 validated view；
-- top-level variable/const initializer、member body、generic/external/function-value call、local、控制流、
-  lambda、constructor/container/nullable 等尚未接入本 unit checker。production driver 对这些合法但
+- 第二个 body 切片已支持 block 内局部 `val`/`var` 的 initializer 推导与简单显式标注，发布
+  body-local `UnitTypeRefId` / `UnitSymbolId` facts，并支持 `!`/一元正负、数值/字符串加法、
+  数值四则、比较、相等与逻辑运算；有符号最小值按单一负字面量定型，L0084/L0085/L0090
+  保持既有诊断语义，局部 place 可直接进入跨文件 call argument descriptor；
+- top-level variable/const initializer、member body、local destructuring、assignment、control-flow、
+  lambda、generic local type、generic/external/function-value call、constructor/container/nullable 等
+  尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
   后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。
 

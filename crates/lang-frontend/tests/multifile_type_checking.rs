@@ -4,8 +4,9 @@ use lang_frontend::{
     ast::ExpressionId,
     lexer::lex,
     name_resolution::{
-        DeclarationId, NameEnvironment, SourceUnitId, SourceUnitInput,
-        ValidatedCompilationUnitNames, index_compilation_unit, resolve_compilation_unit_names,
+        DeclarationId, NameEnvironment, Namespace, SourceUnitId, SourceUnitInput,
+        UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
@@ -68,6 +69,35 @@ fn expression_with_text(sources: &SourceMap, file: &ParsedFile, text: &str) -> E
         .find(|(_, node)| sources.slice(node.span()) == Ok(text))
         .expect("expression text exists")
         .0
+}
+
+fn symbol_for_expression(
+    names: &ValidatedCompilationUnitNames,
+    source: SourceUnitId,
+    file: &ParsedFile,
+    expression: ExpressionId,
+) -> UnitSymbolId {
+    let span = file
+        .ast()
+        .expressions()
+        .get(expression)
+        .expect("expression belongs to file")
+        .span();
+    names
+        .names()
+        .references()
+        .iter()
+        .find_map(|reference| {
+            (reference.source_unit() == source
+                && reference.span() == span
+                && reference.namespace() == Some(Namespace::Value))
+            .then(|| match reference.target() {
+                UnitReferenceTarget::Symbol(symbol) => Some(*symbol),
+                _ => None,
+            })
+            .flatten()
+        })
+        .expect("expression resolves to a source-local symbol")
 }
 
 #[test]
@@ -355,5 +385,176 @@ fn unit_literal_expected_type_keeps_numeric_range_diagnostic() {
             .collect::<Vec<_>>(),
         ["L0090"]
     );
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn local_operator_facts_feed_a_cross_file_call_and_survive_input_permutation() {
+    let mut sources = SourceMap::new();
+    let (callee_source, callee) = parsed(
+        &mut sources,
+        "callee.ko",
+        "package p\nfun addOne(number: Int): Int = number + 1",
+    );
+    let (caller_source, caller) = parsed(
+        &mut sources,
+        "caller.ko",
+        "package p\nfun answer(): Int {\nval base: Int = 40 + 1\nreturn addOne(base)\n}",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/caller.ko", caller_source, &caller),
+        SourceUnitInput::new("root", "p/callee.ko", callee_source, &callee),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward local/operator unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse local/operator unit succeeds");
+
+    assert!(forward.diagnostics().is_empty());
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(forward.calls(), reverse.calls());
+
+    let caller_unit = source_unit(&forward_names, caller_source);
+    let base_expression = expression_with_text(&sources, &caller, "base");
+    let base_symbol = symbol_for_expression(&forward_names, caller_unit, &caller, base_expression);
+    let int = forward.types().builtin(BuiltinType::Int).expect("Int seed");
+    assert_eq!(forward.symbol_type(base_symbol), Some(int));
+    assert_eq!(
+        forward
+            .type_ref_types()
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [int]
+    );
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(
+            caller_unit,
+            expression_with_text(&sources, &caller, "40 + 1")
+        )),
+        Some(int)
+    );
+    let call = UnitExpressionId::new(
+        caller_unit,
+        expression_with_text(&sources, &caller, "addOne(base)"),
+    );
+    assert_eq!(
+        forward.call(call).map(|descriptor| descriptor.target()),
+        Some(UnitCallTarget::Declaration(declaration(
+            &forward_names,
+            "addOne"
+        )))
+    );
+    assert_eq!(
+        forward.call(call).expect("call fact").arguments()[0].category(),
+        ExpressionCategory::Place
+    );
+}
+
+#[test]
+fn basic_operator_errors_keep_l0085_and_signed_minimum_is_in_range() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "operators.ko",
+        "package p\nfun minimum(): Int = -2147483648\nfun badPrefix(): Boolean = !1\nfun badBinary(): Int = 1 + false",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/operators.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("operator type errors stay in recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0085", "L0085"]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("operator span belongs to source"))
+            .collect::<Vec<_>>(),
+        ["!", "+"]
+    );
+    let minimum = UnitExpressionId::new(
+        source_unit(&names, source),
+        expression_with_text(&sources, &file, "-2147483648"),
+    );
+    assert_eq!(
+        typed
+            .expression_type(minimum)
+            .and_then(|ty| typed.types().get(ty)),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn local_annotation_error_recovers_declared_type_and_checks_an_independent_local() {
+    let mut sources = SourceMap::new();
+    let (broken_source, broken) = parsed(
+        &mut sources,
+        "broken-local.ko",
+        "package p\nfun broken(): String {\nval text: String = 1\nreturn text\n}",
+    );
+    let (sound_source, sound) = parsed(
+        &mut sources,
+        "sound-local.ko",
+        "package p\nfun sound(): Int {\nval number = 2\nreturn number\n}",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/sound-local.ko", sound_source, &sound),
+        SourceUnitInput::new("root", "p/broken-local.ko", broken_source, &broken),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("local mismatch stays in recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0084"]
+    );
+    assert_eq!(
+        sources.slice(typed.body_diagnostics()[0].primary_span()),
+        Ok("1")
+    );
+    let broken_unit = source_unit(&names, broken_source);
+    let sound_unit = source_unit(&names, sound_source);
+    let text = expression_with_text(&sources, &broken, "text");
+    let number = expression_with_text(&sources, &sound, "number");
+    let text_symbol = symbol_for_expression(&names, broken_unit, &broken, text);
+    let number_symbol = symbol_for_expression(&names, sound_unit, &sound, number);
+    let string = typed
+        .types()
+        .builtin(BuiltinType::String)
+        .expect("String seed");
+    let int = typed.types().builtin(BuiltinType::Int).expect("Int seed");
+    assert_eq!(typed.symbol_type(text_symbol), Some(string));
+    assert_eq!(typed.symbol_type(number_symbol), Some(int));
     assert!(typed.validate().is_err());
 }
