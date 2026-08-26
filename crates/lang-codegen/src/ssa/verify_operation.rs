@@ -23,6 +23,20 @@ pub(super) fn verify_operation(
     let valid = match &instruction.operation {
         Operation::Constant(constant) => constant_contract(module, constant, &results),
         Operation::PrintLiteral { bytes } => results.is_empty() && bytes.last() == Some(&b'\n'),
+        Operation::StringLiteral { string, bytes } => {
+            is_string_owner(module, *string)
+                && std::str::from_utf8(bytes).is_ok()
+                && single_value_result(&results) == Some(*string)
+        }
+        Operation::StringConcat { left, right } => {
+            string_binary_contract(module, function, *left, *right, &results, false)
+        }
+        Operation::StringEqual { left, right } => {
+            string_binary_contract(module, function, *left, *right, &results, true)
+        }
+        Operation::PrintString { value } => {
+            results.is_empty() && shared_string_loan_type(module, function, *value).is_some()
+        }
         Operation::Binary {
             operator,
             left,
@@ -210,6 +224,54 @@ fn aggregate_construct_contract(
             .iter()
             .zip(expected_fields)
             .all(|(field, expected)| value_type(function, *field) == Some(*expected))
+}
+
+fn string_binary_contract(
+    module: &Module,
+    function: &Function,
+    left: EntityId,
+    right: EntityId,
+    results: &[EntityType],
+    returns_boolean: bool,
+) -> bool {
+    let Some(left) = string_view_type(module, function, left) else {
+        return false;
+    };
+    if string_view_type(module, function, right) != Some(left) {
+        return false;
+    }
+    if returns_boolean {
+        single_value_result(results).is_some_and(|ty| is_boolean(module, ty))
+    } else {
+        single_value_result(results) == Some(left)
+    }
+}
+
+fn string_view_type(module: &Module, function: &Function, operand: EntityId) -> Option<SsaTypeId> {
+    let ty = match entity_type(function, operand) {
+        EntityType::Value(ty) => ty,
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            target,
+        } => target,
+        EntityType::Place(_) | EntityType::Loan { .. } => return None,
+    };
+    is_string_owner(module, ty).then_some(ty)
+}
+
+fn shared_string_loan_type(
+    module: &Module,
+    function: &Function,
+    loan: super::model::LoanId,
+) -> Option<SsaTypeId> {
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    } = entity_type(function, EntityId::Loan(loan))
+    else {
+        return None;
+    };
+    is_string_owner(module, target).then_some(target)
 }
 
 fn nullable_take_contract(
@@ -749,6 +811,7 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::TaggedUnion { .. }
                 | SsaTypeKind::HeapOwner { .. }
+                | SsaTypeKind::StringOwner
                 | SsaTypeKind::NullableHandle { .. }
                 | SsaTypeKind::SequentialContainer { .. }
                 | SsaTypeKind::ZeroSized { .. }
@@ -786,6 +849,10 @@ fn is_equality_type(module: &Module, ty: Option<SsaTypeId>) -> bool {
 
 fn is_boolean(module: &Module, ty: SsaTypeId) -> bool {
     matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean))
+}
+
+fn is_string_owner(module: &Module, ty: SsaTypeId) -> bool {
+    matches!(module.type_kind(ty), Some(SsaTypeKind::StringOwner))
 }
 
 fn single_value_result(types: &[EntityType]) -> Option<SsaTypeId> {

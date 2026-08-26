@@ -275,10 +275,35 @@ fn apply_operation(
     match &instruction.operation {
         Operation::Constant(_)
         | Operation::PrintLiteral { .. }
+        | Operation::StringLiteral { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
         | Operation::Compare { .. }
         | Operation::BooleanNot { .. } => {}
+        Operation::StringConcat { left, right } | Operation::StringEqual { left, right } => {
+            require_string_view(
+                module,
+                function,
+                *left,
+                aliases,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            require_string_view(
+                module, function, *right, aliases, state, location, origin, errors,
+            );
+        }
+        Operation::PrintString { value } => {
+            if !state.loans.contains(value) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *value },
+                    location,
+                    origin,
+                ));
+            }
+        }
         Operation::DirectCall { arguments, .. } => {
             for argument in arguments {
                 match argument {
@@ -705,6 +730,49 @@ fn apply_operation(
                 ));
             }
         }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn require_string_view(
+    module: &Module,
+    function: &Function,
+    operand: EntityId,
+    aliases: &AliasRoots,
+    state: &BlockState,
+    location: VerifyLocation,
+    origin: &super::model::Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    match operand {
+        EntityId::Value(value) => {
+            if require_value(
+                module,
+                function,
+                value,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_exclusive_value_loan(function, value, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value },
+                    location,
+                    origin,
+                ));
+            }
+        }
+        EntityId::Loan(loan) => {
+            if !state.loans.contains(&loan) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan },
+                    location,
+                    origin,
+                ));
+            }
+        }
+        EntityId::Place(_) => unreachable!("operation contract rejects String place views"),
     }
 }
 

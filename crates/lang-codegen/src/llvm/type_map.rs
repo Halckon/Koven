@@ -114,6 +114,11 @@ impl<'ctx> TypeMap<'ctx> {
                     containers.insert(id, container);
                     Some(container.into())
                 }
+                SsaTypeKind::StringOwner => {
+                    let string = context.opaque_struct_type(&format!("koven.string.t{index}"));
+                    string.set_body(&[pointer.into(), size_type.into(), size_type.into()], false);
+                    Some(string.into())
+                }
                 SsaTypeKind::ZeroSized { .. } => {
                     let zst = context.opaque_struct_type(&format!("koven.zst.t{index}"));
                     zst.set_body(&[], false);

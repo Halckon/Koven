@@ -5,6 +5,11 @@ use super::model::{
 };
 
 impl Module {
+    /// 返回本 module 唯一的 UTF-8 String owner identity。
+    pub(crate) fn add_string_owner_type(&mut self) -> SsaTypeId {
+        self.intern_type(SsaTypeKind::StringOwner)
+    }
+
     pub(crate) fn add_aggregate_type(
         &mut self,
         name: impl Into<String>,
@@ -178,6 +183,7 @@ impl Module {
             | SsaTypeKind::TaggedUnion { ownership, .. } => Some(*ownership),
             SsaTypeKind::HeapOwner { .. }
             | SsaTypeKind::SharedOwner { .. }
+            | SsaTypeKind::StringOwner
             | SsaTypeKind::NullableHandle { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {

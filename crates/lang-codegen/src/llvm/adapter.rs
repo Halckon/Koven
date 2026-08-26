@@ -31,7 +31,7 @@ use super::{
     },
     entry,
     runtime::RuntimeAbi,
-    scalar, tagged,
+    scalar, string, tagged,
     type_map::TypeMap,
 };
 
@@ -350,6 +350,72 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &self.builder,
                     self.llvm_function,
                     bytes,
+                    &format!(
+                        "print.f{}.i{}",
+                        self.function.id.index(),
+                        instruction.id.index()
+                    ),
+                )?;
+            }
+            Operation::StringLiteral { string, bytes } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string literal", 1, results.len()));
+                };
+                let value = string::literal(
+                    self.llvm,
+                    &self.builder,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    *string,
+                    bytes,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::StringConcat { left, right } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string concat", 1, results.len()));
+                };
+                let value = string::concat(
+                    self.context,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    self.dependencies
+                        .type_map
+                        .basic_type(value_type(self.function, *result)?)?
+                        .into_struct_type(),
+                    self.string_view(*left)?,
+                    self.string_view(*right)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::StringEqual { left, right } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string equal", 1, results.len()));
+                };
+                let value = string::equal(
+                    self.context,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    self.string_view(*left)?,
+                    self.string_view(*right)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
+            Operation::PrintString { value } => {
+                if !results.is_empty() {
+                    return Err(invalid_result_count("print string", 0, results.len()));
+                }
+                string::print(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    self.string_view(EntityId::Loan(*value))?,
                     &format!(
                         "print.f{}.i{}",
                         self.function.id.index(),
@@ -1181,6 +1247,28 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .get(&id)
             .copied()
             .ok_or_else(|| LlvmAdapterError::InvalidSsa("LLVM value 映射缺失".to_owned()))
+    }
+
+    fn string_view(&self, entity: EntityId) -> Result<string::StringView<'ctx>, LlvmAdapterError> {
+        let value = match entity {
+            EntityId::Value(value) => self.value(value)?.into_struct_value(),
+            EntityId::Loan(loan) => {
+                let ty = access_type(self.function, PlaceAccess::Loan(loan))?;
+                self.builder
+                    .build_load(
+                        self.dependencies.type_map.basic_type(ty)?,
+                        self.access(PlaceAccess::Loan(loan))?,
+                        &format!("l{}.string", loan.index()),
+                    )?
+                    .into_struct_value()
+            }
+            EntityId::Place(_) => {
+                return Err(LlvmAdapterError::InvalidSsa(
+                    "string view 不能是裸 place".to_owned(),
+                ));
+            }
+        };
+        string::view(&self.builder, value, "string.view")
     }
 
     fn shared_owner_type(&self, owner: EntityId) -> Result<SsaTypeId, LlvmAdapterError> {

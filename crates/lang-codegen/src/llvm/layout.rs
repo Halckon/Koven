@@ -178,6 +178,10 @@ impl LayoutCalculator<'_, '_> {
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. },
             ) => self.pointer_layout,
+            Some(SsaTypeKind::StringOwner) => self.record(
+                ty,
+                &[self.pointer_layout, self.size_layout, self.size_layout],
+            )?,
             Some(SsaTypeKind::Aggregate { fields, .. }) => {
                 let mut layouts = Vec::with_capacity(fields.len());
                 for field in fields {

@@ -28,6 +28,9 @@ mod runtime;
 #[cfg(test)]
 mod runtime_tests;
 mod scalar;
+mod string;
+#[cfg(test)]
+mod string_tests;
 mod tagged;
 mod type_map;
 

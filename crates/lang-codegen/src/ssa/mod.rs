@@ -39,3 +39,5 @@ mod lower_frontend_tests;
 mod nullable_operation_tests;
 #[cfg(test)]
 mod shared_owner_operation_tests;
+#[cfg(test)]
+mod string_operation_tests;

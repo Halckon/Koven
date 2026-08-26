@@ -97,6 +97,7 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             }
             Ok(())
         }
+        SsaTypeKind::StringOwner => output.write_str("string_owner"),
         SsaTypeKind::NullableHandle { inner } => {
             output.write_str("nullable_handle<")?;
             write_type_id(output, *inner)?;
@@ -315,6 +316,27 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_constant(output, constant)
         }
         Operation::PrintLiteral { bytes } => write!(output, "print.literal {bytes:?}"),
+        Operation::StringLiteral { string, bytes } => {
+            output.write_str("string.literal ")?;
+            write_type_id(output, *string)?;
+            write!(output, ", {bytes:?}")
+        }
+        Operation::StringConcat { left, right } => {
+            output.write_str("string.concat ")?;
+            write_entity_id(output, *left)?;
+            output.write_str(", ")?;
+            write_entity_id(output, *right)
+        }
+        Operation::StringEqual { left, right } => {
+            output.write_str("string.equal ")?;
+            write_entity_id(output, *left)?;
+            output.write_str(", ")?;
+            write_entity_id(output, *right)
+        }
+        Operation::PrintString { value } => {
+            output.write_str("print.string ")?;
+            write_entity_id(output, EntityId::Loan(*value))
+        }
         Operation::Binary {
             operator,
             left,

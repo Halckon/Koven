@@ -184,6 +184,8 @@ pub(crate) enum SsaTypeKind {
         name: String,
         payload: Option<SsaTypeId>,
     },
+    /// 不透明布局的 UTF-8 唯一 owner；具体 `{ptr, length, capacity}` ABI 属于 LLVM 边界。
+    StringOwner,
     NullableHandle {
         inner: SsaTypeId,
     },
@@ -315,6 +317,25 @@ pub(crate) enum Operation {
     /// 编译器封闭的 UTF-8 stdout 行输出；bytes 必须以 `\n` 结尾。
     PrintLiteral {
         bytes: Vec<u8>,
+    },
+    /// 以已解码 UTF-8 bytes 创建普通 String owner。
+    StringLiteral {
+        string: SsaTypeId,
+        bytes: Vec<u8>,
+    },
+    /// 读取两个 String view 并创建新的唯一 owner，不消费具名 operand。
+    StringConcat {
+        left: EntityId,
+        right: EntityId,
+    },
+    /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
+    StringEqual {
+        left: EntityId,
+        right: EntityId,
+    },
+    /// 读取 active shared loan，输出全部 String bytes 后追加换行。
+    PrintString {
+        value: LoanId,
     },
     /// SPEC-0033 的低层 primitive；算术变体只允许在范围证明后使用。
     /// 源语言 `+`/`-`/`*` 必须先 lower 为 `CheckedArithmetic`。
@@ -466,7 +487,14 @@ pub(crate) enum Operation {
 impl Operation {
     pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
-            Self::Constant(_) | Self::PrintLiteral { .. } | Self::NullableNull { .. } => Vec::new(),
+            Self::Constant(_)
+            | Self::PrintLiteral { .. }
+            | Self::StringLiteral { .. }
+            | Self::NullableNull { .. } => Vec::new(),
+            Self::StringConcat { left, right } | Self::StringEqual { left, right } => {
+                vec![*left, *right]
+            }
+            Self::PrintString { value } => vec![EntityId::Loan(*value)],
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::Compare { left, right, .. } => {

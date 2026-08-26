@@ -1,4 +1,5 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
+mod string;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -658,6 +659,33 @@ impl<'ctx> RuntimeAbi<'ctx> {
                         value.into_struct_value(),
                     )?;
                 }
+                Some(SsaTypeKind::StringOwner) => {
+                    let string = value.into_struct_value();
+                    let bytes = builder
+                        .build_extract_value(string, 0, "bytes")?
+                        .into_pointer_value();
+                    let capacity = builder
+                        .build_extract_value(string, 2, "capacity")?
+                        .into_int_value();
+                    let release = self.context.append_basic_block(*function, "release");
+                    let done = self.context.append_basic_block(*function, "done");
+                    let owns_buffer = builder.build_int_compare(
+                        IntPredicate::NE,
+                        capacity,
+                        self.size_type.const_zero(),
+                        "owns_buffer",
+                    )?;
+                    builder.build_conditional_branch(owns_buffer, release, done)?;
+                    builder.position_at_end(release);
+                    builder.build_call(
+                        self.free
+                            .ok_or_else(|| LlvmAdapterError::Build("free 未声明".to_owned()))?,
+                        &[BasicMetadataValueEnum::from(bytes)],
+                        "",
+                    )?;
+                    builder.build_unconditional_branch(done)?;
+                    builder.position_at_end(done);
+                }
                 Some(SsaTypeKind::ConcreteClosure {
                     environment,
                     captures,
@@ -823,6 +851,14 @@ impl RuntimeRequirements {
                         requirements.needs_print = true;
                         requirements.needs_abort = true;
                     }
+                    Operation::StringConcat { .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.needs_abort = true;
+                    }
+                    Operation::PrintString { .. } => {
+                        requirements.needs_print = true;
+                        requirements.needs_abort = true;
+                    }
                     Operation::ContainerConstruct { container, .. }
                     | Operation::ContainerGenerate { container, .. } => {
                         requirements.needs_allocation = true;
@@ -920,6 +956,9 @@ impl RuntimeRequirements {
             Some(SsaTypeKind::SequentialContainer { element, .. }) => {
                 self.needs_free = true;
                 self.collect_drop_type(module, *element)?;
+            }
+            Some(SsaTypeKind::StringOwner) => {
+                self.needs_free = true;
             }
             Some(SsaTypeKind::Opaque { .. }) => {
                 return Err(LlvmAdapterError::Unsupported(

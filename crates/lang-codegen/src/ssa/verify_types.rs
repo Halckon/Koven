@@ -254,7 +254,8 @@ fn verify_type_definition(
         | SsaTypeKind::Boolean
         | SsaTypeKind::Integer { .. }
         | SsaTypeKind::Opaque { .. }
-        | SsaTypeKind::ZeroSized { .. } => {}
+        | SsaTypeKind::ZeroSized { .. }
+        | SsaTypeKind::StringOwner => {}
     }
 }
 
