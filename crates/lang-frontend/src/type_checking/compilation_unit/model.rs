@@ -8,8 +8,9 @@ use crate::{
     },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, Capability, DeferredReason, IntrinsicTypeConstructor, NominalKind,
-        ParameterMode, TypeEnvironment,
+        BuiltinType, Capability, DeferredReason, IntegerConstraint, IntrinsicTypeConstructor,
+        NominalKind, ParameterMode, TypeEnvironment,
+        canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
     },
 };
 
@@ -26,6 +27,16 @@ impl UnitTypeId {
     #[must_use]
     pub const fn index(self) -> usize {
         self.0
+    }
+}
+
+impl CanonicalTypeId for UnitTypeId {
+    fn from_index(index: usize) -> Self {
+        Self::new(index)
+    }
+
+    fn index(self) -> usize {
+        self.index()
     }
 }
 
@@ -97,64 +108,73 @@ pub enum UnitTypeKind {
     StaticSelf(UnitTypeId),
     /// 编译器结构化能力。
     Capability(Capability),
+    /// 整数字面量在 expected-type 定型前的约束族。
+    IntegerLiteral(IntegerConstraint),
     /// 后续 body 或候选能力才可决定的类型。
     Deferred(DeferredReason),
     /// 错误恢复类型。
     Error,
 }
 
+impl CanonicalTypeKind for UnitTypeKind {
+    type Id = UnitTypeId;
+
+    fn initial_kinds() -> Vec<Self> {
+        BuiltinType::ALL
+            .into_iter()
+            .map(Self::Builtin)
+            .chain([
+                Self::IntegerLiteral(IntegerConstraint::Signed),
+                Self::IntegerLiteral(IntegerConstraint::Unsigned),
+                Self::Error,
+            ])
+            .collect()
+    }
+
+    fn builtin(builtin: BuiltinType) -> Self {
+        Self::Builtin(builtin)
+    }
+}
+
 /// 按结构去重的唯一 compilation-unit 类型表。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitTypeTable {
-    kinds: Vec<UnitTypeKind>,
-    ids: BTreeMap<UnitTypeKind, UnitTypeId>,
+    canonical: CanonicalTypeTable<UnitTypeKind>,
 }
 
 impl UnitTypeTable {
     pub(crate) fn new() -> Self {
-        let mut table = Self {
-            kinds: Vec::new(),
-            ids: BTreeMap::new(),
-        };
-        for builtin in BuiltinType::ALL {
-            table.intern(UnitTypeKind::Builtin(builtin));
+        Self {
+            canonical: CanonicalTypeTable::new(),
         }
-        table.intern(UnitTypeKind::Error);
-        table
     }
 
     pub(crate) fn intern(&mut self, kind: UnitTypeKind) -> UnitTypeId {
-        if let Some(id) = self.ids.get(&kind).copied() {
-            return id;
-        }
-        let id = UnitTypeId::new(self.kinds.len());
-        self.kinds.push(kind.clone());
-        self.ids.insert(kind, id);
-        id
+        self.canonical.intern(kind)
     }
 
     /// 按 identity 读取规范结构。
     #[must_use]
     pub fn get(&self, id: UnitTypeId) -> Option<&UnitTypeKind> {
-        self.kinds.get(id.index())
+        self.canonical.get(id)
     }
 
     /// 查询内建类型 identity。
     #[must_use]
     pub fn builtin(&self, builtin: BuiltinType) -> Option<UnitTypeId> {
-        self.ids.get(&UnitTypeKind::Builtin(builtin)).copied()
+        self.canonical.builtin(builtin)
     }
 
     /// 返回类型数量。
     #[must_use]
     pub fn len(&self) -> usize {
-        self.kinds.len()
+        self.canonical.len()
     }
 
     /// 返回表是否为空。
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.kinds.is_empty()
+        self.canonical.is_empty()
     }
 }
 

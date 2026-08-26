@@ -133,6 +133,6 @@ fn shape_type(
         Some(UnitTypeKind::Capability(capability)) => ShapeType::Capability(*capability),
         Some(UnitTypeKind::Deferred(_)) | Some(UnitTypeKind::StaticSelf(_)) => ShapeType::Deferred,
         Some(UnitTypeKind::EnumCase { root, .. }) => shape_type(types, *root, parameters),
-        Some(UnitTypeKind::Error) | None => ShapeType::Error,
+        Some(UnitTypeKind::IntegerLiteral(_) | UnitTypeKind::Error) | None => ShapeType::Error,
     }
 }

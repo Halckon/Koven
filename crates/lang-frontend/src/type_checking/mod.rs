@@ -1,6 +1,7 @@
 //! Phase 2 单文件类型检查与可供所有权阶段消费的 typed facts。
 
 mod call;
+mod canonical;
 mod checker;
 mod compilation_unit;
 mod construction;

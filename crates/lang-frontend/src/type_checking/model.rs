@@ -14,6 +14,7 @@ use super::{
     ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
     FunctionParameterType, IntrinsicCallable, ParameterBindingDescriptor, ParameterMode,
     RcOperationDescriptor,
+    canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
@@ -747,6 +748,16 @@ impl TypeId {
     }
 }
 
+impl CanonicalTypeId for TypeId {
+    fn from_index(index: usize) -> Self {
+        Self::new(index)
+    }
+
+    fn index(self) -> usize {
+        self.index()
+    }
+}
+
 /// 后续阶段必须精确承接的 deferred 原因。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeferredReason {
@@ -848,60 +859,65 @@ pub enum TypeKind {
     Deferred(DeferredReason),
 }
 
+impl CanonicalTypeKind for TypeKind {
+    type Id = TypeId;
+
+    fn initial_kinds() -> Vec<Self> {
+        BuiltinType::ALL
+            .into_iter()
+            .map(Self::Builtin)
+            .chain([
+                Self::IntegerLiteral(IntegerConstraint::Signed),
+                Self::IntegerLiteral(IntegerConstraint::Unsigned),
+                Self::Error,
+            ])
+            .collect()
+    }
+
+    fn builtin(builtin: BuiltinType) -> Self {
+        Self::Builtin(builtin)
+    }
+}
+
 /// 插入顺序稳定并按结构去重的类型表。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypeTable {
-    kinds: Vec<TypeKind>,
-    ids: BTreeMap<TypeKind, TypeId>,
+    canonical: CanonicalTypeTable<TypeKind>,
 }
 
 impl TypeTable {
     pub(crate) fn new() -> Self {
-        let mut table = Self {
-            kinds: Vec::new(),
-            ids: BTreeMap::new(),
-        };
-        for builtin in BuiltinType::ALL {
-            table.intern(TypeKind::Builtin(builtin));
+        Self {
+            canonical: CanonicalTypeTable::new(),
         }
-        table.intern(TypeKind::IntegerLiteral(IntegerConstraint::Signed));
-        table.intern(TypeKind::IntegerLiteral(IntegerConstraint::Unsigned));
-        table.intern(TypeKind::Error);
-        table
     }
 
     pub(crate) fn intern(&mut self, kind: TypeKind) -> TypeId {
-        if let Some(id) = self.ids.get(&kind).copied() {
-            return id;
-        }
-        let id = TypeId(self.kinds.len());
-        self.kinds.push(kind.clone());
-        self.ids.insert(kind, id);
-        id
+        self.canonical.intern(kind)
     }
 
     /// 按身份读取规范化结构。
     #[must_use]
     pub fn get(&self, id: TypeId) -> Option<&TypeKind> {
-        self.kinds.get(id.index())
+        self.canonical.get(id)
     }
 
     /// 查询本次 typed 产物中的内建类型身份。
     #[must_use]
     pub fn builtin(&self, builtin: BuiltinType) -> Option<TypeId> {
-        self.ids.get(&TypeKind::Builtin(builtin)).copied()
+        self.canonical.builtin(builtin)
     }
 
     /// 返回类型表大小。
     #[must_use]
     pub fn len(&self) -> usize {
-        self.kinds.len()
+        self.canonical.len()
     }
 
     /// 返回类型表是否为空。
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.kinds.is_empty()
+        self.canonical.is_empty()
     }
 }
 

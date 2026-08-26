@@ -581,7 +581,10 @@ impl SignatureCollector<'_> {
             Some(UnitTypeKind::StaticSelf(interface)) => self.shape_type(*interface, parameters),
             Some(UnitTypeKind::Capability(capability)) => Some(ShapeType::Capability(*capability)),
             Some(UnitTypeKind::EnumCase { root, .. }) => self.shape_type(*root, parameters),
-            Some(UnitTypeKind::Deferred(_)) | Some(UnitTypeKind::Error) | None => None,
+            Some(UnitTypeKind::IntegerLiteral(_))
+            | Some(UnitTypeKind::Deferred(_))
+            | Some(UnitTypeKind::Error)
+            | None => None,
         }
     }
 
