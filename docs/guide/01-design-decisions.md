@@ -1735,8 +1735,8 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
 
 - class/value-class 主构造器字段与 enum payload 按声明顺序形成稳定、可命名的参数；intrinsic
   Box 只有稳定参数名 `element`。位置/命名混排、重复、缺失、额外参数及 type/mode 检查复用
-  §9 的 L0120–L0123 规则。字段 visibility 不删除 constructor 参数名；跨 package 可见性仍
-  等待 SPEC-0025。
+  §9 的 L0120–L0123 规则。字段 visibility 不删除 constructor 参数名；跨文件 constructor
+  typed selection 仍等待 SPEC-0197。
 - 所有构造参数都是 v0.26 已规定的 `ParameterMode::Value`：class 字段与 enum payload 沿用
   §13 的天然-owned 声明形态，intrinsic Box 只有编译器内建抽象签名；两者调用点都不写
   `own`。显式 `borrow` / `&` 与 Value 参数不匹配并复用 L0122。operand 按源码顺序各求值

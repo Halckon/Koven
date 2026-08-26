@@ -1,7 +1,7 @@
 use crate::{
     ast::ItemId,
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{Namespace, SymbolKind},
+    name_resolution::{Namespace, SymbolId, SymbolKind},
     parser::ParsedFile,
     source::{SourceId, Span},
 };
@@ -24,6 +24,31 @@ macro_rules! define_unit_id {
 define_unit_id!(PackageId, "package 在单次 compilation-unit 索引中的身份。");
 define_unit_id!(SourceUnitId, "源码单元在规范排序后的身份。");
 define_unit_id!(DeclarationId, "可作为跨文件引用目标的顶层声明身份。");
+
+/// compilation unit 中一个文件局部 symbol 的稳定身份。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnitSymbolId {
+    source_unit: SourceUnitId,
+    symbol: SymbolId,
+}
+impl UnitSymbolId {
+    pub(super) const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
+        Self {
+            source_unit,
+            symbol,
+        }
+    }
+    /// 返回 symbol 所属 source unit。
+    #[must_use]
+    pub const fn source_unit(self) -> SourceUnitId {
+        self.source_unit
+    }
+    /// 返回所属文件内的 symbol identity。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.symbol
+    }
+}
 
 /// 调用方提供的稳定、不透明 source-root 身份。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

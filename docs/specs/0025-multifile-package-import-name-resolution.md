@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-025` |
 | 所属 Phase | Phase 2（名称解析） |
 | 语言规范 | 现行 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032) |
@@ -39,14 +39,14 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 ## 5. 验收标准
 
-- [ ] 正例覆盖同 package、多 root、public/internal exact、alias、wildcard、限定路径与 overload set。
-- [ ] 反例精确覆盖 L0146–L0151 的错误码、主/关联 Span 和确定性顺序。
-- [ ] enum case、object/companion member exact import 使用 L0148；导入顶层 Type 后的 qualified
+- [x] 正例覆盖同 package、多 root、public/internal exact、alias、wildcard、限定路径与 overload set。
+- [x] 反例精确覆盖 L0146–L0151 的错误码、主/关联 Span 和确定性顺序。
+- [x] enum case、object/companion member exact import 使用 L0148；导入顶层 Type 后的 qualified
   使用与绝对 qualified 使用成功；最长 package 前缀下同形的真实顶层 import 仍成功。
-- [ ] 同一文件集合以不同输入顺序运行，package/declaration/reference identity 与诊断完全一致。
-- [ ] 单文件现有名称 suite 经 compatibility wrapper 无行为回归。
-- [ ] recovery product 可供诊断消费，但含 error 时无法取得供类型阶段使用的 validated view。
-- [ ] frontend 窄测试、workspace 基线与 Architecture 同步。
+- [x] 同一文件集合以不同输入顺序运行，package/declaration/reference identity 与诊断完全一致。
+- [x] 单文件现有名称 suite 经 compatibility wrapper 无行为回归。
+- [x] recovery product 可供诊断消费，但含 error 时无法取得供类型阶段使用的 validated view。
+- [x] frontend 窄测试、workspace 基线与 Architecture 同步。
 
 ## 6. 技术方案与边界
 
@@ -56,8 +56,11 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
   `ParsedFile`/`SourceId` 与稳定 source key，内部校验并排序，返回 recovery
   `CompilationUnitIndex`；其 validated marker 只证明 Parser、package/path 与跨文件声明冲突
   无 error，类型上不得冒充最终名称产物。
-- import/visibility 阶段的 `resolve_compilation_unit_names(index, environment)` 才解析 import 与 body 名称；
-  保留现有 `resolve_names`、`NameEnvironment`、`NameResolution` 的精确单文件语义。
+- import/visibility 阶段的
+  `resolve_compilation_unit_names(source_map, inputs, index, environment)` 才解析 import 与 body 名称；
+  显式重借用 `ParsedFile` 输入，并核对它们与既有 index 的规范 source key/source identity 一致，
+  不让 Stage 1 index 持有 AST lifetime 或复制 parser 产物。保留现有 `resolve_names`、
+  `NameEnvironment`、`NameResolution` 的精确单文件语义。
 - `CompilationUnitNames` 共同拥有 package/declaration/source tables、每文件 local resolution、
   `UnitSymbolId`/`DeclarationId` 与并行的 `UnitReferenceTarget`；不把 package binding 塞进
   compiler-bound `NameEnvironment`，也不修改现有 `ReferenceTarget` 的 exhaustive 枚举。
@@ -70,8 +73,8 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
    duplicate key、错误产物消费测试。
 2. [x] 收窄旧 resolver 的 `_` discard 行为：只有 `for` binding 跳过 `_`，其他 Identifier
    位置建立普通 symbol → 验证：顶层、参数、local、lambda 与 `for` 对照回归。
-3. [ ] 接 import/visibility/qualified lookup 和 L0146–L0151 → 验证：正反 fixture。
-4. [ ] 保留单文件 wrapper、同步 Architecture → 验证：`multifile_name_resolution`、既有
+3. [x] 接 import/visibility/qualified lookup 和 L0146–L0151 → 验证：正反 fixture。
+4. [x] 保留单文件 wrapper、同步 Architecture → 验证：`multifile_name_resolution`、既有
    `name_resolution`、frontend 与 workspace 基线。
 
 ## 8. 提交计划
@@ -97,8 +100,9 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 | `cargo test -p lang-frontend --test diagnostic_model production_catalog_contains_exactly_the_published_frontend_codes` | 通过 | L0146–L0151 连续生产目录 |
 | `cargo test -p lang-frontend --test compilation_unit_index` | 通过 | 11 个 Stage 1 identity/package/declaration/L0146/L0147/recovery/确定性用例 |
 | `cargo test -p lang-frontend --test name_resolution` | 通过 | 14 个单文件用例；新增 `_` 仅在 `for` binding 为 discard 的回归 |
-| `cargo test -p lang-frontend` | 通过 | frontend 全量测试与 doc tests |
-| `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | Stage 1 公开 API 与全部 frontend target |
-| `cargo test --workspace` | 通过 | workspace 基线；156 个 codegen 测试通过、1 个既有权限相关测试 ignored，其余 target 全通过 |
-| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | workspace 全 target 无 warning |
+| `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 个 same-package/import/visibility/qualified/static-member/external-priority/recovery/顺序确定性用例 |
+| `cargo test -p lang-frontend --all-targets --locked --offline` | 通过 | frontend 全 target 与 doc tests |
+| `cargo test --workspace --all-targets --locked --offline` | 通过 | workspace 基线；156 个 codegen 测试通过、1 个既有 LLDB 权限测试 ignored，其余 target 全通过 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | workspace 全 target 无 warning |
+| `cargo build -p lang-cli --locked --offline` | 通过 | CLI 开发构建完成 |
 | `cargo fmt --all -- --check`、`git diff --check` | 通过 | 格式与空白检查 |

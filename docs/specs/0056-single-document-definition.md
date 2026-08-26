@@ -28,8 +28,8 @@ Identifier 保存 `ReferenceTarget`，每个源码 `Symbol` 已保存声明名�
 保存唯一源码 target。SPEC-0055 已提供 open/change/close buffer 状态和完整 frontend 流水线，
 因此同文档闭合切片不需要 import 展开、磁盘读取或 package visibility。
 
-本 Spec 只把上述事实建立为 LSP 查询索引；跨文件目标仍必须等待 SPEC-0025，不能把 URI、
-文件名或限定名称拼写当作 package identity。
+本 Spec 只把上述事实建立为 LSP 查询索引；跨文件目标仍必须等待 SPEC-0187 及其
+SPEC-0197/0198 前置，不能把 URI、文件名或限定名称拼写当作 package identity。
 
 ## 3. 范围与需求
 

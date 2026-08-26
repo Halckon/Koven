@@ -62,7 +62,7 @@ owner、最小连接/相等/动态输出与参数化 main 的 runtime 前置边�
 package/import、跨文件可见性与 compilation-unit 分阶段边界。
 
 `guide/01-design-decisions.md` §32 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020
-依据有效站立授权完成接受，SPEC-0025 成为多文件实现链的首个可推进节点。
+依据有效站立授权完成接受，SPEC-0025 已完成多文件名称解析，下一实现节点为 SPEC-0197。
 
 `guide/01-design-decisions.md` §31 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018、
 ADR-0019 同时获明确接受，SPEC-0192 已完成实施。

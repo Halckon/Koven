@@ -5,9 +5,9 @@
 > v0.32；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
-> SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 Stage 1 的 guide/ADR 门禁已解除并完成，
-> 2026-08-27 已用现行 v0.32 纯勘误拆开 exact import 与普通静态限定名，Stage 2 的 guide 门禁
-> 已解除。
+> SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 已完成 compilation-unit index、
+> package/import 名称解析与 L0146–L0151，下一节点为 SPEC-0197。2026-08-27 的现行 v0.32
+> 纯勘误已拆开 exact import 与普通静态限定名。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
 > `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
@@ -278,10 +278,10 @@ Spec 之前，本条限制不变。）
 `list.get(0)` 必须被拒绝。直接
 递归或经多个 `value class` 形成的无限内联布局必须报错，经 `Box` 或动态容器打断的递归布局
 必须合法。本 Phase 不以 Map 正反例作为验收，也不将任何 Map 所有权策略固化到 typed AST。
-- [ ] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（in-progress）**：
-      Stage 1 已建立 compilation-unit package/declaration index、L0146/L0147 与独立
-      validated-index 门禁，并已把旧 resolver 的 `_` discard 收窄到 `for` binding；后续接入
-      import、visibility、L0148–L0151 和完整名称 validated view。
+- [x] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（done）**：
+      已建立 compilation-unit package/declaration index、same-package 与 exact/alias/wildcard
+      import、visibility、qualified/static member lookup、L0146–L0151 和独立 recovery/validated
+      名称产物；旧 resolver 的 `_` discard 已收窄到 `for` binding。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
       跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
@@ -296,8 +296,7 @@ Spec 之前，本条限制不变。）
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025 Stage 1 已完成，Stage 2 import/visibility 的 guide 门禁已由 2026-08-27 的
-现行 v0.32 纯勘误解除。后继节点仍由前置 Spec 与各自 ADR 状态阻塞。
+其中 SPEC-0025 已完成，下一节点 SPEC-0197 及其后继仍由前置 Spec 与各自 ADR 状态阻塞。
 
 ## Phase 3：所有权 / 借用检查
 

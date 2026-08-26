@@ -189,12 +189,12 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 - `lang_frontend::name_resolution` 已提供显式 `NameEnvironment`、单文件类型 / 值双命名
   空间、稳定 `ScopeId` / `SymbolId`、有序 overload set、顺序 local 可见性、名称引用产物与
   L0079–L0081；enum case 的值构造器与 type-test 身份共享稳定 `EnumCaseId`，限定 case 尾段
-  与 payload 候选也保留在解析产物中。SPEC-0025 Stage 1 另提供纯内存
-  `index_compilation_unit`：校验稳定 root/logical-path 输入，建立规范排序的 package/source/
-  declaration identity，聚合 Parser 与 L0146/L0147 诊断，并以独立 validated-index marker
-  阻止错误索引进入后续名称步骤；旧单文件 resolver 已将 `_` discard 收窄到 `for` binding，
-  顶层、参数、local 与 lambda 等普通 Identifier 位置都会建立 symbol；import/body 解析尚未
-  接入，也不执行类型或控制流判断；
+  与 payload 候选也保留在解析产物中。SPEC-0025 另提供纯内存 compilation-unit 两阶段 API：
+  `index_compilation_unit` 校验稳定 root/logical-path 输入并建立规范排序的 package/source/
+  declaration identity；`resolve_compilation_unit_names` 在核对 inputs/index 后解析 same-package、
+  exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
+  产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
+  `for` binding；跨文件类型与控制流判断仍等待 SPEC-0197；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -619,11 +619,13 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - L0079 的 primary 指向后声明并 label 首个冲突，L0080 指向未解析 Identifier，L0081 指向
   声明前引用并 label 稍后 local；最终诊断复用全 frontend 的确定性排序。
 
-## Compilation-unit package/declaration 索引
+## Compilation-unit package/import 名称解析
 
-SPEC-0025 Stage 1 新增
-`lang_frontend::name_resolution::index_compilation_unit(&SourceMap, &[SourceUnitInput])`，在不读取
-文件系统、不修改旧 `resolve_names` / `ReferenceTarget` 的前提下建立多文件 recovery index：
+SPEC-0025 新增纯内存的
+`lang_frontend::name_resolution::index_compilation_unit(&SourceMap, &[SourceUnitInput])` 与
+`resolve_compilation_unit_names(&SourceMap, &[SourceUnitInput], &CompilationUnitIndex,
+&NameEnvironment)`，在不读取文件系统、不修改旧 `resolve_names` / `ReferenceTarget` 语义的
+前提下完成多文件名称解析：
 
 - 输入显式携带不透明 root identity、root-relative UTF-8 logical path、同一 `SourceMap` 的
   `SourceId` 与 `ParsedFile`；foreign/mismatched/duplicate source、重复稳定 key，以及空、绝对、
@@ -639,8 +641,19 @@ SPEC-0025 Stage 1 新增
   文件起始空 Span，已有 L0048 的 malformed package recovery 不叠加 L0146。Parser 与 unit
   诊断共同按 stable source key、byte range、code 和完整 detail 排序；
 - `CompilationUnitIndex` 始终可供诊断/工具读取；只有 Parser、L0146/L0147 均无 error 时才能
-  取得 `ValidatedCompilationUnitIndex`。该 marker 只证明 Stage 1 index，不代表 import、body
-  name resolution 或 SPEC-0197 typed input 已完成。
+  取得 `ValidatedCompilationUnitIndex`；名称阶段会重建并核对 inputs/index，拒绝错配输入；
+- `UnitSymbolId` 由 `SourceUnitId + SymbolId` 组成；`CompilationUnitNames` 为每个 source 保存旧
+  单文件 resolution 与并行的 `UnitReferenceTarget`/`UnitNameReference`，使 package、声明、
+  overload、source symbol 和 external target 都能保持稳定 identity；
+- same-package binding、exact/alias import 与按需 wildcard lookup 遵循类型/值双命名空间；源码
+  绑定优先于 compiler external，lexical/local root 优先于 absolute package path，多个 wildcard
+  候选只在实际 bare-name 使用处发 L0151；
+- 限定路径支持绝对 package 路径、导入或同 package 的 `Type.member`、enum case，以及 public
+  object/companion 静态成员；private 顶层或静态成员不可跨文件使用，exact import 仍只接受
+  顶层终端；
+- recovery `CompilationUnitNames` 始终携带确定性 reference/diagnostic；只有无 error 时才能取得
+  `ValidatedCompilationUnitNames`。该 marker 只证明名称解析成功，不代表 SPEC-0197 typed
+  compilation unit 已完成。
 
 ## 结构化诊断与 renderer
 
@@ -650,8 +663,8 @@ SPEC-0025 Stage 1 新增
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
   `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0151`，覆盖
-  Lexer、Parser、名称、类型和所有权错误；L0146/L0147 已由 compilation-unit Stage 1 发出，
-  L0148–L0151 等待 SPEC-0025 后续 import resolver；`L0016` 为不再由生产 Parser 发出的历史类别，
+  Lexer、Parser、名称、类型和所有权错误；L0146–L0151 已由 SPEC-0025 compilation-unit
+  index/name resolver 发出；`L0016` 为不再由生产 Parser 发出的历史类别，
   `L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
