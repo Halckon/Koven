@@ -104,7 +104,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | 2026-08-26 roadmap 审计 | 通过 | 补齐 0025 与 ownership/codegen 之间缺失的 Phase 2 层 |
 | 2026-08-27 实施前审计 | 通过 | SPEC-0025 done、ADR-0020 accepted；收紧 unit identity、all-error validated gate、private/const/诊断与 mixed-input 验收 |
 | 2026-08-27 L0097 guide 审计 | 通过 | §23.3 已明确顶层 overload 同样拒绝重复 shape；诊断表“成员作用域”遗漏已作不改变语义的纯勘误 |
-| `cargo test -p lang-frontend --test multifile_type_signatures --locked --offline` | 通过 | 5 tests；递归签名、输入置换、local ID 防碰撞、alpha/mode L0097、arity 与 mixed analysis boundary |
+| `cargo test -p lang-frontend --test multifile_type_signatures --locked --offline` | 通过 | 7 tests；递归签名、输入置换、local ID 防碰撞、alpha/mode L0097、arity、mixed analysis boundary、interface closure/bound/cycle |
 | `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 tests；declaration→unit symbol 名称事实与旧多文件名称语义无回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | signature API、测试与既有 frontend targets 无 warning |
 | `cargo test --workspace --locked --offline` | 通过 | workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |

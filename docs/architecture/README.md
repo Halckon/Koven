@@ -670,6 +670,9 @@ SPEC-0197 第一阶段新增纯内存的
 - collector 先预声明全部 nominal 与类型参数，再按 canonical declaration order 收集 callable、
   主构造器 field、enum case/payload、直接 interface 与 companion/member callable signatures，
   支持同 package 跨文件递归签名且不依赖调用方输入顺序；
+- 类型参数上界规范化为 `Any`、interface instance、compiler capability 或 Error；直接 supertype
+  拒绝非 interface 与重复 root，interface cycle 按稳定边删除并发布 L0096，合法 DAG 再完成带
+  泛型替换的传递 closure。interface type-argument bound 在签名使用处复用 L0093；
 - 顶层 package overload 与 member overload 共用 alpha-equivalent 参数 shape 判定，重复 shape
   发 L0097；类型实参数量错误沿用 L0082/L0091。诊断只包含本类型签名阶段并继续使用 unit 稳定排序；
 - recovery `CompilationUnitSignatures` 可带签名诊断，只有无 error 时才能取得

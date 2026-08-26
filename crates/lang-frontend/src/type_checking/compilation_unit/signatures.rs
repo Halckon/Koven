@@ -23,9 +23,11 @@ use super::{
     CompilationUnitSignatures, CompilationUnitTypeError, UnitCallableParameter,
     UnitCallableSignature, UnitCallableTarget, UnitDeclarationSignature, UnitEnumCaseSignature,
     UnitFieldSignature, UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
-    UnitTypeTable,
+    UnitTypeParameterBound, UnitTypeParameterDescriptor, UnitTypeTable,
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
+
+mod graph;
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
 ///
@@ -79,6 +81,8 @@ struct SignatureCollector<'a> {
     nominal_types: BTreeMap<DeclarationId, UnitTypeId>,
     nominal_by_root: BTreeMap<(SourceUnitId, usize), DeclarationId>,
     nominals: BTreeMap<DeclarationId, UnitNominalSignature>,
+    type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+    interface_edge_spans: BTreeMap<(DeclarationId, DeclarationId), Span>,
     type_ref_types: BTreeMap<(SourceUnitId, usize), UnitTypeId>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -131,6 +135,8 @@ impl<'a> SignatureCollector<'a> {
             nominal_types: BTreeMap::new(),
             nominal_by_root: BTreeMap::new(),
             nominals: BTreeMap::new(),
+            type_parameters: BTreeMap::new(),
+            interface_edge_spans: BTreeMap::new(),
             type_ref_types: BTreeMap::new(),
             diagnostics: Vec::new(),
         })
@@ -140,7 +146,11 @@ impl<'a> SignatureCollector<'a> {
         self.predeclare_type_parameters();
         self.predeclare_nominals()?;
         self.collect_nominal_signatures()?;
+        self.collect_type_parameter_bounds()?;
+        self.check_interface_cycles()?;
+        self.compute_interface_closures()?;
         let declarations = self.collect_declarations()?;
+        self.validate_type_argument_bounds()?;
         self.check_duplicate_top_level_shapes(&declarations)?;
         let diagnostics = ordered_unit_diagnostics(
             self.sources,
@@ -154,6 +164,7 @@ impl<'a> SignatureCollector<'a> {
             self.types,
             declarations,
             self.symbol_types,
+            self.type_parameters,
             diagnostics,
         ))
     }
@@ -167,6 +178,8 @@ impl<'a> SignatureCollector<'a> {
                 let unit_symbol = UnitSymbolId::new(source.source_unit(), symbol.id());
                 let ty = self.types.intern(UnitTypeKind::TypeParameter(unit_symbol));
                 self.symbol_types.insert(unit_symbol, ty);
+                self.type_parameters
+                    .insert(unit_symbol, UnitTypeParameterDescriptor::new(unit_symbol));
             }
         }
     }
@@ -232,11 +245,7 @@ impl<'a> SignatureCollector<'a> {
             let Item::Classifier(classifier) = item else {
                 return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
             };
-            let interfaces = classifier
-                .supertypes
-                .iter()
-                .map(|entry| self.resolve_type_ref(source, entry.type_ref))
-                .collect::<Result<Vec<_>, _>>()?;
+            let interfaces = self.collect_direct_interfaces(source, classifier, id)?;
             let mut fields = Vec::new();
             if let Some(constructor) = &classifier.primary_constructor {
                 for field in &constructor.fields {
@@ -827,6 +836,13 @@ impl<'a> SignatureCollector<'a> {
 
     fn is_error(&self, ty: UnitTypeId) -> bool {
         matches!(self.types.get(ty), Some(UnitTypeKind::Error))
+    }
+
+    fn nominal_declaration(&self, ty: UnitTypeId) -> Option<DeclarationId> {
+        match self.types.get(ty) {
+            Some(UnitTypeKind::Nominal { declaration, .. }) => Some(*declaration),
+            _ => None,
+        }
     }
 
     fn argument_primary(&self, source: SourceUnitId, segment: &TypePathSegment) -> Span {

@@ -234,6 +234,51 @@ pub struct UnitCallableSignature {
     callable_type: UnitTypeId,
 }
 
+/// compilation-unit 类型参数的规范化上界。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitTypeParameterBound {
+    /// 缺省或显式 `Any` 上界。
+    Any,
+    /// 静态 interface instance 上界。
+    Interface(UnitTypeId),
+    /// 编译器封闭能力上界。
+    Capability(Capability),
+    /// 无效上界的恢复状态。
+    Error,
+}
+
+/// 一个 source-local 类型参数在 unit 类型空间中的描述。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitTypeParameterDescriptor {
+    symbol: UnitSymbolId,
+    bound: UnitTypeParameterBound,
+}
+
+impl UnitTypeParameterDescriptor {
+    pub(crate) const fn new(symbol: UnitSymbolId) -> Self {
+        Self {
+            symbol,
+            bound: UnitTypeParameterBound::Any,
+        }
+    }
+
+    /// 返回带 source-unit 限定的参数 identity。
+    #[must_use]
+    pub const fn symbol(self) -> UnitSymbolId {
+        self.symbol
+    }
+
+    /// 返回规范化静态上界。
+    #[must_use]
+    pub const fn bound(self) -> UnitTypeParameterBound {
+        self.bound
+    }
+
+    pub(crate) fn set_bound(&mut self, bound: UnitTypeParameterBound) {
+        self.bound = bound;
+    }
+}
+
 impl UnitCallableSignature {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -429,6 +474,7 @@ pub struct UnitNominalSignature {
     ty: UnitTypeId,
     type_parameters: Vec<UnitSymbolId>,
     direct_interfaces: Vec<UnitTypeId>,
+    interfaces: Vec<UnitTypeId>,
     fields: Vec<UnitFieldSignature>,
     enum_cases: Vec<UnitEnumCaseSignature>,
     members: Vec<UnitCallableSignature>,
@@ -449,6 +495,7 @@ impl UnitNominalSignature {
             ty,
             type_parameters,
             direct_interfaces: Vec::new(),
+            interfaces: Vec::new(),
             fields: Vec::new(),
             enum_cases: Vec::new(),
             members: Vec::new(),
@@ -491,6 +538,12 @@ impl UnitNominalSignature {
         &self.direct_interfaces
     }
 
+    /// 返回完成替换和去重后的传递 interface closure。
+    #[must_use]
+    pub fn interfaces(&self) -> &[UnitTypeId] {
+        &self.interfaces
+    }
+
     /// 返回主构造器 fields。
     #[must_use]
     pub fn fields(&self) -> &[UnitFieldSignature] {
@@ -511,6 +564,10 @@ impl UnitNominalSignature {
 
     pub(crate) fn set_direct_interfaces(&mut self, interfaces: Vec<UnitTypeId>) {
         self.direct_interfaces = interfaces;
+    }
+
+    pub(crate) fn set_interfaces(&mut self, interfaces: Vec<UnitTypeId>) {
+        self.interfaces = interfaces;
     }
 
     pub(crate) fn set_fields(&mut self, fields: Vec<UnitFieldSignature>) {
@@ -599,6 +656,7 @@ pub struct CompilationUnitSignatures {
     types: UnitTypeTable,
     declarations: Vec<UnitDeclarationSignature>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -607,12 +665,14 @@ impl CompilationUnitSignatures {
         types: UnitTypeTable,
         declarations: Vec<UnitDeclarationSignature>,
         symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+        type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
             types,
             declarations,
             symbol_types,
+            type_parameters,
             diagnostics,
         }
     }
@@ -639,6 +699,18 @@ impl CompilationUnitSignatures {
     #[must_use]
     pub fn symbol_type(&self, symbol: UnitSymbolId) -> Option<UnitTypeId> {
         self.symbol_types.get(&symbol).copied()
+    }
+
+    /// 返回 source-qualified 类型参数描述表。
+    #[must_use]
+    pub const fn type_parameters(&self) -> &BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor> {
+        &self.type_parameters
+    }
+
+    /// 查询一个类型参数的规范化描述。
+    #[must_use]
+    pub fn type_parameter(&self, symbol: UnitSymbolId) -> Option<UnitTypeParameterDescriptor> {
+        self.type_parameters.get(&symbol).copied()
     }
 
     /// 返回仅属于类型签名阶段的稳定诊断。

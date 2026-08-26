@@ -10,7 +10,7 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        CompilationUnitSignatures, CompilationUnitTypeError, UnitTypeKind,
+        CompilationUnitSignatures, CompilationUnitTypeError, UnitTypeKind, UnitTypeParameterBound,
         collect_compilation_unit_signatures, standard_environments,
     },
 };
@@ -194,6 +194,106 @@ fn top_level_parameter_modes_do_not_distinguish_overload_shapes() {
             .expect("signature collection succeeds");
 
     assert_eq!(codes(signatures.diagnostics()), ["L0097"]);
+}
+
+#[test]
+fn cross_file_interface_closure_substitutes_arguments_and_checks_bounds() {
+    let mut sources = SourceMap::new();
+    let (base_id, base) = parsed(
+        &mut sources,
+        "base.ko",
+        "package p\ninterface Base<T>\nclass Holder<T: Base<Int>>",
+    );
+    let (mid_id, mid) = parsed(
+        &mut sources,
+        "mid.ko",
+        "package p\ninterface Mid<U> : Base<U>",
+    );
+    let (models_id, models) = parsed(
+        &mut sources,
+        "models.ko",
+        "package p\nclass Good : Mid<Int>\nclass Wrong : Mid<Long>\nfun inspect(good: Holder<Good>, bad: Holder<Wrong>): Unit",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/base.ko", base_id, &base),
+        SourceUnitInput::new("root", "p/mid.ko", mid_id, &mid),
+        SourceUnitInput::new("root", "p/models.ko", models_id, &models),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let validated = names(&sources, &inputs, &name_environment)
+        .validate()
+        .expect("valid names");
+    let signatures =
+        collect_compilation_unit_signatures(&sources, &inputs, &validated, &type_environment)
+            .expect("signature collection succeeds");
+
+    assert_eq!(codes(signatures.diagnostics()), ["L0093"]);
+    let good = signatures
+        .declarations()
+        .iter()
+        .filter_map(|declaration| declaration.nominal())
+        .find(|nominal| {
+            sources
+                .slice(
+                    validated.names().index().declarations()[nominal.declaration().index()]
+                        .name_span(),
+                )
+                .ok()
+                == Some("Good")
+        })
+        .expect("Good nominal");
+    assert_eq!(good.direct_interfaces().len(), 1);
+    assert_eq!(good.interfaces().len(), 2);
+    let holder = signatures
+        .declarations()
+        .iter()
+        .filter_map(|declaration| declaration.nominal())
+        .find(|nominal| {
+            sources
+                .slice(
+                    validated.names().index().declarations()[nominal.declaration().index()]
+                        .name_span(),
+                )
+                .ok()
+                == Some("Holder")
+        })
+        .expect("Holder nominal");
+    assert!(matches!(
+        signatures
+            .type_parameter(holder.type_parameters()[0])
+            .expect("type parameter")
+            .bound(),
+        UnitTypeParameterBound::Interface(_)
+    ));
+}
+
+#[test]
+fn cross_file_invalid_bounds_supertypes_and_cycles_keep_existing_codes() {
+    let mut sources = SourceMap::new();
+    let (left_id, left) = parsed(
+        &mut sources,
+        "left.ko",
+        "package p\nclass Concrete\ninterface Left : Right",
+    );
+    let (right_id, right) = parsed(
+        &mut sources,
+        "right.ko",
+        "package p\ninterface Right : Left\nclass Invalid : Concrete\nfun <T: Concrete> bad(input: T): Unit",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/left.ko", left_id, &left),
+        SourceUnitInput::new("root", "p/right.ko", right_id, &right),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let validated = names(&sources, &inputs, &name_environment)
+        .validate()
+        .expect("valid names");
+    let signatures =
+        collect_compilation_unit_signatures(&sources, &inputs, &validated, &type_environment)
+            .expect("signature collection succeeds");
+
+    assert_eq!(codes(signatures.diagnostics()), ["L0096", "L0095", "L0092"]);
+    assert!(signatures.validate().is_err());
 }
 
 #[test]
