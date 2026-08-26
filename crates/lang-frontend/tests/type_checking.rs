@@ -861,6 +861,18 @@ fn callable_flow_reports_shape_missing_return_and_branch_join() {
 }
 
 #[test]
+fn unbraced_if_branches_receive_the_outer_expected_type() {
+    let (sources, _, _, typed) =
+        checked("fun contextual(flag: Boolean): Byte = if (flag) 127 else 128");
+
+    assert_eq!(codes(typed.diagnostics()), ["L0090"]);
+    assert_eq!(
+        sources.slice(typed.diagnostics()[0].primary_span()),
+        Ok("128")
+    );
+}
+
+#[test]
 fn jump_targets_stop_at_callable_boundaries() {
     let (_, _, _, valid) = checked(
         "fun valid(flag: Boolean): Unit {\n\

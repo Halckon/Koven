@@ -348,6 +348,13 @@ impl Checker<'_> {
             Statement::LambdaBody { elements } | Statement::ControlBody { elements } => {
                 self.check_value_elements(&elements, expected, expected_span)
             }
+            Statement::Expression { expression } => {
+                let result = self.check_expression(expression, expected, expected_span)?;
+                Ok(StatementCheck {
+                    ty: result.ty,
+                    falls_through: result.falls_through,
+                })
+            }
             _ => self.check_statement(id),
         }
     }

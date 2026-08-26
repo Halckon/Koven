@@ -195,7 +195,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，以及首批
-  顶层 callable/call、局部变量与基础运算 body facts，控制流等剩余 body 判断仍在实施；
+  顶层 callable/call、局部变量、基础运算与基础 `if` body facts，其余控制流等 body 判断仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -707,7 +707,13 @@ SPEC-0197 第一阶段新增纯内存的
   body-local `UnitTypeRefId` / `UnitSymbolId` facts，并支持 `!`/一元正负、数值/字符串加法、
   数值四则、比较、相等与逻辑运算；有符号最小值按单一负字面量定型，L0084/L0085/L0090
   保持既有诊断语义，局部 place 可直接进入跨文件 call argument descriptor；
-- top-level variable/const initializer、member body、local destructuring、assignment、control-flow、
+- 第三个 body 切片已支持 `if` 条件的 Boolean expected type、control body 尾值、外层 expected type
+  下传、同型/`Nothing`/`Error` branch join、缺 `else` statement 的固定 `Unit`、两分支退出的
+  falls-through 合并，以及 L0089；嵌套 `return` 始终引用 callable 返回标注，不会误用局部或分支
+  expected span；同期修正单文件 checker，使无花括号 control 分支也遵守 §22.3 的 expected-type
+  下传，分支内跨文件 call 与局部事实沿用同一 unit identity；
+- top-level variable/const initializer、member body、local destructuring、assignment、type-test/smart-cast、
+  `when`、loop/jump、
   lambda、generic local type、generic/external/function-value call、constructor/container/nullable 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

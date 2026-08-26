@@ -22,6 +22,7 @@ use crate::{
     },
 };
 
+mod control;
 mod literals;
 mod operators;
 mod type_refs;
@@ -62,6 +63,7 @@ pub(super) struct BodyChecker<'a> {
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
+    current_return_span: Option<Span>,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -128,6 +130,7 @@ impl<'a> BodyChecker<'a> {
             symbols_by_span,
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
+            current_return_span: None,
         })
     }
 
@@ -197,6 +200,7 @@ impl<'a> BodyChecker<'a> {
             ),
             FunctionForm::ImplicitUnitAbsent | FunctionForm::ImplicitUnitBlock(_) => None,
         };
+        self.current_return_span = expected_span;
         match form {
             FunctionForm::ImplicitUnitAbsent => Ok(()),
             FunctionForm::ImplicitUnitBlock(body) => {
@@ -359,7 +363,7 @@ impl<'a> BodyChecker<'a> {
                         source,
                         value,
                         Some(return_type),
-                        expected_span,
+                        self.current_return_span,
                         return_type,
                     )?;
                 } else if !self.is_builtin(return_type, BuiltinType::Unit) {
@@ -367,7 +371,7 @@ impl<'a> BodyChecker<'a> {
                         codes::RETURN_SHAPE_MISMATCH,
                         "return value does not match the callable return contract",
                         span,
-                        expected_span,
+                        self.current_return_span,
                         "function return type declared here",
                     )?;
                 }
@@ -395,6 +399,22 @@ impl<'a> BodyChecker<'a> {
                 operator_span,
                 right,
             } => self.check_binary(source, left, operator, operator_span, right, return_type)?,
+            Expression::If {
+                condition,
+                then_branch,
+                else_span,
+                else_branch,
+                ..
+            } => self.check_if(
+                source,
+                condition,
+                then_branch,
+                else_span,
+                else_branch,
+                expected,
+                expected_span,
+                return_type,
+            )?,
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
         if let Some(expected) = expected

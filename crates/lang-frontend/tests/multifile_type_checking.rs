@@ -2,13 +2,14 @@
 
 use lang_frontend::{
     ast::ExpressionId,
+    diagnostic::DiagnosticDetail,
     lexer::lex,
     name_resolution::{
         DeclarationId, NameEnvironment, Namespace, SourceUnitId, SourceUnitInput,
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
         resolve_compilation_unit_names,
     },
-    parser::{ParsedFile, parse_file},
+    parser::{Expression, ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
         BuiltinType, ExpressionCategory, ParameterMode, TypeEnvironment, UnitCallTarget,
@@ -98,6 +99,14 @@ fn symbol_for_expression(
             .flatten()
         })
         .expect("expression resolves to a source-local symbol")
+}
+
+fn if_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
+    file.ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| matches!(node.payload(), Expression::If { .. }).then_some(id))
+        .collect()
 }
 
 #[test]
@@ -556,5 +565,169 @@ fn local_annotation_error_recovers_declared_type_and_checks_an_independent_local
     let int = typed.types().builtin(BuiltinType::Int).expect("Int seed");
     assert_eq!(typed.symbol_type(text_symbol), Some(string));
     assert_eq!(typed.symbol_type(number_symbol), Some(int));
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn if_control_facts_feed_cross_file_calls_and_survive_input_permutation() {
+    let mut sources = SourceMap::new();
+    let (library_source, library) =
+        parsed(&mut sources, "library.ko", "package p\nfun one(): Int = 1");
+    let (caller_source, caller) = parsed(
+        &mut sources,
+        "caller.ko",
+        "package p\n\
+         fun choose(flag: Boolean): Int = if (flag) {\n\
+         one() + 1\n\
+         } else {\n\
+         return one()\n\
+         }\n\
+         fun observe(flag: Boolean): Unit {\n\
+         if (flag) one()\n\
+         }\n\
+         fun complete(flag: Boolean): Int {\n\
+         if (flag) { return one() } else { return one() }\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/library.ko", library_source, &library),
+        SourceUnitInput::new("root", "p/caller.ko", caller_source, &caller),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward if unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse if unit succeeds");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(forward.calls(), reverse.calls());
+    let caller_unit = source_unit(&forward_names, caller_source);
+    let ifs = if_expressions(&caller);
+    assert_eq!(ifs.len(), 3);
+    let int = forward.types().builtin(BuiltinType::Int).expect("Int seed");
+    let unit = forward
+        .types()
+        .builtin(BuiltinType::Unit)
+        .expect("Unit seed");
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(caller_unit, ifs[0])),
+        Some(int)
+    );
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(caller_unit, ifs[1])),
+        Some(unit)
+    );
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(caller_unit, ifs[2])),
+        forward.types().builtin(BuiltinType::Nothing)
+    );
+    assert_eq!(forward.calls().len(), 5);
+    assert!(forward.calls().iter().all(|call| {
+        call.target() == UnitCallTarget::Declaration(declaration(&forward_names, "one"))
+    }));
+}
+
+#[test]
+fn if_expected_condition_and_join_errors_recover_without_cascades() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "if-errors.ko",
+        "package p\n\
+         fun contextual(flag: Boolean): Byte = if (flag) 127 else 128\n\
+         fun mixed(flag: Boolean): Unit { val mixedResult = if (flag) { 1 } else { false } }\n\
+         fun invalidCondition(): Unit { if (1) {} }\n\
+         fun sound(flag: Boolean): Int = if (flag) { 1 } else { 2 }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/if-errors.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("if errors stay in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0090", "L0089", "L0084"]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic span belongs to the source"))
+            .collect::<Vec<_>>(),
+        ["128", "else", "1"]
+    );
+    let sound = UnitExpressionId::new(
+        source_unit(&names, source),
+        expression_with_text(&sources, &file, "if (flag) { 1 } else { 2 }"),
+    );
+    assert_eq!(
+        typed
+            .expression_type(sound)
+            .and_then(|ty| typed.types().get(ty)),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn nested_if_return_uses_the_callable_return_annotation() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "nested-return.ko",
+        "package p\n\
+         fun nestedReturn(flag: Boolean): Int {\n\
+         val text: String = if (flag) { return false } else { \"ok\" }\n\
+         return 1\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/nested-return.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("nested return mismatch stays in the recovery product");
+
+    assert_eq!(typed.body_diagnostics().len(), 1);
+    let diagnostic = &typed.body_diagnostics()[0];
+    assert_eq!(diagnostic.code().to_string(), "L0084");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok("false"));
+    let label = diagnostic
+        .details()
+        .iter()
+        .find_map(|detail| match detail {
+            DiagnosticDetail::Label(label) => Some(label),
+            DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+        })
+        .expect("return mismatch labels the callable annotation");
+    assert_eq!(sources.slice(label.span()), Ok("Int"));
     assert!(typed.validate().is_err());
 }

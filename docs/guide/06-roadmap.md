@@ -284,8 +284,9 @@ Spec 之前，本条限制不变。）
       名称产物；旧 resolver 的 `_` discard 已收窄到 `for` binding。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（in-progress）**：在 SPEC-0025 后
       已建立防碰撞 unit type/signature identity、完整跨文件 signature graph、provenance 与
-      L0092–L0116/L0141 相关验证，并接通顶层 callable/call、局部变量、简单局部类型标注与
-      基础运算 body facts；下一阶段继续接入控制流、lambda、泛型/构造等完整 body 类型检查。
+      L0092–L0116/L0141 相关验证，并接通顶层 callable/call、局部变量、简单局部类型标注、
+      基础运算与 `if` control-body/join facts；下一阶段继续接入 smart cast/`when`/loop、lambda、
+      泛型/构造等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
