@@ -1,12 +1,14 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
+mod container;
 mod control;
 mod drops;
 mod instances;
 mod loop_control;
 mod nominal;
 pub(super) mod orchestrate;
+mod source_closure;
 mod string_literal;
 
 use std::collections::BTreeMap;
@@ -96,6 +98,7 @@ struct ExpressionLowerer<'a> {
     source_text: &'a str,
     references: &'a BTreeMap<(usize, usize), SymbolId>,
     function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
+    source_closures: &'a BTreeMap<usize, source_closure::ClosurePlan>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
@@ -134,6 +137,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.typed.container_construction(expression).is_some() {
+            return self.lower_container_construction(expression);
+        }
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
         }
@@ -155,6 +161,8 @@ impl ExpressionLowerer<'_> {
         let span = node.span();
         match node.payload().clone() {
             Expression::Literal(literal) => self.lower_literal(literal, expression, span),
+            Expression::String { .. } => self.lower_string_literal(expression, span),
+            Expression::Lambda { .. } => self.lower_source_closure(expression, span),
             Expression::Name => self.lower_name(expression, span),
             Expression::Group { expression } => self.lower(expression),
             Expression::Prefix {
@@ -172,7 +180,9 @@ impl ExpressionLowerer<'_> {
                 value,
                 ..
             } => self.lower_assignment(target, operator, value, span),
-            Expression::Call { arguments, .. } => self.lower_call(expression, &arguments, span),
+            Expression::Call {
+                callee, arguments, ..
+            } => self.lower_call(expression, callee, &arguments, span),
             Expression::If {
                 condition,
                 then_branch,
@@ -517,7 +527,7 @@ impl ExpressionLowerer<'_> {
             })?;
         let span = node.span();
         match node.payload().clone() {
-            Statement::Block { elements } => {
+            Statement::Block { elements } | Statement::LambdaBody { elements } => {
                 for element in elements {
                     if matches!(self.lower_statement(element)?, LoweredValue::Diverged) {
                         return Ok(LoweredValue::Diverged);
@@ -618,6 +628,22 @@ impl ExpressionLowerer<'_> {
         let (_, results) = self.append(
             Operation::Constant(constant),
             vec![EntityType::Value(ty)],
+            span,
+        )?;
+        Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    fn lower_string_literal(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let bytes = string_literal::decode_plain(self.parsed, self.source_text, expression)?
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        let string = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(
+            Operation::StringLiteral { string, bytes },
+            vec![EntityType::Value(string)],
             span,
         )?;
         Ok(LoweredValue::Value(value(results[0])))
@@ -743,6 +769,9 @@ impl ExpressionLowerer<'_> {
         ) {
             return self.lower_short_circuit(left, operator, right, expression, span);
         }
+        if self.is_string_expression(left) && self.is_string_expression(right) {
+            return self.lower_string_binary(left, operator, right, expression, span);
+        }
         let left = self.require_value(left)?;
         let right = self.require_value(right)?;
         if let Some(operator) = checked_operator(operator) {
@@ -762,6 +791,76 @@ impl ExpressionLowerer<'_> {
             span,
         )?;
         Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    fn lower_string_binary(
+        &mut self,
+        left: ExpressionId,
+        operator: AstBinaryOperator,
+        right: ExpressionId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let left = self.lower_string_view(left)?;
+        let right = self.lower_string_view(right)?;
+        let ty = self.expression_ssa_type(expression, span)?;
+        let operation = match operator {
+            AstBinaryOperator::Add => Operation::StringConcat { left, right },
+            AstBinaryOperator::Equal | AstBinaryOperator::NotEqual => {
+                Operation::StringEqual { left, right }
+            }
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
+        self.emit_drops(DropPoint::AfterBinaryOperands(expression))?;
+        let result = value(results[0]);
+        if operator != AstBinaryOperator::NotEqual {
+            return Ok(LoweredValue::Value(result));
+        }
+        let (_, results) = self.append(
+            Operation::BooleanNot { operand: result },
+            vec![EntityType::Value(ty)],
+            span,
+        )?;
+        Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    fn lower_string_view(&mut self, expression: ExpressionId) -> Result<EntityId, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let span = node.span();
+        match node.payload().clone() {
+            Expression::Group { expression } => self.lower_string_view(expression),
+            Expression::Name => {
+                let symbol = self
+                    .references
+                    .get(&span_key(span))
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if let Some(LoweredValue::Value(value)) = self.bindings.get(symbol).copied() {
+                    return Ok(EntityId::Value(value));
+                }
+                self.borrow_bindings
+                    .get(symbol)
+                    .copied()
+                    .map(EntityId::Loan)
+                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))
+            }
+            _ => self.require_value(expression).map(EntityId::Value),
+        }
+    }
+
+    fn is_string_expression(&self, expression: ExpressionId) -> bool {
+        self.typed
+            .expression_type(expression)
+            .and_then(|ty| self.typed.types().get(ty))
+            == Some(&TypeKind::Builtin(BuiltinType::String))
     }
 
     fn lower_assignment(
@@ -843,6 +942,7 @@ impl ExpressionLowerer<'_> {
     fn lower_call(
         &mut self,
         expression: ExpressionId,
+        callee_expression: ExpressionId,
         arguments: &[lang_frontend::parser::CallArgument],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -864,22 +964,7 @@ impl ExpressionLowerer<'_> {
             let [argument] = arguments else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            if string_literal::decode_plain(self.parsed, self.source_text, argument.value)?
-                .is_none()
-            {
-                return Err(error(
-                    LoweringErrorKind::UnsupportedNode,
-                    self.parsed
-                        .ast()
-                        .expressions()
-                        .get(argument.value)
-                        .map_err(|_| LoweringError {
-                            kind: LoweringErrorKind::MissingFact,
-                            span: None,
-                        })?
-                        .span(),
-                ));
-            }
+            self.lower_borrow_argument(expression, argument.value, argument.span)?;
             self.function
                 .set_terminator(self.block, TerminatorKind::Abort, Origin::Source(span))
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
@@ -889,25 +974,39 @@ impl ExpressionLowerer<'_> {
             let [argument] = arguments else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            let Some(mut bytes) =
-                string_literal::decode_plain(self.parsed, self.source_text, argument.value)?
-            else {
-                let span = self
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(argument.value)
-                    .map_err(|_| LoweringError {
-                        kind: LoweringErrorKind::MissingFact,
-                        span: None,
-                    })?
-                    .span();
+            let (loan, ends_after_call) =
+                self.lower_borrow_argument(expression, argument.value, argument.span)?;
+            self.append(Operation::PrintString { value: loan }, Vec::new(), span)?;
+            if ends_after_call {
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+            }
+            self.emit_drops(DropPoint::CallReturn(expression))?;
+            return Ok(LoweredValue::Unit);
+        }
+        if descriptor.target() == CallableTarget::FunctionValue {
+            if !arguments.is_empty()
+                || !descriptor.arguments().is_empty()
+                || builtin_type(
+                    self.typed,
+                    self.resolve_type(descriptor.return_type(), span)?,
+                ) != Some(BuiltinType::Unit)
+            {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let callable = match self.lower_expression(callee_expression)? {
+                LoweredValue::Value(value) => value,
+                _ => return Err(error(LoweringErrorKind::MissingFact, span)),
             };
-            bytes.push(b'\n');
-            self.append(Operation::PrintLiteral { bytes }, Vec::new(), span)?;
-            // 该封闭 effect 把唯一允许的 String literal 直接物化为静态 bytes，不创建需要
-            // 执行 Phase 3 drop fact 的运行时 String temporary。
+            self.append(
+                Operation::CallableInvoke {
+                    callable,
+                    arguments: Vec::new(),
+                },
+                Vec::new(),
+                span,
+            )?;
+            self.emit_drops(DropPoint::AfterExpression(callee_expression))?;
+            self.emit_drops(DropPoint::CallReturn(expression))?;
             return Ok(LoweredValue::Unit);
         }
         let CallableTarget::Source(symbol) = descriptor.target() else {
@@ -967,7 +1066,8 @@ impl ExpressionLowerer<'_> {
             result_types,
             span,
         )?;
-        for fact in self.owned.loans_ending_at(expression) {
+        let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
+        for fact in &ending_loans {
             let loan = call_loans
                 .remove(&fact.argument().index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
@@ -977,6 +1077,12 @@ impl ExpressionLowerer<'_> {
         }
         if !call_loans.is_empty() {
             return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        // Borrow argument lowering may form a place directly (for example `Rc.value`) without
+        // recursively lowering the argument expression. Emit its expression-local ASAP drops
+        // only after every call loan has ended, so two arguments may safely view the same owner.
+        for fact in ending_loans {
+            self.emit_drops(DropPoint::AfterExpression(fact.argument()))?;
         }
         self.emit_drops(DropPoint::CallReturn(expression))?;
         match results.as_slice() {

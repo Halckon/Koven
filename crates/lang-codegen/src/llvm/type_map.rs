@@ -368,11 +368,11 @@ impl<'ctx> TypeMap<'ctx> {
     pub(super) fn callable_function_type(
         &self,
         signature: &CallableSignature,
-        environment: Option<StructType<'ctx>>,
+        has_environment: bool,
     ) -> Result<FunctionType<'ctx>, LlvmAdapterError> {
-        let mut parameters = environment
+        let mut parameters = has_environment
+            .then_some(BasicMetadataTypeEnum::from(self.pointer_type))
             .into_iter()
-            .map(BasicMetadataTypeEnum::from)
             .collect::<Vec<_>>();
         parameters.extend(
             signature

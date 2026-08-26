@@ -1368,8 +1368,14 @@ Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 `lang-std` 的单文件 bootstrap 已由 ADR-0012 / SPEC-0042 实现：CLI 内部 driver 编排显式
 source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。SPEC-0189 已增加标准 `println(String)` 的
-首个 literal-only stdout slice 与真实 Hello World entry，但一般 String runtime、其他 printable
-重载仍未实现。SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
+首个 literal-only stdout slice 与真实 Hello World entry；SPEC-0192 已将其迁移到一般
+`StringOwner` 主线：frontend 使用 builtin String identity 与 ownership/drop facts，typed SSA
+提供 literal/concat/equal/print/drop，LLVM 使用 `{ptr, length, capacity}`、静态/空串零 capacity
+和动态 owner 精确 free。普通 String 已能跨 Borrow/Value 参数与返回值，并作为 aggregate、
+Rc、Array/List/MutableList 元素及 owned move-closure capture 参与正常/提前退出析构；closure
+thunk 通过 shared environment pointer 读取 capture，closure owner 仍是唯一析构责任方。
+interpolation、`String?` native ABI、String member 与其他 printable 重载仍未实现。
+SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
 MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/0193 已公开单文件显式 entry
 和零参数 conventional main build/run，但不等于参数化 main、多文件标准库或项目构建模型。
 内部值/系统分配 ABI

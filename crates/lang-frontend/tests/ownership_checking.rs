@@ -571,6 +571,74 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
 }
 
 #[test]
+fn string_binary_views_drop_operands_only_after_the_operation() {
+    let text = "fun compare(own left: String, own right: String): Boolean {\n\
+                    val joined = left + \"!\"\n\
+                    return joined == right\n\
+                }";
+    let (sources, parsed, checked) = checked(text);
+    assert!(
+        checked.diagnostics().is_empty(),
+        "{:?}",
+        checked.diagnostics()
+    );
+
+    let binaries = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| {
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Expression::Binary { .. }
+            )
+            .then_some((sources.slice(node.span()).expect("binary span"), id))
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let concat = binaries["left + \"!\""];
+    let equal = binaries["joined == right"];
+    let completion = |binary| {
+        checked
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == DropPoint::AfterBinaryOperands(binary))
+            .map(|fact| {
+                (
+                    fact.target(),
+                    sources.slice(fact.value_origin()).expect("drop origin"),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let concat_drops = completion(concat);
+    assert_eq!(concat_drops.len(), 2, "{concat_drops:?}");
+    assert!(matches!(concat_drops[0].0, DropTarget::Temporary(_)));
+    assert_eq!(concat_drops[0].1, "\"!\"");
+    assert!(matches!(concat_drops[1].0, DropTarget::Named(_)));
+    assert_eq!(concat_drops[1].1, "left");
+
+    let equality_drops = completion(equal);
+    assert_eq!(equality_drops.len(), 2, "{equality_drops:?}");
+    assert!(
+        equality_drops
+            .iter()
+            .all(|(target, _)| matches!(target, DropTarget::Named(_)))
+    );
+    assert_eq!(
+        equality_drops
+            .iter()
+            .map(|(_, origin)| *origin)
+            .collect::<Vec<_>>(),
+        ["right", "joined"]
+    );
+    assert!(!checked.drops().iter().any(|fact| {
+        matches!(fact.point(), DropPoint::AfterExpression(expression)
+            if expression == concat || expression == equal)
+    }));
+}
+
+#[test]
 fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
     let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\

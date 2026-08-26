@@ -315,6 +315,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::HeapPayloadPlace { .. }
                 | Operation::SharedPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
+                | Operation::SharedFieldLoan { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
                 | Operation::BorrowBegin { .. }
@@ -741,6 +742,34 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &format!("p{}", result.index()),
                 )?;
                 self.places.insert(result, pointer);
+            }
+            Operation::SharedFieldLoan { base, field } => {
+                let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "shared field loan",
+                        1,
+                        instruction.results.len(),
+                    ));
+                };
+                let EntityType::Loan { target, .. } = self
+                    .function
+                    .entity(EntityId::Loan(*base))
+                    .ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("shared field base is missing".to_owned())
+                    })?
+                    .ty
+                else {
+                    return Err(LlvmAdapterError::InvalidSsa(
+                        "shared field base is not a loan".to_owned(),
+                    ));
+                };
+                let pointer = self.builder.build_struct_gep(
+                    self.dependencies.type_map.aggregate_type(target)?,
+                    self.access(crate::ssa::model::PlaceAccess::Loan(*base))?,
+                    *field as u32,
+                    &format!("l{}", result.index()),
+                )?;
+                self.loans.insert(*result, pointer);
             }
             Operation::NullableWrap { owner, .. } => {
                 let [result] = results.as_slice() else {

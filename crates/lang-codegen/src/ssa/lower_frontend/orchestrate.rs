@@ -15,14 +15,14 @@ use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
     instances::{FunctionInstanceKey, FunctionTemplate, plan_instances, resolve_concrete_type},
     nominal::NominalTypeMapper,
-    present_name, return_values, span_key,
+    present_name, return_values, source_closure, span_key,
 };
 use crate::ssa::{
     model::{EntityId, EntityType, FunctionId, Origin, Program, TerminatorKind},
     verify::verify_program,
 };
 
-const LOWERED_BUILTINS: [BuiltinType; 10] = [
+const LOWERED_BUILTINS: [BuiltinType; 11] = [
     BuiltinType::Byte,
     BuiltinType::Short,
     BuiltinType::Int,
@@ -32,6 +32,7 @@ const LOWERED_BUILTINS: [BuiltinType; 10] = [
     BuiltinType::UInt,
     BuiltinType::ULong,
     BuiltinType::Boolean,
+    BuiltinType::String,
     BuiltinType::Unit,
 ];
 
@@ -147,6 +148,31 @@ fn lower_scalar_file_product(
             )?;
         }
     }
+    for construction in typed.container_constructions() {
+        let construction_span = parsed
+            .ast()
+            .expressions()
+            .get(construction.expression())
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        type_mapper.intern(
+            module,
+            names,
+            typed,
+            construction.container_type(),
+            construction_span,
+        )?;
+        type_mapper.intern(
+            module,
+            names,
+            typed,
+            construction.element_type(),
+            construction_span,
+        )?;
+    }
     let declarations = collect_functions(parsed, names, typed)?;
     let templates = declarations
         .iter()
@@ -242,6 +268,9 @@ fn lower_scalar_file_product(
         });
     }
 
+    let source_closures =
+        source_closure::declare(module, &mut type_mapper, parsed, names, typed, owned)?;
+
     let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();
     let source_text = sources
         .source_text(parsed.source_id())
@@ -291,6 +320,7 @@ fn lower_scalar_file_product(
             source_text,
             references: &references,
             function_ids: &function_ids,
+            source_closures: &source_closures,
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
             enum_payloads: &enum_payloads,
@@ -315,6 +345,55 @@ fn lower_scalar_file_product(
                 .set_terminator(
                     lowerer.block,
                     TerminatorKind::Return { values },
+                    Origin::Source(plan.span),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
+        }
+    }
+
+    let unit = typed
+        .types()
+        .builtin(BuiltinType::Unit)
+        .ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    let empty_substitutions = BTreeMap::new();
+    for plan in source_closures.values() {
+        let function = module
+            .function_mut(plan.thunk)
+            .expect("planned thunk exists");
+        let entry = function.entry_block().expect("planned thunk entry exists");
+        let mut lowerer = ExpressionLowerer {
+            parsed,
+            names,
+            typed,
+            owned,
+            source_text,
+            references: &references,
+            function_ids: &function_ids,
+            source_closures: &source_closures,
+            type_ids: &type_ids,
+            heap_payloads: &heap_payloads,
+            enum_payloads: &enum_payloads,
+            substitutions: &empty_substitutions,
+            function,
+            block: entry,
+            bindings: BTreeMap::new(),
+            borrow_bindings: BTreeMap::new(),
+            non_null_bindings: BTreeMap::new(),
+            temporaries: BTreeMap::new(),
+            return_type: unit,
+            loops: Vec::new(),
+        };
+        lowerer.bind_capture_views(plan)?;
+        let result = lowerer.lower_statement(plan.body)?;
+        if !matches!(result, LoweredValue::Diverged) {
+            lowerer
+                .function
+                .set_terminator(
+                    lowerer.block,
+                    TerminatorKind::Return { values: Vec::new() },
                     Origin::Source(plan.span),
                 )
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;

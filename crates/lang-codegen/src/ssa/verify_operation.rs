@@ -164,6 +164,27 @@ pub(super) fn verify_operation(
         Operation::FieldPlace { base, field } => {
             field_place_contract(module, function, *base, *field, &results)
         }
+        Operation::SharedFieldLoan { base, field } => {
+            let Some(EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            }) = function
+                .entity(EntityId::Loan(*base))
+                .map(|entity| entity.ty)
+            else {
+                return;
+            };
+            module
+                .aggregate_fields(target)
+                .and_then(|fields| fields.get(*field))
+                .is_some_and(|field_ty| {
+                    results
+                        == [EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: *field_ty,
+                        }]
+                })
+        }
         Operation::Copy { source } => {
             single_value_result(&results) == value_type(function, *source)
         }
@@ -766,7 +787,10 @@ fn function_matches_signature(
     };
     let mut expected = environment
         .into_iter()
-        .map(EntityType::Value)
+        .map(|target| EntityType::Loan {
+            kind: LoanKind::Shared,
+            target,
+        })
         .collect::<Vec<_>>();
     expected.extend(signature.parameters.iter().copied());
     entry.parameters.len() == expected.len()

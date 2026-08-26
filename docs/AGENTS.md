@@ -61,7 +61,7 @@ capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例�
 owner、最小连接/相等/动态输出与参数化 main 的 runtime 前置边界。
 
 `guide/01-design-decisions.md` §31 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018、
-ADR-0019 同时获明确接受，SPEC-0192 获准实施。
+ADR-0019 同时获明确接受，SPEC-0192 已完成实施。
 
 `guide/01-design-decisions.md` §30 已于 2026-08-26 由用户明确启用并取代 v0.29；零参数 main、
 参数化 main 与 Rc 仍按自身前置关系独立实施和验收。

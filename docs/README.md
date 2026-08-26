@@ -5,8 +5,8 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.30](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
-  多文档真源；v0.30 已由用户明确启用并取代 v0.29。
+- [语言设计指南 v0.31](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+  多文档真源；v0.31 已由用户明确启用并取代 v0.30。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
 - [Specs 与路线图](./specs/)：单次功能或行为变更的范围、Goal、计划、依赖和验收标准。
@@ -43,7 +43,8 @@ allocation、递归 drop/free、顺序容器连续缓冲区/checked-index/drop �
 LLDB Koven 源码断点命中；SPEC-0183/0188/0184 已完成源码 constructor 的 typed、ownership 与
 SSA/LLVM native 闭环。Phase 5 已发布标准 `error()` Abort、首个 literal-only
 `println(String)` stdout/Hello World 闭环，以及目标语言 `Pair` / `Result` 的条件复制、构造、
-投影与解构验收；一般 String runtime 和容器 relocation API 仍待后续 Spec。Phase 6 已提供
+投影与解构验收；一般 String runtime 已由 SPEC-0192 完成，容器 relocation API 仍待后续
+Spec。Phase 6 已提供
 公开单文件显式 entry 与零参数 conventional `main` 的 `kovenc build/run`、机器可读诊断、LSP diagnostics/definition、
 formatter，以及 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见
 [架构快照](./architecture/README.md)。

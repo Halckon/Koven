@@ -590,6 +590,15 @@ fn apply_operation(
         Operation::FieldPlace { base, .. } => {
             require_place(*base, state, location, origin, errors);
         }
+        Operation::SharedFieldLoan { base, .. } => {
+            if !state.loans.contains(base) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *base },
+                    location,
+                    origin,
+                ));
+            }
+        }
         Operation::Copy { source } => {
             if is_move_only(module, function, *source) {
                 errors.push(error(
@@ -1177,6 +1186,10 @@ impl AliasRoots {
                     Operation::FieldPlace { base, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Place(*base));
+                    }
+                    Operation::SharedFieldLoan { base, .. } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
                     }
                     _ => {}
                 }

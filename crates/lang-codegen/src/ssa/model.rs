@@ -456,6 +456,11 @@ pub(crate) enum Operation {
         base: PlaceId,
         field: usize,
     },
+    /// Project an active shared aggregate loan to one shared field loan.
+    SharedFieldLoan {
+        base: LoanId,
+        field: usize,
+    },
     Copy {
         source: ValueId,
     },
@@ -556,6 +561,7 @@ impl Operation {
                 EntityId::Value(*value),
             ],
             Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
+            Self::SharedFieldLoan { base, .. } => vec![EntityId::Loan(*base)],
             Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {

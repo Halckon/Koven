@@ -48,10 +48,10 @@ fn analyze(text: &str) -> Analysis {
 }
 
 #[test]
-fn lowers_only_the_standard_plain_string_error_call_to_abort() {
+fn lowers_standard_dynamic_string_error_after_evaluating_its_borrow() {
     let analysis = analyze(
         "fun normal(): Unit {}\n\
-         fun abortNow(): Unit { error(\"fatal\") }",
+         fun abortNow(message: String): Unit { error(message + \"!\") }",
     );
     assert!(
         analysis.parsed.diagnostics().is_empty(),
@@ -72,14 +72,9 @@ fn lowers_only_the_standard_plain_string_error_call_to_abort() {
     let ssa = render_program(&program);
     assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
     assert!(!ssa.contains("call @error"), "{ssa}");
-
-    let llvm = render_verified_program(&program).expect("Abort SSA must lower to LLVM");
-    let body = llvm_function_body(&llvm, "abortNow");
-    assert!(body.contains("call void @abort()"), "{body}");
-    assert!(body.contains("unreachable"), "{body}");
-    assert!(!body.contains("invoke "), "{body}");
-    assert!(!llvm.contains("@error"), "{llvm}");
-    assert!(!llvm.contains("landingpad"), "{llvm}");
+    assert!(ssa.contains("string.literal"), "{ssa}");
+    assert!(ssa.contains("string.concat"), "{ssa}");
+    assert!(ssa.contains("borrow.shared"), "{ssa}");
 
     let unsupported = analyze("fun abortInterpolated(): Unit { error(\"${1}\") }");
     let error = match lower_scalar_file(
@@ -97,9 +92,10 @@ fn lowers_only_the_standard_plain_string_error_call_to_abort() {
 }
 
 #[test]
-fn lowers_plain_string_println_calls_in_source_order_with_decoded_utf8() {
+fn lowers_dynamic_string_println_calls_in_source_order_with_decoded_utf8() {
     let analysis = analyze(
-        r#"fun output(): Unit {
+        r#"fun borrowed(input: String): Unit { println(input) }
+        fun output(): Unit {
             if (true) { println("") }
             if (true) { println("Hello") }
             if (true) { println("你好") }
@@ -122,28 +118,28 @@ fn lowers_plain_string_println_calls_in_source_order_with_decoded_utf8() {
         &analysis.owned,
     )
     .expect("plain String println calls must lower");
-    let bytes = program.modules[0].functions[0]
-        .instructions
+    let bytes = program.modules[0]
+        .functions
         .iter()
+        .flat_map(|function| function.instructions.iter())
         .filter_map(|instruction| match &instruction.operation {
-            Operation::PrintLiteral { bytes } => Some(bytes.as_slice()),
+            Operation::StringLiteral { bytes, .. } => Some(bytes.as_slice()),
             _ => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(
         bytes,
         [
-            b"\n".as_slice(),
-            b"Hello\n".as_slice(),
-            "你好\n".as_bytes(),
-            b"\\\'\"\n\r\t\0$\n".as_slice(),
+            b"".as_slice(),
+            b"Hello".as_slice(),
+            "你好".as_bytes(),
+            b"\\\'\"\n\r\t\0$".as_slice(),
         ]
     );
     let ssa = render_program(&program);
-    assert_eq!(ssa.matches("print.literal").count(), 4, "{ssa}");
-    let llvm = render_verified_program(&program).expect("println SSA must lower to LLVM");
-    assert_eq!(llvm.matches("call i64 @write").count(), 4, "{llvm}");
-    assert!(!llvm.contains("@malloc"), "{llvm}");
+    assert_eq!(ssa.matches("print.string").count(), 5, "{ssa}");
+    assert_eq!(ssa.matches("end_borrow").count(), 4, "{ssa}");
+    assert!(!ssa.contains("print.literal"), "{ssa}");
 
     let unsupported = analyze("fun output(): Unit { println(\"${1}\") }");
     let error = match lower_scalar_file(
@@ -159,17 +155,79 @@ fn lowers_plain_string_println_calls_in_source_order_with_decoded_utf8() {
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 
     let nonliteral = analyze("fun output(input: String): Unit { println(input) }");
-    let error = match lower_scalar_file(
+    let program = lower_scalar_file(
         &nonliteral.sources,
         &nonliteral.parsed,
         &nonliteral.names,
         &nonliteral.typed,
         &nonliteral.owned,
-    ) {
-        Ok(_) => panic!("runtime String println remains outside this native slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    )
+    .expect("borrowed String println must reuse the entry loan");
+    let ssa = render_program(&program);
+    assert!(ssa.contains("print.string %l0"), "{ssa}");
+    assert!(!ssa.contains("borrow.shared"), "{ssa}");
+}
+
+#[test]
+fn lowers_string_binary_views_value_calls_and_returns_without_early_drop() {
+    let analysis = analyze(
+        "fun identity(own input: String): String = input\n\
+         fun combine(left: String, own right: String): String {\n\
+             val joined = left + \"!\"\n\
+             val differs = joined != right\n\
+             return identity(right)\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("String Borrow/Value/return lowering must produce verified SSA");
+    let ssa = render_program(&program);
+    assert!(ssa.contains("string.concat %l0"), "{ssa}");
+    assert!(ssa.contains("string.equal"), "{ssa}");
+    assert!(ssa.contains("not "), "{ssa}");
+    assert!(ssa.contains("call @"), "{ssa}");
+
+    let combine = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains("combine"))
+        .expect("combine function");
+    let concat = combine
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction.operation, Operation::StringConcat { .. }))
+        .expect("concat instruction");
+    let first_drop = combine
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+        .expect("operand drop");
+    assert!(concat < first_drop, "{:?}", combine.instructions);
 }
 
 #[test]
@@ -1137,6 +1195,61 @@ fn lowers_if_short_circuit_and_branch_local_updates_as_cfg() {
 }
 
 #[test]
+fn carries_move_only_string_bindings_across_if_and_short_circuit_edges() {
+    let analysis = analyze(
+        "fun keep(own joined: String, flag: Boolean): String {\n\
+             if (flag) { println(joined) } else { println(joined) }\n\
+             return joined\n\
+         }\n\
+         fun compare(own joined: String, flag: Boolean): String {\n\
+             val matches: Boolean = flag && joined == \"hello\"\n\
+             if (matches) { println(joined) }\n\
+             return joined\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("live MoveOnly bindings must be delivered explicitly across every CFG edge");
+    let rendered = render_program(&program);
+    for name in ["keep", "compare"] {
+        let body = rendered
+            .split(&format!("func \"{name}\""))
+            .nth(1)
+            .and_then(|body| body.split("\n\n  func").next())
+            .expect("function must render");
+        assert!(body.matches("bb").count() >= 4, "{body}");
+        assert!(body.contains("branch bb"), "{body}");
+        assert!(body.contains("return %v"), "{body}");
+    }
+}
+
+#[test]
 fn lowers_boolean_when_subjectless_chains_and_diverging_entries() {
     let analysis = analyze(
         "fun select(flag: Boolean): Int = when (flag) {\n\
@@ -1334,22 +1447,21 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 
-    let non_scalar_instance = analyze(
+    let string_instance = analyze(
         "fun <T> identity(own input: T): T = input\n\
          fun text(own input: String): String = identity(input)",
     );
-    assert!(non_scalar_instance.typed.diagnostics().is_empty());
-    assert!(non_scalar_instance.owned.diagnostics().is_empty());
-    let error = lower_scalar_file(
-        &non_scalar_instance.sources,
-        &non_scalar_instance.parsed,
-        &non_scalar_instance.names,
-        &non_scalar_instance.typed,
-        &non_scalar_instance.owned,
+    assert!(string_instance.typed.diagnostics().is_empty());
+    assert!(string_instance.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &string_instance.sources,
+        &string_instance.parsed,
+        &string_instance.names,
+        &string_instance.typed,
+        &string_instance.owned,
     )
-    .err()
-    .expect("non-scalar generic instances remain outside SPEC-0034");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    .expect("String is now a first-class concrete generic instance");
+    assert!(render_program(&program).contains("identity<String>"));
 }
 
 fn llvm_function_body<'a>(llvm: &'a str, source_name: &str) -> &'a str {

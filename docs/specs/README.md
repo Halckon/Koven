@@ -27,8 +27,8 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 没有因本版本获得实现授权。
 
 [v0.31 一般 String 契约](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031)
-已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018/0019 已接受，SPEC-0192 已批准并进入
-实施。其直接后继 SPEC-0194 仍为 draft，必须等待 0192 `done`。
+已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018/0019 已接受，SPEC-0192 已完成。
+其直接后继 SPEC-0194 的 runtime 前置已解除，但仍保持 draft，等待单独批准实施。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -86,14 +86,14 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
-| 实施中 | SPEC-0192 | v0.31 已启用、ADR-0018 已接受、Spec 已批准；按验收推进一般 String runtime |
-| 已物化但仍有 runtime 门禁 | SPEC-0194 | draft 与 accepted ADR-0019 已封闭 argv bridge；必须等待 SPEC-0192 `done`，不得以 literal-only String 或宿主指针提前实现 |
+| 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
+| 已物化、等待批准 | SPEC-0194 | draft 与 accepted ADR-0019 已封闭 argv bridge；SPEC-0192 runtime 前置已满足，尚未获实施批准 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此当前无可越过门禁继续实施的节点：参数化 main 排在 String runtime 之后，nullable
-`when`/`!!` 需要各自的 flow/消费 descriptor，其他候选仍受表中 guide/runtime 门禁约束。后续先
-封闭相应 guide/ADR，再物化下一份 Spec。
+因此参数化 main 已成为依赖满足但仍待批准的下一节点；nullable `when`/`!!` 需要各自的
+flow/消费 descriptor，其他候选仍受表中 guide/runtime 门禁约束。后续不得在未批准
+SPEC-0194 前提前接入 argv wrapper。
 
 ## Phase 0 Spec 队列
 
@@ -268,7 +268,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
-| [0192](./0192-general-string-runtime.md) | 实现可持有、传递和返回的 UTF-8 `String` runtime（`in-progress`） | 0042、0043、0184、0189、0195 `done`；v0.31 已启用；[ADR-0018](../adr/0018-string-owner-runtime-abi.md) `accepted` |
+| [0192](./0192-general-string-runtime.md) | 实现可持有、传递和返回的 UTF-8 `String` runtime（`done`） | 0042、0043、0184、0189、0195 `done`；v0.31 已启用；[ADR-0018](../adr/0018-string-owner-runtime-abi.md) `accepted` |
 | 0049 | 实现同步 File / BufferedReader / 标准流 | 0026、0039、0043、0180、0181、0191、0192；新 guide 封闭具体 IO API；接受同步 IO runtime ABI ADR |
 | 0050 | 实现 thread / channel | 0032、0042、0044、0180、0181、0191；新 guide 封闭具体返回类型与 API；接受 thread/channel runtime ABI ADR |
 | 0051 | 实现目标语言测试发现与断言 runner | 0042；新 guide 定义最小 `@Test` 语法 |

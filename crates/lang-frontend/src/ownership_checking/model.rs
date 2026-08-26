@@ -233,6 +233,8 @@ impl LoanFact {
 pub enum DropPoint {
     /// 最后一次读取或 replacement RHS 完成后。
     AfterExpression(ExpressionId),
+    /// 非消费式 binary 已读完全部 operand、但结果仍存活时。
+    AfterBinaryOperands(ExpressionId),
     /// 未使用 binding 建立或完整 statement 完成后。
     AfterStatement(StatementId),
     /// 借用 temporary 在同步 call 返回后。

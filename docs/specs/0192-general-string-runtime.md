@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P5-192` |
 | 所属 Phase | Phase 2/3/4/5 纵向切片 |
 | 语言规范 | 现行 [v0.31 §31](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031) |
@@ -30,7 +30,7 @@ MoveOnly String 建立 move、loan 和 drop facts；codegen 目前只接受 SPEC
 native 能力不对齐，并阻塞 v0.30 已定义但未实施的参数化 main。
 
 roadmap 审计显示，SPEC-0193、0195、0196 已完成后，一般 String runtime 是当前能解锁最多后续
-节点的边界；v0.31 与 ADR-0018 已生效，本 Spec 已获准实施。
+节点的边界；v0.31 与 ADR-0018 已生效，本 Spec 已获准并完成实施。
 
 ## 4. 范围与需求
 
@@ -62,16 +62,16 @@ roadmap 审计显示，SPEC-0193、0195、0196 已完成后，一般 String runt
 
 ## 6. 验收标准
 
-- [ ] frontend/ownership 正反测试证明 literal、local、参数/返回、capture 和 aggregate/container
+- [x] frontend/ownership 正反测试证明 literal、local、参数/返回、capture 和 aggregate/container
       String 使用既有唯一 owner、Borrow 与 ASAP drop 契约。
-- [ ] String SSA operation/render/model/ownership verifier 正反矩阵通过；非法类型、非 active loan、
+- [x] String SSA operation/render/model/ownership verifier 正反矩阵通过；非法类型、非 active loan、
       move 后使用、重复 drop 与 corrupt provenance 在 LLVM 前被拒绝。
-- [ ] LLVM IR 锁定目标布局、static/empty/heap provenance、checked concat、byte equality、动态
+- [x] LLVM IR 锁定目标布局、static/empty/heap provenance、checked concat、byte equality、动态
       stdout 和精确 drop/free；无宿主 Rust/C string、隐式 retain、unwind 或 NUL 扫描。
-- [ ] native build/run 精确覆盖 ASCII、Unicode、U+0000、空串、连接/相等、跨函数传递/返回以及
+- [x] native build/run 精确覆盖 ASCII、Unicode、U+0000、空串、连接/相等、跨函数传递/返回以及
       aggregate/Rc/顺序容器的正常与提前退出清理。
-- [ ] interpolation、`String?` 与未发布 member API 确定性拒绝且无 compiler panic或残留产物。
-- [ ] Architecture、Guide/Roadmap、Spec 验证记录与 workspace 标准基线同步。
+- [x] interpolation、`String?` 与未发布 member API 确定性拒绝且无 compiler panic或残留产物。
+- [x] Architecture、Guide/Roadmap、Spec 验证记录与 workspace 标准基线同步。
 
 ## 7. 技术方案与边界
 
@@ -85,13 +85,13 @@ SSA 只能有一套 String owner/print 契约；若保留优化，测试必须�
 
 ## 8. 实施计划
 
-1. [ ] 建立 StringOwner layout/operation/verifier 与 target preflight → 验证：SSA 正反矩阵和
+1. [x] 建立 StringOwner layout/operation/verifier 与 target preflight → 验证：SSA 正反矩阵和
    LLVM layout 单元测试。
-2. [ ] 接 plain literal、局部、参数/返回、concat/equality 和 drop facts → 验证：frontend 与
+2. [x] 接 plain literal、局部、参数/返回、concat/equality 和 drop facts → 验证：frontend 与
    lowering 窄测试。
-3. [ ] 接 LLVM allocation/copy/compare/print/drop 及 aggregate/container glue → 验证：IR 与真实
+3. [x] 接 LLVM allocation/copy/compare/print/drop 及 aggregate/container glue → 验证：IR 与真实
    native build/run 矩阵。
-4. [ ] 同步 Architecture、Roadmap、验证记录并运行 workspace 标准基线 → 验证：文档与事实一致。
+4. [x] 同步 Architecture、Roadmap、验证记录并运行 workspace 标准基线 → 验证：文档与事实一致。
 
 ## 9. 提交计划
 
@@ -109,3 +109,11 @@ SSA 只能有一套 String owner/print 契约；若保留优化，测试必须�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 roadmap 前置审计 | 通过 | 0042/0043/0184/0189/0195 均 `done`；v0.31 已启用，ADR-0018 已接受 |
+| `cargo test -p lang-frontend --test ownership_checking` | 通过 | 15/15；String binary operand/drop facts 正反覆盖 |
+| `cargo test -p lang-codegen --lib` | 通过 | 151 passed、1 ignored；ignored 为既有 sandbox debugserver 权限测试 |
+| `cargo test --workspace` | 通过 | workspace 全量基线；既有环境相关 ignored 项保持原状 |
+| `cargo check --workspace` | 通过 | 全 workspace 类型检查 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 零 warning |
+| `cargo fmt --all -- --check` | 通过 | Rust 格式基线 |
+| `git diff --check` | 通过 | 无 whitespace error |
+| 真实 native link/run | 通过 | 动态 String、复合 owner/Rc、Array/List/MutableList 与 move closure 精确输出和正常/提前退出清理 |

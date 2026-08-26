@@ -38,7 +38,9 @@ impl ExpressionLowerer<'_> {
                         .remove(&expression.index())
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?
                 }
-                DropTarget::ReplacedElement(_) | DropTarget::Captured { .. } => {
+                // The closure owner recursively drops its owned environment slots.
+                DropTarget::Captured { .. } => continue,
+                DropTarget::ReplacedElement(_) => {
                     return Err(error(
                         LoweringErrorKind::UnsupportedNode,
                         fact.value_origin(),

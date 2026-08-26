@@ -6,11 +6,13 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::SymbolId,
     parser::{
-        AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, NameMarker, Statement,
-        StringPart, WhenCondition,
+        AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
+        NameMarker, Statement, StringPart, WhenCondition,
     },
     source::Span,
-    type_checking::{Copyability, DestructuringMode, ExpressionCategory, ParameterMode},
+    type_checking::{
+        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, ParameterMode, TypeKind,
+    },
 };
 
 use crate::ownership_checking::{
@@ -501,6 +503,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
                 Ok(true)
             }
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } if matches!(
+                operator,
+                BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) && self.is_string_expression(left)
+                && self.is_string_expression(right) =>
+            {
+                self.string_binary(left, right, id, state)
+            }
             Expression::Binary { left, right, .. } => {
                 self.expression(left, ExpressionUse::Read, state)?;
                 self.expression(right, ExpressionUse::Read, state)
@@ -691,6 +706,64 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 == Some(Copyability::MoveOnly)
     }
 
+    fn is_string_expression(&self, expression: ExpressionId) -> bool {
+        self.checker
+            .typed
+            .expression_type(expression)
+            .and_then(|ty| self.checker.typed.types().get(ty))
+            == Some(&TypeKind::Builtin(BuiltinType::String))
+    }
+
+    fn string_binary(
+        &mut self,
+        left: ExpressionId,
+        right: ExpressionId,
+        binary: ExpressionId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let left_drop = self.string_view_operand(left, state)?;
+        let right_drop = self.string_view_operand(right, state)?;
+        let point = DropPoint::AfterBinaryOperands(binary);
+        for pending in [right_drop, left_drop].into_iter().flatten() {
+            match pending {
+                StringOperandDrop::Named(symbol) => self.drop_named(point, symbol, state),
+                StringOperandDrop::Temporary(expression, origin) => self.push_fact(DropFact::new(
+                    point,
+                    DropTarget::Temporary(expression),
+                    origin,
+                )),
+            }
+        }
+        Ok(true)
+    }
+
+    fn string_view_operand(
+        &mut self,
+        expression: ExpressionId,
+        state: &mut ValueState,
+    ) -> Result<Option<StringOperandDrop>, OwnershipCheckingError> {
+        let node = self.checker.parsed.ast().expressions().get(expression)?;
+        match node.payload() {
+            Expression::Group { expression } => self.string_view_operand(*expression, state),
+            Expression::Name => {
+                let Some(symbol) = self.checker.reference_symbol(node.span()) else {
+                    return Ok(None);
+                };
+                Ok(
+                    (!self.liveness.expression_after[expression.index()].contains(&symbol))
+                        .then_some(StringOperandDrop::Named(symbol)),
+                )
+            }
+            _ => {
+                self.expression(expression, ExpressionUse::Read, state)?;
+                if !self.is_move_only_temporary(expression) {
+                    return Ok(None);
+                }
+                Ok(Some(StringOperandDrop::Temporary(expression, node.span())))
+            }
+        }
+    }
+
     fn drop_named(&mut self, point: DropPoint, symbol: SymbolId, state: &mut ValueState) {
         let closure = state.closures.remove(&symbol);
         if let Some(value) = state.remove_value(symbol) {
@@ -817,6 +890,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn live_after(&self, point: DropPoint) -> &std::collections::BTreeSet<SymbolId> {
         match point {
             DropPoint::AfterExpression(expression)
+            | DropPoint::AfterBinaryOperands(expression)
             | DropPoint::CallReturn(expression)
             | DropPoint::ControlTransfer(expression)
             | DropPoint::AfterReplacement(expression)
@@ -830,6 +904,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             DropPoint::FunctionEntry(item) => &self.liveness.function_live_in[&item.index()],
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum StringOperandDrop {
+    Named(SymbolId),
+    Temporary(ExpressionId, Span),
 }
 
 fn marker_span(marker: NameMarker) -> Span {

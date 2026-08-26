@@ -8,11 +8,11 @@
 | Goal ID | `KOV-P6-194` |
 | 所属 Phase | Phase 4/6 纵向切片 |
 | 语言规范 | 现行 [`guide/01-design-decisions.md` §30.1 / §31](../guide/01-design-decisions.md#301-单文件-conventional-main) |
-| 批准依据 | 无；前置 SPEC-0192 尚未完成，保持 draft |
-| 前置 Spec | SPEC-0193 `done`；SPEC-0192 `in-progress`，必须先变为 `done` |
+| 批准依据 | 无；技术前置已满足，仍保持 draft |
+| 前置 Spec | SPEC-0193、SPEC-0192 `done` |
 | 前置 ADR | ADR-0010、0016、[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted` |
 | 关联 ADR | ADR-0007、0008、0018 |
-| 阻塞项 | SPEC-0192 `done` |
+| 阻塞项 | 无；仍需单独批准后才能实施 |
 | 影响范围 | `lang-codegen` native entry plan/wrapper/runtime，`lang-cli` entry selection/run 参数转交，native tests，Architecture/Roadmap |
 | 语言语义变更 | 否；实施现行 v0.31 沿用的参数化 main 语义 |
 
@@ -103,10 +103,10 @@ partially-initialized Array 清理路径。
 
 ## 10. 未决问题
 
-- 无设计未决项。状态门禁仍是 SPEC-0192 `done` 且 ADR-0018/0019 `accepted`；在此之前不得实施。
+- 无设计未决项。技术前置均已满足；当前保持 `draft`，尚未获得实施批准。
 
 ## 11. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 前置审计 | 部分通过 | v0.31、ADR-0018/0019 与 SPEC-0193 已生效；SPEC-0192 尚在实施 |
+| 2026-08-26 前置审计 | 通过 | v0.31、ADR-0018/0019 与 SPEC-0192/0193 均已生效；Spec 仍待单独批准 |

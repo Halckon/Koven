@@ -31,6 +31,13 @@ enum MergeSlot {
     Binding(SymbolId),
 }
 
+#[derive(Clone, Copy)]
+struct LinearBindingSlot {
+    symbol: SymbolId,
+    source: ValueId,
+    ty: EntityType,
+}
+
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_if(
         &mut self,
@@ -45,37 +52,43 @@ impl ExpressionLowerer<'_> {
         }
         let condition = self.require_value(condition)?;
         let baseline = self.bindings.clone();
-        let then_block = self.add_empty_block(self.statement_span(then_branch)?)?;
+        let carried = self.linear_binding_slots(&baseline, span)?;
+        let then_block =
+            self.add_linear_binding_block(&carried, self.statement_span(then_branch)?)?;
         let else_origin = else_branch
             .map(|branch| self.statement_span(branch))
             .transpose()?
             .unwrap_or(span);
-        let else_block = self.add_empty_block(else_origin)?;
+        let else_block = self.add_linear_binding_block(&carried, else_origin)?;
         self.function
             .set_terminator(
                 self.block,
                 TerminatorKind::Conditional {
                     condition,
-                    when_true: empty_edge(then_block),
-                    when_false: empty_edge(else_block),
+                    when_true: linear_binding_edge(then_block, &carried),
+                    when_false: linear_binding_edge(else_block, &carried),
                 },
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
+        let then_baseline = self.rebind_linear_bindings(&baseline, then_block, &carried, span)?;
+        let else_baseline = self.rebind_linear_bindings(&baseline, else_block, &carried, span)?;
         let mut exits = Vec::with_capacity(2);
-        if let Some(exit) = self.lower_control_branch(then_block, then_branch, &baseline)? {
+        if let Some(exit) = self.lower_control_branch(then_block, then_branch, &then_baseline)? {
             exits.push(exit);
         }
         if let Some(else_branch) = else_branch {
-            if let Some(exit) = self.lower_control_branch(else_block, else_branch, &baseline)? {
+            if let Some(exit) =
+                self.lower_control_branch(else_block, else_branch, &else_baseline)?
+            {
                 exits.push(exit);
             }
         } else {
             exits.push(BranchExit {
                 block: else_block,
                 result: LoweredValue::Unit,
-                bindings: baseline.clone(),
+                bindings: else_baseline,
             });
         }
         if self.expression_is_unit(expression, span)? {
@@ -234,12 +247,21 @@ impl ExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let left = self.require_value(left)?;
         let baseline = self.bindings.clone();
+        let carried = self.linear_binding_slots(&baseline, span)?;
         let right_span = self.expression_span(right)?;
-        let right_block = self.add_empty_block(right_span)?;
-        let short_block = self.add_empty_block(span)?;
+        let right_block = self.add_linear_binding_block(&carried, right_span)?;
+        let short_block = self.add_linear_binding_block(&carried, span)?;
         let (when_true, when_false, short_value) = match operator {
-            BinaryOperator::LogicalAnd => (empty_edge(right_block), empty_edge(short_block), false),
-            BinaryOperator::LogicalOr => (empty_edge(short_block), empty_edge(right_block), true),
+            BinaryOperator::LogicalAnd => (
+                linear_binding_edge(right_block, &carried),
+                linear_binding_edge(short_block, &carried),
+                false,
+            ),
+            BinaryOperator::LogicalOr => (
+                linear_binding_edge(short_block, &carried),
+                linear_binding_edge(right_block, &carried),
+                true,
+            ),
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
         self.function
@@ -255,7 +277,7 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
         self.block = right_block;
-        self.bindings.clone_from(&baseline);
+        self.bindings = self.rebind_linear_bindings(&baseline, right_block, &carried, span)?;
         let right_result = self.lower(right)?;
         let mut exits = Vec::with_capacity(2);
         if !matches!(right_result, LoweredValue::Diverged) {
@@ -270,7 +292,7 @@ impl ExpressionLowerer<'_> {
         }
 
         self.block = short_block;
-        self.bindings.clone_from(&baseline);
+        self.bindings = self.rebind_linear_bindings(&baseline, short_block, &carried, span)?;
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             crate::ssa::model::Operation::Constant(ScalarConstant::Boolean(short_value)),
@@ -768,6 +790,74 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
     }
 
+    fn linear_binding_slots(
+        &self,
+        bindings: &BTreeMap<SymbolId, LoweredValue>,
+        span: Span,
+    ) -> Result<Vec<LinearBindingSlot>, LoweringError> {
+        let mut carried = Vec::new();
+        for (&symbol, &binding) in bindings {
+            let declared = self
+                .typed
+                .symbol_type(symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let concrete = self.resolve_type(declared, span)?;
+            if self.typed.copyability(concrete)
+                != Some(lang_frontend::type_checking::Copyability::MoveOnly)
+            {
+                continue;
+            }
+            let LoweredValue::Value(source) = binding else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let ty = self
+                .function
+                .entity(EntityId::Value(source))
+                .map(|entity| entity.ty)
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+            if !matches!(ty, EntityType::Value(_)) {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            carried.push(LinearBindingSlot { symbol, source, ty });
+        }
+        Ok(carried)
+    }
+
+    fn add_linear_binding_block(
+        &mut self,
+        carried: &[LinearBindingSlot],
+        span: Span,
+    ) -> Result<BlockId, LoweringError> {
+        self.function
+            .add_block(
+                carried.iter().map(|slot| slot.ty).collect(),
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
+    }
+
+    fn rebind_linear_bindings(
+        &self,
+        baseline: &BTreeMap<SymbolId, LoweredValue>,
+        block: BlockId,
+        carried: &[LinearBindingSlot],
+        span: Span,
+    ) -> Result<BTreeMap<SymbolId, LoweredValue>, LoweringError> {
+        let parameters = &self
+            .function
+            .block(block)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+            .parameters;
+        if parameters.len() != carried.len() {
+            return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        let mut bindings = baseline.clone();
+        for (slot, &parameter) in carried.iter().zip(parameters) {
+            bindings.insert(slot.symbol, LoweredValue::Value(value(parameter)));
+        }
+        Ok(bindings)
+    }
+
     fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
         self.parsed
             .ast()
@@ -810,6 +900,16 @@ fn empty_edge(target: BlockId) -> Edge {
     Edge {
         target,
         arguments: Vec::new(),
+    }
+}
+
+fn linear_binding_edge(target: BlockId, carried: &[LinearBindingSlot]) -> Edge {
+    Edge {
+        target,
+        arguments: carried
+            .iter()
+            .map(|slot| EntityId::Value(slot.source))
+            .collect(),
     }
 }
 

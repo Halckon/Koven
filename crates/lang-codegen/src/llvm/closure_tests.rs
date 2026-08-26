@@ -52,7 +52,13 @@ fn shared_capture_lowers_existing_loan_pointer_into_inline_environment() {
     let thunk_entry = module
         .function_mut(thunk)
         .expect("thunk")
-        .add_block(vec![EntityType::Value(environment)], origin.clone())
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: environment,
+            }],
+            origin.clone(),
+        )
         .expect("entry");
     module
         .function_mut(thunk)
@@ -208,7 +214,13 @@ fn mixed_closure_drop_skips_shared_slot_and_drops_owned_slots_in_reverse() {
     let thunk_entry = module
         .function_mut(thunk)
         .expect("thunk")
-        .add_block(vec![EntityType::Value(environment)], origin.clone())
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: environment,
+            }],
+            origin.clone(),
+        )
         .expect("entry");
     module
         .function_mut(thunk)
@@ -375,7 +387,13 @@ fn concrete_closure_and_function_pointer_lower_without_hidden_allocation() {
     let thunk_entry = module
         .function_mut(thunk)
         .expect("thunk")
-        .add_block(vec![EntityType::Value(environment)], origin.clone())
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: environment,
+            }],
+            origin.clone(),
+        )
         .expect("entry");
     module
         .function_mut(thunk)

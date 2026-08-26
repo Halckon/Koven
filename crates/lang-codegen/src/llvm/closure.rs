@@ -77,7 +77,12 @@ pub(super) fn invoke<'ctx>(
             let environment = builder
                 .build_extract_value(callable, 1, &format!("{name}.environment"))?
                 .into_struct_value();
-            (function, Some(environment))
+            let storage = builder.build_alloca(
+                environment.get_type(),
+                &format!("{name}.environment.storage"),
+            )?;
+            builder.build_store(storage, environment)?;
+            (function, Some(storage))
         }
         _ => {
             return Err(LlvmAdapterError::InvalidSsa(
@@ -85,10 +90,7 @@ pub(super) fn invoke<'ctx>(
             ));
         }
     };
-    let function_type = types.callable_function_type(
-        signature,
-        environment.map(|environment| environment.get_type()),
-    )?;
+    let function_type = types.callable_function_type(signature, environment.is_some())?;
     let mut operands = environment
         .map(BasicMetadataValueEnum::from)
         .into_iter()

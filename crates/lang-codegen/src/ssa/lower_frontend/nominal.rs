@@ -94,6 +94,13 @@ impl NominalTypeMapper {
                 self.intern_nominal(module, names, typed, ty, *nominal, span)?
             }
             Some(TypeKind::Intrinsic {
+                constructor:
+                    constructor @ (IntrinsicTypeConstructor::Array
+                    | IntrinsicTypeConstructor::List
+                    | IntrinsicTypeConstructor::MutableList),
+                arguments,
+            }) => self.intern_container(module, names, typed, *constructor, arguments, span)?,
+            Some(TypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::Box,
                 arguments,
             }) => {
@@ -410,6 +417,7 @@ fn intern_builtin(
             bits: 64,
             signed: false,
         },
+        BuiltinType::String => return Ok(module.add_string_owner_type()),
         BuiltinType::Unit => SsaTypeKind::Unit,
         _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
     };

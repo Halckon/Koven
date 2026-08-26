@@ -46,6 +46,38 @@ fn add_function(
     (id, entry, parameters)
 }
 
+fn add_thunk(
+    module: &mut Module,
+    name: &str,
+    environment: SsaTypeId,
+    parameters: &[SsaTypeId],
+    returns: Vec<SsaTypeId>,
+    origin: &Origin,
+) -> (FunctionId, BlockId, Vec<ValueId>) {
+    let id = module
+        .add_function(name, returns, origin.clone())
+        .expect("thunk signature must be valid");
+    let function = module.function_mut(id).expect("thunk must exist");
+    let mut entry_types = vec![EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: environment,
+    }];
+    entry_types.extend(parameters.iter().copied().map(EntityType::Value));
+    let entry = function
+        .add_block(entry_types, origin.clone())
+        .expect("thunk entry must be valid");
+    let values = function
+        .block(entry)
+        .expect("thunk entry must exist")
+        .parameters
+        .iter()
+        .skip(1)
+        .copied()
+        .map(value)
+        .collect();
+    (id, entry, values)
+}
+
 fn append_values(
     function: &mut Function,
     block: BlockId,
@@ -299,10 +331,11 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         )
         .expect("identity must return");
 
-    let (copy_thunk, copy_entry, copy_parameters) = add_function(
+    let (copy_thunk, copy_entry, copy_parameters) = add_thunk(
         module,
         "copy_thunk",
-        &[copy_environment, integer],
+        copy_environment,
+        &[integer],
         vec![integer],
         &origin,
     );
@@ -312,16 +345,17 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         .set_terminator(
             copy_entry,
             TerminatorKind::Return {
-                values: vec![copy_parameters[1]],
+                values: vec![copy_parameters[0]],
             },
             origin.clone(),
         )
         .expect("copy thunk must return");
 
-    let (move_thunk, move_entry, _) = add_function(
+    let (move_thunk, move_entry, _) = add_thunk(
         module,
         "move_thunk",
-        &[move_environment],
+        move_environment,
+        &[],
         Vec::new(),
         &origin,
     );
@@ -451,7 +485,7 @@ fn shared_capture_loan_follows_closure_across_edge_and_ends_on_drop() {
             }],
         )
         .expect("closure");
-    let (thunk, thunk_entry, _) = add_function(module, "thunk", &[environment], vec![], &origin);
+    let (thunk, thunk_entry, _) = add_thunk(module, "thunk", environment, &[], vec![], &origin);
     module
         .function_mut(thunk)
         .expect("thunk")
@@ -613,7 +647,7 @@ fn shared_capture_rejects_explicit_loan_end_before_closure_drop() {
             }],
         )
         .expect("closure");
-    let (thunk, thunk_entry, _) = add_function(module, "thunk", &[environment], vec![], &origin);
+    let (thunk, thunk_entry, _) = add_thunk(module, "thunk", environment, &[], vec![], &origin);
     module
         .function_mut(thunk)
         .expect("thunk")
@@ -832,10 +866,11 @@ fn wrong_thunk_shared_formation_and_move_after_capture_fail_before_llvm() {
             }],
         )
         .expect("closure must be valid");
-    let (valid_thunk, valid_entry, _) = add_function(
+    let (valid_thunk, valid_entry, _) = add_thunk(
         moved_module,
         "valid_thunk",
-        &[moved_environment],
+        moved_environment,
+        &[],
         Vec::new(),
         &origin,
     );

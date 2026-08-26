@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::PathBuf,
-    process::Command,
+    process::{Command, Output},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -95,6 +95,54 @@ fn symbol(analysis: &Analysis, name: &str, kind: SymbolKind) -> SymbolId {
                 analysis.names.symbols()
             )
         })
+}
+
+fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output {
+    let analysis = analyze(source_name, text);
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.names.diagnostics().is_empty(),
+        "{:?}",
+        analysis.names.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let directory = TestDirectory::create();
+    let object = directory.join("program.o");
+    let executable = directory.join("program");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, entry_name, SymbolKind::Function),
+        &object,
+    )
+    .expect("accepted source must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    Command::new(&executable)
+        .output()
+        .expect("linked executable must launch")
 }
 
 #[test]
@@ -335,6 +383,113 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
     .expect_err("interpolated println must fail before writing an object");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
+}
+
+#[test]
+fn dynamic_strings_cross_borrow_value_and_return_boundaries_with_exact_bytes() {
+    let run = emit_link_and_run(
+        "dynamic-string.ko",
+        r#"fun borrowLine(text: String): Unit { println(text) }
+        fun takeAndReturn(own text: String): String = text
+        fun makeDynamic(): String = "前\0" + "后"
+        fun stringEntry(): Unit {
+            val emptyOutput = println("")
+            val left = "A"
+            val borrowed = borrowLine(left)
+            val returned = takeAndReturn("B")
+            val joined = left + returned
+            val joinedOutput = println(joined + "你好\0!")
+            if (joined == "AB") { println("equal") }
+            if (joined != "AC") { println("different") }
+            val dynamicOutput = println(makeDynamic())
+            val leftOutput = println(left)
+        }"#,
+        "stringEntry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"\nA\nAB\xe4\xbd\xa0\xe5\xa5\xbd\0!\nequal\ndifferent\n\xe5\x89\x8d\0\xe5\x90\x8e\nA\n"
+    );
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn nested_string_owners_survive_normal_path_and_clean_up_on_early_return() {
+    let run = emit_link_and_run(
+        "nested-string-owners.ko",
+        r#"value class Packet(val text: String)
+        class Holder(val text: String)
+        enum class Choice { Text(text: String), Empty }
+        fun inspect(text: String): Unit { println(text) }
+        fun exercise(early: Boolean): Unit {
+            val packet = Packet("value")
+            val holder = Holder("class")
+            val choice: Choice = Choice.Text("enum")
+            val boxed = Box(Packet("box"))
+            val shared = Rc("rc")
+            val retained = shared.share()
+            if (early) return
+            val normal = println("normal")
+            val sharedRead = inspect(shared.value)
+            val retainedRead = inspect(retained.value)
+        }
+        fun ownerEntry(): Unit {
+            val early = exercise(true)
+            val normal = exercise(false)
+        }"#,
+        "ownerEntry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"normal\nrc\nrc\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn string_containers_clean_up_on_normal_path_and_early_return() {
+    let run = emit_link_and_run(
+        "string-containers.ko",
+        r#"fun holdContainers(early: Boolean): Unit {
+            val array = arrayOf<String>("array", "数组")
+            val list = listOf<String>("list", "\0")
+            val mutable = mutableListOf<String>("mutable")
+            if (early) return
+            val reached = println("containers")
+        }
+        fun containerEntry(): Unit {
+            val early = holdContainers(true)
+            val normal = holdContainers(false)
+        }"#,
+        "containerEntry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"containers\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn move_closure_drops_or_invokes_its_owned_string_capture_once() {
+    let run = emit_link_and_run(
+        "string-move-closure.ko",
+        r#"fun holdCapture(early: Boolean): Unit {
+            val text = "captured"
+            val action = move { println(text) }
+            if (early) return
+            val invoked = action()
+        }
+        fun closureEntry(): Unit {
+            val early = holdCapture(true)
+            val normal = holdCapture(false)
+        }"#,
+        "closureEntry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"captured\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
 }
 
 #[test]

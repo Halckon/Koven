@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.30；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。v0.30 已解除零参数 conventional
-> main 与 `Rc<T>` 的 guide 门禁；参数化 main 仍等待一般 String/argv Array runtime。
+> v0.31；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
+> runtime；参数化 main 的 runtime 前置已满足，SPEC-0194 仍待单独批准。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -438,11 +438,11 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       不满足 Transferable。MoveOnly payload 的通用 Borrow call 已由 SPEC-0195 完成；不引入
       Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
-- [ ] **[SPEC-0192](../specs/0192-general-string-runtime.md)（`in-progress`；v0.31）**：实现一般 UTF-8 `String` owner、plain literal、传参/返回、
-      `+`、`==`/`!=`、动态 `println`/`error` 与 drop glue，并验证 aggregate/顺序容器元素；当前
-      只有 SPEC-0189 的 literal-only `println` 路径；§31 已生效，ADR-0018 已接受
-- [ ] 基础 IO：`File`、`BufferedReader`、标准流；除一般 String runtime 外，还等待关联/实例
-      member、receiver lowering、具体 API guide 与同步 IO runtime ABI ADR
+- [x] **[SPEC-0192](../specs/0192-general-string-runtime.md)（已实现；v0.31）**：一般 UTF-8 `String` owner、plain literal、传参/返回、
+      `+`、`==`/`!=`、动态 `println`/`error` 与 drop glue 已接入，并完成 aggregate、Rc、
+      顺序容器和 move closure 的 native 正常/提前退出验收
+- [ ] 基础 IO：`File`、`BufferedReader`、标准流；仍等待关联/实例 member、receiver lowering、
+      具体 API guide 与同步 IO runtime ABI ADR
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
       `Sender.send` 的 value 参数同样声明 `own`；具体返回类型、member receiver lowering 与
       thread/channel runtime ABI 仍是实施门禁
@@ -476,8 +476,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [x] **SPEC-0193（已实现；前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
       `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
       shape 与 ambiguous operational failure 分离；不接收 argv
-- [ ] **[SPEC-0194](../specs/0194-parameterized-main-argv.md)（draft；前置：SPEC-0193、0192
-      `done`，ADR-0019 `accepted`）**：接入
+- [ ] **[SPEC-0194](../specs/0194-parameterized-main-argv.md)（draft；runtime 前置已满足，等待批准）**：接入
       `fun main(args: Array<String>): Unit`，构造不含 executable name 的 UTF-8 argv owner，
       Borrow 调用后逆序析构；现有顺序容器 runtime 由 0192 先验证 String element/drop glue，
       不得以 literal-only String 或宿主指针提前实现
