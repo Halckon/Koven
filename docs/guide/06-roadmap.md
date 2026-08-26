@@ -265,7 +265,8 @@ Spec 之前，本条限制不变。）
 必须合法。本 Phase 不以 Map 正反例作为验收，也不将任何 Map 所有权策略固化到 typed AST。
 - [ ] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（in-progress）**：
       Stage 1 已建立 compilation-unit package/declaration index、L0146/L0147 与独立
-      validated-index 门禁；后续接入 import、visibility、L0148–L0151 和完整名称 validated view。
+      validated-index 门禁，并已把旧 resolver 的 `_` discard 收窄到 `for` binding；后续接入
+      import、visibility、L0148–L0151 和完整名称 validated view。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
       跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
 

@@ -192,7 +192,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0021 | `when` 穷尽性与 smart cast | `01-design-decisions.md` §24 | ✅ 已完成 |
 | SPEC-0022 | 条件 `Copyable`、有限内联布局与结构化解构类型检查 | `01-design-decisions.md` §25 | ✅ 已实现 |
 | SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
-| SPEC-0025 | 多文件 package/import 名称解析 | `01-design-decisions.md` §32、`../specs/0025-multifile-package-import-name-resolution.md` | 🚧 in-progress；Stage 1 unit index 已实现 |
+| SPEC-0025 | 多文件 package/import 名称解析 | `01-design-decisions.md` §32、`../specs/0025-multifile-package-import-name-resolution.md` | 🚧 in-progress；Stage 1 unit index 与 `_` 漂移修复已实现 |
 | SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |

@@ -268,6 +268,51 @@ fn lambda_for_and_destructuring_bindings_resolve_in_their_owners() {
 }
 
 #[test]
+fn underscore_is_a_discard_only_for_for_bindings() {
+    let text = "val _ = 1\n\
+                fun parameter(_: Int): Int = _\n\
+                fun local(items: Items): Int {\n\
+                    val _ = 2\n\
+                    val callback = { _ -> _ }\n\
+                    for (_ in items) { val seen = _ }\n\
+                    return _\n\
+                }";
+    let (sources, parsed) = parsed(text);
+    let resolution = resolve_names(&sources, &parsed, &environment()).expect("resolve");
+
+    assert!(
+        resolution.diagnostics().is_empty(),
+        "{:?}",
+        resolution.diagnostics()
+    );
+    let underscore_kinds: Vec<_> = resolution
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.name() == "_")
+        .map(|symbol| symbol.kind())
+        .collect();
+    assert_eq!(
+        underscore_kinds,
+        [
+            SymbolKind::Variable,
+            SymbolKind::ValueParameter,
+            SymbolKind::Variable,
+            SymbolKind::LambdaParameter,
+        ]
+    );
+    assert!(resolution.references().iter().any(|reference| {
+        sources.slice(reference.span()).expect("span") == "_"
+            && matches!(reference.target(), ReferenceTarget::Symbol(_))
+    }));
+    assert!(
+        !resolution
+            .symbols()
+            .iter()
+            .any(|symbol| { symbol.name() == "_" && symbol.kind() == SymbolKind::ForBinding })
+    );
+}
+
+#[test]
 fn duplicate_names_report_second_span_and_first_label_but_functions_overload() {
     let text = "class Same\n\
                 class Same\n\

@@ -138,9 +138,6 @@ impl<'a> Resolver<'a> {
         let Some((name, span)) = self.marker(marker)? else {
             return Ok(None);
         };
-        if name == "_" {
-            return Ok(None);
-        }
         self.insert(scope, name, span, namespace, kind).map(Some)
     }
 
@@ -152,9 +149,6 @@ impl<'a> Resolver<'a> {
         kind: SymbolKind,
     ) -> Result<Option<SymbolId>, NameResolutionError> {
         let name = self.sources.slice(span)?.to_owned();
-        if name == "_" {
-            return Ok(None);
-        }
         self.insert(scope, name, span, namespace, kind).map(Some)
     }
 
@@ -166,7 +160,6 @@ impl<'a> Resolver<'a> {
         namespace: Namespace,
         kind: SymbolKind,
     ) -> Result<SymbolId, NameResolutionError> {
-        debug_assert_ne!(name, "_", "discard bindings are filtered before insertion");
         let id = SymbolId(self.symbols.len());
         self.symbols
             .push(Symbol::new(id, name.clone(), span, scope, namespace, kind));
@@ -565,18 +558,14 @@ impl<'a> Resolver<'a> {
                 } = item
                 {
                     let name = self.sources.slice(*span)?;
-                    if name != "_" {
-                        out.push((name.to_owned(), *span));
-                    }
+                    out.push((name.to_owned(), *span));
                 }
             }
             Statement::LocalDestructuring { bindings, .. } => {
                 for marker in bindings {
                     if let NameMarker::Present(span) = marker {
                         let name = self.sources.slice(*span)?;
-                        if name != "_" {
-                            out.push((name.to_owned(), *span));
-                        }
+                        out.push((name.to_owned(), *span));
                     }
                 }
             }
@@ -617,13 +606,27 @@ impl<'a> Resolver<'a> {
     ) -> Result<(), NameResolutionError> {
         match binding {
             ForBinding::Name(marker) => {
-                self.insert_marker(scope, *marker, Namespace::Value, SymbolKind::ForBinding)?;
+                self.insert_for_binding_marker(scope, *marker)?;
             }
             ForBinding::Destructuring { names, .. } => {
                 for marker in names {
-                    self.insert_marker(scope, *marker, Namespace::Value, SymbolKind::ForBinding)?;
+                    self.insert_for_binding_marker(scope, *marker)?;
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn insert_for_binding_marker(
+        &mut self,
+        scope: ScopeId,
+        marker: NameMarker,
+    ) -> Result<(), NameResolutionError> {
+        let Some((name, span)) = self.marker(marker)? else {
+            return Ok(());
+        };
+        if name != "_" {
+            self.insert(scope, name, span, Namespace::Value, SymbolKind::ForBinding)?;
         }
         Ok(())
     }

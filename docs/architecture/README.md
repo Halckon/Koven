@@ -186,7 +186,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   与 payload 候选也保留在解析产物中。SPEC-0025 Stage 1 另提供纯内存
   `index_compilation_unit`：校验稳定 root/logical-path 输入，建立规范排序的 package/source/
   declaration identity，聚合 Parser 与 L0146/L0147 诊断，并以独立 validated-index marker
-  阻止错误索引进入后续名称步骤；import/body 解析尚未接入，也不执行类型或控制流判断；
+  阻止错误索引进入后续名称步骤；旧单文件 resolver 已将 `_` discard 收窄到 `for` binding，
+  顶层、参数、local 与 lambda 等普通 Identifier 位置都会建立 symbol；import/body 解析尚未
+  接入，也不执行类型或控制流判断；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
