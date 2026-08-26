@@ -23,6 +23,7 @@ pub(super) struct TypeMap<'ctx> {
     tagged_layouts: BTreeMap<SsaTypeId, TaggedLayout<'ctx>>,
     container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
     closure_layouts: BTreeMap<SsaTypeId, ClosureLayout<'ctx>>,
+    shared_controls: BTreeMap<SsaTypeId, StructType<'ctx>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,6 +68,7 @@ impl<'ctx> TypeMap<'ctx> {
         let mut containers = BTreeMap::new();
         let mut closures = BTreeMap::new();
         let mut tagged = BTreeMap::new();
+        let mut shared_controls = BTreeMap::new();
         let pointer = context.ptr_type(AddressSpace::default());
         let size_type = context.ptr_sized_int_type(target, None);
 
@@ -88,7 +90,10 @@ impl<'ctx> TypeMap<'ctx> {
                     tagged.insert(id, value);
                     Some(value.into())
                 }
-                SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. } => {
+                SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
+                SsaTypeKind::SharedOwner { .. } => {
+                    let control = context.opaque_struct_type(&format!("koven.shared.t{index}"));
+                    shared_controls.insert(id, control);
                     Some(pointer.into())
                 }
                 SsaTypeKind::SharedReference { .. } | SsaTypeKind::FunctionPointer { .. } => {
@@ -143,6 +148,16 @@ impl<'ctx> TypeMap<'ctx> {
                     environment,
                 },
             );
+        }
+
+        for (id, control) in &shared_controls {
+            let payload = module.shared_payload(*id).ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa("shared owner 缺少 payload 定义".to_owned())
+            })?;
+            let payload = types.get(&payload).copied().ok_or_else(|| {
+                LlvmAdapterError::Unsupported("shared owner payload 不具有 LLVM storage".to_owned())
+            })?;
+            control.set_body(&[size_type.into(), payload], false);
         }
 
         for (id, aggregate) in &aggregates {
@@ -233,6 +248,16 @@ impl<'ctx> TypeMap<'ctx> {
             tagged_layouts,
             container_layouts,
             closure_layouts,
+            shared_controls,
+        })
+    }
+
+    pub(super) fn shared_control(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<StructType<'ctx>, LlvmAdapterError> {
+        self.shared_controls.get(&ty).copied().ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa("SSA type is not a shared owner".to_owned())
         })
     }
 

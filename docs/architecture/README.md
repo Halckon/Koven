@@ -95,7 +95,10 @@ SPEC-0045 已完成 frontend 与 SSA 两个阶段切片：compiler-bound `Rc(val
 新增先声明后定义且恒 MoveOnly 的 `SharedOwner<payload>`，以及消费 payload 的
 `SharedAllocate`、非消费 receiver 并产生新 owner 的 `SharedRetain`、只产生 payload place 的
 `SharedPayloadPlace`。三者已进入确定性 render、局部类型契约和线性 ownership verifier；LLVM
-adapter 仍明确拒绝这些 operation，control block、retain/release 与归零 drop/free 正由下一切片实施；
+已把 handle 映射为 pointer、control block 映射为 target `{usize strong, payload}`，allocation
+初始化 strong=1，retain 用非原子 max-check/add 并在溢出时 abort，drop 用非原子 decrement，
+仅归零分支递归 drop payload 并 free。direct-SSA 已覆盖普通、nested 与 ZST payload；frontend
+lowering、nullable Rc 和 shared-control 专用 target preflight 仍由 SPEC-0045 最后切片收口；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -183,7 +186,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `EnvironmentFunctionEffect` 为精确参数绑定跨线程交付 effect，成功 call 通过 argument
   descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定的 intrinsic `Rc<T>`
   已实现 construction、share、payload read 的 typed/ownership identity，源码同名 class/member
-  不获得特权；SharedOwner SSA 已实现，LLVM control block 与 retain/release lowering 尚未实现；
+  不获得特权；SharedOwner SSA 与核心 LLVM control block/retain/release 已实现，frontend→SSA
+  operation lowering 与 native 验收尚未完成；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自

@@ -481,6 +481,47 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let result = place_result(instruction)?;
                 self.places.insert(result, self.pointer_value(*owner)?);
             }
+            Operation::SharedAllocate { owner, payload } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("shared allocate", 1, results.len()));
+                };
+                let allocation = self.dependencies.runtime.allocate_shared(
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    *owner,
+                    self.value(*payload)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, allocation.into());
+            }
+            Operation::SharedRetain { owner } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("shared retain", 1, results.len()));
+                };
+                let owner_type = value_type(self.function, *owner)?;
+                let retained = self.dependencies.runtime.retain_shared(
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    owner_type,
+                    self.pointer_value(*owner)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, retained.into());
+            }
+            Operation::SharedPayloadPlace { owner } => {
+                let result = place_result(instruction)?;
+                let owner_type = value_type(self.function, *owner)?;
+                let place = self.dependencies.runtime.shared_payload_place(
+                    &self.builder,
+                    self.dependencies.type_map,
+                    owner_type,
+                    self.pointer_value(*owner)?,
+                    &format!("p{}", result.index()),
+                )?;
+                self.places.insert(result, place);
+            }
             Operation::ContainerConstruct {
                 container,
                 elements,
@@ -671,13 +712,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.builder
                         .build_store(self.place(*place)?, self.value(*value)?)?;
                 }
-            }
-            Operation::SharedAllocate { .. }
-            | Operation::SharedRetain { .. }
-            | Operation::SharedPayloadPlace { .. } => {
-                return Err(unsupported(
-                    "shared owner operations require SPEC-0045 LLVM lowering",
-                ));
             }
         }
         Ok(())

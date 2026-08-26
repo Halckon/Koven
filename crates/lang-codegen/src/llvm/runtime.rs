@@ -29,6 +29,7 @@ pub(super) struct RuntimeAbi<'ctx> {
     write: Option<FunctionValue<'ctx>>,
     free: Option<FunctionValue<'ctx>>,
     allocation_sizes: BTreeMap<SsaTypeId, u64>,
+    shared_allocation_sizes: BTreeMap<SsaTypeId, u64>,
     zst_sentinel: Option<PointerValue<'ctx>>,
     drop_functions: BTreeMap<SsaTypeId, FunctionValue<'ctx>>,
 }
@@ -98,6 +99,11 @@ impl<'ctx> RuntimeAbi<'ctx> {
             let size = types.aggregate_layout(target, payload)?.store_size.max(1);
             allocation_sizes.insert(owner, size);
         }
+        let mut shared_allocation_sizes = BTreeMap::new();
+        for owner in requirements.shared_allocated_owners {
+            let size = target.get_store_size(&types.shared_control(owner)?).max(1);
+            shared_allocation_sizes.insert(owner, size);
+        }
 
         let mut drop_functions = BTreeMap::new();
         for ty in &requirements.drop_types {
@@ -118,6 +124,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             write,
             free,
             allocation_sizes,
+            shared_allocation_sizes,
             zst_sentinel,
             drop_functions,
         };
@@ -188,6 +195,97 @@ impl<'ctx> RuntimeAbi<'ctx> {
         })?;
         builder.build_call(function, &[BasicMetadataValueEnum::from(value)], "")?;
         Ok(())
+    }
+
+    pub(super) fn allocate_shared(
+        &self,
+        builder: &Builder<'ctx>,
+        function: FunctionValue<'ctx>,
+        types: &TypeMap<'ctx>,
+        owner: SsaTypeId,
+        payload: BasicValueEnum<'ctx>,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        let size = self
+            .shared_allocation_sizes
+            .get(&owner)
+            .copied()
+            .ok_or_else(|| {
+                LlvmAdapterError::InvalidSsa(
+                    "shared allocation 缺少 target-derived size".to_owned(),
+                )
+            })?;
+        let malloc = self
+            .malloc
+            .ok_or_else(|| LlvmAdapterError::Build("malloc 未声明".to_owned()))?;
+        let allocation = match builder
+            .build_call(
+                malloc,
+                &[BasicMetadataValueEnum::from(
+                    self.size_type.const_int(size, false),
+                )],
+                name,
+            )?
+            .try_as_basic_value()
+        {
+            ValueKind::Basic(BasicValueEnum::PointerValue(pointer)) => pointer,
+            _ => {
+                return Err(LlvmAdapterError::Build(
+                    "malloc 未返回 LLVM pointer".to_owned(),
+                ));
+            }
+        };
+        let failed = builder.build_is_null(allocation, &format!("{name}.failed"))?;
+        self.abort_if(builder, function, failed, name)?;
+        let control = types.shared_control(owner)?;
+        let strong = builder.build_struct_gep(control, allocation, 0, &format!("{name}.strong"))?;
+        builder.build_store(strong, self.size_type.const_int(1, false))?;
+        let value = builder.build_struct_gep(control, allocation, 1, &format!("{name}.payload"))?;
+        builder.build_store(value, payload)?;
+        Ok(allocation)
+    }
+
+    pub(super) fn retain_shared(
+        &self,
+        builder: &Builder<'ctx>,
+        function: FunctionValue<'ctx>,
+        types: &TypeMap<'ctx>,
+        owner_type: SsaTypeId,
+        owner: PointerValue<'ctx>,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        let control = types.shared_control(owner_type)?;
+        let strong = builder.build_struct_gep(control, owner, 0, &format!("{name}.strong"))?;
+        let current = builder
+            .build_load(self.size_type, strong, &format!("{name}.current"))?
+            .into_int_value();
+        let overflow = builder.build_int_compare(
+            IntPredicate::EQ,
+            current,
+            self.size_type.const_all_ones(),
+            &format!("{name}.overflow"),
+        )?;
+        self.abort_if(builder, function, overflow, name)?;
+        let next = builder.build_int_add(
+            current,
+            self.size_type.const_int(1, false),
+            &format!("{name}.next"),
+        )?;
+        builder.build_store(strong, next)?;
+        Ok(owner)
+    }
+
+    pub(super) fn shared_payload_place(
+        &self,
+        builder: &Builder<'ctx>,
+        types: &TypeMap<'ctx>,
+        owner_type: SsaTypeId,
+        owner: PointerValue<'ctx>,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
+        builder
+            .build_struct_gep(types.shared_control(owner_type)?, owner, 1, name)
+            .map_err(Into::into)
     }
 
     pub(super) fn emit_abort(&self, builder: &Builder<'ctx>) -> Result<(), LlvmAdapterError> {
@@ -495,6 +593,49 @@ impl<'ctx> RuntimeAbi<'ctx> {
                         "",
                     )?;
                 }
+                Some(SsaTypeKind::SharedOwner { payload, .. }) => {
+                    let payload = payload.ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa(
+                            "drop glue 的 shared owner 尚未定义 payload".to_owned(),
+                        )
+                    })?;
+                    let owner = value.into_pointer_value();
+                    let control = types.shared_control(*ty)?;
+                    let strong = builder.build_struct_gep(control, owner, 0, "strong")?;
+                    let current = builder
+                        .build_load(self.size_type, strong, "strong.current")?
+                        .into_int_value();
+                    let next = builder.build_int_sub(
+                        current,
+                        self.size_type.const_int(1, false),
+                        "strong.next",
+                    )?;
+                    builder.build_store(strong, next)?;
+                    let release = self.context.append_basic_block(*function, "release");
+                    let done = self.context.append_basic_block(*function, "done");
+                    let last = builder.build_int_compare(
+                        IntPredicate::EQ,
+                        next,
+                        self.size_type.const_zero(),
+                        "strong.last",
+                    )?;
+                    builder.build_conditional_branch(last, release, done)?;
+                    builder.position_at_end(release);
+                    if module.type_ownership(payload) == Some(Ownership::MoveOnly) {
+                        let place = builder.build_struct_gep(control, owner, 1, "payload.place")?;
+                        let payload_value =
+                            builder.build_load(types.basic_type(payload)?, place, "payload")?;
+                        self.emit_drop(&builder, payload, payload_value)?;
+                    }
+                    builder.build_call(
+                        self.free
+                            .ok_or_else(|| LlvmAdapterError::Build("free 未声明".to_owned()))?,
+                        &[BasicMetadataValueEnum::from(owner)],
+                        "",
+                    )?;
+                    builder.build_unconditional_branch(done)?;
+                    builder.position_at_end(done);
+                }
                 Some(SsaTypeKind::SequentialContainer { element, .. }) => {
                     self.define_container_drop(
                         module,
@@ -634,6 +775,7 @@ struct RuntimeRequirements {
     needs_print: bool,
     needs_free: bool,
     allocated_owners: BTreeSet<SsaTypeId>,
+    shared_allocated_owners: BTreeSet<SsaTypeId>,
     container_allocations: BTreeSet<SsaTypeId>,
     drop_types: BTreeSet<SsaTypeId>,
 }
@@ -646,6 +788,7 @@ impl RuntimeRequirements {
             needs_print: false,
             needs_free: false,
             allocated_owners: BTreeSet::new(),
+            shared_allocated_owners: BTreeSet::new(),
             container_allocations: BTreeSet::new(),
             drop_types: BTreeSet::new(),
         };
@@ -656,6 +799,14 @@ impl RuntimeRequirements {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                         requirements.allocated_owners.insert(owner);
+                    }
+                    Operation::SharedAllocate { owner, .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.needs_abort = true;
+                        requirements.shared_allocated_owners.insert(owner);
+                    }
+                    Operation::SharedRetain { .. } => {
+                        requirements.needs_abort = true;
                     }
                     Operation::PrintLiteral { .. } => {
                         requirements.needs_print = true;
@@ -743,10 +894,14 @@ impl RuntimeRequirements {
                 })?;
                 self.collect_drop_type(module, payload)?;
             }
-            Some(SsaTypeKind::SharedOwner { .. }) => {
-                return Err(LlvmAdapterError::Unsupported(
-                    "shared owner drop glue requires SPEC-0045 LLVM lowering".to_owned(),
-                ));
+            Some(SsaTypeKind::SharedOwner { payload, .. }) => {
+                self.needs_free = true;
+                let payload = payload.ok_or_else(|| {
+                    LlvmAdapterError::InvalidSsa(
+                        "drop operand 使用尚未定义 payload 的 shared owner".to_owned(),
+                    )
+                })?;
+                self.collect_drop_type(module, payload)?;
             }
             Some(SsaTypeKind::SequentialContainer { element, .. }) => {
                 self.needs_free = true;

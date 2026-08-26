@@ -258,6 +258,197 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
 }
 
 #[test]
+fn shared_owner_uses_non_atomic_checked_retain_and_release_to_zero_drop() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("shared_runtime");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let owner_type = module.declare_shared_owner("Rc<Int>").expect("declare");
+    module
+        .define_shared_owner(owner_type, integer)
+        .expect("define");
+    let function_id = module
+        .add_function("shared", vec![integer], origin.clone())
+        .expect("function");
+    let function = module.function_mut(function_id).expect("function");
+    let entry = function
+        .add_block(Vec::new(), origin.clone())
+        .expect("entry");
+    let payload = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::Constant(crate::ssa::model::ScalarConstant::Integer(7)),
+                vec![EntityType::Value(integer)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let owner = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::SharedAllocate {
+                    owner: owner_type,
+                    payload,
+                },
+                vec![EntityType::Value(owner_type)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let retained = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::SharedRetain { owner },
+                vec![EntityType::Value(owner_type)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let payload_place = place(
+        function
+            .append_instruction(
+                entry,
+                Operation::SharedPayloadPlace { owner: retained },
+                vec![EntityType::Place(integer)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let read = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::Read {
+                    source: PlaceAccess::Place(payload_place),
+                },
+                vec![EntityType::Value(integer)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    function
+        .append_instruction(entry, Operation::Drop { owner }, Vec::new(), origin.clone())
+        .unwrap();
+    function
+        .append_instruction(
+            entry,
+            Operation::Drop { owner: retained },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: vec![read] }, origin)
+        .unwrap();
+
+    let llvm = render_verified_program(&program).expect("shared runtime lowering");
+    assert!(llvm.contains("%koven.shared.t1 = type { i64, i64 }"));
+    assert!(llvm.contains("store i64 1"));
+    assert!(llvm.contains("icmp eq i64"));
+    assert!(llvm.contains("add i64"));
+    assert!(llvm.contains("sub i64"));
+    assert!(llvm.contains("strong.last"));
+    assert!(llvm.contains("call void @free"));
+    assert!(!llvm.contains("atomicrmw"));
+    assert!(!llvm.contains("cmpxchg"));
+    assert!(!llvm.contains("invoke "));
+}
+
+#[test]
+fn nested_shared_owner_with_zst_payload_recursively_releases_each_control_block() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("nested_shared_runtime");
+    let module = program.module_mut(module_id).expect("module");
+    let zst = module
+        .add_aggregate_type("Empty", Vec::new())
+        .expect("empty aggregate");
+    let inner_type = module.declare_shared_owner("Rc<Empty>").expect("inner");
+    module
+        .define_shared_owner(inner_type, zst)
+        .expect("inner definition");
+    let outer_type = module.declare_shared_owner("Rc<Rc<Empty>>").expect("outer");
+    module
+        .define_shared_owner(outer_type, inner_type)
+        .expect("outer definition");
+    let function_id = module
+        .add_function("nested", Vec::new(), origin.clone())
+        .expect("function");
+    let function = module.function_mut(function_id).unwrap();
+    let entry = function.add_block(Vec::new(), origin.clone()).unwrap();
+    let empty = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::AggregateConstruct {
+                    aggregate: zst,
+                    fields: Vec::new(),
+                },
+                vec![EntityType::Value(zst)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let inner = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::SharedAllocate {
+                    owner: inner_type,
+                    payload: empty,
+                },
+                vec![EntityType::Value(inner_type)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    let outer = value(
+        function
+            .append_instruction(
+                entry,
+                Operation::SharedAllocate {
+                    owner: outer_type,
+                    payload: inner,
+                },
+                vec![EntityType::Value(outer_type)],
+                origin.clone(),
+            )
+            .unwrap()
+            .1[0],
+    );
+    function
+        .append_instruction(
+            entry,
+            Operation::Drop { owner: outer },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .unwrap();
+
+    let llvm = render_verified_program(&program).expect("nested shared lowering");
+    assert_eq!(llvm.matches("call void @free").count(), 2);
+    assert!(llvm.contains("call void @koven.drop.t1"));
+    assert!(llvm.contains("call void @koven.drop.t2"));
+}
+
+#[test]
 fn recursive_heap_type_predeclares_finite_self_recursive_drop_glue() {
     let origin = origin();
     let mut program = Program::default();
