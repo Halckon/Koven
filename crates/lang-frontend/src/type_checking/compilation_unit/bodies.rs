@@ -7,12 +7,12 @@ use crate::{
         ValidatedCompilationUnitNames,
     },
     source::SourceMap,
-    type_checking::{ExpressionCategory, ParameterMode, TypeEnvironment},
+    type_checking::{DestructuringMode, ExpressionCategory, ParameterMode, TypeEnvironment},
 };
 
 use super::{
-    CompilationUnitSignatures, CompilationUnitTypeError, UnitExpressionId, UnitTypeId,
-    UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
+    CompilationUnitSignatures, CompilationUnitTypeError, UnitExpressionId, UnitStatementId,
+    UnitTypeId, UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
 };
 
 mod checker;
@@ -159,6 +159,80 @@ impl UnitCallDescriptor {
     }
 }
 
+/// compilation unit 中一个已类型化的结构化解构分量。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitDestructuringComponent {
+    symbol: UnitSymbolId,
+    ty: UnitTypeId,
+}
+
+impl UnitDestructuringComponent {
+    pub(crate) const fn new(symbol: UnitSymbolId, ty: UnitTypeId) -> Self {
+        Self { symbol, ty }
+    }
+
+    /// 返回接收分量的 source-qualified binding symbol。
+    #[must_use]
+    pub const fn symbol(self) -> UnitSymbolId {
+        self.symbol
+    }
+
+    /// 返回替换实际泛型实参后的分量类型。
+    #[must_use]
+    pub const fn ty(self) -> UnitTypeId {
+        self.ty
+    }
+}
+
+/// compilation unit 中一次精确、有效的局部 value-class 结构化解构。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitDestructuringDescriptor {
+    statement: UnitStatementId,
+    source_type: UnitTypeId,
+    mode: DestructuringMode,
+    components: Vec<UnitDestructuringComponent>,
+}
+
+impl UnitDestructuringDescriptor {
+    pub(crate) fn new(
+        statement: UnitStatementId,
+        source_type: UnitTypeId,
+        mode: DestructuringMode,
+        components: Vec<UnitDestructuringComponent>,
+    ) -> Self {
+        Self {
+            statement,
+            source_type,
+            mode,
+            components,
+        }
+    }
+
+    /// 返回带 source-unit 限定的 statement identity。
+    #[must_use]
+    pub const fn statement(&self) -> UnitStatementId {
+        self.statement
+    }
+
+    /// 返回 initializer 的规范化源类型。
+    #[must_use]
+    pub const fn source_type(&self) -> UnitTypeId {
+        self.source_type
+    }
+
+    /// 返回 Copy 或 Consume 原子模式。
+    #[must_use]
+    pub const fn mode(&self) -> DestructuringMode {
+        self.mode
+    }
+
+    /// 返回主构造器字段顺序的 binding / component type。
+    #[must_use]
+    pub fn components(&self) -> &[UnitDestructuringComponent] {
+        &self.components
+    }
+}
+
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Default)]
 pub(crate) struct CompilationUnitTypeParts {
@@ -167,6 +241,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) calls: Vec<UnitCallDescriptor>,
+    pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -187,6 +262,7 @@ pub struct CompilationUnitTypes {
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     calls: Vec<UnitCallDescriptor>,
+    destructurings: Vec<UnitDestructuringDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -209,6 +285,7 @@ impl CompilationUnitTypes {
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
             calls: parts.calls,
+            destructurings: parts.destructurings,
             body_diagnostics,
             diagnostics,
         }
@@ -278,6 +355,23 @@ impl CompilationUnitTypes {
         self.calls
             .iter()
             .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的有效 value-class 解构事实。
+    #[must_use]
+    pub fn destructurings(&self) -> &[UnitDestructuringDescriptor] {
+        &self.destructurings
+    }
+
+    /// 查询一条 source-qualified statement 的有效解构事实。
+    #[must_use]
+    pub fn destructuring(
+        &self,
+        statement: UnitStatementId,
+    ) -> Option<&UnitDestructuringDescriptor> {
+        self.destructurings
+            .iter()
+            .find(|descriptor| descriptor.statement() == statement)
     }
 
     /// 查询 source-qualified type reference 的规范类型。

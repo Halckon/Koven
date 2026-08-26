@@ -107,7 +107,10 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通一般 assignment 遍历与 fact kill：target/RHS 均在赋值前事实下检查，随后清除稳定
      target 的 smart-cast；`=`/`+=`/`-=`/`*=`/`/=`/`%=` 与单文件现行边界一致发布
      `Deferred(Assignment)`，不提前发明一般 mutable-place 或 RHS 相容诊断，输入置换保持 facts 稳定。
-   - [ ] 接完 local destructuring、`when`/loop/jump/lambda、generic local type、
+   - [x] 接通 local value-class destructuring：initializer 只检查一次，generic field 完成实际类型
+     替换，按 `UnitStatementId` / `UnitSymbolId` 发布有序 component 与 Copy/Consume descriptor；
+     非 value class 保持专用 deferred，错误 arity 复用跨 source L0118，输入置换保持 facts/诊断稳定。
+   - [ ] 接完 `when`/loop/jump/lambda、generic local type、
      generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -152,3 +155,6 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 16 tests；新增 assignment RHS-before-kill、后续读取恢复声明类型、六种 Deferred reason 与输入置换 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | assignment/fact-kill 实现与全部 frontend targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | assignment 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 18 tests；新增跨文件 generic value-class 解构、Copy/Consume、普通 class deferred、L0118 recovery 与输入置换 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit copyability/destructuring facts、测试与全部 frontend targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | destructuring 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

@@ -720,7 +720,12 @@ SPEC-0197 第一阶段新增纯内存的
 - 第五个 body 切片已接通一般 assignment：先在原 flow facts 下检查 target 与 RHS，再清除稳定
   target 的 smart-cast fact；六种赋值运算均保持单文件现行 `Deferred(Assignment)` 边界，不把
   Phase 3 mutable-place/loan 或尚未封闭的一般 RHS 相容性伪装成 Phase 2 诊断；
-- top-level variable/const initializer、member body、local destructuring、
+- 第六个 body 切片已接通局部 value-class 解构：initializer 只检查一次，跨文件 generic field
+  类型按实际实参替换，产物以 `UnitStatementId` / `UnitSymbolId` 发布有序 component 与
+  `Copy`/`Consume` descriptor；普通 class 保持 `Deferred(Destructuring)`，错误 arity 复用 L0118
+  并把 label 指向跨文件类型声明。Consume 仍只是交给 Phase 3 的原子动作，不在类型阶段判定
+  move-after-use；
+- top-level variable/const initializer、member body、
   `when`、loop/jump、
   lambda、generic local type、generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等

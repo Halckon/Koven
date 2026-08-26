@@ -286,8 +286,8 @@ Spec 之前，本条限制不变。）
       已建立防碰撞 unit type/signature identity、完整跨文件 signature graph、provenance 与
       L0092–L0116/L0141 相关验证，并接通顶层 callable/call、局部变量、简单局部类型标注、
       基础运算、`if` control-body/join，以及 nominal/enum type-test 与稳定 place smart-cast facts；
-      一般 assignment 已按现行 deferred 边界接入 RHS-before-kill；下一阶段继续接入 local
-      destructuring、`when`/loop、lambda、
+      一般 assignment 已按现行 deferred 边界接入 RHS-before-kill，局部 value-class 解构已发布
+      source-qualified Copy/Consume facts 与 L0118；下一阶段继续接入 `when`/loop、lambda、
       泛型/构造等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布

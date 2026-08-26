@@ -24,6 +24,8 @@ use crate::{
 
 mod assignment;
 mod control;
+mod copyability;
+mod destructuring;
 mod flow;
 mod literals;
 mod operators;
@@ -305,6 +307,21 @@ impl<'a> BodyChecker<'a> {
             Statement::LocalVariable { declaration } => {
                 self.check_local_variable(source, declaration, return_type)
             }
+            Statement::LocalDestructuring {
+                bindings,
+                left_paren_span,
+                right_paren_span,
+                initializer,
+                ..
+            } => self.check_local_destructuring(
+                source,
+                statement,
+                &bindings,
+                left_paren_span,
+                right_paren_span,
+                initializer,
+                return_type,
+            ),
             Statement::Error => Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
