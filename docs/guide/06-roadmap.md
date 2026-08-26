@@ -418,9 +418,9 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
       `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
-- [ ] `Result<T, E>`、`Pair<A, B>`（自动解构支持；`Pair` 按类型实参条件满足 `Copyable`）；
-      SPEC-0184 lowering 前置已完成；现行 v0.29 已保持 `value` 为硬关键字，并把核心 payload
-      名称封闭为 `Ok(success: T)`；候选 SPEC-0044 可物化
+- [x] **SPEC-0044（已实现）**：在唯一 Koven prelude 真源声明 `Pair<A, B>` 与
+      `Result<T, E>`；自动解构及按类型实参条件满足 `Copyable` 沿用通用 compiler facts，
+      核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
       传入值所有权，调用点无 marker；`Rc<T>` 需要
       retain，因此本身不满足 `Copyable`）；SPEC-0184 aggregate/heap-owner lowering 前置已完成，

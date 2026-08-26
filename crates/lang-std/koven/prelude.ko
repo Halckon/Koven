@@ -1,8 +1,37 @@
-// SPEC-0042/0043 的仓库 bootstrap 入口；error identity 由标准分析环境发布。
+// Koven 标准声明与仓库 bootstrap entries；compiler-bound identity 由标准分析环境发布。
+value class Pair<A, B>(val first: A, val second: B)
+
+enum class Result<T, E> {
+    Ok(success: T),
+    Err(error: E)
+}
+
 fun bootstrapSmoke(): Unit {}
 
 fun bootstrapHello(): Unit {
     println("Hello, World!")
+}
+
+fun bootstrapPairResult(): Unit {
+    val pair = Pair(20, 22)
+    val copied = pair
+    val (left, right) = pair
+    if (left + right != 42) { error("bad Pair destructuring") }
+    if (copied.first + copied.second != 42) { error("bad Pair copy") }
+
+    val ok: Result<Int, Int> = Result.Ok(7)
+    val success: Int = when (ok) {
+        is Result.Ok<Int, Int> -> ok.success
+        is Result.Err<Int, Int> -> 0
+    }
+    if (success != 7) { error("bad Result.Ok") }
+
+    val err: Result<Int, Int> = Result.Err(9)
+    val failure: Int = when (err) {
+        is Result.Ok<Int, Int> -> 0
+        is Result.Err<Int, Int> -> err.error
+    }
+    if (failure != 9) { error("bad Result.Err") }
 }
 
 fun bootstrapAbort(): Unit {

@@ -20,7 +20,8 @@
 > 等待 typed iteration plan 与 provider runtime；SPEC-0186 已在 LLVM 复合类型构造前加入
 > target size/alignment/stride 超限与溢出预检；Phase 5 已建立真实 Koven prelude bootstrap，
 > 并由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，SPEC-0189
-> 把首个 `println(String)` Borrow identity 与非插值 literal 接入 stdout；Phase 6
+> 把首个 `println(String)` Borrow identity 与非插值 literal 接入 stdout，SPEC-0044 已在
+> `prelude.ko` 实现条件 `Copyable` 的 `Pair` / `Result` 并完成 native 正反验收；Phase 6
 > 已提供单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性保守 formatter、
 > TextMate 与 Tree-sitter grammar。多文件 package / import 名称解析等待 guide 封闭 import 冲突与
 > 跨 package 可见性，`object` / `companion object` 常量求值等待 guide 封闭可接受表达式与
@@ -40,7 +41,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查，以及 v0.29 nominal/enum/Box constructor typed facts；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中，以及 SPEC-0184 的 nominal/enum/Box constructor、投影/解构、drop 与 L0145 native 闭环。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，并由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime；一般 String runtime、其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供公开单文件显式 entry `kovenc build/run`、单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；跨文件诊断与跳转定义、隐式 main 与项目构建仍等待后续 Spec |
+| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查，以及 v0.29 nominal/enum/Box constructor typed facts；Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中，以及 SPEC-0184 的 nominal/enum/Box constructor、投影/解构、drop 与 L0145 native 闭环。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime，并由 SPEC-0044 在标准源码实现条件 `Copyable` 的 `Pair` / `Result` 与 native 正反验收；一般 String runtime、其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；多文件 package / import 与 `object` / `companion object` 常量求值仍有 guide 门禁。Phase 6 已提供公开单文件显式 entry `kovenc build/run`、单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；跨文件诊断与跳转定义、隐式 main 与项目构建仍等待后续 Spec |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -175,7 +176,7 @@ runtime 等 crate。
 | `lang-codegen` | 自建 SSA IR、lowering、LLVM IR、目标文件生成 | LLVM 细节只能从此边界向内扩散 |
 | `lang-cli` | 编译流水线编排、诊断渲染、进程退出码 | 不承载 lexer、类型检查或 codegen 核心算法 |
 | `lang-lsp` | 复用 frontend 提供诊断、跳转等编辑器能力 | 不复制 parser / type checker |
-| `lang-std` | 从第一天开始以目标语言自身编写的标准库源码 | 单文件早期 bootstrap 已由 ADR-0012 / SPEC-0042 在 CLI 内部 driver 实现；SPEC-0043 已接入标准 `error()` Abort，SPEC-0189 已接入 literal-only `println(String)` stdout；一般 String/IO API 与后续线程 runtime 支撑仍按独立 Spec 推进 |
+| `lang-std` | 从第一天开始以目标语言自身编写的标准库源码 | 单文件早期 bootstrap 已由 ADR-0012 / SPEC-0042 在 CLI 内部 driver 实现；SPEC-0043 已接入标准 `error()` Abort，SPEC-0189 已接入 literal-only `println(String)` stdout，SPEC-0044 已实现 `Pair` / `Result`；一般 String/IO API 与后续线程 runtime 支撑仍按独立 Spec 推进 |
 
 依赖必须单向、无环。通常由 codegen 和 LSP 复用 frontend，由 CLI 编排 frontend 与
 codegen；frontend 永远不能反向依赖外围工具。跨 crate API 才使用 `pub`，其余保持最小
@@ -493,10 +494,6 @@ cargo build -p lang-cli
 4. LLVM 21 / Inkwell 0.10 与首个 AArch64 macOS target 已由 ADR-0007 固定；机器诊断已由
    ADR-0014/SPEC-0060 固定首版 JSON Lines，完整 build event、多目标矩阵、包清单与锁文件
    schema 仍未确定。
-5. 现行 guide 把 `value` 列为硬关键字，但核心 `Result` 声明仍写作 `Ok(value: T)`；
-   SPEC-0044 必须等待后续明确启用的 guide 选择调整关键字分类或更改公共 payload 名称，
-   实现不得自行把其中一方当作笔误。
-
 ---
 
 ## 12. 禁止事项

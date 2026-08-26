@@ -1754,12 +1754,12 @@ callable reference、safe call 等调用继续精确保留对应 `DeferredReason
 
 ### 29.4 `Result` payload 勘误与诊断
 
-现行词法规范把 `value` 保持为硬关键字；v0.29 候选不为一个标准库字段把它改成上下文软词，
-避免扩大 Lexer/Parser 兼容面。若本候选启用，核心 `Result` 声明固定为
+现行词法规范把 `value` 保持为硬关键字；v0.29 不为一个标准库字段把它改成上下文软词，
+避免扩大 Lexer/Parser 兼容面。核心 `Result` 声明固定为
 `Ok(success: T), Err(error: E)`，取代附录中不可解析的 `Ok(value: T)` 示例；这只改 payload
 名称，不改变 `Result<T, E>`、postfix `?` 或错误传播语义。
 
-| 错误码 | 候选稳定含义 | primary / 关联位置 |
+| 错误码 | 稳定含义 | primary / 关联位置 |
 |---|---|---|
 | L0143 | type-position callee 不是可构造的 class/value class/case/intrinsic Box | primary 为 callee 名称；label 指向实际 type 声明（若有） |
 | L0144 | constructor/case 无法从 operand 与合法的独立同 root expected type 得到完整一致的类型实参 | primary 为 constructor/case 名称；labels 指向未决/冲突类型参数声明 |

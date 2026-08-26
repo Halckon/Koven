@@ -48,20 +48,25 @@ fn run_fixture(source_text: &str, entry: &str) -> (TestDirectory, Result<(), Boo
     (directory, result)
 }
 
-#[test]
-fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
-    let standard_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+fn standard_prelude() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("crates directory")
         .join("lang-std")
-        .join("koven");
-    let mut sources = fs::read_dir(&standard_root)
+        .join("koven")
+        .join("prelude.ko")
+}
+
+#[test]
+fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
+    let prelude = standard_prelude();
+    let standard_root = prelude.parent().expect("standard source directory");
+    let mut sources = fs::read_dir(standard_root)
         .expect("standard source directory")
         .map(|entry| entry.expect("source entry").path())
         .filter(|path| path.extension().is_some_and(|extension| extension == "ko"))
         .collect::<Vec<_>>();
     sources.sort();
-    let prelude = standard_root.join("prelude.ko");
     assert_eq!(sources.as_slice(), std::slice::from_ref(&prelude));
     let original = fs::read(&prelude).expect("prelude bytes");
     assert!(
@@ -79,6 +84,20 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
             .windows("bootstrapHello".len())
             .any(|window| window == b"bootstrapHello")
     );
+    for required in [
+        "value class Pair<A, B>(val first: A, val second: B)",
+        "enum class Result<T, E>",
+        "Ok(success: T)",
+        "Err(error: E)",
+        "bootstrapPairResult",
+    ] {
+        assert!(
+            original
+                .windows(required.len())
+                .any(|window| window == required.as_bytes()),
+            "missing standard declaration {required:?}"
+        );
+    }
 
     let directory = TestDirectory::create();
     let object = directory.join("prelude.o");
@@ -110,6 +129,18 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     assert_eq!(hello.stdout, b"Hello, World!\n");
     assert!(hello.stderr.is_empty(), "{hello:?}");
 
+    let pair_result_object = directory.join("prelude-pair-result.o");
+    let pair_result_executable = directory.join("prelude-pair-result");
+    bootstrap_and_run(BootstrapTarget {
+        source: &prelude,
+        entry_name: "bootstrapPairResult",
+        object: &pair_result_object,
+        executable: &pair_result_executable,
+    })
+    .expect("standard Pair/Result entry must construct, project and run");
+    assert!(pair_result_object.is_file());
+    assert!(pair_result_executable.is_file());
+
     let abort_object = directory.join("prelude-abort.o");
     let abort_executable = directory.join("prelude-abort");
     let abort = bootstrap_and_run(BootstrapTarget {
@@ -137,6 +168,53 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
         }),
         Err(BootstrapError::OutputExists(path)) if path == object
     ));
+}
+
+#[test]
+fn standard_pair_and_result_are_move_only_when_an_argument_is_move_only() {
+    let prelude = fs::read_to_string(standard_prelude()).expect("standard prelude text");
+    for (index, invalid) in [
+        "fun invalidPair(own pair: Pair<String, Int>): Unit {\n\
+             val moved = pair\n\
+             val invalid = pair\n\
+         }",
+        "fun invalidResult(own result: Result<Int, String>): Unit {\n\
+             val moved = result\n\
+             val invalid = result\n\
+         }",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let directory = TestDirectory::create();
+        let source = directory.join(&format!("invalid-{index}.ko"));
+        fs::write(&source, format!("{prelude}\n{invalid}\n")).expect("derived source write");
+        let object = directory.join("invalid.o");
+        let executable = directory.join("invalid");
+        let result = bootstrap_and_run(BootstrapTarget {
+            source: &source,
+            entry_name: if index == 0 {
+                "invalidPair"
+            } else {
+                "invalidResult"
+            },
+            object: &object,
+            executable: &executable,
+        });
+        assert!(
+            matches!(
+                result,
+                Err(BootstrapError::FrontendDiagnostics {
+                    stage: FrontendStage::OwnershipChecking,
+                    diagnostics,
+                    ..
+                }) if diagnostics.len() == 1 && diagnostics[0].code().to_string() == "L0131"
+            ),
+            "derived standard ownership case {index} must fail with one L0131"
+        );
+        assert!(!object.exists());
+        assert!(!executable.exists());
+    }
 }
 
 #[test]

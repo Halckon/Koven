@@ -74,6 +74,13 @@ String literal 的 UTF-8 与合法 escape，并生成无 operand/结果、末尾
 进入既有 Abort；不引入 String heap、malloc/retain/clone、stdio buffering 或 unwind。真实
 `prelude.ko` 的 `bootstrapHello` 已经 object/Clang link/run，stdout 精确为
 `Hello, World!\n`；插值与一般 String expression 在 object 写盘前保持 unsupported；
+SPEC-0044 已在唯一 `prelude.ko` 源码真源声明
+`value class Pair<A, B>(val first: A, val second: B)` 与
+`enum class Result<T, E> { Ok(success: T), Err(error: E) }`，不注册名称特例或新 runtime 表示。
+`bootstrapPairResult` 已真实验证条件 `Copyable` 的 Pair 构造/复制/字段投影/完整解构，以及
+Result 两个 case 的构造、smart cast 与 payload projection；从同一 prelude 派生的 MoveOnly
+Pair/Result 负例各自产生唯一 L0131 并在 object 写盘前失败。当前公开单文件命令仍不隐式拼接
+prelude，跨文件标准库可见性等待 package/import 主线；
 SPEC-0185 已让 frontend-clean 的普通 class/value class/interface/enum class 顶层声明与既有
 标量 entry 共存：声明 root 不进入函数模板或可达实例图，不产生伪 SSA/LLVM 实体；具名 object、
 顶层 variable/constant 仍结构化拒绝，native 失败不落盘；
@@ -1321,7 +1328,8 @@ Phase 5 容器 relocation effect 等后续所有权规则仍未实现；
 source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SPEC-0043 已让真实
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。SPEC-0189 已增加标准 `println(String)` 的
 首个 literal-only stdout slice 与真实 Hello World entry，但一般 String runtime、其他 printable
-重载仍未实现。SPEC-0190 已公开单文件显式 entry build/run，但不等于多文件标准库、隐式 main
+重载仍未实现。SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
+MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190 已公开单文件显式 entry build/run，但不等于多文件标准库、隐式 main
 或项目构建模型。内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
