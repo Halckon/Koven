@@ -81,7 +81,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
 | 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
-| 实施中/当前前沿 | SPEC-0196 nullable handle lowering | ADR-0017 已接受；SPEC-0195 前置已完成；先发布 typed non-null flow use descriptor |
+| 实施中/当前前沿 | SPEC-0196 nullable handle lowering | frontend non-null use descriptor 与 nullable SSA/verifier 已完成；LLVM null niche、conditional drop 与 native 接线待实施 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |

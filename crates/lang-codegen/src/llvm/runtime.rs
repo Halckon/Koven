@@ -903,6 +903,11 @@ impl RuntimeRequirements {
                 })?;
                 self.collect_drop_type(module, payload)?;
             }
+            Some(SsaTypeKind::NullableHandle { .. }) => {
+                return Err(LlvmAdapterError::Unsupported(
+                    "nullable handle conditional drop glue 尚未接入 LLVM".to_owned(),
+                ));
+            }
             Some(SsaTypeKind::SequentialContainer { element, .. }) => {
                 self.needs_free = true;
                 self.collect_drop_type(module, *element)?;

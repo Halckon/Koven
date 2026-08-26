@@ -338,6 +338,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       Value/Borrow delivery identity；frontend 按 LoanFact 生成 root/payload place、shared loan、
       同步 call 与 BorrowEnd，callee entry loan 作为支配 callable CFG 的函数参数。LLVM 以 pointer
       ABI 传递 Borrow，Rc MoveOnly payload、普通 class 与 Box root 均已通过正反及 native 验收
+- [ ] **SPEC-0196（v0.30，实施中）**：frontend 已发布按 expression identity 查询的稳定
+      non-null use descriptor；typed SSA 已建立独立 `NullableHandle<inner>`、wrap/null/is-null/take、
+      专用 non-null edge/shared-loan view 以及 path/owner-sensitive verifier。LLVM 单 pointer niche、
+      conditional drop、frontend CFG lowering 与 class/Box/Rc native 验收仍待完成
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由

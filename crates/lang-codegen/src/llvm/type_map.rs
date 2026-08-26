@@ -92,7 +92,9 @@ impl<'ctx> TypeMap<'ctx> {
                     tagged.insert(id, value);
                     Some(value.into())
                 }
-                SsaTypeKind::HeapOwner { .. } => Some(pointer.into()),
+                SsaTypeKind::HeapOwner { .. } | SsaTypeKind::NullableHandle { .. } => {
+                    Some(pointer.into())
+                }
                 SsaTypeKind::SharedOwner { .. } => {
                     let control = context.opaque_struct_type(&format!("koven.shared.t{index}"));
                     shared_controls.insert(id, control);

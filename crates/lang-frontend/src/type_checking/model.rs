@@ -123,6 +123,43 @@ pub struct TypeParameterDescriptor {
     pub(crate) bound: TypeParameterBound,
 }
 
+/// 一个稳定 symbol 使用点已经由控制流证明为非空。
+///
+/// 描述符保留声明类型与窄化类型，使后续 lowering 无需重新解释条件表达式。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NonNullUseDescriptor {
+    pub(crate) expression: ExpressionId,
+    pub(crate) symbol: SymbolId,
+    pub(crate) declared_type: TypeId,
+    pub(crate) narrowed_type: TypeId,
+}
+
+impl NonNullUseDescriptor {
+    /// 返回被窄化的具体表达式使用点。
+    #[must_use]
+    pub const fn expression(self) -> ExpressionId {
+        self.expression
+    }
+
+    /// 返回该使用点解析到的稳定 symbol。
+    #[must_use]
+    pub const fn symbol(self) -> SymbolId {
+        self.symbol
+    }
+
+    /// 返回 symbol 的 nullable 声明类型。
+    #[must_use]
+    pub const fn declared_type(self) -> TypeId {
+        self.declared_type
+    }
+
+    /// 返回控制流证明后的非空 inner 类型。
+    #[must_use]
+    pub const fn narrowed_type(self) -> TypeId {
+        self.narrowed_type
+    }
+}
+
 impl TypeParameterDescriptor {
     /// 返回声明 symbol。
     #[must_use]
@@ -848,6 +885,7 @@ pub struct TypedFile {
     type_ref_types: Vec<TypeId>,
     symbol_types: Vec<TypeId>,
     parameter_bindings: Vec<ParameterBindingDescriptor>,
+    non_null_uses: Vec<NonNullUseDescriptor>,
     nominals: Vec<NominalDescriptor>,
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
@@ -870,6 +908,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) type_ref_types: Vec<TypeId>,
     pub(crate) symbol_types: Vec<TypeId>,
     pub(crate) parameter_bindings: Vec<ParameterBindingDescriptor>,
+    pub(crate) non_null_uses: Vec<NonNullUseDescriptor>,
     pub(crate) nominals: Vec<NominalDescriptor>,
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
@@ -905,6 +944,7 @@ impl TypedFile {
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
             parameter_bindings: parts.parameter_bindings,
+            non_null_uses: parts.non_null_uses,
             nominals: parts.nominals,
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
@@ -982,6 +1022,23 @@ impl TypedFile {
     #[must_use]
     pub fn parameter_bindings(&self) -> &[ParameterBindingDescriptor] {
         &self.parameter_bindings
+    }
+
+    /// 返回按 expression identity 排序的已证明非空使用点。
+    #[must_use]
+    pub fn non_null_uses(&self) -> &[NonNullUseDescriptor] {
+        &self.non_null_uses
+    }
+
+    /// 查询一个表达式是否是已证明非空的稳定 symbol 使用点。
+    #[must_use]
+    pub fn non_null_use(&self, expression: ExpressionId) -> Option<NonNullUseDescriptor> {
+        self.non_null_uses
+            .binary_search_by_key(&expression.index(), |descriptor| {
+                descriptor.expression.index()
+            })
+            .ok()
+            .map(|index| self.non_null_uses[index])
     }
 
     /// 返回源码声明顺序的名义类型描述符。

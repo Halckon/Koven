@@ -661,6 +661,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.places.insert(result, pointer);
             }
+            Operation::NullableWrap { .. }
+            | Operation::NullableNull { .. }
+            | Operation::NullableIsNull { .. }
+            | Operation::NullableTake { .. } => {
+                return Err(unsupported(
+                    "nullable handle operations 尚未接入 LLVM adapter",
+                ));
+            }
             Operation::Copy { source } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("copy", 1, results.len()));
@@ -1047,6 +1055,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.block(when_true.target)?,
                     self.block(when_false.target)?,
                 )?;
+            }
+            TerminatorKind::NullableBranch { .. } => {
+                return Err(unsupported(
+                    "nullable non-null edge/view 尚未接入 LLVM adapter",
+                ));
             }
             TerminatorKind::Return { values } => match values.as_slice() {
                 [] => {

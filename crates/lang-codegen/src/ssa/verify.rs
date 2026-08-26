@@ -29,32 +29,78 @@ pub(super) enum VerifyErrorKind {
     UnknownInstruction,
     UnknownEntity,
     UnknownType(SsaTypeId),
-    InvalidTypeDefinition { reason: &'static str },
+    InvalidTypeDefinition {
+        reason: &'static str,
+    },
     WrongOwner,
     InstructionPlacement,
     MissingTerminator,
     InvalidEntityDefinition,
     InvalidEntityType,
-    EdgeArity { expected: usize, actual: usize },
-    EdgeType { index: usize },
+    EdgeArity {
+        expected: usize,
+        actual: usize,
+    },
+    EdgeType {
+        index: usize,
+    },
     ConditionType,
-    ReturnArity { expected: usize, actual: usize },
-    ReturnType { index: usize },
-    OperationContract { reason: &'static str },
-    UseBeforeDefinition { entity: EntityId },
-    NonDominatingUse { entity: EntityId },
-    HiddenLinearLiveIn { entity: EntityId },
-    CopyMoveOnly { value: super::model::ValueId },
-    DropCopyable { value: super::model::ValueId },
-    MoveOnlyPlaceRead { entity: EntityId },
-    ValueUnavailable { value: super::model::ValueId },
-    PlaceUnavailable { place: super::model::PlaceId },
-    LoanInactive { loan: super::model::LoanId },
-    BorrowConflict { place: super::model::PlaceId },
-    MutationConflict { place: super::model::PlaceId },
-    OwnerLoanConflict { value: super::model::ValueId },
-    MissingOwnedExit { value: super::model::ValueId },
-    ActiveLoanAtExit { loan: super::model::LoanId },
+    ReturnArity {
+        expected: usize,
+        actual: usize,
+    },
+    ReturnType {
+        index: usize,
+    },
+    OperationContract {
+        reason: &'static str,
+    },
+    UseBeforeDefinition {
+        entity: EntityId,
+    },
+    NonDominatingUse {
+        entity: EntityId,
+    },
+    HiddenLinearLiveIn {
+        entity: EntityId,
+    },
+    CopyMoveOnly {
+        value: super::model::ValueId,
+    },
+    DropCopyable {
+        value: super::model::ValueId,
+    },
+    MoveOnlyPlaceRead {
+        entity: EntityId,
+    },
+    ValueUnavailable {
+        value: super::model::ValueId,
+    },
+    PlaceUnavailable {
+        place: super::model::PlaceId,
+    },
+    LoanInactive {
+        loan: super::model::LoanId,
+    },
+    BorrowConflict {
+        place: super::model::PlaceId,
+    },
+    MutationConflict {
+        place: super::model::PlaceId,
+    },
+    OwnerLoanConflict {
+        value: super::model::ValueId,
+    },
+    NullableProofMismatch {
+        owner: super::model::ValueId,
+        proof: super::model::LoanId,
+    },
+    MissingOwnedExit {
+        value: super::model::ValueId,
+    },
+    ActiveLoanAtExit {
+        loan: super::model::LoanId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -478,6 +524,25 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                     errors,
                 );
             }
+            TerminatorKind::NullableBranch {
+                owner,
+                when_null,
+                when_non_null,
+                view,
+            } => {
+                verify_edge(function, block.id, 0, when_null, &terminator.origin, errors);
+                verify_non_null_edge(
+                    module,
+                    function,
+                    block.id,
+                    1,
+                    *owner,
+                    when_non_null,
+                    *view,
+                    &terminator.origin,
+                    errors,
+                );
+            }
             TerminatorKind::Return { values } => {
                 if values.len() != function.return_types.len() {
                     errors.push(VerifyError {
@@ -552,6 +617,113 @@ fn verify_edge(
             });
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_non_null_edge(
+    module: &Module,
+    function: &Function,
+    source: BlockId,
+    successor: usize,
+    owner: super::model::ValueId,
+    edge: &super::model::Edge,
+    view: super::model::LoanId,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    let target = function
+        .block(edge.target)
+        .expect("structure phase proved edge target existence");
+    let location = VerifyLocation::Edge { source, successor };
+    if target.parameters.len() != edge.arguments.len() + 1 {
+        errors.push(VerifyError {
+            kind: VerifyErrorKind::EdgeArity {
+                expected: target.parameters.len(),
+                actual: edge.arguments.len() + 1,
+            },
+            location,
+            origin: Some(origin.clone()),
+        });
+        return;
+    }
+    for (index, (argument, parameter)) in edge.arguments.iter().zip(&target.parameters).enumerate()
+    {
+        let argument_type = function
+            .entity(*argument)
+            .expect("structure phase proved edge argument existence")
+            .ty;
+        let parameter_type = function
+            .entity(*parameter)
+            .expect("structure phase proved block parameter existence")
+            .ty;
+        if argument_type != parameter_type {
+            errors.push(VerifyError {
+                kind: VerifyErrorKind::EdgeType { index },
+                location: location.clone(),
+                origin: Some(origin.clone()),
+            });
+        }
+    }
+    let Some(inner) = function
+        .entity(EntityId::Value(owner))
+        .and_then(|entity| module.nullable_inner(entity.ty.semantic_type()))
+    else {
+        errors.push(VerifyError {
+            kind: VerifyErrorKind::OperationContract {
+                reason: "nullable branch owner must be a nullable handle",
+            },
+            location,
+            origin: Some(origin.clone()),
+        });
+        return;
+    };
+    let expected_view = target.parameters.last().copied() == Some(EntityId::Loan(view))
+        && function.entity(EntityId::Loan(view)).is_some_and(|entity| {
+            entity.ty
+                == EntityType::Loan {
+                    kind: super::model::LoanKind::Shared,
+                    target: inner,
+                }
+        });
+    if !expected_view || !non_null_target_is_proof_closed(function, edge.target, view) {
+        errors.push(VerifyError {
+            kind: VerifyErrorKind::EdgeType {
+                index: edge.arguments.len(),
+            },
+            location,
+            origin: Some(origin.clone()),
+        });
+    }
+}
+
+fn non_null_target_is_proof_closed(
+    function: &Function,
+    target: BlockId,
+    expected_view: super::model::LoanId,
+) -> bool {
+    function.blocks.iter().all(|block| {
+        let Some(terminator) = &block.terminator else {
+            return true;
+        };
+        match &terminator.kind {
+            TerminatorKind::Branch(edge) => edge.target != target,
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => when_true.target != target && when_false.target != target,
+            TerminatorKind::NullableBranch {
+                when_null,
+                when_non_null,
+                view,
+                ..
+            } => {
+                when_null.target != target
+                    && (when_non_null.target != target || *view == expected_view)
+            }
+            TerminatorKind::Return { .. } | TerminatorKind::Abort => true,
+        }
+    })
 }
 
 fn verify_dominance(function: &Function, errors: &mut Vec<VerifyError>) {

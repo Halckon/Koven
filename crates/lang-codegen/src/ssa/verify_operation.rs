@@ -103,6 +103,21 @@ pub(super) fn verify_operation(
         Operation::SharedPayloadPlace { owner } => {
             shared_payload_place_contract(module, function, *owner, &results)
         }
+        Operation::NullableWrap { nullable, owner } => {
+            module.nullable_inner(*nullable) == value_type(function, *owner)
+                && single_value_result(&results) == Some(*nullable)
+        }
+        Operation::NullableNull { nullable } => {
+            module.nullable_inner(*nullable).is_some()
+                && single_value_result(&results) == Some(*nullable)
+        }
+        Operation::NullableIsNull { owner } => {
+            value_type(function, *owner).is_some_and(|ty| module.nullable_inner(ty).is_some())
+                && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
+        }
+        Operation::NullableTake { owner, proof } => {
+            nullable_take_contract(module, function, *owner, *proof, &results)
+        }
         Operation::ContainerConstruct {
             container,
             elements,
@@ -193,6 +208,34 @@ fn aggregate_construct_contract(
             .iter()
             .zip(expected_fields)
             .all(|(field, expected)| value_type(function, *field) == Some(*expected))
+}
+
+fn nullable_take_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    proof: super::model::LoanId,
+    results: &[EntityType],
+) -> bool {
+    let Some(nullable) = value_type(function, owner) else {
+        return false;
+    };
+    let Some(inner) = module.nullable_inner(nullable) else {
+        return false;
+    };
+    let is_branch_proof = function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator.as_ref().map(|terminator| &terminator.kind),
+            Some(super::model::TerminatorKind::NullableBranch { view, .. }) if *view == proof
+        )
+    });
+    entity_type(function, EntityId::Loan(proof))
+        == EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: inner,
+        }
+        && is_branch_proof
+        && single_value_result(results) == Some(inner)
 }
 
 fn aggregate_project_contract(
@@ -704,6 +747,7 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::TaggedUnion { .. }
                 | SsaTypeKind::HeapOwner { .. }
+                | SsaTypeKind::NullableHandle { .. }
                 | SsaTypeKind::SequentialContainer { .. }
                 | SsaTypeKind::ZeroSized { .. }
                 | SsaTypeKind::SharedReference { .. }

@@ -184,6 +184,9 @@ pub(crate) enum SsaTypeKind {
         name: String,
         payload: Option<SsaTypeId>,
     },
+    NullableHandle {
+        inner: SsaTypeId,
+    },
     SequentialContainer {
         kind: SequentialContainerKind,
         element: SsaTypeId,
@@ -393,6 +396,20 @@ pub(crate) enum Operation {
     SharedPayloadPlace {
         owner: ValueId,
     },
+    NullableWrap {
+        nullable: SsaTypeId,
+        owner: ValueId,
+    },
+    NullableNull {
+        nullable: SsaTypeId,
+    },
+    NullableIsNull {
+        owner: ValueId,
+    },
+    NullableTake {
+        owner: ValueId,
+        proof: LoanId,
+    },
     ContainerConstruct {
         container: SsaTypeId,
         elements: Vec<ValueId>,
@@ -449,7 +466,7 @@ pub(crate) enum Operation {
 impl Operation {
     pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
-            Self::Constant(_) | Self::PrintLiteral { .. } => Vec::new(),
+            Self::Constant(_) | Self::PrintLiteral { .. } | Self::NullableNull { .. } => Vec::new(),
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::Compare { left, right, .. } => {
@@ -482,6 +499,12 @@ impl Operation {
             | Self::SharedRetain { owner: aggregate }
             | Self::SharedPayloadPlace { owner: aggregate } => {
                 vec![EntityId::Value(*aggregate)]
+            }
+            Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
+                vec![EntityId::Value(*owner)]
+            }
+            Self::NullableTake { owner, proof } => {
+                vec![EntityId::Value(*owner), EntityId::Loan(*proof)]
             }
             Self::TaggedConstruct { payload, .. } => vec![EntityId::Value(*payload)],
             Self::TaggedPayloadPlace { owner, .. } => vec![EntityId::Value(*owner)],
@@ -547,6 +570,12 @@ pub(crate) enum TerminatorKind {
         when_true: Edge,
         when_false: Edge,
     },
+    NullableBranch {
+        owner: ValueId,
+        when_null: Edge,
+        when_non_null: Edge,
+        view: LoanId,
+    },
     Return {
         values: Vec<ValueId>,
     },
@@ -567,6 +596,17 @@ impl TerminatorKind {
                 entities.extend(when_false.arguments.iter().copied());
                 entities
             }
+            Self::NullableBranch {
+                owner,
+                when_null,
+                when_non_null,
+                ..
+            } => {
+                let mut entities = vec![EntityId::Value(*owner)];
+                entities.extend(when_null.arguments.iter().copied());
+                entities.extend(when_non_null.arguments.iter().copied());
+                entities
+            }
             Self::Return { values } => values.iter().copied().map(EntityId::Value).collect(),
             Self::Abort => Vec::new(),
         }
@@ -580,6 +620,11 @@ impl TerminatorKind {
                 when_false,
                 ..
             } => vec![when_true.target, when_false.target],
+            Self::NullableBranch {
+                when_null,
+                when_non_null,
+                ..
+            } => vec![when_null.target, when_non_null.target],
             Self::Return { .. } | Self::Abort => Vec::new(),
         }
     }
@@ -739,6 +784,9 @@ impl Function {
         }
         for entity in kind.entities() {
             self.check_entity(entity)?;
+        }
+        if let TerminatorKind::NullableBranch { view, .. } = kind {
+            self.check_entity(EntityId::Loan(view))?;
         }
         self.blocks[block.index()].terminator = Some(Terminator { kind, origin });
         Ok(())
@@ -983,6 +1031,9 @@ pub(crate) enum ModelError {
     ExpectedSharedOwner {
         ty: SsaTypeId,
     },
+    ExpectedPointerLikeOwner {
+        ty: SsaTypeId,
+    },
     ExpectedAggregate {
         ty: SsaTypeId,
     },
@@ -1028,6 +1079,9 @@ impl fmt::Display for ModelError {
             Self::ExpectedHeapOwner { ty } => write!(formatter, "type {ty:?} is not a heap owner"),
             Self::ExpectedSharedOwner { ty } => {
                 write!(formatter, "type {ty:?} is not a shared owner")
+            }
+            Self::ExpectedPointerLikeOwner { ty } => {
+                write!(formatter, "type {ty:?} is not a pointer-like owner")
             }
             Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
             Self::EmptyClosureCaptures => {

@@ -38,6 +38,11 @@ handle 层，再由 Rc 复用，而不是在 SharedOwner LLVM adapter 中加入�
 - 非消费 smart cast 不产生 owned inner handle。nullable 条件分支在 non-null edge 发布一个
   绑定到原 nullable owner 的 non-owning reference/view；该 view 只能执行 read、projection、
   retain/share 等不消费 inner 的操作，并由 alias/loan verifier 阻止 owner 提前 move/drop。
+- typed SSA 用专用 `NullableBranch` terminator 表达证明边界：null edge 使用普通参数交付，
+  non-null edge 的专用 target 最后一个 block parameter 是 `Loan(Shared, inner)` view，且该
+  target 不接受普通 branch 或 null edge 前驱。`NullableTake(owner, proof)` 必须消费同一 owner
+  派生且仍 active 的 view；普通 Borrow 参数、另一 owner 的 view 或类型相同的裸 loan 都不能
+  充当非空证明。
 - null/non-null flow fact 必须来自 typed condition descriptor或显式 nullable operation，lowering
   不重新解释 AST 拼写；join 后不保留只在单一 edge 成立的 non-null view。
 

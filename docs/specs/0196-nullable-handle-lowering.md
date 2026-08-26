@@ -40,8 +40,8 @@ null 比较/smart cast、conditional drop 与 Rc 非空分支 `.share()` 可走�
 
 ## 5. 验收标准
 
-- [ ] NullableHandle type/operation/render/type/ownership verifier 正反矩阵通过。
-- [ ] null/non-null edge proof 阻止无证明 unwrap、owner 提前 move/drop与 view 逃逸。
+- [x] NullableHandle type/operation/render/type/ownership verifier 正反矩阵通过。
+- [x] null/non-null edge proof 阻止无证明 unwrap、owner 提前 move/drop与 view 逃逸。
 - [ ] LLVM IR 对 class/Box/Rc 使用单 pointer niche，conditional drop 正确且无额外 allocation/tag。
 - [ ] `Rc<T>?` null 与非空 native build/run 退出 0，非空 branch 可 share/read并最终只 free 一次。
 - [ ] inline nullable 与未授权 control forms 明确拒绝，不发生 compiler panic。
@@ -54,8 +54,8 @@ null 比较/smart cast、conditional drop 与 Rc 非空分支 `.share()` 可走�
 
 ## 7. 实施计划
 
-1. [ ] 建立 NullableHandle、operation、non-null edge/view 与 verifier。
-2. [ ] 接 frontend nullable/null comparison/smart-cast/drop facts。
+1. [x] 建立 NullableHandle、operation、non-null edge/view 与 verifier。
+2. [ ] 接 frontend nullable/null comparison/smart-cast/drop facts（稳定 non-null use descriptor 已完成）。
 3. [ ] 接 LLVM null niche、conditional drop 与 class/Box/Rc native 测试。
 4. [ ] 同步 Architecture、Roadmap、验证记录与 workspace 基线。
 
@@ -75,4 +75,11 @@ null 比较/smart cast、conditional drop 与 Rc 非空分支 `.share()` 可走�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 前置审计 | 通过 | SPEC-0045/0195 `done`；ADR-0017 `accepted`；nullable TypeId、null comparison 与 smart cast 已实现 |
-| frontend lowering 事实审计 | 待实施 | null smart-cast 当前仅保存在 checker 内部 `flow_facts`；TypedFile 尚未发布稳定 non-null use descriptor，不能由 lowering 重解 AST 替代 |
+| frontend non-null use typed fact | 通过 | `TypedFile::non_null_use(s)` 按 expression identity 发布稳定 symbol、nullable 声明类型与 inner 窄化类型；overload trial 完整回滚 |
+| `cargo test -p lang-frontend --test type_checking type_tests_drive_enum_payload_and_nullable_smart_casts` | 通过 | 条件读取不发布事实，非空分支的稳定 symbol 使用发布唯一 descriptor |
+| `cargo test -p lang-codegen nullable_operation_tests` | 通过 | 5 项覆盖 pointer-like identity、operation/render、专用 non-null view、伪 proof、跨 owner proof 与 active-view drop |
+| `cargo test -p lang-frontend` | 通过 | frontend 全量测试与 doc-tests 通过 |
+| `cargo test -p lang-codegen` | 通过 | 129 通过、0 失败、1 个既有 LLDB task-port 环境项忽略 |
+| `cargo check --workspace` | 通过 | workspace 编译基线通过 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 无 warning |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与 whitespace 基线通过 |

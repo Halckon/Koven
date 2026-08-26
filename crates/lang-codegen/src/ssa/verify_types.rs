@@ -167,6 +167,21 @@ fn verify_type_definition(
         SsaTypeKind::SharedOwner { payload: None, .. } => {
             push_type_error(errors, id, "shared owner declaration must be defined");
         }
+        SsaTypeKind::NullableHandle { inner } => {
+            if inner.module() != module.id
+                || !module.type_is_defined(*inner)
+                || !matches!(
+                    module.type_kind(*inner),
+                    Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+                )
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "nullable handle inner type must be a defined local pointer-like owner",
+                );
+            }
+        }
         SsaTypeKind::SequentialContainer { element, .. } => {
             if element.module() != module.id
                 || module.type_kind(*element).is_none()

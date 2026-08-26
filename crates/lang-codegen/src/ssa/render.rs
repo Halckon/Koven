@@ -97,6 +97,12 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             }
             Ok(())
         }
+        SsaTypeKind::NullableHandle { inner } => {
+            output.write_str("nullable_handle<")?;
+            write_type_id(output, *inner)?;
+            output.push('>');
+            Ok(())
+        }
         SsaTypeKind::SequentialContainer { kind, element } => {
             write!(output, "container {kind:?}<")?;
             write_type_id(output, *element)?;
@@ -458,6 +464,26 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("shared.payload_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::NullableWrap { nullable, owner } => {
+            output.write_str("nullable.wrap ")?;
+            write_type_id(output, *nullable)?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::NullableNull { nullable } => {
+            output.write_str("nullable.null ")?;
+            write_type_id(output, *nullable)
+        }
+        Operation::NullableIsNull { owner } => {
+            output.write_str("nullable.is_null ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
+        Operation::NullableTake { owner, proof } => {
+            output.write_str("nullable.take ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Loan(*proof))
+        }
         Operation::ContainerConstruct {
             container,
             elements,
@@ -615,6 +641,21 @@ fn write_terminator(output: &mut String, terminator: &TerminatorKind) -> fmt::Re
             write_edge(output, when_true)?;
             output.write_str(", ")?;
             write_edge(output, when_false)
+        }
+        TerminatorKind::NullableBranch {
+            owner,
+            when_null,
+            when_non_null,
+            view,
+        } => {
+            output.write_str("nullable.branch ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", null ")?;
+            write_edge(output, when_null)?;
+            output.write_str(", non_null ")?;
+            write_edge(output, when_non_null)?;
+            output.write_str(" view ")?;
+            write_entity_id(output, EntityId::Loan(*view))
         }
         TerminatorKind::Return { values } => {
             output.write_str("return")?;

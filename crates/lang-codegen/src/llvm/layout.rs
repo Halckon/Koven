@@ -174,6 +174,7 @@ impl LayoutCalculator<'_, '_> {
             Some(
                 SsaTypeKind::HeapOwner { .. }
                 | SsaTypeKind::SharedOwner { .. }
+                | SsaTypeKind::NullableHandle { .. }
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. },
             ) => self.pointer_layout,

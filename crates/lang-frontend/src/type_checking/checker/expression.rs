@@ -275,10 +275,35 @@ impl Checker<'_> {
             self.mismatch(span, expected_span, result.ty, expected)?;
             result.ty = self.error_type();
         }
+        self.record_non_null_use(id, result.ty);
         let category = self.classify_expression_category(id, result.ty);
         self.set_expression_category(id, category);
         self.set_expression(id, result.ty);
         Ok(result)
+    }
+
+    fn record_non_null_use(&mut self, expression: ExpressionId, narrowed_type: TypeId) {
+        let Some(FlowKey::Symbol(symbol)) = self.stable_flow_key(expression) else {
+            return;
+        };
+        let Some(active_type) = self.flow_facts.get(&FlowKey::Symbol(symbol)).copied() else {
+            return;
+        };
+        let Some(declared_type) = self.symbol_type(symbol) else {
+            return;
+        };
+        let TypeKind::Nullable(inner) = self.kind(declared_type) else {
+            return;
+        };
+        if *inner != narrowed_type || active_type != narrowed_type {
+            return;
+        }
+        self.non_null_uses.push(NonNullUseDescriptor {
+            expression,
+            symbol,
+            declared_type,
+            narrowed_type,
+        });
     }
 
     fn name_expression_type(

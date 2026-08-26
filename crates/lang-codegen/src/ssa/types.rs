@@ -149,6 +149,23 @@ impl Module {
         Ok(self.intern_type(SsaTypeKind::SequentialContainer { kind, element }))
     }
 
+    /// 建立只接受已定义 pointer-like owner 的 nullable handle identity。
+    pub(crate) fn add_nullable_handle_type(
+        &mut self,
+        inner: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(inner)?;
+        if !self.type_is_defined(inner)
+            || !matches!(
+                self.type_kind(inner),
+                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+            )
+        {
+            return Err(ModelError::ExpectedPointerLikeOwner { ty: inner });
+        }
+        Ok(self.intern_type(SsaTypeKind::NullableHandle { inner }))
+    }
+
     pub(crate) fn type_ownership(&self, id: SsaTypeId) -> Option<Ownership> {
         match self.type_kind(id)? {
             SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
@@ -159,9 +176,9 @@ impl Module {
             | SsaTypeKind::ZeroSized { ownership, .. }
             | SsaTypeKind::Aggregate { ownership, .. }
             | SsaTypeKind::TaggedUnion { ownership, .. } => Some(*ownership),
-            SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. } => {
-                Some(Ownership::MoveOnly)
-            }
+            SsaTypeKind::HeapOwner { .. }
+            | SsaTypeKind::SharedOwner { .. }
+            | SsaTypeKind::NullableHandle { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {
                 Some(Ownership::MoveOnly)
@@ -202,6 +219,13 @@ impl Module {
     pub(crate) fn shared_payload(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
             SsaTypeKind::SharedOwner { payload, .. } => *payload,
+            _ => None,
+        }
+    }
+
+    pub(crate) fn nullable_inner(&self, id: SsaTypeId) -> Option<SsaTypeId> {
+        match self.type_kind(id)? {
+            SsaTypeKind::NullableHandle { inner } => Some(*inner),
             _ => None,
         }
     }

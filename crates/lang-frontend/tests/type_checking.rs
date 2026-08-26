@@ -260,9 +260,30 @@ fn type_tests_drive_enum_payload_and_nullable_smart_casts() {
                     if (input != null) { return input + 1 }\n\
                     return 0\n\
                 }";
-    let (_, _, _, typed) = checked(text);
+    let (sources, parsed, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert_eq!(typed.aggregate_projections().len(), 1);
+    let [non_null_use] = typed.non_null_uses() else {
+        panic!("expected exactly one proven non-null use");
+    };
+    let expression = parsed
+        .ast()
+        .expressions()
+        .get(non_null_use.expression())
+        .expect("non-null expression");
+    assert_eq!(sources.slice(expression.span()), Ok("input"));
+    assert_eq!(
+        typed.types().get(non_null_use.declared_type()),
+        Some(&TypeKind::Nullable(non_null_use.narrowed_type()))
+    );
+    assert_eq!(
+        typed.expression_type(non_null_use.expression()),
+        Some(non_null_use.narrowed_type())
+    );
+    assert_eq!(
+        typed.non_null_use(non_null_use.expression()),
+        Some(*non_null_use)
+    );
 }
 
 #[test]

@@ -41,9 +41,9 @@ use super::{
     DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
     EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
     FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
-    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, SequentialContainerKind,
-    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
-    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    NonNullUseDescriptor, ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor,
+    SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
+    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
@@ -97,6 +97,7 @@ struct Checker<'a> {
     type_ref_types: Vec<Option<TypeId>>,
     symbol_types: Vec<Option<TypeId>>,
     parameter_modes: Vec<Option<ParameterMode>>,
+    non_null_uses: Vec<NonNullUseDescriptor>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
@@ -251,6 +252,7 @@ impl<'a> Checker<'a> {
             type_ref_types: vec![None; parsed.ast().type_refs().len()],
             symbol_types: vec![None; names.symbols().len()],
             parameter_modes: vec![None; names.symbols().len()],
+            non_null_uses: Vec::new(),
             references,
             symbols_by_span,
             symbol_kinds,
@@ -407,6 +409,8 @@ impl<'a> Checker<'a> {
                 mode.map(|mode| ParameterBindingDescriptor::new(SymbolId(index), mode))
             })
             .collect();
+        self.non_null_uses
+            .sort_by_key(|descriptor| descriptor.expression.index());
         let diagnostics = ordered_diagnostics(self.sources, &self.diagnostics)?
             .into_iter()
             .cloned()
@@ -421,6 +425,7 @@ impl<'a> Checker<'a> {
                 type_ref_types,
                 symbol_types,
                 parameter_bindings,
+                non_null_uses: self.non_null_uses,
                 nominals: self.nominals,
                 type_parameters: self.type_parameters,
                 delegations: self.delegations,

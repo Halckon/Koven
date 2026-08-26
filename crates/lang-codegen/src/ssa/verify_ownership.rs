@@ -111,6 +111,53 @@ pub(super) fn verify_ownership(
                     errors,
                 );
             }
+            TerminatorKind::NullableBranch {
+                owner,
+                when_null,
+                when_non_null,
+                ..
+            } => {
+                require_value(
+                    module,
+                    function,
+                    *owner,
+                    &state,
+                    VerifyLocation::Terminator(block.id),
+                    &terminator.origin,
+                    errors,
+                );
+                if has_exclusive_value_loan(function, *owner, &aliases, &state) {
+                    errors.push(error(
+                        VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                        VerifyLocation::Terminator(block.id),
+                        &terminator.origin,
+                    ));
+                }
+                verify_edge_state(
+                    module,
+                    function,
+                    block.id,
+                    0,
+                    when_null,
+                    &aliases,
+                    &closure_loans,
+                    state.clone(),
+                    &terminator.origin,
+                    errors,
+                );
+                verify_edge_state(
+                    module,
+                    function,
+                    block.id,
+                    1,
+                    when_non_null,
+                    &aliases,
+                    &closure_loans,
+                    state,
+                    &terminator.origin,
+                    errors,
+                );
+            }
             TerminatorKind::Return { values } => {
                 for value in values {
                     consume_value(
@@ -381,6 +428,55 @@ fn apply_operation(
         }
         Operation::SharedRetain { owner } | Operation::SharedPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
+        }
+        Operation::NullableWrap { owner, .. } => {
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
+        Operation::NullableNull { .. } => {}
+        Operation::NullableIsNull { owner } => {
+            require_value(module, function, *owner, state, location, origin, errors);
+        }
+        Operation::NullableTake { owner, proof } => {
+            if !aliases.overlap(EntityId::Value(*owner), EntityId::Loan(*proof)) {
+                errors.push(error(
+                    VerifyErrorKind::NullableProofMismatch {
+                        owner: *owner,
+                        proof: *proof,
+                    },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            if !state.loans.remove(proof) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *proof },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
         }
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
@@ -1000,6 +1096,14 @@ impl AliasRoots {
                     _ => {}
                 }
             }
+            for block in &function.blocks {
+                let Some(terminator) = &block.terminator else {
+                    continue;
+                };
+                if let TerminatorKind::NullableBranch { owner, view, .. } = terminator.kind {
+                    changed |= union_from(&mut roots, EntityId::Loan(view), EntityId::Value(owner));
+                }
+            }
             if !changed {
                 break;
             }
@@ -1060,6 +1164,11 @@ fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
             when_false,
             ..
         } => vec![when_true, when_false],
+        TerminatorKind::NullableBranch {
+            when_null,
+            when_non_null,
+            ..
+        } => vec![when_null, when_non_null],
         TerminatorKind::Return { .. } | TerminatorKind::Abort => Vec::new(),
     }
 }
