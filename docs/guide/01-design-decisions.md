@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30–32 节分别是 v0.30–v0.32 已启用的现行规则；
-> 第 33、34 节分别是尚未启用的 v0.33、v0.34 候选；附录收录原第二部分的核心结构声明总览。
+> 第 33–35 节分别是尚未启用的 v0.33–v0.35 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2199,6 +2199,86 @@ L0100/L0105 级联抑制。
 L0152 自 v0.34 启用后稳定表示“interface delegation cannot forward a non-Borrow receiver”；
 primary 为 `by`/delegate target，label 指向首个不兼容 interface member。其余 receiver 失败复用
 L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得另造重叠错误类别。
+
+---
+
+## 35. nullable `when` 剩余域与 `!!` 所有权（v0.35 候选，未启用）
+
+> **候选状态**：本节直接以现行 v0.32 为基线，只闭合既有 nullable 控制形式的 frontend
+> facts、所有权和分阶段 lowering；它不自动包含或启用候选 §33 project build、§34 receiver。
+> 只有用户明确启用 v0.35 并指定其取代 v0.32 后，本节才能改变 `when`/`!!` 的实现契约；
+> SPEC-0202–0207 在此之前保持 `draft`。本节不改变既有语法、`T?` 类型规则或 ADR-0017
+> pointer-like null-niche ABI。
+
+### 35.1 共同求值、证明与 owner 原则
+
+- nullable subject/operand 精确求值一次。null 判别只读取 nullable source，不复制、retain、移动
+  或改变 wrapper；成功的 non-null edge 产生绑定到同一 root/place/loan identity 的 non-owning
+  proof/view。Borrow/Inout binding、普通字段和容器元素可形成只读 proof，但不因此获得 owned
+  inner 或可移动 root。
+- proof 只证明同一 source 在当前 CFG edge 非空，不产生第二个 `T` owner。shared read、projection
+  或显式 `Rc.share()` 可复用该 view；owner/place move/drop、赋值、冲突调用及 branch join 继续
+  按 §24/§26 终止 proof。ADR-0017 首版 SSA 只表示 owned nullable Value 的 branch；loan/place
+  subject 的 native proof 需要后继 nullable-place branch ADR，不能把 loan 伪装成 owner。
+- 从已证明非空的 `T?` 取得普通 Value `T` 时统一采用 extraction：`T : Copyable` 复制 inner，
+  原 nullable root 仍可用；MoveOnly `T` 消费**整个** nullable root 或 temporary，并把唯一 inner
+  obligation 转交给结果。不得从 Borrow/Inout binding、普通字段、容器元素或其他不能整体
+  Value-deliver 的 place 移出 inner 后留下 wrapper/owner 洞。
+- MoveOnly extraction 只能在已有 non-null proof 的 edge 执行 take，消费 wrapper 并转移 inner；
+  nullable `when` 直接使用 branch proof，`!!` 则先自行建立 null/non-null branch。`!!` 的 null
+  edge不执行 take，而是直接进入 compiler-bound Abort，因此没有正常后继，也不生成 unwind
+  cleanup。只有成功 take 的 non-null edge继续执行，原 binding 在该 edge 已 moved，后续使用
+  沿用 L0131。
+
+### 35.2 nullable `when` 的剩余域
+
+- subject 仍按 §12/§24 只求值一次。对稳定 `T?` subject，显式 `null` condition 的匹配 edge
+  获得 null fact，不匹配 edge 获得 non-null fact；后续 entry 接收之前所有未匹配 condition 的
+  剩余域，最终 `else` 接收完整补集。
+- 同一 entry 的逗号 alternatives 独立从该 entry 的输入域判断，body 只保留所有可到达匹配
+  alternative 共同成立的事实。因此 `null, SomeCase -> ...` 不把 body 错误收窄为非空；只有
+  每条可达 alternative 都证明非空时，body 才获得 `T` view。
+- nullable enum/Boolean 的 case coverage 与 null coverage 组合现行有限域规则；重复覆盖、非穷尽、
+  branch type 与非法 condition 继续使用 L0108–L0112。临时 subject 没有可供源码复用的 stable
+  binding，但 lowering 仍必须在内部携带同一 subject owner，不能重新求值表达式。
+- 分支内只读/借用 subject 使用 non-owning view；若表达式上下文要求 Value `T`，则按 §35.1
+  Copy/Consume extraction。未提取的 temporary/owned subject 在每条正常分支出口按既有 ASAP
+  规则恰好 drop 一次；已提取分支不得再次 drop wrapper 或 inner。
+
+### 35.3 非空断言 `!!`
+
+- `e!!` 继续具有 §3 已定义的表面语义：要求 `e : T?`、结果为 `T`，失败等价于
+  `error("Non-null assertion failed")`；本候选补充其所有权效果，不把脱糖文本当作重复求值。
+- `e` 为 `Copyable` nullable 时，非空 edge 复制 inner；若 `e` 是可继续访问的 place，原值保持
+  可用。`e` 为 MoveOnly nullable 时，`!!` 是 Value extraction，必须整体消费合法 owner
+  root/temporary。Borrow/Inout binding extraction 使用 L0133，普通字段 partial extraction 使用
+  L0132，顺序容器 element extraction 使用 L0136，active-loan 冲突使用 L0135；这些拒绝不适用于
+  Copyable inner 的普通复制。
+- `!!` 不提供 place-preserving borrow unwrap，也不根据外层 Borrow receiver/call argument
+  静默改变结果契约。需要非消费访问时使用显式 null check/nullable `when` 的 non-null view；
+  borrow-return 或可存储 nullable view 等待后续语言设计。
+- 非 nullable operand 继续使用 L0085；move/partial-move/loan 失败使用上述
+  L0131–L0133/L0135/L0136 稳定分类，不把 L0134 的 mutable-place 含义挪作 extraction。
+  本候选不分配 L0153，也不把 codegen 尚未接线伪装成新的源码错误。
+
+### 35.4 分阶段交接与非目标
+
+1. SPEC-0202 发布 nullable `when` 的稳定 subject、entry 输入/剩余域、alternative 交集与 body
+   non-null typed facts；
+2. SPEC-0203 消费 0202，发布 view/extraction、branch owner/drop 与 join 所有权事实；
+3. SPEC-0204 把 pointer-like nullable `when` lower 到 ADR-0017 的 `NullableBranch/Take`；
+4. SPEC-0205 发布 `!!` 的 operand/category、nullable/inner 类型、extraction 与 compiler-bound
+   assertion Abort effect typed descriptor；该 effect 是语法内建身份，不解析或调用同名函数；
+5. SPEC-0206 消费 0205，建立 Copy/Consume、abort edge、move/loan/drop 事实；
+6. SPEC-0207 把 pointer-like `!!` lower 到 `NullableBranch/Take` 与既有 SSA Abort primitive。
+
+上述 frontend facts/ownership 适用于所有已接受的 nullable 类型；首轮 native 实施只覆盖
+ADR-0017 已支持、且由 owned whole-root/temporary 承载的普通 class、`Box`、`Rc` pointer-like
+nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering 等待 nullable-place/
+loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
+scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
+Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
+也继续延后。v0.35 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
 
 ---
 

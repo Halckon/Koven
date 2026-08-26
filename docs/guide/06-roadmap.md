@@ -10,6 +10,9 @@
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
 > `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
 > v0.32 实现。
+> 2026-08-27 对 nullable、iteration、const/Map 再审计后，选择不依赖 exact-import 或 receiver
+> 的 nullable 控制流作为下一候选，并在 §35 物化 v0.35 与
+> SPEC-0202→0203→0204、SPEC-0205→0206→0207 两条 Phase 2→3→4 链；候选未启用。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -271,6 +274,10 @@ Spec 之前，本条限制不变。）
       import、visibility、L0148–L0151 和完整名称 validated view。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
       跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
+- [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
+      nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
+- [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
+      operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
 
 `for` iteration plan、`object` / `companion object`、Map 与 receiver 各自在门禁解除后形成独立
 增量验收；它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
@@ -320,6 +327,10 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（draft）**：在 SPEC-0197
       后消费完整 typed unit，发布跨文件 call/constructor 的 loan、move、drop 与 capture facts；
       body 数据流仍保持局部，不新增跨过程所有权分析；当前等待 SPEC-0197 完成。
+- [ ] **[SPEC-0203](../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
+      non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
+- [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
+      MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -369,6 +380,12 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       verifier；LLVM 使用单 pointer niche 和 conditional drop。class/Box/Rc 的 null/non-null、Rc
       非空分支 share/read 与 native build/link/run 已验收；inline nullable、nullable `when` 与 `!!`
       消费 lowering 保持确定性 unsupported，等待各自独立 Spec
+- [ ] **[SPEC-0204](../specs/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
+      复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
+      SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
+- [ ] **[SPEC-0207](../specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
+      0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
+      whole-root/temporary pointer-like `!!` native 闭环。
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由

@@ -32,6 +32,10 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 - **v0.34 目前只是独立后继候选，未启用**：§34 以 v0.32 为基线，不自动包含候选 §33；它
   定义默认 Borrow、显式 Borrow/Inout/Value 的 instance receiver、静态分发调用和 Borrow-only
   窄化委托。SPEC-0201/0180/0181/0191 保持 `draft`，不得据此改变现行 member Parser 或 lowering。
+- **v0.35 目前只是独立后继候选，未启用**：§35 同样以 v0.32 为基线，不自动包含候选
+  §33/§34；它封闭 nullable `when` 的剩余域证明与 `!!` 的 Copy/Consume 所有权，并把一般
+  frontend facts 与 owned pointer-like SSA/LLVM 拆为 SPEC-0202–0207。inline nullable ABI、
+  nullable loan/place lowering、Elvis 与 safe call 不因该候选获得实现授权。
 - **当前文档集版本是 v0.32**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
@@ -167,6 +171,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.32 | package/import 绑定、跨文件可见性、稳定 compilation-unit 身份与分阶段交接；已明确启用 |
 | v0.33 候选 | 显式 project entry 与无依赖本地 build/run；未启用 |
 | v0.34 候选 | instance receiver mode、静态分发调用与 Borrow-only 窄化委托；基于 v0.32、不包含 §33，未启用 |
+| v0.35 候选 | nullable `when` 剩余域证明与 `!!` Copy/Consume；基于 v0.32、不包含 §33/§34，未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -211,6 +216,13 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ⏸ draft |
 | SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ⏸ draft |
 | SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
+| SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ⏸ draft；v0.34 未启用 |
+| SPEC-0202 | nullable `when` 剩余域 typed facts | `01-design-decisions.md` §35、`../specs/0202-nullable-when-flow-facts.md` | ⏸ draft；v0.35 未启用 |
+| SPEC-0203 | nullable `when` view/extraction 所有权 | `01-design-decisions.md` §35、`../specs/0203-nullable-when-ownership.md` | ⏸ draft；v0.35 未启用 |
+| SPEC-0204 | owned pointer-like nullable `when` lowering | `01-design-decisions.md` §35、`../specs/0204-pointer-nullable-when-lowering.md` | ⏸ draft；v0.35 未启用 |
+| SPEC-0205 | `!!` extraction typed facts | `01-design-decisions.md` §35、`../specs/0205-non-null-assertion-facts.md` | ⏸ draft；v0.35 未启用 |
+| SPEC-0206 | `!!` Copy/Consume 所有权 | `01-design-decisions.md` §35、`../specs/0206-non-null-assertion-ownership.md` | ⏸ draft；v0.35 未启用 |
+| SPEC-0207 | owned pointer-like `!!` lowering | `01-design-decisions.md` §35、`../specs/0207-pointer-non-null-assertion-lowering.md` | ⏸ draft；v0.35 未启用 |
 | SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | ⏸ draft |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |

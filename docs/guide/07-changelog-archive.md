@@ -4,7 +4,7 @@
 > 索引见 [`00-index.md`](./00-index.md)。
 
 本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，现行含至 v0.32，并附
-v0.33–v0.34 未启用候选），供需要
+v0.33–v0.35 未启用候选），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -574,3 +574,18 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 8 | Value `this` 与普通 Value 参数一致：owned 但不可变，不能写字段或提供 Inout；需先整体移入 `var` local | 🔴 候选所有权闭合 |
 | 9 | 在 grammar §13.5 同步 receiver 产生式、合法 owner slot、固定 modifier 顺序与恢复边界 | 🔴 候选语法闭合 |
 | 10 | SPEC-0191 只验收有源码生产路径的 DirectCall receiver，不虚构已排除 bound method value 的 CallableInvoke 路径 | 🟡 候选验收勘误 |
+
+## v0.35 候选变更记录（未启用）
+
+> 本候选于 2026-08-27 对 nullable、iteration、const/Map 三条门禁按依赖图复审后起草。
+> 它直接基于 v0.32，不包含未启用 §33/§34；当前唯一权威版本仍是 v0.32，本节不授权实现。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | nullable `when` 的 explicit-null 不匹配 edge 与后续/else 接收剩余域；逗号 alternatives 的 body 只保留共同事实 | 🔴 候选 flow 语义 |
+| 2 | non-null proof 只是绑定原 nullable owner 的 view，不复制、retain 或产生第二 owner；join/失效沿用现行 flow/loan 规则 | 🔴 候选借用语义 |
+| 3 | 从 non-null `T?` 取得 Value `T`：Copyable 复制，MoveOnly 消费整个合法 root/temporary；Borrow/Inout/field/element 的 MoveOnly extraction 分别复用 L0133/L0132/L0136 | 🔴 候选所有权语义 |
+| 4 | `!!` 精确求值一次并采用同一 Copy/Consume extraction；non-null edge 才 take，null edge 直接进入 compiler-bound Abort 且不伪造 consume | 🔴 候选控制流语义 |
+| 5 | 不提供 place-preserving borrow unwrap；非消费访问使用显式 null check/nullable `when` view，borrow-return 继续延后 | 🟡 候选边界 |
+| 6 | 实施拆为 0202/0203/0204 nullable when typed→ownership→native 与 0205/0206/0207 `!!` typed→ownership→native | 🟡 候选 Phase 交接 |
+| 7 | 首轮 native 仅接 ADR-0017 的 owned whole-root/temporary pointer-like class/Box/Rc；loan/place branch 与 inline/tagged nullable 各需后继 ABI ADR，Elvis/safe-call/`as?` 不在本候选实施链 | 🟡 候选 ABI/非目标 |
