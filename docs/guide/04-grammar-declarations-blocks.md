@@ -545,10 +545,10 @@ SPEC-0025：
 - import 和 package 限定名使用绝对路径与最长 package 前缀；package 不是表达式值或运行时
   receiver。完整身份、可见性、诊断和阶段边界见 `01-design-decisions.md` §32。
 
-**v0.36 候选勘误（未启用）**：若 v0.36 被明确启用，exact import 的终端继续严格限于上述
-顶层声明/函数组；enum case 与 object/companion member 只能在导入/限定顶层 Type 后继续以
-`Type.member` 选择，不能写 `import p.Type.member`。在此之前 §32.3/§32.4 的冲突仍是
-SPEC-0025 Stage 2 门禁，候选文字不能提前改变现行 v0.32 resolver。
+**v0.32 纯勘误（2026-08-27）**：exact import 的终端严格限于上述顶层声明/函数组；enum case
+与 object/companion member 只能在导入/限定顶层 Type 后继续以 `Type.member` 选择，不能写
+`import p.Type.member`。该澄清只拆开 §32.4 原先混写的 import 与普通静态限定名，不改变
+§32.3、本小节及 v0.32 变更记录已经确定的顶层 import 语义。
 
 ## 12. SPEC-0016 control-flow、jump 与 `super`
 

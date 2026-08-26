@@ -121,15 +121,15 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
-| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 Stage 1 已完成，Stage 2 import/visibility 等待启用 v0.36 勘误或正式勘误 v0.32 |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 Stage 1 已完成，2026-08-27 的现行 v0.32 纯勘误已解除 Stage 2 guide 门禁 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 只消费已完成的 SPEC-0025 Stage 1 输入契约，不依赖被 guide 门禁阻塞的 import/visibility；ADR-0022 accepted，只产出本地 base snapshot |
 | 项目构建后继 | SPEC-0053/0054、0200 | v0.33/SPEC-0054 已满足 0052，仍等待 0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
 
 审计据解锁价值选择 package/import，并把原先从 SPEC-0025 直接跳向 LSP/项目构建的缺口补成
 名称→类型→所有权，再分叉到 native 与 LSP。v0.32 与 ADR-0020 已解除 compilation-unit index
-门禁，SPEC-0025 Stage 1 已完成；Stage 2 import/visibility 仍等待明确启用 v0.36 的 exact-import
-勘误，或另行对现行 v0.32 作正式勘误。后继分支的 ADR-0021/0022 均已接受，仍须完成各自前置 Spec。
+门禁，SPEC-0025 Stage 1 已完成；2026-08-27 的现行 v0.32 纯勘误已解除 Stage 2
+import/visibility 门禁。后继分支的 ADR-0021/0022 均已接受，仍须完成各自前置 Spec。
 公开 project build 还必须另行启用 v0.33；receiver 主线已物化为 v0.34 候选但同样等待明确
 启用。nullable `when`/`!!`、const/object、iteration 已分别物化为 v0.35/v0.36/v0.37 候选；
 Map 继续等待 guide/ADR 门禁。

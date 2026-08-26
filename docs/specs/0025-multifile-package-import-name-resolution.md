@@ -11,7 +11,7 @@
 | 批准依据 | 2026-08-26 用户明确启用 v0.32；当前持续 Goal 授权按依赖图推进已完成审计的 Spec |
 | 前置 Spec | SPEC-0015、0018 `done` |
 | 前置 ADR | ADR-0005、[ADR-0020](../adr/0020-multifile-compilation-unit.md) `accepted` |
-| 阻塞项 | Stage 1 无；exact import 是否覆盖 enum case / companion 静态成员须在 import/visibility 阶段前消除 guide 冲突 |
+| 阻塞项 | 无；2026-08-27 现行 v0.32 纯勘误已明确 exact import 只到顶层声明/函数组 |
 | 影响范围 | `lang-frontend` source/package index、名称解析、诊断、fixtures；Architecture/Roadmap |
 | 语言语义变更 | 否；实施现行 v0.32 |
 
@@ -25,7 +25,7 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 - 实施 ADR-0005/0020 的 source-unit key、package 路径校验、全局 declaration index 和稳定 ID。
 - 先收集整个 unit 的顶层类型/值声明，再建立每文件 import environment；函数 overload 只按
-  候选 §32 允许的 package 绑定形成。
+  现行 §32 允许的 package 绑定形成。
 - 实施 exact、alias、wildcard、限定路径、双命名空间优先级与可见性规则。
 - 发布跨文件 `ResolvedReference -> DeclarationId` facts，保留 source/target Span。
 - exact import 在两个命名空间独立绑定，alias 同时作用于两者；发布 import 终端、alias、限定路径
@@ -41,6 +41,8 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 - [ ] 正例覆盖同 package、多 root、public/internal exact、alias、wildcard、限定路径与 overload set。
 - [ ] 反例精确覆盖 L0146–L0151 的错误码、主/关联 Span 和确定性顺序。
+- [ ] enum case、object/companion member exact import 使用 L0148；导入顶层 Type 后的 qualified
+  使用与绝对 qualified 使用成功；最长 package 前缀下同形的真实顶层 import 仍成功。
 - [ ] 同一文件集合以不同输入顺序运行，package/declaration/reference identity 与诊断完全一致。
 - [ ] 单文件现有名称 suite 经 compatibility wrapper 无行为回归。
 - [ ] recovery product 可供诊断消费，但含 error 时无法取得供类型阶段使用的 validated view。
@@ -82,11 +84,8 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 
 ## 9. 未决问题
 
-- v0.32 §32.3 与 grammar §11.1 把 exact import 限于顶层声明，§32.4 的“import target 和静态
-  限定名称”又可能允许继续选择 enum case / companion 静态成员。第 1 步只建立与该选择无关的
-  unit/package/declaration 基础；第 3 步不得静默选择，须先由 guide 勘误明确范围。未启用的
-  v0.36 §36.4 已记录推荐勘误（exact import 只到顶层，case/member 必须 qualified），但在
-  v0.36 被明确启用前仍不能用候选文本解除本 Spec 的现行门禁。
+- 无；exact import 与普通静态限定名的冲突已由现行 v0.32 纯勘误解决。关联常量能力仍等待
+  v0.36，不影响本 Spec 按顶层终端规则完成一般 import resolver。
 
 ## 10. 验证记录
 
@@ -94,6 +93,7 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 |---|---|---|
 | 2026-08-26 roadmap 审计 | 通过 | v0.32 已启用、ADR-0020 已接受；实施前仍须核对代码边界与验收矩阵 |
 | 2026-08-26 第 1 步实施前审计 | 通过 | 输入/稳定身份、package index 与 validated 门禁不依赖 exact import 未决范围，可独立实施 |
+| 2026-08-27 Stage 2 guide 勘误审计 | 通过 | §32.3、grammar §11.1 与 v0.32 changelog 均已表达顶层终端；§32.4 混写已作不改变语义的纯勘误，Stage 2 门禁解除 |
 | `cargo test -p lang-frontend --test diagnostic_model production_catalog_contains_exactly_the_published_frontend_codes` | 通过 | L0146–L0151 连续生产目录 |
 | `cargo test -p lang-frontend --test compilation_unit_index` | 通过 | 11 个 Stage 1 identity/package/declaration/L0146/L0147/recovery/确定性用例 |
 | `cargo test -p lang-frontend --test name_resolution` | 通过 | 14 个单文件用例；新增 `_` 仅在 `for` binding 为 discard 的回归 |

@@ -6,7 +6,8 @@
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
 > SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 Stage 1 的 guide/ADR 门禁已解除并完成，
-> Stage 2 import/visibility 仍等待明确启用 v0.36 的 exact-import 勘误，或对现行 v0.32 正式勘误。
+> 2026-08-27 已用现行 v0.32 纯勘误拆开 exact import 与普通静态限定名，Stage 2 的 guide 门禁
+> 已解除。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
 > `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
@@ -289,15 +290,14 @@ Spec 之前，本条限制不变。）
       operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
 - [ ] **[SPEC-0026](../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
-      exact-import 不阻塞本节点，等待候选启用。
+      exact-import 边界已由现行 v0.32 勘误封闭，本节点只等待候选 v0.36 启用。
 - [ ] **[SPEC-0210](../specs/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
       完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025 仅 Stage 1 已解除 guide/ADR 门禁并完成；Stage 2 import/visibility 仍等待明确
-启用 v0.36 的 exact-import 勘误，或另行对现行 v0.32 作正式勘误。后继节点仍由前置 Spec 与
-各自 ADR 状态阻塞。
+其中 SPEC-0025 Stage 1 已完成，Stage 2 import/visibility 的 guide 门禁已由 2026-08-27 的
+现行 v0.32 纯勘误解除。后继节点仍由前置 Spec 与各自 ADR 状态阻塞。
 
 ## Phase 3：所有权 / 借用检查
 

@@ -24,7 +24,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   source-set wire；这不解除 SPEC-0187 的前置 Spec 门禁。
   ADR-0022 已接受并与 SPEC-0052 物化后继本地 manifest provider；2026-08-27 依赖复核确认
   它只消费已完成的 SPEC-0025 Stage 1 source-unit input contract，现已完成，且该分支不定义
-  project build。本轮审计
+  project build。同日纯勘误已把 §32.4 的 exact import 与普通静态限定名拆开，恢复 §32.3 和
+  grammar §11.1 已明确的顶层 import 终端，SPEC-0025 Stage 2 的 guide 门禁已解除。本轮审计
   同时修正 §18 旧 Map 候选中
   `Hashable ⇒ Copyable` 与 MoveOnly String 的矛盾，但不因此启用 Map。
 - **v0.33 目前只是后继候选，未启用**：§33 为无依赖本地 project 固定显式
@@ -209,7 +210,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0021 | `when` 穷尽性与 smart cast | `01-design-decisions.md` §24 | ✅ 已完成 |
 | SPEC-0022 | 条件 `Copyable`、有限内联布局与结构化解构类型检查 | `01-design-decisions.md` §25 | ✅ 已实现 |
 | SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
-| SPEC-0025 | 多文件 package/import 名称解析 | `01-design-decisions.md` §32、`../specs/0025-multifile-package-import-name-resolution.md` | 🚧 in-progress；Stage 1 unit index 与 `_` 漂移修复已实现 |
+| SPEC-0025 | 多文件 package/import 名称解析 | `01-design-decisions.md` §32、`../specs/0025-multifile-package-import-name-resolution.md` | 🚧 in-progress；Stage 1 已实现，Stage 2 guide 门禁已解除 |
 | SPEC-0026 | 单文件关联常量选择与编译期求值 | `01-design-decisions.md` §36、`../specs/0026-associated-constant-evaluation.md` | ⏸ draft；v0.36 未启用 |
 | SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |

@@ -23,7 +23,7 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 ## 3. 范围与需求
 
-- exact import 终端仍只接受 v0.36 定案的顶层声明/函数组；`import p.Type.CONST` 使用 L0148，
+- exact import 终端按现行 v0.32 勘误只接受顶层声明/函数组；`import p.Type.CONST` 使用 L0148，
   `import p.Type` 后的 `Type.CONST` 才由 associated selector 处理。
 - 可见性和 package-qualified target 只消费 SPEC-0025/0197 validated facts；import target 不可见
   继续使用 L0149，成功选择 Type 后 associated const 越界使用 L0154，不按逻辑路径或源码

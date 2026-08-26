@@ -1988,9 +1988,14 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 32.4 限定名称解析
 
-- import target 和静态限定名称先按最长 package 前缀解析，再在余下路径中选择一个顶层声明
-  及现行允许的静态成员/case；路径必须整体成功，不得把“已解析前缀 + deferred 尾部”伪装
-  为成功。import 始终是绝对 package 路径。
+- exact import target 先按最长 package 前缀解析；余下路径必须精确只剩一个可见顶层类型、
+  顶层值或同名顶层函数 overload set。enum case 与 object/companion member 不是 import target，
+  不得把“已解析顶层 + member 尾部”伪装成成功；`import p.Type.member` 因此使用 L0148。应改为
+  `import p.Type` 后在正文使用 `Type.member`，或直接使用绝对静态限定名 `p.Type.member`。
+  最长 package 前缀仍优先：若 `p.Type` 本身是 package 且其中有顶层 `member`，同一文本是合法
+  顶层 exact import。import 始终是绝对 package 路径。
+- 普通静态限定名称同样先按最长 package 前缀解析，再在余下路径中选择一个顶层声明，并可继续
+  选择现行允许的静态 member/case；路径必须整体成功，不得保留 deferred 尾部。
 - 普通表达式中的裸名称先执行 §21 的词法/文件查询。package 只存在于静态名称路径，不是
   runtime value，不能赋值、传参、捕获或作为 member receiver；本节不引入 Kotlin/Rust
   风格的相对 package 别名、`self` / `super` / `crate` 路径。
@@ -2006,6 +2011,13 @@ v0.32 分配 L0146–L0151：package 与逻辑路径不匹配、同 package 跨�
 位置和错误码决定。省略 package 但文件不在 source root 根目录时，L0146 的 primary 是文件
 起始处的空 Span；无效逻辑路径、重复 `(root identity, logical path)` 属于 driver/unit 输入错误，
 不是可归因于 Koven 源码的 L-code。
+
+import 诊断按固定优先级选择：完整 exact endpoint 没有可导入的顶层目标使用 L0148；顶层目标
+存在但类型/值两个命名空间都没有可见目标时使用 L0149；任一命名空间存在可见目标即成功，且只
+绑定可见侧。只有成功 target 与既有文件级绑定冲突时才使用 L0150，失败 directive 不追加
+L0150。L0151 只在实际裸名查询时产生，且仅当词法、当前文件、同 package 与 exact import 都未
+决定该命名空间中的名称，而多个 wildcard 提供不同可见 target。member/case 形式的非法 exact
+import 即使对应 member 存在也使用 L0148，不改用 member/associated visibility 诊断。
 
 1. SPEC-0025 只建立 compilation-unit package index、跨文件声明身份、import/可见性名称绑定
    与上述诊断，不做跨文件 body 类型检查；
@@ -2286,8 +2298,8 @@ Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和
 ## 36. 无运行时存储的关联常量与封闭求值（v0.36 候选，未启用）
 
 > **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 §33–§35。只有用户
-> 明确启用 v0.36 并指定其取代 v0.32 后，本节才成为常量求值、关联选择和 import 终端的
-> 现行契约；SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
+> 明确启用 v0.36 并指定其取代 v0.32 后，本节才成为常量求值与关联选择的现行契约；
+> import 终端仍由现行 §32 规定。SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
 > singleton 初始化或 object instance receiver。
 
 ### 36.1 关联命名空间与 target 选择
@@ -2341,10 +2353,10 @@ Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和
 
 ### 36.4 import 勘误、分阶段交接与非目标
 
-- v0.36 启用时，§32.3/§32.4 的歧义按最小规则收口：exact import 的终端只能是可见顶层类型、
-  顶层值或同 package 函数 overload set；enum case、companion/object member 都不是 import target。
-  因此 `import p.Type.CONST` 使用 L0148；应写 `import p.Type` 后使用 `Type.CONST`，或使用绝对
-  `p.Type.CONST`。wildcard 同样不导入 member。
+- §32.3/§32.4 的文字歧义已由 2026-08-27 的现行 v0.32 纯勘误解决：exact import 的终端只能是
+  可见顶层类型、顶层值或同 package 函数 overload set；enum case、companion/object member
+  都不是 import target。v0.36 不改变该既有边界；`import p.Type.CONST` 使用 L0148，应写
+  `import p.Type` 后使用 `Type.CONST`，或使用绝对 `p.Type.CONST`。wildcard 同样不导入 member。
 - SPEC-0026 先在既有单文件 analysis chain 发布 associated target、typed ConstValue、依赖图与
   use descriptor；它不等待 SPEC-0025，也不把跨文件事实伪装成单文件结果。
 - SPEC-0208 消费 0026，发布 scalar inline 与 String temporary materialization 的 ownership/
