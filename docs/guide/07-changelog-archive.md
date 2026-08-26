@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分，完整文档地图、版本治理规则与跨文件
 > 索引见 [`00-index.md`](./00-index.md)。
 
-本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.29），供需要
+本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，当前含至 v0.30），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -486,3 +486,24 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > v0.29 于 2026-08-25 由用户明确启用并取代 v0.28；上述候选契约及前置审计补充自此成为
 > 现行语义，§29 与 L0143–L0145 获得规范效力。SPEC-0183 / 0188 / 0184 的版本门禁解除，
 > 但不表示任何 constructor frontend/ownership/codegen 实现已经完成；三项仍按前置顺序验收。
+
+## v0.30 候选变更记录
+
+> 本候选于 2026-08-26 根据公开单文件入口、Phase 5 共享所有权门禁和 roadmap 依赖图审计
+> 起草；同日由用户明确启用，因此候选形成与启用记录连续保存。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 省略 `--entry` 时只在单文件顶层值命名空间选择 conventional `main`；允许精确的 `() -> Unit` 与 `(Array<String>) -> Unit` 两种形状，显式 `--entry` 继续覆盖默认选择 | 🔴 CLI/入口语义 |
+| 2 | 参数化 main 的 argv 不含可执行文件名、保持顺序并要求合法 UTF-8；wrapper 拥有 Array/String，Borrow 调用后析构；与零参数 main 分阶段实施 | 🔴 runtime/所有权边界 |
+| 3 | `Rc<T>` 固定为 compiler-bound、单线程、MoveOnly shared owner；普通赋值仍移动，只有 `.share()` 显式增加 strong count | 🔴 所有权语义 |
+| 4 | `Rc.value` 只发布受 owner 约束的 shared Borrow place；禁止 `inout`、移出 payload、用户可见 retain/release/count 和隐式 interior mutability | 🔴 借用语义 |
+| 5 | 每个 Rc handle 在 ASAP drop 自动 release，归零后精确析构 payload 并释放 control block；计数溢出 abort，Rc 恒不满足 Transferable | 🔴 runtime/能力语义 |
+| 6 | `Arc`/`Shareable`/`Weak` 留给后续版本；Arena/handle 仅确认互补推荐方向，在 generative identity 与失效规则封闭前不发布源语言 API | 🟡 延后边界 |
+| 7 | roadmap 将默认 main、参数化 main 与 Rc 拆成独立依赖节点，禁止以 literal-only String 或通用 receiver 假实现跨越门禁 | 🟡 Phase 交接 |
+
+## v0.30 启用记录
+
+> v0.30 于 2026-08-26 由用户明确启用并取代 v0.29；§30 自此获得现行规范效力。启用解除
+> conventional 零参数 main 的 guide 门禁，并允许共享 owner ABI ADR 与 SPEC-0045 进入正式
+> 流程；参数化 main 仍等待一般 String runtime 与 argv Array ABI，Arena/Arc/Weak 仍未获实现授权。

@@ -1,12 +1,12 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.29。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.30。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
-> 现行规则；
+> 现行规则；第 30 节是 v0.30 已启用的现行规则；
 > 附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
@@ -1773,6 +1773,94 @@ preflight 映射为源码诊断，不把 target 阈值变成新的静态类型�
 
 ---
 
+## 30. 约定程序入口与显式共享所有权（v0.30）
+
+> **现行状态**：v0.30 已于 2026-08-26 由用户明确启用并取代 v0.29。本节封闭单文件
+> conventional `main` 选择和单线程 `Rc<T>` 的语言契约；它不表示参数化入口、共享 owner
+> runtime、一般 instance receiver 或一般 `String` runtime 已经实现，这些能力仍按本节的
+> 分阶段边界由独立 Spec 验收。
+
+### 30.1 单文件 conventional `main`
+
+`main` 不是关键字，也不获得新的名称解析优先级。公开单文件 `kovenc build/run` 在调用者没有
+显式传入 `--entry` 时，只在该源码文件的顶层值命名空间中选择名为 `main` 的具名函数。合法
+conventional entry 只有以下两个完整单态签名：
+
+```kotlin
+fun main(): Unit { ... }
+fun main(args: Array<String>): Unit { ... }
+```
+
+- entry 必须是顶层、非泛型、非 member 的具名函数，返回类型精确为 `Unit`。参数名称不参与
+  签名匹配；一个参数的形式沿用 v0.26 默认 `Borrow`，不能写 `own` 或 `inout`。
+- 省略 `--entry` 时，零个合法候选、存在同名但签名非法的候选，或两个合法形状同时存在，
+  分别形成稳定的 missing、invalid-shape 或 ambiguous entry selection failure。它们属于构建
+  操作错误，不分配语言诊断码，也不得被伪装成 Parser/type diagnostic。
+- 显式 `--entry <name>` 继续使用 SPEC-0190 已发布的 `() -> Unit` 契约，并完全关闭
+  conventional lookup；它可以选择任意满足该形状的顶层函数，包括名为 `main` 的函数。
+- `main(args)` 收到不含可执行文件名的命令行参数，保持原顺序。native wrapper 拥有新建的
+  `Array<String>`，在 entry 调用期间建立 Borrow，并在返回后按逆序析构；源平台参数不能转换
+  为合法 UTF-8 时，在调用 Koven entry 前形成 operational failure，不以替换字符静默改写。
+- 正常返回仍由既有 C ABI wrapper 映射为退出码 `0`；`error()`/abort、链接失败和启动失败
+  沿用既有边界。v1 不允许 `main` 返回整数、`Result`、`Nothing` 或异步结果，也不定义多个
+  package 的全局 main 搜索。
+
+实施必须分两步：零参数默认选择只依赖 SPEC-0190；`main(args)` 还必须等待一般 `String`
+runtime 与 argv `Array<String>` 构造/析构 ABI。前一步不得用 literal-only String、Rust `String`
+或宿主指针伪造后一步。
+
+### 30.2 `Rc<T>` 的共享所有权契约
+
+普通 Borrow 仍是共享读取的默认方案；只有一个值必须在多个独立 owner 的生命周期中存活时
+才使用 `Rc<T>`。`Rc` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor，不按
+源码拼写识别；源码同名 class 不取得任何 intrinsic 行为。
+
+- `Rc(value)` / `Rc<T>(value)` 只有一个稳定名称为 `value` 的 `Value T` 参数。类型实参沿用
+  §29.2 的“全部显式或完全省略”与精确推导规则；构造把 operand 复制或移动进单次 heap
+  allocation 内的共享 owner payload，并建立初始 strong count `1`。
+- `Rc<T>` 自身始终是 `MoveOnly`，即使 `T: Copyable` 也不满足 `Copyable`。普通赋值、返回和
+  Value 交付移动 handle，不增加计数；禁止把 retain 隐藏在赋值或参数传递中。
+- `owner.share()` 是唯一公开的 strong-owner 分叉操作。它以 shared Borrow 使用 receiver，
+  不消费或修改 payload，返回指向同一 control block 的新 `Rc<T>`，并把非原子 strong count
+  增加一次。它不是用户可覆盖的一般 member，也不能由同名源码函数冒充；计数溢出必须在
+  写回前 abort，不能环绕。
+- `owner.value` 是 compiler-bound、只读的 payload place。它建立受 owner 生命周期约束的
+  shared Borrow；不能成为 `&` 实参、赋值目标或 MoveOnly 的 owned 读取来源。若 `T` 满足
+  `Copyable`，既有 Copyable 规则可以从该 shared place 产生普通副本，但不因此复制 `Rc`
+  handle。v1 不提供 `getMut`、interior mutability 或从共享 payload 移出值的后门。
+- 每个 live `Rc` handle 在自己的 ASAP drop point 自动递减 strong count；归零的 handle 按
+  `T` 的递归 drop glue 精确析构一次 payload，再释放整个 control block。用户不可调用
+  `retain()`、`release()`，也不可读取或修改计数。
+- `Rc<T>` 对所有 `T` 恒不满足 `Transferable`，与 §17/§27 的既有规则一致。v1 不引入
+  `Arc<T>`、`Shareable`、`Weak<T>` 或跨线程共享；strong cycle 因而可能不释放，避免环必须由
+  程序数据模型承担，后续版本在定义 `Weak` 前不得声称已解决 cycle。
+
+`share()` 和 `value` 是 Rc intrinsic surface，只为封闭 SPEC-0045，不等价于提前实现一般
+instance receiver、属性 getter 或 operator overloading。typed 产物必须发布稳定 intrinsic
+operation identity、receiver/payload 类型和 Borrow/Value effect；所有权阶段消费这些 facts，
+backend 不得按成员名称字符串重新推导语义。
+
+### 30.3 Arena/handle 的边界
+
+Arena 是对 Rc 的互补方案而不是别名：它适合 AST、IR 等整批同生命周期对象图，以一个 arena
+owner 持有全部对象，引用使用 handle/index，arena 析构时批量释放，从而避免逐边 retain。
+但是源语言若要安全暴露 `Arena<T>`，必须先定义 handle 与特定 arena 实例绑定的 identity、
+跨 callable 逃逸和 arena 析构后的失效规则。v1 当前没有足够的生命周期参数或 generative
+identity 表达这些约束，因此 v0.30 只确认该推荐方向，不发布标准库 `Arena` API，也不授权
+用无检查裸指针实现。编译器内部 Rust arena 不受此源语言 API 门禁影响。
+
+### 30.4 分阶段交接
+
+1. conventional `main()` 的 CLI 选择单独实施并复用现有显式 entry/backend wrapper；
+2. `main(args)` 在一般 String runtime 后实施，补齐 argv 转换、Array owner 和 operational
+   failure；
+3. `Rc` frontend/ownership/runtime 作为一个封闭 Goal 实施，但 runtime header 先由 accepted
+   ADR 固定；
+4. `Arc`/`Shareable`/`Weak`、Arena 源语言 API 和一般 instance receiver 各自等待后续 guide，
+   不得由本节推断实现。
+
+---
+
 ## 附录：核心结构声明总览（原第二部分）
 
 > 原文档第二部分独立成章，本次拆分中并入设计决策文档作为收尾附录：这段示例把第 1–21
@@ -1790,7 +1878,7 @@ interface Shape {
 }
 
 enum class Result<T, E> {
-    Ok(value: T),
+    Ok(success: T),
     Err(error: E)
 }
 

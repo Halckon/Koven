@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.29 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.30 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -19,6 +19,11 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.29 constructor 契约](../guide/01-design-decisions.md#29-名义enum-case-与-intrinsic-box-构造v029)
 已于 2026-08-25 明确启用并取代 v0.28；SPEC-0183 / 0188 / 0184 已完成。
+
+[v0.30 入口与共享所有权契约](../guide/01-design-decisions.md#30-约定程序入口与显式共享所有权v030)
+已于 2026-08-26 明确启用并取代 v0.29；零参数 conventional main 可在 SPEC-0193 直接推进，
+参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的代码前置均已完成，但必须先
+接受共享 owner runtime ABI ADR。Arena/Arc/Weak 没有因本版本获得实现授权。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -65,6 +70,21 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 并包含 `done` 状态、实际验收记录和 Architecture 更新。新 ADR 的决策正文仍应形成独立文档
 提交，但可在首次提交时直接为 `accepted`，不得把 ADR 与依赖它的实现混入同一提交。
 简化的是人工确认和重复状态文书，不是行为验收；任何检查只有实际成功后才能记录为通过。
+
+## 2026-08-26 roadmap 依赖审计
+
+本次按“全部前置 Spec 已 `done` → guide 已封闭 → 前置 ADR 已 `accepted`”重新核对候选节点：
+
+| 队列 | 候选 | 审计结论 |
+|---|---|---|
+| 可直接物化 | SPEC-0193 零参数 conventional main | SPEC-0190 已完成，v0.30 已生效；当前最窄可执行 Goal |
+| 只差 ADR | SPEC-0045 Rc shared owner | 代码前置全部完成，v0.30 已生效；先接受共享 owner runtime ABI ADR，再实施 |
+| 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
+| 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
+| 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
+
+因此当前依赖前沿固定为 `0193 → 共享 owner ABI ADR → 0045`；参数化 main 排在 String runtime
+之后。后续若 guide/ADR 改变门禁，先更新本审计再物化下一份 Spec。
 
 ## Phase 0 Spec 队列
 
@@ -234,8 +254,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0042](./0042-standard-library-bootstrap.md) | 用编译器构建并运行 `lang-std` 目标语言源码（`done`） | 0039 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0043](./0043-standard-error-abort.md) | 发布标准 `error()` identity 并接入既有 Abort（`done`） | 0039、0042 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md)、[ADR-0012](../adr/0012-standard-library-bootstrap.md) `accepted` |
 | [0189](./0189-standard-println-output.md) | 发布 `println(String)` Borrow identity，并把非插值 UTF-8 literal 接入 stdout native runtime（`done`） | 0039、0042、0043、0184 `done`；当前持续 Goal 的站立授权 |
-| [0044](./0044-standard-pair-result.md) | 实现条件可复制的 `Pair` 与 `Result`（`done`） | 0042、0028、0035、0183、0185、0188、0184 `done`；现行 v0.29 固定 `Result.Ok(success: T)`；当前持续 Goal 的站立授权 |
-| 0045 | 实现独占 `Box` 与共享 `Rc` 所有权类型 | 0042、0028、0035、0183、0185、0188、0184 `done`；新 guide 封闭 `Rc` 构造、共享与 payload 访问/释放契约；接受共享所有权 runtime ABI ADR |
+| [0044](./0044-standard-pair-result.md) | 实现条件可复制的 `Pair` 与 `Result`（`done`） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.29 固定且 v0.30 沿用 `Result.Ok(success: T)`；当前持续 Goal 的站立授权 |
+| 0045 | 实现共享 `Rc` 所有权类型（独占 intrinsic `Box` 已由 0184 完成） | 0042、0028、0035、0183、0185、0188、0184 `done`；v0.30 已生效；接受共享所有权 runtime ABI ADR |
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
@@ -249,6 +269,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
 | [0190](./0190-public-single-file-build-run.md) | 公开单文件 `kovenc build/run` 并验证仓库外 Hello World（`done`） | 0039、0042、0043、0184、0189 `done`；当前持续 Goal 的站立授权 |
+| 0193 | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit` | 0190 `done`；v0.30 已生效；不接入 argv |
+| 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；argv Array runtime 已完成；v0.30 已生效 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
 | 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |
@@ -318,7 +340,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.29 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.30 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 

@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.29；SPEC-0177 / 0174 的 guide 门禁已解除并完成。v0.29 已解除 constructor 版本门禁，
-> SPEC-0183 / 0188 / 0184 仍按自身前置顺序实施。
+> v0.30；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。v0.30 已解除零参数 conventional
+> main 与 `Rc<T>` 的 guide 门禁；参数化 main 仍等待一般 String/argv Array runtime。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -424,11 +424,10 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [x] **SPEC-0044（已实现）**：在唯一 Koven prelude 真源声明 `Pair<A, B>` 与
       `Result<T, E>`；自动解构及按类型实参条件满足 `Copyable` 沿用通用 compiler facts，
       核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
-- [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
-      传入值所有权，调用点无 marker；`Rc<T>` 需要
-      retain，因此本身不满足 `Copyable`）；SPEC-0184 aggregate/heap-owner lowering 前置已完成，
-      但现行 guide 尚未封闭 `Rc` 的构造、显式共享、payload 访问与释放契约，ADR-0008 也明确
-      未定义共享 owner header；候选 SPEC-0045 等待新 guide 与共享所有权 runtime ABI ADR
+- [ ] **SPEC-0045（v0.30 guide 门禁已解除）**：实现 compiler-bound `Rc<T>` 构造、显式
+      `.share()`、Borrow-only `.value`、ASAP 自动 release 与归零析构；`Rc<T>` 始终 MoveOnly 且
+      不满足 Transferable。全部代码前置已完成，当前唯一门禁是先接受共享 owner runtime ABI
+      ADR；不引入 Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 一般 UTF-8 `String` runtime；当前只有 SPEC-0189 的 literal-only `println` 路径，候选
       SPEC-0192 等待新 guide 与 String runtime ABI ADR
@@ -464,6 +463,12 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       单文件 `kovenc build <source> --entry <name> -o <executable>` 与
       `kovenc run <source> --entry <name>`，复用 verified native pipeline、human/JSON Lines
       diagnostics 和临时产物清理；不引入隐式 main、多文件或项目模型
+- [ ] **SPEC-0193（前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
+      `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
+      shape 与 ambiguous operational failure 分离；不接收 argv
+- [ ] **SPEC-0194（前置：SPEC-0193、0192 及 argv Array runtime `done`）**：接入
+      `fun main(args: Array<String>): Unit`，构造不含 executable name 的 UTF-8 argv owner，
+      Borrow 调用后析构；不得以 literal-only String 或宿主指针提前实现
 - [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
 - [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，
