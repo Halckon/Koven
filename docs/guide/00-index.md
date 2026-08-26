@@ -25,7 +25,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   ADR-0022 已接受并与 SPEC-0052 物化后继本地 manifest provider；2026-08-27 依赖复核确认
   它只消费已完成的 SPEC-0025 Stage 1 source-unit input contract，现已完成，且该分支不定义
   project build。同日纯勘误已把 §32.4 的 exact import 与普通静态限定名拆开，恢复 §32.3 和
-  grammar §11.1 已明确的顶层 import 终端，并已由 SPEC-0025 实施。本轮审计
+  grammar §11.1 已明确的顶层 import 终端，并已由 SPEC-0025 实施；另一项纯勘误使 L0097
+  诊断表与 §23.3 已明确的顶层/member 重复 callable shape 规则一致。本轮审计
   同时修正 §18 旧 Map 候选中
   `Hashable ⇒ Copyable` 与 MoveOnly String 的矛盾，但不因此启用 Map。
 - **v0.33 目前只是后继候选，未启用**：§33 为无依赖本地 project 固定显式

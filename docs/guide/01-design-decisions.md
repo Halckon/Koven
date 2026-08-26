@@ -1183,7 +1183,7 @@ SPEC-0021 或 SPEC-0063 的既定责任，不能用单一 `Unsupported` 垃圾�
 | L0094 | interface 被用于需要运行时值表示的位置 | primary 为完整 TypeRef；label 指向 interface 声明 |
 | L0095 | class-family supertype 不是 interface，或同一 interface 声明重复实例化 | primary 为后出现的 supertype；label 指向实际声明或首次实例 |
 | L0096 | interface 继承图形成环 | primary 为闭环 edge 的 TypeRef；label 按路径顺序指向先前 edge |
-| L0097 | 同一成员作用域存在重复 callable 签名 | primary 为后出现的函数名；label 指向首个同键声明 |
+| L0097 | 同一 callable binding scope（含顶层 package binding 与成员作用域）存在重复 callable 签名 | primary 为后出现的函数名；label 指向首个同键声明 |
 | L0098 | concrete member 缺少必需的 body | primary 为 member 名称；label 指向 concrete owner |
 | L0099 | 子 interface 的本地替换签名与继承 member 不一致 | primary 为本地 member 名称；label 指向被替换 member |
 | L0100 | `override` 缺失、无目标、签名不一致或缩窄可见性 | primary 为 `override` token（缺失时为 member 名称）；label 指向相关 interface member |

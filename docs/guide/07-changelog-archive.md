@@ -542,6 +542,7 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 9 | ADR-0021 候选以版本化 initialization option 固定 LSP base source set：server 不扫描磁盘，open/change 只建 overlay，close 回落 base，缺席时保持单文档模式 | 🟡 候选工具协议 |
 | 10 | ADR-0022/SPEC-0052 候选把严格 project.toml、安全本地 `.ko` discovery 与稳定 base snapshot 独立成工具层；dependency、entry、build 与 LSP overlay 不混入 provider | 🟡 候选项目边界 |
 | 11 | 2026-08-27 纯勘误把 §32.4 混写的 exact import 与普通静态限定名拆开：import 终端沿用 §32.3/grammar §11.1 的顶层限制，member/case 必须在正文 qualified；不改变 v0.32 既有语义 | 🟡 现行表述勘误 |
+| 12 | 2026-08-27 纯勘误使 L0097 诊断表与 §23.3 已明确的规则一致：重复 callable shape 同时覆盖顶层 package binding 与成员作用域；不改变既有 overload 语义 | 🟡 现行表述勘误 |
 
 ## v0.33 候选变更记录（未启用）
 
