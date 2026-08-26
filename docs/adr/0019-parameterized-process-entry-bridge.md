@@ -2,12 +2,11 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。现行 v0.30 已定义参数化 main 的语言语义，但本 ADR 依赖尚未接受的
-ADR-0018 String owner ABI；ADR-0018 接受前，本 ADR 不得转为 `accepted`。
+2026-08-26，用户明确启用 guide v0.31 取代 v0.30，并明确接受 ADR-0018、ADR-0019。
 
 ## 背景
 

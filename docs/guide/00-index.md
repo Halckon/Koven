@@ -12,13 +12,13 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 
 ## 1. 版本与状态
 
-- **当前唯一权威版本是本文档集的 v0.30**，已于 2026-08-26 由用户明确启用，取代 v0.29；
+- **当前唯一权威版本是本文档集的 v0.31**，已于 2026-08-26 由用户明确启用，取代 v0.30；
   v0.14 此前已取代 [`agent-language-design-guide-v0.9.md`](../agent-language-design-guide-v0.9.md)。v0.12 及更早
   单文件 guide 只作为历史材料，不参与现行语义优先级。
-- **v0.31 目前只是候选**：[`01-design-decisions.md`](./01-design-decisions.md) §31 已起草一般
-  UTF-8 `String` owner、最小操作与分阶段边界，但尚未由用户明确启用，不参与现行语义
-  优先级，也不能解除 ADR-0018 / SPEC-0192 的状态门禁。
-- **当前文档集版本是 v0.30**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
+- **v0.31 已明确启用**：[`01-design-decisions.md`](./01-design-decisions.md) §31 的一般 UTF-8
+  `String` owner、最小操作与分阶段边界已成为现行语义；ADR-0018/0019 已接受，SPEC-0192
+  已获批准实施。
+- **当前文档集版本是 v0.31**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
   `Inout` 的调用点标注从关键字 `inout` 改写为符号 `&`；v0.15 封闭完整文件与跨声明恢复
@@ -47,7 +47,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   变更归档，因此没有进入语义变更记录表格，单独在下方“结构调整说明”里交代。除这一版
   外，版本号是单一递增序列，不再区分“语义
   版本”和“结构版本”两条轴——每份正文文档顶部标注的是它自己内容最近一次改动所在的
-  版本；本索引聚合记录整个文档集当前启用的 v0.30 状态。
+  版本；本索引聚合记录整个文档集当前启用的 v0.31 状态。
 - [`01-design-decisions.md`](./01-design-decisions.md) 第 16、17、19–28 节是现行规范规则；
   第 18 节仍明确标注为 Map 候选设计，在完成设计门禁并补充到对应实施 Spec 之前，
   不得被 Phase 2/3/5 实现直接引用为已批准契约。v0.22 的数值后缀由 SPEC-0066 实施，
@@ -102,7 +102,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 30 节现行设计 + Map 候选 §18 + v0.31 String 候选 §31 + 原第二部分（现为附录） | ~1900 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 31 节现行设计 + Map 候选 §18 + 原第二部分（现为附录） | ~1900 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
@@ -149,7 +149,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.28 | 泛型 callable 的显式/实参推导实例化、稳定实例 key，以及 overload-lambda candidate isolation；SPEC-0177 / SPEC-0174 已实现 |
 | v0.29 | nominal/enum case/intrinsic Box constructor target、仅使用独立完整上下文的受控 expected-result 推导，以及分阶段 typed/ownership/lowering 交接；已明确启用 |
 | v0.30 | 单文件 conventional `main`、显式单线程 `Rc<T>.share()`、Borrow-only payload 与 Arena/handle 延后边界；已明确启用 |
-| v0.31（候选） | 一般 UTF-8 `String` owner、最小连接/相等/动态输出与参数化 main 前置边界；尚未启用 |
+| v0.31 | 一般 UTF-8 `String` owner、最小连接/相等/动态输出与参数化 main 前置边界；已明确启用 |
 
 ## 5. SPEC 编号索引
 
@@ -187,7 +187,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0036 | 顺序容器连续缓冲区、checked-index 与 drop 后端基元 | `06-roadmap.md` Phase 4、`../specs/0036-sequential-container-runtime.md` | ✅ 已实现 |
 | SPEC-0042 | 标准库目标语言 bootstrap 闭环 | `06-roadmap.md` Phase 5、`../specs/0042-standard-library-bootstrap.md` | ✅ 已实现 |
 | SPEC-0189 | 标准 `println(String)` 与最小 stdout 输出 | `06-roadmap.md` Phase 5、`../specs/0189-standard-println-output.md` | ✅ 已实现 |
-| SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | 📝 v0.31 候选；draft，未授权实施 |
+| SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | 🚧 `in-progress` |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | 📝 draft；等待 SPEC-0192 / ADR-0019 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |

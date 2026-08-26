@@ -22,8 +22,8 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0015](./0015-shared-owner-runtime-abi.md) | accepted | Rc 使用 pointer-width 非原子 strong control block、显式 SSA retain 与归零 drop/free |
 | [ADR-0016](./0016-interprocedural-borrow-abi.md) | accepted | Borrow/Inout 调用直接交付 active loan，callee 使用独立函数内 loan 参数，不把 MoveOnly owner 当 Value 消费 |
 | [ADR-0017](./0017-nullable-handle-ssa-abi.md) | accepted | pointer-like nullable owner 使用独立 SSA identity 与 LLVM null niche，smart cast 产生非 owning view |
-| [ADR-0018](./0018-string-owner-runtime-abi.md) | proposed | 一般 UTF-8 String 使用显式 static/heap provenance 的三字 internal owner ABI |
-| [ADR-0019](./0019-parameterized-process-entry-bridge.md) | proposed | 参数化 main 使用 verified native entry plan，把进程 argv 转为 wrapper-owned Array<String> |
+| [ADR-0018](./0018-string-owner-runtime-abi.md) | accepted | 一般 UTF-8 String 使用显式 static/heap provenance 的三字 internal owner ABI |
+| [ADR-0019](./0019-parameterized-process-entry-bridge.md) | accepted | 参数化 main 使用 verified native entry plan，把进程 argv 转为 wrapper-owned Array<String> |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份

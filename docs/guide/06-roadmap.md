@@ -438,10 +438,9 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       不满足 Transferable。MoveOnly payload 的通用 Borrow call 已由 SPEC-0195 完成；不引入
       Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
-- [ ] **SPEC-0192（候选 v0.31）**：实现一般 UTF-8 `String` owner、plain literal、传参/返回、
+- [ ] **[SPEC-0192](../specs/0192-general-string-runtime.md)（`in-progress`；v0.31）**：实现一般 UTF-8 `String` owner、plain literal、传参/返回、
       `+`、`==`/`!=`、动态 `println`/`error` 与 drop glue，并验证 aggregate/顺序容器元素；当前
-      只有 SPEC-0189 的 literal-only `println` 路径。§31 已作为非现行候选起草，仍等待用户
-      明确启用 v0.31 与接受 String runtime ABI ADR-0018
+      只有 SPEC-0189 的 literal-only `println` 路径；§31 已生效，ADR-0018 已接受
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流；除一般 String runtime 外，还等待关联/实例
       member、receiver lowering、具体 API guide 与同步 IO runtime ABI ADR
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；

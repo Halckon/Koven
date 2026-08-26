@@ -56,8 +56,8 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.30；§30 的 conventional main
-   与显式 Rc 共享所有权契约已成为现行语义。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.31；§30 的 conventional main /
+   显式 Rc 与 §31 的一般 String 契约已成为现行语义。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 

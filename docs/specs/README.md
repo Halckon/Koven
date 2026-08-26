@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.30 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.31 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -26,10 +26,9 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 的通用 Borrow lowering 与 SPEC-0196 的 pointer-like nullable lowering 均已完成。Arena/Arc/Weak
 没有因本版本获得实现授权。
 
-[v0.31 一般 String 候选](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031-候选)
-目前只是非现行草案；它不取代 v0.30，也不授权实施。ADR-0018 保持 `proposed`、SPEC-0192
-保持 `draft`，直到用户明确启用 v0.31 并解除相应状态门禁。其直接后继 SPEC-0194 已按现行
-v0.30 物化为 draft，参数化 process bridge ADR-0019 保持 `proposed`，不得越过 0192 实施。
+[v0.31 一般 String 契约](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031)
+已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018/0019 已接受，SPEC-0192 已批准并进入
+实施。其直接后继 SPEC-0194 仍为 draft，必须等待 0192 `done`。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -87,8 +86,8 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
-| 已物化但仍有 guide/ADR 门禁 | SPEC-0192 | v0.31 §31 已起草、ADR-0018 已 proposed、Spec 已 draft；仍需用户明确启用 v0.31 并接受 ADR 后才能实施 |
-| 已物化但仍有 runtime/ADR 门禁 | SPEC-0194 | draft 与 proposed ADR-0019 已封闭 argv bridge；必须等待 SPEC-0192 `done`，不得以 literal-only String 或宿主指针提前实现 |
+| 实施中 | SPEC-0192 | v0.31 已启用、ADR-0018 已接受、Spec 已批准；按验收推进一般 String runtime |
+| 已物化但仍有 runtime 门禁 | SPEC-0194 | draft 与 accepted ADR-0019 已封闭 argv bridge；必须等待 SPEC-0192 `done`，不得以 literal-only String 或宿主指针提前实现 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
@@ -269,7 +268,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0046 | 提供 Array / List / MutableList 的目标语言公共 API 与顺序算法 | 0036、0043、0045、0180、0181、0191；新 guide 封闭 intrinsic 容器 member 绑定与 relocation effect |
 | 0047 | 提供 Map / MutableMap 的目标语言公共 API 与键值算法 | 0037、0043、0045；新 guide 明确完整 Map 契约 |
 | 0048 | 为顺序容器实现 `map` / `filter` / `reduce` / `forEach` | 0046、0038 |
-| [0192](./0192-general-string-runtime.md) | 实现可持有、传递和返回的 UTF-8 `String` runtime（`draft`） | 0042、0043、0184、0189、0195 `done`；明确启用 v0.31；[ADR-0018](../adr/0018-string-owner-runtime-abi.md) `accepted` |
+| [0192](./0192-general-string-runtime.md) | 实现可持有、传递和返回的 UTF-8 `String` runtime（`in-progress`） | 0042、0043、0184、0189、0195 `done`；v0.31 已启用；[ADR-0018](../adr/0018-string-owner-runtime-abi.md) `accepted` |
 | 0049 | 实现同步 File / BufferedReader / 标准流 | 0026、0039、0043、0180、0181、0191、0192；新 guide 封闭具体 IO API；接受同步 IO runtime ABI ADR |
 | 0050 | 实现 thread / channel | 0032、0042、0044、0180、0181、0191；新 guide 封闭具体返回类型与 API；接受 thread/channel runtime ABI ADR |
 | 0051 | 实现目标语言测试发现与断言 runner | 0042；新 guide 定义最小 `@Test` 语法 |
@@ -352,7 +351,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.30 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.31 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 

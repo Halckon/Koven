@@ -42,7 +42,7 @@ docs/
 | ADR | 为什么选择这项长期架构决策 | 接受后不改写历史；由新 ADR 取代 |
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
-当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.30 文档集。它是
+当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.31 文档集。它是
 跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.12 及更早单文件 guide 只保留为
 历史；v0.11、v0.12 候选快照在 v0.14 启用后补回，仅用于合入验证。v0.13 的内容已经合入
 v0.14，没有独立文件快照；v0.15 在滚动正文中补齐完整文件恢复契约，v0.16 修正顶层声明
@@ -57,10 +57,11 @@ smart cast 契约，v0.25 封闭条件 `Copyable`、有限内联布局、intrins
 owned binding，并封闭同步调用期 loan 与 ASAP 析构点契约，v0.27 封闭简化 closure
 capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例化与 overload-lambda
 候选隔离契约，v0.29 封闭 nominal/enum case/intrinsic Box constructor 契约，v0.30 封闭
-单文件 conventional main 与显式单线程 Rc 共享所有权契约。
+单文件 conventional main 与显式单线程 Rc 共享所有权契约，v0.31 封闭一般 UTF-8 String
+owner、最小连接/相等/动态输出与参数化 main 的 runtime 前置边界。
 
-`guide/01-design-decisions.md` §31 的一般 String 内容目前只是 v0.31 候选，不是现行语义；
-只有用户明确启用 v0.31 并指定其取代 v0.30 后，才能据此接受 ABI ADR 或批准实施 Spec。
+`guide/01-design-decisions.md` §31 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018、
+ADR-0019 同时获明确接受，SPEC-0192 获准实施。
 
 `guide/01-design-decisions.md` §30 已于 2026-08-26 由用户明确启用并取代 v0.29；零参数 main、
 参数化 main 与 Rc 仍按自身前置关系独立实施和验收。

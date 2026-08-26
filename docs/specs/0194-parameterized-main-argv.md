@@ -7,14 +7,14 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P6-194` |
 | 所属 Phase | Phase 4/6 纵向切片 |
-| 语言规范 | 现行 [`guide/01-design-decisions.md` §30.1](../guide/01-design-decisions.md#301-单文件-conventional-main)；String runtime 依赖非现行 v0.31 候选 §31 |
-| 批准依据 | 无；前置 SPEC-0192 与 ADR-0019 尚未解除门禁，当前持续 Goal 只授权先物化 draft |
-| 前置 Spec | SPEC-0193 `done`；SPEC-0192 `draft`，必须先变为 `done` |
-| 前置 ADR | ADR-0010、0016 `accepted`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `proposed` |
+| 语言规范 | 现行 [`guide/01-design-decisions.md` §30.1 / §31](../guide/01-design-decisions.md#301-单文件-conventional-main) |
+| 批准依据 | 无；前置 SPEC-0192 尚未完成，保持 draft |
+| 前置 Spec | SPEC-0193 `done`；SPEC-0192 `in-progress`，必须先变为 `done` |
+| 前置 ADR | ADR-0010、0016、[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted` |
 | 关联 ADR | ADR-0007、0008、0018 |
-| 阻塞项 | SPEC-0192 `done`；ADR-0018、0019 `accepted` |
+| 阻塞项 | SPEC-0192 `done` |
 | 影响范围 | `lang-codegen` native entry plan/wrapper/runtime，`lang-cli` entry selection/run 参数转交，native tests，Architecture/Roadmap |
-| 语言语义变更 | 否；实施现行 v0.30 已批准的参数化 main 语义 |
+| 语言语义变更 | 否；实施现行 v0.31 沿用的参数化 main 语义 |
 
 ## 2. Goal
 
@@ -109,4 +109,4 @@ partially-initialized Array 清理路径。
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 前置审计 | 部分通过 | v0.30 与 SPEC-0193 已生效；SPEC-0192 尚为 draft，ADR-0018/0019 尚为 proposed |
+| 2026-08-26 前置审计 | 部分通过 | v0.31、ADR-0018/0019 与 SPEC-0193 已生效；SPEC-0192 尚在实施 |

@@ -4,17 +4,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P5-192` |
 | 所属 Phase | Phase 2/3/4/5 纵向切片 |
-| 语言规范 | 非现行 [v0.31 候选 §31](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031-候选)；现行版本仍为 v0.30 |
-| 批准依据 | 无；候选 guide 未启用，当前持续 Goal 只授权先物化 draft |
+| 语言规范 | 现行 [v0.31 §31](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031) |
+| 批准依据 | 2026-08-26 用户明确启用 v0.31、接受 ADR-0018/0019，并批准实施 SPEC-0192 |
 | 前置 Spec | SPEC-0042、0043、0184、0189、0195 `done` |
-| 前置 ADR | [ADR-0018](../adr/0018-string-owner-runtime-abi.md) `proposed`，尚未接受 |
+| 前置 ADR | [ADR-0018](../adr/0018-string-owner-runtime-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0016 |
-| 阻塞项 | 用户明确启用 v0.31 取代 v0.30；ADR-0018 由 `proposed` 转为 `accepted` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` String/drop facts，`lang-codegen` String SSA/verifier/LLVM/runtime，native tests，Architecture/Roadmap |
-| 语言语义变更 | 是；必须先启用 v0.31 候选 §31，不能按本草案反向修改现行语义 |
+| 语言语义变更 | 否；实施已启用的 v0.31 §31 |
 
 ## 2. Goal
 
@@ -30,7 +30,7 @@ MoveOnly String 建立 move、loan 和 drop facts；codegen 目前只接受 SPEC
 native 能力不对齐，并阻塞 v0.30 已定义但未实施的参数化 main。
 
 roadmap 审计显示，SPEC-0193、0195、0196 已完成后，一般 String runtime 是当前能解锁最多后续
-节点的边界；但候选 §31 与 ADR-0018 尚未生效，因此本文件只能保持 draft。
+节点的边界；v0.31 与 ADR-0018 已生效，本 Spec 已获准实施。
 
 ## 4. 范围与需求
 
@@ -102,11 +102,10 @@ SSA 只能有一套 String owner/print 契约；若保留优化，测试必须�
 
 ## 10. 未决问题
 
-- 门禁问题不是实现选择：只有用户明确启用 v0.31 并接受/授权接受 ADR-0018 后，本 Spec 才能
-  从 `draft` 进入 `approved` / `in-progress`。
+- 无。
 
 ## 11. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 roadmap 前置审计 | 部分通过 | 0042/0043/0184/0189/0195 均 `done`；候选 §31 未启用，ADR-0018 仍 `proposed` |
+| 2026-08-26 roadmap 前置审计 | 通过 | 0042/0043/0184/0189/0195 均 `done`；v0.31 已启用，ADR-0018 已接受 |

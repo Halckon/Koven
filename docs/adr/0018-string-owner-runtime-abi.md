@@ -2,12 +2,11 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。本 ADR 依赖尚未启用的 v0.31 候选 §31；只有用户明确启用 v0.31
-并指定其取代 v0.30 后，才能依据有效授权审计并改为 `accepted`。
+2026-08-26，用户明确启用 guide v0.31 取代 v0.30，并明确接受 ADR-0018。
 
 ## 背景
 
@@ -16,7 +15,7 @@ frontend 已把 `String` 识别为不可变、MoveOnly 且 Transferable 的 buil
 SPEC-0189 的 `PrintLiteral` 路径：literal bytes 直接进入静态 LLVM constant，变量、参数、返回、
 连接和动态输出均没有一般 runtime value。
 
-候选 v0.31 §31 要求 plain literal 与动态 String 共享同一 typed SSA identity，并让唯一 owner、
+现行 v0.31 §31 要求 plain literal 与动态 String 共享同一 typed SSA identity，并让唯一 owner、
 Borrow、drop、连接、相等和 stdout adapter 可由 verifier 观察。ADR-0008 已固定 target
 `DataLayout`、系统分配与 abort 边界，但没有决定 String 的字段、静态/动态存储 provenance 或
 drop glue。若各 lowering 路径自行选择 Rust `String`、C string 或裸字节指针，就无法同时保证
