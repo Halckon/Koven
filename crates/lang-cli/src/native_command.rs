@@ -15,7 +15,7 @@ use crate::{
 };
 
 const BUILD_USAGE: &str = "usage: kovenc build <source.ko> [--entry <name>] -o <executable>\n";
-const RUN_USAGE: &str = "usage: kovenc run <source.ko> [--entry <name>]\n";
+const RUN_USAGE: &str = "usage: kovenc run <source.ko> [--entry <name>] [-- <program-arg>...]\n";
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
 pub(super) fn execute_build(
@@ -79,7 +79,12 @@ pub(super) fn execute_build(
 }
 
 pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat) -> CommandOutput {
-    let (source, entry) = match arguments {
+    let separator = arguments.iter().position(|argument| argument == "--");
+    let (compiler_arguments, program_arguments) = match separator {
+        Some(separator) => (&arguments[..separator], &arguments[separator + 1..]),
+        None => (arguments, &[][..]),
+    };
+    let (source, entry) = match compiler_arguments {
         [source, entry_flag, entry]
             if entry_flag == "--entry" && !is_option(source) && !is_option(entry) =>
         {
@@ -115,7 +120,7 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     }) {
         return render_error(error, message_format);
     }
-    let output = match Command::new(&executable).output() {
+    let output = match Command::new(&executable).args(program_arguments).output() {
         Ok(output) => CommandOutput {
             status: output
                 .status

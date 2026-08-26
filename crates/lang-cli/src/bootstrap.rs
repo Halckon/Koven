@@ -8,7 +8,7 @@ use std::{
 #[cfg(test)]
 use std::process::Command;
 
-use lang_codegen::{NativeObjectError, emit_native_object};
+use lang_codegen::{NativeEntry, NativeObjectError, emit_native_object};
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexerInternalError, lex},
@@ -87,9 +87,6 @@ pub(crate) enum BootstrapError {
     InvalidEntryShape {
         name: String,
     },
-    UnsupportedParameterizedEntry {
-        name: String,
-    },
     Codegen(NativeObjectError),
     Linker(LinkerError),
     #[cfg(test)]
@@ -149,11 +146,8 @@ impl fmt::Display for BootstrapError {
             }
             Self::InvalidEntryShape { name } => write!(
                 formatter,
-                "entry `{name}` has no supported conventional shape; expected `fun {name}(): Unit`"
-            ),
-            Self::UnsupportedParameterizedEntry { name } => write!(
-                formatter,
-                "parameterized entry `{name}` requires argv support that is not implemented"
+                "entry `{name}` has no supported conventional shape; expected `fun {name}(): Unit` \
+                 or `fun {name}(args: Array<String>): Unit`"
             ),
             Self::Codegen(error) => write!(formatter, "{error}"),
             Self::Linker(error) => write!(formatter, "linker failed: {error:?}"),
@@ -227,7 +221,7 @@ fn select_entry(
     names: &NameResolution,
     typed: &TypedFile,
     selection: BootstrapEntry<'_>,
-) -> Result<SymbolId, BootstrapError> {
+) -> Result<NativeEntry, BootstrapError> {
     let name = match selection {
         BootstrapEntry::Explicit(name) => name,
         BootstrapEntry::ConventionalMain => "main",
@@ -248,7 +242,8 @@ fn select_entry(
         .collect::<Vec<_>>();
 
     if matches!(selection, BootstrapEntry::Explicit(_)) {
-        return unique_entry(name, candidates.into_iter().map(|symbol| symbol.id()));
+        return unique_entry(name, candidates.into_iter().map(|symbol| symbol.id()))
+            .map(NativeEntry::NoArguments);
     }
     if candidates.is_empty() {
         return Err(BootstrapError::MissingEntry(name.to_owned()));
@@ -299,10 +294,8 @@ fn select_entry(
         });
     }
     match conventional_shapes.first() {
-        Some((entry, true)) => Ok(*entry),
-        Some((_, false)) => Err(BootstrapError::UnsupportedParameterizedEntry {
-            name: name.to_owned(),
-        }),
+        Some((entry, true)) => Ok(NativeEntry::NoArguments(*entry)),
+        Some((entry, false)) => Ok(NativeEntry::BorrowedArguments(*entry)),
         None => Err(BootstrapError::InvalidEntryShape {
             name: name.to_owned(),
         }),

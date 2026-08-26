@@ -8,6 +8,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+#[cfg(unix)]
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 struct TestDirectory(PathBuf);
@@ -114,6 +117,18 @@ fn conventional_main_builds_and_runs_without_an_entry_option() {
     assert_eq!(executed.status.code(), Some(0), "{executed:?}");
     assert_eq!(executed.stdout, b"Hello, World!\n");
     assert!(executed.stderr.is_empty());
+
+    let ignored = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--"),
+        OsStr::new("ignored"),
+        OsStr::new(""),
+        OsStr::new("忽略"),
+    ]);
+    assert_eq!(ignored.status.code(), Some(0), "{ignored:?}");
+    assert_eq!(ignored.stdout, b"Hello, World!\n");
+    assert!(ignored.stderr.is_empty(), "{ignored:?}");
 }
 
 #[test]
@@ -171,17 +186,6 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
     let invalid_source = directory.join("invalid-shape.ko");
     fs::write(
         &invalid_source,
-        "fun main(args: Array<String>): Unit {}\nfun selected(): Unit {}\n",
-    )
-    .expect("invalid-shape source write");
-    let invalid = run([OsStr::new("run"), invalid_source.as_os_str()]);
-    assert_eq!(invalid.status.code(), Some(2), "{invalid:?}");
-    assert!(
-        String::from_utf8_lossy(&invalid.stderr)
-            .contains("parameterized entry `main` requires argv support")
-    );
-    fs::write(
-        &invalid_source,
         "fun main(): Int { return 1 }\nfun selected(): Unit {}\n",
     )
     .expect("explicit override source write");
@@ -201,6 +205,30 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
     assert!(explicit.stdout.is_empty());
     assert!(explicit.stderr.is_empty());
 
+    let parameterized_source = directory.join("explicit-parameterized.ko");
+    fs::write(
+        &parameterized_source,
+        "fun main(args: Array<String>): Unit {}\n",
+    )
+    .expect("explicit parameterized source write");
+    let explicit_parameterized = run([
+        OsStr::new("run"),
+        parameterized_source.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("main"),
+        OsStr::new("--"),
+        OsStr::new("ignored"),
+    ]);
+    assert_eq!(
+        explicit_parameterized.status.code(),
+        Some(2),
+        "{explicit_parameterized:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&explicit_parameterized.stderr).contains("InvalidEntry"),
+        "{explicit_parameterized:?}"
+    );
+
     let ambiguous_source = directory.join("ambiguous.ko");
     fs::write(
         &ambiguous_source,
@@ -217,6 +245,107 @@ fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() 
 }
 
 #[test]
+fn parameterized_main_preserves_argument_bytes_and_order_for_build_and_run() {
+    let directory = TestDirectory::create();
+    let source = directory.join("arguments.ko");
+    let executable = directory.join("arguments");
+    fs::write(
+        &source,
+        "fun main(args: Array<String>): Unit {\n\
+             val first = println(args[0])\n\
+             val empty = println(args[1])\n\
+             val unicode = println(args[2])\n\
+             val last = println(args[3])\n\
+         }\n\
+         fun selected(): Unit { println(\"explicit\") }\n",
+    )
+    .expect("parameterized source write");
+
+    let built = run([
+        OsStr::new("build"),
+        source.as_os_str(),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    assert!(built.stdout.is_empty(), "{built:?}");
+    assert!(built.stderr.is_empty(), "{built:?}");
+    let launched = Command::new(&executable)
+        .args(["first", "", "你好", "last"])
+        .output()
+        .expect("parameterized executable launch");
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, "first\n\n你好\nlast\n".as_bytes());
+    assert!(launched.stderr.is_empty(), "{launched:?}");
+
+    let ordered = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--"),
+        OsStr::new("first"),
+        OsStr::new(""),
+        OsStr::new("你好"),
+        OsStr::new("last"),
+    ]);
+    assert_eq!(ordered.status.code(), Some(0), "{ordered:?}");
+    assert_eq!(ordered.stdout, "first\n\n你好\nlast\n".as_bytes());
+    assert!(ordered.stderr.is_empty(), "{ordered:?}");
+
+    let explicit = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("selected"),
+        OsStr::new("--"),
+        OsStr::new("ignored-first"),
+        OsStr::new(""),
+        OsStr::new("忽略"),
+    ]);
+    assert_eq!(explicit.status.code(), Some(0), "{explicit:?}");
+    assert_eq!(explicit.stdout, b"explicit\n");
+    assert!(explicit.stderr.is_empty(), "{explicit:?}");
+}
+
+#[test]
+fn parameterized_main_accepts_an_empty_argument_array() {
+    let directory = TestDirectory::create();
+    let source = directory.join("empty-arguments.ko");
+    fs::write(
+        &source,
+        "fun main(args: Array<String>): Unit { println(\"empty\") }\n",
+    )
+    .expect("empty parameterized source write");
+
+    let empty = run([OsStr::new("run"), source.as_os_str(), OsStr::new("--")]);
+    assert_eq!(empty.status.code(), Some(0), "{empty:?}");
+    assert_eq!(empty.stdout, b"empty\n");
+    assert!(empty.stderr.is_empty(), "{empty:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn parameterized_main_rejects_invalid_utf8_before_entering_koven() {
+    let directory = TestDirectory::create();
+    let source = directory.join("invalid-utf8.ko");
+    fs::write(
+        &source,
+        "fun main(args: Array<String>): Unit { println(\"entered\") }\n",
+    )
+    .expect("parameterized source write");
+    let invalid = OsString::from_vec(vec![b'v', 0xff, b'x']);
+
+    let rejected = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("--"),
+        invalid.as_os_str(),
+    ]);
+    assert_eq!(rejected.status.code(), Some(1), "{rejected:?}");
+    assert!(rejected.stdout.is_empty(), "{rejected:?}");
+    assert!(rejected.stderr.is_empty(), "{rejected:?}");
+}
+
+#[test]
 fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
     let directory = TestDirectory::create();
     let source = directory.join("source.ko");
@@ -226,6 +355,17 @@ fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
     let usage = run([OsStr::new("build"), source.as_os_str()]);
     assert_eq!(usage.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&usage.stderr).contains("usage: kovenc build"));
+
+    let run_usage = run([
+        OsStr::new("run"),
+        source.as_os_str(),
+        OsStr::new("program-argument-without-separator"),
+    ]);
+    assert_eq!(run_usage.status.code(), Some(2), "{run_usage:?}");
+    assert!(
+        String::from_utf8_lossy(&run_usage.stderr).contains("usage: kovenc run"),
+        "{run_usage:?}"
+    );
 
     fs::write(&executable, b"caller owned").expect("existing output write");
     let exists = build(source.as_os_str(), "present", executable.as_os_str());

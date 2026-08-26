@@ -74,7 +74,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   接线与 native 闭环。
 - **v0.30 已明确启用**：§30 的 conventional `main()` / `main(args: Array<String>)` 选择、
   `Rc<T>` 显式 `share()`、Borrow-only payload、自动 release 与 Arena/handle 延后边界已成为
-  现行语义。零参数默认入口、参数化入口和 Rc runtime 仍由独立 Spec 按依赖顺序实施。
+  现行语义。零参数默认入口、参数化入口和 Rc runtime 已由独立 Spec 按依赖顺序实施。
 - **文档治理规则（原第六部分，现收纳于此统一声明）**：`docs/guide/` 正文原地演进，
   [`07-changelog-archive.md`](./07-changelog-archive.md) 与 Git 历史共同保存版本追溯。每次
   文档集版本变更都必须在变更记录里补一条，保持可追溯；后续
@@ -189,7 +189,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0189 | 标准 `println(String)` 与最小 stdout 输出 | `06-roadmap.md` Phase 5、`../specs/0189-standard-println-output.md` | ✅ 已实现 |
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | ✅ 已实现 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
-| SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | 📝 draft；runtime 前置已满足，等待批准 |
+| SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |

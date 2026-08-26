@@ -21,14 +21,14 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 已于 2026-08-25 明确启用并取代 v0.28；SPEC-0183 / 0188 / 0184 已完成。
 
 [v0.30 入口与共享所有权契约](../guide/01-design-decisions.md#30-约定程序入口与显式共享所有权v030)
-已于 2026-08-26 明确启用并取代 v0.29；零参数 conventional main 可在 SPEC-0193 直接推进，
-参数化 main 必须等待一般 String/argv Array runtime；SPEC-0045 的非 nullable Rc core、SPEC-0195
+已于 2026-08-26 明确启用并取代 v0.29；零参数 conventional main 由 SPEC-0193 实施，
+参数化 main 当时必须等待一般 String/argv Array runtime，现已由 SPEC-0194 实施；SPEC-0045 的非 nullable Rc core、SPEC-0195
 的通用 Borrow lowering 与 SPEC-0196 的 pointer-like nullable lowering 均已完成。Arena/Arc/Weak
 没有因本版本获得实现授权。
 
 [v0.31 一般 String 契约](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031)
 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018/0019 已接受，SPEC-0192 已完成。
-其直接后继 SPEC-0194 的 runtime 前置已解除，但仍保持 draft，等待单独批准实施。
+其直接后继 SPEC-0194 已完成参数化 main/argv bridge。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -87,13 +87,12 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
-| 已物化、等待批准 | SPEC-0194 | draft 与 accepted ADR-0019 已封闭 argv bridge；SPEC-0192 runtime 前置已满足，尚未获实施批准 |
+| 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此参数化 main 已成为依赖满足但仍待批准的下一节点；nullable `when`/`!!` 需要各自的
-flow/消费 descriptor，其他候选仍受表中 guide/runtime 门禁约束。后续不得在未批准
-SPEC-0194 前提前接入 argv wrapper。
+因此当前已无可在不新增 guide/ADR 决策的情况下直接实施的相邻节点；nullable `when`/`!!`
+需要各自的 flow/消费 descriptor，其他候选仍受表中 guide/runtime 门禁约束。
 
 ## Phase 0 Spec 队列
 
@@ -279,7 +278,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0190](./0190-public-single-file-build-run.md) | 公开单文件 `kovenc build/run` 并验证仓库外 Hello World（`done`） | 0039、0042、0043、0184、0189 `done`；当前持续 Goal 的站立授权 |
 | [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
-| [0194](./0194-parameterized-main-argv.md) | 接入 `fun main(args: Array<String>): Unit` 与 argv owner（`draft`） | 0193 `done`、0192 `done`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted`；v0.30 已生效 |
+| [0194](./0194-parameterized-main-argv.md) | 接入 `fun main(args: Array<String>): Unit` 与 argv owner（`done`） | 0193 `done`、0192 `done`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted`；v0.31 现行语义 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |

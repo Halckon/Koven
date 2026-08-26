@@ -3,7 +3,7 @@
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
 > v0.31；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
-> runtime；参数化 main 的 runtime 前置已满足，SPEC-0194 仍待单独批准。
+> runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -476,10 +476,10 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [x] **SPEC-0193（已实现；前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
       `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
       shape 与 ambiguous operational failure 分离；不接收 argv
-- [ ] **[SPEC-0194](../specs/0194-parameterized-main-argv.md)（draft；runtime 前置已满足，等待批准）**：接入
+- [x] **[SPEC-0194](../specs/0194-parameterized-main-argv.md)（已实现）**：接入
       `fun main(args: Array<String>): Unit`，构造不含 executable name 的 UTF-8 argv owner，
       Borrow 调用后逆序析构；现有顺序容器 runtime 由 0192 先验证 String element/drop glue，
-      不得以 literal-only String 或宿主指针提前实现
+      并以两阶段预检、独立 String owner 和最窄 Borrow Array 索引桥完成实现
 - [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
 - [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，

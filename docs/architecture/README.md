@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.30 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.31 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -135,7 +135,15 @@ linker。build 成功静默退出 0，run 精确返回程序 stdout/stderr/statu
 已分别通过 build 后启动与直接 run 输出 `Hello, World!\n`。SPEC-0193 允许省略 `--entry` 时在
 完整 frontend 成功后选择唯一顶层、非泛型 `fun main(): Unit`；missing、非法形状和两个
 conventional 形状并存分别形成 operational failure，显式 `--entry` 继续覆盖默认选择。
-`main(args)`、默认 output、程序参数、多文件/package/project 仍未实现；
+SPEC-0194 在此基础上增加 verified `NativeEntry` shape 与内部 `NativeEntryPlan`：参数化 target
+必须精确为单一 shared Borrow `Array<String> -> Unit`，并在 LLVM module 构造前验证 function、
+Array 和 String SSA identity。参数化 wrapper 使用 `i32 main(i32 argc, ptr argv)`，排除
+`argv[0]`，先无分配检查 argv 指针、长度和 locale-independent UTF-8，再正序复制非空参数到
+独立 String buffer；空串使用 ADR-0018 的 canonical `null/0/0`。完整 Array 以 shared loan
+pointer ABI 调用 Koven main，返回后复用既有 drop glue 逆序析构 String 并唯一释放 buffer。
+frontend→SSA 同时只为 Borrow 调用实参接通 active shared `Array<T>` loan 的 checked element
+place，不开放 owned element extraction、replace 或 relocation。`kovenc run` 通过 `--` 分隔
+compiler/program 参数，并以 `OsString` 原样转交；默认 output、多文件/package/project 仍未实现；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -144,7 +152,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
-闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.30
+闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.31
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -1377,7 +1385,8 @@ thunk 通过 shared environment pointer 读取 capture，closure owner 仍是唯
 interpolation、`String?` native ABI、String member 与其他 printable 重载仍未实现。
 SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
 MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/0193 已公开单文件显式 entry
-和零参数 conventional main build/run，但不等于参数化 main、多文件标准库或项目构建模型。
+和零参数 conventional main build/run；SPEC-0194 已增加参数化 main/argv，但仍不等于多文件
+标准库或项目构建模型。
 内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
