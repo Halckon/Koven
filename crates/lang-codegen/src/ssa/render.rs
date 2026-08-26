@@ -340,12 +340,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::DirectCall { callee, arguments } => {
             write!(output, "call @f{}(", callee.index())?;
-            let arguments = arguments
-                .iter()
-                .copied()
-                .map(EntityId::Value)
-                .collect::<Vec<_>>();
-            write_entity_ids(output, &arguments)?;
+            write_entity_ids(output, arguments)?;
             output.push(')');
             Ok(())
         }

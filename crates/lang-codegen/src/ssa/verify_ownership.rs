@@ -126,6 +126,7 @@ pub(super) fn verify_ownership(
                         errors,
                     );
                 }
+                release_borrow_parameters(function, &aliases, &mut state);
                 verify_normal_exit(
                     state,
                     VerifyLocation::Terminator(block.id),
@@ -136,6 +137,24 @@ pub(super) fn verify_ownership(
             TerminatorKind::Abort => {}
         }
     }
+}
+
+fn release_borrow_parameters(function: &Function, aliases: &AliasRoots, state: &mut BlockState) {
+    let Some(entry) = function.blocks.first() else {
+        return;
+    };
+    let parameters = entry
+        .parameters
+        .iter()
+        .copied()
+        .filter(|entity| matches!(entity, EntityId::Loan(_)))
+        .collect::<BTreeSet<_>>();
+    state.loans.retain(|loan| {
+        !aliases
+            .roots
+            .get(&EntityId::Loan(*loan))
+            .is_some_and(|roots| roots.iter().any(|root| parameters.contains(root)))
+    });
 }
 
 fn entry_state(
@@ -205,18 +224,34 @@ fn apply_operation(
         | Operation::BooleanNot { .. } => {}
         Operation::DirectCall { arguments, .. } => {
             for argument in arguments {
-                consume_value(
-                    module,
-                    function,
-                    *argument,
-                    aliases,
-                    state,
-                    &BTreeSet::new(),
-                    &BTreeSet::new(),
-                    location.clone(),
-                    origin,
-                    errors,
-                );
+                match argument {
+                    EntityId::Value(value) => {
+                        consume_value(
+                            module,
+                            function,
+                            *value,
+                            aliases,
+                            state,
+                            &BTreeSet::new(),
+                            &BTreeSet::new(),
+                            location.clone(),
+                            origin,
+                            errors,
+                        );
+                    }
+                    EntityId::Loan(loan) => {
+                        if !state.loans.contains(loan) {
+                            errors.push(error(
+                                VerifyErrorKind::LoanInactive { loan: *loan },
+                                location.clone(),
+                                origin,
+                            ));
+                        }
+                    }
+                    EntityId::Place(place) => {
+                        require_place(*place, state, location.clone(), origin, errors);
+                    }
+                }
             }
         }
         Operation::FunctionAddress { .. } => {}

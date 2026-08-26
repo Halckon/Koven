@@ -524,7 +524,7 @@ fn direct_call_contract(
     module: &Module,
     function: &Function,
     callee: super::model::FunctionId,
-    arguments: &[ValueId],
+    arguments: &[EntityId],
     results: &[EntityType],
 ) -> bool {
     let Some(callee) = module.function(callee) else {
@@ -542,9 +542,11 @@ fn direct_call_contract(
         return false;
     };
     if parameter_types.len() != arguments.len()
-        || !parameter_types
-            .iter()
-            .all(|ty| is_first_class_value(module, *ty))
+        || !parameter_types.iter().all(|ty| match ty {
+            EntityType::Value(ty) => is_first_class(module, *ty),
+            EntityType::Loan { target, .. } => is_first_class(module, *target),
+            EntityType::Place(_) => false,
+        })
         || !callee
             .return_types
             .iter()
@@ -556,7 +558,8 @@ fn direct_call_contract(
         .iter()
         .zip(parameter_types)
         .all(|(argument, parameter)| {
-            value_type(function, *argument) == Some(parameter.semantic_type())
+            !matches!(argument, EntityId::Place(_))
+                && function.entity(*argument).map(|entity| entity.ty) == Some(parameter)
         });
     let results_match = results
         == callee

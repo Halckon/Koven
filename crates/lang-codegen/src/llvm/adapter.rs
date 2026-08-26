@@ -112,12 +112,15 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
             let parameters = entry
                 .parameters
                 .iter()
-                .map(|entity| {
-                    let EntityId::Value(value) = entity else {
-                        return Err(unsupported("LLVM function 参数不能是 place 或 loan"));
-                    };
-                    let ty = value_type(function, *value)?;
-                    Ok(BasicMetadataTypeEnum::from(self.type_map.basic_type(ty)?))
+                .map(|entity| match entity {
+                    EntityId::Value(value) => {
+                        let ty = value_type(function, *value)?;
+                        Ok(BasicMetadataTypeEnum::from(self.type_map.basic_type(ty)?))
+                    }
+                    EntityId::Loan(_) => Ok(BasicMetadataTypeEnum::from(
+                        self.context.ptr_type(inkwell::AddressSpace::default()),
+                    )),
+                    EntityId::Place(_) => Err(unsupported("LLVM function 参数不能是 place")),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let function_type = match function.return_types.as_slice() {
@@ -236,15 +239,28 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             ));
         }
         for (index, entity) in entry.parameters.iter().enumerate() {
-            let EntityId::Value(value) = entity else {
-                return Err(unsupported("LLVM entry 参数不能是 place 或 loan"));
-            };
             let llvm_value = self
                 .llvm_function
                 .get_nth_param(index as u32)
                 .ok_or_else(|| LlvmAdapterError::Build("缺少 LLVM function 参数".to_owned()))?;
-            llvm_value.set_name(&value_name(*value));
-            self.values.insert(*value, llvm_value);
+            match entity {
+                EntityId::Value(value) => {
+                    llvm_value.set_name(&value_name(*value));
+                    self.values.insert(*value, llvm_value);
+                }
+                EntityId::Loan(loan) => {
+                    let BasicValueEnum::PointerValue(pointer) = llvm_value else {
+                        return Err(LlvmAdapterError::InvalidSsa(
+                            "LLVM Borrow 参数不是 pointer".to_owned(),
+                        ));
+                    };
+                    pointer.set_name(&format!("l{}", loan.index()));
+                    self.loans.insert(*loan, pointer);
+                }
+                EntityId::Place(_) => {
+                    return Err(unsupported("LLVM entry 参数不能是 place"));
+                }
+            }
         }
 
         for block in self.function.blocks.iter().skip(1) {
@@ -945,7 +961,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     fn lower_call(
         &mut self,
         callee: FunctionId,
-        arguments: &[ValueId],
+        arguments: &[EntityId],
         results: &[ValueId],
     ) -> Result<(), LlvmAdapterError> {
         let llvm_callee =
@@ -954,7 +970,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             })?;
         let arguments = arguments
             .iter()
-            .map(|argument| self.value(*argument).map(BasicMetadataValueEnum::from))
+            .map(|argument| match argument {
+                EntityId::Value(value) => self.value(*value).map(BasicMetadataValueEnum::from),
+                EntityId::Loan(loan) => self
+                    .access(PlaceAccess::Loan(*loan))
+                    .map(BasicMetadataValueEnum::from),
+                EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                    "direct call 不接受裸 place argument".to_owned(),
+                )),
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let call_name = results.first().map_or("", |result| {
             // LLVM 的 void call 不能有名称；非空 result 已由 SSA verifier 对齐 callee 签名。

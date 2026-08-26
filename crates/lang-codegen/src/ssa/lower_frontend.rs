@@ -854,7 +854,10 @@ impl ExpressionLowerer<'_> {
         let arguments = ordered
             .into_iter()
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            .into_iter()
+            .map(EntityId::Value)
+            .collect();
         let return_type = self.resolve_type(descriptor.return_type(), span)?;
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()

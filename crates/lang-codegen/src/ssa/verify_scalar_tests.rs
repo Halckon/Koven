@@ -3,11 +3,13 @@ use lang_frontend::source::SourceMap;
 use super::{
     model::{
         CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType, FunctionId,
-        Operation, Origin, Program, SsaTypeKind, TerminatorKind, ValueId,
+        LoanId, LoanKind, Operation, Origin, PlaceId, Program, SsaTypeKind, TerminatorKind,
+        ValueId,
     },
     render::render_program,
     verify::{VerifyErrorKind, verify_program},
 };
+use crate::llvm::render_verified_program;
 
 fn origin() -> Origin {
     let mut sources = SourceMap::default();
@@ -26,6 +28,20 @@ fn value(entity: EntityId) -> ValueId {
         panic!("expected value, got {entity:?}");
     };
     value
+}
+
+fn place(entity: EntityId) -> PlaceId {
+    let EntityId::Place(place) = entity else {
+        panic!("expected place, got {entity:?}");
+    };
+    place
+}
+
+fn loan(entity: EntityId) -> LoanId {
+    let EntityId::Loan(loan) = entity else {
+        panic!("expected loan, got {entity:?}");
+    };
+    loan
 }
 
 #[test]
@@ -235,7 +251,7 @@ fn comparisons_and_direct_calls_have_exact_scalar_signatures() {
             caller_entry,
             Operation::DirectCall {
                 callee,
-                arguments: vec![value(arguments[0])],
+                arguments: vec![EntityId::Value(value(arguments[0]))],
             },
             vec![EntityType::Value(integer)],
             origin.clone(),
@@ -292,6 +308,334 @@ fn comparisons_and_direct_calls_have_exact_scalar_signatures() {
     for comparison in ["eq", "ne", "lt", "le", "gt", "ge"] {
         assert!(rendered.contains(&format!("cmp.{comparison}")));
     }
+}
+
+#[test]
+fn direct_borrow_call_preserves_move_only_owner_and_uses_pointer_abi() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("borrow-call");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let payload = module
+        .add_aggregate_type("Resource.payload", Vec::new())
+        .expect("payload must be valid");
+    let owner = module
+        .declare_heap_owner("Resource")
+        .expect("owner must be valid");
+    module
+        .define_heap_owner(owner, payload)
+        .expect("owner definition must be valid");
+
+    let callee = module
+        .add_function("inspect", Vec::new(), origin.clone())
+        .expect("callee must be valid");
+    let callee_function = module.function_mut(callee).expect("callee must exist");
+    let callee_entry = callee_function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: owner,
+            }],
+            origin.clone(),
+        )
+        .expect("borrow parameter must be valid");
+    callee_function
+        .set_terminator(
+            callee_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("callee must return");
+
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .expect("caller must be valid");
+    let caller_function = module.function_mut(caller).expect("caller must exist");
+    let entry = caller_function
+        .add_block(vec![EntityType::Value(owner)], origin.clone())
+        .expect("caller entry must be valid");
+    let owner_value = value(caller_function.block(entry).expect("entry").parameters[0]);
+    let (_, places) = caller_function
+        .append_instruction(
+            entry,
+            Operation::RootPlace { owner: owner_value },
+            vec![EntityType::Place(owner)],
+            origin.clone(),
+        )
+        .expect("root place must append");
+    let (_, loans) = caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place: place(places[0]),
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: owner,
+            }],
+            origin.clone(),
+        )
+        .expect("borrow must append");
+    let loan = loan(loans[0]);
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::DirectCall {
+                callee,
+                arguments: vec![EntityId::Loan(loan)],
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("borrow call must append");
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("borrow end must append");
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::Drop { owner: owner_value },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("owner must remain available after borrow call");
+    caller_function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("caller must return");
+
+    verify_program(&program).expect("borrow call must not consume its MoveOnly owner");
+    let rendered = render_program(&program);
+    assert!(rendered.contains("call @f0(%l0)"), "{rendered}");
+    let llvm = render_verified_program(&program).expect("borrow call must lower to LLVM");
+    assert!(
+        llvm.contains("define internal void @f0.inspect(ptr %l0)"),
+        "{llvm}"
+    );
+    assert!(llvm.contains("call void @f0.inspect(ptr %p0)"), "{llvm}");
+    assert_eq!(llvm.matches("call void @free").count(), 1, "{llvm}");
+}
+
+#[test]
+fn direct_call_rejects_value_for_borrow_and_wrong_loan_kind() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("invalid-borrow-call");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let shared = module
+        .add_function("shared", Vec::new(), origin.clone())
+        .expect("shared callee");
+    let shared_function = module.function_mut(shared).expect("shared function");
+    let shared_entry = shared_function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("shared entry");
+    shared_function
+        .set_terminator(
+            shared_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("shared return");
+    let exclusive = module
+        .add_function("exclusive", Vec::new(), origin.clone())
+        .expect("exclusive callee");
+    let exclusive_function = module.function_mut(exclusive).expect("exclusive function");
+    let exclusive_entry = exclusive_function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("exclusive entry");
+    exclusive_function
+        .set_terminator(
+            exclusive_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("exclusive return");
+
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .expect("caller");
+    let caller_function = module.function_mut(caller).expect("caller function");
+    let entry = caller_function
+        .add_block(vec![EntityType::Value(integer)], origin.clone())
+        .expect("caller entry");
+    let input = value(caller_function.block(entry).expect("entry").parameters[0]);
+    let (_, places) = caller_function
+        .append_instruction(
+            entry,
+            Operation::RootPlace { owner: input },
+            vec![EntityType::Place(integer)],
+            origin.clone(),
+        )
+        .expect("root place");
+    let (_, loans) = caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place: place(places[0]),
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("shared loan");
+    let shared_loan = loan(loans[0]);
+    for (callee, argument) in [
+        (shared, EntityId::Value(input)),
+        (exclusive, EntityId::Loan(shared_loan)),
+    ] {
+        caller_function
+            .append_instruction(
+                entry,
+                Operation::DirectCall {
+                    callee,
+                    arguments: vec![argument],
+                },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("invalid call remains structurally appendable");
+    }
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan: shared_loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("loan end");
+    caller_function
+        .set_terminator(entry, TerminatorKind::Abort, origin)
+        .expect("caller abort");
+
+    let errors = verify_program(&program).expect_err("delivery mode mismatches must fail");
+    assert_eq!(
+        errors
+            .errors
+            .iter()
+            .filter(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+            .count(),
+        2,
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn direct_call_rejects_inactive_borrow_argument() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("inactive-borrow-call");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let callee = module
+        .add_function("inspect", Vec::new(), origin.clone())
+        .expect("callee");
+    let callee_function = module.function_mut(callee).expect("callee function");
+    let callee_entry = callee_function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("callee entry");
+    callee_function
+        .set_terminator(
+            callee_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("callee return");
+
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .expect("caller");
+    let caller_function = module.function_mut(caller).expect("caller function");
+    let entry = caller_function
+        .add_block(vec![EntityType::Value(integer)], origin.clone())
+        .expect("caller entry");
+    let input = value(caller_function.block(entry).expect("entry").parameters[0]);
+    let (_, places) = caller_function
+        .append_instruction(
+            entry,
+            Operation::RootPlace { owner: input },
+            vec![EntityType::Place(integer)],
+            origin.clone(),
+        )
+        .expect("root place");
+    let (_, loans) = caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place: place(places[0]),
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("shared loan");
+    let shared_loan = loan(loans[0]);
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan: shared_loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("loan end");
+    caller_function
+        .append_instruction(
+            entry,
+            Operation::DirectCall {
+                callee,
+                arguments: vec![EntityId::Loan(shared_loan)],
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("inactive call remains structurally appendable");
+    caller_function
+        .set_terminator(entry, TerminatorKind::Abort, origin)
+        .expect("caller abort");
+
+    let errors = verify_program(&program).expect_err("inactive loan call must fail");
+    assert!(
+        errors
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::LoanInactive { loan } if loan == shared_loan)),
+        "{errors:#?}"
+    );
 }
 
 #[test]

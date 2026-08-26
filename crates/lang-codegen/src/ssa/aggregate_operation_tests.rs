@@ -873,7 +873,7 @@ fn direct_call_consumes_move_only_aggregate_arguments() {
         caller_entry,
         Operation::DirectCall {
             callee: callee_id,
-            arguments: vec![argument],
+            arguments: vec![EntityId::Value(argument)],
         },
         Vec::new(),
         &origin,

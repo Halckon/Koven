@@ -336,7 +336,7 @@ pub(crate) enum Operation {
     },
     DirectCall {
         callee: FunctionId,
-        arguments: Vec<ValueId>,
+        arguments: Vec<EntityId>,
     },
     FunctionAddress {
         target: FunctionId,
@@ -455,9 +455,7 @@ impl Operation {
             | Self::Compare { left, right, .. } => {
                 vec![EntityId::Value(*left), EntityId::Value(*right)]
             }
-            Self::DirectCall { arguments, .. } => {
-                arguments.iter().copied().map(EntityId::Value).collect()
-            }
+            Self::DirectCall { arguments, .. } => arguments.clone(),
             Self::FunctionAddress { .. } => Vec::new(),
             Self::ClosureConstruct { captures, .. } => captures
                 .iter()
