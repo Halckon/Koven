@@ -40,6 +40,10 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   §33–§35；它定义无运行时存储的顶层/object/companion 常量、封闭编译期求值与每次 use
   重新物化，并把单文件 typed→ownership→native 拆为 SPEC-0026/0208/0209，跨文件集成
   另由 SPEC-0210 承接。一般 CTFE、runtime global 和 associated function 不在该候选范围。
+- **v0.37 目前只是独立后继候选，未启用**：§37 同样直接以 v0.32 为基线，不自动包含候选
+  §33–§36；它把首轮 `for` 固定为三种 intrinsic 顺序容器上的无分配 borrowed provider，统一
+  loop-scoped Borrow binding，并拆为 `{SPEC-0179→0211, SPEC-0212}→SPEC-0182`。ADR-0023 保持 proposed，
+  user-defined/consuming/Map/range/String iteration 不在该候选范围。
 - **当前文档集版本是 v0.32**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
@@ -123,14 +127,14 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
-| `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~330 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 32 节现行设计 + Map 候选 §18 + v0.33–v0.36 候选 §33–36 + 原第二部分（现为附录） | ~2400 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~340 | 每次任何文档变化都要碰一下 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 32 节现行设计 + Map 候选 §18 + v0.33–v0.37 候选 §33–37 + 原第二部分（现为附录） | ~2480 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
-| [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~880 | 中——v0.20 新增 class-family 契约 |
+| [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~900 | 中——v0.20 新增 class-family 契约 |
 | [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构） | ~480 | 低——SPEC-0010–0013 均已验收；后续只在勘误或新版语义变更时修改 |
-| [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~590 | 高——每验收一个 Spec 就要碰一下 checkbox |
-| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.32 完整记录及 v0.33–v0.36 未启用候选 | ~610 | 只追加，不修改 |
+| [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~600 | 高——每验收一个 Spec 就要碰一下 checkbox |
+| [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.32 完整记录及 v0.33–v0.37 未启用候选 | ~625 | 只追加，不修改 |
 
 **不知道该看哪份文档时的经验法则**：要写 parser/lexer 代码 → 02/03/04/05；要理解某条
 规则“为什么这么设计” → 01；要知道“现在该做哪个 Spec” → 06；要查“这个错误码/这个 SPEC
@@ -177,6 +181,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.34 候选 | instance receiver mode、静态分发调用与 Borrow-only 窄化委托；基于 v0.32、不包含 §33，未启用 |
 | v0.35 候选 | nullable `when` 剩余域证明与 `!!` Copy/Consume；基于 v0.32、不包含 §33/§34，未启用 |
 | v0.36 候选 | 无存储关联常量、封闭求值与 use 重新物化；基于 v0.32、不包含 §33–§35，未启用 |
+| v0.37 候选 | 三种顺序容器的无分配 borrowed provider、Borrow binding 与完整退出清理；基于 v0.32、不包含 §33–§36，未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -232,9 +237,13 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0208 | 常量重新物化与所有权 facts | `01-design-decisions.md` §36、`../specs/0208-constant-materialization-ownership.md` | ⏸ draft；v0.36 未启用 |
 | SPEC-0209 | 关联常量 SSA/LLVM 重新物化 | `01-design-decisions.md` §36、`../specs/0209-associated-constant-lowering.md` | ⏸ draft；v0.36 未启用 |
 | SPEC-0210 | 跨文件关联常量集成 | `01-design-decisions.md` §36、`../specs/0210-multifile-associated-constants.md` | ⏸ draft；v0.36 未启用 |
+| SPEC-0211 | 顺序迭代 source/element loan 与退出清理 | `01-design-decisions.md` §37、`../specs/0211-sequential-iteration-ownership.md` | ⏸ draft；v0.37 未启用 |
+| SPEC-0212 | 借用式顺序迭代 SSA/LLVM primitives | `01-design-decisions.md` §37、`../specs/0212-borrowed-sequential-iteration-ssa.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | ⏸ draft |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
+| SPEC-0179 | 顺序容器借用迭代 typed plan | `01-design-decisions.md` §37、`../specs/0179-sequential-iteration-typed-plan.md` | ⏸ draft；v0.37 未启用 |
+| SPEC-0182 | 顺序容器 `for` frontend→SSA→native 集成 | `01-design-decisions.md` §37、`../specs/0182-sequential-for-lowering.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |
 | SPEC-0188 | constructor Value delivery 与 ownership facts | `01-design-decisions.md` §29、`../specs/0188-constructor-ownership-effects.md` | ✅ 已实现 |
 | SPEC-0184 | nominal/enum/Box frontend facts 到 SSA/LLVM | `01-design-decisions.md` §29、`../specs/0184-nominal-construction-lowering.md` | ✅ 已实现 |
@@ -290,6 +299,9 @@ SPEC-0180 获准实施前同样不得提前发出。
 L0153–L0158 由未启用的 v0.36 §36 候选分别预留给非法 companion context、不可见关联常量、
 非法 const 类型、非 constant initializer、常量依赖环与编译期求值失败；v0.36/SPEC-0026
 获准实施前不得进入生产诊断注册表。
+L0159–L0160 由未启用的 v0.37 §37 候选分别预留给无 compiler-bound iteration provider 的
+`for` source 与不能建立 borrowed structural projection 的迭代解构；v0.37/SPEC-0179 获准实施
+前不得进入生产诊断注册表。
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；
@@ -305,6 +317,7 @@ L0153–L0158 由未启用的 v0.36 §36 候选分别预留给非法 companion c
 | 声明端 `own` → `ParameterMode::Value` 与调用点隐式 move | `02-lexical-spec.md` §1、`03-grammar-core.md` §3、`05-grammar-calls-lambda.md` §9 |
 | `Inout` 调用点符号 `&`（v0.14，区别于声明侧关键字 `inout`） | `02-lexical-spec.md` §7、`03-grammar-core.md` §3-4、`05-grammar-calls-lambda.md` §9 |
 | 顺序容器（`Array`/`List`/`MutableList`）所有权语义 | `01-design-decisions.md` §8 |
+| 借用式顺序容器 `for` provider（v0.37 候选，未启用） | `01-design-decisions.md` §37、`04-grammar-declarations-blocks.md` §13.7 |
 | `Map`/`MutableMap` 候选设计（未批准） | `01-design-decisions.md` §18 |
 | `Result<T, E>` / postfix `?` / 无异常错误模型 | `01-design-decisions.md` §19、`03-grammar-core.md` §2/§4 |
 | `enum class` / ADT 能力 | `01-design-decisions.md` §7 |
@@ -324,6 +337,6 @@ L0153–L0158 由未启用的 v0.36 §36 候选分别预留给非法 companion c
 
 ---
 
-*除明确排除的候选 §18、§29 外，本索引与其余 7 份文档共同构成 Koven 现行语言设计规范
-v0.28；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
+*除明确排除的 Map 候选 §18 与未启用后继候选 §33–§37 外，本索引与其余 7 份文档共同构成
+Koven 现行语言设计规范 v0.32；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*

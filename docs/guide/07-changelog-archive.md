@@ -4,7 +4,7 @@
 > 索引见 [`00-index.md`](./00-index.md)。
 
 本文档保存**完整的**逐版本变更记录表格（v0.3 起持续累积，现行含至 v0.32，并附
-v0.33–v0.36 未启用候选），供需要
+v0.33–v0.37 未启用候选），供需要
 追溯“某条规则从哪个版本、因为什么原因引入”的场景查阅。日常阅读不需要打开这份文档——
 `00-index.md` 已经提供了一份一版本一行的精简摘要；只有当摘要不够、需要看到当版逐条
 编号的完整表格与 🔴/🟡/🟢 严重度标注时，才需要来这里。
@@ -605,3 +605,20 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 6 | exact import 终端只允许顶层声明/函数组；enum case 与 object/companion member 必须 qualified，`import p.Type.CONST` 使用 L0148 | 🔴 候选 v0.32 勘误 |
 | 7 | 实施拆为 0026 单文件 typed/evaluator、0208 ownership、0209 native 与等待 0025/0197 的 0210 unit integration | 🟡 候选 Phase 交接 |
 | 8 | 不引入 CTFE VM、runtime global、associated function、object receiver 或新 runtime/global ABI；Char 采用独立 IR-local contract，iteration 另需 provider ownership guide 与 ADR | 🟡 候选非目标 |
+
+## v0.37 候选变更记录（未启用）
+
+> 本候选于 2026-08-27 在 frontend、owner-aware SSA、container runtime 与 roadmap 交叉审计后
+> 起草。它直接基于 v0.32，不包含未启用 §33–§36；当前唯一权威版本仍是 v0.32，本节不授权
+> 实现，ADR-0023 仍为 proposed。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | 首轮 `for` provider 只绑定 intrinsic Array/List/MutableList；v0.18 的 iterator/hasNext/next 仅为抽象节奏，不是普通方法调用 | 🔴 候选 provider/名称语义 |
+| 2 | source 精确求值一次并在整个循环期间 shared-borrow；temporary source 延寿到 provider finish 后，循环后 named source 仍可用 | 🔴 候选求值/所有权语义 |
+| 3 | 每轮名称及 value-class 解构分量统一为 Borrow binding；Copyable read 可复制，MoveOnly 不得从 container 移出，`_` 不创建 symbol | 🔴 候选 binding/解构语义 |
+| 4 | normal/continue/break/exhaustion/return 的 body-local、element、provider、source 与 temporary cleanup 顺序固定；abort 不 unwind | 🔴 候选控制流/析构语义 |
+| 5 | logical size/cursor 保持非负 Int 且容器长度不超过 2^31−1；header size_t 不成为 source-visible Long/machine-size | 🔴 候选长度语义/ABI 边界 |
+| 6 | L0159–L0160 预留给无 intrinsic provider 的 source 与非法 borrowed structural iteration pattern；其余 move/loan/capture 复用 L0118/L0133–L0138 | 🟡 候选诊断分配 |
+| 7 | ADR-0023 选择无 allocation 的 IR-local provider；实施拆为 0179 typed、0211 ownership、0212 SSA primitives、0182 native integration | 🟡 候选架构/Phase 交接 |
+| 8 | user-defined/consuming/Map/range/String/IO iteration、iterator value、receiver、borrow-return 与优化均不在本候选范围 | 🟡 候选非目标 |

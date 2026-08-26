@@ -28,6 +28,11 @@ typed→ownership→pointer-like native 两条链；inline nullable、Elvis 与 
 有限编译期求值和每次 use 重新物化，单文件链为 0026→0208→0209，跨文件 typed 集成由
 0210 等待 0025/0197 后承接；一般 CTFE、global init 与 associated function 仍延后。
 
+[v0.37 §37](../guide/01-design-decisions.md#37-借用式顺序容器迭代-providerv037-候选未启用)
+同样直接以 v0.32 为基线、且不包含 §33–§36：它只为 intrinsic Array/List/MutableList 定义
+无分配 borrowed provider、loop-scoped Borrow binding 与完整退出清理，实施链为
+`{0179→0211, 0212}→0182`；ADR-0023 仍为 proposed，其他 provider 与 consuming iteration 延后。
+
 [v0.26](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) 已由用户明确启用并
 取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部
 `Value` owned binding，同时封闭同步调用期 loan 与 ASAP 析构点。源码/typed/所有权参数
@@ -100,7 +105,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 提交，但可在首次提交时直接为 `accepted`，不得把 ADR 与依赖它的实现混入同一提交。
 简化的是人工确认和重复状态文书，不是行为验收；任何检查只有实际成功后才能记录为通过。
 
-## 2026-08-26 roadmap 依赖审计
+## 2026-08-26—27 roadmap 依赖审计
 
 本次按“全部前置 Spec 已 `done` → guide 已封闭 → 前置 ADR 已 `accepted`”重新核对候选节点：
 
@@ -115,7 +120,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已物化 receiver 候选 | SPEC-0201→0180→0181→0191 | v0.34 §34 已起草；Parser、typed、ownership、native 分层，复用 ADR-0016；未启用，全部保持 draft |
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
-| 仍有 iteration 门禁 | SPEC-0179、未编号 Phase 3/provider、0182 | Parser/jump/loop SSA 已具备，但仍需独立 guide、provider SSA/runtime ADR 和 ownership lifecycle；0046 不是 provider 替身 |
+| 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
 | 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 Stage 1 已完成，Stage 2 import/visibility 等待启用 v0.36 勘误或正式勘误 v0.32 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 项目构建后继 | SPEC-0052–0054、0200 | ADR-0022/SPEC-0052 只产出本地 base snapshot；v0.33/SPEC-0054 等待 0052/0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
@@ -125,8 +130,8 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 门禁，SPEC-0025 Stage 1 已完成；Stage 2 import/visibility 仍等待明确启用 v0.36 的 exact-import
 勘误，或另行对现行 v0.32 作正式勘误。后继分支的 ADR-0021/0022 均已接受，仍须完成各自前置 Spec。
 公开 project build 还必须另行启用 v0.33；receiver 主线已物化为 v0.34 候选但同样等待明确
-启用。nullable `when`/`!!` 已物化为 v0.35 候选，const/object 已物化为 v0.36 候选；iteration
-与 Map 继续等待各自 guide/ADR 门禁。
+启用。nullable `when`/`!!`、const/object、iteration 已分别物化为 v0.35/v0.36/v0.37 候选；
+Map 继续等待 guide/ADR 门禁。
 
 ## Phase 0 Spec 队列
 
@@ -250,7 +255,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0177](./0177-generic-callable-instantiation.md) | 泛型 callable 显式/实参推导实例化与稳定实例 identity（`done`） | 0020、0022、0032、0067 `done`；v0.28 已生效 |
 | [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`done`） | 0067、0173、0177 `done` |
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
-| 0179 | 为 `for` 发布 provider 选择、元素类型与名称/解构 binding typed fact | 0016、0018、0020、0022、0023、0178；新 guide/ADR 封闭 compiler-bound provider、binding mode 与 delivery；不得预设依赖 0180 |
+| [0179](./0179-sequential-iteration-typed-plan.md) | 为三种 intrinsic 顺序容器发布 provider、元素与名称/discard/value-class Borrow binding typed plan（`draft`） | 0016、0018–0020、0022、0023、0178 `done`；v0.37 待启用；ADR-0023 `proposed` |
 | [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201；v0.34 待启用 |
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
@@ -272,6 +277,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0203](./0203-nullable-when-ownership.md) | 检查 nullable `when` proof view、Copy/Consume extraction 与 branch drop（`draft`） | 0028、0029 `done`；0202；v0.35 待启用 |
 | [0206](./0206-non-null-assertion-ownership.md) | 检查 `!!` whole-root consumption、abort edge 与 move/loan/drop facts（`draft`） | 0028、0029 `done`；0205；v0.35 待启用 |
 | [0208](./0208-constant-materialization-ownership.md) | 把 const use 解释为 scalar inline 或独立 String temporary owner（`draft`） | 0028、0029 `done`；0026；v0.36 待启用 |
+| [0211](./0211-sequential-iteration-ownership.md) | 发布 whole-loop source loan、逐轮 Borrow binding 与全部退出 cleanup facts（`draft`） | 0029、0030、0032 `done`；0179；v0.37 待启用；ADR-0023 `proposed` |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
 | [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`draft`） | 0029、0032 `done`；0180；v0.34 待启用 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
@@ -289,7 +295,8 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0036](./0036-sequential-container-runtime.md) | 生成顺序容器的单一连续缓冲区基元、边界检查和 drop 路径（`done`） | 0023、0030、0035 `done`；[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted` |
 | [0185](./0185-declarative-type-roots-codegen.md) | 让声明型 class/value class/interface/enum roots 与既有标量 entry 共存（`done`） | 0020、0034 `done`；不实现 constructor 或 nominal operation |
 | [0186](./0186-target-layout-preflight.md) | 在 LLVM 复合类型构造前预检 target size/alignment/stride（`done`） | 0033、0035、0036、0038 `done`；[ADR-0007](../adr/0007-llvm-toolchain-and-first-target.md)、[ADR-0008](../adr/0008-internal-value-and-allocation-abi.md) `accepted`；源码用户诊断映射已由 0184 完成 |
-| 0182 | 把 validated `for` typed/ownership/provider plans 拼装到 SSA/LLVM/native | 0179；待物化 Phase 3 lifecycle 与 provider SSA/runtime Spec `done`；iteration ADR `accepted`；不以 0181/0191 代替专用 facts |
+| [0212](./0212-borrowed-sequential-iteration-ssa.md) | 封闭 borrowed length、Int/size_t bridge 与 provider SSA/LLVM primitives（`draft`） | 0034、0036、0186、0195 `done`；v0.37 待启用；ADR-0023 `proposed` |
+| [0182](./0182-sequential-for-lowering.md) | 把 validated `for` typed/ownership/provider plans 拼装到 SSA/LLVM/native（`draft`） | 0179、0211、0212；v0.37 待启用；ADR-0023 `proposed`；不依赖 0181/0191/0046 |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
 | [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`draft`） | 0180、0181；0034、0035、0038、0039、0177、0184、0195 `done`；v0.34 待启用；ADR-0016 accepted |
 | [0204](./0204-pointer-nullable-when-lowering.md) | 把 owned-root/temporary class/Box/Rc nullable `when` lower 到 verified SSA/LLVM/native（`draft`） | 0034、0184、0196 `done`；0202、0203；v0.35 待启用；ADR-0017 `accepted` |

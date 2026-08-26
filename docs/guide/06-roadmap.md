@@ -16,8 +16,11 @@
 > SPEC-0202→0203→0204、SPEC-0205→0206→0207 两条 Phase 2→3→4 链；候选未启用。
 > 随后对 iteration/provider 与 const/object 做交叉审计：iteration 仍缺 provider ownership、
 > Phase 3 lifecycle Spec 和 SSA/runtime ADR，因此先在 §36 物化无新 runtime/global ABI 的 v0.36
-> const 候选，
-> 单文件按 SPEC-0026→0208→0209 推进，SPEC-0210 单列跨文件 typed 集成；候选未启用。
+> const 候选，单文件按 SPEC-0026→0208→0209 推进，SPEC-0210 单列跨文件 typed 集成；候选未启用。
+> 第三次 iteration 实现审计确认三种顺序容器可复用现有 header/checked-place/loan CFG，但
+> ContainerLength 尚缺 Borrow operand 且存在 `Int`/size_t 漂移；因此在 §37 物化 v0.37 与
+> proposed ADR-0023，按 `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` 拆分 typed、lifecycle、
+> provider primitive 与 source/native integration。候选未启用，不依赖 receiver 或 Phase 5 容器 API。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -222,9 +225,10 @@ fun main(): Unit {
 - [ ] **[SPEC-0180](../specs/0180-instance-receiver-typed-facts.md)（draft）**：在 0201 后规范化
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
       不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
-- [ ] 为 `for` 发布 iterator 选择、元素类型与 binding typed fact；实施前须由后续 guide 封闭
-      `Iterable<T>` / `Iterator<T>` identity、provider ownership、`next()` 的值交付所有权，
-      以及名称/解构 binding 的类型规则。当前只检查 source 表达式，不按方法名猜测迭代协议
+- [ ] **[SPEC-0179](../specs/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
+      只为 intrinsic Array/List/MutableList 发布 provider/element 与名称/discard/value-class
+      borrowed projection typed plan；L0159/L0160 拒绝非 provider source/非法结构 binding，
+      不按 `Iterable`/`Iterator` 或同名方法猜测；等待候选启用与 ADR-0023 accepted。
 - [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
       或 override
 - [x] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
@@ -289,9 +293,8 @@ Spec 之前，本条限制不变。）
 - [ ] **[SPEC-0210](../specs/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
       完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
       不复制 evaluator 或提前生成 native unit。
-
-`for` iteration plan、Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 已物化
-为未启用 v0.36 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
+Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
+v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
 其中 SPEC-0025 仅 Stage 1 已解除 guide/ADR 门禁并完成；Stage 2 import/visibility 仍等待明确
 启用 v0.36 的 exact-import 勘误，或另行对现行 v0.32 作正式勘误。后继节点仍由前置 Spec 与
 各自 ADR 状态阻塞。
@@ -347,6 +350,10 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [ ] **[SPEC-0208](../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
       owner，禁止 global owner/capture/init/drop；等待候选启用。
+- [ ] **[SPEC-0211](../specs/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
+      named/field/Borrow/Inout/temporary source 建立 whole-loop shared loan、逐轮 element/component
+      Borrow binding 与 normal/continue/break/exhaustion/return cleanup；复用 L0131/L0133–L0138，
+      等待 v0.37/ADR-0023。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -405,6 +412,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0209](../specs/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
       把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
       singleton/global/init 或第二套 String runtime。
+- [ ] **[SPEC-0212](../specs/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA
+      把 ContainerLength 扩为 Value/shared Loan、收口真正 `Int` 与 header size_t bridge，并验证
+      provider cursor/loan CFG/checked-place/ZST；不读取真实 `for` AST，等待 v0.37/ADR-0023。
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由
@@ -419,11 +429,11 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [ ] **候选 SPEC-0182**：roadmap 审计已确认现有 0179→0182 写法缺独立 Phase 3 iteration
-      lifecycle，且 compiler-bound provider 不必依赖普通 receiver。先由新 iteration guide 与
-      SSA/runtime ADR 固定 provider identity、source/element loan、binding mode和清理，再物化
-      typed→ownership→provider→frontend integration 链；不得继续把 0181/0191 冒充 iteration
-      ownership，也不得把 0046 的公共容器 API冒充未编号 provider runtime。
+- [ ] **[SPEC-0182](../specs/0182-sequential-for-lowering.md)（draft）**：只消费 0179/0211/0212
+      validated facts，把真实 `for` 接到无分配 preheader/header/body/exit SSA、LLVM 与 native；
+      覆盖 Borrow binding、value-class projection 和全部 jump/drop，不依赖 0181/0191 或 0046，
+      等待 v0.37/ADR-0023 及前置 Spec 完成。v0.37 typed/ownership 接受 Inout/field source，但
+      首轮 native 只覆盖 owned named source 与 Borrow 参数；其余 source place 等待后继 lowering Spec。
 - [x] **SPEC-0184（v0.29，已实现）**：把 nominal/enum/Box construction、
       projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
       value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与

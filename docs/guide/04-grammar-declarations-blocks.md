@@ -2,8 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含现行 v0.32 名称绑定解释；§13.5/§13.6 分别同步未启用的 v0.34 receiver grammar
-> 与 v0.36 const expression 候选，均不改变现行 Parser。
+> §11.1 含现行 v0.32 名称绑定解释；§13.5–§13.7 分别同步未启用的 v0.34 receiver、v0.36
+> const expression 与 v0.37 iteration 候选，均不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -874,6 +874,23 @@ enum_member = method_modifiers, function_declaration
   visibility和 companion scope 是 typed selection，不以大小写或名称文本在 Parser 中猜测。
 - 本候选不改变 `const val` 的合法声明位置、modifier 顺序、member separator、Span 或 owner-aware
   recovery；formatter、TextMate 与 Tree-sitter 无新增 token/grammar 工作。
+
+### 13.7 v0.37 `for` provider 解释（候选，未启用）
+
+本小节不新增 Parser 产生式：`for_statement` / `for_binding`、L0061/L0062、block body 和最近
+词法 jump target 继续使用 §12.3 的现有 AST。只有用户明确启用 v0.37 后，以下 Phase 2/3
+解释才生效；现行版本仍为 v0.32。
+
+- v0.18 的 `source.iterator()` / `hasNext()` / `next()` 文字不产生 call/member AST，也不触发
+  普通名称或 receiver 选择；它在 v0.37 中由 compiler-bound `AcquireProvider` / `HasNext` /
+  `NextPlace` / `FinishProvider` 抽象步骤取代。
+- `for (name in source)` 与 `for (_ in source)` 的 source 只求值一次；名称是 loop-scoped Borrow
+  binding，`_` 不创建 symbol。Parser 不按 source 拼写、大小写或同名 `iterator` 方法猜 provider。
+- `for ((a, _, b) in source)` 保留源码顺序和全部 marker；Phase 2 只对 intrinsic sequential
+  container 的 concrete value-class element 建立 borrowed field projections。非结构 element
+  使用 L0160，字段数不匹配继续使用 L0118；Parser 不改报 L0042 或丢失 sibling statement。
+- formatter、TextMate 与 Tree-sitter 无新增 token/grammar 工作；本候选不把 `borrow`、`own`、
+  `&` 或 consuming marker 加入 `for_binding`。
 
 SPEC-0017 只交付 Phase 1 Parser/AST/诊断、恢复、复杂度与真实 file fixture；名称重复、
 visibility、接口归属、override、enum 穷尽性、object/companion 常量求值和类型/所有权规则

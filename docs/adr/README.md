@@ -27,6 +27,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0020](./0020-multifile-compilation-unit.md) | accepted | 多文件 compilation unit 使用稳定声明身份和首个单 object lowering 边界 |
 | [ADR-0021](./0021-lsp-explicit-source-set-protocol.md) | accepted | LSP 由版本化初始化输入接收固定 base source set，并以 immutable base + overlay 维护 unit snapshot |
 | [ADR-0022](./0022-minimal-project-manifest-source-discovery.md) | accepted | version 1 project.toml 显式声明本地 roots，并安全产生确定 base source-set snapshot |
+| [ADR-0023](./0023-borrowed-sequential-iteration-provider.md) | proposed | 三种内建顺序容器使用无分配的 compiler-bound borrowed provider，并闭合 `Int` length、loan CFG 与退出清理 |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份
