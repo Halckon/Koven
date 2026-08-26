@@ -28,7 +28,8 @@ isolation，SPEC-0177 / SPEC-0174 均已完成实施与验收。
 
 [v0.31 一般 String 候选](../guide/01-design-decisions.md#31-一般-utf-8-string-owner-与最小运行时表面v031-候选)
 目前只是非现行草案；它不取代 v0.30，也不授权实施。ADR-0018 保持 `proposed`、SPEC-0192
-保持 `draft`，直到用户明确启用 v0.31 并解除相应状态门禁。
+保持 `draft`，直到用户明确启用 v0.31 并解除相应状态门禁。其直接后继 SPEC-0194 已按现行
+v0.30 物化为 draft，参数化 process bridge ADR-0019 保持 `proposed`，不得越过 0192 实施。
 
 [v0.25](../guide/01-design-decisions.md#25-条件-copyable内联递归与结构化解构v025) 已由用户
 明确启用并取代 v0.24；它封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化
@@ -87,7 +88,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已物化但仍有 guide/ADR 门禁 | SPEC-0192 | v0.31 §31 已起草、ADR-0018 已 proposed、Spec 已 draft；仍需用户明确启用 v0.31 并接受 ADR 后才能实施 |
-| 仍有 runtime 门禁 | SPEC-0194 | 必须等待 SPEC-0192 `done` 后构造 argv Array owner，不得以 literal-only String 或宿主指针提前实现 |
+| 已物化但仍有 runtime/ADR 门禁 | SPEC-0194 | draft 与 proposed ADR-0019 已封闭 argv bridge；必须等待 SPEC-0192 `done`，不得以 literal-only String 或宿主指针提前实现 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
@@ -279,7 +280,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 |---|---|---|
 | [0190](./0190-public-single-file-build-run.md) | 公开单文件 `kovenc build/run` 并验证仓库外 Hello World（`done`） | 0039、0042、0043、0184、0189 `done`；当前持续 Goal 的站立授权 |
 | [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
-| 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；0192 已验证 String 的顺序容器 element/drop；v0.30 已生效 |
+| [0194](./0194-parameterized-main-argv.md) | 接入 `fun main(args: Array<String>): Unit` 与 argv owner（`draft`） | 0193 `done`、0192 `done`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted`；v0.30 已生效 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |

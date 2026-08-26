@@ -189,6 +189,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0189 | 标准 `println(String)` 与最小 stdout 输出 | `06-roadmap.md` Phase 5、`../specs/0189-standard-println-output.md` | ✅ 已实现 |
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | 📝 v0.31 候选；draft，未授权实施 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
+| SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | 📝 draft；等待 SPEC-0192 / ADR-0019 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |

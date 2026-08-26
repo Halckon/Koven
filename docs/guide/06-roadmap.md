@@ -477,7 +477,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [x] **SPEC-0193（已实现；前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
       `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
       shape 与 ambiguous operational failure 分离；不接收 argv
-- [ ] **SPEC-0194（前置：SPEC-0193、0192 `done`）**：接入
+- [ ] **[SPEC-0194](../specs/0194-parameterized-main-argv.md)（draft；前置：SPEC-0193、0192
+      `done`，ADR-0019 `accepted`）**：接入
       `fun main(args: Array<String>): Unit`，构造不含 executable name 的 UTF-8 argv owner，
       Borrow 调用后逆序析构；现有顺序容器 runtime 由 0192 先验证 String element/drop glue，
       不得以 literal-only String 或宿主指针提前实现
