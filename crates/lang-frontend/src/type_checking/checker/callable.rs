@@ -21,7 +21,7 @@ struct CallCandidate {
     declaration_span: Option<Span>,
     type_parameters: Vec<SymbolId>,
     instance_arguments: Vec<TypeId>,
-    parameters: Vec<MappedParameter>,
+    parameters: Vec<MappedParameter<TypeId>>,
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,

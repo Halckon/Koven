@@ -90,6 +90,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      typed-unit 模型与 signature-analysis provenance 门禁；尚不发布空 body checker 或伪完整 facts。
    - [x] 签名收集产物发布全部 source-qualified `UnitTypeRefId -> UnitTypeId` facts，body product
      查询先读 body 覆盖再回退签名事实，不再丢弃已经规范化的参数、返回、field/supertype 类型。
+   - [x] 把 callable/construction 共用的具名/位置实参、参数模式与 arity 映射提取为类型身份泛型化
+     的内部纯内核；单文件薄适配保持既有行为，后续 unit body checker 直接复用 `UnitTypeId` 版本。
 4. [ ] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -121,3 +123,5 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test canonical_type_tables --locked --offline` | 通过 | 公开产物锁定 local/unit builtin identity 与完整初始类型表长度 |
 | `cargo test -p lang-frontend --lib type_checking::compilation_unit::bodies::tests --locked --offline` | 通过 | 5 tests；source-qualified AST identity、防混用 UnitTypeId、signature owner/input/environment 门禁与 validated gate |
 | `cargo test -p lang-frontend --test multifile_type_signatures signature_type_refs_are_published_with_source_qualified_identities --locked --offline -- --exact` | 通过 | 两个 source 中相同 local TypeRefId 保持不同 unit identity，4 个签名 TypeRef facts 完整发布 |
+| `cargo test -p lang-frontend --test type_callable --test type_checking --locked --offline` | 通过 | 63 tests；共享实参映射内核提取后，具名/位置参数、mode、arity、overload 与 construction 行为无回归 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 共享内核与单文件薄适配无 warning |

@@ -671,6 +671,9 @@ SPEC-0197 第一阶段新增纯内存的
 - 签名 collector 解析过的参数、返回、field、supertype 与 bound `TypeRef` 以
   `UnitTypeRefId -> UnitTypeId` 完整进入 signature product；后续 body product 对局部标注可追加
   facts，并在查询时回退签名 facts，不重新解析或丢弃已经确定的 unit 类型；
+- callable 与 construction 的具名/位置实参、参数模式和 arity 映射已下沉为对类型身份泛型化的
+  内部纯内核；单文件 checker 通过薄适配继续使用 `TypeId`，unit body checker 可复用同一规则并
+  使用 `UnitTypeId`，两条路径不复制可观察诊断语义；
 - 单文件 `TypeTable` 与 `UnitTypeTable` 复用同一个插入有序、结构去重核心，并以相同顺序建立
   builtin、Signed/Unsigned integer literal 与 Error 初始种子；公开 `TypeId` / `UnitTypeId` 仍是
   两个不可混用的身份域，unit integer literal 仅供后续 body expected-type 定型使用；

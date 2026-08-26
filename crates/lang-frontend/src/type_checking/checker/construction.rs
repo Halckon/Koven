@@ -47,7 +47,7 @@ struct ConstructionInstance {
 }
 
 impl Parameter {
-    fn as_call_parameter(&self) -> MappedParameter {
+    fn as_call_parameter(&self) -> MappedParameter<TypeId> {
         MappedParameter {
             name: Some(self.name.clone()),
             mode: ParameterMode::Value,

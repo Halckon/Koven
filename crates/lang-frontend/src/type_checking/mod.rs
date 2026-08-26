@@ -1,5 +1,6 @@
 //! Phase 2 单文件类型检查与可供所有权阶段消费的 typed facts。
 
+mod argument_mapping;
 mod call;
 mod canonical;
 mod checker;
