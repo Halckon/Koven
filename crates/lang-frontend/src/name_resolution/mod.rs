@@ -1,5 +1,6 @@
 //! v0.21 单文件双命名空间、作用域与名称诊断。
 
+mod compilation_unit;
 mod error;
 mod model;
 mod resolver;
@@ -8,6 +9,7 @@ use std::thread;
 
 use crate::{parser::ParsedFile, source::SourceMap};
 
+pub use compilation_unit::*;
 pub use error::NameResolutionError;
 pub use model::*;
 

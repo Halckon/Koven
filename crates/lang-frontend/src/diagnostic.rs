@@ -157,6 +157,12 @@ pub mod codes {
     pub(crate) const CONSTRUCTION_INFERENCE: &str = "L0144";
     /// 当前 native target 无法表示来源类型的存储布局。
     pub const TARGET_LAYOUT: &str = "L0145";
+    pub(crate) const PACKAGE_PATH_MISMATCH: &str = "L0146";
+    pub(crate) const PACKAGE_DECLARATION_CONFLICT: &str = "L0147";
+    pub(crate) const UNRESOLVED_IMPORT_TARGET: &str = "L0148";
+    pub(crate) const INVISIBLE_IMPORT_TARGET: &str = "L0149";
+    pub(crate) const EXACT_IMPORT_BINDING_CONFLICT: &str = "L0150";
+    pub(crate) const AMBIGUOUS_WILDCARD_IMPORT: &str = "L0151";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -305,6 +311,12 @@ pub mod codes {
         INVALID_CONSTRUCTION_TARGET,
         CONSTRUCTION_INFERENCE,
         TARGET_LAYOUT,
+        PACKAGE_PATH_MISMATCH,
+        PACKAGE_DECLARATION_CONFLICT,
+        UNRESOLVED_IMPORT_TARGET,
+        INVISIBLE_IMPORT_TARGET,
+        EXACT_IMPORT_BINDING_CONFLICT,
+        AMBIGUOUS_WILDCARD_IMPORT,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -263,10 +263,9 @@ Spec 之前，本条限制不变。）
 `list.get(0)` 必须被拒绝。直接
 递归或经多个 `value class` 形成的无限内联布局必须报错，经 `Box` 或动态容器打断的递归布局
 必须合法。本 Phase 不以 Map 正反例作为验收，也不将任何 Map 所有权策略固化到 typed AST。
-- [ ] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（draft）**：在
-      v0.32 与 ADR-0020 生效后建立 compilation-unit package/declaration index、import、
-      visibility 与 L0146–L0151；只完成名称阶段，并以 recovery/validated 双产物阻止错误 unit
-      流入类型阶段。
+- [ ] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（in-progress）**：
+      Stage 1 已建立 compilation-unit package/declaration index、L0146/L0147 与独立
+      validated-index 门禁；后续接入 import、visibility、L0148–L0151 和完整名称 validated view。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
       跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
 

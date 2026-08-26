@@ -236,7 +236,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201；v0.34 待启用 |
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
-| [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`draft`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
+| [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`in-progress`；Stage 1 index 已实现） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
 | [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`draft`） | 0025；v0.32 已启用；ADR-0020 `accepted` |
 | 0026 | 检查 `object` / `companion object` 关联成员、编译期常量和无运行时状态边界 | 0020、0017；v0.20 已生效；新 guide 封闭可接受的 const 表达式与类型 |
 

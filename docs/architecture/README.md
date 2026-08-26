@@ -2,7 +2,7 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.31 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.32 文档集定义。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -161,7 +161,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   toolchain pin 和初始 MSRV 均为 `1.96.0`，并在许可与发布策略确定前保持不可发布；
 - 五个 workspace member 均有 Cargo 可识别的 target，依赖方向单向且无环；
 - `lang_frontend::source` 已提供统一 source / `Span` 基础设施；
-- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0145` 正式错误码与
+- `lang_frontend::diagnostic` 已提供结构化诊断模型、`L0001`–`L0151` 正式错误码与
   确定性聚合顺序。`kovenc` binary 的默认纯文本 renderer 与显式 schema v1 JSON Lines
   renderer 均由 formatter 用户诊断复用；machine location 同时携带半开 UTF-8 byte range 与
   1-based scalar 行列，不复用 LSP 的 URI/UTF-16 range；formatter 与公开单文件 build/run 均复用；
@@ -183,8 +183,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
 - `lang_frontend::name_resolution` 已提供显式 `NameEnvironment`、单文件类型 / 值双命名
   空间、稳定 `ScopeId` / `SymbolId`、有序 overload set、顺序 local 可见性、名称引用产物与
   L0079–L0081；enum case 的值构造器与 type-test 身份共享稳定 `EnumCaseId`，限定 case 尾段
-  与 payload 候选也保留在解析产物中。该阶段不读取文件系统、不展开 package/import，
-  也不执行类型或控制流判断；
+  与 payload 候选也保留在解析产物中。SPEC-0025 Stage 1 另提供纯内存
+  `index_compilation_unit`：校验稳定 root/logical-path 输入，建立规范排序的 package/source/
+  declaration identity，聚合 Parser 与 L0146/L0147 诊断，并以独立 validated-index marker
+  阻止错误索引进入后续名称步骤；import/body 解析尚未接入，也不执行类型或控制流判断；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -607,6 +609,29 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - L0079 的 primary 指向后声明并 label 首个冲突，L0080 指向未解析 Identifier，L0081 指向
   声明前引用并 label 稍后 local；最终诊断复用全 frontend 的确定性排序。
 
+## Compilation-unit package/declaration 索引
+
+SPEC-0025 Stage 1 新增
+`lang_frontend::name_resolution::index_compilation_unit(&SourceMap, &[SourceUnitInput])`，在不读取
+文件系统、不修改旧 `resolve_names` / `ReferenceTarget` 的前提下建立多文件 recovery index：
+
+- 输入显式携带不透明 root identity、root-relative UTF-8 logical path、同一 `SourceMap` 的
+  `SourceId` 与 `ParsedFile`；foreign/mismatched/duplicate source、重复稳定 key，以及空、绝对、
+  空段、`.` / `..` 或父目录非 Koven Identifier 的 logical path 都在无 L-code 的输入边界拒绝；
+- source unit 按 `(root identity, logical path)` 排序后分配 `SourceUnitId`，package 按 Identifier
+  segment 序列排序后分配 `PackageId`；多个 root 可贡献同一 package。`DeclarationId` 再按
+  canonical source unit、文件 root 顺序和 object 的 Type→Value 固定次序分配，不使用
+  `SourceId`、展示路径或调用方枚举顺序；
+- collector 展开顶层 modifier wrapper，保存 root `ItemId`、规范化 public/internal/private、
+  namespace、kind 与 name Span；普通 classifier 只发布 Type，具名 object 同时发布 Type 与
+  singleton Value，跨文件同 package 函数可形成后继 overload，其他同命名空间冲突发 L0147；
+- logical parent package 与源码 directive 不一致发 L0146；嵌套路径省略 package 时 primary 是
+  文件起始空 Span，已有 L0048 的 malformed package recovery 不叠加 L0146。Parser 与 unit
+  诊断共同按 stable source key、byte range、code 和完整 detail 排序；
+- `CompilationUnitIndex` 始终可供诊断/工具读取；只有 Parser、L0146/L0147 均无 error 时才能
+  取得 `ValidatedCompilationUnitIndex`。该 marker 只证明 Stage 1 index，不代表 import、body
+  name resolution 或 SPEC-0197 typed input 已完成。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
@@ -614,8 +639,9 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 语义模型：
 
 - `DiagnosticCodeCatalog` 一次性校验精确 ASCII `Ldddd` 格式和重复编号；只有目录解析出的
-  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0145`，覆盖
-  Lexer、Parser、名称、类型和所有权错误；`L0016` 为不再由生产 Parser 发出的历史类别，
+  `DiagnosticCode` 才能进入诊断。生产目录 `codes::ALL` 现连续注册 `L0001`–`L0151`，覆盖
+  Lexer、Parser、名称、类型和所有权错误；L0146/L0147 已由 compilation-unit Stage 1 发出，
+  L0148–L0151 等待 SPEC-0025 后续 import resolver；`L0016` 为不再由生产 Parser 发出的历史类别，
   `L9xxx` 样例编号仍只在测试 target 内注册；
 - `Diagnostic` 构造时必须接收严重级别、已验证错误码、非空单行主消息和主 `Span`；字段
   私有，主位置缺失不可表示。关联 label、note、help 同样受检，并在一个有序序列中保留
