@@ -2,7 +2,8 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含现行 v0.32 名称绑定解释，不改变现行 Parser。
+> §11.1 含现行 v0.32 名称绑定解释；§13.5 同步未启用的 v0.34 receiver grammar 候选，二者
+> 均不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -782,8 +783,9 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - target 必须是同一主构造器的不可变 `val` 字段名称；不接受 `var`、任意表达式或未存储参数；
 - delegate 字段持有具体名义类型，Phase 2 必须证明该类型静态满足目标 interface；裸
   interface、`dyn`、反射代理或运行时查找不属于 v1；
-- 自动转发完整保持原成员的 receiver、规范化后的 Value/Borrow/Inout、返回类型与 `Result` 契约，不
-  插入隐式 `?` 或异常层；手写 override 优先，多来源同签名冲突必须显式 override；
+- 自动转发完整保持原成员的显式参数模式、类型、返回类型与 `Result` 契约，不插入隐式 `?`
+  或异常层；现行 v0.32 尚未定义 instance receiver mode，未启用的 v0.34 §34.3 候选拟把自动
+  转发收窄为 Borrow receiver；手写 override 优先，多来源同签名冲突必须显式 override；
 - delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
 - `val/var property by expression` 属性委托明确不支持。
 
@@ -817,6 +819,39 @@ SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser；SPEC-006
   使用有限状态试探；失败试探不分配 AST、不发诊断、不移动正式游标。一个含 n 个 lexeme、
   d 层 delimiter 的 class-family 声明解析与恢复必须为 `O(n)` 时间、`O(d)` owner 空间，不从
   每个 member/variant/type parameter 回扫整个声明。
+
+### 13.5 v0.34 receiver grammar 候选（未启用）
+
+本小节与设计正文 §34 同为候选，不改变现行 v0.32 Parser。只有用户明确启用 v0.34 后，以下
+产生式才取代本节开头的 `method_modifiers` 及对应 instance member 产生式：
+
+```ebnf
+method_receiver_mode = "borrow" | "inout" | "own" ;
+method_modifiers = [ visibility_modifier ], [ "override" ],
+                   [ method_receiver_mode ] ;
+
+class_member = method_modifiers, function_declaration
+             | declaration_modifiers, companion_object ;
+interface_member = [ "public" ], [ method_receiver_mode ],
+                   function_declaration
+                 | declaration_modifiers, companion_object ;
+object_member = method_modifiers, function_declaration
+              | declaration_modifiers, constant_declaration ;
+enum_member = method_modifiers, function_declaration
+            | declaration_modifiers, companion_object ;
+```
+
+- 固定顺序是 visibility、`override`、receiver mode、`fun`；缺省 receiver mode 与显式
+  `borrow` 保留不同源码 Span，但后续统一规范化为 Borrow。重复、逆序、marker 后缺 `fun`
+  继续使用 L0076/L0077 与既有 owner-aware member recovery，不新增 Parser 错误码。
+- receiver marker 只在 class/value/interface/enum/object 的 instance-function slot 提交。顶层
+  function、companion member、field、constant、classifier 与其他声明位置仍定向拒绝，不能把
+  marker 解释为函数名或普通参数 mode。
+- object 的 Borrow/Inout/Value 三种显式形态都先进入 AST；其无状态 singleton 只允许 Borrow
+  的语言限制由 SPEC-0180 检查，Parser 不从 classifier kind 提前做 Phase 2 判断。
+- 本候选不改变普通 callable 参数、调用点 argument marker、function type、extension receiver、
+  callable reference 或 safe-call grammar；formatter 与 grammar bridge 必须保存原 token，不能
+  把省略形式重写成显式 `borrow`。
 
 SPEC-0017 只交付 Phase 1 Parser/AST/诊断、恢复、复杂度与真实 file fixture；名称重复、
 visibility、接口归属、override、enum 穷尽性、object/companion 常量求值和类型/所有权规则

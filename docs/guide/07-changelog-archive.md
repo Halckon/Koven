@@ -558,8 +558,9 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 
 ## v0.34 候选变更记录（未启用）
 
-> 本候选于 2026-08-26 在 package/project 候选之后，对 receiver、nullable 与 const 三条门禁按
-> 解锁面复审后起草。当前唯一权威版本仍是 v0.32；本节不因文档存在而授权任何实现。
+> 本候选于 2026-08-26 对 receiver、nullable 与 const 三条门禁按解锁面复审后起草，并在
+> 二次审计中明确以 v0.32 为基线、不包含未启用 §33。当前唯一权威版本仍是 v0.32；本节不因
+> 文档存在而授权任何实现。
 
 | # | 候选变更 | 类型 |
 |---|---|---|
@@ -569,3 +570,7 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 4 | member/default/override/`super<I>` 保持静态分发；无 runtime interface value、vtable 或 proxy | 🔴 候选分发边界 |
 | 5 | 窄化 `Interface by valField` 仅转发 Borrow receiver；Inout/Value requirement 形成 L0152 并要求手写 override | 🔴 候选委托收敛 |
 | 6 | 实施拆为 0201 Parser→0180 typed→0181 ownership→0191 native；iteration/provider 与具体标准库 API 继续独立 | 🟡 候选 Phase 交接 |
+| 7 | 明确 v0.34 直接基于 v0.32，不因版本号自动启用 §33 project build 候选 | 🟡 候选版本边界 |
+| 8 | Value `this` 与普通 Value 参数一致：owned 但不可变，不能写字段或提供 Inout；需先整体移入 `var` local | 🔴 候选所有权闭合 |
+| 9 | 在 grammar §13.5 同步 receiver 产生式、合法 owner slot、固定 modifier 顺序与恢复边界 | 🔴 候选语法闭合 |
+| 10 | SPEC-0191 只验收有源码生产路径的 DirectCall receiver，不虚构已排除 bound method value 的 CallableInvoke 路径 | 🟡 候选验收勘误 |

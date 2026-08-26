@@ -29,9 +29,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 - **v0.33 目前只是后继候选，未启用**：§33 为无依赖本地 project 固定显式
   package-qualified entry、两种 process shape 与失败原子 build/run；候选文档的存在不启用
   v0.33，不改变单文件 main，也不定义 manifest target/default 或 dependency build。
-- **v0.34 目前只是后继候选，未启用**：§34 定义默认 Borrow、显式 Borrow/Inout/Value 的
-  instance receiver、静态 member 调用和 Borrow-only 窄化委托；SPEC-0201/0180/0181/0191
-  保持 `draft`，不得据此改变现行 member Parser 或 lowering。
+- **v0.34 目前只是独立后继候选，未启用**：§34 以 v0.32 为基线，不自动包含候选 §33；它
+  定义默认 Borrow、显式 Borrow/Inout/Value 的 instance receiver、静态分发调用和 Borrow-only
+  窄化委托。SPEC-0201/0180/0181/0191 保持 `draft`，不得据此改变现行 member Parser 或 lowering。
 - **当前文档集版本是 v0.32**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
@@ -166,7 +166,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.31 | 一般 UTF-8 `String` owner、最小连接/相等/动态输出与参数化 main 前置边界；已明确启用 |
 | v0.32 | package/import 绑定、跨文件可见性、稳定 compilation-unit 身份与分阶段交接；已明确启用 |
 | v0.33 候选 | 显式 project entry 与无依赖本地 build/run；未启用 |
-| v0.34 候选 | instance receiver mode、静态 member 调用与 Borrow-only 窄化委托；未启用 |
+| v0.34 候选 | instance receiver mode、静态分发调用与 Borrow-only 窄化委托；基于 v0.32、不包含 §33，未启用 |
 
 ## 5. SPEC 编号索引
 

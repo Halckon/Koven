@@ -5,7 +5,7 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-191` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态-member-调用v034-候选未启用) |
+| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
 | 批准依据 | 无；v0.34 尚未启用 |
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195 `done`；SPEC-0180/0181 待完成 |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
@@ -16,9 +16,9 @@
 
 ## 1. Goal
 
-完成后，class/value/enum/object/interface 的静态 member/default/override 与 Borrow-only delegate 调用
-可经 verified SSA、LLVM、object/link/run 执行，receiver mode 与 frontend 所有权效果一致且不
-生成 vtable、proxy、隐式 copy/retain 或额外 allocation。
+完成后，class/value/enum/object/interface 的静态分发 member/default/override 与 Borrow-only
+delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mode 与 frontend
+所有权效果一致且不生成 vtable、proxy、隐式 copy/retain 或额外 allocation。
 
 ## 2. 范围与需求
 
@@ -50,7 +50,8 @@
 
 ## 4. 验收标准
 
-- [ ] SSA signature/DirectCall/CallableInvoke receiver mode 与 verifier 正反矩阵通过。
+- [ ] SSA signature/DirectCall receiver mode 与 verifier 正反矩阵通过；本 Spec 不为已排除的
+  bound method value 虚构 `CallableInvoke` receiver source path。
 - [ ] class/value/enum/object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
 - [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
 - [ ] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
@@ -88,3 +89,4 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | 既有 callable SSA 只遍历显式参数；ADR-0016 已为未来 receiver 固定 pointer ABI |
+| 2026-08-26 候选闭合审计 | 通过 | 移除无 bound method source path 的 CallableInvoke receiver 验收，只保留 DirectCall |

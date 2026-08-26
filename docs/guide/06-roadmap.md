@@ -7,7 +7,9 @@
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
 > SPEC-0025→0197→0198→{0199,0187} 推进，首项 SPEC-0025 的 guide/ADR 门禁已解除。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
-> SPEC-0201→0180→0181→0191；当前仍未启用，不改变 v0.32 实现。
+> SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
+> `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
+> v0.32 实现。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
 
@@ -291,6 +293,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       与普通 `class` 转交所有权后都禁止再次使用
 - [ ] **[SPEC-0181](../specs/0181-instance-receiver-ownership.md)（draft）**：消费 0180 facts，
       检查 receiver/`this` 的 shared/exclusive loan、Value copy/move、字段/capture 冲突与 drop；
+      Value `this` 保持 owned-but-immutable，需先整体移入 `var` local 才能取得 mutable root；
       移除一般 MemberReceiver deferred。
 - [ ] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
       按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
@@ -419,7 +422,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       插入正常路径析构；abort 路径不生成 unwind cleanup
 - [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（draft）**：在 SPEC-0180/0181
       后把 instance member receiver、default/override/`super<I>` 与 Borrow-only 静态接口委托
-      lower 到 SSA/LLVM；复用 ADR-0016，不生成 vtable/proxy/隐式 retain。
+      lower 到 SSA/LLVM；复用 ADR-0016，只验收具有源码生产路径的 DirectCall receiver，不生成
+      vtable/proxy/隐式 retain 或未定义的 bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，

@@ -2095,12 +2095,14 @@ fun start(args: Array<String>): Unit { ... }
 
 ---
 
-## 34. 显式 instance receiver 契约与静态 member 调用（v0.34 候选，未启用）
+## 34. 显式 instance receiver 契约与静态分发调用（v0.34 候选，未启用）
 
-> **候选状态**：本节是 v0.33 的后继语言候选。当前唯一权威版本仍是 v0.32；只有用户明确
-> 启用 v0.34 并指定其取代 v0.32 后，本节才能改变 member 声明或调用。SPEC-0201、0180、
-> 0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的 Value/Borrow/Inout 内部
-> callable ABI，不新增 receiver ABI ADR。
+> **候选状态**：本节以现行 v0.32 为基线，只增加 receiver 契约；版本号不自动包含或启用
+> 同样尚未启用的 §33 project build 候选。只有用户明确启用 v0.34 并指定其取代 v0.32 后，
+> 本节才能改变 member 声明或调用；除非用户同时明确启用 §33，否则 §33 继续保持候选。
+> SPEC-0201、0180、0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的
+> Value/Borrow/Inout 内部 callable ABI，不新增 receiver ABI ADR。这里的“静态分发”指
+> instance member target 在编译期确定，不是 companion/type-level static member。
 
 ### 34.1 声明语法与规范化 receiver
 
@@ -2152,8 +2154,10 @@ class Buffer(var size: Int) {
   不得写回另一 handle；内联 value/enum 会直接修改 storage，因而继续要求递归 mutable root。
 - `this` 是不可重新绑定的隐式 binding。Borrow `this` 只读或 shared reborrow；Inout `this`
   还可修改 `var` 字段和建立 exclusive reborrow，但不能把普通字段移出后留下洞；Value `this`
-  是 owned binding，可整体移动，未消费时由 callable 在正常退出路径负责唯一 drop。普通字段
-  部分移动禁令对三种 receiver 都不放宽。
+  是与普通 Value 参数一致的不可变 owned binding：可读取、shared reborrow 或整体移动，但不
+  修改字段、不形成 exclusive reborrow，也不能直接调用 Inout member。需要继续修改时，必须
+  先把整个 `this` 移入显式 `var` local；该移动后 `this` 不再可用。未消费的 Value `this` 由
+  callable 在正常退出路径负责唯一 drop。普通字段部分移动禁令对三种 receiver 都不放宽。
 - 裸 instance field/member 先按 §21 的局部词法规则解析；没有局部/参数遮蔽时精确等价于同一
   receiver binding 上的 `this.name`。显式 `this.name` 可绕过局部遮蔽，但不得为一次调用构造
   第二个 receiver 求值。§27.2 对直接捕获 `this`/field 的禁令保持不变，三种 receiver mode
@@ -2161,8 +2165,7 @@ class Buffer(var size: Int) {
   local capture、`Transferable` 与 use-after-move 规则处理。
 - `super<I>.method()` 仍是对当前 `this` 的静态 default 调用。当前 receiver capability 必须能
   满足目标 contract：Borrow 只能提供 Borrow，Inout 可 shared/exclusive reborrow，Value 可
-  Borrow 或整体 Value 交付；只有当前 `this` 按 §26.3 另外构成合法 exclusive place 时才可从
-  Value 提供 Inout。Value 交付后当前 `this` 不再可用。
+  Borrow 或整体 Value 交付但不能提供 Inout。Value 交付后当前 `this` 不再可用。
 
 ### 34.3 窄化接口委托
 
@@ -2174,10 +2177,10 @@ retain、proxy 或 `dyn`。
 
 若经过手写 override/default 解析后仍需由 delegate 提供的有效 requirement 中存在 Inout 或
 Value receiver，使用 `by` 形成 L0152；调用者必须写显式 `override`，自行决定如何取得可变
-receiver 或消费 owner。该限制取代 §13.3 中
-“自动转发保持任意 receiver mode”的未封闭表述，避免从不可变 delegate 字段隐式部分移动、
-替换或授予特殊 exclusive access。手写 override、default 与多 delegate 冲突仍沿用 §23 的
-优先级和 L0100/L0105 级联抑制。
+receiver 或消费 owner。该限制收窄 §23.4 与 grammar §13.3 在 receiver 尚未定义时留下的
+“完整保持 receiver”表述，避免从不可变 delegate 字段隐式部分移动、替换或授予特殊
+exclusive access。手写 override、default 与多 delegate 冲突仍沿用 §23 的优先级和
+L0100/L0105 级联抑制。
 
 ### 34.4 分阶段交接与非目标
 
@@ -2186,7 +2189,7 @@ receiver 或消费 owner。该限制取代 §13.3 中
    forwarder typed facts；
 3. SPEC-0181 消费上述 facts，建立 receiver loan/move/drop、字段冲突与 capture 所有权事实；
 4. SPEC-0191 把隐藏 receiver lower 到既有 Value ABI 或 ADR-0016 Borrow/Inout pointer ABI，
-   完成静态 member/default/override/delegate native 闭环。
+   完成静态分发的 member/default/override/delegate native 闭环。
 
 本候选不定义 callable reference/绑定 method value、extension method、safe call、borrow-return、
 动态 interface value、反射或 vtable。`for` 仍需独立候选封闭 Iterable/Iterator identity、provider

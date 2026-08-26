@@ -73,3 +73,4 @@ function parser。formatter 仍按源码 token 保守输出，不因规范化改
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | Lexer 已有三个 marker；现行 member modifier 明确拒绝它们，需独立 Parser Goal |
+| 2026-08-26 候选闭合审计 | 通过 | grammar §13.5 已同步产生式、合法 owner slot、固定顺序与恢复边界；v0.34 未启用，仍不授权实现 |

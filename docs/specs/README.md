@@ -13,10 +13,10 @@ SPEC-0025→0197→0198→{0199,0187} 按依赖推进。已接受 ADR-0022 与 d
 是 v0.32 的未启用后继候选：它只为无依赖本地 project 定义显式 package-qualified entry 与
 公开 build/run，不改变单文件 main，也不引入 manifest target/default 或 dependency build。
 
-[v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态-member-调用v034-候选未启用)
-是未启用的 receiver 后继候选：它定义 member 声明的缺省 Borrow/显式 Borrow/Inout/Value、
-receiver 所有权交付与静态调用，并把窄化 `by` 委托限制为 Borrow receiver；不定义 iterator、
-具体标准库 API 或动态分发。
+[v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用)
+是以 v0.32 为基线、且未启用 §33 的独立 receiver 候选：它定义 member 声明的缺省 Borrow/
+显式 Borrow/Inout/Value、receiver 所有权交付与静态分发，并把窄化 `by` 委托限制为 Borrow
+receiver；不定义 iterator、具体标准库 API 或动态分发。
 
 [v0.26](../guide/01-design-decisions.md#26-调用期借用与-asap-析构点v026) 已由用户明确启用并
 取代 v0.25；它把 callable 声明的无 marker 参数改为 `Borrow`、以声明侧显式 `own` 表达内部

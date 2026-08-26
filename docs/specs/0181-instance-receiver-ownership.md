@@ -27,6 +27,9 @@
   Value 对 Copyable 复制、对 MoveOnly 移动，后续使用沿用 L0131。
 - `this` 按 callable receiver mode 形成 non-owning shared/exclusive binding 或 owned local；检查字段
   读写、reborrow、普通字段部分移动、正常退出 drop 与提前控制转移。
+- Value `this` 与普通 Value 参数一样是不可变 owned root：允许读、shared reborrow 与整体
+  Value 交付，拒绝字段写入、exclusive reborrow 和 Inout member call；需要修改时必须先整体
+  移入显式 `var` local，并对原 `this` 形成普通 use-after-move 事实。
 - Inout receiver loan 覆盖整个 owner place，`this` 不可重绑或完整替换。普通 class val handle
   可独占同一 handle storage并修改 payload `var` 字段，但不得写回另一 handle；内联 value/enum
   仍递归要求 mutable root。receiver 与显式 argument place 重叠统一使用 L0134/L0135。
@@ -48,7 +51,8 @@
 
 - [ ] Borrow/Inout/Value receiver 的 stable place、temporary、Copyable/MoveOnly 正反矩阵通过。
 - [ ] receiver loan 与显式 arguments 的 evaluation order、重叠冲突和 call-return end 精确。
-- [ ] Borrow/Inout/Value `this` 字段读写、MoveOnly partial move、正常/提前退出 drop 精确。
+- [ ] Borrow `this` 只读、Inout `this` 可写 `var` 字段；Value `this` 的读/shared/整体移动合法，
+  字段写入与 Inout reborrow 被拒绝，Value→`var` local 后可按普通 mutable-root 规则继续。
 - [ ] class val handle 与 inline mutable-root 差异、L0131–L0135 primary/label 稳定。
 - [ ] verifier/facts 拒绝 Inout receiver 重绑或替换 handle；class payload field mutation 保持同一 owner。
 - [ ] direct `this` move capture 使用 L0138；Value `this`→local→move closure 的
@@ -83,3 +87,4 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | 现有 place/loan/capture 基元可复用；一般 member receiver 当前明确 deferred |
+| 2026-08-26 候选闭合审计 | 通过 | Value `this` 固定为 owned-but-immutable；在本候选内，Value→`var` local 是取得 mutable root 的显式路径 |

@@ -5,7 +5,7 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-180` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态-member-调用v034-候选未启用) |
+| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
 | 批准依据 | 无；v0.34 尚未启用 |
 | 前置 Spec | SPEC-0020、0067、0176、0177、0201；除 0201 外均 `done` |
 | 前置 ADR | 无 |
@@ -80,3 +80,4 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | member target 已可选择，但现有 CallDescriptor 不含 receiver，ownership 明确保留 deferred |
+| 2026-08-26 候选闭合审计 | 通过 | v0.34 明确直接基于 v0.32、不包含 §33；typed Goal 仍严格等待 0201 与 guide 启用 |
