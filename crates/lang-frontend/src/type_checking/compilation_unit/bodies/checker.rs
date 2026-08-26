@@ -22,6 +22,7 @@ use crate::{
     },
 };
 
+mod assignment;
 mod control;
 mod flow;
 mod literals;
@@ -442,12 +443,16 @@ impl<'a> BodyChecker<'a> {
                 type_ref,
                 ..
             } => self.check_type_test(source, expression, operator_span, type_ref, return_type)?,
+            Expression::Assignment { target, value, .. } => {
+                self.check_assignment(source, target, value, return_type)?
+            }
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
         if let Some(expected) = expected
             && !self.assignable(result.ty, expected)
             && !self.is_error(result.ty)
             && !self.is_error(expected)
+            && !self.is_deferred(result.ty)
         {
             self.emit_maybe_label(
                 codes::TYPE_MISMATCH,
@@ -801,6 +806,13 @@ impl<'a> BodyChecker<'a> {
         matches!(self.signatures.types().get(ty), Some(UnitTypeKind::Error))
     }
 
+    pub(super) fn is_deferred(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.signatures.types().get(ty),
+            Some(UnitTypeKind::Deferred(_))
+        )
+    }
+
     fn builtin(&self, builtin: BuiltinType) -> UnitTypeId {
         self.signatures
             .types()
@@ -810,6 +822,15 @@ impl<'a> BodyChecker<'a> {
 
     pub(super) fn error_type(&mut self) -> UnitTypeId {
         self.signatures.types_mut().intern(UnitTypeKind::Error)
+    }
+
+    pub(super) fn deferred_type(
+        &mut self,
+        reason: crate::type_checking::DeferredReason,
+    ) -> UnitTypeId {
+        self.signatures
+            .types_mut()
+            .intern(UnitTypeKind::Deferred(reason))
     }
 
     pub(super) fn type_name(&self, ty: UnitTypeId) -> String {

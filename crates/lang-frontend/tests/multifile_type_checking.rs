@@ -12,9 +12,9 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, ExpressionCategory, ParameterMode, TypeEnvironment, UnitCallTarget,
-        UnitExpressionId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
-        standard_environments,
+        BuiltinType, DeferredReason, ExpressionCategory, ParameterMode, TypeEnvironment,
+        UnitCallTarget, UnitExpressionId, UnitTypeKind, UnitTypeRefId,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -123,6 +123,16 @@ fn if_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
         .expressions()
         .iter()
         .filter_map(|(id, node)| matches!(node.payload(), Expression::If { .. }).then_some(id))
+        .collect()
+}
+
+fn assignment_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
+    file.ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| {
+            matches!(node.payload(), Expression::Assignment { .. }).then_some(id)
+        })
         .collect()
 }
 
@@ -952,4 +962,92 @@ fn invalid_cross_file_type_tests_and_case_annotations_keep_precise_diagnostics()
         .collect::<Vec<_>>();
     assert_eq!(labels, ["Other", "Marker", "Shape"]);
     assert!(typed.validate().is_err());
+}
+
+#[test]
+fn assignment_checks_rhs_before_killing_flow_facts_and_stays_unit_deferred() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\nenum class Shape { Circle, Point }",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun assigned(initial: Shape): Shape {\n\
+             var current = initial\n\
+             if (current is Shape.Circle) {\n\
+                 current = current\n\
+                 return current\n\
+             }\n\
+             return current\n\
+         }\n\
+         fun addAssign(inout number: Int): Unit { number += 2 }\n\
+         fun subtractAssign(inout number: Int): Unit { number -= 2 }\n\
+         fun multiplyAssign(inout number: Int): Unit { number *= 2 }\n\
+         fun divideAssign(inout number: Int): Unit { number /= 2 }\n\
+         fun remainderAssign(inout number: Int): Unit { number %= 2 }\n\
+         fun deferredMismatch(inout number: Int): Unit { number = false }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward assignment unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse assignment unit succeeds");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let root = forward
+        .signatures()
+        .declaration(declaration(&forward_names, "Shape"))
+        .expect("Shape signature")
+        .ty();
+    let current_uses = expressions_with_text(&sources, &uses, "current");
+    assert_eq!(current_uses.len(), 5);
+    let current_types = current_uses
+        .iter()
+        .map(|&expression| {
+            forward
+                .expression_type(UnitExpressionId::new(uses_unit, expression))
+                .expect("every current use has a type")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(current_types[0], root);
+    for index in [1, 2] {
+        assert!(matches!(
+            forward.types().get(current_types[index]),
+            Some(UnitTypeKind::EnumCase { root: case_root, .. }) if *case_root == root
+        ));
+    }
+    assert_eq!(current_types[3], root);
+    assert_eq!(current_types[4], root);
+
+    let assignments = assignment_expressions(&uses);
+    assert_eq!(assignments.len(), 7);
+    assert!(assignments.iter().all(|&expression| matches!(
+        forward
+            .expression_type(UnitExpressionId::new(uses_unit, expression))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::Deferred(DeferredReason::Assignment))
+    )));
 }

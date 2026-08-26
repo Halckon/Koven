@@ -717,7 +717,10 @@ SPEC-0197 第一阶段新增纯内存的
   `if` 按全部 fall-through 出口求交并排除 `Nothing` 出口。enum case 可赋给/join 回 root，既有
   v0.24 `T? is T` 同样产生 non-null flow type 并支持 `T`/`T?` join；非法关系与 case type 的普通
   标注分别复用 L0106/L0114。该切片不包含候选 v0.35 nullable `when`/`!!`；
-- top-level variable/const initializer、member body、local destructuring、assignment及其 fact kill、
+- 第五个 body 切片已接通一般 assignment：先在原 flow facts 下检查 target 与 RHS，再清除稳定
+  target 的 smart-cast fact；六种赋值运算均保持单文件现行 `Deferred(Assignment)` 边界，不把
+  Phase 3 mutable-place/loan 或尚未封闭的一般 RHS 相容性伪装成 Phase 2 诊断；
+- top-level variable/const initializer、member body、local destructuring、
   `when`、loop/jump、
   lambda、generic local type、generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
