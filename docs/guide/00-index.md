@@ -22,7 +22,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   Phase 边界已成为现行语义；ADR-0020 已接受，SPEC-0025 是依赖链首个实施节点，
   SPEC-0197/0198/0199/0187 仍按各自前置保持 `draft`。ADR-0021 另起草了 LSP 显式
   source-set wire，尚未接受。
-  ADR-0022/SPEC-0052 还物化了后继本地 manifest provider，但不定义 project build。本轮审计
+  ADR-0022 已接受并与 draft SPEC-0052 物化后继本地 manifest provider；SPEC-0052 仍等待
+  SPEC-0025 `done`，且该分支不定义 project build。本轮审计
   同时修正 §18 旧 Map 候选中
   `Hashable ⇒ Copyable` 与 MoveOnly String 的矛盾，但不因此启用 Map。
 - **v0.33 目前只是后继候选，未启用**：§33 为无依赖本地 project 固定显式

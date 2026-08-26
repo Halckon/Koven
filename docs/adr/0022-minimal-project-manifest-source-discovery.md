@@ -2,12 +2,13 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。guide v0.32 与 ADR-0020 已生效，但 SPEC-0025 尚未完成；本 ADR 先
-封闭候选 SPEC-0052 的工具输入与文件系统边界，不授权项目构建。
+2026-08-26 持续 Goal 已授权按 roadmap 与依赖图推进；接受前审计确认本 ADR 只填补现行
+v0.32 留给 driver 的 manifest→source-set 架构空白，不改变语言语义、五 crate 边界或公开
+project build 契约。SPEC-0025 尚未完成，因此本次接受不批准 SPEC-0052，也不授权项目构建。
 
 ## 背景
 

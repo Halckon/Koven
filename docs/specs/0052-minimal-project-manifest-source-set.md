@@ -8,10 +8,10 @@
 | Goal ID | `KOV-P6-052` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 v0.32 §32 |
-| 批准依据 | 无；等待前置 SPEC-0025 与 ADR-0022 |
+| 批准依据 | 无；等待前置 SPEC-0025 |
 | 前置 Spec | SPEC-0025 待完成 |
-| 前置 ADR | ADR-0005、ADR-0020 `accepted`；[ADR-0022](../adr/0022-minimal-project-manifest-source-discovery.md) 待接受 |
-| 阻塞项 | SPEC-0025 `done`；ADR-0022 `accepted` |
+| 前置 ADR | ADR-0005、ADR-0020、[ADR-0022](../adr/0022-minimal-project-manifest-source-discovery.md) `accepted` |
+| 阻塞项 | SPEC-0025 `done` |
 | 影响范围 | `lang-cli` project manifest/source discovery、workspace dependency、tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -80,12 +80,12 @@ frontend 分析、依赖解析或构建。
 
 ## 9. 未决问题
 
-- 无；target/entry/dependency 与公开 CLI 明确不在本 Spec。状态门禁由 SPEC-0025 与
-  proposed ADR 表达。
+- 无；target/entry/dependency 与公开 CLI 明确不在本 Spec。当前状态门禁只剩
+  SPEC-0025 `done`。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 roadmap/provider 审计 | 通过 | v0.32/ADR-0020 已生效；仍因 0025/ADR-0022 未完成保持 draft |
+| 2026-08-26 roadmap/provider 审计 | 通过 | v0.32/ADR-0020/ADR-0022 已生效；仍因 SPEC-0025 未完成保持 draft |
 | 2026-08-26 `toml` 候选审计 | 部分通过 | 版本/features/MSRV/license 已核对；build script、传递依赖与 lockfile 留到实施准入 |

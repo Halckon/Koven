@@ -497,7 +497,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 ## Phase 6：工具链完善
 
 - [ ] **[SPEC-0052](../specs/0052-minimal-project-manifest-source-set.md)（draft）**：在
-      SPEC-0025/ADR-0020 生效后，由 ADR-0022 的严格 version 1 `project.toml` 与安全 filesystem
+      SPEC-0025 完成后，由已接受 ADR-0022 的严格 version 1 `project.toml` 与安全 filesystem
       discovery 产生 deterministic base source-set snapshot；不做依赖、entry、build 或 LSP overlay。
 - [ ] SPEC-0053：在独立 dependency/lock ADR 后实现依赖解析与确定性 `project.lock`；每个依赖
       仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界。

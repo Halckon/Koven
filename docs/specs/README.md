@@ -6,8 +6,8 @@
 
 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032)
 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020 已接受，
-SPEC-0025→0197→0198→{0199,0187} 按依赖推进。SPEC-0052/ADR-0022 另把后继本地
-manifest/source provider 物化为候选，不把项目 IO 反向塞入 frontend 或 LSP。
+SPEC-0025→0197→0198→{0199,0187} 按依赖推进。已接受 ADR-0022 与 draft SPEC-0052 另把
+后继本地 manifest/source provider 物化为候选，不把项目 IO 反向塞入 frontend 或 LSP。
 
 [v0.33 §33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
 是 v0.32 的未启用后继候选：它只为无依赖本地 project 定义显式 package-qualified entry 与
@@ -305,9 +305,9 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0194](./0194-parameterized-main-argv.md) | 接入 `fun main(args: Array<String>): Unit` 与 argv owner（`done`） | 0193 `done`、0192 `done`；[ADR-0019](../adr/0019-parameterized-process-entry-bridge.md) `accepted`；v0.31 现行语义 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`done`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0052](./0052-minimal-project-manifest-source-set.md) | 解析最小 `project.toml` 并产生本地 base source-set snapshot（`draft`） | 0025；v0.32 已启用；ADR-0020 `accepted`、ADR-0022 待接受 |
+| [0052](./0052-minimal-project-manifest-source-set.md) | 解析最小 `project.toml` 并产生本地 base source-set snapshot（`draft`） | 0025；v0.32 已启用；ADR-0020/0022 `accepted` |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
-| [0054](./0054-local-project-build-run.md) | 由 package CLI 编排显式 entry 的无依赖本地 project build/run（`draft`） | 0052、0199；v0.33 待启用；ADR-0020 `accepted`、ADR-0022 待接受；不等待 0053 |
+| [0054](./0054-local-project-build-run.md) | 由 package CLI 编排显式 entry 的无依赖本地 project build/run（`draft`） | 0052、0199；v0.33 待启用；ADR-0020/0022 `accepted`；不等待 0053 |
 | 0200 | 编排 dependency-aware project build | 0053、0054；跨 compilation-unit export/ABI guide 与 ADR |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |
