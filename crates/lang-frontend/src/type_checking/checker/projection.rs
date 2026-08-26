@@ -33,6 +33,41 @@ impl Checker<'_> {
         if safe {
             return Ok(None);
         }
+        if let TypeKind::EnumCase { case, root } = self.kind(receiver_type).clone() {
+            let Some(case) = self.enum_case(case).cloned() else {
+                return Err(TypeCheckingError::InvalidExternalBinding);
+            };
+            let name = self.sources.slice(name_span)?;
+            let Some((field, declared_type)) =
+                case.payloads().iter().copied().find(|(field, _)| {
+                    self.sources.slice(self.symbol_spans[field.index()]) == Ok(name)
+                })
+            else {
+                return Ok(None);
+            };
+            let Some((owner, arguments)) = self.nominal_instance(root) else {
+                return Err(TypeCheckingError::InvalidExternalBinding);
+            };
+            if owner.id() != case.root() {
+                return Err(TypeCheckingError::InvalidExternalBinding);
+            }
+            let substitutions = owner
+                .type_parameters()
+                .iter()
+                .copied()
+                .zip(arguments)
+                .collect::<BTreeMap<_, _>>();
+            let ty = self.substitute_type(declared_type, &substitutions)?;
+            self.aggregate_projections
+                .push(AggregateProjectionDescriptor::new(
+                    expression,
+                    receiver,
+                    field,
+                    ty,
+                    AggregateProjectionKind::Field,
+                ));
+            return Ok(Some(ty));
+        }
         let Some((owner, arguments)) = self.nominal_instance(receiver_type) else {
             return Ok(None);
         };

@@ -463,7 +463,7 @@ fn nominal_enum_box_source_emits_links_and_runs() {
              if (holder.item != 12) { error(\"bad class projection\") }\n\
              val maybe: Maybe<Int> = Maybe.Some(13)\n\
              val selected: Int = when (maybe) {\n\
-                 is Maybe.Some<Int> -> 13\n\
+                 is Maybe.Some<Int> -> maybe.item\n\
                  is Maybe.None<Int> -> 0\n\
              }\n\
              if (selected != 13) { error(\"bad enum tag\") }\n\

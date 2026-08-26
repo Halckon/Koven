@@ -280,7 +280,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     fn lower_instruction(&mut self, instruction: &Instruction) -> Result<(), LlvmAdapterError> {
         let results = if matches!(
             instruction.operation,
-            Operation::HeapPayloadPlace { .. }
+            Operation::TaggedPayloadPlace { .. }
+                | Operation::HeapPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }

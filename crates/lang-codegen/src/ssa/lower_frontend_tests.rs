@@ -251,7 +251,7 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
          fun flag(): Flag = Flag.On\n\
          fun some(): Maybe<Int> = Maybe.Some(4)\n\
          fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8) val result: Int = when (maybe) {\n\
-             is Maybe.Some<Int> -> 8\n\
+             is Maybe.Some<Int> -> maybe.item\n\
              is Maybe.None<Int> -> 0\n\
          } return result }\n\
          fun projected(): Int { val wrapped = Wrapped(5) return wrapped.item }\n\
@@ -280,6 +280,7 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     assert_eq!(ssa.matches("aggregate.project").count(), 1, "{ssa}");
     assert_eq!(ssa.matches("aggregate.copy_explode").count(), 1, "{ssa}");
     assert_eq!(ssa.matches("heap.payload_place").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("tagged.payload_place").count(), 1, "{ssa}");
     assert_eq!(ssa.matches("tagged.discriminant").count(), 2, "{ssa}");
     assert_eq!(ssa.matches("drop ").count(), 2, "{ssa}");
     assert!(ssa.contains("Wrapped#t"), "{ssa}");

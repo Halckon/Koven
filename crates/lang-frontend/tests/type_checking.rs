@@ -258,6 +258,7 @@ fn type_tests_drive_enum_payload_and_nullable_smart_casts() {
                 }";
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.aggregate_projections().len(), 1);
 }
 
 #[test]

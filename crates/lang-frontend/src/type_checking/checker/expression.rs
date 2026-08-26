@@ -379,20 +379,6 @@ impl Checker<'_> {
                 falls_through: receiver.falls_through,
             });
         }
-        if let TypeKind::EnumCase { case, .. } = self.kind(receiver.ty) {
-            let descriptor = self
-                .enum_case(*case)
-                .cloned()
-                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
-            if let Some((_, ty)) = descriptor.payloads().iter().find(|(symbol, _)| {
-                self.sources.slice(self.symbol_spans[symbol.index()]) == Ok(name)
-            }) {
-                return Ok(ExprCheck {
-                    ty: *ty,
-                    falls_through: receiver.falls_through,
-                });
-            }
-        }
         let candidates = self.payload_candidates_for_type(receiver.ty, name);
         if !candidates.is_empty() {
             self.emit_payload_access(name_span, &candidates)?;
