@@ -2018,6 +2018,8 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 本候选不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
 ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。
+ADR-0022/SPEC-0052 可独立起草工具侧 manifest→source-set adapter，但它不因此成为语言语义、
+不解除本节启用门禁，也不定义 dependency、target 或 process entry。
 
 ---
 

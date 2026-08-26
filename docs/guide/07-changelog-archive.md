@@ -539,3 +539,4 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 7 | 修正旧 Map 候选漂移：Hashable 与 Copyable 正交，MoveOnly String 可按 bytes 哈希；查询 Borrow key，插入移动 key，替换时按实际类型析构旧 key；Map 仍未启用 | 🟡 候选勘误 |
 | 8 | 实施前审计补齐 unit-wide symbol/type identity、recovery/validated 阶段门禁、单 SSA/LLVM/object 与 LSP snapshot 约束；0199 和 0187 在 ownership 后并行，0187 因完整 source-set provider 未决继续阻塞 | 🟡 候选架构收敛 |
 | 9 | ADR-0021 候选以版本化 initialization option 固定 LSP base source set：server 不扫描磁盘，open/change 只建 overlay，close 回落 base，缺席时保持单文档模式 | 🟡 候选工具协议 |
+| 10 | ADR-0022/SPEC-0052 候选把严格 project.toml、安全本地 `.ko` discovery 与稳定 base snapshot 独立成工具层；dependency、entry、build 与 LSP overlay 不混入 provider | 🟡 候选项目边界 |

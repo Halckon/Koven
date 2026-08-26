@@ -89,6 +89,7 @@ LSP、测试与虚拟源码共享同一前端入口的边界。
 ## 关联
 
 - 相关 Spec：SPEC-0025、SPEC-0052、SPEC-0055
-- 相关 ADR：[ADR-0004](./0004-source-span-position-model.md)
+- 相关 ADR：[ADR-0004](./0004-source-span-position-model.md)、
+  [ADR-0022](./0022-minimal-project-manifest-source-discovery.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

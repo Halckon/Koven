@@ -45,8 +45,9 @@ symlink/IO 和文件监听；只在测试中注入私有数据则不能形成可
 }
 ```
 
-- 一个 LSP session 首版最多承载一个 compilation unit。`root` 是 host 提供的稳定 identity，
-  必须匹配非空 ASCII `[A-Za-z0-9][A-Za-z0-9._-]*`，不是物理目录或数组序号。
+- 一个 LSP session 首版最多承载一个 compilation unit。`root` 是 host 提供的非空 opaque UTF-8
+  稳定 identity，按 UTF-8 bytes 精确比较；它可以直接承载 ADR-0022 的 manifest-relative root
+  identity，但 server 不把它解释为物理目录、数组序号或 package path。
 - `logicalPath` 精确遵守 ADR-0005：UTF-8、`/` 分隔、相对、无空段、`.` 或 `..`，并以 `.ko`
   结尾。语义 source key 是结构化 `(root, logicalPath)`；server 校验后按此 key 排序。
 - `uri` 只是 presentation locator，可为任意合法绝对 LSP URI。source key 与 parsed URI 在 unit
