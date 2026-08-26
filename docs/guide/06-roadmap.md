@@ -256,7 +256,8 @@ Spec 之前，本条限制不变。）
 必须合法。本 Phase 不以 Map 正反例作为验收，也不将任何 Map 所有权策略固化到 typed AST。
 - [ ] **[SPEC-0025](../specs/0025-multifile-package-import-name-resolution.md)（draft）**：在
       v0.32 与 ADR-0020 生效后建立 compilation-unit package/declaration index、import、
-      visibility 与 L0146–L0151；只完成名称阶段。
+      visibility 与 L0146–L0151；只完成名称阶段，并以 recovery/validated 双产物阻止错误 unit
+      流入类型阶段。
 - [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
       跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
 
@@ -305,7 +306,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       source DropFact
 - [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（draft）**：在 SPEC-0197
       后消费完整 typed unit，发布跨文件 call/constructor 的 loan、move、drop 与 capture facts；
-      v0.32/ADR-0020 未生效前不得实施。
+      body 数据流仍保持局部，不新增跨过程所有权分析；v0.32/ADR-0020 未生效前不得实施。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -414,7 +415,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       LLDB 静态解析并真实启动进程命中 Koven `app` 源码断点与 frame
 - [ ] **[SPEC-0199](../specs/0199-multifile-native-lowering.md)（draft）**：在 SPEC-0198 后按
       ADR-0020 对完整 compilation unit 做 reachability/单态化，生成单一 object 并复用现有
-      linker；不引入每文件 object 或跨 package ABI。
+      linker contract；内部入口为已解析 `DeclarationId`，不引入每文件 object、跨 package ABI
+      或公开多文件 CLI。
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构
 右值只执行一次，消费式解构后的每个不可复制字段恰好析构一次，不可复制 `value class`
@@ -501,7 +503,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       支持 UTF-16 cursor、overload/member 精确目标与版本生命周期
 - [ ] **[SPEC-0187](../specs/0187-multifile-lsp-diagnostics-definition.md)（draft）**：复用
       SPEC-0025/0197/0198 的 compilation-unit frontend 产物提供跨文件诊断与跳转定义；不得在
-      LSP 内复制 resolver。项目自动发现仍等待 SPEC-0052/0054。
+      LSP 内复制 resolver；它与 SPEC-0199 并行，不依赖 native。完整 base source-set provider
+      尚未封闭，项目自动发现仍等待 SPEC-0052/0054，因此当前不可批准实施。
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码
 - [x] **SPEC-0060（已实现）**：显式 `--message-format=json` 把 frontend 结构化诊断按

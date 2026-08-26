@@ -93,12 +93,12 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
-| 已选下一 guide 候选 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 与 ADR-0020 已起草；未启用/未接受，全部保持 draft |
+| 已选下一 guide 候选 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 与 ADR-0020 已起草；0025→0197→0198 后分叉到 0199/0187；未启用/未接受，全部保持 draft，0187 另有 source-set provider 阻塞 |
 | 仍有 const/Map 门禁 | SPEC-0024、0026、0031、0037 | 保持候选，不能从已有 parser 或单文件工具反推语义 |
 | 项目构建后继 | SPEC-0052–0054 | 0052 等待 0025；0054 若包含 native build，必须等待 0199，而不只是 manifest/lock |
 
 审计据解锁价值选择 package/import 作为下一 guide 候选，并把原先从 SPEC-0025 直接跳向
-LSP/项目构建的缺口补成名称→类型→所有权→native→LSP 链。当前仍无可直接实施的相邻节点：
+LSP/项目构建的缺口补成名称→类型→所有权，再分叉到 native 与 LSP。当前仍无可直接实施的相邻节点：
 必须先由用户明确启用 v0.32 并接受 ADR-0020；nullable `when`/`!!`、receiver/iteration 与
 const/Map 继续保持各自门禁。
 
@@ -297,7 +297,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0054 | 由 package CLI 编排 manifest、解析、锁定与构建 | 0053、0199；若只做元数据命令，应另拆不依赖 native 的窄 Spec |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |
-| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 待启用；ADR-0020 待接受 |
+| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 待启用；ADR-0020 待接受；base source-set provider 待决 |
 | [0057](./0057-conservative-source-formatter.md) | 实现稳定、幂等的格式化器（`done`） | 0014、0006 `done`；[ADR-0013](../adr/0013-conservative-source-formatting.md) `accepted` |
 | [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0059](./0059-tree-sitter-grammar.md) | 提供 Tree-sitter grammar 与 corpus（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |

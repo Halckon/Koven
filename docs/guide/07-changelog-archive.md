@@ -536,3 +536,5 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 4 | exact 冲突立即报告且优先于 wildcard；wildcard 歧义延迟到实际使用；类型/值命名空间分别判定，跨 package 函数不自动合并 overload | 🔴 候选名称解析语义 |
 | 5 | 绝对限定名采用最长 package 前缀，package 不是 runtime value；没有隐式 prelude import | 🔴 候选限定路径语义 |
 | 6 | 预留 L0146–L0151，并把多文件实施拆为 0025 名称、0197 类型、0198 所有权、0199 native、0187 LSP；项目 build 的 native 路径等待 0199 | 🟡 候选诊断/Phase 交接 |
+| 7 | 修正旧 Map 候选漂移：Hashable 与 Copyable 正交，MoveOnly String 可按 bytes 哈希；查询 Borrow key，插入移动 key，替换时按实际类型析构旧 key；Map 仍未启用 | 🟡 候选勘误 |
+| 8 | 实施前审计补齐 unit-wide symbol/type identity、recovery/validated 阶段门禁、单 SSA/LLVM/object 与 LSP snapshot 约束；0199 和 0187 在 ownership 后并行，0187 因完整 source-set provider 未决继续阻塞 | 🟡 候选架构收敛 |

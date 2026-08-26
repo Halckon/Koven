@@ -722,13 +722,15 @@ Phase 4，本节只封闭源语言可观察语义。
 
 **18.1 Key 等价关系：`Hashable`**
 
-- 新增编译器预声明的规范 marker trait `Hashable`，判定规则与 `Copyable`/`Transferable`
-  同构：数值类型、`Boolean`、`Char`、`String` 满足 `Hashable`；`value class` 当且仅当全部
-  字段满足 `Hashable` 时满足 `Hashable`，按字段递归计算结构相等与结构哈希。
-- **`Hashable` 蕴含 `Copyable`**：v1 只允许 `Copyable` 的 key 类型，回避“查询时是否需要
-  借用 key、key 是否可能被移动导致哈希失效”这一整类问题。普通 `class`、`Box<T>`、包含
-  它们的 `value class` 都不满足 `Hashable`，因此不能作 key。这是一个保守但可以先落地的
-  起点；是否放开不可复制 key 留给后续版本评估。
+- 新增编译器预声明的规范 marker trait `Hashable`。它与 `Copyable` / `Transferable` 正交：
+  数值类型、`Boolean`、`Char`、`String` 满足 `Hashable`；`value class` 当且仅当全部字段满足
+  `Hashable` 时满足 `Hashable`，按字段递归计算结构相等与结构哈希。与其他编译器能力一样，
+  v1 不开放用户手动实现或覆盖。
+- **`Hashable` 不蕴含 `Copyable`**。v0.31 的 `String` 是 MoveOnly 但仍可稳定按 UTF-8 bytes
+  哈希；查询只 Borrow 调用者的 key，插入则把 key owner 移入 Map，因此不需要为哈希而复制
+  key。普通 `class`、`Box<T>`、`Rc<T>` 及包含这些 identity-bearing 字段的 `value class`
+  默认不满足 `Hashable`；未来若发布 identity hash 必须另行定义，不能使用地址或引用计数
+  control block 的偶然值。
 - `==` 对满足 `Hashable` 的类型按字段结构相等定义（数值/`Boolean`/`Char`/`String` 走对应
   类型的原生相等）；这填补了第 10 节遗留的“`==` 未定义任意可存储 `K` 的通用
   等价关系”的空白，但**只在 `Hashable` 类型范围内**，不为 `Hashable` 之外的类型定义结构
@@ -773,8 +775,8 @@ mutableMap.remove(key)       // 按key删除,不取得key所有权,调用点不�
 
 - `MutableMap.put(key, value)` 的契约固定为声明端 `own` 的 `Value K`、`Value V`：插入新条目取得两者
   所有权；覆盖已有 key 时，新 `value` 移入、旧 `value` 按顺序容器替换协议（
-  第 8 节）的思路析构一次，旧 `key` 同样析构一次（`Hashable` 蕴含 `Copyable`，析构总是
-  平凡的）。调用点不需要任何标注。
+  第 8 节）的思路析构一次，新 key 替换旧 key，旧 key 也按自身实际类型精确析构一次。
+  MoveOnly `String` 等 key 因此没有复制或泄漏特例。调用点不需要任何标注。
 - `MutableMap.remove(key)` 的契约固定为 `Borrow K`（查询用，不需要取得删除目标 key 的
   所有权，只需要用来定位条目；调用点标注可选）；返回被移除的 `value`（`Value` 语义
   交付给调用者，`V` 不满足 `Copyable` 时同样合法，因为整条记录被移出后不再有第二个
@@ -1945,9 +1947,11 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 - 有 `package a.b` 的文件，其 package 必须精确等于逻辑父目录 `a/b`；省略 package 只允许
   位于 source root 根目录。多个 source root 可以向同一 package 贡献文件，输入顺序不改变
   package 内容、声明身份或诊断顺序。
-- frontend 为 package、source unit 和顶层声明发布稳定的 `PackageId`、`SourceUnitId` 与
-  `DeclarationId` 概念身份。它们由规范化 compilation-unit 输入确定，不是 LLVM symbol、
-  公共 ABI 或持久化缓存格式；跨文件引用不得伪装成单文件 `SymbolId` 或外部未知 symbol。
+- frontend 为 package、source unit 和源码 symbol 发布 `PackageId`、`SourceUnitId` 与
+  `UnitSymbolId`；可作为声明目标的 symbol 另有 `DeclarationId`。这些身份由规范化
+  compilation-unit 输入确定，只在一次分析链内稳定，不是 LLVM symbol、公共 ABI 或持久化
+  缓存格式；跨文件引用不得伪装成单文件 `SymbolId` 或外部未知 symbol。文件局部 AST / scope /
+  symbol ID 不全局重编号，而是与 `SourceUnitId` 配对使用。
 - compilation unit 先收集全部文件的顶层声明，再解析任一声明体。同一 package 沿用 §21 的
   类型/值双命名空间；函数只在同一 package、同一值绑定内形成有序 overload set。非函数
   重名、函数与非函数重名或不可合并的类型重名是跨文件声明冲突，不依赖文件装载顺序。
@@ -1966,9 +1970,10 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 32.3 exact、alias 与 wildcard import
 
-- exact import 绑定一个可见的顶层类型声明、顶层值声明，或同一 package 中同名顶层函数
-  构成的完整 overload set。`as Alias` 只改变当前 source unit 的本地绑定名，不改变目标
-  identity、声明名或导出表面。
+- exact import 在类型和值命名空间中分别查找：一条路径可以同时绑定同名类型和值，`as Alias`
+  同时作用于两者；至少一个命名空间存在可见目标即成功。值目标可以是顶层值声明，或同一
+  package 中同名顶层函数构成的完整 overload set。alias 只改变当前 source unit 的本地绑定名，
+  不改变目标 identity、声明名或导出表面。
 - wildcard import 的目标必须是一个 package；它只按需暴露该 package 的可见顶层声明，
   不递归子 package，不导入类型 member，不形成 re-export，也不在文件头阶段物化无限绑定。
 - 类型和值命名空间分别处理冲突。同一个 exact target 以同一个本地名重复导入是幂等的；
@@ -1978,6 +1983,7 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
   静默遮蔽；词法 local 仍按 §21 的正常规则遮蔽文件级绑定。
 - exact import 比 wildcard 候选优先。多个 wildcard 只有在某个名称被实际查询且仍指向多个
   可见 target 时才产生歧义；未使用的潜在冲突不报错。没有隐式 prelude wildcard import。
+  编译器显式注入的 builtin/prelude environment 也不视为源码 import，不产生 import reference。
 
 ### 32.4 限定名称解析
 
@@ -1987,20 +1993,26 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 - 普通表达式中的裸名称先执行 §21 的词法/文件查询。package 只存在于静态名称路径，不是
   runtime value，不能赋值、传参、捕获或作为 member receiver；本候选不引入 Kotlin/Rust
   风格的相对 package 别名、`self` / `super` / `crate` 路径。
+- 单段 exact import 可引用默认 package 的顶层声明；同样的 `Foo.*` 仍按 package wildcard
+  解释，要求存在 package `Foo`。import 的终端名称、alias 与普通/限定引用都必须发布目标
+  identity 和精确引用 Span，供诊断及工具查询复用。
 
 ### 32.5 诊断与分阶段交接
 
 候选预留 L0146–L0151：package 与逻辑路径不匹配、同 package 跨文件声明冲突、import target
 未解析、目标不可见、exact import 绑定冲突、wildcard 实际使用歧义。诊断必须包含发生使用或
 声明冲突的主 `Span`，并在可用时附带目标/冲突声明位置；排序由稳定 source-unit key、字节
-位置和错误码决定。
+位置和错误码决定。省略 package 但文件不在 source root 根目录时，L0146 的 primary 是文件
+起始处的空 Span；无效逻辑路径、重复 `(root identity, logical path)` 属于 driver/unit 输入错误，
+不是可归因于 Koven 源码的 L-code。
 
 1. SPEC-0025 只建立 compilation-unit package index、跨文件声明身份、import/可见性名称绑定
    与上述诊断，不做跨文件 body 类型检查；
 2. SPEC-0197 在 0025 之后完成跨文件签名与 body 类型检查，发布 compilation-unit typed facts；
 3. SPEC-0198 在 0197 之后检查跨文件调用/构造的所有权效果和 drop facts；
-4. SPEC-0199 在 0198 之后完成 compilation-unit reachability、单态化、SSA/LLVM 与 native link；
-5. SPEC-0187 最后复用同一 package/typed/ownership 产物扩展 LSP，不能维护第二套 resolver。
+4. SPEC-0199 在 0198 之后完成 compilation-unit reachability、单态化、SSA/LLVM 与单 object；
+5. SPEC-0187 同样在 0198 之后复用同一 package/typed/ownership 产物扩展 LSP，与 0199 并行，
+   不能维护第二套 resolver；其完整 source-set provider 仍须由后续项目/source-set 决策封闭。
 
 本候选不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
 ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。

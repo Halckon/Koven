@@ -23,6 +23,8 @@
 ## 3. 范围与需求
 
 - 每个 body 恰检查一次；跨文件 call/constructor 复用目标声明的既有 mode 与 ownership facts。
+- 所有权数据流仍是 source/body-local；跨文件 callee 的参数 mode/effect 已由 typed call descriptor
+  固化，不新增 interprocedural value-state 分析。
 - 跨文件 MoveOnly delivery、Borrow/Inout loan、capture、return 与 ASAP drop 规则和单文件一致。
 - 诊断携带使用文件与目标声明关联位置，并按 unit 稳定排序。
 - 失败 unit 不发布部分 codegen input；单文件 ownership API 保持兼容包装。
@@ -36,16 +38,20 @@
 - [ ] 正反例覆盖跨文件 Borrow/Value/Inout、MoveOnly return、constructor、closure 与 drop point。
 - [ ] use-after-move/loan 冲突诊断含精确跨文件目标信息且顺序确定。
 - [ ] 单文件 ownership suite、frontend/workspace 基线与 Architecture 同步。
+- [ ] mixed-analysis product、错误 unit/source/body locator 与重复 source 均被内部门禁拒绝。
 
 ## 6. 技术方案与边界
 
-消费 SPEC-0197 的完整 typed unit，按 declaration/body identity 运行现有 ownership checker，并
-汇总为不可变 unit product；不重新做名称或类型解析。
+消费 SPEC-0197 的 validated typed unit，共享 unit type context，并按
+`DeclarationId -> (SourceUnitId, local body)` locator 对每个 body 运行现有 checker。局部 node/symbol
+ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与 validated codegen gate 的
+`OwnershipCheckedUnit`（或等价产物），不重新做名称或类型解析。单文件 API 事实保持精确等价。
 
 ## 7. 实施计划
 
 1. [ ] 建立 unit ownership driver 与跨文件 callable facts → 验证：mode/loan 正反矩阵。
-2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：跨文件清理 suite。
+2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
+   既有 ownership suite。
 3. [ ] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划

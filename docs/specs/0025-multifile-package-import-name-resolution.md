@@ -28,6 +28,8 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
   候选 §32 允许的 package 绑定形成。
 - 实施 exact、alias、wildcard、限定路径、双命名空间优先级与可见性规则。
 - 发布跨文件 `ResolvedReference -> DeclarationId` facts，保留 source/target Span。
+- exact import 在两个命名空间独立绑定，alias 同时作用于两者；发布 import 终端、alias、限定路径
+  segment 与普通引用的精确 reference facts。声明记录包含现有 visibility。
 - 实施 L0146–L0151，并保证文件输入排列不影响产物或诊断。
 
 ## 4. 非目标
@@ -41,18 +43,29 @@ exact/alias/wildcard import 与 public/internal/private 规则解析所有跨文
 - [ ] 反例精确覆盖 L0146–L0151 的错误码、主/关联 Span 和确定性顺序。
 - [ ] 同一文件集合以不同输入顺序运行，package/declaration/reference identity 与诊断完全一致。
 - [ ] 单文件现有名称 suite 经 compatibility wrapper 无行为回归。
+- [ ] recovery product 可供诊断消费，但含 error 时无法取得供类型阶段使用的 validated view。
 - [ ] frontend 窄测试、workspace 基线与 Architecture 同步。
 
 ## 6. 技术方案与边界
 
-新增不可变 compilation-unit name product；现有单文件 resolver 的 scope/local 逻辑作为每文件
-阶段复用。driver 负责 IO，frontend 只消费显式源码。失败不发布可供后续阶段误用的部分 unit。
+在 `lang-frontend` 名称解析门面新增并行 unit API：
+
+- `resolve_compilation_unit_names(source_map, &[SourceUnitInput], environment)` 接受同一
+  `SourceMap` 中的 `ParsedFile`/`SourceId` 与稳定 source key，内部校验并排序；保留现有
+  `resolve_names`、`NameEnvironment`、`NameResolution` 的精确单文件语义。
+- `CompilationUnitNames` 共同拥有 package/declaration/source tables、每文件 local resolution、
+  `UnitSymbolId`/`DeclarationId` 与并行的 `UnitReferenceTarget`；不把 package binding 塞进
+  compiler-bound `NameEnvironment`，也不修改现有 `ReferenceTarget` 的 exhaustive 枚举。
+- recovery product 始终携带诊断；`ValidatedCompilationUnitNames`（或等价不可伪造 marker）才可
+  交给 SPEC-0197。`ordered_unit_diagnostics` 使用稳定 source key，旧排序 API 保持不变。
 
 ## 7. 实施计划
 
-1. [ ] 建立稳定 unit/package/declaration index → 验证：顺序置换与冲突测试。
+1. [ ] 建立稳定 unit/package/declaration index 与 recovery/validated 门禁 → 验证：顺序置换、
+   duplicate key、错误产物消费测试。
 2. [ ] 接 import/visibility/qualified lookup 和 L0146–L0151 → 验证：正反 fixture。
-3. [ ] 迁移单文件 wrapper、同步 Architecture → 验证：frontend 与 workspace 基线。
+3. [ ] 保留单文件 wrapper、同步 Architecture → 验证：`multifile_name_resolution`、既有
+   `name_resolution`、frontend 与 workspace 基线。
 
 ## 8. 提交计划
 

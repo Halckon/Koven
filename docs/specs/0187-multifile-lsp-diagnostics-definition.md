@@ -11,7 +11,7 @@
 | 批准依据 | 无；v0.32 尚未启用 |
 | 前置 Spec | SPEC-0055、0056 `done`；SPEC-0025、0197、0198 待完成 |
 | 前置 ADR | ADR-0020 待接受 |
-| 阻塞项 | v0.32 启用；0025/0197/0198 `done`；ADR-0020 `accepted` |
+| 阻塞项 | v0.32 启用；0025/0197/0198 `done`；ADR-0020 `accepted`；完整 base source-set provider 契约待决 |
 | 影响范围 | `lang-lsp` workspace/source-set state，frontend API integration，LSP tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -22,10 +22,17 @@
 
 ## 3. 范围与需求
 
-- LSP 复用 frontend compilation-unit products；打开 buffer 以内存文本覆盖同 logical source unit。
-- 文件 open/change/close 后重建一致 unit snapshot，清除失效诊断并发布确定结果。
+- LSP 复用 frontend compilation-unit products；推荐由显式完整 base source set 加打开 buffer overlay
+  形成 unit，close 后回退到 base text，而不是把“当前打开的文件集合”误作完整 package。
+- snapshot 共同拥有一个 `SourceMap` 与 name/type/ownership products；文件 open/change/close 后整体
+  替换，绝不混用新旧 `map_id` 的 Span。失败的内部分析保留 last-good snapshot 并记录内部错误。
+- 每次 unit 变化可影响所有 source；按稳定 source key 重新发布/清除所有受影响 URI 的诊断。
 - definition 使用 `DeclarationId -> SourceId/Span`，覆盖 exact/alias/wildcard、限定名和同 package 引用。
+- definition query 以 `(SourceUnitId, byte offset)` 查 reference fact；exact import 的 terminal/alias、
+  普通与限定引用跳转到声明。wildcard 的 `*` 与纯 package segment 不提供定义，实际使用名跳转到目标。
 - URI/position 转换继续复用现有 UTF-16/SourceMap 边界，不按路径字符串重新解析 package。
+- diagnostic adapter 按 primary `SourceId` 分组到 URI，related location 分别按自己的 SourceId 映射；
+  映射不完整时不得发布一个看似完整的部分结果。
 
 ## 4. 非目标
 
@@ -33,14 +40,15 @@
 
 ## 5. 验收标准
 
-- [ ] 多文件 open/change/close 测试覆盖诊断新增、迁移、清除与确定排序。
+- [ ] base+overlay provider 确定后，多文件 open/change/close 测试覆盖诊断新增、迁移、清除与确定排序。
 - [ ] definition 覆盖 exact alias、wildcard、限定名、同 package 及 private/inaccessible 反例。
 - [ ] LSP 不包含第二套 import resolver；lang-lsp/workspace 基线与 Architecture 同步。
 
 ## 6. 技术方案与边界
 
-在现有单文档 store 上增加显式 source-set snapshot adapter；语义查询全部来自 frontend unit
-product。项目 manifest discovery 由后续 SPEC-0052/0054 提供，不是本 Spec 的隐式输入。
+以 unit snapshot store 取代“每 URI 一个独立 frontend 分析”的语义 store；语义查询全部来自
+frontend unit product。项目 manifest discovery 由后续 SPEC-0052/0054 提供，不是本 Spec 的
+隐式输入。在 provider 决定前，本 Spec 只记录推荐的 base+overlay 模型，不进入 approved。
 
 ## 7. 实施计划
 
@@ -56,7 +64,11 @@ product。项目 manifest discovery 由后续 SPEC-0052/0054 提供，不是本 
 
 ## 9. 未决问题
 
-- 无。
+- 完整 base source set 由项目 manifest、LSP 初始化参数还是独立 host provider 给出；必须保证
+  open/change 是 overlay、close 可回退，且不读取未授权文件系统。该选择需要在批准本 Spec 前
+  由 SPEC-0052 或独立 ADR 封闭。
+- 首版是否只支持一个 compilation unit 与 `file:` URI；untitled/non-file URI 的 source key 和
+  unit membership 也必须在批准前明确，不能按 URI 字符串临时猜测。
 
 ## 10. 验证记录
 
