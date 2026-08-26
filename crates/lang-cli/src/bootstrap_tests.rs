@@ -7,7 +7,9 @@ use std::{
 
 use lang_codegen::NativeObjectErrorKind;
 
-use crate::bootstrap::{BootstrapError, BootstrapTarget, FrontendStage, bootstrap_and_run};
+use crate::bootstrap::{
+    BootstrapEntry, BootstrapError, BootstrapTarget, FrontendStage, bootstrap_and_run,
+};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -41,7 +43,7 @@ fn run_fixture(source_text: &str, entry: &str) -> (TestDirectory, Result<(), Boo
     fs::write(&source, source_text).expect("fixture write");
     let result = bootstrap_and_run(BootstrapTarget {
         source: &source,
-        entry_name: entry,
+        entry: BootstrapEntry::Explicit(entry),
         object: &directory.join("fixture.o"),
         executable: &directory.join("fixture"),
     });
@@ -104,7 +106,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let executable = directory.join("prelude");
     bootstrap_and_run(BootstrapTarget {
         source: &prelude,
-        entry_name: "bootstrapSmoke",
+        entry: BootstrapEntry::Explicit("bootstrapSmoke"),
         object: &object,
         executable: &executable,
     })
@@ -117,7 +119,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let hello_executable = directory.join("prelude-hello");
     bootstrap_and_run(BootstrapTarget {
         source: &prelude,
-        entry_name: "bootstrapHello",
+        entry: BootstrapEntry::Explicit("bootstrapHello"),
         object: &hello_object,
         executable: &hello_executable,
     })
@@ -133,7 +135,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let pair_result_executable = directory.join("prelude-pair-result");
     bootstrap_and_run(BootstrapTarget {
         source: &prelude,
-        entry_name: "bootstrapPairResult",
+        entry: BootstrapEntry::Explicit("bootstrapPairResult"),
         object: &pair_result_object,
         executable: &pair_result_executable,
     })
@@ -145,7 +147,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     let abort_executable = directory.join("prelude-abort");
     let abort = bootstrap_and_run(BootstrapTarget {
         source: &prelude,
-        entry_name: "bootstrapAbort",
+        entry: BootstrapEntry::Explicit("bootstrapAbort"),
         object: &abort_object,
         executable: &abort_executable,
     });
@@ -162,7 +164,7 @@ fn repository_prelude_is_the_single_enumerated_bootstrap_source_and_runs() {
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
             source: &prelude,
-            entry_name: "bootstrapSmoke",
+            entry: BootstrapEntry::Explicit("bootstrapSmoke"),
             object: &object,
             executable: &executable,
         }),
@@ -193,11 +195,11 @@ fn standard_pair_and_result_are_move_only_when_an_argument_is_move_only() {
         let executable = directory.join("invalid");
         let result = bootstrap_and_run(BootstrapTarget {
             source: &source,
-            entry_name: if index == 0 {
+            entry: BootstrapEntry::Explicit(if index == 0 {
                 "invalidPair"
             } else {
                 "invalidResult"
-            },
+            }),
             object: &object,
             executable: &executable,
         });
@@ -271,7 +273,7 @@ fn path_link_and_process_failures_are_distinct() {
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
             source: &missing,
-            entry_name: "entry",
+            entry: BootstrapEntry::Explicit("entry"),
             object: &directory.join("missing.o"),
             executable: &directory.join("missing"),
         }),
@@ -285,7 +287,7 @@ fn path_link_and_process_failures_are_distinct() {
     assert!(matches!(
         bootstrap_and_run(BootstrapTarget {
             source: &source,
-            entry_name: "entry",
+            entry: BootstrapEntry::Explicit("entry"),
             object: &object,
             executable: &missing_parent,
         }),

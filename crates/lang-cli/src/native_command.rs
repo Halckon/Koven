@@ -10,12 +10,12 @@ use std::{
 
 use crate::{
     MessageFormat,
-    bootstrap::{BootstrapError, BootstrapTarget, bootstrap_build},
+    bootstrap::{BootstrapEntry, BootstrapError, BootstrapTarget, bootstrap_build},
     format::CommandOutput,
 };
 
-const BUILD_USAGE: &str = "usage: kovenc build <source.ko> --entry <name> -o <executable>\n";
-const RUN_USAGE: &str = "usage: kovenc run <source.ko> --entry <name>\n";
+const BUILD_USAGE: &str = "usage: kovenc build <source.ko> [--entry <name>] -o <executable>\n";
+const RUN_USAGE: &str = "usage: kovenc run <source.ko> [--entry <name>]\n";
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
 pub(super) fn execute_build(
@@ -32,9 +32,14 @@ pub(super) fn execute_build(
         {
             (
                 PathBuf::from(source),
-                entry.to_string_lossy(),
+                Some(entry.to_string_lossy()),
                 PathBuf::from(executable),
             )
+        }
+        [source, output_flag, executable]
+            if output_flag == "-o" && !is_option(source) && !is_option(executable) =>
+        {
+            (PathBuf::from(source), None, PathBuf::from(executable))
         }
         [argument, ..] if is_unknown_option(argument, &["--entry", "-o"]) => {
             return usage(
@@ -45,14 +50,17 @@ pub(super) fn execute_build(
         _ => {
             return usage(
                 BUILD_USAGE,
-                "expected source, `--entry <name>` and `-o <executable>`",
+                "expected source, optional `--entry <name>` and `-o <executable>`",
             );
         }
     };
     let object = temporary_object_path(&executable);
     let result = bootstrap_build(BootstrapTarget {
         source: &source,
-        entry_name: &entry,
+        entry: entry
+            .as_deref()
+            .map(BootstrapEntry::Explicit)
+            .unwrap_or(BootstrapEntry::ConventionalMain),
         object: &object,
         executable: &executable,
     });
@@ -75,15 +83,16 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
         [source, entry_flag, entry]
             if entry_flag == "--entry" && !is_option(source) && !is_option(entry) =>
         {
-            (PathBuf::from(source), entry.to_string_lossy())
+            (PathBuf::from(source), Some(entry.to_string_lossy()))
         }
+        [source] if !is_option(source) => (PathBuf::from(source), None),
         [argument, ..] if is_unknown_option(argument, &["--entry"]) => {
             return usage(
                 RUN_USAGE,
                 format!("unknown run option {}", argument.to_string_lossy()),
             );
         }
-        _ => return usage(RUN_USAGE, "expected source and `--entry <name>`"),
+        _ => return usage(RUN_USAGE, "expected source and optional `--entry <name>`"),
     };
     let directory = match TemporaryDirectory::create() {
         Ok(directory) => directory,
@@ -97,7 +106,10 @@ pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat)
     let executable = directory.path().join("program");
     if let Err(error) = bootstrap_build(BootstrapTarget {
         source: &source,
-        entry_name: &entry,
+        entry: entry
+            .as_deref()
+            .map(BootstrapEntry::Explicit)
+            .unwrap_or(BootstrapEntry::ConventionalMain),
         object: &object,
         executable: &executable,
     }) {

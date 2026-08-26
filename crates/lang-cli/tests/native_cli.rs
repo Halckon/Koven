@@ -88,6 +88,93 @@ fn public_build_and_run_execute_an_external_hello_world() {
 }
 
 #[test]
+fn conventional_main_builds_and_runs_without_an_entry_option() {
+    let directory = TestDirectory::create();
+    let source = directory.join("main.ko");
+    let executable = directory.join("main");
+    fs::write(&source, "fun main(): Unit { println(\"Hello, World!\") }\n").expect("source write");
+
+    let built = run([
+        OsStr::new("build"),
+        source.as_os_str(),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    assert!(built.stdout.is_empty());
+    assert!(built.stderr.is_empty());
+    let launched = Command::new(&executable)
+        .output()
+        .expect("executable launch");
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, b"Hello, World!\n");
+    assert!(launched.stderr.is_empty());
+
+    let executed = run([OsStr::new("run"), source.as_os_str()]);
+    assert_eq!(executed.status.code(), Some(0), "{executed:?}");
+    assert_eq!(executed.stdout, b"Hello, World!\n");
+    assert!(executed.stderr.is_empty());
+}
+
+#[test]
+fn conventional_main_reports_selection_failures_and_explicit_entry_still_wins() {
+    let directory = TestDirectory::create();
+
+    let missing_source = directory.join("missing.ko");
+    fs::write(&missing_source, "fun helper(): Unit {}\n").expect("missing source write");
+    let missing = run([OsStr::new("run"), missing_source.as_os_str()]);
+    assert_eq!(missing.status.code(), Some(2), "{missing:?}");
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("entry `main` was not found"));
+
+    let invalid_source = directory.join("invalid-shape.ko");
+    fs::write(
+        &invalid_source,
+        "fun main(args: Array<String>): Unit {}\nfun selected(): Unit {}\n",
+    )
+    .expect("invalid-shape source write");
+    let invalid = run([OsStr::new("run"), invalid_source.as_os_str()]);
+    assert_eq!(invalid.status.code(), Some(2), "{invalid:?}");
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr)
+            .contains("parameterized entry `main` requires argv support")
+    );
+    fs::write(
+        &invalid_source,
+        "fun main(): Int { return 1 }\nfun selected(): Unit {}\n",
+    )
+    .expect("explicit override source write");
+    let invalid = run([OsStr::new("run"), invalid_source.as_os_str()]);
+    assert_eq!(invalid.status.code(), Some(2), "{invalid:?}");
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr)
+            .contains("entry `main` has no supported conventional shape")
+    );
+    let explicit = run([
+        OsStr::new("run"),
+        invalid_source.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("selected"),
+    ]);
+    assert_eq!(explicit.status.code(), Some(0), "{explicit:?}");
+    assert!(explicit.stdout.is_empty());
+    assert!(explicit.stderr.is_empty());
+
+    let ambiguous_source = directory.join("ambiguous.ko");
+    fs::write(
+        &ambiguous_source,
+        "fun main(): Unit {}\nfun main(args: Array<String>): Unit {}\n",
+    )
+    .expect("ambiguous source write");
+    let ambiguous = run([OsStr::new("run"), ambiguous_source.as_os_str()]);
+    assert_eq!(ambiguous.status.code(), Some(2), "{ambiguous:?}");
+    assert!(
+        String::from_utf8_lossy(&ambiguous.stderr)
+            .contains("entry `main` is ambiguous (2 candidates)"),
+        "{ambiguous:?}"
+    );
+}
+
+#[test]
 fn native_commands_reject_usage_outputs_entries_and_frontend_errors() {
     let directory = TestDirectory::create();
     let source = directory.join("source.ko");

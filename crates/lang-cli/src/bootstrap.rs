@@ -12,11 +12,16 @@ use lang_codegen::{NativeObjectError, emit_native_object};
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::{LexerInternalError, lex},
-    name_resolution::{NameResolutionError, ScopeKind, SymbolKind, resolve_names},
+    name_resolution::{
+        NameResolution, NameResolutionError, ScopeKind, SymbolId, SymbolKind, resolve_names,
+    },
     ownership_checking::{OwnershipCheckingError, check_ownership},
     parser::{ParserInternalError, parse_file},
     source::{SourceError, SourceMap},
-    type_checking::{TypeCheckingError, check_types, standard_environments},
+    type_checking::{
+        BuiltinType, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeKind,
+        TypedFile, check_types, standard_environments,
+    },
 };
 
 use crate::linker::{LinkerError, link_native_object};
@@ -35,11 +40,18 @@ pub(crate) enum FrontendStage {
     OwnershipChecking,
 }
 
-/// 一次显式单文件 bootstrap 的调用方拥有配置。
+/// 单文件 bootstrap 的源码 entry 选择方式。
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BootstrapEntry<'a> {
+    Explicit(&'a str),
+    ConventionalMain,
+}
+
+/// 一次单文件 bootstrap 的调用方拥有配置。
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BootstrapTarget<'a> {
     pub(crate) source: &'a Path,
-    pub(crate) entry_name: &'a str,
+    pub(crate) entry: BootstrapEntry<'a>,
     pub(crate) object: &'a Path,
     pub(crate) executable: &'a Path,
 }
@@ -71,6 +83,12 @@ pub(crate) enum BootstrapError {
     AmbiguousEntry {
         name: String,
         count: usize,
+    },
+    InvalidEntryShape {
+        name: String,
+    },
+    UnsupportedParameterizedEntry {
+        name: String,
     },
     Codegen(NativeObjectError),
     Linker(LinkerError),
@@ -129,6 +147,14 @@ impl fmt::Display for BootstrapError {
                     "entry `{name}` is ambiguous ({count} candidates)"
                 )
             }
+            Self::InvalidEntryShape { name } => write!(
+                formatter,
+                "entry `{name}` has no supported conventional shape; expected `fun {name}(): Unit`"
+            ),
+            Self::UnsupportedParameterizedEntry { name } => write!(
+                formatter,
+                "parameterized entry `{name}` requires argv support that is not implemented"
+            ),
             Self::Codegen(error) => write!(formatter, "{error}"),
             Self::Linker(error) => write!(formatter, "linker failed: {error:?}"),
             #[cfg(test)]
@@ -181,24 +207,7 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
         owned.diagnostics(),
     )?;
 
-    let mut entries = names.symbols().iter().filter(|symbol| {
-        symbol.name() == target.entry_name
-            && symbol.kind() == SymbolKind::Function
-            && names
-                .scopes()
-                .get(symbol.scope().index())
-                .is_some_and(|scope| scope.kind() == ScopeKind::File && scope.parent().is_none())
-    });
-    let entry = entries
-        .next()
-        .ok_or_else(|| BootstrapError::MissingEntry(target.entry_name.to_owned()))?;
-    let count = 1 + entries.count();
-    if count != 1 {
-        return Err(BootstrapError::AmbiguousEntry {
-            name: target.entry_name.to_owned(),
-            count,
-        });
-    }
+    let entry = select_entry(&names, &typed, target.entry)?;
 
     emit_native_object(
         &sources,
@@ -206,12 +215,117 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
         &names,
         &typed,
         &owned,
-        entry.id(),
+        entry,
         target.object,
     )
     .map_err(BootstrapError::Codegen)?;
     link_native_object(target.object, target.executable).map_err(BootstrapError::Linker)?;
     Ok(())
+}
+
+fn select_entry(
+    names: &NameResolution,
+    typed: &TypedFile,
+    selection: BootstrapEntry<'_>,
+) -> Result<SymbolId, BootstrapError> {
+    let name = match selection {
+        BootstrapEntry::Explicit(name) => name,
+        BootstrapEntry::ConventionalMain => "main",
+    };
+    let candidates = names
+        .symbols()
+        .iter()
+        .filter(|symbol| {
+            symbol.name() == name
+                && symbol.kind() == SymbolKind::Function
+                && names
+                    .scopes()
+                    .get(symbol.scope().index())
+                    .is_some_and(|scope| {
+                        scope.kind() == ScopeKind::File && scope.parent().is_none()
+                    })
+        })
+        .collect::<Vec<_>>();
+
+    if matches!(selection, BootstrapEntry::Explicit(_)) {
+        return unique_entry(name, candidates.into_iter().map(|symbol| symbol.id()));
+    }
+    if candidates.is_empty() {
+        return Err(BootstrapError::MissingEntry(name.to_owned()));
+    }
+
+    let conventional_shapes = candidates
+        .into_iter()
+        .filter_map(|symbol| {
+            let callable = typed
+                .callables()
+                .iter()
+                .find(|callable| callable.symbol() == symbol.id() && callable.owner().is_none())?;
+            if !callable.type_parameters().is_empty()
+                || !matches!(
+                    typed.types().get(callable.return_type()),
+                    Some(TypeKind::Builtin(BuiltinType::Unit))
+                )
+            {
+                return None;
+            }
+            let zero_argument = callable.parameters().is_empty();
+            let argument_array = matches!(
+                callable.parameters(),
+                [parameter]
+                    if parameter.mode == ParameterMode::Borrow
+                        && matches!(
+                            typed.types().get(parameter.ty),
+                            Some(TypeKind::Intrinsic {
+                                constructor: IntrinsicTypeConstructor::Array,
+                                arguments,
+                            }) if matches!(
+                                arguments.as_slice(),
+                                [argument]
+                                    if matches!(
+                                        typed.types().get(*argument),
+                                        Some(TypeKind::Builtin(BuiltinType::String))
+                                    )
+                            )
+                        )
+            );
+            (zero_argument || argument_array).then_some((symbol.id(), zero_argument))
+        })
+        .collect::<Vec<_>>();
+    if conventional_shapes.len() > 1 {
+        return Err(BootstrapError::AmbiguousEntry {
+            name: name.to_owned(),
+            count: conventional_shapes.len(),
+        });
+    }
+    match conventional_shapes.first() {
+        Some((entry, true)) => Ok(*entry),
+        Some((_, false)) => Err(BootstrapError::UnsupportedParameterizedEntry {
+            name: name.to_owned(),
+        }),
+        None => Err(BootstrapError::InvalidEntryShape {
+            name: name.to_owned(),
+        }),
+    }
+}
+
+fn unique_entry(
+    name: &str,
+    entries: impl IntoIterator<Item = SymbolId>,
+) -> Result<SymbolId, BootstrapError> {
+    let mut entries = entries.into_iter();
+    let entry = entries
+        .next()
+        .ok_or_else(|| BootstrapError::MissingEntry(name.to_owned()))?;
+    let count = 1 + entries.count();
+    if count == 1 {
+        Ok(entry)
+    } else {
+        Err(BootstrapError::AmbiguousEntry {
+            name: name.to_owned(),
+            count,
+        })
+    }
 }
 
 /// 从一份显式 Koven source 构建、链接并运行仓库 bootstrap target。

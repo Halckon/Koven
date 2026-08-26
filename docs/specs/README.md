@@ -77,13 +77,13 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 
 | 队列 | 候选 | 审计结论 |
 |---|---|---|
-| 可直接物化 | SPEC-0193 零参数 conventional main | SPEC-0190 已完成，v0.30 已生效；当前最窄可执行 Goal |
+| 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
 | 只差 ADR | SPEC-0045 Rc shared owner | 代码前置全部完成，v0.30 已生效；先接受共享 owner runtime ABI ADR，再实施 |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
 
-因此当前依赖前沿固定为 `0193 → 共享 owner ABI ADR → 0045`；参数化 main 排在 String runtime
+因此当前依赖前沿已推进到 `共享 owner ABI ADR → SPEC-0045`；参数化 main 排在 String runtime
 之后。后续若 guide/ADR 改变门禁，先更新本审计再物化下一份 Spec。
 
 ## Phase 0 Spec 队列
@@ -269,7 +269,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | Spec | 单一 Goal | 前置 / 决策门槛 |
 |---|---|---|
 | [0190](./0190-public-single-file-build-run.md) | 公开单文件 `kovenc build/run` 并验证仓库外 Hello World（`done`） | 0039、0042、0043、0184、0189 `done`；当前持续 Goal 的站立授权 |
-| 0193 | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit` | 0190 `done`；v0.30 已生效；不接入 argv |
+| [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
 | 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；argv Array runtime 已完成；v0.30 已生效 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |

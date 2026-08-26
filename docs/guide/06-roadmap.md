@@ -463,7 +463,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       单文件 `kovenc build <source> --entry <name> -o <executable>` 与
       `kovenc run <source> --entry <name>`，复用 verified native pipeline、human/JSON Lines
       diagnostics 和临时产物清理；不引入隐式 main、多文件或项目模型
-- [ ] **SPEC-0193（前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
+- [x] **SPEC-0193（已实现；前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
       `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
       shape 与 ambiguous operational failure 分离；不接收 argv
 - [ ] **SPEC-0194（前置：SPEC-0193、0192 及 argv Array runtime `done`）**：接入

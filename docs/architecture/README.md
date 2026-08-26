@@ -99,11 +99,13 @@ SPEC-0060 已在 `lang-cli` 增加 ADR-0014 schema v1 adapter：显式
 Lines，保留 `Ldddd`、原始消息、UTF-8 半开 byte range、1-based Unicode-scalar 行列与有序
 label/note/help；默认 human renderer、formatter stdout/0/1 和 operational error 保持不变；
 SPEC-0190 已把 repository bootstrap 的 build-only 边界复用于公开固定参数的单文件
-`kovenc build` / `run`：调用方必须显式 source、顶层 entry 和 build output，CLI 使用进程拥有的
+`kovenc build` / `run`：调用方必须显式 source 和 build output，CLI 使用进程拥有的
 唯一临时 object/directory 并清理，复用全部 frontend、resolved-entry object emitter 与 Clang
 linker。build 成功静默退出 0，run 精确返回程序 stdout/stderr/status；真实仓库外 `hello.ko`
-已分别通过 build 后启动与直接 run 输出 `Hello, World!\n`。隐式 main、默认 output、程序参数、
-多文件/package/project 仍未实现；
+已分别通过 build 后启动与直接 run 输出 `Hello, World!\n`。SPEC-0193 允许省略 `--entry` 时在
+完整 frontend 成功后选择唯一顶层、非泛型 `fun main(): Unit`；missing、非法形状和两个
+conventional 形状并存分别形成 operational failure，显式 `--entry` 继续覆盖默认选择。
+`main(args)`、默认 output、程序参数、多文件/package/project 仍未实现；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -1331,8 +1333,9 @@ source/entry，复用 frontend、resolved-entry object API 和 Clang linker；SP
 Koven prelude 的正常 smoke 退出 0、标准 `error()` smoke 经 Abort 非零终止。SPEC-0189 已增加标准 `println(String)` 的
 首个 literal-only stdout slice 与真实 Hello World entry，但一般 String runtime、其他 printable
 重载仍未实现。SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
-MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190 已公开单文件显式 entry build/run，但不等于多文件标准库、隐式 main
-或项目构建模型。内部值/系统分配 ABI
+MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/0193 已公开单文件显式 entry
+和零参数 conventional main build/run，但不等于参数化 main、多文件标准库或项目构建模型。
+内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。
