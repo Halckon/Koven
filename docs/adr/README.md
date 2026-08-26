@@ -21,6 +21,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0014](./0014-versioned-machine-diagnostics.md) | accepted | CLI 机器诊断使用显式选择、版本化 JSON Lines，并与 LSP 位置协议和 operational error 分离 |
 | [ADR-0015](./0015-shared-owner-runtime-abi.md) | accepted | Rc 使用 pointer-width 非原子 strong control block、显式 SSA retain 与归零 drop/free |
 | [ADR-0016](./0016-interprocedural-borrow-abi.md) | accepted | Borrow/Inout 调用使用显式 loan-backed internal reference，不把 MoveOnly owner 当 Value 消费 |
+| [ADR-0017](./0017-nullable-handle-ssa-abi.md) | accepted | pointer-like nullable owner 使用独立 SSA identity 与 LLVM null niche，smart cast 产生非 owning view |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份
