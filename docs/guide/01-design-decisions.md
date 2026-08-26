@@ -1861,6 +1861,77 @@ identity 表达这些约束，因此 v0.30 只确认该推荐方向，不发布�
 
 ---
 
+## 31. 一般 UTF-8 `String` owner 与最小运行时表面（v0.31 候选）
+
+> **候选状态，不是现行规范**：本节依据 SPEC-0196 完成后的 roadmap 依赖审计起草。当前
+> 权威版本仍是 v0.30；只有用户明确启用 v0.31 并指定其取代 v0.30 后，本节才获得规范效力，
+> ADR-0018 才可接受，SPEC-0192 才可进入实施。
+
+### 31.1 值、所有权与 UTF-8 不变量
+
+`String` 继续使用 `TypeEnvironment` 显式绑定的 builtin identity，不由源码名称或 LLVM 布局
+识别。它表示一段不可变、长度明确且始终合法的 UTF-8 字节序列；内容允许为空，也允许包含
+U+0000，对外语义不依赖 NUL 终止。
+
+- `String` 始终是 `MoveOnly` 且满足 `Transferable`，不满足 `Copyable`。赋值、返回、Value
+  delivery 与 move closure capture 转移唯一 owner；它们不得隐式复制字节、retain 或建立共享
+  control block。默认 Borrow 参数只在调用期间读取同一值。
+- 普通无 interpolation 的 String literal 是一般 `String` 表达式，不再只对 `println`/`error`
+  生效。实现可以让不可变 literal 引用静态只读字节，也可以在不改变可观察语义时消除临时
+  allocation；SSA 类型、MoveOnly 状态与 drop obligation 仍必须与动态 String 保持同一契约。
+- 动态 String 的 live owner 在既有 ASAP drop point 释放自己拥有的存储。静态 literal 不得被
+  `free`；动态 owner 必须精确释放一次。具体 provenance/layout 由 String runtime ABI ADR
+  决定，frontend 不发布 pointer、capacity 或 allocator 事实。
+- v0.31 不改变 `String?` 的语言类型规则，但 pointer-like SPEC-0196 不适用于 String 的内联
+  runtime value；`String?` native ABI 继续等待独立 inline-nullable 设计。
+
+### 31.2 封闭的最小操作
+
+v0.31 的一般 String runtime 只承接语言已经发布且不需要一般 instance receiver 的操作：
+
+- `left + right` 在左到右各求值一次后，以同步 shared-read 方式读取两个 `String` operand，
+  产生内容为精确字节拼接的新 `String` owner；不消费具名 operand。长度加法、目标布局或
+  allocation size 无法表示时在发布部分结果前 abort。
+- `==` / `!=` 比较 UTF-8 字节长度和全部内容，不执行 Unicode normalization、locale folding
+  或 grapheme 处理。由于所有 String 均满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
+  相等一致。
+- String 可以存入局部变量、作为普通 Value/默认 Borrow 参数、从函数返回、进入 closure
+  capture，以及作为已经支持 drop glue 的 aggregate、enum、`Rc` 和顺序容器元素。现有
+  ownership、loan、单态化和容器 relocation 规则不获得 String 特例。
+- 标准 `println(value: String): Unit` 对任意 String Borrow 写出内容的全部字节，再写一个
+  ASCII LF；内容中的 U+0000 不截断。短写或不可恢复的 stdout 失败沿用现有 abort 边界。
+- 标准 `error(message: String): Nothing` 必须先按普通求值/借用规则形成 message，再进入既有
+  abort effect；v0.31 不新增 stderr 文本格式或保证 message 一定被打印。
+
+本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
+intern、隐式共享或 `toString`/formatting protocol。String interpolation 虽已有 Lexer/Parser/类型
+节点，但 operand 到 String 的转换契约尚未封闭；在后续 guide 定义可打印/转换协议前，native
+lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并假装成完整协议。
+
+### 31.3 运行时和编译阶段边界
+
+- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、
+  Copyable/Transferable 与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
+  不得按源码拼写或把 Rust/C 字符串对象直接塞入 Koven value。
+- runtime 的字节指针、长度、存储 provenance、drop glue、concat、equality 与 stdout adapter
+  必须由 accepted ADR 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
+- 所有创建边界都必须保证合法 UTF-8。plain literal 由 Lexer/decoder 保证，concat 由两个合法
+  operand 闭包保证；未来 argv 入口必须在创建 Koven String 前验证宿主参数，失败作为
+  operational failure，不使用替换字符。
+- runtime 必须使用真实 target `DataLayout` 和集中分配/abort 边界。不得以 host `usize`、
+  `std::string::String` 布局或目标 C `char *` 的偶然表示代替 target-independent SSA 契约。
+
+### 31.4 分阶段交接
+
+1. SPEC-0192 实现 plain literal、传参/返回、`+`、`==`/`!=`、动态 `println`/`error`、drop glue，
+   并验证 String 作为现有 aggregate/顺序容器元素的布局与析构；不接 argv；
+2. SPEC-0194 只在 SPEC-0192 `done` 后构造不含 executable name 的 UTF-8 `Array<String>` argv
+   owner，Borrow 调用参数化 main，返回后逆序析构；
+3. interpolation、String member API、formatting/printable protocol、IO 和 `String?` native ABI
+   分别等待后续 guide/Spec，不得为完成 0192/0194 提前固化。
+
+---
+
 ## 附录：核心结构声明总览（原第二部分）
 
 > 原文档第二部分独立成章，本次拆分中并入设计决策文档作为收尾附录：这段示例把第 1–21

@@ -507,3 +507,17 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 > v0.30 于 2026-08-26 由用户明确启用并取代 v0.29；§30 自此获得现行规范效力。启用解除
 > conventional 零参数 main 的 guide 门禁，并允许共享 owner ABI ADR 与 SPEC-0045 进入正式
 > 流程；参数化 main 仍等待一般 String runtime 与 argv Array ABI，Arena/Arc/Weak 仍未获实现授权。
+
+## v0.31 候选变更记录
+
+> 本候选于 2026-08-26 在 SPEC-0196 完成后依据 roadmap 依赖图起草。当前权威版本仍是
+> v0.30；本记录不构成 v0.31 启用，不解除 ADR-0018 / SPEC-0192 的状态门禁。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | `String` 固定为不可变 UTF-8、MoveOnly 且 Transferable 的一般 owner；赋值/返回/Value delivery 移动，默认 Borrow 不复制字节或 retain | 🔴 候选所有权语义 |
+| 2 | plain literal 成为一般 String 表达式；允许静态只读存储优化，但动态存储与静态 provenance 必须共享同一 SSA identity 并各自正确 drop | 🔴 候选值/runtime 语义 |
+| 3 | 封闭 `String + String` 的非消费字节拼接、`==`/`!=` 的精确字节相等，以及溢出/OOM abort 边界 | 🔴 候选运算语义 |
+| 4 | `println(String)` 接受任意 String Borrow 并写全部字节加 LF；`error(String)` 先求值/借用再 abort，不新增 message 输出保证 | 🔴 候选标准库/runtime 语义 |
+| 5 | interpolation、member API、formatting protocol、IO 与 `String?` native ABI 延后；不得以有限 builtin 转换、NUL 终止 C string 或宿主对象冒充 | 🟡 延后边界 |
+| 6 | SPEC-0192 先完成 String owner/操作/drop 与容器兼容，SPEC-0194 再构造 UTF-8 `Array<String>` argv 并调用参数化 main | 🟡 Phase 交接 |

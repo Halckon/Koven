@@ -438,8 +438,10 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       不满足 Transferable。MoveOnly payload 的通用 Borrow call 已由 SPEC-0195 完成；不引入
       Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
-- [ ] 一般 UTF-8 `String` runtime；当前只有 SPEC-0189 的 literal-only `println` 路径，候选
-      SPEC-0192 等待新 guide 与 String runtime ABI ADR
+- [ ] **SPEC-0192（候选 v0.31）**：实现一般 UTF-8 `String` owner、plain literal、传参/返回、
+      `+`、`==`/`!=`、动态 `println`/`error` 与 drop glue，并验证 aggregate/顺序容器元素；当前
+      只有 SPEC-0189 的 literal-only `println` 路径。§31 已作为非现行候选起草，仍等待用户
+      明确启用 v0.31 与接受 String runtime ABI ADR-0018
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流；除一般 String runtime 外，还等待关联/实例
       member、receiver lowering、具体 API guide 与同步 IO runtime ABI ADR
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
@@ -475,9 +477,10 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [x] **SPEC-0193（已实现；前置：SPEC-0190 `done`；v0.30 已生效）**：允许单文件 build/run 省略
       `--entry` 并选择唯一顶层 `fun main(): Unit`；显式 `--entry` 保持覆盖，missing、invalid
       shape 与 ambiguous operational failure 分离；不接收 argv
-- [ ] **SPEC-0194（前置：SPEC-0193、0192 及 argv Array runtime `done`）**：接入
+- [ ] **SPEC-0194（前置：SPEC-0193、0192 `done`）**：接入
       `fun main(args: Array<String>): Unit`，构造不含 executable name 的 UTF-8 argv owner，
-      Borrow 调用后析构；不得以 literal-only String 或宿主指针提前实现
+      Borrow 调用后逆序析构；现有顺序容器 runtime 由 0192 先验证 String element/drop glue，
+      不得以 literal-only String 或宿主指针提前实现
 - [x] **SPEC-0055（已实现）**：LSP 通过 full-document open/change/close 对打开的单文档运行
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
 - [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，

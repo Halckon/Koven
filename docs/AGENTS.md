@@ -59,6 +59,9 @@ capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例�
 候选隔离契约，v0.29 封闭 nominal/enum case/intrinsic Box constructor 契约，v0.30 封闭
 单文件 conventional main 与显式单线程 Rc 共享所有权契约。
 
+`guide/01-design-decisions.md` §31 的一般 String 内容目前只是 v0.31 候选，不是现行语义；
+只有用户明确启用 v0.31 并指定其取代 v0.30 后，才能据此接受 ABI ADR 或批准实施 Spec。
+
 `guide/01-design-decisions.md` §30 已于 2026-08-26 由用户明确启用并取代 v0.29；零参数 main、
 参数化 main 与 Rc 仍按自身前置关系独立实施和验收。
 
