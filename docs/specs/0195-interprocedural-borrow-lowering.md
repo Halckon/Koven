@@ -25,12 +25,12 @@
 ## 3. 范围与需求
 
 - callable SSA signature 与 DirectCall operand 保留 Value/Borrow delivery identity。
-- Borrow 实参消费 frontend `LoanFact`，按 `RootPlace`/payload place → shared loan → internal
-  reference → DirectCall → BorrowEnd 的顺序 lower；不按 AST marker 重推 mode。
+- Borrow 实参消费 frontend `LoanFact`，按 `RootPlace`/payload place → shared loan → DirectCall →
+  BorrowEnd 的顺序 lower；不按 AST marker 重推 mode。
 - callee entry 可接收并读取 Borrow binding；MoveOnly target 不产生 owned value、Copy 或 retain。
-- operation/type/ownership verifier 拒绝 mode/type/loan kind 不匹配、inactive loan、call 前 move/drop、
-  call 后 reference 逃逸与缺失 BorrowEnd。
-- LLVM 将 internal reference 作为非空 pointer 传递；必要的 value addressization 不复制 owner，
+- operation/type/ownership verifier 拒绝 mode/type/loan kind 不匹配、inactive loan、call 前 move/drop
+  与缺失 BorrowEnd；loan call operand 不是可逃逸的 first-class value。
+- LLVM 将 loan operand 作为非空 pointer 传递；必要的 value addressization 不复制 owner，
   verified-before-LLVM 保持成立。
 - 覆盖普通 class/Box/Rc payload 的 MoveOnly Borrow，确保该能力不是 Rc 名称特例。
 
@@ -42,7 +42,7 @@
 
 ## 5. 验收标准
 
-- [ ] SSA signature、internal reference、DirectCall operand、render 与 model verifier 正反矩阵通过。
+- [ ] SSA signature、loan DirectCall operand、render 与 model verifier 正反矩阵通过。
 - [ ] ownership verifier 证明 Borrow call 不消费 MoveOnly owner，且 loan 精确覆盖同步 call。
 - [ ] frontend→SSA 覆盖 Copyable 与 MoveOnly Borrow；Value 参数仍精确消费。
 - [ ] Rc MoveOnly payload Borrow native build/run 退出 0，call 后 owner 可 share/drop。
@@ -51,13 +51,13 @@
 
 ## 6. 技术方案与边界
 
-严格实施 ADR-0016：caller-local `LoanId` 不跨函数复用，而是形成受 loan 支撑的内部 reference
-operand；callee entry 接收 reference identity并显式取得只读 place。第一提交先封闭 SSA model/
-verifier，第二提交接 frontend/LLVM/native，避免同时改动验证规则与后端行为而无法定位漂移。
+严格实施 ADR-0016：caller-local `LoanId` 仅作为 caller call operand，不跨函数复用；callee entry
+接收函数内独立 loan 参数，并通过 `PlaceAccess::Loan` 访问 target。第一提交先封闭 SSA model/
+verifier 和维持 verified-before-LLVM 所需的 pointer adapter，第二提交接 frontend/native。
 
 ## 7. 实施计划
 
-1. [ ] 扩展 callable signature、internal reference operation 与 DirectCall verifier。
+1. [ ] 扩展 callable signature、loan call operand 与 DirectCall verifier。
 2. [ ] 接入 frontend loan facts、callee Borrow binding 与 ASAP drop/控制转移。
 3. [ ] 接入 LLVM pointer ABI、Rc/class/Box native 正反验收。
 4. [ ] 同步 Architecture、Roadmap、验证记录与 workspace 基线。

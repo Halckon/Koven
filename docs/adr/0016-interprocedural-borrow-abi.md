@@ -17,9 +17,8 @@ frontend 已把无 marker 参数规范化为 Borrow，并发布调用期 loan；
 Copyable 参数暂时掩盖了这一区别，但 `inspect(rc.value)`、借用 class/Box/aggregate 以及未来
 instance receiver 都不能用裸 handle load 或复制冒充 Borrow。
 
-现有 SSA 已有 `RootPlace`、`BorrowBegin`、`BorrowEnd`、`LoanId` 与 `SharedReference<T>`，因此
-需要确定跨 callable 边界怎样保留 loan 证明，同时不把 caller-local `LoanId` 直接泄漏成 callee
-内部实体。
+现有 SSA 已有 `RootPlace`、`BorrowBegin`、`BorrowEnd` 与函数内 `LoanId`，因此需要确定跨
+callable 边界怎样保留 loan 证明，同时不把 caller-local ID 直接泄漏成 callee 内部实体。
 
 ## 决策
 
@@ -27,17 +26,16 @@ instance receiver 都不能用裸 handle load 或复制冒充 Borrow。
 
 - callable 参数签名保留 `Value`、`Borrow`、`Inout` 三种 delivery identity；不得只保存裸
   `SsaTypeId`。返回值仍是 owned Value delivery。
-- caller 对 Borrow/Inout 实参先按 frontend loan fact 建立 `Place` 与 `BorrowBegin`，再形成一个
-  不拥有 target 的内部 reference operand；同步 call 返回后按事实执行 `BorrowEnd`。
-- `DirectCall` 参数改为带 delivery mode 的 operand。Value operand 消费 MoveOnly value；Borrow/
-  Inout operand要求对应 shared/exclusive live loan，不消费 owner，也不能跨越 call 返回继续存在。
-- caller-local `LoanId` 不成为 callee 的 ID。callee entry 接收内部 `SharedReference<T>` 或
-  `ExclusiveReference<T>` value，并通过显式 reference-to-place operation 访问 target；这些内部
-  reference 恒不可从源码构造、返回、存入 owner 或捕获逃逸。
+- caller 对 Borrow/Inout 实参按 frontend loan fact 建立 `Place` 与 `BorrowBegin`，并把有效 loan
+  直接作为带 delivery identity 的 call operand；同步 call 返回后按事实执行 `BorrowEnd`。
+- Value operand 消费 MoveOnly value；Borrow/Inout operand 要求对应 shared/exclusive active loan，
+  不消费 owner。call operand 本身不是可存储、返回或捕获的 first-class value。
+- caller-local `LoanId` 只标识 caller operand，不成为 callee 的 ID。callee entry 创建函数内独立
+  的 shared/exclusive loan 参数，并以既有 `PlaceAccess::Loan` 读取或修改 target。
 
 ### LLVM ABI
 
-- Borrow/Inout reference lower 为指向 target storage 的非空 pointer；Value 参数继续使用既有
+- Borrow/Inout loan operand/parameter lower 为指向 target storage 的非空 pointer；Value 参数继续使用既有
   first-class value/owner ABI。该 pointer 只是内部同步调用 ABI，不承诺 FFI 稳定性。
 - caller 必须为没有稳定地址的 SSA value 建立受 verifier 跟踪的 root storage；LLVM 可以用
   entry-block alloca 或等价地址化实现，但不得因此复制、retain 或提前 drop MoveOnly owner。
@@ -46,7 +44,7 @@ instance receiver 都不能用裸 handle load 或复制冒充 Borrow。
 
 ### 验证与生命周期
 
-- operation verifier 锁定参数 mode、reference target、loan kind 与 callee signature；ownership
+- operation verifier 锁定参数 mode、target、loan kind 与 callee signature；ownership
   verifier 锁定 loan 在 call 前 active、call 后结束、owner 在 loan 期间不可 move/drop。
 - frontend lowering只消费已验证的 parameter binding、argument mapping 与 loan facts，不按源码
   marker 或函数名重新推导 mode。
@@ -85,7 +83,7 @@ MoveOnly value；对 inline aggregate 更无法保持地址与可变性语义。
 
 - callable signature、DirectCall、block entry、render、verifier 与 LLVM adapter 都需要协同修改；
 - value addressization 可能增加未优化 alloca，后续可由 LLVM 优化但不能先牺牲语义；
-- Inout 的完整 source lowering 可分后续 Spec，但内部 reference identity 必须一次设计一致。
+- Inout 的完整 source lowering 可分后续 Spec，但 loan delivery identity 必须一次设计一致。
 
 ## 关联
 
