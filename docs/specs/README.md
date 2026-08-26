@@ -110,7 +110,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 
 审计据解锁价值选择 package/import，并把原先从 SPEC-0025 直接跳向 LSP/项目构建的缺口补成
 名称→类型→所有权，再分叉到 native 与 LSP。v0.32 与 ADR-0020 门禁已经解除，SPEC-0025
-成为当前可直接实施节点；后继分支仍须接受适用的 ADR-0021/0022 并完成前置 Spec。
+成为当前可直接实施节点；后继分支的 ADR-0021/0022 均已接受，仍须完成各自前置 Spec。
 公开 project build 还必须另行启用 v0.33；receiver 主线已物化为 v0.34 候选但同样等待明确
 启用。nullable `when`/`!!`、iteration 与 const/Map 继续保持各自门禁。
 
@@ -311,7 +311,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0200 | 编排 dependency-aware project build | 0053、0054；跨 compilation-unit export/ABI guide 与 ADR |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |
-| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 已启用；ADR-0020 `accepted`、ADR-0021 待接受 |
+| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`draft`） | 0025、0197、0198、0055、0056；v0.32 已启用；ADR-0020/0021 `accepted` |
 | [0057](./0057-conservative-source-formatter.md) | 实现稳定、幂等的格式化器（`done`） | 0014、0006 `done`；[ADR-0013](../adr/0013-conservative-source-formatting.md) `accepted` |
 | [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0059](./0059-tree-sitter-grammar.md) | 提供 Tree-sitter grammar 与 corpus（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |

@@ -8,10 +8,10 @@
 | Goal ID | `KOV-P6-187` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 v0.32 §32 |
-| 批准依据 | 无；等待前置 Spec 与 ADR-0021 |
+| 批准依据 | 无；等待前置 Spec |
 | 前置 Spec | SPEC-0055、0056 `done`；SPEC-0025、0197、0198 待完成 |
-| 前置 ADR | ADR-0020 `accepted`；[ADR-0021](../adr/0021-lsp-explicit-source-set-protocol.md) 待接受 |
-| 阻塞项 | 0025/0197/0198 `done`；ADR-0021 `accepted` |
+| 前置 ADR | ADR-0020、[ADR-0021](../adr/0021-lsp-explicit-source-set-protocol.md) `accepted` |
+| 阻塞项 | SPEC-0025/0197/0198 `done` |
 | 影响范围 | `lang-lsp` workspace/source-set state，frontend API integration，LSP tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -38,7 +38,8 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
   映射不完整时不得发布一个看似完整的部分结果。
 - 初始化成功后等到 `initialized` 再发布 base diagnostics；每次成功 snapshot 重建都按 source key
   重发所有 URI（包括空集合）。open overlay 带版本，base-only/close 后版本为 `None`。
-- unknown/duplicate open、unopened/stale/partial change 与 unknown close 只记录协议日志并保持旧状态；
+- source-set unit mode 的 unknown/duplicate open、unopened/stale/partial change 与 unknown close
+  只记录协议日志并保持旧状态；legacy mode 精确保留 SPEC-0055/0056 的既有生命周期。
   internal analysis/mapping 失败保留 last-good overlays、snapshot 与 definition facts。
 
 ## 4. 非目标
@@ -80,11 +81,12 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 ## 9. 未决问题
 
 - 无；host wire、单 unit、任意合法绝对 URI、固定 membership 与 legacy fallback 由 ADR-0021
-  封闭。状态门禁仍由元数据中的前置 Spec 与 proposed ADR-0021 表达。
+  封闭。状态门禁仍由元数据中的前置 Spec 表达。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 roadmap 审计 | 通过 | 依赖已扩展为完整 name/type/ownership frontend 链 |
-| 2026-08-26 source-set provider 审计 | 通过 | ADR-0021 已物化显式 initialization wire；尚未接受/实施 |
+| 2026-08-26 source-set provider 审计 | 通过 | ADR-0021 已物化显式 initialization wire；该次记录时尚未接受或实施 |
+| 2026-08-26 ADR 接受审计 | 通过 | 统一 SourceUnitId 查询边界，严格事件规则仅作用于 source-set mode；ADR 已接受，Spec 仍保持 draft |

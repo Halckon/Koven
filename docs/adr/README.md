@@ -25,7 +25,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0018](./0018-string-owner-runtime-abi.md) | accepted | 一般 UTF-8 String 使用显式 static/heap provenance 的三字 internal owner ABI |
 | [ADR-0019](./0019-parameterized-process-entry-bridge.md) | accepted | 参数化 main 使用 verified native entry plan，把进程 argv 转为 wrapper-owned Array<String> |
 | [ADR-0020](./0020-multifile-compilation-unit.md) | accepted | 多文件 compilation unit 使用稳定声明身份和首个单 object lowering 边界 |
-| [ADR-0021](./0021-lsp-explicit-source-set-protocol.md) | proposed | LSP 由版本化初始化输入接收固定 base source set，并以 immutable base + overlay 维护 unit snapshot |
+| [ADR-0021](./0021-lsp-explicit-source-set-protocol.md) | accepted | LSP 由版本化初始化输入接收固定 base source set，并以 immutable base + overlay 维护 unit snapshot |
 | [ADR-0022](./0022-minimal-project-manifest-source-discovery.md) | accepted | version 1 project.toml 显式声明本地 roots，并安全产生确定 base source-set snapshot |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为

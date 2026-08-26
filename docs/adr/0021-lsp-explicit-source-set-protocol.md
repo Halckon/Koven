@@ -2,12 +2,14 @@
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。guide v0.32 已启用，但 SPEC-0187 的前置多文件类型/所有权链尚未完成；
-本 ADR 只为该后继 Spec 封闭 host 到 LSP 的 source-set provider，仍须按现行文档治理规则接受。
+2026-08-26 持续 Goal 已授权按 roadmap 与依赖图推进；接受前审计确认本 ADR 只封闭现行
+v0.32 留给 host 的 source-set wire、base/overlay 与 snapshot 生命周期，不改变语言语义、
+frontend compilation-unit 边界或 legacy 单文档行为。SPEC-0025/0197/0198 尚未完成，因此
+本次接受不批准或授权实施 SPEC-0187。
 
 ## 背景
 
@@ -48,15 +50,19 @@ symlink/IO 和文件监听；只在测试中注入私有数据则不能形成可
 - 一个 LSP session 首版最多承载一个 compilation unit。`root` 是 host 提供的非空 opaque UTF-8
   稳定 identity，按 UTF-8 bytes 精确比较；它可以直接承载 ADR-0022 的 manifest-relative root
   identity，但 server 不把它解释为物理目录、数组序号或 package path。
+- `roots` 必须非空且无重复；`sources` 可以为空，未被 source 引用的 root 也合法，从而可表示
+  已知 root 尚无 `.ko` 文件的空 unit。每个 source 的 `root` 必须存在于 `roots`。
 - `logicalPath` 精确遵守 ADR-0005：UTF-8、`/` 分隔、相对、无空段、`.` 或 `..`，并以 `.ko`
   结尾。语义 source key 是结构化 `(root, logicalPath)`；server 校验后按此 key 排序。
 - `uri` 只是 presentation locator，可为任意合法绝对 LSP URI。source key 与 parsed URI 在 unit
   内分别唯一且互为一一映射；server 不由 URI 推导 root、逻辑路径、宿主大小写或 symlink。
 - `text` 是固定 base snapshot 的完整 UTF-8 源码。server 不打开 URI、不 `stat` 路径、不读取
   workspace。roots/sources 数组顺序不影响 unit identity、诊断或 publish 顺序。
-- `sourceSet` 存在时严格校验 schema/version、字段、root 引用、路径、URI 与重复项；结构错误使
-  initialize 返回 `InvalidParams`，不伪造 Koven `Ldddd`。普通源码错误仍是成功 snapshot 中的
-  frontend 诊断。内部 frontend/映射失败返回 `InternalError`。
+- `sourceSet` 存在时严格校验该对象自身的 schema/version、字段、root 引用、路径、URI 与
+  重复项，未知 `sourceSet` 字段也拒绝；结构错误使 initialize 返回 `InvalidParams`，不伪造
+  Koven `Ldddd`。普通源码错误仍是成功 snapshot 中的 frontend 诊断。内部 frontend/映射失败
+  返回 `InternalError`。`initializationOptions` 的其他顶层字段及 `koven` 下除 `sourceSet` 外的
+  sibling 不属于本协议，server 不因本 ADR 拒绝它们。
 - `sourceSet` 缺席时精确保留 SPEC-0055/0056 的 legacy 单文档模式。其他非 Koven
   initialization options 不由 server 拒绝。未来 breaking wire change 使用新的 `version`；不得
   静默改变 version 1 的字段含义。
@@ -65,11 +71,14 @@ symlink/IO 和文件监听；只在测试中注入私有数据则不能形成可
 
 - initialize 成功后持有 immutable base sources；收到标准 `initialized` notification 后，按
   source key 向全部 base URI 发布首批 diagnostics，base 文档的 version 为 `None`。
-- `didOpen` 只接受 base 中已知 URI，建立 `{version, text}` overlay；`didChange` 只接受已打开
-  URI、一个 full-document change 和严格递增 version。未知、重复 open、未打开/stale/partial
-  change 记录协议日志并忽略，不改变 membership 或 snapshot。
-- `didClose` 只删除 overlay，并用 immutable base text 重建 unit；该 source 仍属于 unit，随后
-  发布 base diagnostics 且 version 为 `None`，不能沿用单文档模式的无条件清空。
+- 以下严格事件规则只适用于提供了 `sourceSet` 的 unit mode。`didOpen` 只接受 base 中已知 URI，
+  建立 `{version, text}` overlay；`didChange` 只接受已打开 URI、一个 full-document change 和
+  严格递增 version。未知、重复 open、未打开/stale/partial change 记录协议日志并忽略，不改变
+  membership 或 snapshot。
+- unit mode 的 `didClose` 只删除 overlay，并用 immutable base text 重建 unit；该 source 仍属于
+  unit，随后发布 base diagnostics 且 version 为 `None`，不能沿用单文档模式的无条件清空。
+  未提供 `sourceSet` 时，open/change/close 精确保留 SPEC-0055/0056 已实现的 legacy 行为，包括
+  duplicate open 覆盖、未打开 change 忽略、不强制 version 递增以及 close 发布空 diagnostics。
 - base membership 在 session 内固定。增加/删除 base source、磁盘刷新、watched files、manifest
   discovery 和多个 compilation unit 等待后续协议；首版通过新 session 替换 base。
 - 每次合法事件都从候选 overlay 集合构造一个全新的、共同拥有单一 `SourceMap` 与各 frontend
@@ -81,9 +90,10 @@ symlink/IO 和文件监听；只在测试中注入私有数据则不能形成可
 
 ### definition
 
-- definition query 先由 URI 定位当前 snapshot 的 source，再以 `(SourceId, byte offset)` 查询
-  frontend reference fact；target `DeclarationId` 映射为 target SourceId/Span/URI。目标无需打开，
-  但必须属于 base unit。
+- definition query 先由 URI 定位当前 snapshot 的 `(SourceUnitId, SourceId)`；以稳定的
+  `(SourceUnitId, byte offset)` 查询 frontend reference fact，再用同一 snapshot 的 `SourceId`
+  完成 Span/UTF-16 映射。target `DeclarationId` 映射为 target SourceUnitId/SourceId/Span/URI。
+  目标无需打开，但必须属于 base unit。
 - exact import terminal/alias、限定路径和普通引用可跳转到声明；wildcard 的 `*` 与纯 package
   segment 没有 definition，wildcard 引入名称的实际使用跳转到目标声明。未知 URI 返回 `null`。
 
