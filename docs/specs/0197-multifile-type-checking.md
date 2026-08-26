@@ -92,7 +92,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      查询先读 body 覆盖再回退签名事实，不再丢弃已经规范化的参数、返回、field/supertype 类型。
    - [x] 把 callable/construction 共用的具名/位置实参、参数模式与 arity 映射提取为类型身份泛型化
      的内部纯内核；单文件薄适配保持既有行为，后续 unit body checker 直接复用 `UnitTypeId` 版本。
-4. [ ] 同步 Architecture 并跑 workspace 基线。
+   - [x] 接通 production full driver 与首个顶层 callable body 纵向切片：expression/block-return、
+     标量/非插值 String、参数/顶层名称、非泛型 source direct/overload call，并发布 source-qualified
+     expression/category/call facts；signature error 下继续检查独立 body，完整类型诊断只排序一次。
+   - [ ] 接完 local/control-flow/lambda、generic/external/function-value call、constructor/enum/member、
+     container/nullable 等现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
+     返回 `UnsupportedBody`，不得发布伪完整 validated product。
+4. [x] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
 
@@ -118,10 +124,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_name_resolution --locked --offline` | 通过 | 10 tests；declaration→unit symbol 名称事实与旧多文件名称语义无回归 |
 | `cargo test -p lang-frontend --locked --offline` | 通过 | 新旧 frontend 全量通过，含现有单文件 type/ownership 回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 完整 signature graph API、测试与既有 frontend targets 无 warning |
-| `cargo test --workspace --locked --offline` | 通过 | signature TypeRef facts/body fallback 状态下 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
+| `cargo test --workspace --locked --offline` | 通过 | 首个顶层 callable body/call 纵向切片接通后 workspace 全量通过；1 个既有 sandbox/CI LLDB 权限测试保持 ignored |
 | `cargo test -p lang-frontend type_checking::canonical::tests::local_and_unit_seed_kinds_have_the_same_exact_tail_order --locked --offline -- --exact` | 通过 | 白盒锁定两类表的 Signed/Unsigned/Error 精确尾部顺序与长度 |
 | `cargo test -p lang-frontend --test canonical_type_tables --locked --offline` | 通过 | 公开产物锁定 local/unit builtin identity 与完整初始类型表长度 |
 | `cargo test -p lang-frontend --lib type_checking::compilation_unit::bodies::tests --locked --offline` | 通过 | 5 tests；source-qualified AST identity、防混用 UnitTypeId、signature owner/input/environment 门禁与 validated gate |
 | `cargo test -p lang-frontend --test multifile_type_signatures signature_type_refs_are_published_with_source_qualified_identities --locked --offline -- --exact` | 通过 | 两个 source 中相同 local TypeRefId 保持不同 unit identity，4 个签名 TypeRef facts 完整发布 |
 | `cargo test -p lang-frontend --test type_callable --test type_checking --locked --offline` | 通过 | 63 tests；共享实参映射内核提取后，具名/位置参数、mode、arity、overload 与 construction 行为无回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 共享内核与单文件薄适配无 warning |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 7 tests；跨文件 named call、expression/block-return、source-qualified recovery、signature-error 独立 body、输入置换、未支持节点 fail-loud 与 L0090 |

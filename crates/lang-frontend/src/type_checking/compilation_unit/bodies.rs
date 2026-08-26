@@ -2,9 +2,12 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
+    name_resolution::{
+        DeclarationId, ExternalSymbolId, SourceUnitInput, UnitSymbolId,
+        ValidatedCompilationUnitNames,
+    },
     source::SourceMap,
-    type_checking::TypeEnvironment,
+    type_checking::{ExpressionCategory, ParameterMode, TypeEnvironment},
 };
 
 use super::{
@@ -12,18 +15,162 @@ use super::{
     UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
 };
 
+mod checker;
+
+pub use checker::check_compilation_unit_types;
+
+/// 一个 unit body 中成功选择的静态 call target。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnitCallTarget {
+    /// compilation unit 顶层源码函数。
+    Declaration(DeclarationId),
+    /// source-local callable。
+    Symbol(UnitSymbolId),
+    /// 编译器绑定的外部函数。
+    External(ExternalSymbolId),
+    /// 由函数类型值提供的调用目标。
+    FunctionValue,
+    /// `value class` 自动结构分量。
+    StructuralComponent(UnitSymbolId),
+}
+
+/// unit call 的静态 target 与完整类型实参 identity。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitCallableInstanceKey {
+    target: UnitCallTarget,
+    type_arguments: Vec<UnitTypeId>,
+}
+
+impl UnitCallableInstanceKey {
+    /// 返回唯一静态 call target。
+    #[must_use]
+    pub const fn target(&self) -> UnitCallTarget {
+        self.target
+    }
+
+    /// 返回 target 实例化后的完整类型实参。
+    #[must_use]
+    pub fn type_arguments(&self) -> &[UnitTypeId] {
+        &self.type_arguments
+    }
+}
+
+/// unit call 中一个源码实参到声明参数的映射。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitCallArgumentDescriptor {
+    argument_index: usize,
+    parameter_index: usize,
+    category: ExpressionCategory,
+    mode: ParameterMode,
+    parameter_type: UnitTypeId,
+    cross_thread: bool,
+}
+
+impl UnitCallArgumentDescriptor {
+    /// 返回实参在源码顺序中的下标。
+    #[must_use]
+    pub const fn argument_index(self) -> usize {
+        self.argument_index
+    }
+
+    /// 返回实参映射到的声明参数下标。
+    #[must_use]
+    pub const fn parameter_index(self) -> usize {
+        self.parameter_index
+    }
+
+    /// 返回实参的类型层面 place/temporary 类别。
+    #[must_use]
+    pub const fn category(self) -> ExpressionCategory {
+        self.category
+    }
+
+    /// 返回声明参数的规范化交付模式。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
+    }
+
+    /// 返回实例化后的声明参数类型。
+    #[must_use]
+    pub const fn parameter_type(self) -> UnitTypeId {
+        self.parameter_type
+    }
+
+    /// 返回参数是否由 compiler-bound effect 跨线程交付。
+    #[must_use]
+    pub const fn crosses_thread(self) -> bool {
+        self.cross_thread
+    }
+}
+
+/// 一个已唯一选择并完成首批 unit body 契约检查的 call。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitCallDescriptor {
+    expression: UnitExpressionId,
+    instance: UnitCallableInstanceKey,
+    return_type: UnitTypeId,
+    arguments: Vec<UnitCallArgumentDescriptor>,
+    aborts: bool,
+    prints_line: bool,
+}
+
+impl UnitCallDescriptor {
+    /// 返回带 source-unit 限定的 call expression identity。
+    #[must_use]
+    pub const fn expression(&self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回唯一静态 call target。
+    #[must_use]
+    pub const fn target(&self) -> UnitCallTarget {
+        self.instance.target()
+    }
+
+    /// 返回 target 与完整类型实参组成的实例 identity。
+    #[must_use]
+    pub const fn instance(&self) -> &UnitCallableInstanceKey {
+        &self.instance
+    }
+
+    /// 返回 call 的结果类型。
+    #[must_use]
+    pub const fn return_type(&self) -> UnitTypeId {
+        self.return_type
+    }
+
+    /// 返回源码实参顺序的参数映射。
+    #[must_use]
+    pub fn arguments(&self) -> &[UnitCallArgumentDescriptor] {
+        &self.arguments
+    }
+
+    /// 返回 call target 是否具有编译器绑定的 abort effect。
+    #[must_use]
+    pub const fn aborts(&self) -> bool {
+        self.aborts
+    }
+
+    /// 返回 call target 是否具有编译器绑定的 stdout 行输出 effect。
+    #[must_use]
+    pub const fn prints_line(&self) -> bool {
+        self.prints_line
+    }
+}
+
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Default)]
-#[cfg(test)]
 pub(crate) struct CompilationUnitTypeParts {
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
+    pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pub(crate) calls: Vec<UnitCallDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BodyTypeProvenance {
-    signature_analysis_owner: Arc<()>,
     analysis_owner: Arc<()>,
 }
 
@@ -36,33 +183,38 @@ pub struct CompilationUnitTypes {
     provenance: BodyTypeProvenance,
     signatures: CompilationUnitSignatures,
     expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
+    expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    calls: Vec<UnitCallDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl CompilationUnitTypes {
-    #[cfg(test)]
     pub(crate) fn new(
         signatures: CompilationUnitSignatures,
         parts: CompilationUnitTypeParts,
         body_diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<Diagnostic>,
     ) -> Self {
         let provenance = BodyTypeProvenance {
-            signature_analysis_owner: signatures.analysis_owner().clone(),
             analysis_owner: Arc::new(()),
         };
         Self {
             provenance,
             signatures,
             expression_types: parts.expression_types,
+            expression_categories: parts.expression_categories,
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
+            calls: parts.calls,
             body_diagnostics,
+            diagnostics,
         }
     }
 
-    /// 检查该产物是否来自给定 inputs、names、environment 与 signature 分析链。
+    /// 检查该产物是否来自给定 inputs、names 与 type environment 身份链。
     #[must_use]
     pub fn is_compatible_with(
         &self,
@@ -70,14 +222,9 @@ impl CompilationUnitTypes {
         inputs: &[SourceUnitInput<'_>],
         names: &ValidatedCompilationUnitNames,
         environment: &TypeEnvironment,
-        signatures: &ValidatedCompilationUnitSignatures,
     ) -> bool {
-        validate_compilation_unit_body_inputs(sources, inputs, names, environment, signatures)
-            .is_ok()
-            && Arc::ptr_eq(
-                &self.provenance.signature_analysis_owner,
-                signatures.signatures().analysis_owner(),
-            )
+        self.signatures
+            .is_compatible_with(sources, inputs, names, environment)
     }
 
     /// 判断两个 body typed product 是否来自同一次分析；克隆保留身份。
@@ -111,6 +258,26 @@ impl CompilationUnitTypes {
     #[must_use]
     pub const fn expression_types(&self) -> &BTreeMap<UnitExpressionId, UnitTypeId> {
         &self.expression_types
+    }
+
+    /// 查询 source-qualified expression 的类型层面类别。
+    #[must_use]
+    pub fn expression_category(&self, expression: UnitExpressionId) -> Option<ExpressionCategory> {
+        self.expression_categories.get(&expression).copied()
+    }
+
+    /// 返回源码稳定顺序的成功 call facts。
+    #[must_use]
+    pub fn calls(&self) -> &[UnitCallDescriptor] {
+        &self.calls
+    }
+
+    /// 查询一个成功 call expression 的 descriptor。
+    #[must_use]
+    pub fn call(&self, expression: UnitExpressionId) -> Option<&UnitCallDescriptor> {
+        self.calls
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
     }
 
     /// 查询 source-qualified type reference 的规范类型。
@@ -151,18 +318,19 @@ impl CompilationUnitTypes {
         &self.body_diagnostics
     }
 
+    /// 返回 signature 与 body 类型阶段统一排序后的诊断。
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
     /// 只有 signature 与 body 诊断都无 error 时才发布 ownership 可消费的 view。
     pub fn validate(self) -> Result<ValidatedCompilationUnitTypes, Box<Self>> {
-        let has_signature_error = self
-            .signatures
-            .diagnostics()
+        let has_error = self
+            .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        let has_body_error = self
-            .body_diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_signature_error || has_body_error {
+        if has_error {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitTypes(self))
@@ -329,7 +497,6 @@ mod tests {
         let signatures =
             collect_compilation_unit_signatures(&sources, &inputs, &names, &type_environment)
                 .expect("signature collection succeeds");
-        let validated_signatures = signatures.clone().validate().expect("valid signatures");
         let source_unit = names.names().index().source_units()[0].id();
         let expression = file.ast().expressions().iter().next().expect("literal").0;
         let type_ref = file.ast().type_refs().iter().next().expect("return type").0;
@@ -341,7 +508,7 @@ mod tests {
         parts
             .expression_types
             .insert(UnitExpressionId::new(source_unit, expression), int);
-        let product = CompilationUnitTypes::new(signatures, parts, Vec::new());
+        let product = CompilationUnitTypes::new(signatures, parts, Vec::new(), Vec::new());
 
         assert_eq!(
             product.expression_type(UnitExpressionId::new(source_unit, expression)),
@@ -356,28 +523,9 @@ mod tests {
             product.types().get(int),
             Some(&super::super::UnitTypeKind::Builtin(BuiltinType::Int))
         );
-        assert!(product.is_compatible_with(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &validated_signatures,
-        ));
+        assert!(product.is_compatible_with(&sources, &inputs, &names, &type_environment));
         assert!(product.is_same_analysis(&product.clone()));
         assert!(product.clone().validate().is_ok());
-
-        let independently_collected =
-            collect_compilation_unit_signatures(&sources, &inputs, &names, &type_environment)
-                .expect("independent signature collection succeeds")
-                .validate()
-                .expect("independent signatures are valid");
-        assert!(!product.is_compatible_with(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &independently_collected,
-        ));
     }
 
     #[test]
@@ -481,6 +629,7 @@ mod tests {
         let product = CompilationUnitTypes::new(
             signatures,
             CompilationUnitTypeParts::default(),
+            vec![diagnostic.clone()],
             vec![diagnostic],
         );
 
@@ -507,11 +656,13 @@ mod tests {
         )
         .expect("signature errors remain a recovery product");
         assert!(invalid_signatures.clone().validate().is_err());
+        let diagnostics = invalid_signatures.diagnostics().to_vec();
         assert!(
             CompilationUnitTypes::new(
                 invalid_signatures,
                 CompilationUnitTypeParts::default(),
                 Vec::new(),
+                diagnostics,
             )
             .validate()
             .is_err()

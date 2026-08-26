@@ -3,6 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     diagnostic::{DiagnosticCodeError, DiagnosticError},
     name_resolution::UnitDiagnosticOrderError,
+    source::Span,
     type_checking::TypeCheckingError,
 };
 
@@ -17,6 +18,8 @@ pub enum CompilationUnitTypeError {
     MissingDeclarationSymbol,
     /// body 阶段收到了另一次 signature 分析或名称分析的产物。
     MismatchedSignatures,
+    /// 当前增量 body checker 尚未覆盖一个合法语法节点。
+    UnsupportedBody(Span),
     /// 单文件类型基础设施返回内部错误。
     Type(TypeCheckingError),
     /// unit 诊断无法建立稳定全序。
@@ -39,6 +42,10 @@ impl fmt::Display for CompilationUnitTypeError {
             }
             Self::MismatchedSignatures => formatter.write_str(
                 "compilation-unit body inputs do not belong to the validated signature analysis",
+            ),
+            Self::UnsupportedBody(span) => write!(
+                formatter,
+                "compilation-unit body checker does not yet support node at {span:?}"
             ),
             Self::Type(error) => write!(formatter, "unit type collection failed: {error}"),
             Self::DiagnosticOrder(error) => {

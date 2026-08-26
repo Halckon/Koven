@@ -695,11 +695,18 @@ SPEC-0197 第一阶段新增纯内存的
 - recovery `CompilationUnitSignatures` 可带签名诊断，只有无 error 时才能取得
   `ValidatedCompilationUnitSignatures`。该 marker 仍不是完整 typed unit：函数体、调用选择、
   flow facts 与 ownership 交接属于 SPEC-0197 第二阶段。
-- body 阶段的模型边界已预声明 `UnitExpressionId`、`UnitStatementId`、`UnitTypeRefId`，把文件局部
-  AST identity 与 canonical `SourceUnitId` 组成不可碰撞身份；最小 `CompilationUnitTypes` 同时绑定
-  signature analysis owner，并以独立 recovery/validated gate 阻止 signature 或 body error 进入
-  ownership。生产 body checker、完整诊断聚合与 call/construction/flow facts 尚未接线，因此当前
-  不存在把空 body 伪装成完整 typed unit 的公开构造入口。
+- production `check_compilation_unit_types` 内部收集 recovery signatures，并在其拥有的同一
+  `UnitTypeTable` 中按 canonical `DeclarationId` 顺序检查 body；signature error 不会全局短路，仍会
+  检查可独立判定的函数体。产物以 `UnitExpressionId` / `UnitTypeRefId` / `UnitSymbolId` 发布
+  source-qualified facts，并把 signature/body diagnostics 合并后只做一次 unit 稳定排序；
+- 首个 body 纵向切片已支持顶层函数 absent、expression body、block expression/`return`、标量与
+  非插值 String literal、参数/顶层名称，以及非泛型顶层 source direct/overload call；成功调用发布
+  `UnitCallTarget::Declaration`、源码实参到参数的映射、mode、place/temporary category 与统一
+  `UnitTypeId`。错误 body 不阻止其他 source facts，signature/body 任一 error 都阻止 validated view；
+- top-level variable/const initializer、member body、generic/external/function-value call、local、控制流、
+  lambda、constructor/container/nullable 等尚未接入本 unit checker。production driver 对这些合法但
+  未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
+  后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。
 
 ## 结构化诊断与 renderer
 
