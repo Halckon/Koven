@@ -81,7 +81,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已完成 | SPEC-0193 零参数 conventional main | v0.30 首个实施节点已完成，成为后续 SPEC-0194 前置 |
 | 已完成 | SPEC-0045 Rc shared owner core | 非 nullable construction/share/Copyable read、retain/release 与 native 主线完成；跨切面能力已迁移到后继 Spec |
 | 已完成 | SPEC-0195 跨 callable Borrow lowering | DirectCall/CallableInvoke、frontend LoanFact、LLVM pointer ABI 与 Rc/class/Box native 验收完成 |
-| 已批准/下一前沿 | SPEC-0196 nullable handle lowering | ADR-0017 已接受；SPEC-0195 前置已完成 |
+| 实施中/当前前沿 | SPEC-0196 nullable handle lowering | ADR-0017 已接受；SPEC-0195 前置已完成；先发布 typed non-null flow use descriptor |
 | 仍有 runtime/guide 门禁 | SPEC-0192、0194 | 一般 String 最小 API/ABI 尚未封闭；0194 还要求 argv Array owner，不得越过 0192 |
 | 仍有 receiver/iteration 门禁 | SPEC-0179–0182、0191、0046 | 必须先封闭一般 instance receiver 或 iterator/provider 契约；Rc intrinsic 不代表这些门禁解除 |
 | 仍有多文件/const/Map 门禁 | SPEC-0024–0026、0031、0037、0052–0054、0187 | 保持候选，不能因 Phase 6 已有单文件工具而推断 package/const/Map 语义 |
@@ -275,7 +275,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0193](./0193-conventional-zero-argument-main.md) | 省略 `--entry` 时选择唯一顶层 `fun main(): Unit`（`done`） | 0190 `done`；v0.30 已生效；不接入 argv；当前持续 Goal 的站立授权 |
 | 0194 | 接入 `fun main(args: Array<String>): Unit` 与 argv owner | 0193、0192 `done`；argv Array runtime 已完成；v0.30 已生效 |
 | [0195](./0195-interprocedural-borrow-lowering.md) | 把 Borrow 参数与调用期 loan lower 到 typed SSA/LLVM（`done`） | 0029、0034、0035、0045 `done`；[ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`approved`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
+| [0196](./0196-nullable-handle-lowering.md) | 把 pointer-like nullable owner lower 到独立 SSA/null-niche LLVM（`in-progress`） | 0045、0195 `done`；[ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted`；当前持续 Goal 的站立授权 |
 | 0052 | 定义并解析最小 `project.toml` | 0025；接受 package schema ADR |
 | 0053 | 实现依赖解析与确定性 `project.lock` 核心 | 0052；接受解析 / 锁定策略 ADR |
 | 0054 | 由 package CLI 编排 manifest、解析与锁定 | 0053 |

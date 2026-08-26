@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-196` |
 | 所属 Phase | Phase 2/3/4 纵向切片 |
 | 语言规范 | 现行 [`guide/01-design-decisions.md` nullable、smart cast 与 §30.2](../guide/01-design-decisions.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0045、0195 `done` |
 | 前置 ADR | [ADR-0017](../adr/0017-nullable-handle-ssa-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0015、0016 |
-| 阻塞项 | SPEC-0195 尚在实施 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-codegen` nullable SSA/verifier/LLVM、frontend flow lowering、native tests、Architecture/Roadmap |
 | 语言语义变更 | 否；实施既有 nullable/smart-cast 与 Rc null-niche 语义 |
 
@@ -74,4 +74,5 @@ null 比较/smart cast、conditional drop 与 Rc 非空分支 `.share()` 可走�
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 前置审计 | 等待 | ADR-0017 已 accepted；等待 SPEC-0195 完成 internal reference/non-null view 基础 |
+| 2026-08-26 前置审计 | 通过 | SPEC-0045/0195 `done`；ADR-0017 `accepted`；nullable TypeId、null comparison 与 smart cast 已实现 |
+| frontend lowering 事实审计 | 待实施 | null smart-cast 当前仅保存在 checker 内部 `flow_facts`；TypedFile 尚未发布稳定 non-null use descriptor，不能由 lowering 重解 AST 替代 |
