@@ -174,7 +174,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `Array` / `List` 的 runtime-length 构造器两个参数均为 `Borrow`；预声明 callable 可由
   `EnvironmentFunctionEffect` 为精确参数绑定跨线程交付 effect，成功 call 通过 argument
   descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定 `Rc<T>` 只建立
-  compiler intrinsic 类型身份，runtime API 仍属 Phase 5；
+  compiler intrinsic 类型身份，runtime API 仍属 Phase 5；现有 SSA/LLVM heap owner 只覆盖
+  无 header 的独占 class/Box，`Rc` 的共享 owner header、retain/release 与 payload 访问 ABI
+  尚未定义；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自

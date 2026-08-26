@@ -424,7 +424,8 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [ ] `Rc<T>`/`Box<T>`（`Box<T>` 只接受 value class；其 intrinsic 构造参数是 Value 契约并取得
       传入值所有权，调用点无 marker；`Rc<T>` 需要
       retain，因此本身不满足 `Copyable`）；SPEC-0184 aggregate/heap-owner lowering 前置已完成，
-      候选 SPEC-0045 可物化
+      但现行 guide 尚未封闭 `Rc` 的构造、显式共享、payload 访问与释放契约，ADR-0008 也明确
+      未定义共享 owner header；候选 SPEC-0045 等待新 guide 与共享所有权 runtime ABI ADR
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
