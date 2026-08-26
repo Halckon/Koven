@@ -18,6 +18,9 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
 - **v0.31 已明确启用**：[`01-design-decisions.md`](./01-design-decisions.md) §31 的一般 UTF-8
   `String` owner、最小操作与分阶段边界已成为现行语义；ADR-0018/0019 已接受，SPEC-0192
   已完成实施。
+- **v0.32 目前只是候选，未启用**：§32 已起草 package/import 绑定、跨文件可见性与
+  compilation-unit Phase 边界；ADR-0020 和 SPEC-0025/0197/0198/0199/0187 均保持
+  `proposed`/`draft`，不得据此改变 v0.31 实现。
 - **当前文档集版本是 v0.31**：v0.10 引入统一的 callable 参数契约，v0.11 补齐
   整数溢出/`Transferable`/Map 候选设计/`?` 候选设计，v0.12 取消了独立的 `Own` 契约、
   把 `Borrow` 的调用点标注改为可选，v0.13 是纯结构拆分（不涉及语义），v0.14 把
@@ -102,7 +105,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | 文件 | 内容 | 约行数 | 预期变化频率 |
 |---|---|---|---|
 | `00-index.md`（本文档） | 版本治理、文档地图、精简历史、SPEC/错误码索引 | ~160 | 每次任何文档变化都要碰一下 |
-| [`01-design-decisions.md`](./01-design-decisions.md) | 31 节现行设计 + Map 候选 §18 + 原第二部分（现为附录） | ~1900 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
+| [`01-design-decisions.md`](./01-design-decisions.md) | 31 节现行设计 + Map 候选 §18 + v0.32 候选 §32 + 原第二部分（现为附录） | ~2000 | 中——设计级变更会碰它，如名称、作用域与类型契约 |
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~850 | 中——v0.20 新增 class-family 契约 |
@@ -150,6 +153,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.29 | nominal/enum case/intrinsic Box constructor target、仅使用独立完整上下文的受控 expected-result 推导，以及分阶段 typed/ownership/lowering 交接；已明确启用 |
 | v0.30 | 单文件 conventional `main`、显式单线程 `Rc<T>.share()`、Borrow-only payload 与 Arena/handle 延后边界；已明确启用 |
 | v0.31 | 一般 UTF-8 `String` owner、最小连接/相等/动态输出与参数化 main 前置边界；已明确启用 |
+| v0.32 候选 | package/import 绑定、跨文件可见性、稳定 compilation-unit 身份与分阶段交接；未启用 |
 
 ## 5. SPEC 编号索引
 
@@ -176,6 +180,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0021 | `when` 穷尽性与 smart cast | `01-design-decisions.md` §24 | ✅ 已完成 |
 | SPEC-0022 | 条件 `Copyable`、有限内联布局与结构化解构类型检查 | `01-design-decisions.md` §25 | ✅ 已实现 |
 | SPEC-0023 | 顺序容器名义类型、核心构造与索引 place 类型检查 | `01-design-decisions.md` §8 | ✅ 已实现 |
+| SPEC-0025 | 多文件 package/import 名称解析 | `01-design-decisions.md` §32、`../specs/0025-multifile-package-import-name-resolution.md` | ⏸ draft；等待 v0.32/ADR-0020 |
 | SPEC-0027 | 变量 ownership state 与 use-after-move | `../specs/0027-variable-ownership-use-after-move.md` | ✅ 已实现 |
 | SPEC-0028 | 条件复制、结构化移动与禁止部分移动 | `../specs/0028-conditional-copy-structural-move.md` | ✅ 已实现 |
 | SPEC-0029 | 调用期 loan 与 ASAP drop-point | `01-design-decisions.md` §26、`../specs/0029-call-loans-drop-points.md` | ✅ 已实现 |
@@ -190,6 +195,10 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | ✅ 已实现 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
+| SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ⏸ draft |
+| SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ⏸ draft |
+| SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
+| SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | ⏸ draft |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0183 | nominal/enum/Box constructor typed facts | `01-design-decisions.md` §29、`../specs/0183-constructor-typed-facts.md` | ✅ 已实现 |
@@ -240,7 +249,8 @@ L0140–L0141 已由 v0.29 沿用的 §28 分配，分别交给 SPEC-0177 的泛
 bound 检查，并已由 SPEC-0177 登记为生产诊断。
 
 L0142 已由 SPEC-0178 分配给非法 `break` / `continue` target。L0143–L0145 已由现行 v0.29
-§29 分配；在 SPEC-0183 / 0184 完成前仍未登记为生产诊断，现有 frontend/codegen 不得提前发出。
+§29 分配并已实现。L0146–L0151 仅由未启用的 v0.32 §32 候选预留给跨文件 package/import；
+SPEC-0025 获准实施前，现有 frontend 不得提前发出这些编号。
 
 `&` 符号本身没有分配新的错误码——调用点继续使用 L0033–L0038 既有类别，只把其中
 “调用模式 token”的字母表从 `borrow`/`inout` 两个关键字改成 `borrow` 关键字 + `&` 符号；

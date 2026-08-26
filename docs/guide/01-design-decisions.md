@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30、31 节分别是 v0.30、v0.31 已启用的现行规则；
-> 附录收录原第二部分的核心结构声明总览。
+> 第 32 节是尚未启用的 v0.32 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -1928,6 +1928,82 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
    owner，Borrow 调用参数化 main，返回后逆序析构；
 3. interpolation、String member API、formatting/printable protocol、IO 和 `String?` native ABI
    分别等待后续 guide/Spec，不得为完成 0192/0194 提前固化。
+
+---
+
+## 32. package/import 绑定、跨文件可见性与 compilation unit（v0.32 候选，未启用）
+
+> **候选状态**：本节只记录 roadmap 审计后的推荐契约。当前唯一权威版本仍是 v0.31；只有
+> 用户明确启用 v0.32 并指定其取代 v0.31 后，本节及预留诊断才能成为现行语义。候选 Spec
+> 可以据此起草，但不得进入 `approved` / `in-progress` 或反向改变现有单文件行为。
+
+### 32.1 compilation unit、package 与声明身份
+
+- 编译 driver 向 frontend 显式交付一个 compilation unit：有序 source root 集合，以及每个
+  source unit 的稳定 root identity、root 内逻辑路径和源码。frontend 不读取文件系统，也不从
+  进程当前目录、绝对路径或输入枚举顺序猜测 package；路径映射继续遵守 ADR-0005。
+- 有 `package a.b` 的文件，其 package 必须精确等于逻辑父目录 `a/b`；省略 package 只允许
+  位于 source root 根目录。多个 source root 可以向同一 package 贡献文件，输入顺序不改变
+  package 内容、声明身份或诊断顺序。
+- frontend 为 package、source unit 和顶层声明发布稳定的 `PackageId`、`SourceUnitId` 与
+  `DeclarationId` 概念身份。它们由规范化 compilation-unit 输入确定，不是 LLVM symbol、
+  公共 ABI 或持久化缓存格式；跨文件引用不得伪装成单文件 `SymbolId` 或外部未知 symbol。
+- compilation unit 先收集全部文件的顶层声明，再解析任一声明体。同一 package 沿用 §21 的
+  类型/值双命名空间；函数只在同一 package、同一值绑定内形成有序 overload set。非函数
+  重名、函数与非函数重名或不可合并的类型重名是跨文件声明冲突，不依赖文件装载顺序。
+
+### 32.2 跨文件可见性
+
+- 顶层 `public` 声明可被同一 compilation unit 的其他 package 通过 exact/wildcard import 或
+  绝对限定名引用，并作为未来依赖项目的可导出表面。
+- 顶层 `internal` 声明对同一 compilation unit 内所有 package 可见；跨 package 使用时仍须
+  显式 import 或限定。它不向未来的依赖 compilation unit 导出。source set/依赖图尚未发布
+  时，`internal` 的边界就是 driver 本次显式交付的 compilation unit。
+- 顶层 `private` 声明只在其 source unit 内可见，不能由同 package 的其他文件导入或限定。
+  member `private` 继续是 declaring classifier 内可见，不因多文件而扩大。
+- 默认可见性继续遵守既有声明规则；本候选不新增 package-private 修饰符，也不让 import
+  绕过可见性检查。
+
+### 32.3 exact、alias 与 wildcard import
+
+- exact import 绑定一个可见的顶层类型声明、顶层值声明，或同一 package 中同名顶层函数
+  构成的完整 overload set。`as Alias` 只改变当前 source unit 的本地绑定名，不改变目标
+  identity、声明名或导出表面。
+- wildcard import 的目标必须是一个 package；它只按需暴露该 package 的可见顶层声明，
+  不递归子 package，不导入类型 member，不形成 re-export，也不在文件头阶段物化无限绑定。
+- 类型和值命名空间分别处理冲突。同一个 exact target 以同一个本地名重复导入是幂等的；
+  不同 exact target 绑定到同一命名空间/本地名是错误。跨 package 的同名函数不会因两个
+  exact import 自动合并为 overload set。
+- 当前文件或同 package 自动可见声明若与 exact import 的本地绑定同名，是明确冲突而不是
+  静默遮蔽；词法 local 仍按 §21 的正常规则遮蔽文件级绑定。
+- exact import 比 wildcard 候选优先。多个 wildcard 只有在某个名称被实际查询且仍指向多个
+  可见 target 时才产生歧义；未使用的潜在冲突不报错。没有隐式 prelude wildcard import。
+
+### 32.4 限定名称解析
+
+- import target 和静态限定名称先按最长 package 前缀解析，再在余下路径中选择一个顶层声明
+  及现行允许的静态成员/case；路径必须整体成功，不得把“已解析前缀 + deferred 尾部”伪装
+  为成功。import 始终是绝对 package 路径。
+- 普通表达式中的裸名称先执行 §21 的词法/文件查询。package 只存在于静态名称路径，不是
+  runtime value，不能赋值、传参、捕获或作为 member receiver；本候选不引入 Kotlin/Rust
+  风格的相对 package 别名、`self` / `super` / `crate` 路径。
+
+### 32.5 诊断与分阶段交接
+
+候选预留 L0146–L0151：package 与逻辑路径不匹配、同 package 跨文件声明冲突、import target
+未解析、目标不可见、exact import 绑定冲突、wildcard 实际使用歧义。诊断必须包含发生使用或
+声明冲突的主 `Span`，并在可用时附带目标/冲突声明位置；排序由稳定 source-unit key、字节
+位置和错误码决定。
+
+1. SPEC-0025 只建立 compilation-unit package index、跨文件声明身份、import/可见性名称绑定
+   与上述诊断，不做跨文件 body 类型检查；
+2. SPEC-0197 在 0025 之后完成跨文件签名与 body 类型检查，发布 compilation-unit typed facts；
+3. SPEC-0198 在 0197 之后检查跨文件调用/构造的所有权效果和 drop facts；
+4. SPEC-0199 在 0198 之后完成 compilation-unit reachability、单态化、SSA/LLVM 与 native link；
+5. SPEC-0187 最后复用同一 package/typed/ownership 产物扩展 LSP，不能维护第二套 resolver。
+
+本候选不定义 manifest、依赖解析、package re-export、模块初始化、增量缓存、跨 compilation-unit
+ABI 或多 object 链接策略；也不把 SPEC-0025 扩张为项目构建、类型、所有权或 codegen Spec。
 
 ---
 

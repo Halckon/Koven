@@ -24,6 +24,7 @@ ADR 只记录现行 guide 留白处、会长期影响多个 Spec 的架构选择
 | [ADR-0017](./0017-nullable-handle-ssa-abi.md) | accepted | pointer-like nullable owner 使用独立 SSA identity 与 LLVM null niche，smart cast 产生非 owning view |
 | [ADR-0018](./0018-string-owner-runtime-abi.md) | accepted | 一般 UTF-8 String 使用显式 static/heap provenance 的三字 internal owner ABI |
 | [ADR-0019](./0019-parameterized-process-entry-bridge.md) | accepted | 参数化 main 使用 verified native entry plan，把进程 argv 转为 wrapper-owned Array<String> |
+| [ADR-0020](./0020-multifile-compilation-unit.md) | proposed | 多文件 compilation unit 使用稳定声明身份和首个单 object lowering 边界 |
 
 `proposed` 只表示已有推荐方案，不授权实现。关联 Spec 进入 `in-progress` 前，ADR 必须为
 `accepted`；本规则生效后接受的 ADR 还须记录接受依据。存在有效用户站立授权时无需逐份

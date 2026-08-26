@@ -521,3 +521,18 @@ v0.13 仍只是纯结构拆分，没有独立快照。
 | 4 | `println(String)` 接受任意 String Borrow 并写全部字节加 LF；`error(String)` 先求值/借用再 abort，不新增 message 输出保证 | 🔴 候选标准库/runtime 语义 |
 | 5 | interpolation、member API、formatting protocol、IO 与 `String?` native ABI 延后；不得以有限 builtin 转换、NUL 终止 C string 或宿主对象冒充 | 🟡 延后边界 |
 | 6 | SPEC-0192 先完成 String owner/操作/drop 与容器兼容，SPEC-0194 再构造 UTF-8 `Array<String>` argv 并调用参数化 main | 🟡 Phase 交接 |
+
+## v0.32 候选变更记录（未启用）
+
+> 本候选于 2026-08-26 在 v0.31/SPEC-0194 完成后的 roadmap 依赖审计中起草。当前唯一权威
+> 版本仍是 v0.31；只有用户明确启用 v0.32 并指定其取代 v0.31 后，§32、L0146–L0151 与
+> SPEC-0025/0197/0198/0199/0187 的语言门禁才可能解除。ADR-0020 仍为 `proposed`。
+
+| # | 候选变更 | 类型 |
+|---|---|---|
+| 1 | compilation unit 由显式 source roots、稳定逻辑路径和源码组成；package/source/declaration identity 不依赖文件枚举顺序，frontend 不读取文件系统 | 🔴 候选名称/架构边界 |
+| 2 | public 跨 package 可见，internal 限同一 compilation unit，顶层 private 限当前文件；import 不绕过可见性 | 🔴 候选可见性语义 |
+| 3 | exact 可绑定顶层声明或同 package overload set，alias 仅限当前文件；wildcard 仅按需暴露 package 顶层，不递归、不导入 member、不 re-export | 🔴 候选 import 语义 |
+| 4 | exact 冲突立即报告且优先于 wildcard；wildcard 歧义延迟到实际使用；类型/值命名空间分别判定，跨 package 函数不自动合并 overload | 🔴 候选名称解析语义 |
+| 5 | 绝对限定名采用最长 package 前缀，package 不是 runtime value；没有隐式 prelude import | 🔴 候选限定路径语义 |
+| 6 | 预留 L0146–L0151，并把多文件实施拆为 0025 名称、0197 类型、0198 所有权、0199 native、0187 LSP；项目 build 的 native 路径等待 0199 | 🟡 候选诊断/Phase 交接 |

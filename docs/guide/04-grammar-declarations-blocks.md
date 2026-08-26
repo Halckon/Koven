@@ -1,7 +1,8 @@
 # Koven 语言设计规范 · 语法规范（二）：声明与 Block
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.27。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
+> §11.1 含未启用的 v0.32 名称绑定候选解释，不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
 
@@ -526,6 +527,22 @@ SPEC-0015 只交付 Phase 1 Lexer / Parser / AST / 诊断与恢复。package 到
 映射、多文件名称解析、exact / wildcard import 的绑定与冲突规则属于 SPEC-0025；相关长期
 映射必须先由 package ADR 决定，不能从当前文件名或相对路径静默推导语义。上述 Phase 1
 增量已由 SPEC-0015 实现并验收。
+
+### 11.1 v0.32 候选绑定解释（未启用）
+
+本小节不改变上述 grammar、AST 或 Parser 恢复。当前现行规范仍是 v0.31；以下解释只有在
+v0.32 被明确启用后才约束 SPEC-0025：
+
+- exact import 只能绑定可见的顶层类型、顶层值或同 package 同名函数 overload set；alias
+  只创建当前文件的本地绑定名；
+- wildcard target 必须是 package，只按实际名称查询暴露该 package 的可见顶层声明，不递归
+  子 package、不导入 member、不 re-export；
+- 同 target/same alias 的 exact 重复是幂等的；不同 exact target 的同名绑定冲突；exact 优先
+  于 wildcard，多个 wildcard 的歧义只在实际查询该名称时报告；
+- 同文件/同 package 自动可见声明与 exact import 同名时报告冲突；跨 package 的函数不会因
+  多个 import 自动组成 overload set；类型和值命名空间分别判定；
+- import 和 package 限定名使用绝对路径与最长 package 前缀；package 不是表达式值或运行时
+  receiver。完整身份、可见性、诊断和阶段边界见 `01-design-decisions.md` §32。
 
 ## 12. SPEC-0016 control-flow、jump 与 `super`
 

@@ -1,0 +1,68 @@
+# SPEC-0199：多文件 compilation-unit native lowering
+
+## 1. 元数据
+
+| 字段 | 值 |
+|---|---|
+| 状态 | `draft` |
+| Goal ID | `KOV-P4-199` |
+| 所属 Phase | Phase 4 |
+| 语言规范 | 现行 v0.31；候选 v0.32 §32 |
+| 批准依据 | 无；v0.32 尚未启用 |
+| 前置 Spec | SPEC-0184、0192 `done`；SPEC-0198 待完成 |
+| 前置 ADR | ADR-0010 `accepted`；ADR-0020 待接受 |
+| 阻塞项 | v0.32 启用；SPEC-0198 `done`；ADR-0020 `accepted` |
+| 影响范围 | `lang-codegen` unit lowering/SSA/LLVM，`lang-cli` object/link 编排，native tests；Architecture/Roadmap |
+| 语言语义变更 | 否 |
+
+## 2. Goal
+
+完成后，多个 Koven source unit 的 owner-aware typed program 可在全 unit 上完成 reachability、
+单态化和 verified SSA/LLVM lowering，生成并链接一个独立本机 object/executable。
+
+## 3. 范围与需求
+
+- codegen 只消费 SPEC-0198 的完整 unit product；entry 与所有跨文件 target 使用稳定声明 identity。
+- 全 unit 去重 reachable callable、generic instance、type layout 与 drop glue，结果不依赖文件顺序。
+- 按 ADR-0020 生成一个 object，复用现有 native entry wrapper、target preflight 与系统 linker。
+- native 正例覆盖跨文件 call、constructor/generic、String/Rc/aggregate owner 和正常/提前退出 drop。
+- verifier 或 lowering 失败不得写出部分 object/executable。
+
+## 4. 非目标
+
+- 不实现每文件 object、增量缓存、动态链接、公共 package ABI、manifest 或依赖项目链接。
+
+## 5. 验收标准
+
+- [ ] SSA/LLVM 测试证明跨文件 identity、实例与 drop glue 只生成一次且顺序确定。
+- [ ] 真实 native build/run 覆盖至少两个 package、exact/alias import 与 MoveOnly 跨文件传递。
+- [ ] 非法 unit 在 object 写盘前失败；输入置换产物语义与诊断一致。
+- [ ] codegen/CLI/workspace 基线与 Architecture 同步。
+
+## 6. 技术方案与边界
+
+在 frontend unit product 与现有 function-level lowering 之间增加确定的 reachability/instance plan；
+LLVM 仍只接收 verified SSA。CLI 负责目标路径和 link，不在 backend 中读取源码树。
+
+## 7. 实施计划
+
+1. [ ] 建立 unit reachability/instance plan → 验证：顺序置换与去重测试。
+2. [ ] 接 SSA/LLVM、单 object 与 CLI link → 验证：IR/object 窄测试。
+3. [ ] 完成 native 正反矩阵、Architecture 与 workspace 基线。
+
+## 8. 提交计划
+
+| 顺序 | 提交边界 | 建议提交信息 |
+|---|---|---|
+| 1 | unit reachability 与 verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 2 | single-object link/native 闭环 | `feat(cli): link multifile programs (SPEC-0199)` |
+
+## 9. 未决问题
+
+- 无；多 object/增量 ABI 明确留给后续 ADR。
+
+## 10. 验证记录
+
+| 命令 / 检查 | 结果 | 备注 |
+|---|---|---|
+| 2026-08-26 roadmap 审计 | 通过 | 补齐 project build 和跨文件 LSP 之前缺失的 native 层 |
