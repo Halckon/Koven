@@ -32,11 +32,13 @@ callable 边界怎样保留 loan 证明，同时不把 caller-local ID 直接泄
   不消费 owner。call operand 本身不是可存储、返回或捕获的 first-class value。
 - caller-local `LoanId` 只标识 caller operand，不成为 callee 的 ID。callee entry 创建函数内独立
   的 shared/exclusive loan 参数，并以既有 `PlaceAccess::Loan` 读取或修改 target。
+- callee entry loan 是支配整个 callable CFG 的函数参数，可在后继 block 直接使用，并在 callable
+  正常退出时隐式结束；`BorrowBegin` 产生的局部 loan 仍必须通过 block 参数显式跨 edge 转移。
 
 ### LLVM ABI
 
-- Borrow/Inout loan operand/parameter lower 为指向 target storage 的非空 pointer；Value 参数继续使用既有
-  first-class value/owner ABI。该 pointer 只是内部同步调用 ABI，不承诺 FFI 稳定性。
+- Borrow/Inout loan operand/parameter lower 为指向 target storage 的非空 pointer；Value 参数
+  继续使用既有 first-class value/owner ABI。该 pointer 只是内部同步调用 ABI，不承诺 FFI 稳定性。
 - caller 必须为没有稳定地址的 SSA value 建立受 verifier 跟踪的 root storage；LLVM 可以用
   entry-block alloca 或等价地址化实现，但不得因此复制、retain 或提前 drop MoveOnly owner。
 - callee 对 Borrow 只生成 load/read-only projection；Inout 才允许 mutate。LLVM attribute 可在

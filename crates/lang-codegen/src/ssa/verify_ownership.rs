@@ -164,6 +164,16 @@ fn entry_state(
     closure_loans: &closure::ClosureLoans,
 ) -> BlockState {
     let mut state = BlockState::default();
+    if let Some(entry) = function.blocks.first() {
+        state
+            .loans
+            .extend(entry.parameters.iter().filter_map(|entity| {
+                let EntityId::Loan(loan) = entity else {
+                    return None;
+                };
+                Some(*loan)
+            }));
+    }
     for entity in &function.block(block).expect("block must exist").parameters {
         match entity {
             EntityId::Value(value) if is_move_only(module, function, *value) => {
@@ -665,6 +675,7 @@ fn verify_edge_state(
             EntityId::Loan(_) => {}
         }
     }
+    release_borrow_parameters(function, aliases, &mut state);
     verify_normal_exit(state, location, origin, errors);
 }
 
@@ -795,7 +806,12 @@ fn verify_linear_live_ins(
             EntityId::Value(value) => is_move_only(module, function, value),
             EntityId::Place(_) | EntityId::Loan(_) => true,
         };
-        if linear && definition_block(function, entity) != use_block {
+        let entry_loan_parameter = matches!(entity, EntityId::Loan(_))
+            && function
+                .blocks
+                .first()
+                .is_some_and(|entry| entry.parameters.contains(&entity));
+        if linear && !entry_loan_parameter && definition_block(function, entity) != use_block {
             errors.push(error(
                 VerifyErrorKind::HiddenLinearLiveIn { entity },
                 location.clone(),

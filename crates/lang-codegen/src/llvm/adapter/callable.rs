@@ -1,4 +1,6 @@
-use crate::ssa::model::{ClosureCaptureOperand, FunctionId, SsaTypeId, ValueId};
+use crate::ssa::model::{
+    ClosureCaptureOperand, EntityId, FunctionId, PlaceAccess, SsaTypeId, ValueId,
+};
 
 use super::{
     FunctionLowerer, LlvmAdapterError, closure, invalid_result_count, value_name, value_type,
@@ -67,12 +69,18 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     pub(super) fn lower_callable_invoke(
         &mut self,
         callable: ValueId,
-        arguments: &[ValueId],
+        arguments: &[EntityId],
         results: &[ValueId],
     ) -> Result<(), LlvmAdapterError> {
         let arguments = arguments
             .iter()
-            .map(|argument| self.value(*argument))
+            .map(|argument| match argument {
+                EntityId::Value(value) => self.value(*value),
+                EntityId::Loan(loan) => self.access(PlaceAccess::Loan(*loan)).map(Into::into),
+                EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                    "callable invoke does not accept a bare place".to_owned(),
+                )),
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let value = closure::invoke(
             &self.builder,

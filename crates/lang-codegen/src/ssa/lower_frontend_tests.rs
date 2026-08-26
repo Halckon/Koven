@@ -219,6 +219,110 @@ fn lowers_intrinsic_rc_construction_share_and_copyable_payload_read() {
 }
 
 #[test]
+fn lowers_move_only_rc_payload_borrow_call_without_consuming_owner() {
+    let analysis = analyze(
+        "class Resource {}\n\
+         fun inspect(resource: Resource): Unit {}\n\
+         fun exercise(): Unit {\n\
+             val owner = Rc(Resource())\n\
+             val inspected = inspect(owner.value)\n\
+             val retained = owner.share()\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("MoveOnly Rc payload Borrow must lower through verified SSA");
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("shared.payload_place").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("borrow.shared").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("end_borrow").count(), 1, "{ssa}");
+    assert_eq!(ssa.matches("shared.retain").count(), 1, "{ssa}");
+    assert!(ssa.contains("call @f0(%l0)"), "{ssa}");
+
+    let llvm =
+        render_verified_program(&program).expect("Borrow call must lower to LLVM pointer ABI");
+    assert!(
+        llvm.contains("define internal void @f0.inspect(ptr %l0)"),
+        "{llvm}"
+    );
+    assert!(llvm.contains("call void @f0.inspect(ptr"), "{llvm}");
+    assert_eq!(llvm.matches("call ptr @malloc").count(), 2, "{llvm}");
+    assert_eq!(llvm.matches("call void @free").count(), 2, "{llvm}");
+}
+
+#[test]
+fn lowers_repeated_class_and_box_root_borrows_without_rc_special_cases() {
+    let analysis = analyze(
+        "class Resource {}\n\
+         value class Token(val item: Int)\n\
+         fun inspect(resource: Resource): Unit {}\n\
+         fun inspectBox(resource: Box<Token>): Unit {}\n\
+         fun exercise(): Unit {\n\
+             val resource = Resource()\n\
+             val first = inspect(resource)\n\
+             val second = inspect(resource)\n\
+             val boxed = Box(Token(1))\n\
+             val third = inspectBox(boxed)\n\
+             val fourth = inspectBox(boxed)\n\
+         }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("class and Box roots must use the generic Borrow call path");
+    let ssa = render_program(&program);
+    assert_eq!(ssa.matches("root_place").count(), 4, "{ssa}");
+    assert_eq!(ssa.matches("borrow.shared").count(), 4, "{ssa}");
+    assert_eq!(ssa.matches("end_borrow").count(), 4, "{ssa}");
+    assert_eq!(ssa.matches("call @f0").count(), 2, "{ssa}");
+    assert_eq!(ssa.matches("call @f1").count(), 2, "{ssa}");
+    assert!(!ssa.contains("shared.payload_place"), "{ssa}");
+}
+
+#[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     let analysis = analyze(
         "public value class Pair<A, B>(val first: A, val second: B)\n\
@@ -697,11 +801,11 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
     let second = render_verified_program(&program).expect("repeated LLVM lowering must succeed");
     assert_eq!(first, second);
     assert!(first.contains("target triple = \"aarch64-apple-darwin\""));
-    assert!(first.contains("define internal i8 @f0.byte(i8 %v0)"));
-    assert!(first.contains("define internal i16 @f2.short(i16 %v0)"));
-    assert!(first.contains("define internal i32 @f4.int(i32 %v0)"));
-    assert!(first.contains("define internal i64 @f6.long(i64 %v0)"));
-    assert!(first.contains("define internal i1 @f8.boolean(i1 %v0)"));
+    assert!(first.contains("define internal i8 @f0.byte(ptr %l0)"));
+    assert!(first.contains("define internal i16 @f2.short(ptr %l0)"));
+    assert!(first.contains("define internal i32 @f4.int(ptr %l0)"));
+    assert!(first.contains("define internal i64 @f6.long(ptr %l0)"));
+    assert!(first.contains("define internal i1 @f8.boolean(ptr %l0)"));
     assert!(first.contains("llvm.sadd.with.overflow.i32"));
     assert!(first.contains("llvm.uadd.with.overflow.i32"));
     assert!(first.contains("llvm.usub.with.overflow.i32"));
@@ -900,7 +1004,7 @@ fn lowers_if_short_circuit_and_branch_local_updates_as_cfg() {
         .nth(1)
         .and_then(|body| body.split("\n\n  func").next())
         .expect("same function must render");
-    assert!(same.contains("return %v2"));
+    assert_eq!(same.matches("return %v").count(), 1, "{same}");
 }
 
 #[test]

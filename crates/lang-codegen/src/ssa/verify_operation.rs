@@ -620,7 +620,7 @@ fn callable_invoke_contract(
     module: &Module,
     function: &Function,
     callable: ValueId,
-    arguments: &[ValueId],
+    arguments: &[EntityId],
     results: &[EntityType],
 ) -> bool {
     let Some(signature) =
@@ -632,7 +632,10 @@ fn callable_invoke_contract(
         && arguments
             .iter()
             .zip(&signature.parameters)
-            .all(|(argument, expected)| value_type(function, *argument) == Some(*expected))
+            .all(|(argument, expected)| {
+                !matches!(argument, EntityId::Place(_))
+                    && function.entity(*argument).map(|entity| entity.ty) == Some(*expected)
+            })
         && results
             == signature
                 .returns
@@ -654,16 +657,17 @@ fn function_matches_signature(
     let Some(entry) = function.blocks.first() else {
         return false;
     };
-    let mut expected = environment.into_iter().collect::<Vec<_>>();
-    expected.extend(&signature.parameters);
+    let mut expected = environment
+        .into_iter()
+        .map(EntityType::Value)
+        .collect::<Vec<_>>();
+    expected.extend(signature.parameters.iter().copied());
     entry.parameters.len() == expected.len()
         && entry
             .parameters
             .iter()
             .zip(expected)
-            .all(|(parameter, ty)| {
-                function.entity(*parameter).map(|data| data.ty) == Some(EntityType::Value(ty))
-            })
+            .all(|(parameter, ty)| function.entity(*parameter).map(|data| data.ty) == Some(ty))
         && function.return_types == signature.returns
 }
 

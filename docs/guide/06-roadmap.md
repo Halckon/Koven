@@ -334,6 +334,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       checked arithmetic、比较、direct call、branch/return/abort，并在返回文本前通过 LLVM
       verifier；全部整数宽度和 literal 边界已锁定，直接有符号最小值按单个负常量 lower，
       一般前缀负号仍保持 checked subtraction
+- [x] **SPEC-0195（v0.30，已实现）**：callable signature、DirectCall 与 CallableInvoke 保留
+      Value/Borrow delivery identity；frontend 按 LoanFact 生成 root/payload place、shared loan、
+      同步 call 与 BorrowEnd，callee entry loan 作为支配 callable CFG 的函数参数。LLVM 以 pointer
+      ABI 传递 Borrow，Rc MoveOnly payload、普通 class 与 Box root 均已通过正反及 native 验收
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由
@@ -424,10 +428,10 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [x] **SPEC-0044（已实现）**：在唯一 Koven prelude 真源声明 `Pair<A, B>` 与
       `Result<T, E>`；自动解构及按类型实参条件满足 `Copyable` 沿用通用 compiler facts，
       核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
-- [ ] **SPEC-0045（`in-progress`；v0.30 guide 门禁已解除）**：实现 compiler-bound `Rc<T>` 构造、显式
+- [x] **SPEC-0045（已实现；v0.30）**：实现 compiler-bound `Rc<T>` 构造、显式
       `.share()`、Borrow-only `.value`、ASAP 自动 release 与归零析构；`Rc<T>` 始终 MoveOnly 且
-      不满足 Transferable。全部代码前置已完成，ADR-0015 已接受；不引入 Arc/Weak/Shareable、
-      一般 instance receiver 或源语言 Arena API
+      不满足 Transferable。MoveOnly payload 的通用 Borrow call 已由 SPEC-0195 完成；不引入
+      Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
 - [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
 - [ ] 一般 UTF-8 `String` runtime；当前只有 SPEC-0189 的 literal-only `println` 路径，候选
       SPEC-0192 等待新 guide 与 String runtime ABI ADR

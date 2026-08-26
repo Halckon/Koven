@@ -140,7 +140,12 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
 
 fn write_callable_signature(output: &mut String, signature: &CallableSignature) -> fmt::Result {
     output.push('(');
-    write_type_ids(output, &signature.parameters)?;
+    for (index, parameter) in signature.parameters.iter().enumerate() {
+        if index != 0 {
+            output.write_str(", ")?;
+        }
+        write_entity_type(output, *parameter)?;
+    }
     output.write_str(") -> (")?;
     write_type_ids(output, &signature.returns)?;
     output.push(')');
@@ -380,12 +385,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("invoke ")?;
             write_entity_id(output, EntityId::Value(*callable))?;
             output.push('(');
-            let arguments = arguments
-                .iter()
-                .copied()
-                .map(EntityId::Value)
-                .collect::<Vec<_>>();
-            write_entity_ids(output, &arguments)?;
+            write_entity_ids(output, arguments)?;
             output.push(')');
             Ok(())
         }

@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-195` |
 | 所属 Phase | Phase 3/4 纵向切片 |
 | 语言规范 | 现行 [`guide/01-design-decisions.md` §26、§30.2](../guide/01-design-decisions.md) |
@@ -42,12 +42,12 @@
 
 ## 5. 验收标准
 
-- [ ] SSA signature、loan DirectCall operand、render 与 model verifier 正反矩阵通过。
-- [ ] ownership verifier 证明 Borrow call 不消费 MoveOnly owner，且 loan 精确覆盖同步 call。
-- [ ] frontend→SSA 覆盖 Copyable 与 MoveOnly Borrow；Value 参数仍精确消费。
-- [ ] Rc MoveOnly payload Borrow native build/run 退出 0，call 后 owner 可 share/drop。
-- [ ] LLVM IR 使用 pointer ABI，无隐式 copy/retain、无 reference 逃逸。
-- [ ] Architecture、Roadmap、workspace check/Clippy/test/fmt 基线同步。
+- [x] SSA signature、loan DirectCall/CallableInvoke operand、render 与 model verifier 正反矩阵通过。
+- [x] ownership verifier 证明 Borrow call 不消费 MoveOnly owner，且 loan 精确覆盖同步 call。
+- [x] frontend→SSA 覆盖 Copyable 与 MoveOnly Borrow；Value 参数仍精确消费。
+- [x] Rc MoveOnly payload Borrow native build/run 退出 0，call 后 owner 可 share/drop。
+- [x] LLVM IR 使用 pointer ABI，无隐式 copy/retain、无 reference 逃逸。
+- [x] Architecture、Roadmap、workspace check/Clippy/test/fmt 基线同步。
 
 ## 6. 技术方案与边界
 
@@ -57,10 +57,10 @@ verifier 和维持 verified-before-LLVM 所需的 pointer adapter，第二提交
 
 ## 7. 实施计划
 
-1. [ ] 扩展 callable signature、loan call operand 与 DirectCall verifier。
-2. [ ] 接入 frontend loan facts、callee Borrow binding 与 ASAP drop/控制转移。
-3. [ ] 接入 LLVM pointer ABI、Rc/class/Box native 正反验收。
-4. [ ] 同步 Architecture、Roadmap、验证记录与 workspace 基线。
+1. [x] 扩展 callable signature、loan call operand 与 DirectCall/CallableInvoke verifier。
+2. [x] 接入 frontend loan facts、callee Borrow binding 与 ASAP drop/控制转移。
+3. [x] 接入 LLVM pointer ABI、Rc/class/Box native 正反验收。
+4. [x] 同步 Architecture、Roadmap、验证记录与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -78,3 +78,9 @@ verifier 和维持 verified-before-LLVM 所需的 pointer adapter，第二提交
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 前置审计 | 通过 | 0045 core `done`；ADR-0016 `accepted`；现有 DirectCall 只接受 ValueId 的缺口已由源码级 Rc 验收确认 |
+| `cargo test -p lang-codegen` | 通过 | 124 passed；1 个 LLDB task-port 沙箱测试按既有条件 ignored |
+| `cargo test --workspace --quiet` | 通过 | workspace 全部 test target 退出 0；同一既有 LLDB 测试 ignored |
+| `cargo check --workspace` | 通过 | 全 workspace 编译检查退出 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过 | 无 warning |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与空白检查通过 |
+| Rc MoveOnly Borrow native | 通过 | source→SSA→LLVM object→Clang link→run 退出 0；call 后 share 与最终 release 均通过 |

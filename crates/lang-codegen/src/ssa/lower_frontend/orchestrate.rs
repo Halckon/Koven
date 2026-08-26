@@ -199,13 +199,17 @@ fn lower_scalar_file_product(
             .parameters()
             .iter()
             .map(|parameter| {
-                if parameter.mode == ParameterMode::Inout {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
-                }
                 let concrete =
                     resolve_concrete_type(typed, parameter.ty, &instance.substitutions, span)?;
                 let ty = type_mapper.intern(module, names, typed, concrete, span)?;
-                Ok(EntityType::Value(ty))
+                match parameter.mode {
+                    ParameterMode::Value => Ok(EntityType::Value(ty)),
+                    ParameterMode::Borrow => Ok(EntityType::Loan {
+                        kind: crate::ssa::model::LoanKind::Shared,
+                        target: ty,
+                    }),
+                    ParameterMode::Inout => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                }
             })
             .collect::<Result<Vec<_>, _>>()?;
         let return_type =
@@ -266,17 +270,19 @@ fn lower_scalar_file_product(
             .expect("entry block must exist")
             .parameters
             .clone();
-        let bindings = plan
-            .parameter_symbols
-            .into_iter()
-            .zip(parameters)
-            .map(|(symbol, entity)| {
-                let EntityId::Value(value) = entity else {
-                    unreachable!("scalar parameters are values");
-                };
-                (symbol, LoweredValue::Value(value))
-            })
-            .collect();
+        let mut bindings = BTreeMap::new();
+        let mut borrow_bindings = BTreeMap::new();
+        for (symbol, entity) in plan.parameter_symbols.into_iter().zip(parameters) {
+            match entity {
+                EntityId::Value(value) => {
+                    bindings.insert(symbol, LoweredValue::Value(value));
+                }
+                EntityId::Loan(loan) => {
+                    borrow_bindings.insert(symbol, loan);
+                }
+                EntityId::Place(_) => unreachable!("callable parameters cannot be places"),
+            }
+        }
         let mut lowerer = ExpressionLowerer {
             parsed,
             names,
@@ -292,6 +298,7 @@ fn lower_scalar_file_product(
             function,
             block: entry,
             bindings,
+            borrow_bindings,
             temporaries: BTreeMap::new(),
             return_type: plan.return_type,
             loops: Vec::new(),

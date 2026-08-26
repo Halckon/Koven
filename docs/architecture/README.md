@@ -101,9 +101,16 @@ SPEC-0045 已完成 frontend 与 SSA 两个阶段切片：compiler-bound `Rc(val
 已把 intrinsic construction/share 与 Copyable payload read lower 到上述 operation，Rc receiver
 liveness 以完整 intrinsic operation 为 drop 边界；shared-control `{usize,payload}` 已进入 LLVM
 复合类型创建前的 target preflight。真实 `kovenc build/run` 已覆盖 Point payload、多次 share、
-Copyable payload read 与 conventional `main`，SPEC-0045 已按该非 nullable core 完成。源码级
-验收暴露的通用 MoveOnly Borrow call 与 pointer-like nullable lowering 已分别迁移到
-SPEC-0195/0196，不能描述为 Rc adapter 已支持；
+Copyable payload read 与 conventional `main`，SPEC-0045 已按该非 nullable core 完成；
+SPEC-0195 已让 `CallableSignature`、`DirectCall` 与 `CallableInvoke` 参数保存 Value/Loan entity
+identity。operation verifier 精确匹配 mode、target 与 loan kind，ownership verifier 让 Value
+operand 保持消费语义、要求 Loan operand active 且不消费 owner；callee entry loan 是支配整个
+callable CFG 的函数参数，正常退出时隐式结束，内部 `BorrowBegin` loan 仍按 block 参数显式跨
+edge 转移。frontend 按 parameter mode、argument mapping 与 `LoanFact` 生成 root/Rc payload
+place、shared loan、call、`BorrowEnd`，Borrow 参数的 Copyable read 使用 `PlaceAccess::Loan`；LLVM
+统一以 target-storage pointer 传递。Rc MoveOnly payload call 后继续 share/drop、普通 class/Box
+重复 Borrow、function-pointer Borrow invoke 与真实 object/Clang link/run 均已验收；pointer-like
+nullable lowering仍由 SPEC-0196 实施；
 SPEC-0057 已建立 `lang_frontend::formatting`：先用生产 Lexer / 完整文件 Parser 拒绝有诊断输入，
 再按原 lexeme `Span` 保留全部 token、comment 与 LF/CRLF 字节，只规范水平空白及 delimiter 驱动
 的四空格缩进；`kovenc format <path>` 向 stdout 输出，`--check` 使用 0/1，参数、IO、UTF-8 与
@@ -192,8 +199,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   descriptor 公开该 identity，源码同名函数不会获得 effect；环境绑定的 intrinsic `Rc<T>`
   已实现 construction、share、payload read 的 typed/ownership identity，源码同名 class/member
   不获得特权；SharedOwner SSA、核心 LLVM control block/retain/release、intrinsic construction/
-  share 与 Copyable payload read lowering 及真实 native 验收已实现；nullable Rc 和 MoveOnly
-  payload 的 borrow-call SSA 交接由 SPEC-0195 实施，nullable handle 由 SPEC-0196 实施；
+  share 与 Copyable payload read lowering 及真实 native 验收已实现；MoveOnly payload、普通
+  class/Box 与 callable value 的 Borrow-call SSA/LLVM 交接已由 SPEC-0195 完成，nullable handle
+  由 SPEC-0196 实施；
 - `NameResolution`、`TypedFile` 与 `OwnershipCheckedFile` 贯穿不可伪造的逐阶段 analysis
   identity；`TypedFile` 另保留显式 Name/Type environment owner。只读兼容性查询同时验证
   source、environment、name-analysis 与 typed-analysis identity；所有权阶段拒绝同源但来自
@@ -1355,8 +1363,9 @@ MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/01
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、
 投影/解构、root drop、L0145 与真实 native link/run 接线。
 SPEC-0045 已把非 nullable `Rc<T>` 的 construction、显式 share、Copyable payload read、target
-preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线并完成；nullable Rc 与
-MoveOnly payload borrow-call lowering 分别由 SPEC-0196/0195 接续。
+preflight、retain/release-to-zero 与真实 CLI build/run 接入同一主线并完成；SPEC-0195 已完成
+通用 Borrow callable signature、frontend loan、LLVM pointer ABI 及 Rc/class/Box native 接线；
+nullable Rc 由 SPEC-0196 接续。
 
 ## 更新要求
 

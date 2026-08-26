@@ -7,17 +7,18 @@ use inkwell::{
     context::Context,
     targets::TargetData,
     types::{
-        BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType, StructType,
-        VoidType,
+        BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType, PointerType,
+        StructType, VoidType,
     },
 };
 
-use crate::ssa::model::{CallableSignature, Module, SsaTypeId, SsaTypeKind};
+use crate::ssa::model::{CallableSignature, EntityType, Module, SsaTypeId, SsaTypeKind};
 
 use super::{LlvmAdapterError, layout::TargetLayoutPlan};
 
 pub(super) struct TypeMap<'ctx> {
     void_type: VoidType<'ctx>,
+    pointer_type: PointerType<'ctx>,
     types: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
     aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
     tagged_layouts: BTreeMap<SsaTypeId, TaggedLayout<'ctx>>,
@@ -252,6 +253,7 @@ impl<'ctx> TypeMap<'ctx> {
 
         Ok(Self {
             void_type: context.void_type(),
+            pointer_type: pointer,
             types,
             aggregates,
             tagged_layouts,
@@ -369,7 +371,13 @@ impl<'ctx> TypeMap<'ctx> {
             signature
                 .parameters
                 .iter()
-                .map(|ty| self.basic_type(*ty).map(BasicMetadataTypeEnum::from))
+                .map(|parameter| match parameter {
+                    EntityType::Value(ty) => self.basic_type(*ty).map(BasicMetadataTypeEnum::from),
+                    EntityType::Loan { .. } => Ok(BasicMetadataTypeEnum::from(self.pointer_type)),
+                    EntityType::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                        "callable signature parameter cannot be a place".to_owned(),
+                    )),
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         );
         match signature.returns.as_slice() {

@@ -128,7 +128,7 @@ pub(crate) enum SequentialContainerKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CallableSignature {
-    pub(crate) parameters: Vec<SsaTypeId>,
+    pub(crate) parameters: Vec<EntityType>,
     pub(crate) returns: Vec<SsaTypeId>,
 }
 
@@ -348,7 +348,7 @@ pub(crate) enum Operation {
     },
     CallableInvoke {
         callable: ValueId,
-        arguments: Vec<ValueId>,
+        arguments: Vec<EntityId>,
     },
     AggregateConstruct {
         aggregate: SsaTypeId,
@@ -469,7 +469,7 @@ impl Operation {
                 arguments,
             } => {
                 let mut entities = vec![EntityId::Value(*callable)];
-                entities.extend(arguments.iter().copied().map(EntityId::Value));
+                entities.extend(arguments.iter().copied());
                 entities
             }
             Self::AggregateConstruct { fields, .. } => {
@@ -988,6 +988,7 @@ pub(crate) enum ModelError {
     },
     EmptyClosureCaptures,
     InvalidCallableReturnArity,
+    InvalidCallableParameter,
     InvalidClosureEnvironment,
     TypeAlreadyDefined {
         ty: SsaTypeId,
@@ -1037,6 +1038,9 @@ impl fmt::Display for ModelError {
                     formatter,
                     "callable signature supports at most one return type"
                 )
+            }
+            Self::InvalidCallableParameter => {
+                write!(formatter, "callable signature parameters cannot be places")
             }
             Self::InvalidClosureEnvironment => {
                 write!(

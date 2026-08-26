@@ -191,9 +191,9 @@ fn callable_types_preserve_concrete_capture_identity_and_reject_invalid_shapes()
     verify_program(&program).expect("callable type definitions must verify");
     let rendered = render_program(&program);
     assert_eq!(rendered, render_program(&program));
-    assert!(rendered.contains("function_pointer (!t0) -> (!t0)"));
+    assert!(rendered.contains("function_pointer (value !t0) -> (!t0)"));
     assert!(rendered.contains("closure \"CounterClosure\" env !t3"));
-    assert!(rendered.contains("captures (owned !t0, owned !t1) (!t0) -> (!t0)"));
+    assert!(rendered.contains("captures (owned !t0, owned !t1) (value !t0) -> (!t0)"));
     assert!(rendered.contains("captures (shared !t1) () -> ()"));
 }
 
@@ -348,7 +348,7 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         entry,
         Operation::CallableInvoke {
             callable: address,
-            arguments: vec![integer_value],
+            arguments: vec![EntityId::Value(integer_value)],
         },
         &[integer],
         &origin,
@@ -358,7 +358,7 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         entry,
         Operation::CallableInvoke {
             callable: address,
-            arguments: vec![integer_value],
+            arguments: vec![EntityId::Value(integer_value)],
         },
         &[integer],
         &origin,
@@ -379,7 +379,7 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         entry,
         Operation::CallableInvoke {
             callable: copied,
-            arguments: vec![integer_value],
+            arguments: vec![EntityId::Value(integer_value)],
         },
         &[integer],
         &origin,
@@ -389,7 +389,7 @@ fn function_address_owned_closure_invoke_and_drop_verify_together() {
         entry,
         Operation::CallableInvoke {
             callable: copied,
-            arguments: vec![integer_value],
+            arguments: vec![EntityId::Value(integer_value)],
         },
         &[integer],
         &origin,

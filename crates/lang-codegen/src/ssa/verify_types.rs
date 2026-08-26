@@ -256,10 +256,20 @@ fn verify_callable_signature(
             "callable signature supports at most one return type",
         );
     }
-    for ty in signature.parameters.iter().chain(&signature.returns) {
-        if ty.module() != module.id
-            || module.type_kind(*ty).is_none()
-            || !module.type_is_defined(*ty)
+    if signature
+        .parameters
+        .iter()
+        .any(|parameter| matches!(parameter, super::model::EntityType::Place(_)))
+    {
+        push_type_error(errors, id, "callable signature parameters cannot be places");
+    }
+    for ty in signature
+        .parameters
+        .iter()
+        .map(|parameter| parameter.semantic_type())
+        .chain(signature.returns.iter().copied())
+    {
+        if ty.module() != module.id || module.type_kind(ty).is_none() || !module.type_is_defined(ty)
         {
             push_type_error(
                 errors,

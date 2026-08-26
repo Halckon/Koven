@@ -338,6 +338,50 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
 }
 
 #[test]
+fn move_only_rc_payload_borrow_call_links_runs_and_releases_once() {
+    let analysis = analyze(
+        "borrow-call.ko",
+        "class Resource {}\n\
+         fun inspect(resource: Resource): Unit {}\n\
+         fun borrowEntry(): Unit {\n\
+             val owner = Rc(Resource())\n\
+             val inspected = inspect(owner.value)\n\
+             val retained = owner.share()\n\
+         }",
+    );
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let directory = TestDirectory::create();
+    let object = directory.join("borrow-call.o");
+    let executable = directory.join("borrow-call");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, "borrowEntry", SymbolKind::Function),
+        &object,
+    )
+    .expect("MoveOnly Rc payload Borrow must emit an object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked Borrow executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
 fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
     let directory = TestDirectory::create();
     let declarative = analyze(

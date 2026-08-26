@@ -15,8 +15,8 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{EnumCaseId, NameResolution, SymbolId, SymbolKind},
     ownership_checking::{
-        ConstructionDeliveryKind, ConstructionRootKind, DropPoint, OwnershipCheckedFile,
-        RcOwnershipEffectKind,
+        ConstructionDeliveryKind, ConstructionRootKind, DropPoint, LoanTarget,
+        OwnershipCheckedFile, RcOwnershipEffectKind,
     },
     parser::{
         AssignmentOperator, BinaryOperator as AstBinaryOperator, Expression, IntegerLiteralKind,
@@ -24,14 +24,15 @@ use lang_frontend::{
     },
     source::Span,
     type_checking::{
-        BuiltinType, CallableTarget, ConstructionTarget, Copyability, NominalKind, RcOperationKind,
-        TypeId, TypeKind, TypedFile,
+        BuiltinType, CallableTarget, ConstructionTarget, Copyability, NominalKind, ParameterMode,
+        RcOperationKind, TypeId, TypeKind, TypedFile,
     },
 };
 
 use super::model::{
     BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId, EntityType, Function,
-    FunctionId, ModelError, Operation, Origin, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
+    FunctionId, LoanId, LoanKind, ModelError, Operation, Origin, PlaceId, ScalarConstant,
+    SsaTypeId, TerminatorKind, ValueId,
 };
 use instances::FunctionInstanceKey;
 
@@ -102,6 +103,7 @@ struct ExpressionLowerer<'a> {
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
+    borrow_bindings: BTreeMap<SymbolId, LoanId>,
     temporaries: BTreeMap<usize, ValueId>,
     return_type: TypeId,
     loops: Vec<loop_control::LoopContext>,
@@ -570,15 +572,40 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    fn lower_name(&self, span: Span) -> Result<LoweredValue, LoweringError> {
+    fn lower_name(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
         let symbol = self
             .references
             .get(&span_key(span))
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.bindings
+        if let Some(value) = self.bindings.get(symbol).copied() {
+            return Ok(value);
+        }
+        let loan = self
+            .borrow_bindings
             .get(symbol)
             .copied()
-            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        let ty = self
+            .typed
+            .symbol_type(*symbol)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.copyability(ty) != Some(Copyability::Copyable) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let ty = self.resolve_type(ty, span)?;
+        let ssa_type = self
+            .type_ids
+            .get(&ty)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let (_, results) = self.append(
+            Operation::Read {
+                source: super::model::PlaceAccess::Loan(loan),
+            },
+            vec![EntityType::Value(ssa_type)],
+            span,
+        )?;
+        Ok(LoweredValue::Value(value(results[0])))
     }
 
     fn lower_prefix(
@@ -838,26 +865,35 @@ impl ExpressionLowerer<'_> {
             .get(&instance)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let mut ordered = vec![None; descriptor.arguments().len()];
+        let mut call_loans = BTreeMap::new();
         for (argument_index, argument) in arguments.iter().enumerate() {
-            let value = self.require_value(argument.value)?;
-            let index = descriptor
+            let mapping = descriptor
                 .arguments()
                 .iter()
                 .find(|mapping| mapping.argument_index() == argument_index)
-                .map(|mapping| mapping.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+            let index = mapping.parameter_index();
             if ordered.get(index).is_none_or(|slot| slot.is_some()) {
                 return Err(error(LoweringErrorKind::MissingFact, argument.span));
             }
-            ordered[index] = Some(value);
+            let operand = match mapping.mode() {
+                ParameterMode::Value => EntityId::Value(self.require_value(argument.value)?),
+                ParameterMode::Borrow => {
+                    let (loan, ends_after_call) =
+                        self.lower_borrow_argument(expression, argument.value, argument.span)?;
+                    call_loans.insert(argument.value.index(), ends_after_call.then_some(loan));
+                    EntityId::Loan(loan)
+                }
+                ParameterMode::Inout => {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, argument.span));
+                }
+            };
+            ordered[index] = Some(operand);
         }
         let arguments = ordered
             .into_iter()
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-            .into_iter()
-            .map(EntityId::Value)
-            .collect();
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let return_type = self.resolve_type(descriptor.return_type(), span)?;
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
@@ -871,12 +907,103 @@ impl ExpressionLowerer<'_> {
             result_types,
             span,
         )?;
+        for fact in self.owned.loans_ending_at(expression) {
+            let loan = call_loans
+                .remove(&fact.argument().index())
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
+            if let Some(loan) = loan {
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), fact.end_span())?;
+            }
+        }
+        if !call_loans.is_empty() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         self.emit_drops(DropPoint::CallReturn(expression))?;
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [entity] => Ok(LoweredValue::Value(value(*entity))),
             _ => Err(error(LoweringErrorKind::InvalidModel, span)),
         }
+    }
+
+    fn lower_borrow_argument(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        span: Span,
+    ) -> Result<(LoanId, bool), LoweringError> {
+        let fact = self
+            .owned
+            .loan_begin(argument)
+            .filter(|fact| fact.call() == call)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if fact.kind() != lang_frontend::ownership_checking::LoanKind::Shared {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if let LoanTarget::Place(target) = fact.target()
+            && target.is_root()
+            && let Some(loan) = self.borrow_bindings.get(&target.root()).copied()
+        {
+            return Ok((loan, false));
+        }
+        let place = self.lower_borrow_place(argument, fact.target(), span)?;
+        let target = self.expression_ssa_type(argument, span)?;
+        let (_, results) = self.append(
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            }],
+            fact.begin_span(),
+        )?;
+        let EntityId::Loan(loan) = results[0] else {
+            return Err(error(LoweringErrorKind::InvalidModel, fact.begin_span()));
+        };
+        Ok((loan, true))
+    }
+
+    fn lower_borrow_place(
+        &mut self,
+        argument: ExpressionId,
+        target: &LoanTarget,
+        span: Span,
+    ) -> Result<PlaceId, LoweringError> {
+        if let Some(operation) = self.typed.rc_operation(argument)
+            && operation.kind() == RcOperationKind::Value
+        {
+            let owner = self.require_value(operation.receiver())?;
+            let payload = self.expression_ssa_type(argument, span)?;
+            let (_, results) = self.append(
+                Operation::SharedPayloadPlace { owner },
+                vec![EntityType::Place(payload)],
+                span,
+            )?;
+            return Ok(place(results[0]));
+        }
+        let owner = match target {
+            LoanTarget::Place(place) if place.is_root() => self
+                .bindings
+                .get(&place.root())
+                .and_then(|value| match value {
+                    LoweredValue::Value(value) => Some(*value),
+                    LoweredValue::Unit | LoweredValue::Diverged => None,
+                })
+                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?,
+            LoanTarget::Temporary(temporary) => self.require_value(*temporary)?,
+            LoanTarget::Place(_) => {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        };
+        let target = self.expression_ssa_type(argument, span)?;
+        let (_, results) = self.append(
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(target)],
+            span,
+        )?;
+        Ok(place(results[0]))
     }
 
     fn checked(

@@ -147,7 +147,7 @@ pub(super) fn apply_invoke(
     module: &Module,
     function: &Function,
     callable: ValueId,
-    arguments: &[ValueId],
+    arguments: &[EntityId],
     aliases: &AliasRoots,
     state: &mut BlockState,
     location: VerifyLocation,
@@ -171,17 +171,30 @@ pub(super) fn apply_invoke(
         ));
     }
     for argument in arguments {
-        consume_value(
-            module,
-            function,
-            *argument,
-            aliases,
-            state,
-            &BTreeSet::new(),
-            &BTreeSet::new(),
-            location.clone(),
-            origin,
-            errors,
-        );
+        match argument {
+            EntityId::Value(value) => {
+                consume_value(
+                    module,
+                    function,
+                    *value,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &BTreeSet::new(),
+                    location.clone(),
+                    origin,
+                    errors,
+                );
+            }
+            EntityId::Loan(loan) if !state.loans.contains(loan) => errors.push(error(
+                VerifyErrorKind::LoanInactive { loan: *loan },
+                location.clone(),
+                origin,
+            )),
+            EntityId::Loan(_) => {}
+            EntityId::Place(place) => {
+                super::require_place(*place, state, location.clone(), origin, errors);
+            }
+        }
     }
 }

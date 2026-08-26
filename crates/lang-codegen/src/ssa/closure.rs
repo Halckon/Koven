@@ -1,14 +1,25 @@
 //! Concrete callable and closure type construction.
 
 use super::model::{
-    CallableSignature, ClosureCaptureMode, ClosureCaptureType, ModelError, Module, SsaTypeId,
-    SsaTypeKind,
+    CallableSignature, ClosureCaptureMode, ClosureCaptureType, EntityType, ModelError, Module,
+    SsaTypeId, SsaTypeKind,
 };
 
 impl Module {
     pub(crate) fn add_function_pointer_type(
         &mut self,
         parameters: Vec<SsaTypeId>,
+        returns: Vec<SsaTypeId>,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.add_function_pointer_type_with_parameters(
+            parameters.into_iter().map(EntityType::Value).collect(),
+            returns,
+        )
+    }
+
+    pub(crate) fn add_function_pointer_type_with_parameters(
+        &mut self,
+        parameters: Vec<EntityType>,
         returns: Vec<SsaTypeId>,
     ) -> Result<SsaTypeId, ModelError> {
         let signature = self.check_callable_signature(parameters, returns)?;
@@ -27,6 +38,23 @@ impl Module {
         &mut self,
         name: impl Into<String>,
         parameters: Vec<SsaTypeId>,
+        returns: Vec<SsaTypeId>,
+        environment: SsaTypeId,
+        captures: Vec<ClosureCaptureType>,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.add_concrete_closure_type_with_parameters(
+            name,
+            parameters.into_iter().map(EntityType::Value).collect(),
+            returns,
+            environment,
+            captures,
+        )
+    }
+
+    pub(crate) fn add_concrete_closure_type_with_parameters(
+        &mut self,
+        name: impl Into<String>,
+        parameters: Vec<EntityType>,
         returns: Vec<SsaTypeId>,
         environment: SsaTypeId,
         captures: Vec<ClosureCaptureType>,
@@ -100,13 +128,19 @@ impl Module {
 
     fn check_callable_signature(
         &self,
-        parameters: Vec<SsaTypeId>,
+        parameters: Vec<EntityType>,
         returns: Vec<SsaTypeId>,
     ) -> Result<CallableSignature, ModelError> {
         if returns.len() > 1 {
             return Err(ModelError::InvalidCallableReturnArity);
         }
-        for ty in parameters.iter().chain(&returns) {
+        for parameter in &parameters {
+            if matches!(parameter, EntityType::Place(_)) {
+                return Err(ModelError::InvalidCallableParameter);
+            }
+            self.check_type_id(parameter.semantic_type())?;
+        }
+        for ty in &returns {
             self.check_type_id(*ty)?;
         }
         Ok(CallableSignature {
