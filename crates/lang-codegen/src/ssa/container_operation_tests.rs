@@ -297,7 +297,7 @@ fn container_construct_length_place_replace_and_drop_verify_together() {
         function,
         entry,
         Operation::ContainerElementPlace {
-            owner,
+            owner: EntityId::Value(owner),
             index: *index,
         },
         types.resource,
@@ -459,7 +459,7 @@ fn move_after_drop_and_replacement_during_element_loan_are_rejected() {
         function,
         entry,
         Operation::ContainerElementPlace {
-            owner: parameters[0],
+            owner: EntityId::Value(parameters[0]),
             index: parameters[1],
         },
         types.resource,
@@ -489,7 +489,7 @@ fn move_after_drop_and_replacement_during_element_loan_are_rejected() {
         function,
         entry,
         Operation::ContainerElementPlace {
-            owner: parameters[0],
+            owner: EntityId::Value(parameters[0]),
             index: parameters[2],
         },
         types.resource,

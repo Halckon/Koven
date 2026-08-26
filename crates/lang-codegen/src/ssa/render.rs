@@ -539,7 +539,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::ContainerElementPlace { owner, index } => {
             output.write_str("container.element_place ")?;
-            write_entity_id(output, EntityId::Value(*owner))?;
+            write_entity_id(output, *owner)?;
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*index))
         }

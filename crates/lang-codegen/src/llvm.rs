@@ -14,7 +14,7 @@ mod debug;
 #[cfg(test)]
 mod debug_tests;
 mod entities;
-mod entry;
+pub(crate) mod entry;
 #[cfg(test)]
 mod entry_tests;
 pub(crate) mod layout;
@@ -76,16 +76,27 @@ pub(crate) fn render_verified_program_with_entry(
     program: &Program,
     entry: crate::ssa::model::FunctionId,
 ) -> Result<String, LlvmAdapterError> {
+    adapter::render_verified_program(
+        program,
+        Some(entry::NativeEntryPlan::NoArguments { function: entry }),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn render_verified_program_with_entry_plan(
+    program: &Program,
+    entry: entry::NativeEntryPlan,
+) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, Some(entry))
 }
 
 pub(crate) fn emit_verified_object(
     program: &Program,
     sources: &SourceMap,
-    entry: crate::ssa::model::FunctionId,
+    entry: impl Into<entry::NativeEntryPlan>,
     path: &std::path::Path,
 ) -> Result<(), LlvmAdapterError> {
-    adapter::emit_verified_object(program, sources, entry, path)
+    adapter::emit_verified_object(program, sources, entry.into(), path)
 }
 
 #[cfg(test)]
@@ -94,7 +105,11 @@ pub(crate) fn render_verified_program_with_debug(
     sources: &SourceMap,
     entry: crate::ssa::model::FunctionId,
 ) -> Result<String, LlvmAdapterError> {
-    adapter::render_verified_program_with_debug(program, sources, entry)
+    adapter::render_verified_program_with_debug(
+        program,
+        sources,
+        entry::NativeEntryPlan::NoArguments { function: entry },
+    )
 }
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。

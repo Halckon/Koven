@@ -166,13 +166,43 @@ pub(super) fn element_place<'ctx>(
         index.get_type().const_zero(),
         &format!("{name}.negative"),
     )?;
+    let (index, width_invalid) = match index
+        .get_type()
+        .get_bit_width()
+        .cmp(&length.get_type().get_bit_width())
+    {
+        std::cmp::Ordering::Less => (
+            builder.build_int_z_extend(index, length.get_type(), &format!("{name}.index.size"))?,
+            negative.get_type().const_zero(),
+        ),
+        std::cmp::Ordering::Equal => (index, negative.get_type().const_zero()),
+        std::cmp::Ordering::Greater => {
+            let size_bits = length.get_type().get_bit_width();
+            let maximum = index.get_type().const_int((1_u64 << size_bits) - 1, false);
+            let invalid = builder.build_int_compare(
+                inkwell::IntPredicate::UGT,
+                index,
+                maximum,
+                &format!("{name}.index.overflow"),
+            )?;
+            (
+                builder.build_int_truncate(
+                    index,
+                    length.get_type(),
+                    &format!("{name}.index.size"),
+                )?,
+                invalid,
+            )
+        }
+    };
     let beyond = builder.build_int_compare(
         inkwell::IntPredicate::UGE,
         index,
         length,
         &format!("{name}.beyond"),
     )?;
-    let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
+    let invalid = builder.build_or(negative, width_invalid, &format!("{name}.width-invalid"))?;
+    let invalid = builder.build_or(invalid, beyond, &format!("{name}.invalid"))?;
     runtime.abort_if(builder, function, invalid, name)?;
     if layout.stride == 0 {
         return Ok(buffer);
@@ -217,7 +247,7 @@ pub(super) fn replace<'ctx>(
     Ok(())
 }
 
-fn build_header<'ctx>(
+pub(super) fn build_header<'ctx>(
     builder: &Builder<'ctx>,
     header: inkwell::types::StructType<'ctx>,
     buffer: inkwell::values::PointerValue<'ctx>,

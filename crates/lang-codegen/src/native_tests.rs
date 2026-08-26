@@ -15,7 +15,7 @@ use lang_frontend::{
     type_checking::{TypedFile, check_types, standard_environments},
 };
 
-use super::{NativeObjectErrorKind, emit_native_object};
+use super::{NativeEntry, NativeObjectErrorKind, emit_native_object};
 use crate::{
     llvm::{
         LlvmAdapterError,
@@ -174,6 +174,130 @@ fn resolved_unit_entry_emits_the_existing_native_wrapper_object() {
     assert!(symbols.status.success(), "{symbols:?}");
     let names = String::from_utf8(symbols.stdout).expect("nm output must be UTF-8");
     assert_eq!(names.lines().filter(|name| *name == "_main").count(), 1);
+}
+
+#[test]
+#[cfg(unix)]
+fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_before_call() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let analysis = analyze("argv.ko", "fun main(args: Array<String>): Unit {}\n");
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let directory = TestDirectory::create();
+    let object = directory.join("argv.o");
+    let executable = directory.join("argv");
+    emit_native_object(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        NativeEntry::BorrowedArguments(symbol(&analysis, "main", SymbolKind::Function)),
+        &object,
+    )
+    .expect("borrowed argv entry object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+
+    for arguments in [
+        vec![],
+        vec![b"".to_vec(), b"ascii".to_vec()],
+        vec![
+            "\u{80}\u{7ff}\u{800}\u{ffff}\u{10000}\u{10ffff}"
+                .as_bytes()
+                .to_vec(),
+        ],
+    ] {
+        let status = Command::new(&executable)
+            .args(arguments.into_iter().map(OsString::from_vec))
+            .status()
+            .expect("linked executable must launch");
+        assert!(
+            status.success(),
+            "valid UTF-8 argv must reach and return from main"
+        );
+    }
+
+    for invalid in [
+        vec![0xc0, 0x80],
+        vec![0xc1, 0xbf],
+        vec![0xe0, 0x9f, 0x80],
+        vec![0xed, 0xa0, 0x80],
+        vec![0xf0, 0x8f, 0xbf, 0xbf],
+        vec![0xf4, 0x90, 0x80, 0x80],
+        vec![0xe2, 0x82],
+        vec![0xff],
+    ] {
+        let status = Command::new(&executable)
+            .arg(OsString::from_vec(invalid))
+            .status()
+            .expect("linked executable must launch");
+        assert_eq!(
+            status.code(),
+            Some(1),
+            "invalid UTF-8 must fail operationally"
+        );
+    }
+
+    let observing = analyze(
+        "argv-observe.ko",
+        "fun main(args: Array<String>): Unit {\n\
+             val zero: Int = 0\n\
+             val one: Int = 1\n\
+             val two: Int = 2\n\
+             val three: Int = 3\n\
+             if (true) { println(args[zero]) }\n\
+             if (true) { println(args[one]) }\n\
+             if (true) { println(args[two]) }\n\
+             println(args[three])\n\
+         }\n",
+    );
+    assert!(
+        observing.parsed.diagnostics().is_empty(),
+        "{:?}",
+        observing.parsed.diagnostics()
+    );
+    assert!(
+        observing.names.diagnostics().is_empty(),
+        "{:?}",
+        observing.names.diagnostics()
+    );
+    assert!(observing.typed.diagnostics().is_empty());
+    assert!(observing.owned.diagnostics().is_empty());
+    let observing_object = directory.join("argv-observe.o");
+    let observing_executable = directory.join("argv-observe");
+    emit_native_object(
+        &observing.sources,
+        &observing.parsed,
+        &observing.names,
+        &observing.typed,
+        &observing.owned,
+        NativeEntry::BorrowedArguments(symbol(&observing, "main", SymbolKind::Function)),
+        &observing_object,
+    )
+    .expect("observing borrowed argv entry object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&observing_object)
+        .arg("-o")
+        .arg(&observing_executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let output = Command::new(&observing_executable)
+        .args(["first", "", "你好", "last"])
+        .output()
+        .expect("linked executable must launch");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, "first\n\n你好\nlast\n".as_bytes());
 }
 
 #[test]

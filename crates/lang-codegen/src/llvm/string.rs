@@ -250,7 +250,7 @@ pub(super) fn print<'ctx>(
     runtime.emit_print_literal(llvm, builder, function, b"\n", &format!("{name}.newline"))
 }
 
-fn build_owner<'ctx>(
+pub(super) fn build_owner<'ctx>(
     builder: &Builder<'ctx>,
     ty: inkwell::types::StructType<'ctx>,
     bytes: PointerValue<'ctx>,

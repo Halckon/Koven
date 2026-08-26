@@ -7,17 +7,15 @@ use inkwell::{
 };
 use lang_frontend::source::SourceMap;
 
-use crate::ssa::{
-    model::{FunctionId, Program},
-    verify::verify_program,
-};
+use crate::ssa::{model::Program, verify::verify_program};
 
+use super::super::entry::NativeEntryPlan;
 use super::super::{LlvmAdapterError, configure_module, debug, entry, first_target_machine};
 use super::ModuleLowerer;
 
 pub(crate) fn render_verified_program(
     program: &Program,
-    native_entry: Option<FunctionId>,
+    native_entry: Option<NativeEntryPlan>,
 ) -> Result<String, LlvmAdapterError> {
     let (triple, target_machine) = first_target_machine()?;
     let context = Context::create();
@@ -35,7 +33,7 @@ pub(crate) fn render_verified_program(
 pub(crate) fn render_verified_program_with_debug(
     program: &Program,
     sources: &SourceMap,
-    native_entry: FunctionId,
+    native_entry: NativeEntryPlan,
 ) -> Result<String, LlvmAdapterError> {
     let (triple, target_machine) = first_target_machine()?;
     let context = Context::create();
@@ -53,7 +51,7 @@ pub(crate) fn render_verified_program_with_debug(
 pub(crate) fn emit_verified_object(
     program: &Program,
     sources: &SourceMap,
-    native_entry: FunctionId,
+    native_entry: NativeEntryPlan,
     path: &Path,
 ) -> Result<(), LlvmAdapterError> {
     let (triple, target_machine) = first_target_machine()?;
@@ -74,7 +72,7 @@ pub(crate) fn emit_verified_object(
 fn lower_verified_module<'ctx>(
     context: &'ctx Context,
     program: &Program,
-    native_entry: Option<FunctionId>,
+    native_entry: Option<NativeEntryPlan>,
     debug_sources: Option<&SourceMap>,
     triple: &TargetTriple,
     target_machine: &TargetMachine,
@@ -93,7 +91,11 @@ fn lower_verified_module<'ctx>(
             let native_entry = native_entry.ok_or_else(|| {
                 LlvmAdapterError::Debug("debug lowering 缺少 native entry".to_owned())
             })?;
-            Some(debug::DebugPlan::build(sources, ssa_module, native_entry)?)
+            Some(debug::DebugPlan::build(
+                sources,
+                ssa_module,
+                native_entry.function(),
+            )?)
         }
         None => None,
     };
@@ -106,6 +108,7 @@ fn lower_verified_module<'ctx>(
         ssa_module,
         &target_machine.get_target_data(),
         debug,
+        native_entry,
     )?
     .lower(native_entry)?;
     llvm_module

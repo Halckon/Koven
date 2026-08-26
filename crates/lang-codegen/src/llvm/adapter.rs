@@ -56,9 +56,10 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
         ssa: &'ssa Module,
         target: &inkwell::targets::TargetData,
         debug: Option<DebugEmitter<'ctx, 'sources>>,
+        native_entry: Option<entry::NativeEntryPlan>,
     ) -> Result<Self, LlvmAdapterError> {
         let type_map = TypeMap::lower(context, ssa, target)?;
-        let runtime = RuntimeAbi::lower(context, llvm, ssa, &type_map, target)?;
+        let runtime = RuntimeAbi::lower(context, llvm, ssa, &type_map, target, native_entry)?;
         Ok(Self {
             context,
             llvm,
@@ -70,7 +71,10 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
         })
     }
 
-    fn lower(mut self, native_entry: Option<FunctionId>) -> Result<(), LlvmAdapterError> {
+    fn lower(
+        mut self,
+        native_entry: Option<entry::NativeEntryPlan>,
+    ) -> Result<(), LlvmAdapterError> {
         self.declare_functions()?;
         for function in &self.ssa.functions {
             let llvm_function = *self
@@ -93,10 +97,22 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
             .lower()?;
         }
         if let Some(native_entry) = native_entry {
-            let target = *self.functions.get(&native_entry).ok_or_else(|| {
-                LlvmAdapterError::InvalidEntry("validated entry declaration is missing".to_owned())
-            })?;
-            entry::define_wrapper(self.context, self.llvm, target)?;
+            let target = *self
+                .functions
+                .get(&native_entry.function())
+                .ok_or_else(|| {
+                    LlvmAdapterError::InvalidEntry(
+                        "validated entry declaration is missing".to_owned(),
+                    )
+                })?;
+            entry::define_wrapper(
+                self.context,
+                self.llvm,
+                target,
+                native_entry,
+                &self.type_map,
+                &self.runtime,
+            )?;
         }
         if let Some(debug) = &self.debug {
             debug.finalize();
@@ -692,18 +708,43 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             }
             Operation::ContainerElementPlace { owner, index } => {
                 let result = place_result(instruction)?;
-                let container_type = value_type(self.function, *owner)?;
+                let container_type = self
+                    .function
+                    .entity(*owner)
+                    .ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa(
+                            "container element owner entity is missing".to_owned(),
+                        )
+                    })?
+                    .ty
+                    .semantic_type();
                 let layout = self
                     .dependencies
                     .type_map
                     .container_layout(container_type)?;
+                let owner = match owner {
+                    EntityId::Value(owner) => self.struct_value(*owner)?,
+                    EntityId::Loan(loan) => self
+                        .builder
+                        .build_load(
+                            self.dependencies.type_map.basic_type(container_type)?,
+                            self.access(PlaceAccess::Loan(*loan))?,
+                            &format!("p{}.container", result.index()),
+                        )?
+                        .into_struct_value(),
+                    EntityId::Place(_) => {
+                        return Err(LlvmAdapterError::InvalidSsa(
+                            "container element owner cannot be a place".to_owned(),
+                        ));
+                    }
+                };
                 let pointer = container::element_place(
                     &self.builder,
                     self.llvm_function,
                     self.dependencies.type_map,
                     self.dependencies.runtime,
                     container_type,
-                    self.struct_value(*owner)?,
+                    owner,
                     self.int_value(*index)?,
                     &format!("p{}", result.index()),
                 )?;

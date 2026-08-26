@@ -539,7 +539,7 @@ fn apply_operation(
         Operation::ContainerGenerate { length, .. } => {
             require_value(module, function, *length, state, location, origin, errors);
         }
-        Operation::ContainerLength { owner } | Operation::ContainerElementPlace { owner, .. } => {
+        Operation::ContainerLength { owner } => {
             if require_value(
                 module,
                 function,
@@ -555,6 +555,47 @@ fn apply_operation(
                     location,
                     origin,
                 ));
+            }
+        }
+        Operation::ContainerElementPlace { owner, index } => {
+            require_value(
+                module,
+                function,
+                *index,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            match owner {
+                EntityId::Value(owner) => {
+                    if require_value(
+                        module,
+                        function,
+                        *owner,
+                        state,
+                        location.clone(),
+                        origin,
+                        errors,
+                    ) && has_exclusive_value_loan(function, *owner, aliases, state)
+                    {
+                        errors.push(error(
+                            VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                            location,
+                            origin,
+                        ));
+                    }
+                }
+                EntityId::Loan(loan) => {
+                    if !state.loans.contains(loan) {
+                        errors.push(error(
+                            VerifyErrorKind::LoanInactive { loan: *loan },
+                            location,
+                            origin,
+                        ));
+                    }
+                }
+                EntityId::Place(_) => unreachable!("operation contract rejects a place owner"),
             }
         }
         Operation::ContainerReplace { owner, value, .. } => {
@@ -1180,8 +1221,7 @@ impl AliasRoots {
                         changed |= union_from(&mut roots, instruction.results[0], *owner);
                     }
                     Operation::ContainerElementPlace { owner, .. } => {
-                        changed |=
-                            union_from(&mut roots, instruction.results[0], EntityId::Value(*owner));
+                        changed |= union_from(&mut roots, instruction.results[0], *owner);
                     }
                     Operation::FieldPlace { base, .. } => {
                         changed |=

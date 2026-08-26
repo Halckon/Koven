@@ -8,13 +8,40 @@ use lang_frontend::{
     ownership_checking::OwnershipCheckedFile,
     parser::ParsedFile,
     source::{SourceMap, Span},
-    type_checking::{BuiltinType, TypeKind, TypedFile},
+    type_checking::{
+        BuiltinType, FunctionParameterType, IntrinsicTypeConstructor, ParameterMode, TypeKind,
+        TypedFile,
+    },
 };
 
 use crate::{
     llvm,
+    llvm::entry::NativeEntryPlan,
     ssa::{LoweringError, LoweringErrorKind, lower_scalar_file_with_entry},
 };
+
+/// 已由调用方完成名称选择的封闭 native process entry shape。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeEntry {
+    /// 显式或 conventional `() -> Unit` entry。
+    NoArguments(SymbolId),
+    /// Conventional shared Borrow `Array<String> -> Unit` entry。
+    BorrowedArguments(SymbolId),
+}
+
+impl NativeEntry {
+    const fn symbol(self) -> SymbolId {
+        match self {
+            Self::NoArguments(symbol) | Self::BorrowedArguments(symbol) => symbol,
+        }
+    }
+}
+
+impl From<SymbolId> for NativeEntry {
+    fn from(symbol: SymbolId) -> Self {
+        Self::NoArguments(symbol)
+    }
+}
 
 /// 源码 analysis 到 object 失败的稳定 workspace 分类。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,25 +111,28 @@ pub fn emit_native_object(
     names: &NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
-    entry: SymbolId,
+    entry: impl Into<NativeEntry>,
     output: &Path,
 ) -> Result<(), NativeObjectError> {
+    let entry = entry.into();
     validate_entry(names, typed, entry)?;
-    let (program, entry) =
-        lower_scalar_file_with_entry(sources, parsed, names, typed, owned, entry)
+    let (program, function) =
+        lower_scalar_file_with_entry(sources, parsed, names, typed, owned, entry.symbol())
             .map_err(map_lowering_error)?;
-    llvm::emit_verified_object(&program, sources, entry, output)
+    let plan = native_entry_plan(&program, entry, function)?;
+    llvm::emit_verified_object(&program, sources, plan, output)
         .map_err(|error| map_backend_error(sources, &program, error))
 }
 
 fn validate_entry(
     names: &NameResolution,
     typed: &TypedFile,
-    entry: SymbolId,
+    entry: NativeEntry,
 ) -> Result<(), NativeObjectError> {
+    let entry_symbol = entry.symbol();
     let symbol = names
         .symbols()
-        .get(entry.index())
+        .get(entry_symbol.index())
         .ok_or_else(|| invalid_entry(None))?;
     let scope = names
         .scopes()
@@ -111,7 +141,7 @@ fn validate_entry(
     let callable = typed
         .callables()
         .iter()
-        .find(|callable| callable.symbol() == entry && callable.owner().is_none())
+        .find(|callable| callable.symbol() == entry_symbol && callable.owner().is_none())
         .ok_or_else(|| invalid_entry(Some(symbol.span())))?;
     let is_unit = matches!(
         typed.types().get(callable.return_type()),
@@ -121,19 +151,85 @@ fn validate_entry(
         || scope.kind() != ScopeKind::File
         || scope.parent().is_some()
         || !callable.type_parameters().is_empty()
-        || !callable.parameters().is_empty()
         || !is_unit
     {
         return Err(invalid_entry(Some(symbol.span())));
     }
+    let valid_parameters = match entry {
+        NativeEntry::NoArguments(_) => callable.parameters().is_empty(),
+        NativeEntry::BorrowedArguments(_) => match callable.parameters() {
+            [
+                FunctionParameterType {
+                    mode: ParameterMode::Borrow,
+                    ty,
+                },
+            ] => matches!(
+                typed.types().get(*ty),
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Array,
+                    arguments,
+                }) if matches!(arguments.as_slice(), [string]
+                    if typed.types().get(*string) == Some(&TypeKind::Builtin(BuiltinType::String)))
+            ),
+            _ => false,
+        },
+    };
+    if !valid_parameters {
+        return Err(invalid_entry(Some(symbol.span())));
+    }
     Ok(())
+}
+
+fn native_entry_plan(
+    program: &crate::ssa::model::Program,
+    entry: NativeEntry,
+    function: crate::ssa::model::FunctionId,
+) -> Result<NativeEntryPlan, NativeObjectError> {
+    match entry {
+        NativeEntry::NoArguments(_) => Ok(NativeEntryPlan::NoArguments { function }),
+        NativeEntry::BorrowedArguments(_) => {
+            let module = program
+                .module(function.module())
+                .ok_or_else(|| invalid_entry(None))?;
+            let function_data = module
+                .function(function)
+                .ok_or_else(|| invalid_entry(None))?;
+            let parameter = function_data
+                .blocks
+                .first()
+                .and_then(|block| block.parameters.first())
+                .copied()
+                .ok_or_else(|| invalid_entry(None))?;
+            let crate::ssa::model::EntityType::Loan {
+                kind: crate::ssa::model::LoanKind::Shared,
+                target: arguments,
+            } = function_data
+                .entity(parameter)
+                .map(|entity| entity.ty)
+                .ok_or_else(|| invalid_entry(None))?
+            else {
+                return Err(invalid_entry(None));
+            };
+            let (crate::ssa::model::SequentialContainerKind::Array, string) = module
+                .sequential_container(arguments)
+                .ok_or_else(|| invalid_entry(None))?
+            else {
+                return Err(invalid_entry(None));
+            };
+            Ok(NativeEntryPlan::BorrowedArguments {
+                function,
+                arguments,
+                string,
+            })
+        }
+    }
 }
 
 fn invalid_entry(span: Option<Span>) -> NativeObjectError {
     NativeObjectError {
         kind: NativeObjectErrorKind::InvalidEntry,
         span,
-        detail: "entry must identify one top-level non-generic () -> Unit function".to_owned(),
+        detail: "entry must match its declared native process shape and return Unit".to_owned(),
         diagnostic: None,
     }
 }

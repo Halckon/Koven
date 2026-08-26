@@ -3,6 +3,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::NameResolution,
+    ownership_checking::OwnershipPlace,
     parser::Expression,
     source::Span,
     type_checking::{
@@ -13,9 +14,11 @@ use lang_frontend::{
 
 use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, error,
-    nominal::NominalTypeMapper, value,
+    nominal::NominalTypeMapper, place, span_key, value,
 };
-use crate::ssa::model::{EntityType, Module, Operation, SequentialContainerKind, SsaTypeId};
+use crate::ssa::model::{
+    EntityId, EntityType, Module, Operation, PlaceId, SequentialContainerKind, SsaTypeId,
+};
 
 impl NominalTypeMapper {
     /// 将 frontend 的封闭顺序容器 identity 递归映射为保留元素类型的 SSA identity。
@@ -45,6 +48,69 @@ impl NominalTypeMapper {
 }
 
 impl ExpressionLowerer<'_> {
+    /// Lower a typed element-place used only as a shared Borrow call argument.
+    pub(super) fn lower_borrowed_container_element(
+        &mut self,
+        expression: ExpressionId,
+        target: &OwnershipPlace,
+        span: Span,
+    ) -> Result<Option<PlaceId>, LoweringError> {
+        let Some(descriptor) = self.typed.element_place(expression) else {
+            return Ok(None);
+        };
+        if target.element().is_none() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let owner = self.container_borrow_owner(descriptor.receiver(), target.root(), span)?;
+        let index = self.require_value(descriptor.index())?;
+        self.expression_ssa_type(descriptor.receiver(), span)?;
+        let element = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(
+            Operation::ContainerElementPlace { owner, index },
+            vec![EntityType::Place(element)],
+            span,
+        )?;
+        Ok(Some(place(results[0])))
+    }
+
+    fn container_borrow_owner(
+        &self,
+        expression: ExpressionId,
+        expected_root: lang_frontend::name_resolution::SymbolId,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        match node.payload() {
+            Expression::Group { expression } => {
+                self.container_borrow_owner(*expression, expected_root, span)
+            }
+            Expression::Name => {
+                let symbol = self
+                    .references
+                    .get(&span_key(node.span()))
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
+                if symbol != expected_root {
+                    return Err(error(LoweringErrorKind::MissingFact, node.span()));
+                }
+                if let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() {
+                    return Ok(EntityId::Value(owner));
+                }
+                self.borrow_bindings
+                    .get(&symbol)
+                    .copied()
+                    .map(EntityId::Loan)
+                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, node.span()))
+            }
+            _ => Err(error(LoweringErrorKind::UnsupportedNode, node.span())),
+        }
+    }
+
     /// Lower 已由 frontend 固定种类、元素类型和 delivery mode 的顺序容器构造。
     pub(super) fn lower_container_construction(
         &mut self,

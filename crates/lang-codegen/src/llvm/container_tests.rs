@@ -323,7 +323,7 @@ fn checked_element_place_aborts_before_address_formation() {
         function,
         entry,
         Operation::ContainerElementPlace {
-            owner: parameters[0],
+            owner: EntityId::Value(parameters[0]),
             index: parameters[1],
         },
         integer,

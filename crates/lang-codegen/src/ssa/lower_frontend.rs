@@ -1142,6 +1142,12 @@ impl ExpressionLowerer<'_> {
         target: &LoanTarget,
         span: Span,
     ) -> Result<PlaceId, LoweringError> {
+        if let LoanTarget::Place(target) = target
+            && !target.is_root()
+            && let Some(place) = self.lower_borrowed_container_element(argument, target, span)?
+        {
+            return Ok(place);
+        }
         if let Some(operation) = self.typed.rc_operation(argument)
             && operation.kind() == RcOperationKind::Value
         {

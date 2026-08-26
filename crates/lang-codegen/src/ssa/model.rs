@@ -444,7 +444,7 @@ pub(crate) enum Operation {
         owner: ValueId,
     },
     ContainerElementPlace {
-        owner: ValueId,
+        owner: EntityId,
         index: ValueId,
     },
     ContainerReplace {
@@ -549,7 +549,7 @@ impl Operation {
             Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
             Self::ContainerLength { owner } => vec![EntityId::Value(*owner)],
             Self::ContainerElementPlace { owner, index } => {
-                vec![EntityId::Value(*owner), EntityId::Value(*index)]
+                vec![*owner, EntityId::Value(*index)]
             }
             Self::ContainerReplace {
                 owner,

@@ -533,16 +533,24 @@ fn container_length_contract(
 fn container_element_place_contract(
     module: &Module,
     function: &Function,
-    owner: ValueId,
+    owner: EntityId,
     index: ValueId,
     results: &[EntityType],
 ) -> bool {
+    let owner_type = match function.entity(owner).map(|entity| entity.ty) {
+        Some(EntityType::Value(ty))
+        | Some(EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: ty,
+        }) => Some(ty),
+        _ => None,
+    };
     let Some((_, element)) =
-        value_type(function, owner).and_then(|container| module.sequential_container(container))
+        owner_type.and_then(|container| module.sequential_container(container))
     else {
         return false;
     };
-    value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+    value_type(function, index).is_some_and(|ty| is_koven_container_index(module, ty))
         && results == [EntityType::Place(element)]
 }
 
@@ -851,6 +859,16 @@ fn is_koven_int(module: &Module, ty: SsaTypeId) -> bool {
         module.type_kind(ty),
         Some(SsaTypeKind::Integer {
             bits: 64,
+            signed: true
+        })
+    )
+}
+
+fn is_koven_container_index(module: &Module, ty: SsaTypeId) -> bool {
+    matches!(
+        module.type_kind(ty),
+        Some(SsaTypeKind::Integer {
+            bits: 32 | 64,
             signed: true
         })
     )

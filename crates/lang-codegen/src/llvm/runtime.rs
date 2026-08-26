@@ -20,7 +20,7 @@ use crate::ssa::model::{
     TerminatorKind,
 };
 
-use super::{LlvmAdapterError, tagged, type_map::TypeMap};
+use super::{LlvmAdapterError, entry::NativeEntryPlan, tagged, type_map::TypeMap};
 
 pub(super) struct RuntimeAbi<'ctx> {
     context: &'ctx Context,
@@ -42,8 +42,9 @@ impl<'ctx> RuntimeAbi<'ctx> {
         module: &Module,
         types: &TypeMap<'ctx>,
         target: &TargetData,
+        native_entry: Option<NativeEntryPlan>,
     ) -> Result<Self, LlvmAdapterError> {
-        let requirements = RuntimeRequirements::collect(module)?;
+        let requirements = RuntimeRequirements::collect(module, native_entry)?;
         let pointer = context.ptr_type(AddressSpace::default());
         let size_type = context.ptr_sized_int_type(target, None);
         let malloc = requirements.needs_allocation.then(|| {
@@ -820,7 +821,10 @@ struct RuntimeRequirements {
 }
 
 impl RuntimeRequirements {
-    fn collect(module: &Module) -> Result<Self, LlvmAdapterError> {
+    fn collect(
+        module: &Module,
+        native_entry: Option<NativeEntryPlan>,
+    ) -> Result<Self, LlvmAdapterError> {
         let mut requirements = Self {
             needs_allocation: false,
             needs_abort: false,
@@ -909,6 +913,12 @@ impl RuntimeRequirements {
             }) {
                 requirements.needs_abort = true;
             }
+        }
+        if let Some(NativeEntryPlan::BorrowedArguments { arguments, .. }) = native_entry {
+            requirements.needs_allocation = true;
+            requirements.needs_abort = true;
+            requirements.container_allocations.insert(arguments);
+            requirements.collect_drop_type(module, arguments)?;
         }
         Ok(requirements)
     }

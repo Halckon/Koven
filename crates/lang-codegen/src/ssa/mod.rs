@@ -15,6 +15,8 @@ mod verify_types;
 #[cfg(test)]
 mod aggregate_operation_tests;
 #[cfg(test)]
+mod borrowed_container_lowering_tests;
+#[cfg(test)]
 mod closure_operation_tests;
 #[cfg(test)]
 mod container_lowering_tests;
