@@ -53,6 +53,12 @@ impl NominalTypeMapper {
                 ConstructionTarget::Nominal(_) | ConstructionTarget::IntrinsicBox => {
                     insert_fields(&mut construction_fields, construction.result_type(), fields)
                 }
+                ConstructionTarget::IntrinsicRc => {
+                    return Err(LoweringError {
+                        kind: LoweringErrorKind::UnsupportedNode,
+                        span: None,
+                    });
+                }
             };
             if !inserted {
                 return Err(LoweringError {
@@ -117,6 +123,10 @@ impl NominalTypeMapper {
                 );
                 owner
             }
+            Some(TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Rc,
+                ..
+            }) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             None => return Err(error(LoweringErrorKind::MissingFact, span)),
         };

@@ -5,6 +5,7 @@ mod checker;
 mod construction;
 mod error;
 mod model;
+mod rc;
 
 use crate::{
     name_resolution::NameResolution, parser::ParsedFile, source::SourceMap,
@@ -22,6 +23,7 @@ pub use model::{
     LoanTarget, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
     OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace, Transferability,
 };
+pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(

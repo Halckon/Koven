@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::ConstructionOwnershipPlan;
+use super::RcOwnershipEffect;
 
 /// 可由 Phase 3 精确识别的源码 place。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -503,6 +504,7 @@ pub struct OwnershipCheckedFile {
     loans: Vec<LoanFact>,
     drops: Vec<DropFact>,
     construction_plans: Vec<ConstructionOwnershipPlan>,
+    rc_effects: Vec<RcOwnershipEffect>,
     captures: Vec<ClosureCaptureDescriptor>,
     closures: Vec<ClosureDescriptor>,
     transferabilities: Vec<Transferability>,
@@ -514,6 +516,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) loans: Vec<LoanFact>,
     pub(crate) drops: Vec<DropFact>,
     pub(crate) construction_plans: Vec<ConstructionOwnershipPlan>,
+    pub(crate) rc_effects: Vec<RcOwnershipEffect>,
     pub(crate) captures: Vec<ClosureCaptureDescriptor>,
     pub(crate) closures: Vec<ClosureDescriptor>,
     pub(crate) transferabilities: Vec<Transferability>,
@@ -537,6 +540,7 @@ impl OwnershipCheckedFile {
             loans: parts.loans,
             drops: parts.drops,
             construction_plans: parts.construction_plans,
+            rc_effects: parts.rc_effects,
             captures: parts.captures,
             closures: parts.closures,
             transferabilities: parts.transferabilities,
@@ -619,6 +623,21 @@ impl OwnershipCheckedFile {
         self.construction_plans
             .iter()
             .find(|plan| plan.construction() == expression)
+    }
+
+    /// 返回源码顺序稳定的 intrinsic `Rc<T>` ownership effects。
+    #[must_use]
+    pub fn rc_effects(&self) -> &[RcOwnershipEffect] {
+        &self.rc_effects
+    }
+
+    /// 查询指定表达式的 intrinsic `Rc<T>` ownership effect。
+    #[must_use]
+    pub fn rc_effect(&self, expression: ExpressionId) -> Option<RcOwnershipEffect> {
+        self.rc_effects
+            .iter()
+            .copied()
+            .find(|effect| effect.expression() == expression)
     }
 
     /// 返回 lambda/source 顺序稳定的 capture facts。

@@ -73,6 +73,10 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
             IntrinsicTypeConstructor::Box,
         ),
         (
+            names.declare_type("Rc").expect("Rc"),
+            IntrinsicTypeConstructor::Rc,
+        ),
+        (
             names.declare_type("Array").expect("Array"),
             IntrinsicTypeConstructor::Array,
         ),
@@ -451,6 +455,69 @@ fn expected_result_and_intrinsic_box_complete_construction_instances() {
 }
 
 #[test]
+fn intrinsic_rc_publishes_construction_share_and_payload_borrow_facts() {
+    use lang_frontend::type_checking::{
+        ConstructionTarget, Copyability, ParameterMode, RcOperationKind,
+    };
+
+    let text = "value class Point(val x: Int)
+                fun shared(): Int {
+                    val first = Rc(Point(1))
+                    val second = first.share()
+                    val explicit = Rc<Point>(Point(2))
+                    val copied = first.value.x
+                    return second.value.x
+                }";
+    let (_, _, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let rc_constructions = typed
+        .constructions()
+        .iter()
+        .filter(|descriptor| descriptor.target() == ConstructionTarget::IntrinsicRc)
+        .collect::<Vec<_>>();
+    assert_eq!(rc_constructions.len(), 2);
+    assert!(rc_constructions.iter().all(|descriptor| {
+        descriptor.arguments().len() == 1
+            && descriptor.arguments()[0].parameter_name() == "value"
+            && descriptor.arguments()[0].mode() == ParameterMode::Value
+            && typed.copyability(descriptor.result_type()) == Some(Copyability::MoveOnly)
+    }));
+    assert_eq!(typed.rc_operations().len(), 3);
+    assert_eq!(typed.rc_operations()[0].kind(), RcOperationKind::Share);
+    assert_eq!(typed.rc_operations()[0].result_mode(), ParameterMode::Value);
+    assert!(typed.rc_operations()[1..].iter().all(|descriptor| {
+        descriptor.kind() == RcOperationKind::Value
+            && descriptor.result_mode() == ParameterMode::Borrow
+    }));
+}
+
+#[test]
+fn rc_shapes_reuse_existing_call_diagnostics_without_partial_facts() {
+    let text = "fun missing(): Unit { val result = Rc() }
+                fun extra(): Unit { val result = Rc<Int>(1, 2) }
+                fun badShare(): Unit {
+                    val owner = Rc(1)
+                    val shared = owner.share(2)
+                }";
+    let (_, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0121"]);
+    assert_eq!(
+        typed
+            .constructions()
+            .iter()
+            .filter(|descriptor| matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::ConstructionTarget::IntrinsicRc
+            ))
+            .count(),
+        1
+    );
+    assert!(typed.rc_operations().is_empty());
+}
+
+#[test]
 fn invalid_and_underconstrained_constructions_fail_without_typed_facts() {
     let text = "interface Contract
                 enum class Choice { One }
@@ -521,6 +588,29 @@ fn source_box_name_keeps_nominal_constructor_identity() {
         typed.constructions()[0].target(),
         lang_frontend::type_checking::ConstructionTarget::Nominal(_)
     ));
+}
+
+#[test]
+fn source_rc_name_never_gains_intrinsic_construction_or_share_facts() {
+    let text = "class Rc<T>(val item: T) {
+                    fun share(): Rc<T> = Rc(item)
+                }
+                fun source(): Rc<Int> {
+                    val owner = Rc(1)
+                    return owner.share()
+                }";
+    let (_, _, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(typed.constructions().iter().all(|construction| matches!(
+        construction.target(),
+        lang_frontend::type_checking::ConstructionTarget::Nominal(_)
+    )));
+    assert!(typed.rc_operations().is_empty());
+    assert!(typed.calls().iter().any(|call| matches!(
+        call.instance().target(),
+        lang_frontend::type_checking::CallableTarget::Source(_)
+    )));
 }
 
 #[test]

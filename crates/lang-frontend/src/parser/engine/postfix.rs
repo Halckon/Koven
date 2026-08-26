@@ -142,7 +142,9 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(Symbol::QuestionDot))
         );
         let operator_span = operator.span();
-        if !self.current_is_identifier() {
+        // `value` remains a hard keyword everywhere else; v0.30 reserves only the
+        // postfix member spelling needed by the compiler-bound `Rc<T>.value` contract.
+        if !self.current_is_identifier() && !self.current_is_keyword(Keyword::Value) {
             let current = self.current()?;
             let end = if self.is_poison() {
                 self.bump()?.span().end()

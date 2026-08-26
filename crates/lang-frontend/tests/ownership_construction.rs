@@ -30,6 +30,7 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
         )
     });
     let box_symbol = names.declare_type("Box").expect("Box");
+    let rc_symbol = names.declare_type("Rc").expect("Rc");
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in builtins {
         types
@@ -39,6 +40,9 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     types
         .bind_intrinsic(box_symbol, IntrinsicTypeConstructor::Box)
         .expect("Box binding");
+    types
+        .bind_intrinsic(rc_symbol, IntrinsicTypeConstructor::Rc)
+        .expect("Rc binding");
     (names, types)
 }
 

@@ -6,7 +6,7 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerConstructionDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
-        ExpressionCategory, ParameterMode, TypeId, TypeTable,
+        ExpressionCategory, ParameterMode, RcOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -30,6 +30,7 @@ pub(super) struct TrialState {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    rc_operations: Vec<RcOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -50,6 +51,7 @@ impl Checker<'_> {
             calls: self.calls.clone(),
             constructions: self.constructions.clone(),
             aggregate_projections: self.aggregate_projections.clone(),
+            rc_operations: self.rc_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -69,6 +71,7 @@ impl Checker<'_> {
         self.calls = state.calls;
         self.constructions = state.constructions;
         self.aggregate_projections = state.aggregate_projections;
+        self.rc_operations = state.rc_operations;
         self.container_constructions = state.container_constructions;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;

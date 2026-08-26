@@ -315,6 +315,9 @@ impl ExpressionLowerer<'_> {
                 )?;
                 value(results[0])
             }
+            ConstructionTarget::IntrinsicRc => {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
             ConstructionTarget::EnumCase(_) => {
                 let ConstructionTarget::EnumCase(case) = descriptor.target() else {
                     unreachable!();
@@ -363,6 +366,7 @@ impl ExpressionLowerer<'_> {
         }
         let expected_kind = match target {
             ConstructionTarget::IntrinsicBox => Some(ConstructionRootKind::HeapOwner),
+            ConstructionTarget::IntrinsicRc => Some(ConstructionRootKind::SharedOwner),
             ConstructionTarget::EnumCase(_) => Some(ConstructionRootKind::Inline),
             ConstructionTarget::Nominal(target) => self
                 .typed

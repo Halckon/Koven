@@ -4,6 +4,7 @@ use crate::{
     parser::{
         BinaryOperator, Expression, IntegerLiteralKind, LiteralKind, PrefixOperator, StringPart,
     },
+    type_checking::RcOperationKind,
 };
 
 use super::{flow::extend_facts, *};
@@ -204,9 +205,24 @@ impl Checker<'_> {
                 } else {
                     self.check_expression(target, None, None)?;
                     self.check_expression(value, None, None)?;
-                    ExprCheck {
-                        ty: self.deferred(DeferredReason::Assignment),
-                        falls_through: true,
+                    if self.rc_operations.iter().any(|operation| {
+                        operation.expression() == target
+                            && operation.kind() == RcOperationKind::Value
+                    }) {
+                        self.emit(
+                            self.immutable_container_place_code,
+                            "Rc.value is read-only",
+                            self.ast().expressions().get(target)?.span(),
+                        )?;
+                        ExprCheck {
+                            ty: self.error_type(),
+                            falls_through: true,
+                        }
+                    } else {
+                        ExprCheck {
+                            ty: self.deferred(DeferredReason::Assignment),
+                            falls_through: true,
+                        }
                     }
                 };
                 if let Some(key) = self.stable_flow_key(target) {
@@ -373,6 +389,12 @@ impl Checker<'_> {
             });
         }
         let name = self.sources.slice(name_span)?;
+        if let Some(ty) = self.rc_member_type(expression, receiver_id, receiver.ty, name, safe) {
+            return Ok(ExprCheck {
+                ty,
+                falls_through: receiver.falls_through,
+            });
+        }
         if let Some(ty) = self.container_member_type(receiver.ty, name, name_span)? {
             return Ok(ExprCheck {
                 ty,

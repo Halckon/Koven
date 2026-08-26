@@ -8,6 +8,7 @@ mod error;
 mod model;
 mod parameter;
 mod projection;
+mod rc;
 
 use std::{sync::Arc, thread};
 
@@ -24,6 +25,7 @@ pub use error::TypeCheckingError;
 pub use model::*;
 pub use parameter::*;
 pub use projection::*;
+pub use rc::*;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。
 ///

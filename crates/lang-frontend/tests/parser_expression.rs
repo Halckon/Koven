@@ -866,6 +866,14 @@ fn nested_type_references_and_function_types_parse_without_shift_confusion() {
 }
 
 #[test]
+fn hard_keyword_value_is_allowed_only_as_a_postfix_member_name() {
+    assert_parses("owner.value");
+    assert_parses("owner.value.x");
+    assert_parses("inspect(owner.value)");
+    assert!(!parse_fingerprints("value").is_empty());
+}
+
+#[test]
 fn parser_diagnostic_codes_messages_and_primary_spans_are_stable() {
     let cases = [
         ("", "L0009", "expected expression", 0, 0),

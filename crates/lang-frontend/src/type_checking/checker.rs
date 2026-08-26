@@ -13,6 +13,7 @@ mod literal;
 mod members;
 mod nominal;
 mod projection;
+mod rc;
 mod trial;
 mod type_inference;
 mod type_ref;
@@ -40,9 +41,9 @@ use super::{
     DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
     EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
     FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
-    ParameterBindingDescriptor, ParameterMode, SequentialContainerKind, TypeCheckingError,
-    TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
-    TypedFile, TypedFileParts,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, SequentialContainerKind,
+    TypeCheckingError, TypeEnvironment, TypeId, TypeKind, TypeParameterBound,
+    TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::{ExpressionUse, FlowKey, collect_expression_uses};
@@ -131,6 +132,7 @@ struct Checker<'a> {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    rc_operations: Vec<RcOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
@@ -291,6 +293,7 @@ impl<'a> Checker<'a> {
             calls: Vec::new(),
             constructions: Vec::new(),
             aggregate_projections: Vec::new(),
+            rc_operations: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
@@ -429,6 +432,7 @@ impl<'a> Checker<'a> {
                 calls: self.calls,
                 constructions: self.constructions,
                 aggregate_projections: self.aggregate_projections,
+                rc_operations: self.rc_operations,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,
             },

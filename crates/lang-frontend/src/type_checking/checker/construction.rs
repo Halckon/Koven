@@ -1,4 +1,4 @@
-//! v0.29 nominal、enum case 与 intrinsic `Box` 构造检查。
+//! v0.30 nominal、enum case、intrinsic `Box` 与 `Rc` 构造检查。
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +21,7 @@ enum Target {
     Nominal(NominalId),
     EnumCase(EnumCaseId),
     Box,
+    Rc,
     Invalid,
 }
 
@@ -81,6 +82,11 @@ impl Checker<'_> {
         if let Target::Box = target {
             return self
                 .check_box_construction(expression, call_span, callee, type_arguments, arguments)
+                .map(Some);
+        }
+        if let Target::Rc = target {
+            return self
+                .check_rc_construction(expression, call_span, callee, type_arguments, arguments)
                 .map(Some);
         }
 
@@ -178,6 +184,9 @@ impl Checker<'_> {
                     Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Box)) => {
                         Some(Target::Box)
                     }
+                    Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Rc)) => {
+                        Some(Target::Rc)
+                    }
                     Some(ExternalTypeBinding::Builtin(_) | ExternalTypeBinding::Capability(_)) => {
                         Some(Target::Invalid)
                     }
@@ -246,7 +255,7 @@ impl Checker<'_> {
                     result_template: case.root_type(),
                 })
             }
-            Target::Box | Target::Invalid => unreachable!("source target expected"),
+            Target::Box | Target::Rc | Target::Invalid => unreachable!("source target expected"),
         }
     }
 
@@ -580,7 +589,73 @@ impl Checker<'_> {
         )
     }
 
-    fn check_construction_operands(
+    fn check_rc_construction(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let placeholder = Parameter {
+            symbol: None,
+            name: "value".to_owned(),
+            ty: self.error_type(),
+            span: None,
+        };
+        let parameters = [placeholder.as_call_parameter()];
+        let mapping = match self.map_arguments(&parameters, arguments, call_span)? {
+            Ok(mapping) => mapping,
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_construction_operands(arguments)?;
+                return Ok(self.failed_construction());
+            }
+        };
+        let payload = match type_arguments {
+            [] => self.check_expression(arguments[0].value, None, None)?.ty,
+            [type_ref] => self.resolve_type_ref(*type_ref)?,
+            _ => {
+                self.emit(
+                    self.type_argument_arity_code,
+                    "Rc constructor accepts at most one type argument",
+                    self.ast().expressions().get(callee)?.span(),
+                )?;
+                self.check_construction_operands(arguments)?;
+                return Ok(self.failed_construction());
+            }
+        };
+        if !self.is_error(payload) && !self.is_structurally_storable_type(payload) {
+            self.emit(
+                self.invalid_container_element_code,
+                "Rc payload type is not structurally storable",
+                self.ast().expressions().get(arguments[0].value)?.span(),
+            )?;
+            return Ok(self.failed_construction());
+        }
+        if self.is_error(payload) || self.is_deferred(payload) {
+            return Ok(self.failed_construction());
+        }
+        let result_type = self.types.intern(TypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::Rc,
+            arguments: vec![payload],
+        });
+        self.finish_construction(
+            expression,
+            ConstructionTarget::IntrinsicRc,
+            vec![payload],
+            result_type,
+            arguments,
+            &mapping,
+            &[Parameter {
+                ty: payload,
+                ..placeholder
+            }],
+            &BTreeMap::new(),
+        )
+    }
+
+    pub(super) fn check_construction_operands(
         &mut self,
         arguments: &[CallArgument],
     ) -> Result<(), TypeCheckingError> {

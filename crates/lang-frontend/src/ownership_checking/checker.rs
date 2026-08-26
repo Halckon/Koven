@@ -5,6 +5,7 @@ mod construction;
 mod container;
 mod drop_planner;
 mod loan;
+mod rc;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -93,6 +94,7 @@ struct Checker<'a> {
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
     construction: construction::Analysis,
+    rc_effects: Vec<super::RcOwnershipEffect>,
     cross_thread_by_expression: BTreeMap<usize, Vec<bool>>,
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
@@ -176,6 +178,7 @@ impl<'a> Checker<'a> {
             references_by_span,
             calls_by_expression,
             construction: construction::Analysis::new(parsed, typed)?,
+            rc_effects: Vec::new(),
             cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
@@ -220,6 +223,7 @@ impl<'a> Checker<'a> {
             .collect::<Vec<_>>();
         if !diagnostics.is_empty() {
             self.loans.clear();
+            self.rc_effects.clear();
         }
         let bindings = self
             .typed
@@ -255,6 +259,7 @@ impl<'a> Checker<'a> {
                 loans: self.loans,
                 drops,
                 construction_plans,
+                rc_effects: self.rc_effects,
                 captures,
                 closures: self.closures,
                 transferabilities: self.transferabilities,
@@ -467,6 +472,9 @@ impl<'a> Checker<'a> {
     ) -> Result<Flows, OwnershipCheckingError> {
         if let Some(descriptor) = self.construction.descriptor(id) {
             return self.check_construction(descriptor, state, usage);
+        }
+        if let Some(descriptor) = self.typed.rc_operation(id) {
+            return self.check_rc_operation(descriptor, state, usage);
         }
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();

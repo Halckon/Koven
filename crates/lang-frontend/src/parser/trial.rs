@@ -219,15 +219,20 @@ impl<'a> TrialBuilder<'a> {
         let len = self.lexemes.len();
         let mut path_ends = vec![None; len];
         for index in (0..len).rev() {
-            if !self.is_identifier(index) {
+            let identifier = self.is_identifier(index);
+            let rc_value_member = index > 0
+                && self.is_keyword(index, Keyword::Value)
+                && self.is_symbol(index - 1, Symbol::Dot);
+            if !identifier && !rc_value_member {
                 continue;
             }
-            path_ends[index] =
-                if self.is_symbol(index + 1, Symbol::Dot) && self.is_identifier(index + 2) {
-                    path_ends[index + 2]
-                } else {
-                    Some(index + 1)
-                };
+            let has_member = self.is_symbol(index + 1, Symbol::Dot)
+                && (self.is_identifier(index + 2) || self.is_keyword(index + 2, Keyword::Value));
+            path_ends[index] = if has_member {
+                path_ends[index + 2]
+            } else {
+                Some(index + 1)
+            };
         }
 
         let mut types = vec![ParseTrial::INVALID_TYPE; len];

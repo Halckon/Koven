@@ -306,7 +306,16 @@ impl Checker<'_> {
         match mode {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
-                if let Some(place) = self.place(argument.value)? {
+                let rc_owner_place = self
+                    .typed
+                    .rc_operation(argument.value)
+                    .filter(|operation| {
+                        operation.kind() == crate::type_checking::RcOperationKind::Value
+                    })
+                    .map(|operation| self.place(operation.receiver()))
+                    .transpose()?
+                    .flatten();
+                if let Some(place) = rc_owner_place.or(self.place(argument.value)?) {
                     if self.access_place(
                         &place,
                         AccessKind::SharedLoan,

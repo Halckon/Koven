@@ -14,6 +14,8 @@ pub enum ConstructionTarget {
     EnumCase(EnumCaseId),
     /// 编译器绑定的 intrinsic `Box`。
     IntrinsicBox,
+    /// 编译器绑定的 intrinsic `Rc`。
+    IntrinsicRc,
 }
 
 /// construction target 与完整类型实参组成的稳定实例 identity。
@@ -101,7 +103,7 @@ impl ConstructionArgumentDescriptor {
         self.parameter_type
     }
     #[must_use]
-    /// 返回参数传递模式；v0.29 construction 恒为 `Value`。
+    /// 返回参数传递模式；v0.30 construction 恒为 `Value`。
     pub const fn mode(&self) -> ParameterMode {
         self.mode
     }

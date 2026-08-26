@@ -424,7 +424,7 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
 - [x] **SPEC-0044（已实现）**：在唯一 Koven prelude 真源声明 `Pair<A, B>` 与
       `Result<T, E>`；自动解构及按类型实参条件满足 `Copyable` 沿用通用 compiler facts，
       核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
-- [ ] **SPEC-0045（v0.30 guide 门禁已解除）**：实现 compiler-bound `Rc<T>` 构造、显式
+- [ ] **SPEC-0045（`in-progress`；v0.30 guide 门禁已解除）**：实现 compiler-bound `Rc<T>` 构造、显式
       `.share()`、Borrow-only `.value`、ASAP 自动 release 与归零析构；`Rc<T>` 始终 MoveOnly 且
       不满足 Transferable。全部代码前置已完成，ADR-0015 已接受；不引入 Arc/Weak/Shareable、
       一般 instance receiver 或源语言 Arena API

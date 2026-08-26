@@ -115,7 +115,7 @@ fn validate_descriptor(
                     .map(|(symbol, _)| Some(*symbol))
                     .collect::<Vec<_>>()
             }),
-        ConstructionTarget::IntrinsicBox => Some(vec![None]),
+        ConstructionTarget::IntrinsicBox | ConstructionTarget::IntrinsicRc => Some(vec![None]),
     }
     .ok_or_else(|| invalid(expression))?;
     if expected_symbols.len() != descriptor.arguments().len() {
@@ -141,6 +141,13 @@ fn validate_descriptor(
     if descriptor.target() == ConstructionTarget::IntrinsicBox
         && descriptor.arguments().first().is_none_or(|argument| {
             argument.parameter_name() != "element" || argument.parameter_symbol().is_some()
+        })
+    {
+        return Err(invalid(expression));
+    }
+    if descriptor.target() == ConstructionTarget::IntrinsicRc
+        && descriptor.arguments().first().is_none_or(|argument| {
+            argument.parameter_name() != "value" || argument.parameter_symbol().is_some()
         })
     {
         return Err(invalid(expression));
@@ -250,6 +257,7 @@ impl Checker<'_> {
     ) -> Result<ConstructionRootKind, OwnershipCheckingError> {
         match target {
             ConstructionTarget::IntrinsicBox => Ok(ConstructionRootKind::HeapOwner),
+            ConstructionTarget::IntrinsicRc => Ok(ConstructionRootKind::SharedOwner),
             ConstructionTarget::EnumCase(_) => Ok(ConstructionRootKind::Inline),
             ConstructionTarget::Nominal(target) => self
                 .typed

@@ -89,6 +89,8 @@ pub enum ConstructionRootKind {
     Inline,
     /// ordinary class 或 intrinsic `Box` 的唯一 heap-owner handle。
     HeapOwner,
+    /// intrinsic `Rc` 的引用计数 shared-owner handle。
+    SharedOwner,
 }
 
 /// construction 成功后必须沿正常控制流唯一转移或析构的 root obligation。
@@ -124,7 +126,7 @@ impl ConstructionRootDropObligation {
         self.result_type
     }
 
-    /// 返回 inline 或 heap-owner root 表示。
+    /// 返回 inline、heap-owner 或 shared-owner root 表示。
     #[must_use]
     pub const fn kind(self) -> ConstructionRootKind {
         self.kind

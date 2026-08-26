@@ -13,6 +13,7 @@ use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
     FunctionParameterType, IntrinsicCallable, ParameterBindingDescriptor, ParameterMode,
+    RcOperationDescriptor,
 };
 
 /// 由 classifier 声明 symbol 派生的稳定名义身份。
@@ -858,6 +859,7 @@ pub struct TypedFile {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    rc_operations: Vec<RcOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -879,6 +881,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) calls: Vec<CallDescriptor>,
     pub(crate) constructions: Vec<ConstructionDescriptor>,
     pub(crate) aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    pub(crate) rc_operations: Vec<RcOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
@@ -913,6 +916,7 @@ impl TypedFile {
             calls: parts.calls,
             constructions: parts.constructions,
             aggregate_projections: parts.aggregate_projections,
+            rc_operations: parts.rc_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             diagnostics,
@@ -1077,6 +1081,21 @@ impl TypedFile {
         expression: ExpressionId,
     ) -> Option<AggregateProjectionDescriptor> {
         self.aggregate_projections
+            .iter()
+            .copied()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码 expression 顺序的 intrinsic `Rc<T>` 操作。
+    #[must_use]
+    pub fn rc_operations(&self) -> &[RcOperationDescriptor] {
+        &self.rc_operations
+    }
+
+    /// 查询指定 expression 的 intrinsic `Rc<T>` 操作。
+    #[must_use]
+    pub fn rc_operation(&self, expression: ExpressionId) -> Option<RcOperationDescriptor> {
+        self.rc_operations
             .iter()
             .copied()
             .find(|descriptor| descriptor.expression() == expression)
