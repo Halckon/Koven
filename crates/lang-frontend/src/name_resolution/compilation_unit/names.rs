@@ -186,6 +186,7 @@ impl<'a> UnitResolver<'a> {
         Ok(CompilationUnitNames::new(
             self.index,
             source_units,
+            self.declaration_symbols,
             self.references,
             diagnostics,
         ))

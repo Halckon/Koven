@@ -71,6 +71,23 @@ fn exact_alias_same_package_and_input_permutation_publish_stable_declarations() 
     let reverse = resolve(&sources, &reverse, &environment);
 
     assert_eq!(forward, reverse);
+    assert_eq!(forward.declaration_symbols(), reverse.declaration_symbols());
+    assert_eq!(
+        forward.declaration_symbols().len(),
+        forward.index().declarations().len()
+    );
+    for declaration in forward.index().declarations() {
+        let unit_symbol = forward
+            .declaration_symbol(declaration.id())
+            .expect("every indexed declaration has a canonical source symbol");
+        assert_eq!(unit_symbol.source_unit(), declaration.source_unit());
+        let symbol = &forward.source_units()[unit_symbol.source_unit().index()]
+            .resolution()
+            .symbols()[unit_symbol.symbol().index()];
+        assert_eq!(symbol.span(), declaration.name_span());
+        assert_eq!(symbol.namespace(), declaration.namespace());
+        assert_eq!(symbol.kind(), declaration.kind());
+    }
     assert!(
         forward.diagnostics().is_empty(),
         "{:?}",

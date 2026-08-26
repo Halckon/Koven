@@ -6,7 +6,7 @@
 
 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032)
 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020 已接受，
-SPEC-0025 已完成，下一节点为 SPEC-0197，之后按 0198→{0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
+SPEC-0025 已完成，SPEC-0197 已进入实施，之后按 0198→{0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
 [v0.33 §33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
@@ -121,7 +121,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
-| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 已完成，下一节点为 0197 |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 已完成，0197 正在实施 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
 | 项目构建后继 | SPEC-0053/0054、0200 | v0.33/SPEC-0054 已满足 0052，仍等待 0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
@@ -260,7 +260,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`done`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
-| [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`draft`） | 0025；v0.32 已启用；ADR-0020 `accepted` |
+| [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`in-progress`） | 0025 `done`；v0.32 已启用；ADR-0020 `accepted` |
 
 Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
 完成 overload-lambda 候选隔离。两项均实施现行 v0.28 语义；它们不是

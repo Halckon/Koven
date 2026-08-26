@@ -20,7 +20,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   已完成实施。
 - **v0.32 已明确启用**：§32 的 package/import 绑定、跨文件可见性与 compilation-unit
   Phase 边界已成为现行语义；ADR-0020 已接受，SPEC-0025 已完成多文件名称解析，下一节点
-  SPEC-0197 仍按前置保持 `draft`，0198/0199/0187 继续等待其依赖。ADR-0021 已接受并封闭 LSP 显式
+  SPEC-0197 已依据持续 Goal 授权进入实施，0198/0199/0187 继续等待其依赖。ADR-0021 已接受并封闭 LSP 显式
   source-set wire；这不解除 SPEC-0187 的前置 Spec 门禁。
   ADR-0022 已接受并与 SPEC-0052 物化后继本地 manifest provider；2026-08-27 依赖复核确认
   它只消费已完成的 SPEC-0025 Stage 1 source-unit input contract，现已完成，且该分支不定义
@@ -227,7 +227,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | ✅ 已实现 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
-| SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ⏸ draft |
+| SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | 🚧 in-progress；unit identity 已完成，signature/body 继续实施 |
 | SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ⏸ draft |
 | SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
 | SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ⏸ draft；v0.34 未启用 |

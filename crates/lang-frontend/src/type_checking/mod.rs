@@ -2,6 +2,7 @@
 
 mod call;
 mod checker;
+mod compilation_unit;
 mod construction;
 mod container;
 mod error;
@@ -19,6 +20,7 @@ use crate::{
 };
 
 pub use call::*;
+pub use compilation_unit::*;
 pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;

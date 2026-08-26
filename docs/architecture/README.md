@@ -655,6 +655,27 @@ SPEC-0025 新增纯内存的
   `ValidatedCompilationUnitNames`。该 marker 只证明名称解析成功，不代表 SPEC-0197 typed
   compilation unit 已完成。
 
+## Compilation-unit 类型签名
+
+SPEC-0197 第一阶段新增纯内存的
+`collect_compilation_unit_signatures(&SourceMap, &[SourceUnitInput],
+&ValidatedCompilationUnitNames, &TypeEnvironment)`。它只消费无名称错误的 validated product，
+重建并核对输入/index，同时验证名称与类型环境共享同一 analysis owner：
+
+- `CompilationUnitNames` 显式发布完整 `DeclarationId -> UnitSymbolId` 映射；类型阶段不再根据
+  Span 猜测顶层声明对应的文件局部 symbol；
+- `UnitTypeTable` 是一次 compilation unit 唯一的结构化类型空间。源码 nominal 使用
+  `DeclarationId`，类型参数、field、member 与 enum case/payload 使用 `UnitSymbolId`，因此不同
+  source 中数值相同的 `SymbolId` 不会碰撞；
+- collector 先预声明全部 nominal 与类型参数，再按 canonical declaration order 收集 callable、
+  主构造器 field、enum case/payload、直接 interface 与 companion/member callable signatures，
+  支持同 package 跨文件递归签名且不依赖调用方输入顺序；
+- 顶层 package overload 与 member overload 共用 alpha-equivalent 参数 shape 判定，重复 shape
+  发 L0097；类型实参数量错误沿用 L0082/L0091。诊断只包含本类型签名阶段并继续使用 unit 稳定排序；
+- recovery `CompilationUnitSignatures` 可带签名诊断，只有无 error 时才能取得
+  `ValidatedCompilationUnitSignatures`。该 marker 仍不是完整 typed unit：函数体、调用选择、
+  flow facts 与 ownership 交接属于 SPEC-0197 第二阶段。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

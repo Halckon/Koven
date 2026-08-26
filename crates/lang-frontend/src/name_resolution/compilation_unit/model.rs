@@ -32,7 +32,7 @@ pub struct UnitSymbolId {
     symbol: SymbolId,
 }
 impl UnitSymbolId {
-    pub(super) const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
+    pub(crate) const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
         Self {
             source_unit,
             symbol,

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{collections::BTreeMap, error::Error, fmt};
 
 use crate::{
     diagnostic::{Diagnostic, DiagnosticCodeError, DiagnosticError, Severity},
@@ -166,6 +166,7 @@ impl SourceUnitNames {
 pub struct CompilationUnitNames {
     index: CompilationUnitIndex,
     source_units: Vec<SourceUnitNames>,
+    declaration_symbols: BTreeMap<DeclarationId, UnitSymbolId>,
     references: Vec<UnitNameReference>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -173,12 +174,14 @@ impl CompilationUnitNames {
     pub(super) fn new(
         index: CompilationUnitIndex,
         source_units: Vec<SourceUnitNames>,
+        declaration_symbols: BTreeMap<DeclarationId, UnitSymbolId>,
         references: Vec<UnitNameReference>,
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
             index,
             source_units,
+            declaration_symbols,
             references,
             diagnostics,
         }
@@ -192,6 +195,16 @@ impl CompilationUnitNames {
     #[must_use]
     pub fn source_units(&self) -> &[SourceUnitNames] {
         &self.source_units
+    }
+    /// 返回规范 declaration identity 到真实文件局部 symbol identity 的完整映射。
+    #[must_use]
+    pub const fn declaration_symbols(&self) -> &BTreeMap<DeclarationId, UnitSymbolId> {
+        &self.declaration_symbols
+    }
+    /// 查询一个顶层声明对应的真实文件局部 symbol identity。
+    #[must_use]
+    pub fn declaration_symbol(&self, declaration: DeclarationId) -> Option<UnitSymbolId> {
+        self.declaration_symbols.get(&declaration).copied()
     }
     /// 返回稳定 source/Span 顺序的 unit reference facts。
     #[must_use]

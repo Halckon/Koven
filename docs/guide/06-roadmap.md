@@ -282,8 +282,9 @@ Spec 之前，本条限制不变。）
       已建立 compilation-unit package/declaration index、same-package 与 exact/alias/wildcard
       import、visibility、qualified/static member lookup、L0146–L0151 和独立 recovery/validated
       名称产物；旧 resolver 的 `_` discard 已收窄到 `for` binding。
-- [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（draft）**：在 SPEC-0025 后完成
-      跨文件签名/body 类型检查；不得把 0025 的名称产物直接冒充完整 typed unit。
+- [ ] **[SPEC-0197](../specs/0197-multifile-type-checking.md)（in-progress）**：在 SPEC-0025 后
+      已建立防碰撞 unit type/signature identity，继续完成跨文件签名图诊断与 body 类型检查；不得把
+      0025 的名称产物或仅签名产物直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
@@ -296,7 +297,7 @@ Spec 之前，本条限制不变。）
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025 已完成，下一节点 SPEC-0197 及其后继仍由前置 Spec 与各自 ADR 状态阻塞。
+其中 SPEC-0025 已完成，SPEC-0197 正在实施；其后继仍由前置 Spec 与各自 ADR 状态阻塞。
 
 ## Phase 3：所有权 / 借用检查
 
