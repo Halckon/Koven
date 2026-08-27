@@ -15,10 +15,10 @@ use crate::{
     },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitSignatures, ExpressionCategory, TypeCheckingError,
-        TypeEnvironment, UnitCallableSignature, UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitSignatures, ExpressionCategory, ExpressionUse,
+        TypeCheckingError, TypeEnvironment, UnitCallableSignature, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, MappingError, map_arguments},
-        collect_compilation_unit_signatures,
+        collect_compilation_unit_signatures, collect_expression_uses,
     },
 };
 
@@ -30,6 +30,7 @@ mod flow;
 mod literals;
 mod operators;
 mod type_refs;
+mod when;
 
 use flow::FlowKey;
 
@@ -64,6 +65,7 @@ pub(super) struct BodyChecker<'a> {
     names: &'a ValidatedCompilationUnitNames,
     environment: &'a TypeEnvironment,
     files: Vec<&'a ParsedFile>,
+    expression_uses: Vec<Vec<ExpressionUse>>,
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
@@ -141,11 +143,16 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
+        let expression_uses = files
+            .iter()
+            .map(|file| collect_expression_uses(file))
+            .collect();
         Ok(Self {
             sources,
             names,
             environment,
             files,
+            expression_uses,
             signatures,
             references,
             symbols_by_span,
@@ -450,6 +457,20 @@ impl<'a> BodyChecker<'a> {
                 then_branch,
                 else_span,
                 else_branch,
+                expected,
+                expected_span,
+                return_type,
+            )?,
+            Expression::When {
+                keyword_span,
+                subject,
+                entries,
+            } => self.check_when(
+                source,
+                expression,
+                keyword_span,
+                subject,
+                &entries,
                 expected,
                 expected_span,
                 return_type,
@@ -921,6 +942,14 @@ impl<'a> BodyChecker<'a> {
 
     pub(super) fn file(&self, source: SourceUnitId) -> &'a ParsedFile {
         self.files[source.index()]
+    }
+
+    pub(super) fn expression_use(
+        &self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+    ) -> ExpressionUse {
+        self.expression_uses[source.index()][expression.index()]
     }
 }
 

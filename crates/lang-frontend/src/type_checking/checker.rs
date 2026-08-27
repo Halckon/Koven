@@ -35,6 +35,7 @@ use crate::{
     source::{SourceMap, Span},
 };
 
+use super::ExpressionUse;
 use super::{
     AggregateProjectionDescriptor, BuiltinType, CallDescriptor, CallableDescriptor, Capability,
     ConstructionDescriptor, ContainerConstructionDescriptor, Copyability, DeferredReason,
@@ -44,9 +45,10 @@ use super::{
     NonNullUseDescriptor, NullComparisonDescriptor, ParameterBindingDescriptor, ParameterMode,
     RcOperationDescriptor, SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId,
     TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    collect_expression_uses,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
-use flow::{ExpressionUse, FlowKey, collect_expression_uses};
+use flow::FlowKey;
 
 #[derive(Clone, Copy)]
 struct ExprCheck {

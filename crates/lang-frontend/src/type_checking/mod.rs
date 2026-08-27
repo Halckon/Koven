@@ -8,6 +8,7 @@ mod compilation_unit;
 mod construction;
 mod container;
 mod error;
+mod expression_use;
 mod model;
 mod parameter;
 mod projection;
@@ -20,6 +21,8 @@ use crate::{
     parser::ParsedFile,
     source::SourceMap,
 };
+
+pub(crate) use expression_use::{ExpressionUse, collect_expression_uses};
 
 pub use call::*;
 pub use compilation_unit::*;

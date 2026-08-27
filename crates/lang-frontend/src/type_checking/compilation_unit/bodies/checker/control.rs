@@ -86,7 +86,7 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn check_value_body(
+    pub(super) fn check_value_body(
         &mut self,
         source: SourceUnitId,
         statement: StatementId,

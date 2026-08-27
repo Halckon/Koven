@@ -4,19 +4,12 @@ use crate::{
     ast::{ExpressionId, StatementId},
     name_resolution::{Namespace, ReferenceTarget, ScopeKind, SymbolId, SymbolKind},
     parser::{
-        BinaryOperator, Expression, Item, LiteralKind, NameMarker, ParsedFile, PrefixOperator,
-        Statement, VariableKind,
+        BinaryOperator, Expression, Item, LiteralKind, NameMarker, PrefixOperator, VariableKind,
     },
     source::Span,
 };
 
 use super::*;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ExpressionUse {
-    Value,
-    Statement,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum FlowKey {
@@ -266,77 +259,6 @@ impl Checker<'_> {
 
     pub(super) fn expression_use(&self, id: ExpressionId) -> ExpressionUse {
         self.expression_uses[id.index()]
-    }
-}
-
-pub(super) fn collect_expression_uses(parsed: &ParsedFile) -> Vec<ExpressionUse> {
-    let mut uses = vec![ExpressionUse::Value; parsed.ast().expressions().len()];
-    for (_, node) in parsed.ast().statements().iter() {
-        let elements = match node.payload() {
-            Statement::Block { elements } => Some((elements.as_slice(), false)),
-            Statement::LambdaBody { elements } | Statement::ControlBody { elements } => {
-                Some((elements.as_slice(), true))
-            }
-            _ => None,
-        };
-        let Some((elements, tail_is_value)) = elements else {
-            continue;
-        };
-        for (index, &statement) in elements.iter().enumerate() {
-            let is_value_tail = tail_is_value && index + 1 == elements.len();
-            if is_value_tail {
-                continue;
-            }
-            if let Ok(statement) = parsed.ast().statements().get(statement)
-                && let Statement::Expression { expression } = statement.payload()
-            {
-                mark_statement_expression(parsed, *expression, &mut uses);
-            }
-        }
-    }
-    uses
-}
-
-fn mark_statement_expression(parsed: &ParsedFile, id: ExpressionId, uses: &mut [ExpressionUse]) {
-    uses[id.index()] = ExpressionUse::Statement;
-    let Ok(node) = parsed.ast().expressions().get(id) else {
-        return;
-    };
-    match node.payload() {
-        Expression::Group { expression } => mark_statement_expression(parsed, *expression, uses),
-        Expression::If {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            mark_control_tail(parsed, *then_branch, uses);
-            if let Some(else_branch) = else_branch {
-                mark_control_tail(parsed, *else_branch, uses);
-            }
-        }
-        Expression::When { entries, .. } => {
-            for entry in entries {
-                mark_control_tail(parsed, entry.body, uses);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn mark_control_tail(parsed: &ParsedFile, statement: StatementId, uses: &mut [ExpressionUse]) {
-    let Ok(node) = parsed.ast().statements().get(statement) else {
-        return;
-    };
-    let Statement::ControlBody { elements } = node.payload() else {
-        return;
-    };
-    let Some(last) = elements.last() else {
-        return;
-    };
-    if let Ok(statement) = parsed.ast().statements().get(*last)
-        && let Statement::Expression { expression } = statement.payload()
-    {
-        mark_statement_expression(parsed, *expression, uses);
     }
 }
 

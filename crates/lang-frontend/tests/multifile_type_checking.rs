@@ -136,6 +136,14 @@ fn assignment_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
         .collect()
 }
 
+fn when_expressions(file: &ParsedFile) -> Vec<ExpressionId> {
+    file.ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| matches!(node.payload(), Expression::When { .. }).then_some(id))
+        .collect()
+}
+
 fn destructuring_statements(file: &ParsedFile) -> Vec<StatementId> {
     file.ast()
         .statements()
@@ -432,6 +440,27 @@ fn unsupported_executable_declaration_cannot_validate_silently() {
         check_compilation_unit_types(&sources, &inputs, &names, &type_environment),
         Err(lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(_))
     ));
+}
+
+#[test]
+fn nullable_when_does_not_enable_general_null_literals() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "null.ko",
+        "package p\nfun unsupported(): Unit { val missing = null }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/null.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+
+    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect_err("general null literals remain outside this when slice");
+    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
+    else {
+        panic!("expected UnsupportedBody, got {error:?}");
+    };
+    assert_eq!(sources.slice(span), Ok("null"));
 }
 
 #[test]
@@ -1310,5 +1339,229 @@ fn cross_file_destructuring_arity_reports_l0118_and_keeps_recovery_types() {
             .and_then(|ty| forward.types().get(ty)),
         Some(UnitTypeKind::Error)
     ));
+    assert!(forward.validate().is_err());
+}
+
+#[test]
+fn cross_file_when_covers_enum_boolean_nullable_and_statement_contexts() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\nenum class Shape { Circle, Point }",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun classify(shape: Shape): Shape = when (shape) {\n\
+             is Shape.Circle -> shape\n\
+             is Shape.Point -> shape\n\
+         }\n\
+         fun negative(shape: Shape): Int = when (shape) {\n\
+             !is Shape.Circle -> 0\n\
+             is Shape.Circle -> 1\n\
+         }\n\
+         fun alternatives(choice: Shape): Shape = when (choice) {\n\
+             is Shape.Circle, is Shape.Point -> choice\n\
+         }\n\
+         fun noRemaining(remaining: Shape): Shape = when (remaining) {\n\
+             is Shape.Circle -> remaining\n\
+             else -> remaining\n\
+         }\n\
+         fun boolean(flag: Boolean): Int = when (flag) {\n\
+             true -> 1\n\
+             false -> 0\n\
+         }\n\
+         fun nullable(shape: Shape?): Int = when (shape) {\n\
+             null -> 0\n\
+             is Shape.Circle -> 1\n\
+             is Shape.Point -> 2\n\
+         }\n\
+         fun subjectless(flag: Boolean): Int = when {\n\
+             flag -> 1\n\
+             else -> 0\n\
+         }\n\
+         fun inferred(flag: Boolean): Unit {\n\
+             val mixed = when (flag) { true -> 1; false -> \"text\" }\n\
+         }\n\
+         fun statement(shape: Shape): Int {\n\
+             when (shape) { is Shape.Circle -> shape }\n\
+             return 0\n\
+         }\n\
+         fun nested(flag: Boolean, shape: Shape): Int {\n\
+             if (flag) {\n\
+                 when (shape) { is Shape.Circle -> shape }\n\
+             }\n\
+             return 0\n\
+         }\n\
+         fun terminal(flag: Boolean): Int {\n\
+             when (flag) {\n\
+                 true -> return 1\n\
+                 false -> return 0\n\
+             }\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward when unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse when unit succeeds");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let classify_uses = expressions_with_text(&sources, &uses, "shape");
+    assert!(classify_uses.len() >= 3);
+    let root = forward
+        .signatures()
+        .declaration(declaration(&forward_names, "Shape"))
+        .expect("Shape signature")
+        .ty();
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(uses_unit, classify_uses[0])),
+        Some(root)
+    );
+    for expression in &classify_uses[1..3] {
+        assert!(matches!(
+            forward
+                .expression_type(UnitExpressionId::new(uses_unit, *expression))
+                .and_then(|ty| forward.types().get(ty)),
+            Some(UnitTypeKind::EnumCase { root: case_root, .. }) if *case_root == root
+        ));
+    }
+    let alternative_uses = expressions_with_text(&sources, &uses, "choice");
+    assert_eq!(alternative_uses.len(), 2);
+    assert!(alternative_uses.iter().all(|expression| {
+        forward.expression_type(UnitExpressionId::new(uses_unit, *expression)) == Some(root)
+    }));
+    let remaining_uses = expressions_with_text(&sources, &uses, "remaining");
+    assert_eq!(remaining_uses.len(), 3);
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(uses_unit, remaining_uses[0])),
+        Some(root)
+    );
+    assert!(matches!(
+        forward
+            .expression_type(UnitExpressionId::new(uses_unit, remaining_uses[1]))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::EnumCase { root: case_root, .. }) if *case_root == root
+    ));
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(uses_unit, remaining_uses[2])),
+        Some(root),
+        "v0.35 remaining-domain facts are not active under v0.32"
+    );
+    assert!(matches!(
+        forward
+            .symbol_type(symbol_named(&forward, &forward_names, uses_unit, "mixed",))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::Builtin(BuiltinType::Any))
+    ));
+    let when_nodes = when_expressions(&uses);
+    assert_eq!(when_nodes.len(), 11);
+    assert!(matches!(
+        forward
+            .expression_type(UnitExpressionId::new(uses_unit, when_nodes[8]))
+            .and_then(|ty| forward.types().get(ty)),
+        Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+    ));
+}
+
+#[test]
+fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
+    let mut sources = SourceMap::new();
+    let (types_source, types) = parsed(
+        &mut sources,
+        "types.ko",
+        "package p\nenum class Shape { Circle, Point }",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun missing(shape: Shape): Int = when (shape) {\n\
+             is Shape.Circle -> 1\n\
+         }\n\
+         fun invalid(): Int = when { 1 -> 1; else -> 0 }\n\
+         fun repeated(flag: Boolean): Int = when (flag) {\n\
+             true -> 1\n\
+             true -> 2\n\
+         }\n\
+         fun misplaced(flag: Boolean): Int = when (flag) {\n\
+             else -> 0\n\
+             true -> 1\n\
+             else -> 2\n\
+         }\n\
+         fun branchConflict(flag: Boolean, inout number: Int): Unit {\n\
+             val result = when (flag) {\n\
+                 true -> number = number\n\
+                 false -> 0\n\
+             }\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/types.ko", types_source, &types),
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("when errors stay in recovery product");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse when errors stay in recovery product");
+
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(
+        forward
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        [
+            "L0111", "L0107", "L0111", "L0110", "L0109", "L0108", "L0112",
+        ]
+    );
+    assert_eq!(
+        forward
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic span"))
+            .collect::<Vec<_>>(),
+        ["when", "1", "when", "true", "else", "else", "0"]
+    );
+    let missing_case = forward.body_diagnostics()[0]
+        .details()
+        .iter()
+        .find_map(|detail| match detail {
+            DiagnosticDetail::Label(label) => sources.slice(label.span()).ok(),
+            DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+        })
+        .expect("enum non-exhaustiveness labels the missing case");
+    assert_eq!(missing_case, "Point");
     assert!(forward.validate().is_err());
 }

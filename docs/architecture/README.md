@@ -725,8 +725,14 @@ SPEC-0197 第一阶段新增纯内存的
   `Copy`/`Consume` descriptor；普通 class 保持 `Deferred(Destructuring)`，错误 arity 复用 L0118
   并把 label 指向跨文件类型声明。Consume 仍只是交给 Phase 3 的原子动作，不在类型阶段判定
   move-after-use；
+- 第七个 body 切片把 AST owner 决定的 value/statement expression context 提取为单文件与 unit
+  checker 共用分析，并接通 subjectful/subjectless `when`。Boolean、跨文件 enum 与 nullable
+  封闭域参与穷尽性，`is`/`!is` 和 comma alternative 发布事实交集，分支按 `Nothing`、enum root、
+  nullable 与 `Any` 合并，flow 只求全部 fall-through 出口交集；L0107–L0112、跨 source 缺失
+  enum-case label 与输入置换保持稳定。nullable subject 的 `null` condition 只复用现行 v0.24
+  语义；else 不获得候选 v0.35 remaining-domain fact，一般 null literal/null-comparison 仍未接入；
 - top-level variable/const initializer、member body、
-  `when`、loop/jump、
+  loop/jump、
   lambda、generic local type、generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但

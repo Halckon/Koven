@@ -110,7 +110,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通 local value-class destructuring：initializer 只检查一次，generic field 完成实际类型
      替换，按 `UnitStatementId` / `UnitSymbolId` 发布有序 component 与 Copy/Consume descriptor；
      非 value class 保持专用 deferred，错误 arity 复用跨 source L0118，输入置换保持 facts/诊断稳定。
-   - [ ] 接完 `when`/loop/jump/lambda、generic local type、
+   - [x] 接通 `when`：共享 AST owner 决定的 value/statement context，覆盖 subjectful/subjectless、
+     Boolean/enum/nullable 封闭域穷尽性、`is`/`!is` 与 alternative 事实交集、`Nothing`/enum/nullable/
+     `Any` 分支 join、全部退出的 flow 合并及 L0107–L0112；跨文件 enum label 与输入置换保持稳定。
+     nullable subject 的 `null` condition 只在本节点按现行 v0.24 处理，不启用 v0.35 remaining-domain
+     事实，也不提前接通一般 null literal/null-comparison。
+   - [ ] 接完 loop/jump/lambda、generic local type、
      generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -158,3 +163,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 18 tests；新增跨文件 generic value-class 解构、Copy/Consume、普通 class deferred、L0118 recovery 与输入置换 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit copyability/destructuring facts、测试与全部 frontend targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | destructuring 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 21 tests；新增跨文件 enum/Boolean/nullable/subjectless `when`、value/statement context、flow/join、L0107–L0112、v0.35 remaining-domain 与一般 null 边界、输入置换 |
+| `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 46 tests；共享 expression-use 分析后单文件 `when`/flow 基线无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | unit `when`、共享 expression-use、测试与 workspace 全 targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | `when` 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
