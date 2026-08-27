@@ -119,7 +119,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      loop，`break`/`continue` 在 loop 内发布 `Nothing`、越界复用 L0142；`for` binding/source 只发布
      `Deferred(LoopSource)`，不提前启用 v0.37 iteration provider。同步修正 Unit callable 的有值
      `return` 形态诊断为 L0087，并保持输入置换稳定。
-   - [ ] 接完 lambda、generic local type、
+   - [x] 接通 lambda 基础切片：body-local function TypeRef、expected move/arity/parameter type/mode、
+     无参 lambda 尾值推导、独立 return/loop boundary、L0083/L0084 与 source-qualified lambda
+     parameter mode facts；唯一 source callable 把参数 expected contract 传给 lambda，普通实参仍
+     保持既有 overload 诊断。多 overload lambda 在 trial isolation 接入前显式 `UnsupportedBody`。
+   - [ ] 接完 generic local type、overload-lambda trial isolation、
      generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -175,3 +179,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 46 tests；unit loop/jump 接入后单文件 callable-boundary 基线无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | loop/jump、return shape、测试与 workspace 全 targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | loop/jump 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 26 tests；新增 function TypeRef、expected/无参 lambda、参数 mode facts、跨文件 unique-call expected、callable jump/return boundary、L0083/L0084/L0142/L0087 与 overload-lambda fail-loud |
+| `cargo test -p lang-frontend --test type_callable --test type_checking --locked --offline` | 通过 | 64 tests；普通 call/overload-lambda 与单文件 lambda 基线无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | lambda/function TypeRef/call 模块提取与 workspace 全 targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | lambda 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

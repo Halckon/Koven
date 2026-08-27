@@ -121,7 +121,8 @@ impl BodyChecker<'_> {
         keyword_span: Span,
         message: &'static str,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let ty = if self.loop_depth > 0 {
+        let loop_base = self.callable_loop_bases.last().copied().unwrap_or(0);
+        let ty = if self.loop_depth > loop_base {
             self.builtin(BuiltinType::Nothing)
         } else {
             self.emit(codes::JUMP_OUTSIDE_LOOP, message, keyword_span)?;
@@ -245,14 +246,15 @@ impl BodyChecker<'_> {
         let span = node.span();
         let payload = node.payload().clone();
         match payload {
-            Statement::ControlBody { elements } => self.check_value_elements(
-                source,
-                &elements,
-                span,
-                expected,
-                expected_span,
-                return_type,
-            ),
+            Statement::LambdaBody { elements } | Statement::ControlBody { elements } => self
+                .check_value_elements(
+                    source,
+                    &elements,
+                    span,
+                    expected,
+                    expected_span,
+                    return_type,
+                ),
             Statement::Expression { expression } => {
                 self.check_expression(source, expression, expected, expected_span, return_type)
             }

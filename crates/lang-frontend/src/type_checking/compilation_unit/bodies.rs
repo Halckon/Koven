@@ -240,6 +240,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pub(crate) parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     pub(crate) calls: Vec<UnitCallDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
 }
@@ -261,6 +262,7 @@ pub struct CompilationUnitTypes {
     expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     calls: Vec<UnitCallDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
@@ -284,6 +286,7 @@ impl CompilationUnitTypes {
             expression_categories: parts.expression_categories,
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
+            parameter_modes: parts.parameter_modes,
             calls: parts.calls,
             destructurings: parts.destructurings,
             body_diagnostics,
@@ -402,6 +405,18 @@ impl CompilationUnitTypes {
     #[must_use]
     pub const fn body_symbol_types(&self) -> &BTreeMap<UnitSymbolId, UnitTypeId> {
         &self.symbol_types
+    }
+
+    /// 查询已采用 expected callable contract 的 lambda 参数模式。
+    #[must_use]
+    pub fn body_parameter_mode(&self, symbol: UnitSymbolId) -> Option<ParameterMode> {
+        self.parameter_modes.get(&symbol).copied()
+    }
+
+    /// 返回按 source-qualified symbol 排序的 lambda 参数模式事实。
+    #[must_use]
+    pub const fn body_parameter_modes(&self) -> &BTreeMap<UnitSymbolId, ParameterMode> {
+        &self.parameter_modes
     }
 
     /// 返回已经按 stable source key、byte span 与 code 排序的 body 类型诊断。

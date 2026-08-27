@@ -9,24 +9,23 @@ use crate::{
         Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
-    parser::{
-        CallArgument, Expression, FunctionBody, FunctionForm, Item, LiteralKind, NameMarker,
-        ParsedFile, Statement,
-    },
+    parser::{Expression, FunctionBody, FunctionForm, Item, LiteralKind, ParsedFile, Statement},
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, ExpressionCategory, ExpressionUse,
         TypeCheckingError, TypeEnvironment, UnitCallableSignature, UnitTypeId, UnitTypeKind,
-        argument_mapping::{MappedParameter, MappingError, map_arguments},
         collect_compilation_unit_signatures, collect_expression_uses,
     },
 };
 
 mod assignment;
+mod bindings;
+mod calls;
 mod control;
 mod copyability;
 mod destructuring;
 mod flow;
+mod lambda;
 mod literals;
 mod operators;
 mod type_refs;
@@ -35,9 +34,7 @@ mod when;
 use flow::FlowKey;
 
 use super::{
-    CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes,
-    UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget, UnitCallableInstanceKey,
-    UnitExpressionId,
+    CompilationUnitTypeError, CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId,
 };
 
 #[derive(Clone, Copy)]
@@ -75,6 +72,7 @@ pub(super) struct BodyChecker<'a> {
     diagnostics: Vec<Diagnostic>,
     current_return_span: Option<Span>,
     loop_depth: usize,
+    callable_loop_bases: Vec<usize>,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -163,6 +161,7 @@ impl<'a> BodyChecker<'a> {
             diagnostics: Vec::new(),
             current_return_span: None,
             loop_depth: 0,
+            callable_loop_bases: Vec::new(),
         })
     }
 
@@ -485,6 +484,21 @@ impl<'a> BodyChecker<'a> {
                 expected_span,
                 return_type,
             )?,
+            Expression::Lambda {
+                move_span,
+                parameters,
+                arrow_span,
+                body,
+            } => self.check_lambda(
+                source,
+                span,
+                move_span,
+                &parameters,
+                arrow_span,
+                body,
+                expected,
+                expected_span,
+            )?,
             Expression::TypeTest {
                 expression,
                 operator_span,
@@ -563,166 +577,6 @@ impl<'a> BodyChecker<'a> {
         })
     }
 
-    fn check_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        callee: ExpressionId,
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let callee_span = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .span();
-        let call_span = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(expression)
-            .map_err(TypeCheckingError::from)?
-            .span();
-        let target = self
-            .reference(source, callee_span, Namespace::Value)
-            .cloned();
-        let declaration_ids = match target {
-            Some(UnitReferenceTarget::Declaration(declaration)) => vec![declaration],
-            Some(UnitReferenceTarget::OverloadSet(declarations)) => declarations,
-            _ => return Err(CompilationUnitTypeError::UnsupportedBody(callee_span)),
-        };
-        let mut mapped = Vec::new();
-        let mut first_mapping_error = None;
-        for declaration in declaration_ids {
-            let Some(callable) = self
-                .signatures
-                .declaration(declaration)
-                .and_then(|signature| signature.callable())
-                .cloned()
-            else {
-                continue;
-            };
-            if !callable.type_parameters().is_empty() {
-                return Err(CompilationUnitTypeError::UnsupportedBody(call_span));
-            }
-            let parameters = callable
-                .parameters()
-                .iter()
-                .map(|parameter| MappedParameter {
-                    name: parameter.name().map(str::to_owned),
-                    mode: parameter.mode(),
-                    ty: parameter.ty(),
-                    span: Some(parameter.span()),
-                })
-                .collect::<Vec<_>>();
-            match map_arguments(
-                self.sources,
-                &parameters,
-                arguments,
-                call_span,
-                |argument| Ok(self.is_syntactic_place(source, argument)),
-            )? {
-                Ok(mapping) => mapped.push((declaration, callable, mapping)),
-                Err(error) => {
-                    first_mapping_error.get_or_insert(error);
-                }
-            }
-        }
-        if mapped.is_empty() {
-            if let Some(error) = first_mapping_error {
-                self.emit_mapping_error(error)?;
-            } else {
-                self.emit(
-                    codes::NON_CALLABLE_TARGET,
-                    "call target does not have a callable type",
-                    callee_span,
-                )?;
-            }
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        let mut argument_types = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            argument_types.push(
-                self.check_expression(source, argument.value, None, None, return_type)?
-                    .ty,
-            );
-        }
-        let viable = mapped
-            .iter()
-            .enumerate()
-            .filter_map(|(candidate, (_, callable, mapping))| {
-                arguments
-                    .iter()
-                    .enumerate()
-                    .all(|(argument_index, _)| {
-                        self.assignable(
-                            argument_types[argument_index],
-                            callable.parameters()[mapping[argument_index]].ty(),
-                        )
-                    })
-                    .then_some(candidate)
-            })
-            .collect::<Vec<_>>();
-        let selected = if viable.len() == 1 {
-            viable[0]
-        } else {
-            self.emit(
-                if viable.is_empty() {
-                    codes::NO_MATCHING_OVERLOAD
-                } else {
-                    codes::AMBIGUOUS_CALL
-                },
-                if viable.is_empty() {
-                    "no overload matches the call arguments"
-                } else {
-                    "call is ambiguous between multiple overloads"
-                },
-                callee_span,
-            )?;
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        };
-        let (declaration, callable, mapping) = mapped.swap_remove(selected);
-        let descriptors = mapping
-            .iter()
-            .enumerate()
-            .map(|(argument_index, &parameter_index)| {
-                let parameter = &callable.parameters()[parameter_index];
-                UnitCallArgumentDescriptor {
-                    argument_index,
-                    parameter_index,
-                    category: self.expression_category(source, arguments[argument_index].value),
-                    mode: parameter.mode(),
-                    parameter_type: parameter.ty(),
-                    cross_thread: false,
-                }
-            })
-            .collect();
-        let unit_expression = UnitExpressionId::new(source, expression);
-        self.parts.calls.push(UnitCallDescriptor {
-            expression: unit_expression,
-            instance: UnitCallableInstanceKey {
-                target: UnitCallTarget::Declaration(declaration),
-                type_arguments: Vec::new(),
-            },
-            return_type: callable.return_type(),
-            arguments: descriptors,
-            aborts: false,
-            prints_line: false,
-        });
-        Ok(ExpressionCheck {
-            ty: callable.return_type(),
-            falls_through: !self.is_builtin(callable.return_type(), BuiltinType::Nothing),
-        })
-    }
-
     fn name_type(
         &self,
         source: SourceUnitId,
@@ -774,30 +628,6 @@ impl<'a> BodyChecker<'a> {
         self.parts
             .expression_categories
             .insert(key, self.expression_category(source, expression));
-    }
-
-    pub(super) fn set_marker_symbol(
-        &mut self,
-        source: SourceUnitId,
-        marker: NameMarker,
-        ty: UnitTypeId,
-    ) {
-        if let NameMarker::Present(span) = marker
-            && let Some(symbol) = self.symbol_at(source, span, Namespace::Value)
-        {
-            self.parts.symbol_types.insert(symbol, ty);
-        }
-    }
-
-    fn symbol_at(
-        &self,
-        source: SourceUnitId,
-        span: Span,
-        namespace: Namespace,
-    ) -> Option<UnitSymbolId> {
-        self.symbols_by_span
-            .get(&(source, span.start(), span.end(), namespace_rank(namespace)))
-            .copied()
     }
 
     fn is_syntactic_place(&self, source: SourceUnitId, expression: ExpressionId) -> bool {
@@ -895,28 +725,6 @@ impl<'a> BodyChecker<'a> {
             Some(UnitTypeKind::Function { .. }) => "function type".to_owned(),
             Some(UnitTypeKind::Error) | None => "<error>".to_owned(),
             Some(kind) => format!("{kind:?}"),
-        }
-    }
-
-    fn emit_mapping_error(&mut self, error: MappingError) -> Result<(), CompilationUnitTypeError> {
-        match error {
-            MappingError::Named(primary) => self.emit(
-                codes::INVALID_NAMED_ARGUMENT,
-                "named argument does not map uniquely to a callable parameter",
-                primary,
-            ),
-            MappingError::Arity(primary) => self.emit(
-                codes::CALL_ARGUMENT_ARITY,
-                "call must fill every parameter exactly once",
-                primary,
-            ),
-            MappingError::Mode { primary, parameter } => self.emit_maybe_label(
-                codes::CALL_ARGUMENT_MODE,
-                "argument marker does not match the parameter contract",
-                primary,
-                parameter,
-                "parameter contract declared here",
-            ),
         }
     }
 

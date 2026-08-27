@@ -290,7 +290,9 @@ Spec 之前，本条限制不变。）
       source-qualified Copy/Consume facts 与 L0118；`when` 已接通跨文件 enum/Boolean/nullable
       穷尽性、smart-cast、flow/join 与 L0107–L0112，且不启用 v0.35 remaining-domain；基础
       loop/jump 已接通 Boolean condition、最近词法 loop、L0142 与 LoopSource deferred，且不启用
-      v0.37 iteration provider；下一阶段继续接入 lambda、泛型/构造等完整 body 类型检查。
+      v0.37 iteration provider；lambda 已接通 function TypeRef、expected parameter mode、无参推导、
+      独立 callable boundary 与跨文件 unique-call expected contract；下一阶段继续接入 overload-lambda
+      trial、泛型/构造等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
