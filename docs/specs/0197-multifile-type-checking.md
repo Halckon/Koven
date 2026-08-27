@@ -115,7 +115,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      `Any` 分支 join、全部退出的 flow 合并及 L0107–L0112；跨文件 enum label 与输入置换保持稳定。
      nullable subject 的 `null` condition 只在本节点按现行 v0.24 处理，不启用 v0.35 remaining-domain
      事实，也不提前接通一般 null literal/null-comparison。
-   - [ ] 接完 loop/jump/lambda、generic local type、
+   - [x] 接通 loop/jump 基础切片：`while` 条件检查 Boolean，`while`/`for`/`loop` 建立最近词法
+     loop，`break`/`continue` 在 loop 内发布 `Nothing`、越界复用 L0142；`for` binding/source 只发布
+     `Deferred(LoopSource)`，不提前启用 v0.37 iteration provider。同步修正 Unit callable 的有值
+     `return` 形态诊断为 L0087，并保持输入置换稳定。
+   - [ ] 接完 lambda、generic local type、
      generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -167,3 +171,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 46 tests；共享 expression-use 分析后单文件 `when`/flow 基线无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | unit `when`、共享 expression-use、测试与 workspace 全 targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | `when` 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 23 tests；新增跨文件 `while`/`for`/`loop`、`Nothing` jump、L0142、LoopSource deferred、L0087 return shape 与输入置换 |
+| `cargo test -p lang-frontend --test type_checking --locked --offline` | 通过 | 46 tests；unit loop/jump 接入后单文件 callable-boundary 基线无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | loop/jump、return shape、测试与 workspace 全 targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | loop/jump 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

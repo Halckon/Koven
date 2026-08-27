@@ -2,15 +2,157 @@ use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::codes,
     name_resolution::SourceUnitId,
-    parser::Statement,
+    parser::{ForBinding, Statement},
     source::Span,
-    type_checking::{BuiltinType, TypeCheckingError, UnitTypeId, UnitTypeKind},
+    type_checking::{BuiltinType, DeferredReason, TypeCheckingError, UnitTypeId, UnitTypeKind},
 };
 
 use super::flow::{extend_facts, intersect_facts};
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
 impl BodyChecker<'_> {
+    pub(super) fn check_while_statement(
+        &mut self,
+        source: SourceUnitId,
+        condition: ExpressionId,
+        body: StatementId,
+        return_type: UnitTypeId,
+        return_span: Option<Span>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let boolean = self.builtin(BuiltinType::Boolean);
+        self.check_expression(source, condition, Some(boolean), None, return_type)?;
+        self.check_loop_body(source, body, return_type, return_span)?;
+        Ok(self.unit_statement())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_for_statement(
+        &mut self,
+        source: SourceUnitId,
+        binding: &ForBinding,
+        iteration_source: ExpressionId,
+        body: StatementId,
+        return_type: UnitTypeId,
+        return_span: Option<Span>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        self.check_expression(source, iteration_source, None, None, return_type)?;
+        let deferred = self.deferred_type(DeferredReason::LoopSource);
+        match binding {
+            ForBinding::Name(marker) => self.set_marker_symbol(source, *marker, deferred),
+            ForBinding::Destructuring { names, .. } => {
+                for &marker in names {
+                    self.set_marker_symbol(source, marker, deferred);
+                }
+            }
+        }
+        self.check_loop_body(source, body, return_type, return_span)?;
+        Ok(self.unit_statement())
+    }
+
+    pub(super) fn check_loop_statement(
+        &mut self,
+        source: SourceUnitId,
+        body: StatementId,
+        return_type: UnitTypeId,
+        return_span: Option<Span>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        self.check_loop_body(source, body, return_type, return_span)?;
+        Ok(self.unit_statement())
+    }
+
+    pub(super) fn check_return(
+        &mut self,
+        source: SourceUnitId,
+        keyword_span: Span,
+        value: Option<ExpressionId>,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        match value {
+            Some(value) if self.is_builtin(return_type, BuiltinType::Unit) => {
+                self.check_expression(source, value, None, None, return_type)?;
+                let primary = self
+                    .file(source)
+                    .ast()
+                    .expressions()
+                    .get(value)
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                self.emit_maybe_label(
+                    codes::RETURN_SHAPE_MISMATCH,
+                    "return value does not match the callable return contract",
+                    primary,
+                    self.current_return_span,
+                    "function return type declared here",
+                )?;
+            }
+            Some(value) => {
+                let expected = (!self.is_deferred(return_type) && !self.is_error(return_type))
+                    .then_some(return_type);
+                self.check_expression(
+                    source,
+                    value,
+                    expected,
+                    self.current_return_span,
+                    return_type,
+                )?;
+            }
+            None if !self.is_builtin(return_type, BuiltinType::Unit)
+                && !self.is_deferred(return_type)
+                && !self.is_error(return_type) =>
+            {
+                self.emit_maybe_label(
+                    codes::RETURN_SHAPE_MISMATCH,
+                    "return value does not match the callable return contract",
+                    keyword_span,
+                    self.current_return_span,
+                    "function return type declared here",
+                )?;
+            }
+            None => {}
+        }
+        Ok(ExpressionCheck {
+            ty: self.builtin(BuiltinType::Nothing),
+            falls_through: false,
+        })
+    }
+
+    pub(super) fn check_loop_jump(
+        &mut self,
+        keyword_span: Span,
+        message: &'static str,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let ty = if self.loop_depth > 0 {
+            self.builtin(BuiltinType::Nothing)
+        } else {
+            self.emit(codes::JUMP_OUTSIDE_LOOP, message, keyword_span)?;
+            self.error_type()
+        };
+        Ok(ExpressionCheck {
+            ty,
+            falls_through: false,
+        })
+    }
+
+    fn check_loop_body(
+        &mut self,
+        source: SourceUnitId,
+        body: StatementId,
+        return_type: UnitTypeId,
+        return_span: Option<Span>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        self.loop_depth += 1;
+        let result = self.check_statement(source, body, return_type, return_span);
+        self.loop_depth -= 1;
+        result
+    }
+
+    fn unit_statement(&mut self) -> ExpressionCheck {
+        ExpressionCheck {
+            ty: self.builtin(BuiltinType::Unit),
+            falls_through: true,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_if(
         &mut self,

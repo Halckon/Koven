@@ -1565,3 +1565,119 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
     assert_eq!(missing_case, "Point");
     assert!(forward.validate().is_err());
 }
+
+#[test]
+fn cross_file_loops_publish_jump_and_deferred_binding_facts() {
+    let mut sources = SourceMap::new();
+    let (callee_source, callee) = parsed(
+        &mut sources,
+        "callee.ko",
+        "package p\nfun truth(): Boolean = true",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun loops(): Unit {\n\
+             while (truth()) { continue }\n\
+             for (item in truth()) {\n\
+                 val deferred = item\n\
+                 break\n\
+             }\n\
+             loop { break }\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/callee.ko", callee_source, &callee),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("forward loop unit succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reverse loop unit succeeds");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    let uses_unit = source_unit(&forward_names, uses_source);
+    for jump in ["continue", "break"] {
+        assert!(
+            expressions_with_text(&sources, &uses, jump)
+                .iter()
+                .all(|id| {
+                    forward
+                        .expression_type(UnitExpressionId::new(uses_unit, *id))
+                        .and_then(|ty| forward.types().get(ty))
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::Nothing))
+                })
+        );
+    }
+    for symbol in ["item", "deferred"] {
+        assert!(matches!(
+            forward
+                .symbol_type(symbol_named(&forward, &forward_names, uses_unit, symbol,))
+                .and_then(|ty| forward.types().get(ty)),
+            Some(UnitTypeKind::Deferred(DeferredReason::LoopSource))
+        ));
+    }
+}
+
+#[test]
+fn unit_loop_and_return_diagnostics_match_callable_boundaries() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-loops.ko",
+        "package p\n\
+         fun invalid(): Unit {\n\
+             break\n\
+             continue\n\
+             while (1) { break }\n\
+             loop { break }\n\
+             break\n\
+             return 1\n\
+         }\n\
+         fun bare(): Int { return }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/invalid-loops.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("loop and return failures stay in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0142", "L0142", "L0084", "L0142", "L0087", "L0087"]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic span"))
+            .collect::<Vec<_>>(),
+        ["break", "continue", "1", "break", "1", "return"]
+    );
+    assert!(typed.validate().is_err());
+}

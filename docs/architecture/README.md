@@ -731,8 +731,12 @@ SPEC-0197 第一阶段新增纯内存的
   nullable 与 `Any` 合并，flow 只求全部 fall-through 出口交集；L0107–L0112、跨 source 缺失
   enum-case label 与输入置换保持稳定。nullable subject 的 `null` condition 只复用现行 v0.24
   语义；else 不获得候选 v0.35 remaining-domain fact，一般 null literal/null-comparison 仍未接入；
+- 第八个 body 切片接通 `while`/`for`/`loop` statement 与 `break`/`continue` expression：while
+  condition 接受 Boolean expected type，三种 loop 都建立最近词法 loop depth，合法 jump 发布
+  `Nothing`，越界使用 L0142；`for` source 仍沿用单文件阶段边界，binding 与由它推导的 local
+  发布 `Deferred(LoopSource)`，不伪造候选 v0.37 provider/element type。Unit callable 的有值
+  `return` 同期对齐为 L0087 shape mismatch；
 - top-level variable/const initializer、member body、
-  loop/jump、
   lambda、generic local type、generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但

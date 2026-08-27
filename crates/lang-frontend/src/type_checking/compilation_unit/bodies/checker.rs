@@ -74,6 +74,7 @@ pub(super) struct BodyChecker<'a> {
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
     current_return_span: Option<Span>,
+    loop_depth: usize,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -161,6 +162,7 @@ impl<'a> BodyChecker<'a> {
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
             current_return_span: None,
+            loop_depth: 0,
         })
     }
 
@@ -329,6 +331,25 @@ impl<'a> BodyChecker<'a> {
                 initializer,
                 return_type,
             ),
+            Statement::While {
+                condition, body, ..
+            } => self.check_while_statement(source, condition, body, return_type, return_span),
+            Statement::For {
+                binding,
+                source: iteration_source,
+                body,
+                ..
+            } => self.check_for_statement(
+                source,
+                &binding,
+                iteration_source,
+                body,
+                return_type,
+                return_span,
+            ),
+            Statement::Loop { body, .. } => {
+                self.check_loop_statement(source, body, return_type, return_span)
+            }
             Statement::Error => Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -403,29 +424,18 @@ impl<'a> BodyChecker<'a> {
                 }
                 self.check_call(source, expression, callee, &arguments, return_type)?
             }
-            Expression::Return { value, .. } => {
-                if let Some(value) = value {
-                    self.check_expression(
-                        source,
-                        value,
-                        Some(return_type),
-                        self.current_return_span,
-                        return_type,
-                    )?;
-                } else if !self.is_builtin(return_type, BuiltinType::Unit) {
-                    self.emit_maybe_label(
-                        codes::RETURN_SHAPE_MISMATCH,
-                        "return value does not match the callable return contract",
-                        span,
-                        self.current_return_span,
-                        "function return type declared here",
-                    )?;
-                }
-                ExpressionCheck {
-                    ty: self.builtin(BuiltinType::Nothing),
-                    falls_through: false,
-                }
-            }
+            Expression::Return {
+                keyword_span,
+                value,
+            } => self.check_return(source, keyword_span, value, return_type)?,
+            Expression::Break { keyword_span } => self.check_loop_jump(
+                keyword_span,
+                "break is not inside an enclosing loop in this callable",
+            )?,
+            Expression::Continue { keyword_span } => self.check_loop_jump(
+                keyword_span,
+                "continue is not inside an enclosing loop in this callable",
+            )?,
             Expression::Prefix {
                 operator,
                 operator_span,
@@ -766,7 +776,12 @@ impl<'a> BodyChecker<'a> {
             .insert(key, self.expression_category(source, expression));
     }
 
-    fn set_marker_symbol(&mut self, source: SourceUnitId, marker: NameMarker, ty: UnitTypeId) {
+    pub(super) fn set_marker_symbol(
+        &mut self,
+        source: SourceUnitId,
+        marker: NameMarker,
+        ty: UnitTypeId,
+    ) {
         if let NameMarker::Present(span) = marker
             && let Some(symbol) = self.symbol_at(source, span, Namespace::Value)
         {
