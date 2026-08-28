@@ -43,10 +43,12 @@
 
 ## 4. 非目标
 
-- 不增加隐式 `it`、label return、receiver lambda、多个尾 lambda、参数 trailing comma、默认
-  参数、`vararg` 或新的调用点 mode 拼写。
+- 本 Spec 不实现隐式 `it`；该语义由后继 SPEC-0214 对所有 headerless lambda 统一实施，
+  不能在尾 lambda Parser 中做位置特判。label return、receiver lambda、多个尾 lambda、参数
+  trailing comma、默认参数、`vararg` 或新的调用点 mode 拼写仍不在 v0.33 候选范围。
 - 不改变 `CallArgument` 公共结构，不增加 TailLambda/Invoke 等 AST variant。
-- 不修改名称、类型、所有权、SSA/LLVM、runtime 或 ABI 语义，也不实施 v0.33 的 project build。
+- 不修改名称、类型、所有权、SSA/LLVM、runtime 或 ABI 语义，也不实施 SPEC-0214 或 v0.33 的
+  project build。
 
 ## 5. 验收标准
 

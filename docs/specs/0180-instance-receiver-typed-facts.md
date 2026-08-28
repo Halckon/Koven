@@ -80,4 +80,4 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | member target 已可选择，但现有 CallDescriptor 不含 receiver，ownership 明确保留 deferred |
-| 2026-08-26 候选闭合审计 | 通过 | v0.34 明确直接基于 v0.32、不包含 v0.33（含后增 grammar §9/SPEC-0213 与 §33）；typed Goal 仍严格等待 0201 与 guide 启用 |
+| 2026-08-26 候选闭合审计 | 通过 | v0.34 明确直接基于 v0.32、不包含 v0.33（含后增 grammar §9/SPEC-0213/0214 与 §33）；typed Goal 仍严格等待 0201 与 guide 启用 |

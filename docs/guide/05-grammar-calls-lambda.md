@@ -166,8 +166,42 @@ receiver.consume(1) { item -> item }
   trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
 - typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
   回退，不能仅因后方存在 `{` 就把比较表达式重解释为 typed call。
-- 本候选不增加隐式 `it`、label return、receiver lambda、参数 trailing comma、默认参数或
-  `vararg`，也不改变 Phase 2 overload-lambda 隔离、Phase 3 capture/loan 或后端调用 ABI。
+- 尾 lambda 本身不增加新的 lambda body 语义；同一 v0.33 候选的 SPEC-0214 另为全部无显式
+  header lambda 定义隐式 `it`。label return、receiver lambda、参数 trailing comma、默认参数、
+  `vararg` 与新的调用点 mode 仍不在候选范围，也不改变后端调用 ABI。
+
+### 无显式 header lambda 的隐式 `it`（SPEC-0214；v0.33 候选，未启用）
+
+> **候选状态**：本小节与 SPEC-0213 共同组成 v0.33 的 lambda 增量；当前 v0.32 仍把 `it` 当作
+> 普通名称。只有 v0.33 明确启用且 SPEC-0213 完成后，SPEC-0214 才能实施本规则。
+
+隐式 `it` 属于 lambda，不属于尾随调用语法。因此以下三种写法采用同一参数契约：
+
+```kotlin
+consume { use(it) }
+consume({ use(it) })
+val transform: (borrow Item) -> Result = { use(it) }
+```
+
+- 只有 `arrow_span == None` 的无显式 header lambda 才有一个 contextual implicit-parameter
+  candidate。期望函数类型恰有一个参数时，该 candidate 激活为名为 `it` 的
+  `LambdaParameter`；其类型及 Borrow/Value/Inout mode 精确来自期望参数，即使 body 未读取
+  `it` 也不改变 arity。
+- 显式 `{ value -> ... }`、多参数 header 与显式零参数 `{ -> ... }` 都不创建隐式参数；其中
+  出现的 `it` 按普通词法作用域解析。
+- 无 expected function type 且 body 引用隐式 `it` 时使用 L0083，不能从 `it` 的操作、返回使用
+  或 overload 候选之外反向推导参数类型。没有 `it` 引用时，既有无参 lambda 尾值推导继续
+  形成 `() -> R`。
+- expected function type 为零参数而 body 引用 `it`，或参数数量大于一但没有显式 header 时，
+  使用 L0084 拒绝结构不匹配；不得静默选择第一个参数或虚构 tuple 参数。
+- headerless lambda 内的 `it` 优先保留给 implicit candidate，不回退捕获外层同名 binding。
+  若要在零参数 lambda 中读取外层 `it`，必须写 `{ -> it }`；普通 local shadowing 仍遵守
+  initializer 完成后可见的既有规则。
+- 名称产物必须为激活或待定的 `it` 保留稳定 lambda-local symbol identity，并以真实 `{` 作为
+  synthetic declaration anchor，不伪造 Identifier Span。typed facts 发布参数类型/mode；
+  ownership 把它当普通 lambda parameter 而非 capture，后端继续复用现有函数参数 ABI。
+- nested headerless lambda 各自拥有独立 candidate；显式 header、group、尾 lambda 与输入文件
+  顺序不得改变 symbol/type/mode/capture identity。
 
 ### 具名函数隐式 `Unit` 返回标注（SPEC-0011）
 

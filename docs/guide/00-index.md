@@ -30,11 +30,12 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   同时修正 §18 旧 Map 候选中
   `Hashable ⇒ Copyable` 与 MoveOnly String 的矛盾，但不因此启用 Map。
 - **v0.33 目前只是后继候选，未启用**：grammar §9 候选增加规范化为普通 `CallArgument` 的
-  尾 lambda 调用糖，§33 为无依赖本地 project 固定显式 package-qualified entry、两种 process
+  尾 lambda 调用糖及所有 headerless lambda 的 contextual 隐式 `it` 参数，§33 为无依赖本地
+  project 固定显式 package-qualified entry、两种 process
   shape 与失败原子 build/run；候选文档的存在不启用 v0.33，不改变现行 Parser 或单文件 main，
   也不定义 manifest target/default 或 dependency build。
 - **v0.34 目前只是独立后继候选，未启用**：§34 以 v0.32 为基线，不自动包含 v0.33 的
-  grammar §9/SPEC-0213 或 §33；它
+  grammar §9/SPEC-0213/0214 或 §33；它
   定义默认 Borrow、显式 Borrow/Inout/Value 的 instance receiver、静态分发调用和 Borrow-only
   窄化委托。SPEC-0201/0180/0181/0191 保持 `draft`，不得据此改变现行 member Parser 或 lowering。
 - **v0.35 目前只是独立后继候选，未启用**：§35 同样以 v0.32 为基线，不自动包含候选
@@ -137,7 +138,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | [`02-lexical-spec.md`](./02-lexical-spec.md) | 原第三部分，完整词法规范 | ~240 | 低——v0.22 新增最小数值后缀集合 |
 | [`03-grammar-core.md`](./03-grammar-core.md) | 原第四部分 §1–6：primary/postfix/`type_ref`/运算符优先级/Lexer 交接/AST `Span` 规则 | ~330 | 低到中——v0.19 新增 postfix `?` |
 | [`04-grammar-declarations-blocks.md`](./04-grammar-declarations-blocks.md) | 原第四部分 §7–8 + §10–13：声明、block、完整文件恢复、文件头、控制流与 class-family | ~900 | 中——v0.20 新增 class-family 契约 |
-| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构）及 v0.33/SPEC-0213 尾 lambda 候选 | ~520 | 中——SPEC-0010–0013 已验收；SPEC-0213 候选未启用 |
+| [`05-grammar-calls-lambda.md`](./05-grammar-calls-lambda.md) | 原第四部分 §9：SPEC-0010–0013（lambda、隐式 `Unit`、typed call argument、局部解构）及 v0.33/SPEC-0213/0214 尾 lambda/隐式 `it` 候选 | ~560 | 中——SPEC-0010–0013 已验收；SPEC-0213/0214 候选未启用 |
 | [`06-roadmap.md`](./06-roadmap.md) | 原第二、五、六部分：结构总览附录见 01；Phase 0–6 路线图 + 工程规范 | ~600 | 高——每验收一个 Spec 就要碰一下 checkbox |
 | [`07-changelog-archive.md`](./07-changelog-archive.md) | v0.3–v0.32 完整记录及 v0.33–v0.37 未启用候选 | ~625 | 只追加，不修改 |
 
@@ -182,7 +183,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | v0.30 | 单文件 conventional `main`、显式单线程 `Rc<T>.share()`、Borrow-only payload 与 Arena/handle 延后边界；已明确启用 |
 | v0.31 | 一般 UTF-8 `String` owner、最小连接/相等/动态输出与参数化 main 前置边界；已明确启用 |
 | v0.32 | package/import 绑定、跨文件可见性、稳定 compilation-unit 身份与分阶段交接；已明确启用 |
-| v0.33 候选 | 尾 lambda 调用糖、显式 project entry 与无依赖本地 build/run；未启用 |
+| v0.33 候选 | 尾 lambda 调用糖、headerless lambda 隐式 `it`、显式 project entry 与无依赖本地 build/run；未启用 |
 | v0.34 候选 | instance receiver mode、静态分发调用与 Borrow-only 窄化委托；基于 v0.32、不包含 v0.33，未启用 |
 | v0.35 候选 | nullable `when` 剩余域证明与 `!!` Copy/Consume；基于 v0.32、不包含 v0.33/v0.34，未启用 |
 | v0.36 候选 | 无存储关联常量、封闭求值与 use 重新物化；基于 v0.32、不包含 v0.33–v0.35，未启用 |
@@ -245,6 +246,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0211 | 顺序迭代 source/element loan 与退出清理 | `01-design-decisions.md` §37、`../specs/0211-sequential-iteration-ownership.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0212 | 借用式顺序迭代 SSA/LLVM primitives | `01-design-decisions.md` §37、`../specs/0212-borrowed-sequential-iteration-ssa.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0213 | 尾 lambda 调用 Parser | `05-grammar-calls-lambda.md`、`../specs/0213-trailing-lambda-call-parser.md` | ⏸ draft；v0.33 未启用 |
+| SPEC-0214 | 隐式 `it` lambda 参数 | `05-grammar-calls-lambda.md`、`../specs/0214-implicit-it-lambda-parameter.md` | ⏸ draft；v0.33 未启用；等待 SPEC-0213 |
 | SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | ⏸ draft |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
@@ -343,6 +345,6 @@ L0159–L0160 由未启用的 v0.37 §37 候选分别预留给无 compiler-bound
 
 ---
 
-*除明确排除的 Map 候选 §18、v0.33 grammar §9/SPEC-0213 与未启用后继候选 §33–§37 外，本索引与其余 7 份文档共同构成
+*除明确排除的 Map 候选 §18、v0.33 grammar §9/SPEC-0213/0214 与未启用后继候选 §33–§37 外，本索引与其余 7 份文档共同构成
 Koven 现行语言设计规范 v0.32；v0.13 是唯一的纯结构调整版本，不携带语义内容。版本、启用状态、候选边界与治理规则以本索引为准；具体
 语言语义冲突时以对应正文为准，并请提交修正。*
