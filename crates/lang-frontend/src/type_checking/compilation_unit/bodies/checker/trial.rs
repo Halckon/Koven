@@ -37,4 +37,18 @@ impl BodyChecker<'_> {
         self.parts = state.parts;
         self.diagnostics = state.diagnostics;
     }
+
+    /// 判断当前候选试算是否相对 baseline 新增了未决类型事实。
+    ///
+    /// Expected function type 会让 lambda 顶层保持确定的 Function 类型，即使 body 内部仍是
+    /// Deferred；重载选择必须观察完整事务状态，不能只查看顶层返回值。
+    pub(super) fn trial_introduced_deferred(&self, baseline: &UnitTrialState) -> bool {
+        self.parts.expression_types.iter().any(|(key, ty)| {
+            baseline.parts.expression_types.get(key) != Some(ty) && self.is_deferred(*ty)
+        }) || self.parts.symbol_types.iter().any(|(key, ty)| {
+            baseline.parts.symbol_types.get(key) != Some(ty) && self.is_deferred(*ty)
+        }) || self.parts.type_ref_types.iter().any(|(key, ty)| {
+            baseline.parts.type_ref_types.get(key) != Some(ty) && self.is_deferred(*ty)
+        })
+    }
 }

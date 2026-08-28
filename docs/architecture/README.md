@@ -196,7 +196,7 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
-  body-local 泛型 TypeRef 与 source 泛型调用 facts；external/function-value call、constructor/member/
+  body-local 泛型 TypeRef、source 泛型调用与 external/function-value call facts；constructor/member/
   container 与一般 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
@@ -763,8 +763,16 @@ SPEC-0197 第一阶段新增纯内存的
   overload 与 lambda trial 继续复用既有 mapping/filter/snapshot；唯一候选把实例化参数类型作为
   contextual expected type，预检查实参不重复遍历且不匹配时保留 L0084/声明 label，Error/Deferred
   不产生 L0123 级联；
+- 第十三个 body 切片接通 external 与函数值调用：compiler-bound function 使用环境签名建立
+  `UnitCallTarget::External`、参数 mode、cross-thread/abort/println effect，普通函数类型值使用
+  `FunctionValue` 并保留 move-only ABI shape；成功 direct call 同步发布 callee Function type/category。
+  external overload 只在全部候选已绑定时选择，partial/unbound 集合保持
+  `Deferred(UnboundExternalType)`；普通 overload 与 overload-lambda 的嵌套 Deferred 保持
+  `Deferred(Call)` 并完整回滚 trial，映射失败仍检查每个 operand。由于普通 Function 类型尚不能
+  保存 compiler-bound identity/effect，effectful external 被取值、分组或别名化时显式
+  `UnsupportedBody`，direct effectful call 与显式类型实参 recovery 不受该门禁影响；
 - top-level variable/const initializer、member body、
-  external/function-value call、constructor/container、null literal /
+  constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

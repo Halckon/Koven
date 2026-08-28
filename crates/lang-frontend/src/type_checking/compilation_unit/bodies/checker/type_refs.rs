@@ -663,7 +663,7 @@ impl BodyChecker<'_> {
         }
     }
 
-    fn normalize_environment_type(&mut self, ty: &EnvironmentType) -> UnitTypeId {
+    pub(super) fn normalize_environment_type(&mut self, ty: &EnvironmentType) -> UnitTypeId {
         match ty {
             EnvironmentType::Builtin(builtin) => self.builtin(*builtin),
             EnvironmentType::Nullable(inner) => {

@@ -134,7 +134,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      检查 interface/Copyable/Transferable bound，并按声明顺序发布完整 `UnitCallableInstanceKey`；
      generic/non-generic overload 与 lambda candidate 复用既有过滤/snapshot，唯一候选保留 contextual
      expected type、L0084 与声明 label，Error/Deferred 不产生 L0123 级联，输入置换保持稳定。
-   - [ ] 接完 external/function-value call、constructor/enum/member、
+   - [x] 接通 external/function-value call：compiler-bound external 发布稳定 target、Value/Borrow/Inout
+     映射、cross-thread/abort/println effect，函数类型值保留 move-only ABI shape；partial/unbound
+     external overload 与普通/overload-lambda nested Deferred 保持未决且不发布选择 facts，映射失败仍
+     遍历实参。effectful external 取值在缺少 effectful function-value 表示前 fail-loud，显式类型实参
+     direct call 仍保持 `Deferred(Call)`，输入置换与 callee facts 稳定。
+   - [ ] 接完 constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
@@ -203,3 +208,6 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --test multifile_type_signatures --test multifile_type_capability_graph --test type_callable --test type_checking --locked --offline` | 通过 | 108 tests；新增 source 泛型调用显式/推导/结构/bound/mixed overload/lambda trial、双类型参数实例顺序、精确 L0084/L0091 labels、Error/Deferred recovery 与输入置换；单文件 callable/type 及 unit signature/capability graph 无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | source 泛型实例化、call expected-type/recovery、测试与全部 workspace targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | source 泛型调用最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --test multifile_type_signatures --test multifile_type_capability_graph --test type_callable --test type_checking --locked --offline` | 通过 | 113 tests；新增 external/function-value target/mode/effect、move-only callee、partial/unbound overload、普通与 lambda nested Deferred、mapping recovery、effectful value fail-loud、显式类型实参 recovery 与输入置换；既有 callable/type/signature/capability graph 无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | external/function-value call、trial recovery、测试与全部 workspace targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | external/function-value call 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

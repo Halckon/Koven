@@ -12,9 +12,10 @@ use crate::{
     parser::{Expression, FunctionBody, FunctionForm, Item, LiteralKind, ParsedFile, Statement},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitSignatures, ExpressionCategory, ExpressionUse,
-        TypeCheckingError, TypeEnvironment, UnitCallableSignature, UnitTypeId, UnitTypeKind,
-        collect_compilation_unit_signatures, collect_expression_uses,
+        BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionCategory, ExpressionUse,
+        ExternalTypeBinding, TypeCheckingError, TypeEnvironment, UnitCallableSignature,
+        UnitFunctionParameterType, UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures,
+        collect_expression_uses,
     },
 };
 
@@ -581,7 +582,7 @@ impl<'a> BodyChecker<'a> {
     }
 
     fn name_type(
-        &self,
+        &mut self,
         source: SourceUnitId,
         span: Span,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
@@ -604,6 +605,44 @@ impl<'a> BodyChecker<'a> {
                 .copied()
                 .or_else(|| self.signatures.symbol_type(*symbol))
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
+            Some(UnitReferenceTarget::External(external)) => {
+                match self.environment.binding(*external).cloned() {
+                    Some(ExternalTypeBinding::Value(ty)) => {
+                        Ok(self.normalize_environment_type(&ty))
+                    }
+                    Some(ExternalTypeBinding::Function(signature)) => {
+                        // UnitTypeKind::Function only preserves the callable ABI shape. Until the
+                        // unit model can carry compiler-bound identity/effects through a function
+                        // value, accepting an effectful external here would silently erase
+                        // cross-thread, abort, or stdout facts. Direct calls are handled in calls.rs
+                        // and retain those effects.
+                        if !signature.effects.is_empty() {
+                            return Err(CompilationUnitTypeError::UnsupportedBody(span));
+                        }
+                        let parameters = signature
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                let ty = self.normalize_environment_type(&parameter.ty);
+                                UnitFunctionParameterType::new(parameter.mode, ty)
+                            })
+                            .collect();
+                        let return_type = self.normalize_environment_type(&signature.return_type);
+                        Ok(self.signatures.types_mut().intern(UnitTypeKind::Function {
+                            move_only: false,
+                            parameters,
+                            return_type,
+                        }))
+                    }
+                    None => Ok(self.deferred_type(DeferredReason::UnboundExternalType)),
+                    Some(
+                        ExternalTypeBinding::Builtin(_)
+                        | ExternalTypeBinding::Capability(_)
+                        | ExternalTypeBinding::Intrinsic(_)
+                        | ExternalTypeBinding::IntrinsicCallable(_),
+                    ) => Err(CompilationUnitTypeError::UnsupportedBody(span)),
+                }
+            }
             _ => Err(CompilationUnitTypeError::UnsupportedBody(span)),
         }
     }

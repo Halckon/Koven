@@ -306,8 +306,10 @@ Spec 之前，本条限制不变。）
       TypeRef 已递归接通 nominal/type parameter/external/intrinsic 实参、三类 bound、Box/容器 storable、
       `Any` 与 enum case 恢复顺序；source 泛型调用已接通完整显式实参、仅从非 lambda 实参执行的
       invariant 推导、interface/Copyable/Transferable bound、完整实例键、mixed overload 与 lambda
-      trial，并保持唯一候选的 contextual expected type/L0084；下一阶段继续接入 external/function-value
-      call、构造等完整 body 类型检查。
+      trial，并保持唯一候选的 contextual expected type/L0084；external/function-value call 已接通
+      compiler-bound target/mode/effect、move-only 函数值、callee facts、partial/unbound overload 与
+      nested Deferred recovery，effectful external 取值在专用表示落地前保持 fail-loud；下一阶段继续
+      接入 constructor/enum/member/container 等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。

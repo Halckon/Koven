@@ -1,14 +1,19 @@
 //! SPEC-0197 compilation-unit source callable mapping、选择与 typed descriptor。
 
+use std::collections::BTreeSet;
+
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{DeclarationId, Namespace, SourceUnitId, UnitReferenceTarget},
+    name_resolution::{
+        DeclarationId, ExternalSymbolId, Namespace, SourceUnitId, UnitReferenceTarget,
+    },
     parser::CallArgument,
     type_checking::{
-        BuiltinType, DeferredReason, TypeCheckingError, UnitCallArgumentDescriptor,
-        UnitCallDescriptor, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
-        UnitExpressionId, UnitTypeId,
+        BuiltinType, DeferredReason, EnvironmentFunctionEffect, ExternalTypeBinding,
+        TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget,
+        UnitCallableInstanceKey, UnitCallableSignature, UnitExpressionId,
+        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, MappingError, map_arguments},
     },
 };
@@ -19,20 +24,25 @@ mod generic;
 
 #[derive(Clone)]
 struct CallCandidate {
-    declaration: DeclarationId,
-    declaration_span: crate::source::Span,
+    target: UnitCallTarget,
+    declaration_span: Option<crate::source::Span>,
     type_parameters: Vec<crate::name_resolution::UnitSymbolId>,
+    move_only: bool,
     parameters: Vec<MappedParameter<UnitTypeId>>,
     return_type: UnitTypeId,
     instance_arguments: Vec<UnitTypeId>,
+    cross_thread_parameters: BTreeSet<usize>,
+    aborts: bool,
+    prints_line: bool,
 }
 
 impl CallCandidate {
     fn from_signature(declaration: DeclarationId, callable: &UnitCallableSignature) -> Self {
         Self {
-            declaration,
-            declaration_span: callable.name_span(),
+            target: UnitCallTarget::Declaration(declaration),
+            declaration_span: Some(callable.name_span()),
             type_parameters: callable.type_parameters().to_vec(),
+            move_only: false,
             parameters: callable
                 .parameters()
                 .iter()
@@ -45,6 +55,9 @@ impl CallCandidate {
                 .collect(),
             return_type: callable.return_type(),
             instance_arguments: Vec::new(),
+            cross_thread_parameters: BTreeSet::new(),
+            aborts: false,
+            prints_line: false,
         }
     }
 }
@@ -76,24 +89,109 @@ impl BodyChecker<'_> {
         let target = self
             .reference(source, callee_span, Namespace::Value)
             .cloned();
-        let declaration_ids = match target {
-            Some(UnitReferenceTarget::Declaration(declaration)) => vec![declaration],
-            Some(UnitReferenceTarget::OverloadSet(declarations)) => declarations,
-            _ => return Err(CompilationUnitTypeError::UnsupportedBody(callee_span)),
-        };
         let explicit_types = type_arguments
             .iter()
             .map(|type_argument| self.resolve_body_type_ref(source, *type_argument))
             .collect::<Result<Vec<_>, _>>()?;
-        let candidates = declaration_ids
-            .into_iter()
-            .filter_map(|declaration| {
-                self.signatures
-                    .declaration(declaration)
-                    .and_then(|signature| signature.callable())
-                    .map(|callable| CallCandidate::from_signature(declaration, callable))
-            })
-            .collect::<Vec<_>>();
+        let mut candidates = match target.clone() {
+            Some(UnitReferenceTarget::Declaration(declaration)) => vec![declaration],
+            Some(UnitReferenceTarget::OverloadSet(declarations)) => declarations,
+            _ => Vec::new(),
+        }
+        .into_iter()
+        .filter_map(|declaration| {
+            self.signatures
+                .declaration(declaration)
+                .and_then(|signature| signature.callable())
+                .map(|callable| CallCandidate::from_signature(declaration, callable))
+        })
+        .collect::<Vec<_>>();
+        match target.clone() {
+            Some(UnitReferenceTarget::External(external)) => {
+                if let Some(candidate) = self.external_candidate(external) {
+                    candidates.push(candidate);
+                }
+            }
+            Some(UnitReferenceTarget::ExternalOverloadSet(externals)) => {
+                candidates.extend(
+                    externals
+                        .into_iter()
+                        .filter_map(|external| self.external_candidate(external)),
+                );
+            }
+            _ => {}
+        }
+        let handles_source_type_arguments = candidates
+            .iter()
+            .any(|candidate| matches!(candidate.target, UnitCallTarget::Declaration(_)));
+        if self.target_uses_intrinsic_callable(target.as_ref()) {
+            return Err(CompilationUnitTypeError::UnsupportedBody(callee_span));
+        }
+        if let Some(UnitReferenceTarget::ExternalOverloadSet(externals)) = &target
+            && externals
+                .iter()
+                .any(|external| self.environment.binding(*external).is_none())
+        {
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::UnboundExternalType),
+                falls_through: true,
+            });
+        }
+        if !type_arguments.is_empty() && !handles_source_type_arguments {
+            if !self.target_is_external_function(target.as_ref()) {
+                self.check_expression(source, callee, None, None, return_type)?;
+            }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
+        if candidates.is_empty() {
+            let callee_result = self.check_expression(source, callee, None, None, return_type)?;
+            if let Some(UnitTypeKind::Function {
+                move_only,
+                parameters,
+                return_type,
+            }) = self.signatures.types().get(callee_result.ty).cloned()
+            {
+                candidates.push(CallCandidate {
+                    target: UnitCallTarget::FunctionValue,
+                    declaration_span: None,
+                    type_parameters: Vec::new(),
+                    move_only,
+                    parameters: parameters
+                        .into_iter()
+                        .map(|parameter| MappedParameter {
+                            name: None,
+                            mode: parameter.mode(),
+                            ty: parameter.ty(),
+                            span: None,
+                        })
+                        .collect(),
+                    return_type,
+                    instance_arguments: Vec::new(),
+                    cross_thread_parameters: BTreeSet::new(),
+                    aborts: false,
+                    prints_line: false,
+                });
+            } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(callee_result);
+            } else {
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                self.emit(
+                    codes::NON_CALLABLE_TARGET,
+                    "call target does not have a callable type",
+                    callee_span,
+                )?;
+                return Ok(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through: true,
+                });
+            }
+        }
         let initial_candidate_count = candidates.len();
         let mut mapped = Vec::new();
         let mut first_mapping_error = None;
@@ -114,13 +212,8 @@ impl BodyChecker<'_> {
         if mapped.is_empty() {
             if let Some(error) = first_mapping_error {
                 self.emit_mapping_error(error)?;
-            } else {
-                self.emit(
-                    codes::NON_CALLABLE_TARGET,
-                    "call target does not have a callable type",
-                    callee_span,
-                )?;
             }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -175,6 +268,7 @@ impl BodyChecker<'_> {
             return self.finish_candidate(
                 source,
                 expression,
+                callee,
                 arguments,
                 return_type,
                 &candidate,
@@ -213,12 +307,15 @@ impl BodyChecker<'_> {
                 })
                 .collect::<Result<Vec<_>, _>>()?
         };
-        if argument_types
-            .iter()
-            .any(|ty| self.is_error(*ty) || self.is_deferred(*ty))
-        {
+        if argument_types.iter().any(|ty| self.is_error(*ty)) {
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+        if argument_types.iter().any(|ty| self.is_deferred(*ty)) {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
                 falls_through: true,
             });
         }
@@ -242,11 +339,94 @@ impl BodyChecker<'_> {
             return self.overload_failure(callee_span, viable.is_empty());
         }
         let (candidate, mapping) = mapped.swap_remove(viable[0]);
-        self.record_call(source, expression, arguments, &candidate, &mapping);
+        self.record_call(source, expression, callee, arguments, &candidate, &mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
             falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
+    }
+
+    fn external_candidate(&mut self, external: ExternalSymbolId) -> Option<CallCandidate> {
+        let ExternalTypeBinding::Function(signature) = self.environment.binding(external)?.clone()
+        else {
+            return None;
+        };
+        let parameters = signature
+            .parameters
+            .iter()
+            .map(|parameter| MappedParameter {
+                name: None,
+                mode: parameter.mode,
+                ty: self.normalize_environment_type(&parameter.ty),
+                span: None,
+            })
+            .collect();
+        Some(CallCandidate {
+            target: UnitCallTarget::External(external),
+            declaration_span: None,
+            type_parameters: Vec::new(),
+            move_only: false,
+            parameters,
+            return_type: self.normalize_environment_type(&signature.return_type),
+            instance_arguments: Vec::new(),
+            cross_thread_parameters: signature
+                .effects
+                .iter()
+                .filter_map(|effect| match effect {
+                    EnvironmentFunctionEffect::CrossThreadTransfer { parameter } => {
+                        Some(*parameter)
+                    }
+                    EnvironmentFunctionEffect::Abort | EnvironmentFunctionEffect::PrintLine => None,
+                })
+                .collect(),
+            aborts: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::Abort),
+            prints_line: signature
+                .effects
+                .contains(&EnvironmentFunctionEffect::PrintLine),
+        })
+    }
+
+    fn target_uses_intrinsic_callable(&self, target: Option<&UnitReferenceTarget>) -> bool {
+        match target {
+            Some(UnitReferenceTarget::External(external)) => matches!(
+                self.environment.binding(*external),
+                Some(ExternalTypeBinding::IntrinsicCallable(_))
+            ),
+            Some(UnitReferenceTarget::ExternalOverloadSet(externals)) => {
+                externals.iter().any(|external| {
+                    matches!(
+                        self.environment.binding(*external),
+                        Some(ExternalTypeBinding::IntrinsicCallable(_))
+                    )
+                })
+            }
+            _ => false,
+        }
+    }
+
+    fn target_is_external_function(&self, target: Option<&UnitReferenceTarget>) -> bool {
+        match target {
+            Some(UnitReferenceTarget::External(external)) => matches!(
+                self.environment.binding(*external),
+                Some(ExternalTypeBinding::Function(_))
+            ),
+            Some(UnitReferenceTarget::ExternalOverloadSet(_)) => true,
+            _ => false,
+        }
+    }
+
+    fn check_call_arguments_without_expected(
+        &mut self,
+        source: SourceUnitId,
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        for argument in arguments {
+            self.check_expression(source, argument.value, None, None, return_type)?;
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -254,6 +434,7 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         expression: ExpressionId,
+        callee: ExpressionId,
         arguments: &[CallArgument],
         return_type: UnitTypeId,
         candidate: &CallCandidate,
@@ -307,7 +488,7 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
-        self.record_call(source, expression, arguments, candidate, mapping);
+        self.record_call(source, expression, callee, arguments, candidate, mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
             falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
@@ -354,7 +535,8 @@ impl BodyChecker<'_> {
         prechecked_argument_types: Option<&[Option<UnitTypeId>]>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut argument_types = vec![None; arguments.len()];
-        let mut poisoned = false;
+        let mut has_error = false;
+        let mut has_deferred = false;
         for (index, argument) in arguments.iter().enumerate() {
             if lambda_arguments[index] {
                 continue;
@@ -364,17 +546,25 @@ impl BodyChecker<'_> {
                 .copied()
                 .flatten()
             {
-                poisoned |= self.is_error(ty) || self.is_deferred(ty);
+                has_error |= self.is_error(ty);
+                has_deferred |= self.is_deferred(ty);
                 argument_types[index] = Some(ty);
                 continue;
             }
             let result = self.check_expression(source, argument.value, None, None, return_type)?;
-            poisoned |= self.is_error(result.ty) || self.is_deferred(result.ty);
+            has_error |= self.is_error(result.ty);
+            has_deferred |= self.is_deferred(result.ty);
             argument_types[index] = Some(result.ty);
         }
-        if poisoned {
+        if has_error {
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+        if has_deferred {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
                 falls_through: true,
             });
         }
@@ -401,6 +591,7 @@ impl BodyChecker<'_> {
                 return self.finish_candidate(
                     source,
                     expression,
+                    callee,
                     arguments,
                     return_type,
                     &candidate,
@@ -414,12 +605,14 @@ impl BodyChecker<'_> {
         let baseline = self.trial_state();
         let baseline_diagnostics = self.diagnostics.len();
         let mut successes = Vec::new();
+        let mut has_deferred_trial = false;
         for (candidate, mapping) in candidates {
             self.restore_trial_state(baseline.clone());
             let declaration_span = candidate.declaration_span;
             let result = self.finish_candidate(
                 source,
                 expression,
+                callee,
                 arguments,
                 return_type,
                 &candidate,
@@ -433,14 +626,23 @@ impl BodyChecker<'_> {
                     return Err(error);
                 }
             };
+            let trial_deferred =
+                self.is_deferred(result.ty) || self.trial_introduced_deferred(&baseline);
+            has_deferred_trial |= trial_deferred;
             if self.diagnostics.len() == baseline_diagnostics
                 && !self.is_error(result.ty)
-                && !self.is_deferred(result.ty)
+                && !trial_deferred
             {
                 successes.push((self.trial_state(), result, declaration_span));
             }
         }
         self.restore_trial_state(baseline);
+        if has_deferred_trial {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
         match successes.len() {
             0 => self.overload_failure(callee_span, true),
             1 => {
@@ -453,7 +655,7 @@ impl BodyChecker<'_> {
             _ => {
                 let declarations = successes
                     .iter()
-                    .map(|(_, _, span)| *span)
+                    .filter_map(|(_, _, span)| *span)
                     .take(2)
                     .collect::<Vec<_>>();
                 self.ambiguous_overload(callee_span, &declarations)
@@ -465,6 +667,7 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         expression: ExpressionId,
+        callee: ExpressionId,
         arguments: &[CallArgument],
         candidate: &CallCandidate,
         mapping: &[usize],
@@ -480,20 +683,34 @@ impl BodyChecker<'_> {
                     category: self.expression_category(source, arguments[argument_index].value),
                     mode: parameter.mode,
                     parameter_type: parameter.ty,
-                    cross_thread: false,
+                    cross_thread: candidate.cross_thread_parameters.contains(&parameter_index),
                 }
             })
             .collect();
+        let function_type = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: candidate.move_only,
+            parameters: candidate
+                .parameters
+                .iter()
+                .map(|parameter| UnitFunctionParameterType::new(parameter.mode, parameter.ty))
+                .collect(),
+            return_type: candidate.return_type,
+        });
+        let callee = UnitExpressionId::new(source, callee);
+        self.parts.expression_types.insert(callee, function_type);
+        self.parts
+            .expression_categories
+            .insert(callee, crate::type_checking::ExpressionCategory::Temporary);
         self.parts.calls.push(UnitCallDescriptor {
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
-                target: UnitCallTarget::Declaration(candidate.declaration),
+                target: candidate.target,
                 type_arguments: candidate.instance_arguments.clone(),
             },
             return_type: candidate.return_type,
             arguments: descriptors,
-            aborts: false,
-            prints_line: false,
+            aborts: candidate.aborts,
+            prints_line: candidate.prints_line,
         });
     }
 
