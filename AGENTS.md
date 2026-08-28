@@ -386,7 +386,8 @@ ADR 或文档治理任务按 §10 可不建 Spec，但用户要求提交时仍�
 1. **读取**：确认现行 guide、当前 Phase、相关接口、直接调用方与已有测试。
 2. **界定**：写明假设、非目标、成功标准和预计修改范围；不清楚的语义先询问。
 3. **实现**：做最小且可回溯的修改；每个行为变化同步添加能失败的测试。
-4. **验证**：先跑受影响的窄测试，再跑 workspace 全量基线；检查实际退出状态。
+4. **验证**：按 §9 分层运行窄测试、受影响 Phase/Spec 套件和 workspace 兼容性检查；只有命中
+   全量触发条件时才运行约 50 分钟的 workspace 全量测试。检查实际退出状态。
 5. **同步**：更新 Architecture、Spec 验收状态和验证记录，确保只陈述实际事实。
 6. **提交**：检查 staged diff，创建当前 Goal 的独立提交；提交成功后才结束 Goal。
 7. **交付**：报告改了什么、运行了什么、提交、哪些检查没跑及原因、仍有哪些不确定性。
@@ -426,7 +427,8 @@ ADR 或文档治理任务按 §10 可不建 Spec，但用户要求提交时仍�
 - 新语法至少包含一个最小正例、一个最小反例、一个与相邻语法组合的回归用例，以及在发生
   错误恢复时对后续节点、精确错误码和关键 `Span` 的断言。
 - 拆分大型模块前必须先建立能锁定公共 API、AST、诊断内容与顺序的 characterization tests。
-  每次提取后先运行受影响的窄测试；全部提取完成后再运行 workspace 全量基线。不得在同一
+  每次提取后先运行受影响的窄测试；全部提取完成后运行对应 Spec 提交门禁，只有 §9 的全量
+  触发条件成立时才运行 workspace 全量测试。不得在同一
   重构中静默改变可观察语言行为。
 - 私有不变量使用就近单元测试，跨模块公共行为使用集成测试和 pass / fail fixture。共享测试
   工具只能承载真实复用逻辑；测试文件即使不受物理行软上限约束，也应按行为领域拆分，避免
@@ -441,9 +443,56 @@ ADR 或文档治理任务按 §10 可不建 Spec，但用户要求提交时仍�
 
 ---
 
-## 9. 构建与检查
+## 9. 构建与分层验收
 
-Cargo workspace 建立后，提交前的标准基线为：
+`cargo test --workspace --all-targets` 会同时执行功能回归、Parser/Lexer 变异矩阵、压力边界和
+外围 crate 测试，当前一次约需 50 分钟。它是里程碑/高风险全量门禁，不是每次局部实现的默认
+反馈环。验收强度按变更影响面决定，不得为了节省时间跳过真正受影响的套件，也不得用无关的
+全量测试代替能直接证明需求的定向断言。
+
+### 第 1 层：编辑反馈环
+
+每次行为修改先运行最窄且能复现设计意图的测试，并检查受影响 crate 能编译：
+
+```bash
+cargo fmt --all -- --check
+cargo check -p <affected-crate>
+cargo test -p <affected-crate> --test <affected-suite> <affected-test-name>
+```
+
+可用 Rust 单元测试时改用 `cargo test -p <affected-crate> --lib <test-name>`。测试过滤导致其他
+用例显示 `filtered out` 是正常的，但交付记录必须说明这是定向测试，不能写成套件或全量通过。
+
+### 第 2 层：Spec 提交门禁
+
+形成一个可提交的 Spec 切片前必须运行：
+
+```bash
+cargo fmt --all -- --check
+cargo clippy -p <affected-crate> --all-targets -- -D warnings
+cargo test -p <affected-crate> --lib
+cargo test -p <affected-crate> --test <affected-suite-1> --test <affected-suite-2>
+cargo check --workspace --all-targets
+cargo test --workspace --lib --bins
+cargo build -p lang-cli
+```
+
+`<affected-suite-*>` 由 Spec 验收矩阵和实际依赖面决定，必须至少包含行为正反例、最近公共调用方
+和一个既有回归套件；不得固定成一个永远不变的“快速名单”。修改公开跨 crate API 时，追加直接
+下游 crate 的相关 integration tests；修改 LLVM/native 行为时，追加对应 codegen/CLI build-run
+验收。只改 Markdown 时不机械运行 Rust 门禁，按文档规则检查链接、术语、版本与 diff。
+
+### 第 3 层：高风险与里程碑全量门禁
+
+仅在以下任一条件成立时运行完整 workspace 测试与严格静态检查：
+
+- Spec 从 `in-progress` 变为 `done`、Phase/guide 版本启用、release 或明确的合并/发布门禁；
+- 修改 Cargo workspace/member、共享依赖/feature，或公共 crate API 的影响面无法由已知直接下游
+  编译与定向测试可靠覆盖；
+- 修改 Lexer/Parser 通用状态机、错误恢复 owner、source/span、AST arena、诊断排序/catalog、fixture
+  harness 或变异测试基础设施；这些变化会影响大量 adversarial/matrix tests；
+- 定向或 Phase 套件出现非局部失败，说明原影响面判断过窄；
+- 用户明确要求全量验证。
 
 ```bash
 cargo fmt --all -- --check
@@ -453,16 +502,22 @@ cargo test --workspace --all-targets
 cargo build -p lang-cli
 ```
 
+未命中上述条件的普通 Spec 中间提交，不再默认支付约 50 分钟的全量成本；第 2 层通过即满足
+提交门禁。CI/nightly 可额外周期性执行第 3 层，但 CI 结果只有在能定位到当前 commit 且实际完成
+时才可作为验收证据。
+
 执行规则：
 
 - 当前没有根 `Cargo.toml` 时，这些命令不可运行；应如实报告“工程骨架尚未创建”，不能声称
   检查通过。
-- 修改 Rust 代码后至少运行受影响 crate 的测试；交付前运行上述 workspace 基线。
+- 修改 Rust 代码后至少运行第 1 层；形成提交前运行第 2 层；只有命中条件时运行第 3 层。
 - 只改 Markdown 时做链接、术语、旧项目残留和 diff 自检，不为通过检查而创建空 Cargo 文件。
 - LLVM、本机链接器或调试器缺失时，先完成所有不依赖它们的检查，再明确报告环境阻塞；
   不得把未执行写成通过。
 - 不默认添加 `--all-features`。feature / target 矩阵应在工具链和 CI 策略确定后单独记录。
 - “测试通过”必须给出实际执行命令；有 ignored / skipped / filtered 用例时明确说明。
+- 被中止、超时、仍在运行或只输出部分 target 的命令都不得记录为通过；应记录到最后一个已完成
+  层级，并明确更高层未完成的原因。
 
 ---
 
