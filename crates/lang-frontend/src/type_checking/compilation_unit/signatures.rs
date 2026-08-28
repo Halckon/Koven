@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use crate::{
     ast::{ItemId, TypeRefId},
@@ -85,6 +88,7 @@ struct SignatureCollector<'a> {
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
     interface_edge_spans: BTreeMap<(DeclarationId, DeclarationId), Span>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
+    invalid_inline_nominals: BTreeSet<DeclarationId>,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -140,6 +144,7 @@ impl<'a> SignatureCollector<'a> {
             type_parameters: BTreeMap::new(),
             interface_edge_spans: BTreeMap::new(),
             type_ref_types: BTreeMap::new(),
+            invalid_inline_nominals: BTreeSet::new(),
             delegations: Vec::new(),
             diagnostics: Vec::new(),
         })
@@ -181,6 +186,7 @@ impl<'a> SignatureCollector<'a> {
                 symbol_types: self.symbol_types,
                 type_ref_types: self.type_ref_types,
                 type_parameters: self.type_parameters,
+                invalid_inline_nominals: self.invalid_inline_nominals,
                 delegations: self.delegations,
             },
             diagnostics,

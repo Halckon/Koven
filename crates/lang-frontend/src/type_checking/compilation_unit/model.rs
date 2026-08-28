@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     hash::{Hash, Hasher},
     sync::Arc,
 };
@@ -834,6 +834,7 @@ pub struct CompilationUnitSignatures {
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+    invalid_inline_nominals: BTreeSet<DeclarationId>,
     delegations: Vec<UnitDelegationPlan>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -844,6 +845,7 @@ pub(crate) struct CompilationUnitSignatureFacts {
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) type_parameters: BTreeMap<UnitSymbolId, UnitTypeParameterDescriptor>,
+    pub(crate) invalid_inline_nominals: BTreeSet<DeclarationId>,
     pub(crate) delegations: Vec<UnitDelegationPlan>,
 }
 
@@ -884,6 +886,7 @@ impl CompilationUnitSignatures {
             symbol_types: facts.symbol_types,
             type_ref_types: facts.type_ref_types,
             type_parameters: facts.type_parameters,
+            invalid_inline_nominals: facts.invalid_inline_nominals,
             delegations: facts.delegations,
             diagnostics,
         }
@@ -971,6 +974,12 @@ impl CompilationUnitSignatures {
     #[must_use]
     pub fn type_parameter(&self, symbol: UnitSymbolId) -> Option<UnitTypeParameterDescriptor> {
         self.type_parameters.get(&symbol).copied()
+    }
+
+    /// 返回签名阶段已诊断为无限内联布局的 nominal declarations。
+    #[must_use]
+    pub const fn invalid_inline_nominals(&self) -> &BTreeSet<DeclarationId> {
+        &self.invalid_inline_nominals
     }
 
     /// 返回源码顺序的合法 interface 委托计划。

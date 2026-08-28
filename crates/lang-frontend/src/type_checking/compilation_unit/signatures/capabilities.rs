@@ -52,7 +52,9 @@ impl SignatureCollector<'_> {
     ) -> Result<(), CompilationUnitTypeError> {
         self.check_interface_runtime_positions()?;
         let invalid_inline = self.check_inline_layouts()?;
-        self.check_capability_bounds(&invalid_inline)
+        self.check_capability_bounds(&invalid_inline)?;
+        self.invalid_inline_nominals = invalid_inline;
+        Ok(())
     }
 
     fn check_interface_runtime_positions(&mut self) -> Result<(), CompilationUnitTypeError> {

@@ -302,8 +302,9 @@ Spec 之前，本条限制不变。）
       loop/jump 已接通 Boolean condition、最近词法 loop、L0142 与 LoopSource deferred，且不启用
       v0.37 iteration provider；lambda 已接通 function TypeRef、expected parameter mode、无参推导、
       独立 callable boundary 与跨文件 unique-call expected contract；overload-lambda 已按完整 trial
-      snapshot 隔离候选、原子提交唯一 facts，并保持 L0123/L0124 与声明 labels；下一阶段继续接入
-      泛型/构造等完整 body 类型检查。
+      snapshot 隔离候选、原子提交唯一 facts，并保持 L0123/L0124 与声明 labels；body-local 泛型
+      TypeRef 已递归接通 nominal/type parameter/external/intrinsic 实参、三类 bound、Box/容器 storable、
+      `Any` 与 enum case 恢复顺序；下一阶段继续接入泛型调用、构造等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。

@@ -194,8 +194,10 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   declaration identity；`resolve_compilation_unit_names` 在核对 inputs/index 后解析 same-package、
   exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
-  `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，以及首批
-  顶层 callable/call、局部变量、基础运算与基础 `if` body facts，其余控制流等 body 判断仍在实施；
+  `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
+  callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial
+  与 body-local 泛型 TypeRef facts；generic call、constructor/member/container 与一般 nullable body
+  语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -747,8 +749,14 @@ SPEC-0197 第一阶段新增纯内存的
   L0124。失败与歧义均恢复 baseline，不泄漏 lambda parameter type/mode、嵌套 call 或候选诊断。
   为保持职责与文件规模，call mapping/selection/descriptor、trial state、body binding facts 和 lambda
   分别位于独立子模块；
+- 第十一个 body 切片接通 body-local 泛型类型引用：qualified TypeRef 递归解析 source nominal、
+  type parameter、external builtin/capability/value 与 intrinsic 类型实参，并在 unit type table 发布
+  完整 `UnitTypeRefId` facts；nominal/interface/Copyable/Transferable bound、runtime interface、enum case、
+  intrinsic arity、`Box` 与顺序容器 storable 分别复用 L0082/L0091/L0093/L0094/L0114/L0115/L0117/
+  L0125/L0141。签名阶段已诊断的无限内联 nominal 集合随 signature facts 保留并供 body storable/
+  capability 恢复读取；嵌套 Error、`AnyValueRepresentation` 与普通位置 enum case 保持单文件诊断顺序；
 - top-level variable/const initializer、member body、
-  generic local type、generic/external/function-value call、constructor/container、null literal /
+  generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

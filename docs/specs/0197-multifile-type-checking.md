@@ -126,8 +126,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通 overload-lambda trial isolation：普通实参仅检查一次并先过滤候选，每个 lambda 候选
      从完整 unit type/body/flow/diagnostic snapshot 独立试算；唯一成功原子提交，零/多成功恢复
      baseline 并复用 L0123/L0124，歧义保留至多两个跨 source callable label，不泄漏候选 facts。
-   - [ ] 接完 generic local type、
-     generic/external/function-value call、constructor/enum/member、
+   - [x] 接通 body-local 泛型类型引用：递归解析 source nominal/type parameter、external 与 intrinsic
+     类型实参，复用 L0082/L0091/L0093/L0094/L0114/L0115/L0117/L0125/L0141；`Any` representation、
+     enum case 诊断顺序、`Box`/顺序容器 storable 与无限内联布局均保持单文件恢复语义，类型事实和
+     诊断在输入置换下稳定。
+   - [ ] 接完 generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
@@ -189,3 +192,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 27 tests；新增 overload-lambda 唯一/零/多候选 trial、普通实参单次检查、完整 fact 回滚、L0123/L0124 文案与声明 labels、输入置换 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | overload-lambda trial snapshot/call selection、测试与 workspace 全 targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | overload-lambda trial 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 30 tests；新增跨文件 body-local 泛型类型、generic enum-case root identity、interface/Copyable/Transferable bound、Box/容器 storable、无限内联布局、嵌套 Error collapse、unbound external deferred、enum case 诊断顺序及输入置换 |
+| `cargo test -p lang-frontend --test type_checking --test type_copyability --test type_callable --test multifile_type_capability_graph --test multifile_type_signatures --locked --offline` | 通过 | 84 tests；泛型类型引用接入后单文件 callable/nominal/capability 与 unit signature graph 无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | generic body TypeRef、invalid-inline signature fact、诊断与全部 workspace targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | generic body TypeRef 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

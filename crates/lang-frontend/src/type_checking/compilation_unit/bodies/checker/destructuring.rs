@@ -144,7 +144,7 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn substitute_type(
+    pub(super) fn substitute_type(
         &mut self,
         ty: UnitTypeId,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
