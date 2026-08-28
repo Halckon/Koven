@@ -28,6 +28,7 @@ mod flow;
 mod lambda;
 mod literals;
 mod operators;
+mod trial;
 mod type_refs;
 mod when;
 

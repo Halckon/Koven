@@ -740,11 +740,15 @@ SPEC-0197 第一阶段新增纯内存的
   决定 move/arity、parameter type/mode 与 body return expected type，模式事实以 source-qualified
   symbol 发布；无参 lambda 可从已知尾值推导返回类型，lambda 自身保存独立 return span 与 loop
   base，不能由内部 `break`/`continue` 穿越 callable boundary。唯一 source callable 可向 lambda
-  实参传播参数 contract；普通实参仍先独立定型，避免改变 L0123 等选择诊断。多 overload lambda
-  在 candidate-local trial 接入前返回 `UnsupportedBody`，不泄漏 L0083 或首候选事实。为保持职责
-  与文件规模，call mapping/selection/descriptor、body binding facts 和 lambda 分别位于独立子模块；
+  实参传播参数 contract；普通实参仍先独立定型，避免改变 L0123 等选择诊断；
+- 第十个 body 切片接通 overload-lambda candidate isolation：普通实参只检查一次并先过滤候选，
+  每个剩余候选从包含 unit type table、body/flow/call facts 与诊断的同一 snapshot 独立试算；零个、
+  唯一或多个成功分别发布 L0123、原子提交唯一 facts，或发布带至多两个跨 source 声明 label 的
+  L0124。失败与歧义均恢复 baseline，不泄漏 lambda parameter type/mode、嵌套 call 或候选诊断。
+  为保持职责与文件规模，call mapping/selection/descriptor、trial state、body binding facts 和 lambda
+  分别位于独立子模块；
 - top-level variable/const initializer、member body、
-  generic local type、overload-lambda trial、generic/external/function-value call、constructor/container、null literal /
+  generic local type、generic/external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

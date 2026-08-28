@@ -7,7 +7,7 @@
 [v0.32 §32](../guide/01-design-decisions.md#32-packageimport-绑定跨文件可见性与-compilation-unitv032)
 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020 已接受，
 SPEC-0025 已完成，SPEC-0197 已完成 signature 与
-callable/local/operator/if/type-test smart-cast/assignment/destructuring/when/loop-jump/lambda body
+callable/local/operator/if/type-test smart-cast/assignment/destructuring/when/loop-jump/lambda/overload-lambda trial body
 切片并继续实施，
 之后按 0198→{0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。

@@ -234,7 +234,7 @@ impl UnitDestructuringDescriptor {
 }
 
 /// body checker 交给 recovery product 的最小、source-qualified facts。
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct CompilationUnitTypeParts {
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,

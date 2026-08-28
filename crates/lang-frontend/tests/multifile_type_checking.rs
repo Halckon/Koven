@@ -5,7 +5,7 @@ use lang_frontend::{
     diagnostic::DiagnosticDetail,
     lexer::lex,
     name_resolution::{
-        DeclarationId, NameEnvironment, Namespace, SourceUnitId, SourceUnitInput,
+        DeclarationId, NameEnvironment, Namespace, SourceUnitId, SourceUnitInput, SymbolKind,
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
         resolve_compilation_unit_names,
     },
@@ -1789,6 +1789,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
              }\n\
              val wrongReturn: () -> Unit = { return 1 }\n\
              takes(1)\n\
+             val rejected = takes({ wrong -> true })\n\
          }",
     );
     let inputs = [SourceUnitInput::new(
@@ -1808,7 +1809,9 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0084", "L0084", "L0083", "L0142", "L0087", "L0123"]
+        [
+            "L0084", "L0084", "L0083", "L0142", "L0087", "L0123", "L0084"
+        ]
     );
     assert_eq!(
         typed
@@ -1818,36 +1821,174 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["->", "{ 1 }", "->", "break", "1", "takes"]
+        ["->", "{ 1 }", "->", "break", "1", "takes", "true"]
     );
+    assert_eq!(typed.calls().len(), 1);
     assert!(typed.validate().is_err());
 }
 
 #[test]
-fn overload_lambda_is_fail_loud_until_unit_trial_isolation_is_connected() {
+fn overload_lambda_trial_commits_only_the_unique_cross_file_candidate() {
     let mut sources = SourceMap::new();
-    let (source, file) = parsed(
+    let (declarations_source, declarations) = parsed(
         &mut sources,
-        "overload-lambda.ko",
+        "declarations.ko",
         "package p\n\
-         fun choose(callback: (Int) -> Int): Unit\n\
-         fun choose(callback: (String) -> String): Unit\n\
-         fun use(): Unit { choose({ item -> item }) }",
+         fun resolve(callback: (Int) -> Int): Int = 1\n\
+         fun resolve(callback: (String) -> String): String = \"text\"\n\
+         fun intResult(input: Int): Int = input\n\
+         fun pick(input: Int, callback: (Int) -> Int): Int = input\n\
+         fun pick(input: String, callback: (String) -> String): String = input\n\
+         fun makeInt(): Int = 1",
     );
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "p/overload-lambda.ko",
-        source,
-        &file,
-    )];
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun use(): Unit {\n\
+             val selected = resolve({ item -> intResult(item) })\n\
+             val filtered = pick(makeInt(), { filteredItem -> filteredItem })\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new(
+            "root",
+            "p/declarations.ko",
+            declarations_source,
+            &declarations,
+        ),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
     let (name_environment, type_environment) = standard_environments();
-    let names = validated_names(&sources, &inputs, &name_environment);
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("unique overload-lambda trial succeeds");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed overload-lambda trial succeeds");
 
-    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("overload-lambda trial isolation remains a later body slice");
-    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-    else {
-        panic!("expected UnsupportedBody, got {error:?}");
-    };
-    assert_eq!(sources.slice(span), Ok("choose({ item -> item })"));
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(
+        forward.body_parameter_modes(),
+        reverse.body_parameter_modes()
+    );
+    assert_eq!(forward.calls(), reverse.calls());
+    assert_eq!(forward.calls().len(), 4);
+    assert!(forward.calls().iter().all(|call| {
+        forward.types().get(call.return_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    }));
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let parameter = symbol_named(&forward, &forward_names, uses_unit, "item");
+    assert_eq!(
+        forward.body_parameter_mode(parameter),
+        Some(ParameterMode::Borrow)
+    );
+    assert_eq!(
+        forward
+            .symbol_type(parameter)
+            .and_then(|ty| forward.types().get(ty)),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+}
+
+#[test]
+fn failed_and_ambiguous_unit_overload_lambda_trials_leak_no_candidate_facts() {
+    let mut sources = SourceMap::new();
+    let (declarations_source, declarations) = parsed(
+        &mut sources,
+        "declarations.ko",
+        "package p\n\
+         fun resolve(callback: (Int) -> Int): Int = 1\n\
+         fun resolve(callback: (String) -> String): String = \"text\"",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun use(): Unit {\n\
+             val ambiguous = resolve({ first -> first })\n\
+             val noMatch = resolve({ second -> true })\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new(
+            "root",
+            "p/declarations.ko",
+            declarations_source,
+            &declarations,
+        ),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("overload-lambda failures stay in the recovery product");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed overload-lambda failures stay in the recovery product");
+
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(
+        forward.body_parameter_modes(),
+        reverse.body_parameter_modes()
+    );
+    assert_eq!(forward.calls(), reverse.calls());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+
+    assert_eq!(
+        forward
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0124", "L0123"]
+    );
+    assert_eq!(
+        forward.body_diagnostics()[0].message(),
+        "call remains ambiguous after argument type checking"
+    );
+    assert_eq!(forward.body_diagnostics()[0].details().len(), 2);
+    assert!(
+        forward.body_diagnostics()[0]
+            .details()
+            .iter()
+            .all(|detail| {
+                matches!(
+                    detail,
+                    DiagnosticDetail::Label(label)
+                        if sources.slice(label.span()) == Ok("resolve")
+                            && label.message() == "matching callable declared here"
+                )
+            })
+    );
+    assert!(forward.calls().is_empty());
+    let unit = source_unit(&forward_names, uses_source);
+    assert!(forward.body_parameter_modes().is_empty());
+    let lambda_parameters = forward_names.names().source_units()[unit.index()]
+        .resolution()
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+        .collect::<Vec<_>>();
+    assert_eq!(lambda_parameters.len(), 2);
+    for symbol in lambda_parameters {
+        assert!(!forward.body_symbol_types().keys().any(|candidate| {
+            candidate.source_unit() == unit && candidate.symbol() == symbol.id()
+        }));
+    }
+    assert!(forward.validate().is_err());
 }

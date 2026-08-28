@@ -122,8 +122,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通 lambda 基础切片：body-local function TypeRef、expected move/arity/parameter type/mode、
      无参 lambda 尾值推导、独立 return/loop boundary、L0083/L0084 与 source-qualified lambda
      parameter mode facts；唯一 source callable 把参数 expected contract 传给 lambda，普通实参仍
-     保持既有 overload 诊断。多 overload lambda 在 trial isolation 接入前显式 `UnsupportedBody`。
-   - [ ] 接完 generic local type、overload-lambda trial isolation、
+     保持既有 overload 诊断。
+   - [x] 接通 overload-lambda trial isolation：普通实参仅检查一次并先过滤候选，每个 lambda 候选
+     从完整 unit type/body/flow/diagnostic snapshot 独立试算；唯一成功原子提交，零/多成功恢复
+     baseline 并复用 L0123/L0124，歧义保留至多两个跨 source callable label，不泄漏候选 facts。
+   - [ ] 接完 generic local type、
      generic/external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -183,3 +186,6 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test type_callable --test type_checking --locked --offline` | 通过 | 64 tests；普通 call/overload-lambda 与单文件 lambda 基线无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | lambda/function TypeRef/call 模块提取与 workspace 全 targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | lambda 切片后 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 27 tests；新增 overload-lambda 唯一/零/多候选 trial、普通实参单次检查、完整 fact 回滚、L0123/L0124 文案与声明 labels、输入置换 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | overload-lambda trial snapshot/call selection、测试与 workspace 全 targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | overload-lambda trial 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
