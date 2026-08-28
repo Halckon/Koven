@@ -4598,3 +4598,281 @@ fn poisoned_intrinsic_container_element_places_remain_fail_loud() {
     };
     assert_eq!(sources.slice(span), Ok("items[0]"));
 }
+
+#[test]
+fn null_comparisons_publish_stable_source_qualified_flow_facts() {
+    let mut sources = SourceMap::new();
+    let (models_source, models) = parsed(
+        &mut sources,
+        "p/models.ko",
+        "package p\n\
+         class Resource(val id: Int)\n\
+         fun modelRead(input: Resource?): Int =\n\
+             if (input != null) input.id else 0",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "p/uses.ko",
+        "package p\n\
+         fun read(input: Resource?): Int =\n\
+             if (input != null) input.id else 0\n\
+         fun mirrored(input: Resource?): Int =\n\
+             if (null == input) 0 else input.id\n\
+         fun shortCircuit(input: Resource?): Int =\n\
+             if (input != null && input.id > 0) input.id else 0",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/models.ko", models_source, &models),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("null comparisons type check across files");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed null comparisons type check across files");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert_eq!(forward.null_comparisons(), reverse.null_comparisons());
+    assert_eq!(forward.non_null_uses(), reverse.non_null_uses());
+    assert_eq!(forward.null_comparisons().len(), 4);
+    assert_eq!(forward.non_null_uses().len(), 5);
+    assert_eq!(
+        forward
+            .null_comparisons()
+            .iter()
+            .filter(|comparison| comparison.non_null_when_true())
+            .count(),
+        3
+    );
+    let model_unit = source_unit(&forward_names, models_source);
+    let uses_unit = source_unit(&forward_names, uses_source);
+    assert!(
+        forward
+            .null_comparisons()
+            .iter()
+            .any(|comparison| comparison.expression().source_unit() == model_unit)
+    );
+    assert!(
+        forward
+            .null_comparisons()
+            .iter()
+            .any(|comparison| comparison.expression().source_unit() == uses_unit)
+    );
+    let resource = forward
+        .signatures()
+        .declaration(declaration(&forward_names, "Resource"))
+        .expect("Resource signature")
+        .ty();
+    for use_fact in forward.non_null_uses() {
+        assert_eq!(
+            use_fact.symbol().source_unit(),
+            use_fact.expression().source_unit()
+        );
+        assert_eq!(use_fact.narrowed_type(), resource);
+        assert_eq!(
+            forward.types().get(use_fact.declared_type()),
+            Some(&UnitTypeKind::Nullable(resource))
+        );
+        assert_eq!(
+            forward.expression_type(use_fact.expression()),
+            Some(use_fact.narrowed_type())
+        );
+        assert_eq!(forward.non_null_use(use_fact.expression()), Some(*use_fact));
+    }
+    for comparison in forward.null_comparisons() {
+        assert_eq!(
+            comparison.symbol().source_unit(),
+            comparison.expression().source_unit()
+        );
+        assert_eq!(
+            forward.types().get(comparison.nullable_type()),
+            Some(&UnitTypeKind::Nullable(resource))
+        );
+        assert_eq!(
+            forward.null_comparison(comparison.expression()),
+            Some(*comparison)
+        );
+    }
+    assert!(forward.validate().is_ok());
+}
+
+#[test]
+fn invalid_null_comparisons_report_inference_errors_without_partial_facts() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-null-comparisons.ko",
+        "fun nonNullable(input: Int): Boolean = input != null\n\
+         fun bothNull(): Boolean = null == null",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "invalid-null-comparisons.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid null comparisons remain recoverable");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0083", "L0083", "L0083"]
+    );
+    assert!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .all(|diagnostic| { sources.slice(diagnostic.primary_span()) == Ok("null") })
+    );
+    assert!(typed.null_comparisons().is_empty());
+    assert!(typed.non_null_uses().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn null_comparison_overload_trial_commits_only_the_unique_candidate_facts() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "nullable-trial.ko",
+        "class Resource(val id: Int)\n\
+         fun choose(action: () -> Int): Int\n\
+         fun choose(action: () -> String): String\n\
+         fun selected(input: Resource?): Int =\n\
+             choose({ if (input != null) input.id else 0 })",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "nullable-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("one nullable lambda candidate is valid");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.null_comparisons().len(), 1);
+    assert_eq!(typed.non_null_uses().len(), 1);
+    assert_eq!(typed.calls().len(), 1);
+    assert!(typed.null_comparisons()[0].non_null_when_true());
+    assert_eq!(
+        typed.non_null_uses()[0].symbol(),
+        typed.null_comparisons()[0].symbol()
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn nullable_lambda_parameters_are_stable_but_captured_mutable_locals_are_not() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "nullable-stability.ko",
+        "class Resource(val id: Int)\n\
+         fun apply(callback: (Resource?) -> Int): Int = 0\n\
+         fun lambdaParameter(): Int =\n\
+             apply({ input -> if (input != null) input.id else 0 })\n\
+         fun captured(initial: Resource?): Boolean {\n\
+             var current = initial\n\
+             val capture = { current }\n\
+             return current != null\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "nullable-stability.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("flow stability matches the single-file capture rules");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.null_comparisons().len(), 1);
+    assert_eq!(typed.non_null_uses().len(), 1);
+    let unit = source_unit(&names, source);
+    let input = symbol_named(&typed, &names, unit, "input");
+    let current = symbol_named(&typed, &names, unit, "current");
+    assert_eq!(typed.null_comparisons()[0].symbol(), input);
+    assert_eq!(typed.non_null_uses()[0].symbol(), input);
+    assert!(
+        typed
+            .null_comparisons()
+            .iter()
+            .all(|comparison| comparison.symbol() != current)
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn conflicting_short_circuit_facts_are_removed_instead_of_overwritten() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "nullable-conflict.ko",
+        "enum class Shape { Circle(radius: Int), Point }\n\
+         fun conflict(input: Shape?): Shape? =\n\
+             if (input != null && input is Shape.Circle) input else input",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "nullable-conflict.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("conflicting flow facts use the conservative merge rule");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let unit = source_unit(&names, source);
+    let shape = typed
+        .signatures()
+        .declaration(declaration(&names, "Shape"))
+        .expect("Shape signature")
+        .ty();
+    let input_uses = expressions_with_text(&sources, &file, "input");
+    assert_eq!(input_uses.len(), 4);
+    let input_types = input_uses
+        .iter()
+        .map(|&expression| {
+            typed
+                .expression_type(UnitExpressionId::new(unit, expression))
+                .expect("every input use has a type")
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        typed.types().get(input_types[0]),
+        Some(UnitTypeKind::Nullable(inner)) if *inner == shape
+    ));
+    assert_eq!(input_types[1], shape);
+    for index in [2, 3] {
+        assert!(matches!(
+            typed.types().get(input_types[index]),
+            Some(UnitTypeKind::Nullable(inner)) if *inner == shape
+        ));
+    }
+    assert_eq!(typed.null_comparisons().len(), 1);
+    assert_eq!(typed.non_null_uses().len(), 1);
+    assert!(typed.validate().is_ok());
+}

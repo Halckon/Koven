@@ -397,7 +397,7 @@ impl BodyChecker<'_> {
         Ok(false)
     }
 
-    fn is_null_literal(
+    pub(super) fn is_null_literal(
         &self,
         source: SourceUnitId,
         expression: ExpressionId,

@@ -128,6 +128,8 @@ impl BodyChecker<'_> {
                 boolean
             } else if self.is_error(left_result.ty) || self.is_error(right_result.ty) {
                 self.error_type()
+            } else if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
+                self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
             } else {
                 self.emit_binary_operand_error(
                     source,
@@ -144,8 +146,43 @@ impl BodyChecker<'_> {
                 falls_through: left_result.falls_through && right_result.falls_through,
             });
         }
-        let left_result = self.check_expression(source, left, None, None, return_type)?;
-        let right_result = self.check_expression(source, right, None, None, return_type)?;
+        let equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
+        let left_null = equality && self.is_null_literal(source, left)?;
+        let right_null = equality && self.is_null_literal(source, right)?;
+        let (left_result, right_result) = if left_null && !right_null {
+            let right_result = self.check_expression(source, right, None, None, return_type)?;
+            let expected = matches!(
+                self.signatures.types().get(right_result.ty),
+                Some(crate::type_checking::UnitTypeKind::Nullable(_))
+            )
+            .then_some(right_result.ty);
+            (
+                self.check_expression(source, left, expected, None, return_type)?,
+                right_result,
+            )
+        } else if right_null && !left_null {
+            let left_result = self.check_expression(source, left, None, None, return_type)?;
+            let expected = matches!(
+                self.signatures.types().get(left_result.ty),
+                Some(crate::type_checking::UnitTypeKind::Nullable(_))
+            )
+            .then_some(left_result.ty);
+            (
+                left_result,
+                self.check_expression(source, right, expected, None, return_type)?,
+            )
+        } else {
+            (
+                self.check_expression(source, left, None, None, return_type)?,
+                self.check_expression(source, right, None, None, return_type)?,
+            )
+        };
+        if self.is_deferred(left_result.ty) || self.is_deferred(right_result.ty) {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(crate::type_checking::DeferredReason::ControlJoin),
+                falls_through: left_result.falls_through && right_result.falls_through,
+            });
+        }
         let boolean = self.builtin(BuiltinType::Boolean);
         let result = match operator {
             BinaryOperator::Multiply

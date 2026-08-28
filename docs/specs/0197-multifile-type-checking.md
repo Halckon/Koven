@@ -114,8 +114,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      Boolean/enum/nullable 封闭域穷尽性、`is`/`!is` 与 alternative 事实交集、`Nothing`/enum/nullable/
      `Any` 分支 join、全部退出的 flow 合并及 L0107–L0112；跨文件 enum label 与输入置换保持稳定。
      nullable subject 的 `null` condition 只在本节点按现行 v0.24 处理，不启用 v0.35 remaining-domain
-     事实；该 `when` 子切片当时不接通一般 null literal/null-comparison，contextual null 已由后续
-     container 子切片接通，null-comparison 仍待实施。
+     事实；该 `when` 子切片当时不接通一般 null literal/null-comparison，二者已分别由后续
+     container 与 null-comparison 子切片接通。
    - [x] 接通 loop/jump 基础切片：`while` 条件检查 Boolean，`while`/`for`/`loop` 建立最近词法
      loop，`break`/`continue` 在 loop 内发布 `Nothing`、越界复用 L0142；`for` binding/source 只发布
      `Deferred(LoopSource)`，不提前启用 v0.37 iteration provider。同步修正 Unit callable 的有值
@@ -168,8 +168,14 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      保留 container/element identity、可变性、receiver/index 单次求值身份；`size`、替换、复合赋值、
      Inout 二次可变性验证及 L0085/L0122/L0128–L0130 保持单文件语义。失败/poison、源码同名、
      overload-lambda trial 与输入置换不泄漏或混淆 intrinsic facts。
-   - [ ] 接完 null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
-     返回 `UnsupportedBody`，不得发布伪完整 validated product。
+   - [x] 接通 null-comparison/non-null-use flow facts：`T? == null` / `!= null` 两侧顺序保持单次求值，
+     null literal 从另一侧 nullable 类型取得 expected type；true/false edge、`&&`/`||` 短路、跨 source
+     stable symbol、输入置换及 overload-lambda trial 回滚均发布确定 descriptor，非法比较保留 L0083；
+     lambda 参数可稳定窄化，被 lambda 捕获的 mutable local 排除在外，冲突事实按单文件规则删除。
+   - [ ] 接完 top-level variable/const initializer、String interpolation、`super<Interface>.member`、Elvis/
+     range/`to`/`in`、基础 `!!`/cast、postfix `?` 与 callable reference 等剩余现有单文件 body 边界；
+     不得借此启用 v0.35 的 nullable remaining-domain/Copy-Consume descriptor。完成前 production driver
+     对未覆盖合法节点显式返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -267,6 +273,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo check --workspace --all-targets` | 通过 | Tier 2 workspace 编译兼容性通过 |
 | `cargo test --workspace --lib --bins` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
 | `cargo build -p lang-cli --bin kovenc` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability --locked --offline` | 通过 | 149 tests；contextual null equality、true/false 与短路 flow、stable source-qualified symbol、lambda 参数/捕获 mutable local、冲突事实删除、trial 原子回滚及单文件 callable/type/container/copyability 回归 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit nullable model/checker、flow 对齐与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency，公开查询 API 的直接下游已由 workspace check 覆盖，按 §9 未触发约 50 分钟 Tier 3 |
 | `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability` | 通过 | 144 tests；source-qualified element-place、List/Array/MutableList 可变性、`size`/`get`/`set`、替换/复合赋值、直接与 grouped Inout、trial 回滚、poison、源码同名、输入置换及单文件回归 |
 | `cargo test -p lang-frontend --lib` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
 | `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | unit container operation model/checker、Inout call 后验验证与全部 frontend targets 无 warning |

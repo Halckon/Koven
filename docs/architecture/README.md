@@ -199,8 +199,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
   construction facts、source member body/call/field/structural-component projection、non-nullable
   intrinsic Rc `.value`/`.share()` operation、core container construction、container
-  index/place/member/assignment 与 contextual null literal facts；null-comparison 与其余 nullable body
-  语义仍在实施；
+  index/place/member/assignment、contextual null literal 与 null-comparison/non-null-use flow facts；
+  其余 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -736,7 +736,7 @@ SPEC-0197 第一阶段新增纯内存的
   nullable 与 `Any` 合并，flow 只求全部 fall-through 出口交集；L0107–L0112、跨 source 缺失
   enum-case label 与输入置换保持稳定。nullable subject 的 `null` condition 只复用现行 v0.24
   语义；else 不获得候选 v0.35 remaining-domain fact。该子切片当时未接入一般 null；contextual
-  null 已由第十七个切片接通，null-comparison 仍未接入；
+  null 与 null-comparison 已分别由第十七、第十九个切片接通；
 - 第八个 body 切片接通 `while`/`for`/`loop` statement 与 `break`/`continue` expression：while
   condition 接受 Boolean expected type，三种 loop 都建立最近词法 loop depth，合法 jump 发布
   `Nothing`，越界使用 L0142；`for` source 仍沿用单文件阶段边界，binding 与由它推导的 local
@@ -813,7 +813,14 @@ SPEC-0197 第一阶段新增纯内存的
   container kind 与可变性；`size` 是 Int temporary，`[]` 是 place，Array/MutableList 可替换而 List
   只读。L0085/L0122/L0128–L0130、RHS 类型检查、Inout 类型化后二次可变性验证、poison fail-loud、
   源码同名隔离、overload-lambda trial 与输入置换保持单文件语义；
-- top-level variable/const initializer、null-comparison 与其余 nullable control 等
+- 第十九个 body 切片接通 `T? == null` / `!= null` 与非空使用事实：另一侧先定型并把 nullable
+  expected type 交给 null literal，stable symbol 的 true/false edge 可进入 `&&`/`||`、`if` 与后续
+  non-null member use；`UnitNullComparisonDescriptor` / `UnitNonNullUseDescriptor` 保留 source-qualified
+  expression/symbol、声明 nullable 类型与 inner type，overload-lambda trial、输入置换及 L0083 recovery
+  不泄漏 partial facts。稳定 symbol 与单文件规则一致：lambda parameter 合法，被 lambda 捕获的
+  mutable local 排除，短路合并遇到同一 symbol 的冲突窄化类型时删除事实而不是覆盖；
+- top-level variable/const initializer、String interpolation、`super<Interface>.member`、Elvis/range/`to`/
+  `in`、基础 `!!`/cast、postfix `?`、callable reference 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
   后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。

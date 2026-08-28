@@ -17,13 +17,12 @@ use super::{
 
 mod checker;
 mod container;
+mod nullable;
 mod projection;
 mod rc;
 
 pub use checker::check_compilation_unit_types;
-pub use container::*;
-pub use projection::*;
-pub use rc::*;
+pub use {container::*, nullable::*, projection::*, rc::*};
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -391,6 +390,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
+    pub(crate) nullable: UnitNullableFacts,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -418,6 +418,7 @@ pub struct CompilationUnitTypes {
     rc_operations: Vec<UnitRcOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
+    nullable: UnitNullableFacts,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -447,6 +448,7 @@ impl CompilationUnitTypes {
             rc_operations: parts.rc_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
+            nullable: parts.nullable,
             body_diagnostics,
             diagnostics,
         }

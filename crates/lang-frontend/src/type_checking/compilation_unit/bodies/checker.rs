@@ -1,21 +1,20 @@
 //! SPEC-0197 compilation-unit body 类型检查 driver。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
+        ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionCategory, ExpressionUse,
-        ExternalTypeBinding, TypeCheckingError, TypeEnvironment, UnitCallableSignature,
-        UnitFunctionParameterType, UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures,
-        collect_expression_uses,
+        BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionUse, ExternalTypeBinding,
+        TypeCheckingError, TypeEnvironment, UnitCallableSignature, UnitFunctionParameterType,
+        UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures, collect_expression_uses,
     },
 };
 
@@ -28,10 +27,12 @@ mod container_operations;
 mod control;
 mod copyability;
 mod destructuring;
+mod expression_facts;
 mod flow;
 mod lambda;
 mod literals;
 mod members;
+mod nullable;
 mod operators;
 mod rc;
 mod trial;
@@ -73,7 +74,7 @@ pub(super) struct BodyChecker<'a> {
     signatures: CompilationUnitSignatures,
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
-    symbol_kinds: BTreeMap<UnitSymbolId, SymbolKind>,
+    stable_flow_symbols: BTreeSet<UnitSymbolId>,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
@@ -139,19 +140,7 @@ impl<'a> BodyChecker<'a> {
                 })
             })
             .collect();
-        let symbol_kinds = names
-            .names()
-            .source_units()
-            .iter()
-            .flat_map(|unit| {
-                unit.resolution().symbols().iter().map(move |symbol| {
-                    (
-                        UnitSymbolId::new(unit.source_unit(), symbol.id()),
-                        symbol.kind(),
-                    )
-                })
-            })
-            .collect();
+        let stable_flow_symbols = flow::collect_stable_flow_symbols(&files, names);
         let expression_uses = files
             .iter()
             .map(|file| collect_expression_uses(file))
@@ -165,7 +154,7 @@ impl<'a> BodyChecker<'a> {
             signatures,
             references,
             symbols_by_span,
-            symbol_kinds,
+            stable_flow_symbols,
             flow_facts: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
@@ -251,9 +240,6 @@ impl<'a> BodyChecker<'a> {
         callable: &UnitCallableSignature,
     ) -> Result<(), CompilationUnitTypeError> {
         self.flow_facts.clear();
-        if let Some(receiver) = self.current_receiver {
-            self.flow_facts.insert(FlowKey::This, receiver);
-        }
         let expected_span = match form {
             FunctionForm::Explicit { type_ref, .. } => Some(
                 self.file(source)
@@ -645,6 +631,7 @@ impl<'a> BodyChecker<'a> {
             )?;
             result.ty = self.error_type();
         }
+        self.record_nullable_facts(source, expression, result.ty);
         self.record_expression(source, expression, result.ty);
         Ok(result)
     }
@@ -761,78 +748,6 @@ impl<'a> BodyChecker<'a> {
                 }
             }
             _ => Err(CompilationUnitTypeError::UnsupportedBody(span)),
-        }
-    }
-
-    fn expression_category(
-        &self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-    ) -> ExpressionCategory {
-        if let Ok(node) = self.file(source).ast().expressions().get(expression)
-            && let Expression::Group { expression } = node.payload()
-        {
-            return self
-                .parts
-                .expression_categories
-                .get(&UnitExpressionId::new(source, *expression))
-                .copied()
-                .unwrap_or(ExpressionCategory::Temporary);
-        }
-        let expression = UnitExpressionId::new(source, expression);
-        if self.parts.aggregate_projections.iter().any(|projection| {
-            projection.expression() == expression
-                && projection.kind() == crate::type_checking::UnitAggregateProjectionKind::Field
-        }) {
-            return ExpressionCategory::Place;
-        }
-        if self
-            .parts
-            .element_places
-            .iter()
-            .any(|place| place.expression() == expression)
-        {
-            return ExpressionCategory::Place;
-        }
-        if self
-            .is_read_only_container_size(source, expression.expression())
-            .unwrap_or(false)
-        {
-            return ExpressionCategory::Temporary;
-        }
-        if self.is_syntactic_place(source, expression.expression()) {
-            ExpressionCategory::Place
-        } else {
-            ExpressionCategory::Temporary
-        }
-    }
-
-    pub(super) fn record_expression(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        ty: UnitTypeId,
-    ) {
-        let key = UnitExpressionId::new(source, expression);
-        self.parts.expression_types.insert(key, ty);
-        self.parts
-            .expression_categories
-            .insert(key, self.expression_category(source, expression));
-    }
-
-    fn is_syntactic_place(&self, source: SourceUnitId, expression: ExpressionId) -> bool {
-        let Ok(node) = self.file(source).ast().expressions().get(expression) else {
-            return false;
-        };
-        match node.payload() {
-            Expression::This => self.current_receiver.is_some(),
-            Expression::Member { .. } => true,
-            Expression::Name => matches!(
-                self.reference(source, node.span(), Namespace::Value),
-                Some(UnitReferenceTarget::Symbol(_))
-            ),
-            Expression::Group { expression } => self.is_syntactic_place(source, *expression),
-            _ => false,
         }
     }
 

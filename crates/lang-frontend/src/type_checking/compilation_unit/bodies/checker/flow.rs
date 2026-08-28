@@ -1,12 +1,17 @@
 //! SPEC-0197 compilation-unit type-test 与稳定 place 流事实。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
-    name_resolution::{Namespace, SourceUnitId, SymbolKind, UnitReferenceTarget, UnitSymbolId},
-    parser::{BinaryOperator, Expression, PrefixOperator},
+    name_resolution::{
+        Namespace, ReferenceTarget, ScopeKind, SourceUnitId, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames,
+    },
+    parser::{
+        BinaryOperator, Expression, Item, NameMarker, ParsedFile, PrefixOperator, VariableKind,
+    },
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypeError, NominalKind, TypeCheckingError, UnitTypeId,
@@ -23,6 +28,67 @@ pub(super) enum FlowKey {
 }
 
 pub(super) type ConditionFacts = (BTreeMap<FlowKey, UnitTypeId>, BTreeMap<FlowKey, UnitTypeId>);
+
+pub(super) fn collect_stable_flow_symbols(
+    files: &[&ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+) -> BTreeSet<UnitSymbolId> {
+    let mut stable = BTreeSet::new();
+    for unit in names.names().source_units() {
+        let source = unit.source_unit();
+        let resolution = unit.resolution();
+        let mutable = files[source.index()]
+            .ast()
+            .items()
+            .iter()
+            .filter_map(|(_, node)| match node.payload() {
+                Item::Variable {
+                    kind: VariableKind::Var,
+                    name: NameMarker::Present(span),
+                    ..
+                } => resolution
+                    .symbols()
+                    .iter()
+                    .find(|symbol| symbol.span() == *span)
+                    .map(|symbol| symbol.id()),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        let mut captured_mutable = BTreeSet::new();
+        for reference in resolution.references() {
+            let ReferenceTarget::Symbol(symbol) = reference.target() else {
+                continue;
+            };
+            if !mutable.contains(symbol) {
+                continue;
+            }
+            let declaration_scope = resolution.symbols()[symbol.index()].scope();
+            let mut current = Some(reference.scope());
+            while let Some(scope) = current {
+                if scope == declaration_scope {
+                    break;
+                }
+                if resolution.scopes()[scope.index()].kind() == ScopeKind::Lambda {
+                    captured_mutable.insert(*symbol);
+                    break;
+                }
+                current = resolution.scopes()[scope.index()].parent();
+            }
+        }
+        stable.extend(resolution.symbols().iter().filter_map(|symbol| {
+            let eligible = match symbol.kind() {
+                SymbolKind::ValueParameter | SymbolKind::LambdaParameter => true,
+                SymbolKind::Variable => {
+                    resolution.scopes()[symbol.scope().index()].kind() != ScopeKind::File
+                }
+                _ => false,
+            };
+            (eligible && !captured_mutable.contains(&symbol.id()))
+                .then_some(UnitSymbolId::new(source, symbol.id()))
+        }));
+    }
+    stable
+}
 
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -145,6 +211,14 @@ impl BodyChecker<'_> {
                 let when_false = extend_facts(&left_false, &right_false);
                 Ok((when_true, when_false))
             }
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual) => {
+                self.null_comparison_facts(source, left, operator, right)
+            }
             _ => Ok((BTreeMap::new(), BTreeMap::new())),
         }
     }
@@ -164,11 +238,9 @@ impl BodyChecker<'_> {
                 else {
                     return None;
                 };
-                matches!(
-                    self.symbol_kinds.get(symbol),
-                    Some(SymbolKind::ValueParameter | SymbolKind::Variable)
-                )
-                .then_some(FlowKey::Symbol(*symbol))
+                self.stable_flow_symbols
+                    .contains(symbol)
+                    .then_some(FlowKey::Symbol(*symbol))
             }
             _ => None,
         }
@@ -209,7 +281,16 @@ pub(super) fn extend_facts(
     additions: &BTreeMap<FlowKey, UnitTypeId>,
 ) -> BTreeMap<FlowKey, UnitTypeId> {
     let mut result = baseline.clone();
-    result.extend(additions.iter().map(|(key, ty)| (*key, *ty)));
+    for (&key, &ty) in additions {
+        match result.get(&key).copied() {
+            Some(existing) if existing != ty => {
+                result.remove(&key);
+            }
+            _ => {
+                result.insert(key, ty);
+            }
+        }
+    }
     result
 }
 
