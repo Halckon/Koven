@@ -197,7 +197,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
   body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
-  construction facts；member/container 与一般 nullable body 语义仍在实施；
+  construction facts，以及 source member body/call/field/structural-component projection；intrinsic
+  Rc/container operation 与一般 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -782,8 +783,18 @@ SPEC-0197 第一阶段新增纯内存的
   的单一 Value operand；显式或 operand payload、Box concrete value-class、Rc structurally-storable、
   result expected 与 L0084/L0091/L0117/L0120–L0122/L0125 均在 descriptor 写入前完成，源码同名
   class 不获得 intrinsic identity；
-- top-level variable/const initializer、member body、
-  container construction/operation、null literal /
+- 第十五个 body 切片接通 classifier member body 与 source member 选择：普通 nominal 的 `this`
+  使用 owner generic instance，interface body 使用 `StaticSelf`，companion function 不继承 instance
+  receiver；隐式 bare member 与显式 receiver call 复用 overload/generic/lambda trial，override shape
+  优先于 interface 默认候选。field 与 enum payload 访问发布 `UnitAggregateProjectionDescriptor`，
+  自动 `componentN()` 在无显式同名 callable/field 时发布 `StructuralComponent` call/projection；
+  projection expression/field 及显式 receiver 使用 source-qualified identity，裸 payload receiver 以
+  declaring classifier identity 表示隐式 `this`；field 为 place、结构分量 call 为 temporary。member
+  `private` 以 lexical owner 检查（含 safe/nullable recovery），owner-dependent generic bound 与
+  alpha-equivalent override shape 保持实例语义；L0084/L0113、输入置换与失败 trial 回滚保持单文件
+  语义。本切片只实现现行 v0.32 隐式 receiver，不启用候选 v0.34 receiver mode；
+- top-level variable/const initializer、intrinsic Rc/container member 与
+  container construction/index/operation、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

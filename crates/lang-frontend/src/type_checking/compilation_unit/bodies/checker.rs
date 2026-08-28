@@ -6,8 +6,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, LiteralKind, ParsedFile, Statement},
     source::{SourceMap, Span},
@@ -29,6 +29,7 @@ mod destructuring;
 mod flow;
 mod lambda;
 mod literals;
+mod members;
 mod operators;
 mod trial;
 mod type_refs;
@@ -77,6 +78,8 @@ pub(super) struct BodyChecker<'a> {
     loop_depth: usize,
     callable_loop_bases: Vec<usize>,
     candidate_local_expected: bool,
+    current_receiver: Option<UnitTypeId>,
+    current_owner: Option<DeclarationId>,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -167,21 +170,36 @@ impl<'a> BodyChecker<'a> {
             loop_depth: 0,
             callable_loop_bases: Vec::new(),
             candidate_local_expected: false,
+            current_receiver: None,
+            current_owner: None,
         })
     }
 
     fn run(mut self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
         let declarations = self.names.names().index().declarations().to_vec();
         for declaration in declarations {
-            let callable = self
-                .signatures
-                .declaration(declaration.id())
+            let signature = self.signatures.declaration(declaration.id()).cloned();
+            let callable = signature
+                .as_ref()
                 .and_then(|signature| signature.callable())
                 .cloned();
+            let nominal = signature
+                .as_ref()
+                .and_then(|signature| signature.nominal())
+                .cloned();
             let file = self.files[declaration.source_unit().index()];
-            let item = unwrapped_item(file, declaration.root())?;
-            let Some(callable) = callable else {
-                if item_requires_body_check(item) {
+            let item = unwrapped_item(file, declaration.root())?.clone();
+            if let Some(callable) = callable {
+                let Item::Function { form, .. } = item else {
+                    return Err(CompilationUnitTypeError::UnsupportedBody(
+                        callable.name_span(),
+                    ));
+                };
+                self.check_function(declaration.source_unit(), form, &callable)?;
+                continue;
+            }
+            if let Some(nominal) = nominal {
+                let Item::Classifier(classifier) = item else {
                     return Err(CompilationUnitTypeError::UnsupportedBody(
                         file.ast()
                             .items()
@@ -189,15 +207,19 @@ impl<'a> BodyChecker<'a> {
                             .map_err(TypeCheckingError::from)?
                             .span(),
                     ));
-                }
+                };
+                self.check_classifier_members(declaration.source_unit(), &classifier, &nominal)?;
                 continue;
-            };
-            let Item::Function { form, .. } = item else {
+            }
+            if item_requires_body_check(&item) {
                 return Err(CompilationUnitTypeError::UnsupportedBody(
-                    callable.name_span(),
+                    file.ast()
+                        .items()
+                        .get(declaration.root())
+                        .map_err(TypeCheckingError::from)?
+                        .span(),
                 ));
-            };
-            self.check_function(declaration.source_unit(), *form, &callable)?;
+            }
         }
         let source_units = self.names.names().index().source_units();
         let body_diagnostics =
@@ -226,6 +248,9 @@ impl<'a> BodyChecker<'a> {
         callable: &UnitCallableSignature,
     ) -> Result<(), CompilationUnitTypeError> {
         self.flow_facts.clear();
+        if let Some(receiver) = self.current_receiver {
+            self.flow_facts.insert(FlowKey::This, receiver);
+        }
         let expected_span = match form {
             FunctionForm::Explicit { type_ref, .. } => Some(
                 self.file(source)
@@ -401,14 +426,29 @@ impl<'a> BodyChecker<'a> {
                 )? {
                     Some(result) => result,
                     None => ExpressionCheck {
-                        ty: self.name_type(source, span)?,
+                        ty: self.name_type(source, expression, span)?,
                         falls_through: true,
                     },
                 }
             }
+            Expression::This => {
+                let Some(ty) = self
+                    .flow_facts
+                    .get(&FlowKey::This)
+                    .copied()
+                    .or(self.current_receiver)
+                else {
+                    return Err(CompilationUnitTypeError::UnsupportedBody(span));
+                };
+                ExpressionCheck {
+                    ty,
+                    falls_through: true,
+                }
+            }
             Expression::Member {
+                receiver,
                 name_span,
-                safe: false,
+                safe,
                 ..
             } => {
                 match self.check_bare_enum_construction(
@@ -419,7 +459,14 @@ impl<'a> BodyChecker<'a> {
                     expected_span,
                 )? {
                     Some(result) => result,
-                    None => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
+                    None => self.check_member(
+                        source,
+                        expression,
+                        receiver,
+                        name_span,
+                        safe,
+                        return_type,
+                    )?,
                 }
             }
             Expression::Literal(LiteralKind::Null) => {
@@ -628,6 +675,7 @@ impl<'a> BodyChecker<'a> {
     fn name_type(
         &mut self,
         source: SourceUnitId,
+        expression: ExpressionId,
         span: Span,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
         if let Some(UnitReferenceTarget::Symbol(symbol)) =
@@ -649,6 +697,10 @@ impl<'a> BodyChecker<'a> {
                 .copied()
                 .or_else(|| self.signatures.symbol_type(*symbol))
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
+            Some(UnitReferenceTarget::Symbols(symbols)) => {
+                let symbols = symbols.clone();
+                self.resolve_bare_symbol_candidates(source, expression, span, &symbols)
+            }
             Some(UnitReferenceTarget::External(external)) => {
                 match self.environment.binding(*external).cloned() {
                     Some(ExternalTypeBinding::Value(ty)) => {
@@ -696,7 +748,14 @@ impl<'a> BodyChecker<'a> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> ExpressionCategory {
-        if self.is_syntactic_place(source, expression) {
+        let expression = UnitExpressionId::new(source, expression);
+        if self.parts.aggregate_projections.iter().any(|projection| {
+            projection.expression() == expression
+                && projection.kind() == crate::type_checking::UnitAggregateProjectionKind::Field
+        }) {
+            return ExpressionCategory::Place;
+        }
+        if self.is_syntactic_place(source, expression.expression()) {
             ExpressionCategory::Place
         } else {
             ExpressionCategory::Temporary
@@ -721,6 +780,8 @@ impl<'a> BodyChecker<'a> {
             return false;
         };
         match node.payload() {
+            Expression::This => self.current_receiver.is_some(),
+            Expression::Member { .. } => true,
             Expression::Name => matches!(
                 self.reference(source, node.span(), Namespace::Value),
                 Some(UnitReferenceTarget::Symbol(_))
@@ -748,6 +809,10 @@ impl<'a> BodyChecker<'a> {
             || matches!(
                 self.signatures.types().get(actual),
                 Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
+            )
+            || matches!(
+                self.signatures.types().get(actual),
+                Some(UnitTypeKind::StaticSelf(interface)) if *interface == expected
             )
             || matches!(
                 self.signatures.types().get(expected),
@@ -880,10 +945,7 @@ fn unwrapped_item(parsed: &ParsedFile, id: crate::ast::ItemId) -> Result<&Item, 
 fn item_requires_body_check(item: &Item) -> bool {
     match item {
         Item::Variable { .. } | Item::Constant { .. } => true,
-        Item::Classifier(classifier) => classifier
-            .body
-            .as_ref()
-            .is_some_and(|body| !body.members.is_empty()),
+        Item::Classifier(_) => false,
         Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
         Item::Error | Item::Function { .. } | Item::Companion(_) => false,
     }

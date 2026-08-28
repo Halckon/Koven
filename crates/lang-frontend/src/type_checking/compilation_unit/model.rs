@@ -9,8 +9,8 @@ use crate::{
     ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
-        CompilationUnitIndex, DeclarationId, PackageId, SourceUnitInput, UnitSymbolId,
-        ValidatedCompilationUnitNames, index_compilation_unit,
+        CompilationUnitIndex, DeclarationId, DeclarationVisibility, PackageId, SourceUnitInput,
+        UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -337,6 +337,7 @@ pub struct UnitCallableSignature {
     parameters: Vec<UnitCallableParameter>,
     return_type: UnitTypeId,
     callable_type: UnitTypeId,
+    visibility: DeclarationVisibility,
 }
 
 /// compilation-unit 类型参数的规范化上界。
@@ -394,6 +395,7 @@ impl UnitCallableSignature {
         parameters: Vec<UnitCallableParameter>,
         return_type: UnitTypeId,
         callable_type: UnitTypeId,
+        visibility: DeclarationVisibility,
     ) -> Self {
         Self {
             target,
@@ -403,6 +405,7 @@ impl UnitCallableSignature {
             parameters,
             return_type,
             callable_type,
+            visibility,
         }
     }
 
@@ -447,6 +450,12 @@ impl UnitCallableSignature {
     pub const fn callable_type(&self) -> UnitTypeId {
         self.callable_type
     }
+
+    /// 返回 callable 的规范化可见性。
+    #[must_use]
+    pub const fn visibility(&self) -> DeclarationVisibility {
+        self.visibility
+    }
 }
 
 /// 一个主构造器 field signature。
@@ -456,6 +465,7 @@ pub struct UnitFieldSignature {
     name: String,
     ty: UnitTypeId,
     span: Span,
+    visibility: DeclarationVisibility,
 }
 
 /// 一个已验证、可供后续 body 与 lowering 消费的 interface 委托计划。
@@ -594,12 +604,19 @@ impl UnitEnumCaseSignature {
 }
 
 impl UnitFieldSignature {
-    pub(crate) fn new(symbol: UnitSymbolId, name: String, ty: UnitTypeId, span: Span) -> Self {
+    pub(crate) fn new(
+        symbol: UnitSymbolId,
+        name: String,
+        ty: UnitTypeId,
+        span: Span,
+        visibility: DeclarationVisibility,
+    ) -> Self {
         Self {
             symbol,
             name,
             ty,
             span,
+            visibility,
         }
     }
 
@@ -625,6 +642,12 @@ impl UnitFieldSignature {
     #[must_use]
     pub const fn span(&self) -> Span {
         self.span
+    }
+
+    /// 返回 field 的规范化可见性。
+    #[must_use]
+    pub const fn visibility(&self) -> DeclarationVisibility {
+        self.visibility
     }
 }
 

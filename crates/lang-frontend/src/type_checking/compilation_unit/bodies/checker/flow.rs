@@ -19,6 +19,7 @@ use super::{BodyChecker, ExpressionCheck};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum FlowKey {
     Symbol(UnitSymbolId),
+    This,
 }
 
 pub(super) type ConditionFacts = (BTreeMap<FlowKey, UnitTypeId>, BTreeMap<FlowKey, UnitTypeId>);
@@ -156,6 +157,7 @@ impl BodyChecker<'_> {
         let node = self.file(source).ast().expressions().get(id).ok()?;
         match node.payload() {
             Expression::Group { expression } => self.stable_flow_key(source, *expression),
+            Expression::This if self.current_receiver.is_some() => Some(FlowKey::This),
             Expression::Name => {
                 let UnitReferenceTarget::Symbol(symbol) =
                     self.reference(source, node.span(), Namespace::Value)?

@@ -16,8 +16,10 @@ use super::{
 };
 
 mod checker;
+mod projection;
 
 pub use checker::check_compilation_unit_types;
+pub use projection::*;
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -379,6 +381,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     pub(crate) calls: Vec<UnitCallDescriptor>,
+    pub(crate) aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
 }
@@ -402,6 +405,7 @@ pub struct CompilationUnitTypes {
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     calls: Vec<UnitCallDescriptor>,
+    aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
@@ -427,6 +431,7 @@ impl CompilationUnitTypes {
             symbol_types: parts.symbol_types,
             parameter_modes: parts.parameter_modes,
             calls: parts.calls,
+            aggregate_projections: parts.aggregate_projections,
             constructions: parts.constructions,
             destructurings: parts.destructurings,
             body_diagnostics,
@@ -498,6 +503,24 @@ impl CompilationUnitTypes {
         self.calls
             .iter()
             .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的聚合分量投影事实。
+    #[must_use]
+    pub fn aggregate_projections(&self) -> &[UnitAggregateProjectionDescriptor] {
+        &self.aggregate_projections
+    }
+
+    /// 查询一个字段访问或结构分量 call 的投影事实。
+    #[must_use]
+    pub fn aggregate_projection(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitAggregateProjectionDescriptor> {
+        self.aggregate_projections
+            .iter()
+            .copied()
+            .find(|projection| projection.expression() == expression)
     }
 
     /// 返回源码稳定顺序的成功 construction facts。

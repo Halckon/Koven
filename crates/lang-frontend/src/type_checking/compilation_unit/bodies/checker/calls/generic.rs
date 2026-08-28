@@ -76,7 +76,7 @@ impl BodyChecker<'_> {
         let (type_refs, explicit_types) = explicit;
         let parameters = candidate.type_parameters.clone();
         let parameter_set = parameters.iter().copied().collect::<BTreeSet<_>>();
-        let mut substitutions = BTreeMap::new();
+        let mut substitutions = candidate.owner_substitutions.clone();
         let mut origins = BTreeMap::new();
 
         if !explicit_types.is_empty() {

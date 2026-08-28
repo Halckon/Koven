@@ -1,6 +1,6 @@
 //! SPEC-0197 compilation-unit source callable mapping、选择与 typed descriptor。
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, TypeRefId},
@@ -21,6 +21,7 @@ use crate::{
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
 mod generic;
+mod member;
 
 #[derive(Clone)]
 struct CallCandidate {
@@ -31,6 +32,7 @@ struct CallCandidate {
     parameters: Vec<MappedParameter<UnitTypeId>>,
     return_type: UnitTypeId,
     instance_arguments: Vec<UnitTypeId>,
+    owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,
     prints_line: bool,
@@ -38,8 +40,12 @@ struct CallCandidate {
 
 impl CallCandidate {
     fn from_signature(declaration: DeclarationId, callable: &UnitCallableSignature) -> Self {
+        Self::from_source(UnitCallTarget::Declaration(declaration), callable)
+    }
+
+    fn from_source(target: UnitCallTarget, callable: &UnitCallableSignature) -> Self {
         Self {
-            target: UnitCallTarget::Declaration(declaration),
+            target,
             declaration_span: Some(callable.name_span()),
             type_parameters: callable.type_parameters().to_vec(),
             move_only: false,
@@ -55,6 +61,7 @@ impl CallCandidate {
                 .collect(),
             return_type: callable.return_type(),
             instance_arguments: Vec::new(),
+            owner_substitutions: BTreeMap::new(),
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
@@ -86,6 +93,14 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        let callee_payload = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?
+            .payload()
+            .clone();
         let target = self
             .reference(source, callee_span, Namespace::Value)
             .cloned();
@@ -107,6 +122,35 @@ impl BodyChecker<'_> {
         })
         .collect::<Vec<_>>();
         match target.clone() {
+            Some(UnitReferenceTarget::Symbol(symbol)) => {
+                if let Some(candidate) = self.symbol_candidate(symbol)? {
+                    candidates.push(candidate);
+                }
+            }
+            Some(UnitReferenceTarget::Symbols(symbols)) => {
+                for symbol in symbols {
+                    if let Some(candidate) = self.symbol_candidate(symbol)? {
+                        candidates.push(candidate);
+                    }
+                }
+            }
+            _ => {}
+        }
+        if let crate::parser::Expression::Member {
+            receiver,
+            name_span,
+            safe: false,
+            ..
+        } = callee_payload
+        {
+            candidates.extend(self.member_call_candidates(
+                source,
+                receiver,
+                name_span,
+                return_type,
+            )?);
+        }
+        match target.clone() {
             Some(UnitReferenceTarget::External(external)) => {
                 if let Some(candidate) = self.external_candidate(external) {
                     candidates.push(candidate);
@@ -121,9 +165,12 @@ impl BodyChecker<'_> {
             }
             _ => {}
         }
-        let handles_source_type_arguments = candidates
-            .iter()
-            .any(|candidate| matches!(candidate.target, UnitCallTarget::Declaration(_)));
+        let handles_source_type_arguments = candidates.iter().any(|candidate| {
+            matches!(
+                candidate.target,
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            )
+        });
         if self.target_uses_intrinsic_callable(target.as_ref()) {
             return Err(CompilationUnitTypeError::UnsupportedBody(callee_span));
         }
@@ -172,10 +219,26 @@ impl BodyChecker<'_> {
                         .collect(),
                     return_type,
                     instance_arguments: Vec::new(),
+                    owner_substitutions: BTreeMap::new(),
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
                     prints_line: false,
                 });
+            } else if !self
+                .parts
+                .aggregate_projections
+                .iter()
+                .any(|projection| projection.expression() == UnitExpressionId::new(source, callee))
+                && let Some(result) = self.check_structural_component_call(
+                    source,
+                    expression,
+                    callee,
+                    type_arguments,
+                    arguments,
+                    return_type,
+                )?
+            {
+                return Ok(result);
             } else if self.is_error(callee_result.ty) || self.is_deferred(callee_result.ty) {
                 self.check_call_arguments_without_expected(source, arguments, return_type)?;
                 return Ok(callee_result);
@@ -369,6 +432,7 @@ impl BodyChecker<'_> {
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
             instance_arguments: Vec::new(),
+            owner_substitutions: BTreeMap::new(),
             cross_thread_parameters: signature
                 .effects
                 .iter()

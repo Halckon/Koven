@@ -7,13 +7,14 @@ use crate::{
     ast::{ItemId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolId, SymbolKind,
-        UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
-        ordered_unit_diagnostics,
+        DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, SourceUnitInput, SymbolId,
+        SymbolKind, UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
+        index_compilation_unit, ordered_unit_diagnostics,
     },
     parser::{
         ClassifierBody, ClassifierDeclaration, ClassifierKind, FunctionForm, Item, NameMarker,
         ParameterModeMarker, ParsedFile, SyntaxAst, TypePathSegment, TypeRef, ValueParameter,
+        VisibilityModifier,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -283,6 +284,7 @@ impl<'a> SignatureCollector<'a> {
                         self.marker_text(field.name)?.unwrap_or_default(),
                         ty,
                         marker_span(field.name),
+                        normalized_visibility(field.visibility),
                     ));
                 }
             }
@@ -345,6 +347,7 @@ impl<'a> SignatureCollector<'a> {
                     self.marker_text(parameter.name)?.unwrap_or_default(),
                     ty,
                     marker_span(parameter.name),
+                    DeclarationVisibility::Public,
                 ));
             }
             let value_symbol = UnitSymbolId::new(source, case.value_symbol());
@@ -495,6 +498,7 @@ impl<'a> SignatureCollector<'a> {
         item: ItemId,
         target: UnitCallableTarget,
     ) -> Result<UnitCallableSignature, CompilationUnitTypeError> {
+        let visibility = item_visibility(self.inputs[source.index()].ast(), item)?;
         let item = unwrapped_item(self.inputs[source.index()].ast(), item)?;
         let Item::Function {
             name,
@@ -540,6 +544,7 @@ impl<'a> SignatureCollector<'a> {
             parameters,
             return_type,
             callable_type,
+            visibility,
         ))
     }
 
@@ -970,6 +975,29 @@ fn unwrapped_item(ast: &SyntaxAst, id: ItemId) -> Result<&Item, CompilationUnitT
             .payload();
     }
     Ok(item)
+}
+
+fn item_visibility(
+    ast: &SyntaxAst,
+    id: ItemId,
+) -> Result<DeclarationVisibility, CompilationUnitTypeError> {
+    let item = ast
+        .items()
+        .get(id)
+        .map_err(TypeCheckingError::from)?
+        .payload();
+    Ok(match item {
+        Item::Modified { modifiers, .. } => normalized_visibility(modifiers.visibility),
+        _ => DeclarationVisibility::Public,
+    })
+}
+
+const fn normalized_visibility(visibility: Option<VisibilityModifier>) -> DeclarationVisibility {
+    match visibility {
+        Some(VisibilityModifier::Internal(_)) => DeclarationVisibility::Internal,
+        Some(VisibilityModifier::Private(_)) => DeclarationVisibility::Private,
+        Some(VisibilityModifier::Public(_)) | None => DeclarationVisibility::Public,
+    }
 }
 
 const fn namespace_rank(namespace: Namespace) -> u8 {
