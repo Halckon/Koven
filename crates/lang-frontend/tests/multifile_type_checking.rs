@@ -4876,3 +4876,107 @@ fn conflicting_short_circuit_facts_are_removed_instead_of_overwritten() {
     assert_eq!(typed.non_null_uses().len(), 1);
     assert!(typed.validate().is_ok());
 }
+
+#[test]
+fn interpolated_strings_traverse_cross_file_expressions_in_source_order() {
+    let mut sources = SourceMap::new();
+    let (declarations_source, declarations) = parsed(
+        &mut sources,
+        "interpolation-declarations.ko",
+        "package p\nfun label(input: Int): Int = input",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "interpolation-uses.ko",
+        "package p\nfun render(input: Int): String = \"before ${label(input)} after\"",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new(
+            "root",
+            "p/declarations.ko",
+            declarations_source,
+            &declarations,
+        ),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("interpolation traverses its nested expression");
+    let reverse_inputs = [inputs[1], inputs[0]];
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed interpolation inputs type check");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.expression_types(), reverse.expression_types());
+    assert_eq!(typed.calls(), reverse.calls());
+    assert_eq!(typed.calls().len(), 1);
+    let unit = source_unit(&names, uses_source);
+    let string = expression_with_text(&sources, &uses, "\"before ${label(input)} after\"");
+    let call = expression_with_text(&sources, &uses, "label(input)");
+    assert!(matches!(
+        typed.types().get(
+            typed
+                .expression_type(UnitExpressionId::new(unit, string))
+                .expect("interpolated string has a type")
+        ),
+        Some(UnitTypeKind::Builtin(BuiltinType::String))
+    ));
+    assert_eq!(
+        typed
+            .call(UnitExpressionId::new(unit, call))
+            .map(|call| call.target()),
+        Some(UnitCallTarget::Declaration(declaration(&names, "label")))
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn invalid_interpolation_recovers_the_outer_string_and_later_body() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-interpolation.ko",
+        "fun invalid(): String = \"bad ${1 + true}\"\n\
+         fun later(): String = \"ok ${42}\"",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "invalid-interpolation.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid nested interpolation remains recoverable");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0085"]
+    );
+    let unit = source_unit(&names, source);
+    for text in ["\"bad ${1 + true}\"", "\"ok ${42}\""] {
+        let expression = expression_with_text(&sources, &file, text);
+        let ty = typed
+            .expression_type(UnitExpressionId::new(unit, expression))
+            .expect("outer string keeps its String type");
+        assert!(matches!(
+            typed.types().get(ty),
+            Some(UnitTypeKind::Builtin(BuiltinType::String))
+        ));
+    }
+    let literal = expression_with_text(&sources, &file, "42");
+    assert!(
+        typed
+            .expression_type(UnitExpressionId::new(unit, literal))
+            .is_some()
+    );
+    assert!(typed.validate().is_err());
+}

@@ -9,7 +9,7 @@ use crate::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
-    parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
+    parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement, StringPart},
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionUse, ExternalTypeBinding,
@@ -463,11 +463,10 @@ impl<'a> BodyChecker<'a> {
                 falls_through: true,
             },
             Expression::String { parts } => {
-                if parts
-                    .iter()
-                    .any(|part| matches!(part, crate::parser::StringPart::Interpolation { .. }))
-                {
-                    return Err(CompilationUnitTypeError::UnsupportedBody(span));
+                for part in parts {
+                    if let StringPart::Interpolation { expression, .. } = part {
+                        self.check_expression(source, expression, None, None, return_type)?;
+                    }
                 }
                 ExpressionCheck {
                     ty: self.builtin(BuiltinType::String),

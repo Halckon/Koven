@@ -819,7 +819,11 @@ SPEC-0197 第一阶段新增纯内存的
   expression/symbol、声明 nullable 类型与 inner type，overload-lambda trial、输入置换及 L0083 recovery
   不泄漏 partial facts。稳定 symbol 与单文件规则一致：lambda parameter 合法，被 lambda 捕获的
   mutable local 排除，短路合并遇到同一 symbol 的冲突窄化类型时删除事实而不是覆盖；
-- top-level variable/const initializer、String interpolation、`super<Interface>.member`、Elvis/range/`to`/
+- 第二十个 body 切片接通 String interpolation typed traversal：每个 interpolation expression 按源码
+  顺序进入现有 unit expression checker，嵌套 call/type facts 与诊断恢复完整发布，外层表达式固定为
+  `String`，输入置换保持稳定；这不引入 printable/formatting protocol，native lowering 继续按
+  SPEC-0192 确定性拒绝 interpolation；
+- top-level variable/const initializer、`super<Interface>.member`、Elvis/range/`to`/
   `in`、基础 `!!`/cast、postfix `?`、callable reference 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

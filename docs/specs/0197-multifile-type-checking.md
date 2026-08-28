@@ -172,7 +172,10 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      null literal 从另一侧 nullable 类型取得 expected type；true/false edge、`&&`/`||` 短路、跨 source
      stable symbol、输入置换及 overload-lambda trial 回滚均发布确定 descriptor，非法比较保留 L0083；
      lambda 参数可稳定窄化，被 lambda 捕获的 mutable local 排除在外，冲突事实按单文件规则删除。
-   - [ ] 接完 top-level variable/const initializer、String interpolation、`super<Interface>.member`、Elvis/
+   - [x] 接通 String interpolation typed traversal：按源码顺序递归检查每个 interpolation expression，
+     外层仍为 `String`；嵌套 call/type facts、诊断恢复与输入置换保持单文件语义。本切片不定义
+     printable/formatting protocol，也不改变 native lowering 对 interpolation 的确定性拒绝。
+   - [ ] 接完 top-level variable/const initializer、`super<Interface>.member`、Elvis/
      range/`to`/`in`、基础 `!!`/cast、postfix `?` 与 callable reference 等剩余现有单文件 body 边界；
      不得借此启用 v0.35 的 nullable remaining-domain/Copy-Consume descriptor。完成前 production driver
      对未覆盖合法节点显式返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -279,6 +282,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
 | `cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
 | `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency，公开查询 API 的直接下游已由 workspace check 覆盖，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_type_checking --test type_checking --test type_callable --test type_containers --test type_copyability --locked --offline` | 通过 | 151 tests；新增 interpolation 内跨文件 call/type facts、输入置换、嵌套 L0085 recovery、外层 String 与后续 body 恢复，并覆盖单文件 callable/type/container/copyability 回归 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 48 tests；通用 frontend 单元基线通过 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | interpolation typed traversal 与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，只接通既有 String AST 的 unit typed traversal，未修改 Parser/Lexer/harness/shared dependency，按 §9 未触发约 50 分钟 Tier 3；native interpolation 仍确定性拒绝 |
 | `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability` | 通过 | 144 tests；source-qualified element-place、List/Array/MutableList 可变性、`size`/`get`/`set`、替换/复合赋值、直接与 grouped Inout、trial 回滚、poison、源码同名、输入置换及单文件回归 |
 | `cargo test -p lang-frontend --lib` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
 | `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | unit container operation model/checker、Inout call 后验验证与全部 frontend targets 无 warning |

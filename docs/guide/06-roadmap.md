@@ -311,8 +311,9 @@ Spec 之前，本条限制不变。）
       nested Deferred recovery，effectful external 取值在专用表示落地前保持 fail-loud；source/
       intrinsic construction、source member body/call/field/`componentN()` projection 与非 nullable
       intrinsic Rc `.value`/`.share()` operation、core container construction、container
-      index/place/member/assignment、contextual null literal 与 null-comparison/non-null-use flow facts
-      已接通；下一阶段继续接入 top-level initializer 和其余现有单文件 body 边界。
+      index/place/member/assignment、contextual null literal、null-comparison/non-null-use flow facts 与
+      String interpolation typed traversal 已接通；下一阶段继续接入 top-level initializer 和其余现有
+      单文件 body 边界。interpolation native lowering 仍保持确定性拒绝。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
