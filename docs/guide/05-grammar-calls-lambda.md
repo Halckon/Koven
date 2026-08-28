@@ -55,8 +55,8 @@ Lambda 是 expression primary，可以继续接受 call、member、index 等 pos
 要求一个 primary 时，`{` 提交 lambda；block dispatch 在 element 起点直接看到 `{` 时仍提交
 nested block。因而 `val f = { x }` 的 initializer 是零参数 lambda，body 尾值为 `x`；`{ x }`
 作为外层 block 的直接 element 则是 nested block。需要在 statement 位置强制表达 lambda 时可写
-`({ x })`。`move { ... }` 只能是 lambda。trailing lambda（`f { ... }`）不属于本节，调用仍须
-写 `f({ ... })`。
+`({ x })`。`move { ... }` 只能是 lambda。**现行 v0.32** 不接受 trailing lambda
+（`f { ... }`），调用仍须写 `f({ ... })`；下述 v0.33 候选在明确启用前不改变这条规则。
 
 [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 8 节的 `{` soft element stop 因此是 parser-state-sensitive 的：已有完整左表达式且没有运算符
 要求右 operand 时，顶层 `{` 留给下一 nested-block element；initializer 起点、prefix / binary
@@ -139,6 +139,35 @@ lexeme 在所有 header trial 中合计只能访问常数次。缺 lambda `}` �
 调用方 hard stop 停止，即使预索引的词法范围延伸得更远也不得越界。每轮要么消费 lexeme，
 要么在自身 `}`、调用方 hard stop 或 EOF
 结束，整体 `O(n)`、owner 栈 `O(d)`。
+
+### 尾 lambda 调用糖（SPEC-0213；v0.33 候选，未启用）
+
+> **候选状态**：本小节是 v0.33 的 Phase 1 语法增量。当前唯一权威版本仍是 v0.32；只有用户
+> 明确启用 v0.33 并指定其取代 v0.32 后，SPEC-0213 才能进入实施，`f { ... }` 才成为合法调用。
+
+尾 lambda 只是一种 call-argument 表面语法，不增加 AST 节点、参数模式或调用语义：
+
+```kotlin
+consume { item -> item }          // 等价于 consume({ item -> item })
+consume(1) { item -> item }       // 等价于 consume(1, { item -> item })
+consume<Int> { item -> item }     // 等价于 consume<Int>({ item -> item })
+receiver.consume(1) { item -> item }
+```
+
+- `{ ... }` 必须在没有换行的 trivia gap 后紧随可调用 postfix；因此 `f {}` 是尾 lambda，
+  `f\n{}` 是 expression statement `f` 后接 nested block。LF、CRLF 或含换行 comment 都形成
+  该边界；这只是尾 lambda 的附着规则，不把换行提升为通用 block statement separator，
+  block 内 `;` 也继续是既有 unsupported element。
+- callee 尚无圆括号 call suffix 时，Parser 建立一个只有该 lambda 的 `Expression::Call`；已有
+  `(...)` 时，把 lambda 追加为同一个 call 的最后一个普通 `CallArgument`，并把 call span 扩到
+  lambda 的 `}`。不得把 `f() {}` 表示成“先调用 `f()`、再调用其结果”的第二个 call。
+- 尾 lambda 的 `CallArgument` 没有 name 或显式 mode；需要命名、`borrow` 或 `&` 标注时仍写在
+  圆括号内。每个 call 最多接受一个同行尾 lambda，第二个同行的 `{ ... }` 继续形成
+  trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
+- typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
+  回退，不能仅因后方存在 `{` 就把比较表达式重解释为 typed call。
+- 本候选不增加隐式 `it`、label return、receiver lambda、参数 trailing comma、默认参数或
+  `vararg`，也不改变 Phase 2 overload-lambda 隔离、Phase 3 capture/loan 或后端调用 ABI。
 
 ### 具名函数隐式 `Unit` 返回标注（SPEC-0011）
 
@@ -506,7 +535,8 @@ Architecture。独立分支的草案编号顺序不构成未完成前一 Spec �
 
 SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历史负例在 SPEC-0010 后
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
-SPEC-0007 的 trailing lambda 负例继续成立，不能用本次迁移批量接受其他 golden 变化。
+SPEC-0007 的 trailing lambda 负例在现行 v0.32 继续成立；只有 v0.33 明确启用并实施
+SPEC-0213 后才迁移对应定向用例，不能借此批量接受其他 golden 变化。
 
 0001–0009 的历史实体文件和编号保持不变；下表记录拆分当时对 0010 及后续编号的唯一映射，
 禁止保留新旧编号别名。当前完成状态与后续已物化 Spec 以

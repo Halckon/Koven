@@ -8,6 +8,8 @@
 > SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 已完成 compilation-unit index、
 > package/import 名称解析与 L0146–L0151，下一节点为 SPEC-0197。2026-08-27 的现行 v0.32
 > 纯勘误已拆开 exact import 与普通静态限定名。
+> 2026-08-28 审计确认现行 Parser 由 guide/SPEC/回归明确拒绝尾 lambda；该语法不回开已完成
+> SPEC-0010/0012/0175，也不混入 SPEC-0197，已作为 v0.33 候选 SPEC-0213 物化并等待 guide 启用。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
 > `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
@@ -169,6 +171,9 @@ fun main(): Unit {
 }
 ```
 
+- [ ] **[SPEC-0213](../specs/0213-trailing-lambda-call-parser.md)（draft）**：按 v0.33 候选把
+      `f { ... }` / `f(args) { ... }` / `f<T> { ... }` 规范化为最后一个普通 `CallArgument`；
+      保留跨换行后的 nested block 与 block 内分号错误边界，不新增 AST variant 或后续阶段语义。
 - [ ] **[SPEC-0201](../specs/0201-instance-receiver-mode-parser.md)（draft）**：按 v0.34 固定
       `[visibility] [override] [borrow|inout|own] fun` member modifier、AST Span 与恢复；
       不把 receiver 语义混入 Parser。

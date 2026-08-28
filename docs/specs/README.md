@@ -12,27 +12,28 @@ callable/local/operator/if/type-test smart-cast/assignment/destructuring/when/lo
 之后按 0198→{0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
-[v0.33 §33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
-是 v0.32 的未启用后继候选：它只为无依赖本地 project 定义显式 package-qualified entry 与
-公开 build/run，不改变单文件 main，也不引入 manifest target/default 或 dependency build。
+[v0.33](../guide/00-index.md) 是 v0.32 的未启用后继候选：grammar §9/SPEC-0213 增加规范化为
+普通 `CallArgument` 的尾 lambda 调用糖，[§33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033-候选未启用)
+另为无依赖本地 project 定义显式 package-qualified entry 与公开 build/run；它不改变现行
+Parser/单文件 main，也不引入 manifest target/default 或 dependency build。
 
 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用)
-是以 v0.32 为基线、且未启用 §33 的独立 receiver 候选：它定义 member 声明的缺省 Borrow/
+是以 v0.32 为基线、且不包含 v0.33 的独立 receiver 候选：它定义 member 声明的缺省 Borrow/
 显式 Borrow/Inout/Value、receiver 所有权交付与静态分发，并把窄化 `by` 委托限制为 Borrow
 receiver；不定义 iterator、具体标准库 API 或动态分发。
 
 [v0.35 §35](../guide/01-design-decisions.md#35-nullable-when-剩余域与-所有权v035-候选未启用)
-是同样以 v0.32 为基线、且不包含 §33/§34 的独立 nullable 控制流候选：它封闭 nullable
+是同样以 v0.32 为基线、且不包含 v0.33/v0.34 的独立 nullable 控制流候选：它封闭 nullable
 `when` 的剩余域/view/extraction 与 `!!` 的 Copy/Consume，并拆为 0202–0207 的
 typed→ownership→pointer-like native 两条链；inline nullable、Elvis 与 safe call 仍延后。
 
 [v0.36 §36](../guide/01-design-decisions.md#36-无运行时存储的关联常量与封闭求值v036-候选未启用)
-是直接以 v0.32 为基线、且不包含 §33–§35 的独立 const/object 候选：它封闭无存储关联常量、
+是直接以 v0.32 为基线、且不包含 v0.33–v0.35 的独立 const/object 候选：它封闭无存储关联常量、
 有限编译期求值和每次 use 重新物化，单文件链为 0026→0208→0209，跨文件 typed 集成由
 0210 等待 0025/0197 后承接；一般 CTFE、global init 与 associated function 仍延后。
 
 [v0.37 §37](../guide/01-design-decisions.md#37-借用式顺序容器迭代-providerv037-候选未启用)
-同样直接以 v0.32 为基线、且不包含 §33–§36：它只为 intrinsic Array/List/MutableList 定义
+同样直接以 v0.32 为基线、且不包含 v0.33–v0.36：它只为 intrinsic Array/List/MutableList 定义
 无分配 borrowed provider、loop-scoped Borrow binding 与完整退出清理，实施链为
 `{0179→0211, 0212}→0182`；ADR-0023 仍为 proposed，其他 provider 与 consuming iteration 延后。
 
@@ -124,6 +125,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
+| 已物化尾 lambda 候选 | SPEC-0213 | 现行 v0.32 明确拒绝；v0.33 候选只扩展 Parser 并复用普通 CallArgument/后续调用链，未启用，保持 draft |
 | 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025 已完成，0197 已完成 signature 与 callable/local/operator/if/type-test smart-cast/assignment/destructuring/when/loop-jump/lambda body 切片并继续实施 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
@@ -232,6 +234,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0114](./0114-parser-entry-mutation-lexer-invariants.md) | 强化六个独立入口 mutation 矩阵的共享双 Lexer 确定性不变量（`done`） | 0006–0009、0085–0090、0093、0103–0105、0111–0113 `done`；当前持续 Goal 的站立授权 |
 | [0115](./0115-fixture-frontend-output-invariants.md) | 强化 pass / fail fixture 的双 Lexer / 双 Parser 公开产物不变量（`done`） | 0005–0017、0062–0066、0103–0114 `done`；当前持续 Goal 的站立授权 |
 | [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
+| [0213](./0213-trailing-lambda-call-parser.md) | 把同行尾 lambda 规范化为最后一个普通 CallArgument（`draft`） | 0010、0012、0014、0175 `done`；v0.33 待启用 |
 | [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`draft`） | 0017、0064、0176 `done`；v0.34 待启用 |
 
 ### Phase 2：名称与类型检查

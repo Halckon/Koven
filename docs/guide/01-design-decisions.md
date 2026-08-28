@@ -2110,8 +2110,10 @@ fun start(args: Array<String>): Unit { ... }
 ## 34. 显式 instance receiver 契约与静态分发调用（v0.34 候选，未启用）
 
 > **候选状态**：本节以现行 v0.32 为基线，只增加 receiver 契约；版本号不自动包含或启用
-> 同样尚未启用的 §33 project build 候选。只有用户明确启用 v0.34 并指定其取代 v0.32 后，
-> 本节才能改变 member 声明或调用；除非用户同时明确启用 §33，否则 §33 继续保持候选。
+> 同样尚未启用的 v0.33 grammar §9/SPEC-0213 与 §33 project build 候选。只有用户明确启用
+> v0.34 并指定其取代 v0.32 后，
+> 本节才能改变 member 声明或调用；除非用户同时明确启用 v0.33，否则 grammar §9/SPEC-0213
+> 与 §33 都继续保持候选。
 > SPEC-0201、0180、0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的
 > Value/Borrow/Inout 内部 callable ABI，不新增 receiver ABI ADR。这里的“静态分发”指
 > instance member target 在编译期确定，不是 companion/type-level static member。
@@ -2218,7 +2220,8 @@ L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得�
 ## 35. nullable `when` 剩余域与 `!!` 所有权（v0.35 候选，未启用）
 
 > **候选状态**：本节直接以现行 v0.32 为基线，只闭合既有 nullable 控制形式的 frontend
-> facts、所有权和分阶段 lowering；它不自动包含或启用候选 §33 project build、§34 receiver。
+> facts、所有权和分阶段 lowering；它不自动包含或启用候选 v0.33 grammar §9/SPEC-0213、
+> §33 project build 或 §34 receiver。
 > 只有用户明确启用 v0.35 并指定其取代 v0.32 后，本节才能改变 `when`/`!!` 的实现契约；
 > SPEC-0202–0207 在此之前保持 `draft`。本节不改变既有语法、`T?` 类型规则或 ADR-0017
 > pointer-like null-niche ABI。
@@ -2297,7 +2300,8 @@ Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和
 
 ## 36. 无运行时存储的关联常量与封闭求值（v0.36 候选，未启用）
 
-> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 §33–§35。只有用户
+> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 v0.33
+>（grammar §9/SPEC-0213 与 §33）或 §34–§35。只有用户
 > 明确启用 v0.36 并指定其取代 v0.32 后，本节才成为常量求值与关联选择的现行契约；
 > import 终端仍由现行 §32 规定。SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
 > singleton 初始化或 object instance receiver。
@@ -2377,7 +2381,8 @@ global/init 或稳定跨 object 常量 ABI，则必须另行 guide/ADR。
 
 ## 37. 借用式顺序容器迭代 provider（v0.37 候选，未启用）
 
-> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 §33–§36。只有用户
+> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 v0.33
+>（grammar §9/SPEC-0213 与 §33）或 §34–§36。只有用户
 > 明确启用 v0.37 并指定其取代 v0.32 后，本节才成为 `for` 的现行类型、所有权和 provider
 > 契约；ADR-0023 与 SPEC-0179/0182/0211/0212 在此之前保持 `proposed` / `draft`。本候选不
 > 引入公开 `Iterable` / `Iterator` interface、普通 receiver 调用或消费式迭代。
