@@ -421,7 +421,10 @@ impl BodyChecker<'_> {
         )
     }
 
-    fn container_parts(&self, ty: UnitTypeId) -> Option<(SequentialContainerKind, UnitTypeId)> {
+    pub(super) fn container_parts(
+        &self,
+        ty: UnitTypeId,
+    ) -> Option<(SequentialContainerKind, UnitTypeId)> {
         let UnitTypeKind::Intrinsic {
             constructor,
             arguments,

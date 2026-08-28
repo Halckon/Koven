@@ -164,8 +164,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    - [x] 接通 core container construction 与 contextual null literal：列表式 expected/显式/首元素推导、
      运行时长度 Borrow 参数、空 `MutableList` 发布 source-qualified descriptor；L0083/L0084、
      L0091/L0125–L0127、失败无 partial fact、overload-lambda trial、源码同名隔离与输入置换保持稳定。
-   - [ ] 接完 container index/place/member/assignment、null-comparison 等剩余现有单文件 body
-     语义；在此之前 production driver 对未覆盖合法节点显式
+   - [x] 接通 container index/place/member/assignment：发布 source-qualified element-place descriptor，
+     保留 container/element identity、可变性、receiver/index 单次求值身份；`size`、替换、复合赋值、
+     Inout 二次可变性验证及 L0085/L0122/L0128–L0130 保持单文件语义。失败/poison、源码同名、
+     overload-lambda trial 与输入置换不泄漏或混淆 intrinsic facts。
+   - [ ] 接完 null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
@@ -261,6 +264,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability` | 通过 | 141 tests；core container construction、contextual null、显式 Borrow、诊断/recovery、trial 原子提交、源码同名隔离、输入置换及单文件 callable/type/container/copyability 回归 |
 | `cargo test -p lang-frontend --lib` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
 | `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | unit container construction model/checker 与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets` | 通过 | Tier 2 workspace 编译兼容性通过 |
+| `cargo test --workspace --lib --bins` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo build -p lang-cli --bin kovenc` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability` | 通过 | 144 tests；source-qualified element-place、List/Array/MutableList 可变性、`size`/`get`/`set`、替换/复合赋值、直接与 grouped Inout、trial 回滚、poison、源码同名、输入置换及单文件回归 |
+| `cargo test -p lang-frontend --lib` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
+| `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | unit container operation model/checker、Inout call 后验验证与全部 frontend targets 无 warning |
 | `cargo check --workspace --all-targets` | 通过 | Tier 2 workspace 编译兼容性通过 |
 | `cargo test --workspace --lib --bins` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
 | `cargo build -p lang-cli --bin kovenc` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |

@@ -8,13 +8,13 @@ use crate::{
     name_resolution::{
         DeclarationId, ExternalSymbolId, Namespace, SourceUnitId, UnitReferenceTarget,
     },
-    parser::CallArgument,
+    parser::{CallArgument, ParameterModeMarker},
     type_checking::{
         BuiltinType, DeferredReason, EnvironmentFunctionEffect, ExternalTypeBinding,
         TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget,
         UnitCallableInstanceKey, UnitCallableSignature, UnitExpressionId,
         UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
-        argument_mapping::{MappedParameter, MappingError, map_arguments},
+        argument_mapping::{MappedParameter, MappingError, map_arguments, parameter_mode_span},
     },
 };
 
@@ -275,7 +275,7 @@ impl BodyChecker<'_> {
                 &candidate.parameters,
                 arguments,
                 call_span,
-                |argument| Ok(self.is_syntactic_place(source, argument)),
+                |argument| Ok(self.is_inout_argument_syntax(source, argument)),
             )? {
                 Ok(mapping) => mapped.push((candidate, mapping)),
                 Err(error) => {
@@ -413,6 +413,20 @@ impl BodyChecker<'_> {
             return self.overload_failure(callee_span, viable.is_empty());
         }
         let (candidate, mapping) = mapped.swap_remove(viable[0]);
+        let mut valid = true;
+        for (argument_index, argument) in arguments.iter().enumerate() {
+            valid &= self.validate_inout_argument(
+                source,
+                argument,
+                &candidate.parameters[mapping[argument_index]],
+            )?;
+        }
+        if !valid {
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
         self.record_call(source, expression, callee, arguments, &candidate, &mapping);
         Ok(ExpressionCheck {
             ty: candidate.return_type,
@@ -532,6 +546,9 @@ impl BodyChecker<'_> {
                     self.emit_call_argument_mismatch(source, argument, parameter, ty)?;
                     valid = false;
                 }
+                if !self.is_error(ty) && !self.is_deferred(ty) {
+                    valid &= self.validate_inout_argument(source, argument, parameter)?;
+                }
                 continue;
             }
             let result = self.check_expression(
@@ -549,6 +566,9 @@ impl BodyChecker<'_> {
             {
                 self.emit_call_argument_mismatch(source, argument, parameter, result.ty)?;
                 valid = false;
+            }
+            if !self.is_error(result.ty) && !self.is_deferred(result.ty) {
+                valid &= self.validate_inout_argument(source, argument, parameter)?;
             }
         }
         if deferred {
@@ -595,6 +615,27 @@ impl BodyChecker<'_> {
                 self.type_name(actual)
             ),
         )
+    }
+
+    fn validate_inout_argument(
+        &mut self,
+        source: SourceUnitId,
+        argument: &CallArgument,
+        parameter: &MappedParameter<UnitTypeId>,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let Some(marker @ ParameterModeMarker::Inout(_)) = argument.mode_marker else {
+            return Ok(true);
+        };
+        if parameter.mode != crate::type_checking::ParameterMode::Inout
+            || self.is_mutable_inout_place(source, argument.value)?
+        {
+            return Ok(true);
+        }
+        self.emit_mapping_error(MappingError::Mode {
+            primary: parameter_mode_span(marker),
+            parameter: parameter.span,
+        })?;
+        Ok(false)
     }
 
     #[allow(clippy::too_many_arguments)]

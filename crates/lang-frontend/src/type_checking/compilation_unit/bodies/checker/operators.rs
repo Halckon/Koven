@@ -257,7 +257,7 @@ impl BodyChecker<'_> {
         Ok(())
     }
 
-    fn is_numeric(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn is_numeric(&self, ty: UnitTypeId) -> bool {
         matches!(
             self.signatures.types().get(ty),
             Some(crate::type_checking::UnitTypeKind::Builtin(

@@ -4358,7 +4358,8 @@ fn source_container_names_never_gain_intrinsic_construction_identity() {
         "source-containers.ko",
         "class List<T>(val item: T)\n\
          fun listOf(input: Int): Int = input\n\
-         fun source(): List<Int> = List(listOf(1))",
+         fun source(): List<Int> = List(listOf(1))\n\
+         fun sourceIndex(items: List<Int>): Unit { val item = items[0] }",
     );
     let inputs = [SourceUnitInput::new(
         "root",
@@ -4373,6 +4374,7 @@ fn source_container_names_never_gain_intrinsic_construction_identity() {
 
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.container_constructions().is_empty());
+    assert!(typed.element_places().is_empty());
     assert_eq!(typed.constructions().len(), 1);
     assert!(matches!(
         typed.constructions()[0].target(),
@@ -4387,26 +4389,212 @@ fn source_container_names_never_gain_intrinsic_construction_identity() {
 }
 
 #[test]
-fn container_member_operations_remain_fail_loud_until_unit_facts_exist() {
+fn intrinsic_container_places_members_and_assignments_publish_stable_unit_facts() {
+    let mut sources = SourceMap::new();
+    let (models_source, models) = parsed(
+        &mut sources,
+        "p/models.ko",
+        "package p\nvalue class Resource(val id: Int)",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "p/uses.ko",
+        "package p\n\
+         fun mutate(inout input: Resource): Unit {}\n\
+         fun operate(\n\
+             items: List<Resource>, array: Array<Resource>,\n\
+             mutable: MutableList<Resource>, replacement: Resource\n\
+         ): Unit {\n\
+             val first: Resource = items[0]\n\
+             val replaced = (array[0] = replacement)\n\
+             val changed = (mutable[0] = replacement)\n\
+             val count: Int = items.size\n\
+             val borrowed = mutate(&(array[0]))\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/models.ko", models_source, &models),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("intrinsic container places and members are supported");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed intrinsic container places are supported");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert_eq!(forward.element_places(), reverse.element_places());
+    assert_eq!(forward.element_places().len(), 4);
+    assert_eq!(
+        forward
+            .element_places()
+            .iter()
+            .map(|place| (place.container(), place.is_mutable()))
+            .collect::<Vec<_>>(),
+        [
+            (SequentialContainerKind::List, false),
+            (SequentialContainerKind::Array, true),
+            (SequentialContainerKind::MutableList, true),
+            (SequentialContainerKind::Array, true),
+        ]
+    );
+    let resource = declaration(&forward_names, "Resource");
+    for place in forward.element_places() {
+        assert_eq!(
+            place.expression().source_unit(),
+            place.receiver().source_unit()
+        );
+        assert_eq!(
+            place.expression().source_unit(),
+            place.index().source_unit()
+        );
+        assert_eq!(
+            forward.expression_type(place.expression()),
+            Some(place.element_type())
+        );
+        assert_eq!(
+            forward.expression_category(place.expression()),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(matches!(
+            forward.types().get(place.element_type()),
+            Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == resource
+        ));
+    }
+    let size = expression_with_text(&sources, &uses, "items.size");
+    assert_eq!(
+        forward.expression_type(UnitExpressionId::new(
+            source_unit(&forward_names, uses_source),
+            size,
+        )),
+        forward.types().builtin(BuiltinType::Int)
+    );
+    assert_eq!(
+        forward.expression_category(UnitExpressionId::new(
+            source_unit(&forward_names, uses_source),
+            size,
+        )),
+        Some(ExpressionCategory::Temporary)
+    );
+    assert_eq!(forward.calls().len(), 1);
+    assert_eq!(
+        forward.calls()[0].arguments()[0].category(),
+        ExpressionCategory::Place
+    );
+    assert!(forward.validate().is_ok());
+}
+
+#[test]
+fn invalid_intrinsic_container_operations_keep_exact_diagnostics_and_no_partial_calls() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
-        "p/list-size.ko",
-        "package p\nfun size(items: List<Int>): Int = items.size",
+        "invalid-container-operations.ko",
+        "fun mutate(inout input: Int): Unit {}\n\
+         fun invalid(list: List<Int>, array: Array<Int>, strings: Array<String>): Unit {\n\
+             val badIndex = list[true]\n\
+             val replacement = (list[0] = 1)\n\
+             val groupedReplacement = ((list[0]) = 1)\n\
+             val resize = (list.size = 2)\n\
+             val get = list.get(0)\n\
+             val set = list.set(0, 1)\n\
+             val borrowed = mutate(&list[0])\n\
+             val groupedBorrowed = mutate(&(list[0]))\n\
+             val borrowedSize = mutate(&list.size)\n\
+             val changed = mutate(&array[0])\n\
+             val compound = (strings[0] += \"x\")\n\
+         }",
     );
     let inputs = [SourceUnitInput::new(
         "root",
-        "p/list-size.ko",
+        "invalid-container-operations.ko",
         source,
         &file,
     )];
     let (name_environment, type_environment) = standard_environments();
     let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid container operations remain in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        [
+            "L0128", "L0129", "L0129", "L0129", "L0130", "L0130", "L0122", "L0122", "L0122",
+            "L0085"
+        ]
+    );
+    assert_eq!(typed.calls().len(), 1);
+    assert_eq!(typed.element_places().len(), 6);
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn intrinsic_container_place_overload_trial_commits_only_the_unique_fact() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-place-trial.ko",
+        "fun choose(action: () -> Int): Int\n\
+         fun choose(action: () -> String): String\n\
+         fun selected(items: List<Int>): Int = choose({ items[0] })",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-place-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("one element-place lambda candidate is valid");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.element_places().len(), 1);
+    assert_eq!(
+        typed.element_places()[0].element_type(),
+        typed.types().builtin(BuiltinType::Int).expect("Int")
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn poisoned_intrinsic_container_element_places_remain_fail_loud() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "poisoned-container-place.ko",
+        "fun bad(items: List<Opaque>): Opaque = items[0]",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "poisoned-container-place.ko",
+        source,
+        &file,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment
+        .declare_type("Opaque")
+        .expect("external type name is unique");
+    let names = validated_names(&sources, &inputs, &name_environment);
     let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("unimplemented intrinsic members must not publish a validated unit");
+        .expect_err("poisoned element types must not publish unit element places");
     let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
     else {
         panic!("expected UnsupportedBody, got {error:?}");
     };
-    assert_eq!(sources.slice(span), Ok("size"));
+    assert_eq!(sources.slice(span), Ok("items[0]"));
 }

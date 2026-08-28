@@ -390,6 +390,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
+    pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -416,6 +417,7 @@ pub struct CompilationUnitTypes {
     destructurings: Vec<UnitDestructuringDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
+    element_places: Vec<UnitElementPlaceDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -444,6 +446,7 @@ impl CompilationUnitTypes {
             destructurings: parts.destructurings,
             rc_operations: parts.rc_operations,
             container_constructions: parts.container_constructions,
+            element_places: parts.element_places,
             body_diagnostics,
             diagnostics,
         }

@@ -24,6 +24,7 @@ mod bindings;
 mod calls;
 mod construction;
 mod container;
+mod container_operations;
 mod control;
 mod copyability;
 mod destructuring;
@@ -611,8 +612,16 @@ impl<'a> BodyChecker<'a> {
                 type_ref,
                 ..
             } => self.check_type_test(source, expression, operator_span, type_ref, return_type)?,
-            Expression::Assignment { target, value, .. } => {
-                self.check_assignment(source, target, value, return_type)?
+            Expression::Assignment {
+                target,
+                operator,
+                operator_span,
+                value,
+            } => {
+                self.check_assignment(source, target, operator, operator_span, value, return_type)?
+            }
+            Expression::Index { receiver, index } => {
+                self.check_container_index(source, expression, receiver, index, return_type)?
             }
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
@@ -760,12 +769,36 @@ impl<'a> BodyChecker<'a> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> ExpressionCategory {
+        if let Ok(node) = self.file(source).ast().expressions().get(expression)
+            && let Expression::Group { expression } = node.payload()
+        {
+            return self
+                .parts
+                .expression_categories
+                .get(&UnitExpressionId::new(source, *expression))
+                .copied()
+                .unwrap_or(ExpressionCategory::Temporary);
+        }
         let expression = UnitExpressionId::new(source, expression);
         if self.parts.aggregate_projections.iter().any(|projection| {
             projection.expression() == expression
                 && projection.kind() == crate::type_checking::UnitAggregateProjectionKind::Field
         }) {
             return ExpressionCategory::Place;
+        }
+        if self
+            .parts
+            .element_places
+            .iter()
+            .any(|place| place.expression() == expression)
+        {
+            return ExpressionCategory::Place;
+        }
+        if self
+            .is_read_only_container_size(source, expression.expression())
+            .unwrap_or(false)
+        {
+            return ExpressionCategory::Temporary;
         }
         if self.is_syntactic_place(source, expression.expression()) {
             ExpressionCategory::Place

@@ -198,8 +198,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
   body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
   construction facts、source member body/call/field/structural-component projection、non-nullable
-  intrinsic Rc `.value`/`.share()` operation、core container construction 与 contextual null literal
-  facts；container index/place/member/assignment、null-comparison 与其余 nullable body 语义仍在实施；
+  intrinsic Rc `.value`/`.share()` operation、core container construction、container
+  index/place/member/assignment 与 contextual null literal facts；null-comparison 与其余 nullable body
+  语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -807,8 +808,12 @@ SPEC-0197 第一阶段新增纯内存的
   Borrow contract、空 `MutableList`、L0091/L0125–L0127、源码同名隔离与输入置换保持单文件语义。
   无 nullable expected 的 `null` 进入 L0083 recovery，非 nullable expected 进入 L0084；失败 construction
   不发布 partial fact，overload-lambda trial 只原子提交唯一成功 container/callee facts；
-- top-level variable/const initializer、intrinsic container member 与
-  container index/place/assignment、null-comparison 与其余 nullable control 等
+- 第十八个 body 切片接通 intrinsic container index/place/member/assignment：
+  `UnitElementPlaceDescriptor` 保留 source-qualified expression/receiver/index、unit-global element type、
+  container kind 与可变性；`size` 是 Int temporary，`[]` 是 place，Array/MutableList 可替换而 List
+  只读。L0085/L0122/L0128–L0130、RHS 类型检查、Inout 类型化后二次可变性验证、poison fail-loud、
+  源码同名隔离、overload-lambda trial 与输入置换保持单文件语义；
+- top-level variable/const initializer、null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
   后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。

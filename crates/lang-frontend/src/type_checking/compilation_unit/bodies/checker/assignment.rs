@@ -3,6 +3,8 @@
 use crate::{
     ast::ExpressionId,
     name_resolution::SourceUnitId,
+    parser::AssignmentOperator,
+    source::Span,
     type_checking::{CompilationUnitTypeError, DeferredReason, UnitTypeId},
 };
 
@@ -13,9 +15,21 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         target: ExpressionId,
+        operator: AssignmentOperator,
+        operator_span: Span,
         value: ExpressionId,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        if let Some(result) = self.check_container_assignment(
+            source,
+            target,
+            operator,
+            operator_span,
+            value,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         self.check_expression(source, target, None, None, return_type)?;
         self.check_expression(source, value, None, None, return_type)?;
         if let Some(key) = self.stable_flow_key(source, target) {

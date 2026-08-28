@@ -12,6 +12,70 @@ pub struct UnitContainerConstructionDescriptor {
     parameter_modes: Vec<ParameterMode>,
 }
 
+/// compilation-unit 中一个顺序容器下标表达式产生的 element place。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitElementPlaceDescriptor {
+    expression: UnitExpressionId,
+    receiver: UnitExpressionId,
+    index: UnitExpressionId,
+    container: SequentialContainerKind,
+    element_type: UnitTypeId,
+}
+
+impl UnitElementPlaceDescriptor {
+    pub(crate) const fn new(
+        expression: UnitExpressionId,
+        receiver: UnitExpressionId,
+        index: UnitExpressionId,
+        container: SequentialContainerKind,
+        element_type: UnitTypeId,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            index,
+            container,
+            element_type,
+        }
+    }
+
+    /// 返回带 source-unit 限定的 index expression identity。
+    #[must_use]
+    pub const fn expression(self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回只求值一次的 receiver expression。
+    #[must_use]
+    pub const fn receiver(self) -> UnitExpressionId {
+        self.receiver
+    }
+
+    /// 返回只求值一次的 index expression。
+    #[must_use]
+    pub const fn index(self) -> UnitExpressionId {
+        self.index
+    }
+
+    /// 返回 receiver 的封闭容器种类。
+    #[must_use]
+    pub const fn container(self) -> SequentialContainerKind {
+        self.container
+    }
+
+    /// 返回 element place 的 unit-global 值类型。
+    #[must_use]
+    pub const fn element_type(self) -> UnitTypeId {
+        self.element_type
+    }
+
+    /// 返回该 element place 是否允许替换或独占借用。
+    #[must_use]
+    pub const fn is_mutable(self) -> bool {
+        self.container.elements_are_mutable()
+    }
+}
+
 impl UnitContainerConstructionDescriptor {
     pub(crate) fn new(
         expression: UnitExpressionId,
@@ -83,6 +147,24 @@ impl CompilationUnitTypes {
     ) -> Option<&UnitContainerConstructionDescriptor> {
         self.container_constructions
             .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的顺序容器 element place facts。
+    #[must_use]
+    pub fn element_places(&self) -> &[UnitElementPlaceDescriptor] {
+        &self.element_places
+    }
+
+    /// 查询指定 source-qualified index expression 的 element place。
+    #[must_use]
+    pub fn element_place(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitElementPlaceDescriptor> {
+        self.element_places
+            .iter()
+            .copied()
             .find(|descriptor| descriptor.expression() == expression)
     }
 }

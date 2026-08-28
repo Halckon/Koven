@@ -200,6 +200,12 @@ impl BodyChecker<'_> {
                 falls_through: receiver_result.falls_through,
             });
         }
+        if let Some(ty) = self.container_member_type(receiver_result.ty, name_span)? {
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: receiver_result.falls_through,
+            });
+        }
         if matches!(
             self.signatures.types().get(receiver_result.ty),
             Some(UnitTypeKind::Intrinsic { .. })
