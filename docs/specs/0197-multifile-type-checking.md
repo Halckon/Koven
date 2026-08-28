@@ -130,7 +130,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      类型实参，复用 L0082/L0091/L0093/L0094/L0114/L0115/L0117/L0125/L0141；`Any` representation、
      enum case 诊断顺序、`Box`/顺序容器 storable 与无限内联布局均保持单文件恢复语义，类型事实和
      诊断在输入置换下稳定。
-   - [ ] 接完 generic/external/function-value call、constructor/enum/member、
+   - [x] 接通 source 泛型调用：完整显式实参或仅由已定型非 lambda 实参执行 invariant 结构推导，
+     检查 interface/Copyable/Transferable bound，并按声明顺序发布完整 `UnitCallableInstanceKey`；
+     generic/non-generic overload 与 lambda candidate 复用既有过滤/snapshot，唯一候选保留 contextual
+     expected type、L0084 与声明 label，Error/Deferred 不产生 L0123 级联，输入置换保持稳定。
+   - [ ] 接完 external/function-value call、constructor/enum/member、
      container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
@@ -196,3 +200,6 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test type_checking --test type_copyability --test type_callable --test multifile_type_capability_graph --test multifile_type_signatures --locked --offline` | 通过 | 84 tests；泛型类型引用接入后单文件 callable/nominal/capability 与 unit signature graph 无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | generic body TypeRef、invalid-inline signature fact、诊断与全部 workspace targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | generic body TypeRef 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --test multifile_type_signatures --test multifile_type_capability_graph --test type_callable --test type_checking --locked --offline` | 通过 | 108 tests；新增 source 泛型调用显式/推导/结构/bound/mixed overload/lambda trial、双类型参数实例顺序、精确 L0084/L0091 labels、Error/Deferred recovery 与输入置换；单文件 callable/type 及 unit signature/capability graph 无回归 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | source 泛型实例化、call expected-type/recovery、测试与全部 workspace targets 无 warning |
+| `cargo test --workspace --locked --offline -q` | 通过 | source 泛型调用最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |

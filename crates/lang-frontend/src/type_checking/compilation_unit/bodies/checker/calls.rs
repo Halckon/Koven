@@ -1,19 +1,53 @@
 //! SPEC-0197 compilation-unit source callable mapping、选择与 typed descriptor。
 
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, TypeRefId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{DeclarationId, Namespace, SourceUnitId, UnitReferenceTarget},
     parser::CallArgument,
     type_checking::{
-        BuiltinType, TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor,
-        UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature, UnitExpressionId,
-        UnitTypeId,
+        BuiltinType, DeferredReason, TypeCheckingError, UnitCallArgumentDescriptor,
+        UnitCallDescriptor, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
+        UnitExpressionId, UnitTypeId,
         argument_mapping::{MappedParameter, MappingError, map_arguments},
     },
 };
 
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
+
+mod generic;
+
+#[derive(Clone)]
+struct CallCandidate {
+    declaration: DeclarationId,
+    declaration_span: crate::source::Span,
+    type_parameters: Vec<crate::name_resolution::UnitSymbolId>,
+    parameters: Vec<MappedParameter<UnitTypeId>>,
+    return_type: UnitTypeId,
+    instance_arguments: Vec<UnitTypeId>,
+}
+
+impl CallCandidate {
+    fn from_signature(declaration: DeclarationId, callable: &UnitCallableSignature) -> Self {
+        Self {
+            declaration,
+            declaration_span: callable.name_span(),
+            type_parameters: callable.type_parameters().to_vec(),
+            parameters: callable
+                .parameters()
+                .iter()
+                .map(|parameter| MappedParameter {
+                    name: parameter.name().map(str::to_owned),
+                    mode: parameter.mode(),
+                    ty: parameter.ty(),
+                    span: Some(parameter.span()),
+                })
+                .collect(),
+            return_type: callable.return_type(),
+            instance_arguments: Vec::new(),
+        }
+    }
+}
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(
@@ -21,6 +55,7 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
         callee: ExpressionId,
+        type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
@@ -46,38 +81,31 @@ impl BodyChecker<'_> {
             Some(UnitReferenceTarget::OverloadSet(declarations)) => declarations,
             _ => return Err(CompilationUnitTypeError::UnsupportedBody(callee_span)),
         };
+        let explicit_types = type_arguments
+            .iter()
+            .map(|type_argument| self.resolve_body_type_ref(source, *type_argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        let candidates = declaration_ids
+            .into_iter()
+            .filter_map(|declaration| {
+                self.signatures
+                    .declaration(declaration)
+                    .and_then(|signature| signature.callable())
+                    .map(|callable| CallCandidate::from_signature(declaration, callable))
+            })
+            .collect::<Vec<_>>();
+        let initial_candidate_count = candidates.len();
         let mut mapped = Vec::new();
         let mut first_mapping_error = None;
-        for declaration in declaration_ids {
-            let Some(callable) = self
-                .signatures
-                .declaration(declaration)
-                .and_then(|signature| signature.callable())
-                .cloned()
-            else {
-                continue;
-            };
-            if !callable.type_parameters().is_empty() {
-                return Err(CompilationUnitTypeError::UnsupportedBody(call_span));
-            }
-            let parameters = callable
-                .parameters()
-                .iter()
-                .map(|parameter| MappedParameter {
-                    name: parameter.name().map(str::to_owned),
-                    mode: parameter.mode(),
-                    ty: parameter.ty(),
-                    span: Some(parameter.span()),
-                })
-                .collect::<Vec<_>>();
+        for candidate in candidates {
             match map_arguments(
                 self.sources,
-                &parameters,
+                &candidate.parameters,
                 arguments,
                 call_span,
                 |argument| Ok(self.is_syntactic_place(source, argument)),
             )? {
-                Ok(mapping) => mapped.push((declaration, callable, mapping)),
+                Ok(mapping) => mapped.push((candidate, mapping)),
                 Err(error) => {
                     first_mapping_error.get_or_insert(error);
                 }
@@ -98,21 +126,60 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
+        let needs_inference = explicit_types.is_empty()
+            && mapped
+                .iter()
+                .any(|(candidate, _)| !candidate.type_parameters.is_empty());
+        let inference_types = if needs_inference {
+            self.check_generic_inference_arguments(source, arguments, return_type)?
+        } else {
+            vec![None; arguments.len()]
+        };
+        let mut instantiated = Vec::with_capacity(mapped.len());
+        let mut first_instantiation_error = None;
+        for (candidate, mapping) in mapped {
+            match self.instantiate_source_candidate(
+                source,
+                candidate,
+                &mapping,
+                arguments,
+                &inference_types,
+                (type_arguments, &explicit_types),
+                callee_span,
+            )? {
+                Ok(candidate) => instantiated.push((candidate, mapping)),
+                Err(error) => {
+                    first_instantiation_error.get_or_insert(error);
+                }
+            }
+        }
+        if instantiated.is_empty() {
+            if initial_candidate_count == 1 {
+                if let Some(error) = first_instantiation_error {
+                    self.emit_unit_instantiation_failure(error)?;
+                }
+            } else {
+                return self.overload_failure(callee_span, true);
+            }
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+        let mut mapped = instantiated;
+        let prechecked = needs_inference.then_some(inference_types.as_slice());
         if mapped.len() == 1 {
-            let (declaration, callable, mapping) = mapped
+            let (candidate, mapping) = mapped
                 .pop()
                 .expect("one mapped compilation-unit callable candidate");
             return self.finish_candidate(
                 source,
                 expression,
-                callee,
                 arguments,
                 return_type,
-                declaration,
-                &callable,
+                &candidate,
                 &mapping,
-                None,
-                true,
+                prechecked,
             );
         }
         let lambda_arguments = arguments
@@ -128,46 +195,57 @@ impl BodyChecker<'_> {
                 return_type,
                 mapped,
                 &lambda_arguments,
+                prechecked,
             );
         }
-        let mut argument_types = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            argument_types.push(
-                self.check_expression(source, argument.value, None, None, return_type)?
-                    .ty,
-            );
+        let argument_types = if needs_inference {
+            inference_types
+                .iter()
+                .copied()
+                .collect::<Option<Vec<_>>>()
+                .expect("non-lambda call inference prechecks every argument")
+        } else {
+            arguments
+                .iter()
+                .map(|argument| {
+                    self.check_expression(source, argument.value, None, None, return_type)
+                        .map(|result| result.ty)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        if argument_types
+            .iter()
+            .any(|ty| self.is_error(*ty) || self.is_deferred(*ty))
+        {
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
         }
         let viable = mapped
             .iter()
             .enumerate()
-            .filter_map(|(candidate, (_, callable, mapping))| {
+            .filter_map(|(candidate_index, (candidate, mapping))| {
                 arguments
                     .iter()
                     .enumerate()
                     .all(|(argument_index, _)| {
                         self.assignable(
                             argument_types[argument_index],
-                            callable.parameters()[mapping[argument_index]].ty(),
+                            candidate.parameters[mapping[argument_index]].ty,
                         )
                     })
-                    .then_some(candidate)
+                    .then_some(candidate_index)
             })
             .collect::<Vec<_>>();
         if viable.len() != 1 {
             return self.overload_failure(callee_span, viable.is_empty());
         }
-        let (declaration, callable, mapping) = mapped.swap_remove(viable[0]);
-        self.record_call(
-            source,
-            expression,
-            arguments,
-            declaration,
-            &callable,
-            &mapping,
-        );
+        let (candidate, mapping) = mapped.swap_remove(viable[0]);
+        self.record_call(source, expression, arguments, &candidate, &mapping);
         Ok(ExpressionCheck {
-            ty: callable.return_type(),
-            falls_through: !self.is_builtin(callable.return_type(), BuiltinType::Nothing),
+            ty: candidate.return_type,
+            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
     }
 
@@ -176,76 +254,91 @@ impl BodyChecker<'_> {
         &mut self,
         source: SourceUnitId,
         expression: ExpressionId,
-        callee: ExpressionId,
         arguments: &[CallArgument],
         return_type: UnitTypeId,
-        declaration: DeclarationId,
-        callable: &UnitCallableSignature,
+        candidate: &CallCandidate,
         mapping: &[usize],
         prechecked_argument_types: Option<&[Option<UnitTypeId>]>,
-        diagnose_no_match: bool,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let initial_diagnostics = self.diagnostics.len();
-        let mut argument_types = Vec::with_capacity(arguments.len());
+        let mut valid = true;
+        let mut deferred = false;
         for (argument_index, argument) in arguments.iter().enumerate() {
+            let parameter = &candidate.parameters[mapping[argument_index]];
             if let Some(ty) = prechecked_argument_types
                 .and_then(|types| types.get(argument_index))
                 .copied()
                 .flatten()
             {
-                argument_types.push(ty);
+                valid &= !self.is_error(ty);
+                deferred |= self.is_deferred(ty);
+                if !self.is_error(ty) && !self.is_deferred(ty) && !self.assignable(ty, parameter.ty)
+                {
+                    self.emit_call_argument_mismatch(source, argument, parameter, ty)?;
+                    valid = false;
+                }
                 continue;
             }
-            let parameter = &callable.parameters()[mapping[argument_index]];
-            let (expected, expected_span) = if self.is_lambda_syntax(source, argument.value) {
-                (Some(parameter.ty()), Some(parameter.span()))
-            } else {
-                (None, None)
-            };
-            argument_types.push(
-                self.check_expression(
-                    source,
-                    argument.value,
-                    expected,
-                    expected_span,
-                    return_type,
-                )?
-                .ty,
-            );
-        }
-        let viable = argument_types.iter().enumerate().all(|(index, &ty)| {
-            !self.is_error(ty)
-                && !self.is_deferred(ty)
-                && self.assignable(ty, callable.parameters()[mapping[index]].ty())
-        });
-        if !viable {
-            if diagnose_no_match && self.diagnostics.len() == initial_diagnostics {
-                let callee_span = self
-                    .file(source)
-                    .ast()
-                    .expressions()
-                    .get(callee)
-                    .map_err(TypeCheckingError::from)?
-                    .span();
-                return self.overload_failure(callee_span, true);
+            let result = self.check_expression(
+                source,
+                argument.value,
+                Some(parameter.ty),
+                parameter.span,
+                return_type,
+            )?;
+            valid &= !self.is_error(result.ty);
+            deferred |= self.is_deferred(result.ty);
+            if !self.is_error(result.ty)
+                && !self.is_deferred(result.ty)
+                && !self.assignable(result.ty, parameter.ty)
+            {
+                self.emit_call_argument_mismatch(source, argument, parameter, result.ty)?;
+                valid = false;
             }
+        }
+        if deferred {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
+        if !valid {
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
             });
         }
-        self.record_call(
-            source,
-            expression,
-            arguments,
-            declaration,
-            callable,
-            mapping,
-        );
+        self.record_call(source, expression, arguments, candidate, mapping);
         Ok(ExpressionCheck {
-            ty: callable.return_type(),
-            falls_through: !self.is_builtin(callable.return_type(), BuiltinType::Nothing),
+            ty: candidate.return_type,
+            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
         })
+    }
+
+    fn emit_call_argument_mismatch(
+        &mut self,
+        source: SourceUnitId,
+        argument: &CallArgument,
+        parameter: &MappedParameter<UnitTypeId>,
+        actual: UnitTypeId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let primary = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(argument.value)
+            .map_err(TypeCheckingError::from)?
+            .span();
+        self.emit_maybe_label(
+            codes::TYPE_MISMATCH,
+            "expression type does not match the expected type",
+            primary,
+            parameter.span,
+            format!(
+                "expected {}, found {}",
+                self.type_name(parameter.ty),
+                self.type_name(actual)
+            ),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -256,13 +349,23 @@ impl BodyChecker<'_> {
         callee: ExpressionId,
         arguments: &[CallArgument],
         return_type: UnitTypeId,
-        mut candidates: Vec<(DeclarationId, UnitCallableSignature, Vec<usize>)>,
+        mut candidates: Vec<(CallCandidate, Vec<usize>)>,
         lambda_arguments: &[bool],
+        prechecked_argument_types: Option<&[Option<UnitTypeId>]>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut argument_types = vec![None; arguments.len()];
         let mut poisoned = false;
         for (index, argument) in arguments.iter().enumerate() {
             if lambda_arguments[index] {
+                continue;
+            }
+            if let Some(ty) = prechecked_argument_types
+                .and_then(|types| types.get(index))
+                .copied()
+                .flatten()
+            {
+                poisoned |= self.is_error(ty) || self.is_deferred(ty);
+                argument_types[index] = Some(ty);
                 continue;
             }
             let result = self.check_expression(source, argument.value, None, None, return_type)?;
@@ -275,10 +378,10 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
-        candidates.retain(|(_, callable, mapping)| {
+        candidates.retain(|(candidate, mapping)| {
             argument_types.iter().enumerate().all(|(index, actual)| {
                 actual.is_none_or(|actual| {
-                    self.assignable(actual, callable.parameters()[mapping[index]].ty())
+                    self.assignable(actual, candidate.parameters[mapping[index]].ty)
                 })
             })
         });
@@ -292,20 +395,17 @@ impl BodyChecker<'_> {
         match candidates.len() {
             0 => return self.overload_failure(callee_span, true),
             1 => {
-                let (declaration, callable, mapping) = candidates
+                let (candidate, mapping) = candidates
                     .pop()
                     .expect("one candidate remains after non-lambda filtering");
                 return self.finish_candidate(
                     source,
                     expression,
-                    callee,
                     arguments,
                     return_type,
-                    declaration,
-                    &callable,
+                    &candidate,
                     &mapping,
                     Some(&argument_types),
-                    true,
                 );
             }
             _ => {}
@@ -314,20 +414,17 @@ impl BodyChecker<'_> {
         let baseline = self.trial_state();
         let baseline_diagnostics = self.diagnostics.len();
         let mut successes = Vec::new();
-        for (declaration, callable, mapping) in candidates {
+        for (candidate, mapping) in candidates {
             self.restore_trial_state(baseline.clone());
-            let declaration_span = callable.name_span();
+            let declaration_span = candidate.declaration_span;
             let result = self.finish_candidate(
                 source,
                 expression,
-                callee,
                 arguments,
                 return_type,
-                declaration,
-                &callable,
+                &candidate,
                 &mapping,
                 Some(&argument_types),
-                false,
             );
             let result = match result {
                 Ok(result) => result,
@@ -369,21 +466,20 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
         arguments: &[CallArgument],
-        declaration: DeclarationId,
-        callable: &UnitCallableSignature,
+        candidate: &CallCandidate,
         mapping: &[usize],
     ) {
         let descriptors = mapping
             .iter()
             .enumerate()
             .map(|(argument_index, &parameter_index)| {
-                let parameter = &callable.parameters()[parameter_index];
+                let parameter = &candidate.parameters[parameter_index];
                 UnitCallArgumentDescriptor {
                     argument_index,
                     parameter_index,
                     category: self.expression_category(source, arguments[argument_index].value),
-                    mode: parameter.mode(),
-                    parameter_type: parameter.ty(),
+                    mode: parameter.mode,
+                    parameter_type: parameter.ty,
                     cross_thread: false,
                 }
             })
@@ -391,10 +487,10 @@ impl BodyChecker<'_> {
         self.parts.calls.push(UnitCallDescriptor {
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
-                target: UnitCallTarget::Declaration(declaration),
-                type_arguments: Vec::new(),
+                target: UnitCallTarget::Declaration(candidate.declaration),
+                type_arguments: candidate.instance_arguments.clone(),
             },
-            return_type: callable.return_type(),
+            return_type: candidate.return_type,
             arguments: descriptors,
             aborts: false,
             prints_line: false,

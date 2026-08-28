@@ -579,7 +579,7 @@ impl BodyChecker<'_> {
         Ok(())
     }
 
-    fn satisfies_interface(
+    pub(super) fn satisfies_interface(
         &mut self,
         actual: UnitTypeId,
         expected: UnitTypeId,
@@ -713,7 +713,7 @@ impl BodyChecker<'_> {
             })
     }
 
-    fn unit_symbol_span(
+    pub(super) fn unit_symbol_span(
         &self,
         symbol: crate::name_resolution::UnitSymbolId,
     ) -> Result<Span, CompilationUnitTypeError> {

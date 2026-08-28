@@ -195,9 +195,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   exact/alias/wildcard import、可见性、限定路径与静态 member，并发布 recovery/validated 名称
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
-  callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial
-  与 body-local 泛型 TypeRef facts；generic call、constructor/member/container 与一般 nullable body
-  语义仍在实施；
+  callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
+  body-local 泛型 TypeRef 与 source 泛型调用 facts；external/function-value call、constructor/member/
+  container 与一般 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -741,8 +741,9 @@ SPEC-0197 第一阶段新增纯内存的
 - 第九个 body 切片接通 body-local function TypeRef 与 lambda：已知 expected function contract
   决定 move/arity、parameter type/mode 与 body return expected type，模式事实以 source-qualified
   symbol 发布；无参 lambda 可从已知尾值推导返回类型，lambda 自身保存独立 return span 与 loop
-  base，不能由内部 `break`/`continue` 穿越 callable boundary。唯一 source callable 可向 lambda
-  实参传播参数 contract；普通实参仍先独立定型，避免改变 L0123 等选择诊断；
+  base，不能由内部 `break`/`continue` 穿越 callable boundary。唯一 source callable 向实参传播
+  参数 expected contract，并为直接不匹配保留 L0084 与参数声明 label；多个 overload 候选的普通
+  实参仍先独立定型，避免把候选过滤错误混入直接诊断；
 - 第十个 body 切片接通 overload-lambda candidate isolation：普通实参只检查一次并先过滤候选，
   每个剩余候选从包含 unit type table、body/flow/call facts 与诊断的同一 snapshot 独立试算；零个、
   唯一或多个成功分别发布 L0123、原子提交唯一 facts，或发布带至多两个跨 source 声明 label 的
@@ -755,8 +756,15 @@ SPEC-0197 第一阶段新增纯内存的
   intrinsic arity、`Box` 与顺序容器 storable 分别复用 L0082/L0091/L0093/L0094/L0114/L0115/L0117/
   L0125/L0141。签名阶段已诊断的无限内联 nominal 集合随 signature facts 保留并供 body storable/
   capability 恢复读取；嵌套 Error、`AnyValueRepresentation` 与普通位置 enum case 保持单文件诊断顺序；
+- 第十二个 body 切片接通 source 泛型调用：候选接受完整显式类型实参，或仅从已定型非 lambda
+  实参沿 nullable/function mode 与 move shape/nominal/intrinsic 结构做 invariant 推导，不从返回
+  expected context 或 lambda body 反推；interface/Copyable/Transferable bound 在实例化后过滤，
+  `UnitCallableInstanceKey` 按 callable 类型参数声明顺序保存完整实参。generic/non-generic mixed
+  overload 与 lambda trial 继续复用既有 mapping/filter/snapshot；唯一候选把实例化参数类型作为
+  contextual expected type，预检查实参不重复遍历且不匹配时保留 L0084/声明 label，Error/Deferred
+  不产生 L0123 级联；
 - top-level variable/const initializer、member body、
-  generic/external/function-value call、constructor/container、null literal /
+  external/function-value call、constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

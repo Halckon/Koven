@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId, TypeRefId},
-    diagnostic::DiagnosticDetail,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     lexer::lex,
     name_resolution::{
         DeclarationId, NameEnvironment, Namespace, SourceUnitId, SourceUnitInput, SymbolKind,
@@ -1810,7 +1810,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
         [
-            "L0084", "L0084", "L0083", "L0142", "L0087", "L0123", "L0084"
+            "L0084", "L0084", "L0083", "L0142", "L0087", "L0084", "L0084"
         ]
     );
     assert_eq!(
@@ -1821,7 +1821,18 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["->", "{ 1 }", "->", "break", "1", "takes", "true"]
+        ["->", "{ 1 }", "->", "break", "1", "1", "true"]
+    );
+    assert!(
+        typed.body_diagnostics()[5]
+            .details()
+            .iter()
+            .any(|detail| matches!(
+                detail,
+                DiagnosticDetail::Label(label)
+                    if sources.slice(label.span()).ok()
+                        == Some("callback: (borrow Int) -> Int")
+            ))
     );
     assert_eq!(typed.calls().len(), 1);
     assert!(typed.validate().is_err());
@@ -2084,6 +2095,263 @@ fn generic_body_type_refs_publish_complete_cross_file_facts() {
             .and_then(|ty| forward.types().get(ty)),
         Some(UnitTypeKind::EnumCase { root, .. }) if *root == maybe
     ));
+}
+
+#[test]
+fn generic_source_calls_publish_explicit_inferred_bound_and_lambda_instances() {
+    let mut sources = SourceMap::new();
+    let (api_source, api) = parsed(
+        &mut sources,
+        "api.ko",
+        "package p\n\
+         interface Marker\n\
+         class Good : Marker\n\
+         value class Pair<T>(val first: T, val second: T)\n\
+         fun <T> identity(own input: T): T\n\
+         fun <T> tagged(tag: Byte, own input: T): T\n\
+         fun <A, B> second(own first: A, own second: B): B\n\
+         fun <T> apply(own input: T, transform: (borrow T) -> T): T\n\
+         fun <T> fromList(items: List<T>): T\n\
+         fun <T> fromNullable(input: T?): T\n\
+         fun <T> fromCallback(callback: (borrow T) -> T): T\n\
+         fun <T> map(own input: T, callback: (borrow T) -> Int): Int\n\
+         fun <T> map(own input: T, callback: (borrow T) -> String): String\n\
+         fun route(input: Int): Int\n\
+         fun <T> route(input: List<T>): T\n\
+         fun <T: Marker> marked(own input: T): T",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun use(pair: Pair<Int>, good: Good, items: List<Int>, nullable: Int?, callback: (borrow Int) -> Int): Unit {\n\
+             val explicit = identity<Int>(1)\n\
+             val contextual = tagged<Int>(1, 2)\n\
+             val ordered = second(1, \"ordered\")\n\
+             val inferred = identity(2)\n\
+             val nested = identity(pair)\n\
+             val transformed = apply(3, { item -> item })\n\
+             val listItem = fromList(items)\n\
+             val nullableItem = fromNullable(nullable)\n\
+             val callbackItem = fromCallback(callback)\n\
+             val overloadLambda = map(4, { item -> item + 1 })\n\
+             val mixedOverload = route(items)\n\
+             val bounded = marked(good)\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/api.ko", api_source, &api),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("generic source calls are supported");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed generic source calls are supported");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert!(forward.clone().validate().is_ok());
+    assert_eq!(forward.types(), reverse.types());
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.calls(), reverse.calls());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let call = |text: &str| {
+        let expression = expression_with_text(&sources, &uses, text);
+        forward
+            .call(UnitExpressionId::new(uses_unit, expression))
+            .expect("generic call descriptor")
+    };
+    for text in [
+        "identity<Int>(1)",
+        "tagged<Int>(1, 2)",
+        "identity(2)",
+        "apply(3, { item -> item })",
+        "fromList(items)",
+        "fromNullable(nullable)",
+        "fromCallback(callback)",
+        "map(4, { item -> item + 1 })",
+        "route(items)",
+    ] {
+        let descriptor = call(text);
+        assert_eq!(descriptor.instance().type_arguments().len(), 1);
+        assert_eq!(
+            forward
+                .types()
+                .get(descriptor.instance().type_arguments()[0]),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert_eq!(
+            forward.types().get(descriptor.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+    }
+    let pair = call("identity(pair)");
+    assert!(matches!(
+        forward
+            .types()
+            .get(pair.instance().type_arguments()[0]),
+        Some(UnitTypeKind::Nominal { declaration: owner, arguments })
+            if *owner == declaration(&forward_names, "Pair") && arguments.len() == 1
+    ));
+    let marked = call("marked(good)");
+    assert!(matches!(
+        forward
+            .types()
+            .get(marked.instance().type_arguments()[0]),
+        Some(UnitTypeKind::Nominal { declaration: owner, arguments })
+            if *owner == declaration(&forward_names, "Good") && arguments.is_empty()
+    ));
+    let ordered = call("second(1, \"ordered\")");
+    assert_eq!(ordered.instance().type_arguments().len(), 2);
+    assert_eq!(
+        forward.types().get(ordered.instance().type_arguments()[0]),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+    assert_eq!(
+        forward.types().get(ordered.instance().type_arguments()[1]),
+        Some(&UnitTypeKind::Builtin(BuiltinType::String))
+    );
+    assert_eq!(
+        forward.types().get(ordered.return_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::String))
+    );
+    let transform = call("apply(3, { item -> item })").arguments()[1];
+    assert!(matches!(
+        forward.types().get(transform.parameter_type()),
+        Some(UnitTypeKind::Function { parameters, return_type, .. })
+            if parameters.len() == 1
+                && parameters[0].mode() == ParameterMode::Borrow
+                && forward.types().get(parameters[0].ty())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                && forward.types().get(*return_type)
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+}
+
+#[test]
+fn invalid_generic_source_calls_keep_single_candidate_diagnostics_and_recovery() {
+    let mut sources = SourceMap::new();
+    let (api_source, api) = parsed(
+        &mut sources,
+        "api.ko",
+        "package p\n\
+         interface Marker\n\
+         class Resource\n\
+         value class Pair<T>(val first: T, val second: T)\n\
+         fun <T> identity(own input: T): T\n\
+         fun <A, B> second(own first: A, own second: B): B\n\
+         fun <T> choose(own first: T, own second: T): T\n\
+         fun <T> tagged(flag: Boolean, own input: T): T\n\
+         fun <T> make(): T\n\
+         fun plain(own input: Int): Int\n\
+         fun <T: Marker> marked(own input: T): T\n\
+         fun <T: Copyable> copied(own input: T): T\n\
+         fun <T: Transferable> sent(own input: T): T\n\
+         fun <T> overloaded(input: List<T>): Int\n\
+         fun <T> overloaded(input: Pair<T>): String\n\
+         fun <T> pick(input: T): Int\n\
+         fun <T> pick(input: List<T>): String\n\
+         fun <T> fromFactory(factory: () -> T): T",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun bad(resource: Resource, shared: Rc<Int>, items: List<Int>): Unit {\n\
+             val extra = identity<Int, String>(1)\n\
+             val nongeneric = plain<Int>(1)\n\
+             val missingType = second<Int>(1, \"x\")\n\
+             val unresolved: Int = make()\n\
+             val conflict = choose(1, \"x\")\n\
+             val fixedMismatch = tagged(1, 2)\n\
+             val interfaceBound = marked(resource)\n\
+             val copyBound = copied(resource)\n\
+             val transferBound = sent(shared)\n\
+             val noOverload = overloaded(1)\n\
+             val ambiguous = pick(items)\n\
+             val lambdaOnly = fromFactory({ 1 })\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/api.ko", api_source, &api),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("generic call failures stay in the recovery product");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed generic call failures stay in the recovery product");
+
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.calls(), reverse.calls());
+    assert_eq!(forward.diagnostics(), reverse.diagnostics());
+    assert_eq!(
+        forward
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        [
+            "L0091", "L0091", "L0091", "L0140", "L0140", "L0084", "L0093", "L0115", "L0141",
+            "L0123", "L0124", "L0140"
+        ]
+    );
+    assert_eq!(
+        forward
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("generic call diagnostic span"))
+            .collect::<Vec<_>>(),
+        [
+            "String",
+            "Int",
+            "second",
+            "make",
+            "\"x\"",
+            "1",
+            "resource",
+            "resource",
+            "shared",
+            "overloaded",
+            "pick",
+            "fromFactory"
+        ]
+    );
+    let labels = |diagnostic: &Diagnostic| {
+        diagnostic
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => sources.slice(label.span()).ok(),
+                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(labels(&forward.body_diagnostics()[2]), ["B"]);
+    assert_eq!(labels(&forward.body_diagnostics()[5]), ["flag: Boolean"]);
+    for diagnostic in &forward.body_diagnostics()[6..9] {
+        assert_eq!(labels(diagnostic), ["T"]);
+    }
+    assert!(forward.calls().is_empty());
+    assert!(forward.validate().is_err());
 }
 
 #[test]

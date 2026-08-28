@@ -304,7 +304,10 @@ Spec 之前，本条限制不变。）
       独立 callable boundary 与跨文件 unique-call expected contract；overload-lambda 已按完整 trial
       snapshot 隔离候选、原子提交唯一 facts，并保持 L0123/L0124 与声明 labels；body-local 泛型
       TypeRef 已递归接通 nominal/type parameter/external/intrinsic 实参、三类 bound、Box/容器 storable、
-      `Any` 与 enum case 恢复顺序；下一阶段继续接入泛型调用、构造等完整 body 类型检查。
+      `Any` 与 enum case 恢复顺序；source 泛型调用已接通完整显式实参、仅从非 lambda 实参执行的
+      invariant 推导、interface/Copyable/Transferable bound、完整实例键、mixed overload 与 lambda
+      trial，并保持唯一候选的 contextual expected type/L0084；下一阶段继续接入 external/function-value
+      call、构造等完整 body 类型检查。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。

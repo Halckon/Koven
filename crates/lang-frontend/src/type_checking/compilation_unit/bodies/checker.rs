@@ -418,12 +418,14 @@ impl<'a> BodyChecker<'a> {
                 type_arguments,
                 arguments,
                 ..
-            } => {
-                if !type_arguments.is_empty() {
-                    return Err(CompilationUnitTypeError::UnsupportedBody(span));
-                }
-                self.check_call(source, expression, callee, &arguments, return_type)?
-            }
+            } => self.check_call(
+                source,
+                expression,
+                callee,
+                &type_arguments,
+                &arguments,
+                return_type,
+            )?,
             Expression::Return {
                 keyword_span,
                 value,
