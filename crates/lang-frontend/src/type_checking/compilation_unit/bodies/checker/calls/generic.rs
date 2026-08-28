@@ -273,7 +273,7 @@ impl BodyChecker<'_> {
         }
     }
 
-    fn infer_unit_type_arguments(
+    pub(in crate::type_checking::compilation_unit::bodies::checker) fn infer_unit_type_arguments(
         &self,
         template: UnitTypeId,
         actual: UnitTypeId,

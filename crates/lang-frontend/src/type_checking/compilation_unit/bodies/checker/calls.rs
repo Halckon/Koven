@@ -609,6 +609,8 @@ impl BodyChecker<'_> {
         for (candidate, mapping) in candidates {
             self.restore_trial_state(baseline.clone());
             let declaration_span = candidate.declaration_span;
+            let previous_candidate_local_expected = self.candidate_local_expected;
+            self.candidate_local_expected = true;
             let result = self.finish_candidate(
                 source,
                 expression,
@@ -619,6 +621,7 @@ impl BodyChecker<'_> {
                 &mapping,
                 Some(&argument_types),
             );
+            self.candidate_local_expected = previous_candidate_local_expected;
             let result = match result {
                 Ok(result) => result,
                 Err(error) => {
@@ -761,7 +764,10 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn emit_mapping_error(&mut self, error: MappingError) -> Result<(), CompilationUnitTypeError> {
+    pub(super) fn emit_mapping_error(
+        &mut self,
+        error: MappingError,
+    ) -> Result<(), CompilationUnitTypeError> {
         match error {
             MappingError::Named(primary) => self.emit(
                 codes::INVALID_NAMED_ARGUMENT,

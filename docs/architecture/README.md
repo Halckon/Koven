@@ -771,8 +771,15 @@ SPEC-0197 第一阶段新增纯内存的
   `Deferred(Call)` 并完整回滚 trial，映射失败仍检查每个 operand。由于普通 Function 类型尚不能
   保存 compiler-bound identity/effect，effectful external 被取值、分组或别名化时显式
   `UnsupportedBody`，direct effectful call 与显式类型实参 recovery 不受该门禁影响；
+- 第十四个 body 切片接通源码 nominal 与 enum construction：`class`/`value class` 主构造器、payload
+  enum case call 与 zero-payload case value 发布 `UnitConstructionTarget`、完整类型实参、声明顺序
+  Value operand、source-qualified field/payload symbol 和源码 evaluation index；泛型实例只接受完整
+  显式实参，或依次从已定型非 lambda operand 与独立完整同 root expected-result 推导，候选局部
+  lambda expected 不参与推导。mapping、bound 与 L0084/L0091/L0093/L0115/L0120–L0122/L0141/
+  L0143/L0144 复用单文件语义；construction facts 纳入 overload trial snapshot，失败、Deferred 或
+  歧义均不泄漏，输入置换保持 identity/facts/diagnostics 稳定。intrinsic Box/Rc 仍保持后继门禁；
 - top-level variable/const initializer、member body、
-  constructor/container、null literal /
+  intrinsic constructor/container、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

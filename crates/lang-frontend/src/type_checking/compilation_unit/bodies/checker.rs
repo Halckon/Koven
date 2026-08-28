@@ -22,6 +22,7 @@ use crate::{
 mod assignment;
 mod bindings;
 mod calls;
+mod construction;
 mod control;
 mod copyability;
 mod destructuring;
@@ -75,6 +76,7 @@ pub(super) struct BodyChecker<'a> {
     current_return_span: Option<Span>,
     loop_depth: usize,
     callable_loop_bases: Vec<usize>,
+    candidate_local_expected: bool,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -164,6 +166,7 @@ impl<'a> BodyChecker<'a> {
             current_return_span: None,
             loop_depth: 0,
             callable_loop_bases: Vec::new(),
+            candidate_local_expected: false,
         })
     }
 
@@ -388,10 +391,37 @@ impl<'a> BodyChecker<'a> {
                 ty: self.error_type(),
                 falls_through: true,
             },
-            Expression::Name => ExpressionCheck {
-                ty: self.name_type(source, span)?,
-                falls_through: true,
-            },
+            Expression::Name => {
+                match self.check_bare_enum_construction(
+                    source,
+                    expression,
+                    span,
+                    expected,
+                    expected_span,
+                )? {
+                    Some(result) => result,
+                    None => ExpressionCheck {
+                        ty: self.name_type(source, span)?,
+                        falls_through: true,
+                    },
+                }
+            }
+            Expression::Member {
+                name_span,
+                safe: false,
+                ..
+            } => {
+                match self.check_bare_enum_construction(
+                    source,
+                    expression,
+                    name_span,
+                    expected,
+                    expected_span,
+                )? {
+                    Some(result) => result,
+                    None => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
+                }
+            }
             Expression::Literal(LiteralKind::Null) => {
                 return Err(CompilationUnitTypeError::UnsupportedBody(span));
             }
@@ -419,14 +449,27 @@ impl<'a> BodyChecker<'a> {
                 type_arguments,
                 arguments,
                 ..
-            } => self.check_call(
+            } => match self.check_source_construction_call(
                 source,
                 expression,
+                span,
                 callee,
                 &type_arguments,
                 &arguments,
+                expected,
+                expected_span,
                 return_type,
-            )?,
+            )? {
+                Some(result) => result,
+                None => self.check_call(
+                    source,
+                    expression,
+                    callee,
+                    &type_arguments,
+                    &arguments,
+                    return_type,
+                )?,
+            },
             Expression::Return {
                 keyword_span,
                 value,

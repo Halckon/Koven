@@ -159,6 +159,139 @@ impl UnitCallDescriptor {
     }
 }
 
+/// compilation unit 中源码构造目标的稳定 identity。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnitConstructionTarget {
+    /// `class` 或 `value class` 的主构造器。
+    Nominal(DeclarationId),
+    /// `enum class` 的 case；使用值命名空间 symbol 标识。
+    EnumCase(UnitSymbolId),
+}
+
+/// 构造目标与完整类型实参组成的实例 identity。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitConstructionInstanceKey {
+    pub(crate) target: UnitConstructionTarget,
+    pub(crate) type_arguments: Vec<UnitTypeId>,
+}
+
+impl UnitConstructionInstanceKey {
+    /// 返回唯一源码构造目标。
+    #[must_use]
+    pub const fn target(&self) -> UnitConstructionTarget {
+        self.target
+    }
+
+    /// 返回实例化后的完整类型实参。
+    #[must_use]
+    pub fn type_arguments(&self) -> &[UnitTypeId] {
+        &self.type_arguments
+    }
+}
+
+/// 一个构造实参到声明 field/payload 的 Value 映射。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitConstructionArgumentDescriptor {
+    pub(crate) parameter_index: usize,
+    pub(crate) parameter_symbol: UnitSymbolId,
+    pub(crate) parameter_name: String,
+    pub(crate) parameter_type: UnitTypeId,
+    pub(crate) argument: UnitExpressionId,
+    pub(crate) evaluation_index: usize,
+    pub(crate) category: ExpressionCategory,
+}
+
+impl UnitConstructionArgumentDescriptor {
+    /// 返回声明顺序参数下标。
+    #[must_use]
+    pub const fn parameter_index(&self) -> usize {
+        self.parameter_index
+    }
+
+    /// 返回 source-qualified field/payload symbol。
+    #[must_use]
+    pub const fn parameter_symbol(&self) -> UnitSymbolId {
+        self.parameter_symbol
+    }
+
+    /// 返回源码参数名。
+    #[must_use]
+    pub fn parameter_name(&self) -> &str {
+        &self.parameter_name
+    }
+
+    /// 返回实例化后的参数类型。
+    #[must_use]
+    pub const fn parameter_type(&self) -> UnitTypeId {
+        self.parameter_type
+    }
+
+    /// 构造参数固定采用 Value delivery。
+    #[must_use]
+    pub const fn mode(&self) -> ParameterMode {
+        ParameterMode::Value
+    }
+
+    /// 返回 source-qualified 实参 expression。
+    #[must_use]
+    pub const fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+
+    /// 返回实参的源码求值顺序下标。
+    #[must_use]
+    pub const fn evaluation_index(&self) -> usize {
+        self.evaluation_index
+    }
+
+    /// 返回实参 place/temporary 类别。
+    #[must_use]
+    pub const fn category(&self) -> ExpressionCategory {
+        self.category
+    }
+}
+
+/// 一次已成功类型化的源码 construction。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitConstructionDescriptor {
+    pub(crate) expression: UnitExpressionId,
+    pub(crate) instance: UnitConstructionInstanceKey,
+    pub(crate) result_type: UnitTypeId,
+    pub(crate) arguments: Vec<UnitConstructionArgumentDescriptor>,
+}
+
+impl UnitConstructionDescriptor {
+    /// 返回 source-qualified construction expression。
+    #[must_use]
+    pub const fn expression(&self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回目标与完整类型实参组成的实例 identity。
+    #[must_use]
+    pub const fn instance(&self) -> &UnitConstructionInstanceKey {
+        &self.instance
+    }
+
+    /// 返回唯一源码构造目标。
+    #[must_use]
+    pub const fn target(&self) -> UnitConstructionTarget {
+        self.instance.target()
+    }
+
+    /// 返回构造结果类型。
+    #[must_use]
+    pub const fn result_type(&self) -> UnitTypeId {
+        self.result_type
+    }
+
+    /// 返回声明参数顺序的 Value operand mappings。
+    #[must_use]
+    pub fn arguments(&self) -> &[UnitConstructionArgumentDescriptor] {
+        &self.arguments
+    }
+}
+
 /// compilation unit 中一个已类型化的结构化解构分量。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitDestructuringComponent {
@@ -242,6 +375,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     pub(crate) calls: Vec<UnitCallDescriptor>,
+    pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
 }
 
@@ -264,6 +398,7 @@ pub struct CompilationUnitTypes {
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
     calls: Vec<UnitCallDescriptor>,
+    constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
@@ -288,6 +423,7 @@ impl CompilationUnitTypes {
             symbol_types: parts.symbol_types,
             parameter_modes: parts.parameter_modes,
             calls: parts.calls,
+            constructions: parts.constructions,
             destructurings: parts.destructurings,
             body_diagnostics,
             diagnostics,
@@ -356,6 +492,23 @@ impl CompilationUnitTypes {
     #[must_use]
     pub fn call(&self, expression: UnitExpressionId) -> Option<&UnitCallDescriptor> {
         self.calls
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的成功 construction facts。
+    #[must_use]
+    pub fn constructions(&self) -> &[UnitConstructionDescriptor] {
+        &self.constructions
+    }
+
+    /// 查询一个成功 construction expression 的 descriptor。
+    #[must_use]
+    pub fn construction(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&UnitConstructionDescriptor> {
+        self.constructions
             .iter()
             .find(|descriptor| descriptor.expression() == expression)
     }

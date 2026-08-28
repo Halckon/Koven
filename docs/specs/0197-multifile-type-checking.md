@@ -139,8 +139,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      external overload 与普通/overload-lambda nested Deferred 保持未决且不发布选择 facts，映射失败仍
      遍历实参。effectful external 取值在缺少 effectful function-value 表示前 fail-loud，显式类型实参
      direct call 仍保持 `Deferred(Call)`，输入置换与 callee facts 稳定。
-   - [ ] 接完 constructor/enum/member、
-     container/null literal/null-comparison 等剩余现有单文件 body 语义；在此之前 production driver 对未覆盖合法节点显式
+   - [x] 接通源码 nominal/enum construction：class/value-class 主构造器、payload enum case call 与
+     zero-payload case value 发布 source-qualified target、完整 instance、声明顺序 Value operand 与源码
+     evaluation index；显式、非 lambda operand 和独立完整同 root expected-result 推导复用现有 bound、
+     mapping 与 L0084/L0091/L0093/L0115/L0120–L0122/L0141/L0143/L0144，候选局部 expected 不参与
+     推导且 overload trial 原子回滚，输入置换保持 facts/诊断稳定。intrinsic Box/Rc 仍属后继切片。
+   - [ ] 接完 member、intrinsic constructor、container/null literal/null-comparison 等剩余现有单文件 body
+     语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
@@ -211,3 +216,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo test -p lang-frontend --test multifile_type_checking --test multifile_type_signatures --test multifile_type_capability_graph --test type_callable --test type_checking --locked --offline` | 通过 | 113 tests；新增 external/function-value target/mode/effect、move-only callee、partial/unbound overload、普通与 lambda nested Deferred、mapping recovery、effectful value fail-loud、显式类型实参 recovery 与输入置换；既有 callable/type/signature/capability graph 无回归 |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | external/function-value call、trial recovery、测试与全部 workspace targets 无 warning |
 | `cargo test --workspace --locked --offline -q` | 通过 | external/function-value call 最终源码下 workspace 全量通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo test -p lang-frontend --test multifile_type_checking --locked --offline` | 通过 | 44 tests；源码 nominal/enum construction 的实例、Value operand、推导/bound/recovery、原子 facts、overload trial、fail-loud 与输入置换 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | source construction、测试与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性门禁通过 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；约 50 分钟的 workspace 全量集成矩阵按分层门禁留到 SPEC 完成里程碑 |
