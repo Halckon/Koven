@@ -562,6 +562,7 @@ impl<'a> BodyChecker<'a> {
             && !self.is_error(result.ty)
             && !self.is_error(expected)
             && !self.is_deferred(result.ty)
+            && !self.is_deferred(expected)
         {
             self.emit_maybe_label(
                 codes::TYPE_MISMATCH,

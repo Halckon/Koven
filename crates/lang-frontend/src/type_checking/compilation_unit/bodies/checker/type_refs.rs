@@ -625,7 +625,7 @@ impl BodyChecker<'_> {
         }
     }
 
-    fn is_structurally_storable_type(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn is_structurally_storable_type(&self, ty: UnitTypeId) -> bool {
         match self.signatures.types().get(ty) {
             Some(UnitTypeKind::Builtin(
                 crate::type_checking::BuiltinType::Any | crate::type_checking::BuiltinType::Nothing,

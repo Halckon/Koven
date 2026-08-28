@@ -143,8 +143,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      zero-payload case value 发布 source-qualified target、完整 instance、声明顺序 Value operand 与源码
      evaluation index；显式、非 lambda operand 和独立完整同 root expected-result 推导复用现有 bound、
      mapping 与 L0084/L0091/L0093/L0115/L0120–L0122/L0141/L0143/L0144，候选局部 expected 不参与
-     推导且 overload trial 原子回滚，输入置换保持 facts/诊断稳定。intrinsic Box/Rc 仍属后继切片。
-   - [ ] 接完 member、intrinsic constructor、container/null literal/null-comparison 等剩余现有单文件 body
+     推导且 overload trial 原子回滚，输入置换保持 facts/诊断稳定。
+   - [x] 接通 compiler-bound intrinsic `Box` / `Rc` construction：只由外部 intrinsic identity 选择，
+     源码同名 class 保持 nominal identity；零/一显式类型实参与 operand 推导发布完整 intrinsic target、
+     Value operand 和无源码 symbol 的参数映射，复用 Box concrete value-class、Rc structurally-storable、
+     L0084/L0091/L0117/L0120–L0122/L0125 与 result expected 检查。失败、Error/Deferred、nested
+     unsupported 与 overload trial 不发布 partial descriptor，输入置换保持 facts 稳定。
+   - [ ] 接完 member、container/null literal/null-comparison 等剩余现有单文件 body
      语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
@@ -221,3 +226,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性门禁通过 |
 | `cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
 | `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；约 50 分钟的 workspace 全量集成矩阵按分层门禁留到 SPEC 完成里程碑 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-intrinsic-target cargo test -p lang-frontend --test multifile_type_checking --test type_checking --test type_copyability --test type_containers --locked --offline` | 通过 | 110 tests；intrinsic Box/Rc identity、显式/operand payload、Value descriptor、诊断/recovery、Deferred expected、trial 回滚、源码同名隔离、失败/成功输入置换及单文件 construction/container/copyability 回归 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-intrinsic-target cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | intrinsic 子模块、公开 unit construction fact 形状与全部 frontend targets 无 warning |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-intrinsic-target cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性门禁通过；隔离 target 用于避让另一 Cargo 进程持有的默认 build-directory lock |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-intrinsic-target cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-intrinsic-target cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；SPEC-0197 尚未完成且未命中 Tier 3 触发条件，未运行约 50 分钟全量矩阵 |

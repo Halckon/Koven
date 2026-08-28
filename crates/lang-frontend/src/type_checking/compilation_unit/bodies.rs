@@ -159,13 +159,17 @@ impl UnitCallDescriptor {
     }
 }
 
-/// compilation unit 中源码构造目标的稳定 identity。
+/// compilation unit 中 construction target 的稳定 identity。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum UnitConstructionTarget {
     /// `class` 或 `value class` 的主构造器。
     Nominal(DeclarationId),
     /// `enum class` 的 case；使用值命名空间 symbol 标识。
     EnumCase(UnitSymbolId),
+    /// 编译器绑定的 intrinsic `Box`。
+    IntrinsicBox,
+    /// 编译器绑定的 intrinsic `Rc`。
+    IntrinsicRc,
 }
 
 /// 构造目标与完整类型实参组成的实例 identity。
@@ -176,7 +180,7 @@ pub struct UnitConstructionInstanceKey {
 }
 
 impl UnitConstructionInstanceKey {
-    /// 返回唯一源码构造目标。
+    /// 返回唯一 construction target。
     #[must_use]
     pub const fn target(&self) -> UnitConstructionTarget {
         self.target
@@ -193,7 +197,7 @@ impl UnitConstructionInstanceKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitConstructionArgumentDescriptor {
     pub(crate) parameter_index: usize,
-    pub(crate) parameter_symbol: UnitSymbolId,
+    pub(crate) parameter_symbol: Option<UnitSymbolId>,
     pub(crate) parameter_name: String,
     pub(crate) parameter_type: UnitTypeId,
     pub(crate) argument: UnitExpressionId,
@@ -208,9 +212,9 @@ impl UnitConstructionArgumentDescriptor {
         self.parameter_index
     }
 
-    /// 返回 source-qualified field/payload symbol。
+    /// 返回 source-qualified field/payload symbol；intrinsic 参数没有源码 symbol。
     #[must_use]
-    pub const fn parameter_symbol(&self) -> UnitSymbolId {
+    pub const fn parameter_symbol(&self) -> Option<UnitSymbolId> {
         self.parameter_symbol
     }
 
@@ -251,7 +255,7 @@ impl UnitConstructionArgumentDescriptor {
     }
 }
 
-/// 一次已成功类型化的源码 construction。
+/// 一次已成功类型化的 construction。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitConstructionDescriptor {
     pub(crate) expression: UnitExpressionId,
@@ -273,7 +277,7 @@ impl UnitConstructionDescriptor {
         &self.instance
     }
 
-    /// 返回唯一源码构造目标。
+    /// 返回唯一 construction target。
     #[must_use]
     pub const fn target(&self) -> UnitConstructionTarget {
         self.instance.target()

@@ -9,20 +9,25 @@ use crate::{
     parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
-        Capability, CompilationUnitTypeError, Copyability, ExternalTypeBinding, NominalKind,
-        ParameterMode, TypeCheckingError, UnitConstructionArgumentDescriptor,
-        UnitConstructionDescriptor, UnitConstructionInstanceKey, UnitConstructionTarget,
-        UnitExpressionId, UnitFieldSignature, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
+        Capability, CompilationUnitTypeError, Copyability, ExternalTypeBinding,
+        IntrinsicTypeConstructor, NominalKind, ParameterMode, TypeCheckingError,
+        UnitConstructionArgumentDescriptor, UnitConstructionDescriptor,
+        UnitConstructionInstanceKey, UnitConstructionTarget, UnitExpressionId, UnitFieldSignature,
+        UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
 
 use super::{BodyChecker, ExpressionCheck, copyability::UnitTransferability};
 
+mod intrinsic;
+
 #[derive(Clone, Copy)]
 enum Target {
     Nominal(DeclarationId),
     EnumCase(UnitSymbolId),
+    Box,
+    Rc,
     Invalid,
 }
 
@@ -72,6 +77,22 @@ impl BodyChecker<'_> {
                 callee_span,
             )?;
             return Ok(Some(self.failed_construction()));
+        }
+        if matches!(target, Target::Box | Target::Rc) {
+            return self
+                .check_intrinsic_construction(
+                    source,
+                    expression,
+                    call_span,
+                    callee_span,
+                    type_arguments,
+                    arguments,
+                    target,
+                    expected,
+                    expected_span,
+                    return_type,
+                )
+                .map(Some);
         }
         let shape = self.source_construction_shape(target)?;
         if shape.parameters.is_empty() && matches!(target, Target::EnumCase(_)) {
@@ -227,6 +248,12 @@ impl BodyChecker<'_> {
                 }),
             Some(UnitReferenceTarget::External(external)) => {
                 match self.environment.binding(*external) {
+                    Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Box)) => {
+                        Some(Target::Box)
+                    }
+                    Some(ExternalTypeBinding::Intrinsic(IntrinsicTypeConstructor::Rc)) => {
+                        Some(Target::Rc)
+                    }
                     Some(ExternalTypeBinding::Builtin(_) | ExternalTypeBinding::Capability(_)) => {
                         Some(Target::Invalid)
                     }
@@ -303,7 +330,9 @@ impl BodyChecker<'_> {
                     })
                 })
                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
-            Target::Invalid => unreachable!("invalid construction has no source shape"),
+            Target::Box | Target::Rc | Target::Invalid => {
+                unreachable!("intrinsic or invalid construction has no source shape")
+            }
         }
     }
 
@@ -686,6 +715,7 @@ impl BodyChecker<'_> {
             || self.is_error(actual)
             || self.is_error(expected)
             || self.is_deferred(actual)
+            || self.is_deferred(expected)
         {
             return Ok(true);
         }
@@ -765,7 +795,7 @@ impl BodyChecker<'_> {
                 parameter_index,
                 UnitConstructionArgumentDescriptor {
                     parameter_index,
-                    parameter_symbol: parameter.symbol(),
+                    parameter_symbol: Some(parameter.symbol()),
                     parameter_name: parameter.name().to_owned(),
                     parameter_type,
                     argument: argument_key,

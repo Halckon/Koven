@@ -196,8 +196,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   产物及 L0146–L0151。旧单文件 resolver 与 `ReferenceTarget` 保持兼容，`_` discard 已收窄到
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
-  body-local 泛型 TypeRef、source 泛型调用与 external/function-value call facts；constructor/member/
-  container 与一般 nullable body 语义仍在实施；
+  body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
+  construction facts；member/container 与一般 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -777,9 +777,13 @@ SPEC-0197 第一阶段新增纯内存的
   显式实参，或依次从已定型非 lambda operand 与独立完整同 root expected-result 推导，候选局部
   lambda expected 不参与推导。mapping、bound 与 L0084/L0091/L0093/L0115/L0120–L0122/L0141/
   L0143/L0144 复用单文件语义；construction facts 纳入 overload trial snapshot，失败、Deferred 或
-  歧义均不泄漏，输入置换保持 identity/facts/diagnostics 稳定。intrinsic Box/Rc 仍保持后继门禁；
+  歧义均不泄漏，输入置换保持 identity/facts/diagnostics 稳定。compiler-bound `Box` / `Rc` 另由
+  external intrinsic identity 选择，发布 `IntrinsicBox` / `IntrinsicRc` 与无源码 parameter symbol
+  的单一 Value operand；显式或 operand payload、Box concrete value-class、Rc structurally-storable、
+  result expected 与 L0084/L0091/L0117/L0120–L0122/L0125 均在 descriptor 写入前完成，源码同名
+  class 不获得 intrinsic identity；
 - top-level variable/const initializer、member body、
-  intrinsic constructor/container、null literal /
+  container construction/operation、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
