@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-197` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 v0.32 §32 |
@@ -44,20 +44,20 @@
 
 ## 5. 验收标准
 
-- [ ] 正例覆盖跨文件函数、名义类型、泛型、constructor、enum/interface、private 同文件使用与
+- [x] 正例覆盖跨文件函数、名义类型、泛型、constructor、enum/interface、private 同文件使用与
   同 package 递归签名。
-- [ ] private/未解析名称保留在 `CompilationUnitNames` recovery product，并因无法取得 validated
+- [x] private/未解析名称保留在 `CompilationUnitNames` recovery product，并因无法取得 validated
   names 而不运行类型阶段、不产生类型级联；类型反例覆盖顶层 package binding 的 L0097 重复
   shape、body 类型错误，以及 primary/label 跨 source 的既有 L0082–L0145 诊断。
-- [ ] 两个 source unit 中相同数值的 local `SymbolId` / `EnumCaseId` 不碰撞；顶层 target、unit
+- [x] 两个 source unit 中相同数值的 local `SymbolId` / `EnumCaseId` 不碰撞；顶层 target、unit
   type kind、call/constructor instance 和 per-source fact 都保留 `DeclarationId` / `UnitSymbolId`。
-- [ ] 文件输入顺序置换后，`DeclarationId -> signature`、unit type/instance identity、per-source
+- [x] 文件输入顺序置换后，`DeclarationId -> signature`、unit type/instance identity、per-source
   facts 和按 stable source key→byte span→code 排序的诊断完全一致；单文件回归 suite 通过。
-- [ ] 名称 validated product、source inputs 或 `TypeEnvironment` owner 混用时返回具体内部错误；
+- [x] 名称 validated product、source inputs 或 `TypeEnvironment` owner 混用时返回具体内部错误；
   任一 signature/body type error 仍发布 recovery typed diagnostics，但 ownership 不能取得
   validated typed unit。
-- [ ] 不发布 v0.36 const capability/诊断；现行 const 基础 typed 行为保持不变。
-- [ ] frontend/workspace 基线与 Architecture 同步。
+- [x] 不发布 v0.36 const capability/诊断；现行 const 基础 typed 行为保持不变。
+- [x] frontend/workspace 基线与 Architecture 同步。
 
 ## 6. 技术方案与边界
 
@@ -81,7 +81,7 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
    mixed-input、相同 local ID 与输入置换矩阵。
 2. [x] 收集跨文件 nominal/callable/field/enum/interface 签名与图诊断 → 验证：递归、L0097、
    generic/constructor/interface 正反矩阵。
-3. [ ] 接 body、overload/generic/constructor facts与 recovery/validated gate → 验证：
+3. [x] 接 body、overload/generic/constructor facts与 recovery/validated gate → 验证：
    `multifile_type_checking` 及既有
    `type_checking`、`type_callable`、`type_copyability`、`type_containers` suite。
    - [x] local/unit 类型表复用同一插入有序、结构去重核心，并为 unit body 建立与单文件一致的
@@ -160,7 +160,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      零参数 `.share()` 发布新 Value temporary；descriptor 保留 source-qualified expression/receiver、
      unit-global payload type 与 compiler-bound kind/result mode。L0091/L0121 失败、nested operand、
      overload-lambda trial、源码同名 `Rc` 与输入置换均不泄漏或混淆 intrinsic facts；payload
-     内递归 `Error` / `Deferred` 与 safe/nullable Rc 均保持 fail-loud 的未覆盖边界。
+     内递归 `Error` / `Deferred` 与 safe/nullable Rc 保留既有 `Deferred(MemberAccess)` 恢复，且不发布
+     Rc operation/place descriptor；该恢复边界不启用 v0.35 nullable remaining-domain 或条件 drop。
    - [x] 接通 core container construction 与 contextual null literal：列表式 expected/显式/首元素推导、
      运行时长度 Borrow 参数、空 `MutableList` 发布 source-qualified descriptor；L0083/L0084、
      L0091/L0125–L0127、失败无 partial fact、overload-lambda trial、源码同名隔离与输入置换保持稳定。
@@ -187,6 +188,11 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      沿右侧 fallthrough，cast/propagate/bound callable reference 继承 child fallthrough。输入置换保持稳定；不启用 v0.35 的 nullable
      remaining-domain 或 `!!` Copy/Consume descriptor。Expression variant dispatch 现为穷尽匹配，
      后续新增 AST variant 将在编译期显式暴露，而不是落入伪成功兜底。
+   - [x] 完成 body coverage 审计：classifier/companion 的普通 `const val` initializer 纳入稳定检查，
+     package-qualified 顶层值优先读取 body symbol type，静态 callable 只选择 companion candidate；
+     safe/nullable/poisoned Rc 与 poisoned container 保留专用 Deferred 且不发布伪 operation/place fact。
+     剩余 `UnsupportedBody` 只用于 AST/signature 不变量、现行语法不产生的 item/statement、缺少 effect
+     identity 的 external function value，以及 compiler-bound intrinsic callable 等显式后继边界。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -312,3 +318,10 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
 | `cargo test --workspace --lib --bins --locked --offline` | 通过 | frontend 48、CLI 36、codegen 156、LSP 11、std 1，共 252 passed；1 个既有 LLDB task-port 权限测试 ignored |
 | `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次仍是 SPEC-0197 完成审计前的中间提交，未修改 Parser/Lexer/harness/shared dependency，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_name_resolution --test multifile_type_signatures --test multifile_type_signature_provenance --test multifile_type_capability_graph --test multifile_type_member_graph --test multifile_type_signature_determinism --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability --locked --offline` | 通过 | 完成审计受影响矩阵 194 tests；补齐 classifier/companion const、package-qualified 无标注顶层值、static companion target、Rc/container Deferred recovery 与既有名称/签名/callable/type/container/copyability 回归 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 完成审计生产实现、测试与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | frontend 48、CLI 36、codegen 156、LSP 11、std 1，共 252 passed；1 个既有 LLDB task-port 权限测试 ignored |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；SPEC 完成状态仍等待 Tier 3 workspace 全量门禁 |
+| 2026-08-29 独立完成复审 | 通过 | 两轮只读复审关闭 package-qualified value type/category 与 Rc Spec 漂移；最终无 High/Medium，补强 static companion `UnitCallTarget::Symbol` 断言 |
+| `cargo fmt --all -- --check && cargo check --workspace --all-targets --locked --offline && cargo clippy --workspace --all-targets --locked --offline -- -D warnings && cargo test --workspace --all-targets --locked --offline && cargo build -p lang-cli --locked --offline` | 通过 | Tier 3 完成门禁；全 workspace/all-targets 通过，测试实测 2591.61s（43 分 11.61 秒），1 个既有 LLDB task-port 权限测试 ignored；最终 CLI build 通过 |

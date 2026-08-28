@@ -835,7 +835,14 @@ SPEC-0197 第一阶段新增纯内存的
   基础 `!!` 抽取 nullable inner。普通 nullable Elvis 的非空路径可绕过右侧，`Nothing?` 则沿右侧
   fallthrough；cast、postfix `?` 与 bound callable reference 继承 child fallthrough。全部 child
   expression 与 TypeRef 仍发布 source-qualified facts，输入置换保持稳定；expression variant dispatch
-  已是穷尽匹配。v0.35 的 nullable remaining-domain、`!!` Copy/Consume descriptor 与其余候选能力仍未启用。
+  已是穷尽匹配。v0.35 的 nullable remaining-domain、`!!` Copy/Consume descriptor 与其余候选能力仍未启用；
+- 完成审计补齐 classifier/companion 普通 constant initializer 与 package-qualified 静态目标：member
+  constant 在 signature pass 预声明普通类型，并在 body pass 按源码顺序检查 initializer；无标注
+  package-qualified 顶层值读取已发布的 body symbol type，category 与裸 declaration 一致保持 temporary；
+  package-qualified companion call 只从 companion member set 选择 source-qualified symbol target，不与
+  instance candidates 重复。safe/nullable/poisoned Rc 与 poisoned container element place 使用专用
+  Deferred recovery，且不发布伪 Rc operation/element-place descriptor。这些事实不引入 v0.35 nullable
+  ownership，也不启用 v0.36 ConstValue/evaluator。
 
 ## 结构化诊断与 renderer
 

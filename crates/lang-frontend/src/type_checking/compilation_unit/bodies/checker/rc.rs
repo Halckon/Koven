@@ -44,25 +44,22 @@ impl BodyChecker<'_> {
         else {
             return Ok(None);
         };
-        if self
-            .sources
-            .slice(name_span)
-            .map_err(TypeCheckingError::from)?
-            != "share"
+        if safe
+            || self
+                .sources
+                .slice(name_span)
+                .map_err(TypeCheckingError::from)?
+                != "share"
         {
             return Ok(None);
         }
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         let payload_type = match self.rc_payload_type(receiver_result.ty) {
-            Some(_) if safe => return Err(CompilationUnitTypeError::UnsupportedBody(name_span)),
             Some(payload) => payload,
-            None if self.nullable_rc_payload_type(receiver_result.ty).is_some() => {
-                return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
-            }
             None => return Ok(None),
         };
         if self.construction_type_contains_poison(payload_type) {
-            return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
+            return Ok(None);
         }
         if !type_arguments.is_empty() {
             self.emit(
@@ -123,26 +120,21 @@ impl BodyChecker<'_> {
         name_span: Span,
         safe: bool,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
-        if self
-            .sources
-            .slice(name_span)
-            .map_err(TypeCheckingError::from)?
-            != "value"
+        if safe
+            || self
+                .sources
+                .slice(name_span)
+                .map_err(TypeCheckingError::from)?
+                != "value"
         {
             return Ok(None);
         }
         let payload_type = match self.rc_payload_type(receiver_type) {
-            Some(_) if safe => {
-                return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
-            }
             Some(payload) => payload,
-            None if self.nullable_rc_payload_type(receiver_type).is_some() => {
-                return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
-            }
             None => return Ok(None),
         };
         if self.construction_type_contains_poison(payload_type) {
-            return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
+            return Ok(None);
         }
         self.parts
             .rc_operations
@@ -167,12 +159,5 @@ impl BodyChecker<'_> {
             [payload] => Some(*payload),
             _ => None,
         }
-    }
-
-    fn nullable_rc_payload_type(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
-        let UnitTypeKind::Nullable(inner) = self.signatures.types().get(ty)? else {
-            return None;
-        };
-        self.rc_payload_type(*inner)
     }
 }

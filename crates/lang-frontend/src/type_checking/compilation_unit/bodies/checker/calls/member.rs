@@ -4,7 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, TypeRefId},
-    name_resolution::{DeclarationId, DeclarationVisibility, SourceUnitId, UnitSymbolId},
+    name_resolution::{
+        DeclarationId, DeclarationVisibility, Namespace, SourceUnitId, UnitReferenceTarget,
+        UnitSymbolId,
+    },
     parser::{CallArgument, Expression},
     source::Span,
     type_checking::{
@@ -88,6 +91,17 @@ impl BodyChecker<'_> {
         name_span: Span,
         return_type: UnitTypeId,
     ) -> Result<Vec<CallCandidate>, CompilationUnitTypeError> {
+        let receiver_span = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(receiver)
+            .map_err(TypeCheckingError::from)?
+            .span();
+        let static_owner = match self.reference(source, receiver_span, Namespace::Type) {
+            Some(UnitReferenceTarget::Declaration(declaration)) => Some(*declaration),
+            _ => None,
+        };
         let receiver_type = self
             .check_expression(source, receiver, None, None, return_type)?
             .ty;
@@ -101,6 +115,24 @@ impl BodyChecker<'_> {
             .and_then(|signature| signature.nominal())
             .cloned()
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        let name = self
+            .sources
+            .slice(name_span)
+            .map_err(TypeCheckingError::from)?;
+        if static_owner == Some(owner_declaration) {
+            return Ok(owner
+                .companion_members()
+                .iter()
+                .filter(|callable| callable.name() == name)
+                .filter(|callable| self.member_visible(callable, owner.declaration()))
+                .map(|callable| {
+                    let UnitCallableTarget::Symbol(symbol) = callable.target() else {
+                        unreachable!("companion callable signatures use source symbols")
+                    };
+                    CallCandidate::from_source(UnitCallTarget::Symbol(symbol), callable)
+                })
+                .collect());
+        }
         let substitutions = owner
             .type_parameters()
             .iter()
@@ -114,10 +146,6 @@ impl BodyChecker<'_> {
                 instances.push(instance);
             }
         }
-        let name = self
-            .sources
-            .slice(name_span)
-            .map_err(TypeCheckingError::from)?;
         let mut candidates = Vec::new();
         let mut seen_shapes = BTreeSet::new();
         for (declaration, arguments) in instances {

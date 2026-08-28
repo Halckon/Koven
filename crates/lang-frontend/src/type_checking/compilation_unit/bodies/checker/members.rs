@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{DeclarationVisibility, Namespace, SourceUnitId, UnitSymbolId},
+    name_resolution::{
+        DeclarationVisibility, Namespace, SourceUnitId, UnitReferenceTarget, UnitSymbolId,
+    },
     parser::{ClassifierBody, ClassifierDeclaration, ClassifierKind, Item, NameMarker},
     source::Span,
     type_checking::{
@@ -135,15 +137,31 @@ impl BodyChecker<'_> {
                     self.current_receiver = previous;
                     result?;
                 }
+                Item::Constant {
+                    name,
+                    type_ref,
+                    initializer,
+                    ..
+                } => {
+                    let NameMarker::Present(name_span) = name else {
+                        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+                    };
+                    let symbol = self
+                        .symbol_at(source, name_span, Namespace::Value)
+                        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                    let previous = self.current_receiver;
+                    self.current_receiver = receiver;
+                    let result =
+                        self.check_value_initializer(source, symbol, type_ref, initializer);
+                    self.current_receiver = previous;
+                    result?;
+                }
                 Item::Companion(companion) if receiver.is_some() => {
                     self.check_member_body(source, &companion.body, nominal, None)?;
                 }
                 Item::Error => {}
                 Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
-                Item::Variable { .. }
-                | Item::Constant { .. }
-                | Item::Classifier(_)
-                | Item::Companion(_) => {
+                Item::Variable { .. } | Item::Classifier(_) | Item::Companion(_) => {
                     return Err(CompilationUnitTypeError::UnsupportedBody(span));
                 }
             }
@@ -186,6 +204,37 @@ impl BodyChecker<'_> {
         safe: bool,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        if let Some(UnitReferenceTarget::Declaration(declaration)) =
+            self.reference(source, name_span, Namespace::Value)
+        {
+            let signature = self
+                .signatures
+                .declaration(*declaration)
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            let ty = self
+                .parts
+                .symbol_types
+                .get(&signature.symbol())
+                .copied()
+                .unwrap_or(signature.ty());
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: true,
+            });
+        }
+        if let Some(UnitReferenceTarget::Declaration(declaration)) =
+            self.reference(source, name_span, Namespace::Type)
+        {
+            let ty = self
+                .signatures
+                .declaration(*declaration)
+                .map(|signature| signature.ty())
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: true,
+            });
+        }
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         if let Some(ty) = self.rc_member_type(
             source,
@@ -205,12 +254,6 @@ impl BodyChecker<'_> {
                 ty,
                 falls_through: receiver_result.falls_through,
             });
-        }
-        if matches!(
-            self.signatures.types().get(receiver_result.ty),
-            Some(UnitTypeKind::Intrinsic { .. })
-        ) {
-            return Err(CompilationUnitTypeError::UnsupportedBody(name_span));
         }
         if !safe
             && let Some(ty) = self.check_field_projection(

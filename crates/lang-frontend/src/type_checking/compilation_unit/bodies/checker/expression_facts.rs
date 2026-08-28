@@ -76,7 +76,10 @@ impl BodyChecker<'_> {
         };
         match node.payload() {
             Expression::This => self.current_receiver.is_some(),
-            Expression::Member { .. } => true,
+            Expression::Member { name_span, .. } => !matches!(
+                self.reference(source, *name_span, Namespace::Value),
+                Some(UnitReferenceTarget::Declaration(_))
+            ),
             Expression::Name => matches!(
                 self.reference(source, node.span(), Namespace::Value),
                 Some(UnitReferenceTarget::Symbol(_))

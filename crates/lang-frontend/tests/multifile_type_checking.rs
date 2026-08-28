@@ -4071,27 +4071,27 @@ fn invalid_intrinsic_rc_share_traverses_nested_container_operands() {
 }
 
 #[test]
-fn safe_and_nullable_intrinsic_rc_members_remain_fail_loud() {
-    for (name, text, expected) in [
+fn safe_and_nullable_intrinsic_rc_members_remain_deferred_without_rc_operations() {
+    for (name, text, expression_text) in [
         (
             "safe-value.ko",
             "fun bad(shared: Rc<Int>): Int = shared?.value",
-            "value",
+            "shared?.value",
         ),
         (
             "nullable-value.ko",
             "fun bad(shared: Rc<Int>?): Int = shared?.value",
-            "value",
+            "shared?.value",
         ),
         (
             "safe-share.ko",
             "fun bad(shared: Rc<Int>): Rc<Int> = shared?.share()",
-            "share",
+            "shared?.share()",
         ),
         (
             "nullable-share.ko",
             "fun bad(shared: Rc<Int>?): Rc<Int>? = shared?.share()",
-            "share",
+            "shared?.share()",
         ),
     ] {
         let mut sources = SourceMap::new();
@@ -4099,28 +4099,36 @@ fn safe_and_nullable_intrinsic_rc_members_remain_fail_loud() {
         let inputs = [SourceUnitInput::new("root", name, source, &file)];
         let (name_environment, type_environment) = standard_environments();
         let names = validated_names(&sources, &inputs, &name_environment);
-        let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect_err("safe/nullable Rc members must not validate as deferred facts");
-        let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-        else {
-            panic!("expected UnsupportedBody, got {error:?}");
-        };
-        assert_eq!(sources.slice(span), Ok(expected));
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("safe/nullable Rc members preserve the existing deferred boundary");
+        let expression = expression_with_text(&sources, &file, expression_text);
+        assert!(matches!(
+            typed
+                .expression_type(UnitExpressionId::new(
+                    source_unit(&names, source),
+                    expression
+                ))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+        ));
+        assert!(typed.rc_operations().is_empty());
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.validate().is_ok());
     }
 }
 
 #[test]
-fn poisoned_intrinsic_rc_payloads_remain_fail_loud() {
-    for (name, text, expected) in [
+fn poisoned_intrinsic_rc_payloads_defer_without_operation_facts() {
+    for (name, text, expression_text) in [
         (
             "poisoned-value.ko",
             "fun bad(shared: Rc<List<Opaque>>): List<Opaque> = shared.value",
-            "value",
+            "shared.value",
         ),
         (
             "poisoned-share.ko",
             "fun bad(shared: Rc<List<Opaque>>): Rc<List<Opaque>> = shared.share()",
-            "share",
+            "shared.share()",
         ),
     ] {
         let mut sources = SourceMap::new();
@@ -4131,13 +4139,21 @@ fn poisoned_intrinsic_rc_payloads_remain_fail_loud() {
             .declare_type("Opaque")
             .expect("external type name is unique");
         let names = validated_names(&sources, &inputs, &name_environment);
-        let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect_err("nested Error payloads must not publish validated Rc operations");
-        let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-        else {
-            panic!("expected UnsupportedBody, got {error:?}");
-        };
-        assert_eq!(sources.slice(span), Ok(expected));
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("poisoned Rc payload preserves a deferred recovery boundary");
+        let expression = expression_with_text(&sources, &file, expression_text);
+        assert!(matches!(
+            typed
+                .expression_type(UnitExpressionId::new(
+                    source_unit(&names, source),
+                    expression
+                ))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Deferred(DeferredReason::MemberAccess))
+        ));
+        assert!(typed.rc_operations().is_empty());
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(typed.validate().is_ok());
     }
 }
 
@@ -4584,7 +4600,7 @@ fn intrinsic_container_place_overload_trial_commits_only_the_unique_fact() {
 }
 
 #[test]
-fn poisoned_intrinsic_container_element_places_remain_fail_loud() {
+fn poisoned_intrinsic_container_element_places_defer_without_place_facts() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -4602,13 +4618,21 @@ fn poisoned_intrinsic_container_element_places_remain_fail_loud() {
         .declare_type("Opaque")
         .expect("external type name is unique");
     let names = validated_names(&sources, &inputs, &name_environment);
-    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("poisoned element types must not publish unit element places");
-    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-    else {
-        panic!("expected UnsupportedBody, got {error:?}");
-    };
-    assert_eq!(sources.slice(span), Ok("items[0]"));
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("poisoned element types preserve a deferred recovery boundary");
+    let expression = expression_with_text(&sources, &file, "items[0]");
+    assert!(matches!(
+        typed
+            .expression_type(UnitExpressionId::new(
+                source_unit(&names, source),
+                expression
+            ))
+            .and_then(|ty| typed.types().get(ty)),
+        Some(UnitTypeKind::Deferred(DeferredReason::Index))
+    ));
+    assert!(typed.element_places().is_empty());
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(typed.validate().is_ok());
 }
 
 #[test]
@@ -5171,6 +5195,152 @@ fn invalid_top_level_initializers_recover_and_reject_return_outside_callable() {
             .get(typed.symbol_type(outside).expect("outside symbol type")),
         Some(UnitTypeKind::Error)
     ));
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         val CODE = 9\n\
+         class Service {\n\
+             companion object {\n\
+                 fun version(): Int = VERSION\n\
+                 const val VERSION: Int = 7\n\
+             }\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "p/consumer.ko",
+        "package q\n\
+         fun readVersion(): Int = p.Service.version()\n\
+         fun readCode(): Int = p.CODE",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/a-provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("companion constant initializer type checks");
+    let reverse_inputs = [inputs[1], inputs[0]];
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed companion constant inputs type check");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.types(), reverse.types());
+    assert_eq!(typed.calls(), reverse.calls());
+    assert_eq!(typed.diagnostics(), reverse.diagnostics());
+    assert_eq!(typed.expression_types(), reverse.expression_types());
+    assert_eq!(typed.body_symbol_types(), reverse.body_symbol_types());
+    let provider_unit = source_unit(&names, provider_source);
+    let version = symbol_named(&typed, &names, provider_unit, "VERSION");
+    assert!(matches!(
+        typed
+            .types()
+            .get(typed.symbol_type(version).expect("companion constant type")),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    let initializer = expression_with_text(&sources, &provider, "7");
+    assert!(matches!(
+        typed.types().get(
+            typed
+                .expression_type(UnitExpressionId::new(provider_unit, initializer))
+                .expect("companion initializer expression type")
+        ),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(
+        type_refs_with_text(&sources, &provider, "Int")
+            .into_iter()
+            .all(|type_ref| typed
+                .type_ref_type(UnitTypeRefId::new(provider_unit, type_ref))
+                .is_some())
+    );
+    let consumer_unit = source_unit(&names, consumer_source);
+    for text in ["p.Service.version()", "p.CODE"] {
+        let expression = expression_with_text(&sources, &consumer, text);
+        assert!(matches!(
+            typed.types().get(
+                typed
+                    .expression_type(UnitExpressionId::new(consumer_unit, expression))
+                    .expect("qualified expression type")
+            ),
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
+        ));
+    }
+    let qualified_code = expression_with_text(&sources, &consumer, "p.CODE");
+    assert_eq!(
+        typed.expression_category(UnitExpressionId::new(consumer_unit, qualified_code)),
+        Some(ExpressionCategory::Temporary)
+    );
+    let version_call = expression_with_text(&sources, &consumer, "p.Service.version()");
+    assert!(matches!(
+        typed
+            .call(UnitExpressionId::new(consumer_unit, version_call))
+            .expect("qualified companion call descriptor")
+            .target(),
+        UnitCallTarget::Symbol(_)
+    ));
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn invalid_companion_constant_initializer_recovers_and_checks_later_members() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-companion-constant.ko",
+        "class Service {\n\
+             companion object {\n\
+                 const val INVALID: String = 1\n\
+                 fun later(): Int = 2\n\
+             }\n\
+         }\n\
+         fun use(): Int = Service.later()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "invalid-companion-constant.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid companion constant initializer remains recoverable");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0084"]
+    );
+    assert_eq!(
+        sources.slice(typed.body_diagnostics()[0].primary_span()),
+        Ok("1")
+    );
+    let unit = source_unit(&names, source);
+    for text in ["2", "Service.later()"] {
+        let expression = expression_with_text(&sources, &file, text);
+        assert!(matches!(
+            typed.types().get(
+                typed
+                    .expression_type(UnitExpressionId::new(unit, expression))
+                    .expect("later expression still checked")
+            ),
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
+        ));
+    }
     assert!(typed.validate().is_err());
 }
 

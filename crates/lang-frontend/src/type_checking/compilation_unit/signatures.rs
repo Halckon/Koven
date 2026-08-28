@@ -32,6 +32,7 @@ use super::{
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
 
+mod constants;
 mod graph;
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
@@ -292,6 +293,7 @@ impl<'a> SignatureCollector<'a> {
             let mut members = Vec::new();
             let mut companion_members = Vec::new();
             if let Some(body) = &classifier.body {
+                self.collect_member_constant_types(source, body)?;
                 self.collect_member_callables(source, body, &mut members, &mut companion_members)?;
             }
             self.check_duplicate_member_shapes(&members)?;

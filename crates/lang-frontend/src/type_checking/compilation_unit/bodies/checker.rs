@@ -803,7 +803,14 @@ impl<'a> BodyChecker<'a> {
                     ) => Err(CompilationUnitTypeError::UnsupportedBody(span)),
                 }
             }
-            _ => Err(CompilationUnitTypeError::UnsupportedBody(span)),
+            _ => match self.reference(source, span, Namespace::Type) {
+                Some(UnitReferenceTarget::Declaration(declaration)) => self
+                    .signatures
+                    .declaration(*declaration)
+                    .map(|signature| signature.ty())
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
+                _ => Err(CompilationUnitTypeError::UnsupportedBody(span)),
+            },
         }
     }
 

@@ -2,7 +2,7 @@
 
 use crate::{
     ast::TypeRefId,
-    name_resolution::{DeclarationId, SourceUnitId},
+    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
     parser::Item,
     source::Span,
     type_checking::TypeCheckingError,
@@ -35,7 +35,23 @@ impl BodyChecker<'_> {
             .declaration(declaration)
             .cloned()
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        let expected = type_ref.map(|_| signature.ty());
+        self.check_value_initializer(source, signature.symbol(), type_ref, initializer)
+    }
+
+    pub(super) fn check_value_initializer(
+        &mut self,
+        source: SourceUnitId,
+        symbol: UnitSymbolId,
+        type_ref: Option<TypeRefId>,
+        initializer: crate::ast::ExpressionId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let expected = type_ref
+            .map(|_| {
+                self.signatures
+                    .symbol_type(symbol)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)
+            })
+            .transpose()?;
         let expected_span = type_ref
             .map(|type_ref| self.top_level_type_ref_span(source, type_ref))
             .transpose()?;
@@ -47,7 +63,7 @@ impl BodyChecker<'_> {
             self.check_expression(source, initializer, expected, expected_span, return_type)?;
         self.parts
             .symbol_types
-            .insert(signature.symbol(), expected.unwrap_or(result.ty));
+            .insert(symbol, expected.unwrap_or(result.ty));
         Ok(())
     }
 

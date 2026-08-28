@@ -31,16 +31,6 @@ impl BodyChecker<'_> {
                 falls_through: receiver_result.falls_through,
             });
         };
-        if self.construction_type_contains_poison(element) {
-            return Err(CompilationUnitTypeError::UnsupportedBody(
-                self.file(source)
-                    .ast()
-                    .expressions()
-                    .get(expression)
-                    .map_err(TypeCheckingError::from)?
-                    .span(),
-            ));
-        }
         let int = self.builtin(BuiltinType::Int);
         let index_result = self.check_expression(source, index, None, None, return_type)?;
         let falls_through = receiver_result.falls_through && index_result.falls_through;
@@ -70,6 +60,12 @@ impl BodyChecker<'_> {
             });
         }
         if self.is_deferred(index_result.ty) {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Index),
+                falls_through,
+            });
+        }
+        if self.construction_type_contains_poison(element) {
             return Ok(ExpressionCheck {
                 ty: self.deferred_type(DeferredReason::Index),
                 falls_through,

@@ -114,6 +114,12 @@ impl BodyChecker<'_> {
             .clone();
         let target = self
             .reference(source, callee_span, Namespace::Value)
+            .or_else(|| match &callee_payload {
+                crate::parser::Expression::Member { name_span, .. } => {
+                    self.reference(source, *name_span, Namespace::Value)
+                }
+                _ => None,
+            })
             .cloned();
         let explicit_types = type_arguments
             .iter()
@@ -147,12 +153,13 @@ impl BodyChecker<'_> {
             }
             _ => {}
         }
-        if let crate::parser::Expression::Member {
-            receiver,
-            name_span,
-            safe: false,
-            ..
-        } = callee_payload
+        if candidates.is_empty()
+            && let crate::parser::Expression::Member {
+                receiver,
+                name_span,
+                safe: false,
+                ..
+            } = callee_payload
         {
             candidates.extend(self.member_call_candidates(
                 source,
