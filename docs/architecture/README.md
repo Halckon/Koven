@@ -852,8 +852,12 @@ SPEC-0198 第一切片已建立与单文件 `OwnershipCheckedFile` 并行的
 另持有 typed-analysis owner，混用同结构但不同分析的 names/types、重复 source input 或 foreign
 environment 会在所有权遍历前失败。当前已按 `UnitSymbolId` 稳定排序发布顶层、instance member、
 companion member 与 expected lambda 参数的 Owned/Shared/Exclusive binding capability，并保留参数
-声明范围供后续跨文件诊断引用。call loan、Value delivery、move/drop/capture 与诊断尚未接入，因此
-本产物仍是 SPEC-0198 的中间 recovery product，不发布 validated view，也不是完整 codegen input。
+声明范围供后续跨文件诊断引用。第二切片把每个成功 typed call 的 source-order argument mapping
+归一化为 source-qualified `UnitCallArgumentOwnershipContract`：保留 call/argument identity、实例化
+参数类型、Value/shared-loan/exclusive-loan 契约、跨线程标记、实参与 call 范围；Declaration/Symbol
+target 还回链真实参数声明范围，external/function-value 不伪造源码位置。该 contract 只是后续
+body-local 数据流的输入，实际 loan、copy/move、drop/capture 与诊断尚未执行，因此本产物仍不发布
+validated view，也不是完整 codegen input。
 
 ## 结构化诊断与 renderer
 

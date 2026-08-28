@@ -55,7 +55,11 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
    - [x] 建立 source-qualified recovery product、typed-analysis provenance 与 mixed-input 门禁，
      并发布顶层/member/companion/lambda 参数的 Owned/Shared/Exclusive binding 能力；完整 checker
      闭环前不发布 validated/codegen gate。
-   - [ ] 消费 unit call descriptor，建立跨文件 Borrow/Inout loan 与 Value delivery facts。
+   - [x] 消费 unit call descriptor，归一化 source-qualified Value/shared-loan/exclusive-loan argument
+     contracts，并为 Declaration/Symbol target 回链真实参数声明范围；external/function-value 不伪造
+     源码位置，错误 call/argument/parameter locator 由内部门禁拒绝。
+   - [ ] 在 body-local 数据流中执行上述 contracts，建立有效 Borrow/Inout loan、Value copy/move 与
+     冲突诊断。
 2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
    既有 ownership suite。
 3. [ ] 同步 Architecture 并跑 workspace 基线。
@@ -88,3 +92,14 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `git diff --check` | 通过 | 最终第一切片无空白错误 |
 | 独立复审 | 通过 | 原 Low（signature locator/重复 binding 静默覆盖）已修复并复审；最终无 High/Medium/Low |
 | Tier 3 判定 | 未触发 | 当前是 SPEC-0198 中间切片，未改通用 parser/harness、共享依赖或未知公共下游；按根 `AGENTS.md` §9 以 Tier 2 作为提交门禁 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 通过 | 第二切片 3 tests；Declaration/Symbol/function-value/external contracts、参数声明范围与 input permutation |
+| `cargo clippy -p lang-frontend --test multifile_ownership_checking --locked --offline -- -D warnings` | 通过 | 第二切片 API 与测试无 warning |
+| `cargo fmt --all -- --check` | 通过 | 第二切片最终源码状态 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 第二切片 frontend 全 target 无 warning |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 第二切片后 48 tests |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --test ownership_checking --test ownership_closures --test ownership_construction --test ownership_containers --test ownership_rc --test ownership_structural --locked --offline` | 通过 | 第二切片后 55 tests；unit contracts 与全部既有 Phase 3 所有权集成回归 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 第二切片跨 crate 编译兼容 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | 第二切片后 252 passed、1 ignored；ignored 为既有 LLDB task-port 权限用例 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 第二切片后 CLI dev build |
+| 第二切片独立复审 | 通过 | parameter-index 门禁、rustdoc 边界、具名实参重排 3 个 Low 已修复并复审；最终无 High/Medium/Low |
+| 第二切片 Tier 3 判定 | 未触发 | 中间 contract 切片未执行所有权数据流，也未改 parser/harness、依赖或未知下游；按根 `AGENTS.md` §9 使用 Tier 2 |

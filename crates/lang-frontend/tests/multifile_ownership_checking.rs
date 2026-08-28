@@ -1,6 +1,7 @@
 //! SPEC-0198 compilation-unit ownership product integration tests.
 
 use lang_frontend::{
+    ast::ExpressionId,
     lexer::lex,
     name_resolution::{
         NameEnvironment, SourceUnitId, SourceUnitInput, UnitSymbolId,
@@ -8,13 +9,13 @@ use lang_frontend::{
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipBindingKind, OwnershipCheckingError,
-        check_compilation_unit_ownership,
+        UnitCallArgumentOwnershipKind, check_compilation_unit_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        TypeEnvironment, ValidatedCompilationUnitTypes, check_compilation_unit_types,
-        standard_environments,
+        TypeEnvironment, UnitExpressionId, ValidatedCompilationUnitTypes,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -65,6 +66,20 @@ fn source_unit(names: &ValidatedCompilationUnitNames, source: SourceId) -> Sourc
         .id()
 }
 
+fn expression_with_text(sources: &SourceMap, parsed: &ParsedFile, text: &str) -> ExpressionId {
+    parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(id, expression)| {
+            sources
+                .slice(expression.span())
+                .is_ok_and(|actual| actual == text)
+                .then_some(id)
+        })
+        .expect("expression text exists")
+}
+
 fn symbol_named(
     ownership: &CompilationUnitOwnership,
     names: &ValidatedCompilationUnitNames,
@@ -104,8 +119,10 @@ fn unit_parameter_bindings_cover_cross_file_member_and_lambda_modes() {
         &mut sources,
         "q/consumer.ko",
         "package q\n\
-         fun use(own first: String, second: String, inout third: String): Unit {\n\
-             p.accept(first, second, &third)\n\
+         import p.Worker\n\
+         fun use(worker: Worker, own first: String, second: String, inout third: String, own fourth: String, fifth: String): Unit {\n\
+             p.accept(calleeShared = second, calleeOwned = first, calleeExclusive = &third)\n\
+             val memberResult = worker.run(fourth, fifth)\n\
              val callback: (own String, borrow String, inout String) -> Unit =\n\
                  { lambdaOwned, lambdaShared, lambdaExclusive -> }\n\
          }",
@@ -138,9 +155,12 @@ fn unit_parameter_bindings_cover_cross_file_member_and_lambda_modes() {
             "companionExclusive",
             OwnershipBindingKind::Exclusive,
         ),
+        (consumer_unit, "worker", OwnershipBindingKind::Shared),
         (consumer_unit, "first", OwnershipBindingKind::Owned),
         (consumer_unit, "second", OwnershipBindingKind::Shared),
         (consumer_unit, "third", OwnershipBindingKind::Exclusive),
+        (consumer_unit, "fourth", OwnershipBindingKind::Owned),
+        (consumer_unit, "fifth", OwnershipBindingKind::Shared),
         (consumer_unit, "lambdaOwned", OwnershipBindingKind::Owned),
         (consumer_unit, "lambdaShared", OwnershipBindingKind::Shared),
         (
@@ -167,6 +187,99 @@ fn unit_parameter_bindings_cover_cross_file_member_and_lambda_modes() {
     assert!(ownership.is_compatible_with(&typed));
     assert!(ownership.is_same_analysis(&ownership.clone()));
 
+    let accept_call = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(
+            &sources,
+            &consumer,
+            "p.accept(calleeShared = second, calleeOwned = first, calleeExclusive = &third)",
+        ),
+    );
+    let contracts = ownership
+        .call_argument_contracts_for(accept_call)
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(contracts.len(), 3);
+    for (contract, (argument, parameter, parameter_index, kind)) in contracts.iter().zip([
+        (
+            "second",
+            "calleeShared",
+            1,
+            UnitCallArgumentOwnershipKind::SharedLoan,
+        ),
+        (
+            "first",
+            "calleeOwned",
+            0,
+            UnitCallArgumentOwnershipKind::Value,
+        ),
+        (
+            "third",
+            "calleeExclusive",
+            2,
+            UnitCallArgumentOwnershipKind::ExclusiveLoan,
+        ),
+    ]) {
+        assert_eq!(contract.call(), accept_call);
+        assert_eq!(contract.parameter_index(), parameter_index);
+        assert_eq!(contract.kind(), kind);
+        assert!(!contract.crosses_thread());
+        assert_eq!(
+            sources
+                .slice(contract.argument_span())
+                .expect("argument span"),
+            argument
+        );
+        assert_eq!(
+            sources.slice(contract.call_span()).expect("call span"),
+            "p.accept(calleeShared = second, calleeOwned = first, calleeExclusive = &third)"
+        );
+        assert!(
+            contract
+                .parameter_span()
+                .and_then(|span| sources.slice(span).ok())
+                .is_some_and(|text| text.contains(parameter)),
+            "{parameter} declaration span"
+        );
+        assert_eq!(contract.argument().source_unit(), accept_call.source_unit());
+        assert!(
+            typed
+                .types()
+                .types()
+                .get(contract.parameter_type())
+                .is_some()
+        );
+    }
+
+    let member_call = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "worker.run(fourth, fifth)"),
+    );
+    let member_contracts = ownership
+        .call_argument_contracts_for(member_call)
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(member_contracts.len(), 2);
+    assert_eq!(
+        member_contracts
+            .iter()
+            .map(|contract| contract.kind())
+            .collect::<Vec<_>>(),
+        [
+            UnitCallArgumentOwnershipKind::Value,
+            UnitCallArgumentOwnershipKind::SharedLoan,
+        ]
+    );
+    for (contract, parameter) in member_contracts.iter().zip(["memberOwned", "memberShared"]) {
+        assert!(
+            contract
+                .parameter_span()
+                .and_then(|span| sources.slice(span).ok())
+                .is_some_and(|text| text.contains(parameter)),
+            "{parameter} member declaration span"
+        );
+    }
+
     let reversed_inputs = [inputs[1], inputs[0]];
     let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
     let reversed_typed = validated_types(
@@ -184,6 +297,10 @@ fn unit_parameter_bindings_cover_cross_file_member_and_lambda_modes() {
     )
     .expect("reversed unit ownership product");
     assert_eq!(ownership.bindings(), reversed_ownership.bindings());
+    assert_eq!(
+        ownership.call_argument_contracts(),
+        reversed_ownership.call_argument_contracts()
+    );
     assert_eq!(ownership.diagnostics(), reversed_ownership.diagnostics());
 }
 
@@ -228,4 +345,54 @@ fn unit_ownership_rejects_mixed_analysis_and_duplicate_inputs() {
         ),
         Err(OwnershipCheckingError::MismatchedCompilationUnitTypes)
     ));
+}
+
+#[test]
+fn function_value_and_external_call_contracts_do_not_invent_source_parameters() {
+    let mut sources = SourceMap::new();
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "p/uses.ko",
+        "package p\n\
+         fun use(callback: (borrow String) -> Unit, message: String): Unit {\n\
+             val invoked = callback(message)\n\
+             val printed = println(message)\n\
+         }",
+    );
+    let (stable_source, stable) = parsed(
+        &mut sources,
+        "p/stable.ko",
+        "package p\nfun stable(): Unit {}",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/stable.ko", stable_source, &stable),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+    let uses_unit = source_unit(&names, uses_source);
+
+    for text in ["callback(message)", "println(message)"] {
+        let call = UnitExpressionId::new(uses_unit, expression_with_text(&sources, &uses, text));
+        let contracts = ownership
+            .call_argument_contracts_for(call)
+            .collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 1, "{text}");
+        assert_eq!(
+            contracts[0].kind(),
+            UnitCallArgumentOwnershipKind::SharedLoan,
+            "{text}"
+        );
+        assert_eq!(contracts[0].parameter_span(), None, "{text}");
+        assert_eq!(
+            sources
+                .slice(contracts[0].argument_span())
+                .expect("argument span"),
+            "message"
+        );
+    }
 }

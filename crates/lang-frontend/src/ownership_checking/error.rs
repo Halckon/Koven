@@ -31,6 +31,31 @@ pub enum OwnershipCheckingError {
         /// 文件局部 symbol 下标。
         symbol: usize,
     },
+    /// typed call locator 未指向对应 source unit 的 call expression。
+    InvalidUnitCall {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 expression 下标。
+        expression: usize,
+    },
+    /// typed call 的实参映射违反唯一且完备的下标不变量。
+    InvalidUnitCallArgument {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 call expression 下标。
+        expression: usize,
+        /// 无效的源码实参下标。
+        argument: usize,
+    },
+    /// source call target 或参数下标无法回到声明 signature。
+    InvalidUnitCallParameter {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 call expression 下标。
+        expression: usize,
+        /// 无效的声明参数下标。
+        parameter: usize,
+    },
     /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
     InvalidConstructionDescriptor {
         /// 无效 descriptor 的 expression arena 下标。
@@ -75,6 +100,29 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "duplicate compilation-unit ownership binding {source_unit}:{symbol}"
             ),
+            Self::InvalidUnitCall {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "invalid compilation-unit call locator {source_unit}:{expression}"
+            ),
+            Self::InvalidUnitCallArgument {
+                source_unit,
+                expression,
+                argument,
+            } => write!(
+                formatter,
+                "invalid compilation-unit call argument {source_unit}:{expression}:{argument}"
+            ),
+            Self::InvalidUnitCallParameter {
+                source_unit,
+                expression,
+                parameter,
+            } => write!(
+                formatter,
+                "invalid compilation-unit call parameter {source_unit}:{expression}:{parameter}"
+            ),
             Self::InvalidConstructionDescriptor { expression } => {
                 write!(
                     formatter,
@@ -104,6 +152,9 @@ impl Error for OwnershipCheckingError {
             | Self::MismatchedCompilationUnitTypes
             | Self::InvalidUnitSymbol { .. }
             | Self::DuplicateUnitBinding { .. }
+            | Self::InvalidUnitCall { .. }
+            | Self::InvalidUnitCallArgument { .. }
+            | Self::InvalidUnitCallParameter { .. }
             | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }
