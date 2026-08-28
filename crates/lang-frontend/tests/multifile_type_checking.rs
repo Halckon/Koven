@@ -1045,17 +1045,29 @@ fn body_facts_and_diagnostics_are_stable_under_input_permutation() {
 }
 
 #[test]
-fn unsupported_executable_declaration_cannot_validate_silently() {
+fn top_level_initializer_is_checked_instead_of_silently_skipped() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "state.ko", "package p\nval state: Int = 1");
     let inputs = [SourceUnitInput::new("root", "p/state.ko", source, &file)];
     let (name_environment, type_environment) = standard_environments();
     let names = validated_names(&sources, &inputs, &name_environment);
 
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("top-level initializer is supported");
+    let unit = source_unit(&names, source);
+    let state = symbol_named(&typed, &names, unit, "state");
+    let initializer = expression_with_text(&sources, &file, "1");
     assert!(matches!(
-        check_compilation_unit_types(&sources, &inputs, &names, &type_environment),
-        Err(lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(_))
+        typed
+            .types()
+            .get(typed.symbol_type(state).expect("state symbol type")),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
     ));
+    assert_eq!(
+        typed.expression_type(UnitExpressionId::new(unit, initializer)),
+        typed.symbol_type(state)
+    );
+    assert!(typed.validate().is_ok());
 }
 
 #[test]
@@ -4978,5 +4990,186 @@ fn invalid_interpolation_recovers_the_outer_string_and_later_body() {
             .expression_type(UnitExpressionId::new(unit, literal))
             .is_some()
     );
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn top_level_initializers_publish_stable_cross_file_symbol_and_expression_types() {
+    let mut sources = SourceMap::new();
+    let (values_source, values) = parsed(
+        &mut sources,
+        "top-level-values.ko",
+        "package p\n\
+         val inferred = 1\n\
+         val annotated: Long = 2L\n\
+         const val text: String = \"ready\"\n\
+         val forward: Boolean = later\n\
+         val later: Boolean = true",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "top-level-uses.ko",
+        "package p\n\
+         fun number(): Int = inferred\n\
+         fun wide(): Long = annotated\n\
+         fun message(): String = text\n\
+         fun flag(): Boolean = forward",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/a-values.ko", values_source, &values),
+        SourceUnitInput::new("root", "p/b-uses.ko", uses_source, &uses),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("top-level initializers type check");
+    let reverse_inputs = [inputs[1], inputs[0]];
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed top-level inputs type check");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.expression_types(), reverse.expression_types());
+    assert_eq!(typed.body_symbol_types(), reverse.body_symbol_types());
+    let values_unit = source_unit(&names, values_source);
+    for (name, builtin) in [
+        ("inferred", BuiltinType::Int),
+        ("annotated", BuiltinType::Long),
+        ("text", BuiltinType::String),
+        ("forward", BuiltinType::Boolean),
+        ("later", BuiltinType::Boolean),
+    ] {
+        let symbol = symbol_named(&typed, &names, values_unit, name);
+        assert!(matches!(
+            typed.types().get(typed.symbol_type(symbol).expect("top-level symbol type")),
+            Some(UnitTypeKind::Builtin(actual)) if *actual == builtin
+        ));
+    }
+    let uses_unit = source_unit(&names, uses_source);
+    for name in ["inferred", "annotated", "text", "forward"] {
+        let expression = expression_with_text(&sources, &uses, name);
+        assert!(
+            typed
+                .expression_type(UnitExpressionId::new(uses_unit, expression))
+                .is_some()
+        );
+    }
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn cross_file_unannotated_forward_use_preserves_the_single_file_deferred_boundary() {
+    let mut sources = SourceMap::new();
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "top-level-consumer.ko",
+        "package p\nfun before(): Int = inferred",
+    );
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "top-level-provider.ko",
+        "package p\nval inferred = 1\nfun after(): Int = inferred",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/a-consumer.ko", consumer_source, &consumer),
+        SourceUnitInput::new("root", "p/z-provider.ko", provider_source, &provider),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unannotated forward value remains a deterministic deferred boundary");
+    let reverse_inputs = [inputs[1], inputs[0]];
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed unannotated forward inputs keep the same boundary");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.expression_types(), reverse.expression_types());
+    let before = expression_with_text(&sources, &consumer, "inferred");
+    let after = expression_with_text(&sources, &provider, "inferred");
+    assert!(matches!(
+        typed.types().get(
+            typed
+                .expression_type(UnitExpressionId::new(
+                    source_unit(&names, consumer_source),
+                    before,
+                ))
+                .expect("forward use type")
+        ),
+        Some(UnitTypeKind::Deferred(DeferredReason::ForwardValueType))
+    ));
+    assert!(matches!(
+        typed.types().get(
+            typed
+                .expression_type(UnitExpressionId::new(
+                    source_unit(&names, provider_source),
+                    after,
+                ))
+                .expect("later use type")
+        ),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn invalid_top_level_initializers_recover_and_reject_return_outside_callable() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-top-level.ko",
+        "val mismatch: Int = true\n\
+         val outside = return 1\n\
+         const val invalidConst: String = 2\n\
+         fun later(): Int = 3",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "invalid-top-level.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid top-level initializers remain recoverable");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0084", "L0086", "L0084"]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic span"))
+            .collect::<Vec<_>>(),
+        ["true", "return", "2"]
+    );
+    let unit = source_unit(&names, source);
+    let later = expression_with_text(&sources, &file, "3");
+    assert!(matches!(
+        typed.types().get(
+            typed
+                .expression_type(UnitExpressionId::new(unit, later))
+                .expect("later function still checked")
+        ),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    let outside = symbol_named(&typed, &names, unit, "outside");
+    assert!(matches!(
+        typed
+            .types()
+            .get(typed.symbol_type(outside).expect("outside symbol type")),
+        Some(UnitTypeKind::Error)
+    ));
     assert!(typed.validate().is_err());
 }

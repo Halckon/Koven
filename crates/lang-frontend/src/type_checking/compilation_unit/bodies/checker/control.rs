@@ -67,6 +67,20 @@ impl BodyChecker<'_> {
         value: Option<ExpressionId>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        if self.callable_loop_bases.is_empty() {
+            if let Some(value) = value {
+                self.check_expression(source, value, None, None, return_type)?;
+            }
+            self.emit(
+                codes::RETURN_OUTSIDE_CALLABLE,
+                "return is not inside a callable",
+                keyword_span,
+            )?;
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: false,
+            });
+        }
         match value {
             Some(value) if self.is_builtin(return_type, BuiltinType::Unit) => {
                 self.check_expression(source, value, None, None, return_type)?;

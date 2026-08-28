@@ -823,7 +823,13 @@ SPEC-0197 第一阶段新增纯内存的
   顺序进入现有 unit expression checker，嵌套 call/type facts 与诊断恢复完整发布，外层表达式固定为
   `String`，输入置换保持稳定；这不引入 printable/formatting protocol，native lowering 继续按
   SPEC-0192 确定性拒绝 interpolation；
-- top-level variable/const initializer、`super<Interface>.member`、Elvis/range/`to`/
+- 第二十一个 body 切片接通 top-level variable/const initializer：unit 按稳定 logical-path/source
+  declaration 顺序执行普通 typed initializer，显式标注单向约束 initializer，无标注值把已知结果发布
+  到 source-qualified body symbol facts；后续 declaration reference 优先读取该 fact，再回退 signature。
+  已标注前向引用可直接读取 signature；较早读取尚未检查的无标注值继续保留单文件
+  `Deferred(ForwardValueType)` 边界。文件 initializer 的 `return` 使用 L0086，错误不阻止独立后续
+  declaration；`const val` 不产生候选 v0.36 evaluator/ConstValue；
+- `super<Interface>.member`、Elvis/range/`to`/
   `in`、基础 `!!`/cast、postfix `?`、callable reference 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197

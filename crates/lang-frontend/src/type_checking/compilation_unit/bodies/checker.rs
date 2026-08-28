@@ -35,6 +35,7 @@ mod members;
 mod nullable;
 mod operators;
 mod rc;
+mod top_level;
 mod trial;
 mod type_refs;
 mod when;
@@ -181,6 +182,14 @@ impl<'a> BodyChecker<'a> {
                 .cloned();
             let file = self.files[declaration.source_unit().index()];
             let item = unwrapped_item(file, declaration.root())?.clone();
+            if matches!(item, Item::Variable { .. } | Item::Constant { .. }) {
+                self.check_top_level_initializer(
+                    declaration.id(),
+                    declaration.source_unit(),
+                    &item,
+                )?;
+                continue;
+            }
             if let Some(callable) = callable {
                 let Item::Function { form, .. } = item else {
                     return Err(CompilationUnitTypeError::UnsupportedBody(
@@ -234,6 +243,18 @@ impl<'a> BodyChecker<'a> {
     }
 
     fn check_function(
+        &mut self,
+        source: SourceUnitId,
+        form: FunctionForm,
+        callable: &UnitCallableSignature,
+    ) -> Result<(), CompilationUnitTypeError> {
+        self.callable_loop_bases.push(self.loop_depth);
+        let result = self.check_function_body(source, form, callable);
+        self.callable_loop_bases.pop();
+        result
+    }
+
+    fn check_function_body(
         &mut self,
         source: SourceUnitId,
         form: FunctionForm,
@@ -692,11 +713,18 @@ impl<'a> BodyChecker<'a> {
             return Ok(ty);
         }
         match self.reference(source, span, Namespace::Value) {
-            Some(UnitReferenceTarget::Declaration(declaration)) => self
-                .signatures
-                .declaration(*declaration)
-                .map(|signature| signature.ty())
-                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
+            Some(UnitReferenceTarget::Declaration(declaration)) => {
+                let signature = self
+                    .signatures
+                    .declaration(*declaration)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                Ok(self
+                    .parts
+                    .symbol_types
+                    .get(&signature.symbol())
+                    .copied()
+                    .unwrap_or(signature.ty()))
+            }
             Some(UnitReferenceTarget::Symbol(symbol)) => self
                 .parts
                 .symbol_types
