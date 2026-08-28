@@ -230,7 +230,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | ✅ 已实现 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
-| SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | 🚧 in-progress；unit signature、基础 body、源码/intrinsic construction、source member 与 intrinsic Rc operation 切片已接通 |
+| SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | 🚧 in-progress；unit signature、基础 body、源码/intrinsic/container construction、source member、intrinsic Rc operation 与 contextual null 切片已接通 |
 | SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ⏸ draft |
 | SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
 | SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ⏸ draft；v0.34 未启用 |

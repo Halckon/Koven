@@ -197,8 +197,9 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
   body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
-  construction facts、source member body/call/field/structural-component projection，以及 non-nullable
-  intrinsic Rc `.value`/`.share()` operation facts；container operation 与一般 nullable body 语义仍在实施；
+  construction facts、source member body/call/field/structural-component projection、non-nullable
+  intrinsic Rc `.value`/`.share()` operation、core container construction 与 contextual null literal
+  facts；container index/place/member/assignment、null-comparison 与其余 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -733,7 +734,8 @@ SPEC-0197 第一阶段新增纯内存的
   封闭域参与穷尽性，`is`/`!is` 和 comma alternative 发布事实交集，分支按 `Nothing`、enum root、
   nullable 与 `Any` 合并，flow 只求全部 fall-through 出口交集；L0107–L0112、跨 source 缺失
   enum-case label 与输入置换保持稳定。nullable subject 的 `null` condition 只复用现行 v0.24
-  语义；else 不获得候选 v0.35 remaining-domain fact，一般 null literal/null-comparison 仍未接入；
+  语义；else 不获得候选 v0.35 remaining-domain fact。该子切片当时未接入一般 null；contextual
+  null 已由第十七个切片接通，null-comparison 仍未接入；
 - 第八个 body 切片接通 `while`/`for`/`loop` statement 与 `break`/`continue` expression：while
   condition 接受 Boolean expected type，三种 loop 都建立最近词法 loop depth，合法 jump 发布
   `Nothing`，越界使用 L0142；`for` source 仍沿用单文件阶段边界，binding 与由它推导的 local
@@ -799,9 +801,14 @@ SPEC-0197 第一阶段新增纯内存的
   temporary，错误 type argument/argument mapping 不发布 partial fact，overload-lambda trial 与输入
   置换保持原子/确定。payload 内递归 `Error` / `Deferred` 不发布可验证 operation；源码同名 `Rc`
   仍走 nominal/member identity，safe/nullable Rc 不在本切片内；
+- 第十七个 body 切片接通 core container construction 与 contextual null literal：
+  `UnitContainerConstructionDescriptor` 保留 source-qualified call、unit-global container/element type、
+  封闭 construction/container kind 与参数 mode；列表式 expected/显式/首元素推导、运行时长度
+  Borrow contract、空 `MutableList`、L0091/L0125–L0127、源码同名隔离与输入置换保持单文件语义。
+  无 nullable expected 的 `null` 进入 L0083 recovery，非 nullable expected 进入 L0084；失败 construction
+  不发布 partial fact，overload-lambda trial 只原子提交唯一成功 container/callee facts；
 - top-level variable/const initializer、intrinsic container member 与
-  container construction/index/operation、null literal /
-  null-comparison 与其余 nullable control 等
+  container index/place/assignment、null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但
   未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
   后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。

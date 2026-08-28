@@ -114,7 +114,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      Boolean/enum/nullable 封闭域穷尽性、`is`/`!is` 与 alternative 事实交集、`Nothing`/enum/nullable/
      `Any` 分支 join、全部退出的 flow 合并及 L0107–L0112；跨文件 enum label 与输入置换保持稳定。
      nullable subject 的 `null` condition 只在本节点按现行 v0.24 处理，不启用 v0.35 remaining-domain
-     事实，也不提前接通一般 null literal/null-comparison。
+     事实；该 `when` 子切片当时不接通一般 null literal/null-comparison，contextual null 已由后续
+     container 子切片接通，null-comparison 仍待实施。
    - [x] 接通 loop/jump 基础切片：`while` 条件检查 Boolean，`while`/`for`/`loop` 建立最近词法
      loop，`break`/`continue` 在 loop 内发布 `Nothing`、越界复用 L0142；`for` binding/source 只发布
      `Deferred(LoopSource)`，不提前启用 v0.37 iteration provider。同步修正 Unit callable 的有值
@@ -160,8 +161,10 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      unit-global payload type 与 compiler-bound kind/result mode。L0091/L0121 失败、nested operand、
      overload-lambda trial、源码同名 `Rc` 与输入置换均不泄漏或混淆 intrinsic facts；payload
      内递归 `Error` / `Deferred` 与 safe/nullable Rc 均保持 fail-loud 的未覆盖边界。
-   - [ ] 接完 container operation、container index/construction、null literal/
-     null-comparison 等剩余现有单文件 body
+   - [x] 接通 core container construction 与 contextual null literal：列表式 expected/显式/首元素推导、
+     运行时长度 Borrow 参数、空 `MutableList` 发布 source-qualified descriptor；L0083/L0084、
+     L0091/L0125–L0127、失败无 partial fact、overload-lambda trial、源码同名隔离与输入置换保持稳定。
+   - [ ] 接完 container index/place/member/assignment、null-comparison 等剩余现有单文件 body
      语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
 4. [x] 同步 Architecture 并跑 workspace 基线。
@@ -255,3 +258,9 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 编译兼容性通过 |
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored；frontend 48、CLI 36、LSP 11、std 1 通过 |
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_containers --test type_copyability` | 通过 | 141 tests；core container construction、contextual null、显式 Borrow、诊断/recovery、trial 原子提交、源码同名隔离、输入置换及单文件 callable/type/container/copyability 回归 |
+| `cargo test -p lang-frontend --lib` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
+| `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | unit container construction model/checker 与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets` | 通过 | Tier 2 workspace 编译兼容性通过 |
+| `cargo test --workspace --lib --bins` | 通过 | Tier 2 库/二进制基线通过；252 passed、1 个既有 LLDB 权限测试 ignored |
+| `cargo build -p lang-cli --bin kovenc` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |

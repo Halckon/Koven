@@ -18,6 +18,28 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         negative: bool,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        if literal == LiteralKind::Null {
+            return match expected.and_then(|ty| self.signatures.types().get(ty)) {
+                Some(crate::type_checking::UnitTypeKind::Nullable(_)) => {
+                    Ok(expected.expect("matched nullable expected type"))
+                }
+                Some(_) => {
+                    let nothing = self.builtin(BuiltinType::Nothing);
+                    Ok(self
+                        .signatures
+                        .types_mut()
+                        .intern(crate::type_checking::UnitTypeKind::Nullable(nothing)))
+                }
+                None => {
+                    self.emit(
+                        codes::CANNOT_INFER_TYPE,
+                        "cannot infer the type of null without a nullable expected type",
+                        span,
+                    )?;
+                    Ok(self.error_type())
+                }
+            };
+        }
         let selected = match literal {
             LiteralKind::Integer(kind) => {
                 let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;
@@ -104,7 +126,7 @@ impl BodyChecker<'_> {
             }
             LiteralKind::Char => Some(self.builtin(BuiltinType::Char)),
             LiteralKind::Boolean(_) => Some(self.builtin(BuiltinType::Boolean)),
-            LiteralKind::Null => unreachable!("null is rejected before literal typing"),
+            LiteralKind::Null => unreachable!("null is handled before scalar literal typing"),
         };
         if let Some(ty) = selected {
             return Ok(ty);

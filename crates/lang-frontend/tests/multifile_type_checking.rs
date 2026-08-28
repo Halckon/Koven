@@ -12,12 +12,13 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, Statement, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, DeferredReason, DestructuringMode, EnvironmentFunction,
-        EnvironmentFunctionEffect, EnvironmentParameter, EnvironmentType, ExpressionCategory,
-        IntrinsicTypeConstructor, ParameterMode, RcOperationKind, TypeEnvironment,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallTarget,
-        UnitConstructionTarget, UnitExpressionId, UnitStatementId, UnitTypeKind, UnitTypeRefId,
-        check_compilation_unit_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, ContainerConstructionKind, DeferredReason,
+        DestructuringMode, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
+        EnvironmentType, ExpressionCategory, IntrinsicTypeConstructor, ParameterMode,
+        RcOperationKind, SequentialContainerKind, TypeEnvironment, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
+        UnitStatementId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -744,7 +745,7 @@ fn constructor_checks_operands_before_rejecting_its_result_type() {
 }
 
 #[test]
-fn unsupported_nested_container_operand_stays_fail_loud_before_result_mismatch() {
+fn invalid_nested_container_operand_stops_outer_construction_before_result_mismatch() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -757,40 +758,59 @@ fn unsupported_nested_container_operand_stays_fail_loud_before_result_mismatch()
     let inputs = [SourceUnitInput::new("root", "p/uses.ko", source, &file)];
     let (name_environment, type_environment) = standard_environments();
     let names = validated_names(&sources, &inputs, &name_environment);
-    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("container construction remains outside this unit construction slice");
-    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-    else {
-        panic!("expected UnsupportedBody, got {error:?}");
-    };
-    assert_eq!(sources.slice(span), Ok("List"));
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid nested container remains a recoverable diagnostic");
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code().to_string(),
+                sources.slice(diagnostic.primary_span()).expect("span"),
+            ))
+            .collect::<Vec<_>>(),
+        [("L0091".to_owned(), "List(1)")]
+    );
+    assert!(typed.container_constructions().is_empty());
+    assert!(typed.constructions().is_empty());
 }
 
 #[test]
-fn rejected_constructor_inference_still_checks_every_operand_fail_loud() {
-    for text in [
-        "package p\n\
+fn rejected_constructor_inference_still_checks_every_container_operand() {
+    for (text, expected_codes) in [
+        (
+            "package p\n\
          class Resource {}\n\
          value class Point(val x: Int)\n\
          class NeedsCopy<T: Copyable>(val item: Int)\n\
          fun bad(): Unit { NeedsCopy<Resource>(List(1)) }",
-        "package p\n\
+            vec!["L0115".to_owned(), "L0091".to_owned()],
+        ),
+        (
+            "package p\n\
          value class Point(val x: Int)\n\
          class Holder<T>(val action: () -> T)\n\
          fun bad(): Unit { Holder({ List(1) }) }",
+            vec!["L0144".to_owned(), "L0091".to_owned()],
+        ),
     ] {
         let mut sources = SourceMap::new();
         let (source, file) = parsed(&mut sources, "uses.ko", text);
         let inputs = [SourceUnitInput::new("root", "p/uses.ko", source, &file)];
         let (name_environment, type_environment) = standard_environments();
         let names = validated_names(&sources, &inputs, &name_environment);
-        let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect_err("rejected construction must still visit unsupported operands");
-        let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-        else {
-            panic!("expected UnsupportedBody, got {error:?}");
-        };
-        assert_eq!(sources.slice(span), Ok("List"));
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("rejected construction still checks invalid container operands");
+        assert_eq!(
+            typed
+                .body_diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            expected_codes
+        );
+        assert!(typed.container_constructions().is_empty());
+        assert!(typed.constructions().is_empty());
     }
 }
 
@@ -1039,7 +1059,7 @@ fn unsupported_executable_declaration_cannot_validate_silently() {
 }
 
 #[test]
-fn nullable_when_does_not_enable_general_null_literals() {
+fn uncontextual_null_literals_report_l0083() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -1050,13 +1070,20 @@ fn nullable_when_does_not_enable_general_null_literals() {
     let (name_environment, type_environment) = standard_environments();
     let names = validated_names(&sources, &inputs, &name_environment);
 
-    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("general null literals remain outside this when slice");
-    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-    else {
-        panic!("expected UnsupportedBody, got {error:?}");
-    };
-    assert_eq!(sources.slice(span), Ok("null"));
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("uncontextual null remains a recoverable inference error");
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| (
+                diagnostic.code().to_string(),
+                sources.slice(diagnostic.primary_span()).expect("span"),
+            ))
+            .collect::<Vec<_>>(),
+        [("L0083".to_owned(), "null")]
+    );
+    assert!(typed.validate().is_err());
 }
 
 #[test]
@@ -3322,35 +3349,6 @@ fn invalid_external_and_function_value_calls_keep_precise_diagnostics_and_deferr
 }
 
 #[test]
-fn intrinsic_container_calls_remain_fail_loud_outside_this_unit_slice() {
-    for (name, text) in [
-        (
-            "p/direct-container.ko",
-            "package p\nfun deferred(): Unit { val values = arrayOf<Int>(1) }",
-        ),
-        (
-            "p/nested-container.ko",
-            "package p\n\
-             fun take(input: Int): Int\n\
-             fun deferred(): Unit { val values = take(arrayOf<Int>(1), 2) }",
-        ),
-    ] {
-        let mut sources = SourceMap::new();
-        let (source, file) = parsed(&mut sources, name, text);
-        let inputs = [SourceUnitInput::new("root", name, source, &file)];
-        let (name_environment, type_environment) = standard_environments();
-        let names = validated_names(&sources, &inputs, &name_environment);
-        let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect_err("intrinsic container calls still wait for their dedicated body slice");
-        let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-        else {
-            panic!("expected UnsupportedBody, got {error:?}");
-        };
-        assert_eq!(sources.slice(span), Ok("arrayOf"));
-    }
-}
-
-#[test]
 fn partial_external_overloads_and_nested_deferred_calls_never_publish_error_facts() {
     let mut names_environment = NameEnvironment::new();
     let builtins = BuiltinType::ALL.map(|builtin| {
@@ -4035,7 +4033,7 @@ fn invalid_intrinsic_rc_share_calls_publish_no_partial_operation() {
 }
 
 #[test]
-fn invalid_intrinsic_rc_share_traverses_nested_operands_fail_loud() {
+fn invalid_intrinsic_rc_share_traverses_nested_container_operands() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -4045,13 +4043,19 @@ fn invalid_intrinsic_rc_share_traverses_nested_operands_fail_loud() {
     let inputs = [SourceUnitInput::new("root", "nested-rc.ko", source, &file)];
     let (name_environment, type_environment) = standard_environments();
     let names = validated_names(&sources, &inputs, &name_environment);
-    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-        .expect_err("nested unsupported operands must remain fail-loud");
-    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
-    else {
-        panic!("expected UnsupportedBody, got {error:?}");
-    };
-    assert_eq!(sources.slice(span), Ok("arrayOf"));
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid Rc call still checks the now-supported nested container");
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0121"]
+    );
+    assert_eq!(typed.container_constructions().len(), 1);
+    assert!(typed.rc_operations().is_empty());
+    assert!(typed.validate().is_err());
 }
 
 #[test]
@@ -4123,6 +4127,263 @@ fn poisoned_intrinsic_rc_payloads_remain_fail_loud() {
         };
         assert_eq!(sources.slice(span), Ok(expected));
     }
+}
+
+#[test]
+fn intrinsic_container_constructions_publish_stable_unit_facts() {
+    let mut sources = SourceMap::new();
+    let (models_source, models) = parsed(
+        &mut sources,
+        "p/models.ko",
+        "package p\nvalue class Resource(val id: Int)",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "p/uses.ko",
+        "package p\n\
+         fun build(size: Int): Unit {\n\
+             val inferred = listOf(Resource(1), Resource(2))\n\
+             val expected: List<Int> = listOf()\n\
+             val nullable: List<Int?> = listOf(null)\n\
+             val explicit = arrayOf<Long>()\n\
+             val initializer: (Int) -> Int = { index -> index }\n\
+             val array = Array<Int>(borrow size, borrow initializer)\n\
+             val list = List<Int>(size, initializer)\n\
+             val mutable = MutableList<Int>()\n\
+         }",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/models.ko", models_source, &models),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("core container constructions are supported");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed core container constructions are supported");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert_eq!(
+        forward.container_constructions(),
+        reverse.container_constructions()
+    );
+    assert_eq!(forward.container_constructions().len(), 7);
+    assert_eq!(
+        forward
+            .container_constructions()
+            .iter()
+            .map(|descriptor| (descriptor.kind(), descriptor.container()))
+            .collect::<Vec<_>>(),
+        [
+            (
+                ContainerConstructionKind::ListForm,
+                SequentialContainerKind::List,
+            ),
+            (
+                ContainerConstructionKind::ListForm,
+                SequentialContainerKind::List,
+            ),
+            (
+                ContainerConstructionKind::ListForm,
+                SequentialContainerKind::List,
+            ),
+            (
+                ContainerConstructionKind::ListForm,
+                SequentialContainerKind::Array,
+            ),
+            (
+                ContainerConstructionKind::RuntimeLength,
+                SequentialContainerKind::Array,
+            ),
+            (
+                ContainerConstructionKind::RuntimeLength,
+                SequentialContainerKind::List,
+            ),
+            (
+                ContainerConstructionKind::EmptyMutableList,
+                SequentialContainerKind::MutableList,
+            ),
+        ]
+    );
+    assert_eq!(
+        forward.container_constructions()[0].parameter_modes(),
+        [ParameterMode::Value, ParameterMode::Value]
+    );
+    assert_eq!(
+        forward.container_constructions()[4].parameter_modes(),
+        [ParameterMode::Borrow, ParameterMode::Borrow]
+    );
+    for descriptor in forward.container_constructions() {
+        assert_eq!(
+            forward.expression_type(descriptor.expression()),
+            Some(descriptor.container_type())
+        );
+        assert_eq!(
+            forward.expression_category(descriptor.expression()),
+            Some(ExpressionCategory::Temporary)
+        );
+    }
+    let resource = declaration(&forward_names, "Resource");
+    assert!(matches!(
+        forward
+            .types()
+            .get(forward.container_constructions()[0].element_type()),
+        Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == resource
+    ));
+    assert!(forward.validate().is_ok());
+}
+
+#[test]
+fn invalid_intrinsic_container_constructions_keep_diagnostics_and_no_facts() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-containers.ko",
+        "fun invalid(size: Boolean): Unit {\n\
+             val empty = listOf()\n\
+             val absent = listOf(null)\n\
+             val mixed = listOf(1, true)\n\
+             val initializer: (Int) -> Int = { index -> index }\n\
+             val runtime = Array<Int>(size, initializer)\n\
+             val wrongMutable = MutableList<Int>(1)\n\
+             val tooMany = listOf<Int, Long>()\n\
+             val named = listOf(element = 1)\n\
+             val marked = listOf(borrow 1)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "invalid-containers.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid core container calls stay in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        [
+            "L0126", "L0126", "L0084", "L0084", "L0127", "L0091", "L0120", "L0122"
+        ]
+    );
+    assert!(typed.container_constructions().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn contextual_null_recovery_matches_single_file_rules() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-trial.ko",
+        "fun nullable(): Int? = null\n\
+         fun invalid(): Unit {\n\
+             val missing = null\n\
+             val mismatch: Int = null\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("null recovery remains in the typed product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0083", "L0084"]
+    );
+    assert!(typed.container_constructions().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn intrinsic_container_overload_trial_commits_only_the_unique_fact() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-trial.ko",
+        "fun choose(action: () -> List<Int>): Int\n\
+         fun choose(action: () -> List<String>): String\n\
+         fun selected(): Int = choose({ listOf<Int>() })",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("one container-returning lambda candidate is valid");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_constructions().len(), 1);
+    assert_eq!(
+        typed.container_constructions()[0].element_type(),
+        typed.types().builtin(BuiltinType::Int).expect("Int")
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn source_container_names_never_gain_intrinsic_construction_identity() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "source-containers.ko",
+        "class List<T>(val item: T)\n\
+         fun listOf(input: Int): Int = input\n\
+         fun source(): List<Int> = List(listOf(1))",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "source-containers.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("source container names use ordinary source identities");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(typed.container_constructions().is_empty());
+    assert_eq!(typed.constructions().len(), 1);
+    assert!(matches!(
+        typed.constructions()[0].target(),
+        UnitConstructionTarget::Nominal(_)
+    ));
+    assert_eq!(typed.calls().len(), 1);
+    assert!(matches!(
+        typed.calls()[0].target(),
+        UnitCallTarget::Declaration(_)
+    ));
+    assert!(typed.validate().is_ok());
 }
 
 #[test]

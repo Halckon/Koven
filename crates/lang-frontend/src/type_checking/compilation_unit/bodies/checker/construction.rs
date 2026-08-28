@@ -701,7 +701,7 @@ impl BodyChecker<'_> {
         contains(self, ty, &mut BTreeSet::new())
     }
 
-    fn validate_construction_result(
+    pub(super) fn validate_construction_result(
         &mut self,
         actual: UnitTypeId,
         expected: Option<UnitTypeId>,
@@ -841,7 +841,7 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn check_construction_operands(
+    pub(super) fn check_construction_operands(
         &mut self,
         source: SourceUnitId,
         arguments: &[CallArgument],
@@ -853,7 +853,7 @@ impl BodyChecker<'_> {
         Ok(())
     }
 
-    fn failed_construction(&mut self) -> ExpressionCheck {
+    pub(super) fn failed_construction(&mut self) -> ExpressionCheck {
         ExpressionCheck {
             ty: self.error_type(),
             falls_through: true,

@@ -16,10 +16,12 @@ use super::{
 };
 
 mod checker;
+mod container;
 mod projection;
 mod rc;
 
 pub use checker::check_compilation_unit_types;
+pub use container::*;
 pub use projection::*;
 pub use rc::*;
 
@@ -387,6 +389,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
+    pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -412,6 +415,7 @@ pub struct CompilationUnitTypes {
     constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
+    container_constructions: Vec<UnitContainerConstructionDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -439,6 +443,7 @@ impl CompilationUnitTypes {
             constructions: parts.constructions,
             destructurings: parts.destructurings,
             rc_operations: parts.rc_operations,
+            container_constructions: parts.container_constructions,
             body_diagnostics,
             diagnostics,
         }

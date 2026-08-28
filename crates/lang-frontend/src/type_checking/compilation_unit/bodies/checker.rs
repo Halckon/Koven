@@ -9,7 +9,7 @@ use crate::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
-    parser::{Expression, FunctionBody, FunctionForm, Item, LiteralKind, ParsedFile, Statement},
+    parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionCategory, ExpressionUse,
@@ -23,6 +23,7 @@ mod assignment;
 mod bindings;
 mod calls;
 mod construction;
+mod container;
 mod control;
 mod copyability;
 mod destructuring;
@@ -470,9 +471,6 @@ impl<'a> BodyChecker<'a> {
                     )?,
                 }
             }
-            Expression::Literal(LiteralKind::Null) => {
-                return Err(CompilationUnitTypeError::UnsupportedBody(span));
-            }
             Expression::Literal(literal) => ExpressionCheck {
                 ty: self.literal_type(span, literal, expected, expected_span, false)?,
                 falls_through: true,
@@ -497,7 +495,7 @@ impl<'a> BodyChecker<'a> {
                 type_arguments,
                 arguments,
                 ..
-            } => match self.check_source_construction_call(
+            } => match self.check_intrinsic_container_call(
                 source,
                 expression,
                 span,
@@ -509,14 +507,27 @@ impl<'a> BodyChecker<'a> {
                 return_type,
             )? {
                 Some(result) => result,
-                None => self.check_call(
+                None => match self.check_source_construction_call(
                     source,
                     expression,
+                    span,
                     callee,
                     &type_arguments,
                     &arguments,
+                    expected,
+                    expected_span,
                     return_type,
-                )?,
+                )? {
+                    Some(result) => result,
+                    None => self.check_call(
+                        source,
+                        expression,
+                        callee,
+                        &type_arguments,
+                        &arguments,
+                        return_type,
+                    )?,
+                },
             },
             Expression::Return {
                 keyword_span,
