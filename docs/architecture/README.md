@@ -844,6 +844,17 @@ SPEC-0197 第一阶段新增纯内存的
   Deferred recovery，且不发布伪 Rc operation/element-place descriptor。这些事实不引入 v0.35 nullable
   ownership，也不启用 v0.36 ConstValue/evaluator。
 
+## Compilation-unit ownership
+
+SPEC-0198 第一切片已建立与单文件 `OwnershipCheckedFile` 并行的
+`CompilationUnitOwnership` recovery product：入口只接受 SPEC-0197 的 validated typed unit，并
+重新核对 source inputs、validated names 与 `TypeEnvironment` 身份链；产物
+另持有 typed-analysis owner，混用同结构但不同分析的 names/types、重复 source input 或 foreign
+environment 会在所有权遍历前失败。当前已按 `UnitSymbolId` 稳定排序发布顶层、instance member、
+companion member 与 expected lambda 参数的 Owned/Shared/Exclusive binding capability，并保留参数
+声明范围供后续跨文件诊断引用。call loan、Value delivery、move/drop/capture 与诊断尚未接入，因此
+本产物仍是 SPEC-0198 的中间 recovery product，不发布 validated view，也不是完整 codegen input。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

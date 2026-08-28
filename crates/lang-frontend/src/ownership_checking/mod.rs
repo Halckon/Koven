@@ -2,6 +2,7 @@
 
 mod capture;
 mod checker;
+mod compilation_unit;
 mod construction;
 mod error;
 mod model;
@@ -12,6 +13,9 @@ use crate::{
     type_checking::TypedFile,
 };
 
+pub use compilation_unit::{
+    CompilationUnitOwnership, UnitOwnershipBindingDescriptor, check_compilation_unit_ownership,
+};
 pub use construction::{
     ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,
     ConstructionRootDropObligation, ConstructionRootKind,

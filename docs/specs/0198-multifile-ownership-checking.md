@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P3-198` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 v0.32 §32 |
-| 批准依据 | 无；等待前置 SPEC-0197 |
-| 前置 Spec | SPEC-0029、0030、0032 `done`；SPEC-0197 待完成 |
+| 批准依据 | 2026-08-27 当前持续 Goal 授权先审计 roadmap、再按依赖图推进已完成审计的 Spec |
+| 前置 Spec | SPEC-0029、0030、0032、0197 `done` |
 | 前置 ADR | ADR-0020 `accepted` |
-| 阻塞项 | SPEC-0197 `done` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` compilation-unit ownership products、fixtures；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -52,6 +52,10 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 ## 7. 实施计划
 
 1. [ ] 建立 unit ownership driver 与跨文件 callable facts → 验证：mode/loan 正反矩阵。
+   - [x] 建立 source-qualified recovery product、typed-analysis provenance 与 mixed-input 门禁，
+     并发布顶层/member/companion/lambda 参数的 Owned/Shared/Exclusive binding 能力；完整 checker
+     闭环前不发布 validated/codegen gate。
+   - [ ] 消费 unit call descriptor，建立跨文件 Borrow/Inout loan 与 Value delivery facts。
 2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
    既有 ownership suite。
 3. [ ] 同步 Architecture 并跑 workspace 基线。
@@ -71,3 +75,16 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 roadmap 审计 | 通过 | 补齐 type facts 与 backend 之间缺失的 Phase 3 层 |
+| 2026-08-29 实施前审计 | 通过 | SPEC-0029/0030/0032/0197 done、ADR-0020 accepted；旧 checker 使用 file-local identity，第一切片须先建立 source-qualified product/provenance，再接跨文件 callable mode/loan |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 通过 | 2 tests；source-qualified 顶层/member/companion/lambda binding modes、声明范围、input permutation、mixed-analysis 与 duplicate-input 门禁 |
+| `cargo clippy -p lang-frontend --test multifile_ownership_checking --locked --offline -- -D warnings` | 通过 | 第一切片 product/provenance/binding API 与集成测试无 warning |
+| `cargo fmt --all -- --check` | 通过 | 第一切片最终源码与文档状态 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | frontend 全 target 无 warning |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 48 tests |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --test ownership_checking --test ownership_closures --test ownership_construction --test ownership_containers --test ownership_rc --test ownership_structural --locked --offline` | 通过 | 54 tests；第一切片与全部既有 Phase 3 所有权集成回归 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | workspace 跨 crate 编译兼容 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | 252 passed、1 ignored；ignored 为既有 LLDB task-port 权限用例 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | CLI dev build |
+| `git diff --check` | 通过 | 最终第一切片无空白错误 |
+| 独立复审 | 通过 | 原 Low（signature locator/重复 binding 静默覆盖）已修复并复审；最终无 High/Medium/Low |
+| Tier 3 判定 | 未触发 | 当前是 SPEC-0198 中间切片，未改通用 parser/harness、共享依赖或未知公共下游；按根 `AGENTS.md` §9 以 Tier 2 作为提交门禁 |

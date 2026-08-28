@@ -476,6 +476,10 @@ impl CompilationUnitTypes {
         )
     }
 
+    pub(crate) const fn analysis_owner(&self) -> &Arc<()> {
+        &self.provenance.analysis_owner
+    }
+
     /// 返回 body 阶段沿用的 unit-wide signatures。
     #[must_use]
     pub const fn signatures(&self) -> &CompilationUnitSignatures {

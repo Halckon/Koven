@@ -329,7 +329,7 @@ Spec 之前，本条限制不变。）
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025/0197 已完成，下一节点 SPEC-0198 已解除前置门禁；0199/0187 仍等待各自前置 Spec。
+其中 SPEC-0025/0197 已完成，SPEC-0198 已进入实施；0199/0187 仍等待各自前置 Spec。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -372,9 +372,11 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       Value operand 的 copy/move、构造 temporary owner、ASAP drop，发布有序 delivery effects
       与 root drop obligation；不在 Phase 3 重新选择 constructor、推导类型实参或制造逐字段
       source DropFact
-- [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（draft）**：在 SPEC-0197
+- [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（in-progress）**：在 SPEC-0197
       后消费完整 typed unit，发布跨文件 call/constructor 的 loan、move、drop 与 capture facts；
-      body 数据流仍保持局部，不新增跨过程所有权分析；SPEC-0197 已完成，当前为下一实施节点。
+      body 数据流仍保持局部，不新增跨过程所有权分析；已建立 unit recovery product、
+      typed-analysis provenance 与顶层/member/companion/lambda 参数 binding capability，call loan、
+      move/drop/capture 继续按本 Spec 接入。
 - [ ] **[SPEC-0203](../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查

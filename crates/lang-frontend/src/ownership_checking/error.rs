@@ -15,6 +15,22 @@ pub enum OwnershipCheckingError {
     MismatchedTypedSource,
     /// NameResolution 与 TypedFile 不属于同一分析身份链。
     MismatchedAnalysisIdentity,
+    /// validated compilation-unit typed product 与 source/name/environment 输入不属于同一分析链。
+    MismatchedCompilationUnitTypes,
+    /// validated unit names 中的 source-qualified symbol locator 违反内部不变量。
+    InvalidUnitSymbol {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 symbol 下标。
+        symbol: usize,
+    },
+    /// validated typed unit 中重复发布同一个 source-qualified 参数 binding。
+    DuplicateUnitBinding {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 symbol 下标。
+        symbol: usize,
+    },
     /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
     InvalidConstructionDescriptor {
         /// 无效 descriptor 的 expression arena 下标。
@@ -42,6 +58,23 @@ impl fmt::Display for OwnershipCheckingError {
             Self::MismatchedAnalysisIdentity => {
                 formatter.write_str("name and typed files belong to different analyses")
             }
+            Self::MismatchedCompilationUnitTypes => formatter.write_str(
+                "compilation-unit types belong to different source, name, or environment inputs",
+            ),
+            Self::InvalidUnitSymbol {
+                source_unit,
+                symbol,
+            } => write!(
+                formatter,
+                "invalid compilation-unit symbol locator {source_unit}:{symbol}"
+            ),
+            Self::DuplicateUnitBinding {
+                source_unit,
+                symbol,
+            } => write!(
+                formatter,
+                "duplicate compilation-unit ownership binding {source_unit}:{symbol}"
+            ),
             Self::InvalidConstructionDescriptor { expression } => {
                 write!(
                     formatter,
@@ -68,6 +101,9 @@ impl Error for OwnershipCheckingError {
             Self::MismatchedNameSource
             | Self::MismatchedTypedSource
             | Self::MismatchedAnalysisIdentity
+            | Self::MismatchedCompilationUnitTypes
+            | Self::InvalidUnitSymbol { .. }
+            | Self::DuplicateUnitBinding { .. }
             | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }
