@@ -197,8 +197,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   `for` binding；SPEC-0197 已建立 compilation-unit 类型身份、完整 signature graph，并接通
   callable/local/operator/if/type-test/assignment/destructuring/when/loop/lambda/overload-lambda trial、
   body-local 泛型 TypeRef、source 泛型调用、external/function-value call 与 source/intrinsic
-  construction facts，以及 source member body/call/field/structural-component projection；intrinsic
-  Rc/container operation 与一般 nullable body 语义仍在实施；
+  construction facts、source member body/call/field/structural-component projection，以及 non-nullable
+  intrinsic Rc `.value`/`.share()` operation facts；container operation 与一般 nullable body 语义仍在实施；
 - `lang_frontend::type_checking` 已提供与名称环境身份绑定的显式 `TypeEnvironment`、确定性
   `TypeId` / `NominalId` / typed 产物、builtin / nullable / function / nominal / type-parameter
   类型、泛型替换、interface closure、member contract、override/default 冲突与窄化委托计划，
@@ -793,7 +793,13 @@ SPEC-0197 第一阶段新增纯内存的
   `private` 以 lexical owner 检查（含 safe/nullable recovery），owner-dependent generic bound 与
   alpha-equivalent override shape 保持实例语义；L0084/L0113、输入置换与失败 trial 回滚保持单文件
   语义。本切片只实现现行 v0.32 隐式 receiver，不启用候选 v0.34 receiver mode；
-- top-level variable/const initializer、intrinsic Rc/container member 与
+- 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
+  `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
+  compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为
+  temporary，错误 type argument/argument mapping 不发布 partial fact，overload-lambda trial 与输入
+  置换保持原子/确定。payload 内递归 `Error` / `Deferred` 不发布可验证 operation；源码同名 `Rc`
+  仍走 nominal/member identity，safe/nullable Rc 不在本切片内；
+- top-level variable/const initializer、intrinsic container member 与
   container construction/index/operation、null literal /
   null-comparison 与其余 nullable control 等
   尚未接入本 unit checker。production driver 对这些合法但

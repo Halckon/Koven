@@ -155,7 +155,12 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      `componentN()` 均发布 source-qualified symbol/call/projection facts；owner-dependent generic bound、
      alpha-equivalent override shape、safe/nullable private recovery 与 overload-lambda trial 原子回滚，
      输入置换保持 facts/diagnostics 稳定，不引入候选 v0.34 receiver mode。
-   - [ ] 接完 intrinsic Rc/container operation、container index/construction、null literal/
+   - [x] 接通 non-nullable intrinsic `Rc<T>` member operation：`.value` 发布 payload Borrow place，
+     零参数 `.share()` 发布新 Value temporary；descriptor 保留 source-qualified expression/receiver、
+     unit-global payload type 与 compiler-bound kind/result mode。L0091/L0121 失败、nested operand、
+     overload-lambda trial、源码同名 `Rc` 与输入置换均不泄漏或混淆 intrinsic facts；payload
+     内递归 `Error` / `Deferred` 与 safe/nullable Rc 均保持 fail-loud 的未覆盖边界。
+   - [ ] 接完 container operation、container index/construction、null literal/
      null-comparison 等剩余现有单文件 body
      语义；在此之前 production driver 对未覆盖合法节点显式
      返回 `UnsupportedBody`，不得发布伪完整 validated product。
@@ -244,3 +249,9 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-member-target cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 编译兼容性通过 |
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-member-target cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored；frontend 48、CLI 36、LSP 11、std 1 通过 |
 | `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-member-target cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次是 SPEC-0197 中间提交，未修改通用 Parser/Lexer/harness 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo test -p lang-frontend --test multifile_type_checking --test type_callable --test type_checking --test type_copyability --test type_containers --locked --offline` | 通过 | 137 tests；Rc value/share descriptor、Borrow/Value result、place/temporary、source identity、L0091/L0121 recovery、nested operand 与递归 poison fail-loud、safe/nullable boundary、trial rollback、源码同名隔离、输入置换及单文件回归 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo test -p lang-frontend --lib --locked --offline` | 通过 | 48 tests；body model/provenance、trial/parser 与通用 frontend 单元基线通过 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | unit Rc operation model/checker 与全部 frontend targets 无 warning |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 编译兼容性通过 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo test --workspace --lib --bins --locked --offline` | 通过 | Tier 2 库/二进制基线通过；codegen 156 passed、1 个既有 LLDB 权限测试 ignored；frontend 48、CLI 36、LSP 11、std 1 通过 |
+| `CARGO_TARGET_DIR=/private/tmp/koven-spec0197-rc-target cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |

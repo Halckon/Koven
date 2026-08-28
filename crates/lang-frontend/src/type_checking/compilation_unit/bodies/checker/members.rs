@@ -187,6 +187,19 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
+        if let Some(ty) = self.rc_member_type(
+            source,
+            expression,
+            receiver,
+            receiver_result.ty,
+            name_span,
+            safe,
+        )? {
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: receiver_result.falls_through,
+            });
+        }
         if matches!(
             self.signatures.types().get(receiver_result.ty),
             Some(UnitTypeKind::Intrinsic { .. })

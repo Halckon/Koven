@@ -31,6 +31,7 @@ mod lambda;
 mod literals;
 mod members;
 mod operators;
+mod rc;
 mod trial;
 mod type_refs;
 mod when;

@@ -14,10 +14,10 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, CompilationUnitTypes, DeferredReason, DestructuringMode, EnvironmentFunction,
         EnvironmentFunctionEffect, EnvironmentParameter, EnvironmentType, ExpressionCategory,
-        IntrinsicTypeConstructor, ParameterMode, TypeEnvironment, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
-        UnitStatementId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
-        standard_environments,
+        IntrinsicTypeConstructor, ParameterMode, RcOperationKind, TypeEnvironment,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallTarget,
+        UnitConstructionTarget, UnitExpressionId, UnitStatementId, UnitTypeKind, UnitTypeRefId,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -486,7 +486,7 @@ fn source_box_and_rc_names_never_gain_unit_intrinsic_identity() {
         "models.ko",
         "package p\n\
          class Box(val item: Int)\n\
-         class Rc(val item: Int)",
+         class Rc(val item: Int) { fun share(): Rc = this }",
     );
     let (uses_source, uses) = parsed(
         &mut sources,
@@ -495,6 +495,7 @@ fn source_box_and_rc_names_never_gain_unit_intrinsic_identity() {
          fun values(): Unit {\n\
              val boxed = Box(1)\n\
              val counted = Rc(2)\n\
+             val retained = counted.share()\n\
          }",
     );
     let inputs = [
@@ -523,6 +524,15 @@ fn source_box_and_rc_names_never_gain_unit_intrinsic_identity() {
             .parameter_symbol()
             .is_some_and(|symbol| symbol.source_unit() == source_unit(&names, models_source))
     }));
+    assert!(typed.rc_operations().is_empty());
+    assert_eq!(
+        typed
+            .calls()
+            .iter()
+            .filter(|call| matches!(call.target(), UnitCallTarget::Symbol(_)))
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -3922,22 +3932,150 @@ fn member_visibility_shapes_and_owner_dependent_bounds_are_preserved() {
 }
 
 #[test]
-fn intrinsic_member_operations_remain_fail_loud_until_their_unit_facts_exist() {
+fn intrinsic_rc_members_publish_unit_operations_and_trial_facts() {
+    let mut sources = SourceMap::new();
+    let (models_source, models) = parsed(
+        &mut sources,
+        "models.ko",
+        "package p\n\
+         class Resource\n\
+         fun inspect(resource: Resource): Unit {}\n\
+         fun choose(callback: (Int) -> Int): Int = 1\n\
+         fun choose(callback: (String) -> String): String = \"text\"",
+    );
+    let (uses_source, uses) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\n\
+         fun read(shared: Rc<Int>): Int = shared.value\n\
+         fun retain(shared: Rc<Int>): Rc<Int> = shared.share()\n\
+         fun borrowPayload(shared: Rc<Resource>): Unit = inspect(shared.value)\n\
+         fun selected(shared: Rc<Int>): Int = choose({ ignored -> shared.value })",
+    );
+    let forward_inputs = [
+        SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
+        SourceUnitInput::new("root", "p/models.ko", models_source, &models),
+    ];
+    let reverse_inputs = [forward_inputs[1], forward_inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let forward_names = validated_names(&sources, &forward_inputs, &name_environment);
+    let reverse_names = validated_names(&sources, &reverse_inputs, &name_environment);
+    let forward =
+        check_compilation_unit_types(&sources, &forward_inputs, &forward_names, &type_environment)
+            .expect("intrinsic Rc member operations are supported");
+    let reverse =
+        check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
+            .expect("reversed intrinsic Rc member operations are supported");
+
+    assert!(
+        forward.diagnostics().is_empty(),
+        "{:?}",
+        forward.diagnostics()
+    );
+    assert_eq!(forward.expression_types(), reverse.expression_types());
+    assert_eq!(forward.rc_operations(), reverse.rc_operations());
+    assert_eq!(forward.rc_operations().len(), 4);
+    assert_eq!(
+        forward
+            .rc_operations()
+            .iter()
+            .filter(|operation| operation.kind() == RcOperationKind::Value)
+            .count(),
+        3
+    );
+    assert_eq!(
+        forward
+            .rc_operations()
+            .iter()
+            .filter(|operation| operation.kind() == RcOperationKind::Share)
+            .count(),
+        1
+    );
+    for operation in forward.rc_operations() {
+        assert_eq!(
+            forward.expression_category(operation.expression()),
+            Some(match operation.kind() {
+                RcOperationKind::Share => ExpressionCategory::Temporary,
+                RcOperationKind::Value => ExpressionCategory::Place,
+            })
+        );
+        assert_eq!(
+            operation.expression().source_unit(),
+            operation.receiver().source_unit()
+        );
+    }
+    assert!(forward.validate().is_ok());
+}
+
+#[test]
+fn invalid_intrinsic_rc_share_calls_publish_no_partial_operation() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "invalid-rc.ko",
+        "fun badType(shared: Rc<Int>): Rc<Int> = shared.share<String>()\n\
+         fun badArgument(shared: Rc<Int>): Rc<Int> = shared.share(1)",
+    );
+    let inputs = [SourceUnitInput::new("root", "invalid-rc.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("invalid Rc calls stay in the recovery product");
+
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0091", "L0121"]
+    );
+    assert!(typed.rc_operations().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn invalid_intrinsic_rc_share_traverses_nested_operands_fail_loud() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "nested-rc.ko",
+        "fun bad(shared: Rc<Int>): Rc<Int> = shared.share(arrayOf<Int>(1))",
+    );
+    let inputs = [SourceUnitInput::new("root", "nested-rc.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect_err("nested unsupported operands must remain fail-loud");
+    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
+    else {
+        panic!("expected UnsupportedBody, got {error:?}");
+    };
+    assert_eq!(sources.slice(span), Ok("arrayOf"));
+}
+
+#[test]
+fn safe_and_nullable_intrinsic_rc_members_remain_fail_loud() {
     for (name, text, expected) in [
         (
-            "p/rc-value.ko",
-            "package p\nfun read(shared: Rc<Int>): Int = shared.value",
+            "safe-value.ko",
+            "fun bad(shared: Rc<Int>): Int = shared?.value",
             "value",
         ),
         (
-            "p/rc-share.ko",
-            "package p\nfun clone(shared: Rc<Int>): Rc<Int> = shared.share()",
+            "nullable-value.ko",
+            "fun bad(shared: Rc<Int>?): Int = shared?.value",
+            "value",
+        ),
+        (
+            "safe-share.ko",
+            "fun bad(shared: Rc<Int>): Rc<Int> = shared?.share()",
             "share",
         ),
         (
-            "p/list-size.ko",
-            "package p\nfun size(items: List<Int>): Int = items.size",
-            "size",
+            "nullable-share.ko",
+            "fun bad(shared: Rc<Int>?): Rc<Int>? = shared?.share()",
+            "share",
         ),
     ] {
         let mut sources = SourceMap::new();
@@ -3946,11 +4084,68 @@ fn intrinsic_member_operations_remain_fail_loud_until_their_unit_facts_exist() {
         let (name_environment, type_environment) = standard_environments();
         let names = validated_names(&sources, &inputs, &name_environment);
         let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect_err("unimplemented intrinsic members must not publish a validated unit");
+            .expect_err("safe/nullable Rc members must not validate as deferred facts");
         let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
         else {
             panic!("expected UnsupportedBody, got {error:?}");
         };
         assert_eq!(sources.slice(span), Ok(expected));
     }
+}
+
+#[test]
+fn poisoned_intrinsic_rc_payloads_remain_fail_loud() {
+    for (name, text, expected) in [
+        (
+            "poisoned-value.ko",
+            "fun bad(shared: Rc<List<Opaque>>): List<Opaque> = shared.value",
+            "value",
+        ),
+        (
+            "poisoned-share.ko",
+            "fun bad(shared: Rc<List<Opaque>>): Rc<List<Opaque>> = shared.share()",
+            "share",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, name, text);
+        let inputs = [SourceUnitInput::new("root", name, source, &file)];
+        let (mut name_environment, type_environment) = standard_environments();
+        name_environment
+            .declare_type("Opaque")
+            .expect("external type name is unique");
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect_err("nested Error payloads must not publish validated Rc operations");
+        let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
+        else {
+            panic!("expected UnsupportedBody, got {error:?}");
+        };
+        assert_eq!(sources.slice(span), Ok(expected));
+    }
+}
+
+#[test]
+fn container_member_operations_remain_fail_loud_until_unit_facts_exist() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "p/list-size.ko",
+        "package p\nfun size(items: List<Int>): Int = items.size",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/list-size.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let error = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect_err("unimplemented intrinsic members must not publish a validated unit");
+    let lang_frontend::type_checking::CompilationUnitTypeError::UnsupportedBody(span) = error
+    else {
+        panic!("expected UnsupportedBody, got {error:?}");
+    };
+    assert_eq!(sources.slice(span), Ok("size"));
 }

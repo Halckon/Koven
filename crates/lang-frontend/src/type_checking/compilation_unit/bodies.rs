@@ -17,9 +17,11 @@ use super::{
 
 mod checker;
 mod projection;
+mod rc;
 
 pub use checker::check_compilation_unit_types;
 pub use projection::*;
+pub use rc::*;
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -384,6 +386,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
+    pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -408,6 +411,7 @@ pub struct CompilationUnitTypes {
     aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
+    rc_operations: Vec<UnitRcOperationDescriptor>,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -434,6 +438,7 @@ impl CompilationUnitTypes {
             aggregate_projections: parts.aggregate_projections,
             constructions: parts.constructions,
             destructurings: parts.destructurings,
+            rc_operations: parts.rc_operations,
             body_diagnostics,
             diagnostics,
         }
@@ -521,6 +526,21 @@ impl CompilationUnitTypes {
             .iter()
             .copied()
             .find(|projection| projection.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的 intrinsic `Rc<T>` operation facts。
+    #[must_use]
+    pub fn rc_operations(&self) -> &[UnitRcOperationDescriptor] {
+        &self.rc_operations
+    }
+
+    /// 查询指定 source-qualified expression 的 intrinsic `Rc<T>` operation。
+    #[must_use]
+    pub fn rc_operation(&self, expression: UnitExpressionId) -> Option<UnitRcOperationDescriptor> {
+        self.rc_operations
+            .iter()
+            .copied()
+            .find(|operation| operation.expression() == expression)
     }
 
     /// 返回源码稳定顺序的成功 construction facts。

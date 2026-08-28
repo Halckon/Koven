@@ -657,7 +657,7 @@ impl BodyChecker<'_> {
         Ok(None)
     }
 
-    fn construction_type_contains_poison(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn construction_type_contains_poison(&self, ty: UnitTypeId) -> bool {
         fn contains(
             checker: &BodyChecker<'_>,
             ty: UnitTypeId,

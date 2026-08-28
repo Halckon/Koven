@@ -9,7 +9,8 @@
 SPEC-0025 已完成，SPEC-0197 已完成 signature 与
 callable/local/operator/if/type-test smart-cast/assignment/destructuring/when/loop-jump/lambda/
 overload-lambda trial/generic TypeRef/generic source call/external/function-value call，以及 source
-nominal/enum、intrinsic Box/Rc construction 与 source member body/call/projection 切片并继续实施，
+nominal/enum、intrinsic Box/Rc construction、source member body/call/projection 与 intrinsic Rc
+member operation 切片并继续实施，
 之后按 0198→{0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 

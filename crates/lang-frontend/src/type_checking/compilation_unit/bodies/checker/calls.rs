@@ -93,6 +93,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_rc_share_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         let callee_payload = self
             .file(source)
             .ast()
@@ -481,7 +492,7 @@ impl BodyChecker<'_> {
         }
     }
 
-    fn check_call_arguments_without_expected(
+    pub(super) fn check_call_arguments_without_expected(
         &mut self,
         source: SourceUnitId,
         arguments: &[CallArgument],
