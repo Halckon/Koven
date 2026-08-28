@@ -34,6 +34,7 @@ mod literals;
 mod members;
 mod nullable;
 mod operators;
+mod postfix;
 mod rc;
 mod top_level;
 mod trial;
@@ -566,7 +567,18 @@ impl<'a> BodyChecker<'a> {
                 operator,
                 operator_span,
                 right,
-            } => self.check_binary(source, left, operator, operator_span, right, return_type)?,
+            } => self.check_binary(
+                source,
+                operators::BinaryExpression {
+                    left,
+                    operator,
+                    operator_span,
+                    right,
+                },
+                expected,
+                expected_span,
+                return_type,
+            )?,
             Expression::If {
                 condition,
                 then_branch,
@@ -618,6 +630,24 @@ impl<'a> BodyChecker<'a> {
                 type_ref,
                 ..
             } => self.check_type_test(source, expression, operator_span, type_ref, return_type)?,
+            Expression::SuperMember { interface, .. } => {
+                self.check_super_member(source, interface)?
+            }
+            Expression::NonNullAssert {
+                operand,
+                operator_span,
+            } => self.check_non_null_assert(source, operand, operator_span, return_type)?,
+            Expression::Cast {
+                expression,
+                type_ref,
+                ..
+            } => self.check_cast(source, expression, type_ref, return_type)?,
+            Expression::Propagate { value, .. } => {
+                self.check_propagate(source, value, return_type)?
+            }
+            Expression::CallableReference { receiver, .. } => {
+                self.check_callable_reference(source, receiver, return_type)?
+            }
             Expression::Assignment {
                 target,
                 operator,
@@ -629,7 +659,6 @@ impl<'a> BodyChecker<'a> {
             Expression::Index { receiver, index } => {
                 self.check_container_index(source, expression, receiver, index, return_type)?
             }
-            _ => return Err(CompilationUnitTypeError::UnsupportedBody(span)),
         };
         if let Some(expected) = expected
             && !self.assignable(result.ty, expected)

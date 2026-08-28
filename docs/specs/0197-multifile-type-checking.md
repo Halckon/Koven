@@ -180,10 +180,13 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
      signature 阶段的 `ForwardValueType`。已标注前向引用、跨文件调用方、L0084/L0086 recovery 与输入
      置换保持单文件语义；较早读取尚未检查的无标注顶层值仍保留 `Deferred(ForwardValueType)`，不从
      后续使用反推。`const val` 在本节点仍是普通 typed initializer，不启用 v0.36 evaluator/ConstValue。
-   - [ ] 接完 `super<Interface>.member`、Elvis/
-     range/`to`/`in`、基础 `!!`/cast、postfix `?` 与 callable reference 等剩余现有单文件 body 边界；
-     不得借此启用 v0.35 的 nullable remaining-domain/Copy-Consume descriptor。完成前 production driver
-     对未覆盖合法节点显式返回 `UnsupportedBody`，不得发布伪完整 validated product。
+   - [x] 接通剩余现行 expression-tail traversal：`super<Interface>.member` 使用 static TypeRef use，
+     Elvis 保留 nullable inner/`Nothing` join，range/`to`/`in`、cast、postfix `?` 与 callable reference
+     保留单文件既有专用 Deferred reason，基础 `!!` 只抽取 nullable inner 并复用 L0085。所有 child
+     仍完整检查并发布 source-qualified facts；普通 nullable Elvis 的非空路径可绕过右侧，`Nothing?`
+     沿右侧 fallthrough，cast/propagate/bound callable reference 继承 child fallthrough。输入置换保持稳定；不启用 v0.35 的 nullable
+     remaining-domain 或 `!!` Copy/Consume descriptor。Expression variant dispatch 现为穷尽匹配，
+     后续新增 AST variant 将在编译期显式暴露，而不是落入伪成功兜底。
 4. [x] 同步 Architecture 并跑 workspace 基线。
 
 ## 8. 提交计划
@@ -304,3 +307,8 @@ typed facts、本阶段 diagnostics 与 validated gate；不在类型阶段重�
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 顶层 initializer checker、callable return boundary、测试与全部 frontend targets 无 warning |
 | `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
 | `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次为 SPEC-0197 中间提交，未修改 Parser/Lexer/harness/shared dependency 且定向套件无非局部失败，按 §9 未触发约 50 分钟 Tier 3 |
+| `cargo test -p lang-frontend --test multifile_type_checking --test type_checking --test type_callable --test type_containers --test type_copyability --locked --offline` | 通过 | 159 tests；expression-tail static TypeRef、专用 Deferred、nullable/`Nothing?` 与 child fallthrough、L0085 recovery、source-qualified child facts、输入置换及单文件 callable/type/container/copyability 回归 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | expression-tail checker、穷尽 AST dispatch、测试与全部 frontend targets 无 warning |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | Tier 2 workspace 全 target 编译兼容性通过 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | frontend 48、CLI 36、codegen 156、LSP 11、std 1，共 252 passed；1 个既有 LLDB task-port 权限测试 ignored |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 用户入口 `kovenc` 可构建；本次仍是 SPEC-0197 完成审计前的中间提交，未修改 Parser/Lexer/harness/shared dependency，按 §9 未触发约 50 分钟 Tier 3 |

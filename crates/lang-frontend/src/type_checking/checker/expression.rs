@@ -126,7 +126,7 @@ impl Checker<'_> {
                 "continue is not inside an enclosing loop in this callable",
             )?,
             Expression::SuperMember { interface, .. } => {
-                self.resolve_type_ref(interface)?;
+                self.resolve_static_type_ref(interface)?;
                 ExprCheck {
                     ty: self.deferred(DeferredReason::MemberAccess),
                     falls_through: true,
@@ -178,11 +178,11 @@ impl Checker<'_> {
                 type_ref,
                 ..
             } => {
-                self.check_expression(expression, None, None)?;
+                let expression = self.check_expression(expression, None, None)?;
                 self.resolve_type_ref(type_ref)?;
                 ExprCheck {
                     ty: self.deferred(DeferredReason::CastOrTypeTest),
-                    falls_through: true,
+                    falls_through: expression.falls_through,
                 }
             }
             Expression::TypeTest {
@@ -252,19 +252,20 @@ impl Checker<'_> {
                 self.check_container_index(id, receiver, index)?
             }
             Expression::Propagate { value, .. } => {
-                self.check_expression(value, None, None)?;
+                let value = self.check_expression(value, None, None)?;
                 ExprCheck {
                     ty: self.deferred(DeferredReason::ErrorPropagation),
-                    falls_through: true,
+                    falls_through: value.falls_through,
                 }
             }
             Expression::CallableReference { receiver, .. } => {
-                if let Some(receiver) = receiver {
-                    self.check_expression(receiver, None, None)?;
-                }
+                let falls_through = match receiver {
+                    Some(receiver) => self.check_expression(receiver, None, None)?.falls_through,
+                    None => true,
+                };
                 ExprCheck {
                     ty: self.deferred(DeferredReason::OverloadSelection),
-                    falls_through: true,
+                    falls_through,
                 }
             }
         };
@@ -959,9 +960,13 @@ impl Checker<'_> {
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
         let left_result = self.check_expression(left, None, None)?;
-        let inner = match self.kind(left_result.ty) {
-            TypeKind::Nullable(inner) => Some(*inner),
-            TypeKind::Error | TypeKind::Deferred(_) => None,
+        let (inner, left_can_bypass_right) = match self.kind(left_result.ty) {
+            TypeKind::Nullable(inner) => (
+                Some(*inner),
+                !matches!(self.kind(*inner), TypeKind::Builtin(BuiltinType::Nothing)),
+            ),
+            TypeKind::Error => (None, false),
+            TypeKind::Deferred(_) => (None, true),
             _ => {
                 let right_result = self.check_expression(right, expected, expected_span)?;
                 self.emit_binary_operand_error(
@@ -973,7 +978,7 @@ impl Checker<'_> {
                 )?;
                 return Ok(ExprCheck {
                     ty: self.error_type(),
-                    falls_through: true,
+                    falls_through: left_result.falls_through,
                 });
             }
         };
@@ -992,7 +997,8 @@ impl Checker<'_> {
         };
         Ok(ExprCheck {
             ty,
-            falls_through: left_result.falls_through && right_result.falls_through,
+            falls_through: left_result.falls_through
+                && (left_can_bypass_right || right_result.falls_through),
         })
     }
 

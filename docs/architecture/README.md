@@ -829,11 +829,13 @@ SPEC-0197 第一阶段新增纯内存的
   已标注前向引用可直接读取 signature；较早读取尚未检查的无标注值继续保留单文件
   `Deferred(ForwardValueType)` 边界。文件 initializer 的 `return` 使用 L0086，错误不阻止独立后续
   declaration；`const val` 不产生候选 v0.36 evaluator/ConstValue；
-- `super<Interface>.member`、Elvis/range/`to`/
-  `in`、基础 `!!`/cast、postfix `?`、callable reference 与其余 nullable control 等
-  尚未接入本 unit checker。production driver 对这些合法但
-  未覆盖的可执行节点显式返回 `UnsupportedBody`，不会以空 facts 伪造成功；这些仍属于 SPEC-0197
-  后续 body 子切片，当前基础 validated typed unit 只对已封闭支持域成立。
+- 第二十二个 body 切片接通现行 expression-tail traversal：`super<Interface>.member` 的接口 TypeRef
+  使用 static use，不再误报 runtime-interface L0094；Elvis 复用 nullable inner/`Nothing` join 与
+  L0085，range/`to`/`in`、cast、postfix `?`、callable reference 保留单文件既有专用 Deferred reason，
+  基础 `!!` 抽取 nullable inner。普通 nullable Elvis 的非空路径可绕过右侧，`Nothing?` 则沿右侧
+  fallthrough；cast、postfix `?` 与 bound callable reference 继承 child fallthrough。全部 child
+  expression 与 TypeRef 仍发布 source-qualified facts，输入置换保持稳定；expression variant dispatch
+  已是穷尽匹配。v0.35 的 nullable remaining-domain、`!!` Copy/Consume descriptor 与其余候选能力仍未启用。
 
 ## 结构化诊断与 renderer
 

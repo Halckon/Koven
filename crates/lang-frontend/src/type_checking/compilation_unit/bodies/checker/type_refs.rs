@@ -21,6 +21,7 @@ use super::{BodyChecker, copyability::UnitTransferability};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BodyTypeUse {
     Runtime,
+    Static,
     TypeTest,
 }
 
@@ -32,6 +33,15 @@ impl BodyChecker<'_> {
         id: TypeRefId,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
         self.resolve_body_type_ref_for(source, id, BodyTypeUse::TypeTest)
+    }
+
+    /// 解析 `super<Interface>` 等不产生运行时 interface value 的静态类型位置。
+    pub(super) fn resolve_static_body_type_ref(
+        &mut self,
+        source: SourceUnitId,
+        id: TypeRefId,
+    ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        self.resolve_body_type_ref_for(source, id, BodyTypeUse::Static)
     }
 
     /// 解析 body-local 标注及其泛型实参，并把结果写回 source-qualified facts。

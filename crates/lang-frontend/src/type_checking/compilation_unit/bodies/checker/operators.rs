@@ -10,6 +10,13 @@ use crate::{
 
 use super::{BodyChecker, ExpressionCheck, flow::extend_facts};
 
+pub(super) struct BinaryExpression {
+    pub(super) left: crate::ast::ExpressionId,
+    pub(super) operator: BinaryOperator,
+    pub(super) operator_span: Span,
+    pub(super) right: crate::ast::ExpressionId,
+}
+
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_prefix(
@@ -88,22 +95,27 @@ impl BodyChecker<'_> {
     pub(super) fn check_binary(
         &mut self,
         source: SourceUnitId,
-        left: crate::ast::ExpressionId,
-        operator: BinaryOperator,
-        operator_span: Span,
-        right: crate::ast::ExpressionId,
+        expression: BinaryExpression,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        if matches!(
+        let BinaryExpression {
+            left,
             operator,
-            BinaryOperator::InclusiveRange
-                | BinaryOperator::ExclusiveRange
-                | BinaryOperator::To
-                | BinaryOperator::Elvis
-                | BinaryOperator::In
-                | BinaryOperator::NotIn
-        ) {
-            return Err(CompilationUnitTypeError::UnsupportedBody(operator_span));
+            operator_span,
+            right,
+        } = expression;
+        if operator == BinaryOperator::Elvis {
+            return self.check_elvis(
+                source,
+                left,
+                operator_span,
+                right,
+                expected,
+                expected_span,
+                return_type,
+            );
         }
         if matches!(
             operator,
@@ -213,9 +225,11 @@ impl BodyChecker<'_> {
             BinaryOperator::InclusiveRange
             | BinaryOperator::ExclusiveRange
             | BinaryOperator::To
-            | BinaryOperator::Elvis
             | BinaryOperator::In
-            | BinaryOperator::NotIn => unreachable!("deferred operators are rejected above"),
+            | BinaryOperator::NotIn
+            | BinaryOperator::Elvis => {
+                Some(self.deferred_type(crate::type_checking::DeferredReason::Call))
+            }
         };
         let ty = if let Some(result) = result {
             result
@@ -235,6 +249,65 @@ impl BodyChecker<'_> {
         Ok(ExpressionCheck {
             ty,
             falls_through: left_result.falls_through && right_result.falls_through,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn check_elvis(
+        &mut self,
+        source: SourceUnitId,
+        left: crate::ast::ExpressionId,
+        operator_span: Span,
+        right: crate::ast::ExpressionId,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let left_result = self.check_expression(source, left, None, None, return_type)?;
+        let (inner, left_can_bypass_right) = match self.signatures.types().get(left_result.ty) {
+            Some(crate::type_checking::UnitTypeKind::Nullable(inner)) => {
+                (Some(*inner), !self.is_builtin(*inner, BuiltinType::Nothing))
+            }
+            Some(crate::type_checking::UnitTypeKind::Error) => (None, false),
+            Some(crate::type_checking::UnitTypeKind::Deferred(_)) => (None, true),
+            _ => {
+                let right_result =
+                    self.check_expression(source, right, expected, expected_span, return_type)?;
+                self.emit_binary_operand_error(
+                    source,
+                    operator_span,
+                    left,
+                    left_result.ty,
+                    right,
+                    right_result.ty,
+                )?;
+                return Ok(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through: left_result.falls_through,
+                });
+            }
+        };
+        let right_expected = inner.filter(|inner| !self.is_builtin(*inner, BuiltinType::Nothing));
+        let right_result = self.check_expression(
+            source,
+            right,
+            right_expected.or(expected),
+            expected_span,
+            return_type,
+        )?;
+        let ty = if let Some(inner) = inner {
+            if self.is_builtin(inner, BuiltinType::Nothing) {
+                right_result.ty
+            } else {
+                inner
+            }
+        } else {
+            self.deferred_type(crate::type_checking::DeferredReason::ControlJoin)
+        };
+        Ok(ExpressionCheck {
+            ty,
+            falls_through: left_result.falls_through
+                && (left_can_bypass_right || right_result.falls_through),
         })
     }
 

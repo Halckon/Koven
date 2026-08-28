@@ -3,7 +3,7 @@
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    parser::ParsedFile,
+    parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
         BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
@@ -1207,6 +1207,58 @@ fn abstract_requirements_accept_one_default_but_multiple_defaults_conflict() {
                 class Resolved : Left, Right { override fun ping(): Int = 3 }";
     let (_, _, _, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0102"]);
+}
+
+#[test]
+fn super_interface_member_uses_a_static_type_position() {
+    let text = "interface Left { fun ping(): Int = 1 }\n\
+                interface Right { fun ping(): Int = 2 }\n\
+                class Resolved : Left, Right {\n\
+                    override fun ping(): Int {\n\
+                        val left = super<Left>.ping()\n\
+                        val right = super<Right>.ping()\n\
+                        return left + right\n\
+                    }\n\
+                }";
+    let (_, parsed, _, typed) = checked(text);
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let super_members = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| match node.payload() {
+            Expression::SuperMember { interface, .. } => Some((id, *interface)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(super_members.len(), 2);
+    for (expression, interface) in super_members {
+        assert!(matches!(
+            typed
+                .expression_type(expression)
+                .and_then(|ty| typed.types().get(ty)),
+            Some(TypeKind::Deferred(DeferredReason::MemberAccess))
+        ));
+        assert!(matches!(
+            typed
+                .type_ref_type(interface)
+                .and_then(|ty| typed.types().get(ty)),
+            Some(TypeKind::Nominal { .. })
+        ));
+    }
+}
+
+#[test]
+fn expression_tail_fallthrough_preserves_nullable_and_diverging_paths() {
+    let text = "fun missing(input: Int?): Int { input ?: return 0 }\n\
+                fun closed(input: Nothing?): Int { input ?: return 0 }\n\
+                fun casted(): Int { (return 1) as Int }\n\
+                fun propagated(): Int { (return 1)? }\n\
+                fun referenced(): Int { (return 1)::next }";
+    let (_, _, _, typed) = checked(text);
+
+    assert_eq!(codes(typed.diagnostics()), ["L0088"]);
 }
 
 #[test]

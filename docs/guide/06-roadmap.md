@@ -312,8 +312,9 @@ Spec 之前，本条限制不变。）
       intrinsic construction、source member body/call/field/`componentN()` projection 与非 nullable
       intrinsic Rc `.value`/`.share()` operation、core container construction、container
       index/place/member/assignment、contextual null literal、null-comparison/non-null-use flow facts 与
-      String interpolation typed traversal、top-level variable/const initializer 已接通；下一阶段继续
-      接入其余现有单文件 body 边界。无标注前向值保持单文件 `ForwardValueType` 边界，const evaluator
+      String interpolation、top-level variable/const initializer 与现行 `super`/Elvis/range/`!!`/cast/
+      propagate/callable-reference typed traversal 已接通，现进入完成审计。无标注前向值保持单文件
+      `ForwardValueType` 边界，const evaluator
       不提前启用；interpolation native lowering 仍保持确定性拒绝。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
