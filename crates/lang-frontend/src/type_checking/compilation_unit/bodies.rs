@@ -7,7 +7,9 @@ use crate::{
         ValidatedCompilationUnitNames,
     },
     source::SourceMap,
-    type_checking::{DestructuringMode, ExpressionCategory, ParameterMode, TypeEnvironment},
+    type_checking::{
+        Copyability, DestructuringMode, ExpressionCategory, ParameterMode, TypeEnvironment,
+    },
 };
 
 use super::{
@@ -490,6 +492,12 @@ impl CompilationUnitTypes {
     #[must_use]
     pub const fn types(&self) -> &UnitTypeTable {
         self.signatures.types()
+    }
+
+    /// 返回 unit-global 类型的条件 `Copyable` 判定；与 body 类型检查共用同一算法。
+    #[must_use]
+    pub fn copyability(&self, ty: UnitTypeId) -> Copyability {
+        checker::copyability::unit_copyability(&self.signatures, ty)
     }
 
     /// 查询 source-qualified expression 的规范类型。

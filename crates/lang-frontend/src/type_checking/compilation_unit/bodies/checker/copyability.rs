@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     name_resolution::{DeclarationId, UnitSymbolId},
     type_checking::{
-        BuiltinType, Capability, Copyability, DeferredReason, NominalKind, UnitTypeId,
-        UnitTypeKind, UnitTypeParameterBound,
+        BuiltinType, Capability, CompilationUnitSignatures, Copyability, DeferredReason,
+        NominalKind, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
     },
 };
 
@@ -20,7 +20,11 @@ pub(super) enum UnitTransferability {
     Error,
 }
 
-impl BodyChecker<'_> {
+struct CapabilityQuery<'a> {
+    signatures: &'a CompilationUnitSignatures,
+}
+
+impl CapabilityQuery<'_> {
     pub(super) fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
         self.copyability_with(ty, &BTreeMap::new(), &mut BTreeSet::new())
     }
@@ -307,6 +311,26 @@ impl BodyChecker<'_> {
         };
         active.remove(&declaration);
         result
+    }
+}
+
+pub(in crate::type_checking::compilation_unit) fn unit_copyability(
+    signatures: &CompilationUnitSignatures,
+    ty: UnitTypeId,
+) -> Copyability {
+    CapabilityQuery { signatures }.copyability_of(ty)
+}
+
+impl BodyChecker<'_> {
+    pub(super) fn copyability_of(&self, ty: UnitTypeId) -> Copyability {
+        unit_copyability(&self.signatures, ty)
+    }
+
+    pub(super) fn transferability_of(&self, ty: UnitTypeId) -> UnitTransferability {
+        CapabilityQuery {
+            signatures: &self.signatures,
+        }
+        .transferability_of(ty)
     }
 }
 

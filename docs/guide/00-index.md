@@ -231,7 +231,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
 | SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ✅ 已实现；unit signature/body、跨文件 target/instance 与 recovery/validated gate 已完成 |
-| SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | 🚧 in-progress；unit product/provenance、参数 binding 与 source-qualified call argument contracts 已接通 |
+| SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | 🚧 in-progress；unit product/provenance、参数 binding、call contracts 及普通 call loan/Value delivery 数据流已接通 |
 | SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
 | SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ⏸ draft；v0.34 未启用 |
 | SPEC-0202 | nullable `when` 剩余域 typed facts | `01-design-decisions.md` §35、`../specs/0202-nullable-when-flow-facts.md` | ⏸ draft；v0.35 未启用 |

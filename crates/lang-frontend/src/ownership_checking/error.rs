@@ -3,6 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     ast::AstError,
     diagnostic::{DiagnosticCodeError, DiagnosticError},
+    name_resolution::UnitDiagnosticOrderError,
     source::SourceError,
 };
 
@@ -17,6 +18,11 @@ pub enum OwnershipCheckingError {
     MismatchedAnalysisIdentity,
     /// validated compilation-unit typed product 与 source/name/environment 输入不属于同一分析链。
     MismatchedCompilationUnitTypes,
+    /// validated unit index 中的 source locator 无法回到唯一输入。
+    InvalidUnitSource {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+    },
     /// validated unit names 中的 source-qualified symbol locator 违反内部不变量。
     InvalidUnitSymbol {
         /// 规范 source-unit 下标。
@@ -56,6 +62,20 @@ pub enum OwnershipCheckingError {
         /// 无效的声明参数下标。
         parameter: usize,
     },
+    /// typed place argument 无法回到同一 source unit 的稳定 place。
+    InvalidUnitArgumentPlace {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 expression 下标。
+        expression: usize,
+    },
+    /// validated Value argument 缺少可执行的 Copyability 判定。
+    InvalidUnitArgumentType {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 expression 下标。
+        expression: usize,
+    },
     /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
     InvalidConstructionDescriptor {
         /// 无效 descriptor 的 expression arena 下标。
@@ -69,6 +89,8 @@ pub enum OwnershipCheckingError {
     DiagnosticCode(DiagnosticCodeError),
     /// 无法构造合法结构化诊断。
     Diagnostic(DiagnosticError),
+    /// unit 诊断无法建立稳定全序。
+    DiagnosticOrder(UnitDiagnosticOrderError),
 }
 
 impl fmt::Display for OwnershipCheckingError {
@@ -86,6 +108,12 @@ impl fmt::Display for OwnershipCheckingError {
             Self::MismatchedCompilationUnitTypes => formatter.write_str(
                 "compilation-unit types belong to different source, name, or environment inputs",
             ),
+            Self::InvalidUnitSource { source_unit } => {
+                write!(
+                    formatter,
+                    "invalid compilation-unit source locator {source_unit}"
+                )
+            }
             Self::InvalidUnitSymbol {
                 source_unit,
                 symbol,
@@ -123,6 +151,20 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "invalid compilation-unit call parameter {source_unit}:{expression}:{parameter}"
             ),
+            Self::InvalidUnitArgumentPlace {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "invalid compilation-unit argument place {source_unit}:{expression}"
+            ),
+            Self::InvalidUnitArgumentType {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "invalid compilation-unit argument type {source_unit}:{expression}"
+            ),
             Self::InvalidConstructionDescriptor { expression } => {
                 write!(
                     formatter,
@@ -135,6 +177,12 @@ impl fmt::Display for OwnershipCheckingError {
                 write!(formatter, "ownership diagnostic code error: {error}")
             }
             Self::Diagnostic(error) => write!(formatter, "ownership diagnostic error: {error}"),
+            Self::DiagnosticOrder(error) => {
+                write!(
+                    formatter,
+                    "unit ownership diagnostic ordering failed: {error}"
+                )
+            }
         }
     }
 }
@@ -146,15 +194,19 @@ impl Error for OwnershipCheckingError {
             Self::Source(error) => Some(error),
             Self::DiagnosticCode(error) => Some(error),
             Self::Diagnostic(error) => Some(error),
+            Self::DiagnosticOrder(error) => Some(error),
             Self::MismatchedNameSource
             | Self::MismatchedTypedSource
             | Self::MismatchedAnalysisIdentity
             | Self::MismatchedCompilationUnitTypes
+            | Self::InvalidUnitSource { .. }
             | Self::InvalidUnitSymbol { .. }
             | Self::DuplicateUnitBinding { .. }
             | Self::InvalidUnitCall { .. }
             | Self::InvalidUnitCallArgument { .. }
             | Self::InvalidUnitCallParameter { .. }
+            | Self::InvalidUnitArgumentPlace { .. }
+            | Self::InvalidUnitArgumentType { .. }
             | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }
@@ -181,5 +233,11 @@ impl From<DiagnosticCodeError> for OwnershipCheckingError {
 impl From<DiagnosticError> for OwnershipCheckingError {
     fn from(error: DiagnosticError) -> Self {
         Self::Diagnostic(error)
+    }
+}
+
+impl From<UnitDiagnosticOrderError> for OwnershipCheckingError {
+    fn from(error: UnitDiagnosticOrderError) -> Self {
+        Self::DiagnosticOrder(error)
     }
 }

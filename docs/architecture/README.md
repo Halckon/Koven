@@ -856,8 +856,14 @@ companion member 与 expected lambda 参数的 Owned/Shared/Exclusive binding ca
 归一化为 source-qualified `UnitCallArgumentOwnershipContract`：保留 call/argument identity、实例化
 参数类型、Value/shared-loan/exclusive-loan 契约、跨线程标记、实参与 call 范围；Declaration/Symbol
 target 还回链真实参数声明范围，external/function-value 不伪造源码位置。该 contract 只是后续
-body-local 数据流的输入，实际 loan、copy/move、drop/capture 与诊断尚未执行，因此本产物仍不发布
-validated view，也不是完整 codegen input。
+body-local 数据流的输入。第三切片已按规范 source/AST 顺序执行普通 typed call contract：复用 unit
+类型检查的唯一条件 `Copyability` 算法，把 Value argument 分成 Copy/Move/Temporary delivery，按
+`UnitSymbolId + field path + terminal element identity` 建立 shared/exclusive 同步 loan，并在 call 返回时结束；保守控制流合并
+possible-move，复用 L0131–L0136 的适用诊断，诊断可同时标注使用文件中的 move/loan 起点和跨文件
+目标参数声明。字段 place、具名实参重排、function-value/external、input permutation 与错误 unit 的
+原子边界均有回归：任一 ownership 诊断会清空 loan/delivery 可执行 facts，recovery contract/binding
+仍可用于后续诊断。construction/container/Rc 特殊交付、lambda capture、ASAP drop 与完整 callable
+return 继续等待后续切片，因此本产物仍不发布 validated view，也不是完整 codegen input。
 
 ## 结构化诊断与 renderer
 

@@ -25,7 +25,7 @@ mod construction;
 mod container;
 mod container_operations;
 mod control;
-mod copyability;
+pub(super) mod copyability;
 mod destructuring;
 mod expression_facts;
 mod flow;

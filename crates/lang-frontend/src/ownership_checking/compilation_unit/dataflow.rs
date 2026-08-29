@@ -1,0 +1,783 @@
+//! Source-qualified body-local call ownership dataflow.
+
+mod places;
+mod traversal;
+
+use std::collections::BTreeMap;
+
+use crate::{
+    ast::{ExpressionId, StatementId},
+    diagnostic::{Diagnostic, DiagnosticCode, Severity, codes},
+    name_resolution::{
+        SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
+        ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+    },
+    parser::{AssignmentOperator, NameMarker, ParsedFile, VariableKind, WhenCondition},
+    source::{SourceMap, Span},
+    type_checking::{CompilationUnitTypes, Copyability, ExpressionCategory, UnitExpressionId},
+};
+
+use super::{
+    LoanKind, OwnershipBindingKind, OwnershipCheckingError, UnitCallArgumentOwnershipContract,
+    UnitCallArgumentOwnershipKind, UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor,
+    UnitOwnershipPlace, UnitValueDeliveryFact,
+};
+
+pub(super) struct Analysis {
+    pub(super) diagnostics: Vec<Diagnostic>,
+    pub(super) loans: Vec<UnitLoanFact>,
+    pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ActiveLoan {
+    owner: UnitExpressionId,
+    target: UnitOwnershipPlace,
+    kind: LoanKind,
+    origin: Span,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct State {
+    moved: BTreeMap<UnitSymbolId, Span>,
+    loans: Vec<ActiveLoan>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpressionUse {
+    Read,
+    Consume { parameter_span: Option<Span> },
+    Place { parameter_span: Option<Span> },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AccessKind {
+    Read,
+    Move,
+    Mutation,
+    SharedLoan,
+    ExclusiveLoan,
+}
+
+#[derive(Default)]
+struct Flows {
+    next: Option<State>,
+    breaks: Option<State>,
+    continues: Option<State>,
+}
+
+impl Flows {
+    fn next(state: State) -> Self {
+        Self {
+            next: Some(state),
+            ..Self::default()
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        merge_optional_state(&mut self.next, other.next);
+        merge_optional_state(&mut self.breaks, other.breaks);
+        merge_optional_state(&mut self.continues, other.continues);
+    }
+}
+
+pub(super) fn analyze(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+    contracts: &[UnitCallArgumentOwnershipContract],
+) -> Result<Analysis, OwnershipCheckingError> {
+    let use_after_move_code = codes::catalog()?.resolve(codes::USE_AFTER_MOVE)?;
+    let partial_move_code = codes::catalog()?.resolve(codes::PARTIAL_MOVE)?;
+    let borrowed_move_code = codes::catalog()?.resolve(codes::MOVE_FROM_BORROWED_BINDING)?;
+    let loan_conflict_code = codes::catalog()?.resolve(codes::LOAN_CONFLICT)?;
+    let immutable_inout_code = codes::catalog()?.resolve(codes::IMMUTABLE_INOUT_PLACE)?;
+    let container_element_move_code =
+        codes::catalog()?.resolve(codes::MOVE_FROM_CONTAINER_ELEMENT)?;
+    let mut diagnostics = Vec::new();
+    let mut loans = Vec::new();
+    let mut value_deliveries = Vec::new();
+
+    for source in names.names().index().source_units() {
+        let input = inputs
+            .iter()
+            .copied()
+            .find(|input| input.source_id() == source.source_id())
+            .ok_or(OwnershipCheckingError::InvalidUnitSource {
+                source_unit: source.id().index(),
+            })?;
+        let mut checker = Checker::new(
+            sources,
+            input.parsed(),
+            source.id(),
+            names,
+            typed,
+            bindings,
+            contracts,
+            Codes {
+                use_after_move: use_after_move_code,
+                partial_move: partial_move_code,
+                borrowed_move: borrowed_move_code,
+                loan_conflict: loan_conflict_code,
+                immutable_inout: immutable_inout_code,
+                container_element_move: container_element_move_code,
+            },
+            &mut diagnostics,
+            &mut loans,
+            &mut value_deliveries,
+        )?;
+        checker.run()?;
+    }
+
+    let diagnostics =
+        ordered_unit_diagnostics(sources, names.names().index().source_units(), &diagnostics)?
+            .into_iter()
+            .cloned()
+            .collect();
+    Ok(Analysis {
+        diagnostics,
+        loans,
+        value_deliveries,
+    })
+}
+
+#[derive(Clone, Copy)]
+struct Codes {
+    use_after_move: DiagnosticCode,
+    partial_move: DiagnosticCode,
+    borrowed_move: DiagnosticCode,
+    loan_conflict: DiagnosticCode,
+    immutable_inout: DiagnosticCode,
+    container_element_move: DiagnosticCode,
+}
+
+#[allow(clippy::too_many_arguments)]
+struct Checker<'a> {
+    sources: &'a SourceMap,
+    parsed: &'a ParsedFile,
+    source_unit: SourceUnitId,
+    names: &'a ValidatedCompilationUnitNames,
+    typed: &'a CompilationUnitTypes,
+    bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+    references_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
+    symbols_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
+    variable_kinds: BTreeMap<UnitSymbolId, VariableKind>,
+    field_kinds: BTreeMap<UnitSymbolId, VariableKind>,
+    contracts_by_call: BTreeMap<UnitExpressionId, Vec<UnitCallArgumentOwnershipContract>>,
+    codes: Codes,
+    diagnostics: &'a mut Vec<Diagnostic>,
+    loans: &'a mut Vec<UnitLoanFact>,
+    value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+}
+
+impl<'a> Checker<'a> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        sources: &'a SourceMap,
+        parsed: &'a ParsedFile,
+        source_unit: SourceUnitId,
+        names: &'a ValidatedCompilationUnitNames,
+        typed: &'a CompilationUnitTypes,
+        bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+        contracts: &[UnitCallArgumentOwnershipContract],
+        codes: Codes,
+        diagnostics: &'a mut Vec<Diagnostic>,
+        loans: &'a mut Vec<UnitLoanFact>,
+        value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+    ) -> Result<Self, OwnershipCheckingError> {
+        sources.source_text(parsed.source_id())?;
+        let resolution = names
+            .names()
+            .source_units()
+            .get(source_unit.index())
+            .filter(|source| source.source_unit() == source_unit)
+            .ok_or(OwnershipCheckingError::InvalidUnitSource {
+                source_unit: source_unit.index(),
+            })?
+            .resolution();
+        let mut symbols_by_span = BTreeMap::new();
+        for symbol in resolution.symbols().iter() {
+            symbols_by_span.insert(
+                span_key(symbol.span()),
+                UnitSymbolId::new(source_unit, symbol.id()),
+            );
+        }
+        let mut references_by_span = BTreeMap::new();
+        for reference in names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| reference.source_unit() == source_unit)
+        {
+            let symbol = match reference.target() {
+                UnitReferenceTarget::Symbol(symbol) => Some(*symbol),
+                UnitReferenceTarget::Declaration(declaration) => {
+                    names.names().declaration_symbol(*declaration)
+                }
+                _ => None,
+            };
+            if let Some(symbol) = symbol {
+                references_by_span.insert(span_key(reference.span()), symbol);
+            }
+        }
+        let mut contracts_by_call = BTreeMap::<_, Vec<_>>::new();
+        for contract in contracts
+            .iter()
+            .copied()
+            .filter(|contract| contract.call().source_unit() == source_unit)
+        {
+            contracts_by_call
+                .entry(contract.call())
+                .or_default()
+                .push(contract);
+        }
+        Ok(Self {
+            sources,
+            parsed,
+            source_unit,
+            names,
+            typed,
+            bindings,
+            references_by_span,
+            symbols_by_span,
+            variable_kinds: BTreeMap::new(),
+            field_kinds: BTreeMap::new(),
+            contracts_by_call,
+            codes,
+            diagnostics,
+            loans,
+            value_deliveries,
+        })
+    }
+
+    fn run(&mut self) -> Result<(), OwnershipCheckingError> {
+        for (item, _) in self.parsed.ast().items().iter() {
+            self.collect_mutability(item)?;
+        }
+        for &root in self.parsed.roots() {
+            self.check_item(root, &mut State::default())?;
+        }
+        Ok(())
+    }
+
+    fn apply_contract(
+        &mut self,
+        contract: UnitCallArgumentOwnershipContract,
+        state: &mut State,
+    ) -> Result<(), OwnershipCheckingError> {
+        match contract.kind() {
+            UnitCallArgumentOwnershipKind::Value => {
+                let Some((kind, source)) = self.value_delivery(contract, state)? else {
+                    return Ok(());
+                };
+                self.value_deliveries.push(UnitValueDeliveryFact::new(
+                    contract.call(),
+                    contract.argument(),
+                    source,
+                    kind,
+                    contract.argument_span(),
+                    contract.parameter_span(),
+                ));
+            }
+            UnitCallArgumentOwnershipKind::SharedLoan
+            | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
+                let kind = if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan {
+                    LoanKind::Shared
+                } else {
+                    LoanKind::Exclusive
+                };
+                if kind == LoanKind::Exclusive
+                    && !self.is_mutable_place(contract.argument().expression())?
+                {
+                    let mut diagnostic = Diagnostic::new(
+                        self.sources,
+                        Severity::Error,
+                        self.codes.immutable_inout,
+                        "inout argument is not a mutable place",
+                        contract.loan_begin_span(),
+                    )?;
+                    if let Some(place) = self.place(contract.argument().expression())? {
+                        diagnostic.add_label(
+                            self.sources,
+                            self.symbol_span(place.root())?,
+                            "immutable binding declared here",
+                        )?;
+                    }
+                    add_parameter_label(self.sources, &mut diagnostic, contract.parameter_span())?;
+                    self.diagnostics.push(diagnostic);
+                    return Ok(());
+                }
+                let target = match contract.category() {
+                    ExpressionCategory::Temporary => {
+                        if kind == LoanKind::Exclusive {
+                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                                source_unit: contract.argument().source_unit().index(),
+                                expression: contract.argument().expression().index(),
+                            });
+                        }
+                        UnitLoanTarget::Temporary(contract.argument())
+                    }
+                    ExpressionCategory::Place => {
+                        if let Some(place) = self.loan_place(contract.argument().expression())? {
+                            let access = if kind == LoanKind::Shared {
+                                AccessKind::SharedLoan
+                            } else {
+                                AccessKind::ExclusiveLoan
+                            };
+                            if !self.access_place(
+                                &place,
+                                access,
+                                contract.loan_begin_span(),
+                                contract.parameter_span(),
+                                state,
+                            )? {
+                                return Ok(());
+                            }
+                            state.loans.push(ActiveLoan {
+                                owner: contract.call(),
+                                target: place.clone(),
+                                kind,
+                                origin: contract.loan_begin_span(),
+                            });
+                            UnitLoanTarget::Place(place)
+                        } else if let Some(owner) =
+                            self.temporary_projection_owner(contract.argument().expression())?
+                        {
+                            UnitLoanTarget::Temporary(owner)
+                        } else {
+                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                                source_unit: contract.argument().source_unit().index(),
+                                expression: contract.argument().expression().index(),
+                            });
+                        }
+                    }
+                };
+                self.loans.push(UnitLoanFact::new(
+                    contract.call(),
+                    contract.argument(),
+                    target,
+                    kind,
+                    contract.loan_begin_span(),
+                    contract.call_span(),
+                    contract.parameter_span(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn check_assignment(
+        &mut self,
+        target: ExpressionId,
+        operator: AssignmentOperator,
+        value: ExpressionId,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let mut flows = self.check_expression(
+            value,
+            state,
+            ExpressionUse::Consume {
+                parameter_span: None,
+            },
+        )?;
+        let Some(state) = flows.next.as_mut() else {
+            return Ok(flows);
+        };
+        let target_span = self.parsed.ast().expressions().get(target)?.span();
+        if let Some(place) = self.place(target)? {
+            if operator != AssignmentOperator::Assign {
+                self.access_place(&place, AccessKind::Read, target_span, None, state)?;
+            }
+            if self.access_place(&place, AccessKind::Mutation, target_span, None, state)?
+                && operator == AssignmentOperator::Assign
+                && place.fields().is_empty()
+            {
+                state.moved.remove(&place.root());
+            }
+        } else {
+            flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
+        }
+        Ok(flows)
+    }
+
+    fn check_if(
+        &mut self,
+        condition: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
+        let Some(base) = prefix.next.take() else {
+            return Ok(prefix);
+        };
+        let mut branches = self.check_statement(then_branch, base.clone())?;
+        branches.merge(if let Some(else_branch) = else_branch {
+            self.check_statement(else_branch, base)?
+        } else {
+            Flows::next(base)
+        });
+        prefix.merge(branches);
+        Ok(prefix)
+    }
+
+    fn check_when(
+        &mut self,
+        subject: Option<ExpressionId>,
+        entries: &[crate::parser::WhenEntry],
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let mut prefix = Flows::next(state);
+        if let Some(subject) = subject {
+            prefix = self.chain_expression(prefix, subject, ExpressionUse::Read)?;
+        }
+        let Some(mut unmatched) = prefix.next.take() else {
+            return Ok(prefix);
+        };
+        let mut branches = Flows::default();
+        for entry in entries {
+            if entry.else_span.is_some() {
+                branches.merge(self.check_statement(entry.body, unmatched)?);
+                prefix.merge(branches);
+                return Ok(prefix);
+            }
+            let mut condition_state = Some(unmatched);
+            let mut body_state = None;
+            for condition in &entry.conditions {
+                let Some(current) = condition_state.take() else {
+                    break;
+                };
+                let expression = match condition {
+                    WhenCondition::Expression(expression)
+                    | WhenCondition::Contains { expression, .. } => Some(*expression),
+                    WhenCondition::TypeTest { .. } => None,
+                };
+                if let Some(expression) = expression {
+                    let mut flows =
+                        self.check_expression(expression, current, ExpressionUse::Read)?;
+                    merge_optional_state(&mut body_state, flows.next.clone());
+                    condition_state = flows.next.take();
+                    prefix.merge(flows);
+                } else {
+                    merge_optional_state(&mut body_state, Some(current.clone()));
+                    condition_state = Some(current);
+                }
+            }
+            if let Some(body_state) = body_state {
+                branches.merge(self.check_statement(entry.body, body_state)?);
+            }
+            let Some(next) = condition_state else {
+                prefix.merge(branches);
+                return Ok(prefix);
+            };
+            unmatched = next;
+        }
+        branches.merge(Flows::next(unmatched));
+        prefix.merge(branches);
+        Ok(prefix)
+    }
+
+    fn chain_expression(
+        &mut self,
+        mut flows: Flows,
+        id: ExpressionId,
+        usage: ExpressionUse,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        if let Some(next) = flows.next.take() {
+            flows.merge(self.check_expression(id, next, usage)?);
+        }
+        Ok(flows)
+    }
+
+    fn use_name(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+        usage: ExpressionUse,
+        state: &mut State,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(symbol) = self.reference_symbol(span) else {
+            return Ok(());
+        };
+        if !self.is_place_symbol(symbol) {
+            return Ok(());
+        }
+        let place = UnitOwnershipPlace::new(symbol, Vec::new());
+        match usage {
+            ExpressionUse::Read => {
+                self.access_place(&place, AccessKind::Read, span, None, state)?;
+            }
+            ExpressionUse::Consume { parameter_span } => {
+                self.consume_place(&place, expression, span, parameter_span, state)?;
+            }
+            ExpressionUse::Place { parameter_span } => {
+                self.ensure_available(&place, span, parameter_span, state)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn consume_place(
+        &mut self,
+        place: &UnitOwnershipPlace,
+        expression: ExpressionId,
+        primary: Span,
+        parameter_span: Option<Span>,
+        state: &mut State,
+    ) -> Result<(), OwnershipCheckingError> {
+        let ty = self
+            .typed
+            .expression_type(self.unit_expression(expression))
+            .or_else(|| self.typed.symbol_type(place.root()));
+        let Some(ty) = ty else {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentType {
+                source_unit: self.source_unit.index(),
+                expression: expression.index(),
+            });
+        };
+        let move_only = match self.typed.copyability(ty) {
+            Copyability::Copyable => false,
+            Copyability::MoveOnly => true,
+            Copyability::Unknown | Copyability::Error => {
+                return Err(OwnershipCheckingError::InvalidUnitArgumentType {
+                    source_unit: self.source_unit.index(),
+                    expression: expression.index(),
+                });
+            }
+        };
+        if let Some(binding) = self.bindings.get(&place.root())
+            && move_only
+            && binding.kind() != OwnershipBindingKind::Owned
+        {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.borrowed_move,
+                "cannot move a non-Copyable value out of a borrowed binding",
+                primary,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                binding.declaration_span(),
+                "non-owning binding established here",
+            )?;
+            add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+            self.diagnostics.push(diagnostic);
+            return Ok(());
+        }
+        let access = if move_only {
+            AccessKind::Move
+        } else {
+            AccessKind::Read
+        };
+        if !self.access_place(place, access, primary, parameter_span, state)? || !move_only {
+            return Ok(());
+        }
+        if place.element().is_some() {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.container_element_move,
+                "cannot move a non-Copyable element out of a sequential container",
+                primary,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                self.symbol_span(place.root())?,
+                "container owner remains responsible for every initialized element",
+            )?;
+            add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+            self.diagnostics.push(diagnostic);
+            return Ok(());
+        }
+        if !place.fields().is_empty() || self.symbol_kind(place.root()) == Some(SymbolKind::Field) {
+            let field = place.fields().last().copied().unwrap_or(place.root());
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.partial_move,
+                "cannot move a non-Copyable component out of its owner",
+                primary,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                self.symbol_span(field)?,
+                "non-Copyable component declared here",
+            )?;
+            add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+            self.diagnostics.push(diagnostic);
+            return Ok(());
+        }
+        state.moved.insert(place.root(), primary);
+        Ok(())
+    }
+
+    fn ensure_available(
+        &mut self,
+        place: &UnitOwnershipPlace,
+        primary: Span,
+        parameter_span: Option<Span>,
+        state: &State,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let Some(origin) = state.moved.get(&place.root()).copied() else {
+            return Ok(true);
+        };
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.codes.use_after_move,
+            "use of moved value",
+            primary,
+        )?;
+        diagnostic.add_label(self.sources, origin, "value was moved here")?;
+        add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+        self.diagnostics.push(diagnostic);
+        Ok(false)
+    }
+
+    fn access_place(
+        &mut self,
+        place: &UnitOwnershipPlace,
+        access: AccessKind,
+        primary: Span,
+        parameter_span: Option<Span>,
+        state: &mut State,
+    ) -> Result<bool, OwnershipCheckingError> {
+        if !self.ensure_available(place, primary, parameter_span, state)? {
+            return Ok(false);
+        }
+        let conflict = state.loans.iter().find(|loan| {
+            loan.target.overlaps(place)
+                && !matches!(
+                    (loan.kind, access),
+                    (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
+                )
+        });
+        if let Some(conflict) = conflict {
+            let message = match access {
+                AccessKind::Read => "read conflicts with an active exclusive loan",
+                AccessKind::Move => "move conflicts with an active loan",
+                AccessKind::Mutation => "mutation conflicts with an active loan",
+                AccessKind::SharedLoan | AccessKind::ExclusiveLoan => {
+                    "new loan conflicts with an active loan"
+                }
+            };
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.loan_conflict,
+                message,
+                primary,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                conflict.origin,
+                "conflicting loan starts here",
+            )?;
+            add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+            self.diagnostics.push(diagnostic);
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    fn is_place_symbol(&self, symbol: UnitSymbolId) -> bool {
+        matches!(
+            self.symbol_kind(symbol),
+            Some(
+                SymbolKind::Variable
+                    | SymbolKind::Field
+                    | SymbolKind::ValueParameter
+                    | SymbolKind::LambdaParameter
+                    | SymbolKind::ForBinding
+                    | SymbolKind::DestructuringBinding
+            )
+        )
+    }
+
+    fn symbol_kind(&self, symbol: UnitSymbolId) -> Option<SymbolKind> {
+        self.names
+            .names()
+            .source_units()
+            .get(symbol.source_unit().index())
+            .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))
+            .map(|symbol| symbol.kind())
+    }
+
+    fn symbol_span(&self, symbol: UnitSymbolId) -> Result<Span, OwnershipCheckingError> {
+        self.names
+            .names()
+            .source_units()
+            .get(symbol.source_unit().index())
+            .and_then(|source| source.resolution().symbols().get(symbol.symbol().index()))
+            .map(|symbol| symbol.span())
+            .ok_or(OwnershipCheckingError::InvalidUnitSymbol {
+                source_unit: symbol.source_unit().index(),
+                symbol: symbol.symbol().index(),
+            })
+    }
+
+    fn mark_available(&self, marker: NameMarker, state: &mut State) {
+        if let Some(symbol) = self.marker_symbol(marker) {
+            state.moved.remove(symbol);
+        }
+    }
+
+    fn marker_symbol(&self, marker: NameMarker) -> Option<&UnitSymbolId> {
+        let NameMarker::Present(span) = marker else {
+            return None;
+        };
+        self.symbols_by_span.get(&span_key(span))
+    }
+
+    fn reference_symbol(&self, span: Span) -> Option<UnitSymbolId> {
+        self.references_by_span.get(&span_key(span)).copied()
+    }
+
+    const fn unit_expression(&self, expression: ExpressionId) -> UnitExpressionId {
+        UnitExpressionId::new(self.source_unit, expression)
+    }
+}
+
+fn add_parameter_label(
+    sources: &SourceMap,
+    diagnostic: &mut Diagnostic,
+    parameter_span: Option<Span>,
+) -> Result<(), OwnershipCheckingError> {
+    if let Some(parameter_span) = parameter_span {
+        diagnostic.add_label(sources, parameter_span, "selected parameter declared here")?;
+    }
+    Ok(())
+}
+
+const fn span_key(span: Span) -> (usize, usize) {
+    (span.start(), span.end())
+}
+
+fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
+    let Some(source) = source else {
+        return;
+    };
+    if let Some(target) = target {
+        merge_state(target, source);
+    } else {
+        *target = Some(source);
+    }
+}
+
+fn merge_state(target: &mut State, source: State) {
+    target.loans.retain(|loan| source.loans.contains(loan));
+    for (symbol, origin) in source.moved {
+        target
+            .moved
+            .entry(symbol)
+            .and_modify(|current| {
+                if origin.start() < current.start() {
+                    *current = origin;
+                }
+            })
+            .or_insert(origin);
+    }
+}

@@ -1,4 +1,6 @@
-//! SPEC-0198 compilation-unit 所有权产物、身份门禁与参数 binding 能力。
+//! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
+
+mod dataflow;
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -8,12 +10,12 @@ use crate::{
     parser::Expression,
     source::{SourceMap, Span},
     type_checking::{
-        CompilationUnitTypes, ParameterMode, TypeEnvironment, UnitCallTarget,
+        CompilationUnitTypes, ExpressionCategory, ParameterMode, TypeEnvironment, UnitCallTarget,
         UnitCallableSignature, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes,
     },
 };
 
-use super::{OwnershipBindingKind, OwnershipCheckingError};
+use super::{ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError};
 
 /// compilation-unit callable 参数在 Phase 3 中提供的能力。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,11 +71,13 @@ pub struct UnitCallArgumentOwnershipContract {
     argument: UnitExpressionId,
     parameter_index: usize,
     parameter_type: UnitTypeId,
+    category: ExpressionCategory,
     kind: UnitCallArgumentOwnershipKind,
     crosses_thread: bool,
     argument_span: Span,
     call_span: Span,
     parameter_span: Option<Span>,
+    loan_begin_span: Span,
 }
 
 impl UnitCallArgumentOwnershipContract {
@@ -99,6 +103,12 @@ impl UnitCallArgumentOwnershipContract {
     #[must_use]
     pub const fn parameter_type(self) -> UnitTypeId {
         self.parameter_type
+    }
+
+    /// 返回类型阶段确认的 place/temporary 类别。
+    #[must_use]
+    pub const fn category(self) -> ExpressionCategory {
+        self.category
     }
 
     /// 返回 Value/shared-loan/exclusive-loan 契约。
@@ -131,6 +141,270 @@ impl UnitCallArgumentOwnershipContract {
     pub const fn parameter_span(self) -> Option<Span> {
         self.parameter_span
     }
+
+    /// 返回 loan 的真实起点；Inout 使用调用点 `&`，其余使用 operand。
+    #[must_use]
+    pub const fn loan_begin_span(self) -> Span {
+        self.loan_begin_span
+    }
+}
+
+/// compilation-unit 中由根 binding、字段路径及可选 terminal element 组成的稳定 place。
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnitOwnershipPlace {
+    root: UnitSymbolId,
+    fields: Vec<UnitSymbolId>,
+    element: Option<ElementIndexIdentity>,
+}
+
+impl UnitOwnershipPlace {
+    pub(super) fn new(root: UnitSymbolId, fields: Vec<UnitSymbolId>) -> Self {
+        Self {
+            root,
+            fields,
+            element: None,
+        }
+    }
+
+    pub(super) fn push_field(&mut self, field: UnitSymbolId) -> bool {
+        if self.element.is_some() {
+            return false;
+        }
+        self.fields.push(field);
+        true
+    }
+
+    pub(super) fn push_element(&mut self, element: ElementIndexIdentity) -> bool {
+        if self.element.is_some() {
+            return false;
+        }
+        self.element = Some(element);
+        true
+    }
+
+    /// 返回拥有该 place 的 source-qualified 根 binding。
+    #[must_use]
+    pub const fn root(&self) -> UnitSymbolId {
+        self.root
+    }
+
+    /// 返回从根到目标的字段路径。
+    #[must_use]
+    pub fn fields(&self) -> &[UnitSymbolId] {
+        &self.fields
+    }
+
+    /// 返回 terminal 顺序容器逻辑索引。
+    #[must_use]
+    pub const fn element(&self) -> Option<ElementIndexIdentity> {
+        self.element
+    }
+
+    pub(super) fn overlaps(&self, other: &Self) -> bool {
+        if self.root != other.root
+            || !self
+                .fields
+                .iter()
+                .zip(&other.fields)
+                .all(|(left, right)| left == right)
+        {
+            return false;
+        }
+        if self.fields.len() != other.fields.len() {
+            return true;
+        }
+        match (self.element, other.element) {
+            (Some(left), Some(right)) => left.may_alias(right),
+            (None, _) | (_, None) => true,
+        }
+    }
+}
+
+/// unit loan 的稳定目标。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UnitLoanTarget {
+    /// 名称、字段或 terminal element place。
+    Place(UnitOwnershipPlace),
+    /// 延长到同步调用返回的 temporary。
+    Temporary(UnitExpressionId),
+}
+
+/// 一次成功建立并在同步 call 返回时结束的 source-qualified loan。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoanFact {
+    call: UnitExpressionId,
+    argument: UnitExpressionId,
+    target: UnitLoanTarget,
+    kind: LoanKind,
+    begin_span: Span,
+    end_span: Span,
+    parameter_span: Option<Span>,
+}
+
+impl UnitLoanFact {
+    pub(super) const fn new(
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+        target: UnitLoanTarget,
+        kind: LoanKind,
+        begin_span: Span,
+        end_span: Span,
+        parameter_span: Option<Span>,
+    ) -> Self {
+        Self {
+            call,
+            argument,
+            target,
+            kind,
+            begin_span,
+            end_span,
+            parameter_span,
+        }
+    }
+
+    /// 返回所属同步 call。
+    #[must_use]
+    pub const fn call(&self) -> UnitExpressionId {
+        self.call
+    }
+
+    /// 返回建立 loan 的源码实参。
+    #[must_use]
+    pub const fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+
+    /// 返回 place 或 temporary 目标。
+    #[must_use]
+    pub const fn target(&self) -> &UnitLoanTarget {
+        &self.target
+    }
+
+    /// 返回 shared/exclusive loan 种类。
+    #[must_use]
+    pub const fn kind(&self) -> LoanKind {
+        self.kind
+    }
+
+    /// 返回 loan 生效位置。
+    #[must_use]
+    pub const fn begin_span(&self) -> Span {
+        self.begin_span
+    }
+
+    /// 返回同步 call 结束位置。
+    #[must_use]
+    pub const fn end_span(&self) -> Span {
+        self.end_span
+    }
+
+    /// 返回被选择源码参数的声明位置；external/function-value 没有该位置。
+    #[must_use]
+    pub const fn parameter_span(&self) -> Option<Span> {
+        self.parameter_span
+    }
+}
+
+/// 向 Value 参数交付值时的实际所有权效果。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitValueDeliveryKind {
+    /// `Copyable` place 按值复制，源仍可用。
+    Copy,
+    /// MoveOnly owned place 被移动，源随后不可用。
+    Move,
+    /// 本次求值产生的 temporary 被直接交付。
+    Temporary,
+}
+
+/// Value delivery 的可追溯来源。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UnitValueDeliverySource {
+    /// 名称、字段或具名容器 element place。
+    Place(UnitOwnershipPlace),
+    /// 直接产生值的 temporary。
+    Temporary(UnitExpressionId),
+    /// 由 owner 支撑、但本身不是可移动 place 的 payload/element projection。
+    BorrowedProjection {
+        /// 保持投影值存活的 owner expression。
+        owner: UnitExpressionId,
+    },
+}
+
+/// 一个已经由 body-local 数据流确认的 Value argument delivery。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitValueDeliveryFact {
+    call: UnitExpressionId,
+    argument: UnitExpressionId,
+    source: UnitValueDeliverySource,
+    kind: UnitValueDeliveryKind,
+    span: Span,
+    parameter_span: Option<Span>,
+}
+
+impl UnitValueDeliveryFact {
+    pub(super) const fn new(
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+        source: UnitValueDeliverySource,
+        kind: UnitValueDeliveryKind,
+        span: Span,
+        parameter_span: Option<Span>,
+    ) -> Self {
+        Self {
+            call,
+            argument,
+            source,
+            kind,
+            span,
+            parameter_span,
+        }
+    }
+
+    /// 返回所属 call。
+    #[must_use]
+    pub const fn call(&self) -> UnitExpressionId {
+        self.call
+    }
+
+    /// 返回源码实参。
+    #[must_use]
+    pub const fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+
+    /// 返回 place；temporary/borrowed projection 为 `None`。
+    #[must_use]
+    pub const fn place(&self) -> Option<&UnitOwnershipPlace> {
+        match &self.source {
+            UnitValueDeliverySource::Place(place) => Some(place),
+            UnitValueDeliverySource::Temporary(_)
+            | UnitValueDeliverySource::BorrowedProjection { .. } => None,
+        }
+    }
+
+    /// 返回完整 delivery source。
+    #[must_use]
+    pub const fn source(&self) -> &UnitValueDeliverySource {
+        &self.source
+    }
+
+    /// 返回 copy/move/temporary 效果。
+    #[must_use]
+    pub const fn kind(&self) -> UnitValueDeliveryKind {
+        self.kind
+    }
+
+    /// 返回交付操作数的源码范围。
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// 返回被选择源码参数的声明位置。
+    #[must_use]
+    pub const fn parameter_span(&self) -> Option<Span> {
+        self.parameter_span
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -146,6 +420,8 @@ pub struct CompilationUnitOwnership {
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
     call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
+    loans: Vec<UnitLoanFact>,
+    value_deliveries: Vec<UnitValueDeliveryFact>,
 }
 
 impl CompilationUnitOwnership {
@@ -154,6 +430,8 @@ impl CompilationUnitOwnership {
         diagnostics: Vec<Diagnostic>,
         bindings: Vec<UnitOwnershipBindingDescriptor>,
         call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
+        loans: Vec<UnitLoanFact>,
+        value_deliveries: Vec<UnitValueDeliveryFact>,
     ) -> Self {
         Self {
             provenance: UnitOwnershipProvenance {
@@ -163,6 +441,8 @@ impl CompilationUnitOwnership {
             diagnostics,
             bindings,
             call_argument_contracts,
+            loans,
+            value_deliveries,
         }
     }
 
@@ -220,6 +500,23 @@ impl CompilationUnitOwnership {
             .iter()
             .filter(move |contract| contract.call() == call)
     }
+
+    /// 返回源码/调用顺序稳定的有效同步 loans。
+    #[must_use]
+    pub fn loans(&self) -> &[UnitLoanFact] {
+        &self.loans
+    }
+
+    /// 返回在指定 call 结束的 loans。
+    pub fn loans_ending_at(&self, call: UnitExpressionId) -> impl Iterator<Item = &UnitLoanFact> {
+        self.loans.iter().filter(move |loan| loan.call() == call)
+    }
+
+    /// 返回源码/调用顺序稳定的有效 Value deliveries。
+    #[must_use]
+    pub fn value_deliveries(&self) -> &[UnitValueDeliveryFact] {
+        &self.value_deliveries
+    }
 }
 
 /// 建立 compilation-unit ownership product 的首个纵向切片。
@@ -258,12 +555,26 @@ pub fn check_compilation_unit_ownership(
         )?;
     }
     let call_argument_contracts = collect_call_argument_contracts(inputs, names, typed)?;
+    let mut dataflow = dataflow::analyze(
+        sources,
+        inputs,
+        names,
+        typed,
+        &bindings,
+        &call_argument_contracts,
+    )?;
+    if !dataflow.diagnostics.is_empty() {
+        dataflow.loans.clear();
+        dataflow.value_deliveries.clear();
+    }
 
     Ok(CompilationUnitOwnership::new(
         typed,
-        Vec::new(),
+        dataflow.diagnostics,
         bindings.into_values().collect(),
         call_argument_contracts,
+        dataflow.loans,
+        dataflow.value_deliveries,
     ))
 }
 
@@ -307,6 +618,7 @@ fn collect_call_argument_contracts(
                 argument: UnitExpressionId::new(call_id.source_unit(), argument.value),
                 parameter_index,
                 parameter_type: descriptor.parameter_type(),
+                category: descriptor.category(),
                 kind: match descriptor.mode() {
                     ParameterMode::Value => UnitCallArgumentOwnershipKind::Value,
                     ParameterMode::Borrow => UnitCallArgumentOwnershipKind::SharedLoan,
@@ -316,6 +628,10 @@ fn collect_call_argument_contracts(
                 argument_span: parsed.ast().expressions().get(argument.value)?.span(),
                 call_span: call_node.span(),
                 parameter_span,
+                loan_begin_span: match argument.mode_marker {
+                    Some(crate::parser::ParameterModeMarker::Inout(span)) => span,
+                    _ => parsed.ast().expressions().get(argument.value)?.span(),
+                },
             });
         }
         if seen_arguments.iter().any(|seen| !seen) {

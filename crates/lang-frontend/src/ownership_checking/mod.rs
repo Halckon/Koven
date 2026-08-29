@@ -15,7 +15,9 @@ use crate::{
 
 pub use compilation_unit::{
     CompilationUnitOwnership, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
-    UnitOwnershipBindingDescriptor, check_compilation_unit_ownership,
+    UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipPlace,
+    UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    check_compilation_unit_ownership,
 };
 pub use construction::{
     ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,
