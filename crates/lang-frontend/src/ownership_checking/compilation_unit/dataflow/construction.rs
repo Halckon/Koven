@@ -172,6 +172,9 @@ impl Checker<'_> {
                 .map(|symbol| self.symbol_span(symbol))
                 .transpose()?;
             let argument_diagnostics = self.diagnostics.len();
+            if let Some(next) = flows.next.as_ref() {
+                self.reject_borrowed_closure_escape(argument.argument().expression(), next)?;
+            }
             flows = self.chain_expression(
                 flows,
                 argument.argument().expression(),

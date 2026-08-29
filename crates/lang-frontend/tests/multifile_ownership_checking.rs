@@ -18,8 +18,10 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, Copyability, TypeEnvironment, UnitExpressionId, UnitTypeKind,
-        ValidatedCompilationUnitTypes, check_compilation_unit_types, standard_environments,
+        BuiltinType, Capability, Copyability, EnvironmentFunction, EnvironmentFunctionEffect,
+        EnvironmentParameter, EnvironmentType, ParameterMode, TypeEnvironment, UnitExpressionId,
+        UnitTypeKind, ValidatedCompilationUnitTypes, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -102,6 +104,64 @@ fn symbol_named(
         .map(|binding| binding.symbol())
         .find(|candidate| candidate.source_unit() == source && candidate.symbol() == symbol.id())
         .expect("source-qualified ownership binding exists")
+}
+
+fn diagnostic_codes(ownership: &CompilationUnitOwnership) -> Vec<String> {
+    ownership
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.code().to_string())
+        .collect()
+}
+
+fn cross_thread_environments() -> (NameEnvironment, TypeEnvironment) {
+    let mut names = NameEnvironment::new();
+    let builtins = BuiltinType::ALL.map(|builtin| {
+        (
+            names.declare_type(builtin.name()).expect("builtin"),
+            builtin,
+        )
+    });
+    let capabilities = [
+        (
+            names.declare_type("Copyable").expect("Copyable"),
+            Capability::Copyable,
+        ),
+        (
+            names.declare_type("Transferable").expect("Transferable"),
+            Capability::Transferable,
+        ),
+    ];
+    let dispatch = names.declare_function("dispatch").expect("dispatch");
+    let mut types = TypeEnvironment::new(&names);
+    for (symbol, builtin) in builtins {
+        types
+            .bind_builtin(symbol, builtin)
+            .expect("builtin binding");
+    }
+    for (symbol, capability) in capabilities {
+        types
+            .bind_capability(symbol, capability)
+            .expect("capability binding");
+    }
+    types
+        .bind_function(
+            dispatch,
+            EnvironmentFunction {
+                parameters: vec![EnvironmentParameter {
+                    mode: ParameterMode::Value,
+                    ty: EnvironmentType::Function {
+                        move_only: true,
+                        parameters: Vec::new(),
+                        return_type: Box::new(EnvironmentType::Builtin(BuiltinType::Unit)),
+                    },
+                }],
+                return_type: EnvironmentType::Builtin(BuiltinType::Unit),
+                effects: vec![EnvironmentFunctionEffect::CrossThreadTransfer { parameter: 0 }],
+            },
+        )
+        .expect("dispatch binding");
+    (names, types)
 }
 
 #[test]
@@ -621,24 +681,6 @@ fn moved_value_use_reports_cross_file_parameter_and_clears_facts() {
     }));
     assert!(ownership.loans().is_empty());
     assert!(ownership.value_deliveries().is_empty());
-
-    let reversed_inputs = [inputs[1], inputs[0]];
-    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
-    let reversed_typed = validated_types(
-        &sources,
-        &reversed_inputs,
-        &reversed_names,
-        &type_environment,
-    );
-    let reversed = check_compilation_unit_ownership(
-        &sources,
-        &reversed_inputs,
-        &reversed_names,
-        &type_environment,
-        &reversed_typed,
-    )
-    .expect("reversed recovery ownership product");
-    assert_eq!(ownership.diagnostics(), reversed.diagnostics());
 }
 
 #[test]
@@ -1941,12 +1983,253 @@ fn ownership_diagnostics_clear_capture_and_executable_facts_atomically() {
         check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
             .expect("recovery ownership product");
 
-    assert_eq!(ownership.diagnostics().len(), 1);
-    assert_eq!(ownership.diagnostics()[0].code().to_string(), "L0131");
+    assert_eq!(ownership.diagnostics().len(), 2);
+    assert!(
+        ownership
+            .diagnostics()
+            .iter()
+            .all(|diagnostic| diagnostic.code().to_string() == "L0131")
+    );
     assert!(ownership.captures().is_empty());
     assert_eq!(ownership.closures().len(), 1);
     assert!(ownership.loans().is_empty());
     assert!(ownership.value_deliveries().is_empty());
     assert!(ownership.rc_effects().is_empty());
     assert!(ownership.construction_plans().is_empty());
+}
+
+#[test]
+fn closure_formation_matches_single_file_move_borrow_and_immutability_rules() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource {}\n\
+         fun inspect(item: Resource): Unit {}\n\
+         fun take(own item: Resource): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         import p.inspect\n\
+         import p.take\n\
+         fun moved(own item: Resource): Unit {\n\
+             val closure: move () -> Unit = move { val captured = inspect(item) }\n\
+             val after = inspect(item)\n\
+         }\n\
+         fun borrowed(item: Resource): Unit {\n\
+             val closure: move () -> Unit = move { val captured = inspect(item) }\n\
+         }\n\
+         fun moveInside(own item: Resource): Unit {\n\
+             val closure: () -> Unit = { val captured = take(item) }\n\
+         }\n\
+         fun assignInside(): Unit {\n\
+             var number = 1\n\
+             val closure: () -> Unit = { number = 2 }\n\
+         }\n\
+         class Holder(val item: Resource) {\n\
+             fun receiver(): move () -> Unit = move { val captured = inspect(item) }\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(
+        diagnostic_codes(&ownership),
+        ["L0131", "L0138", "L0133", "L0135", "L0138"]
+    );
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
+    let reversed_typed = validated_types(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+    );
+    let reversed = check_compilation_unit_ownership(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+        &reversed_typed,
+    )
+    .expect("reversed recovery ownership product");
+    assert_eq!(ownership.diagnostics(), reversed.diagnostics());
+}
+
+#[test]
+fn shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource {}\n\
+         fun inspect(item: Resource): Unit {}\n\
+         fun take(own item: Resource): Unit {}\n\
+         fun run(action: () -> Unit): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         import p.inspect\n\
+         import p.take\n\
+         import p.run\n\
+         fun released(own item: Resource): Unit {\n\
+             val closure: () -> Unit = { val captured = inspect(item) }\n\
+             val invoked = run(closure)\n\
+             val moved = take(item)\n\
+         }\n\
+         fun direct(own item: Resource): Unit {\n\
+             val invoked = run({ val captured = inspect(item) })\n\
+             val moved = take(item)\n\
+         }\n\
+         fun conflict(own item: Resource): Unit {\n\
+             val closure: () -> Unit = { val captured = inspect(item) }\n\
+             val moved = take(item)\n\
+             val invoked = run(closure)\n\
+         }\n\
+         class Holder(var item: Resource) {\n\
+             fun conflictField(): Unit {\n\
+                 val closure: () -> Unit = { val captured = inspect(item) }\n\
+                 item = Resource()\n\
+                 val invoked = run(closure)\n\
+             }\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0135", "L0135"]);
+    assert!(ownership.captures().is_empty());
+}
+
+#[test]
+fn borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource {}\n\
+         fun inspect(item: Resource): Unit {}\n\
+         fun deliver(own callback: () -> Unit): Unit {}\n\
+         class Envelope(val callback: () -> Unit)",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         import p.inspect\n\
+         import p.deliver\n\
+         import p.Envelope\n\
+         fun returnIt(own item: Resource): () -> Unit {\n\
+             val closure: () -> Unit = { val captured = inspect(item) }\n\
+             return closure\n\
+         }\n\
+         fun passIt(own item: Resource): Unit {\n\
+             val closure: () -> Unit = { val captured = inspect(item) }\n\
+             val sent = deliver(closure)\n\
+         }\n\
+         fun constructIt(own item: Resource): Unit {\n\
+             val closure: () -> Unit = { val captured = inspect(item) }\n\
+             val envelope = Envelope(closure)\n\
+         }\n\
+         class Slot(var callback: () -> Unit) {\n\
+             fun store(own item: Resource): Unit {\n\
+                 val closure: () -> Unit = { val captured = inspect(item) }\n\
+                 callback = closure\n\
+             }\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(
+        diagnostic_codes(&ownership),
+        ["L0137", "L0137", "L0137", "L0137"]
+    );
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.construction_plans().is_empty());
+}
+
+#[test]
+fn compiler_bound_cross_thread_delivery_uses_unit_closure_transferability() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nclass Local(val callback: () -> Unit)",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Local\n\
+         fun invalid(own local: Local): Unit {\n\
+             val sent = dispatch(move { val captured = local })\n\
+         }\n\
+         fun empty(): Unit {\n\
+             val sent = dispatch(move {})\n\
+         }\n\
+         fun opaque(own callback: move () -> Unit): Unit {\n\
+             val sent = dispatch(callback)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = cross_thread_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    assert!(
+        typed
+            .types()
+            .calls()
+            .iter()
+            .filter(|call| !call.arguments().is_empty())
+            .all(|call| call.arguments()[0].crosses_thread())
+    );
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0139", "L0139"]);
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
 }

@@ -870,9 +870,13 @@ payload 参数保留诊断标签。第六切片已把 intrinsic container descri
 contract：list-form 重复执行 Value delivery，runtime-length 执行两个同步 Borrow，空 MutableList 无
 operand effect。第七切片已按 source/lambda 顺序发布 source-qualified capture 输入：词法 binding 使用
 `UnitSymbolId`，字段/显式 receiver 规范化为 `This`，默认与 `move` lambda 分别记录 Borrow 与
-Copy/Move，并复用 unit 类型能力图发布具体 environment `Transferability`；capture formation
-move/loan、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布 validated view，也不是
-完整 codegen input。
+Copy/Move，并复用 unit 类型能力图发布具体 environment `Transferability`。第八切片在 AST 上建立
+source-qualified 反向 liveness，并在 body-local 数据流中执行闭包 formation：shared capture 建立随
+named/direct closure 最后使用结束的 loan，owned capture 执行 Copy/Move，lambda body 使用 non-owning
+与 immutable capture state；return/Value delivery/constructor/field 逃逸复用 L0137，非法 owned capture
+复用 L0138，compiler-bound cross-thread effect 复用具体 environment `Transferability` 与 L0139。
+ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布 validated view，也不是完整 codegen
+input。
 
 ## 结构化诊断与 renderer
 

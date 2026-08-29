@@ -381,9 +381,10 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       错误事实原子清空；intrinsic Rc `share/value` 已发布 retain/borrow-payload effects，source-
       qualified constructor 也已发布按源码求值顺序的 Copy/Move/Temporary delivery、MoveOnly root
       obligation 与 `Nothing` 提前终止计划；intrinsic container 已复用同一 source-qualified contract，
-      list-form 执行重复 Value delivery、runtime-length 执行两个 Borrow；closure/capture 已发布
-      source-qualified binding/`This`、Borrow/Copy/Move 与 environment `Transferability` 输入事实。
-      capture formation、drop/return 与 validated gate 继续按本 Spec 接入。
+      list-form 执行重复 Value delivery、runtime-length 执行两个 Borrow；closure/capture 已执行
+      source-qualified Borrow/Copy/Move formation、named/direct last-use loan、L0137–L0139 与
+      compiler-bound cross-thread `Transferable` 数据流。ASAP drop/return 与 validated gate 继续按本
+      Spec 接入。
 - [ ] **[SPEC-0203](../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查

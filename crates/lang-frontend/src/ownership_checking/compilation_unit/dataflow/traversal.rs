@@ -57,6 +57,8 @@ impl Checker<'_> {
             | Item::Constant {
                 name, initializer, ..
             } => {
+                let closure = self.closure_origin(initializer, &state)?;
+                let moved_closure = self.expression_root_symbol(initializer)?;
                 let mut flows = self.check_expression(
                     initializer,
                     state,
@@ -66,6 +68,14 @@ impl Checker<'_> {
                 )?;
                 if let Some(next) = flows.next.as_mut() {
                     self.mark_available(name, next);
+                    if let Some(source) = moved_closure {
+                        next.closures.remove(&source);
+                    }
+                    if let Some(symbol) = self.marker_symbol(name).copied()
+                        && let Some(closure) = closure
+                    {
+                        next.closures.insert(symbol, closure);
+                    }
                 }
                 Ok(flows)
             }
@@ -126,7 +136,27 @@ impl Checker<'_> {
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
             | Statement::ControlBody { elements } => self.check_elements(&elements, state),
-            Statement::LocalVariable { declaration } => self.check_item(declaration, state),
+            Statement::LocalVariable { declaration } => {
+                let mut flows = self.check_item(declaration, state)?;
+                if let Item::Variable { name, .. } = self
+                    .parsed
+                    .ast()
+                    .items()
+                    .get(declaration)?
+                    .payload()
+                    .clone()
+                    && let Some(symbol) = self.marker_symbol(name).copied()
+                    && !self.statement_live_after[id.index()].contains(&symbol)
+                {
+                    for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
+                        .into_iter()
+                        .flatten()
+                    {
+                        self.release_closure(symbol, state);
+                    }
+                }
+                Ok(flows)
+            }
             Statement::LocalDestructuring { initializer, .. } => self.check_expression(
                 initializer,
                 state,
@@ -153,7 +183,9 @@ impl Checker<'_> {
                 })
             }
             Statement::Expression { expression } => {
-                self.check_expression(expression, state, ExpressionUse::Read)
+                let mut flows = self.check_expression(expression, state, ExpressionUse::Read)?;
+                self.release_last_closure_use(expression, &mut flows)?;
+                Ok(flows)
             }
         }
     }
@@ -231,12 +263,7 @@ impl Checker<'_> {
                 }
                 Ok(flows)
             }
-            Expression::Lambda { body, .. } => {
-                // Lambda body has its own invocation state. Capture effects are published by a
-                // later SPEC-0198 slice, so its local moves must not leak into formation.
-                self.check_statement(body, State::default())?;
-                Ok(Flows::next(state))
-            }
+            Expression::Lambda { body, .. } => self.check_lambda(id, body, state),
             Expression::If {
                 condition,
                 then_branch,
@@ -249,6 +276,9 @@ impl Checker<'_> {
             Expression::Return { value, .. } => {
                 let mut flows = Flows::next(state);
                 if let Some(value) = value {
+                    if let Some(next) = flows.next.as_ref() {
+                        self.reject_borrowed_closure_escape(value, next)?;
+                    }
                     flows = self.chain_expression(
                         flows,
                         value,
@@ -290,7 +320,16 @@ impl Checker<'_> {
                 operator,
                 value,
                 ..
-            } => self.check_assignment(target, operator, value, state),
+            } => {
+                if self.place(target)?.is_some_and(|place| {
+                    !place.fields().is_empty()
+                        || self.symbol_kind(place.root())
+                            == Some(crate::name_resolution::SymbolKind::Field)
+                }) {
+                    self.reject_borrowed_closure_escape(value, &state)?;
+                }
+                self.check_assignment(target, operator, value, state)
+            }
             Expression::Member {
                 receiver,
                 name_span,
@@ -384,6 +423,13 @@ impl Checker<'_> {
                 None => ExpressionUse::Read,
             };
             let diagnostic_count = self.diagnostics.len();
+            if contract.is_some_and(|contract| {
+                contract.kind() == UnitCallArgumentOwnershipKind::Value
+                    && !contract.crosses_thread()
+            }) && let Some(next) = flows.next.as_ref()
+            {
+                self.reject_borrowed_closure_escape(argument.value, next)?;
+            }
             flows = self.chain_expression(flows, argument.value, usage)?;
             if self.is_nothing_expression(self.unit_expression(argument.value)) {
                 flows.next = None;
@@ -392,6 +438,9 @@ impl Checker<'_> {
             if self.diagnostics.len() == diagnostic_count
                 && let (Some(contract), Some(next)) = (contract, flows.next.as_mut())
             {
+                if contract.crosses_thread() {
+                    self.check_cross_thread_delivery(argument.value, next)?;
+                }
                 self.apply_contract(contract, next)?;
             }
         }
@@ -399,7 +448,14 @@ impl Checker<'_> {
             .into_iter()
             .flatten()
         {
-            state.loans.retain(|loan| loan.owner != call);
+            state
+                .loans
+                .retain(|loan| loan.owner != super::ActiveLoanOwner::Call(call));
+        }
+        for expression in
+            std::iter::once(callee).chain(arguments.iter().map(|argument| argument.value))
+        {
+            self.release_last_closure_use(expression, &mut flows)?;
         }
         if self.is_nothing_expression(call) {
             flows.next = None;

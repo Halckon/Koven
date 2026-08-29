@@ -688,6 +688,11 @@ pub fn check_compilation_unit_ownership(
         typed,
         &bindings,
         &call_argument_contracts,
+        dataflow::ClosureInputs::new(
+            &capture.captures,
+            &capture.closures,
+            &capture.transferabilities,
+        ),
     )?;
     if !dataflow.diagnostics.is_empty() {
         dataflow.loans.clear();

@@ -1,7 +1,10 @@
 //! Source-qualified body-local call ownership dataflow.
 
+mod closure;
 mod construction;
 mod container;
+mod flow;
+mod liveness;
 mod places;
 mod rc;
 mod traversal;
@@ -24,10 +27,14 @@ use crate::{
 };
 
 use super::{
-    LoanKind, OwnershipBindingKind, OwnershipCheckingError, UnitCallArgumentOwnershipContract,
-    UnitCallArgumentOwnershipKind, UnitConstructionOwnershipPlan, UnitLoanFact, UnitLoanTarget,
+    LoanKind, OwnershipBindingKind, OwnershipCheckingError, Transferability,
+    UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor,
+    UnitClosureDescriptor, UnitConstructionOwnershipPlan, UnitLoanFact, UnitLoanTarget,
     UnitOwnershipBindingDescriptor, UnitOwnershipPlace, UnitRcOwnershipEffect,
     UnitValueDeliveryFact,
+};
+use flow::{
+    ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_optional_state, merge_state,
 };
 
 pub(super) struct Analysis {
@@ -38,18 +45,24 @@ pub(super) struct Analysis {
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ActiveLoan {
-    owner: UnitExpressionId,
-    target: UnitOwnershipPlace,
-    kind: LoanKind,
-    origin: Span,
+pub(super) struct ClosureInputs<'a> {
+    captures: &'a [UnitClosureCaptureDescriptor],
+    closures: &'a [UnitClosureDescriptor],
+    transferabilities: &'a [Transferability],
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct State {
-    moved: BTreeMap<UnitSymbolId, Span>,
-    loans: Vec<ActiveLoan>,
+impl<'a> ClosureInputs<'a> {
+    pub(super) const fn new(
+        captures: &'a [UnitClosureCaptureDescriptor],
+        closures: &'a [UnitClosureDescriptor],
+        transferabilities: &'a [Transferability],
+    ) -> Self {
+        Self {
+            captures,
+            closures,
+            transferabilities,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,30 +81,8 @@ enum AccessKind {
     ExclusiveLoan,
 }
 
-#[derive(Default)]
-struct Flows {
-    next: Option<State>,
-    breaks: Option<State>,
-    continues: Option<State>,
-}
-
 type ConstructionDescriptors =
     BTreeMap<SourceUnitId, BTreeMap<UnitExpressionId, UnitConstructionDescriptor>>;
-
-impl Flows {
-    fn next(state: State) -> Self {
-        Self {
-            next: Some(state),
-            ..Self::default()
-        }
-    }
-
-    fn merge(&mut self, other: Self) {
-        merge_optional_state(&mut self.next, other.next);
-        merge_optional_state(&mut self.breaks, other.breaks);
-        merge_optional_state(&mut self.continues, other.continues);
-    }
-}
 
 pub(super) fn analyze(
     sources: &SourceMap,
@@ -100,6 +91,7 @@ pub(super) fn analyze(
     typed: &CompilationUnitTypes,
     bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     contracts: &[UnitCallArgumentOwnershipContract],
+    closure_inputs: ClosureInputs<'_>,
 ) -> Result<Analysis, OwnershipCheckingError> {
     let construction_descriptors = collect_construction_descriptors(
         typed.constructions(),
@@ -129,6 +121,10 @@ pub(super) fn analyze(
     let immutable_inout_code = codes::catalog()?.resolve(codes::IMMUTABLE_INOUT_PLACE)?;
     let container_element_move_code =
         codes::catalog()?.resolve(codes::MOVE_FROM_CONTAINER_ELEMENT)?;
+    let borrowed_closure_escape_code = codes::catalog()?.resolve(codes::BORROWED_CLOSURE_ESCAPE)?;
+    let illegal_owned_capture_code = codes::catalog()?.resolve(codes::ILLEGAL_OWNED_CAPTURE)?;
+    let non_transferable_delivery_code =
+        codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
     let mut diagnostics = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
@@ -152,6 +148,9 @@ pub(super) fn analyze(
             typed,
             bindings,
             contracts,
+            closure_inputs.captures,
+            closure_inputs.closures,
+            closure_inputs.transferabilities,
             construction_descriptors
                 .get(&source.id())
                 .unwrap_or(&empty_construction_descriptors),
@@ -162,6 +161,9 @@ pub(super) fn analyze(
                 loan_conflict: loan_conflict_code,
                 immutable_inout: immutable_inout_code,
                 container_element_move: container_element_move_code,
+                borrowed_closure_escape: borrowed_closure_escape_code,
+                illegal_owned_capture: illegal_owned_capture_code,
+                non_transferable_delivery: non_transferable_delivery_code,
             },
             &mut diagnostics,
             &mut loans,
@@ -222,6 +224,9 @@ struct Codes {
     loan_conflict: DiagnosticCode,
     immutable_inout: DiagnosticCode,
     container_element_move: DiagnosticCode,
+    borrowed_closure_escape: DiagnosticCode,
+    illegal_owned_capture: DiagnosticCode,
+    non_transferable_delivery: DiagnosticCode,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -232,12 +237,17 @@ struct Checker<'a> {
     names: &'a ValidatedCompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+    captures: &'a [UnitClosureCaptureDescriptor],
+    closures: &'a [UnitClosureDescriptor],
+    transferabilities: &'a [Transferability],
     construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
     references_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     symbols_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     variable_kinds: BTreeMap<UnitSymbolId, VariableKind>,
     field_kinds: BTreeMap<UnitSymbolId, VariableKind>,
     contracts_by_call: BTreeMap<UnitExpressionId, Vec<UnitCallArgumentOwnershipContract>>,
+    expression_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
+    statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
     loans: &'a mut Vec<UnitLoanFact>,
@@ -256,6 +266,9 @@ impl<'a> Checker<'a> {
         typed: &'a CompilationUnitTypes,
         bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
         contracts: &[UnitCallArgumentOwnershipContract],
+        captures: &'a [UnitClosureCaptureDescriptor],
+        closures: &'a [UnitClosureDescriptor],
+        transferabilities: &'a [Transferability],
         construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
         codes: Codes,
         diagnostics: &'a mut Vec<Diagnostic>,
@@ -317,12 +330,17 @@ impl<'a> Checker<'a> {
             names,
             typed,
             bindings,
+            captures,
+            closures,
+            transferabilities,
             construction_descriptors,
             references_by_span,
             symbols_by_span,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             contracts_by_call,
+            expression_live_after: Vec::new(),
+            statement_live_after: Vec::new(),
             codes,
             diagnostics,
             loans,
@@ -336,6 +354,9 @@ impl<'a> Checker<'a> {
         for (item, _) in self.parsed.ast().items().iter() {
             self.collect_mutability(item)?;
         }
+        let liveness = liveness::build(self)?;
+        self.expression_live_after = liveness.expression_after;
+        self.statement_live_after = liveness.statement_after;
         for &root in self.parsed.roots() {
             self.check_item(root, State::default())?;
         }
@@ -416,8 +437,8 @@ impl<'a> Checker<'a> {
                                 return Ok(());
                             }
                             state.loans.push(ActiveLoan {
-                                owner: contract.call(),
-                                target: place.clone(),
+                                owner: ActiveLoanOwner::Call(contract.call()),
+                                target: ActiveLoanTarget::Place(place.clone()),
                                 kind,
                                 origin: contract.loan_begin_span(),
                             });
@@ -627,9 +648,12 @@ impl<'a> Checker<'a> {
                 });
             }
         };
-        if let Some(binding) = self.bindings.get(&place.root())
-            && move_only
-            && binding.kind() != OwnershipBindingKind::Owned
+        if move_only
+            && (self
+                .bindings
+                .get(&place.root())
+                .is_some_and(|binding| binding.kind() != OwnershipBindingKind::Owned)
+                || state.non_owning.contains_key(&place.root()))
         {
             let mut diagnostic = Diagnostic::new(
                 self.sources,
@@ -640,7 +664,16 @@ impl<'a> Checker<'a> {
             )?;
             diagnostic.add_label(
                 self.sources,
-                binding.declaration_span(),
+                state
+                    .non_owning
+                    .get(&place.root())
+                    .copied()
+                    .or_else(|| {
+                        self.bindings
+                            .get(&place.root())
+                            .map(|binding| binding.declaration_span())
+                    })
+                    .unwrap_or(primary),
                 "non-owning binding established here",
             )?;
             add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
@@ -728,8 +761,27 @@ impl<'a> Checker<'a> {
         if !self.ensure_available(place, primary, parameter_span, state)? {
             return Ok(false);
         }
+        if access == AccessKind::Mutation
+            && let Some(origin) = state.immutable_captures.get(&place.root()).copied()
+        {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.loan_conflict,
+                "captured bindings are immutable in v1 closures",
+                primary,
+            )?;
+            diagnostic.add_label(self.sources, origin, "conflicting loan starts here")?;
+            add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+            self.diagnostics.push(diagnostic);
+            return Ok(false);
+        }
         let conflict = state.loans.iter().find(|loan| {
-            loan.target.overlaps(place)
+            let overlaps = match &loan.target {
+                ActiveLoanTarget::Place(target) => target.overlaps(place),
+                ActiveLoanTarget::This => self.symbol_kind(place.root()) == Some(SymbolKind::Field),
+            };
+            overlaps
                 && !matches!(
                     (loan.kind, access),
                     (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
@@ -775,6 +827,31 @@ impl<'a> Checker<'a> {
                     | SymbolKind::DestructuringBinding
             )
         )
+    }
+
+    fn is_move_only_variable(&self, symbol: UnitSymbolId) -> bool {
+        if !matches!(
+            self.symbol_kind(symbol),
+            Some(
+                SymbolKind::Variable
+                    | SymbolKind::ValueParameter
+                    | SymbolKind::LambdaParameter
+                    | SymbolKind::ForBinding
+                    | SymbolKind::DestructuringBinding
+            )
+        ) {
+            return false;
+        }
+        if self
+            .bindings
+            .get(&symbol)
+            .is_some_and(|binding| binding.kind() != OwnershipBindingKind::Owned)
+        {
+            return false;
+        }
+        self.typed
+            .symbol_type(symbol)
+            .is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
     }
 
     fn symbol_kind(&self, symbol: UnitSymbolId) -> Option<SymbolKind> {
@@ -834,32 +911,6 @@ fn add_parameter_label(
 
 const fn span_key(span: Span) -> (usize, usize) {
     (span.start(), span.end())
-}
-
-fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
-    let Some(source) = source else {
-        return;
-    };
-    if let Some(target) = target {
-        merge_state(target, source);
-    } else {
-        *target = Some(source);
-    }
-}
-
-fn merge_state(target: &mut State, source: State) {
-    target.loans.retain(|loan| source.loans.contains(loan));
-    for (symbol, origin) in source.moved {
-        target
-            .moved
-            .entry(symbol)
-            .and_modify(|current| {
-                if origin.start() < current.start() {
-                    *current = origin;
-                }
-            })
-            .or_insert(origin);
-    }
 }
 
 #[cfg(test)]
