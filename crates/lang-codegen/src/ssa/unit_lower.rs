@@ -356,6 +356,9 @@ impl UnitExpressionLowerer<'_> {
                 else_branch,
                 ..
             } => self.lower_if(expression, *condition, *then_branch, *else_branch, span),
+            Expression::When {
+                subject, entries, ..
+            } => self.lower_boolean_when(expression, *subject, entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }

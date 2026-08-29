@@ -70,10 +70,12 @@
    隐式 `else` BranchExit、MoveOnly Value delivery 状态转移、分支局部清理与输入置换。
 5. [x] 接 Copyable value-valued `if` → 验证：双正常结果 block parameter、`Nothing` 分支、输入
    置换与 MoveOnly 结果 fail-loud 边界。
-6. [ ] 扩展 MoveOnly value result、`when`/循环与 aggregate/Rc/container/closure owner/drop SSA →
+6. [x] 接 exhaustive Boolean-subject `when` → 验证：true/false entry 源码逆序、原 entry index
+   BranchExit、Copyable value/Unit owner 路径、输入置换与 subjectless fail-loud 边界。
+7. [ ] 扩展 MoveOnly value result、其余 `when`/循环与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-7. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-8. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+8. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+9. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -84,12 +86,20 @@
 | 3 | block/return 与跨文件 String owner/drop SSA | `feat(codegen): lower multifile string owners (SPEC-0199)` |
 | 4 | Unit-valued `if` owner-aware CFG | `feat(codegen): lower multifile conditionals (SPEC-0199)` |
 | 5 | Copyable value-valued `if` | `feat(codegen): lower multifile value conditionals (SPEC-0199)` |
-| 6 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 7 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 6 | exhaustive Boolean-subject `when` | `feat(codegen): lower multifile boolean when (SPEC-0199)` |
+| 7 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 8 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
-- 无；多 object/增量 ABI 明确留给后续 ADR。
+- 多 object/增量 ABI 明确留给后续 ADR。
+- SPEC-0198 的现行 unit drop planner 会为 MoveOnly control-tail temporary 发布
+  `AfterExpression` drop；例如 String value-`if` 两个 literal 均被计划在各自尾表达式后析构，不能作为
+  merge result 转交。0199 不得忽略 validated drop facts；MoveOnly control result 必须先由独立 frontend
+  follow-up 把 tail 的 Consume/transfer 边界发布正确，再进入 unit SSA。
+- guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
+  `(true) ->` 报 L0058/L0065；0199 只 lower 可达的 bare Boolean literal，不在 Phase 4 内修改 Phase 1
+  语法。该 parser/guide 漂移由独立 frontend follow-up 锁定并修正。
 
 ## 10. 验证记录
 
@@ -113,3 +123,6 @@
 | `cargo test -p lang-codegen unit_lower_tests --lib` | 12 passed | Copyable/generic-concrete value `if` 双出口结果合流与槽位顺序、`Nothing` 单出口、输入置换及 MoveOnly 拒绝边界 |
 | `cargo test -p lang-codegen --lib` | 171 passed, 1 ignored | Copyable value `if` 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第五切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |
+| `cargo test -p lang-codegen unit_lower_tests --lib` | 15 passed | exhaustive Boolean `when` 逆序 entry 的 true/false edge、原 entry index BranchExit drop、Copyable value/Unit owner、输入置换与 subjectless 拒绝边界 |
+| `cargo test -p lang-codegen --lib` | 174 passed, 1 ignored | Boolean `when` 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第六切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |

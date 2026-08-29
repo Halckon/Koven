@@ -6,6 +6,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::UnitDropPoint,
+    parser::{Expression, LiteralKind, WhenCondition, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
 };
@@ -38,6 +39,83 @@ impl UnitExpressionLowerer<'_> {
         condition: ExpressionId,
         then_branch: StatementId,
         else_branch: Option<StatementId>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        self.lower_conditional(expression, condition, then_branch, else_branch, 0, 1, span)
+    }
+
+    pub(super) fn lower_boolean_when(
+        &mut self,
+        expression: ExpressionId,
+        subject: Option<ExpressionId>,
+        entries: &[WhenEntry],
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let subject =
+            subject.ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        let subject_type = self
+            .typed
+            .types()
+            .expression_type(UnitExpressionId::new(self.source_unit, subject))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let subject_type =
+            resolve_concrete_type(self.typed, subject_type, self.substitutions, span)?;
+        if builtin_type(self.typed, subject_type) != Some(BuiltinType::Boolean) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let mut when_true = None;
+        let mut when_false = None;
+        for (index, entry) in entries.iter().enumerate() {
+            let [WhenCondition::Expression(condition)] = entry.conditions.as_slice() else {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    entry.span,
+                ));
+            };
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(*condition)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, entry.span))?;
+            let slot = match node.payload() {
+                Expression::Literal(LiteralKind::Boolean(true)) => &mut when_true,
+                Expression::Literal(LiteralKind::Boolean(false)) => &mut when_false,
+                _ => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        node.span(),
+                    ));
+                }
+            };
+            if slot.replace((entry.body, index)).is_some() {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
+            }
+        }
+        let (true_body, true_index) =
+            when_true.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (false_body, false_index) =
+            when_false.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.lower_conditional(
+            expression,
+            subject,
+            true_body,
+            Some(false_body),
+            true_index,
+            false_index,
+            span,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lower_conditional(
+        &mut self,
+        expression: ExpressionId,
+        condition: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        then_index: usize,
+        else_index: usize,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
@@ -84,7 +162,10 @@ impl UnitExpressionLowerer<'_> {
             then_block,
             then_branch,
             then_baseline,
-            UnitDropPoint::BranchExit { control, branch: 0 },
+            UnitDropPoint::BranchExit {
+                control,
+                branch: then_index,
+            },
             result_required,
         )? {
             exits.push(exit);
@@ -94,7 +175,10 @@ impl UnitExpressionLowerer<'_> {
                 else_block,
                 else_branch,
                 else_baseline,
-                UnitDropPoint::BranchExit { control, branch: 1 },
+                UnitDropPoint::BranchExit {
+                    control,
+                    branch: else_index,
+                },
                 result_required,
             )? {
                 exits.push(exit);
@@ -106,7 +190,10 @@ impl UnitExpressionLowerer<'_> {
             self.block = else_block;
             self.bindings = else_baseline;
             self.temporaries.clear();
-            self.emit_drops(UnitDropPoint::BranchExit { control, branch: 1 })?;
+            self.emit_drops(UnitDropPoint::BranchExit {
+                control,
+                branch: else_index,
+            })?;
             exits.push(BranchExit {
                 block: else_block,
                 result: LoweredValue::Unit,

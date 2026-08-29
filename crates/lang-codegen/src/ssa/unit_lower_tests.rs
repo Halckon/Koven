@@ -657,6 +657,175 @@ fn generic_copyable_value_if_uses_the_concrete_instance_type() {
 }
 
 #[test]
+fn exhaustive_boolean_when_lowers_reversed_entries_deterministically() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun select(own flag: Boolean): Int = when (flag) {\n\
+             false -> 2\n\
+             true -> 1\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\nfun entry(): Int = p.select(true)",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "q", "entry");
+
+    let (forward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    )
+    .expect("exhaustive Boolean when lowers to verified SSA");
+    let (backward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &reversed,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    )
+    .expect("input permutation preserves Boolean-when SSA");
+    assert_eq!(render_program(&forward), render_program(&backward));
+    let select = forward.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.starts_with("koven.p.select.d"))
+        .expect("select function exists");
+    let conditional = select
+        .blocks
+        .iter()
+        .filter_map(|block| block.terminator.as_ref())
+        .find_map(|terminator| match &terminator.kind {
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => Some((when_true, when_false)),
+            _ => None,
+        })
+        .expect("select has one Boolean conditional");
+    let branch_constant = |target| {
+        select
+            .block(target)
+            .expect("conditional target belongs to select")
+            .instructions
+            .iter()
+            .filter_map(|instruction| select.instruction(*instruction))
+            .find_map(|instruction| match instruction.operation {
+                Operation::Constant(ScalarConstant::Integer(value)) => Some(value),
+                _ => None,
+            })
+            .expect("when entry materializes its integer result")
+    };
+    assert_eq!(branch_constant(conditional.0.target), 1);
+    assert_eq!(branch_constant(conditional.1.target), 2);
+}
+
+#[test]
+fn reversed_boolean_when_preserves_branch_exit_index_for_owner_drop() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun sink(own input: String): Unit {}\n\
+         fun route(own flag: Boolean, own text: String): Unit {\n\
+             when (flag) {\n\
+                 false -> { val moved = sink(text) }\n\
+                 true -> {}\n\
+             }\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\nfun entry(): Unit { val done = p.route(false, \"moved\") }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    assert!(owned.ownership().drops().iter().any(|fact| {
+        matches!(fact.point(), UnitDropPoint::BranchExit { branch: 1, .. })
+            && matches!(fact.target(), UnitDropTarget::Named(_))
+            && sources
+                .slice(fact.value_origin())
+                .is_ok_and(|name| name == "text")
+    }));
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("Boolean-when paths consume or drop the owner before merging");
+    assert_eq!(
+        program.modules[0]
+            .functions
+            .iter()
+            .flat_map(|function| function.instructions.iter())
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        2,
+        "sink drops the false-path argument and original entry 1 drops on the true path"
+    );
+}
+
+#[test]
+fn subjectless_when_remains_an_explicit_unsupported_boundary() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         fun entry(): Int = when {\n\
+             true -> 1\n\
+             else -> 2\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    ) {
+        Ok(_) => panic!("subjectless when must stay outside the Boolean-subject slice"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}
+
+#[test]
 fn value_if_with_one_diverging_branch_returns_the_normal_result() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(

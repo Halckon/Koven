@@ -931,6 +931,15 @@ substitutions 解析 concrete type，再判断 builtin/Copyability，不误拒 `
 置换和一支提前 `return`。String 等 MoveOnly value result 在建立结果 owner transfer 前仍于创建 CFG
 前返回 `UnsupportedNode`；`when`、循环和复合 owner 继续由 SPEC-0199 后续切片承接。
 
+第六切片复用上述 conditional/merge 核心接入 exhaustive Boolean-subject `when`。当前只接受恰好
+一个 bare `true` 与一个 bare `false` literal condition；subject 求值一次并直接作为 conditional condition，
+true/false edge 可以与源码 entry 顺序不同，但各正常出口的 `UnitDropPoint::BranchExit.branch` 始终保留
+原 entry index。Copyable value result 与 Unit entry 内的 MoveOnly Value delivery 共用已经验证的
+result/binding 合流；subjectless、`else`、多 condition 及非 Boolean subject 均 fail loud。MoveOnly
+control result 尚未发布：现行 unit drop planner 会为 String control-tail temporary 发布
+`AfterExpression` drop，而不是结果转移，unit lowerer 不会绕过 validated facts；该 frontend 漂移需先由
+独立 follow-up 修正。其余 `when`、循环与复合 owner 继续由 SPEC-0199 后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
