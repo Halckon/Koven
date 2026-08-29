@@ -1,6 +1,7 @@
 //! Source-qualified body-local call ownership dataflow.
 
 mod places;
+mod rc;
 mod traversal;
 
 use std::collections::BTreeMap;
@@ -20,13 +21,14 @@ use crate::{
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, UnitCallArgumentOwnershipContract,
     UnitCallArgumentOwnershipKind, UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor,
-    UnitOwnershipPlace, UnitValueDeliveryFact,
+    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitValueDeliveryFact,
 };
 
 pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
+    pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,6 +101,7 @@ pub(super) fn analyze(
     let mut diagnostics = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
+    let mut rc_effects = Vec::new();
 
     for source in names.names().index().source_units() {
         let input = inputs
@@ -127,6 +130,7 @@ pub(super) fn analyze(
             &mut diagnostics,
             &mut loans,
             &mut value_deliveries,
+            &mut rc_effects,
         )?;
         checker.run()?;
     }
@@ -140,6 +144,7 @@ pub(super) fn analyze(
         diagnostics,
         loans,
         value_deliveries,
+        rc_effects,
     })
 }
 
@@ -170,6 +175,7 @@ struct Checker<'a> {
     diagnostics: &'a mut Vec<Diagnostic>,
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+    rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
 }
 
 impl<'a> Checker<'a> {
@@ -186,6 +192,7 @@ impl<'a> Checker<'a> {
         diagnostics: &'a mut Vec<Diagnostic>,
         loans: &'a mut Vec<UnitLoanFact>,
         value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+        rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     ) -> Result<Self, OwnershipCheckingError> {
         sources.source_text(parsed.source_id())?;
         let resolution = names
@@ -249,6 +256,7 @@ impl<'a> Checker<'a> {
             diagnostics,
             loans,
             value_deliveries,
+            rc_effects,
         })
     }
 

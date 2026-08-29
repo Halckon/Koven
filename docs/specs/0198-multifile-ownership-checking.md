@@ -58,11 +58,13 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
    - [x] 消费 unit call descriptor，归一化 source-qualified Value/shared-loan/exclusive-loan argument
      contracts，并为 Declaration/Symbol target 回链真实参数声明范围；external/function-value 不伪造
      源码位置，错误 call/argument/parameter locator 由内部门禁拒绝。
-   - [ ] 在 body-local 数据流中接通 constructor/container/Rc 特殊交付、return/drop/capture 与
-     validated gate；普通 call contract 数据流由下一条已完成切片覆盖。
+   - [ ] 在 body-local 数据流中接通 constructor/container 特殊交付、return/drop/capture 与
+     validated gate；普通 call contract 与 Rc effects 已由后续完成切片覆盖。
    - [x] 在 body-local 数据流中执行普通 typed call contracts，建立 source-qualified shared/
      exclusive loan、Copy/Move/Temporary Value delivery，并复用 L0131–L0136 的适用诊断；任一诊断
-     原子清空可执行 loan/delivery facts。constructor/container/Rc 特殊交付仍归入下一项。
+     原子清空可执行 loan/delivery facts。constructor/container 特殊交付仍归入下一项。
+   - [x] 执行 intrinsic Rc `share/value`，发布 source-qualified retain/borrow-payload effect，支持
+     named/temporary owner，并复用 L0131/L0132 与跨文件 Value 参数标签；错误 unit 原子清空 effects。
 2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
    既有 ownership suite。
 3. [ ] 同步 Architecture 并跑 workspace 基线。
@@ -106,7 +108,7 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `cargo build -p lang-cli --locked --offline` | 通过 | 第二切片后 CLI dev build |
 | 第二切片独立复审 | 通过 | parameter-index 门禁、rustdoc 边界、具名实参重排 3 个 Low 已修复并复审；最终无 High/Medium/Low |
 | 第二切片 Tier 3 判定 | 未触发 | 中间 contract 切片未执行所有权数据流，也未改 parser/harness、依赖或未知下游；按根 `AGENTS.md` §9 使用 Tier 2 |
-| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 通过 | 第三切片 17 tests；Copy/Move/Temporary、shared/exclusive loan、字段/element/Rc payload place、L0131–L0136、跨文件参数 label、lambda/when、错误事实原子清空与 input permutation |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 通过 | 第三切片完成时 17 tests；第四切片另增 2 个 Rc 用例后当前为 19。覆盖 Copy/Move/Temporary、shared/exclusive loan、字段/element/Rc payload place、L0131–L0136、跨文件参数 label、lambda/when、错误事实原子清空与 input permutation |
 | `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 第三切片后 48 tests |
 | `cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_type_checking --test ownership_checking --test ownership_closures --test ownership_construction --test ownership_containers --test ownership_rc --test ownership_structural --locked --offline` | 通过 | 149 tests；共享 Copyability、unit dataflow 与全部既有 Phase 3 所有权回归 |
 | `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 第三切片 frontend 全 target 无 warning；新生产模块均低于 1000 行软上限 |
@@ -115,3 +117,12 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `cargo build -p lang-cli --locked --offline` | 通过 | 第三切片后 CLI dev build |
 | 第三切片独立复审 | 通过 | 先后发现并修复 10 个数据流/文档缺口；终局复审无 High/Medium/Low |
 | 第三切片 Tier 3 判定 | 未触发 | 中间 ordinary-call 数据流切片未改通用 parser/harness、共享依赖或未知公共下游；按根 `AGENTS.md` §9 使用 Tier 2 |
+| `cargo fmt --all -- --check` | 通过 | 第四切片最终 Rust 源码状态 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 第四切片 frontend 全 target 无 warning；同一 Rust 源码状态结果复用，后续只改验收治理 Markdown |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 第四切片后 48 tests；同一 Rust 源码状态结果复用 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_type_checking --test ownership_checking --test ownership_rc --locked --offline` | 通过 | 第四切片 118 tests；unit Rc typed/ownership effects、普通数据流与单文件 Rc 回归 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 第四切片跨 crate 编译兼容 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | 第四切片后 252 passed、1 ignored；ignored 为既有 LLDB task-port 权限用例 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 第四切片后 CLI dev build |
+| 第四切片独立复审 | 通过 | 初审发现入口 rustdoc 与历史 test count 2 个 Low，均已修复；终局复审无 High/Medium/Low |
+| 第四切片 Tier 3 判定 | 未触发 | 中间 Rc effect 切片未改 parser/harness、依赖或未知公共下游；按根 `AGENTS.md` §9 使用 Tier 2 |

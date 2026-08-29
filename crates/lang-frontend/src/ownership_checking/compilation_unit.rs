@@ -15,7 +15,10 @@ use crate::{
     },
 };
 
-use super::{ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError};
+use super::{
+    ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
+    RcOwnershipEffectKind,
+};
 
 /// compilation-unit callable 参数在 Phase 3 中提供的能力。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,6 +344,55 @@ pub struct UnitValueDeliveryFact {
     parameter_span: Option<Span>,
 }
 
+/// 一个 source-qualified intrinsic `Rc<T>` ownership effect。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitRcOwnershipEffect {
+    expression: UnitExpressionId,
+    receiver: UnitExpressionId,
+    payload_type: UnitTypeId,
+    kind: RcOwnershipEffectKind,
+}
+
+impl UnitRcOwnershipEffect {
+    pub(super) const fn new(
+        expression: UnitExpressionId,
+        receiver: UnitExpressionId,
+        payload_type: UnitTypeId,
+        kind: RcOwnershipEffectKind,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            payload_type,
+            kind,
+        }
+    }
+
+    /// 返回产生结果的 source-qualified expression。
+    #[must_use]
+    pub const fn expression(self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回被读取但不消费的 shared-owner receiver。
+    #[must_use]
+    pub const fn receiver(self) -> UnitExpressionId {
+        self.receiver
+    }
+
+    /// 返回 control block payload 的 unit-global 类型。
+    #[must_use]
+    pub const fn payload_type(self) -> UnitTypeId {
+        self.payload_type
+    }
+
+    /// 返回 retain 或 payload borrow effect。
+    #[must_use]
+    pub const fn kind(self) -> RcOwnershipEffectKind {
+        self.kind
+    }
+}
+
 impl UnitValueDeliveryFact {
     pub(super) const fn new(
         call: UnitExpressionId,
@@ -422,6 +474,7 @@ pub struct CompilationUnitOwnership {
     call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
+    rc_effects: Vec<UnitRcOwnershipEffect>,
 }
 
 impl CompilationUnitOwnership {
@@ -432,6 +485,7 @@ impl CompilationUnitOwnership {
         call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
         loans: Vec<UnitLoanFact>,
         value_deliveries: Vec<UnitValueDeliveryFact>,
+        rc_effects: Vec<UnitRcOwnershipEffect>,
     ) -> Self {
         Self {
             provenance: UnitOwnershipProvenance {
@@ -443,6 +497,7 @@ impl CompilationUnitOwnership {
             call_argument_contracts,
             loans,
             value_deliveries,
+            rc_effects,
         }
     }
 
@@ -517,12 +572,19 @@ impl CompilationUnitOwnership {
     pub fn value_deliveries(&self) -> &[UnitValueDeliveryFact] {
         &self.value_deliveries
     }
+
+    /// 返回源码顺序稳定的 intrinsic Rc retain/payload-borrow effects。
+    #[must_use]
+    pub fn rc_effects(&self) -> &[UnitRcOwnershipEffect] {
+        &self.rc_effects
+    }
 }
 
-/// 建立 compilation-unit ownership product 的首个纵向切片。
+/// 建立 source-qualified compilation-unit ownership recovery product。
 ///
-/// 当前先发布所有 source/member/lambda callable 参数的 source-qualified binding 能力；
-/// call loan、move/drop/capture 将在同一 SPEC 的后续切片接入，不会伪造空 facts。
+/// 当前发布 callable parameter bindings、call argument contracts、普通 call loan/value
+/// deliveries 与 intrinsic Rc effects。constructor/container ordered delivery、drop/capture
+/// 与 validated codegen gate 仍由同一 SPEC 的后续切片接入。
 pub fn check_compilation_unit_ownership(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -566,6 +628,7 @@ pub fn check_compilation_unit_ownership(
     if !dataflow.diagnostics.is_empty() {
         dataflow.loans.clear();
         dataflow.value_deliveries.clear();
+        dataflow.rc_effects.clear();
     }
 
     Ok(CompilationUnitOwnership::new(
@@ -575,6 +638,7 @@ pub fn check_compilation_unit_ownership(
         call_argument_contracts,
         dataflow.loans,
         dataflow.value_deliveries,
+        dataflow.rc_effects,
     ))
 }
 

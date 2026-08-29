@@ -378,8 +378,8 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       typed-analysis provenance、顶层/member/companion/lambda 参数 binding capability，以及带真实
       call/argument/参数声明位置的 Value/shared-loan/exclusive-loan 输入契约；普通 typed call 已执行
       source-qualified shared/exclusive loan 与 Copy/Move/Temporary Value delivery，并复用稳定诊断及
-      错误事实原子清空。constructor/container/Rc 特殊交付、drop/capture 与 validated gate 继续按本
-      Spec 接入。
+      错误事实原子清空；intrinsic Rc `share/value` 也已发布 retain/borrow-payload effects。
+      constructor/container 特殊交付、drop/capture 与 validated gate 继续按本 Spec 接入。
 - [ ] **[SPEC-0203](../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查

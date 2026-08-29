@@ -862,8 +862,10 @@ body-local 数据流的输入。第三切片已按规范 source/AST 顺序执行
 possible-move，复用 L0131–L0136 的适用诊断，诊断可同时标注使用文件中的 move/loan 起点和跨文件
 目标参数声明。字段 place、具名实参重排、function-value/external、input permutation 与错误 unit 的
 原子边界均有回归：任一 ownership 诊断会清空 loan/delivery 可执行 facts，recovery contract/binding
-仍可用于后续诊断。construction/container/Rc 特殊交付、lambda capture、ASAP drop 与完整 callable
-return 继续等待后续切片，因此本产物仍不发布 validated view，也不是完整 codegen input。
+仍可用于后续诊断。当前已额外发布 intrinsic Rc `share/value` 的 source-qualified retain/
+borrow-payload effects，支持 named/temporary owner、L0131/L0132 与错误事实原子清空；construction/
+container ordered plan、lambda capture、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不
+发布 validated view，也不是完整 codegen input。
 
 ## 结构化诊断与 renderer
 

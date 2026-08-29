@@ -213,7 +213,7 @@ impl Checker<'_> {
         self.temporary_element_owner(expression)
     }
 
-    fn temporary_expression_origin(
+    pub(super) fn temporary_expression_origin(
         &self,
         expression: ExpressionId,
     ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {

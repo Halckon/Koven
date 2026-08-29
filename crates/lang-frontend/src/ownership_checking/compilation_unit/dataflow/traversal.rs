@@ -199,6 +199,9 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if let Some(descriptor) = self.typed.rc_operation(self.unit_expression(id)) {
+            return self.check_rc_operation(descriptor, state, usage);
+        }
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {
