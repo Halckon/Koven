@@ -35,6 +35,8 @@ mod unit_lower_test_support;
 #[cfg(test)]
 mod unit_lower_tests;
 #[cfg(test)]
+mod unit_lower_type_plan_tests;
+#[cfg(test)]
 mod unit_lower_when_tests;
 #[cfg(test)]
 mod unit_plan_tests;

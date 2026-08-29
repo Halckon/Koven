@@ -4,6 +4,7 @@ mod cfg;
 mod control;
 mod loop_control;
 mod ownership;
+mod type_plan;
 
 use std::collections::BTreeMap;
 
@@ -192,6 +193,17 @@ pub(crate) fn lower_scalar_unit_with_entry(
             parameter_symbols,
             return_type,
         });
+    }
+
+    // 保持既有 signature-first 类型编号；body-only type 只在全部函数签名建立后追加。
+    for plan in &plans {
+        type_plan::intern_body_scalar_types(
+            module,
+            parsed_by_source[plan.instance.source_unit().index()],
+            &plan.instance,
+            typed,
+            &mut type_ids,
+        )?;
     }
 
     let entry_id = function_ids
@@ -886,6 +898,22 @@ fn builtin_type(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> Option
         Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
         _ => None,
     }
+}
+
+const fn is_scalar_storage_builtin(builtin: BuiltinType) -> bool {
+    matches!(
+        builtin,
+        BuiltinType::Boolean
+            | BuiltinType::Byte
+            | BuiltinType::Short
+            | BuiltinType::Int
+            | BuiltinType::Long
+            | BuiltinType::UByte
+            | BuiltinType::UShort
+            | BuiltinType::UInt
+            | BuiltinType::ULong
+            | BuiltinType::String
+    )
 }
 
 fn instance_function_name(

@@ -78,10 +78,12 @@
    body-local drop、共同退出、全路径 owner consume、无 break divergence 与 path-specific outer owner fail-loud。
 9. [x] 扩展 Boolean `when` entry chain → 验证：subjectful `else`、subjectless 顺序短路、动态
    subject comparison、同 entry 多 condition 只 lower body 一次、原 entry index 与一致 owner 状态合流。
-10. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
+10. [x] 预规划 reachable body-only scalar storage type → 验证：signature-first identity、literal-only
+   Boolean `when`、String local owner/drop、泛型 instance substitution、死 body 隔离与输入置换。
+11. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-11. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-12. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+12. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+13. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -96,8 +98,9 @@
 | 7 | 无 jump Unit `while` | `feat(codegen): lower multifile while loops (SPEC-0199)` |
 | 8 | loop jump 与 bare loop | `feat(codegen): lower multifile loop jumps (SPEC-0199)` |
 | 9 | Boolean `when` entry chain | `feat(codegen): lower multifile when chains (SPEC-0199)` |
-| 10 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 11 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 10 | reachable body-only scalar type plan | `feat(codegen): plan multifile body scalar types (SPEC-0199)` |
+| 11 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 12 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -113,9 +116,6 @@
   与各 break exit。若所有实际出口都已消费 owner，unit lowerer 在一致状态合流后跳过 stale fact；若
   while false 仍拥有而某 break 已消费，则 exit binding 状态不同并显式 `UnsupportedNode`。后者需要
   frontend 发布 exit-qualified owner/drop facts 后才能形成可验证的可选路径状态，0199 不猜测 drop。
-- unit SSA 类型表当前由 reachable callable signature 建立；若 subjectless `when` 的 Boolean 只来自
-  body literal、未出现在任何 reachable callable 参数/返回契约中，lowering 会以 `MissingFact` 失败。
-  body-only scalar type 预规划应作为独立 unit type-plan 切片解决，本切片不以全局注入未使用类型掩盖该边界。
 
 ## 10. 验证记录
 
@@ -155,3 +155,7 @@
 | `cargo test -p lang-codegen --lib unit_lower_loop_tests` | 7 passed | loop CFG 与 owner/drop 回归 |
 | `cargo test -p lang-codegen --lib` | 187 passed, 1 ignored | Boolean when entry-chain 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第九切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |
+| `cargo test -p lang-codegen --lib type_plan` | 4 passed | 全局 signature-first identity、reachable literal-only Boolean、body-only String owner/drop、空 type map 白盒 generic substitution、dead body type 隔离与输入置换 |
+| `cargo test -p lang-codegen --lib unit_lower_when_tests` | 6 passed | body-only Boolean type plan 接入后的 when short-circuit/owner CFG 回归 |
+| `cargo test -p lang-codegen --lib` | 191 passed, 1 ignored | reachable body-only scalar type-plan 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十切片沿用 scoped 窄测 → 受影响 crate 全量 → workspace 静态门禁 |

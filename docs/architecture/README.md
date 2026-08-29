@@ -964,10 +964,16 @@ condition 的 false edge 进入下一个 condition/entry，同一 entry 的所�
 true/false 语义 arm，若同一 entry 同时覆盖两值，则 subject 仍求值但 body 不复制。verified SSA 测试已
 覆盖 subjectful `else`、subjectless 双 condition、动态 comparison、同 entry 多 condition、三条路径一致
 消费同一 String owner、implicit unmatched synthetic branch index 及输入置换。当前只接受 Boolean
-expression condition；type-test/contains、非 Boolean
-subject 和 MoveOnly control result 仍 fail loud。另有一个独立类型规划边界：只在 body literal 中出现、
-未进入任何 reachable callable signature 的 Boolean 尚未预建 SSA type，等待后续 body-only scalar type
-planning 切片处理，不通过全局注入未使用类型规避。
+expression condition；type-test/contains、非 Boolean subject 和 MoveOnly control result 仍 fail loud。
+
+第十切片增加独立 `unit_lower::type_plan`，补齐只在 reachable body 中出现、未进入 callable signature
+的 scalar storage type。unit lowering 先按原顺序建立全部 reachable callable signature/function，再以第二遍
+扫描每个 `UnitPlannedInstance` 自身 source/span 内的 typed expression facts，应用该实例的泛型替换，并只
+追加 Boolean、8/16/32/64-bit 有/无符号整数与 String owner。这样保持既有 signature-first type identity，
+也不通过全局注入未使用 Boolean 掩盖 planning 缺口；同文件 dead callable、Unit/Nothing、浮点/Char/Any
+及复合类型不会进入本切片。verified SSA 测试锁定 literal-only subjectless `when` 的输入置换确定性、
+body-only String local 的唯一 drop、generic `T` body fact 到具体 String instance 的替换，以及 dead
+Boolean body 不污染 Int-only module type table；精确 type vector 同时锁定 signature-first identity。
 
 ## 结构化诊断与 renderer
 
