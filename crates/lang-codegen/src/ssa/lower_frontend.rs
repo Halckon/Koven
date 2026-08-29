@@ -9,7 +9,7 @@ mod loop_control;
 mod nominal;
 pub(super) mod orchestrate;
 mod source_closure;
-mod string_literal;
+pub(in crate::ssa) mod string_literal;
 
 use std::collections::BTreeMap;
 

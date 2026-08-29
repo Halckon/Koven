@@ -3,22 +3,29 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames,
+        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::ValidatedCompilationUnitOwnership,
-    parser::{Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind},
+    ownership_checking::{
+        UnitDropPoint, UnitDropTarget, UnitValueDeliveryKind, ValidatedCompilationUnitOwnership,
+    },
+    parser::{
+        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
+        Statement,
+    },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, ParameterMode, TypeEnvironment, UnitCallTarget, UnitExpressionId, UnitTypeId,
-        UnitTypeKind, ValidatedCompilationUnitTypes,
+        BuiltinType, Copyability, ExpressionCategory, ParameterMode, TypeEnvironment,
+        UnitCallTarget, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
 use super::{
     LoweringError, LoweringErrorKind,
+    lower_frontend::string_literal,
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, Operation, Origin, Program,
         ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
@@ -33,12 +40,19 @@ use super::{
 enum LoweredValue {
     Unit,
     Value(ValueId),
+    Diverged,
+}
+
+enum FunctionPlanBody {
+    Expression(ExpressionId),
+    Block(StatementId),
 }
 
 struct FunctionPlan {
     id: FunctionId,
     instance: UnitPlannedInstance,
-    body: ExpressionId,
+    function_item: ItemId,
+    body: FunctionPlanBody,
     parameter_symbols: Vec<UnitSymbolId>,
     return_type: UnitTypeId,
 }
@@ -87,7 +101,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })?;
-        let (item, _) = unwrap_modified(parsed, instance.item())?;
+        let (function_item, item, _) = unwrap_modified(parsed, instance.item())?;
         let Item::Function { form, .. } = item else {
             return Err(lowering_error(
                 LoweringErrorKind::MissingFact,
@@ -98,13 +112,13 @@ pub(crate) fn lower_scalar_unit_with_entry(
             FunctionForm::Explicit {
                 body: FunctionBody::Expression { expression, .. },
                 ..
-            } => expression,
-            FunctionForm::ImplicitUnitBlock(_)
+            } => FunctionPlanBody::Expression(expression),
+            FunctionForm::ImplicitUnitBlock(block)
             | FunctionForm::Explicit {
-                body: FunctionBody::Block(_),
+                body: FunctionBody::Block(block),
                 ..
-            }
-            | FunctionForm::ImplicitUnitAbsent
+            } => FunctionPlanBody::Block(block),
+            FunctionForm::ImplicitUnitAbsent
             | FunctionForm::Explicit {
                 body: FunctionBody::Absent,
                 ..
@@ -170,6 +184,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
         plans.push(FunctionPlan {
             id,
             instance,
+            function_item,
             body,
             parameter_symbols,
             return_type,
@@ -209,7 +224,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             .into_iter()
             .zip(parameters)
             .map(|(symbol, entity)| match entity {
-                EntityId::Value(value) => Ok((symbol, value)),
+                EntityId::Value(value) => Ok((symbol, LoweredValue::Value(value))),
                 EntityId::Place(_) | EntityId::Loan(_) => Err(lowering_error(
                     LoweringErrorKind::InvalidModel,
                     plan.instance.span(),
@@ -220,7 +235,9 @@ pub(crate) fn lower_scalar_unit_with_entry(
             sources,
             parsed,
             source_unit: plan.instance.source_unit(),
+            names,
             typed,
+            owned,
             function_ids: &function_ids,
             type_ids: &type_ids,
             substitutions: plan.instance.substitutions(),
@@ -228,12 +245,25 @@ pub(crate) fn lower_scalar_unit_with_entry(
             function,
             block,
             bindings,
+            temporaries: BTreeMap::new(),
+            return_type: plan.return_type,
         };
-        let result = lowerer.lower(plan.body)?;
+        lowerer.emit_drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
+            plan.instance.source_unit(),
+            plan.function_item,
+        )))?;
+        let result = match plan.body {
+            FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,
+            FunctionPlanBody::Block(statement) => lowerer.lower_statement(statement)?,
+        };
+        if result == LoweredValue::Diverged {
+            continue;
+        }
         let values = match (builtin_type(typed, plan.return_type), result) {
             (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
             (Some(BuiltinType::Unit), LoweredValue::Value(_))
             | (Some(_), LoweredValue::Unit)
+            | (Some(_), LoweredValue::Diverged)
             | (None, _) => {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
@@ -263,18 +293,46 @@ struct UnitExpressionLowerer<'a> {
     sources: &'a SourceMap,
     parsed: &'a lang_frontend::parser::ParsedFile,
     source_unit: SourceUnitId,
+    names: &'a ValidatedCompilationUnitNames,
     typed: &'a ValidatedCompilationUnitTypes,
+    owned: &'a ValidatedCompilationUnitOwnership,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
     references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
     function: &'a mut Function,
     block: BlockId,
-    bindings: BTreeMap<UnitSymbolId, ValueId>,
+    bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    temporaries: BTreeMap<UnitExpressionId, ValueId>,
+    return_type: UnitTypeId,
 }
 
 impl UnitExpressionLowerer<'_> {
     fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
+        let result = self.lower_expression(expression)?;
+        let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        if let LoweredValue::Value(value) = result
+            && self.typed.types().expression_category(unit_expression)
+                == Some(ExpressionCategory::Temporary)
+            && self
+                .typed
+                .types()
+                .expression_type(unit_expression)
+                .map(|ty| self.typed.types().copyability(ty))
+                == Some(Copyability::MoveOnly)
+        {
+            self.temporaries.insert(unit_expression, value);
+        }
+        if result != LoweredValue::Diverged {
+            self.emit_drops(UnitDropPoint::AfterExpression(unit_expression))?;
+        }
+        Ok(result)
+    }
+
+    fn lower_expression(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
         let node = self
             .parsed
             .ast()
@@ -287,9 +345,11 @@ impl UnitExpressionLowerer<'_> {
         let span = node.span();
         match node.payload() {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),
+            Expression::String { .. } => self.lower_string_literal(expression, span),
             Expression::Name => self.lower_name(span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::Call { arguments, .. } => self.lower_call(expression, arguments, span),
+            Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -322,6 +382,30 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 
+    fn lower_string_literal(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let source_text = self
+            .sources
+            .source_text(self.parsed.source_id())
+            .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
+        let bytes = string_literal::decode_plain(self.parsed, source_text, expression)?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        let string = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::StringLiteral { string, bytes },
+                vec![EntityType::Value(string)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
     fn lower_name(&self, span: Span) -> Result<LoweredValue, LoweringError> {
         let symbol = self
             .references
@@ -330,7 +414,6 @@ impl UnitExpressionLowerer<'_> {
         self.bindings
             .get(symbol)
             .copied()
-            .map(LoweredValue::Value)
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))
     }
 
@@ -375,13 +458,57 @@ impl UnitExpressionLowerer<'_> {
             }
             let value = match self.lower(argument.value)? {
                 LoweredValue::Value(value) => value,
-                LoweredValue::Unit => {
+                LoweredValue::Unit | LoweredValue::Diverged => {
                     return Err(lowering_error(
                         LoweringErrorKind::MissingFact,
                         argument.span,
                     ));
                 }
             };
+            let mut deliveries =
+                self.owned
+                    .ownership()
+                    .value_deliveries()
+                    .iter()
+                    .filter(|delivery| {
+                        delivery.call() == unit_expression
+                            && delivery.argument()
+                                == UnitExpressionId::new(self.source_unit, argument.value)
+                    });
+            let delivery = deliveries
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+            let argument_type = self
+                .typed
+                .types()
+                .expression_type(argument_id)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
+            let expected_delivery = match (
+                self.typed.types().expression_category(argument_id),
+                self.typed.types().copyability(argument_type),
+            ) {
+                (Some(ExpressionCategory::Temporary), _) => UnitValueDeliveryKind::Temporary,
+                (Some(ExpressionCategory::Place), Copyability::Copyable) => {
+                    UnitValueDeliveryKind::Copy
+                }
+                (Some(ExpressionCategory::Place), Copyability::MoveOnly) => {
+                    UnitValueDeliveryKind::Move
+                }
+                (None, _)
+                | (Some(ExpressionCategory::Place), Copyability::Unknown | Copyability::Error) => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
+                }
+            };
+            if deliveries.next().is_some() || delivery.kind() != expected_delivery {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    argument.span,
+                ));
+            }
             let slot = ordered
                 .get_mut(mapping.parameter_index())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
@@ -421,10 +548,205 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.emit_drops(UnitDropPoint::CallReturn(unit_expression))?;
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
             _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+        }
+    }
+
+    fn lower_return(
+        &mut self,
+        expression: ExpressionId,
+        value: Option<ExpressionId>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let result = match value {
+            Some(value) => self.lower(value)?,
+            None => LoweredValue::Unit,
+        };
+        if result == LoweredValue::Diverged {
+            return Ok(result);
+        }
+        self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+            self.source_unit,
+            expression,
+        )))?;
+        let values = self.return_values(result, span)?;
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Return { values },
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(LoweredValue::Diverged)
+    }
+
+    fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+        let result = self.lower_statement_inner(statement)?;
+        if result != LoweredValue::Diverged {
+            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
+                self.source_unit,
+                statement,
+            )))?;
+        }
+        Ok(result)
+    }
+
+    fn lower_statement_inner(
+        &mut self,
+        statement: StatementId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .statements()
+            .get(statement)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let span = node.span();
+        match node.payload() {
+            Statement::Block { elements }
+            | Statement::LambdaBody { elements }
+            | Statement::ControlBody { elements } => {
+                for element in elements {
+                    if self.lower_statement(*element)? == LoweredValue::Diverged {
+                        return Ok(LoweredValue::Diverged);
+                    }
+                }
+                Ok(LoweredValue::Unit)
+            }
+            Statement::LocalVariable { declaration } => {
+                self.lower_local_variable(*declaration, span)
+            }
+            Statement::Expression { expression } => self.lower(*expression),
+            Statement::Error
+            | Statement::LocalDestructuring { .. }
+            | Statement::While { .. }
+            | Statement::For { .. }
+            | Statement::Loop { .. } => {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            }
+        }
+    }
+
+    fn lower_local_variable(
+        &mut self,
+        declaration: ItemId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let (_, item, _) = unwrap_modified(self.parsed, declaration)?;
+        let Item::Variable {
+            name, initializer, ..
+        } = item
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let lowered = self.lower(initializer)?;
+        if lowered == LoweredValue::Diverged {
+            return Ok(lowered);
+        }
+        let name_span = present_name(name)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.sources.slice(name_span).is_ok_and(|name| name == "_") {
+            return Ok(LoweredValue::Unit);
+        }
+        let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
+        self.bindings.insert(symbol, lowered);
+        Ok(LoweredValue::Unit)
+    }
+
+    fn declaration_symbol(
+        &self,
+        span: Span,
+        kind: SymbolKind,
+    ) -> Result<UnitSymbolId, LoweringError> {
+        let local = self
+            .names
+            .names()
+            .source_units()
+            .get(self.source_unit.index())
+            .and_then(|source| {
+                source
+                    .resolution()
+                    .symbols()
+                    .iter()
+                    .find(|symbol| symbol.span() == span && symbol.kind() == kind)
+            })
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.typed
+            .types()
+            .body_symbol_types()
+            .keys()
+            .find(|symbol| {
+                symbol.source_unit() == self.source_unit && symbol.symbol() == local.id()
+            })
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+    }
+
+    fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        let facts = self
+            .owned
+            .ownership()
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.point() == point)
+            .collect::<Vec<_>>();
+        for fact in facts {
+            let owner = match fact.target() {
+                UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
+                    Some(LoweredValue::Value(value)) => value,
+                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
+                        return Err(lowering_error(
+                            LoweringErrorKind::MissingFact,
+                            fact.value_origin(),
+                        ));
+                    }
+                },
+                UnitDropTarget::Temporary(expression) => {
+                    self.temporaries.remove(&expression).ok_or_else(|| {
+                        lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
+                    })?
+                }
+                UnitDropTarget::Captured { .. } => continue,
+                UnitDropTarget::ReplacedElement(_) => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        fact.value_origin(),
+                    ));
+                }
+            };
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::Drop { owner },
+                    Vec::new(),
+                    Origin::Source(fact.value_origin()),
+                )
+                .map_err(|_| {
+                    lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
+                })?;
+        }
+        Ok(())
+    }
+
+    fn return_values(
+        &self,
+        result: LoweredValue,
+        span: Span,
+    ) -> Result<Vec<ValueId>, LoweringError> {
+        match (builtin_type(self.typed, self.return_type), result) {
+            (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
+            (Some(BuiltinType::Unit), LoweredValue::Value(_))
+            | (Some(_), LoweredValue::Unit | LoweredValue::Diverged)
+            | (None, _) => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            (Some(_), LoweredValue::Value(value)) => Ok(vec![value]),
         }
     }
 
@@ -494,7 +816,7 @@ fn value_references(
 fn unwrap_modified(
     parsed: &lang_frontend::parser::ParsedFile,
     mut item: lang_frontend::ast::ItemId,
-) -> Result<(Item, Span), LoweringError> {
+) -> Result<(ItemId, Item, Span), LoweringError> {
     loop {
         let node = parsed.ast().items().get(item).map_err(|_| LoweringError {
             kind: LoweringErrorKind::MissingFact,
@@ -502,7 +824,7 @@ fn unwrap_modified(
         })?;
         match node.payload() {
             Item::Modified { declaration, .. } => item = *declaration,
-            payload => return Ok((payload.clone(), node.span())),
+            payload => return Ok((item, payload.clone(), node.span())),
         }
     }
 }
@@ -527,6 +849,11 @@ fn intern_scalar_type(
         Some(UnitTypeKind::Builtin(BuiltinType::UInt)) => integer_type(32, false),
         Some(UnitTypeKind::Builtin(BuiltinType::Long)) => integer_type(64, true),
         Some(UnitTypeKind::Builtin(BuiltinType::ULong)) => integer_type(64, false),
+        Some(UnitTypeKind::Builtin(BuiltinType::String)) => {
+            let id = module.add_string_owner_type();
+            type_ids.insert(ty, id);
+            return Ok(id);
+        }
         Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => SsaTypeKind::Unit,
         Some(_) => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         None => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
@@ -593,6 +920,13 @@ fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError>
         EntityId::Place(_) | EntityId::Loan(_) => {
             Err(lowering_error(LoweringErrorKind::InvalidModel, span))
         }
+    }
+}
+
+const fn present_name(marker: NameMarker) -> Option<Span> {
+    match marker {
+        NameMarker::Present(span) => Some(span),
+        NameMarker::Missing(_) | NameMarker::Error(_) => None,
     }
 }
 

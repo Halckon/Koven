@@ -8,7 +8,7 @@ use lang_frontend::{
 
 use super::{LoweringError, LoweringErrorKind, error};
 
-pub(super) fn decode_plain(
+pub(in crate::ssa) fn decode_plain(
     parsed: &ParsedFile,
     source_text: &str,
     expression: ExpressionId,

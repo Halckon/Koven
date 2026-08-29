@@ -902,6 +902,15 @@ direct call 与表达式体返回 lower 到一个 SSA module，并在返回前�
 String/aggregate/Rc/container/closure、drop glue、LLVM/DWARF/object 仍明确返回未支持边界或等待后续切片，
 不能把本切片描述成完整多文件 native lowering。
 
+第三切片把同一 unit lowerer 扩到 straight-line block、局部变量与显式 `return`，并接入普通 UTF-8
+String owner。每次 Value direct call 都按 source-qualified argument identity 查找唯一
+`UnitValueDeliveryFact`，再由 typed expression category 与 `Copyability` 独立推导并核对
+Copy/Move/Temporary；不以 SSA verifier 通过替代 frontend ownership 契约。lowerer 在
+FunctionEntry、AfterExpression、AfterStatement、CallReturn 与 ControlTransfer 边界消费对应
+`UnitDropFact`，named/temporary owner 形成显式 `Drop`，返回或跨文件移动的 owner 不重复析构。
+当前 verifier 测试已覆盖 String 跨文件移动后由 callee 精确 drop 一次、跨文件 String 结果显式返回不
+drop，以及未支持 loop 的原子失败；CFG 和复合 owner 仍由后继切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

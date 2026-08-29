@@ -201,9 +201,131 @@ fn package_identity_keeps_same_named_functions_distinct_and_dead_body_unlowered(
 }
 
 #[test]
-fn unsupported_reachable_block_body_fails_before_publishing_ssa() {
+fn moves_a_string_across_files_and_drops_the_callee_owner_once() {
     let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(&mut sources, "p/main.ko", "package p\nfun entry(): Unit {}");
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nfun consume(own input: String): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val message = \"hello\"\n\
+             val consumed = p.consume(message)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("MoveOnly String delivery lowers to verified SSA");
+    let operations = program.modules[0]
+        .functions
+        .iter()
+        .flat_map(|function| function.instructions.iter())
+        .map(|instruction| &instruction.operation)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation, Operation::StringLiteral { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation, Operation::DirectCall { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "callee owns and drops the moved String exactly once"
+    );
+}
+
+#[test]
+fn explicit_return_transfers_a_cross_file_string_result_without_drop() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nfun produce(): String = \"kept\"",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\nfun entry(): String { return p.produce() }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let (program, entry) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("explicit return transfers the String owner");
+    assert_eq!(
+        program.modules[0]
+            .functions
+            .iter()
+            .flat_map(|function| function.instructions.iter())
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        0,
+        "returned owners must not be dropped in either callable"
+    );
+    assert_eq!(
+        program.modules[0].functions[entry.index()]
+            .blocks
+            .iter()
+            .filter_map(|block| block.terminator.as_ref())
+            .filter(|terminator| matches!(
+                terminator.kind,
+                super::model::TerminatorKind::Return { .. }
+            ))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn unsupported_reachable_loop_fails_before_publishing_ssa() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\nfun entry(): Unit { while (true) {} }",
+    );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
@@ -217,7 +339,7 @@ fn unsupported_reachable_block_body_fails_before_publishing_ssa() {
         &owned,
         declaration(&names, "p", "entry"),
     ) {
-        Ok(_) => panic!("unimplemented body family must fail loudly"),
+        Ok(_) => panic!("unimplemented loop family must fail loudly"),
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
