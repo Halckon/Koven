@@ -7,10 +7,12 @@ use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::UnitDropPoint,
     source::Span,
-    type_checking::{BuiltinType, UnitExpressionId},
+    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error};
+use super::{
+    LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, resolve_concrete_type,
+};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{BlockId, Edge, EntityId, EntityType, Origin, TerminatorKind, ValueId},
@@ -25,6 +27,7 @@ struct CarriedBinding {
 
 struct BranchExit {
     block: BlockId,
+    result: LoweredValue,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
 }
 
@@ -37,13 +40,19 @@ impl UnitExpressionLowerer<'_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let control = UnitExpressionId::new(self.source_unit, expression);
         let expression_type = self
             .typed
             .types()
-            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+            .expression_type(control)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if builtin_type(self.typed, expression_type) != Some(BuiltinType::Unit)
-            || !self.temporaries.is_empty()
+        let concrete_type =
+            resolve_concrete_type(self.typed, expression_type, self.substitutions, span)?;
+        let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
+        if !self.temporaries.is_empty()
+            || (result_required
+                && (builtin_type(self.typed, concrete_type).is_none()
+                    || self.typed.types().copyability(concrete_type) != Copyability::Copyable))
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -70,13 +79,13 @@ impl UnitExpressionLowerer<'_> {
 
         let then_baseline = self.rebind_carried(&baseline, then_block, &carried, span)?;
         let else_baseline = self.rebind_carried(&baseline, else_block, &carried, span)?;
-        let control = UnitExpressionId::new(self.source_unit, expression);
         let mut exits = Vec::with_capacity(2);
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
             then_baseline,
             UnitDropPoint::BranchExit { control, branch: 0 },
+            result_required,
         )? {
             exits.push(exit);
         }
@@ -86,16 +95,21 @@ impl UnitExpressionLowerer<'_> {
                 else_branch,
                 else_baseline,
                 UnitDropPoint::BranchExit { control, branch: 1 },
+                result_required,
             )? {
                 exits.push(exit);
             }
         } else {
+            if result_required {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
             self.block = else_block;
             self.bindings = else_baseline;
             self.temporaries.clear();
             self.emit_drops(UnitDropPoint::BranchExit { control, branch: 1 })?;
             exits.push(BranchExit {
                 block: else_block,
+                result: LoweredValue::Unit,
                 bindings: self.bindings.clone(),
             });
         }
@@ -108,16 +122,26 @@ impl UnitExpressionLowerer<'_> {
         statement: StatementId,
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         drop_point: UnitDropPoint,
+        result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
         self.block = block;
         let entry_symbols = bindings.keys().copied().collect::<BTreeSet<_>>();
         self.bindings = bindings;
         self.temporaries.clear();
-        let result = self.lower_statement(statement)?;
+        let result = if result_required {
+            self.lower_control_body(statement)?
+        } else {
+            self.lower_statement(statement)?
+        };
         if result == LoweredValue::Diverged {
             return Ok(None);
         }
-        if result != LoweredValue::Unit || !self.temporaries.is_empty() {
+        let expected_result = if result_required {
+            matches!(result, LoweredValue::Value(_))
+        } else {
+            result == LoweredValue::Unit
+        };
+        if !expected_result || !self.temporaries.is_empty() {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 self.statement_span(statement)?,
@@ -127,8 +151,44 @@ impl UnitExpressionLowerer<'_> {
         self.discard_branch_locals(&entry_symbols, self.statement_span(statement)?)?;
         Ok(Some(BranchExit {
             block: self.block,
+            result,
             bindings: self.bindings.clone(),
         }))
+    }
+
+    fn lower_control_body(
+        &mut self,
+        statement: StatementId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .statements()
+            .get(statement)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let lang_frontend::parser::Statement::ControlBody { elements } = node.payload() else {
+            return self.lower_statement(statement);
+        };
+        let elements = elements.clone();
+        let Some((&last, prefix)) = elements.split_last() else {
+            return Ok(LoweredValue::Unit);
+        };
+        for &element in prefix {
+            if self.lower_statement(element)? == LoweredValue::Diverged {
+                return Ok(LoweredValue::Diverged);
+            }
+        }
+        let result = self.lower_statement(last)?;
+        if result != LoweredValue::Diverged {
+            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
+                self.source_unit,
+                statement,
+            )))?;
+        }
+        Ok(result)
     }
 
     fn discard_branch_locals(
@@ -236,9 +296,16 @@ impl UnitExpressionLowerer<'_> {
             self.temporaries.clear();
             return Ok(LoweredValue::Diverged);
         };
+        if exits.len() == 1 {
+            self.block = first.block;
+            self.bindings = first.bindings.clone();
+            self.temporaries.clear();
+            return Ok(first.result);
+        }
         let symbols = first.bindings.keys().copied().collect::<Vec<_>>();
         if exits.iter().any(|exit| {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
+                || std::mem::discriminant(&exit.result) != std::mem::discriminant(&first.result)
                 || symbols.iter().any(|symbol| {
                     std::mem::discriminant(&exit.bindings[symbol])
                         != std::mem::discriminant(&first.bindings[symbol])
@@ -246,38 +313,73 @@ impl UnitExpressionLowerer<'_> {
         }) {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let result_type = match first.result {
+            LoweredValue::Unit => None,
+            LoweredValue::Value(value) => Some(
+                self.function
+                    .entity(EntityId::Value(value))
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?,
+            ),
+            LoweredValue::Diverged => {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
+        };
+        if let Some(expected) = result_type
+            && exits.iter().any(|exit| match exit.result {
+                LoweredValue::Value(value) => self
+                    .function
+                    .entity(EntityId::Value(value))
+                    .is_none_or(|entity| entity.ty != expected),
+                LoweredValue::Unit | LoweredValue::Diverged => true,
+            })
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let value_symbols = symbols
             .iter()
             .copied()
             .filter(|symbol| matches!(first.bindings[symbol], LoweredValue::Value(_)))
             .collect::<Vec<_>>();
-        let parameter_types = value_symbols
-            .iter()
-            .map(|symbol| match first.bindings[symbol] {
-                LoweredValue::Value(value) => self
-                    .function
-                    .entity(EntityId::Value(value))
-                    .map(|entity| entity.ty)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span)),
-                LoweredValue::Unit | LoweredValue::Diverged => {
-                    Err(lowering_error(LoweringErrorKind::InvalidModel, span))
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut parameter_types = result_type.into_iter().collect::<Vec<_>>();
+        parameter_types.extend(
+            value_symbols
+                .iter()
+                .map(|symbol| match first.bindings[symbol] {
+                    LoweredValue::Value(value) => self
+                        .function
+                        .entity(EntityId::Value(value))
+                        .map(|entity| entity.ty)
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span)),
+                    LoweredValue::Unit | LoweredValue::Diverged => {
+                        Err(lowering_error(LoweringErrorKind::InvalidModel, span))
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         for exit in &exits {
-            let arguments = value_symbols
-                .iter()
-                .map(|symbol| match exit.bindings[symbol] {
-                    LoweredValue::Value(value) => Ok(EntityId::Value(value)),
-                    LoweredValue::Unit | LoweredValue::Diverged => {
-                        Err(lowering_error(LoweringErrorKind::InvalidModel, span))
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let mut arguments = match exit.result {
+                LoweredValue::Unit => Vec::new(),
+                LoweredValue::Value(value) => vec![EntityId::Value(value)],
+                LoweredValue::Diverged => {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                }
+            };
+            arguments.extend(
+                value_symbols
+                    .iter()
+                    .map(|symbol| match exit.bindings[symbol] {
+                        LoweredValue::Value(value) => Ok(EntityId::Value(value)),
+                        LoweredValue::Unit | LoweredValue::Diverged => {
+                            Err(lowering_error(LoweringErrorKind::InvalidModel, span))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
             self.function
                 .set_terminator(
                     exit.block,
@@ -295,6 +397,18 @@ impl UnitExpressionLowerer<'_> {
             .expect("new merge block exists")
             .parameters
             .clone();
+        let mut parameters = parameters.into_iter();
+        let result = if result_type.is_some() {
+            let EntityId::Value(value) = parameters
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            LoweredValue::Value(value)
+        } else {
+            LoweredValue::Unit
+        };
         let mut bindings = first.bindings.clone();
         for (symbol, parameter) in value_symbols.into_iter().zip(parameters) {
             let EntityId::Value(value) = parameter else {
@@ -305,7 +419,7 @@ impl UnitExpressionLowerer<'_> {
         self.block = merge;
         self.bindings = bindings;
         self.temporaries.clear();
-        Ok(LoweredValue::Unit)
+        Ok(result)
     }
 
     fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {

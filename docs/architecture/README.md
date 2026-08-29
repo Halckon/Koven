@@ -921,6 +921,16 @@ branch block 参数与 merge block 参数。进入控制表达式时的 binding 
 implicit-else 路径析构同一 owner 的互斥闭环。value-valued `if`、`when`、循环与复合 owner 仍由
 SPEC-0199 后续切片承接。
 
+第五切片把同一 conditional CFG 扩展到 Copyable builtin 的 value-valued `if`。`ControlBody` 只把
+最后一个 expression statement 作为结果，并在离开整个 control body 时继续消费 source-qualified
+`AfterStatement`；两个正常出口把结果置于 merge block parameter 的首槽，随后才是进入 `if` 时的
+binding 槽，edge 参数保持同一确定顺序。只有一个正常出口时直接沿用其结果，全部分支 diverge 时
+返回 `Diverged`；因此 `Nothing` 与普通标量的 join 不需要伪造值。result gate 先按当前 instance 的
+substitutions 解析 concrete type，再判断 builtin/Copyability，不误拒 `T : Copyable` 的 `Int` 实例。
+当前跨文件测试覆盖 `Int`/泛型 concrete 双出口、result 与同型 live binding 的 edge 槽位顺序、输入
+置换和一支提前 `return`。String 等 MoveOnly value result 在建立结果 owner transfer 前仍于创建 CFG
+前返回 `UnsupportedNode`；`when`、循环和复合 owner 继续由 SPEC-0199 后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
