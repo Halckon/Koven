@@ -1,19 +1,8 @@
 use lang_frontend::{
-    lexer::lex,
-    name_resolution::{
-        DeclarationId, NameEnvironment, SourceUnitInput, ValidatedCompilationUnitNames,
-        index_compilation_unit, resolve_compilation_unit_names,
-    },
-    ownership_checking::{
-        UnitDropPoint, UnitDropTarget, ValidatedCompilationUnitOwnership,
-        check_compilation_unit_ownership,
-    },
-    parser::{ParsedFile, parse_file},
-    source::{SourceId, SourceMap},
-    type_checking::{
-        TypeEnvironment, ValidatedCompilationUnitTypes, check_compilation_unit_types,
-        standard_environments,
-    },
+    name_resolution::SourceUnitInput,
+    ownership_checking::{UnitDropPoint, UnitDropTarget},
+    source::SourceMap,
+    type_checking::standard_environments,
 };
 
 use super::{
@@ -21,64 +10,8 @@ use super::{
     model::{Definition, EntityId, Operation, ScalarConstant, TerminatorKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
+    unit_lower_test_support::{analyze, declaration, parsed},
 };
-
-fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
-    let source = sources.add_source(name, text).expect("unique source");
-    let lexed = lex(sources, source).expect("lexing succeeds internally");
-    let parsed = parse_file(sources, &lexed).expect("parsing succeeds internally");
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    (source, parsed)
-}
-
-fn analyze(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    name_environment: &NameEnvironment,
-    type_environment: &TypeEnvironment,
-) -> (
-    ValidatedCompilationUnitNames,
-    ValidatedCompilationUnitTypes,
-    ValidatedCompilationUnitOwnership,
-) {
-    let index = index_compilation_unit(sources, inputs).expect("valid unit input");
-    let names = resolve_compilation_unit_names(sources, inputs, &index, name_environment)
-        .expect("name resolution succeeds internally")
-        .validate()
-        .expect("valid names");
-    let typed = check_compilation_unit_types(sources, inputs, &names, type_environment)
-        .expect("type checking succeeds internally")
-        .validate()
-        .expect("valid types");
-    let owned = check_compilation_unit_ownership(sources, inputs, &names, type_environment, &typed)
-        .expect("ownership checking succeeds internally")
-        .validate()
-        .expect("valid ownership");
-    (names, typed, owned)
-}
-
-fn declaration(names: &ValidatedCompilationUnitNames, package: &str, name: &str) -> DeclarationId {
-    names
-        .names()
-        .index()
-        .declarations()
-        .iter()
-        .find(|declaration| {
-            declaration.name() == name
-                && names.names().index().packages()[declaration.package().index()]
-                    .name()
-                    .segments()
-                    .iter()
-                    .map(String::as_str)
-                    .eq(package.split('.'))
-        })
-        .expect("declaration exists")
-        .id()
-}
 
 #[test]
 fn lowers_cross_package_generic_alias_call_to_deterministic_verified_ssa() {
@@ -907,12 +840,14 @@ fn move_only_value_if_remains_an_explicit_unsupported_boundary() {
 }
 
 #[test]
-fn unsupported_reachable_loop_fails_before_publishing_ssa() {
+fn unsupported_reachable_loop_jump_fails_before_publishing_ssa() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/main.ko",
-        "package p\nfun entry(): Unit { while (true) {} }",
+        "package p\n\
+         fun run(own flag: Boolean): Unit { while (flag) { break } }\n\
+         fun entry(): Unit { val done = run(true) }",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
@@ -927,7 +862,7 @@ fn unsupported_reachable_loop_fails_before_publishing_ssa() {
         &owned,
         declaration(&names, "p", "entry"),
     ) {
-        Ok(_) => panic!("unimplemented loop family must fail loudly"),
+        Ok(_) => panic!("unimplemented loop jump must fail loudly"),
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);

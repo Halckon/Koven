@@ -1,6 +1,8 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 
+mod cfg;
 mod control;
+mod loop_control;
 mod ownership;
 
 use std::collections::BTreeMap;
@@ -676,9 +678,11 @@ impl UnitExpressionLowerer<'_> {
                 self.lower_local_variable(*declaration, span)
             }
             Statement::Expression { expression } => self.lower(*expression),
+            Statement::While {
+                condition, body, ..
+            } => self.lower_while(statement, *condition, *body, span),
             Statement::Error
             | Statement::LocalDestructuring { .. }
-            | Statement::While { .. }
             | Statement::For { .. }
             | Statement::Loop { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))

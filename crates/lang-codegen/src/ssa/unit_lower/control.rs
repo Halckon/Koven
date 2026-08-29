@@ -1,6 +1,6 @@
 //! compilation-unit `if` 的 owner-aware CFG 与 branch-state 合流。
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -12,19 +12,13 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, resolve_concrete_type,
+    LoweredValue, UnitExpressionLowerer, builtin_type, cfg::carried_edge, lowering_error,
+    resolve_concrete_type,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Edge, EntityId, EntityType, Origin, TerminatorKind, ValueId},
+    model::{BlockId, Edge, EntityId, Origin, TerminatorKind},
 };
-
-#[derive(Clone, Copy)]
-struct CarriedBinding {
-    symbol: UnitSymbolId,
-    source: ValueId,
-    ty: EntityType,
-}
 
 struct BranchExit {
     block: BlockId,
@@ -212,7 +206,7 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
         self.block = block;
-        let entry_symbols = bindings.keys().copied().collect::<BTreeSet<_>>();
+        let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.temporaries.clear();
         let result = if result_required {
@@ -235,7 +229,7 @@ impl UnitExpressionLowerer<'_> {
             ));
         }
         self.emit_drops(drop_point)?;
-        self.discard_branch_locals(&entry_symbols, self.statement_span(statement)?)?;
+        self.discard_non_entry_bindings(&entry_symbols, self.statement_span(statement)?)?;
         Ok(Some(BranchExit {
             block: self.block,
             result,
@@ -276,101 +270,6 @@ impl UnitExpressionLowerer<'_> {
             )))?;
         }
         Ok(result)
-    }
-
-    fn discard_branch_locals(
-        &mut self,
-        entry_symbols: &BTreeSet<UnitSymbolId>,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        let locals = self
-            .bindings
-            .keys()
-            .filter(|symbol| !entry_symbols.contains(symbol))
-            .copied()
-            .collect::<Vec<_>>();
-        for symbol in locals {
-            let ty = self
-                .typed
-                .types()
-                .body_symbol_types()
-                .get(&symbol)
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if self.typed.types().copyability(ty)
-                != lang_frontend::type_checking::Copyability::Copyable
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            self.bindings.remove(&symbol);
-        }
-        Ok(())
-    }
-
-    fn carried_bindings(
-        &self,
-        bindings: &BTreeMap<UnitSymbolId, LoweredValue>,
-        span: Span,
-    ) -> Result<Vec<CarriedBinding>, LoweringError> {
-        let mut carried = Vec::new();
-        for (symbol, binding) in bindings {
-            let source = match binding {
-                LoweredValue::Unit => continue,
-                LoweredValue::Value(value) => *value,
-                LoweredValue::Diverged => {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                }
-            };
-            let ty = self
-                .function
-                .entity(EntityId::Value(source))
-                .map(|entity| entity.ty)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedBinding {
-                symbol: *symbol,
-                source,
-                ty,
-            });
-        }
-        Ok(carried)
-    }
-
-    fn add_carried_block(
-        &mut self,
-        carried: &[CarriedBinding],
-        span: Span,
-    ) -> Result<BlockId, LoweringError> {
-        self.function
-            .add_block(
-                carried.iter().map(|binding| binding.ty).collect(),
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    fn rebind_carried(
-        &self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        block: BlockId,
-        carried: &[CarriedBinding],
-        span: Span,
-    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
-        let parameters = &self
-            .function
-            .block(block)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .parameters;
-        if parameters.len() != carried.len() {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        }
-        let mut rebound = baseline.clone();
-        for (slot, parameter) in carried.iter().zip(parameters) {
-            let EntityId::Value(value) = parameter else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            rebound.insert(slot.symbol, LoweredValue::Value(*value));
-        }
-        Ok(rebound)
     }
 
     fn merge_unit_exits(
@@ -509,7 +408,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(result)
     }
 
-    fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {
+    pub(super) fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {
         self.parsed
             .ast()
             .statements()
@@ -519,15 +418,5 @@ impl UnitExpressionLowerer<'_> {
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })
-    }
-}
-
-fn carried_edge(target: BlockId, carried: &[CarriedBinding]) -> Edge {
-    Edge {
-        target,
-        arguments: carried
-            .iter()
-            .map(|binding| EntityId::Value(binding.source))
-            .collect(),
     }
 }

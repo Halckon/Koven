@@ -940,6 +940,14 @@ control result 尚未发布：现行 unit drop planner 会为 String control-tai
 `AfterExpression` drop，而不是结果转移，unit lowerer 不会绕过 validated facts；该 frontend 漂移需先由
 独立 follow-up 修正。其余 `when`、循环与复合 owner 继续由 SPEC-0199 后续切片承接。
 
+第七切片把 `if`/`when` 原有的 carried-binding block/edge/rebind 基元提为 compilation-unit CFG
+共享职责，并接入无 jump 的 Unit `while`。preheader 把当前 binding 交付 header block parameter；
+condition 只在 header 求值，true edge 把同一组 owner-aware binding 交付 body，正常 body exit 再以
+显式 backedge 交还 header，false edge 则在独立 exit block 消费 source-qualified `LoopExit` drop。
+body 提前 `return` 不生成回边；测试同时锁定 String owner 经正常 body/merge 回边继续存活，以及互斥
+return 路径和零次退出各自唯一析构。`break` / `continue`、bare `loop`、`for` 和循环内 binding 更新仍在
+构造可发布 SSA 前 fail loud，由 SPEC-0199 后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

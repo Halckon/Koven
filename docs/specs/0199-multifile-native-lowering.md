@@ -72,10 +72,12 @@
    置换与 MoveOnly 结果 fail-loud 边界。
 6. [x] 接 exhaustive Boolean-subject `when` → 验证：true/false entry 源码逆序、原 entry index
    BranchExit、Copyable value/Unit owner 路径、输入置换与 subjectless fail-loud 边界。
-7. [ ] 扩展 MoveOnly value result、其余 `when`/循环与 aggregate/Rc/container/closure owner/drop SSA →
+7. [x] 接无 jump Unit `while` → 验证：header/body/backedge/false-exit binding 参数、MoveOnly owner
+   正常回边、`LoopExit` drop、提前 return、输入置换与 `break` fail-loud 边界。
+8. [ ] 扩展 MoveOnly value result、其余 `when`/loop/for/jump 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-8. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-9. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+9. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+10. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -87,8 +89,9 @@
 | 4 | Unit-valued `if` owner-aware CFG | `feat(codegen): lower multifile conditionals (SPEC-0199)` |
 | 5 | Copyable value-valued `if` | `feat(codegen): lower multifile value conditionals (SPEC-0199)` |
 | 6 | exhaustive Boolean-subject `when` | `feat(codegen): lower multifile boolean when (SPEC-0199)` |
-| 7 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 8 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 7 | 无 jump Unit `while` | `feat(codegen): lower multifile while loops (SPEC-0199)` |
+| 8 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 9 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -126,3 +129,7 @@
 | `cargo test -p lang-codegen unit_lower_tests --lib` | 15 passed | exhaustive Boolean `when` 逆序 entry 的 true/false edge、原 entry index BranchExit drop、Copyable value/Unit owner、输入置换与 subjectless 拒绝边界 |
 | `cargo test -p lang-codegen --lib` | 174 passed, 1 ignored | Boolean `when` 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第六切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |
+| `cargo test -p lang-codegen --lib unit_lower_loop_tests` | 2 passed | 无 jump Unit `while` 的 MoveOnly owner 正常回边、false `LoopExit`、提前 return、输入置换与精确 CFG edge |
+| `cargo test -p lang-codegen --lib unit_lower_tests` | 15 passed | 共享 carried-binding CFG 提取后的 if/when 回归，以及 `break` 原子拒绝边界 |
+| `cargo test -p lang-codegen --lib` | 176 passed, 1 ignored | 无 jump Unit `while` 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第七切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复无关 runtime matrix |
