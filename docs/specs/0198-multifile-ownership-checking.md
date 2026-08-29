@@ -58,8 +58,8 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
    - [x] 消费 unit call descriptor，归一化 source-qualified Value/shared-loan/exclusive-loan argument
      contracts，并为 Declaration/Symbol target 回链真实参数声明范围；external/function-value 不伪造
      源码位置，错误 call/argument/parameter locator 由内部门禁拒绝。
-   - [ ] 在 body-local 数据流中接通 return/drop/capture 与 validated gate；普通 call contract、
-     container 特殊交付与 Rc effects 已由后续完成切片覆盖。
+   - [ ] 在 body-local 数据流中接通 return/drop、capture formation 与 validated gate；普通 call
+     contract、container 特殊交付、Rc effects 与 capture 输入事实已由完成切片覆盖。
    - [x] 在 body-local 数据流中执行普通 typed call contracts，建立 source-qualified shared/
      exclusive loan、Copy/Move/Temporary Value delivery，并复用 L0131–L0136 的适用诊断；任一诊断
      原子清空可执行 loan/delivery facts；container 特殊交付由下方独立完成切片覆盖。
@@ -73,7 +73,11 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
      重复执行 Value Copy/Move/Temporary delivery，runtime-length 建立两个同步 shared loan，空
      MutableList 不发布 operand effect；descriptor identity/shape/type/mode 在 dataflow 前 fail-loud，
      错误 unit 原子清空可执行 facts。
-2. [ ] 接 move/drop/capture 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
+   - [x] 发布 source-qualified closure/capture 输入事实：词法 binding 使用 `UnitSymbolId`，字段与显式
+     receiver 规范化为 `This`，默认/`move` lambda 分别得到 Borrow 与 Copy/Move effect，并复用 unit
+     类型图计算具体 environment `Transferability`；错误 unit 原子清空 capture facts，closure/type
+     capability recovery facts 保留供诊断，formation move/loan 留给下一切片。
+2. [ ] 接 move/drop/capture formation 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
    既有 ownership suite。
 3. [ ] 同步 Architecture 并跑 workspace 基线。
 
@@ -152,3 +156,12 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `cargo build -p lang-cli --locked --offline` | 通过 | 第六切片 CLI dev build |
 | 第六切片复审 | 通过 | 发现并修复 local initializer 丢失 `Nothing` 终止 flow、单元素未证明重复 delivery 两项缺口；补齐 descriptor shape/mode 门禁后未发现剩余问题 |
 | 第六切片 Tier 3 判定 | 未触发 | 私有 contract/dataflow helper 与定向 Phase 3 套件的可界定中间切片；未改 parser/harness、依赖、guide 语义或未知公共下游，按根 `AGENTS.md` §9 使用 Tier 2 |
+| `cargo fmt --all -- --check` | 通过 | 第七切片最终 Rust 源码状态 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | 第七切片 frontend 全 target 无 warning |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 第七切片 50 tests；含 compilation-unit ownership 内部门禁回归 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_type_checking --test ownership_closures --test ownership_checking --locked --offline` | 通过 | 第七切片 135 tests；source-qualified capture/`This`、Borrow/Copy/Move、unit `Transferability`、错误事实原子清空、输入排列确定性及相关单文件回归 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 第七切片跨 crate 编译兼容 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | 第七切片 218 passed、1 ignored；ignored 为既有 LLDB task-port 权限用例 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 第七切片 CLI dev build |
+| 第七切片复审 | 通过 | 发现并修复非法 `UnitTypeId` 查询可能越界、ownership facade 新增职责过重、测试 fixture 语法/契约偏差及显式 `this` 覆盖缺口；终局复审未发现剩余问题 |
+| 第七切片 Tier 3 判定 | 未触发 | source-qualified capture 输入与私有 capability 查询的可界定中间切片；未改 parser/harness、依赖、guide 语义或未知公共下游，按根 `AGENTS.md` §9 使用 Tier 2 |

@@ -90,6 +90,13 @@ pub enum OwnershipCheckingError {
         /// 文件局部 container call expression 下标。
         expression: usize,
     },
+    /// validated unit 的 lambda/scope/capture locator 违反名称或类型阶段不变量。
+    InvalidUnitClosureCapture {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 lambda expression 下标。
+        expression: usize,
+    },
     /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
     InvalidConstructionDescriptor {
         /// 无效 descriptor 的 expression arena 下标。
@@ -193,6 +200,13 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "invalid compilation-unit container construction {source_unit}:{expression}"
             ),
+            Self::InvalidUnitClosureCapture {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "invalid compilation-unit closure capture {source_unit}:{expression}"
+            ),
             Self::InvalidConstructionDescriptor { expression } => {
                 write!(
                     formatter,
@@ -237,6 +251,7 @@ impl Error for OwnershipCheckingError {
             | Self::InvalidUnitArgumentType { .. }
             | Self::InvalidUnitConstruction { .. }
             | Self::InvalidUnitContainerConstruction { .. }
+            | Self::InvalidUnitClosureCapture { .. }
             | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }

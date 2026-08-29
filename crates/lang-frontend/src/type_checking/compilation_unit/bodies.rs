@@ -24,6 +24,7 @@ mod projection;
 mod rc;
 
 pub use checker::check_compilation_unit_types;
+pub(crate) use checker::copyability::UnitTransferability;
 pub use {container::*, nullable::*, projection::*, rc::*};
 
 /// 一个 unit body 中成功选择的静态 call target。
@@ -498,6 +499,10 @@ impl CompilationUnitTypes {
     #[must_use]
     pub fn copyability(&self, ty: UnitTypeId) -> Copyability {
         checker::copyability::unit_copyability(&self.signatures, ty)
+    }
+
+    pub(crate) fn transferability(&self, ty: UnitTypeId) -> UnitTransferability {
+        checker::copyability::unit_transferability(&self.signatures, ty)
     }
 
     /// 查询 source-qualified expression 的规范类型。

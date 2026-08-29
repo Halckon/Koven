@@ -1,9 +1,11 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 
+mod capture;
 mod construction;
 mod contracts;
 mod dataflow;
 
+pub use capture::{UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor};
 pub use construction::{
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation,
@@ -23,7 +25,7 @@ use crate::{
 
 use super::{
     ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
-    RcOwnershipEffectKind,
+    RcOwnershipEffectKind, Transferability,
 };
 
 /// compilation-unit callable 参数在 Phase 3 中提供的能力。
@@ -482,6 +484,9 @@ pub struct CompilationUnitOwnership {
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
+    captures: Vec<UnitClosureCaptureDescriptor>,
+    closures: Vec<UnitClosureDescriptor>,
+    transferabilities: Vec<Transferability>,
 }
 
 impl CompilationUnitOwnership {
@@ -489,8 +494,14 @@ impl CompilationUnitOwnership {
         typed: &CompilationUnitTypes,
         bindings: Vec<UnitOwnershipBindingDescriptor>,
         call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
+        capture: capture::Analysis,
         dataflow: dataflow::Analysis,
     ) -> Self {
+        let captures = if dataflow.diagnostics.is_empty() {
+            capture.captures
+        } else {
+            Vec::new()
+        };
         Self {
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
@@ -503,6 +514,9 @@ impl CompilationUnitOwnership {
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
             construction_plans: dataflow.construction_plans,
+            captures,
+            closures: capture.closures,
+            transferabilities: capture.transferabilities,
         }
     }
 
@@ -589,14 +603,51 @@ impl CompilationUnitOwnership {
     pub fn construction_plans(&self) -> &[UnitConstructionOwnershipPlan] {
         &self.construction_plans
     }
+
+    /// 返回 lambda/source 顺序稳定的 capture 输入事实。
+    #[must_use]
+    pub fn captures(&self) -> &[UnitClosureCaptureDescriptor] {
+        &self.captures
+    }
+
+    /// 返回指定 source-qualified lambda 的 capture 输入事实。
+    pub fn captures_of(
+        &self,
+        lambda: UnitExpressionId,
+    ) -> impl Iterator<Item = &UnitClosureCaptureDescriptor> {
+        self.captures
+            .iter()
+            .filter(move |capture| capture.lambda() == lambda)
+    }
+
+    /// 查询具体 lambda environment 的能力事实。
+    #[must_use]
+    pub fn closure(&self, expression: UnitExpressionId) -> Option<UnitClosureDescriptor> {
+        self.closures
+            .iter()
+            .copied()
+            .find(|closure| closure.expression() == expression)
+    }
+
+    /// 返回 source/lambda 顺序稳定的 closure environment 能力事实。
+    #[must_use]
+    pub fn closures(&self) -> &[UnitClosureDescriptor] {
+        &self.closures
+    }
+
+    /// 查询一个 unit-global 类型的结构化跨线程转移能力。
+    #[must_use]
+    pub fn transferability(&self, ty: UnitTypeId) -> Option<Transferability> {
+        self.transferabilities.get(ty.index()).copied()
+    }
 }
 
 /// 建立 source-qualified compilation-unit ownership recovery product。
 ///
 /// 当前发布 callable parameter bindings、call argument contracts、普通 call loan/value
-/// deliveries、intrinsic container Value/Borrow deliveries、intrinsic Rc effects 与 constructor
-/// ordered delivery/root obligations。drop/capture 与 validated codegen gate 仍由同一 SPEC 的
-/// 后续切片接入。
+/// deliveries、intrinsic container Value/Borrow deliveries、intrinsic Rc effects、constructor
+/// ordered delivery/root obligations，以及 source-qualified closure capture/Transferability
+/// 输入事实。capture formation dataflow、drop 与 validated codegen gate 仍由后续切片接入。
 pub fn check_compilation_unit_ownership(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -629,6 +680,7 @@ pub fn check_compilation_unit_ownership(
         )?;
     }
     let call_argument_contracts = contracts::collect_call_argument_contracts(inputs, names, typed)?;
+    let capture = capture::analyze(inputs, names, typed)?;
     let mut dataflow = dataflow::analyze(
         sources,
         inputs,
@@ -648,6 +700,7 @@ pub fn check_compilation_unit_ownership(
         typed,
         bindings.into_values().collect(),
         call_argument_contracts,
+        capture,
         dataflow,
     ))
 }

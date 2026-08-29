@@ -9,10 +9,11 @@ use lang_frontend::{
         ValidatedCompilationUnitNames, index_compilation_unit, resolve_compilation_unit_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, ConstructionDeliveryKind, ConstructionRootKind, LoanKind,
-        OwnershipBindingKind, OwnershipCheckingError, RcOwnershipEffectKind,
-        UnitCallArgumentOwnershipKind, UnitLoanTarget, UnitValueDeliveryKind,
-        check_compilation_unit_ownership,
+        ClosureCaptureEffect, ClosureCaptureMode, CompilationUnitOwnership,
+        ConstructionDeliveryKind, ConstructionRootKind, LoanKind, OwnershipBindingKind,
+        OwnershipCheckingError, RcOwnershipEffectKind, Transferability,
+        UnitCallArgumentOwnershipKind, UnitClosureCaptureSource, UnitLoanTarget,
+        UnitValueDeliveryKind, check_compilation_unit_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
@@ -1743,6 +1744,207 @@ fn list_form_move_reports_reuse_and_clears_executable_facts() {
     assert_eq!(ownership.diagnostics().len(), 1);
     assert_eq!(ownership.diagnostics()[0].code().to_string(), "L0131");
     assert_eq!(ownership.call_argument_contracts().len(), 1);
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+    assert!(ownership.rc_effects().is_empty());
+    assert!(ownership.construction_plans().is_empty());
+}
+
+#[test]
+fn closure_capture_inputs_use_unit_identity_types_and_stable_transferability() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nclass Resource {}\nfun inspect(item: Resource): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         import p.inspect\n\
+         fun captures(own resource: Resource, number: Int): Unit {\n\
+             val shared: () -> Unit = {\n\
+                 val first = number\n\
+                 val second = inspect(resource)\n\
+             }\n\
+             val owned: move () -> Unit = move {\n\
+                 val first = number\n\
+                 val second = resource\n\
+             }\n\
+             val empty: () -> Unit = {}\n\
+         }\n\
+         class Holder(val resource: Resource) {\n\
+             fun closure(): () -> Unit = {\n\
+                 val receiver = this\n\
+                 val captured = inspect(resource)\n\
+             }\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    let consumer_unit = source_unit(&names, consumer_source);
+    let lambdas = consumer
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, expression)| {
+            matches!(
+                expression.payload(),
+                lang_frontend::parser::Expression::Lambda { .. }
+            )
+            .then_some(UnitExpressionId::new(consumer_unit, id))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(lambdas.len(), 4);
+    let resource = symbol_named(&ownership, &names, consumer_unit, "resource");
+    let number = symbol_named(&ownership, &names, consumer_unit, "number");
+    let shared = ownership
+        .captures_of(lambdas[0])
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        shared
+            .iter()
+            .map(|capture| capture.source())
+            .collect::<Vec<_>>(),
+        [
+            UnitClosureCaptureSource::Symbol(number),
+            UnitClosureCaptureSource::Symbol(resource),
+        ]
+    );
+    assert!(shared.iter().all(|capture| {
+        capture.mode() == ClosureCaptureMode::Shared
+            && capture.effect() == ClosureCaptureEffect::Borrow
+    }));
+    assert_eq!(
+        shared[0].ty(),
+        typed
+            .types()
+            .symbol_type(number)
+            .expect("number has a unit-global type")
+    );
+    assert_eq!(
+        shared[1].ty(),
+        typed
+            .types()
+            .symbol_type(resource)
+            .expect("resource has a unit-global type")
+    );
+    let owned = ownership
+        .captures_of(lambdas[1])
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(owned[0].source(), UnitClosureCaptureSource::Symbol(number));
+    assert_eq!(owned[0].effect(), ClosureCaptureEffect::Copy);
+    assert_eq!(
+        owned[1].source(),
+        UnitClosureCaptureSource::Symbol(resource)
+    );
+    assert_eq!(owned[1].effect(), ClosureCaptureEffect::Move);
+    assert_eq!(
+        ownership
+            .closure(lambdas[0])
+            .expect("shared closure")
+            .transferability(),
+        Transferability::NotTransferable
+    );
+    assert_eq!(
+        ownership
+            .closure(lambdas[1])
+            .expect("owned closure")
+            .transferability(),
+        Transferability::Transferable
+    );
+    assert_eq!(
+        ownership
+            .closure(lambdas[2])
+            .expect("empty closure")
+            .transferability(),
+        Transferability::Transferable
+    );
+    let this_captures = ownership
+        .captures_of(lambdas[3])
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(this_captures.len(), 1);
+    let this_capture = this_captures[0];
+    assert_eq!(this_capture.source(), UnitClosureCaptureSource::This);
+    assert_eq!(this_capture.mode(), ClosureCaptureMode::Shared);
+    assert_eq!(
+        ownership.transferability(this_capture.ty()),
+        Some(Transferability::Transferable)
+    );
+
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
+    let reversed_typed = validated_types(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+    );
+    let reversed = check_compilation_unit_ownership(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+        &reversed_typed,
+    )
+    .expect("reversed ownership product");
+    assert_eq!(ownership.captures(), reversed.captures());
+    assert_eq!(ownership.closures(), reversed.closures());
+}
+
+#[test]
+fn ownership_diagnostics_clear_capture_and_executable_facts_atomically() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nclass Resource {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         fun invalid(own resource: Resource): Unit {\n\
+             val closure: move () -> Unit = move { val captured = resource }\n\
+             val first = resource\n\
+             val second = resource\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(ownership.diagnostics().len(), 1);
+    assert_eq!(ownership.diagnostics()[0].code().to_string(), "L0131");
+    assert!(ownership.captures().is_empty());
+    assert_eq!(ownership.closures().len(), 1);
     assert!(ownership.loans().is_empty());
     assert!(ownership.value_deliveries().is_empty());
     assert!(ownership.rc_effects().is_empty());

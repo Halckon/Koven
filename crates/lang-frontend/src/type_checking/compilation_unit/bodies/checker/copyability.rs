@@ -13,7 +13,7 @@ use crate::{
 use super::BodyChecker;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum UnitTransferability {
+pub(crate) enum UnitTransferability {
     Transferable,
     NotTransferable,
     Unknown,
@@ -319,6 +319,13 @@ pub(in crate::type_checking::compilation_unit) fn unit_copyability(
     ty: UnitTypeId,
 ) -> Copyability {
     CapabilityQuery { signatures }.copyability_of(ty)
+}
+
+pub(in crate::type_checking) fn unit_transferability(
+    signatures: &CompilationUnitSignatures,
+    ty: UnitTypeId,
+) -> UnitTransferability {
+    CapabilityQuery { signatures }.transferability_of(ty)
 }
 
 impl BodyChecker<'_> {

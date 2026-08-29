@@ -868,8 +868,11 @@ borrow-payload effects，支持 named/temporary owner、L0131/L0132 与错误事
 delivery、MoveOnly inline/heap/shared root obligation 与 `Nothing` 提前终止前缀，并为跨文件 field/
 payload 参数保留诊断标签。第六切片已把 intrinsic container descriptor 归一为既有 source-qualified
 contract：list-form 重复执行 Value delivery，runtime-length 执行两个同步 Borrow，空 MutableList 无
-operand effect；lambda capture、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布
-validated view，也不是完整 codegen input。
+operand effect。第七切片已按 source/lambda 顺序发布 source-qualified capture 输入：词法 binding 使用
+`UnitSymbolId`，字段/显式 receiver 规范化为 `This`，默认与 `move` lambda 分别记录 Borrow 与
+Copy/Move，并复用 unit 类型能力图发布具体 environment `Transferability`；capture formation
+move/loan、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布 validated view，也不是
+完整 codegen input。
 
 ## 结构化诊断与 renderer
 
