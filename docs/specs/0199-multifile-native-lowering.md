@@ -76,10 +76,12 @@
    正常回边、`LoopExit` drop、提前 return、输入置换与 `break` fail-loud 边界。
 8. [x] 接 `break` / `continue` 与 bare `loop` → 验证：最近 nested loop target、ControlTransfer
    body-local drop、共同退出、全路径 owner consume、无 break divergence 与 path-specific outer owner fail-loud。
-9. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
+9. [x] 扩展 Boolean `when` entry chain → 验证：subjectful `else`、subjectless 顺序短路、动态
+   subject comparison、同 entry 多 condition 只 lower body 一次、原 entry index 与一致 owner 状态合流。
+10. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-10. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-11. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+11. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+12. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -93,8 +95,9 @@
 | 6 | exhaustive Boolean-subject `when` | `feat(codegen): lower multifile boolean when (SPEC-0199)` |
 | 7 | 无 jump Unit `while` | `feat(codegen): lower multifile while loops (SPEC-0199)` |
 | 8 | loop jump 与 bare loop | `feat(codegen): lower multifile loop jumps (SPEC-0199)` |
-| 9 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 10 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 9 | Boolean `when` entry chain | `feat(codegen): lower multifile when chains (SPEC-0199)` |
+| 10 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 11 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -110,6 +113,9 @@
   与各 break exit。若所有实际出口都已消费 owner，unit lowerer 在一致状态合流后跳过 stale fact；若
   while false 仍拥有而某 break 已消费，则 exit binding 状态不同并显式 `UnsupportedNode`。后者需要
   frontend 发布 exit-qualified owner/drop facts 后才能形成可验证的可选路径状态，0199 不猜测 drop。
+- unit SSA 类型表当前由 reachable callable signature 建立；若 subjectless `when` 的 Boolean 只来自
+  body literal、未出现在任何 reachable callable 参数/返回契约中，lowering 会以 `MissingFact` 失败。
+  body-only scalar type 预规划应作为独立 unit type-plan 切片解决，本切片不以全局注入未使用类型掩盖该边界。
 
 ## 10. 验证记录
 
@@ -144,3 +150,8 @@
 | `cargo test -p lang-codegen --lib unit_lower_tests` | 15 passed | if/when/while 回归及 path-specific outer owner move 的 Unsupported 原子边界 |
 | `cargo test -p lang-codegen --lib` | 181 passed, 1 ignored | loop jump 与 bare loop 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第八切片沿用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复无关 runtime matrix |
+| `cargo test -p lang-codegen --lib unit_lower_when_tests` | 6 passed | helper-call 求值次数与 false-edge 短路、subjectful else、动态 candidate compare、同 entry 多 condition 单次 body lowering、一致 owner 合流与 implicit synthetic branch index |
+| `cargo test -p lang-codegen --lib unit_lower_tests` | 15 passed | 既有 if/Boolean when/while 边界与 subjectless chain 回归 |
+| `cargo test -p lang-codegen --lib unit_lower_loop_tests` | 7 passed | loop CFG 与 owner/drop 回归 |
+| `cargo test -p lang-codegen --lib` | 187 passed, 1 ignored | Boolean when entry-chain 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第九切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |

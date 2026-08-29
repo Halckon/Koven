@@ -957,6 +957,18 @@ fallthrough 接回最近 header，break 与 while false exit 在 owner 状态一
 Named owner 精确 drop，所有实际出口已一致消费时跳过 stale fact；while false 与 break 的 owner 状态不一致
 则 fail loud，等待 frontend 提供 exit-qualified facts。`for` 及循环内 assignment 仍由后续切片承接。
 
+第九切片把 Boolean `when` 扩展为源码顺序的短路 entry chain。subjectless condition 直接作为
+conditional condition；Boolean subject 先求值一次，动态 candidate 生成一次 equality compare。每个
+condition 的 false edge 进入下一个 condition/entry，同一 entry 的所有 matched edge 先合流，再只 lower
+一次 body；body 出口继续消费原源码 entry index 的 `BranchExit`。bare literal 与 `else` 会规范化为
+true/false 语义 arm，若同一 entry 同时覆盖两值，则 subject 仍求值但 body 不复制。verified SSA 测试已
+覆盖 subjectful `else`、subjectless 双 condition、动态 comparison、同 entry 多 condition、三条路径一致
+消费同一 String owner、implicit unmatched synthetic branch index 及输入置换。当前只接受 Boolean
+expression condition；type-test/contains、非 Boolean
+subject 和 MoveOnly control result 仍 fail loud。另有一个独立类型规划边界：只在 body literal 中出现、
+未进入任何 reachable callable signature 的 Boolean 尚未预建 SSA type，等待后续 body-only scalar type
+planning 切片处理，不通过全局注入未使用类型规避。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

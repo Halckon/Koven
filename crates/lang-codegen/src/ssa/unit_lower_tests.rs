@@ -728,34 +728,55 @@ fn reversed_boolean_when_preserves_branch_exit_index_for_owner_drop() {
 }
 
 #[test]
-fn subjectless_when_remains_an_explicit_unsupported_boundary() {
+fn subjectless_when_lowers_to_verified_ssa() {
     let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(
+    let (provider_source, provider) = parsed(
         &mut sources,
-        "p/main.ko",
+        "p/provider.ko",
         "package p\n\
-         fun entry(): Int = when {\n\
-             true -> 1\n\
-             else -> 2\n\
+         fun select(own first: Boolean, own second: Boolean): Int = when {\n\
+             first -> 1\n\
+             second -> 2\n\
+             else -> 3\n\
          }",
     );
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\nfun entry(): Int = p.select(true, false)",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = match lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
         &type_environment,
         &typed,
         &owned,
-        declaration(&names, "p", "entry"),
-    ) {
-        Ok(_) => panic!("subjectless when must stay outside the Boolean-subject slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        declaration(&names, "q", "entry"),
+    )
+    .expect("subjectless Boolean chain lowers to verified SSA");
+    let select = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.starts_with("koven.p.select.d"))
+        .expect("select function exists");
+    assert_eq!(
+        select
+            .blocks
+            .iter()
+            .filter_map(|block| block.terminator.as_ref())
+            .filter(|terminator| matches!(terminator.kind, TerminatorKind::Conditional { .. }))
+            .count(),
+        2,
+        "each subjectless condition is evaluated once"
+    );
 }
 
 #[test]

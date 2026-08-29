@@ -17,13 +17,26 @@ use super::{
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Edge, EntityId, Origin, TerminatorKind},
+    model::{
+        BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, TerminatorKind,
+    },
 };
 
 pub(super) struct BranchExit {
     pub(super) block: BlockId,
     pub(super) result: LoweredValue,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+}
+
+#[derive(Clone, Copy)]
+struct BooleanWhenArm {
+    body: StatementId,
+    index: usize,
+}
+
+struct BooleanWhenArms {
+    when_true: Option<BooleanWhenArm>,
+    when_false: Option<BooleanWhenArm>,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -45,60 +58,300 @@ impl UnitExpressionLowerer<'_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let subject =
-            subject.ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        let subject_type = self
-            .typed
-            .types()
-            .expression_type(UnitExpressionId::new(self.source_unit, subject))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let subject_type =
-            resolve_concrete_type(self.typed, subject_type, self.substitutions, span)?;
-        if builtin_type(self.typed, subject_type) != Some(BuiltinType::Boolean) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        if let Some(subject) = subject {
+            let subject_type = self
+                .typed
+                .types()
+                .expression_type(UnitExpressionId::new(self.source_unit, subject))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let subject_type =
+                resolve_concrete_type(self.typed, subject_type, self.substitutions, span)?;
+            if builtin_type(self.typed, subject_type) != Some(BuiltinType::Boolean) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            if let Some(arms) = self.boolean_literal_arms(entries)? {
+                return match (arms.when_true, arms.when_false) {
+                    (Some(when_true), Some(when_false))
+                        if when_true.body == when_false.body
+                            && when_true.index == when_false.index =>
+                    {
+                        self.lower_exhaustive_boolean_arm(expression, subject, when_true, span)
+                    }
+                    (Some(when_true), Some(when_false)) => self.lower_conditional(
+                        expression,
+                        subject,
+                        when_true.body,
+                        Some(when_false.body),
+                        when_true.index,
+                        when_false.index,
+                        span,
+                    ),
+                    (Some(when_true), None) => self.lower_conditional(
+                        expression,
+                        subject,
+                        when_true.body,
+                        None,
+                        when_true.index,
+                        entries.len(),
+                        span,
+                    ),
+                    (None, Some(_)) | (None, None) => {
+                        self.lower_when_chain(expression, Some(subject), entries, span)
+                    }
+                };
+            }
         }
+        self.lower_when_chain(expression, subject, entries, span)
+    }
+
+    fn boolean_literal_arms(
+        &self,
+        entries: &[WhenEntry],
+    ) -> Result<Option<BooleanWhenArms>, LoweringError> {
         let mut when_true = None;
         let mut when_false = None;
         for (index, entry) in entries.iter().enumerate() {
-            let [WhenCondition::Expression(condition)] = entry.conditions.as_slice() else {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    entry.span,
-                ));
-            };
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(*condition)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, entry.span))?;
-            let slot = match node.payload() {
-                Expression::Literal(LiteralKind::Boolean(true)) => &mut when_true,
-                Expression::Literal(LiteralKind::Boolean(false)) => &mut when_false,
-                _ => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        node.span(),
-                    ));
+            if entry.else_span.is_some() {
+                let arm = BooleanWhenArm {
+                    body: entry.body,
+                    index,
+                };
+                when_true.get_or_insert(arm);
+                when_false.get_or_insert(arm);
+                break;
+            }
+            for condition in &entry.conditions {
+                let WhenCondition::Expression(condition) = condition else {
+                    return Ok(None);
+                };
+                let node = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(*condition)
+                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, entry.span))?;
+                let arm = BooleanWhenArm {
+                    body: entry.body,
+                    index,
+                };
+                match node.payload() {
+                    Expression::Literal(LiteralKind::Boolean(true)) => {
+                        when_true.get_or_insert(arm);
+                    }
+                    Expression::Literal(LiteralKind::Boolean(false)) => {
+                        when_false.get_or_insert(arm);
+                    }
+                    _ => return Ok(None),
                 }
-            };
-            if slot.replace((entry.body, index)).is_some() {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
             }
         }
-        let (true_body, true_index) =
-            when_true.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (false_body, false_index) =
-            when_false.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        self.lower_conditional(
-            expression,
-            subject,
-            true_body,
-            Some(false_body),
-            true_index,
-            false_index,
-            span,
-        )
+        Ok(Some(BooleanWhenArms {
+            when_true,
+            when_false,
+        }))
+    }
+
+    fn lower_exhaustive_boolean_arm(
+        &mut self,
+        expression: ExpressionId,
+        subject: ExpressionId,
+        arm: BooleanWhenArm,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        if !self.temporaries.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let result_required = self.control_result_required(expression, span)?;
+        self.require_expression_value(subject)?;
+        let exit = self.lower_if_branch(
+            self.block,
+            arm.body,
+            self.bindings.clone(),
+            UnitDropPoint::BranchExit {
+                control: UnitExpressionId::new(self.source_unit, expression),
+                branch: arm.index,
+            },
+            result_required,
+        )?;
+        self.merge_unit_exits(exit.into_iter().collect(), span)
+    }
+
+    fn lower_when_chain(
+        &mut self,
+        expression: ExpressionId,
+        subject: Option<ExpressionId>,
+        entries: &[WhenEntry],
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        if !self.temporaries.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let result_required = self.control_result_required(expression, span)?;
+        let subject = match subject {
+            Some(subject) => Some(self.require_expression_value(subject)?),
+            None => None,
+        };
+        let baseline = self.bindings.clone();
+        let control = UnitExpressionId::new(self.source_unit, expression);
+        let mut unmatched = Some((self.block, baseline.clone()));
+        let mut exits = Vec::new();
+
+        for (index, entry) in entries.iter().enumerate() {
+            let (unmatched_block, unmatched_bindings) = unmatched
+                .take()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
+            if entry.else_span.is_some() {
+                if let Some(exit) = self.lower_if_branch(
+                    unmatched_block,
+                    entry.body,
+                    unmatched_bindings,
+                    UnitDropPoint::BranchExit {
+                        control,
+                        branch: index,
+                    },
+                    result_required,
+                )? {
+                    exits.push(exit);
+                }
+                break;
+            }
+            if entry.conditions.is_empty() {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, entry.span));
+            }
+
+            let mut next_block = unmatched_block;
+            let mut next_bindings = unmatched_bindings;
+            let mut matches = Vec::new();
+            for condition in &entry.conditions {
+                self.block = next_block;
+                self.bindings = next_bindings;
+                self.temporaries.clear();
+                let condition = self.lower_when_condition(subject, condition, entry.span)?;
+                if !self.temporaries.is_empty() {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        entry.span,
+                    ));
+                }
+                let after_condition = self.bindings.clone();
+                let carried = self.carried_bindings(&after_condition, entry.span)?;
+                let matched = self.add_carried_block(&carried, entry.span)?;
+                let next = self.add_carried_block(&carried, entry.span)?;
+                self.function
+                    .set_terminator(
+                        self.block,
+                        TerminatorKind::Conditional {
+                            condition,
+                            when_true: carried_edge(matched, &carried),
+                            when_false: carried_edge(next, &carried),
+                        },
+                        Origin::Source(entry.span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
+                matches.push(BranchExit {
+                    block: matched,
+                    result: LoweredValue::Unit,
+                    bindings: self.rebind_carried(
+                        &after_condition,
+                        matched,
+                        &carried,
+                        entry.span,
+                    )?,
+                });
+                next_block = next;
+                next_bindings =
+                    self.rebind_carried(&after_condition, next, &carried, entry.span)?;
+            }
+
+            self.merge_unit_exits(matches, entry.span)?;
+            if let Some(exit) = self.lower_if_branch(
+                self.block,
+                entry.body,
+                self.bindings.clone(),
+                UnitDropPoint::BranchExit {
+                    control,
+                    branch: index,
+                },
+                result_required,
+            )? {
+                exits.push(exit);
+            }
+            unmatched = Some((next_block, next_bindings));
+        }
+
+        if let Some((unmatched_block, unmatched_bindings)) = unmatched {
+            if result_required {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            self.block = unmatched_block;
+            self.bindings = unmatched_bindings;
+            self.temporaries.clear();
+            self.emit_drops(UnitDropPoint::BranchExit {
+                control,
+                branch: entries.len(),
+            })?;
+            exits.push(BranchExit {
+                block: self.block,
+                result: LoweredValue::Unit,
+                bindings: self.bindings.clone(),
+            });
+        }
+        self.merge_unit_exits(exits, span)
+    }
+
+    fn lower_when_condition(
+        &mut self,
+        subject: Option<crate::ssa::model::ValueId>,
+        condition: &WhenCondition,
+        span: Span,
+    ) -> Result<crate::ssa::model::ValueId, LoweringError> {
+        let WhenCondition::Expression(expression) = condition else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let candidate = self.require_expression_value(*expression)?;
+        let Some(subject) = subject else {
+            return Ok(candidate);
+        };
+        let boolean = self.expression_ssa_type(*expression, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Compare {
+                    operator: ComparisonOperator::Equal,
+                    left: subject,
+                    right: candidate,
+                },
+                vec![EntityType::Value(boolean)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Value(result) = results[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        Ok(result)
+    }
+
+    fn control_result_required(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let expression_type = self
+            .typed
+            .types()
+            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete_type =
+            resolve_concrete_type(self.typed, expression_type, self.substitutions, span)?;
+        let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
+        if result_required
+            && (builtin_type(self.typed, concrete_type).is_none()
+                || self.typed.types().copyability(concrete_type) != Copyability::Copyable)
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        Ok(result_required)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -113,21 +366,10 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
-        let expression_type = self
-            .typed
-            .types()
-            .expression_type(control)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete_type =
-            resolve_concrete_type(self.typed, expression_type, self.substitutions, span)?;
-        let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
-        if !self.temporaries.is_empty()
-            || (result_required
-                && (builtin_type(self.typed, concrete_type).is_none()
-                    || self.typed.types().copyability(concrete_type) != Copyability::Copyable))
-        {
+        if !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let result_required = self.control_result_required(expression, span)?;
         let condition = self.require_expression_value(condition)?;
         let baseline = self.bindings.clone();
         let carried = self.carried_bindings(&baseline, span)?;
