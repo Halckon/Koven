@@ -470,6 +470,18 @@ ADR 或文档治理任务按 §10 可不建 Spec，但用户要求提交时仍�
 对应 crate/Phase 套件；仍无法界定才升级到第 3 层。不得维护一个脱离 Spec 和 diff 的永久“快速
 白名单”，否则新增测试会被静默漏掉。
 
+默认门禁按变更类型选择；Spec 状态变化本身不等于风险升级：
+
+| 变更类型 | 提交前最低门禁 | 追加检查 |
+|---|---|---|
+| 仅 Markdown，且不改变 guide / Spec 语义或验收边界 | 文档自检 | 检查链接、术语、版本和 diff |
+| crate 内局部实现、私有 helper、定向缺陷修复 | 第 1 层迭代，第 2 层提交 | 运行直接行为与最近共享契约套件 |
+| 可界定的公开跨 crate API 或 Phase 产物 | 第 2 层 | 追加所有已知直接下游的 integration/native 测试 |
+| 第 3 层触发项或无法可靠界定的影响面 | 第 3 层 | 记录总耗时、最慢 target 与 ignored/skipped 项 |
+
+低风险 Spec 达到 `done` 时，只要其验收矩阵已被第 2 层完整覆盖，不因状态变化单独升级到第 3 层；
+不得反向把一个实际高风险变更拆成多个“小 Spec”来规避全量门禁。
+
 ### 第 1 层：编辑反馈环
 
 每次行为修改先运行最窄且能复现设计意图的测试，并检查受影响 crate 能编译：
@@ -506,7 +518,9 @@ cargo build -p lang-cli
 
 仅在以下任一条件成立时运行完整 workspace 测试与严格静态检查：
 
-- Spec 从 `in-progress` 变为 `done`、Phase/guide 版本启用、release 或明确的合并/发布门禁；
+- Phase/guide 版本启用、release 或明确的合并/发布门禁；
+- Spec 的验收矩阵明确要求全量，或 Spec 完成时实际修改命中本节其他高风险条件；仅从
+  `in-progress` 变为 `done` 不单独触发全量；
 - 修改 Cargo workspace/member、共享依赖/feature，或公共 crate API 的影响面无法由已知直接下游
   编译与定向测试可靠覆盖；
 - 修改 Lexer/Parser 通用状态机、错误恢复 owner、source/span、AST arena、诊断排序/catalog、fixture
