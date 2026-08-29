@@ -17,8 +17,8 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, Copyability, TypeEnvironment, UnitExpressionId, ValidatedCompilationUnitTypes,
-        check_compilation_unit_types, standard_environments,
+        BuiltinType, Copyability, TypeEnvironment, UnitExpressionId, UnitTypeKind,
+        ValidatedCompilationUnitTypes, check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -1501,4 +1501,250 @@ fn nothing_operand_publishes_only_the_completed_construction_prefix() {
     assert_eq!(holder.deliveries().len(), 1);
     assert!(holder.root_obligation().is_none());
     assert!(holder.terminating_operand().is_some());
+}
+
+#[test]
+fn container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nclass Resource {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         fun build(own resource: Resource, number: Int, initializer: (Int) -> Int): Unit {\n\
+             val resources = listOf(resource)\n\
+             val numbers = listOf(number, number)\n\
+             val generated = List<Int>(borrow number, initializer)\n\
+             val empty = MutableList<Resource>()\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let consumer_unit = source_unit(&names, consumer_source);
+    let list_resource = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "listOf(resource)"),
+    );
+    let list_number = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "listOf(number, number)"),
+    );
+    let runtime = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "List<Int>(borrow number, initializer)"),
+    );
+    let empty = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "MutableList<Resource>()"),
+    );
+
+    assert_eq!(
+        ownership
+            .call_argument_contracts_for(list_resource)
+            .map(|contract| contract.kind())
+            .collect::<Vec<_>>(),
+        [UnitCallArgumentOwnershipKind::Value]
+    );
+    assert_eq!(
+        ownership
+            .call_argument_contracts_for(list_number)
+            .map(|contract| contract.kind())
+            .collect::<Vec<_>>(),
+        [
+            UnitCallArgumentOwnershipKind::Value,
+            UnitCallArgumentOwnershipKind::Value,
+        ]
+    );
+    assert_eq!(
+        ownership
+            .call_argument_contracts_for(runtime)
+            .map(|contract| contract.kind())
+            .collect::<Vec<_>>(),
+        [
+            UnitCallArgumentOwnershipKind::SharedLoan,
+            UnitCallArgumentOwnershipKind::SharedLoan,
+        ]
+    );
+    assert_eq!(ownership.call_argument_contracts_for(empty).count(), 0);
+    assert_eq!(
+        ownership
+            .value_deliveries()
+            .iter()
+            .map(|delivery| (delivery.call(), delivery.kind()))
+            .collect::<Vec<_>>(),
+        [
+            (list_resource, UnitValueDeliveryKind::Move),
+            (list_number, UnitValueDeliveryKind::Copy),
+            (list_number, UnitValueDeliveryKind::Copy),
+        ]
+    );
+    assert_eq!(ownership.loans().len(), 2);
+    assert!(ownership.loans().iter().all(|loan| {
+        loan.call() == runtime
+            && loan.kind() == LoanKind::Shared
+            && matches!(loan.target(), UnitLoanTarget::Place(_))
+    }));
+
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
+    let reversed_typed = validated_types(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+    );
+    let reversed = check_compilation_unit_ownership(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+        &reversed_typed,
+    )
+    .expect("reversed ownership product");
+    assert_eq!(
+        ownership.call_argument_contracts(),
+        reversed.call_argument_contracts()
+    );
+    assert_eq!(ownership.loans(), reversed.loans());
+    assert_eq!(ownership.value_deliveries(), reversed.value_deliveries());
+}
+
+#[test]
+fn runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nfun stop(): Nothing = error(\"stop\")",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun first(own resource: String, initializer: (Int) -> Int): Unit {\n\
+             val generated = List<Int>(p.stop(), initializer)\n\
+             val unreachable = listOf(resource)\n\
+         }\n\
+         fun second(own resource: String, number: Int): Unit {\n\
+             val generated = List<Int>(number, p.stop())\n\
+             val unreachable = listOf(resource)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("bottom operands remain valid ownership input");
+
+    assert!(ownership.diagnostics().is_empty());
+    let consumer_unit = source_unit(&names, consumer_source);
+    let first = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "List<Int>(p.stop(), initializer)"),
+    );
+    let second = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "List<Int>(number, p.stop())"),
+    );
+    let first_contracts = ownership
+        .call_argument_contracts_for(first)
+        .collect::<Vec<_>>();
+    let second_contracts = ownership
+        .call_argument_contracts_for(second)
+        .collect::<Vec<_>>();
+    assert_eq!(first_contracts.len(), 2);
+    assert_eq!(second_contracts.len(), 2);
+    assert_eq!(
+        typed
+            .types()
+            .types()
+            .get(first_contracts[0].parameter_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+    assert!(matches!(
+        typed
+            .types()
+            .types()
+            .get(second_contracts[1].parameter_type()),
+        Some(UnitTypeKind::Function { .. })
+    ));
+    assert_eq!(ownership.loans_ending_at(first).count(), 0);
+    assert_eq!(ownership.loans_ending_at(second).count(), 1);
+
+    let calls = consumer
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, expression)| {
+            sources
+                .slice(expression.span())
+                .is_ok_and(|actual| actual == "listOf(resource)")
+                .then_some(UnitExpressionId::new(consumer_unit, id))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|call| {
+        ownership
+            .value_deliveries()
+            .iter()
+            .all(|delivery| delivery.call() != *call)
+    }));
+}
+
+#[test]
+fn list_form_move_reports_reuse_and_clears_executable_facts() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nclass Resource {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         fun invalid(own resource: Resource): Unit {\n\
+             val resources = listOf(resource)\n\
+             val reused = resource\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(ownership.diagnostics().len(), 1);
+    assert_eq!(ownership.diagnostics()[0].code().to_string(), "L0131");
+    assert_eq!(ownership.call_argument_contracts().len(), 1);
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+    assert!(ownership.rc_effects().is_empty());
+    assert!(ownership.construction_plans().is_empty());
 }

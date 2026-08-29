@@ -337,7 +337,7 @@ impl<'a> Checker<'a> {
             self.collect_mutability(item)?;
         }
         for &root in self.parsed.roots() {
-            self.check_item(root, &mut State::default())?;
+            self.check_item(root, State::default())?;
         }
         Ok(())
     }

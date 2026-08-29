@@ -275,7 +275,10 @@ impl Checker<'_> {
         }
     }
 
-    fn is_nothing_expression(&self, expression: crate::type_checking::UnitExpressionId) -> bool {
+    pub(super) fn is_nothing_expression(
+        &self,
+        expression: crate::type_checking::UnitExpressionId,
+    ) -> bool {
         self.typed
             .expression_type(expression)
             .and_then(|ty| self.typed.types().get(ty))

@@ -866,8 +866,10 @@ possible-move，复用 L0131–L0136 的适用诊断，诊断可同时标注使�
 borrow-payload effects，支持 named/temporary owner、L0131/L0132 与错误事实原子清空。第五切片已进一步
 消费 source-qualified constructor descriptor，按 operand 源码求值顺序发布 Copy/Move/Temporary
 delivery、MoveOnly inline/heap/shared root obligation 与 `Nothing` 提前终止前缀，并为跨文件 field/
-payload 参数保留诊断标签；container construction、lambda capture、ASAP drop 与完整 callable return
-仍未接通，因此本产物仍不发布 validated view，也不是完整 codegen input。
+payload 参数保留诊断标签。第六切片已把 intrinsic container descriptor 归一为既有 source-qualified
+contract：list-form 重复执行 Value delivery，runtime-length 执行两个同步 Borrow，空 MutableList 无
+operand effect；lambda capture、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布
+validated view，也不是完整 codegen input。
 
 ## 结构化诊断与 renderer
 

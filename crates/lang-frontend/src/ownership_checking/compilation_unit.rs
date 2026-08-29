@@ -1,6 +1,7 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 
 mod construction;
+mod contracts;
 mod dataflow;
 
 pub use construction::{
@@ -13,10 +14,9 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::{
     diagnostic::Diagnostic,
     name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
-    parser::Expression,
     source::{SourceMap, Span},
     type_checking::{
-        CompilationUnitTypes, ExpressionCategory, ParameterMode, TypeEnvironment, UnitCallTarget,
+        CompilationUnitTypes, ExpressionCategory, ParameterMode, TypeEnvironment,
         UnitCallableSignature, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes,
     },
 };
@@ -594,8 +594,9 @@ impl CompilationUnitOwnership {
 /// 建立 source-qualified compilation-unit ownership recovery product。
 ///
 /// 当前发布 callable parameter bindings、call argument contracts、普通 call loan/value
-/// deliveries、intrinsic Rc effects 与 constructor ordered delivery/root obligations。
-/// container construction、drop/capture 与 validated codegen gate 仍由同一 SPEC 的后续切片接入。
+/// deliveries、intrinsic container Value/Borrow deliveries、intrinsic Rc effects 与 constructor
+/// ordered delivery/root obligations。drop/capture 与 validated codegen gate 仍由同一 SPEC 的
+/// 后续切片接入。
 pub fn check_compilation_unit_ownership(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -627,7 +628,7 @@ pub fn check_compilation_unit_ownership(
             UnitOwnershipBindingDescriptor::new(*symbol, binding_kind(*mode), span),
         )?;
     }
-    let call_argument_contracts = collect_call_argument_contracts(inputs, names, typed)?;
+    let call_argument_contracts = contracts::collect_call_argument_contracts(inputs, names, typed)?;
     let mut dataflow = dataflow::analyze(
         sources,
         inputs,
@@ -649,161 +650,6 @@ pub fn check_compilation_unit_ownership(
         call_argument_contracts,
         dataflow,
     ))
-}
-
-fn collect_call_argument_contracts(
-    inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
-    typed: &CompilationUnitTypes,
-) -> Result<Vec<UnitCallArgumentOwnershipContract>, OwnershipCheckingError> {
-    let mut contracts = Vec::new();
-    for call in typed.calls() {
-        let call_id = call.expression();
-        let parsed = parsed_for_call(inputs, names, call_id)?;
-        let call_node = parsed.ast().expressions().get(call_id.expression())?;
-        let Expression::Call { arguments, .. } = call_node.payload() else {
-            return Err(invalid_unit_call(call_id));
-        };
-        if arguments.len() != call.arguments().len() {
-            return Err(invalid_unit_call(call_id));
-        }
-        let mut seen_arguments = vec![false; arguments.len()];
-        let mut seen_parameters = vec![false; arguments.len()];
-        for descriptor in call.arguments() {
-            let argument_index = descriptor.argument_index();
-            let Some(argument) = arguments.get(argument_index) else {
-                return Err(invalid_unit_call_argument(call_id, argument_index));
-            };
-            if std::mem::replace(&mut seen_arguments[argument_index], true) {
-                return Err(invalid_unit_call_argument(call_id, argument_index));
-            }
-            let parameter_index = descriptor.parameter_index();
-            let Some(seen_parameter) = seen_parameters.get_mut(parameter_index) else {
-                return Err(invalid_unit_call_parameter(call_id, parameter_index));
-            };
-            if std::mem::replace(seen_parameter, true) {
-                return Err(invalid_unit_call_parameter(call_id, parameter_index));
-            }
-            let parameter_span =
-                source_parameter_span(typed, call.target(), parameter_index, call_id)?;
-            contracts.push(UnitCallArgumentOwnershipContract {
-                call: call_id,
-                argument: UnitExpressionId::new(call_id.source_unit(), argument.value),
-                parameter_index,
-                parameter_type: descriptor.parameter_type(),
-                category: descriptor.category(),
-                kind: match descriptor.mode() {
-                    ParameterMode::Value => UnitCallArgumentOwnershipKind::Value,
-                    ParameterMode::Borrow => UnitCallArgumentOwnershipKind::SharedLoan,
-                    ParameterMode::Inout => UnitCallArgumentOwnershipKind::ExclusiveLoan,
-                },
-                crosses_thread: descriptor.crosses_thread(),
-                argument_span: parsed.ast().expressions().get(argument.value)?.span(),
-                call_span: call_node.span(),
-                parameter_span,
-                loan_begin_span: match argument.mode_marker {
-                    Some(crate::parser::ParameterModeMarker::Inout(span)) => span,
-                    _ => parsed.ast().expressions().get(argument.value)?.span(),
-                },
-            });
-        }
-        if seen_arguments.iter().any(|seen| !seen) {
-            return Err(invalid_unit_call(call_id));
-        }
-        if let Some(parameter) = seen_parameters.iter().position(|seen| !seen) {
-            return Err(invalid_unit_call_parameter(call_id, parameter));
-        }
-    }
-    Ok(contracts)
-}
-
-fn parsed_for_call<'parsed>(
-    inputs: &[SourceUnitInput<'parsed>],
-    names: &ValidatedCompilationUnitNames,
-    call: UnitExpressionId,
-) -> Result<&'parsed crate::parser::ParsedFile, OwnershipCheckingError> {
-    let source_unit = call.source_unit();
-    let source_id = names
-        .names()
-        .index()
-        .source_units()
-        .get(source_unit.index())
-        .map(|source| source.source_id())
-        .ok_or_else(|| invalid_unit_call(call))?;
-    inputs
-        .iter()
-        .copied()
-        .find(|input| input.source_id() == source_id)
-        .map(SourceUnitInput::parsed)
-        .ok_or_else(|| invalid_unit_call(call))
-}
-
-fn source_parameter_span(
-    typed: &CompilationUnitTypes,
-    target: UnitCallTarget,
-    parameter_index: usize,
-    call: UnitExpressionId,
-) -> Result<Option<Span>, OwnershipCheckingError> {
-    let signature = match target {
-        UnitCallTarget::Declaration(declaration) => typed
-            .signatures()
-            .declaration(declaration)
-            .and_then(|declaration| declaration.callable()),
-        UnitCallTarget::Symbol(symbol) => typed
-            .signatures()
-            .declarations()
-            .iter()
-            .flat_map(|declaration| {
-                declaration.callable().into_iter().chain(
-                    declaration.nominal().into_iter().flat_map(|nominal| {
-                        nominal.members().iter().chain(nominal.companion_members())
-                    }),
-                )
-            })
-            .find(|callable| {
-                callable.target() == crate::type_checking::UnitCallableTarget::Symbol(symbol)
-            }),
-        UnitCallTarget::External(_)
-        | UnitCallTarget::FunctionValue
-        | UnitCallTarget::StructuralComponent(_) => return Ok(None),
-    };
-    signature
-        .and_then(|signature| signature.parameters().get(parameter_index))
-        .map(|parameter| Some(parameter.span()))
-        .ok_or(OwnershipCheckingError::InvalidUnitCallParameter {
-            source_unit: call.source_unit().index(),
-            expression: call.expression().index(),
-            parameter: parameter_index,
-        })
-}
-
-const fn invalid_unit_call(call: UnitExpressionId) -> OwnershipCheckingError {
-    OwnershipCheckingError::InvalidUnitCall {
-        source_unit: call.source_unit().index(),
-        expression: call.expression().index(),
-    }
-}
-
-const fn invalid_unit_call_argument(
-    call: UnitExpressionId,
-    argument: usize,
-) -> OwnershipCheckingError {
-    OwnershipCheckingError::InvalidUnitCallArgument {
-        source_unit: call.source_unit().index(),
-        expression: call.expression().index(),
-        argument,
-    }
-}
-
-const fn invalid_unit_call_parameter(
-    call: UnitExpressionId,
-    parameter: usize,
-) -> OwnershipCheckingError {
-    OwnershipCheckingError::InvalidUnitCallParameter {
-        source_unit: call.source_unit().index(),
-        expression: call.expression().index(),
-        parameter,
-    }
 }
 
 fn collect_callable_bindings(

@@ -46,44 +46,48 @@ impl Checker<'_> {
     pub(super) fn check_item(
         &mut self,
         id: ItemId,
-        state: &mut State,
-    ) -> Result<(), OwnershipCheckingError> {
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error => {}
-            Item::Modified { declaration, .. } => self.check_item(declaration, state)?,
+            Item::Error => Ok(Flows::next(state)),
+            Item::Modified { declaration, .. } => self.check_item(declaration, state),
             Item::Variable {
                 name, initializer, ..
             }
             | Item::Constant {
                 name, initializer, ..
             } => {
-                let flows = self.check_expression(
+                let mut flows = self.check_expression(
                     initializer,
-                    state.clone(),
+                    state,
                     ExpressionUse::Consume {
                         parameter_span: None,
                     },
                 )?;
-                if let Some(mut next) = flows.next {
-                    self.mark_available(name, &mut next);
-                    *state = next;
+                if let Some(next) = flows.next.as_mut() {
+                    self.mark_available(name, next);
                 }
+                Ok(flows)
             }
-            Item::Function { form, .. } => self.check_function(form)?,
+            Item::Function { form, .. } => {
+                self.check_function(form)?;
+                Ok(Flows::next(state))
+            }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
                     for member in body.members {
-                        self.check_item(member, &mut State::default())?;
+                        self.check_item(member, State::default())?;
                     }
                 }
+                Ok(Flows::next(state))
             }
             Item::Companion(companion) => {
                 for member in companion.body.members {
-                    self.check_item(member, &mut State::default())?;
+                    self.check_item(member, State::default())?;
                 }
+                Ok(Flows::next(state))
             }
         }
-        Ok(())
     }
 
     fn check_function(&mut self, form: FunctionForm) -> Result<(), OwnershipCheckingError> {
@@ -122,11 +126,7 @@ impl Checker<'_> {
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
             | Statement::ControlBody { elements } => self.check_elements(&elements, state),
-            Statement::LocalVariable { declaration } => {
-                let mut state = state;
-                self.check_item(declaration, &mut state)?;
-                Ok(Flows::next(state))
-            }
+            Statement::LocalVariable { declaration } => self.check_item(declaration, state),
             Statement::LocalDestructuring { initializer, .. } => self.check_expression(
                 initializer,
                 state,
@@ -385,6 +385,10 @@ impl Checker<'_> {
             };
             let diagnostic_count = self.diagnostics.len();
             flows = self.chain_expression(flows, argument.value, usage)?;
+            if self.is_nothing_expression(self.unit_expression(argument.value)) {
+                flows.next = None;
+                continue;
+            }
             if self.diagnostics.len() == diagnostic_count
                 && let (Some(contract), Some(next)) = (contract, flows.next.as_mut())
             {
@@ -396,6 +400,9 @@ impl Checker<'_> {
             .flatten()
         {
             state.loans.retain(|loan| loan.owner != call);
+        }
+        if self.is_nothing_expression(call) {
+            flows.next = None;
         }
         Ok(flows)
     }
