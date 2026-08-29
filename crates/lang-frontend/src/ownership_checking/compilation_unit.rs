@@ -14,18 +14,19 @@ pub use construction::{
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, Severity},
     name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
     source::{SourceMap, Span},
     type_checking::{
         CompilationUnitTypes, ExpressionCategory, ParameterMode, TypeEnvironment,
-        UnitCallableSignature, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes,
+        UnitCallableSignature, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId,
+        ValidatedCompilationUnitTypes,
     },
 };
 
 use super::{
     ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
-    RcOwnershipEffectKind, Transferability,
+    OwnershipDeferredReason, RcOwnershipEffectKind, Transferability,
 };
 
 /// compilation-unit callable 参数在 Phase 3 中提供的能力。
@@ -209,6 +210,12 @@ impl UnitOwnershipPlace {
     #[must_use]
     pub const fn element(&self) -> Option<ElementIndexIdentity> {
         self.element
+    }
+
+    /// 返回该 place 是否精确表示根 binding 自身。
+    #[must_use]
+    pub const fn is_root(&self) -> bool {
+        self.fields.is_empty() && self.element.is_none()
     }
 
     pub(super) fn overlaps(&self, other: &Self) -> bool {
@@ -467,6 +474,117 @@ impl UnitValueDeliveryFact {
     }
 }
 
+/// Phase 4 可消费的 source-qualified 析构边界。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitDropPoint {
+    /// 最后一次读取或 replacement RHS 完成后。
+    AfterExpression(UnitExpressionId),
+    /// 非消费式 binary 已读完全部 operand、但结果仍存活时。
+    AfterBinaryOperands(UnitExpressionId),
+    /// 未使用 binding 建立或完整 statement 完成后。
+    AfterStatement(UnitStatementId),
+    /// 借用 temporary 在同步 call 返回后。
+    CallReturn(UnitExpressionId),
+    /// return / break / continue 控制转移边。
+    ControlTransfer(UnitExpressionId),
+    /// if / when 的特定 branch 正常离开边。
+    BranchExit {
+        /// 控制表达式。
+        control: UnitExpressionId,
+        /// 源码顺序的 branch 下标。
+        branch: usize,
+    },
+    /// while / for 的零次或正常退出边。
+    LoopExit(UnitStatementId),
+    /// callable body 开始、参数 binding 建立之后。
+    FunctionEntry(UnitItemId),
+    /// element replacement 已提交新值之后。
+    AfterReplacement(UnitExpressionId),
+}
+
+/// 一个需要唯一析构的 source-qualified 运行时值。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitDropTarget {
+    /// 当前 callable 拥有的 named binding 值。
+    Named(UnitSymbolId),
+    /// 完整表达式产生的 anonymous temporary。
+    Temporary(UnitExpressionId),
+    /// replacement 前原 element value；payload 是 assignment expression。
+    ReplacedElement(UnitExpressionId),
+    /// `move` closure environment 中一个 owned MoveOnly capture。
+    Captured {
+        /// 拥有 environment 的 lambda。
+        closure: UnitExpressionId,
+        /// 被析构的捕获来源。
+        source: UnitClosureCaptureSource,
+    },
+}
+
+/// 一个确定的 source-qualified ASAP 析构事实。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitDropFact {
+    point: UnitDropPoint,
+    target: UnitDropTarget,
+    value_origin: Span,
+}
+
+impl UnitDropFact {
+    pub(super) const fn new(
+        point: UnitDropPoint,
+        target: UnitDropTarget,
+        value_origin: Span,
+    ) -> Self {
+        Self {
+            point,
+            target,
+            value_origin,
+        }
+    }
+
+    /// 返回析构发生的 source-qualified 控制流边界。
+    #[must_use]
+    pub const fn point(self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 返回 named owner、temporary、旧 element 或 owned capture。
+    #[must_use]
+    pub const fn target(self) -> UnitDropTarget {
+        self.target
+    }
+
+    /// 返回当前值实例的建立位置。
+    #[must_use]
+    pub const fn value_origin(self) -> Span {
+        self.value_origin
+    }
+}
+
+/// unit ownership 仍无法发布完整 drop plan 的显式 recovery 边界。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitOwnershipDeferredFact {
+    expression: UnitExpressionId,
+    reason: OwnershipDeferredReason,
+}
+
+impl UnitOwnershipDeferredFact {
+    pub(super) const fn new(expression: UnitExpressionId, reason: OwnershipDeferredReason) -> Self {
+        Self { expression, reason }
+    }
+
+    /// 返回被延后的 source-qualified expression。
+    #[must_use]
+    pub const fn expression(self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回未封闭的所有权类别。
+    #[must_use]
+    pub const fn reason(self) -> OwnershipDeferredReason {
+        self.reason
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnitOwnershipProvenance {
     typed_analysis_owner: Arc<()>,
@@ -484,9 +602,11 @@ pub struct CompilationUnitOwnership {
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
+    drops: Vec<UnitDropFact>,
     captures: Vec<UnitClosureCaptureDescriptor>,
     closures: Vec<UnitClosureDescriptor>,
     transferabilities: Vec<Transferability>,
+    deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
 impl CompilationUnitOwnership {
@@ -514,9 +634,11 @@ impl CompilationUnitOwnership {
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
             construction_plans: dataflow.construction_plans,
+            drops: dataflow.drops,
             captures,
             closures: capture.closures,
             transferabilities: capture.transferabilities,
+            deferred: dataflow.deferred,
         }
     }
 
@@ -604,6 +726,12 @@ impl CompilationUnitOwnership {
         &self.construction_plans
     }
 
+    /// 返回 source/control-flow 顺序稳定的 ASAP drop facts。
+    #[must_use]
+    pub fn drops(&self) -> &[UnitDropFact] {
+        &self.drops
+    }
+
     /// 返回 lambda/source 顺序稳定的 capture 输入事实。
     #[must_use]
     pub fn captures(&self) -> &[UnitClosureCaptureDescriptor] {
@@ -640,14 +768,52 @@ impl CompilationUnitOwnership {
     pub fn transferability(&self, ty: UnitTypeId) -> Option<Transferability> {
         self.transferabilities.get(ty.index()).copied()
     }
+
+    /// 返回阻止 validated codegen gate 的显式 recovery 边界。
+    #[must_use]
+    pub fn deferred(&self) -> &[UnitOwnershipDeferredFact] {
+        &self.deferred
+    }
+
+    /// 只有无 ownership error 且 drop plan 完整时才发布 codegen 可消费的 view。
+    pub fn validate(self) -> Result<ValidatedCompilationUnitOwnership, Box<Self>> {
+        let has_error = self
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error);
+        if has_error || !self.deferred.is_empty() {
+            Err(Box::new(self))
+        } else {
+            Ok(ValidatedCompilationUnitOwnership(self))
+        }
+    }
+}
+
+/// 不可伪造的无错误、drop plan 完整的 compilation-unit ownership product。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatedCompilationUnitOwnership(CompilationUnitOwnership);
+
+impl ValidatedCompilationUnitOwnership {
+    /// 返回 recovery product 的只读视图。
+    #[must_use]
+    pub const fn ownership(&self) -> &CompilationUnitOwnership {
+        &self.0
+    }
+
+    /// 解包 recovery product。
+    #[must_use]
+    pub fn into_ownership(self) -> CompilationUnitOwnership {
+        self.0
+    }
 }
 
 /// 建立 source-qualified compilation-unit ownership recovery product。
 ///
-/// 当前发布 callable parameter bindings、call argument contracts、普通 call loan/value
-/// deliveries、intrinsic container Value/Borrow deliveries、intrinsic Rc effects、constructor
-/// ordered delivery/root obligations，以及 source-qualified closure capture/Transferability
-/// 输入事实。capture formation dataflow、drop 与 validated codegen gate 仍由后续切片接入。
+/// 当前发布 callable parameter bindings、call argument contracts、普通 call 与 intrinsic
+/// container 的 loan/value deliveries、intrinsic Rc effects、constructor ordered delivery/root
+/// obligations、closure capture/formation/Transferability，以及完整 body-local ASAP drop facts。
+/// recovery product 可能携带诊断或显式 deferred drop 边界；调用 [`CompilationUnitOwnership::validate`]
+/// 后才获得 codegen 可消费的 view。
 pub fn check_compilation_unit_ownership(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -699,6 +865,7 @@ pub fn check_compilation_unit_ownership(
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();
+        dataflow.drops.clear();
     }
 
     Ok(CompilationUnitOwnership::new(

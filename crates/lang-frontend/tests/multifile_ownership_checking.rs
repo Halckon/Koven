@@ -11,9 +11,9 @@ use lang_frontend::{
     ownership_checking::{
         ClosureCaptureEffect, ClosureCaptureMode, CompilationUnitOwnership,
         ConstructionDeliveryKind, ConstructionRootKind, LoanKind, OwnershipBindingKind,
-        OwnershipCheckingError, RcOwnershipEffectKind, Transferability,
-        UnitCallArgumentOwnershipKind, UnitClosureCaptureSource, UnitLoanTarget,
-        UnitValueDeliveryKind, check_compilation_unit_ownership,
+        OwnershipCheckingError, OwnershipDeferredReason, RcOwnershipEffectKind, Transferability,
+        UnitCallArgumentOwnershipKind, UnitClosureCaptureSource, UnitDropPoint, UnitDropTarget,
+        UnitLoanTarget, UnitValueDeliveryKind, check_compilation_unit_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
@@ -1790,6 +1790,8 @@ fn list_form_move_reports_reuse_and_clears_executable_facts() {
     assert!(ownership.value_deliveries().is_empty());
     assert!(ownership.rc_effects().is_empty());
     assert!(ownership.construction_plans().is_empty());
+    assert!(ownership.drops().is_empty());
+    assert!(ownership.clone().validate().is_err());
 }
 
 #[test]
@@ -2232,4 +2234,235 @@ fn compiler_bound_cross_thread_delivery_uses_unit_closure_transferability() {
     assert_eq!(diagnostic_codes(&ownership), ["L0139", "L0139"]);
     assert!(ownership.captures().is_empty());
     assert!(ownership.value_deliveries().is_empty());
+}
+
+#[test]
+fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource {}\n\
+         fun create(): Resource\n\
+         fun inspect(item: Resource): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         import p.create\n\
+         import p.inspect\n\
+         fun drops(flag: Boolean, own unusedParameter: Resource, own branchOwner: Resource): Unit {\n\
+             val unused = create()\n\
+             val used = create()\n\
+             val first = inspect(used)\n\
+             var replaced = create()\n\
+             { replaced = create() }\n\
+             val temporary = inspect(create())\n\
+             if (flag) {\n\
+                 val branchRead = inspect(branchOwner)\n\
+                 val early = create()\n\
+                 if (flag) { return }\n\
+                 val after = inspect(early)\n\
+             } else {\n\
+                 val branch = create()\n\
+             }\n\
+             while (flag) {\n\
+                 val loopRead = inspect(replaced)\n\
+                 break\n\
+             }\n\
+         }\n\
+         fun returned(own result: Resource, own spare: Resource): Resource {\n\
+             return result\n\
+         }\n\
+         fun captured(own item: Resource): Unit {\n\
+             val closure: move () -> Unit = move { val read = inspect(item) }\n\
+         }\n\
+         fun stringDrops(own left: String, own right: String): Boolean {\n\
+             val joined = left + \"!\"\n\
+             return joined == right\n\
+         }\n\
+         fun elementDrop(own items: MutableList<Resource>, own replacement: Resource): Unit {\n\
+             val result = (items[0] = replacement)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert!(ownership.deferred().is_empty());
+    let named_origins = ownership
+        .drops()
+        .iter()
+        .filter_map(|fact| match fact.target() {
+            UnitDropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
+            UnitDropTarget::Temporary(_)
+            | UnitDropTarget::ReplacedElement(_)
+            | UnitDropTarget::Captured { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    for expected in [
+        "unusedParameter",
+        "unused",
+        "used",
+        "replaced",
+        "early",
+        "branch",
+        "spare",
+        "closure",
+    ] {
+        assert!(
+            named_origins.contains(&expected),
+            "missing {expected}: {named_origins:?}"
+        );
+    }
+    assert!(
+        !named_origins.contains(&"result"),
+        "returned owner must transfer instead of drop: {named_origins:?}"
+    );
+    let consumer_unit = source_unit(&names, consumer_source);
+    for predicate in [
+        ownership.drops().iter().any(|fact| {
+            matches!(
+                fact.point(),
+                UnitDropPoint::FunctionEntry(item) if item.source_unit() == consumer_unit
+            )
+        }),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::AfterStatement(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::AfterBinaryOperands(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::CallReturn(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::ControlTransfer(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::BranchExit { .. })),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::LoopExit(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.point(), UnitDropPoint::AfterReplacement(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.target(), UnitDropTarget::Temporary(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.target(), UnitDropTarget::ReplacedElement(_))),
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.target(), UnitDropTarget::Captured { .. })),
+    ] {
+        assert!(predicate, "{:?}", ownership.drops());
+    }
+    let validated = ownership
+        .clone()
+        .validate()
+        .expect("complete ownership product validates");
+    assert!(validated.ownership().is_compatible_with(&typed));
+
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
+    let reversed_typed = validated_types(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+    );
+    let reversed = check_compilation_unit_ownership(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+        &reversed_typed,
+    )
+    .expect("reversed unit ownership product");
+    assert_eq!(ownership.drops(), reversed.drops());
+    assert!(reversed.validate().is_ok());
+}
+
+#[test]
+fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource {}\n\
+         class Holder(var payload: Resource)",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Holder\n\
+         fun deferred(holders: List<Holder>): Unit {\n\
+             val projected = holders[0].payload\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert_eq!(ownership.deferred().len(), 1);
+    assert_eq!(
+        ownership.deferred()[0].reason(),
+        OwnershipDeferredReason::IndexPlace
+    );
+    assert_eq!(
+        sources
+            .slice(
+                consumer
+                    .ast()
+                    .expressions()
+                    .get(ownership.deferred()[0].expression().expression())
+                    .expect("deferred expression")
+                    .span()
+            )
+            .expect("deferred source"),
+        "holders[0].payload"
+    );
+    assert!(ownership.clone().validate().is_err());
 }

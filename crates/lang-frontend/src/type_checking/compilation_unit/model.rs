@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    ast::{ExpressionId, StatementId, TypeRefId},
+    ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
         CompilationUnitIndex, DeclarationId, DeclarationVisibility, PackageId, SourceUnitInput,
@@ -82,6 +82,12 @@ define_unit_ast_id!(
     ExpressionId,
     expression,
     "compilation unit 中一个带 source-unit 限定的 expression identity。"
+);
+define_unit_ast_id!(
+    UnitItemId,
+    ItemId,
+    item,
+    "compilation unit 中一个带 source-unit 限定的 item identity。"
 );
 define_unit_ast_id!(
     UnitStatementId,

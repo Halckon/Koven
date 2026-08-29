@@ -17,10 +17,10 @@ pub use compilation_unit::{
     CompilationUnitOwnership, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
     UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor,
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
-    UnitConstructionRootDropObligation, UnitLoanFact, UnitLoanTarget,
-    UnitOwnershipBindingDescriptor, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
-    check_compilation_unit_ownership,
+    UnitConstructionRootDropObligation, UnitDropFact, UnitDropPoint, UnitDropTarget, UnitLoanFact,
+    UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    ValidatedCompilationUnitOwnership, check_compilation_unit_ownership,
 };
 pub use construction::{
     ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,

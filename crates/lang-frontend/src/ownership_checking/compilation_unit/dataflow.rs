@@ -3,6 +3,7 @@
 mod closure;
 mod construction;
 mod container;
+mod drop_planner;
 mod flow;
 mod liveness;
 mod places;
@@ -29,9 +30,9 @@ use crate::{
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, Transferability,
     UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor,
-    UnitClosureDescriptor, UnitConstructionOwnershipPlan, UnitLoanFact, UnitLoanTarget,
-    UnitOwnershipBindingDescriptor, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitValueDeliveryFact,
+    UnitClosureDescriptor, UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact,
+    UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitValueDeliveryFact,
 };
 use flow::{
     ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_optional_state, merge_state,
@@ -43,6 +44,8 @@ pub(super) struct Analysis {
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
+    pub(super) drops: Vec<UnitDropFact>,
+    pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
 pub(super) struct ClosureInputs<'a> {
@@ -130,6 +133,8 @@ pub(super) fn analyze(
     let mut value_deliveries = Vec::new();
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
+    let mut drops = Vec::new();
+    let mut deferred = Vec::new();
     let empty_construction_descriptors = BTreeMap::new();
 
     for source in names.names().index().source_units() {
@@ -171,7 +176,9 @@ pub(super) fn analyze(
             &mut rc_effects,
             &mut construction_plans,
         )?;
-        checker.run()?;
+        let drop_analysis = checker.run()?;
+        drops.extend(drop_analysis.drops);
+        deferred.extend(drop_analysis.deferred);
     }
 
     let diagnostics =
@@ -185,6 +192,8 @@ pub(super) fn analyze(
         value_deliveries,
         rc_effects,
         construction_plans,
+        drops,
+        deferred,
     })
 }
 
@@ -350,7 +359,7 @@ impl<'a> Checker<'a> {
         })
     }
 
-    fn run(&mut self) -> Result<(), OwnershipCheckingError> {
+    fn run(&mut self) -> Result<drop_planner::Analysis, OwnershipCheckingError> {
         for (item, _) in self.parsed.ast().items().iter() {
             self.collect_mutability(item)?;
         }
@@ -360,7 +369,11 @@ impl<'a> Checker<'a> {
         for &root in self.parsed.roots() {
             self.check_item(root, State::default())?;
         }
-        Ok(())
+        if self.diagnostics.is_empty() {
+            drop_planner::plan(self)
+        } else {
+            Ok(drop_planner::Analysis::default())
+        }
     }
 
     fn apply_contract(

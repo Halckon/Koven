@@ -355,6 +355,21 @@ impl Checker<'_> {
                         }
                     }
                     Ok(Flows::next(state))
+                } else if self
+                    .typed
+                    .aggregate_projection(self.unit_expression(id))
+                    .is_some()
+                    && self.element_place_descriptor(receiver)?.is_some()
+                {
+                    // 与单文件所有权检查保持一致：元素后的聚合字段投影仍是 Place，
+                    // 其精确 drop 计划由 liveness 标记为 IndexPlace 暂缓。
+                    self.check_expression(
+                        receiver,
+                        state,
+                        ExpressionUse::Place {
+                            parameter_span: None,
+                        },
+                    )
                 } else {
                     self.check_expression(receiver, state, ExpressionUse::Read)
                 }

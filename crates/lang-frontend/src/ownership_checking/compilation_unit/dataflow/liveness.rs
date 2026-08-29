@@ -1,6 +1,6 @@
 //! Closure loan 与后续 drop planner 共享的 source-qualified 活跃性。
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -9,7 +9,7 @@ use crate::{
         AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart,
         WhenCondition,
     },
-    type_checking::{DestructuringMode, UnitStatementId},
+    type_checking::{DestructuringMode, UnitExpressionId, UnitStatementId},
 };
 
 use super::{Checker, ExpressionUse, OwnershipCheckingError, UnitCallArgumentOwnershipKind};
@@ -19,6 +19,9 @@ type LiveSet = BTreeSet<UnitSymbolId>;
 pub(super) struct Liveness {
     pub(super) expression_after: Vec<LiveSet>,
     pub(super) statement_after: Vec<LiveSet>,
+    pub(super) skipped_functions: BTreeSet<usize>,
+    pub(super) function_live_in: BTreeMap<usize, LiveSet>,
+    pub(super) deferred: Vec<UnitExpressionId>,
 }
 
 struct Builder<'a, 'checker> {
@@ -26,6 +29,9 @@ struct Builder<'a, 'checker> {
     expression_after: Vec<LiveSet>,
     statement_after: Vec<LiveSet>,
     loop_stack: Vec<(LiveSet, LiveSet)>,
+    skipped_functions: BTreeSet<usize>,
+    function_live_in: BTreeMap<usize, LiveSet>,
+    deferred: Vec<UnitExpressionId>,
 }
 
 pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipCheckingError> {
@@ -34,6 +40,9 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
         expression_after: vec![LiveSet::new(); checker.parsed.ast().expressions().len()],
         statement_after: vec![LiveSet::new(); checker.parsed.ast().statements().len()],
         loop_stack: Vec::new(),
+        skipped_functions: BTreeSet::new(),
+        function_live_in: BTreeMap::new(),
+        deferred: Vec::new(),
     };
     for &root in checker.parsed.roots() {
         builder.item(root)?;
@@ -41,6 +50,9 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
     Ok(Liveness {
         expression_after: builder.expression_after,
         statement_after: builder.statement_after,
+        skipped_functions: builder.skipped_functions,
+        function_live_in: builder.function_live_in,
+        deferred: builder.deferred,
     })
 }
 
@@ -48,27 +60,30 @@ impl Builder<'_, '_> {
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
         match self.checker.parsed.ast().items().get(id)?.payload().clone() {
             Item::Modified { declaration, .. } => self.item(declaration)?,
-            Item::Function { form, .. } => match form {
-                FunctionForm::ImplicitUnitAbsent => {}
-                FunctionForm::ImplicitUnitBlock(body) => {
-                    self.statement(body, LiveSet::new())?;
-                }
-                FunctionForm::Explicit { body, .. } => match body {
-                    FunctionBody::Absent => {}
-                    FunctionBody::Expression { expression, .. } => {
-                        self.expression(
+            Item::Function { form, .. } => {
+                let deferred_before = self.deferred.len();
+                let live_in = match form {
+                    FunctionForm::ImplicitUnitAbsent => LiveSet::new(),
+                    FunctionForm::ImplicitUnitBlock(body) => {
+                        self.statement(body, LiveSet::new())?
+                    }
+                    FunctionForm::Explicit { body, .. } => match body {
+                        FunctionBody::Absent => LiveSet::new(),
+                        FunctionBody::Expression { expression, .. } => self.expression(
                             expression,
                             ExpressionUse::Consume {
                                 parameter_span: None,
                             },
                             LiveSet::new(),
-                        )?;
-                    }
-                    FunctionBody::Block(body) => {
-                        self.statement(body, LiveSet::new())?;
-                    }
-                },
-            },
+                        )?,
+                        FunctionBody::Block(body) => self.statement(body, LiveSet::new())?,
+                    },
+                };
+                self.function_live_in.insert(id.index(), live_in);
+                if self.deferred.len() != deferred_before {
+                    self.skipped_functions.insert(id.index());
+                }
+            }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
                     for member in body.members {
@@ -440,6 +455,18 @@ impl Builder<'_, '_> {
                     }
                     Ok(live)
                 } else {
+                    if self
+                        .checker
+                        .typed
+                        .aggregate_projection(self.checker.unit_expression(id))
+                        .is_some()
+                        && self.checker.element_place_descriptor(receiver)?.is_some()
+                    {
+                        let expression = self.checker.unit_expression(id);
+                        if !self.deferred.contains(&expression) {
+                            self.deferred.push(expression);
+                        }
+                    }
                     self.expression(receiver, ExpressionUse::Read, live_after)
                 }
             }

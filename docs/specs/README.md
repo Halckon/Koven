@@ -13,7 +13,7 @@ nominal/enum、intrinsic Box/Rc construction、source member body/call/projectio
 member operation、core container construction、container place/assignment、contextual null literal 与
 null-comparison/non-null-use flow、String interpolation、top-level variable/const initializer 与现行
 expression-tail typed traversal，并通过完成审计；
-当前正在实施 0198，完成后按 {0199,0187} 推进。已接受 ADR-0022，SPEC-0052 已完成
+SPEC-0198 已完成，后续可按 {0199,0187} 的独立前置推进。已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
 [v0.33](../guide/00-index.md) 是 v0.32 的未启用后继候选：grammar §9/SPEC-0213/0214 增加
@@ -131,7 +131,7 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
 | 已物化 v0.33 lambda 候选 | SPEC-0213→0214 | 0213 只把尾 lambda 规范化为普通 CallArgument；0214 为全部 headerless lambda 纵向接通 contextual `it` 的 name/type/mode/ownership，未启用，保持 draft |
-| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197 已完成，0198 已建立 unit ownership product/provenance、参数 binding、call contracts 与普通 call loan/Value delivery 数据流并继续实施，之后分叉到 0199/0187 |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，之后分叉到 0199/0187 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
 | 项目构建后继 | SPEC-0053/0054、0200 | v0.33/SPEC-0054 已满足 0052，仍等待 0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
@@ -295,7 +295,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |
-| [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`in-progress`） | 0197 `done`；v0.32 已启用；ADR-0020 `accepted` |
+| [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`done`） | 0197 `done`；v0.32 已启用；ADR-0020 `accepted` |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 

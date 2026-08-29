@@ -5,8 +5,8 @@
 > v0.32；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
-> SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025 已完成 compilation-unit index、
-> package/import 名称解析与 L0146–L0151，下一节点为 SPEC-0197。2026-08-27 的现行 v0.32
+> SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025/0197/0198 已完成 compilation-unit
+> 名称、类型与所有权产物，下一节点可在 SPEC-0199/0187 间按独立前置推进。2026-08-27 的现行 v0.32
 > 纯勘误已拆开 exact import 与普通静态限定名。
 > 2026-08-28 审计确认现行 Parser 由 guide/SPEC/回归明确拒绝尾 lambda；该语法不回开已完成
 > SPEC-0010/0012/0175，也不混入 SPEC-0197，已作为 v0.33 候选 SPEC-0213 物化。后续确认尾
@@ -329,7 +329,7 @@ Spec 之前，本条限制不变。）
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025/0197 已完成，SPEC-0198 已进入实施；0199/0187 仍等待各自前置 Spec。
+其中 SPEC-0025/0197/0198 已完成；0199/0187 的共同 frontend 前置链已解除。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -372,19 +372,11 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       Value operand 的 copy/move、构造 temporary owner、ASAP drop，发布有序 delivery effects
       与 root drop obligation；不在 Phase 3 重新选择 constructor、推导类型实参或制造逐字段
       source DropFact
-- [ ] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（in-progress）**：在 SPEC-0197
-      后消费完整 typed unit，发布跨文件 call/constructor 的 loan、move、drop 与 capture facts；
-      body 数据流仍保持局部，不新增跨过程所有权分析；已建立 unit recovery product、
-      typed-analysis provenance、顶层/member/companion/lambda 参数 binding capability，以及带真实
-      call/argument/参数声明位置的 Value/shared-loan/exclusive-loan 输入契约；普通 typed call 已执行
-      source-qualified shared/exclusive loan 与 Copy/Move/Temporary Value delivery，并复用稳定诊断及
-      错误事实原子清空；intrinsic Rc `share/value` 已发布 retain/borrow-payload effects，source-
-      qualified constructor 也已发布按源码求值顺序的 Copy/Move/Temporary delivery、MoveOnly root
-      obligation 与 `Nothing` 提前终止计划；intrinsic container 已复用同一 source-qualified contract，
-      list-form 执行重复 Value delivery、runtime-length 执行两个 Borrow；closure/capture 已执行
-      source-qualified Borrow/Copy/Move formation、named/direct last-use loan、L0137–L0139 与
-      compiler-bound cross-thread `Transferable` 数据流。ASAP drop/return 与 validated gate 继续按本
-      Spec 接入。
+- [x] **[SPEC-0198](../specs/0198-multifile-ownership-checking.md)（已实现）**：消费完整 typed unit，
+      在 body-local 数据流中发布 source-qualified call/constructor/container/Rc/closure 的 loan、
+      Copy/Move/Temporary delivery、capture/Transferability、return 与 ASAP drop facts；错误 unit 原子
+      清空可执行 facts，element-field projection 等显式 deferred 边界不通过 validated ownership gate，
+      不新增跨过程所有权分析。
 - [ ] **[SPEC-0203](../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
@@ -521,7 +513,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0199](../specs/0199-multifile-native-lowering.md)（draft）**：在 SPEC-0198 后按
       ADR-0020 对完整 compilation unit 做 reachability/单态化，生成单一 object 并复用现有
       linker contract；内部入口为已解析 `DeclarationId`，不引入每文件 object、跨 package ABI
-      或公开多文件 CLI。
+      或公开多文件 CLI；SPEC-0198 前置已完成，仍须按本 Spec 独立批准/实施。
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构
 右值只执行一次，消费式解构后的每个不可复制字段恰好析构一次，不可复制 `value class`
@@ -618,7 +610,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [ ] **[SPEC-0187](../specs/0187-multifile-lsp-diagnostics-definition.md)（draft）**：复用
       SPEC-0025/0197/0198 的 compilation-unit frontend 产物提供跨文件诊断与跳转定义；不得在
       LSP 内复制 resolver；它与 SPEC-0199 并行，不依赖 native。ADR-0021 已接受并封闭版本化
-      显式 base source-set wire；SPEC-0187 仍等待 0025/0197/0198 完成。project CLI
+      显式 base source-set wire；0025/0197/0198 前置已完成，仍须按本 Spec 独立批准/实施。project CLI
       manifest discovery 已由 SPEC-0052 完成，project build 等待 SPEC-0054；二者不成为 LSP 隐式输入。
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码

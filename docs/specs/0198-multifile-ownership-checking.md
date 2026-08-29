@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-198` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 v0.32 §32 |
@@ -37,10 +37,10 @@
 
 ## 5. 验收标准
 
-- [ ] 正反例覆盖跨文件 Borrow/Value/Inout、MoveOnly return、constructor、closure 与 drop point。
-- [ ] use-after-move/loan 冲突诊断含精确跨文件目标信息且顺序确定。
-- [ ] 单文件 ownership suite、frontend/workspace 基线与 Architecture 同步。
-- [ ] mixed-analysis product、错误 unit/source/body locator 与重复 source 均被内部门禁拒绝。
+- [x] 正反例覆盖跨文件 Borrow/Value/Inout、MoveOnly return、constructor、closure 与 drop point。
+- [x] use-after-move/loan 冲突诊断含精确跨文件目标信息且顺序确定。
+- [x] 单文件 ownership suite、frontend/workspace 基线与 Architecture 同步。
+- [x] mixed-analysis product、错误 unit/source/body locator 与重复 source 均被内部门禁拒绝。
 
 ## 6. 技术方案与边界
 
@@ -51,14 +51,14 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 
 ## 7. 实施计划
 
-1. [ ] 建立 unit ownership driver 与跨文件 callable facts → 验证：mode/loan 正反矩阵。
+1. [x] 建立 unit ownership driver 与跨文件 callable facts → 验证：mode/loan 正反矩阵。
    - [x] 建立 source-qualified recovery product、typed-analysis provenance 与 mixed-input 门禁，
      并发布顶层/member/companion/lambda 参数的 Owned/Shared/Exclusive binding 能力；完整 checker
      闭环前不发布 validated/codegen gate。
    - [x] 消费 unit call descriptor，归一化 source-qualified Value/shared-loan/exclusive-loan argument
      contracts，并为 Declaration/Symbol target 回链真实参数声明范围；external/function-value 不伪造
      源码位置，错误 call/argument/parameter locator 由内部门禁拒绝。
-   - [ ] 在 body-local 数据流中接通 return/drop 与 validated gate；普通 call contract、container
+   - [x] 在 body-local 数据流中接通 return/drop 与 validated gate；普通 call contract、container
      特殊交付、Rc effects 与 closure formation 已由完成切片覆盖。
    - [x] 在 body-local 数据流中执行普通 typed call contracts，建立 source-qualified shared/
      exclusive loan、Copy/Move/Temporary Value delivery，并复用 L0131–L0136 的适用诊断；任一诊断
@@ -81,7 +81,7 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
      named/direct closure 最后使用结束的 loan，owned capture 执行 Copy/Move，body capture 保持
      non-owning/immutable；return/Value delivery/constructor/field 逃逸、非法 owned capture 与
      compiler-bound cross-thread delivery 分别复用 L0137–L0139，错误 unit 原子清空可执行 facts。
-2. [ ] 接 drop/return 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
+2. [x] 接 drop/return 与确定性诊断 → 验证：`multifile_ownership_checking`、门禁反例和
    既有 ownership suite。
 3. [x] 同步 Architecture 并跑 workspace 基线。
 
@@ -89,7 +89,7 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | compilation-unit ownership product | `feat(frontend): check multifile ownership (SPEC-0198)` |
+| 1 | compilation-unit ownership product | `feat(frontend): complete unit ownership (SPEC-0198)` |
 
 ## 9. 未决问题
 
@@ -178,3 +178,14 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `cargo build -p lang-cli --locked --offline` | 通过 | 第八切片 CLI dev build |
 | 第八切片复审 | 通过 | 重点复核 liveness、控制流合并、closure identity 转移、direct temporary loan 释放及错误事实原子边界；终局未发现剩余问题 |
 | 第八切片 Tier 3 判定 | 未触发 | source-qualified closure formation/liveness 私有数据流切片；未改 parser/harness、依赖、guide 语义或未知公共下游，按根 `AGENTS.md` §9 使用 Tier 2 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 通过 | 第九切片 35 tests；source-qualified ASAP drop/return、String operand、replacement、control edge、closure capture、输入置换确定性及 validated/deferred 正反门禁 |
+| `cargo fmt --all -- --check` | 通过 | 第九切片最终 Rust 源码状态；后续仅同步事实文档 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | frontend 全 target 无 warning；新增 production 模块均低于 1000 行软上限 |
+| `cargo test -p lang-frontend --lib --locked --offline` | 通过 | 50 tests；含 compilation-unit product/descriptor 内部门禁 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_type_checking --test ownership_checking --test ownership_closures --test ownership_construction --test ownership_containers --test ownership_rc --test ownership_structural --locked --offline` | 通过 | 167 tests；unit typed/ownership、单文件 drop planner 及全部相邻 Phase 3 回归 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | additive public compilation-unit ownership API 的跨 crate 编译兼容 |
+| `cargo test --workspace --lib --bins --locked --offline` | 通过 | 254 passed、1 ignored；ignored 为既有 LLDB task-port 权限用例 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | CLI dev build |
+| `git diff --check` | 通过 | 第九切片 Rust 源码无空白错误；文档同步后将再次执行 |
+| 第九切片复审 | 通过 | 发现并修复跨文件 element-field 投影误报 L0136、入口 rustdoc 过期及 FunctionEntry 注释反向三项问题；终局未发现剩余 High/Medium/Low |
+| 第九切片 Tier 3 判定 | 未触发 | 可界定的 frontend Phase 产物与 additive public API；未改 parser/harness、依赖、guide 语义或未知下游，按根 `AGENTS.md` §9 使用 Tier 2，并由 workspace check 覆盖已知下游 |

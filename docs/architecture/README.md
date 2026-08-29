@@ -875,8 +875,14 @@ source-qualified 反向 liveness，并在 body-local 数据流中执行闭包 fo
 named/direct closure 最后使用结束的 loan，owned capture 执行 Copy/Move，lambda body 使用 non-owning
 与 immutable capture state；return/Value delivery/constructor/field 逃逸复用 L0137，非法 owned capture
 复用 L0138，compiler-bound cross-thread effect 复用具体 environment `Transferability` 与 L0139。
-ASAP drop 与完整 callable return 仍未接通，因此本产物仍不发布 validated view，也不是完整 codegen
-input。
+第九切片复用单文件 liveness/drop planner 契约，发布带 `UnitExpressionId` / `UnitStatementId` /
+`UnitItemId` 的 source-qualified `UnitDropPoint`、named/temporary/replaced-element/captured
+`UnitDropTarget` 与稳定 `UnitDropFact`；覆盖 unused parameter/local、String binary、call temporary、
+replacement、branch/loop/control-transfer、return 与 closure environment 逆序析构。element 后字段
+投影仍按单文件契约显式发布 `IndexPlace` deferred fact，并跳过所属 callable 的不完整 drop plan；
+任一 ownership error 原子清空全部可执行 facts。只有无 error 且无 deferred drop 边界时，
+`CompilationUnitOwnership::validate` 才发布不可伪造的 `ValidatedCompilationUnitOwnership`，供
+SPEC-0199 等后继阶段消费。
 
 ## 结构化诊断与 renderer
 
