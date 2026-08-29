@@ -911,6 +911,16 @@ FunctionEntry、AfterExpression、AfterStatement、CallReturn 与 ControlTransfe
 当前 verifier 测试已覆盖 String 跨文件移动后由 callee 精确 drop 一次、跨文件 String 结果显式返回不
 drop，以及未支持 loop 的原子失败；CFG 和复合 owner 仍由后继切片承接。
 
+第四切片新增独立 `ssa::unit_lower::control`，把 Unit-valued `if` lower 为显式 conditional edge、
+branch block 参数与 merge block 参数。进入控制表达式时的 binding 集是唯一合流域：Copyable/Unit
+分支局部在离开词法作用域后移除，任何未被 frontend drop fact 清理的 MoveOnly 分支局部都会以
+`MissingFact` fail loud；Value `Move` 与 MoveOnly `Temporary` delivery 同步从路径状态转移，避免把
+已消费 owner 作为 stale edge argument。正常显式/隐式分支消费 source-qualified `BranchExit`，提前
+`return` 只消费 `ControlTransfer` 且不重复执行 branch drop；全部分支 diverge 时不生成伪 merge。
+当前 verified SSA 测试覆盖跨文件条件提前返回、输入置换，以及 then 路径向 callee 转移 String、
+implicit-else 路径析构同一 owner 的互斥闭环。value-valued `if`、`when`、循环与复合 owner 仍由
+SPEC-0199 后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

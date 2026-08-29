@@ -66,10 +66,12 @@
    package identity、死 body 排除、输入置换与 unsupported 原子失败。
 3. [x] 扩展 straight-line block/local/explicit return 与 String owner/drop SSA → 验证：逐实参
    Copy/Move/Temporary delivery、FunctionEntry/statement/call/control-transfer drop 与跨文件 owner transfer。
-4. [ ] 扩展现行 native-closed CFG 与 aggregate/Rc/container/closure owner/drop SSA → 验证：分支/循环
-   正常和提前退出、复合 drop glue unit-wide 去重。
-5. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-6. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+4. [x] 接 Unit-valued `if` owner-aware CFG → 验证：block/edge 参数、正常与提前 `return`、显式/
+   隐式 `else` BranchExit、MoveOnly Value delivery 状态转移、分支局部清理与输入置换。
+5. [ ] 扩展其余现行 native-closed CFG 与 aggregate/Rc/container/closure owner/drop SSA → 验证：
+   value-valued 分支、`when`/循环正常和提前退出、复合 drop glue unit-wide 去重。
+6. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+7. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -78,8 +80,9 @@
 | 1 | unit reachability/instance plan | `feat(codegen): plan multifile instances (SPEC-0199)` |
 | 2 | scalar expression-body verified SSA | `feat(codegen): lower multifile scalar calls (SPEC-0199)` |
 | 3 | block/return 与跨文件 String owner/drop SSA | `feat(codegen): lower multifile string owners (SPEC-0199)` |
-| 4 | 完整现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 5 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 4 | Unit-valued `if` owner-aware CFG | `feat(codegen): lower multifile conditionals (SPEC-0199)` |
+| 5 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 6 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -101,3 +104,6 @@
 | `cargo test -p lang-codegen unit_lower_tests --lib` | 5 passed | 新增跨文件 String Move/drop、显式 return transfer 与 loop fail-loud；保留 identity/determinism 基线 |
 | `cargo test -p lang-codegen --lib` | 164 passed, 1 ignored | block/String owner 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第三切片继续复用简化分层验收，不重复无关 workspace runtime matrix |
+| `cargo test -p lang-codegen unit_lower_tests --lib` | 8 passed | Unit `if` CFG、输入置换、提前 return、Move delivery 状态转移、显式/隐式 else 正常合流、BranchExit 与分支局部清理 |
+| `cargo test -p lang-codegen --lib` | 167 passed, 1 ignored | Unit `if` CFG 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第四切片沿用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复 workspace runtime matrix |

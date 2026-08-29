@@ -1,5 +1,8 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 
+mod control;
+mod ownership;
+
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -8,9 +11,7 @@ use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{
-        UnitDropPoint, UnitDropTarget, UnitValueDeliveryKind, ValidatedCompilationUnitOwnership,
-    },
+    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind, ValidatedCompilationUnitOwnership},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
         Statement,
@@ -349,6 +350,12 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::Call { arguments, .. } => self.lower_call(expression, arguments, span),
+            Expression::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => self.lower_if(expression, *condition, *then_branch, *else_branch, span),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
@@ -518,6 +525,23 @@ impl UnitExpressionLowerer<'_> {
                     argument.span,
                 ));
             }
+            match expected_delivery {
+                UnitValueDeliveryKind::Copy => {}
+                UnitValueDeliveryKind::Move => {
+                    let place = delivery
+                        .place()
+                        .filter(|place| place.is_root())
+                        .ok_or_else(|| {
+                            lowering_error(LoweringErrorKind::MissingFact, argument.span)
+                        })?;
+                    self.take_owned_binding(place.root(), value, argument.span)?;
+                }
+                UnitValueDeliveryKind::Temporary => {
+                    if self.typed.types().copyability(argument_type) == Copyability::MoveOnly {
+                        self.take_owned_temporary(value, argument.span)?;
+                    }
+                }
+            }
         }
         let arguments = ordered
             .into_iter()
@@ -569,6 +593,9 @@ impl UnitExpressionLowerer<'_> {
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
+        if let (Some(value_expression), LoweredValue::Value(value)) = (value, result) {
+            self.transfer_owned_expression(value_expression, value, span)?;
+        }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
@@ -582,6 +609,28 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Diverged)
+    }
+
+    fn require_expression_value(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<ValueId, LoweringError> {
+        match self.lower(expression)? {
+            LoweredValue::Value(value) => Ok(value),
+            LoweredValue::Unit | LoweredValue::Diverged => {
+                let span = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?
+                    .span();
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            }
+        }
     }
 
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
@@ -650,6 +699,9 @@ impl UnitExpressionLowerer<'_> {
         if lowered == LoweredValue::Diverged {
             return Ok(lowered);
         }
+        if let LoweredValue::Value(value) = lowered {
+            self.transfer_owned_expression(initializer, value, span)?;
+        }
         let name_span = present_name(name)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if self.sources.slice(name_span).is_ok_and(|name| name == "_") {
@@ -687,53 +739,6 @@ impl UnitExpressionLowerer<'_> {
             })
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
-    }
-
-    fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
-        let facts = self
-            .owned
-            .ownership()
-            .drops()
-            .iter()
-            .copied()
-            .filter(|fact| fact.point() == point)
-            .collect::<Vec<_>>();
-        for fact in facts {
-            let owner = match fact.target() {
-                UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
-                    Some(LoweredValue::Value(value)) => value,
-                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
-                        return Err(lowering_error(
-                            LoweringErrorKind::MissingFact,
-                            fact.value_origin(),
-                        ));
-                    }
-                },
-                UnitDropTarget::Temporary(expression) => {
-                    self.temporaries.remove(&expression).ok_or_else(|| {
-                        lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
-                    })?
-                }
-                UnitDropTarget::Captured { .. } => continue,
-                UnitDropTarget::ReplacedElement(_) => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        fact.value_origin(),
-                    ));
-                }
-            };
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::Drop { owner },
-                    Vec::new(),
-                    Origin::Source(fact.value_origin()),
-                )
-                .map_err(|_| {
-                    lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
-                })?;
-        }
-        Ok(())
     }
 
     fn return_values(
