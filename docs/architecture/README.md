@@ -884,6 +884,16 @@ replacement、branch/loop/control-transfer、return 与 closure environment 逆�
 `CompilationUnitOwnership::validate` 才发布不可伪造的 `ValidatedCompilationUnitOwnership`，供
 SPEC-0199 等后继阶段消费。
 
+## Compilation-unit codegen planning
+
+SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
+入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated
+ownership 的完整身份链，并以显式 `DeclarationId` entry 为唯一根；只遍历可达 body，函数实例 key
+固定为 `DeclarationId + UnitTypeId type arguments`。pending/planned 均使用有序集合，递归、重复泛型
+调用与输入置换产生同一计划；每项计划保留 `SourceUnitId + ItemId + Span` body locator 和
+`UnitSymbolId -> UnitTypeId` 类型替换。当前只发布 planning 层，尚未表示多文件 verified SSA/LLVM、
+DWARF 或 object/native 已完成；这些仍由 SPEC-0199 后续提交承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

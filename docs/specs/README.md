@@ -13,7 +13,8 @@ nominal/enum、intrinsic Box/Rc construction、source member body/call/projectio
 member operation、core container construction、container place/assignment、contextual null literal 与
 null-comparison/non-null-use flow、String interpolation、top-level variable/const initializer 与现行
 expression-tail typed traversal，并通过完成审计；
-SPEC-0198 已完成，后续可按 {0199,0187} 的独立前置推进。已接受 ADR-0022，SPEC-0052 已完成
+SPEC-0198 已完成；SPEC-0199 已按解锁价值开始 unit reachability/instance plan，0187 仍可独立推进。
+已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
 [v0.33](../guide/00-index.md) 是 v0.32 的未启用后继候选：grammar §9/SPEC-0213/0214 增加
@@ -318,7 +319,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |
 | [0040](./0040-dwarf-line-tables-lldb.md) | 生成首个 DWARF 行表并用 LLDB 验收源码断点（`done`） | 0039 `done`；[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`draft`） | 0198；v0.32 已启用；ADR-0020 `accepted` |
+| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`in-progress`） | 0198 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | 0041 | 提供用户可见 `extern` FFI | 0039；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |
 
 ### Phase 5：最小标准库

@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-199` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 v0.32 §32 |
-| 批准依据 | 无；等待前置 SPEC-0198 |
-| 前置 Spec | SPEC-0034、0035、0036、0038、0039、0184、0192、0195、0196 `done`；SPEC-0198 待完成 |
+| 批准依据 | 2026-08-29 当前持续 Goal 授权在 SPEC-0198 完成后按解锁价值推进后继 Spec |
+| 前置 Spec | SPEC-0034、0035、0036、0038、0039、0184、0192、0195、0196、0198 `done` |
 | 前置 ADR | ADR-0010、ADR-0020 `accepted` |
-| 阻塞项 | SPEC-0198 `done` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-codegen` unit lowering/SSA/LLVM/object，native integration tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -61,16 +61,17 @@
 
 ## 7. 实施计划
 
-1. [ ] 建立 unit reachability/instance plan → 验证：顺序置换与去重测试。
-2. [ ] 接 SSA/LLVM、单 object 原子写入 → 验证：IR/object 与多 source DWARF 窄测试。
-3. [ ] 完成 native 正反矩阵、Architecture 与 workspace 基线。
+1. [x] 建立 unit reachability/instance plan → 验证：顺序置换、递归、泛型传播与去重测试。
+2. [ ] 接 verified SSA/LLVM → 验证：跨文件 identity、owner/drop 与多 source DWARF 窄测试。
+3. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | unit reachability 与 verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 2 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 1 | unit reachability/instance plan | `feat(codegen): plan multifile instances (SPEC-0199)` |
+| 2 | verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 3 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -81,3 +82,8 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 roadmap 审计 | 通过 | 补齐 project build 和跨文件 LSP 之前缺失的 native 层 |
+| 2026-08-29 实施前审计 | 通过 | 全部前置 Spec `done`、ADR-0010/0020 `accepted`；0199 比并行的 0187 多解除 SPEC-0054 project build 门禁，先实施 unit reachability/instance plan |
+| `cargo test -p lang-codegen unit_plan_tests --lib` | 3 passed | 跨文件可达性、死函数排除、递归去重、泛型传播/去重、输入置换、invalid entry 与 foreign ownership gate |
+| `cargo test -p lang-codegen --lib` | 159 passed, 1 ignored | codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo test --workspace --lib --bins` | 257 passed, 1 ignored | CLI 36、codegen 159、frontend 50、LSP 11、std 1；无失败 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | workspace 静态检查无 warning |
