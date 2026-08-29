@@ -249,6 +249,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             block,
             bindings,
             temporaries: BTreeMap::new(),
+            loops: Vec::new(),
             return_type: plan.return_type,
         };
         lowerer.emit_drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
@@ -307,6 +308,7 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
+    loops: Vec<loop_control::LoopContext>,
     return_type: UnitTypeId,
 }
 
@@ -362,6 +364,8 @@ impl UnitExpressionLowerer<'_> {
                 subject, entries, ..
             } => self.lower_boolean_when(expression, *subject, entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
+            Expression::Break { .. } => self.lower_break(expression, span),
+            Expression::Continue { .. } => self.lower_continue(expression, span),
             _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -681,10 +685,8 @@ impl UnitExpressionLowerer<'_> {
             Statement::While {
                 condition, body, ..
             } => self.lower_while(statement, *condition, *body, span),
-            Statement::Error
-            | Statement::LocalDestructuring { .. }
-            | Statement::For { .. }
-            | Statement::Loop { .. } => {
+            Statement::Loop { body, .. } => self.lower_loop(statement, *body, span),
+            Statement::Error | Statement::LocalDestructuring { .. } | Statement::For { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
         }

@@ -74,10 +74,12 @@
    BranchExit、Copyable value/Unit owner 路径、输入置换与 subjectless fail-loud 边界。
 7. [x] 接无 jump Unit `while` → 验证：header/body/backedge/false-exit binding 参数、MoveOnly owner
    正常回边、`LoopExit` drop、提前 return、输入置换与 `break` fail-loud 边界。
-8. [ ] 扩展 MoveOnly value result、其余 `when`/loop/for/jump 与 aggregate/Rc/container/closure owner/drop SSA →
+8. [x] 接 `break` / `continue` 与 bare `loop` → 验证：最近 nested loop target、ControlTransfer
+   body-local drop、共同退出、全路径 owner consume、无 break divergence 与 path-specific outer owner fail-loud。
+9. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-9. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-10. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+10. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+11. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -90,8 +92,9 @@
 | 5 | Copyable value-valued `if` | `feat(codegen): lower multifile value conditionals (SPEC-0199)` |
 | 6 | exhaustive Boolean-subject `when` | `feat(codegen): lower multifile boolean when (SPEC-0199)` |
 | 7 | 无 jump Unit `while` | `feat(codegen): lower multifile while loops (SPEC-0199)` |
-| 8 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 9 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 8 | loop jump 与 bare loop | `feat(codegen): lower multifile loop jumps (SPEC-0199)` |
+| 9 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 10 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -103,6 +106,10 @@
 - guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
   `(true) ->` 报 L0058/L0065；0199 只 lower 可达的 bare Boolean literal，不在 Phase 4 内修改 Phase 1
   语法。该 parser/guide 漂移由独立 frontend follow-up 锁定并修正。
+- 现行 loop drop planner 的 `LoopExit(statement)` 基于 loop-entry state 发布，不区分 while false
+  与各 break exit。若所有实际出口都已消费 owner，unit lowerer 在一致状态合流后跳过 stale fact；若
+  while false 仍拥有而某 break 已消费，则 exit binding 状态不同并显式 `UnsupportedNode`。后者需要
+  frontend 发布 exit-qualified owner/drop facts 后才能形成可验证的可选路径状态，0199 不猜测 drop。
 
 ## 10. 验证记录
 
@@ -133,3 +140,7 @@
 | `cargo test -p lang-codegen --lib unit_lower_tests` | 15 passed | 共享 carried-binding CFG 提取后的 if/when 回归，以及 `break` 原子拒绝边界 |
 | `cargo test -p lang-codegen --lib` | 176 passed, 1 ignored | 无 jump Unit `while` 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第七切片继续采用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复无关 runtime matrix |
+| `cargo test -p lang-codegen --lib unit_lower_loop_tests` | 7 passed | break/continue ControlTransfer、bare loop、全路径 owner consume、nested 最近 continue/break target 与共同退出 |
+| `cargo test -p lang-codegen --lib unit_lower_tests` | 15 passed | if/when/while 回归及 path-specific outer owner move 的 Unsupported 原子边界 |
+| `cargo test -p lang-codegen --lib` | 181 passed, 1 ignored | loop jump 与 bare loop 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第八切片沿用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复无关 runtime matrix |

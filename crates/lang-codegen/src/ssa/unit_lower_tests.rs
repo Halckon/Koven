@@ -840,14 +840,20 @@ fn move_only_value_if_remains_an_explicit_unsupported_boundary() {
 }
 
 #[test]
-fn unsupported_reachable_loop_jump_fails_before_publishing_ssa() {
+fn path_specific_outer_owner_move_on_break_remains_an_explicit_boundary() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/main.ko",
         "package p\n\
-         fun run(own flag: Boolean): Unit { while (flag) { break } }\n\
-         fun entry(): Unit { val done = run(true) }",
+         fun sink(own input: String): Unit {}\n\
+         fun run(own flag: Boolean, own text: String): Unit {\n\
+             while (flag) {\n\
+                 val done = sink(text)\n\
+                 break\n\
+             }\n\
+         }\n\
+         fun entry(): Unit { val done = run(true, \"moved\") }",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
@@ -862,7 +868,7 @@ fn unsupported_reachable_loop_jump_fails_before_publishing_ssa() {
         &owned,
         declaration(&names, "p", "entry"),
     ) {
-        Ok(_) => panic!("unimplemented loop jump must fail loudly"),
+        Ok(_) => panic!("path-specific outer owner state must not publish invalid SSA"),
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);

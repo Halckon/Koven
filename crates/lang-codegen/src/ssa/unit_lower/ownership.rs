@@ -115,6 +115,43 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
+    /// LoopExit facts 基于 loop-entry state 发布；若所有实际出口已一致消费 owner，缺失 binding
+    /// 表示该粗粒度 fact 无需生成 drop，而不是 lowering 事实缺失。
+    pub(super) fn emit_loop_exit_drops(
+        &mut self,
+        point: UnitDropPoint,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let facts = self
+            .owned
+            .ownership()
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.point() == point)
+            .collect::<Vec<_>>();
+        for fact in facts {
+            let UnitDropTarget::Named(symbol) = fact.target() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            let Some(binding) = self.bindings.remove(&symbol) else {
+                continue;
+            };
+            let LoweredValue::Value(owner) = binding else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::Drop { owner },
+                    Vec::new(),
+                    Origin::Source(fact.value_origin()),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        }
+        Ok(())
+    }
+
     fn direct_place_symbol(
         &self,
         expression: ExpressionId,

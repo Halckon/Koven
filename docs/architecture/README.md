@@ -948,6 +948,15 @@ body 提前 `return` 不生成回边；测试同时锁定 String owner 经正常
 return 路径和零次退出各自唯一析构。`break` / `continue`、bare `loop`、`for` 和循环内 binding 更新仍在
 构造可发布 SSA 前 fail loud，由 SPEC-0199 后续切片承接。
 
+第八切片为 unit lowerer 增加显式 loop-context stack：`break` / `continue` 先消费对应 expression 的
+`ControlTransfer` facts、清理循环体局部 binding，再记录当前 block/state；完成 body 后，continue 与正常
+fallthrough 接回最近 header，break 与 while false exit 在 owner 状态一致时进入共同出口。bare `loop`
+没有 break 时只形成 backedge 并返回 `Diverged`，有 break 时不伪造 Boolean condition。nested loop 始终
+以 stack top 为 jump target，并由 inner continue 回 inner header、inner break 与 inner false edge 先合流后
+继续 outer body 的结构测试锁定。`LoopExit` 是基于 loop-entry state 的粗粒度 fact：共同出口仍拥有的
+Named owner 精确 drop，所有实际出口已一致消费时跳过 stale fact；while false 与 break 的 owner 状态不一致
+则 fail loud，等待 frontend 提供 exit-qualified facts。`for` 及循环内 assignment 仍由后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

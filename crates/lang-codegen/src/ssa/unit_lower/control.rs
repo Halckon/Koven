@@ -20,10 +20,10 @@ use crate::ssa::{
     model::{BlockId, Edge, EntityId, Origin, TerminatorKind},
 };
 
-struct BranchExit {
-    block: BlockId,
-    result: LoweredValue,
-    bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+pub(super) struct BranchExit {
+    pub(super) block: BlockId,
+    pub(super) result: LoweredValue,
+    pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -272,7 +272,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(result)
     }
 
-    fn merge_unit_exits(
+    pub(super) fn merge_unit_exits(
         &mut self,
         exits: Vec<BranchExit>,
         span: Span,
