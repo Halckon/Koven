@@ -170,7 +170,7 @@ impl Checker<'_> {
         }
     }
 
-    fn element_place_descriptor(
+    pub(super) fn element_place_descriptor(
         &self,
         expression: ExpressionId,
     ) -> Result<Option<crate::type_checking::UnitElementPlaceDescriptor>, OwnershipCheckingError>

@@ -15,8 +15,10 @@ use crate::{
 
 pub use compilation_unit::{
     CompilationUnitOwnership, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
-    UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
+    UnitConstructionRootDropObligation, UnitLoanFact, UnitLoanTarget,
+    UnitOwnershipBindingDescriptor, UnitOwnershipPlace, UnitRcOwnershipEffect,
+    UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
     check_compilation_unit_ownership,
 };
 pub use construction::{

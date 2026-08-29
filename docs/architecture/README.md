@@ -863,9 +863,11 @@ possible-move，复用 L0131–L0136 的适用诊断，诊断可同时标注使�
 目标参数声明。字段 place、具名实参重排、function-value/external、input permutation 与错误 unit 的
 原子边界均有回归：任一 ownership 诊断会清空 loan/delivery 可执行 facts，recovery contract/binding
 仍可用于后续诊断。当前已额外发布 intrinsic Rc `share/value` 的 source-qualified retain/
-borrow-payload effects，支持 named/temporary owner、L0131/L0132 与错误事实原子清空；construction/
-container ordered plan、lambda capture、ASAP drop 与完整 callable return 仍未接通，因此本产物仍不
-发布 validated view，也不是完整 codegen input。
+borrow-payload effects，支持 named/temporary owner、L0131/L0132 与错误事实原子清空。第五切片已进一步
+消费 source-qualified constructor descriptor，按 operand 源码求值顺序发布 Copy/Move/Temporary
+delivery、MoveOnly inline/heap/shared root obligation 与 `Nothing` 提前终止前缀，并为跨文件 field/
+payload 参数保留诊断标签；container construction、lambda capture、ASAP drop 与完整 callable return
+仍未接通，因此本产物仍不发布 validated view，也不是完整 codegen input。
 
 ## 结构化诊断与 renderer
 

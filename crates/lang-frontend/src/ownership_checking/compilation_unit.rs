@@ -1,6 +1,12 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 
+mod construction;
 mod dataflow;
+
+pub use construction::{
+    UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
+    UnitConstructionRootDropObligation,
+};
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -475,29 +481,28 @@ pub struct CompilationUnitOwnership {
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
+    construction_plans: Vec<UnitConstructionOwnershipPlan>,
 }
 
 impl CompilationUnitOwnership {
     fn new(
         typed: &CompilationUnitTypes,
-        diagnostics: Vec<Diagnostic>,
         bindings: Vec<UnitOwnershipBindingDescriptor>,
         call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
-        loans: Vec<UnitLoanFact>,
-        value_deliveries: Vec<UnitValueDeliveryFact>,
-        rc_effects: Vec<UnitRcOwnershipEffect>,
+        dataflow: dataflow::Analysis,
     ) -> Self {
         Self {
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),
             },
-            diagnostics,
+            diagnostics: dataflow.diagnostics,
             bindings,
             call_argument_contracts,
-            loans,
-            value_deliveries,
-            rc_effects,
+            loans: dataflow.loans,
+            value_deliveries: dataflow.value_deliveries,
+            rc_effects: dataflow.rc_effects,
+            construction_plans: dataflow.construction_plans,
         }
     }
 
@@ -578,13 +583,19 @@ impl CompilationUnitOwnership {
     pub fn rc_effects(&self) -> &[UnitRcOwnershipEffect] {
         &self.rc_effects
     }
+
+    /// 返回源码顺序稳定的 construction ordered-delivery/root plans。
+    #[must_use]
+    pub fn construction_plans(&self) -> &[UnitConstructionOwnershipPlan] {
+        &self.construction_plans
+    }
 }
 
 /// 建立 source-qualified compilation-unit ownership recovery product。
 ///
 /// 当前发布 callable parameter bindings、call argument contracts、普通 call loan/value
-/// deliveries 与 intrinsic Rc effects。constructor/container ordered delivery、drop/capture
-/// 与 validated codegen gate 仍由同一 SPEC 的后续切片接入。
+/// deliveries、intrinsic Rc effects 与 constructor ordered delivery/root obligations。
+/// container construction、drop/capture 与 validated codegen gate 仍由同一 SPEC 的后续切片接入。
 pub fn check_compilation_unit_ownership(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -629,16 +640,14 @@ pub fn check_compilation_unit_ownership(
         dataflow.loans.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
+        dataflow.construction_plans.clear();
     }
 
     Ok(CompilationUnitOwnership::new(
         typed,
-        dataflow.diagnostics,
         bindings.into_values().collect(),
         call_argument_contracts,
-        dataflow.loans,
-        dataflow.value_deliveries,
-        dataflow.rc_effects,
+        dataflow,
     ))
 }
 

@@ -1,5 +1,7 @@
 //! Source-qualified body-local call ownership dataflow.
 
+mod construction;
+mod container;
 mod places;
 mod rc;
 mod traversal;
@@ -15,13 +17,17 @@ use crate::{
     },
     parser::{AssignmentOperator, NameMarker, ParsedFile, VariableKind, WhenCondition},
     source::{SourceMap, Span},
-    type_checking::{CompilationUnitTypes, Copyability, ExpressionCategory, UnitExpressionId},
+    type_checking::{
+        CompilationUnitTypes, Copyability, ExpressionCategory, UnitConstructionDescriptor,
+        UnitExpressionId,
+    },
 };
 
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, UnitCallArgumentOwnershipContract,
-    UnitCallArgumentOwnershipKind, UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor,
-    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitValueDeliveryFact,
+    UnitCallArgumentOwnershipKind, UnitConstructionOwnershipPlan, UnitLoanFact, UnitLoanTarget,
+    UnitOwnershipBindingDescriptor, UnitOwnershipPlace, UnitRcOwnershipEffect,
+    UnitValueDeliveryFact,
 };
 
 pub(super) struct Analysis {
@@ -29,6 +35,7 @@ pub(super) struct Analysis {
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
+    pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +75,9 @@ struct Flows {
     continues: Option<State>,
 }
 
+type ConstructionDescriptors =
+    BTreeMap<SourceUnitId, BTreeMap<UnitExpressionId, UnitConstructionDescriptor>>;
+
 impl Flows {
     fn next(state: State) -> Self {
         Self {
@@ -91,6 +101,27 @@ pub(super) fn analyze(
     bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     contracts: &[UnitCallArgumentOwnershipContract],
 ) -> Result<Analysis, OwnershipCheckingError> {
+    let construction_descriptors = collect_construction_descriptors(
+        typed.constructions(),
+        names.names().index().source_units().len(),
+    )?;
+    for source in names.names().index().source_units() {
+        let input = inputs
+            .iter()
+            .copied()
+            .find(|input| input.source_id() == source.source_id())
+            .ok_or(OwnershipCheckingError::InvalidUnitSource {
+                source_unit: source.id().index(),
+            })?;
+        if let Some(descriptors) = construction_descriptors.get(&source.id()) {
+            construction::validate_constructions(
+                input.parsed(),
+                source.id(),
+                typed,
+                descriptors.values(),
+            )?;
+        }
+    }
     let use_after_move_code = codes::catalog()?.resolve(codes::USE_AFTER_MOVE)?;
     let partial_move_code = codes::catalog()?.resolve(codes::PARTIAL_MOVE)?;
     let borrowed_move_code = codes::catalog()?.resolve(codes::MOVE_FROM_BORROWED_BINDING)?;
@@ -102,6 +133,8 @@ pub(super) fn analyze(
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut rc_effects = Vec::new();
+    let mut construction_plans = Vec::new();
+    let empty_construction_descriptors = BTreeMap::new();
 
     for source in names.names().index().source_units() {
         let input = inputs
@@ -119,6 +152,9 @@ pub(super) fn analyze(
             typed,
             bindings,
             contracts,
+            construction_descriptors
+                .get(&source.id())
+                .unwrap_or(&empty_construction_descriptors),
             Codes {
                 use_after_move: use_after_move_code,
                 partial_move: partial_move_code,
@@ -131,6 +167,7 @@ pub(super) fn analyze(
             &mut loans,
             &mut value_deliveries,
             &mut rc_effects,
+            &mut construction_plans,
         )?;
         checker.run()?;
     }
@@ -145,7 +182,36 @@ pub(super) fn analyze(
         loans,
         value_deliveries,
         rc_effects,
+        construction_plans,
     })
+}
+
+fn collect_construction_descriptors(
+    descriptors: &[UnitConstructionDescriptor],
+    source_count: usize,
+) -> Result<ConstructionDescriptors, OwnershipCheckingError> {
+    let mut by_source = ConstructionDescriptors::new();
+    for descriptor in descriptors {
+        let expression = descriptor.expression();
+        if expression.source_unit().index() >= source_count {
+            return Err(OwnershipCheckingError::InvalidUnitConstruction {
+                source_unit: expression.source_unit().index(),
+                expression: expression.expression().index(),
+            });
+        }
+        if by_source
+            .entry(expression.source_unit())
+            .or_default()
+            .insert(expression, descriptor.clone())
+            .is_some()
+        {
+            return Err(OwnershipCheckingError::InvalidUnitConstruction {
+                source_unit: expression.source_unit().index(),
+                expression: expression.expression().index(),
+            });
+        }
+    }
+    Ok(by_source)
 }
 
 #[derive(Clone, Copy)]
@@ -166,6 +232,7 @@ struct Checker<'a> {
     names: &'a ValidatedCompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+    construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
     references_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     symbols_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     variable_kinds: BTreeMap<UnitSymbolId, VariableKind>,
@@ -176,6 +243,7 @@ struct Checker<'a> {
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
+    construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
 }
 
 impl<'a> Checker<'a> {
@@ -188,11 +256,13 @@ impl<'a> Checker<'a> {
         typed: &'a CompilationUnitTypes,
         bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
         contracts: &[UnitCallArgumentOwnershipContract],
+        construction_descriptors: &'a BTreeMap<UnitExpressionId, UnitConstructionDescriptor>,
         codes: Codes,
         diagnostics: &'a mut Vec<Diagnostic>,
         loans: &'a mut Vec<UnitLoanFact>,
         value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
         rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
+        construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
     ) -> Result<Self, OwnershipCheckingError> {
         sources.source_text(parsed.source_id())?;
         let resolution = names
@@ -247,6 +317,7 @@ impl<'a> Checker<'a> {
             names,
             typed,
             bindings,
+            construction_descriptors,
             references_by_span,
             symbols_by_span,
             variable_kinds: BTreeMap::new(),
@@ -257,6 +328,7 @@ impl<'a> Checker<'a> {
             loans,
             value_deliveries,
             rc_effects,
+            construction_plans,
         })
     }
 
@@ -787,5 +859,65 @@ fn merge_state(target: &mut State, source: State) {
                 }
             })
             .or_insert(origin);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        lexer::lex,
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        parser::{ParsedFile, parse_file},
+        source::{SourceId, SourceMap},
+        type_checking::{check_compilation_unit_types, standard_environments},
+    };
+
+    use super::{OwnershipCheckingError, collect_construction_descriptors};
+
+    fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
+        let source = sources.add_source(name, text).expect("unique source");
+        let lexed = lex(sources, source).expect("lexing succeeds internally");
+        let parsed = parse_file(sources, &lexed).expect("parsing succeeds internally");
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:?}",
+            parsed.diagnostics()
+        );
+        (source, parsed)
+    }
+
+    #[test]
+    fn duplicate_construction_descriptor_is_rejected_before_dataflow() {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(
+            &mut sources,
+            "p/source.ko",
+            "package p\nclass Resource {}\nfun build(): Unit { val result = Resource() }",
+        );
+        let inputs = [SourceUnitInput::new("root", "p/source.ko", source, &parsed)];
+        let (name_environment, type_environment) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).expect("valid unit input");
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+            .expect("name resolution succeeds internally")
+            .validate()
+            .expect("valid names");
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("type checking succeeds internally")
+            .validate()
+            .expect("valid types");
+        let descriptor = typed.types().constructions()[0].clone();
+
+        let error = collect_construction_descriptors(
+            &[descriptor.clone(), descriptor],
+            names.names().index().source_units().len(),
+        )
+        .expect_err("duplicate construction locator must fail before body traversal");
+
+        assert!(matches!(
+            error,
+            OwnershipCheckingError::InvalidUnitConstruction { .. }
+        ));
     }
 }

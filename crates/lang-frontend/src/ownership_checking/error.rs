@@ -76,6 +76,13 @@ pub enum OwnershipCheckingError {
         /// 文件局部 expression 下标。
         expression: usize,
     },
+    /// validated unit construction descriptor 违反 source-qualified Phase 2 不变量。
+    InvalidUnitConstruction {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// 文件局部 construction expression 下标。
+        expression: usize,
+    },
     /// TypedFile 中的 construction descriptor 违反 Phase 2 产物不变量。
     InvalidConstructionDescriptor {
         /// 无效 descriptor 的 expression arena 下标。
@@ -165,6 +172,13 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "invalid compilation-unit argument type {source_unit}:{expression}"
             ),
+            Self::InvalidUnitConstruction {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "invalid compilation-unit construction {source_unit}:{expression}"
+            ),
             Self::InvalidConstructionDescriptor { expression } => {
                 write!(
                     formatter,
@@ -207,6 +221,7 @@ impl Error for OwnershipCheckingError {
             | Self::InvalidUnitCallParameter { .. }
             | Self::InvalidUnitArgumentPlace { .. }
             | Self::InvalidUnitArgumentType { .. }
+            | Self::InvalidUnitConstruction { .. }
             | Self::InvalidConstructionDescriptor { .. } => None,
         }
     }

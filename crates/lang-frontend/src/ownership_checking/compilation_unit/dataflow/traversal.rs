@@ -199,6 +199,13 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if let Some(descriptor) = self
+            .construction_descriptors
+            .get(&self.unit_expression(id))
+            .cloned()
+        {
+            return self.check_construction(descriptor, state, usage);
+        }
         if let Some(descriptor) = self.typed.rc_operation(self.unit_expression(id)) {
             return self.check_rc_operation(descriptor, state, usage);
         }
@@ -317,6 +324,9 @@ impl Checker<'_> {
                 callee, arguments, ..
             } => self.check_call(id, callee, &arguments, state),
             Expression::Index { receiver, index } => {
+                if self.element_place_descriptor(id)?.is_some() {
+                    return self.check_element_expression(id, state, usage);
+                }
                 let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
                 self.chain_expression(flows, index, ExpressionUse::Read)
             }
