@@ -894,6 +894,14 @@ ownership 的完整身份链，并以显式 `DeclarationId` entry 为唯一根�
 `UnitSymbolId -> UnitTypeId` 类型替换。当前只发布 planning 层，尚未表示多文件 verified SSA/LLVM、
 DWARF 或 object/native 已完成；这些仍由 SPEC-0199 后续提交承接。
 
+第二切片新增独立的 `ssa::unit_lower`，直接消费上述 plan，而不是把跨文件 call 降级成逐文件重新
+分析。当前已把可复制 builtin scalar、`own` 参数、literal/name/group、source `DeclarationId`
+direct call 与表达式体返回 lower 到一个 SSA module，并在返回前执行既有 owner-aware verifier。
+函数内部名包含 package、`DeclarationId` 与规范 `UnitTypeId` 实参；跨 package alias call 和输入置换
+得到相同 SSA，未可达的同名 package body 不进入 module。reachable block/control-flow、Borrow/Inout、
+String/aggregate/Rc/container/closure、drop glue、LLVM/DWARF/object 仍明确返回未支持边界或等待后续切片，
+不能把本切片描述成完整多文件 native lowering。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

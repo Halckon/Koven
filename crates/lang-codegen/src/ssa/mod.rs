@@ -7,6 +7,7 @@ pub(crate) use lower_frontend::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
 mod render;
 mod types;
+pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
 pub(crate) mod verify;
 mod verify_operation;
@@ -27,6 +28,8 @@ mod container_operation_tests;
 mod tests;
 #[cfg(test)]
 mod type_tests;
+#[cfg(test)]
+mod unit_lower_tests;
 #[cfg(test)]
 mod unit_plan_tests;
 

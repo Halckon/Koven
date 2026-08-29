@@ -30,11 +30,15 @@ pub(crate) struct UnitFunctionInstanceKey {
 }
 
 impl UnitFunctionInstanceKey {
-    fn new(declaration: DeclarationId, type_arguments: Vec<UnitTypeId>) -> Self {
+    pub(crate) fn new(declaration: DeclarationId, type_arguments: Vec<UnitTypeId>) -> Self {
         Self {
             declaration,
             type_arguments,
         }
+    }
+
+    pub(crate) fn for_entry(declaration: DeclarationId) -> Self {
+        Self::new(declaration, Vec::new())
     }
 
     pub(crate) const fn declaration(&self) -> DeclarationId {
@@ -330,7 +334,7 @@ fn index_calls(
     Ok(calls)
 }
 
-fn resolve_concrete_type(
+pub(crate) fn resolve_concrete_type(
     typed: &ValidatedCompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,

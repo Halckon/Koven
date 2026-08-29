@@ -62,16 +62,21 @@
 ## 7. 实施计划
 
 1. [x] 建立 unit reachability/instance plan → 验证：顺序置换、递归、泛型传播与去重测试。
-2. [ ] 接 verified SSA/LLVM → 验证：跨文件 identity、owner/drop 与多 source DWARF 窄测试。
-3. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+2. [x] 接首条 scalar expression-body verified SSA → 验证：跨 package generic/alias call、
+   package identity、死 body 排除、输入置换与 unsupported 原子失败。
+3. [ ] 扩展现行 native-closed block/control-flow 与 owner/drop SSA → 验证：MoveOnly 跨文件传递及
+   正常/提前退出 drop glue 去重。
+4. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+5. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | unit reachability/instance plan | `feat(codegen): plan multifile instances (SPEC-0199)` |
-| 2 | verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 3 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 2 | scalar expression-body verified SSA | `feat(codegen): lower multifile scalar calls (SPEC-0199)` |
+| 3 | 完整现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 4 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -87,3 +92,6 @@
 | `cargo test -p lang-codegen --lib` | 159 passed, 1 ignored | codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo test --workspace --lib --bins` | 257 passed, 1 ignored | CLI 36、codegen 159、frontend 50、LSP 11、std 1；无失败 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | workspace 静态检查无 warning |
+| `cargo test -p lang-codegen unit_lower_tests --lib` | 3 passed | 跨 package generic alias direct call、package-qualified 同名 identity/死 body、unsupported reachable block 原子失败 |
+| `cargo test -p lang-codegen --lib` | 162 passed, 1 ignored | scalar unit lowering 后的 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二切片复用“受影响窄测试 → 受影响 crate 全量 → workspace 静态门禁”的简化验收层级 |
