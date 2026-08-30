@@ -103,7 +103,8 @@ Spec `done`、前置 ADR `accepted` 和阻塞项解除。存在有效站立授�
 
 1. 以 `完成 SPEC-NNNN：〈Goal〉；按本 Spec 验收并创建独立提交` 作为 Goal objective。
 2. 把 Spec 标为 `in-progress`，按“实施计划”逐项执行；每一步先跑窄检查。
-3. 完成测试后运行 Spec 要求的 workspace 基线，并同步 Architecture 当前事实。
+3. 完成测试后运行 Spec 选定的 Layer 2 静态门禁；只有满足升级条件时才运行 Layer 3 workspace
+   全量基线，并同步 Architecture 当前事实。
 4. 填写验证记录、逐项勾选验收，把 Spec 标为 `done`。
 5. 只暂存该 Spec 范围，检查 staged diff 后提交；提交信息必须包含 `(SPEC-NNNN)`。
 6. 提交成功后再把 Goal 标记为完成。未提交、验收缺失或检查未运行时不得完成 Goal。
@@ -118,12 +119,21 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 提交，但可在首次提交时直接为 `accepted`，不得把 ADR 与依赖它的实现混入同一提交。
 简化的是人工确认和重复状态文书，不是行为验收；任何检查只有实际成功后才能记录为通过。
 
-默认验收采用“受影响窄测 + workspace Clippy + diff/格式检查”：优先把同一 test target 的相关
-case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness 自身并行。`lang-frontend` 全量
-测试耗时约一小时，不再作为每个切片的默认门禁；只在 Spec 明确涉及 frontend 广泛共享不变量、
-发布基线、窄测无法覆盖，或用户明确要求时运行。互不写源码且不争用同一 Cargo target lock 的
-检查与独立复审可以并行；会争用 build directory 的 Cargo 命令顺序执行，避免“并行”退化为锁等待。
-每份 Spec 必须在验收标准中写明本次实际选择的窄测与升级全量测试的条件。
+默认验收按风险逐层升级，不把重型 workspace 命令机械绑定到每个切片：
+
+1. **Layer 1 行为门禁**：合并运行直接受影响 test target 的相关 case，并依赖 Rust test harness
+   自身并行；失败先判断本次回归还是已记录的无关基线漂移。
+2. **Layer 2 静态门禁**：运行受影响 crate 的 Clippy/check；修改跨 crate 公共 API 时至少运行
+   `cargo clippy --workspace --lib -- -D warnings` 与 `cargo check --workspace --lib`，再做格式与 diff
+   检查。CLI/bin、grammar 或 native 边界由对应 Spec 额外列出定向 build/test，不由 `--lib` 冒充。
+3. **Layer 3 升级门禁**：仅在 Spec 涉及广泛共享不变量、manifest/feature/依赖、发布基线，
+   Layer 1/2 暴露跨域风险，窄测无法覆盖，或用户明确要求时，才运行受影响 crate 全量、workspace
+   `--all-targets`/`--all-features` 或 native runtime matrix。
+
+`lang-frontend` 全量测试耗时约一小时，不再作为每个切片的默认门禁。互不写源码且不争用同一
+Cargo target lock 的检查与独立复审可以并行；会争用 build directory 的 Cargo 命令顺序执行，
+避免“并行”退化为锁等待。每份 Spec 必须在验收标准中记录实际选择的层级、命令、升级条件和
+任何未解决的基线漂移；只有实际成功的检查才能记录为通过。
 
 ## 2026-08-26—27 roadmap 依赖审计
 
