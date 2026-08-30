@@ -358,6 +358,127 @@ fn lowers_copyable_callable_parameters_and_results_deterministically() {
 }
 
 #[test]
+fn lowers_move_only_value_lambda_parameters_from_exact_drop_facts() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun inspect(message: String): Unit {}\n\
+         fun consume(own message: String): Unit {}\n\
+         fun exercise(): Unit {\n\
+             val unused: move (own String) -> Unit = move { item -> }\n\
+             val read: move (own String) -> Unit = move { item -> inspect(item) }\n\
+             val consumed: move (own String) -> Unit = move { item -> consume(item) }\n\
+             val implicit: move (own String) -> String = move { item -> item }\n\
+             val explicit: move (own String) -> String = move { item -> return item }\n\
+             val unusedCall = unused(\"unused\")\n\
+             val readCall = read(\"read\")\n\
+             val consumedCall = consumed(\"consumed\")\n\
+             val implicitResult = implicit(\"implicit\")\n\
+             val implicitSeen = inspect(implicitResult)\n\
+             val explicitResult = explicit(\"explicit\")\n\
+             val explicitSeen = inspect(explicitResult)\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val marker = 1\n\
+             val captured: move (own String) -> Unit = move { item ->\n\
+                 p.inspect(item)\n\
+                 val observed = marker\n\
+             }\n\
+             val invoked = captured(\"captured\")\n\
+             val exercised = p.exercise()\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (reverse_names, reverse_typed, reverse_owned) =
+        analyze(&sources, &reversed, &name_environment, &type_environment);
+    let (forward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("MoveOnly Value lambda parameters lower from exact frontend drop facts");
+    let (backward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &reversed,
+        &reverse_names,
+        &type_environment,
+        &reverse_typed,
+        &reverse_owned,
+        declaration(&reverse_names, "q", "entry"),
+    )
+    .expect("input permutation preserves MoveOnly Value parameter lowering");
+    assert_eq!(render_program(&forward), render_program(&backward));
+
+    let module = &forward.modules[0];
+    let exercise = function(module, "p.exercise");
+    assert_eq!(operation_count(exercise, is_callable_invoke), 5);
+    let entry = function(module, "q.entry");
+    assert_eq!(operation_count(entry, is_callable_invoke), 1);
+    assert_eq!(operation_count(entry, is_closure_construct), 1);
+    let thunks = module
+        .functions
+        .iter()
+        .filter(|function| function.name.contains(".thunk"))
+        .collect::<Vec<_>>();
+    assert_eq!(thunks.len(), 6);
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_drop))
+            .sum::<usize>(),
+        3,
+        "only unused and last-read parameters drop; Value deliveries and returns transfer"
+    );
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_direct_call))
+            .sum::<usize>(),
+        3
+    );
+    assert_eq!(
+        thunks
+            .iter()
+            .filter(|thunk| !thunk.return_types.is_empty())
+            .count(),
+        2
+    );
+    assert!(
+        thunks
+            .iter()
+            .filter(|thunk| !thunk.return_types.is_empty())
+            .all(|thunk| dropped(thunk).is_empty() && returned(thunk).len() == 1),
+        "implicit and explicit returns transfer the parameter owner"
+    );
+    assert_eq!(
+        thunks
+            .iter()
+            .filter_map(|thunk| thunk.entry_block().and_then(|entry| thunk.block(entry)))
+            .filter(|entry| entry.parameters.len() == 2)
+            .count(),
+        1,
+        "the captured thunk keeps environment-first followed by the Value parameter"
+    );
+}
+
+#[test]
 fn lowers_direct_move_only_callable_results_deterministically() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(
@@ -660,11 +781,11 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/move-only-parameter.ko",
+            "test/move-only-borrow-parameter.ko",
             "package test\n\
              fun inspect(message: String): Unit {}\n\
              fun entry(): Unit {\n\
-                 val action: move (own String) -> Unit = move { item -> inspect(item) }\n\
+                 val action: move (borrow String) -> Unit = move { item -> inspect(item) }\n\
              }",
         ),
         (

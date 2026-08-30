@@ -223,8 +223,15 @@ pub(crate) fn lower_scalar_unit_with_entry(
             &mut types,
         )?;
     }
-    let callable_plans =
-        closure::declare(module, &parsed_by_source, &plans, typed, owned, &mut types)?;
+    let callable_plans = closure::declare(
+        module,
+        &parsed_by_source,
+        &plans,
+        names,
+        typed,
+        owned,
+        &mut types,
+    )?;
 
     let entry_id = function_ids
         .get(&UnitFunctionInstanceKey::for_entry(entry))

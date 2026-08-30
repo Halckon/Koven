@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    name_resolution::{SourceUnitId, SymbolKind, UnitSymbolId},
+    name_resolution::{
+        Namespace, SourceUnitId, SymbolKind, UnitSymbolId, ValidatedCompilationUnitNames,
+    },
     ownership_checking::{
         ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource, UnitDropFact,
         UnitDropTarget,
@@ -43,6 +45,7 @@ pub(super) struct CapturePlan {
 pub(super) struct CallablePlan {
     pub(super) scope: FunctionId,
     pub(super) source_unit: SourceUnitId,
+    pub(super) expression: UnitExpressionId,
     pub(super) callable: SsaTypeId,
     pub(super) thunk: FunctionId,
     pub(super) body: StatementId,
@@ -58,12 +61,15 @@ pub(super) fn declare(
     module: &mut Module,
     parsed_by_source: &[&lang_frontend::parser::ParsedFile],
     plans: &[FunctionPlan],
+    names: &ValidatedCompilationUnitNames,
     typed: &lang_frontend::type_checking::ValidatedCompilationUnitTypes,
     owned: &lang_frontend::ownership_checking::ValidatedCompilationUnitOwnership,
     types: &mut UnitTypeLowering,
 ) -> Result<BTreeMap<CallablePlanKey, CallablePlan>, LoweringError> {
     let mut closures = BTreeMap::new();
     for function in plans {
+        let references =
+            super::symbol_references(names, function.instance.source_unit(), Namespace::Value);
         let parsed = parsed_by_source
             .get(function.instance.source_unit().index())
             .copied()
@@ -132,6 +138,7 @@ pub(super) fn declare(
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             let mut callable_parameter_types = Vec::with_capacity(callable_parameters.len());
+            let mut move_only_value_parameters = Vec::new();
             for (parameter, parameter_span) in callable_parameters.iter().zip(parameters) {
                 let concrete = resolve_concrete_type(
                     typed,
@@ -139,8 +146,11 @@ pub(super) fn declare(
                     function.instance.substitutions(),
                     *parameter_span,
                 )?;
+                let supported_value = parameter.mode() == ParameterMode::Value
+                    && super::type_lower::is_supported_storage_type(typed, concrete);
                 if parameter.mode() == ParameterMode::Inout
-                    || typed.types().copyability(concrete) != Copyability::Copyable
+                    || (!supported_value
+                        && typed.types().copyability(concrete) != Copyability::Copyable)
                     || (parameter.mode() == ParameterMode::Borrow
                         && builtin_type(typed, concrete) == Some(BuiltinType::Unit))
                 {
@@ -148,6 +158,18 @@ pub(super) fn declare(
                         LoweringErrorKind::UnsupportedNode,
                         *parameter_span,
                     ));
+                }
+                if supported_value && typed.types().copyability(concrete) == Copyability::MoveOnly {
+                    let symbol = owned
+                        .ownership()
+                        .bindings()
+                        .iter()
+                        .find(|binding| binding.declaration_span() == *parameter_span)
+                        .map(|binding| binding.symbol())
+                        .ok_or_else(|| {
+                            lowering_error(LoweringErrorKind::MissingFact, *parameter_span)
+                        })?;
+                    move_only_value_parameters.push(symbol);
                 }
                 let ty = types.intern(module, typed, concrete, *parameter_span)?;
                 callable_parameter_types.push(match parameter.mode() {
@@ -182,8 +204,14 @@ pub(super) fn declare(
                         function.instance.substitutions(),
                         span,
                     )?;
-                    if typed.types().expression_category(tail_id)
+                    let category = typed.types().expression_category(tail_id);
+                    let parameter_place = category
+                        == Some(lang_frontend::type_checking::ExpressionCategory::Place)
+                        && direct_reference_symbol(parsed, tail, &references)
+                            .is_some_and(|symbol| move_only_value_parameters.contains(&symbol));
+                    if (category
                         != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+                        && !parameter_place)
                         || tail_type != return_type
                     {
                         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -300,6 +328,7 @@ pub(super) fn declare(
                     CallablePlan {
                         scope: function.id,
                         source_unit: function.instance.source_unit(),
+                        expression: id,
                         callable,
                         thunk,
                         body: *body,
@@ -643,6 +672,9 @@ pub(super) fn finish_thunk(
     plan: &CallablePlan,
 ) -> Result<(), LoweringError> {
     lowerer.bind_callable_entry(plan)?;
+    lowerer.emit_drops(
+        lang_frontend::ownership_checking::UnitDropPoint::LambdaEntry(plan.expression),
+    )?;
     let result = if builtin_type(lowerer.typed, plan.return_type) == Some(BuiltinType::Unit) {
         lowerer.lower_statement(plan.body)?
     } else {
@@ -733,4 +765,19 @@ fn lambda_tail_expression(
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     };
     Ok(*expression)
+}
+
+fn direct_reference_symbol(
+    parsed: &lang_frontend::parser::ParsedFile,
+    expression: ExpressionId,
+    references: &BTreeMap<(usize, usize), UnitSymbolId>,
+) -> Option<UnitSymbolId> {
+    let node = parsed.ast().expressions().get(expression).ok()?;
+    match node.payload() {
+        Expression::Name => references.get(&span_key(node.span())).copied(),
+        Expression::Group { expression } => {
+            direct_reference_symbol(parsed, *expression, references)
+        }
+        _ => None,
+    }
 }

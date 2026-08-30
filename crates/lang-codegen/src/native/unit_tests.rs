@@ -152,7 +152,7 @@ fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
             NativeObjectErrorKind::InvalidEntry,
         ),
         (
-            analysis.declaration("q", "unsupported"),
+            analysis.declaration("q", "unsupportedBorrow"),
             NativeObjectErrorKind::UnsupportedSource,
         ),
     ] {
@@ -255,13 +255,15 @@ fn analyze_unit() -> UnitAnalysis {
              }\n\
              val message = action(3)\n\
              val seen = p.inspect(message)\n\
+             val ownedAction: move (own String) -> Unit = move { owned -> p.inspect(owned) }\n\
+             val ownedInvoked = ownedAction(\"native-owned\")\n\
              val early = exercise(true)\n\
              val normal = exercise(false)\n\
          }\n\
          fun invalidEntry(number: Int): Unit {}\n\
-         fun unsupported(): Unit {\n\
-             val action: move (own String) -> Unit = move { message -> p.inspect(message) }\n\
-             val invoked = action(\"unsupported\")\n\
+         fun unsupportedBorrow(): Unit {\n\
+             val action: move (borrow String) -> Unit = move { message -> p.inspect(message) }\n\
+             val invoked = action(\"unsupported-borrow\")\n\
          }",
     );
     let inputs = [

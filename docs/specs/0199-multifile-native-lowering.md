@@ -143,9 +143,9 @@
      result，operand/alternative owner 只按 frontend 精确 point 析构；lambda/named callable、nested
      control、正常/提前退出与输入置换共同锁定。captured closure 的 environment/user loan 与 checked
      arithmetic continuation 均作为显式 block/edge 参数携带，不形成 hidden linear live-in。
-   - [ ] 消费 SPEC-0217 lambda Value 参数 facts：thunk entry 建立 MoveOnly Value binding，并按
+   - [x] 消费 SPEC-0217 lambda Value 参数 facts：thunk entry 建立 MoveOnly Value binding，并按
      `LambdaEntry` / last-use / control-transfer 精确转移或析构；frontend 事实已就绪，当前 codegen
-     仍保持 fail loud。
+     已支持具有现行 storage 的 MoveOnly Value 参数，MoveOnly Borrow / `Inout` 仍 fail loud。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
@@ -195,7 +195,7 @@
 
 - 多 object/增量 ABI 明确留给后续 ADR。
 - SPEC-0216 的 MoveOnly control-tail Consume/transfer 与 alternative drop facts 已由第二十三步第四
-  切片消费；SPEC-0217 已发布 MoveOnly Value lambda 参数事实，但尚待上述后继切片消费。
+  切片消费；SPEC-0217 的 MoveOnly Value lambda 参数事实已由第五切片消费。
   `for` 与未列入现行 storage/ownership 表面的节点仍按各自后继切片推进，不从 control result
   闭环推导额外语义。
 - guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
@@ -322,6 +322,12 @@
 | `cargo test -q -p lang-codegen --lib unit_lower` | 65 passed | fresh-context 复审补跑 scoped umbrella，覆盖 owner-aware unit lowering 回归，不扩张到 crate/frontend 全量 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十三步第四切片采用窄测试过滤器 + workspace 静态门禁，不运行 `lang-frontend` 全量测试 |
 | 独立 fresh-context 评审与复审 | 通过 | 初审发现 control block value/loan 参数计数、checked continuation hidden loan、`Nothing` loop gate 三处回归；分别修复并补齐 control/scalar/loop/native 门禁后，最终无 P1/P2/P3 |
+| `cargo test -q -p lang-codegen --lib unit_lower_closure_tests` | 8 passed | MoveOnly Value 参数 unused/read/Value-call/显式与隐式 return、function pointer/captured thunk、输入置换与 MoveOnly Borrow 负边界 |
+| `cargo test -q -p lang-codegen --lib native::unit_tests::unit_object_atomically_replaces_links_and_runs_across_packages` | 1 passed | MoveOnly Value lambda 参数 object/link/run |
+| `cargo test -q -p lang-codegen --lib native::unit_tests::unit_object_failures_preserve_targets_and_cleanup_sibling_temporary` | 1 passed | MoveOnly Borrow UnsupportedSource 不覆盖旧目标且清理 temporary |
+| `cargo test -q -p lang-codegen --lib unit_lower` | 66 passed | scoped umbrella 覆盖 unit owner-aware lowering，不扩张到 crate/frontend 全量 |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第五切片使用窄测 + workspace 静态门禁，不运行 `lang-frontend` 全量 |
+| 独立 fresh-context 评审 | clean | 复核 storage 门禁、参数 identity、LambdaEntry/last-use/Value-call/return、group tail、capture ABI、确定性与原子失败，无 P1/P2/P3 |
 | 独立 fresh-context 评审 | 无 P1/P2/P3 | 复核 declare 门禁、thunk/显式 return owner transfer、capture/function pointer、退出不变量、精确 drop 及 native 原子边界 |
 | 独立 fresh-context 评审 | 通过 | 复核唯一 direct tail 门禁、thunk Return/caller result owner 转移、function pointer/concrete closure、跨文件确定性及 fail-loud 边界，未发现 P1/P2/P3 |
 | `cargo test -p lang-codegen --lib unit_llvm_tests --locked --offline` | 1 passed | 真实 compilation-unit→verified LLVM、跨 package alias/callable/Borrow/String drop、multi-source DWARF 与输入反序全文确定性 |
@@ -436,7 +442,16 @@ loan/user Borrow 参数及 checked arithmetic 的 success/failure continuation �
 重绑，避免在内层 CFG 形成 hidden linear live-in。public native fixture 同时覆盖跨 package alias、named
 MoveOnly `if` result、captured lambda control result 与 branch 内 checked arithmetic；UnsupportedSource
 负例改由尚未实现的 MoveOnly Value lambda 参数锁定。SPEC-0217 随后已发布该
-frontend 事实，但 codegen 尚未消费，因此该负例目前仍保留。现行 guide 语义未改变。
+frontend 事实，并由第五切片消费；当前 UnsupportedSource 负例改由仍未放行的 MoveOnly
+Borrow lambda 参数锁定。现行 guide 语义未改变。
+
+第二十三步的第五切片在 callable plan 阶段只放行具有现行 storage 的 MoveOnly Value
+参数，不改变 environment-first thunk ABI。entry 绑定源码参数后立即消费
+`LambdaEntry`，read/Value-call/显式与隐式 return 分别复用 last-use、delivery 与 control-transfer
+facts，退出不变量仍要求无 MoveOnly binding/temporary 残留。隐式 Place result 仅当名称解析
+证明它是当前 lambda 的 MoveOnly Value 参数时放行，不顺带解锁普通 body-local Place。
+function pointer/captured closure 与 native object/link/run 共同锁定；MoveOnly Borrow、`Inout` 与无
+storage 类型继续 fail loud。现行 guide 语义未改变。
 
 第二十四步的第一切片把真实 compilation-unit product 接到既有 verified LLVM adapter 与 multi-source
 DWARF emitter。正向链从两个 package 的 source input 分别执行 name/type/ownership 分析，再生成单一

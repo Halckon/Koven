@@ -1202,6 +1202,14 @@ control result 与 checked arithmetic 的 object/link/run；该切片中 MoveOnl
 独立 lambda-entry drop point。SPEC-0217 随后已发布该 frontend 事实，Phase 4 消费仍为
 SPEC-0199 的待完成切片。现行 guide 语义未改变。
 
+SPEC-0199 第二十三步第五切片消费 SPEC-0217 facts。callable plan 只对具有现行 SSA
+storage 的 MoveOnly Value 参数放行，thunk 保持 environment-first、随后为源码参数的 ABI；
+参数 binding 建立后立即消费 source-qualified `LambdaEntry`，之后由既有 `AfterExpression` /
+`CallReturn` / Value delivery / control-transfer facts 唯一析构或转交 owner。MoveOnly 隐式返回的
+Place 只在 name resolution 证明其是当前 lambda 的 MoveOnly Value 参数时放行，不泛化到任意
+body-local Place。function pointer/captured closure 与 object/link/run 已锁定；MoveOnly Borrow、`Inout`
+与无 storage 类型仍在 program 发布前 fail loud。现行 guide 语义未改变。
+
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM
 module；alias direct call、captured closure thunk、environment-first + user Borrow pointer ABI、MoveOnly
