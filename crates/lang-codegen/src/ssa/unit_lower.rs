@@ -333,14 +333,6 @@ pub(crate) fn lower_scalar_unit_with_entry(
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, plan.instance.span()))?;
     }
 
-    let unit = typed
-        .types()
-        .types()
-        .builtin(BuiltinType::Unit)
-        .ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
     for plan in callable_plans.values() {
         let parsed = parsed_by_source[plan.source_unit.index()];
         let references = symbol_references(names, plan.source_unit, Namespace::Value);
@@ -376,7 +368,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             closure_scope: plan.scope,
             temporaries: BTreeMap::new(),
             loops: Vec::new(),
-            return_type: unit,
+            return_type: plan.return_type,
         };
         closure::finish_thunk(&mut lowerer, plan)?;
     }

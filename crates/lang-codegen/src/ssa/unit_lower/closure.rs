@@ -4,19 +4,22 @@ use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    name_resolution::{SourceUnitId, UnitSymbolId},
+    name_resolution::{SourceUnitId, SymbolKind, UnitSymbolId},
     ownership_checking::{
         ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource, UnitDropFact,
         UnitDropTarget,
     },
     parser::Expression,
     source::Span,
-    type_checking::{BuiltinType, UnitCallDescriptor, UnitExpressionId, UnitTypeId, UnitTypeKind},
+    type_checking::{
+        BuiltinType, Copyability, ParameterMode, UnitCallDescriptor, UnitExpressionId, UnitTypeId,
+        UnitTypeKind,
+    },
 };
 
 use super::{
-    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
-    resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
+    FunctionPlan, LoweredValue, UnitExpressionLowerer, builtin_type, call::LoweredCallArguments,
+    lowering_error, require_value, resolve_concrete_type, span_key, type_lower::UnitTypeLowering,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
@@ -44,6 +47,8 @@ pub(super) struct CallablePlan {
     pub(super) thunk: FunctionId,
     pub(super) body: StatementId,
     pub(super) span: Span,
+    pub(super) parameter_spans: Vec<Span>,
+    pub(super) return_type: UnitTypeId,
     pub(super) captures: Vec<CapturePlan>,
     pub(super) substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
 }
@@ -122,12 +127,45 @@ pub(super) fn declare(
                 function.instance.substitutions(),
                 span,
             )?;
-            if !parameters.is_empty()
-                || !callable_parameters.is_empty()
-                || builtin_type(typed, return_type) != Some(BuiltinType::Unit)
-            {
+            if parameters.len() != callable_parameters.len() {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
+            let mut callable_parameter_types = Vec::with_capacity(callable_parameters.len());
+            for (parameter, parameter_span) in callable_parameters.iter().zip(parameters) {
+                let concrete = resolve_concrete_type(
+                    typed,
+                    parameter.ty(),
+                    function.instance.substitutions(),
+                    *parameter_span,
+                )?;
+                if parameter.mode() == ParameterMode::Inout
+                    || typed.types().copyability(concrete) != Copyability::Copyable
+                    || (parameter.mode() == ParameterMode::Borrow
+                        && builtin_type(typed, concrete) == Some(BuiltinType::Unit))
+                {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        *parameter_span,
+                    ));
+                }
+                let ty = types.intern(module, typed, concrete, *parameter_span)?;
+                callable_parameter_types.push(match parameter.mode() {
+                    ParameterMode::Value => EntityType::Value(ty),
+                    ParameterMode::Borrow => EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: ty,
+                    },
+                    ParameterMode::Inout => unreachable!("Inout was rejected above"),
+                });
+            }
+            let callable_returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
+                Vec::new()
+            } else {
+                if typed.types().copyability(return_type) != Copyability::Copyable {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                vec![types.intern(module, typed, return_type, span)?]
+            };
             for (&candidate, &candidate_type) in typed.types().expression_types() {
                 if candidate.source_unit() != function.instance.source_unit() {
                     continue;
@@ -218,34 +256,36 @@ pub(super) fn declare(
             );
             let (callable, thunk_parameters) = if captures.is_empty() {
                 let callable = module
-                    .add_function_pointer_type(Vec::new(), Vec::new())
+                    .add_function_pointer_type_with_parameters(
+                        callable_parameter_types.clone(),
+                        callable_returns.clone(),
+                    )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                (callable, Vec::new())
+                (callable, callable_parameter_types)
             } else {
                 let environment = module
                     .add_aggregate_type(format!("{identity}.environment"), environment_fields)
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 let callable = module
-                    .add_concrete_closure_type(
+                    .add_concrete_closure_type_with_parameters(
                         format!("{identity}.closure"),
-                        Vec::new(),
-                        Vec::new(),
+                        callable_parameter_types.clone(),
+                        callable_returns.clone(),
                         environment,
                         capture_types,
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                (
-                    callable,
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: environment,
-                    }],
-                )
+                let mut thunk_parameters = vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: environment,
+                }];
+                thunk_parameters.extend(callable_parameter_types);
+                (callable, thunk_parameters)
             };
             let thunk = module
                 .add_function(
                     format!("{identity}.thunk"),
-                    Vec::new(),
+                    callable_returns,
                     Origin::Source(span),
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
@@ -264,6 +304,8 @@ pub(super) fn declare(
                         thunk,
                         body: *body,
                         span,
+                        parameter_spans: parameters.clone(),
+                        return_type,
                         captures,
                         substitutions: function.instance.substitutions().clone(),
                     },
@@ -381,10 +423,15 @@ impl UnitExpressionLowerer<'_> {
             .expressions()
             .get(callee)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !arguments.is_empty()
-            || !descriptor.arguments().is_empty()
-            || builtin_type(self.typed, descriptor.return_type()) != Some(BuiltinType::Unit)
-            || !matches!(callee_node.payload(), Expression::Name)
+        let return_type = resolve_concrete_type(
+            self.typed,
+            descriptor.return_type(),
+            self.substitutions,
+            span,
+        )?;
+        if !matches!(callee_node.payload(), Expression::Name)
+            || (builtin_type(self.typed, return_type) != Some(BuiltinType::Unit)
+                && self.typed.types().copyability(return_type) != Copyability::Copyable)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -395,27 +442,55 @@ impl UnitExpressionLowerer<'_> {
             }
         };
         let callee_id = UnitExpressionId::new(self.source_unit, callee);
-        self.function
+        let call = UnitExpressionId::new(self.source_unit, expression);
+        let Some(LoweredCallArguments {
+            arguments,
+            created_loans,
+        }) = self.lower_call_arguments(call, arguments, descriptor, span)?
+        else {
+            return Ok(LoweredValue::Diverged);
+        };
+        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
+            Vec::new()
+        } else {
+            vec![EntityType::Value(
+                *self
+                    .type_ids
+                    .get(&return_type)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+            )]
+        };
+        let (_, results) = self
+            .function
             .append_instruction(
                 self.block,
                 Operation::CallableInvoke {
                     callable,
-                    arguments: Vec::new(),
+                    arguments,
                 },
-                Vec::new(),
+                result_types,
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        for (loan, end_span) in created_loans.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        }
         self.emit_drops(
             lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(callee_id),
         )?;
-        self.emit_drops(
-            lang_frontend::ownership_checking::UnitDropPoint::CallReturn(UnitExpressionId::new(
-                self.source_unit,
-                expression,
-            )),
-        )?;
-        Ok(LoweredValue::Unit)
+        self.emit_drops(lang_frontend::ownership_checking::UnitDropPoint::CallReturn(call))?;
+        match results.as_slice() {
+            [] => Ok(LoweredValue::Unit),
+            [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
+            _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+        }
     }
 
     pub(super) fn closure_origin(
@@ -445,52 +520,63 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(super) fn bind_capture_views(&mut self, plan: &CallablePlan) -> Result<(), LoweringError> {
-        if plan.captures.is_empty() {
-            let parameters = &self
-                .function
-                .block(self.block)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, plan.span))?
-                .parameters;
-            return if parameters.is_empty() {
-                Ok(())
-            } else {
-                Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span))
-            };
-        }
-        let [EntityId::Loan(environment)] = self
+    pub(super) fn bind_callable_entry(&mut self, plan: &CallablePlan) -> Result<(), LoweringError> {
+        let parameters = self
             .function
             .block(self.block)
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, plan.span))?
             .parameters
-            .as_slice()
-        else {
+            .clone();
+        let parameter_offset = usize::from(!plan.captures.is_empty());
+        if parameters.len() != plan.parameter_spans.len() + parameter_offset {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span));
-        };
-        let environment = *environment;
-        for (field, capture) in plan.captures.iter().enumerate() {
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::SharedFieldLoan {
-                        base: environment,
-                        field,
-                    },
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: capture.ty,
-                    }],
-                    Origin::Source(capture.span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, capture.span))?;
-            let EntityId::Loan(loan) = results[0] else {
-                return Err(lowering_error(
-                    LoweringErrorKind::InvalidModel,
-                    capture.span,
-                ));
+        }
+        if let Some(first) = parameters.first().filter(|_| !plan.captures.is_empty()) {
+            let EntityId::Loan(environment) = first else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span));
             };
-            self.borrow_bindings.insert(capture.symbol, loan);
+            for (field, capture) in plan.captures.iter().enumerate() {
+                let (_, results) = self
+                    .function
+                    .append_instruction(
+                        self.block,
+                        Operation::SharedFieldLoan {
+                            base: *environment,
+                            field,
+                        },
+                        vec![EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: capture.ty,
+                        }],
+                        Origin::Source(capture.span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, capture.span))?;
+                let EntityId::Loan(loan) = results[0] else {
+                    return Err(lowering_error(
+                        LoweringErrorKind::InvalidModel,
+                        capture.span,
+                    ));
+                };
+                self.borrow_bindings.insert(capture.symbol, loan);
+            }
+        }
+        for (span, entity) in plan
+            .parameter_spans
+            .iter()
+            .zip(parameters.into_iter().skip(parameter_offset))
+        {
+            let symbol = self.declaration_symbol(*span, SymbolKind::LambdaParameter)?;
+            match entity {
+                EntityId::Value(value) => {
+                    self.bindings.insert(symbol, LoweredValue::Value(value));
+                }
+                EntityId::Loan(loan) => {
+                    self.borrow_bindings.insert(symbol, loan);
+                }
+                EntityId::Place(_) => {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, *span));
+                }
+            }
         }
         Ok(())
     }
@@ -558,19 +644,28 @@ pub(super) fn finish_thunk(
     lowerer: &mut UnitExpressionLowerer<'_>,
     plan: &CallablePlan,
 ) -> Result<(), LoweringError> {
-    lowerer.bind_capture_views(plan)?;
-    let result = lowerer.lower_statement(plan.body)?;
+    lowerer.bind_callable_entry(plan)?;
+    let result = if builtin_type(lowerer.typed, plan.return_type) == Some(BuiltinType::Unit) {
+        lowerer.lower_statement(plan.body)?
+    } else {
+        lowerer.lower_tail_value_body(plan.body)?
+    };
     if result == LoweredValue::Diverged {
         return Ok(());
     }
-    if result != LoweredValue::Unit {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
-    }
+    let values = match (builtin_type(lowerer.typed, plan.return_type), result) {
+        (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
+        (Some(BuiltinType::Unit), LoweredValue::Value(_))
+        | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, plan.span));
+        }
+        (_, LoweredValue::Value(value)) => vec![value],
+    };
     lowerer
         .function
         .set_terminator(
             lowerer.block,
-            TerminatorKind::Return { values: Vec::new() },
+            TerminatorKind::Return { values },
             Origin::Source(plan.span),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, plan.span))

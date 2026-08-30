@@ -703,7 +703,7 @@ impl UnitExpressionLowerer<'_> {
         self.closure_bindings = closure_bindings;
         self.temporaries.clear();
         let result = if result_required {
-            self.lower_control_body(statement)?
+            self.lower_tail_value_body(statement)?
         } else {
             self.lower_statement(statement)?
         };
@@ -731,7 +731,7 @@ impl UnitExpressionLowerer<'_> {
         }))
     }
 
-    fn lower_control_body(
+    pub(super) fn lower_tail_value_body(
         &mut self,
         statement: StatementId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -744,8 +744,10 @@ impl UnitExpressionLowerer<'_> {
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })?;
-        let lang_frontend::parser::Statement::ControlBody { elements } = node.payload() else {
-            return self.lower_statement(statement);
+        let elements = match node.payload() {
+            lang_frontend::parser::Statement::ControlBody { elements }
+            | lang_frontend::parser::Statement::LambdaBody { elements } => elements,
+            _ => return self.lower_statement(statement),
         };
         let elements = elements.clone();
         let Some((&last, prefix)) = elements.split_last() else {

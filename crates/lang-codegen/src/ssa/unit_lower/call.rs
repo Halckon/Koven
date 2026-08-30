@@ -7,11 +7,11 @@ use lang_frontend::{
         LoanKind as FrontendLoanKind, UnitDropPoint, UnitLoanTarget, UnitValueDeliveryKind,
         UnitValueDeliverySource,
     },
-    parser::Expression,
+    parser::{Expression, Statement},
     source::Span,
     type_checking::{
-        BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallTarget,
-        UnitExpressionId,
+        BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
+        UnitCallTarget, UnitExpressionId,
     },
 };
 
@@ -26,6 +26,11 @@ use crate::ssa::{
     },
     unit_plan::UnitFunctionInstanceKey,
 };
+
+pub(super) struct LoweredCallArguments {
+    pub(super) arguments: Vec<EntityId>,
+    pub(super) created_loans: Vec<(LoanId, Span)>,
+}
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_name(
@@ -83,6 +88,13 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
+        if arguments
+            .iter()
+            .any(|argument| self.argument_contains_control_transfer(argument.value, function_value))
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if descriptor.target() == UnitCallTarget::FunctionValue {
             return self.lower_function_value_call(
                 expression,
@@ -114,6 +126,66 @@ impl UnitExpressionLowerer<'_> {
             .get(&UnitFunctionInstanceKey::new(target, type_arguments))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(LoweredCallArguments {
+            arguments,
+            created_loans,
+        }) = self.lower_call_arguments(call, arguments, descriptor, span)?
+        else {
+            return Ok(LoweredValue::Diverged);
+        };
+        let return_type = resolve_concrete_type(
+            self.typed,
+            descriptor.return_type(),
+            self.substitutions,
+            span,
+        )?;
+        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
+            Vec::new()
+        } else {
+            vec![EntityType::Value(
+                *self
+                    .type_ids
+                    .get(&return_type)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+            )]
+        };
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::DirectCall { callee, arguments },
+                result_types,
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        for (loan, end_span) in created_loans.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        }
+        self.emit_drops(UnitDropPoint::CallReturn(call))?;
+        match results.as_slice() {
+            [] => Ok(LoweredValue::Unit),
+            [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
+            _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+        }
+    }
+
+    pub(super) fn lower_call_arguments(
+        &mut self,
+        call: UnitExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        descriptor: &UnitCallDescriptor,
+        span: Span,
+    ) -> Result<Option<LoweredCallArguments>, LoweringError> {
+        if arguments.len() != descriptor.arguments().len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let mut ordered = vec![None; descriptor.arguments().len()];
         let mut created_loans = Vec::new();
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -126,7 +198,7 @@ impl UnitExpressionLowerer<'_> {
                 ParameterMode::Value => {
                     match self.lower_value_argument(call, argument.value, argument.span)? {
                         LoweredValue::Value(value) => EntityId::Value(value),
-                        LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                        LoweredValue::Diverged => return Ok(None),
                         LoweredValue::Unit => {
                             return Err(lowering_error(
                                 LoweringErrorKind::InvalidModel,
@@ -178,47 +250,10 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let return_type = resolve_concrete_type(
-            self.typed,
-            descriptor.return_type(),
-            self.substitutions,
-            span,
-        )?;
-        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
-            Vec::new()
-        } else {
-            vec![EntityType::Value(
-                *self
-                    .type_ids
-                    .get(&return_type)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-            )]
-        };
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::DirectCall { callee, arguments },
-                result_types,
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        for (loan, end_span) in created_loans.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(end_span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
-        }
-        self.emit_drops(UnitDropPoint::CallReturn(call))?;
-        match results.as_slice() {
-            [] => Ok(LoweredValue::Unit),
-            [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
-            _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
-        }
+        Ok(Some(LoweredCallArguments {
+            arguments,
+            created_loans,
+        }))
     }
 
     fn lower_value_argument(
@@ -419,4 +454,66 @@ impl UnitExpressionLowerer<'_> {
             _ => Ok(None),
         }
     }
+
+    fn argument_contains_control_transfer(
+        &self,
+        argument: ExpressionId,
+        function_value: bool,
+    ) -> bool {
+        let Ok(argument) = self.parsed.ast().expressions().get(argument) else {
+            return true;
+        };
+        self.parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, candidate)| {
+                span_contains(argument.span(), candidate.span())
+                    && matches!(
+                        candidate.payload(),
+                        Expression::Return { .. }
+                            | Expression::Break { .. }
+                            | Expression::Continue { .. }
+                    )
+            })
+            .any(|(_, candidate)| {
+                let nested_lambda = self.parsed.ast().expressions().iter().any(|(_, boundary)| {
+                    matches!(boundary.payload(), Expression::Lambda { .. })
+                        && span_contains(argument.span(), boundary.span())
+                        && strictly_contains(boundary.span(), candidate.span())
+                });
+                if nested_lambda {
+                    return false;
+                }
+                match candidate.payload() {
+                    Expression::Return { .. } => true,
+                    Expression::Break { .. } | Expression::Continue { .. } => {
+                        function_value
+                            || !self.parsed.ast().statements().iter().any(|(_, boundary)| {
+                                let body = match boundary.payload() {
+                                    Statement::While { body, .. }
+                                    | Statement::Loop { body, .. }
+                                    | Statement::For { body, .. } => *body,
+                                    _ => return false,
+                                };
+                                self.parsed.ast().statements().get(body).is_ok_and(|body| {
+                                    span_contains(argument.span(), body.span())
+                                        && strictly_contains(body.span(), candidate.span())
+                                })
+                            })
+                    }
+                    _ => false,
+                }
+            })
+    }
+}
+
+fn span_contains(owner: Span, child: Span) -> bool {
+    owner.source_id() == child.source_id()
+        && owner.start() <= child.start()
+        && child.end() <= owner.end()
+}
+
+fn strictly_contains(owner: Span, child: Span) -> bool {
+    span_contains(owner, child) && (owner.start() < child.start() || child.end() < owner.end())
 }

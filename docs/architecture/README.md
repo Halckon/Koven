@@ -1123,6 +1123,20 @@ surface、canonical pointer type、独立 thunk、无隐藏 environment 及 capt
 temporary/direct delivery、一般 callable ABI、LLVM/multi-source DWARF 与 object/native 仍由后续切片
 承接；现行 guide 语义未改变。
 
+第二十三步的第一切片接通 Copyable callable 参数/返回 ABI。`FunctionPointer` 与
+`ConcreteClosure` signature 现在可以携带 Copyable storage 的 Borrow/Value 参数和 Unit/Copyable
+storage 返回；closure thunk entry 固定为可选 environment shared loan 后接源码参数，lambda parameter
+按 unit-global symbol 绑定为 Value 或 Shared Loan。function-value call 复用 direct call 的
+source-qualified loan/Value delivery lowering，保持 callee 先求值、实参源码顺序求值、参数槽位重排、
+新建 loan 逆序结束及 CallReturn drop。非 Unit lambda 以 body 最后一个 element 作为 tail value。
+结构测试覆盖无 capture 的 Borrow+Value 混合参数、captured move closure 的 Borrow 参数、Copyable
+返回、重复调用与输入置换。`Inout`、`Borrow(Unit)`、MoveOnly 参数/返回、temporary/direct callable
+delivery、跳出实参的 `return`/`break`/`continue`，以及 function-value 实参内部 loop jump 仍原子
+fail loud；这些边界分别等待 frontend 发布 exit-qualified pending-argument 清理事实与 callable callee
+owner edge carry。direct call 实参内部 loop body 的 break/continue 继续正常 lower，condition/source 中
+指向外层 loop 的 jump 不被误判为内部边界。LLVM/multi-source DWARF 与 object/native 仍由后续切片
+承接；现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

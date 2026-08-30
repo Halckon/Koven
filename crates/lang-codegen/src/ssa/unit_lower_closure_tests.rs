@@ -5,7 +5,7 @@ use lang_frontend::{
 
 use super::{
     LoweringErrorKind,
-    model::{ClosureCaptureMode, Function, Operation, SsaTypeKind},
+    model::{ClosureCaptureMode, EntityType, Function, LoanKind, Operation, SsaTypeKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
@@ -224,6 +224,137 @@ fn lowers_cross_file_owned_move_closure_and_thunk_deterministically() {
 }
 
 #[test]
+fn lowers_copyable_callable_parameters_and_results_deterministically() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun combine(seed: Int, own delta: Int): Int {\n\
+             val action: (Int, own Int) -> Int = { left, right -> left + right }\n\
+             return action(seed, delta)\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val offset = 2\n\
+             val action: move (borrow Int) -> Int = move { item -> item + offset }\n\
+             val first = action(40)\n\
+             val second = action(first)\n\
+             val nestedBreak = p.combine(if (true) {\n\
+                 loop { break }\n\
+                 41\n\
+             } else { 0 }, 1)\n\
+             val nestedContinue = p.combine(if (true) {\n\
+                 while (false) { continue }\n\
+                 42\n\
+             } else { 0 }, 1)\n\
+             val combined = p.combine(second + nestedBreak + nestedContinue, 1)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (reverse_names, reverse_typed, reverse_owned) =
+        analyze(&sources, &reversed, &name_environment, &type_environment);
+    let (forward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("Copyable callable parameters and results lower to verified unit SSA");
+    let (backward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &reversed,
+        &reverse_names,
+        &type_environment,
+        &reverse_typed,
+        &reverse_owned,
+        declaration(&reverse_names, "q", "entry"),
+    )
+    .expect("input permutation preserves parameterized callable identities");
+    assert_eq!(render_program(&forward), render_program(&backward));
+
+    let module = &forward.modules[0];
+    let pointer_signatures = module
+        .types
+        .iter()
+        .filter_map(|kind| match kind {
+            SsaTypeKind::FunctionPointer { signature } => Some(signature),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(pointer_signatures.len(), 1);
+    let pointer = pointer_signatures[0];
+    assert_eq!(pointer.parameters.len(), 2);
+    assert!(matches!(
+        pointer.parameters[0],
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            ..
+        }
+    ));
+    assert!(matches!(pointer.parameters[1], EntityType::Value(_)));
+    assert_eq!(pointer.returns.len(), 1);
+
+    let closure_signatures = module
+        .types
+        .iter()
+        .filter_map(|kind| match kind {
+            SsaTypeKind::ConcreteClosure {
+                signature,
+                captures,
+                ..
+            } => Some((signature, captures)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(closure_signatures.len(), 1);
+    let (closure, captures) = closure_signatures[0];
+    assert_eq!(closure.parameters.len(), 1);
+    assert!(matches!(
+        closure.parameters[0],
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            ..
+        }
+    ));
+    assert_eq!(closure.returns.len(), 1);
+    assert_eq!(captures.len(), 1);
+
+    let combine = function(module, "p.combine");
+    assert_eq!(operation_count(combine, is_function_address), 1);
+    assert_eq!(operation_count(combine, is_callable_invoke), 1);
+    let entry = function(module, "q.entry");
+    assert_eq!(operation_count(entry, is_closure_construct), 1);
+    assert_eq!(operation_count(entry, is_callable_invoke), 2);
+    let thunks = module
+        .functions
+        .iter()
+        .filter(|function| function.name.contains(".thunk"))
+        .collect::<Vec<_>>();
+    assert_eq!(thunks.len(), 2);
+    assert!(thunks.iter().all(|thunk| thunk.return_types.len() == 1));
+    assert!(thunks.iter().all(|thunk| {
+        thunk
+            .entry_block()
+            .and_then(|entry| thunk.block(entry))
+            .is_some_and(|entry| entry.parameters.len() == 2)
+    }));
+}
+
+#[test]
 fn restores_owned_closure_provenance_across_control_flow() {
     let mut sources = SourceMap::new();
     let (source_id, parsed) = parsed(
@@ -334,20 +465,86 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/parameter.ko",
+            "test/inout-parameter.ko",
             "package test\n\
-             fun inspect(message: String): Unit {}\n\
              fun entry(): Unit {\n\
-                 val message = \"parameter\"\n\
-                 val action: move (borrow Int) -> Unit = move { item -> inspect(message) }\n\
+                 val action: (inout Int) -> Unit = { item -> }\n\
              }",
         ),
         (
-            "test/return.ko",
+            "test/move-only-parameter.ko",
+            "package test\n\
+             fun inspect(message: String): Unit {}\n\
+             fun entry(): Unit {\n\
+                 val action: move (own String) -> Unit = move { item -> inspect(item) }\n\
+             }",
+        ),
+        (
+            "test/move-only-return.ko",
             "package test\n\
              fun entry(): Unit {\n\
+                 val action: move () -> String = move { \"owned\" }\n\
+             }",
+        ),
+        (
+            "test/direct-argument-return.ko",
+            "package test\n\
+             fun select(first: Int, own second: Int): Int = second\n\
+             fun entry(): Int {\n\
                  val number = 1\n\
-                 val action: move () -> Int = move { number }\n\
+                 return select(number, return 7)\n\
+             }",
+        ),
+        (
+            "test/callable-argument-return.ko",
+            "package test\n\
+             fun entry(): Int {\n\
+                 val action: (Int, own Int) -> Int = { left, right -> left + right }\n\
+                 val number = 1\n\
+                 return action(number, return 7)\n\
+             }",
+        ),
+        (
+            "test/direct-argument-break.ko",
+            "package test\n\
+             fun select(first: Int, own second: Int): Int = second\n\
+             fun entry(): Unit {\n\
+                 val number = 1\n\
+                 loop { val selected = select(number, break) }\n\
+             }",
+        ),
+        (
+            "test/callable-argument-continue.ko",
+            "package test\n\
+             fun entry(): Unit {\n\
+                 val action: (Int, own Int) -> Int = { left, right -> left + right }\n\
+                 val number = 1\n\
+                 loop { val selected = action(number, continue) }\n\
+             }",
+        ),
+        (
+            "test/direct-argument-loop-condition-break.ko",
+            "package test\n\
+             fun select(first: Int, own second: Int): Int = second\n\
+             fun entry(): Unit {\n\
+                 val number = 1\n\
+                 loop {\n\
+                     val selected = select(number, if (true) {\n\
+                         while (break) {}\n\
+                         7\n\
+                     } else { 8 })\n\
+                 }\n\
+             }",
+        ),
+        (
+            "test/callable-argument-internal-loop.ko",
+            "package test\n\
+             fun entry(): Unit {\n\
+                 val action: (Int, own Int) -> Int = { left, right -> left + right }\n\
+                 val selected = action(1, if (true) {\n\
+                     loop { break }\n\
+                     2\n\
+                 } else { 3 })\n\
              }",
         ),
     ] {
