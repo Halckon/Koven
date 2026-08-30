@@ -1,21 +1,30 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
 
+mod binding;
 mod capture;
 mod construction;
 mod contracts;
 mod dataflow;
+mod receiver;
 
+pub use binding::UnitOwnershipBindingDescriptor;
 pub use capture::{UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor};
 pub use construction::{
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation,
+};
+pub use receiver::{
+    UnitCallReceiverOwnershipContract, UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames},
+    name_resolution::{
+        DeclarationId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,
+    },
     source::{SourceMap, Span},
     type_checking::{
         CompilationUnitTypes, ExpressionCategory, ParameterMode, TypeEnvironment,
@@ -28,42 +37,6 @@ use super::{
     ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
     OwnershipDeferredReason, RcOwnershipEffectKind, Transferability,
 };
-
-/// compilation-unit callable 参数在 Phase 3 中提供的能力。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnitOwnershipBindingDescriptor {
-    symbol: UnitSymbolId,
-    kind: OwnershipBindingKind,
-    declaration_span: Span,
-}
-
-impl UnitOwnershipBindingDescriptor {
-    const fn new(symbol: UnitSymbolId, kind: OwnershipBindingKind, declaration_span: Span) -> Self {
-        Self {
-            symbol,
-            kind,
-            declaration_span,
-        }
-    }
-
-    /// 返回 source-qualified 参数 symbol。
-    #[must_use]
-    pub const fn symbol(self) -> UnitSymbolId {
-        self.symbol
-    }
-
-    /// 返回 owned/shared/exclusive 能力。
-    #[must_use]
-    pub const fn kind(self) -> OwnershipBindingKind {
-        self.kind
-    }
-
-    /// 返回参数声明范围；后续跨文件诊断可直接引用该位置。
-    #[must_use]
-    pub const fn declaration_span(self) -> Span {
-        self.declaration_span
-    }
-}
 
 /// typed call argument 在 ownership 阶段采用的规范契约。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -507,6 +480,8 @@ pub enum UnitDropPoint {
 /// 一个需要唯一析构的 source-qualified 运行时值。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitDropTarget {
+    /// Value receiver 尚未被整体移动时由当前 callable 负责的根值。
+    This(DeclarationId),
     /// 当前 callable 拥有的 named binding 值。
     Named(UnitSymbolId),
     /// 完整表达式产生的 anonymous temporary。
@@ -600,6 +575,9 @@ pub struct CompilationUnitOwnership {
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
     call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
+    call_receiver_contracts: Vec<UnitCallReceiverOwnershipContract>,
+    receiver_facts: Vec<UnitReceiverOwnershipFact>,
+    delegations: Vec<UnitDelegationOwnershipPlan>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
@@ -616,11 +594,34 @@ impl CompilationUnitOwnership {
         typed: &CompilationUnitTypes,
         bindings: Vec<UnitOwnershipBindingDescriptor>,
         call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
+        call_receiver_contracts: Vec<UnitCallReceiverOwnershipContract>,
         capture: capture::Analysis,
         dataflow: dataflow::Analysis,
     ) -> Self {
-        let captures = if dataflow.diagnostics.is_empty() {
+        let successful = dataflow.diagnostics.is_empty();
+        let captures = if successful {
             capture.captures
+        } else {
+            Vec::new()
+        };
+        let delegations = if successful {
+            typed
+                .signatures()
+                .delegations()
+                .iter()
+                .filter(|plan| !plan.forwarders().is_empty())
+                .map(|plan| {
+                    UnitDelegationOwnershipPlan::new(
+                        plan.owner(),
+                        plan.target(),
+                        plan.delegation_span(),
+                        plan.forwarders()
+                            .iter()
+                            .map(|forwarder| forwarder.requirement())
+                            .collect(),
+                    )
+                })
+                .collect()
         } else {
             Vec::new()
         };
@@ -632,6 +633,9 @@ impl CompilationUnitOwnership {
             diagnostics: dataflow.diagnostics,
             bindings,
             call_argument_contracts,
+            call_receiver_contracts,
+            receiver_facts: dataflow.receiver_facts,
+            delegations,
             loans: dataflow.loans,
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
@@ -697,6 +701,42 @@ impl CompilationUnitOwnership {
         self.call_argument_contracts
             .iter()
             .filter(move |contract| contract.call() == call)
+    }
+
+    /// 返回稳定 source/call 顺序的 receiver ownership contracts。
+    #[must_use]
+    pub fn call_receiver_contracts(&self) -> &[UnitCallReceiverOwnershipContract] {
+        &self.call_receiver_contracts
+    }
+
+    /// 查询指定 member call 的 receiver contract。
+    #[must_use]
+    pub fn call_receiver_contract(
+        &self,
+        call: UnitExpressionId,
+    ) -> Option<UnitCallReceiverOwnershipContract> {
+        self.call_receiver_contracts
+            .iter()
+            .copied()
+            .find(|contract| contract.call() == call)
+    }
+
+    /// 返回稳定 source/call 顺序的成功 receiver ownership facts。
+    #[must_use]
+    pub fn receiver_facts(&self) -> &[UnitReceiverOwnershipFact] {
+        &self.receiver_facts
+    }
+
+    /// 查询指定 member call 的 receiver ownership fact。
+    #[must_use]
+    pub fn receiver_fact(&self, call: UnitExpressionId) -> Option<&UnitReceiverOwnershipFact> {
+        self.receiver_facts.iter().find(|fact| fact.call() == call)
+    }
+
+    /// 返回 Borrow-only 委托的 outer receiver/delegate field shared-loan plans。
+    #[must_use]
+    pub fn delegations(&self) -> &[UnitDelegationOwnershipPlan] {
+        &self.delegations
     }
 
     /// 返回源码/调用顺序稳定的有效同步 loans。
@@ -848,6 +888,7 @@ pub fn check_compilation_unit_ownership(
         )?;
     }
     let call_argument_contracts = contracts::collect_call_argument_contracts(inputs, names, typed)?;
+    let call_receiver_contracts = contracts::collect_call_receiver_contracts(inputs, names, typed)?;
     let capture = capture::analyze(inputs, names, typed)?;
     let mut dataflow = dataflow::analyze(
         sources,
@@ -855,7 +896,7 @@ pub fn check_compilation_unit_ownership(
         names,
         typed,
         &bindings,
-        &call_argument_contracts,
+        dataflow::CallInputs::new(&call_argument_contracts, &call_receiver_contracts),
         dataflow::ClosureInputs::new(
             &capture.captures,
             &capture.closures,
@@ -863,6 +904,7 @@ pub fn check_compilation_unit_ownership(
         ),
     )?;
     if !dataflow.diagnostics.is_empty() {
+        dataflow.receiver_facts.clear();
         dataflow.loans.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
@@ -874,6 +916,7 @@ pub fn check_compilation_unit_ownership(
         typed,
         bindings.into_values().collect(),
         call_argument_contracts,
+        call_receiver_contracts,
         capture,
         dataflow,
     ))

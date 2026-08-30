@@ -24,6 +24,8 @@ impl Checker<'_> {
         body: crate::ast::StatementId,
         mut state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let diagnostic_count = self.diagnostics.len();
+        let entry_state = state.clone();
         let lambda_id = self.unit_expression(lambda);
         let captures = self.captures_of(lambda).collect::<Vec<_>>();
         for capture in &captures {
@@ -46,12 +48,21 @@ impl Checker<'_> {
                     }
                 }
                 (ClosureCaptureMode::Shared, UnitClosureCaptureSource::This, _) => {
-                    state.loans.push(ActiveLoan {
-                        owner: ActiveLoanOwner::Closure(lambda_id),
-                        target: ActiveLoanTarget::This,
-                        kind: LoanKind::Shared,
-                        origin: capture.reference_span(),
-                    });
+                    if self.ensure_this_available_at(capture.reference_span(), None, &state)?
+                        && self.access_this_at(
+                            AccessKind::SharedLoan,
+                            capture.reference_span(),
+                            None,
+                            &state,
+                        )?
+                    {
+                        state.loans.push(ActiveLoan {
+                            owner: ActiveLoanOwner::Closure(lambda_id),
+                            target: ActiveLoanTarget::This,
+                            kind: LoanKind::Shared,
+                            origin: capture.reference_span(),
+                        });
+                    }
                 }
                 (ClosureCaptureMode::Owned, UnitClosureCaptureSource::This, _) => {
                     self.emit_illegal_owned_capture(
@@ -117,21 +128,38 @@ impl Checker<'_> {
             }
         }
 
+        if self.diagnostics.len() != diagnostic_count {
+            return Ok(Flows::next(entry_state));
+        }
+
         let mut body_state = State::default();
         for capture in captures {
-            let UnitClosureCaptureSource::Symbol(symbol) = capture.source() else {
-                continue;
-            };
-            body_state
-                .immutable_captures
-                .insert(symbol, capture.reference_span());
-            if capture.mode() == ClosureCaptureMode::Shared {
-                body_state
-                    .non_owning
-                    .insert(symbol, capture.reference_span());
+            match capture.source() {
+                UnitClosureCaptureSource::This if capture.mode() == ClosureCaptureMode::Shared => {
+                    body_state.loans.push(ActiveLoan {
+                        owner: ActiveLoanOwner::Closure(lambda_id),
+                        target: ActiveLoanTarget::This,
+                        kind: LoanKind::Shared,
+                        origin: capture.reference_span(),
+                    });
+                }
+                UnitClosureCaptureSource::This => {}
+                UnitClosureCaptureSource::Symbol(symbol) => {
+                    body_state
+                        .immutable_captures
+                        .insert(symbol, capture.reference_span());
+                    if capture.mode() == ClosureCaptureMode::Shared {
+                        body_state
+                            .non_owning
+                            .insert(symbol, capture.reference_span());
+                    }
+                }
             }
         }
         self.check_statement(body, body_state)?;
+        if self.diagnostics.len() != diagnostic_count {
+            return Ok(Flows::next(entry_state));
+        }
         Ok(Flows::next(state))
     }
 

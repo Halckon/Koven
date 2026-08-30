@@ -29,6 +29,7 @@ pub(super) enum ActiveLoanTarget {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) moved: BTreeMap<UnitSymbolId, Span>,
+    pub(super) this_moved: Option<Span>,
     pub(super) loans: Vec<ActiveLoan>,
     pub(super) closures: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) non_owning: BTreeMap<UnitSymbolId, Span>,
@@ -90,4 +91,13 @@ pub(super) fn merge_state(target: &mut State, source: State) {
             })
             .or_insert(origin);
     }
+    target.this_moved = match (target.this_moved, source.this_moved) {
+        (Some(left), Some(right)) => Some(if left.start() <= right.start() {
+            left
+        } else {
+            right
+        }),
+        (Some(origin), None) | (None, Some(origin)) => Some(origin),
+        (None, None) => None,
+    };
 }

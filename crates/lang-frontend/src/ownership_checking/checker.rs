@@ -17,7 +17,8 @@ use crate::{
     },
     source::{SourceMap, Span},
     type_checking::{
-        AggregateProjectionKind, Copyability, DestructuringMode, ParameterMode, TypedFile,
+        AggregateProjectionKind, CallReceiverDescriptor, CallReceiverOrigin, Copyability,
+        DestructuringMode, ParameterMode, TypedFile,
     },
 };
 
@@ -93,6 +94,7 @@ struct Checker<'a> {
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     references_by_span: BTreeMap<(usize, usize), SymbolId>,
     calls_by_expression: BTreeMap<usize, Vec<ParameterMode>>,
+    receivers_by_expression: BTreeMap<usize, CallReceiverDescriptor>,
     construction: construction::Analysis,
     rc_effects: Vec<super::RcOwnershipEffect>,
     cross_thread_by_expression: BTreeMap<usize, Vec<bool>>,
@@ -159,6 +161,14 @@ impl<'a> Checker<'a> {
                 (call.expression().index(), effects)
             })
             .collect();
+        let receivers_by_expression = typed
+            .calls()
+            .iter()
+            .filter_map(|call| {
+                call.receiver()
+                    .map(|receiver| (call.expression().index(), receiver))
+            })
+            .collect();
         for construction in typed.container_constructions() {
             calls_by_expression
                 .entry(construction.expression().index())
@@ -177,6 +187,7 @@ impl<'a> Checker<'a> {
             symbols_by_span,
             references_by_span,
             calls_by_expression,
+            receivers_by_expression,
             construction: construction::Analysis::new(parsed, typed)?,
             rc_effects: Vec::new(),
             cross_thread_by_expression,
@@ -611,7 +622,38 @@ impl<'a> Checker<'a> {
                 callee, arguments, ..
             } => {
                 let diagnostic_count = self.diagnostics.len();
-                let mut flows = self.check_expression(callee, state, ExpressionUse::Read)?;
+                let receiver = self.receivers_by_expression.get(&id.index()).copied();
+                let mut receiver_expression = None;
+                let mut flows = match receiver.map(CallReceiverDescriptor::origin) {
+                    Some(CallReceiverOrigin::Expression(expression)) => {
+                        receiver_expression = Some(expression);
+                        let usage = if receiver
+                            .is_some_and(|receiver| receiver.mode() == ParameterMode::Value)
+                        {
+                            ExpressionUse::Consume
+                        } else {
+                            ExpressionUse::Place
+                        };
+                        self.check_expression(expression, state, usage)?
+                    }
+                    Some(CallReceiverOrigin::ImplicitThis(_)) => Flows::next(state),
+                    None => self.check_expression(callee, state, ExpressionUse::Read)?,
+                };
+                if let (Some(receiver), Some(expression)) = (receiver, receiver_expression) {
+                    let span = self.parsed.ast().expressions().get(expression)?.span();
+                    self.apply_argument_contract(
+                        id,
+                        crate::parser::CallArgument {
+                            span,
+                            named_prefix: None,
+                            mode_marker: None,
+                            value: expression,
+                        },
+                        receiver.mode(),
+                        true,
+                        &mut flows,
+                    )?;
+                }
                 let modes = self.calls_by_expression.get(&id.index()).cloned();
                 let cross_thread = self.cross_thread_by_expression.get(&id.index()).cloned();
                 let argument_expressions = arguments
@@ -647,11 +689,15 @@ impl<'a> Checker<'a> {
                     if self.diagnostics.len() == argument_diagnostics
                         && let Some(mode) = mode
                     {
-                        self.apply_argument_contract(id, argument, mode, &mut flows)?;
+                        self.apply_argument_contract(id, argument, mode, false, &mut flows)?;
                     }
                 }
                 self.end_call_loans(id, &mut flows);
-                for expression in std::iter::once(callee).chain(argument_expressions) {
+                for expression in receiver_expression
+                    .into_iter()
+                    .chain(receiver.is_none().then_some(callee))
+                    .chain(argument_expressions)
+                {
                     self.release_last_closure_use(expression, &mut flows)?;
                 }
                 if flows.next.is_some()

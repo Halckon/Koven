@@ -300,6 +300,7 @@ impl Checker<'_> {
         call: ExpressionId,
         argument: CallArgument,
         mode: ParameterMode,
+        is_receiver: bool,
         flows: &mut Flows,
     ) -> Result<(), OwnershipCheckingError> {
         let Some(state) = flows.next.as_mut() else {
@@ -379,7 +380,12 @@ impl Checker<'_> {
                     self.diagnostics.push(diagnostic);
                     return Ok(());
                 }
-                if !self.is_mutable_place(argument.value)? {
+                let receiver_class_handle = is_receiver
+                    && self.expression_nominal_kind(argument.value) == Some(NominalKind::Class)
+                    && place.as_ref().is_some_and(|place| {
+                        self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow)
+                    });
+                if !receiver_class_handle && !self.is_mutable_place(argument.value)? {
                     let mut diagnostic = Diagnostic::new(
                         self.sources,
                         Severity::Error,

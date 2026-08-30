@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
-    name_resolution::{SourceUnitId, UnitSymbolId},
+    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
     ownership_checking::{UnitClosureCaptureSource, UnitDropFact, UnitDropPoint, UnitDropTarget},
     parser::NameMarker,
     source::Span,
@@ -37,6 +37,7 @@ pub(super) enum PlannerDropPoint {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PlannerDropTarget {
+    This(DeclarationId),
     Named(UnitSymbolId),
     Temporary(ExpressionId),
     ReplacedElement(ExpressionId),
@@ -91,6 +92,7 @@ impl PlannerDropFact {
             }
         };
         let target = match self.target {
+            PlannerDropTarget::This(owner) => UnitDropTarget::This(owner),
             PlannerDropTarget::Named(symbol) => UnitDropTarget::Named(symbol),
             PlannerDropTarget::Temporary(id) => UnitDropTarget::Temporary(expression(id)),
             PlannerDropTarget::ReplacedElement(id) => {
@@ -112,10 +114,17 @@ pub(super) struct OwnedValue {
     pub(super) scope_depth: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct OwnedThis {
+    pub(super) owner: DeclarationId,
+    pub(super) origin: Span,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
     pub(super) values: Vec<OwnedValue>,
     pub(super) closures: BTreeMap<UnitSymbolId, ExpressionId>,
+    pub(super) this: Option<OwnedThis>,
 }
 
 impl ValueState {
@@ -166,6 +175,17 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
                 if candidate.start() < value.origin.start() {
                     value.origin = candidate;
                 }
+            }
+        }
+    }
+    if !states.iter().all(|state| state.this.is_some()) {
+        merged.this = None;
+    } else if let Some(value) = merged.this.as_mut() {
+        for state in &states {
+            if let Some(candidate) = state.this
+                && candidate.origin.start() < value.origin.start()
+            {
+                value.origin = candidate.origin;
             }
         }
     }

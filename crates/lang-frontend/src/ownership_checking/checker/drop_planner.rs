@@ -11,7 +11,8 @@ use crate::{
     },
     source::Span,
     type_checking::{
-        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, ParameterMode, TypeKind,
+        BuiltinType, CallReceiverOrigin, Copyability, DestructuringMode, ExpressionCategory,
+        ParameterMode, TypeKind,
     },
 };
 
@@ -606,9 +607,52 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Call {
                 callee, arguments, ..
             } => {
-                self.expression(callee, ExpressionUse::Read, state)?;
                 let modes = self.checker.calls_by_expression.get(&id.index()).cloned();
                 let mut borrowed_roots = Vec::new();
+                match self
+                    .checker
+                    .receivers_by_expression
+                    .get(&id.index())
+                    .copied()
+                {
+                    Some(receiver) => match receiver.origin() {
+                        CallReceiverOrigin::Expression(expression) => match receiver.mode() {
+                            ParameterMode::Value => {
+                                self.expression(expression, ExpressionUse::Consume, state)?;
+                            }
+                            ParameterMode::Borrow | ParameterMode::Inout => {
+                                if let Some(place) = self.checker.place(expression)? {
+                                    self.expression(expression, ExpressionUse::Place, state)?;
+                                    if state.position(place.root()).is_some() {
+                                        borrowed_roots.push(place.root());
+                                    }
+                                } else {
+                                    self.expression(expression, ExpressionUse::Place, state)?;
+                                    if receiver.mode() == ParameterMode::Borrow
+                                        && self.is_move_only_temporary(expression)
+                                    {
+                                        let origin = self
+                                            .checker
+                                            .parsed
+                                            .ast()
+                                            .expressions()
+                                            .get(expression)?
+                                            .span();
+                                        self.push_fact(DropFact::new(
+                                            DropPoint::CallReturn(id),
+                                            DropTarget::Temporary(expression),
+                                            origin,
+                                        ));
+                                    }
+                                }
+                            }
+                        },
+                        CallReceiverOrigin::ImplicitThis(_) => {}
+                    },
+                    None => {
+                        self.expression(callee, ExpressionUse::Read, state)?;
+                    }
+                }
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let mode = modes
                         .as_ref()

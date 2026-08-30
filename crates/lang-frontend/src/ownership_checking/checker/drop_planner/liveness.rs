@@ -395,7 +395,30 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                     };
                     live = self.expression(argument.value, argument_usage, live)?;
                 }
-                self.expression(callee, ExpressionUse::Read, live)
+                match self
+                    .checker
+                    .receivers_by_expression
+                    .get(&id.index())
+                    .copied()
+                    .map(|receiver| (receiver.origin(), receiver.mode()))
+                {
+                    Some((
+                        crate::type_checking::CallReceiverOrigin::Expression(expression),
+                        mode,
+                    )) => self.expression(
+                        expression,
+                        if mode == ParameterMode::Value {
+                            ExpressionUse::Consume
+                        } else {
+                            ExpressionUse::Read
+                        },
+                        live,
+                    ),
+                    Some((crate::type_checking::CallReceiverOrigin::ImplicitThis(_), _)) => {
+                        Ok(live)
+                    }
+                    None => self.expression(callee, ExpressionUse::Read, live),
+                }
             }
             Expression::Index { receiver, index } => {
                 let live = self.expression(index, ExpressionUse::Read, live_after)?;

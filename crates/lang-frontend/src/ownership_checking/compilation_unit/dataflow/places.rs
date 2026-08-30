@@ -328,10 +328,19 @@ impl Checker<'_> {
     ) -> Result<bool, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
+            Expression::This => Ok(self.current_receiver.is_some_and(|receiver| {
+                receiver.mode == crate::type_checking::ParameterMode::Inout
+            })),
             Expression::Name => {
                 let Some(symbol) = self.reference_symbol(node.span()) else {
                     return Ok(false);
                 };
+                if self.symbol_kind(symbol) == Some(crate::name_resolution::SymbolKind::Field) {
+                    return Ok(self.field_kinds.get(&symbol) == Some(&VariableKind::Var)
+                        && self.current_receiver.is_some_and(|receiver| {
+                            receiver.mode == crate::type_checking::ParameterMode::Inout
+                        }));
+                }
                 if self.bindings.get(&symbol).map(|binding| binding.kind())
                     == Some(OwnershipBindingKind::Exclusive)
                 {
@@ -358,7 +367,9 @@ impl Checker<'_> {
                 let crate::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
                     projection.receiver()
                 else {
-                    return Ok(false);
+                    return Ok(self.current_receiver.is_some_and(|receiver| {
+                        receiver.mode == crate::type_checking::ParameterMode::Inout
+                    }));
                 };
                 if receiver.source_unit() != self.source_unit {
                     return Ok(false);
@@ -395,7 +406,7 @@ impl Checker<'_> {
         }
     }
 
-    fn expression_nominal_kind(&self, expression: ExpressionId) -> Option<NominalKind> {
+    pub(super) fn expression_nominal_kind(&self, expression: ExpressionId) -> Option<NominalKind> {
         let mut ty = self
             .typed
             .expression_type(self.unit_expression(expression))?;

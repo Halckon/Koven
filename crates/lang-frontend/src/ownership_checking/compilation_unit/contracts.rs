@@ -8,15 +8,70 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypes, ContainerConstructionKind, ExpressionCategory,
-        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, UnitCallTarget,
-        UnitContainerConstructionDescriptor, UnitExpressionId, UnitFunctionParameterType,
-        UnitTypeId, UnitTypeKind,
+        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, UnitCallReceiverOrigin,
+        UnitCallTarget, UnitCallableSignature, UnitContainerConstructionDescriptor,
+        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{
     OwnershipCheckingError, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
+    UnitCallReceiverOwnershipContract,
 };
+
+pub(super) fn collect_call_receiver_contracts(
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+) -> Result<Vec<UnitCallReceiverOwnershipContract>, OwnershipCheckingError> {
+    let mut contracts = Vec::new();
+    for call in typed.calls() {
+        let Some(receiver) = call.receiver() else {
+            continue;
+        };
+        let call_id = call.expression();
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let Expression::Call { callee, .. } = call_node.payload() else {
+            return Err(invalid_unit_call(call_id));
+        };
+        let receiver_span = match receiver.origin() {
+            UnitCallReceiverOrigin::Expression(expression) => {
+                if expression.source_unit() != call_id.source_unit()
+                    || typed.expression_category(expression) != Some(receiver.category())
+                {
+                    return Err(invalid_unit_call(call_id));
+                }
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())?
+                    .span()
+            }
+            UnitCallReceiverOrigin::ImplicitThis(_) => {
+                parsed.ast().expressions().get(*callee)?.span()
+            }
+        };
+        contracts.push(UnitCallReceiverOwnershipContract::new(
+            call_id,
+            receiver.origin(),
+            receiver.ty(),
+            receiver.category(),
+            ownership_kind(receiver.mode()),
+            receiver_span,
+            call_node.span(),
+            source_receiver_span(typed, call.target()),
+        ));
+    }
+    contracts.sort_by_key(|contract| {
+        (
+            contract.call().source_unit().index(),
+            contract.call_span().start(),
+            contract.receiver_span().start(),
+        )
+    });
+    Ok(contracts)
+}
 
 pub(super) fn collect_call_argument_contracts(
     inputs: &[SourceUnitInput<'_>],
@@ -360,6 +415,45 @@ fn source_parameter_span(
             expression: call.expression().index(),
             parameter: parameter_index,
         })
+}
+
+fn source_receiver_span(typed: &CompilationUnitTypes, target: UnitCallTarget) -> Option<Span> {
+    source_callable_signature(typed, target)
+        .and_then(UnitCallableSignature::receiver)
+        .map(|receiver| {
+            receiver
+                .marker_span()
+                .unwrap_or(receiver.declaration_span())
+        })
+}
+
+fn source_callable_signature(
+    typed: &CompilationUnitTypes,
+    target: UnitCallTarget,
+) -> Option<&UnitCallableSignature> {
+    match target {
+        UnitCallTarget::Declaration(declaration) => typed
+            .signatures()
+            .declaration(declaration)
+            .and_then(|declaration| declaration.callable()),
+        UnitCallTarget::Symbol(symbol) => typed
+            .signatures()
+            .declarations()
+            .iter()
+            .flat_map(|declaration| {
+                declaration.callable().into_iter().chain(
+                    declaration.nominal().into_iter().flat_map(|nominal| {
+                        nominal.members().iter().chain(nominal.companion_members())
+                    }),
+                )
+            })
+            .find(|callable| {
+                callable.target() == crate::type_checking::UnitCallableTarget::Symbol(symbol)
+            }),
+        UnitCallTarget::External(_)
+        | UnitCallTarget::FunctionValue
+        | UnitCallTarget::StructuralComponent(_) => None,
+    }
 }
 
 const fn invalid_unit_call(call: UnitExpressionId) -> OwnershipCheckingError {

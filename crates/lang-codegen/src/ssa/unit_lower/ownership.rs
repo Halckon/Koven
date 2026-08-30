@@ -83,6 +83,12 @@ impl UnitExpressionLowerer<'_> {
         self.validate_closure_drop_facts(&facts)?;
         for fact in facts {
             let owner = match fact.target() {
+                UnitDropTarget::This(_) => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        fact.value_origin(),
+                    ));
+                }
                 UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
                     Some(LoweredValue::Value(value)) => {
                         self.closure_bindings.remove(&symbol);
@@ -141,7 +147,8 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .filter_map(|fact| match fact.target() {
                 UnitDropTarget::Named(symbol) => self.closure_bindings.get(&symbol).copied(),
-                UnitDropTarget::Temporary(_)
+                UnitDropTarget::This(_)
+                | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::Captured { .. }
                 | UnitDropTarget::ReplacedElement(_) => None,
             })
@@ -152,7 +159,9 @@ impl UnitExpressionLowerer<'_> {
             .filter(|fact| match fact.target() {
                 UnitDropTarget::Named(symbol) => self.closure_bindings.contains_key(&symbol),
                 UnitDropTarget::Captured { closure, .. } => live_closures.contains(&closure),
-                UnitDropTarget::Temporary(_) | UnitDropTarget::ReplacedElement(_) => false,
+                UnitDropTarget::This(_)
+                | UnitDropTarget::Temporary(_)
+                | UnitDropTarget::ReplacedElement(_) => false,
             })
             .collect::<Vec<_>>();
         self.validate_closure_drop_facts(&live_closure_facts)?;
@@ -160,7 +169,9 @@ impl UnitExpressionLowerer<'_> {
             let symbol = match fact.target() {
                 UnitDropTarget::Named(symbol) => symbol,
                 UnitDropTarget::Captured { .. } => continue,
-                UnitDropTarget::Temporary(_) | UnitDropTarget::ReplacedElement(_) => {
+                UnitDropTarget::This(_)
+                | UnitDropTarget::Temporary(_)
+                | UnitDropTarget::ReplacedElement(_) => {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             };

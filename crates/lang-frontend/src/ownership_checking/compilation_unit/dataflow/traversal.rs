@@ -57,6 +57,7 @@ impl Checker<'_> {
             | Item::Constant {
                 name, initializer, ..
             } => {
+                let diagnostic_count = self.diagnostics.len();
                 let closure = self.closure_origin(initializer, &state)?;
                 let moved_closure = self.expression_root_symbol(initializer)?;
                 let mut flows = self.check_expression(
@@ -71,7 +72,8 @@ impl Checker<'_> {
                     if let Some(source) = moved_closure {
                         next.closures.remove(&source);
                     }
-                    if let Some(symbol) = self.marker_symbol(name).copied()
+                    if self.diagnostics.len() == diagnostic_count
+                        && let Some(symbol) = self.marker_symbol(name).copied()
                         && let Some(closure) = closure
                     {
                         next.closures.insert(symbol, closure);
@@ -79,8 +81,12 @@ impl Checker<'_> {
                 }
                 Ok(flows)
             }
-            Item::Function { form, .. } => {
-                self.check_function(form)?;
+            Item::Function { name, form, .. } => {
+                let previous_receiver = self.current_receiver;
+                self.current_receiver = self.receiver_context(name);
+                let result = self.check_function(form);
+                self.current_receiver = previous_receiver;
+                result?;
                 Ok(Flows::next(state))
             }
             Item::Classifier(classifier) => {
@@ -244,10 +250,14 @@ impl Checker<'_> {
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {
-            Expression::Error
-            | Expression::This
-            | Expression::Literal(_)
-            | Expression::SuperMember { .. } => Ok(Flows::next(state)),
+            Expression::Error | Expression::Literal(_) | Expression::SuperMember { .. } => {
+                Ok(Flows::next(state))
+            }
+            Expression::This => {
+                let mut state = state;
+                self.use_this(id, span, usage, &mut state)?;
+                Ok(Flows::next(state))
+            }
             Expression::Name => {
                 let mut state = state;
                 self.use_name(id, span, usage, &mut state)?;
@@ -327,12 +337,22 @@ impl Checker<'_> {
                 value,
                 ..
             } => {
+                let diagnostic_count = self.diagnostics.len();
                 if self.place(target)?.is_some_and(|place| {
                     !place.fields().is_empty()
                         || self.symbol_kind(place.root())
                             == Some(crate::name_resolution::SymbolKind::Field)
                 }) {
                     self.reject_borrowed_closure_escape(value, &state)?;
+                }
+                if self.diagnostics.len() != diagnostic_count {
+                    return self.check_expression(
+                        value,
+                        state,
+                        ExpressionUse::Consume {
+                            parameter_span: None,
+                        },
+                    );
                 }
                 self.check_assignment(target, operator, value, state)
             }
@@ -413,13 +433,50 @@ impl Checker<'_> {
             .get(&call)
             .cloned()
             .unwrap_or_default();
+        let receiver_contract = self.receiver_contracts_by_call.get(&call).copied();
         if !contracts.is_empty() && contracts.len() != arguments.len() {
             return Err(OwnershipCheckingError::InvalidUnitCall {
                 source_unit: self.source_unit.index(),
                 expression: id.index(),
             });
         }
-        let mut flows = self.check_expression(callee, state, ExpressionUse::Read)?;
+        let mut receiver_expression = None;
+        let mut flows = if let Some(contract) = receiver_contract {
+            match contract.source() {
+                crate::type_checking::UnitCallReceiverOrigin::Expression(receiver) => {
+                    if receiver.source_unit() != self.source_unit {
+                        return Err(OwnershipCheckingError::InvalidUnitCall {
+                            source_unit: self.source_unit.index(),
+                            expression: id.index(),
+                        });
+                    }
+                    receiver_expression = Some(receiver.expression());
+                    let usage = match contract.kind() {
+                        UnitCallArgumentOwnershipKind::Value
+                            if self.expression_is_this(receiver.expression())? =>
+                        {
+                            ExpressionUse::Place {
+                                parameter_span: contract.declaration_span(),
+                            }
+                        }
+                        UnitCallArgumentOwnershipKind::Value => ExpressionUse::Consume {
+                            parameter_span: contract.declaration_span(),
+                        },
+                        UnitCallArgumentOwnershipKind::SharedLoan
+                        | UnitCallArgumentOwnershipKind::ExclusiveLoan => ExpressionUse::Place {
+                            parameter_span: contract.declaration_span(),
+                        },
+                    };
+                    self.check_expression(receiver.expression(), state, usage)?
+                }
+                crate::type_checking::UnitCallReceiverOrigin::ImplicitThis(_) => Flows::next(state),
+            }
+        } else {
+            self.check_expression(callee, state, ExpressionUse::Read)?
+        };
+        if let (Some(contract), Some(next)) = (receiver_contract, flows.next.as_mut()) {
+            self.apply_receiver_contract(contract, next)?;
+        }
         for (index, argument) in arguments.iter().enumerate() {
             let contract = contracts.get(index).copied();
             if let Some(contract) = contract
@@ -473,8 +530,10 @@ impl Checker<'_> {
                 .loans
                 .retain(|loan| loan.owner != super::ActiveLoanOwner::Call(call));
         }
-        for expression in
-            std::iter::once(callee).chain(arguments.iter().map(|argument| argument.value))
+        for expression in receiver_expression
+            .into_iter()
+            .chain(receiver_contract.is_none().then_some(callee))
+            .chain(arguments.iter().map(|argument| argument.value))
         {
             self.release_last_closure_use(expression, &mut flows)?;
         }

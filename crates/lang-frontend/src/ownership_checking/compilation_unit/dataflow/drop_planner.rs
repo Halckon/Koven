@@ -12,8 +12,8 @@ use crate::{
         Statement, StringPart, WhenCondition,
     },
     type_checking::{
-        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, UnitExpressionId,
-        UnitStatementId, UnitTypeKind,
+        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, ParameterMode,
+        UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -24,7 +24,7 @@ use crate::ownership_checking::{
 
 use super::{Checker, OwnershipCheckingError, UnitCallArgumentOwnershipKind, liveness, span_key};
 use model::{
-    DropExpressionUse, OwnedValue, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
+    DropExpressionUse, OwnedThis, OwnedValue, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
     StringOperandDrop, ValueState, marker_span, merge_value_states,
 };
 
@@ -104,12 +104,24 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         match self.checker.parsed.ast().items().get(id)?.payload().clone() {
             Item::Modified { declaration, .. } => self.item(declaration)?,
             Item::Function {
-                parameters, form, ..
+                name,
+                parameters,
+                form,
+                ..
             } => {
                 if self.liveness.skipped_functions.contains(&id.index()) {
                     return Ok(());
                 }
                 let mut state = ValueState::default();
+                if let Some(receiver) = self.checker.receiver_context(name)
+                    && receiver.mode == ParameterMode::Value
+                    && self.checker.typed.copyability(receiver.ty) == Copyability::MoveOnly
+                {
+                    state.this = Some(OwnedThis {
+                        owner: receiver.owner,
+                        origin: receiver.declaration_span,
+                    });
+                }
                 for parameter in parameters {
                     if let Some(symbol) = self.checker.marker_symbol(parameter.name).copied()
                         && self.checker.is_move_only_variable(symbol)
@@ -386,10 +398,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         let node = self.checker.parsed.ast().expressions().get(id)?;
         match node.payload().clone() {
-            Expression::Error
-            | Expression::This
-            | Expression::Literal(_)
-            | Expression::SuperMember { .. } => Ok(true),
+            Expression::Error | Expression::Literal(_) | Expression::SuperMember { .. } => Ok(true),
+            Expression::This => {
+                if usage == DropExpressionUse::Consume {
+                    state.this = None;
+                }
+                Ok(true)
+            }
             Expression::Lambda { .. } => {
                 for capture in self.checker.captures_of(id) {
                     if capture.mode() == ClosureCaptureMode::Owned
@@ -532,6 +547,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         owned.origin,
                     ));
                 }
+                if let Some(receiver) = state.this {
+                    self.push_fact(PlannerDropFact::new(
+                        PlannerDropPoint::ControlTransfer(id),
+                        PlannerDropTarget::This(receiver.owner),
+                        receiver.origin,
+                    ));
+                }
                 Ok(true)
             }
             Expression::Binary {
@@ -652,15 +674,87 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 let returns = !self
                     .checker
                     .is_nothing_expression(self.checker.unit_expression(id));
-                if !self.expression(callee, DropExpressionUse::Read, state)? {
-                    return Ok(false);
-                }
+                let receiver_contract = self
+                    .checker
+                    .receiver_contracts_by_call
+                    .get(&self.checker.unit_expression(id))
+                    .copied();
                 let contracts = self
                     .checker
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
                 let mut borrowed_roots = Vec::new();
                 let mut borrowed_temporaries = Vec::new();
+                if let Some(contract) = receiver_contract {
+                    match contract.source() {
+                        UnitCallReceiverOrigin::Expression(receiver) => {
+                            let receiver = receiver.expression();
+                            match contract.kind() {
+                                UnitCallArgumentOwnershipKind::Value => {
+                                    if !self.expression(
+                                        receiver,
+                                        DropExpressionUse::Consume,
+                                        state,
+                                    )? {
+                                        return Ok(false);
+                                    }
+                                }
+                                UnitCallArgumentOwnershipKind::SharedLoan
+                                | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
+                                    if let Some(place) = self.checker.place(receiver)? {
+                                        if !self.expression(
+                                            receiver,
+                                            DropExpressionUse::Place,
+                                            state,
+                                        )? {
+                                            return Ok(false);
+                                        }
+                                        if state.position(place.root()).is_some() {
+                                            borrowed_roots.push(place.root());
+                                        }
+                                    } else {
+                                        if !self.expression(
+                                            receiver,
+                                            DropExpressionUse::Place,
+                                            state,
+                                        )? {
+                                            return Ok(false);
+                                        }
+                                        if contract.kind()
+                                            == UnitCallArgumentOwnershipKind::SharedLoan
+                                            && let Some(temporary) = self
+                                                .checker
+                                                .temporary_expression_origin(receiver)?
+                                                .map(UnitExpressionId::expression)
+                                                .filter(|temporary| {
+                                                    self.is_move_only_temporary(*temporary)
+                                                })
+                                        {
+                                            let origin = self
+                                                .checker
+                                                .parsed
+                                                .ast()
+                                                .expressions()
+                                                .get(temporary)?
+                                                .span();
+                                            borrowed_temporaries.push((temporary, origin));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        UnitCallReceiverOrigin::ImplicitThis(_) => {
+                            if contract.kind() == UnitCallArgumentOwnershipKind::Value
+                                && self.checker.typed.copyability(contract.receiver_type())
+                                    == Copyability::MoveOnly
+                            {
+                                state.this = None;
+                            }
+                        }
+                    }
+                } else if !self.expression(callee, DropExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let kind = contracts
                         .and_then(|contracts| contracts.get(index))
@@ -914,6 +1008,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn drop_all(&mut self, point: PlannerDropPoint, state: &mut ValueState) {
         while let Some(symbol) = state.values.last().map(|value| value.symbol) {
             self.drop_named(point, symbol, state);
+        }
+        if let Some(receiver) = state.this.take() {
+            self.push_fact(PlannerDropFact::new(
+                point,
+                PlannerDropTarget::This(receiver.owner),
+                receiver.origin,
+            ));
         }
     }
 

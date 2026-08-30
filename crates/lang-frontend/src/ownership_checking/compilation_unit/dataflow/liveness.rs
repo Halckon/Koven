@@ -502,7 +502,30 @@ impl Builder<'_, '_> {
                     };
                     live = self.expression(argument.value, argument_usage, live)?;
                 }
-                self.expression(callee, ExpressionUse::Read, live)
+                let receiver = self
+                    .checker
+                    .receiver_contracts_by_call
+                    .get(&self.checker.unit_expression(id))
+                    .copied();
+                match receiver.map(|contract| (contract.source(), contract.kind())) {
+                    Some((
+                        crate::type_checking::UnitCallReceiverOrigin::Expression(receiver),
+                        kind,
+                    )) => {
+                        let usage = if kind == UnitCallArgumentOwnershipKind::Value {
+                            ExpressionUse::Consume {
+                                parameter_span: None,
+                            }
+                        } else {
+                            ExpressionUse::Read
+                        };
+                        self.expression(receiver.expression(), usage, live)
+                    }
+                    Some((crate::type_checking::UnitCallReceiverOrigin::ImplicitThis(_), _)) => {
+                        Ok(live)
+                    }
+                    None => self.expression(callee, ExpressionUse::Read, live),
+                }
             }
             Expression::Index { receiver, index } => {
                 let live = self.expression(index, ExpressionUse::Read, live_after)?;

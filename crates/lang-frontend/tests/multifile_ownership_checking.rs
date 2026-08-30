@@ -13,15 +13,16 @@ use lang_frontend::{
         ConstructionDeliveryKind, ConstructionRootKind, LoanKind, OwnershipBindingKind,
         OwnershipCheckingError, OwnershipDeferredReason, RcOwnershipEffectKind, Transferability,
         UnitCallArgumentOwnershipKind, UnitClosureCaptureSource, UnitDropPoint, UnitDropTarget,
-        UnitLoanTarget, UnitValueDeliveryKind, check_compilation_unit_ownership,
+        UnitLoanTarget, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+        UnitValueDeliveryKind, check_compilation_unit_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
         BuiltinType, Capability, Copyability, EnvironmentFunction, EnvironmentFunctionEffect,
-        EnvironmentParameter, EnvironmentType, ParameterMode, TypeEnvironment, UnitExpressionId,
-        UnitTypeKind, ValidatedCompilationUnitTypes, check_compilation_unit_types,
-        standard_environments,
+        EnvironmentParameter, EnvironmentType, ParameterMode, TypeEnvironment,
+        UnitCallReceiverOrigin, UnitExpressionId, UnitTypeKind, ValidatedCompilationUnitTypes,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -561,6 +562,340 @@ fn value_delivery_distinguishes_copy_move_and_temporary() {
         ]
     );
     assert!(ownership.loans().is_empty());
+}
+
+#[test]
+fn member_receiver_is_checked_as_the_zeroth_call_operand() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Worker(var count: Int) {\n\
+             fun read(): Int = count\n\
+             inout fun bump(): Unit { count = count + 1 }\n\
+             own fun finish(): Unit {}\n\
+         }\n\
+         fun use(own first: Worker, own second: Worker): Unit {\n\
+             val a = first.read()\n\
+             val b = first.bump()\n\
+             val c = second.finish()\n\
+             val d = Worker(0).read()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    assert_eq!(ownership.call_receiver_contracts().len(), 4);
+    assert_eq!(ownership.receiver_facts().len(), 4);
+
+    let unit = source_unit(&names, source);
+    let first = symbol_named(&ownership, &names, unit, "first");
+    let second = symbol_named(&ownership, &names, unit, "second");
+    for (text, expected_kind, expected_root) in [
+        (
+            "first.read()",
+            UnitReceiverOwnershipKind::SharedLoan,
+            Some(first),
+        ),
+        (
+            "first.bump()",
+            UnitReceiverOwnershipKind::ExclusiveLoan,
+            Some(first),
+        ),
+        (
+            "second.finish()",
+            UnitReceiverOwnershipKind::Move,
+            Some(second),
+        ),
+        (
+            "Worker(0).read()",
+            UnitReceiverOwnershipKind::SharedLoan,
+            None,
+        ),
+    ] {
+        let call = UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, text));
+        let fact = ownership.receiver_fact(call).expect("receiver fact");
+        assert_eq!(fact.kind(), expected_kind);
+        assert!(fact.declaration_span().is_some());
+        assert_eq!(sources.slice(fact.end_span()).expect("call span"), text);
+        match (fact.source(), fact.target(), expected_root) {
+            (
+                UnitCallReceiverOrigin::Expression(origin),
+                UnitReceiverOwnershipTarget::Place(place),
+                Some(root),
+            ) => {
+                assert_eq!(origin.source_unit(), unit);
+                assert_eq!(place.root(), root);
+            }
+            (
+                UnitCallReceiverOrigin::Expression(origin),
+                UnitReceiverOwnershipTarget::Temporary(temporary),
+                None,
+            ) => {
+                assert_eq!(origin, *temporary);
+            }
+            actual => panic!("unexpected receiver fact: {actual:?}"),
+        }
+    }
+    let temporary_call = UnitExpressionId::new(
+        unit,
+        expression_with_text(&sources, &parsed, "Worker(0).read()"),
+    );
+    let UnitReceiverOwnershipTarget::Temporary(temporary) = ownership
+        .receiver_fact(temporary_call)
+        .expect("temporary receiver fact")
+        .target()
+    else {
+        panic!("Borrow temporary receiver must retain its expression identity");
+    };
+    assert!(ownership.drops().iter().any(|drop| {
+        drop.point() == UnitDropPoint::CallReturn(temporary_call)
+            && drop.target() == UnitDropTarget::Temporary(*temporary)
+    }));
+}
+
+#[test]
+fn member_body_receiver_capability_controls_this_and_implicit_calls() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Worker(var count: Int) {\n\
+             fun read(): Int = count\n\
+             fun forwardRead(): Int = read()\n\
+             inout fun bump(): Unit { count = count + 1 }\n\
+             inout fun forwardBump(): Unit { val result = bump() }\n\
+             own fun take(): Unit { val local = this }\n\
+             own fun keep(): Unit {}\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let unit = source_unit(&names, source);
+    for (text, expected) in [
+        ("read()", UnitReceiverOwnershipKind::SharedLoan),
+        ("bump()", UnitReceiverOwnershipKind::ExclusiveLoan),
+    ] {
+        let call = UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, text));
+        let fact = ownership
+            .receiver_fact(call)
+            .expect("implicit receiver fact");
+        assert_eq!(fact.kind(), expected);
+        assert!(matches!(
+            (fact.source(), fact.target()),
+            (
+                UnitCallReceiverOrigin::ImplicitThis(source_owner),
+                UnitReceiverOwnershipTarget::This(target_owner),
+            ) if source_owner == *target_owner
+        ));
+    }
+    assert_eq!(
+        ownership
+            .drops()
+            .iter()
+            .filter(|fact| matches!(fact.target(), UnitDropTarget::This(_)))
+            .count(),
+        1,
+        "only the unconsumed Value receiver is dropped as this",
+    );
+}
+
+#[test]
+fn receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Worker {\n\
+             inout fun update(other: Worker): Unit {}\n\
+             fun borrowThenTake(own other: Worker): Unit {}\n\
+         }\n\
+         fun first(own worker: Worker): Unit { val result = worker.update(worker) }\n\
+         fun second(own worker: Worker): Unit { val result = worker.borrowThenTake(worker) }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0135", "L0135"]);
+    assert!(ownership.receiver_facts().is_empty());
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+}
+
+#[test]
+fn borrow_only_delegation_publishes_outer_and_field_ownership_plan() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 1 }\n\
+         class Host(val reader: Reader): Readable by reader",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    assert!(ownership.deferred().is_empty());
+    assert_eq!(ownership.delegations().len(), 1);
+    let plan = &ownership.delegations()[0];
+    assert_eq!(plan.target().source_unit(), source_unit(&names, source));
+    assert_eq!(plan.forwarders().len(), 1);
+    assert_eq!(
+        sources
+            .slice(plan.delegation_span())
+            .expect("delegation span"),
+        "by reader",
+    );
+}
+
+#[test]
+fn member_body_rejects_receiver_capability_escalation_and_use_after_move() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Worker(var count: Int) {\n\
+             inout fun bump(): Unit { count = count + 1 }\n\
+             own fun consume(): Unit {}\n\
+             fun badWrite(): Unit { count = 1 }\n\
+             fun badInout(): Unit { val result = bump() }\n\
+             fun badValue(): Unit { val result = consume() }\n\
+             own fun badAfterMove(): Int {\n\
+                 val moved = this\n\
+                 return count\n\
+             }\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert_eq!(
+        diagnostic_codes(&ownership),
+        ["L0134", "L0134", "L0133", "L0131"]
+    );
+    assert!(ownership.receiver_facts().is_empty());
+}
+
+#[test]
+fn shared_this_capture_rejects_moved_outer_and_move_from_capture() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Resource {\n\
+             own fun movedCapture(): Unit {\n\
+                 val moved = this\n\
+                 val closure: () -> Unit = { val observed = this }\n\
+             }\n\
+             fun moveFromCapture(): () -> Unit = { val observed = this }\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0131", "L0133"]);
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.receiver_facts().is_empty());
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.drops().is_empty());
+}
+
+#[test]
+fn failed_this_capture_rolls_back_earlier_symbol_capture_state() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Resource {\n\
+             own fun invalid(own other: Resource): Unit {\n\
+                 val moved = this\n\
+                 val closure: () -> Unit = {\n\
+                     val first = inspect(other)\n\
+                     val second = this\n\
+                 }\n\
+                 val taken = take(other)\n\
+             }\n\
+         }\n\
+         fun inspect(item: Resource): Unit {}\n\
+         fun take(own item: Resource): Unit {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0131"]);
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.receiver_facts().is_empty());
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+    assert!(ownership.drops().is_empty());
+}
+
+#[test]
+fn failed_lambda_body_rolls_back_successful_capture_state() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Resource {}\n\
+         fun take(own item: Resource): Unit {}\n\
+         fun invalid(own other: Resource): Unit {\n\
+             val closure: () -> Unit = { val invalid = take(other) }\n\
+             val valid = take(other)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0133"]);
+    assert!(ownership.captures().is_empty());
+    assert!(ownership.receiver_facts().is_empty());
+    assert!(ownership.loans().is_empty());
+    assert!(ownership.value_deliveries().is_empty());
+    assert!(ownership.drops().is_empty());
 }
 
 #[test]
@@ -1821,7 +2156,6 @@ fn closure_capture_inputs_use_unit_identity_types_and_stable_transferability() {
          }\n\
          class Holder(val resource: Resource) {\n\
              fun closure(): () -> Unit = {\n\
-                 val receiver = this\n\
                  val captured = inspect(resource)\n\
              }\n\
          }",
@@ -2310,7 +2644,8 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
         .iter()
         .filter_map(|fact| match fact.target() {
             UnitDropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
-            UnitDropTarget::Temporary(_)
+            UnitDropTarget::This(_)
+            | UnitDropTarget::Temporary(_)
             | UnitDropTarget::ReplacedElement(_)
             | UnitDropTarget::Captured { .. } => None,
         })

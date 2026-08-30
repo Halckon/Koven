@@ -147,7 +147,7 @@ Cargo target lock 的检查与独立复审可以并行；会争用 build directo
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
-| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201/0180 done，ownership/native 继续按批准与前置推进，复用 ADR-0016 |
+| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201/0180/0181 done，native 下一步按批准与前置推进，复用 ADR-0016 |
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
@@ -317,7 +317,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0208](./0208-constant-materialization-ownership.md) | 把 const use 解释为 scalar inline 或独立 String temporary owner（`draft`） | 0028、0029 `done`；0026；v0.36 待启用 |
 | [0211](./0211-sequential-iteration-ownership.md) | 发布 whole-loop source loan、逐轮 Borrow binding 与全部退出 cleanup facts（`draft`） | 0029、0030、0032 `done`；0179；v0.37 待启用；ADR-0023 `proposed` |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
-| [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`draft`） | 0029、0032 `done`；0180 `done` 后批准 |
+| [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`done`） | 0029、0032、0180 `done`；v0.34 Phase 3 receiver ownership 已闭合 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |

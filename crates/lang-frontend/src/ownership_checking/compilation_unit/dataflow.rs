@@ -9,6 +9,7 @@ mod flow;
 mod liveness;
 mod places;
 mod rc;
+mod receiver;
 mod traversal;
 
 use std::collections::BTreeMap;
@@ -17,23 +18,25 @@ use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes},
     name_resolution::{
-        SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        DeclarationId, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{AssignmentOperator, NameMarker, ParsedFile, VariableKind},
     source::{SourceMap, Span},
     type_checking::{
-        CompilationUnitTypes, Copyability, ExpressionCategory, UnitConstructionDescriptor,
-        UnitExpressionId,
+        CompilationUnitTypes, Copyability, ExpressionCategory, ParameterMode, UnitCallableTarget,
+        UnitConstructionDescriptor, UnitExpressionId, UnitTypeId,
     },
 };
 
 use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, Transferability,
-    UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor,
-    UnitClosureDescriptor, UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact,
-    UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitValueDeliveryFact,
+    UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
+    UnitCallReceiverOwnershipContract, UnitClosureCaptureDescriptor, UnitClosureDescriptor,
+    UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact, UnitLoanTarget,
+    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, UnitValueDeliveryFact,
 };
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
@@ -41,6 +44,7 @@ pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
+    pub(super) receiver_facts: Vec<UnitReceiverOwnershipFact>,
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
@@ -51,6 +55,23 @@ pub(super) struct ClosureInputs<'a> {
     captures: &'a [UnitClosureCaptureDescriptor],
     closures: &'a [UnitClosureDescriptor],
     transferabilities: &'a [Transferability],
+}
+
+pub(super) struct CallInputs<'a> {
+    arguments: &'a [UnitCallArgumentOwnershipContract],
+    receivers: &'a [UnitCallReceiverOwnershipContract],
+}
+
+impl<'a> CallInputs<'a> {
+    pub(super) const fn new(
+        arguments: &'a [UnitCallArgumentOwnershipContract],
+        receivers: &'a [UnitCallReceiverOwnershipContract],
+    ) -> Self {
+        Self {
+            arguments,
+            receivers,
+        }
+    }
 }
 
 impl<'a> ClosureInputs<'a> {
@@ -92,7 +113,7 @@ pub(super) fn analyze(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
-    contracts: &[UnitCallArgumentOwnershipContract],
+    call_inputs: CallInputs<'_>,
     closure_inputs: ClosureInputs<'_>,
 ) -> Result<Analysis, OwnershipCheckingError> {
     let construction_descriptors = collect_construction_descriptors(
@@ -130,6 +151,7 @@ pub(super) fn analyze(
     let mut diagnostics = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
+    let mut receiver_facts = Vec::new();
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut drops = Vec::new();
@@ -151,7 +173,8 @@ pub(super) fn analyze(
             names,
             typed,
             bindings,
-            contracts,
+            call_inputs.arguments,
+            call_inputs.receivers,
             closure_inputs.captures,
             closure_inputs.closures,
             closure_inputs.transferabilities,
@@ -172,6 +195,7 @@ pub(super) fn analyze(
             &mut diagnostics,
             &mut loans,
             &mut value_deliveries,
+            &mut receiver_facts,
             &mut rc_effects,
             &mut construction_plans,
         )?;
@@ -189,6 +213,7 @@ pub(super) fn analyze(
         diagnostics,
         loans,
         value_deliveries,
+        receiver_facts,
         rc_effects,
         construction_plans,
         drops,
@@ -237,6 +262,14 @@ struct Codes {
     non_transferable_delivery: DiagnosticCode,
 }
 
+#[derive(Clone, Copy)]
+struct ReceiverContext {
+    owner: DeclarationId,
+    mode: ParameterMode,
+    ty: UnitTypeId,
+    declaration_span: Span,
+}
+
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
     sources: &'a SourceMap,
@@ -254,12 +287,15 @@ struct Checker<'a> {
     variable_kinds: BTreeMap<UnitSymbolId, VariableKind>,
     field_kinds: BTreeMap<UnitSymbolId, VariableKind>,
     contracts_by_call: BTreeMap<UnitExpressionId, Vec<UnitCallArgumentOwnershipContract>>,
+    receiver_contracts_by_call: BTreeMap<UnitExpressionId, UnitCallReceiverOwnershipContract>,
+    current_receiver: Option<ReceiverContext>,
     expression_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+    receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
 }
@@ -274,6 +310,7 @@ impl<'a> Checker<'a> {
         typed: &'a CompilationUnitTypes,
         bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
         contracts: &[UnitCallArgumentOwnershipContract],
+        receiver_contracts: &[UnitCallReceiverOwnershipContract],
         captures: &'a [UnitClosureCaptureDescriptor],
         closures: &'a [UnitClosureDescriptor],
         transferabilities: &'a [Transferability],
@@ -282,6 +319,7 @@ impl<'a> Checker<'a> {
         diagnostics: &'a mut Vec<Diagnostic>,
         loans: &'a mut Vec<UnitLoanFact>,
         value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
+        receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
         rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
         construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
     ) -> Result<Self, OwnershipCheckingError> {
@@ -331,6 +369,12 @@ impl<'a> Checker<'a> {
                 .or_default()
                 .push(contract);
         }
+        let receiver_contracts_by_call = receiver_contracts
+            .iter()
+            .copied()
+            .filter(|contract| contract.call().source_unit() == source_unit)
+            .map(|contract| (contract.call(), contract))
+            .collect();
         Ok(Self {
             sources,
             parsed,
@@ -347,15 +391,40 @@ impl<'a> Checker<'a> {
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             contracts_by_call,
+            receiver_contracts_by_call,
+            current_receiver: None,
             expression_live_after: Vec::new(),
             statement_live_after: Vec::new(),
             codes,
             diagnostics,
             loans,
             value_deliveries,
+            receiver_facts,
             rc_effects,
             construction_plans,
         })
+    }
+
+    fn receiver_context(&self, name: NameMarker) -> Option<ReceiverContext> {
+        let symbol = self.marker_symbol(name).copied()?;
+        self.typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|declaration| declaration.nominal())
+            .find_map(|nominal| {
+                nominal.members().iter().find_map(|callable| {
+                    (callable.target() == UnitCallableTarget::Symbol(symbol))
+                        .then(|| callable.receiver())
+                        .flatten()
+                        .map(|receiver| ReceiverContext {
+                            owner: nominal.declaration(),
+                            mode: receiver.mode(),
+                            ty: receiver.ty(),
+                            declaration_span: receiver.declaration_span(),
+                        })
+                })
+            })
     }
 
     fn run(&mut self) -> Result<drop_planner::Analysis, OwnershipCheckingError> {
@@ -693,6 +762,11 @@ impl<'a> Checker<'a> {
         parameter_span: Option<Span>,
         state: &mut State,
     ) -> Result<bool, OwnershipCheckingError> {
+        if self.symbol_kind(place.root()) == Some(SymbolKind::Field)
+            && !self.ensure_this_available_at(primary, parameter_span, state)?
+        {
+            return Ok(false);
+        }
         if !self.ensure_available(place, primary, parameter_span, state)? {
             return Ok(false);
         }
@@ -745,6 +819,12 @@ impl<'a> Checker<'a> {
             )?;
             add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
             self.diagnostics.push(diagnostic);
+            return Ok(false);
+        }
+        if self.symbol_kind(place.root()) == Some(SymbolKind::Field)
+            && matches!(access, AccessKind::Mutation | AccessKind::ExclusiveLoan)
+            && !self.require_mutable_this(primary, parameter_span)?
+        {
             return Ok(false);
         }
         Ok(true)

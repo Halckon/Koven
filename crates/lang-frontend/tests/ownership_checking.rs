@@ -695,7 +695,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
 }
 
 #[test]
-fn intrinsic_index_closes_while_nonintrinsic_receiver_remains_deferred() {
+fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
     let text = "class Resource {}\n\
                 class Worker { fun inspect(item: Resource): Unit {} }\n\
                 fun mutate(inout item: Resource): Unit {}\n\
@@ -717,7 +717,7 @@ fn intrinsic_index_closes_while_nonintrinsic_receiver_remains_deferred() {
         .map(|fact| fact.reason())
         .collect::<Vec<_>>();
     assert!(reasons.contains(&OwnershipDeferredReason::IndexPlace));
-    assert!(reasons.contains(&OwnershipDeferredReason::MemberReceiver));
+    assert!(!reasons.contains(&OwnershipDeferredReason::MemberReceiver));
     assert_eq!(checked.captures().len(), 2);
     assert!(!checked.drops().is_empty());
 }

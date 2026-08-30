@@ -3,8 +3,8 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.34 文档集定义。v0.34 已在完整
-v0.33 基线上启用；SPEC-0213/0214/0054、receiver Parser 切片 SPEC-0201 与 typed facts
-SPEC-0180 均已完成。
+v0.33 基线上启用；SPEC-0213/0214/0054 与 receiver 链的 Parser、typed、ownership 切片
+SPEC-0201/0180/0181 均已完成。
 本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
@@ -168,8 +168,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.33 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.34
-的显式 instance receiver Parser/AST 与 typed facts 已由 SPEC-0201/0180 完成；ownership/native
-继续等待 SPEC-0181/0191 分阶段交付。v0.33
+的显式 instance receiver Parser/AST、typed facts 与 ownership facts 已由
+SPEC-0201/0180/0181 完成；native lowering 继续等待 SPEC-0191。v0.33
 的尾随 lambda 与隐式 `it` 已由 SPEC-0213/0214 完成。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
@@ -285,8 +285,11 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   清空 construction plan 与 drop facts。顺序容器构造复用 typed 参数模式；intrinsic index 形成
   root + field path + 逻辑索引 identity，支持 Copyable owned read、MoveOnly L0136、element
   shared/exclusive loan、temporary owner 延寿、固定顺序 replacement 与旧元素 drop fact。
-  非 intrinsic index、post-index field projection、Phase 5 relocation effect 与
-  instance/delegation receiver 的完整所有权契约仍明确 deferred；
+  非 intrinsic index、post-index field projection 与 Phase 5 relocation effect 仍明确 deferred；
+  SPEC-0181 已让 member receiver 作为第零操作数先于显式实参建立 shared/exclusive loan 或
+  Value copy/move，并发布 stable place、temporary、implicit `this`、call-return 与 drop facts；
+  Borrow/Inout/Value `this` 的字段、reborrow、整体移动、capture 冲突和 Borrow-only delegate
+  outer/field shared-loan plan 已进入 compilation-unit ownership 产物；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
@@ -832,8 +835,9 @@ SPEC-0197 第一阶段新增纯内存的
   并检查当前 receiver capability。裸 field 发布 `This(owner)` projection，具名 object 调用保留
   instance receiver 且 object 非 Borrow marker 以 L0099 拒绝。窄化 `by` 委托按源码顺序发布
   Borrow-only forwarder；任一剩余 Inout/Value requirement 以 `by` 为 primary、首个源码 member 为
-  label 发布 L0152，并原子清空该 plan 的 forwarders。receiver loan/move/drop/capture 与 native
-  lowering 仍分别由 SPEC-0181/0191 承接；
+  label 发布 L0152，并原子清空该 plan 的 forwarders。SPEC-0181 进一步消费这些 facts，发布
+  receiver loan/copy/move、Value `this` unique drop 与 Borrow-only delegation ownership plan，
+  并移除一般 member call 的 `MemberReceiver` deferred；native lowering 由 SPEC-0191 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为
@@ -1961,12 +1965,19 @@ identity、deferred 与 L0091、L0094、L0122、L0125–L0130 断言保持不变
 helper 进入名称解析与 copyability 类型检查；共验证 16 个 Lexer 和 16 个完整文件 Parser 产物的
 相同公开不变量。conditional `Copyable`、有限内联布局、intrinsic `Box`、结构化解构 copy /
 consume、source identity 与 L0091、L0115–L0118 断言保持不变，本轮未发现生产缺陷。
-`tests/ownership_checking.rs` 的 14 个 integration test 覆盖 source identity、MoveOnly 与
+`tests/ownership_checking.rs` 的 15 个 integration test 覆盖 source identity、MoveOnly 与
 Copyable 按值交付、Borrow / Inout、重新赋值、temporary、分支 / loop 合流、终止路径、
 SymbolId 遮蔽、错误 AST 去级联、参数 binding、place overlap、源码顺序与 nested-call loan、
 Inout mutability、ASAP drop matrix、deferred 边界、重复运行确定性和真实 pass / fail fixture；
 fixture runner 精确枚举一个正例与一个反例，并核对 L0131、L0133–L0135 的 code 与 primary
 byte Span，领域测试另核对冲突来源和 move/declaration label。
+`tests/multifile_ownership_checking.rs` 的 receiver 矩阵覆盖 stable/temporary、Borrow/Inout/Value、
+第零操作数与显式实参 overlap、implicit `this` capability、Value `this` move/drop、closure
+shared capture 以及 Borrow-only delegation plan；错误路径原子清空 executable receiver facts。
+其中 Value `this` move 后形成 capture 精确报 L0131，shared-captured MoveOnly `this` 的 Value
+移出精确报 L0133，避免把 non-owning capture 静默降级为普通读取。
+capture formation 与 lambda body 在 trial state 上完成；任一 capture 或 body 失败都会回滚先前
+symbol loan/move，并阻止失败 closure identity 登记，避免在 lambda 后产生 L0135/L0137 级联。
 `tests/ownership_construction.rs` 的 6 个 integration test 覆盖 nominal/value-class、payload 与
 bare enum case、intrinsic `Box`、位置/命名参数源码求值顺序、copy/move/temporary delivery、
 inline/heap root obligation、嵌套构造、`Nothing` 截断、active loan，以及 local/temporary/

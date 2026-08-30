@@ -235,7 +235,7 @@ fun main(): Unit {
       fact 冒充，所有权效果继续由 SPEC-0188 承接
 - [x] class-family 的名称、visibility、supertype、`override` 与 `enum class` case type / `when`
       穷尽性检查
-- [ ] **[SPEC-0180](../specs/0180-instance-receiver-typed-facts.md)（draft）**：在 0201 后规范化
+- [x] **[SPEC-0180](../specs/0180-instance-receiver-typed-facts.md)（已完成）**：在 0201 后规范化
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
       不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
 - [ ] **[SPEC-0179](../specs/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
@@ -348,11 +348,11 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [x] 移动后使用（use-after-move）检测
 - [x] 按类型能力区分复制与移动：`Copyable value class` 可以复制；非 `Copyable value class`
       与普通 `class` 转交所有权后都禁止再次使用
-- [ ] **[SPEC-0181](../specs/0181-instance-receiver-ownership.md)（draft）**：消费 0180 facts，
+- [x] **[SPEC-0181](../specs/0181-instance-receiver-ownership.md)（已完成）**：消费 0180 facts，
       检查 receiver/`this` 的 shared/exclusive loan、Value copy/move、字段/capture 冲突与 drop；
       Value `this` 保持 owned-but-immutable，需先整体移入 `var` local 才能取得 mutable root；
       移除一般 MemberReceiver deferred。
-- [ ] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
+- [x] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
       按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
 - [x] 拒绝通过普通字段访问或单独 `componentN()` 移出不可复制分量，不建立部分移动状态
