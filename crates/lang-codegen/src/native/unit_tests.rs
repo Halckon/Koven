@@ -20,7 +20,7 @@ use lang_frontend::{
     },
 };
 
-use super::{NativeObjectErrorKind, emit_native_unit_object};
+use super::{NativeObjectErrorKind, NativeUnitEntry, emit_native_unit_object};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -135,6 +135,32 @@ fn unit_object_atomically_replaces_links_and_runs_across_packages() {
         .output()
         .expect("linked executable must launch");
     assert!(run.status.success(), "{run:?}");
+
+    let argv_object = directory.join("argv.o");
+    let argv_executable = directory.join("argv");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        NativeUnitEntry::BorrowedArguments(analysis.declaration("q", "argvEntry")),
+        &argv_object,
+    )
+    .expect("borrowed Array<String> unit entry emits one native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&argv_object)
+        .arg("-o")
+        .arg(&argv_executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&argv_executable)
+        .args(["first", "second"])
+        .output()
+        .expect("argv executable must launch");
+    assert!(run.status.success(), "{run:?}");
 }
 
 #[test]
@@ -149,12 +175,20 @@ fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
 
     for (entry, expected) in [
         (
-            analysis.declaration("q", "invalidEntry"),
+            NativeUnitEntry::NoArguments(analysis.declaration("q", "invalidEntry")),
             NativeObjectErrorKind::InvalidEntry,
         ),
         (
-            analysis.declaration("q", "unsupportedBorrow"),
+            NativeUnitEntry::NoArguments(analysis.declaration("q", "unsupportedBorrow")),
             NativeObjectErrorKind::UnsupportedSource,
+        ),
+        (
+            NativeUnitEntry::BorrowedArguments(analysis.declaration("q", "entry")),
+            NativeObjectErrorKind::InvalidEntry,
+        ),
+        (
+            NativeUnitEntry::NoArguments(analysis.declaration("q", "argvEntry")),
+            NativeObjectErrorKind::InvalidEntry,
         ),
     ] {
         let error = emit_native_unit_object(
@@ -290,6 +324,7 @@ fn analyze_unit() -> UnitAnalysis {
              val early = exercise(true)\n\
              val normal = exercise(false)\n\
          }\n\
+         fun argvEntry(args: Array<String>): Unit {}\n\
          fun invalidEntry(number: Int): Unit {}\n\
          fun unsupportedBorrow(): Unit {\n\
              val action: move (borrow String) -> Unit = move { message -> p.inspect(message) }\n\

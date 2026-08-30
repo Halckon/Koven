@@ -5,7 +5,7 @@ mod native;
 mod native_tests;
 
 pub use native::{
-    NativeEntry, NativeObjectError, NativeObjectErrorKind, emit_native_object,
+    NativeEntry, NativeObjectError, NativeObjectErrorKind, NativeUnitEntry, emit_native_object,
     emit_native_unit_object,
 };
 

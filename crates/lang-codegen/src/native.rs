@@ -47,6 +47,29 @@ pub enum NativeEntry {
     BorrowedArguments(SymbolId),
 }
 
+/// 已由 project entry resolver 选择的 compilation-unit process entry。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeUnitEntry {
+    /// `() -> Unit` entry。
+    NoArguments(DeclarationId),
+    /// shared Borrow `(Array<String>) -> Unit` entry。
+    BorrowedArguments(DeclarationId),
+}
+
+impl NativeUnitEntry {
+    const fn declaration(self) -> DeclarationId {
+        match self {
+            Self::NoArguments(declaration) | Self::BorrowedArguments(declaration) => declaration,
+        }
+    }
+}
+
+impl From<DeclarationId> for NativeUnitEntry {
+    fn from(declaration: DeclarationId) -> Self {
+        Self::NoArguments(declaration)
+    }
+}
+
 impl NativeEntry {
     const fn symbol(self) -> SymbolId {
         match self {
@@ -72,7 +95,7 @@ pub enum NativeObjectErrorKind {
     BlockingDeferred,
     /// 当前封闭的 frontend→SSA 子集不支持该源码。
     UnsupportedSource,
-    /// entry 不属于本文件的唯一非泛型顶层 `() -> Unit` callable。
+    /// entry 不属于当前输入的唯一受支持非泛型顶层 process callable。
     InvalidEntry,
     /// frontend facts 或 SSA 内部不变量损坏。
     InvalidModel,
@@ -142,7 +165,7 @@ pub fn emit_native_object(
         .map_err(|error| map_backend_error(sources, &program, error))
 }
 
-/// 把 validated compilation-unit analysis chain 和显式顶层 `() -> Unit` entry 原子写为 object。
+/// 把 validated compilation-unit analysis chain 和已解析的显式 process entry 原子写为 object。
 ///
 /// 所有 frontend、SSA、target layout 与 LLVM 验证均在 sibling temporary 上完成；只有完整 object
 /// 生成成功后才替换 `output`。失败时既有目标保持不变，临时文件由本函数清理。
@@ -154,16 +177,24 @@ pub fn emit_native_unit_object(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
     owned: &ValidatedCompilationUnitOwnership,
-    entry: DeclarationId,
+    entry: impl Into<NativeUnitEntry>,
     output: &Path,
 ) -> Result<(), NativeObjectError> {
+    let entry = entry.into();
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)
         .map_err(map_lowering_error)?;
     validate_unit_entry(names, typed, entry)?;
-    let (program, function) =
-        lower_scalar_unit_with_entry(sources, inputs, names, environment, typed, owned, entry)
-            .map_err(map_lowering_error)?;
-    let plan = NativeEntryPlan::NoArguments { function };
+    let (program, function) = lower_scalar_unit_with_entry(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed,
+        owned,
+        entry.declaration(),
+    )
+    .map_err(map_lowering_error)?;
+    let plan = native_unit_entry_plan(&program, entry, function)?;
     let temporary = SiblingObject::reserve(output)?;
     llvm::emit_verified_object(&program, sources, plan, temporary.path())
         .map_err(|error| map_backend_error(sources, &program, error))?;
@@ -229,29 +260,57 @@ fn validate_entry(
 fn validate_unit_entry(
     names: &ValidatedCompilationUnitNames,
     typed: &ValidatedCompilationUnitTypes,
-    entry: DeclarationId,
+    entry: NativeUnitEntry,
 ) -> Result<(), NativeObjectError> {
+    let declaration_id = entry.declaration();
     let declaration = names
         .names()
         .index()
         .declarations()
-        .get(entry.index())
+        .get(declaration_id.index())
         .ok_or_else(|| invalid_entry(None))?;
     let callable = typed
         .types()
         .signatures()
-        .declaration(entry)
+        .declaration(declaration_id)
         .and_then(|signature| signature.callable())
         .ok_or_else(|| invalid_entry(Some(declaration.name_span())))?;
-    if callable.target() != UnitCallableTarget::Declaration(entry)
+    if callable.target() != UnitCallableTarget::Declaration(declaration_id)
         || !callable.type_parameters().is_empty()
-        || !callable.parameters().is_empty()
         || typed.types().types().get(callable.return_type())
             != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
     {
         return Err(invalid_entry(Some(declaration.name_span())));
     }
-    Ok(())
+    let valid_parameters = match entry {
+        NativeUnitEntry::NoArguments(_) => callable.parameters().is_empty(),
+        NativeUnitEntry::BorrowedArguments(_) => match callable.parameters() {
+            [parameter] if parameter.mode() == ParameterMode::Borrow => matches!(
+                typed.types().types().get(parameter.ty()),
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Array,
+                    arguments,
+                }) if matches!(arguments.as_slice(), [string]
+                    if typed.types().types().get(*string)
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::String)))
+            ),
+            _ => false,
+        },
+    };
+    valid_parameters
+        .then_some(())
+        .ok_or_else(|| invalid_entry(Some(declaration.name_span())))
+}
+
+fn native_unit_entry_plan(
+    program: &crate::ssa::model::Program,
+    entry: NativeUnitEntry,
+    function: crate::ssa::model::FunctionId,
+) -> Result<NativeEntryPlan, NativeObjectError> {
+    match entry {
+        NativeUnitEntry::NoArguments(_) => Ok(NativeEntryPlan::NoArguments { function }),
+        NativeUnitEntry::BorrowedArguments(_) => borrowed_arguments_entry_plan(program, function),
+    }
 }
 
 fn native_entry_plan(
@@ -261,42 +320,47 @@ fn native_entry_plan(
 ) -> Result<NativeEntryPlan, NativeObjectError> {
     match entry {
         NativeEntry::NoArguments(_) => Ok(NativeEntryPlan::NoArguments { function }),
-        NativeEntry::BorrowedArguments(_) => {
-            let module = program
-                .module(function.module())
-                .ok_or_else(|| invalid_entry(None))?;
-            let function_data = module
-                .function(function)
-                .ok_or_else(|| invalid_entry(None))?;
-            let parameter = function_data
-                .blocks
-                .first()
-                .and_then(|block| block.parameters.first())
-                .copied()
-                .ok_or_else(|| invalid_entry(None))?;
-            let crate::ssa::model::EntityType::Loan {
-                kind: crate::ssa::model::LoanKind::Shared,
-                target: arguments,
-            } = function_data
-                .entity(parameter)
-                .map(|entity| entity.ty)
-                .ok_or_else(|| invalid_entry(None))?
-            else {
-                return Err(invalid_entry(None));
-            };
-            let (crate::ssa::model::SequentialContainerKind::Array, string) = module
-                .sequential_container(arguments)
-                .ok_or_else(|| invalid_entry(None))?
-            else {
-                return Err(invalid_entry(None));
-            };
-            Ok(NativeEntryPlan::BorrowedArguments {
-                function,
-                arguments,
-                string,
-            })
-        }
+        NativeEntry::BorrowedArguments(_) => borrowed_arguments_entry_plan(program, function),
     }
+}
+
+fn borrowed_arguments_entry_plan(
+    program: &crate::ssa::model::Program,
+    function: crate::ssa::model::FunctionId,
+) -> Result<NativeEntryPlan, NativeObjectError> {
+    let module = program
+        .module(function.module())
+        .ok_or_else(|| invalid_entry(None))?;
+    let function_data = module
+        .function(function)
+        .ok_or_else(|| invalid_entry(None))?;
+    let parameter = function_data
+        .blocks
+        .first()
+        .and_then(|block| block.parameters.first())
+        .copied()
+        .ok_or_else(|| invalid_entry(None))?;
+    let crate::ssa::model::EntityType::Loan {
+        kind: crate::ssa::model::LoanKind::Shared,
+        target: arguments,
+    } = function_data
+        .entity(parameter)
+        .map(|entity| entity.ty)
+        .ok_or_else(|| invalid_entry(None))?
+    else {
+        return Err(invalid_entry(None));
+    };
+    let (crate::ssa::model::SequentialContainerKind::Array, string) = module
+        .sequential_container(arguments)
+        .ok_or_else(|| invalid_entry(None))?
+    else {
+        return Err(invalid_entry(None));
+    };
+    Ok(NativeEntryPlan::BorrowedArguments {
+        function,
+        arguments,
+        string,
+    })
 }
 
 fn invalid_entry(span: Option<Span>) -> NativeObjectError {
