@@ -135,8 +135,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      exit-qualified owner/drop facts。
    - [x] 消费 SPEC-0215 lambda body facts：function pointer/concrete closure thunk 支持 String concat
      composite tail、body-local owner 精确 drop 与显式 return transfer；退出前同时验证无 temporary 或
-     MoveOnly named binding 残留。MoveOnly `if` / `when` result 因缺少完整 body plan 继续原子 fail loud，
-     MoveOnly Value 参数仍等待 lambda-entry drop point。
+     MoveOnly named binding 残留。MoveOnly `if` / `when` result 继续原子 fail loud，MoveOnly Value
+     参数仍等待 lambda-entry drop point。
+   - [ ] 消费 SPEC-0216 control result facts：MoveOnly `if` / `when` 各正常 branch tail owner 转交 merge
+     result，operand/alternative owner 只按 frontend 精确 point 析构；lambda/named callable、nested
+     control、正常/提前退出与输入置换共同锁定。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
@@ -185,10 +188,8 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 ## 9. 未决问题
 
 - 多 object/增量 ABI 明确留给后续 ADR。
-- SPEC-0198 的现行 unit drop planner 会为 MoveOnly control-tail temporary 发布
-  `AfterExpression` drop；例如 String value-`if` 两个 literal 均被计划在各自尾表达式后析构，不能作为
-  merge result 转交。0199 不得忽略 validated drop facts；MoveOnly control result 必须先由独立 frontend
-  follow-up 把 tail 的 Consume/transfer 边界发布正确，再进入 unit SSA。
+- SPEC-0216 已修正 MoveOnly control-tail 的 Consume/transfer 与 alternative drop facts；0199 仍不得
+  忽略 validated facts，必须在独立 SSA 切片消费并验证后才放宽现行 fail-loud 门禁。
 - guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
   `(true) ->` 报 L0058/L0065；0199 只 lower 可达的 bare Boolean literal，不在 Phase 4 内修改 Phase 1
   语法。该 parser/guide 漂移由独立 frontend follow-up 锁定并修正。

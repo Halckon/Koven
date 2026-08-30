@@ -3,6 +3,7 @@
 mod closure;
 mod construction;
 mod container;
+mod control;
 mod drop_planner;
 mod flow;
 mod liveness;
@@ -13,13 +14,13 @@ mod traversal;
 use std::collections::BTreeMap;
 
 use crate::{
-    ast::{ExpressionId, StatementId},
+    ast::ExpressionId,
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes},
     name_resolution::{
         SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
-    parser::{AssignmentOperator, NameMarker, ParsedFile, VariableKind, WhenCondition},
+    parser::{AssignmentOperator, NameMarker, ParsedFile, VariableKind},
     source::{SourceMap, Span},
     type_checking::{
         CompilationUnitTypes, Copyability, ExpressionCategory, UnitConstructionDescriptor,
@@ -34,9 +35,7 @@ use super::{
     UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitValueDeliveryFact,
 };
-use flow::{
-    ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_optional_state, merge_state,
-};
+use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
     pub(super) diagnostics: Vec<Diagnostic>,
@@ -514,83 +513,6 @@ impl<'a> Checker<'a> {
             flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
         }
         Ok(flows)
-    }
-
-    fn check_if(
-        &mut self,
-        condition: ExpressionId,
-        then_branch: StatementId,
-        else_branch: Option<StatementId>,
-        state: State,
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-        let Some(base) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        let mut branches = self.check_statement(then_branch, base.clone())?;
-        branches.merge(if let Some(else_branch) = else_branch {
-            self.check_statement(else_branch, base)?
-        } else {
-            Flows::next(base)
-        });
-        prefix.merge(branches);
-        Ok(prefix)
-    }
-
-    fn check_when(
-        &mut self,
-        subject: Option<ExpressionId>,
-        entries: &[crate::parser::WhenEntry],
-        state: State,
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let mut prefix = Flows::next(state);
-        if let Some(subject) = subject {
-            prefix = self.chain_expression(prefix, subject, ExpressionUse::Read)?;
-        }
-        let Some(mut unmatched) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        let mut branches = Flows::default();
-        for entry in entries {
-            if entry.else_span.is_some() {
-                branches.merge(self.check_statement(entry.body, unmatched)?);
-                prefix.merge(branches);
-                return Ok(prefix);
-            }
-            let mut condition_state = Some(unmatched);
-            let mut body_state = None;
-            for condition in &entry.conditions {
-                let Some(current) = condition_state.take() else {
-                    break;
-                };
-                let expression = match condition {
-                    WhenCondition::Expression(expression)
-                    | WhenCondition::Contains { expression, .. } => Some(*expression),
-                    WhenCondition::TypeTest { .. } => None,
-                };
-                if let Some(expression) = expression {
-                    let mut flows =
-                        self.check_expression(expression, current, ExpressionUse::Read)?;
-                    merge_optional_state(&mut body_state, flows.next.clone());
-                    condition_state = flows.next.take();
-                    prefix.merge(flows);
-                } else {
-                    merge_optional_state(&mut body_state, Some(current.clone()));
-                    condition_state = Some(current);
-                }
-            }
-            if let Some(body_state) = body_state {
-                branches.merge(self.check_statement(entry.body, body_state)?);
-            }
-            let Some(next) = condition_state else {
-                prefix.merge(branches);
-                return Ok(prefix);
-            };
-            unmatched = next;
-        }
-        branches.merge(Flows::next(unmatched));
-        prefix.merge(branches);
-        Ok(prefix)
     }
 
     fn chain_expression(

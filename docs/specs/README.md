@@ -13,8 +13,9 @@ nominal/enum、intrinsic Box/Rc construction、source member body/call/projectio
 member operation、core container construction、container place/assignment、contextual null literal 与
 null-comparison/non-null-use flow、String interpolation、top-level variable/const initializer 与现行
 expression-tail typed traversal，并通过完成审计；
-SPEC-0198 已完成；SPEC-0215 已补齐受支持 lambda body 的独立 liveness、隐式结果 Consume 与
-内部 drop facts；SPEC-0199 已按解锁价值开始 unit reachability/instance plan，0187 仍可独立推进。
+SPEC-0198 已完成；SPEC-0215 已补齐受支持 lambda body 的独立 liveness 与隐式结果 Consume，
+SPEC-0216 已统一 MoveOnly `if` / `when` control tail 的 checker/drop usage facts；SPEC-0199 已按
+解锁价值推进 unit reachability、SSA、LLVM 与 object/native 切片，0187 仍可独立推进。
 已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
@@ -115,6 +116,13 @@ Spec 草案、批准和 `in-progress` 状态不要求分别提交；最终实现
 并包含 `done` 状态、实际验收记录和 Architecture 更新。新 ADR 的决策正文仍应形成独立文档
 提交，但可在首次提交时直接为 `accepted`，不得把 ADR 与依赖它的实现混入同一提交。
 简化的是人工确认和重复状态文书，不是行为验收；任何检查只有实际成功后才能记录为通过。
+
+默认验收采用“受影响窄测 + workspace Clippy + diff/格式检查”：优先把同一 test target 的相关
+case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness 自身并行。`lang-frontend` 全量
+测试耗时约一小时，不再作为每个切片的默认门禁；只在 Spec 明确涉及 frontend 广泛共享不变量、
+发布基线、窄测无法覆盖，或用户明确要求时运行。互不写源码且不争用同一 Cargo target lock 的
+检查与独立复审可以并行；会争用 build directory 的 Cargo 命令顺序执行，避免“并行”退化为锁等待。
+每份 Spec 必须在验收标准中写明本次实际选择的窄测与升级全量测试的条件。
 
 ## 2026-08-26—27 roadmap 依赖审计
 
@@ -299,6 +307,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |
 | [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`done`） | 0197 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | [0215](./0215-lambda-body-result-drop-facts.md) | 发布 lambda body 隐式 MoveOnly 结果与内部 owner drop facts（`done`） | 0029、0032、0197、0198 `done`；当前持续 Goal 的站立授权 |
+| [0216](./0216-control-result-drop-facts.md) | 传播 MoveOnly `if` / `when` Consume usage 并发布精确 branch result/drop facts（`done`） | 0029、0197、0198、0215 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 

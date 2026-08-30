@@ -190,7 +190,7 @@ impl Checker<'_> {
         }
     }
 
-    fn check_elements(
+    pub(super) fn check_elements(
         &mut self,
         elements: &[StatementId],
         state: State,
@@ -269,10 +269,16 @@ impl Checker<'_> {
                 then_branch,
                 else_branch,
                 ..
-            } => self.check_if(condition, then_branch, else_branch, state),
+            } => {
+                let branch_usage = self.control_result_usage(id)?;
+                self.check_if(condition, then_branch, else_branch, state, branch_usage)
+            }
             Expression::When {
                 subject, entries, ..
-            } => self.check_when(subject, &entries, state),
+            } => {
+                let branch_usage = self.control_result_usage(id)?;
+                self.check_when(subject, &entries, state, branch_usage)
+            }
             Expression::Return { value, .. } => {
                 let mut flows = Flows::next(state);
                 if let Some(value) = value {

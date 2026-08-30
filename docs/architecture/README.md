@@ -1159,13 +1159,22 @@ expression element 按隐式返回 `Consume`：结果 owner 转交 caller，内�
 body-local owner 按既有精确 point 析构。MoveOnly Value 参数仍保持门禁，等待独立 lambda-entry drop
 point；该前端事实不自行放宽 SPEC-0199 的 codegen surface，现行 guide 语义未改变。
 
+SPEC-0216 在 main ownership dataflow 与 unit drop planner 中统一 control result usage：MoveOnly
+`if` / `when` 的每条正常 branch tail 总是 Consume 到 merged temporary，父 Read/Consume/Place 只作用于
+该 result；Copyable tail 仍是 Read。`ControlBody` 与直接 expression branch 共用该规则，因此 named
+tail 的 checker moved state 与 drop state 一致，Borrow 不再形成 named/result 双 owner。Consume tail
+不产生 branch 内 `AfterExpression` drop；String operand 仍按 `AfterBinaryOperands` 逆序析构，未选中的
+named alternative 按对应 `BranchExit` 清理，Read/CallReturn 只析构 merged result。`Nothing` call 不
+形成正常 exit/drop。lambda body 不再需要回滚 MoveOnly control plan，facts 与输入顺序无关；该前端
+事实不自行放宽 SSA/LLVM/native surface，现行 guide 语义未改变。
+
 SPEC-0199 第二十三步第三切片开始消费上述事实。callable thunk 不再按 AST 扫描并拒绝所有额外
 MoveOnly temporary，而是沿既有 lowering 消费 lambda body 的精确 drop points；隐式 tail owner 按
 source-qualified expression identity 转移给 `Return`，显式 return 复用 control-transfer 路径。thunk
 退出前必须同时满足 temporary 集合为空、剩余 named binding 不含 concrete MoveOnly 类型，因此
-String concat operand 与 body-local owner 精确析构且结果不 drop；缺完整 body plan 的 MoveOnly
-`if`/`when` result 仍原子失败，MoveOnly Value 参数仍等待 lambda-entry drop point。function pointer
-与 captured concrete closure 共用该契约，现行 guide 语义未改变。
+String concat operand 与 body-local owner 精确析构且结果不 drop；该切片尚未消费 SPEC-0216 的
+MoveOnly `if`/`when` result facts，故仍原子失败，MoveOnly Value 参数仍等待 lambda-entry drop point。
+function pointer 与 captured concrete closure 共用该契约，现行 guide 语义未改变。
 
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM

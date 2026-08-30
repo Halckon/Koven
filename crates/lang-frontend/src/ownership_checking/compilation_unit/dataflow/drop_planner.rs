@@ -1,3 +1,4 @@
+mod control;
 mod lambda;
 mod model;
 
@@ -58,8 +59,6 @@ struct DropPlanner<'a, 'checker> {
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
     binding_depths: BTreeMap<UnitSymbolId, usize>,
-    planning_lambda_body: bool,
-    lambda_body_supported: bool,
 }
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
@@ -71,8 +70,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loop_boundaries: Vec::new(),
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
-            planning_lambda_body: false,
-            lambda_body_supported: true,
         }
     }
 
@@ -383,17 +380,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             return Ok(true);
         }
         let node = self.checker.parsed.ast().expressions().get(id)?;
-        // 分支 result 需要独立的 exit-qualified 事实；当前切片宁可回滚整个 lambda plan，
-        // 也不能把各分支按普通 statement 提前析构。
-        if self.planning_lambda_body
-            && matches!(
-                node.payload(),
-                Expression::If { .. } | Expression::When { .. }
-            )
-            && self.is_move_only_temporary(id)
-        {
-            self.lambda_body_supported = false;
-        }
         match node.payload().clone() {
             Expression::Error
             | Expression::This
@@ -445,17 +431,20 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 else_branch,
                 ..
             } => {
-                self.expression(condition, DropExpressionUse::Read, state)?;
+                let branch_usage = self.control_result_usage(id);
+                if !self.expression(condition, DropExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 let base = state.clone();
                 let mut branch_states = Vec::new();
                 let mut then_state = base.clone();
-                if self.statement(then_branch, &mut then_state)? {
+                if self.control_body(then_branch, branch_usage, &mut then_state)? {
                     self.drop_branch_exit(id, 0, &mut then_state);
                     branch_states.push(then_state);
                 }
                 if let Some(else_branch) = else_branch {
                     let mut else_state = base;
-                    if self.statement(else_branch, &mut else_state)? {
+                    if self.control_body(else_branch, branch_usage, &mut else_state)? {
                         self.drop_branch_exit(id, 1, &mut else_state);
                         branch_states.push(else_state);
                     }
@@ -471,15 +460,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::When {
                 subject, entries, ..
             } => {
-                if let Some(subject) = subject {
-                    self.expression(subject, DropExpressionUse::Read, state)?;
+                let branch_usage = self.control_result_usage(id);
+                if let Some(subject) = subject
+                    && !self.expression(subject, DropExpressionUse::Read, state)?
+                {
+                    return Ok(false);
                 }
                 for entry in &entries {
                     for condition in &entry.conditions {
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition
+                            && !self.expression(*expression, DropExpressionUse::Read, state)?
                         {
-                            self.expression(*expression, DropExpressionUse::Read, state)?;
+                            return Ok(false);
                         }
                     }
                 }
@@ -487,7 +480,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 let mut branch_states = Vec::new();
                 for (index, entry) in entries.iter().enumerate() {
                     let mut branch = base.clone();
-                    if self.statement(entry.body, &mut branch)? {
+                    if self.control_body(entry.body, branch_usage, &mut branch)? {
                         self.drop_branch_exit(id, index, &mut branch);
                         branch_states.push(branch);
                     }
@@ -651,12 +644,18 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Call {
                 callee, arguments, ..
             } => {
-                self.expression(callee, DropExpressionUse::Read, state)?;
+                let returns = !self
+                    .checker
+                    .is_nothing_expression(self.checker.unit_expression(id));
+                if !self.expression(callee, DropExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 let contracts = self
                     .checker
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
                 let mut borrowed_roots = Vec::new();
+                let mut borrowed_temporaries = Vec::new();
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let kind = contracts
                         .and_then(|contracts| contracts.get(index))
@@ -664,19 +663,37 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         .unwrap_or(UnitCallArgumentOwnershipKind::SharedLoan);
                     match kind {
                         UnitCallArgumentOwnershipKind::Value => {
-                            self.expression(argument.value, DropExpressionUse::Consume, state)?;
+                            if !self.expression(
+                                argument.value,
+                                DropExpressionUse::Consume,
+                                state,
+                            )? {
+                                return Ok(false);
+                            }
                         }
                         UnitCallArgumentOwnershipKind::SharedLoan
                         | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
                             if let Some(place) = self.checker.place(argument.value)? {
                                 let root = place.root();
-                                self.expression(argument.value, DropExpressionUse::Place, state)?;
+                                if !self.expression(
+                                    argument.value,
+                                    DropExpressionUse::Place,
+                                    state,
+                                )? {
+                                    return Ok(false);
+                                }
                                 if state.position(root).is_some() && !borrowed_roots.contains(&root)
                                 {
                                     borrowed_roots.push(root);
                                 }
                             } else {
-                                self.expression(argument.value, DropExpressionUse::Place, state)?;
+                                if !self.expression(
+                                    argument.value,
+                                    DropExpressionUse::Place,
+                                    state,
+                                )? {
+                                    return Ok(false);
+                                }
                                 if let Some(temporary) = self
                                     .checker
                                     .temporary_element_owner(argument.value)?
@@ -694,15 +711,21 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         .expressions()
                                         .get(temporary)?
                                         .span();
-                                    self.push_fact(PlannerDropFact::new(
-                                        PlannerDropPoint::CallReturn(id),
-                                        PlannerDropTarget::Temporary(temporary),
-                                        origin,
-                                    ));
+                                    borrowed_temporaries.push((temporary, origin));
                                 }
                             }
                         }
                     }
+                }
+                if !returns {
+                    return Ok(false);
+                }
+                for (temporary, origin) in borrowed_temporaries {
+                    self.push_fact(PlannerDropFact::new(
+                        PlannerDropPoint::CallReturn(id),
+                        PlannerDropTarget::Temporary(temporary),
+                        origin,
+                    ));
                 }
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {

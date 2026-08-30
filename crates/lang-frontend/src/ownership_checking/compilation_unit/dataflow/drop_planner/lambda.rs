@@ -10,17 +10,7 @@ impl DropPlanner<'_, '_> {
         &mut self,
         body: StatementId,
     ) -> Result<(), OwnershipCheckingError> {
-        debug_assert!(!self.planning_lambda_body);
-        let fact_checkpoint = self.facts.len();
-        self.planning_lambda_body = true;
-        self.lambda_body_supported = true;
-        let result = self.plan_lambda_body_inner(body);
-        self.planning_lambda_body = false;
-        if !self.lambda_body_supported {
-            self.facts.truncate(fact_checkpoint);
-        }
-        self.lambda_body_supported = true;
-        result
+        self.plan_lambda_body_inner(body)
     }
 
     fn plan_lambda_body_inner(&mut self, body: StatementId) -> Result<(), OwnershipCheckingError> {
