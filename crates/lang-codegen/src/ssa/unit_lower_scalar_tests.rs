@@ -3,7 +3,6 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweringErrorKind,
     model::{
         CheckedArithmeticOperator, ComparisonOperator, EntityId, Function, Operation, Program,
         ScalarConstant, TerminatorKind,
@@ -169,33 +168,6 @@ fn folds_the_signed_minimum_literal_without_a_spurious_overflow_edge() {
             .as_ref()
             .is_some_and(|terminator| matches!(&terminator.kind, TerminatorKind::Abort))
     }));
-}
-
-#[test]
-fn keeps_string_binary_outside_the_integer_scalar_slice() {
-    let mut sources = SourceMap::new();
-    let (source, file) = parsed(
-        &mut sources,
-        "test/entry.ko",
-        "package test\nfun entry(): String = \"left\" + \"right\"",
-    );
-    let inputs = [SourceUnitInput::new("root", "test/entry.ko", source, &file)];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-
-    let error = match lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "test", "entry"),
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("String concatenation remains an explicit later slice"),
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
 
 fn lower_single(source_text: &str) -> Program {

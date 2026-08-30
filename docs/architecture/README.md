@@ -995,6 +995,17 @@ ownership traversal 尚未发布 short-circuit path-qualified owner state，而�
 不会把顺序 ownership facts 猜成路径事实。结构测试锁定 `&&`/`||` 的相反 RHS edge、单一 RHS call、
 short 常量、共同 merge、result-first/carried slot 数和 String owner 不被提前 drop，并保留该 fail-loud 门禁。
 
+第十三切片把 compilation-unit scalar dispatcher 扩展到 String `+` / `==` / `!=`。name/group operand
+直接解析为当前 live owner value，其余 literal/call operand 先按正常 expression lowering 生成 temporary；
+`StringConcat` / `StringEqual` 只读取这些 value views，不消费 owner。operation 完成后 lowerer 精确消费
+source-qualified `UnitDropPoint::AfterBinaryOperands`，使 dead named 与 temporary operand 按 frontend 发布的
+right-to-left 顺序析构；concat 新 owner 随后才由外层 expression category 登记，可安全转交局部、Value
+参数或函数返回。`!=` 在 operand drops 之后对 `StringEqual` result 生成 `BooleanNot`。verified SSA 测试
+锁定 literal concat 的 source-order operands、逆序 drops 与返回 owner identity，以及跨文件 suffix
+temporary/local named drops、joined owner 传给 identity、两条 equality 的精确 RHS identity、严格
+`StringEqual -> Drop(RHS) -> BooleanNot` 时序和输入置换。Borrow String 参数仍受 unit function ABI 的
+既有显式门禁，不把本切片描述成完整 Borrow lowering。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

@@ -2,6 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
+    ownership_checking::UnitDropPoint,
     parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator},
     source::Span,
     type_checking::{BuiltinType, UnitExpressionId},
@@ -91,6 +92,9 @@ impl UnitExpressionLowerer<'_> {
             return self.lower_short_circuit(left, operator, right, expression, span);
         }
         let operand_type = self.expression_builtin_type(left, span)?;
+        if operand_type == Some(BuiltinType::String) {
+            return self.lower_string_binary(left, operator, right, expression, span);
+        }
         let supported = match operator {
             BinaryOperator::Add
             | BinaryOperator::Subtract
@@ -127,6 +131,71 @@ impl UnitExpressionLowerer<'_> {
             ty,
             span,
         )
+    }
+
+    fn lower_string_binary(
+        &mut self,
+        left: ExpressionId,
+        operator: BinaryOperator,
+        right: ExpressionId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let left = self.lower_string_view(left, span)?;
+        let right = self.lower_string_view(right, span)?;
+        let ty = self.expression_ssa_type(expression, span)?;
+        let operation = match operator {
+            BinaryOperator::Add => Operation::StringConcat { left, right },
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                Operation::StringEqual { left, right }
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        let result = self.append_scalar(operation, ty, span)?;
+        self.emit_drops(UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(
+            self.source_unit,
+            expression,
+        )))?;
+        if operator != BinaryOperator::NotEqual {
+            return Ok(result);
+        }
+        let LoweredValue::Value(result) = result else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        self.append_scalar(Operation::BooleanNot { operand: result }, ty, span)
+    }
+
+    fn lower_string_view(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<crate::ssa::model::EntityId, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match node.payload() {
+            Expression::Group { expression } => self.lower_string_view(*expression, span),
+            Expression::Name => {
+                let symbol = self
+                    .references
+                    .get(&super::span_key(node.span()))
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+                match self.bindings.get(symbol).copied() {
+                    Some(LoweredValue::Value(value)) => {
+                        Ok(crate::ssa::model::EntityId::Value(value))
+                    }
+                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => Err(
+                        lowering_error(LoweringErrorKind::UnsupportedNode, node.span()),
+                    ),
+                }
+            }
+            _ => self
+                .lower_required_value(expression, span)
+                .map(crate::ssa::model::EntityId::Value),
+        }
     }
 
     fn checked(
