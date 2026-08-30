@@ -137,12 +137,16 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
      DISubprogram/DILocation 与输入反序后的完整 LLVM 文本确定性；object/native 仍由后续切片承接。
-25. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+25. [x] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
    - [x] 接首个 public unit object API：validated identity chain 先于 entry shape 校验，显式
      `DeclarationId` 仅接受非泛型零参数 `Unit` callable；LLVM 只写同目录 `create_new` sibling
      temporary，成功后单次 rename 提交。跨 package alias/captured closure/dynamic String 正例完成
      Mach-O link/run；InvalidEntry、UnsupportedSource、MismatchedAnalysis 与 commit failure 均保留旧目标
-     并清理 temporary。aggregate/Rc/constructor 与提前退出的完整 native matrix 仍待后续子切片。
+     并清理 temporary。该首切片尚未覆盖 aggregate/Rc/constructor 与提前退出组合。
+   - [x] 在同一真实可执行 fixture 补齐 native owner/drop matrix：跨文件 named class/value class/Box
+     constructor、动态 String 字段、字段投影、`Rc<Int>` construction/share/payload read，以及 consumer
+     同时持有 class/Box/Rc 后的正常 Value delivery 与提前 return drop 均完成 Mach-O link/run；不新增
+     重复 production API 或分散 link/run 流程。
 
 ## 8. 提交计划
 
@@ -299,6 +303,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib --locked --offline` | 226 passed, 1 ignored | unit object/native 集成与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十五步第一切片沿用“单一窄测 → crate 全量 → workspace Clippy”的简化验收，不重复历史 SSA/LLVM 窄测或未覆盖的后续 native matrix |
 | 独立 fresh-context 评审与复审 | 通过 | 初审发现 entry shape 先于 analysis identity 会造成错误分类漂移的 P2；抽取唯一 `validate_unit_inputs` 并把 compatibility gate 前置，新增 foreign analysis 回归后复审无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 2 passed | 单一真实可执行 fixture 合并 alias/closure/String、class/value class/Box constructor、Rc retain/payload read，以及同时持有三类 owner 时的正常 Value delivery 与提前 return drop；原子负例继续走 public API |
+| `cargo test -p lang-codegen --lib --locked --offline` | 226 passed, 1 ignored | 完整 native matrix 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十五步完成切片继续采用“单一窄测 → crate 全量 → workspace Clippy”，不重复历史 SSA/LLVM 窄测或拆分多个 link/run fixture |
+| 独立 fresh-context 评审与复审 | 通过 | 复核 constructor/generic owner、String/Rc/aggregate 正常与提前退出析构，以及 public commit-failure 错误传播、旧目标保持和 temporary 清理；修复 helper-only 覆盖的 P3 后无 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -398,3 +406,12 @@ Borrow、动态 String concat/result/drop，并真实生成 Mach-O、Clang link/
 UnsupportedSource、MismatchedAnalysis 与 commit failure 的错误分类及旧目标保留。该子切片尚不等于
 SPEC-0199 完整 native matrix；multi-file aggregate/Rc/constructor 与正常/提前退出组合仍由后续子切片
 承接，公开 project CLI 仍属于 SPEC-0054，现行 guide 语义未改变。
+
+第二十五步的完成切片不再新增 production surface，而是在上述 public API 的单一真实可执行 fixture 中
+补齐剩余 native matrix。provider 同时提供 named class、value class→Box、`Rc<Int>` 与动态 String
+construction/operation；consumer 在同一函数内先取得三类 owner，再分别以 `flag=true` 的提前 return
+验证本地析构，以 `flag=false` 的跨文件 consuming call 验证 Value delivery、field projection、Rc
+retain/payload read 与最终唯一 drop。alias captured closure 与动态 String 返回仍在同一 executable 中运行，
+避免为每类 owner 重复 object/link/run。负例继续从 public `emit_native_unit_object` 触发 commit failure，
+锁定错误传播、旧目标保持与 sibling temporary 清理。至此第二十五步的 object/native 正反矩阵、文档与
+workspace 基线完成；该切片不改变 guide 语义，公开 project CLI 仍属于 SPEC-0054。

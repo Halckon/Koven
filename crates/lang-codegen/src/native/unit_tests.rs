@@ -211,19 +211,42 @@ fn analyze_unit() -> UnitAnalysis {
         &mut sources,
         "p/provider.ko",
         "package p\n\
+         value class Token(val item: Int)\n\
+         class Bundle(val text: String, val count: Int)\n\
          fun make(number: Int): String = \"provider\" + \"!\"\n\
-         fun inspect(message: String): Unit {}",
+         fun inspect(message: String): Unit {}\n\
+         fun makeBundle(): Bundle = Bundle(count = 7, text = \"bundle\" + \"!\")\n\
+         fun count(own bundle: Bundle): Int = bundle.count\n\
+         fun boxed(): Box<Token> = Box(Token(9))\n\
+         fun inspectBox(own resource: Box<Token>): Int = 1\n\
+         fun buildRc(): Rc<Int> = Rc(40)\n\
+         fun useRc(own owner: Rc<Int>): Int {\n\
+             val retained = owner.share()\n\
+             val copied = retained.value\n\
+             return copied + owner.value\n\
+         }",
     );
     let (consumer_source, consumer) = parsed(
         &mut sources,
         "q/consumer.ko",
         "package q\n\
          import p.make as build\n\
+         fun exercise(flag: Boolean): Unit {\n\
+             val bundle = p.makeBundle()\n\
+             val boxed = p.boxed()\n\
+             val shared = p.buildRc()\n\
+             if (flag) { return }\n\
+             val counted = p.count(bundle)\n\
+             val inspected = p.inspectBox(boxed)\n\
+             val used = p.useRc(shared)\n\
+         }\n\
          fun entry(): Unit {\n\
              val offset = 2\n\
              val action: move (borrow Int) -> String = move { item -> build(item + offset) }\n\
              val message = action(3)\n\
              val seen = p.inspect(message)\n\
+             val early = exercise(true)\n\
+             val normal = exercise(false)\n\
          }\n\
          fun invalidEntry(number: Int): Unit {}\n\
          fun unsupported(): Unit {\n\

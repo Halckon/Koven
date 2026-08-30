@@ -1164,6 +1164,15 @@ callable。verified LLVM object 只写同目录、通过 `create_new` 原子抢�
 aggregate/Rc/constructor 与提前退出的完整矩阵仍由 SPEC-0199 后续子切片承接；project CLI 不在本 API
 边界内，现行 guide 语义未改变。
 
+SPEC-0199 第二十五步的完成切片复用同一 public API 与单一真实可执行 fixture，补齐 current unit-native
+owner/drop matrix。provider 的 named class、value class→Box、`Rc<Int>` 与动态 String construction 经过
+跨文件 call 进入 consumer；consumer 同时持有 class/Box/Rc owner 后，提前 return 路径验证三个本地 owner
+的析构，正常路径则验证跨文件 consuming Value delivery、field projection、Rc retain/payload read 与最终
+唯一 drop。alias captured closure 与动态 String 返回继续在同一 Mach-O link/run 中执行，未为不同 owner
+类别复制 object/link/run 流程。commit failure 仍从 public API 端到端验证错误传播、旧目标保持和 sibling
+temporary 清理。由此第二十五步的单 object 原子写入、native 正反矩阵与 workspace 基线完成；project CLI
+仍属于 SPEC-0054，现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
