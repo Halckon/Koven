@@ -1,0 +1,267 @@
+//! compilation-unit scalar prefix、checked arithmetic 与 comparison lowering。
+
+use lang_frontend::{
+    ast::ExpressionId,
+    parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator},
+    source::Span,
+    type_checking::{BuiltinType, UnitExpressionId},
+};
+
+use super::{
+    LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, parse_integer_literal,
+    require_value, resolve_concrete_type,
+};
+use crate::ssa::{
+    LoweringError, LoweringErrorKind,
+    model::{
+        CheckedArithmeticOperator, ComparisonOperator, Edge, EntityType, Operation, Origin,
+        ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
+    },
+};
+
+impl UnitExpressionLowerer<'_> {
+    pub(super) fn lower_prefix(
+        &mut self,
+        operator: PrefixOperator,
+        operand: ExpressionId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let operand_type = self.expression_builtin_type(operand, span)?;
+        let supported = match operator {
+            PrefixOperator::Not => operand_type == Some(BuiltinType::Boolean),
+            PrefixOperator::Plus | PrefixOperator::Minus => {
+                operand_type.is_some_and(is_integer_builtin)
+            }
+        };
+        if !supported {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if operator == PrefixOperator::Minus {
+            let operand_node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if let Expression::Literal(LiteralKind::Integer(kind)) = operand_node.payload() {
+                let constant = parse_integer_literal(self.sources, *kind, operand_node.span())?
+                    .checked_neg()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidLiteral, span))?;
+                let ty = self.expression_ssa_type(expression, span)?;
+                return self.append_scalar(
+                    Operation::Constant(ScalarConstant::Integer(constant)),
+                    ty,
+                    span,
+                );
+            }
+        }
+
+        let operand = self.lower_required_value(operand, span)?;
+        match operator {
+            PrefixOperator::Plus => Ok(LoweredValue::Value(operand)),
+            PrefixOperator::Not => {
+                let ty = self.expression_ssa_type(expression, span)?;
+                self.append_scalar(Operation::BooleanNot { operand }, ty, span)
+            }
+            PrefixOperator::Minus => {
+                let ty = self.expression_ssa_type(expression, span)?;
+                let zero =
+                    self.append_scalar(Operation::Constant(ScalarConstant::Integer(0)), ty, span)?;
+                let LoweredValue::Value(zero) = zero else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                self.checked(CheckedArithmeticOperator::Subtract, zero, operand, ty, span)
+            }
+        }
+    }
+
+    pub(super) fn lower_scalar_binary(
+        &mut self,
+        left: ExpressionId,
+        operator: BinaryOperator,
+        right: ExpressionId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let operand_type = self.expression_builtin_type(left, span)?;
+        let supported = match operator {
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Remainder
+            | BinaryOperator::Less
+            | BinaryOperator::LessEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterEqual => operand_type.is_some_and(is_integer_builtin),
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                operand_type == Some(BuiltinType::Boolean)
+                    || operand_type.is_some_and(is_integer_builtin)
+            }
+            _ => false,
+        };
+        if !supported {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let left = self.lower_required_value(left, span)?;
+        let right = self.lower_required_value(right, span)?;
+        let ty = self.expression_ssa_type(expression, span)?;
+        if let Some(operator) = checked_operator(operator) {
+            return self.checked(operator, left, right, ty, span);
+        }
+        let operator = comparison_operator(operator)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        self.append_scalar(
+            Operation::Compare {
+                operator,
+                left,
+                right,
+            },
+            ty,
+            span,
+        )
+    }
+
+    fn checked(
+        &mut self,
+        operator: CheckedArithmeticOperator,
+        left: ValueId,
+        right: ValueId,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let boolean = self
+            .type_ids
+            .iter()
+            .find_map(|(frontend, ssa)| {
+                (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
+            })
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::CheckedArithmetic {
+                    operator,
+                    left,
+                    right,
+                },
+                vec![EntityType::Value(ty), EntityType::Value(boolean)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let failure = self
+            .function
+            .add_block(Vec::new(), Origin::Source(span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let success = self
+            .function
+            .add_block(Vec::new(), Origin::Source(span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Conditional {
+                    condition: require_value(results[1], span)?,
+                    when_true: Edge {
+                        target: failure,
+                        arguments: Vec::new(),
+                    },
+                    when_false: Edge {
+                        target: success,
+                        arguments: Vec::new(),
+                    },
+                },
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.function
+            .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.block = success;
+        Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    fn lower_required_value(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        match self.lower(expression)? {
+            LoweredValue::Value(value) => Ok(value),
+            LoweredValue::Unit | LoweredValue::Diverged => {
+                Err(lowering_error(LoweringErrorKind::MissingFact, span))
+            }
+        }
+    }
+
+    fn expression_builtin_type(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<BuiltinType>, LoweringError> {
+        let ty = self
+            .typed
+            .types()
+            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+        Ok(builtin_type(self.typed, concrete))
+    }
+
+    fn append_scalar(
+        &mut self,
+        operation: Operation,
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                operation,
+                vec![EntityType::Value(ty)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+}
+
+const fn is_integer_builtin(builtin: BuiltinType) -> bool {
+    matches!(
+        builtin,
+        BuiltinType::Byte
+            | BuiltinType::Short
+            | BuiltinType::Int
+            | BuiltinType::Long
+            | BuiltinType::UByte
+            | BuiltinType::UShort
+            | BuiltinType::UInt
+            | BuiltinType::ULong
+    )
+}
+
+fn checked_operator(operator: BinaryOperator) -> Option<CheckedArithmeticOperator> {
+    match operator {
+        BinaryOperator::Add => Some(CheckedArithmeticOperator::Add),
+        BinaryOperator::Subtract => Some(CheckedArithmeticOperator::Subtract),
+        BinaryOperator::Multiply => Some(CheckedArithmeticOperator::Multiply),
+        BinaryOperator::Divide => Some(CheckedArithmeticOperator::Divide),
+        BinaryOperator::Remainder => Some(CheckedArithmeticOperator::Remainder),
+        _ => None,
+    }
+}
+
+fn comparison_operator(operator: BinaryOperator) -> Option<ComparisonOperator> {
+    match operator {
+        BinaryOperator::Equal => Some(ComparisonOperator::Equal),
+        BinaryOperator::NotEqual => Some(ComparisonOperator::NotEqual),
+        BinaryOperator::Less => Some(ComparisonOperator::LessThan),
+        BinaryOperator::LessEqual => Some(ComparisonOperator::LessThanOrEqual),
+        BinaryOperator::Greater => Some(ComparisonOperator::GreaterThan),
+        BinaryOperator::GreaterEqual => Some(ComparisonOperator::GreaterThanOrEqual),
+        _ => None,
+    }
+}

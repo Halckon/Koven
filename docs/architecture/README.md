@@ -975,6 +975,16 @@ expression condition；type-test/contains、非 Boolean subject 和 MoveOnly con
 body-only String local 的唯一 drop、generic `T` body fact 到具体 String instance 的替换，以及 dead
 Boolean body 不污染 Int-only module type table；精确 type vector 同时锁定 signature-first identity。
 
+第十一切片新增独立 `unit_lower::scalar`，接入现行整数 scalar 前缀、5 类 checked arithmetic 与
+6 类 comparison。每个 checked instruction 同时产生数值结果和 Boolean failure flag；所在 block
+立即以该 flag 建立 conditional，`true` edge 进入独立 `Abort` block，`false` edge 才继续使用数值结果，
+因此溢出、除零和有符号除法边界保持 fail-closed。直接负整数字面量仍在 frontend 已定型范围内折叠，
+包括有符号最小值，不生成运行时伪 overflow edge。type plan 只在 reachable instance 自身 body 的
+整数 checked AST 上追加内部 Boolean failure type，保持 signature-first identity、dead-body 隔离和输入
+置换确定性；String binary、逻辑短路、赋值与非整数运算仍在构造可发布 SSA 前返回显式未支持边界。
+verified SSA 测试覆盖跨文件组合、一元 `!`、全部算术/比较映射，并逐条绑定 failure result、Conditional
+condition 与 `true -> Abort` / `false -> continuation`，避免仅统计 Abort block 的假阳性。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

@@ -4,6 +4,7 @@ mod cfg;
 mod control;
 mod loop_control;
 mod ownership;
+mod scalar;
 mod type_plan;
 
 use std::collections::BTreeMap;
@@ -366,6 +367,15 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::Call { arguments, .. } => self.lower_call(expression, arguments, span),
+            Expression::Prefix {
+                operator, operand, ..
+            } => self.lower_prefix(*operator, *operand, expression, span),
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } => self.lower_scalar_binary(*left, *operator, *right, expression, span),
             Expression::If {
                 condition,
                 then_branch,

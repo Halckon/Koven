@@ -80,10 +80,12 @@
    subject comparison、同 entry 多 condition 只 lower body 一次、原 entry index 与一致 owner 状态合流。
 10. [x] 预规划 reachable body-only scalar storage type → 验证：signature-first identity、literal-only
    Boolean `when`、String local owner/drop、泛型 instance substitution、死 body 隔离与输入置换。
-11. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
+11. [x] 接整数 scalar prefix/checked arithmetic/comparison → 验证：5 类算术的 failure result
+   `true -> Abort`、6 类比较、一元运算、最小负字面量、跨文件输入置换与 String 边界隔离。
+12. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-12. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-13. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+13. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+14. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -99,8 +101,10 @@
 | 8 | loop jump 与 bare loop | `feat(codegen): lower multifile loop jumps (SPEC-0199)` |
 | 9 | Boolean `when` entry chain | `feat(codegen): lower multifile when chains (SPEC-0199)` |
 | 10 | reachable body-only scalar type plan | `feat(codegen): plan multifile body scalar types (SPEC-0199)` |
-| 11 | 其余现行表面的 owner-aware verified SSA/LLVM | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 12 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 11 | integer scalar operators 与 checked failure CFG | `feat(codegen): lower multifile scalar operators (SPEC-0199)` |
+| 12 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 13 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 14 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -159,3 +163,6 @@
 | `cargo test -p lang-codegen --lib unit_lower_when_tests` | 6 passed | body-only Boolean type plan 接入后的 when short-circuit/owner CFG 回归 |
 | `cargo test -p lang-codegen --lib` | 191 passed, 1 ignored | reachable body-only scalar type-plan 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十切片沿用 scoped 窄测 → 受影响 crate 全量 → workspace 静态门禁 |
+| `cargo test -p lang-codegen --lib unit_lower_scalar_tests` | 4 passed | 5 类 checked 算术、6 类比较、一元运算、最小负字面量、String 显式边界；逐指令锁定 failure result 为 Conditional condition、`true -> Abort`、`false -> continuation` |
+| `cargo test -p lang-codegen --lib` | 195 passed, 1 ignored | integer scalar operator 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十一切片继续使用窄测试 → 受影响 crate 全量 → workspace 静态门禁，不重复无关 runtime matrix |

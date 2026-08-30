@@ -3,9 +3,9 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    parser::ParsedFile,
+    parser::{BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator},
     source::Span,
-    type_checking::{UnitTypeId, ValidatedCompilationUnitTypes},
+    type_checking::{BuiltinType, UnitTypeId, ValidatedCompilationUnitTypes},
 };
 
 use super::{
@@ -36,11 +36,79 @@ pub(super) fn intern_body_scalar_types(
             continue;
         }
         let concrete = resolve_concrete_type(typed, ty, instance.substitutions(), span)?;
+        if builtin_type(typed, concrete).is_some_and(is_integer_builtin)
+            && requires_checked_failure_type(parsed, expression.expression())?
+        {
+            let boolean = typed
+                .types()
+                .types()
+                .builtin(BuiltinType::Boolean)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            intern_scalar_type(module, typed, type_ids, boolean, span)?;
+        }
         if builtin_type(typed, concrete).is_some_and(is_scalar_storage_builtin) {
             intern_scalar_type(module, typed, type_ids, concrete, span)?;
         }
     }
     Ok(())
+}
+
+const fn is_integer_builtin(builtin: BuiltinType) -> bool {
+    matches!(
+        builtin,
+        BuiltinType::Byte
+            | BuiltinType::Short
+            | BuiltinType::Int
+            | BuiltinType::Long
+            | BuiltinType::UByte
+            | BuiltinType::UShort
+            | BuiltinType::UInt
+            | BuiltinType::ULong
+    )
+}
+
+fn requires_checked_failure_type(
+    parsed: &ParsedFile,
+    expression: lang_frontend::ast::ExpressionId,
+) -> Result<bool, LoweringError> {
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(expression)
+        .map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    let required = match node.payload() {
+        Expression::Binary { operator, .. } => matches!(
+            operator,
+            BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Remainder
+        ),
+        Expression::Prefix {
+            operator: PrefixOperator::Minus,
+            operand,
+            ..
+        } => {
+            let operand = parsed
+                .ast()
+                .expressions()
+                .get(*operand)
+                .map_err(|_| LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?;
+            !matches!(
+                operand.payload(),
+                Expression::Literal(LiteralKind::Integer(_))
+            )
+        }
+        _ => false,
+    };
+    Ok(required)
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {
