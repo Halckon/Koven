@@ -2,7 +2,8 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.32 文档集定义。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.33 文档集定义。v0.33 已启用但
+SPEC-0213/0214/0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -156,9 +157,10 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 
 ## 当前状态
 
-仓库已完成 Phase 0、Phase 1 与当前已实施的 Phase 2/Phase 3 主线，并已完成 Phase 4 的
+仓库已完成 Phase 0、截至 v0.32 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.33
+的 Phase 1 增量等待 SPEC-0213/0214。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
-闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至现行 v0.32
+闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
 所有权，以及简化 closure capture 与跨线程 `Transferable` 已经实现。工程骨架按
 [ADR-0002](../adr/0002-bootstrap-workspace-layout.md) 建立，当前已实现：
@@ -795,7 +797,8 @@ SPEC-0197 第一阶段新增纯内存的
   declaring classifier identity 表示隐式 `this`；field 为 place、结构分量 call 为 temporary。member
   `private` 以 lexical owner 检查（含 safe/nullable recovery），owner-dependent generic bound 与
   alpha-equivalent override shape 保持实例语义；L0084/L0113、输入置换与失败 trial 回滚保持单文件
-  语义。本切片只实现现行 v0.32 隐式 receiver，不启用候选 v0.34 receiver mode；
+  语义。本切片只实现由 v0.32 引入并在现行 v0.33 沿用的隐式 receiver，不启用候选 v0.34
+  receiver mode；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为

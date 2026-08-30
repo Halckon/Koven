@@ -5,11 +5,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-180` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
-| 批准依据 | 无；v0.34 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
+| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0020、0067、0176、0177、0201；除 0201 外均 `done` |
 | 前置 ADR | 无 |
-| 阻塞项 | v0.34 启用；SPEC-0201 `done` |
+| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0201 `done` |
 | 影响范围 | `lang-frontend` name/type checking、receiver/member/delegation model、L0152；Architecture/Roadmap |
 | 语言语义变更 | 否；发布候选 guide 已定义的 typed facts |
 

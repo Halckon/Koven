@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P3-181` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
-| 批准依据 | 无；v0.34 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
+| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0029、0032 `done`；SPEC-0180 待完成 |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) |
-| 阻塞项 | v0.34 启用；SPEC-0180 `done` |
+| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0180 `done` |
 | 影响范围 | `lang-frontend` ownership receiver/place/loan/drop/capture facts；Architecture/Roadmap |
 | 语言语义变更 | 否；消费 SPEC-0180 typed facts |
 

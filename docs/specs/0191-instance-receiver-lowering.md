@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-191` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
-| 批准依据 | 无；v0.34 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
+| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195 `done`；SPEC-0180/0181 待完成 |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | v0.34 启用；SPEC-0180/0181 `done` |
+| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0180/0181 `done` |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 

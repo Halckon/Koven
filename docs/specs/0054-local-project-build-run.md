@@ -4,16 +4,16 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P6-054` |
 | 所属 Phase | Phase 6 |
-| 语言规范 | 现行 v0.32 §32；候选 v0.33 §33 |
-| 批准依据 | 无；v0.33 尚未启用 |
+| 语言规范 | 现行 v0.33 §33 |
+| 批准依据 | 2026-08-30 用户明确要求在 v0.32 完成后启用 v0.33 并继续分阶段实施 |
 | 前置 Spec | SPEC-0052、0060、0190、0193、0194、0199 `done` |
 | 前置 ADR | ADR-0010、0019、0020、0022 `accepted` |
-| 阻塞项 | v0.33 启用 |
+| 阻塞项 | 无；与 SPEC-0213/0214 独立，按路线图顺序实施 |
 | 影响范围 | `lang-cli` project build/run、entry selection、产物提交、CLI integration tests；Architecture/Roadmap |
-| 语言语义变更 | 否；实施候选 guide 的公开工具契约 |
+| 语言语义变更 | 否；实施现行 v0.33 的公开工具契约 |
 
 ## 2. Goal
 
@@ -100,10 +100,10 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 ## 9. 未决问题
 
 - 无；manifest target/default、dependency build 和单文件 entry 统一明确留给后继，不阻塞本 Spec。
-  状态门禁由候选 guide 与前置 Spec 表达。
+  实施顺序由现行 guide 与前置 Spec 表达。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 2026-08-26 project-entry 审计 | 通过 | CLI/selector/output/error 边界已物化；因候选 guide/前置链未生效保持 draft |
+| 2026-08-26 project-entry 审计 | 通过 | CLI/selector/output/error 边界已物化；当时因候选 guide/前置链未生效保持 draft |

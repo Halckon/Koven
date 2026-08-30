@@ -2,22 +2,23 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第五、六部分），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行路线图版本：
-> v0.32；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
+> v0.33；SPEC-0177 / 0174 与 v0.29 constructor 主线均已完成。SPEC-0192 已完成一般 String
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
-> v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
+> v0.32 与 package/import 多文件链已经完成；该链按
 > SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025/0197/0198 已完成 compilation-unit
 > 名称、类型与所有权产物，SPEC-0199 已完成 unit native lowering，SPEC-0187 已完成显式
 > source-set、跨文件诊断与跳转定义。
 > 2026-08-27 的现行 v0.32
 > 纯勘误已拆开 exact import 与普通静态限定名。
 > 2026-08-28 审计确认现行 Parser 由 guide/SPEC/回归明确拒绝尾 lambda；该语法不回开已完成
-> SPEC-0010/0012/0175，也不混入 SPEC-0197，已作为 v0.33 候选 SPEC-0213 物化。后续确认尾
+> SPEC-0010/0012/0175，也不混入 SPEC-0197，已作为 v0.33 SPEC-0213 物化。后续确认尾
 > lambda 需要与普通 lambda 一致的隐式 `it`，因此另以 SPEC-0214 纵向接通 AST/name/type/ownership；
-> 两者均等待 guide 启用。
+> v0.33 已于 2026-08-30 启用；0213 先实施，0214 等待其完成，独立的 project build SPEC-0054
+> 同时解除 guide 门禁。
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 候选及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、明确候选直接基于 v0.32、Value
-> `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍未启用，不改变
-> v0.32 实现。
+> `this` 不隐含可变性，并移除无源码路径的 CallableInvoke 验收。v0.34 仍是直接基于 v0.32、
+> 不包含现行 v0.33 的独立候选；若后续要取代 v0.33，须先明确重基边界。
 > 2026-08-27 对 nullable、iteration、const/Map 再审计后，选择不依赖 exact-import 或 receiver
 > 的 nullable 控制流作为下一候选，并在 §35 物化 v0.35 与
 > SPEC-0202→0203→0204、SPEC-0205→0206→0207 两条 Phase 2→3→4 链；候选未启用。
@@ -175,10 +176,10 @@ fun main(): Unit {
 }
 ```
 
-- [ ] **[SPEC-0213](../specs/0213-trailing-lambda-call-parser.md)（draft）**：按 v0.33 候选把
+- [ ] **[SPEC-0213](../specs/0213-trailing-lambda-call-parser.md)（实施中）**：按现行 v0.33 把
       `f { ... }` / `f(args) { ... }` / `f<T> { ... }` 规范化为最后一个普通 `CallArgument`；
       保留跨换行后的 nested block 与 block 内分号错误边界，不新增 AST variant 或后续阶段语义。
-- [ ] **[SPEC-0214](../specs/0214-implicit-it-lambda-parameter.md)（draft；Phase 1/2/3 纵向）**：
+- [ ] **[SPEC-0214](../specs/0214-implicit-it-lambda-parameter.md)（approved；Phase 1/2/3 纵向）**：
       在 0213 后为所有 headerless lambda 建立 contextual 隐式 `it`，由唯一一参数 expected
       function type 提供类型/mode，并接通单/多文件名称、类型、ownership 与 capture 排除事实。
 - [ ] **[SPEC-0201](../specs/0201-instance-receiver-mode-parser.md)（draft）**：按 v0.34 固定
@@ -591,7 +592,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       不等待无关的 Stage 2 import/visibility，也不做依赖、entry、build 或 LSP overlay。
 - [ ] SPEC-0053：在独立 dependency/lock ADR 后实现依赖解析与确定性 `project.lock`；每个依赖
       仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界。
-- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（draft）**：在已完成的 SPEC-0052/0199
+- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（approved）**：在已完成的 SPEC-0052/0199
       后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地
       project build/run；不做跨
       package 隐式 `main` 搜索或 manifest target。dependency-aware build 另交 SPEC-0200。

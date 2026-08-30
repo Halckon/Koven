@@ -7,11 +7,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-212` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 v0.32；候选 [v0.37 §37](../guide/01-design-decisions.md#37-借用式顺序容器迭代-providerv037-候选未启用) |
-| 批准依据 | 无；v0.37 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.37 §37](../guide/01-design-decisions.md#37-借用式顺序容器迭代-providerv037-候选未启用) |
+| 批准依据 | 无；v0.37 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0034、0036、0186、0195 `done` |
 | 前置 ADR | [ADR-0023](../adr/0023-borrowed-sequential-iteration-provider.md) 待 `accepted` |
-| 阻塞项 | v0.37 明确启用；ADR-0023 `accepted` |
+| 阻塞项 | 明确 v0.37 对现行 v0.33 的重基与取代关系；v0.37 启用；ADR-0023 `accepted` |
 | 影响范围 | `lang-codegen` SSA model/verifier/container LLVM adapter/tests；Roadmap/Architecture |
 | 语言语义变更 | 否；实现启用后的 v0.37 provider primitives |
 

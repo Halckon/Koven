@@ -1,7 +1,7 @@
 # Koven 语言设计规范 · 语法规范（三）：调用参数、Lambda 与解构
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §9），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.27。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。内容版本：v0.33。
 > 保留原节号 §9 以维持既有 SPEC 引用不变。SPEC-0010–0013 均已实现并验收。
 > 共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，声明/block 语法见
@@ -55,14 +55,15 @@ Lambda 是 expression primary，可以继续接受 call、member、index 等 pos
 要求一个 primary 时，`{` 提交 lambda；block dispatch 在 element 起点直接看到 `{` 时仍提交
 nested block。因而 `val f = { x }` 的 initializer 是零参数 lambda，body 尾值为 `x`；`{ x }`
 作为外层 block 的直接 element 则是 nested block。需要在 statement 位置强制表达 lambda 时可写
-`({ x })`。`move { ... }` 只能是 lambda。**现行 v0.32** 不接受 trailing lambda
-（`f { ... }`），调用仍须写 `f({ ... })`；下述 v0.33 候选在明确启用前不改变这条规则。
+`({ x })`。`move { ... }` 只能是 lambda。**现行 v0.33** 接受下述同行 trailing lambda
+（`f { ... }`）；跨换行仍把 `{ ... }` 留给后续 nested block element。
 
 [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 8 节的 `{` soft element stop 因此是 parser-state-sensitive 的：已有完整左表达式且没有运算符
 要求右 operand 时，顶层 `{` 留给下一 nested-block element；initializer 起点、prefix / binary
 右 operand、grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入
-lambda parser。`x { y }` 是 expression statement `x` 后接 nested block，`x + { y }` 的右侧则
-是 lambda。该判定只依赖语法状态，不依赖 trivia、名称或推测类型。
+lambda parser。现行 v0.33 中 `x { y }` 是一个尾 lambda call，`x\n{ y }` 才是 expression
+statement `x` 后接 nested block；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
+尾 lambda 的换行边界，不依赖名称或推测类型。
 
 `->` 前允许零个或多个逗号分隔的普通 Identifier；`{ -> e }` 是显式零参数形式。参数不接受
 类型、默认值、`val` / `var`、模式、解构或 trailing comma。Header 只能从 `{` 后第一个非
@@ -140,10 +141,10 @@ lexeme 在所有 header trial 中合计只能访问常数次。缺 lambda `}` �
 要么在自身 `}`、调用方 hard stop 或 EOF
 结束，整体 `O(n)`、owner 栈 `O(d)`。
 
-### 尾 lambda 调用糖（SPEC-0213；v0.33 候选，未启用）
+### 尾 lambda 调用糖（SPEC-0213；v0.33）
 
-> **候选状态**：本小节是 v0.33 的 Phase 1 语法增量。当前唯一权威版本仍是 v0.32；只有用户
-> 明确启用 v0.33 并指定其取代 v0.32 后，SPEC-0213 才能进入实施，`f { ... }` 才成为合法调用。
+> **现行状态**：v0.33 已于 2026-08-30 明确启用并取代 v0.32；本小节现为 Phase 1 语法契约。
+> Parser 支持由 SPEC-0213 分阶段落地，实施完成前代码仍可能按旧规则拒绝该语法。
 
 尾 lambda 只是一种 call-argument 表面语法，不增加 AST 节点、参数模式或调用语义：
 
@@ -166,14 +167,14 @@ receiver.consume(1) { item -> item }
   trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
 - typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
   回退，不能仅因后方存在 `{` 就把比较表达式重解释为 typed call。
-- 尾 lambda 本身不增加新的 lambda body 语义；同一 v0.33 候选的 SPEC-0214 另为全部无显式
+- 尾 lambda 本身不增加新的 lambda body 语义；同一 v0.33 的 SPEC-0214 另为全部无显式
   header lambda 定义隐式 `it`。label return、receiver lambda、参数 trailing comma、默认参数、
-  `vararg` 与新的调用点 mode 仍不在候选范围，也不改变后端调用 ABI。
+  `vararg` 与新的调用点 mode 仍不在 v0.33 范围，也不改变后端调用 ABI。
 
-### 无显式 header lambda 的隐式 `it`（SPEC-0214；v0.33 候选，未启用）
+### 无显式 header lambda 的隐式 `it`（SPEC-0214；v0.33）
 
-> **候选状态**：本小节与 SPEC-0213 共同组成 v0.33 的 lambda 增量；当前 v0.32 仍把 `it` 当作
-> 普通名称。只有 v0.33 明确启用且 SPEC-0213 完成后，SPEC-0214 才能实施本规则。
+> **现行状态**：本小节与 SPEC-0213 共同组成已启用的 v0.33 lambda 增量；实现仍按依赖等待
+> SPEC-0213 完成后由 SPEC-0214 接通。完成前代码中的 `it` 仍可能表现为普通未解析名称。
 
 隐式 `it` 属于 lambda，不属于尾随调用语法。因此以下三种写法采用同一参数契约：
 
@@ -569,8 +570,8 @@ Architecture。独立分支的草案编号顺序不构成未完成前一 Spec �
 
 SPEC-0009 中 `f({})`、`val x = {}` 等“block 不可作 expression”的历史负例在 SPEC-0010 后
 迁移为 expression-context lambda 正例；直接 block dispatch 的 `{}` 仍是 nested block。
-SPEC-0007 的 trailing lambda 负例在现行 v0.32 继续成立；只有 v0.33 明确启用并实施
-SPEC-0213 后才迁移对应定向用例，不能借此批量接受其他 golden 变化。
+SPEC-0007 的 trailing lambda 历史负例须由 SPEC-0213 迁移为 v0.33 定向正反用例；不能借此
+批量接受其他 golden 变化。
 
 0001–0009 的历史实体文件和编号保持不变；下表记录拆分当时对 0010 及后续编号的唯一映射，
 禁止保留新旧编号别名。当前完成状态与后续已物化 Spec 以

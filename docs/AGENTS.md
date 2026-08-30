@@ -42,7 +42,7 @@ docs/
 | ADR | 为什么选择这项长期架构决策 | 接受后不改写历史；由新 ADR 取代 |
 | Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
 
-当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.32 文档集。它是
+当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.33 文档集。它是
 跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.12 及更早单文件 guide 只保留为
 历史；v0.11、v0.12 候选快照在 v0.14 启用后补回，仅用于合入验证。v0.13 的内容已经合入
 v0.14，没有独立文件快照；v0.15 在滚动正文中补齐完整文件恢复契约，v0.16 修正顶层声明
@@ -59,10 +59,14 @@ capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例�
 候选隔离契约，v0.29 封闭 nominal/enum case/intrinsic Box constructor 契约，v0.30 封闭
 单文件 conventional main 与显式单线程 Rc 共享所有权契约，v0.31 封闭一般 UTF-8 String
 owner、最小连接/相等/动态输出与参数化 main 的 runtime 前置边界，v0.32 封闭多文件
-package/import、跨文件可见性与 compilation-unit 分阶段边界。
+package/import、跨文件可见性与 compilation-unit 分阶段边界，v0.33 封闭尾 lambda、
+headerless lambda 隐式 `it` 与无依赖本地 project build/run 契约。
+
+`guide/05-grammar-calls-lambda.md` §9 与 `guide/01-design-decisions.md` §33 已于 2026-08-30
+由用户明确启用并取代 v0.32；SPEC-0213、0214、0054 按各自前置分阶段实施。
 
 `guide/01-design-decisions.md` §32 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020
-依据有效站立授权完成接受，SPEC-0025 已完成多文件名称解析，下一实现节点为 SPEC-0197。
+依据有效站立授权完成接受，SPEC-0025/0197/0198/0199/0187 均已完成。
 
 `guide/01-design-decisions.md` §31 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018、
 ADR-0019 同时获明确接受，SPEC-0192 已完成实施。

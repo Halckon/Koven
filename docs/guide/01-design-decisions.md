@@ -1,13 +1,13 @@
 # Koven 语言设计规范 · 核心设计决策
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第一、二部分），完整
-> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.32。
+> 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行内容版本：v0.33。
 > v0.13 拆分只重组文件结构，不改变任何已定义语义；v0.14 的 `&` 调用点语义及同步修改见
 > [`07-changelog-archive.md`](./07-changelog-archive.md)。本文档覆盖第 1–24 节的现行设计决策；
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
-> 现行规则；第 30–32 节分别是 v0.30–v0.32 已启用的现行规则；
-> 第 33–37 节分别是尚未启用的 v0.33–v0.37 候选；附录收录原第二部分的核心结构声明总览。
+> 现行规则；第 30–33 节分别是 v0.30–v0.33 已启用的现行规则；
+> 第 34–37 节分别是尚未启用的 v0.34–v0.37 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2035,11 +2035,11 @@ ADR-0022/SPEC-0052 可独立起草工具侧 manifest→source-set adapter，但�
 
 ---
 
-## 33. 本地 project process entry 与公开 build/run（v0.33 候选，未启用）
+## 33. 本地 project process entry 与公开 build/run（v0.33）
 
-> **候选状态**：本节是 v0.32 多文件语义的后继工具契约。当前唯一权威版本仍是 v0.32；只有
-> 用户明确启用 v0.33 并指定其取代 v0.32 后，本节才能约束公开 CLI。
-> SPEC-0054 在此之前保持 `draft`；本候选不改变 ADR-0022 manifest version 1，因此不另建
+> **现行状态**：v0.33 已于 2026-08-30 由用户明确启用并取代 v0.32。本节现约束公开 CLI，
+> 但代码能力仍须由 SPEC-0054 分阶段实施；未完成实现不得伪装为可用功能。本节不改变
+> ADR-0022 manifest version 1，因此不另建
 > project-target schema ADR。
 
 ### 33.1 project mode 与 entry selector
@@ -2101,7 +2101,7 @@ fun start(args: Array<String>): Unit { ... }
   SPEC-0199 生成单 object；SPEC-0054 才增加公开 project CLI、entry selection 与 executable
   commit。任一前置未完成时不得用拼接源码、逐文件 object 或单文件 bootstrap 循环假实现。
 
-本候选不定义 manifest target/default entry、依赖解析、lock、跨 compilation-unit import/ABI、
+本节不定义 manifest target/default entry、依赖解析、lock、跨 compilation-unit import/ABI、
 多 object、library artifact、安装/发布、cross target、缓存或全项目 conventional main。无依赖
 本地 executable 完成后，dependency-aware build 继续等待 SPEC-0053/0200 与新的 ABI 决策。
 
@@ -2109,11 +2109,9 @@ fun start(args: Array<String>): Unit { ... }
 
 ## 34. 显式 instance receiver 契约与静态分发调用（v0.34 候选，未启用）
 
-> **候选状态**：本节以现行 v0.32 为基线，只增加 receiver 契约；版本号不自动包含或启用
-> 同样尚未启用的 v0.33 grammar §9/SPEC-0213/0214 与 §33 project build 候选。只有用户明确启用
-> v0.34 并指定其取代 v0.32 后，
-> 本节才能改变 member 声明或调用；除非用户同时明确启用 v0.33，否则 grammar §9/SPEC-0213/0214
-> 与 §33 都继续保持候选。
+> **候选状态**：本节起草时直接以 v0.32 为基线，只增加 receiver 契约，因而不自动包含现行
+> v0.33 grammar §9/SPEC-0213/0214 与 §33 project build。当前唯一权威版本已是 v0.33；若后续
+> 要让 v0.34 取代 v0.33，必须先通过 guide 变更明确把本节重基到 v0.33，不能静默丢弃现行语义。
 > SPEC-0201、0180、0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的
 > Value/Borrow/Inout 内部 callable ABI，不新增 receiver ABI ADR。这里的“静态分发”指
 > instance member target 在编译期确定，不是 companion/type-level static member。
@@ -2219,10 +2217,9 @@ L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得�
 
 ## 35. nullable `when` 剩余域与 `!!` 所有权（v0.35 候选，未启用）
 
-> **候选状态**：本节直接以现行 v0.32 为基线，只闭合既有 nullable 控制形式的 frontend
-> facts、所有权和分阶段 lowering；它不自动包含或启用候选 v0.33 grammar §9/SPEC-0213/0214、
-> §33 project build 或 §34 receiver。
-> 只有用户明确启用 v0.35 并指定其取代 v0.32 后，本节才能改变 `when`/`!!` 的实现契约；
+> **候选状态**：本节起草时直接以 v0.32 为基线，只闭合既有 nullable 控制形式的 frontend
+> facts、所有权和分阶段 lowering；它不自动包含现行 v0.33 grammar §9/§33 或 §34 receiver。
+> 当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系才能启用本节；
 > SPEC-0202–0207 在此之前保持 `draft`。本节不改变既有语法、`T?` 类型规则或 ADR-0017
 > pointer-like null-niche ABI。
 
@@ -2300,9 +2297,9 @@ Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和
 
 ## 36. 无运行时存储的关联常量与封闭求值（v0.36 候选，未启用）
 
-> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 v0.33
->（grammar §9/SPEC-0213/0214 与 §33）或 §34–§35。只有用户
-> 明确启用 v0.36 并指定其取代 v0.32 后，本节才成为常量求值与关联选择的现行契约；
+> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.33（grammar §9/§33）
+> 或 §34–§35。当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系，本节才可成为
+> 常量求值与关联选择的现行契约；
 > import 终端仍由现行 §32 规定。SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
 > singleton 初始化或 object instance receiver。
 
@@ -2381,9 +2378,9 @@ global/init 或稳定跨 object 常量 ABI，则必须另行 guide/ADR。
 
 ## 37. 借用式顺序容器迭代 provider（v0.37 候选，未启用）
 
-> **候选状态**：本节直接以现行 v0.32 为基线，不自动包含或启用候选 v0.33
->（grammar §9/SPEC-0213/0214 与 §33）或 §34–§36。只有用户
-> 明确启用 v0.37 并指定其取代 v0.32 后，本节才成为 `for` 的现行类型、所有权和 provider
+> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.33（grammar §9/§33）
+> 或 §34–§36。当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系，本节才可成为
+> `for` 的现行类型、所有权和 provider
 > 契约；ADR-0023 与 SPEC-0179/0182/0211/0212 在此之前保持 `proposed` / `draft`。本候选不
 > 引入公开 `Iterable` / `Iterator` interface、普通 receiver 调用或消费式迭代。
 

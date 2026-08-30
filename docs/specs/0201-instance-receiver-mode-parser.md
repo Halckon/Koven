@@ -5,11 +5,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P1-201` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 v0.32；候选 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
-| 批准依据 | 无；v0.34 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
+| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0017、0064、0176 `done` |
 | 前置 ADR | 无 |
-| 阻塞项 | v0.34 启用 |
+| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用 |
 | 影响范围 | `lang-frontend` Parser/AST、class-family grammar/fixtures、formatter/grammar bridges；Architecture/Roadmap |
 | 语言语义变更 | 否；只实施候选 guide 获得效力后的声明语法 |
 

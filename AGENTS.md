@@ -3,7 +3,8 @@
 本文件约束在本仓库内工作的 AI Agent 与开发者。它描述**如何开发、验证和交付**，不是
 语言语法规范本身。规则优先于示例；如果规则、代码和文档互相冲突，不得自行折中。
 
-> 当前仓库已完成 Phase 0 与 Phase 1：确定性 Lexer、独立表达式、声明、block、lambda、
+> 当前仓库已完成 Phase 0 与截至 v0.32 的 Phase 1；现行 v0.33 的尾随 lambda / 隐式 `it`
+> 增量正按 SPEC-0213/0214 的前置关系实施。确定性 Lexer、独立表达式、声明、block、lambda、
 > callable 参数与 typed call argument Parser、局部 `val` 解构、完整文件组合、Kotlin 风格
 > `package` / `import` 文件头、control-flow、postfix `?`、class-family、窄化接口委托，以及
 > 具名函数隐式 `Unit` 返回标注已实现；Phase 2 的单文件名称解析、基础类型检查以及完整
@@ -46,7 +47,7 @@
 | 目标语言 | 语法和命名习惯接近 Kotlin，但不承诺 Kotlin 源码兼容 |
 | 内存模型 | 借鉴 Rust 的简化单一所有权与借用模型，不等同于完整 Rust 语义 |
 | 编译后端 | 计划自建 SSA IR，并通过 LLVM（计划使用 `inkwell`）生成本机代码 |
-| 当前阶段 | Phase 0、Phase 1 已完成；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查、v0.29 nominal/enum/Box constructor typed facts；SPEC-0025/0197 已完成多文件 package/import 名称解析与 compilation-unit 类型检查，包括统一类型身份、完整 signature/body graph、provenance、跨文件 L0092–L0116/L0141、call/construction/member/container/Rc/null-flow/String interpolation、顶层与 member constant initializer 及现行 expression-tail typed facts。Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts；SPEC-0198 已完成跨文件所有权，发布 unit product/provenance、参数 binding、source-qualified call/construction/container/Rc/closure 的 loan、Copy/Move/Temporary delivery、capture/Transferability、ASAP drop/return 与 validated ownership gate。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中、SPEC-0184 的 nominal/enum/Box constructor/投影/解构/drop/L0145 native 闭环、SPEC-0195 的 callable Borrow loan operand/frontend LoanFact/LLVM pointer ABI，以及 SPEC-0196 的 pointer-like nullable `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 和 class/Box/Rc native 闭环；inline nullable、nullable `when` 与 `!!` 消费 lowering 及多文件 native lowering 尚待后续 Spec。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime，并由 SPEC-0044 在标准源码实现条件 `Copyable` 的 `Pair` / `Result` 与 native 正反验收；SPEC-0045 已完成非 nullable `Rc<T>` construction/share/Copyable payload read、target preflight、retain/release 和真实 native build/run，pointer-like nullable lowering已由 SPEC-0196 完成；SPEC-0192 已完成一般 UTF-8 String owner、连接/相等/动态输出、Borrow/Value/return、aggregate/Rc/顺序容器/move closure capture 与精确析构 native 闭环；interpolation 目前只完成 frontend typed traversal，native lowering 仍按 SPEC-0192 的确定性拒绝边界；顶层 const 目前仍按普通 typed initializer 处理，不启用 v0.36 evaluator；其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；`object` / `companion object` 常量求值仍有候选 guide 门禁。Phase 6 已提供公开单文件显式 entry、零参数与参数化 conventional `main` 的 `kovenc build/run`、原始 argv 转交、严格 version 1 `project.toml` 到 deterministic immutable base source-set 的内部 provider、单文档 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；跨文件诊断与跳转定义、snapshot→frontend 接线及项目构建仍等待后续 Spec |
+| 当前阶段 | Phase 0 已完成；Phase 1 的 v0.32 基线已完成，现行 v0.33 的 SPEC-0213 实施中、SPEC-0214 已批准；Phase 2 已建立单文件名称解析、基础与名义/泛型/interface 类型检查、`when` 穷尽性及 smart cast、条件 `Copyable`、有限内联布局、结构化解构、泛型 callable 实例化、overload-lambda 隔离、顺序容器类型检查、v0.29 nominal/enum/Box constructor typed facts；SPEC-0025/0197 已完成多文件 package/import 名称解析与 compilation-unit 类型检查，包括统一类型身份、完整 signature/body graph、provenance、跨文件 L0092–L0116/L0141、call/construction/member/container/Rc/null-flow/String interpolation、顶层与 member constant initializer 及现行 expression-tail typed facts。Phase 3 已建立整变量 use-after-move、条件复制与结构移动、borrow-default 参数契约、调用期 loan、owned-value ASAP 析构点、顺序容器核心 element place 所有权、简化 closure capture、`Transferable`、编译器绑定跨线程 effect，以及 constructor ordered delivery/root drop facts；SPEC-0198 已完成跨文件所有权，发布 unit product/provenance、参数 binding、source-qualified call/construction/container/Rc/closure 的 loan、Copy/Move/Temporary delivery、capture/Transferability、ASAP drop/return 与 validated ownership gate。Phase 4 已完成 owner-aware typed SSA/verifier、封闭标量 frontend→SSA→AArch64 LLVM IR、聚合/容器/闭包后端、目标布局预检、显式 native entry、Mach-O object 与 Clang link/run、SPEC-0040 的 DWARF 行表和真实 LLDB 源码断点命中、SPEC-0184 的 nominal/enum/Box constructor/投影/解构/drop/L0145 native 闭环、SPEC-0195 的 callable Borrow loan operand/frontend LoanFact/LLVM pointer ABI、SPEC-0196 的 pointer-like nullable `if` proof/null niche/conditional drop，以及 SPEC-0199 的多文件 unit native lowering；inline nullable、nullable `when` 与 `!!` 消费 lowering 尚待后续 Spec。Phase 5 已由 SPEC-0042 建立真实 Koven `prelude.ko` 单文件 bootstrap link/run，由 SPEC-0043 把标准 `error(message: String): Nothing` identity 接入既有 Abort，由 SPEC-0189 把首个 `println(String)` Borrow identity、非插值 literal 与真实 Hello World stdout 接入 native runtime，并由 SPEC-0044 在标准源码实现条件 `Copyable` 的 `Pair` / `Result` 与 native 正反验收；SPEC-0045 已完成非 nullable `Rc<T>` construction/share/Copyable payload read、target preflight、retain/release 和真实 native build/run，pointer-like nullable lowering已由 SPEC-0196 完成；SPEC-0192 已完成一般 UTF-8 String owner、连接/相等/动态输出、Borrow/Value/return、aggregate/Rc/顺序容器/move closure capture 与精确析构 native 闭环；interpolation 目前只完成 frontend typed traversal，native lowering 仍按 SPEC-0192 的确定性拒绝边界；顶层 const 目前仍按普通 typed initializer 处理，不启用 v0.36 evaluator；其他 printable 重载与容器增删/重排 relocation API 仍待后续 Spec；完整 `for` 等待 typed iteration plan 与 provider runtime；`object` / `companion object` 常量求值仍有候选 guide 门禁。Phase 6 已提供公开单文件显式 entry、零参数与参数化 conventional `main` 的 `kovenc build/run`、原始 argv 转交、严格 version 1 `project.toml` 到 deterministic immutable base source-set 的内部 provider、单文档及 source-set 跨文件 frontend LSP 诊断与语义跳转定义、版本化 JSON Lines 机器诊断、非破坏性 `kovenc format`、TextMate 与 Tree-sitter grammar；现行 v0.33 的 project build/run 等待 SPEC-0054 |
 
 除非权威规范明确要求，不得把项目改造成解释器、字节码 VM、JIT、Kotlin 方言或 Rust
 语法翻版。AOT、Kotlin 风格语法和简化所有权是三个相互独立的设计维度。
@@ -61,8 +62,9 @@
 2. 根 `AGENTS.md` 与作用域更具体的 `AGENTS.md` 规定工作和交付方式；子目录规则只能细化，
    不能静默覆盖根规则。
 3. 用户明确指定的现行语言 guide 规定语言语义，以及其中已经强制确定的 Phase 和实现边界；
-   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.32；§30 的 conventional main /
-   显式 Rc、§31 的一般 String 与 §32 的多文件 package/import 契约已成为现行语义。
+   当前为 [`docs/guide/`](./docs/guide/00-index.md) 文档集的 v0.33；§30 的 conventional main /
+   显式 Rc、§31 的一般 String、§32 的多文件 package/import，以及 grammar §9 / §33 的
+   lambda/project 增量已成为现行语义。
 4. 已批准 Spec 规定一次变更的范围与验收；已接受 ADR 只记录 guide 留白处的长期架构选择。
    Spec 和 ADR 都必须服从适用的 `AGENTS.md` 与现行 guide，不能单独覆盖它们。
 
@@ -93,7 +95,7 @@ Goal / 提交边界见 [`docs/specs/README.md`](./docs/specs/README.md)。
 
 ## 2. v1 语言设计护栏
 
-实现细节必须回到 v0.32 指南核对。以下条目用于阻止常见误读，不替代完整规范：
+实现细节必须回到 v0.33 指南核对。以下条目用于阻止常见误读，不替代完整规范：
 
 - Rust 实现代码遵循 Rust 命名约定；目标语言源码遵循 Kotlin 风格。两套命名体系不得混用。
 - 源码组织使用 Kotlin 风格的 `package` / `import`；`module` 不是关键字，也不接受 Rust 的

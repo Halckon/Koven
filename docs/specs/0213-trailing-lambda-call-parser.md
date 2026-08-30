@@ -2,17 +2,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P1-213` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 v0.32；候选 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
-| 批准依据 | 2026-08-28 用户明确要求审计并把尾 lambda 支持加入 roadmap；guide 启用门禁仍保留 |
+| 语言规范 | 现行 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
+| 批准依据 | 2026-08-30 用户明确要求在 v0.32 完成后启用 v0.33 并继续分阶段实施 |
 | 前置 Spec | SPEC-0010、0012、0014、0175 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 用户尚未明确启用 v0.33 取代 v0.32 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` Parser/AST 组合、Parser tests、Architecture/Roadmap |
-| 语言语义变更 | 是；v0.33 候选语法增量 |
+| 语言语义变更 | 是；实施现行 v0.33 语法增量 |
 
 ## 1. Goal
 
@@ -23,10 +23,10 @@
 
 ## 2. 背景
 
-现行 v0.32 guide、SPEC-0010/0012/0175 和 `parser_lambda` 回归都明确拒绝 trailing lambda，要求
+此前 v0.32 guide、SPEC-0010/0012/0175 和 `parser_lambda` 回归都明确拒绝 trailing lambda，要求
 写 `f({ ... })`。因此这不是现有 Parser bug，也不能回开已完成 Spec。用户要求补入该能力后，
-应以独立 Phase 1 增量先改变候选 guide，再复用既有 lambda、postfix call 与 `CallArgument`，
-而不是混入正在实施的 SPEC-0197 多文件类型检查。
+应以独立 Phase 1 增量实施现行 guide，并复用既有 lambda、postfix call 与 `CallArgument`，
+而不是混入已完成的 SPEC-0197 多文件类型检查。
 
 ## 3. 范围与需求
 
@@ -45,7 +45,7 @@
 
 - 本 Spec 不实现隐式 `it`；该语义由后继 SPEC-0214 对所有 headerless lambda 统一实施，
   不能在尾 lambda Parser 中做位置特判。label return、receiver lambda、多个尾 lambda、参数
-  trailing comma、默认参数、`vararg` 或新的调用点 mode 拼写仍不在 v0.33 候选范围。
+  trailing comma、默认参数、`vararg` 或新的调用点 mode 拼写仍不在 v0.33 范围。
 - 不改变 `CallArgument` 公共结构，不增加 TailLambda/Invoke 等 AST variant。
 - 不修改名称、类型、所有权、SSA/LLVM、runtime 或 ABI 语义，也不实施 SPEC-0214 或 v0.33 的
   project build。
@@ -62,7 +62,7 @@
   同行空格与无换行 comment 不改变尾 lambda AST。
 - [ ] 既有 `parser_lambda`、`parser_call_argument`、`parser_expression`、`parser_block`、
   line-break/trivia/output-invariant suites 与 frontend/workspace 基线通过。
-- [ ] Architecture 更新为实现后的事实，guide/roadmap/Spec 状态与实际启用门禁一致。
+- [ ] Architecture 更新为实现后的事实，guide/roadmap/Spec 状态与实现状态一致。
 
 ## 6. 技术方案与边界
 
@@ -86,10 +86,10 @@ trivia gap 不含换行时，复用现有 lambda primary parser，并通过现�
 
 ## 9. 未决问题
 
-- 无；v0.33 启用是状态门禁，不是语义未决问题。
+- 无；v0.33 guide 门禁已经解除。
 
 ## 10. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| `cargo test -p lang-frontend --test parser_lambda lambda_accepts_existing_postfix_chain_but_not_trailing_lambda_call_sugar --locked --offline -- --exact` | 通过 | 现行 v0.32 负例证明 `f {}` 仍产生 L0013，尚未实现候选语法 |
+| `cargo test -p lang-frontend --test parser_lambda lambda_accepts_existing_postfix_chain_but_not_trailing_lambda_call_sugar --locked --offline -- --exact` | 通过 | 实施前 v0.32 基线证明 `f {}` 仍产生 L0013；v0.33 已启用但代码尚待本 Spec 修改 |

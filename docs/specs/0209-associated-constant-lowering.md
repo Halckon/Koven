@@ -7,11 +7,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-209` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 v0.32；候选 [v0.36 §36](../guide/01-design-decisions.md#36-无运行时存储的关联常量与封闭求值v036-候选未启用) |
-| 批准依据 | 无；v0.36 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.36 §36](../guide/01-design-decisions.md#36-无运行时存储的关联常量与封闭求值v036-候选未启用) |
+| 批准依据 | 无；v0.36 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0034、0039、0185、0189、0192 `done`；SPEC-0026/0208 待完成 |
 | 前置 ADR | ADR-0008、0010、0018 `accepted` |
-| 阻塞项 | v0.36 明确启用；SPEC-0026/0208 `done` |
+| 阻塞项 | 明确 v0.36 对现行 v0.33 的重基与取代关系；v0.36 启用；SPEC-0026/0208 `done` |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Roadmap/Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.36 single-file native lowering |
 

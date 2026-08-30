@@ -7,12 +7,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-205` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 v0.32；候选 [v0.35 §35](../guide/01-design-decisions.md#35-nullable-when-剩余域与-所有权v035-候选未启用) |
-| 批准依据 | 无；v0.35 尚未启用 |
+| 语言规范 | 起草基线 v0.32；候选 [v0.35 §35](../guide/01-design-decisions.md#35-nullable-when-剩余域与-所有权v035-候选未启用) |
+| 批准依据 | 无；v0.35 尚未启用，且尚未显式重基到现行 v0.33 |
 | 前置 Spec | SPEC-0019、0022、0067 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | ADR-0017 |
-| 阻塞项 | v0.35 明确启用 |
+| 阻塞项 | 明确 v0.35 对现行 v0.33 的重基与取代关系；v0.35 启用 |
 | 影响范围 | `lang-frontend` type checking model/checker/tests；Roadmap/Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 typed extraction 契约 |
 

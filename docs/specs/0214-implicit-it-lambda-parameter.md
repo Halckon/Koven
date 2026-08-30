@@ -2,17 +2,17 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P123-214` |
 | 所属 Phase | Phase 1/2/3 纵向切片 |
-| 语言规范 | 现行 v0.32；候选 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
-| 批准依据 | 2026-08-28 用户明确要求尾 lambda 内支持隐式 `it`；guide 启用门禁仍保留 |
-| 前置 Spec | SPEC-0010、0018、0019、0032、0067、0173 `done`；SPEC-0197、0198、0213 待完成 |
+| 语言规范 | 现行 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
+| 批准依据 | 2026-08-30 用户明确要求在 v0.32 完成后启用 v0.33 并继续分阶段实施 |
+| 前置 Spec | SPEC-0010、0018、0019、0032、0067、0173、0197、0198 `done`；SPEC-0213 待完成 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | v0.32 实施链、SPEC-0213 尚未完成；用户尚未明确启用 v0.33 取代 v0.32 |
+| 阻塞项 | SPEC-0213 尚未完成 |
 | 影响范围 | `lang-frontend` lambda AST/name/type/ownership 与 compilation-unit facts；测试、Architecture/Roadmap |
-| 语言语义变更 | 是；v0.33 候选 lambda 参数增量 |
+| 语言语义变更 | 是；实施现行 v0.33 lambda 参数增量 |
 
 ## 1. Goal
 
@@ -61,7 +61,7 @@ SPEC-0213 只把尾 lambda 规范化为普通 `CallArgument`。若 `f { it }` �
   排除；显式/隐式参数在同一契约下产生等价结果。
 - [ ] 现有无参 lambda `{ 1 }` 推导、显式 `{ -> ... }`、lambda/callable/name/type/ownership suites
   及 frontend/workspace 基线通过。
-- [ ] Architecture 更新为实现事实，guide/roadmap/Spec 状态与 v0.33 门禁一致。
+- [ ] Architecture 更新为实现事实，guide/roadmap/Spec 状态与实现状态一致。
 
 ## 6. 技术方案与边界
 
@@ -87,7 +87,7 @@ ownership 只消费 validated typed symbol/mode，不重新猜 expected contract
 
 ## 9. 未决问题
 
-- 无；外层同名 binding 的消歧已由候选 guide 固定为显式 `{ -> it }`。
+- 无；外层同名 binding 的消歧已由现行 guide 固定为显式 `{ -> it }`。
 
 ## 10. 验证记录
 

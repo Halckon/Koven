@@ -2,7 +2,7 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含现行 v0.32 名称绑定解释；§13.5–§13.7 分别同步未启用的 v0.34 receiver、v0.36
+> §11.1 含由 v0.32 引入并在现行 v0.33 沿用的名称绑定解释；§13.5–§13.7 分别同步未启用的 v0.34 receiver、v0.36
 > const expression 与 v0.37 iteration 候选，均不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
@@ -789,7 +789,7 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - delegate 字段持有具体名义类型，Phase 2 必须证明该类型静态满足目标 interface；裸
   interface、`dyn`、反射代理或运行时查找不属于 v1；
 - 自动转发完整保持原成员的显式参数模式、类型、返回类型与 `Result` 契约，不插入隐式 `?`
-  或异常层；现行 v0.32 尚未定义 instance receiver mode，未启用的 v0.34 §34.3 候选拟把自动
+  或异常层；现行 v0.33 尚未定义 instance receiver mode，未启用的 v0.34 §34.3 候选拟把自动
   转发收窄为 Borrow receiver；手写 override 优先，多来源同签名冲突必须显式 override；
 - delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
 - `val/var property by expression` 属性委托明确不支持。
@@ -827,7 +827,8 @@ SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser；SPEC-006
 
 ### 13.5 v0.34 receiver grammar 候选（未启用）
 
-本小节与设计正文 §34 同为候选，不改变现行 v0.32 Parser。只有用户明确启用 v0.34 后，以下
+本小节与设计正文 §34 同为候选，不改变现行 v0.33 Parser。只有后续 guide 先明确 v0.34 如何
+重基并取代 v0.33、且用户明确启用后，以下
 产生式才取代本节开头的 `method_modifiers` 及对应 instance member 产生式：
 
 ```ebnf
