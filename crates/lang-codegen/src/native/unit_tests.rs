@@ -21,6 +21,10 @@ use lang_frontend::{
 };
 
 use super::{NativeObjectErrorKind, NativeUnitEntry, emit_native_unit_object};
+use crate::ssa::{
+    model::{EntityId, Operation},
+    unit_lower::lower_scalar_unit_with_entry,
+};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -164,6 +168,200 @@ fn unit_object_atomically_replaces_links_and_runs_across_packages() {
 }
 
 #[test]
+fn direct_member_receivers_link_run_with_source_order_and_unique_class_drop() {
+    let analysis = analyze_sources(
+        "package p\n\
+         value class Counter(val item: Int) {\n\
+             fun add(own delta: Int): Int {\n\
+                 println(\"value-borrow-body\")\n\
+                 return item + delta\n\
+             }\n\
+             own fun consume(own delta: Int): Int {\n\
+                 println(\"value-own-body\")\n\
+                 return item + delta\n\
+             }\n\
+         }\n\
+         class Resource {\n\
+             fun ping(): Int {\n\
+                 println(\"class-borrow-body\")\n\
+                 return 41\n\
+             }\n\
+             own fun finish(): Int {\n\
+                 println(\"class-own-body\")\n\
+                 return 42\n\
+             }\n\
+         }\n\
+         fun makeCounter(): Counter {\n\
+             println(\"receiver\")\n\
+             return Counter(1)\n\
+         }\n\
+         fun makeDelta(): Int {\n\
+             println(\"argument\")\n\
+             return 40\n\
+         }\n\
+         fun makeReusableCounter(): Counter = Counter(20)\n\
+         fun makeResource(): Resource {\n\
+             println(\"resource\")\n\
+             return Resource()\n\
+         }",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val answer = p.makeCounter().add(p.makeDelta())\n\
+             if (answer != 41) { error(\"bad borrowed value receiver\") }\n\
+             val counter = p.makeReusableCounter()\n\
+             val first = counter.consume(1)\n\
+             val second = counter.consume(2)\n\
+             if (first != 21 || second != 22) { error(\"bad copied value receiver\") }\n\
+             val resource = p.makeResource()\n\
+             val observed = resource.ping()\n\
+             val finished = resource.finish()\n\
+             if (observed != 41) { error(\"bad borrowed class receiver\") }\n\
+             if (finished != 42) { error(\"bad moved class receiver\") }\n\
+         }",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("q", "entry");
+    let (program, _) = lower_scalar_unit_with_entry(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+    )
+    .expect("direct source member receivers must lower to verified SSA");
+    let module = &program.modules[0];
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("q.entry"))
+        .expect("entry function exists");
+    let ping = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("Resource.ping"))
+        .expect("Borrow member exists");
+    let finish = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("Resource.finish"))
+        .expect("Value member exists");
+    let (ping_call, ping_loan) = entry
+        .instructions
+        .iter()
+        .enumerate()
+        .find_map(|(index, instruction)| match instruction.operation {
+            Operation::DirectCall {
+                callee,
+                receiver: Some(EntityId::Loan(loan)),
+                ..
+            } if callee == ping.id() => Some((index, loan)),
+            _ => None,
+        })
+        .expect("class Borrow receiver call exists");
+    let (finish_call, moved_owner) = entry
+        .instructions
+        .iter()
+        .enumerate()
+        .find_map(|(index, instruction)| match instruction.operation {
+            Operation::DirectCall {
+                callee,
+                receiver: Some(EntityId::Value(owner)),
+                ..
+            } if callee == finish.id() => Some((index, owner)),
+            _ => None,
+        })
+        .expect("class Value receiver call exists");
+    let borrowed_place = entry
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowBegin { place, .. }, [EntityId::Loan(result)])
+                    if *result == ping_loan =>
+                {
+                    Some(*place)
+                }
+                _ => None,
+            },
+        )
+        .expect("Borrow receiver loan has a source place");
+    let borrowed_owner = entry
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::RootPlace { owner }, [EntityId::Place(result)])
+                    if *result == borrowed_place =>
+                {
+                    Some(*owner)
+                }
+                _ => None,
+            },
+        )
+        .expect("Borrow receiver place has an owner");
+    let borrow_end = entry
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == ping_loan)
+        })
+        .expect("class Borrow receiver ends before the Value call");
+    assert_eq!(borrowed_owner, moved_owner, "the same class owner is moved");
+    assert!(ping_call < borrow_end && borrow_end < finish_call);
+    assert!(!entry.instructions.iter().any(|instruction| {
+        matches!(instruction.operation, Operation::Drop { owner } if owner == moved_owner)
+    }));
+    let EntityId::Value(callee_owner) = finish.blocks[0].parameters[0] else {
+        panic!("Value member receiver is an owned value");
+    };
+    assert_eq!(
+        finish
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::Drop { owner } if owner == callee_owner)
+            })
+            .count(),
+        1,
+        "the Value receiver callee owns exactly one class drop"
+    );
+    let directory = TestDirectory::create();
+    let object = directory.join("receivers.o");
+    let executable = directory.join("receivers");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("direct source member receivers must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked receiver executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"receiver\nargument\nvalue-borrow-body\nvalue-own-body\nvalue-own-body\nresource\nclass-borrow-body\nclass-own-body\n"
+    );
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();
@@ -269,10 +467,7 @@ fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
 }
 
 fn analyze_unit() -> UnitAnalysis {
-    let mut sources = SourceMap::new();
-    let (provider_source, provider) = parsed(
-        &mut sources,
-        "p/provider.ko",
+    analyze_sources(
         "package p\n\
          value class Token(val item: Int)\n\
          class Bundle(val text: String, val count: Int)\n\
@@ -292,10 +487,6 @@ fn analyze_unit() -> UnitAnalysis {
              val copied = retained.value\n\
              return copied + owner.value\n\
          }",
-    );
-    let (consumer_source, consumer) = parsed(
-        &mut sources,
-        "q/consumer.ko",
         "package q\n\
          import p.make as build\n\
          import p.inspect\n\
@@ -330,7 +521,13 @@ fn analyze_unit() -> UnitAnalysis {
              val action: move (borrow String) -> Unit = move { message -> p.inspect(message) }\n\
              val invoked = action(\"unsupported-borrow\")\n\
          }",
-    );
+    )
+}
+
+fn analyze_sources(provider_text: &str, consumer_text: &str) -> UnitAnalysis {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(&mut sources, "p/provider.ko", provider_text);
+    let (consumer_source, consumer) = parsed(&mut sources, "q/consumer.ko", consumer_text);
     let inputs = [
         SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
         SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),

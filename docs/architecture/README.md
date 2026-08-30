@@ -952,9 +952,13 @@ receiver fact，并覆盖显式 Borrow/Inout、Copyable Value、MoveOnly Value�
 `SharedReborrow`；verifier 禁止 derived loan 活跃时提前结束或以 exclusive mode 使用 parent。
 receiver 还作为独立线性状态随 conditional/when/loop edge 携带并在 merge block 重绑定。
 value-class `this` 的 Copyable field read、Value `this` 返回转移、receiver loan end，以及表达式体隐式
-返回的 `ControlTransfer` drop 已进入 verified SSA/LLVM。generic nominal layout 仍保持既有确定性拒绝；
-ordinary-class Inout payload field mutation、default/override/`super<I>`、无状态 object、静态委托与
-object/link/run 仍由 SPEC-0191 后续切片承接。
+返回的 `ControlTransfer` drop 已进入 verified SSA/LLVM。真实 compilation-unit object/link/run 已覆盖
+非泛型 value class 的 Borrow/Copyable Value receiver 与 ordinary class 的 Borrow/MoveOnly Value
+receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
+唯一析构；ordinary class 的该用例暂不读取 payload。generic nominal layout 仍保持既有确定性拒绝；
+一般 assignment typed 产物仍为 `Deferred(Assignment)`，因此 ordinary-class Inout payload field
+mutation 必须先取得 Phase 2 descriptor，不能由 codegen 重推。default/override/`super<I>`、无状态
+object 与静态委托仍由 SPEC-0191 后续切片承接。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated

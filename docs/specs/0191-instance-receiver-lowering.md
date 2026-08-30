@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 无 |
+| 阻塞项 | ordinary-class Inout payload assignment 等待 Phase 2 一般 assignment typed descriptor；其他 receiver/native 切片无阻塞 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -71,7 +71,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 
 1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
 2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
-   ordinary-class Inout payload mutation、generic nominal layout 与 native run 继续实施。
+   非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
+   object/link/run；ordinary-class Inout payload mutation 与 generic nominal layout 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
@@ -105,3 +106,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib` | 245 通过、1 ignored | receiver/reborrow 共享 SSA 与 CFG 不变量触发 Layer 3；ignored 为既有 debugserver task-port 权限用例 |
 | `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 基础 source member receiver 切片的 Layer 2 静态门禁；未运行耗时的 `lang-frontend` 全量测试 |
 | 独立高风险复核（基础 source member receiver 切片） | 通过 | 针对 CFG/loop receiver carry、合法 reborrow、`return this`、parent/child loan dependency 与跨 edge loan identity 逐项复核；发现项均修复并复核至无 P1/P2 |
+| `cargo test -p lang-codegen --lib native::unit_tests` | 3/3 通过 | Layer 1：新增跨文件非泛型 direct member 的 source→object→clang→run；stdout 锁定 receiver→argument→body 与 Copyable Value 重复使用，同一 source 的 verified SSA 另锁定 class Borrow→end→同 owner Value、caller 零 drop/callee 单 drop |
+| `cargo test -p lang-codegen --lib unit_lower_receiver_tests` | 12/12 通过 | 与 native 用例并行运行的 receiver SSA/LLVM 回归；未重复运行 `lang-frontend` 全量测试 |
+| `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 与 native unit 小集合并行执行的 Layer 2 crate 静态门禁 |
+| Phase 2 assignment 门禁审计 | 未解除 | 一般 assignment 仍发布 `Deferred(Assignment)`，故 ordinary-class Inout payload mutation 不得由 codegen 重推 RHS/type/operator 语义；后续先物化 typed descriptor |
+| 独立复核（direct member native 切片） | 通过 | 首轮发现 class 唯一 drop 仅靠 native 成功会假阳性；补同源 SSA owner/loan/drop identity 断言后复核关闭，最终无 P1/P2 |
