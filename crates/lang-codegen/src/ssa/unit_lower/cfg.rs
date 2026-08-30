@@ -17,19 +17,24 @@ use crate::ssa::{
 pub(super) struct BranchExit {
     pub(super) block: BlockId,
     pub(super) result: LoweredValue,
+    pub(super) receiver: Option<super::ReceiverBinding>,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct CarriedBinding {
-    symbol: UnitSymbolId,
+    symbol: Option<UnitSymbolId>,
+    receiver: Option<super::ReceiverBinding>,
     source: ValueId,
     ty: EntityType,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct CarriedLoan {
-    symbol: UnitSymbolId,
+    symbol: Option<UnitSymbolId>,
+    receiver: Option<super::ReceiverBinding>,
     source: LoanId,
     ty: EntityType,
 }
@@ -75,7 +80,23 @@ impl UnitExpressionLowerer<'_> {
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedBinding {
-                symbol: *symbol,
+                symbol: Some(*symbol),
+                receiver: None,
+                source,
+                ty,
+            });
+        }
+        if let Some(receiver) = self.current_receiver
+            && let EntityId::Value(source) = receiver.entity
+        {
+            let ty = self
+                .function
+                .entity(receiver.entity)
+                .map(|entity| entity.ty)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            carried.push(CarriedBinding {
+                symbol: None,
+                receiver: Some(receiver),
                 source,
                 ty,
             });
@@ -88,7 +109,7 @@ impl UnitExpressionLowerer<'_> {
         loans: &BTreeMap<UnitSymbolId, LoanId>,
         span: Span,
     ) -> Result<Vec<CarriedLoan>, LoweringError> {
-        loans
+        let mut carried = loans
             .iter()
             .map(|(symbol, source)| {
                 let ty = self
@@ -97,12 +118,29 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedLoan {
-                    symbol: *symbol,
+                    symbol: Some(*symbol),
+                    receiver: None,
                     source: *source,
                     ty,
                 })
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some(receiver) = self.current_receiver
+            && let EntityId::Loan(source) = receiver.entity
+        {
+            let ty = self
+                .function
+                .entity(receiver.entity)
+                .map(|entity| entity.ty)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            carried.push(CarriedLoan {
+                symbol: None,
+                receiver: Some(receiver),
+                source,
+                ty,
+            });
+        }
+        Ok(carried)
     }
 
     pub(super) fn add_carried_control_block(
@@ -137,7 +175,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn rebind_carried(
-        &self,
+        &mut self,
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         block: BlockId,
         carried: &[CarriedBinding],
@@ -147,7 +185,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn rebind_carried_control(
-        &self,
+        &mut self,
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         block: BlockId,
         bindings: &[CarriedBinding],
@@ -164,7 +202,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn rebind_carried_prefix(
-        &self,
+        &mut self,
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         block: BlockId,
         carried: &[CarriedBinding],
@@ -184,13 +222,21 @@ impl UnitExpressionLowerer<'_> {
             let EntityId::Value(value) = parameter else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
-            rebound.insert(slot.symbol, LoweredValue::Value(*value));
+            if let Some(symbol) = slot.symbol {
+                rebound.insert(symbol, LoweredValue::Value(*value));
+            } else {
+                let mut receiver = slot
+                    .receiver
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                receiver.entity = EntityId::Value(*value);
+                self.current_receiver = Some(receiver);
+            }
         }
         Ok(rebound)
     }
 
     pub(super) fn rebind_carried_loans(
-        &self,
+        &mut self,
         block: BlockId,
         binding_count: usize,
         loans: &[CarriedLoan],
@@ -204,16 +250,22 @@ impl UnitExpressionLowerer<'_> {
         if parameters.len() != binding_count + loans.len() {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
-        loans
-            .iter()
-            .zip(parameters.iter().skip(binding_count))
-            .map(|(slot, parameter)| {
-                let EntityId::Loan(loan) = parameter else {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                };
-                Ok((slot.symbol, *loan))
-            })
-            .collect()
+        let mut rebound = BTreeMap::new();
+        for (slot, parameter) in loans.iter().zip(parameters.iter().skip(binding_count)) {
+            let EntityId::Loan(loan) = parameter else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            if let Some(symbol) = slot.symbol {
+                rebound.insert(symbol, *loan);
+            } else {
+                let mut receiver = slot
+                    .receiver
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                receiver.entity = EntityId::Loan(*loan);
+                self.current_receiver = Some(receiver);
+            }
+        }
+        Ok(rebound)
     }
 
     pub(super) fn merge_unit_exits(
@@ -222,6 +274,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let Some(first) = exits.first() else {
+            self.current_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
@@ -230,6 +283,7 @@ impl UnitExpressionLowerer<'_> {
         };
         if exits.len() == 1 {
             self.block = first.block;
+            self.current_receiver = first.receiver;
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
@@ -238,10 +292,30 @@ impl UnitExpressionLowerer<'_> {
         }
         let symbols = first.bindings.keys().copied().collect::<Vec<_>>();
         let loan_symbols = first.borrow_bindings.keys().copied().collect::<Vec<_>>();
+        let receiver_type = first
+            .receiver
+            .map(|receiver| {
+                self.function
+                    .entity(receiver.entity)
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))
+            })
+            .transpose()?;
         if exits.iter().any(|exit| {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
                 || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
                 || exit.closure_bindings != first.closure_bindings
+                || match (first.receiver, exit.receiver) {
+                    (None, None) => false,
+                    (Some(expected), Some(actual)) => {
+                        expected.owner != actual.owner
+                            || expected.mode != actual.mode
+                            || expected.ty != actual.ty
+                            || self.function.entity(actual.entity).map(|entity| entity.ty)
+                                != receiver_type
+                    }
+                    (None, Some(_)) | (Some(_), None) => true,
+                }
                 || std::mem::discriminant(&exit.result) != std::mem::discriminant(&first.result)
                 || symbols.iter().any(|symbol| {
                     std::mem::discriminant(&exit.bindings[symbol])
@@ -279,6 +353,7 @@ impl UnitExpressionLowerer<'_> {
             .filter(|symbol| matches!(first.bindings[symbol], LoweredValue::Value(_)))
             .collect::<Vec<_>>();
         let mut parameter_types = result_type.into_iter().collect::<Vec<_>>();
+        parameter_types.extend(receiver_type);
         parameter_types.extend(
             value_symbols
                 .iter()
@@ -328,6 +403,9 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
                 }
             };
+            if let Some(receiver) = exit.receiver {
+                arguments.push(receiver.entity);
+            }
             arguments.extend(
                 value_symbols
                     .iter()
@@ -373,6 +451,15 @@ impl UnitExpressionLowerer<'_> {
         } else {
             LoweredValue::Unit
         };
+        self.current_receiver = match first.receiver {
+            Some(mut receiver) => {
+                receiver.entity = parameters
+                    .next()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                Some(receiver)
+            }
+            None => None,
+        };
         let mut bindings = first.bindings.clone();
         for (symbol, parameter) in value_symbols.into_iter().zip(parameters.by_ref()) {
             let EntityId::Value(value) = parameter else {
@@ -400,15 +487,34 @@ impl UnitExpressionLowerer<'_> {
         target: BlockId,
         carried: &[CarriedBinding],
         bindings: &BTreeMap<UnitSymbolId, LoweredValue>,
+        receiver: Option<super::ReceiverBinding>,
         span: Span,
     ) -> Result<Edge, LoweringError> {
         let arguments = carried
             .iter()
-            .map(|slot| match bindings.get(&slot.symbol) {
-                Some(LoweredValue::Value(value)) => Ok(EntityId::Value(*value)),
-                Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
-                    Err(lowering_error(LoweringErrorKind::MissingFact, span))
-                }
+            .map(|slot| match slot.symbol {
+                Some(symbol) => match bindings.get(&symbol) {
+                    Some(LoweredValue::Value(value)) => Ok(EntityId::Value(*value)),
+                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
+                        Err(lowering_error(LoweringErrorKind::MissingFact, span))
+                    }
+                },
+                None => match receiver {
+                    Some(receiver)
+                        if slot.receiver.is_some_and(|expected| {
+                            expected.owner == receiver.owner
+                                && expected.mode == receiver.mode
+                                && expected.ty == receiver.ty
+                        }) && self
+                            .function
+                            .entity(receiver.entity)
+                            .map(|entity| entity.ty)
+                            == Some(slot.ty) =>
+                    {
+                        Ok(receiver.entity)
+                    }
+                    Some(_) | None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                },
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Edge { target, arguments })

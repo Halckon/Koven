@@ -940,8 +940,21 @@ SPEC-0191 的首个 Phase 4 切片先扩展共享 typed SSA 契约，而不提�
 presence、Value/shared-loan/exclusive-loan mode、具体类型、显式参数边界与返回类型，ownership verifier
 按 receiver→arguments 顺序消费 Value 或检查 active loan；`FunctionAddress` 继续拒绝 instance target，
 不虚构 bound method value。renderer 显式显示 receiver 分隔，LLVM adapter 按 receiver-first ABI 组装
-operands。现行 compilation-unit lowerer 在 SPEC-0191 后续切片接线前仍只生成 `receiver: None` 的顶层
-direct call，不把 SSA 基元存在描述成 source member native 已完成。
+operands。该首切片提交时 compilation-unit lowerer 仍只生成 `receiver: None` 的顶层 direct call；
+source member 的当前接线事实由下一段记录。
+
+SPEC-0191 的第二个 Phase 4 切片已把 unit instance key 从顶层 `DeclarationId` 扩展为静态
+`UnitCallableTarget`，并把 owner 与 callable type arguments 合并为同一有序单态化 key；reachable
+member body 继续以源码 `ItemId` 定位，不按调用点名称重新选择。unit lowerer 现在可声明并绑定
+Value/shared-loan/exclusive-loan receiver，按 receiver→显式 arguments 顺序 lower frontend
+receiver fact，并覆盖显式 Borrow/Inout、Copyable Value、MoveOnly Value、临时 receiver 与同 mode
+隐式 `this` 转发。Value/Inout `this` 调用 Borrow member 时分别建立普通 shared loan 与显式
+`SharedReborrow`；verifier 禁止 derived loan 活跃时提前结束或以 exclusive mode 使用 parent。
+receiver 还作为独立线性状态随 conditional/when/loop edge 携带并在 merge block 重绑定。
+value-class `this` 的 Copyable field read、Value `this` 返回转移、receiver loan end，以及表达式体隐式
+返回的 `ControlTransfer` drop 已进入 verified SSA/LLVM。generic nominal layout 仍保持既有确定性拒绝；
+ordinary-class Inout payload field mutation、default/override/`super<I>`、无状态 object、静态委托与
+object/link/run 仍由 SPEC-0191 后续切片承接。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated

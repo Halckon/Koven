@@ -11,7 +11,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
-        UnitCallTarget, UnitExpressionId,
+        UnitCallTarget, UnitCallableTarget, UnitExpressionId,
     },
 };
 
@@ -153,8 +153,14 @@ impl UnitExpressionLowerer<'_> {
                 span,
             );
         }
-        let UnitCallTarget::Declaration(target) = descriptor.target() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        let target = match descriptor.target() {
+            UnitCallTarget::Declaration(target) => UnitCallableTarget::Declaration(target),
+            UnitCallTarget::Symbol(target) => UnitCallableTarget::Symbol(target),
+            UnitCallTarget::External(_)
+            | UnitCallTarget::FunctionValue
+            | UnitCallTarget::StructuralComponent(_) => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
         };
         if arguments.len() != descriptor.arguments().len()
             || descriptor
@@ -172,9 +178,10 @@ impl UnitExpressionLowerer<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         let callee = self
             .function_ids
-            .get(&UnitFunctionInstanceKey::new(target, type_arguments))
+            .get(&UnitFunctionInstanceKey::for_target(target, type_arguments))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let receiver = self.lower_call_receiver(call, descriptor, span)?;
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
@@ -204,7 +211,7 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 Operation::DirectCall {
                     callee,
-                    receiver: None,
+                    receiver: receiver.as_ref().map(|receiver| receiver.entity),
                     arguments,
                 },
                 result_types,
@@ -212,6 +219,16 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         for (loan, end_span) in created_loans.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        }
+        if let Some((loan, end_span)) = receiver.and_then(|receiver| receiver.created_loan) {
             self.function
                 .append_instruction(
                     self.block,

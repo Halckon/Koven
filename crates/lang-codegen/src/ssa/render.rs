@@ -589,6 +589,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_id(output, EntityId::Loan(*base))?;
             write!(output, ", {field}")
         }
+        Operation::SharedReborrow { source } => {
+            output.write_str("shared_reborrow ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
         Operation::Copy { source } => {
             output.write_str("copy ")?;
             write_entity_id(output, EntityId::Value(*source))

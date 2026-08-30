@@ -22,6 +22,7 @@ use crate::ssa::{
 
 struct LoopJump {
     block: BlockId,
+    receiver: Option<super::ReceiverBinding>,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -71,10 +72,20 @@ impl UnitExpressionLowerer<'_> {
         let condition_closures = self.closure_bindings.clone();
         let body_block = self.add_carried_block(&context.carried, self.statement_span(body)?)?;
         let false_block = self.add_carried_block(&context.carried, span)?;
-        let when_true =
-            self.carried_edge_from(body_block, &context.carried, &condition_bindings, span)?;
-        let when_false =
-            self.carried_edge_from(false_block, &context.carried, &condition_bindings, span)?;
+        let when_true = self.carried_edge_from(
+            body_block,
+            &context.carried,
+            &condition_bindings,
+            self.current_receiver,
+            span,
+        )?;
+        let when_false = self.carried_edge_from(
+            false_block,
+            &context.carried,
+            &condition_bindings,
+            self.current_receiver,
+            span,
+        )?;
         self.function
             .set_terminator(
                 header,
@@ -89,8 +100,13 @@ impl UnitExpressionLowerer<'_> {
 
         self.loops.push(context);
         self.block = body_block;
-        let carried = &self.loops.last().expect("while context exists").carried;
-        self.bindings = self.rebind_carried(&condition_bindings, body_block, carried, span)?;
+        let carried = self
+            .loops
+            .last()
+            .expect("while context exists")
+            .carried
+            .clone();
+        self.bindings = self.rebind_carried(&condition_bindings, body_block, &carried, span)?;
         self.closure_bindings = condition_closures.clone();
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
@@ -108,6 +124,7 @@ impl UnitExpressionLowerer<'_> {
         exits.push(BranchExit {
             block: false_block,
             result: LoweredValue::Unit,
+            receiver: self.current_receiver,
             bindings: false_bindings,
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
@@ -147,6 +164,7 @@ impl UnitExpressionLowerer<'_> {
         let context = self.loops.pop().expect("loop context must be balanced");
         self.finish_continues(&context)?;
         if context.breaks.is_empty() {
+            self.current_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
@@ -232,6 +250,7 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(LoopJump {
             block: self.block,
+            receiver: self.current_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
@@ -262,6 +281,7 @@ impl UnitExpressionLowerer<'_> {
                 context.header,
                 &context.carried,
                 &jump.bindings,
+                jump.receiver,
                 jump.span,
             )?;
             self.function
@@ -308,6 +328,7 @@ fn branch_exit(jump: LoopJump) -> BranchExit {
     BranchExit {
         block: jump.block,
         result: LoweredValue::Unit,
+        receiver: jump.receiver,
         bindings: jump.bindings,
         borrow_bindings: jump.borrow_bindings,
         closure_bindings: jump.closure_bindings,

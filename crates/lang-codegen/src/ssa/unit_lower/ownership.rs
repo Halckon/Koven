@@ -6,13 +6,13 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::Expression,
     source::Span,
-    type_checking::{Copyability, ExpressionCategory, UnitExpressionId},
+    type_checking::{Copyability, ExpressionCategory, ParameterMode, UnitExpressionId},
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, span_key};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{Operation, Origin, ValueId},
+    model::{EntityId, Operation, Origin, ValueId},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -34,10 +34,44 @@ impl UnitExpressionLowerer<'_> {
         match self.typed.types().expression_category(expression) {
             Some(ExpressionCategory::Temporary) => self.take_owned_temporary(value, span),
             Some(ExpressionCategory::Place) => {
+                if self.is_this_expression(expression.expression(), span)? {
+                    return self.take_owned_receiver(value, span);
+                }
                 let symbol = self.direct_place_symbol(expression.expression(), span)?;
                 self.take_owned_binding(symbol, value, span)
             }
             None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+    }
+
+    fn take_owned_receiver(&mut self, value: ValueId, span: Span) -> Result<(), LoweringError> {
+        match self.current_receiver {
+            Some(receiver)
+                if receiver.mode == ParameterMode::Value
+                    && receiver.entity == EntityId::Value(value) =>
+            {
+                self.current_receiver = None;
+                Ok(())
+            }
+            Some(_) | None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+    }
+
+    fn is_this_expression(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match node.payload() {
+            Expression::This => Ok(true),
+            Expression::Group { expression } => self.is_this_expression(*expression, span),
+            _ => Ok(false),
         }
     }
 
@@ -83,12 +117,23 @@ impl UnitExpressionLowerer<'_> {
         self.validate_closure_drop_facts(&facts)?;
         for fact in facts {
             let owner = match fact.target() {
-                UnitDropTarget::This(_) => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        fact.value_origin(),
-                    ));
-                }
+                UnitDropTarget::This(owner) => match self.current_receiver.take() {
+                    Some(receiver)
+                        if receiver.owner == owner
+                            && matches!(receiver.entity, crate::ssa::model::EntityId::Value(_)) =>
+                    {
+                        let crate::ssa::model::EntityId::Value(value) = receiver.entity else {
+                            unreachable!("receiver entity shape was checked")
+                        };
+                        value
+                    }
+                    Some(_) | None => {
+                        return Err(lowering_error(
+                            LoweringErrorKind::MissingFact,
+                            fact.value_origin(),
+                        ));
+                    }
+                },
                 UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
                     Some(LoweredValue::Value(value)) => {
                         self.closure_bindings.remove(&symbol);
@@ -195,7 +240,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn direct_place_symbol(
+    pub(super) fn direct_place_symbol(
         &self,
         expression: ExpressionId,
         span: Span,

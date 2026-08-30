@@ -51,6 +51,8 @@ mod unit_lower_loop_tests;
 #[cfg(test)]
 mod unit_lower_rc_tests;
 #[cfg(test)]
+mod unit_lower_receiver_tests;
+#[cfg(test)]
 mod unit_lower_scalar_tests;
 #[cfg(test)]
 mod unit_lower_short_circuit_tests;

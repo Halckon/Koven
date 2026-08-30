@@ -595,6 +595,160 @@ fn instance_direct_call_models_receiver_before_explicit_arguments() {
 }
 
 #[test]
+fn shared_reborrow_blocks_parent_end_and_exclusive_call_until_child_end() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("shared-reborrow");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let owner = module
+        .declare_heap_owner("Owner")
+        .expect("owner declaration must succeed");
+    let payload = module
+        .add_aggregate_type("Owner.payload", Vec::new())
+        .expect("payload must be valid");
+    module
+        .define_heap_owner(owner, payload)
+        .expect("owner definition must succeed");
+    let exclusive = EntityType::Loan {
+        kind: LoanKind::Exclusive,
+        target: owner,
+    };
+
+    let callee = module
+        .add_instance_function("mutate", exclusive, Vec::new(), origin.clone())
+        .expect("callee must be valid");
+    let callee_function = module.function_mut(callee).expect("callee must exist");
+    let callee_entry = callee_function
+        .add_block(vec![exclusive], origin.clone())
+        .expect("callee entry must be valid");
+    callee_function
+        .set_terminator(
+            callee_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("callee must return");
+
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .expect("caller must be valid");
+    let caller_function = module.function_mut(caller).expect("caller must exist");
+    let caller_entry = caller_function
+        .add_block(vec![exclusive], origin.clone())
+        .expect("caller entry must be valid");
+    let parent = loan(caller_function.blocks[0].parameters[0]);
+    let reborrow_block = caller_function
+        .add_block(vec![exclusive], origin.clone())
+        .expect("reborrow block must be valid");
+    caller_function
+        .set_terminator(
+            caller_entry,
+            TerminatorKind::Branch(Edge {
+                target: reborrow_block,
+                arguments: vec![EntityId::Loan(parent)],
+            }),
+            origin.clone(),
+        )
+        .expect("parent loan must cross the first edge");
+    let parent_rebound = loan(
+        caller_function
+            .block(reborrow_block)
+            .expect("reborrow block exists")
+            .parameters[0],
+    );
+    let (_, reborrowed) = caller_function
+        .append_instruction(
+            reborrow_block,
+            Operation::SharedReborrow {
+                source: parent_rebound,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: owner,
+            }],
+            origin.clone(),
+        )
+        .expect("shared reborrow must append");
+    let child = loan(reborrowed[0]);
+    let successor = caller_function
+        .add_block(
+            vec![
+                exclusive,
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: owner,
+                },
+            ],
+            origin.clone(),
+        )
+        .expect("successor must be valid");
+    caller_function
+        .set_terminator(
+            reborrow_block,
+            TerminatorKind::Branch(Edge {
+                target: successor,
+                arguments: vec![EntityId::Loan(parent_rebound), EntityId::Loan(child)],
+            }),
+            origin.clone(),
+        )
+        .expect("parent and child loans must cross the edge");
+    let successor_parameters = caller_function
+        .block(successor)
+        .expect("successor exists")
+        .parameters
+        .clone();
+    let parent_phi = loan(successor_parameters[0]);
+    let child_phi = loan(successor_parameters[1]);
+    caller_function
+        .append_instruction(
+            successor,
+            Operation::DirectCall {
+                callee,
+                receiver: Some(EntityId::Loan(parent_phi)),
+                arguments: Vec::new(),
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("exclusive call shape must append");
+    caller_function
+        .append_instruction(
+            successor,
+            Operation::BorrowEnd { loan: parent_phi },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("parent end shape must append");
+    caller_function
+        .set_terminator(
+            successor,
+            TerminatorKind::Return { values: Vec::new() },
+            origin,
+        )
+        .expect("caller must return");
+
+    let errors = verify_program(&program).expect_err("active child must suspend its parent loan");
+    assert_eq!(
+        errors
+            .errors
+            .iter()
+            .filter(|error| matches!(
+                error.kind,
+                VerifyErrorKind::LoanDependencyActive {
+                    parent: actual_parent,
+                    dependent,
+                } if actual_parent == parent_phi && dependent == child_phi
+            ))
+            .count(),
+        2
+    );
+    assert!(errors.errors.iter().any(|error| matches!(
+        error.kind,
+        VerifyErrorKind::ActiveLoanAtExit { loan } if loan == child_phi
+    )));
+}
+
+#[test]
 fn entry_borrow_parameter_is_function_scoped_across_cfg_blocks() {
     let origin = origin();
     let mut program = Program::default();

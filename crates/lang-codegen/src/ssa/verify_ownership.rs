@@ -21,6 +21,15 @@ struct AliasRoots {
     roots: BTreeMap<EntityId, BTreeSet<EntityId>>,
 }
 
+struct ReborrowDependencies {
+    parent_by_child: BTreeMap<LoanId, LoanId>,
+    flows: LoanFlowAliases,
+}
+
+struct LoanFlowAliases {
+    origins: BTreeMap<LoanId, BTreeSet<LoanId>>,
+}
+
 pub(super) fn verify_ownership(
     module: &Module,
     function: &Function,
@@ -28,6 +37,7 @@ pub(super) fn verify_ownership(
 ) {
     let aliases = AliasRoots::compute(function);
     let closure_loans = closure::ClosureLoans::compute(function);
+    let reborrows = ReborrowDependencies::compute(function);
     for block in &function.blocks {
         let mut state = entry_state(module, function, block.id, &closure_loans);
         for instruction_id in &block.instructions {
@@ -49,6 +59,7 @@ pub(super) fn verify_ownership(
                 instruction,
                 &aliases,
                 &closure_loans,
+                &reborrows,
                 &mut state,
                 errors,
             );
@@ -77,6 +88,7 @@ pub(super) fn verify_ownership(
                 edge,
                 &aliases,
                 &closure_loans,
+                &reborrows,
                 state,
                 &terminator.origin,
                 errors,
@@ -94,6 +106,7 @@ pub(super) fn verify_ownership(
                     when_true,
                     &aliases,
                     &closure_loans,
+                    &reborrows,
                     state.clone(),
                     &terminator.origin,
                     errors,
@@ -106,6 +119,7 @@ pub(super) fn verify_ownership(
                     when_false,
                     &aliases,
                     &closure_loans,
+                    &reborrows,
                     state,
                     &terminator.origin,
                     errors,
@@ -141,6 +155,7 @@ pub(super) fn verify_ownership(
                     when_null,
                     &aliases,
                     &closure_loans,
+                    &reborrows,
                     state.clone(),
                     &terminator.origin,
                     errors,
@@ -153,6 +168,7 @@ pub(super) fn verify_ownership(
                     when_non_null,
                     &aliases,
                     &closure_loans,
+                    &reborrows,
                     state,
                     &terminator.origin,
                     errors,
@@ -173,7 +189,7 @@ pub(super) fn verify_ownership(
                         errors,
                     );
                 }
-                release_borrow_parameters(function, &aliases, &mut state);
+                release_borrow_parameters(function, &aliases, &reborrows, &mut state);
                 verify_normal_exit(
                     state,
                     VerifyLocation::Terminator(block.id),
@@ -186,7 +202,12 @@ pub(super) fn verify_ownership(
     }
 }
 
-fn release_borrow_parameters(function: &Function, aliases: &AliasRoots, state: &mut BlockState) {
+fn release_borrow_parameters(
+    function: &Function,
+    aliases: &AliasRoots,
+    reborrows: &ReborrowDependencies,
+    state: &mut BlockState,
+) {
     let Some(entry) = function.blocks.first() else {
         return;
     };
@@ -197,6 +218,9 @@ fn release_borrow_parameters(function: &Function, aliases: &AliasRoots, state: &
         .filter(|entity| matches!(entity, EntityId::Loan(_)))
         .collect::<BTreeSet<_>>();
     state.loans.retain(|loan| {
+        if reborrows.is_derived(*loan, aliases) {
+            return true;
+        }
         !aliases
             .roots
             .get(&EntityId::Loan(*loan))
@@ -261,12 +285,14 @@ fn register_results(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_operation(
     module: &Module,
     function: &Function,
     instruction: &super::model::Instruction,
     aliases: &AliasRoots,
     closure_loans: &closure::ClosureLoans,
+    reborrows: &ReborrowDependencies,
     state: &mut BlockState,
     errors: &mut Vec<VerifyError>,
 ) {
@@ -329,6 +355,18 @@ fn apply_operation(
                         if !state.loans.contains(loan) {
                             errors.push(error(
                                 VerifyErrorKind::LoanInactive { loan: *loan },
+                                location.clone(),
+                                origin,
+                            ));
+                        } else if loan_kind(function, *loan) == LoanKind::Exclusive
+                            && let Some(dependent) =
+                                reborrows.active_descendant(*loan, aliases, state)
+                        {
+                            errors.push(error(
+                                VerifyErrorKind::LoanDependencyActive {
+                                    parent: *loan,
+                                    dependent,
+                                },
                                 location.clone(),
                                 origin,
                             ));
@@ -644,6 +682,15 @@ fn apply_operation(
                 ));
             }
         }
+        Operation::SharedReborrow { source } => {
+            if !state.loans.contains(source) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *source },
+                    location,
+                    origin,
+                ));
+            }
+        }
         Operation::Copy { source } => {
             if is_move_only(module, function, *source) {
                 errors.push(error(
@@ -685,6 +732,15 @@ fn apply_operation(
             if let Some(owner) = closure_loans.live_owner_holding(*loan, state) {
                 errors.push(error(
                     VerifyErrorKind::OwnerLoanConflict { value: owner },
+                    location,
+                    origin,
+                ));
+            } else if let Some(dependent) = reborrows.active_descendant(*loan, aliases, state) {
+                errors.push(error(
+                    VerifyErrorKind::LoanDependencyActive {
+                        parent: *loan,
+                        dependent,
+                    },
                     location,
                     origin,
                 ));
@@ -839,6 +895,7 @@ fn verify_edge_state(
     edge: &Edge,
     aliases: &AliasRoots,
     closure_loans: &closure::ClosureLoans,
+    reborrows: &ReborrowDependencies,
     mut state: BlockState,
     origin: &super::model::Origin,
     errors: &mut Vec<VerifyError>,
@@ -907,7 +964,7 @@ fn verify_edge_state(
             EntityId::Loan(_) => {}
         }
     }
-    release_borrow_parameters(function, aliases, &mut state);
+    release_borrow_parameters(function, aliases, reborrows, &mut state);
     verify_normal_exit(state, location, origin, errors);
 }
 
@@ -1159,6 +1216,152 @@ fn error(
     }
 }
 
+impl ReborrowDependencies {
+    fn compute(function: &Function) -> Self {
+        let parent_by_child = function
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                let Operation::SharedReborrow { source } = instruction.operation else {
+                    return None;
+                };
+                let [EntityId::Loan(child)] = instruction.results.as_slice() else {
+                    return None;
+                };
+                Some((*child, source))
+            })
+            .collect();
+        Self {
+            parent_by_child,
+            flows: LoanFlowAliases::compute(function),
+        }
+    }
+
+    fn is_derived(&self, loan: LoanId, _aliases: &AliasRoots) -> bool {
+        self.parent_by_child
+            .keys()
+            .any(|child| self.flows.equivalent(loan, *child))
+    }
+
+    fn active_descendant(
+        &self,
+        parent: LoanId,
+        _aliases: &AliasRoots,
+        state: &BlockState,
+    ) -> Option<LoanId> {
+        for child in self.parent_by_child.keys() {
+            let mut cursor = *child;
+            let mut visited = BTreeSet::new();
+            while visited.insert(cursor) {
+                let Some(next) = self.parent_by_child.get(&cursor).copied() else {
+                    break;
+                };
+                if self.flows.equivalent(parent, next) {
+                    if let Some(active) = state
+                        .loans
+                        .iter()
+                        .copied()
+                        .find(|active| self.flows.equivalent(*active, *child))
+                    {
+                        return Some(active);
+                    }
+                    break;
+                }
+                cursor = next;
+            }
+        }
+        None
+    }
+}
+
+impl LoanFlowAliases {
+    fn compute(function: &Function) -> Self {
+        let mut origins = all_entities(function)
+            .into_iter()
+            .filter_map(|entity| match entity {
+                EntityId::Loan(loan) => Some((loan, BTreeSet::new())),
+                EntityId::Value(_) | EntityId::Place(_) => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut incoming = BTreeMap::<LoanId, usize>::new();
+        for block in &function.blocks {
+            let terminator = block.terminator.as_ref().expect("terminator must exist");
+            for edge in edges(&terminator.kind) {
+                let target = function.block(edge.target).expect("target must exist");
+                for parameter in &target.parameters {
+                    if let EntityId::Loan(loan) = parameter {
+                        *incoming.entry(*loan).or_default() += 1;
+                    }
+                }
+            }
+        }
+        for block in &function.blocks {
+            for parameter in &block.parameters {
+                let EntityId::Loan(loan) = parameter else {
+                    continue;
+                };
+                if block.id.index() == 0 || incoming.get(loan).copied().unwrap_or(0) == 0 {
+                    origins
+                        .get_mut(loan)
+                        .expect("loan parameter exists")
+                        .insert(*loan);
+                }
+            }
+        }
+        for instruction in &function.instructions {
+            for result in &instruction.results {
+                if let EntityId::Loan(loan) = result {
+                    origins
+                        .get_mut(loan)
+                        .expect("loan result exists")
+                        .insert(*loan);
+                }
+            }
+        }
+        loop {
+            let mut changed = false;
+            for block in &function.blocks {
+                let terminator = block.terminator.as_ref().expect("terminator must exist");
+                for edge in edges(&terminator.kind) {
+                    let target = function.block(edge.target).expect("target must exist");
+                    for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                        let (EntityId::Loan(argument), EntityId::Loan(parameter)) =
+                            (argument, parameter)
+                        else {
+                            continue;
+                        };
+                        let source = origins
+                            .get(argument)
+                            .expect("loan edge argument exists")
+                            .clone();
+                        let target = origins.get_mut(parameter).expect("loan parameter exists");
+                        let before = target.len();
+                        target.extend(source);
+                        changed |= target.len() != before;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        Self { origins }
+    }
+
+    fn equivalent(&self, loan: LoanId, origin: LoanId) -> bool {
+        if loan == origin {
+            return true;
+        }
+        let Some(left) = self.origins.get(&loan) else {
+            return false;
+        };
+        let Some(right) = self.origins.get(&origin) else {
+            return false;
+        };
+        left.iter().any(|identity| right.contains(identity))
+    }
+}
+
 impl AliasRoots {
     fn compute(function: &Function) -> Self {
         let mut roots = all_entities(function)
@@ -1234,6 +1437,10 @@ impl AliasRoots {
                     Operation::SharedFieldLoan { base, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
+                    }
+                    Operation::SharedReborrow { source } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Loan(*source));
                     }
                     _ => {}
                 }

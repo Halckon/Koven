@@ -100,6 +100,7 @@ impl UnitExpressionLowerer<'_> {
             exits.push(BranchExit {
                 block: self.block,
                 result: right_result,
+                receiver: self.current_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -128,6 +129,7 @@ impl UnitExpressionLowerer<'_> {
         exits.push(BranchExit {
             block: self.block,
             result: LoweredValue::Value(short_result),
+            receiver: self.current_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
@@ -284,6 +286,7 @@ impl UnitExpressionLowerer<'_> {
         let exit = self.lower_if_branch(
             self.block,
             arm.body,
+            self.current_receiver,
             self.bindings.clone(),
             self.borrow_bindings.clone(),
             self.closure_bindings.clone(),
@@ -317,6 +320,7 @@ impl UnitExpressionLowerer<'_> {
         let control = UnitExpressionId::new(self.source_unit, expression);
         let mut unmatched = Some((
             self.block,
+            self.current_receiver,
             baseline.clone(),
             baseline_borrows,
             baseline_closures,
@@ -324,14 +328,20 @@ impl UnitExpressionLowerer<'_> {
         let mut exits = Vec::new();
 
         for (index, entry) in entries.iter().enumerate() {
-            let (unmatched_block, unmatched_bindings, unmatched_borrows, unmatched_closures) =
-                unmatched
-                    .take()
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
+            let (
+                unmatched_block,
+                unmatched_receiver,
+                unmatched_bindings,
+                unmatched_borrows,
+                unmatched_closures,
+            ) = unmatched
+                .take()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
             if entry.else_span.is_some() {
                 if let Some(exit) = self.lower_if_branch(
                     unmatched_block,
                     entry.body,
+                    unmatched_receiver,
                     unmatched_bindings,
                     unmatched_borrows,
                     unmatched_closures,
@@ -350,12 +360,14 @@ impl UnitExpressionLowerer<'_> {
             }
 
             let mut next_block = unmatched_block;
+            let mut next_receiver = unmatched_receiver;
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
             let mut next_closures = unmatched_closures;
             let mut matches = Vec::new();
             for condition in &entry.conditions {
                 self.block = next_block;
+                self.current_receiver = next_receiver;
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
                 self.closure_bindings = next_closures;
@@ -402,6 +414,7 @@ impl UnitExpressionLowerer<'_> {
                         &carried_loans,
                         entry.span,
                     )?,
+                    receiver: self.current_receiver,
                     closure_bindings: after_condition_closures.clone(),
                 });
                 next_block = next;
@@ -414,6 +427,7 @@ impl UnitExpressionLowerer<'_> {
                 )?;
                 next_borrows =
                     self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
+                next_receiver = self.current_receiver;
                 next_closures = after_condition_closures;
             }
 
@@ -421,6 +435,7 @@ impl UnitExpressionLowerer<'_> {
             if let Some(exit) = self.lower_if_branch(
                 self.block,
                 entry.body,
+                self.current_receiver,
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
                 self.closure_bindings.clone(),
@@ -432,11 +447,22 @@ impl UnitExpressionLowerer<'_> {
             )? {
                 exits.push(exit);
             }
-            unmatched = Some((next_block, next_bindings, next_borrows, next_closures));
+            unmatched = Some((
+                next_block,
+                next_receiver,
+                next_bindings,
+                next_borrows,
+                next_closures,
+            ));
         }
 
-        if let Some((unmatched_block, unmatched_bindings, unmatched_borrows, unmatched_closures)) =
-            unmatched
+        if let Some((
+            unmatched_block,
+            unmatched_receiver,
+            unmatched_bindings,
+            unmatched_borrows,
+            unmatched_closures,
+        )) = unmatched
         {
             if result_required {
                 if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
@@ -453,6 +479,7 @@ impl UnitExpressionLowerer<'_> {
                 return self.merge_unit_exits(exits, span);
             }
             self.block = unmatched_block;
+            self.current_receiver = unmatched_receiver;
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
             self.closure_bindings = unmatched_closures;
@@ -464,6 +491,7 @@ impl UnitExpressionLowerer<'_> {
             exits.push(BranchExit {
                 block: self.block,
                 result: LoweredValue::Unit,
+                receiver: self.current_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -682,16 +710,19 @@ impl UnitExpressionLowerer<'_> {
 
         let then_baseline =
             self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
-        let else_baseline =
-            self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
+        let then_receiver = self.current_receiver;
+        let else_baseline =
+            self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
+        let else_receiver = self.current_receiver;
         let mut exits = Vec::with_capacity(2);
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
+            then_receiver,
             then_baseline,
             then_borrows,
             baseline_closures.clone(),
@@ -707,6 +738,7 @@ impl UnitExpressionLowerer<'_> {
             if let Some(exit) = self.lower_if_branch(
                 else_block,
                 else_branch,
+                else_receiver,
                 else_baseline,
                 else_borrows,
                 baseline_closures.clone(),
@@ -723,6 +755,7 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             self.block = else_block;
+            self.current_receiver = else_receiver;
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
             self.closure_bindings = baseline_closures;
@@ -734,6 +767,7 @@ impl UnitExpressionLowerer<'_> {
             exits.push(BranchExit {
                 block: else_block,
                 result: LoweredValue::Unit,
+                receiver: self.current_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -747,6 +781,7 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         block: BlockId,
         statement: StatementId,
+        receiver: Option<super::ReceiverBinding>,
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -754,6 +789,7 @@ impl UnitExpressionLowerer<'_> {
         result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
         self.block = block;
+        self.current_receiver = receiver;
         let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
@@ -789,6 +825,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(Some(BranchExit {
             block: self.block,
             result,
+            receiver: self.current_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),

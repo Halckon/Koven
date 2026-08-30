@@ -463,6 +463,10 @@ pub(crate) enum Operation {
         base: LoanId,
         field: usize,
     },
+    /// Narrow an active shared/exclusive loan to a call-scoped shared loan.
+    SharedReborrow {
+        source: LoanId,
+    },
     Copy {
         source: ValueId,
     },
@@ -572,6 +576,7 @@ impl Operation {
             ],
             Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
             Self::SharedFieldLoan { base, .. } => vec![EntityId::Loan(*base)],
+            Self::SharedReborrow { source } => vec![EntityId::Loan(*source)],
             Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {

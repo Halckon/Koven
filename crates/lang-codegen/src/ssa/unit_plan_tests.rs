@@ -8,8 +8,8 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, TypeEnvironment, UnitTypeKind, ValidatedCompilationUnitTypes,
-        check_compilation_unit_types, standard_environments,
+        BuiltinType, TypeEnvironment, UnitCallableTarget, UnitTypeKind,
+        ValidatedCompilationUnitTypes, check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -124,19 +124,21 @@ fn plans_only_cross_file_reachable_functions_and_deduplicates_recursion() {
     assert_eq!(
         instances
             .iter()
-            .map(|instance| instance.key().declaration())
+            .map(|instance| instance.key().target())
             .collect::<Vec<_>>(),
-        [declaration(&names, "recurse"), declaration(&names, "entry")]
+        [
+            UnitCallableTarget::Declaration(declaration(&names, "recurse")),
+            UnitCallableTarget::Declaration(declaration(&names, "entry")),
+        ]
     );
     assert!(instances.iter().all(|instance| {
         instance.key().type_arguments().is_empty()
             && instance.substitutions().is_empty()
             && instance.span().source_id()
                 == names.names().index().source_units()[instance.source_unit().index()].source_id()
-            && instance.item().index()
-                == names.names().index().declarations()[instance.key().declaration().index()]
-                    .root()
-                    .index()
+            && matches!(instance.key().target(), UnitCallableTarget::Declaration(declaration)
+                if instance.item().index()
+                    == names.names().index().declarations()[declaration.index()].root().index())
     }));
 }
 
@@ -197,7 +199,7 @@ fn canonicalizes_generic_instances_and_is_input_order_independent() {
     let identity = declaration(&names, "identity");
     let arguments = forward
         .iter()
-        .filter(|instance| instance.key().declaration() == identity)
+        .filter(|instance| instance.key().target() == UnitCallableTarget::Declaration(identity))
         .map(|instance| instance.key().type_arguments()[0])
         .collect::<Vec<_>>();
     assert_eq!(arguments.len(), 2);
@@ -216,6 +218,49 @@ fn canonicalizes_generic_instances_and_is_input_order_independent() {
             .filter(|instance| !instance.key().type_arguments().is_empty())
             .all(|instance| instance.substitutions().len() == 1)
     );
+}
+
+#[test]
+fn plans_reachable_member_instances_with_owner_and_callable_arguments() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         value class Box<T>(val item: T) {\n\
+             fun <R> keep(own ignored: R): Int = 1\n\
+         }\n\
+         fun entry(): Int = Box(7).keep(\"ignored\")",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    assert_eq!(instances.len(), 2, "entry and one concrete member instance");
+    let member = instances
+        .iter()
+        .find(|instance| matches!(instance.key().target(), UnitCallableTarget::Symbol(_)))
+        .expect("reachable member instance");
+    assert_eq!(member.owner(), Some(declaration(&names, "Box")));
+    assert_eq!(member.key().type_arguments().len(), 2);
+    assert_eq!(member.substitutions().len(), 2);
+    assert!(matches!(
+        typed.types().types().get(member.key().type_arguments()[0]),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed.types().types().get(member.key().type_arguments()[1]),
+        Some(UnitTypeKind::Builtin(BuiltinType::String))
+    ));
 }
 
 #[test]

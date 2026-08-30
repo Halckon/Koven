@@ -13,7 +13,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, PlaceAccess},
+    model::{EntityId, EntityType, LoanKind, Operation, Origin, PlaceAccess},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -190,26 +190,39 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        let (receiver_type, explicit_receiver) = match projection.receiver() {
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.source_unit {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                let receiver_type = self
+                    .typed
+                    .types()
+                    .expression_type(receiver)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if self.typed.types().expression_category(receiver)
+                    == Some(ExpressionCategory::Temporary)
+                    && self.typed.types().copyability(receiver_type) == Copyability::MoveOnly
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                (receiver_type, Some(receiver))
+            }
+            UnitAggregateProjectionReceiver::This(owner) => {
+                let receiver = self
+                    .current_receiver
+                    .filter(|receiver| receiver.owner == owner)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                (receiver.ty, None)
+            }
         };
-        if receiver.source_unit() != self.source_unit {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let receiver_type = self
-            .typed
-            .types()
-            .expression_type(receiver)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.typed.types().expression_category(receiver) == Some(ExpressionCategory::Temporary)
-            && self.typed.types().copyability(receiver_type) == Copyability::MoveOnly
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         if matches!(
             self.typed.types().types().get(receiver_type),
             Some(UnitTypeKind::EnumCase { .. })
         ) {
+            let Some(receiver) = explicit_receiver else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
             return self.lower_enum_projection(
                 expression,
                 projection,
@@ -240,9 +253,13 @@ impl UnitExpressionLowerer<'_> {
             .get(&(receiver_type, projection.field()))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let receiver_value = self.require_expression_value(receiver.expression())?;
         let result_type = self.expression_ssa_type(expression, span)?;
         if nominal.kind() == NominalKind::ValueClass {
+            if explicit_receiver.is_none() {
+                return self.lower_this_value_field(field, result_type, span);
+            }
+            let receiver = explicit_receiver.expect("explicit receiver was checked");
+            let receiver_value = self.require_expression_value(receiver.expression())?;
             let (_, results) = self
                 .function
                 .append_instruction(
@@ -260,6 +277,10 @@ impl UnitExpressionLowerer<'_> {
         if nominal.kind() != NominalKind::Class {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let Some(receiver) = explicit_receiver else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let receiver_value = self.require_expression_value(receiver.expression())?;
         let receiver_ssa = self.expression_ssa_type(receiver.expression(), span)?;
         let payload = self
             .heap_payloads
@@ -304,5 +325,86 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    fn lower_this_value_field(
+        &mut self,
+        field: usize,
+        result_type: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let receiver = self
+            .current_receiver
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match receiver.entity {
+            EntityId::Value(value) => {
+                let (_, results) = self
+                    .function
+                    .append_instruction(
+                        self.block,
+                        Operation::AggregateProject {
+                            aggregate: value,
+                            field,
+                        },
+                        vec![EntityType::Value(result_type)],
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                Ok(LoweredValue::Value(require_value(results[0], span)?))
+            }
+            EntityId::Loan(base) => {
+                if self
+                    .function
+                    .entity(EntityId::Loan(base))
+                    .map(|data| data.ty)
+                    != Some(EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: self
+                            .type_ids
+                            .get(&receiver.ty)
+                            .copied()
+                            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+                    })
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                let (_, loans) = self
+                    .function
+                    .append_instruction(
+                        self.block,
+                        Operation::SharedFieldLoan { base, field },
+                        vec![EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: result_type,
+                        }],
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                let EntityId::Loan(field_loan) = loans[0] else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                let (_, results) = self
+                    .function
+                    .append_instruction(
+                        self.block,
+                        Operation::Read {
+                            source: PlaceAccess::Loan(field_loan),
+                        },
+                        vec![EntityType::Value(result_type)],
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::BorrowEnd { loan: field_loan },
+                        Vec::new(),
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                Ok(LoweredValue::Value(require_value(results[0], span)?))
+            }
+            EntityId::Place(_) => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+        }
     }
 }

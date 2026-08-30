@@ -9,11 +9,11 @@ use lang_frontend::{
         index_compilation_unit,
     },
     ownership_checking::ValidatedCompilationUnitOwnership,
-    parser::ParsedFile,
+    parser::{Item, NameMarker, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        TypeEnvironment, UnitCallTarget, UnitCallableTarget, UnitTypeId, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
+        TypeEnvironment, UnitCallTarget, UnitCallableSignature, UnitCallableTarget, UnitTypeId,
+        UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
@@ -25,14 +25,18 @@ const MAX_UNIT_GENERIC_INSTANCES: usize = 1024;
 /// 一个 unit-wide 具体函数实例的规范 identity。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct UnitFunctionInstanceKey {
-    declaration: DeclarationId,
+    target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
 }
 
 impl UnitFunctionInstanceKey {
     pub(crate) fn new(declaration: DeclarationId, type_arguments: Vec<UnitTypeId>) -> Self {
+        Self::for_target(UnitCallableTarget::Declaration(declaration), type_arguments)
+    }
+
+    pub(crate) fn for_target(target: UnitCallableTarget, type_arguments: Vec<UnitTypeId>) -> Self {
         Self {
-            declaration,
+            target,
             type_arguments,
         }
     }
@@ -41,8 +45,8 @@ impl UnitFunctionInstanceKey {
         Self::new(declaration, Vec::new())
     }
 
-    pub(crate) const fn declaration(&self) -> DeclarationId {
-        self.declaration
+    pub(crate) const fn target(&self) -> UnitCallableTarget {
+        self.target
     }
 
     pub(crate) fn type_arguments(&self) -> &[UnitTypeId] {
@@ -57,6 +61,7 @@ pub(crate) struct UnitPlannedInstance {
     source_unit: SourceUnitId,
     item: ItemId,
     substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
+    owner: Option<DeclarationId>,
     span: Span,
 }
 
@@ -77,6 +82,10 @@ impl UnitPlannedInstance {
         &self.substitutions
     }
 
+    pub(crate) const fn owner(&self) -> Option<DeclarationId> {
+        self.owner
+    }
+
     pub(crate) const fn span(&self) -> Span {
         self.span
     }
@@ -84,10 +93,11 @@ impl UnitPlannedInstance {
 
 #[derive(Clone, Debug)]
 struct UnitFunctionTemplate {
-    declaration: DeclarationId,
+    target: UnitCallableTarget,
     source_unit: SourceUnitId,
     item: ItemId,
     type_parameters: Vec<UnitSymbolId>,
+    owner: Option<DeclarationId>,
     span: Span,
 }
 
@@ -104,13 +114,19 @@ pub(crate) fn plan_unit_instances(
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let templates = collect_templates(names, typed, &parsed_by_source)?;
-    let template_by_declaration = templates
+    let template_by_target = templates
         .iter()
         .enumerate()
-        .map(|(index, template)| (template.declaration, index))
+        .map(|(index, template)| (template.target, index))
         .collect::<BTreeMap<_, _>>();
-    let entry_template = template_by_declaration
-        .get(&entry)
+    if template_by_target.len() != templates.len() {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::InvalidModel,
+            span: None,
+        });
+    }
+    let entry_template = template_by_target
+        .get(&UnitCallableTarget::Declaration(entry))
         .copied()
         .ok_or(LoweringError {
             kind: LoweringErrorKind::MissingFact,
@@ -137,13 +153,14 @@ pub(crate) fn plan_unit_instances(
         if planned.contains_key(&key) {
             continue;
         }
-        let template_index = template_by_declaration
-            .get(&key.declaration())
-            .copied()
-            .ok_or(LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
+        let template_index =
+            template_by_target
+                .get(&key.target())
+                .copied()
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?;
         let template = &templates[template_index];
         if template.type_parameters.len() != key.type_arguments().len() {
             return Err(lowering_error(
@@ -167,10 +184,16 @@ pub(crate) fn plan_unit_instances(
 
         for (call_index, span) in &calls_by_template[template_index] {
             let call = &typed.types().calls()[*call_index];
-            let UnitCallTarget::Declaration(target) = call.target() else {
-                continue;
+            let target = match call.target() {
+                UnitCallTarget::Declaration(declaration) => {
+                    UnitCallableTarget::Declaration(declaration)
+                }
+                UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
+                UnitCallTarget::External(_)
+                | UnitCallTarget::FunctionValue
+                | UnitCallTarget::StructuralComponent(_) => continue,
             };
-            let target_template_index = template_by_declaration
+            let target_template_index = template_by_target
                 .get(&target)
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
@@ -183,7 +206,7 @@ pub(crate) fn plan_unit_instances(
             if arguments.len() != templates[target_template_index].type_parameters.len() {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
-            pending.insert(UnitFunctionInstanceKey::new(target, arguments));
+            pending.insert(UnitFunctionInstanceKey::for_target(target, arguments));
         }
 
         if !key.type_arguments().is_empty() {
@@ -196,6 +219,7 @@ pub(crate) fn plan_unit_instances(
                 source_unit: template.source_unit,
                 item: template.item,
                 substitutions,
+                owner: template.owner,
                 span: template.span,
             },
         );
@@ -265,39 +289,93 @@ fn collect_templates(
         let signature = signatures.declaration(declaration.id()).ok_or_else(|| {
             lowering_error(LoweringErrorKind::MissingFact, declaration.name_span())
         })?;
-        let Some(callable) = signature.callable() else {
+        if let Some(callable) = signature.callable() {
+            if callable.target() != UnitCallableTarget::Declaration(declaration.id()) {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    declaration.name_span(),
+                ));
+            }
+            let parsed = parsed_by_source
+                .get(declaration.source_unit().index())
+                .copied()
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?;
+            let span = parsed
+                .ast()
+                .items()
+                .get(declaration.root())
+                .map_err(|_| LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: Some(declaration.name_span()),
+                })?
+                .span();
+            templates.push(UnitFunctionTemplate {
+                target: UnitCallableTarget::Declaration(declaration.id()),
+                source_unit: declaration.source_unit(),
+                item: declaration.root(),
+                type_parameters: callable.type_parameters().to_vec(),
+                owner: None,
+                span,
+            });
+        }
+        let Some(nominal) = signature.nominal() else {
             continue;
         };
-        if callable.target() != UnitCallableTarget::Declaration(declaration.id()) {
-            return Err(lowering_error(
-                LoweringErrorKind::MissingFact,
-                declaration.name_span(),
-            ));
-        }
         let parsed = parsed_by_source
             .get(declaration.source_unit().index())
+            .copied()
             .ok_or(LoweringError {
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })?;
-        let span = parsed
-            .ast()
-            .items()
-            .get(declaration.root())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: Some(declaration.name_span()),
-            })?
-            .span();
-        templates.push(UnitFunctionTemplate {
-            declaration: declaration.id(),
-            source_unit: declaration.source_unit(),
-            item: declaration.root(),
-            type_parameters: callable.type_parameters().to_vec(),
-            span,
-        });
+        for member in nominal.members() {
+            let UnitCallableTarget::Symbol(symbol) = member.target() else {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    member.name_span(),
+                ));
+            };
+            let item = callable_item(parsed, member)?;
+            let span = parsed
+                .ast()
+                .items()
+                .get(item)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, member.name_span()))?
+                .span();
+            let mut type_parameters = nominal.type_parameters().to_vec();
+            type_parameters.extend_from_slice(member.type_parameters());
+            templates.push(UnitFunctionTemplate {
+                target: UnitCallableTarget::Symbol(symbol),
+                source_unit: symbol.source_unit(),
+                item,
+                type_parameters,
+                owner: Some(declaration.id()),
+                span,
+            });
+        }
     }
     Ok(templates)
+}
+
+fn callable_item(
+    parsed: &ParsedFile,
+    callable: &UnitCallableSignature,
+) -> Result<ItemId, LoweringError> {
+    parsed
+        .ast()
+        .items()
+        .iter()
+        .find_map(|(item, node)| match node.payload() {
+            Item::Function {
+                name: NameMarker::Present(span),
+                ..
+            } if *span == callable.name_span() => Some(item),
+            _ => None,
+        })
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, callable.name_span()))
 }
 
 fn index_calls(

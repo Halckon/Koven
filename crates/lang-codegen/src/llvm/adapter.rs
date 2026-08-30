@@ -332,6 +332,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::SharedPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
                 | Operation::SharedFieldLoan { .. }
+                | Operation::SharedReborrow { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
                 | Operation::BorrowBegin { .. }
@@ -819,6 +820,17 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     *field as u32,
                     &format!("l{}", result.index()),
                 )?;
+                self.loans.insert(*result, pointer);
+            }
+            Operation::SharedReborrow { source } => {
+                let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "shared reborrow",
+                        1,
+                        instruction.results.len(),
+                    ));
+                };
+                let pointer = self.access(crate::ssa::model::PlaceAccess::Loan(*source))?;
                 self.loans.insert(*result, pointer);
             }
             Operation::NullableWrap { owner, .. } => {

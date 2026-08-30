@@ -70,7 +70,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 ## 6. 实施计划
 
 1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
-2. [ ] 接 frontend member body/call 与 LLVM ABI → 验证：nominal/generic native tests。
+2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
+   ordinary-class Inout payload mutation、generic nominal layout 与 native run 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
@@ -96,3 +97,11 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib` | 231 通过、1 ignored | 共享 DirectCall IR 不变量触发 Layer 3；ignored 为既有 debugserver task-port 权限用例 |
 | `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 当前 SSA 切片的 Layer 2 静态门禁 |
 | 独立高风险复核 | 通过 | 未发现 receiver/argument 边界、ownership、FunctionAddress 或 LLVM 顺序的 P1/P2 |
+| `cargo test -p lang-codegen --lib unit_plan_tests` | 4/4 通过 | Layer 1：member reachability、静态 target、owner+callable type arguments 与既有确定性回归 |
+| `cargo test -p lang-codegen --lib unit_lower_receiver_tests` | 12/12 通过 | Layer 1：Borrow/Inout/Value、显式/隐式/reborrow receiver、`return this`、CFG carry、求值顺序、loan end、drop 与 LLVM ABI |
+| `cargo test -p lang-codegen --lib shared_reborrow_blocks_parent_end_and_exclusive_call_until_child_end` | 1/1 通过 | Layer 1 负例：derived shared loan 活跃时拒绝 parent end 与 exclusive receiver call |
+| `cargo test -p lang-codegen --lib unit_lower_borrow_tests` | 2/2 通过 | Layer 1 回归：既有显式参数 shared loan/forwarding 与 Inout 原子边界不变 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_tests` | 14/14 通过 | Layer 1 回归：顶层 reachability、call、control-flow 与 owner transfer 不变 |
+| `cargo test -p lang-codegen --lib` | 245 通过、1 ignored | receiver/reborrow 共享 SSA 与 CFG 不变量触发 Layer 3；ignored 为既有 debugserver task-port 权限用例 |
+| `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 基础 source member receiver 切片的 Layer 2 静态门禁；未运行耗时的 `lang-frontend` 全量测试 |
+| 独立高风险复核（基础 source member receiver 切片） | 通过 | 针对 CFG/loop receiver carry、合法 reborrow、`return this`、parent/child loan dependency 与跨 edge loan identity 逐项复核；发现项均修复并复核至无 P1/P2 |

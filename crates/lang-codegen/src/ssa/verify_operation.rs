@@ -187,6 +187,15 @@ pub(super) fn verify_operation(
                         }]
                 })
         }
+        Operation::SharedReborrow { source } => {
+            matches!(
+                function.entity(EntityId::Loan(*source)).map(|entity| entity.ty),
+                Some(EntityType::Loan { target, .. }) if results == [EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }]
+            )
+        }
         Operation::Copy { source } => {
             single_value_result(&results) == value_type(function, *source)
         }

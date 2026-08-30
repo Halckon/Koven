@@ -504,9 +504,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       不按名称猜测
 - [x] SPEC-0035/0038/0184 已消费 Phase 3 drop facts，为聚合、heap owner、容器和 closure
       插入正常路径析构；abort 路径不生成 unwind cleanup
-- [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（draft）**：在 SPEC-0180/0181
-      后把 instance member receiver、default/override/`super<I>` 与 Borrow-only 静态接口委托
-      lower 到 SSA/LLVM；复用 ADR-0016，只验收具有源码生产路径的 DirectCall receiver，不生成
+- [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（实施中）**：SSA/verifier/LLVM
+      receiver-first 基元与 source member 的基础 Borrow/Inout/Value/隐式 `this` 接线已完成；继续补齐
+      ordinary-class Inout payload mutation、default/override/`super<I>`、object、Borrow-only 静态委托
+      和 object/link/run。复用 ADR-0016，只验收具有源码生产路径的 DirectCall receiver，不生成
       vtable/proxy/隐式 retain 或未定义的 bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）

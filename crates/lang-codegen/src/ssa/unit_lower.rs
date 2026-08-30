@@ -12,6 +12,7 @@ mod enum_lower;
 mod loop_control;
 mod ownership;
 mod rc;
+mod receiver;
 mod scalar;
 mod type_lower;
 mod type_plan;
@@ -32,8 +33,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, TypeEnvironment,
-        UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
+        UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitStatementId,
+        UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
@@ -67,8 +68,25 @@ struct FunctionPlan {
     instance: UnitPlannedInstance,
     function_item: ItemId,
     body: FunctionPlanBody,
+    receiver: Option<ReceiverPlan>,
     parameter_symbols: Vec<UnitSymbolId>,
     return_type: UnitTypeId,
+}
+
+#[derive(Clone, Copy)]
+struct ReceiverPlan {
+    owner: DeclarationId,
+    mode: ParameterMode,
+    ty: UnitTypeId,
+    entity_type: EntityType,
+}
+
+#[derive(Clone, Copy)]
+struct ReceiverBinding {
+    owner: DeclarationId,
+    mode: ParameterMode,
+    ty: UnitTypeId,
+    entity: EntityId,
 }
 
 /// 把 compilation unit 当前封闭的 scalar expression-body 子集 lower 为 verified SSA。
@@ -93,20 +111,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
     let mut plans = Vec::new();
 
     for instance in instances {
-        let declaration = names
-            .names()
-            .index()
-            .declarations()
-            .get(instance.key().declaration().index())
-            .ok_or(LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        let callable = typed
-            .types()
-            .signatures()
-            .declaration(declaration.id())
-            .and_then(|signature| signature.callable())
+        let callable = unit_callable_signature(typed, instance.key().target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
         let parsed = parsed_by_source
             .get(instance.source_unit().index())
@@ -143,8 +148,53 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 ));
             }
         };
+        let receiver = match (callable.receiver(), instance.owner()) {
+            (Some(receiver), Some(owner)) => {
+                let concrete = resolve_concrete_type(
+                    typed,
+                    receiver.ty(),
+                    instance.substitutions(),
+                    receiver.declaration_span(),
+                )?;
+                let ty = types.intern(module, typed, concrete, receiver.declaration_span())?;
+                let entity_type = match receiver.mode() {
+                    ParameterMode::Value => EntityType::Value(ty),
+                    ParameterMode::Borrow => EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: ty,
+                    },
+                    ParameterMode::Inout => EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        target: ty,
+                    },
+                };
+                Some(ReceiverPlan {
+                    owner,
+                    mode: receiver.mode(),
+                    ty: concrete,
+                    entity_type,
+                })
+            }
+            (None, None) => None,
+            (Some(receiver), None) => {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    receiver.declaration_span(),
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    instance.span(),
+                ));
+            }
+        };
         let mut parameter_symbols = Vec::with_capacity(callable.parameters().len());
-        let mut parameter_types = Vec::with_capacity(callable.parameters().len());
+        let mut parameter_types =
+            Vec::with_capacity(callable.parameters().len() + usize::from(receiver.is_some()));
+        if let Some(receiver) = receiver {
+            parameter_types.push(receiver.entity_type);
+        }
         for parameter in callable.parameters() {
             let symbol = parameter
                 .symbol()
@@ -190,13 +240,15 @@ pub(crate) fn lower_scalar_unit_with_entry(
         } else {
             vec![types.intern(module, typed, return_type, instance.span())?]
         };
-        let id = module
-            .add_function(
-                instance_function_name(names, &instance),
-                return_types,
-                Origin::Source(instance.span()),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
+        let name = instance_function_name(names, &instance);
+        let origin = Origin::Source(instance.span());
+        let id = match receiver {
+            Some(receiver) => {
+                module.add_instance_function(name, receiver.entity_type, return_types, origin)
+            }
+            None => module.add_function(name, return_types, origin),
+        }
+        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
         module
             .function_mut(id)
             .expect("new unit function must exist")
@@ -208,6 +260,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             instance,
             function_item,
             body,
+            receiver,
             parameter_symbols,
             return_type,
         });
@@ -257,15 +310,47 @@ pub(crate) fn lower_scalar_unit_with_entry(
             .expect("entry block exists")
             .parameters
             .clone();
-        if parameters.len() != plan.parameter_symbols.len() {
+        if parameters.len() != plan.parameter_symbols.len() + usize::from(plan.receiver.is_some()) {
             return Err(lowering_error(
                 LoweringErrorKind::InvalidModel,
                 plan.instance.span(),
             ));
         }
+        let (current_receiver, parameters) = match (plan.receiver, parameters.split_first()) {
+            (Some(receiver), Some((entity, parameters)))
+                if receiver.entity_type
+                    == function
+                        .entity(*entity)
+                        .map(|data| data.ty)
+                        .ok_or_else(|| {
+                            lowering_error(LoweringErrorKind::InvalidModel, plan.instance.span())
+                        })? =>
+            {
+                (
+                    Some(ReceiverBinding {
+                        owner: receiver.owner,
+                        mode: receiver.mode,
+                        ty: receiver.ty,
+                        entity: *entity,
+                    }),
+                    parameters,
+                )
+            }
+            (None, _) => (None, parameters.as_slice()),
+            _ => {
+                return Err(lowering_error(
+                    LoweringErrorKind::InvalidModel,
+                    plan.instance.span(),
+                ));
+            }
+        };
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
-        for (symbol, entity) in plan.parameter_symbols.into_iter().zip(parameters) {
+        for (symbol, entity) in plan
+            .parameter_symbols
+            .into_iter()
+            .zip(parameters.iter().copied())
+        {
             match entity {
                 EntityId::Value(value) => {
                     bindings.insert(symbol, LoweredValue::Value(value));
@@ -300,6 +385,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             block,
             bindings,
             borrow_bindings,
+            current_receiver,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
             callable_plans: &callable_plans,
@@ -323,6 +409,12 @@ pub(crate) fn lower_scalar_unit_with_entry(
         }
         if let (Some(expression), LoweredValue::Value(value)) = (result_expression, result) {
             lowerer.transfer_owned_expression(expression, value, plan.instance.span())?;
+        }
+        if let Some(expression) = result_expression {
+            lowerer.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                plan.instance.source_unit(),
+                expression,
+            )))?;
         }
         let values = match (builtin_type(typed, plan.return_type), result) {
             (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
@@ -374,6 +466,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             block,
             bindings: BTreeMap::new(),
             borrow_bindings: BTreeMap::new(),
+            current_receiver: None,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
             callable_plans: &callable_plans,
@@ -411,6 +504,7 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    current_receiver: Option<ReceiverBinding>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     closure_binding_context: bool,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
@@ -497,6 +591,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),
             Expression::String { .. } => self.lower_string_literal(expression, span),
             Expression::Name => self.lower_name(expression, span),
+            Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::Call {
                 callee, arguments, ..
@@ -862,7 +957,23 @@ fn instance_function_name(
     names: &ValidatedCompilationUnitNames,
     instance: &UnitPlannedInstance,
 ) -> String {
-    let declaration = &names.names().index().declarations()[instance.key().declaration().index()];
+    let (declaration, callable_name, target_index) = match instance.key().target() {
+        UnitCallableTarget::Declaration(declaration) => {
+            let declaration = &names.names().index().declarations()[declaration.index()];
+            (declaration, declaration.name(), declaration.id().index())
+        }
+        UnitCallableTarget::Symbol(symbol) => {
+            let owner = instance
+                .owner()
+                .expect("planned member callable must retain its nominal owner");
+            let declaration = &names.names().index().declarations()[owner.index()];
+            let symbol_name = names.names().source_units()[symbol.source_unit().index()]
+                .resolution()
+                .symbols()[symbol.symbol().index()]
+            .name();
+            (declaration, symbol_name, symbol.symbol().index())
+        }
+    };
     let package = &names.names().index().packages()[declaration.package().index()];
     let mut name = String::from("koven");
     for segment in package.name().segments() {
@@ -871,13 +982,40 @@ fn instance_function_name(
     }
     name.push('.');
     name.push_str(declaration.name());
-    name.push_str(".d");
-    name.push_str(&declaration.id().index().to_string());
+    if matches!(instance.key().target(), UnitCallableTarget::Symbol(_)) {
+        name.push('.');
+        name.push_str(callable_name);
+        name.push_str(".s");
+    } else {
+        name.push_str(".d");
+    }
+    name.push_str(&target_index.to_string());
     for argument in instance.key().type_arguments() {
         name.push_str(".t");
         name.push_str(&argument.index().to_string());
     }
     name
+}
+
+fn unit_callable_signature(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+) -> Option<&UnitCallableSignature> {
+    match target {
+        UnitCallableTarget::Declaration(declaration) => typed
+            .types()
+            .signatures()
+            .declaration(declaration)
+            .and_then(|signature| signature.callable()),
+        UnitCallableTarget::Symbol(symbol) => typed
+            .types()
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|signature| signature.nominal())
+            .flat_map(|nominal| nominal.members().iter().chain(nominal.companion_members()))
+            .find(|callable| callable.target() == UnitCallableTarget::Symbol(symbol)),
+    }
 }
 
 fn parse_integer_literal(

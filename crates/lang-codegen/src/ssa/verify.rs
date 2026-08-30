@@ -82,6 +82,10 @@ pub(super) enum VerifyErrorKind {
     LoanInactive {
         loan: super::model::LoanId,
     },
+    LoanDependencyActive {
+        parent: super::model::LoanId,
+        dependent: super::model::LoanId,
+    },
     BorrowConflict {
         place: super::model::PlaceId,
     },
