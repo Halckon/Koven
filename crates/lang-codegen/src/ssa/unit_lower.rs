@@ -2,6 +2,7 @@
 
 mod aggregate;
 mod assignment;
+mod call;
 mod cfg;
 mod construction;
 mod container;
@@ -22,7 +23,7 @@ use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind, ValidatedCompilationUnitOwnership},
+    ownership_checking::{UnitDropPoint, ValidatedCompilationUnitOwnership},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
         Statement,
@@ -30,7 +31,7 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, TypeEnvironment,
-        UnitCallTarget, UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId, UnitTypeKind,
+        UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeId, UnitTypeKind,
         ValidatedCompilationUnitTypes,
     },
 };
@@ -39,8 +40,8 @@ use super::{
     LoweringError, LoweringErrorKind,
     lower_frontend::string_literal,
     model::{
-        BlockId, EntityId, EntityType, Function, FunctionId, Operation, Origin, Program,
-        ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
+        BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
+        Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
     unit_plan::{
         UnitFunctionInstanceKey, UnitPlannedInstance, plan_unit_instances, resolve_concrete_type,
@@ -144,12 +145,6 @@ pub(crate) fn lower_scalar_unit_with_entry(
         let mut parameter_symbols = Vec::with_capacity(callable.parameters().len());
         let mut parameter_types = Vec::with_capacity(callable.parameters().len());
         for parameter in callable.parameters() {
-            if parameter.mode() != ParameterMode::Value {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    parameter.span(),
-                ));
-            }
             let symbol = parameter
                 .symbol()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, parameter.span()))?;
@@ -159,9 +154,29 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 instance.substitutions(),
                 parameter.span(),
             )?;
+            if parameter.mode() == ParameterMode::Borrow
+                && builtin_type(typed, concrete) == Some(BuiltinType::Unit)
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    parameter.span(),
+                ));
+            }
             let ty = types.intern(module, typed, concrete, parameter.span())?;
             parameter_symbols.push(symbol);
-            parameter_types.push(EntityType::Value(ty));
+            parameter_types.push(match parameter.mode() {
+                ParameterMode::Value => EntityType::Value(ty),
+                ParameterMode::Borrow => EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: ty,
+                },
+                ParameterMode::Inout => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        parameter.span(),
+                    ));
+                }
+            });
         }
         let return_type = resolve_concrete_type(
             typed,
@@ -238,18 +253,24 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 plan.instance.span(),
             ));
         }
-        let bindings = plan
-            .parameter_symbols
-            .into_iter()
-            .zip(parameters)
-            .map(|(symbol, entity)| match entity {
-                EntityId::Value(value) => Ok((symbol, LoweredValue::Value(value))),
-                EntityId::Place(_) | EntityId::Loan(_) => Err(lowering_error(
-                    LoweringErrorKind::InvalidModel,
-                    plan.instance.span(),
-                )),
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let mut bindings = BTreeMap::new();
+        let mut borrow_bindings = BTreeMap::new();
+        for (symbol, entity) in plan.parameter_symbols.into_iter().zip(parameters) {
+            match entity {
+                EntityId::Value(value) => {
+                    bindings.insert(symbol, LoweredValue::Value(value));
+                }
+                EntityId::Loan(loan) => {
+                    borrow_bindings.insert(symbol, loan);
+                }
+                EntityId::Place(_) => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::InvalidModel,
+                        plan.instance.span(),
+                    ));
+                }
+            }
+        }
         let mut lowerer = UnitExpressionLowerer {
             sources,
             parsed,
@@ -268,6 +289,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             function,
             block,
             bindings,
+            borrow_bindings,
             temporaries: BTreeMap::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
@@ -329,6 +351,7 @@ struct UnitExpressionLowerer<'a> {
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     loops: Vec<loop_control::LoopContext>,
     return_type: UnitTypeId,
@@ -407,7 +430,7 @@ impl UnitExpressionLowerer<'_> {
         match node.payload() {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),
             Expression::String { .. } => self.lower_string_literal(expression, span),
-            Expression::Name => self.lower_name(span),
+            Expression::Name => self.lower_name(expression, span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::Call { arguments, .. } => self.lower_call(expression, arguments, span),
             Expression::Prefix {
@@ -491,173 +514,6 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
-    }
-
-    fn lower_name(&self, span: Span) -> Result<LoweredValue, LoweringError> {
-        let symbol = self
-            .references
-            .get(&span_key(span))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        self.bindings
-            .get(symbol)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))
-    }
-
-    fn lower_call(
-        &mut self,
-        expression: ExpressionId,
-        arguments: &[lang_frontend::parser::CallArgument],
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let unit_expression = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .types()
-            .call(unit_expression)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let UnitCallTarget::Declaration(target) = descriptor.target() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let type_arguments = descriptor
-            .instance()
-            .type_arguments()
-            .iter()
-            .map(|ty| resolve_concrete_type(self.typed, *ty, self.substitutions, span))
-            .collect::<Result<Vec<_>, _>>()?;
-        let callee = self
-            .function_ids
-            .get(&UnitFunctionInstanceKey::new(target, type_arguments))
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let mut ordered = vec![None; descriptor.arguments().len()];
-        for (argument_index, argument) in arguments.iter().enumerate() {
-            let mapping = descriptor
-                .arguments()
-                .iter()
-                .find(|mapping| mapping.argument_index() == argument_index)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
-            if mapping.mode() != ParameterMode::Value {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    argument.span,
-                ));
-            }
-            let value = match self.lower(argument.value)? {
-                LoweredValue::Value(value) => value,
-                LoweredValue::Unit | LoweredValue::Diverged => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::MissingFact,
-                        argument.span,
-                    ));
-                }
-            };
-            let mut deliveries =
-                self.owned
-                    .ownership()
-                    .value_deliveries()
-                    .iter()
-                    .filter(|delivery| {
-                        delivery.call() == unit_expression
-                            && delivery.argument()
-                                == UnitExpressionId::new(self.source_unit, argument.value)
-                    });
-            let delivery = deliveries
-                .next()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
-            let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
-            let argument_type = self
-                .typed
-                .types()
-                .expression_type(argument_id)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
-            let expected_delivery = match (
-                self.typed.types().expression_category(argument_id),
-                self.typed.types().copyability(argument_type),
-            ) {
-                (Some(ExpressionCategory::Temporary), _) => UnitValueDeliveryKind::Temporary,
-                (Some(ExpressionCategory::Place), Copyability::Copyable) => {
-                    UnitValueDeliveryKind::Copy
-                }
-                (Some(ExpressionCategory::Place), Copyability::MoveOnly) => {
-                    UnitValueDeliveryKind::Move
-                }
-                (None, _)
-                | (Some(ExpressionCategory::Place), Copyability::Unknown | Copyability::Error) => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::MissingFact,
-                        argument.span,
-                    ));
-                }
-            };
-            if deliveries.next().is_some() || delivery.kind() != expected_delivery {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    argument.span,
-                ));
-            }
-            let slot = ordered
-                .get_mut(mapping.parameter_index())
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
-            if slot.replace(EntityId::Value(value)).is_some() {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    argument.span,
-                ));
-            }
-            match expected_delivery {
-                UnitValueDeliveryKind::Copy => {}
-                UnitValueDeliveryKind::Move => {
-                    let place = delivery
-                        .place()
-                        .filter(|place| place.is_root())
-                        .ok_or_else(|| {
-                            lowering_error(LoweringErrorKind::MissingFact, argument.span)
-                        })?;
-                    self.take_owned_binding(place.root(), value, argument.span)?;
-                }
-                UnitValueDeliveryKind::Temporary => {
-                    if self.typed.types().copyability(argument_type) == Copyability::MoveOnly {
-                        self.take_owned_temporary(value, argument.span)?;
-                    }
-                }
-            }
-        }
-        let arguments = ordered
-            .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let return_type = resolve_concrete_type(
-            self.typed,
-            descriptor.return_type(),
-            self.substitutions,
-            span,
-        )?;
-        let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
-            Vec::new()
-        } else {
-            vec![EntityType::Value(
-                *self
-                    .type_ids
-                    .get(&return_type)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
-            )]
-        };
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::DirectCall { callee, arguments },
-                result_types,
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        self.emit_drops(UnitDropPoint::CallReturn(unit_expression))?;
-        match results.as_slice() {
-            [] => Ok(LoweredValue::Unit),
-            [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
-            _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
-        }
     }
 
     fn lower_return(

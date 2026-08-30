@@ -6,16 +6,15 @@ use lang_frontend::{
     parser::{Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
-        BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory,
-        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, UnitExpressionId,
-        UnitTypeKind,
+        ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicTypeConstructor,
+        ParameterMode, SequentialContainerKind, UnitExpressionId, UnitTypeKind,
     },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityType, Operation, Origin, ScalarConstant},
+    model::{EntityType, Operation, Origin},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -51,38 +50,7 @@ impl UnitExpressionLowerer<'_> {
             let value = match self.lower(argument.value)? {
                 LoweredValue::Value(value) => value,
                 LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
-                LoweredValue::Unit => {
-                    let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
-                    let argument_type = self
-                        .typed
-                        .types()
-                        .expression_type(argument_id)
-                        .ok_or_else(|| {
-                            lowering_error(LoweringErrorKind::MissingFact, argument.span)
-                        })?;
-                    if !matches!(
-                        self.typed.types().types().get(argument_type),
-                        Some(UnitTypeKind::Builtin(BuiltinType::Unit))
-                    ) {
-                        return Err(lowering_error(
-                            LoweringErrorKind::MissingFact,
-                            argument.span,
-                        ));
-                    }
-                    let unit = self.expression_ssa_type(argument.value, argument.span)?;
-                    let (_, results) = self
-                        .function
-                        .append_instruction(
-                            self.block,
-                            Operation::Constant(ScalarConstant::Unit),
-                            vec![EntityType::Value(unit)],
-                            Origin::Source(argument.span),
-                        )
-                        .map_err(|_| {
-                            lowering_error(LoweringErrorKind::InvalidModel, argument.span)
-                        })?;
-                    require_value(results[0], argument.span)?
-                }
+                LoweredValue::Unit => self.materialize_unit_value(argument.value, argument.span)?,
             };
             self.consume_container_delivery(id, argument.value, value, argument.span)?;
             elements.push(value);

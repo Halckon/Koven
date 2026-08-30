@@ -285,6 +285,23 @@ impl UnitExpressionLowerer<'_> {
         Ok(builtin_type(self.typed, concrete))
     }
 
+    pub(super) fn materialize_unit_value(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        if self.expression_builtin_type(expression, span)? != Some(BuiltinType::Unit) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let ty = self.expression_ssa_type(expression, span)?;
+        match self.append_scalar(Operation::Constant(ScalarConstant::Unit), ty, span)? {
+            LoweredValue::Value(value) => Ok(value),
+            LoweredValue::Unit | LoweredValue::Diverged => {
+                Err(lowering_error(LoweringErrorKind::InvalidModel, span))
+            }
+        }
+    }
+
     fn append_scalar(
         &mut self,
         operation: Operation,

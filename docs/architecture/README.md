@@ -1076,6 +1076,18 @@ element type 在 type planning 阶段拒绝，runtime-length 在任何实参 SSA
 materialization、multi-source DWARF 与 object/native 闭环仍由 SPEC-0199 后续切片承接；现行 guide
 语义未改变。
 
+第十九切片把 compilation-unit direct call 扩展到 shared-Borrow callable core。Borrow 参数在 SSA
+function entry 表示为 function-scoped Shared Loan；owned root 与 temporary 严格消费唯一的
+source-qualified `UnitLoanFact(call, argument)`，生成 `RootPlace + BorrowBegin`，DirectCall 后只对本次
+创建的 loan 按逆序生成 `BorrowEnd`，随后消费 CallReturn drop。已有 Borrow 参数向下游调用时直接转发
+同一 function-scoped loan，不产生嵌套 loan；Copyable Borrow name 通过 `PlaceAccess::Loan` 读取。
+lowerer 保持源码实参求值顺序，并按 typed parameter index 组装具名实参槽位。结构测试锁定 root/
+temporary、混合 Borrow/Borrow/Value、转发、读取、析构与输入置换；一般 Inout、非 root field/container/
+Rc projection、MoveOnly Borrow name read 仍 fail loud。由于现行 callable SSA/LLVM ABI 不把 `Unit` 作为
+一等参数类型，`Borrow(Unit)` 在 concrete substitution 后、SSA 类型与函数创建前确定性拒绝，等待后续
+ABI 擦除方案。container element borrow、closure thunk、LLVM/multi-source DWARF 与 object/native
+仍由 SPEC-0199 后续切片承接；现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
