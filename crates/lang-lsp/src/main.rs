@@ -5,6 +5,7 @@ mod definition;
 mod diagnostic_adapter;
 mod position_adapter;
 mod server;
+mod source_set;
 
 use std::error::Error;
 

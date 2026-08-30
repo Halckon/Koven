@@ -20,12 +20,42 @@ use crate::{
     analysis::{Analysis, AnalysisError, analyze},
     diagnostic_adapter::{DiagnosticMappingError, convert_diagnostics},
     position_adapter::{PositionMappingError, byte_offset, span_range},
+    source_set::SourceSetConfig,
 };
 
 /// 运行一个已建立 transport 的 Koven LSP 会话。
 pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
     let (initialize_id, initialize_params) = connection.initialize_start()?;
-    let _: InitializeParams = serde_json::from_value(initialize_params)?;
+    let initialize_params: InitializeParams = match serde_json::from_value(initialize_params) {
+        Ok(params) => params,
+        Err(error) => {
+            send_response(
+                &connection,
+                Response::new_err(
+                    initialize_id,
+                    ErrorCode::InvalidParams as i32,
+                    format!("invalid initialize params: {error}"),
+                ),
+            )?;
+            return Ok(());
+        }
+    };
+    let _source_set = match SourceSetConfig::from_initialization_options(
+        initialize_params.initialization_options.as_ref(),
+    ) {
+        Ok(source_set) => source_set,
+        Err(error) => {
+            send_response(
+                &connection,
+                Response::new_err(
+                    initialize_id,
+                    ErrorCode::InvalidParams as i32,
+                    error.to_string(),
+                ),
+            )?;
+            return Ok(());
+        }
+    };
     let initialize_result = InitializeResult {
         capabilities: capabilities(),
         server_info: Some(ServerInfo {
@@ -356,6 +386,82 @@ mod tests {
     use super::run;
 
     const TIMEOUT: Duration = Duration::from_secs(5);
+
+    #[test]
+    fn source_set_initialization_accepts_valid_options_and_enters_session() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let mut params = serde_json::to_value(InitializeParams::default()).expect("params");
+        params["initializationOptions"] = serde_json::json!({
+            "unrelated": true,
+            "koven": {
+                "sibling": "ignored",
+                "sourceSet": {
+                    "schema": "koven.lsp.source-set",
+                    "version": 1,
+                    "roots": ["main"],
+                    "sources": [{
+                        "root": "main",
+                        "logicalPath": "app/main.ko",
+                        "uri": "file:///not-read/main.ko",
+                        "text": "package app"
+                    }]
+                }
+            }
+        });
+        client
+            .sender
+            .send(Message::Request(Request {
+                id: RequestId::from(39_i32),
+                method: Initialize::METHOD.to_owned(),
+                params,
+            }))
+            .expect("initialize request");
+        let response = receive_response(&client);
+        assert!(response.response_result.is_ok());
+        send_notification(
+            &client,
+            Initialized::METHOD,
+            serde_json::to_value(InitializedParams {}).expect("initialized params"),
+        );
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
+    fn source_set_initialization_returns_invalid_params_before_session_start() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let mut params = serde_json::to_value(InitializeParams::default()).expect("params");
+        params["initializationOptions"] = serde_json::json!({
+            "koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": [],
+                "sources": []
+            }}
+        });
+        client
+            .sender
+            .send(Message::Request(Request {
+                id: RequestId::from(40_i32),
+                method: Initialize::METHOD.to_owned(),
+                params,
+            }))
+            .expect("initialize request");
+
+        let response = receive_response(&client);
+        let error = response.response_result.expect_err("invalid params");
+        assert_eq!(error.code, ErrorCode::InvalidParams as i32);
+        assert!(error.message.contains("roots must not be empty"));
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
 
     #[test]
     fn memory_session_publishes_versions_clears_close_and_shuts_down() {

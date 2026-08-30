@@ -1307,6 +1307,14 @@ provider 与 full-document open/change/close sync；每个打开 URI 保存版�
   该 LSP 消息不是 ADR-0014 的 CLI 机器协议；LSP 与 CLI adapter 分别保持 UTF-16/URI 与
   UTF-8 byte/scalar 位置契约，不互相序列化。
 
+SPEC-0187 第一切片在 legacy 单文档状态之外接入 ADR-0021 的可选 `koven.sourceSet` version 1
+初始化协议。`source_set` 严格校验 source-set 自身的 schema/version/字段、非空且唯一 root、
+`(root, logicalPath)`/URI 一一映射、ADR-0005 逻辑路径和绝对 URI，并按稳定 source key 规范排序；
+无关 initialization options 与缺席 source-set 继续进入 legacy 模式。URI 只解析为 presentation
+identity，base text 完全来自初始化 payload，不读取磁盘。非法协议在 initialize 阶段返回 JSON-RPC
+`InvalidParams`，不会进入文档生命周期；base/overlay snapshot、跨文件诊断与 definition 仍由本 Spec
+后续切片接入。
+
 ## 索引式 AST 存储
 
 `lang_frontend::ast::AstFile<Item, Statement, Expression, TypeRef>` 拥有四张按插入顺序增长的

@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P6-187` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 v0.32 §32 |
-| 批准依据 | 无；等待前置 Spec |
-| 前置 Spec | SPEC-0055、0056 `done`；SPEC-0025、0197、0198 待完成 |
+| 批准依据 | 2026-08-30 当前持续 Goal 授权继续按现行 guide 与已解锁 Spec 分阶段实施 |
+| 前置 Spec | SPEC-0025、0055、0056、0197、0198 `done` |
 | 前置 ADR | ADR-0020、[ADR-0021](../adr/0021-lsp-explicit-source-set-protocol.md) `accepted` |
-| 阻塞项 | SPEC-0025/0197/0198 `done` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-lsp` workspace/source-set state，frontend API integration，LSP tests；Architecture/Roadmap |
 | 语言语义变更 | 否 |
 
@@ -49,7 +49,7 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 
 ## 5. 验收标准
 
-- [ ] version 1 初始化正反矩阵覆盖 schema/version、重复 root/key/URI、未知 root、非法路径/URI，
+- [x] version 1 初始化正反矩阵覆盖 schema/version、重复 root/key/URI、未知 root、非法路径/URI，
   并证明 server 不读取 URI 指向的磁盘内容。
 - [ ] 多文件 open/change/close 测试覆盖诊断新增、迁移、清除、base 回落、version 与确定发布顺序。
 - [ ] definition 覆盖 exact alias、wildcard、限定名、同 package 及 private/inaccessible 反例。
@@ -66,7 +66,7 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 
 ## 7. 实施计划
 
-1. [ ] 解析 version 1 source set 并保留 legacy fallback → 验证：initialize 正反矩阵。
+1. [x] 解析 version 1 source set 并保留 legacy fallback → 验证：initialize 正反矩阵。
 2. [ ] 建立 immutable base、buffer overlay 与原子 unit snapshot → 验证：open/change/close、
    stale/internal-failure 测试。
 3. [ ] 接跨文件 diagnostics/definition → 验证：多 URI、UTF-16 与 frontend 正反矩阵。
@@ -76,7 +76,9 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | 跨文件 diagnostics 与 definition | `feat(lsp): resolve multifile definitions (SPEC-0187)` |
+| 1 | source-set version 1 初始化协议 | `feat(lsp): validate source-set initialization (SPEC-0187)` |
+| 2 | base/overlay snapshot 与跨文件 diagnostics | `feat(lsp): analyze multifile source sets (SPEC-0187)` |
+| 3 | 跨文件 definition 与完成同步 | `feat(lsp): resolve multifile definitions (SPEC-0187)` |
 
 ## 9. 未决问题
 
@@ -90,3 +92,7 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 | 2026-08-26 roadmap 审计 | 通过 | 依赖已扩展为完整 name/type/ownership frontend 链 |
 | 2026-08-26 source-set provider 审计 | 通过 | ADR-0021 已物化显式 initialization wire；该次记录时尚未接受或实施 |
 | 2026-08-26 ADR 接受审计 | 通过 | 统一 SourceUnitId 查询边界，严格事件规则仅作用于 source-set mode；ADR 已接受，Spec 仍保持 draft |
+| 2026-08-30 实施前审计 | 通过 | 0025/0197/0198 与 0055/0056 均已 `done`，ADR-0020/0021 `accepted`；按初始化、snapshot/diagnostics、definition 三个可独立验证切片推进 |
+| `cargo test -q -p lang-lsp source_set_initialization --locked --offline` | 7 passed | strict schema/version/field、root/key/URI/path、确定排序、不读取 URI、legacy 缺席、valid session 与 initialize `InvalidParams` |
+| `cargo clippy -p lang-lsp --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第一切片只跑 LSP 窄测与受影响 crate 静态门禁，不运行 `lang-frontend` 全量 |
+| 独立 fresh-context 评审 | 通过 | 复核 ADR-0021 strict wire、无关 option、路径/URI/排序、不读磁盘、InvalidParams 与 legacy fallback；修正 Specs 总路线图状态漂移后无 P1/P2/P3 |
