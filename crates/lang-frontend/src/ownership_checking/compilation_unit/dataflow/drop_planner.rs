@@ -77,20 +77,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
         }
-        for (_, node) in self.checker.parsed.ast().expressions().iter() {
+        for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
             let Expression::Lambda {
                 parameters, body, ..
             } = node.payload()
             else {
                 continue;
             };
-            if parameters
-                .iter()
-                .any(|span| self.is_move_only_lambda_parameter(*span))
-            {
-                continue;
-            }
-            self.plan_lambda_body(*body)?;
+            self.plan_lambda_body(lambda, parameters, *body)?;
         }
         Ok(self.facts)
     }
@@ -987,6 +981,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 &self.liveness.statement_after[statement.index()]
             }
             PlannerDropPoint::FunctionEntry(item) => &self.liveness.function_live_in[&item.index()],
+            PlannerDropPoint::LambdaEntry(expression) => {
+                &self.liveness.lambda_live_in[&expression.index()]
+            }
         }
     }
 }

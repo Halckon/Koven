@@ -1158,8 +1158,9 @@ liveness traversal 不进入 lambda body，只保留 formation 的 capture sourc
 统一按 AST identity 枚举全部 lambda body，因此顶层/member initializer 与嵌套 lambda 不依赖外层 item
 是否遍历 initializer。无 MoveOnly Value 参数时，body prefix 沿用普通 statement 规则，最后一个
 expression element 按隐式返回 `Consume`：结果 owner 转交 caller，内部 composite operand 与未转移的
-body-local owner 按既有精确 point 析构。MoveOnly Value 参数仍保持门禁，等待独立 lambda-entry drop
-point；该前端事实不自行放宽 SPEC-0199 的 codegen surface，现行 guide 语义未改变。
+body-local owner 按既有精确 point 析构。在该历史切片中，MoveOnly Value 参数仍保持门禁，
+等待独立 lambda-entry drop point；该前端事实不自行放宽 SPEC-0199 的 codegen surface，现行
+guide 语义未改变。
 
 SPEC-0216 在 main ownership dataflow 与 unit drop planner 中统一 control result usage：MoveOnly
 `if` / `when` 的每条正常 branch tail 总是 Consume 到 merged temporary，父 Read/Consume/Place 只作用于
@@ -1170,13 +1171,22 @@ named alternative 按对应 `BranchExit` 清理，Read/CallReturn 只析构 merg
 形成正常 exit/drop。lambda body 不再需要回滚 MoveOnly control plan，facts 与输入顺序无关；该前端
 事实不自行放宽 SSA/LLVM/native surface，现行 guide 语义未改变。
 
+SPEC-0217 在上述独立 lambda callable liveness 上保留按 lambda expression identity 索引的
+`live_in`，并新增 source-qualified `LambdaEntry`。drop planner 为 MoveOnly Value 参数建立与
+body 同 frame 的 owner state：未使用参数在入口按逆声明顺序析构，Borrow 读取在既有
+last-use / `CallReturn` 边界析构，Value delivery 及显式/隐式 return 消费参数而不重复 drop。
+Borrow 与 Copyable Value 参数不进入 owner state，body-local/capture/control facts 与输入置换
+确定性保持不变。该 Phase 3 事实已就绪，但不自行放宽 SPEC-0199 codegen surface。
+
 SPEC-0199 第二十三步第三切片开始消费上述事实。callable thunk 不再按 AST 扫描并拒绝所有额外
 MoveOnly temporary，而是沿既有 lowering 消费 lambda body 的精确 drop points；隐式 tail owner 按
 source-qualified expression identity 转移给 `Return`，显式 return 复用 control-transfer 路径。thunk
 退出前必须同时满足 temporary 集合为空、剩余 named binding 不含 concrete MoveOnly 类型，因此
 String concat operand 与 body-local owner 精确析构且结果不 drop；该切片尚未消费 SPEC-0216 的
-MoveOnly `if`/`when` result facts，故仍原子失败，MoveOnly Value 参数仍等待 lambda-entry drop point。
-function pointer 与 captured concrete closure 共用该契约，现行 guide 语义未改变。
+MoveOnly `if`/`when` result facts，故仍原子失败；在该历史切片中，MoveOnly Value 参数仍等待
+lambda-entry drop point。
+function pointer 与 captured concrete closure 共用该契约；上述参数缺口已由 SPEC-0217 在 frontend
+发布事实，但 Phase 4 消费仍待后继切片。现行 guide 语义未改变。
 
 SPEC-0199 第二十三步第四切片消费 SPEC-0216 的 MoveOnly control result facts。control result gate
 按 concrete type 的现行 SSA storage 能力判断，同时保留无需 storage 的 `Nothing` 全 diverge 路径；
@@ -1188,8 +1198,9 @@ identity 转移 Place/Temporary owner，operand 与未选 alternative 仅消费 
 显式，control edge 同时携带 environment `SharedFieldLoan` 与用户 Borrow loan；checked arithmetic 的
 success/failure continuation 也复用该 value-prefix/loan-suffix block 约定，因此 branch 内 checked CFG
 不会形成 hidden linear live-in。public native fixture 已覆盖 alias direct call、named/captured String
-control result 与 checked arithmetic 的 object/link/run；MoveOnly Value lambda 参数仍等待独立
-lambda-entry drop point。现行 guide 语义未改变。
+control result 与 checked arithmetic 的 object/link/run；该切片中 MoveOnly Value lambda 参数仍等待
+独立 lambda-entry drop point。SPEC-0217 随后已发布该 frontend 事实，Phase 4 消费仍为
+SPEC-0199 的待完成切片。现行 guide 语义未改变。
 
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM

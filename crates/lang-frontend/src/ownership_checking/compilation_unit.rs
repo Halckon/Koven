@@ -498,6 +498,8 @@ pub enum UnitDropPoint {
     LoopExit(UnitStatementId),
     /// callable body 开始、参数 binding 建立之后。
     FunctionEntry(UnitItemId),
+    /// lambda callable body 开始、参数 binding 建立之后。
+    LambdaEntry(UnitExpressionId),
     /// element replacement 已提交新值之后。
     AfterReplacement(UnitExpressionId),
 }

@@ -309,6 +309,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0198](./0198-multifile-ownership-checking.md) | 发布跨文件 call/constructor 的 loan、move、drop 与 capture facts（`done`） | 0197 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | [0215](./0215-lambda-body-result-drop-facts.md) | 发布 lambda body 隐式 MoveOnly 结果与内部 owner drop facts（`done`） | 0029、0032、0197、0198 `done`；当前持续 Goal 的站立授权 |
 | [0216](./0216-control-result-drop-facts.md) | 传播 MoveOnly `if` / `when` Consume usage 并发布精确 branch result/drop facts（`done`） | 0029、0197、0198、0215 `done`；当前持续 Goal 的站立授权 |
+| [0217](./0217-lambda-value-parameter-drop-facts.md) | 发布 MoveOnly Value lambda 参数 entry/last-use/exit drop facts（`done`） | 0029、0032、0197、0198、0215、0216 `done`；当前持续 Goal 的站立授权 |
 
 ### Phase 4：SSA、LLVM 与原生 AOT
 

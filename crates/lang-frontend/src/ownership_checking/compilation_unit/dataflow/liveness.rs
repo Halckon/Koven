@@ -21,6 +21,7 @@ pub(super) struct Liveness {
     pub(super) statement_after: Vec<LiveSet>,
     pub(super) skipped_functions: BTreeSet<usize>,
     pub(super) function_live_in: BTreeMap<usize, LiveSet>,
+    pub(super) lambda_live_in: BTreeMap<usize, LiveSet>,
     pub(super) deferred: Vec<UnitExpressionId>,
 }
 
@@ -31,6 +32,7 @@ struct Builder<'a, 'checker> {
     loop_stack: Vec<(LiveSet, LiveSet)>,
     skipped_functions: BTreeSet<usize>,
     function_live_in: BTreeMap<usize, LiveSet>,
+    lambda_live_in: BTreeMap<usize, LiveSet>,
     deferred: Vec<UnitExpressionId>,
 }
 
@@ -42,14 +44,16 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
         loop_stack: Vec::new(),
         skipped_functions: BTreeSet::new(),
         function_live_in: BTreeMap::new(),
+        lambda_live_in: BTreeMap::new(),
         deferred: Vec::new(),
     };
     for &root in checker.parsed.roots() {
         builder.item(root)?;
     }
-    for (_, node) in checker.parsed.ast().expressions().iter() {
+    for (expression, node) in checker.parsed.ast().expressions().iter() {
         if let Expression::Lambda { body, .. } = node.payload() {
-            builder.statement(*body, LiveSet::new())?;
+            let live_in = builder.statement(*body, LiveSet::new())?;
+            builder.lambda_live_in.insert(expression.index(), live_in);
         }
     }
     Ok(Liveness {
@@ -57,6 +61,7 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
         statement_after: builder.statement_after,
         skipped_functions: builder.skipped_functions,
         function_live_in: builder.function_live_in,
+        lambda_live_in: builder.lambda_live_in,
         deferred: builder.deferred,
     })
 }

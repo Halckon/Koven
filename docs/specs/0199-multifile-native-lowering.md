@@ -138,11 +138,14 @@
    - [x] 消费 SPEC-0215 lambda body facts：function pointer/concrete closure thunk 支持 String concat
      composite tail、body-local owner 精确 drop 与显式 return transfer；退出前同时验证无 temporary 或
      MoveOnly named binding 残留。MoveOnly `if` / `when` result 继续原子 fail loud，MoveOnly Value
-     参数仍等待 lambda-entry drop point。
+     参数当时仍等待 lambda-entry drop point。
    - [x] 消费 SPEC-0216 control result facts：MoveOnly `if` / `when` 各正常 branch tail owner 转交 merge
      result，operand/alternative owner 只按 frontend 精确 point 析构；lambda/named callable、nested
      control、正常/提前退出与输入置换共同锁定。captured closure 的 environment/user loan 与 checked
      arithmetic continuation 均作为显式 block/edge 参数携带，不形成 hidden linear live-in。
+   - [ ] 消费 SPEC-0217 lambda Value 参数 facts：thunk entry 建立 MoveOnly Value binding，并按
+     `LambdaEntry` / last-use / control-transfer 精确转移或析构；frontend 事实已就绪，当前 codegen
+     仍保持 fail loud。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
@@ -192,8 +195,9 @@
 
 - 多 object/增量 ABI 明确留给后续 ADR。
 - SPEC-0216 的 MoveOnly control-tail Consume/transfer 与 alternative drop facts 已由第二十三步第四
-  切片消费；剩余 MoveOnly Value lambda 参数、`for` 与未列入现行 storage/ownership 表面的节点仍按
-  各自后继切片推进，不从本次 control result 闭环推导额外语义。
+  切片消费；SPEC-0217 已发布 MoveOnly Value lambda 参数事实，但尚待上述后继切片消费。
+  `for` 与未列入现行 storage/ownership 表面的节点仍按各自后继切片推进，不从 control result
+  闭环推导额外语义。
 - guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
   `(true) ->` 报 L0058/L0065；0199 只 lower 可达的 bare Boolean literal，不在 Phase 4 内修改 Phase 1
   语法。该 parser/guide 漂移由独立 frontend follow-up 锁定并修正。
@@ -419,7 +423,7 @@ String concat operand、body-local owner 与显式 return，并在隐式返回�
 类型。由此 function pointer 与 captured concrete closure 都支持 composite String result，operand 与
 local owner 只按 frontend 精确 point 析构，返回 owner 不 drop。MoveOnly `if`/`when` body 因
 SPEC-0215 原子回滚 plan 而无法满足退出不变量，继续在 program 发布前 fail loud；MoveOnly Value
-参数仍等待 lambda-entry drop point。现行 guide 语义未改变。
+参数在该历史切片中仍等待 lambda-entry drop point。现行 guide 语义未改变。
 
 第二十三步的第四切片消费 SPEC-0216 control result facts。`if` / `when` result gate 改为检查 concrete
 type 是否具有现行 SSA storage，并保留无需 storage 的 `Nothing` 全 diverge 路径，不再用 Copyability
@@ -431,7 +435,8 @@ result、live value binding、live loan；named callable、function pointer 与 
 loan/user Borrow 参数及 checked arithmetic 的 success/failure continuation 都通过显式 block/edge 参数
 重绑，避免在内层 CFG 形成 hidden linear live-in。public native fixture 同时覆盖跨 package alias、named
 MoveOnly `if` result、captured lambda control result 与 branch 内 checked arithmetic；UnsupportedSource
-负例改由尚未实现的 MoveOnly Value lambda 参数锁定。现行 guide 语义未改变。
+负例改由尚未实现的 MoveOnly Value lambda 参数锁定。SPEC-0217 随后已发布该
+frontend 事实，但 codegen 尚未消费，因此该负例目前仍保留。现行 guide 语义未改变。
 
 第二十四步的第一切片把真实 compilation-unit product 接到既有 verified LLVM adapter 与 multi-source
 DWARF emitter。正向链从两个 package 的 source input 分别执行 name/type/ownership 分析，再生成单一

@@ -31,6 +31,7 @@ pub(super) enum PlannerDropPoint {
     },
     LoopExit(StatementId),
     FunctionEntry(ItemId),
+    LambdaEntry(ExpressionId),
     AfterReplacement(ExpressionId),
 }
 
@@ -84,6 +85,7 @@ impl PlannerDropFact {
             PlannerDropPoint::FunctionEntry(id) => {
                 UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))
             }
+            PlannerDropPoint::LambdaEntry(id) => UnitDropPoint::LambdaEntry(expression(id)),
             PlannerDropPoint::AfterReplacement(id) => {
                 UnitDropPoint::AfterReplacement(expression(id))
             }
