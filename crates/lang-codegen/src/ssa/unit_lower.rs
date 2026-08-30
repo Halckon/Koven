@@ -5,7 +5,9 @@ mod cfg;
 mod control;
 mod loop_control;
 mod ownership;
+mod rc;
 mod scalar;
+mod type_lower;
 mod type_plan;
 
 use std::collections::BTreeMap;
@@ -34,7 +36,7 @@ use super::{
     lower_frontend::string_literal,
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, Operation, Origin, Program,
-        ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
+        ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
     unit_plan::{
         UnitFunctionInstanceKey, UnitPlannedInstance, plan_unit_instances, resolve_concrete_type,
@@ -153,7 +155,13 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 instance.substitutions(),
                 parameter.span(),
             )?;
-            let ty = intern_scalar_type(module, typed, &mut type_ids, concrete, parameter.span())?;
+            let ty = type_lower::intern_supported_type(
+                module,
+                typed,
+                &mut type_ids,
+                concrete,
+                parameter.span(),
+            )?;
             parameter_symbols.push(symbol);
             parameter_types.push(EntityType::Value(ty));
         }
@@ -166,7 +174,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {
-            vec![intern_scalar_type(
+            vec![type_lower::intern_supported_type(
                 module,
                 typed,
                 &mut type_ids,
@@ -280,15 +288,13 @@ pub(crate) fn lower_scalar_unit_with_entry(
         let values = match (builtin_type(typed, plan.return_type), result) {
             (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
             (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (Some(_), LoweredValue::Unit)
-            | (Some(_), LoweredValue::Diverged)
-            | (None, _) => {
+            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
                     plan.instance.span(),
                 ));
             }
-            (Some(_), LoweredValue::Value(value)) => vec![value],
+            (_, LoweredValue::Value(value)) => vec![value],
         };
         lowerer
             .function
@@ -362,6 +368,13 @@ impl UnitExpressionLowerer<'_> {
                 span: None,
             })?;
         let span = node.span();
+        let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.types().construction(unit_expression).is_some() {
+            return self.lower_rc_construction(expression, span);
+        }
+        if self.typed.types().rc_operation(unit_expression).is_some() {
+            return self.lower_rc_operation(expression, span);
+        }
         match node.payload() {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),
             Expression::String { .. } => self.lower_string_literal(expression, span),
@@ -787,9 +800,10 @@ impl UnitExpressionLowerer<'_> {
         match (builtin_type(self.typed, self.return_type), result) {
             (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
             (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (Some(_), LoweredValue::Unit | LoweredValue::Diverged)
-            | (None, _) => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-            (Some(_), LoweredValue::Value(value)) => Ok(vec![value]),
+            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
+                Err(lowering_error(LoweringErrorKind::MissingFact, span))
+            }
+            (_, LoweredValue::Value(value)) => Ok(vec![value]),
         }
     }
 
@@ -870,44 +884,6 @@ fn unwrap_modified(
             payload => return Ok((item, payload.clone(), node.span())),
         }
     }
-}
-
-fn intern_scalar_type(
-    module: &mut super::model::Module,
-    typed: &ValidatedCompilationUnitTypes,
-    type_ids: &mut BTreeMap<UnitTypeId, SsaTypeId>,
-    ty: UnitTypeId,
-    span: Span,
-) -> Result<SsaTypeId, LoweringError> {
-    if let Some(id) = type_ids.get(&ty).copied() {
-        return Ok(id);
-    }
-    let kind = match typed.types().types().get(ty) {
-        Some(UnitTypeKind::Builtin(BuiltinType::Boolean)) => SsaTypeKind::Boolean,
-        Some(UnitTypeKind::Builtin(BuiltinType::Byte)) => integer_type(8, true),
-        Some(UnitTypeKind::Builtin(BuiltinType::UByte)) => integer_type(8, false),
-        Some(UnitTypeKind::Builtin(BuiltinType::Short)) => integer_type(16, true),
-        Some(UnitTypeKind::Builtin(BuiltinType::UShort)) => integer_type(16, false),
-        Some(UnitTypeKind::Builtin(BuiltinType::Int)) => integer_type(32, true),
-        Some(UnitTypeKind::Builtin(BuiltinType::UInt)) => integer_type(32, false),
-        Some(UnitTypeKind::Builtin(BuiltinType::Long)) => integer_type(64, true),
-        Some(UnitTypeKind::Builtin(BuiltinType::ULong)) => integer_type(64, false),
-        Some(UnitTypeKind::Builtin(BuiltinType::String)) => {
-            let id = module.add_string_owner_type();
-            type_ids.insert(ty, id);
-            return Ok(id);
-        }
-        Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => SsaTypeKind::Unit,
-        Some(_) => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
-        None => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-    };
-    let id = module.intern_type(kind);
-    type_ids.insert(ty, id);
-    Ok(id)
-}
-
-const fn integer_type(bits: u16, signed: bool) -> SsaTypeKind {
-    SsaTypeKind::Integer { bits, signed }
 }
 
 fn builtin_type(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinType> {

@@ -12,7 +12,8 @@ use lang_frontend::{
 
 use super::{
     super::{LoweringError, LoweringErrorKind, model::SsaTypeId, unit_plan::resolve_concrete_type},
-    builtin_type, intern_scalar_type, lowering_error,
+    builtin_type, lowering_error,
+    type_lower::{intern_supported_type, is_supported_storage_type},
 };
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
 
@@ -47,10 +48,12 @@ pub(super) fn intern_body_scalar_types(
                 .types()
                 .builtin(BuiltinType::Boolean)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            intern_scalar_type(module, typed, type_ids, boolean, span)?;
+            intern_supported_type(module, typed, type_ids, boolean, span)?;
         }
-        if builtin_type(typed, concrete).is_some_and(is_scalar_storage_builtin) {
-            intern_scalar_type(module, typed, type_ids, concrete, span)?;
+        if builtin_type(typed, concrete) != Some(BuiltinType::Unit)
+            && is_supported_storage_type(typed, concrete)
+        {
+            intern_supported_type(module, typed, type_ids, concrete, span)?;
         }
     }
     Ok(())
@@ -68,10 +71,6 @@ const fn is_integer_builtin(builtin: BuiltinType) -> bool {
             | BuiltinType::UInt
             | BuiltinType::ULong
     )
-}
-
-const fn is_scalar_storage_builtin(builtin: BuiltinType) -> bool {
-    matches!(builtin, BuiltinType::Boolean | BuiltinType::String) || is_integer_builtin(builtin)
 }
 
 fn checked_operand_type(

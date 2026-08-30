@@ -843,6 +843,7 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::TaggedUnion { .. }
                 | SsaTypeKind::HeapOwner { .. }
+                | SsaTypeKind::SharedOwner { .. }
                 | SsaTypeKind::StringOwner
                 | SsaTypeKind::NullableHandle { .. }
                 | SsaTypeKind::SequentialContainer { .. }

@@ -1017,6 +1017,21 @@ assignment 类型关系仍是 frontend deferred 边界，lowerer 在写回前显
 的逐次 operand/result chain、failure edge、最终返回、输入置换，以及 String compound 与 `Int = Boolean`
 原子拒绝。element/member target 和 Inout parameter 仍分别受 name-target 与 function ABI 既有门禁。
 
+第十五切片把 compilation-unit type mapper 与 expression lowering 扩展到已具体化、non-null 的
+intrinsic `Rc<T>` core。`type_lower` 递归建立有限 `Rc<具体类型>` 的 unit-global `SharedOwner`
+identity，并在 direct-call first-class contract 中允许该 owner 作为 Value 参数和返回值；现行
+source parser/frontend 尚不能为 generic callable 中的 `Rc<T>` 形成 validated unit artifact，会更早发布
+诊断；即使未来前端接通该表面，`resolve_concrete_type` 当前也不实例化这类含类型参数的复合类型，仍以
+`UnsupportedNode` 作为第二道 fail-loud 门禁。codegen 测试不伪造绕过 validated provenance 的 typed artifact。
+construction lowering 逐字段核对 typed descriptor 与 SPEC-0198 ordered-delivery/root obligation，按
+Copy/Move/temporary effect 复制或转移 payload，再生成 `SharedAllocate`；`.share()` 与 Copyable
+`.value` 分别只在 source-qualified Rc effect 精确匹配时生成 `SharedRetain`、
+`SharedPayloadPlace + Read`。外层 lowering 继续消费 frontend `AfterExpression` drop facts，因此 retained
+handle 与原 owner 在各自最后一次 operation 完成后析构，函数/调用边界上的 Rc 和 String payload
+temporary 则唯一转移而不重复 drop。结构测试覆盖输入置换、`Rc<Int>` retain/两次读取/drop 顺序和
+`String -> Rc<String>` Move delivery；MoveOnly payload read、nullable Rc、temporary receiver、nominal
+payload 与复合泛型实例化仍是显式后续边界。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
