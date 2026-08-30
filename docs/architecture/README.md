@@ -985,6 +985,16 @@ Boolean body 不污染 Int-only module type table；精确 type vector 同时锁
 verified SSA 测试覆盖跨文件组合、一元 `!`、全部算术/比较映射，并逐条绑定 failure result、Conditional
 condition 与 `true -> Abort` / `false -> continuation`，避免仅统计 Abort block 的假阳性。
 
+第十二切片复用 compilation-unit carried-binding 与 result-first merge 基元接入 Boolean `&&` / `||`。
+左操作数只求值一次并直接形成 conditional；`&&` 的 true edge、`||` 的 false edge 才进入 RHS block，
+另一 edge 生成规范的 false/true 常量。RHS 与 short-value 出口各自携带进入表达式时的 binding slots，
+随后把 Boolean result 放在 merge block parameter 首槽，再按 `UnitSymbolId` 顺序恢复 live bindings；因此
+跨文件调用和 MoveOnly String owner 可同时穿过短路 CFG，输入置换仍产生相同 verified SSA。现行 unit
+ownership traversal 尚未发布 short-circuit path-qualified owner state，而是顺序访问两个 operand；若 RHS
+只在执行路径消费 MoveOnly owner，两出口 binding 不一致，unit lowerer 会在 merge 前返回 `MissingFact`，
+不会把顺序 ownership facts 猜成路径事实。结构测试锁定 `&&`/`||` 的相反 RHS edge、单一 RHS call、
+short 常量、共同 merge、result-first/carried slot 数和 String owner 不被提前 drop，并保留该 fail-loud 门禁。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

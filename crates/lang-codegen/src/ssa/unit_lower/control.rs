@@ -18,7 +18,8 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, TerminatorKind,
+        BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, ScalarConstant,
+        TerminatorKind,
     },
 };
 
@@ -40,6 +41,89 @@ struct BooleanWhenArms {
 }
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn lower_short_circuit(
+        &mut self,
+        left: ExpressionId,
+        operator: lang_frontend::parser::BinaryOperator,
+        right: ExpressionId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let left = self.require_expression_value(left)?;
+        let baseline = self.bindings.clone();
+        let carried = self.carried_bindings(&baseline, span)?;
+        let right_span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(right)
+            .map(|node| node.span())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let right_block = self.add_carried_block(&carried, right_span)?;
+        let short_block = self.add_carried_block(&carried, span)?;
+        let (when_true, when_false, short_value) = match operator {
+            lang_frontend::parser::BinaryOperator::LogicalAnd => (
+                carried_edge(right_block, &carried),
+                carried_edge(short_block, &carried),
+                false,
+            ),
+            lang_frontend::parser::BinaryOperator::LogicalOr => (
+                carried_edge(short_block, &carried),
+                carried_edge(right_block, &carried),
+                true,
+            ),
+            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        self.function
+            .set_terminator(
+                self.block,
+                TerminatorKind::Conditional {
+                    condition: left,
+                    when_true,
+                    when_false,
+                },
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+
+        self.block = right_block;
+        self.bindings = self.rebind_carried(&baseline, right_block, &carried, span)?;
+        let right_result = self.lower(right)?;
+        let mut exits = Vec::with_capacity(2);
+        if right_result != LoweredValue::Diverged {
+            if !matches!(right_result, LoweredValue::Value(_)) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, right_span));
+            }
+            exits.push(BranchExit {
+                block: self.block,
+                result: right_result,
+                bindings: self.bindings.clone(),
+            });
+        }
+
+        self.block = short_block;
+        self.bindings = self.rebind_carried(&baseline, short_block, &carried, span)?;
+        let ty = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Constant(ScalarConstant::Boolean(short_value)),
+                vec![EntityType::Value(ty)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Value(short_result) = results[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        exits.push(BranchExit {
+            block: self.block,
+            result: LoweredValue::Value(short_result),
+            bindings: self.bindings.clone(),
+        });
+        self.merge_unit_exits(exits, span)
+    }
+
     pub(super) fn lower_if(
         &mut self,
         expression: ExpressionId,

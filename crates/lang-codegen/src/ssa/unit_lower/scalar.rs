@@ -84,6 +84,12 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if matches!(
+            operator,
+            BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+        ) {
+            return self.lower_short_circuit(left, operator, right, expression, span);
+        }
         let operand_type = self.expression_builtin_type(left, span)?;
         let supported = match operator {
             BinaryOperator::Add
