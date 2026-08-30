@@ -33,6 +33,8 @@ mod unit_lower_aggregate_tests;
 #[cfg(test)]
 mod unit_lower_assignment_tests;
 #[cfg(test)]
+mod unit_lower_enum_tests;
+#[cfg(test)]
 mod unit_lower_loop_tests;
 #[cfg(test)]
 mod unit_lower_rc_tests;

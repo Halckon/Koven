@@ -97,10 +97,13 @@
    unit-global inline/heap layout identity、具名参数源码顺序求值与声明顺序组装、Copy/Move/temporary
    ordered delivery、Copyable field projection、有限 owner 递归、跨文件 owner transfer/drop、输入置换，
    以及 generic nominal、MoveOnly field read/temporary receiver 的 lowering fail-loud 边界。
-17. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 enum/container/closure owner/drop SSA →
+17. [x] 接 concrete non-generic enum core → 验证：unit-global tagged/payload layout identity、case
+   construction ordered delivery、Copyable enum type-test `when` discriminant/smart-cast payload
+   projection、MoveOnly root drop、有限 owner 递归、输入置换，以及 generic enum fail-loud 边界。
+18. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-18. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-19. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+19. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+20. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -122,9 +125,10 @@
 | 14 | root name owner/scalar assignment | `feat(codegen): lower multifile assignments (SPEC-0199)` |
 | 15 | concrete non-null Rc owner-aware verified SSA | `feat(codegen): lower multifile rc owners (SPEC-0199)` |
 | 16 | concrete non-generic nominal/Box aggregate core | `feat(codegen): lower multifile nominal aggregates (SPEC-0199)` |
-| 17 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 18 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 19 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 17 | concrete non-generic enum core | `feat(codegen): lower multifile enums (SPEC-0199)` |
+| 18 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 19 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 20 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -205,7 +209,16 @@
 | `cargo test -p lang-codegen --lib unit_lower` | 48 passed | scoped umbrella 合并 aggregate、Rc、assignment、type-plan、scalar/String 与 unit control-flow 回归，不逐条重复历史窄测 |
 | `cargo test -p lang-codegen --lib` | 207 passed, 1 ignored | concrete non-generic nominal/Box unit-lowering、依赖驱动 owner definition 与既有 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十六切片沿用“aggregate 窄测 → scoped umbrella → codegen 全量 → workspace 静态门禁”，未重复尚未接线的 multifile native matrix |
+| `cargo test -p lang-codegen --lib unit_lower_enum_tests` | 4 passed | 跨文件 enum 构造/Copyable 穷尽 type-test `when`/payload projection、反序重新分析、MoveOnly root drop、有限 enum-class 递归，以及 generic enum/MoveOnly enum subject 拒绝边界 |
+| `cargo test -p lang-codegen --lib unit_lower` | 52 passed | scoped umbrella 合并 enum、aggregate、Rc、assignment、type-plan、scalar/String 与 unit control-flow 回归，不逐条重复历史窄测 |
+| `cargo test -p lang-codegen --lib` | 211 passed, 1 ignored | concrete non-generic enum TaggedUnion、owner-aware CFG 与既有 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十七切片继续采用“enum 窄测 → scoped umbrella → codegen 全量 → workspace 静态门禁”，未重复尚未接线的 multifile native matrix |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
 frontend 接通此语法，必须先补 source-level 负例或实例化正例，再决定是否放宽 unit type resolution。
+
+MoveOnly enum subject 没有列入本切片的 `when` 正向表面：SPEC-0198 现行 drop planner 会在 subject
+`AfterExpression` 发布 named root drop，而不是在各 `BranchExit` 发布可沿 CFG 重绑定的 owner/drop
+facts。unit lowerer 在生成 subject SSA 前返回 `UnsupportedNode`，不搬移或忽略 validated drop point；
+待 frontend 发布 branch-qualified subject facts 后再单独放宽。

@@ -1048,6 +1048,21 @@ MoveOnly field read 在发布 program 前 fail loud。缺少精确 outer drop fa
 同样在生成 receiver SSA 前拒绝。enum case、结构化 component/隐式 `this`、generic nominal、MoveOnly
 field 借用/读取、container 与 closure 仍由后续切片承接。
 
+第十七切片把同一 unit type/layout 规划器扩展到无类型参数的 `enum class`：每个 case 按声明顺序
+形成独立 payload `Aggregate`，root 形成单一 `TaggedUnion`，value-constructor symbol 与 type-test
+symbol 都映射到同一稳定 `(variant, payload)` identity。case construction 继续复用 SPEC-0198 的
+ordered Value delivery，先按源码顺序 lower operand、再按 payload 声明顺序构造 aggregate，最后生成
+`TaggedConstruct`；零 payload case 使用空 aggregate，不引入名义特例。Copyable subject 的 enum
+`when` 只消费已解析 case type symbol，通过 `TaggedDiscriminant` 与 case variant 比较进入既有 owner-aware carried
+binding CFG；穷尽 value `when` 仍保留未匹配 `Abort` 防御块。smart-cast 后的 Copyable payload field
+读取使用 `TaggedPayloadPlace + FieldPlace + Read`，MoveOnly enum root 由 source-qualified drop facts
+在函数/调用边界精确转移或析构。结构测试锁定具名参数求值/布局顺序、跨文件输入置换、两个 case
+discriminant、Copyable payload projection、MoveOnly root 唯一 drop、`enum -> class -> enum` 有限递归，
+并让 generic enum 在发布 program 前 fail loud。MoveOnly payload 读取、generic enum、MoveOnly
+enum subject、结构化解构、container 与 closure 仍由后续切片承接；其中 MoveOnly enum subject 的现行
+drop fact 位于 subject `AfterExpression`，尚无 branch-qualified owner/drop facts，lowerer 在生成 subject
+SSA 前拒绝而不猜测事实。现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

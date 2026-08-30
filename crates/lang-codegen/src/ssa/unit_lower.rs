@@ -5,6 +5,7 @@ mod assignment;
 mod cfg;
 mod construction;
 mod control;
+mod enum_lower;
 mod loop_control;
 mod ownership;
 mod rc;
@@ -216,7 +217,9 @@ pub(crate) fn lower_scalar_unit_with_entry(
 
     for plan in plans {
         let parsed = parsed_by_source[plan.instance.source_unit().index()];
-        let references = value_references(names, plan.instance.source_unit());
+        let references = symbol_references(names, plan.instance.source_unit(), Namespace::Value);
+        let type_references =
+            symbol_references(names, plan.instance.source_unit(), Namespace::Type);
         let function = module
             .function_mut(plan.id)
             .expect("planned unit function must exist");
@@ -256,9 +259,11 @@ pub(crate) fn lower_scalar_unit_with_entry(
             function_ids: &function_ids,
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
+            enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),
             substitutions: plan.instance.substitutions(),
             references: &references,
+            type_references: &type_references,
             function,
             block,
             bindings,
@@ -315,9 +320,11 @@ struct UnitExpressionLowerer<'a> {
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     field_indices: &'a BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
     substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
     references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
+    type_references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
@@ -373,7 +380,7 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_aggregate_construction(expression, span)
                 }
                 lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
-                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+                    self.lower_enum_construction(expression, span)
                 }
             };
         }
@@ -861,18 +868,17 @@ fn parsed_by_source_unit<'a>(
         .collect()
 }
 
-fn value_references(
+fn symbol_references(
     names: &ValidatedCompilationUnitNames,
     source_unit: SourceUnitId,
+    namespace: Namespace,
 ) -> BTreeMap<(usize, usize), UnitSymbolId> {
     names
         .names()
         .references()
         .iter()
         .filter_map(|reference| {
-            if reference.source_unit() != source_unit
-                || reference.namespace() != Some(Namespace::Value)
-            {
+            if reference.source_unit() != source_unit || reference.namespace() != Some(namespace) {
                 return None;
             }
             match reference.target() {

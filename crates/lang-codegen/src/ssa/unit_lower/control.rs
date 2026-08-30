@@ -6,20 +6,20 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::UnitDropPoint,
-    parser::{Expression, LiteralKind, WhenCondition, WhenEntry},
+    parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
 };
 
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type, cfg::carried_edge, lowering_error,
-    resolve_concrete_type,
+    require_value, resolve_concrete_type,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
         BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, ScalarConstant,
-        TerminatorKind,
+        SsaTypeId, TerminatorKind, ValueId,
     },
 };
 
@@ -143,15 +143,33 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         if let Some(subject) = subject {
+            let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
                 .typed
                 .types()
-                .expression_type(UnitExpressionId::new(self.source_unit, subject))
+                .expression_type(subject_id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let subject_type =
                 resolve_concrete_type(self.typed, subject_type, self.substitutions, span)?;
-            if builtin_type(self.typed, subject_type) != Some(BuiltinType::Boolean) {
+            let subject_ssa = self.expression_ssa_type(subject, span)?;
+            let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
+            let is_tagged = self
+                .enum_payloads
+                .keys()
+                .any(|(tagged, _)| *tagged == subject_ssa);
+            if !is_boolean && !is_tagged {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            if is_tagged {
+                if self.typed.types().copyability(subject_type) == Copyability::MoveOnly {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                return self.lower_when_chain(
+                    expression,
+                    Some((subject, Some(subject_ssa))),
+                    entries,
+                    span,
+                );
             }
             if let Some(arms) = self.boolean_literal_arms(entries)? {
                 return match (arms.when_true, arms.when_false) {
@@ -180,12 +198,17 @@ impl UnitExpressionLowerer<'_> {
                         span,
                     ),
                     (None, Some(_)) | (None, None) => {
-                        self.lower_when_chain(expression, Some(subject), entries, span)
+                        self.lower_when_chain(expression, Some((subject, None)), entries, span)
                     }
                 };
             }
         }
-        self.lower_when_chain(expression, subject, entries, span)
+        self.lower_when_chain(
+            expression,
+            subject.map(|subject| (subject, None)),
+            entries,
+            span,
+        )
     }
 
     fn boolean_literal_arms(
@@ -263,7 +286,7 @@ impl UnitExpressionLowerer<'_> {
     fn lower_when_chain(
         &mut self,
         expression: ExpressionId,
-        subject: Option<ExpressionId>,
+        subject: Option<(ExpressionId, Option<SsaTypeId>)>,
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -272,7 +295,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let result_required = self.control_result_required(expression, span)?;
         let subject = match subject {
-            Some(subject) => Some(self.require_expression_value(subject)?),
+            Some((subject, tagged)) => Some((self.require_expression_value(subject)?, tagged)),
             None => None,
         };
         let baseline = self.bindings.clone();
@@ -365,7 +388,18 @@ impl UnitExpressionLowerer<'_> {
 
         if let Some((unmatched_block, unmatched_bindings)) = unmatched {
             if result_required {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
+                    self.function
+                        .set_terminator(
+                            unmatched_block,
+                            TerminatorKind::Abort,
+                            Origin::Source(span),
+                        )
+                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                } else {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                return self.merge_unit_exits(exits, span);
             }
             self.block = unmatched_block;
             self.bindings = unmatched_bindings;
@@ -385,15 +419,111 @@ impl UnitExpressionLowerer<'_> {
 
     fn lower_when_condition(
         &mut self,
-        subject: Option<crate::ssa::model::ValueId>,
+        subject: Option<(ValueId, Option<SsaTypeId>)>,
         condition: &WhenCondition,
         span: Span,
-    ) -> Result<crate::ssa::model::ValueId, LoweringError> {
+    ) -> Result<ValueId, LoweringError> {
+        if let WhenCondition::TypeTest {
+            negated, type_ref, ..
+        } = condition
+        {
+            let Some((owner, Some(tagged))) = subject else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            let node = self
+                .parsed
+                .ast()
+                .type_refs()
+                .get(*type_ref)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let TypeRef::Qualified { segments, .. } = node.payload() else {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    node.span(),
+                ));
+            };
+            let symbol = segments
+                .last()
+                .and_then(|segment| {
+                    self.type_references
+                        .get(&super::span_key(segment.name_span))
+                })
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            let case = self
+                .typed
+                .types()
+                .signatures()
+                .declarations()
+                .iter()
+                .filter_map(|signature| signature.nominal())
+                .flat_map(|nominal| nominal.enum_cases())
+                .find(|case| case.type_symbol() == symbol)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            let (variant, _) = self
+                .enum_payloads
+                .get(&(tagged, case.type_symbol()))
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            let integer = self.ssa_builtin(BuiltinType::Int, span)?;
+            let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
+            let (_, tag) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::TaggedDiscriminant { owner },
+                    vec![EntityType::Value(integer)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let (_, expected) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::Constant(ScalarConstant::Integer(
+                        i128::try_from(variant)
+                            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?,
+                    )),
+                    vec![EntityType::Value(integer)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let (_, matches) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::Compare {
+                        operator: ComparisonOperator::Equal,
+                        left: require_value(tag[0], span)?,
+                        right: require_value(expected[0], span)?,
+                    },
+                    vec![EntityType::Value(boolean)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let matches = require_value(matches[0], span)?;
+            if !negated {
+                return Ok(matches);
+            }
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::BooleanNot { operand: matches },
+                    vec![EntityType::Value(boolean)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return require_value(results[0], span);
+        }
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
+        if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let candidate = self.require_expression_value(*expression)?;
-        let Some(subject) = subject else {
+        let Some((subject, None)) = subject else {
             return Ok(candidate);
         };
         let boolean = self.expression_ssa_type(*expression, span)?;
@@ -414,6 +544,19 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
         Ok(result)
+    }
+
+    fn ssa_builtin(&self, builtin: BuiltinType, span: Span) -> Result<SsaTypeId, LoweringError> {
+        let ty = self
+            .typed
+            .types()
+            .types()
+            .builtin(builtin)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.type_ids
+            .get(&ty)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
     fn control_result_required(

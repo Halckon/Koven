@@ -22,6 +22,7 @@ pub(super) struct UnitTypeLowering {
     type_ids: BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: BTreeMap<SsaTypeId, SsaTypeId>,
     field_indices: BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
+    enum_payloads: BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     active_inline: BTreeSet<UnitTypeId>,
     active_owner_definitions: BTreeMap<UnitTypeId, Span>,
     pending_owners: BTreeMap<UnitTypeId, PendingOwnerDefinition>,
@@ -60,6 +61,7 @@ impl UnitTypeLowering {
             type_ids: BTreeMap::new(),
             heap_payloads: BTreeMap::new(),
             field_indices: BTreeMap::new(),
+            enum_payloads: BTreeMap::new(),
             active_inline: BTreeSet::new(),
             active_owner_definitions: BTreeMap::new(),
             pending_owners: BTreeMap::new(),
@@ -76,6 +78,10 @@ impl UnitTypeLowering {
 
     pub(super) fn field_indices(&self) -> &BTreeMap<(UnitTypeId, UnitSymbolId), usize> {
         &self.field_indices
+    }
+
+    pub(super) fn enum_payloads(&self) -> &BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)> {
+        &self.enum_payloads
     }
 
     pub(super) fn intern(
@@ -134,6 +140,7 @@ impl UnitTypeLowering {
                 declaration,
                 arguments,
             } => self.intern_nominal(module, typed, ty, declaration, &arguments, span)?,
+            UnitTypeKind::EnumCase { root, .. } => self.intern_inner(module, typed, root, span)?,
             _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         };
         self.type_ids.insert(ty, id);
@@ -284,6 +291,9 @@ impl UnitTypeLowering {
         if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if nominal.kind() == NominalKind::EnumClass {
+            return self.intern_enum(module, typed, ty, declaration, nominal.enum_cases(), span);
+        }
         let fields = nominal.fields().to_vec();
         if nominal.kind() == NominalKind::ValueClass && !self.active_inline.insert(ty) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -339,6 +349,66 @@ impl UnitTypeLowering {
             }
         }
     }
+
+    fn intern_enum(
+        &mut self,
+        module: &mut Module,
+        typed: &ValidatedCompilationUnitTypes,
+        ty: UnitTypeId,
+        declaration: lang_frontend::name_resolution::DeclarationId,
+        cases: &[lang_frontend::type_checking::UnitEnumCaseSignature],
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        if cases.is_empty() || !self.active_inline.insert(ty) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let result = (|| {
+            let mut payloads = Vec::with_capacity(cases.len());
+            for (variant, case) in cases.iter().enumerate() {
+                for (field, payload) in case.payloads().iter().enumerate() {
+                    if self
+                        .field_indices
+                        .insert((case.case_type(), payload.symbol()), field)
+                        .is_some()
+                    {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                }
+                let fields = case
+                    .payloads()
+                    .iter()
+                    .map(|payload| self.intern_inner(module, typed, payload.ty(), payload.span()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let payload = module
+                    .add_aggregate_type(
+                        format!(
+                            "enum#d{}.u{}.case{variant}.payload",
+                            declaration.index(),
+                            ty.index()
+                        ),
+                        fields,
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                payloads.push((case, payload));
+            }
+            let tagged = module
+                .add_tagged_union_type(
+                    format!("enum#d{}.u{}", declaration.index(), ty.index()),
+                    payloads.iter().map(|(_, payload)| *payload).collect(),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            for (variant, (case, payload)) in payloads.into_iter().enumerate() {
+                self.type_ids.insert(case.case_type(), tagged);
+                self.enum_payloads
+                    .insert((tagged, case.value_symbol()), (variant, payload));
+                self.enum_payloads
+                    .insert((tagged, case.type_symbol()), (variant, payload));
+            }
+            Ok(tagged)
+        })();
+        self.active_inline.remove(&ty);
+        result
+    }
 }
 
 pub(super) fn is_supported_storage_type(
@@ -376,7 +446,10 @@ pub(super) fn is_supported_storage_type(
             .and_then(|signature| signature.nominal())
             .is_some_and(|nominal| {
                 nominal.type_parameters().is_empty()
-                    && matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
+                    && matches!(
+                        nominal.kind(),
+                        NominalKind::Class | NominalKind::ValueClass | NominalKind::EnumClass
+                    )
             }),
         _ => false,
     }

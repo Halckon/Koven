@@ -3,6 +3,7 @@
 use lang_frontend::{
     parser::{
         AssignmentOperator, BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator,
+        WhenCondition,
     },
     source::Span,
     type_checking::{BuiltinType, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes},
@@ -37,6 +38,16 @@ pub(super) fn intern_body_scalar_types(
             continue;
         }
         let concrete = resolve_concrete_type(typed, ty, instance.substitutions(), span)?;
+        if requires_enum_discriminant(parsed, expression)? {
+            for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
+                let ty = typed
+                    .types()
+                    .types()
+                    .builtin(builtin)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                types.intern(module, typed, ty, span)?;
+            }
+        }
         if checked_operand_type(parsed, instance, typed, expression, concrete)?
             .and_then(|ty| builtin_type(typed, ty))
             .is_some_and(is_integer_builtin)
@@ -55,6 +66,27 @@ pub(super) fn intern_body_scalar_types(
         }
     }
     Ok(())
+}
+
+fn requires_enum_discriminant(
+    parsed: &ParsedFile,
+    expression: UnitExpressionId,
+) -> Result<bool, LoweringError> {
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(expression.expression())
+        .map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    Ok(matches!(
+        node.payload(),
+        Expression::When { entries, .. }
+            if entries.iter().flat_map(|entry| &entry.conditions).any(|condition| {
+                matches!(condition, WhenCondition::TypeTest { .. })
+            })
+    ))
 }
 
 const fn is_integer_builtin(builtin: BuiltinType) -> bool {
