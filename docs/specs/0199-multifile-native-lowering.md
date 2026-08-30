@@ -129,6 +129,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      Borrow/Value 参数与 Unit/Copyable storage 返回，thunk entry 保持 environment-first，调用复用
      source-qualified loan/Value delivery；`Inout`、`Borrow(Unit)`、MoveOnly 参数/返回、跳出实参的
      控制转移及 function-value 实参内部 loop jump 继续 fail loud。
+   - [x] 接唯一直接 tail temporary 的 MoveOnly callable result：function pointer/concrete closure thunk
+     直接把新 owner 交给 `Return`，caller 取得独立 result owner 并复用既有 binding/return/drop 流；
+     concat、分支 result、body local owner、显式 return 与 MoveOnly 参数继续 fail loud，等待 lambda-body
+     exit-qualified owner/drop facts。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
 25. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
@@ -274,6 +278,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib --locked --offline` | 222 passed, 1 ignored | 参数化 callable verified SSA 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第一切片继续采用固定四层简化验收，不重复历史窄命令或尚未接线的 LLVM/native matrix |
 | 独立 fresh-context 评审与三轮复审 | 通过 | 首轮发现后续实参控制转移会遗留 pending loan/callee owner 的 P1；修复为 call-level 原子预检。后续两轮把 direct 内部 loop 与外层 jump、loop body 与 condition/source 边界精确分开，并保留 function-value hidden-linear-live-in 门禁；最终无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib unit_lower_closure_tests --locked --offline` | 6 passed | 直接 MoveOnly callable result、function pointer/concrete closure、跨文件调用、重复调用、result drop、输入置换，以及复杂 MoveOnly tail 原子拒绝 |
+| `cargo test -p lang-codegen --lib unit_lower --locked --offline` | 64 passed | scoped umbrella 合并 MoveOnly callable result 与 callable/closure/owner-aware control-flow 回归 |
+| `cargo test -p lang-codegen --lib --locked --offline` | 223 passed, 1 ignored | MoveOnly callable result verified SSA 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第二切片沿用固定四层简化验收，不重复尚未接线的 LLVM/native matrix |
+| 独立 fresh-context 评审 | 通过 | 复核唯一 direct tail 门禁、thunk Return/caller result owner 转移、function pointer/concrete closure、跨文件确定性及 fail-loud 边界，未发现 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -344,3 +353,12 @@ delivery、LLVM/multi-source DWARF 与 object/native 继续在发布 program 前
 尚无 exit-qualified pending-argument 清理事实或 callable callee edge carry 时猜测 loan/Value/callee
 owner 的控制转移析构。direct call 实参内部 loop body 的 break/continue 仍按真实 loop boundary 正常
 lower；现行 guide 语义未改变。
+
+第二十三步的第二切片只放行现有 frontend facts 可以完整证明的 MoveOnly callable result：lambda body
+最后一个 element 必须是与 callable 返回类型一致、可由现有 SSA storage 表示的唯一直接 temporary。
+thunk 将该 owner 直接交给 `Return`，不生成提前 drop；`CallableInvoke` 在 caller 产生独立 result owner，
+再由现有 temporary 到 binding/return/drop 流消费。function pointer 与 captured concrete closure 共用该
+契约，environment-first thunk ABI 不变。lambda span 内若存在任何其他可表示的 MoveOnly temporary，
+或 tail 是 local owner、显式 return、concat/分支等复合结果，仍在发布 program 前 fail loud；这些表面
+等待 lambda-body exit-qualified owner/drop facts，不以 codegen 推测替代 frontend 事实。MoveOnly 参数、
+一般 MoveOnly `if`/`when` result 与 `for` 也未因此解锁；现行 guide 语义未改变。

@@ -355,6 +355,96 @@ fn lowers_copyable_callable_parameters_and_results_deterministically() {
 }
 
 #[test]
+fn lowers_direct_move_only_callable_results_deterministically() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun inspect(message: String): Unit {}\n\
+         fun make(number: Int): String = \"captured\"\n\
+         fun create(): String {\n\
+             val factory: move () -> String = move { \"pointer\" }\n\
+             return factory()\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val offset = 2\n\
+             val action: move (borrow Int) -> String = move { item -> p.make(item + offset) }\n\
+             val first = action(2)\n\
+             val firstSeen = p.inspect(first)\n\
+             val second = action(3)\n\
+             val secondSeen = p.inspect(second)\n\
+             val created = p.create()\n\
+             val createdSeen = p.inspect(created)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (reverse_names, reverse_typed, reverse_owned) =
+        analyze(&sources, &reversed, &name_environment, &type_environment);
+    let (forward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("direct MoveOnly callable results lower to verified unit SSA");
+    let (backward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &reversed,
+        &reverse_names,
+        &type_environment,
+        &reverse_typed,
+        &reverse_owned,
+        declaration(&reverse_names, "q", "entry"),
+    )
+    .expect("input permutation preserves MoveOnly callable result identities");
+    assert_eq!(render_program(&forward), render_program(&backward));
+
+    let module = &forward.modules[0];
+    let entry = function(module, "q.entry");
+    assert_eq!(operation_count(entry, is_callable_invoke), 2);
+    assert_eq!(operation_count(entry, is_drop), 4);
+    let create = function(module, "p.create");
+    assert_eq!(operation_count(create, is_callable_invoke), 1);
+    assert_eq!(operation_count(create, is_drop), 1);
+    let thunks = module
+        .functions
+        .iter()
+        .filter(|function| function.name.contains(".thunk"))
+        .collect::<Vec<_>>();
+    assert_eq!(thunks.len(), 2);
+    assert!(thunks.iter().all(|thunk| thunk.return_types.len() == 1));
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_string_literal))
+            .sum::<usize>(),
+        1
+    );
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_direct_call))
+            .sum::<usize>(),
+        1
+    );
+}
+
+#[test]
 fn restores_owned_closure_provenance_across_control_flow() {
     let mut sources = SourceMap::new();
     let (source_id, parsed) = parsed(
@@ -480,10 +570,10 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/move-only-return.ko",
+            "test/complex-move-only-return.ko",
             "package test\n\
              fun entry(): Unit {\n\
-                 val action: move () -> String = move { \"owned\" }\n\
+                 val action: move () -> String = move { \"left\" + \"right\" }\n\
              }",
         ),
         (
@@ -615,4 +705,8 @@ fn is_direct_call(operation: &Operation) -> bool {
 
 fn is_drop(operation: &Operation) -> bool {
     matches!(operation, Operation::Drop { .. })
+}
+
+fn is_string_literal(operation: &Operation) -> bool {
+    matches!(operation, Operation::StringLiteral { .. })
 }

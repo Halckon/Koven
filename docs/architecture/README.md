@@ -1137,6 +1137,15 @@ owner edge carry。direct call 实参内部 loop body 的 break/continue 继续�
 指向外层 loop 的 jump 不被误判为内部边界。LLVM/multi-source DWARF 与 object/native 仍由后续切片
 承接；现行 guide 语义未改变。
 
+第二十三步的第二切片接通事实完备的 MoveOnly callable result。lambda body 最后一个 element 必须是
+与 callable 返回类型一致、可由现有 SSA storage 表示的唯一直接 temporary；thunk 把该 owner 直接交给
+`Return`，caller 的 `CallableInvoke` 产生独立 result owner，并继续复用既有 binding/return/drop 流。
+function pointer 与 captured concrete closure 共用该契约，environment-first thunk ABI 不变。lambda
+span 内的其他 MoveOnly temporary、local owner、显式 return、concat/分支结果以及 MoveOnly 参数继续
+在 program 发布前 fail loud，等待 lambda-body exit-qualified owner/drop facts。一般 MoveOnly
+`if`/`when` result 和缺 typed iteration plan 的 `for` 也未解锁；LLVM/multi-source DWARF 与
+object/native 仍由后续切片承接，现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

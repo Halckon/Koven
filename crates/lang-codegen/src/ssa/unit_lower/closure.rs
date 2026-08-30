@@ -9,7 +9,7 @@ use lang_frontend::{
         ClosureCaptureEffect, ClosureCaptureMode, UnitClosureCaptureSource, UnitDropFact,
         UnitDropTarget,
     },
-    parser::Expression,
+    parser::{Expression, Statement},
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ParameterMode, UnitCallDescriptor, UnitExpressionId, UnitTypeId,
@@ -158,12 +158,34 @@ pub(super) fn declare(
                     ParameterMode::Inout => unreachable!("Inout was rejected above"),
                 });
             }
+            let move_only_result =
+                if typed.types().copyability(return_type) == Copyability::MoveOnly {
+                    let tail = lambda_tail_expression(parsed, *body, span)?;
+                    let tail_id = UnitExpressionId::new(function.instance.source_unit(), tail);
+                    let tail_type = typed
+                        .types()
+                        .expression_type(tail_id)
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                    let tail_type = resolve_concrete_type(
+                        typed,
+                        tail_type,
+                        function.instance.substitutions(),
+                        span,
+                    )?;
+                    if typed.types().expression_category(tail_id)
+                        != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+                        || tail_type != return_type
+                        || !super::type_lower::is_supported_storage_type(typed, tail_type)
+                    {
+                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                    Some(tail_id)
+                } else {
+                    None
+                };
             let callable_returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
                 Vec::new()
             } else {
-                if typed.types().copyability(return_type) != Copyability::Copyable {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
                 vec![types.intern(module, typed, return_type, span)?]
             };
             for (&candidate, &candidate_type) in typed.types().expression_types() {
@@ -190,6 +212,7 @@ pub(super) fn declare(
                     && typed.types().copyability(candidate_type)
                         == lang_frontend::type_checking::Copyability::MoveOnly
                     && super::type_lower::is_supported_storage_type(typed, candidate_type)
+                    && Some(candidate) != move_only_result
                 {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
@@ -429,10 +452,7 @@ impl UnitExpressionLowerer<'_> {
             self.substitutions,
             span,
         )?;
-        if !matches!(callee_node.payload(), Expression::Name)
-            || (builtin_type(self.typed, return_type) != Some(BuiltinType::Unit)
-                && self.typed.types().copyability(return_type) != Copyability::Copyable)
-        {
+        if !matches!(callee_node.payload(), Expression::Name) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let callable = match self.lower_expression(callee)? {
@@ -679,4 +699,32 @@ fn span_contains(owner: Span, child: Span) -> bool {
 
 fn strictly_contains(owner: Span, child: Span) -> bool {
     span_contains(owner, child) && (owner.start() < child.start() || child.end() < owner.end())
+}
+
+fn lambda_tail_expression(
+    parsed: &lang_frontend::parser::ParsedFile,
+    body: StatementId,
+    span: Span,
+) -> Result<ExpressionId, LoweringError> {
+    let body = parsed
+        .ast()
+        .statements()
+        .get(body)
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Statement::LambdaBody { elements } = body.payload() else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let last = elements
+        .last()
+        .copied()
+        .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+    let last = parsed
+        .ast()
+        .statements()
+        .get(last)
+        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Statement::Expression { expression } = last.payload() else {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    };
+    Ok(*expression)
 }
