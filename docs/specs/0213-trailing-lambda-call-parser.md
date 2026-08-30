@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-213` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
@@ -52,17 +52,18 @@
 
 ## 5. 验收标准
 
-- [ ] compile-pass/Parser 正例覆盖 `f {}`、`f(a) {}`、`f<T> {}`、member/chained callee、
+- [x] compile-pass/Parser 正例覆盖 `f {}`、`f(a) {}`、`f<T> {}`、member/chained callee、
   `move {}`、嵌套 lambda/call，以及跨 LF/CRLF gap 不吸收后续 nested block。
-- [ ] AST 断言每例只有预期的单一 call 节点；尾 lambda 是最后一个无 name/mode `CallArgument`，
+- [x] AST 断言每例只有预期的单一 call 节点；尾 lambda 是最后一个无 name/mode `CallArgument`，
   argument/value/call span 与 AST ID 在重复解析中完全一致。
-- [ ] compile-fail 覆盖同一 call 的第二个尾 lambda、尾部 name/mode 伪前缀、缺 lambda closer、
+- [x] compile-fail 覆盖同一 call 的第二个尾 lambda、尾部 name/mode 伪前缀、缺 lambda closer、
   typed-call 失败试探及 lexical poison；断言既有稳定诊断码与 UTF-8 byte Span，不产生级联。
-- [ ] `f\n{}`、`f\r\n{}` 和含换行 comment 的对照仍解析为 expression statement + nested block；
+- [x] `f\n{}`、`f\r\n{}` 和含换行 comment 的对照仍解析为 expression statement + nested block；
   同行空格与无换行 comment 不改变尾 lambda AST。
-- [ ] 既有 `parser_lambda`、`parser_call_argument`、`parser_expression`、`parser_block`、
-  line-break/trivia/output-invariant suites 与 frontend/workspace 基线通过。
-- [ ] Architecture 更新为实现后的事实，guide/roadmap/Spec 状态与实现状态一致。
+- [x] 既有 `parser_lambda`、`parser_call_argument`、`parser_expression`、`parser_block`、
+  line-break/trivia/output-invariant suites、frontend 定向 Clippy 与 workspace check 通过；按用户
+  明确的简化验收授权，不运行约一小时的 `lang-frontend` 全量测试。
+- [x] Architecture 更新为实现后的事实，guide/roadmap/Spec 状态与实现状态一致。
 
 ## 6. 技术方案与边界
 
@@ -74,9 +75,9 @@ trivia gap 不含换行时，复用现有 lambda primary parser，并通过现�
 
 ## 7. 实施计划
 
-1. [ ] 扩展 postfix/call parser 与 span/owner recovery → 验证：新增定向 Parser 正反测试。
-2. [ ] 扩充 line-break、trivia、typed/member/chained 与 mutation 回归 → 验证：受影响 Parser suites。
-3. [ ] 同步 Architecture、Spec 验收记录与状态 → 验证：workspace test、Clippy、文档一致性。
+1. [x] 扩展 postfix/call parser 与 span/owner recovery → 验证：新增定向 Parser 正反测试。
+2. [x] 扩充 line-break、trivia、typed/member/chained 与 mutation 回归 → 验证：受影响 Parser suites。
+3. [x] 同步 Architecture、Spec 验收记录与状态 → 验证：workspace check、Clippy、文档一致性。
 
 ## 8. 提交计划
 
@@ -93,3 +94,10 @@ trivia gap 不含换行时，复用现有 lambda primary parser，并通过现�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | `cargo test -p lang-frontend --test parser_lambda lambda_accepts_existing_postfix_chain_but_not_trailing_lambda_call_sugar --locked --offline -- --exact` | 通过 | 实施前 v0.32 基线证明 `f {}` 仍产生 L0013；v0.33 已启用但代码尚待本 Spec 修改 |
+| `cargo test -p lang-frontend --test parser_trailing_lambda --locked --offline` | 通过 | 5 个 v0.33 正反、AST、换行、UTF-8 与 lexical-owner 定向用例 |
+| `cargo test -p lang-frontend --test <target> --locked --offline`（分别取 `parser_block`、`parser_call_argument`、`parser_expression`、`parser_lambda`） | 通过 | 23 + 28 + 55 + 16；未运行约一小时的 frontend 全量测试 |
+| `cargo test -p lang-frontend --test <target> --locked --offline`（分别取四个 line-break/trivia matrix target） | 通过 | 6 个换行/trivia 不变量用例 |
+| `cargo test -p lang-frontend --lib parser::trial::tests --locked --offline` | 通过 | 3 个 strict typed-call 识别、预算与线性复杂度用例 |
+| `cargo clippy -p lang-frontend --all-targets --locked --offline -- -D warnings` | 通过 | frontend 静态检查 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | workspace 全目标编译基线；按简化验收不运行 frontend 全量测试 |
+| 当前任务验收授权 | 采用定向 Parser suites + 静态/编译基线 | 用户明确要求简化验收并避免约一小时的 `lang-frontend` 全量测试；本记录不宣称全量测试通过 |

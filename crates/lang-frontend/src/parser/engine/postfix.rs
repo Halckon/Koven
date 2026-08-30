@@ -26,11 +26,30 @@ impl Parser<'_> {
                 if let Some((type_arguments, type_arguments_span)) =
                     self.try_parse_call_type_arguments()?
                 {
-                    self.parse_call(receiver, type_arguments, Some(type_arguments_span), stops)?
+                    if self.current_is_symbol(Symbol::LeftParen) {
+                        self.parse_call(receiver, type_arguments, Some(type_arguments_span), stops)?
+                    } else if self.current_is_symbol(Symbol::LeftBrace) {
+                        self.parse_trailing_lambda_call(
+                            receiver,
+                            type_arguments,
+                            Some(type_arguments_span),
+                            stops,
+                        )?
+                    } else {
+                        return Err(ParserInternalError::InvalidLexemeStream);
+                    }
                 } else {
                     self.index = checkpoint;
                     break;
                 }
+            } else if self.current_is_symbol(Symbol::LeftBrace)
+                && !matches!(
+                    self.ast.expressions().get(receiver)?.payload(),
+                    Expression::Call { .. }
+                )
+                && self.trailing_lambda_follows(self.expression_span(receiver)?.end())?
+            {
+                self.parse_trailing_lambda_call(receiver, Vec::new(), None, stops)?
             } else if self.current_is_symbol(Symbol::LeftBracket) {
                 self.parse_index(receiver, stops)?
             } else if matches!(
@@ -313,15 +332,20 @@ impl Parser<'_> {
             }
         }
 
-        let end = if self.current_is_symbol(Symbol::RightParen) {
-            self.bump()?.span().end()
+        let (mut end, closed) = if self.current_is_symbol(Symbol::RightParen) {
+            (self.bump()?.span().end(), true)
         } else {
             let current = self.current()?;
             if !self.is_poison() {
                 self.emit_closing(self.boundary_span(current, outer_stops)?, opener)?;
             }
-            last_consumed_end
+            (last_consumed_end, false)
         };
+        if closed && self.trailing_lambda_follows(end)? {
+            let argument = self.parse_trailing_lambda_argument(outer_stops)?;
+            end = argument.span.end();
+            arguments.push(argument);
+        }
         self.add_expression(
             self.span(callee_span.start(), end)?,
             Expression::Call {
@@ -331,6 +355,48 @@ impl Parser<'_> {
                 arguments,
             },
         )
+    }
+
+    pub(super) fn parse_trailing_lambda_call(
+        &mut self,
+        callee: ExpressionId,
+        type_arguments: Vec<TypeRefId>,
+        type_arguments_span: Option<Span>,
+        outer_stops: Stops,
+    ) -> Result<ExpressionId, ParserInternalError> {
+        let callee_span = self.expression_span(callee)?;
+        let argument = self.parse_trailing_lambda_argument(outer_stops)?;
+        self.add_expression(
+            self.span(callee_span.start(), argument.span.end())?,
+            Expression::Call {
+                callee,
+                type_arguments,
+                type_arguments_span,
+                arguments: vec![argument],
+            },
+        )
+    }
+
+    pub(super) fn parse_trailing_lambda_argument(
+        &mut self,
+        outer_stops: Stops,
+    ) -> Result<CallArgument, ParserInternalError> {
+        let value = self.parse_lambda(None, outer_stops)?;
+        let span = self.expression_span(value)?;
+        Ok(CallArgument {
+            span,
+            named_prefix: None,
+            mode_marker: None,
+            value,
+        })
+    }
+
+    pub(super) fn trailing_lambda_follows(
+        &self,
+        previous_end: usize,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(self.current_is_symbol(Symbol::LeftBrace)
+            && !self.gap_has_line_break(previous_end, self.current()?.span().start())?)
     }
 
     pub(super) fn parse_call_argument(
@@ -488,7 +554,7 @@ impl Parser<'_> {
         )
     }
 
-    /// 以只读严格识别器判断 `<...>(`，成功后才使用正式 TypeRef parser提交节点。
+    /// 以只读严格识别器判断 `<...>(` / `<...>{`，成功后才使用正式 TypeRef parser 提交节点。
     pub(super) fn try_parse_call_type_arguments(
         &mut self,
     ) -> Result<Option<(Vec<TypeRefId>, Span)>, ParserInternalError> {
@@ -498,13 +564,34 @@ impl Parser<'_> {
             .ok_or(ParserInternalError::InvalidLexemeStream)?;
         let ast_type_len = self.ast.type_refs().len();
         let diagnostic_len = self.diagnostics.len();
-        let closing_raw = match self
+        let (closing_raw, suffix_raw) = match self
             .strict_trials
             .query(trial_start, self.recursion_depth)?
         {
-            CallTrial::Match { closing_raw, .. } => closing_raw,
+            CallTrial::Match {
+                closing_raw,
+                suffix_raw,
+                ..
+            } => (closing_raw, suffix_raw),
             CallTrial::NoMatch { .. } => return Ok(None),
         };
+        let closing = *self
+            .lexed
+            .lexemes()
+            .get(closing_raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        let suffix = *self
+            .lexed
+            .lexemes()
+            .get(suffix_raw)
+            .ok_or(ParserInternalError::InvalidLexemeStream)?;
+        if matches!(
+            suffix.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        ) && self.gap_has_line_break(closing.span().end(), suffix.span().start())?
+        {
+            return Ok(None);
+        }
 
         let opener = self.bump()?.span();
         let mut arguments = Vec::new();
@@ -521,7 +608,9 @@ impl Parser<'_> {
         }
         let closer = self.bump()?.span();
         if self.index <= closing_raw
-            || !self.current_is_symbol(Symbol::LeftParen)
+            || self.current_raw()? != suffix_raw
+            || !(self.current_is_symbol(Symbol::LeftParen)
+                || self.current_is_symbol(Symbol::LeftBrace))
             || self.ast.type_refs().len() <= ast_type_len
             || self.diagnostics.len() != diagnostic_len
         {

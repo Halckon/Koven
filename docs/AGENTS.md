@@ -63,7 +63,7 @@ package/import、跨文件可见性与 compilation-unit 分阶段边界，v0.33 
 headerless lambda 隐式 `it` 与无依赖本地 project build/run 契约。
 
 `guide/05-grammar-calls-lambda.md` §9 与 `guide/01-design-decisions.md` §33 已于 2026-08-30
-由用户明确启用并取代 v0.32；SPEC-0213、0214、0054 按各自前置分阶段实施。
+由用户明确启用并取代 v0.32；SPEC-0213 已完成，0214 与 0054 按各自前置分阶段实施。
 
 `guide/01-design-decisions.md` §32 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020
 依据有效站立授权完成接受，SPEC-0025/0197/0198/0199/0187 均已完成。

@@ -7,10 +7,10 @@
 | 所属 Phase | Phase 1/2/3 纵向切片 |
 | 语言规范 | 现行 v0.33 [`05-grammar-calls-lambda.md`](../guide/05-grammar-calls-lambda.md) |
 | 批准依据 | 2026-08-30 用户明确要求在 v0.32 完成后启用 v0.33 并继续分阶段实施 |
-| 前置 Spec | SPEC-0010、0018、0019、0032、0067、0173、0197、0198 `done`；SPEC-0213 待完成 |
+| 前置 Spec | SPEC-0010、0018、0019、0032、0067、0173、0197、0198、0213 `done` |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | SPEC-0213 尚未完成 |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-frontend` lambda AST/name/type/ownership 与 compilation-unit facts；测试、Architecture/Roadmap |
 | 语言语义变更 | 是；实施现行 v0.33 lambda 参数增量 |
 

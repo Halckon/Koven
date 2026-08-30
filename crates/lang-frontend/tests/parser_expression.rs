@@ -794,13 +794,12 @@ fn soft_words_and_argument_markers_do_not_become_general_infix_or_prefix_syntax(
 }
 
 #[test]
-fn deferred_type_and_call_forms_are_rejected_by_current_productions() {
+fn deferred_type_forms_are_rejected_by_current_productions() {
     for text in [
         "x as T??",
         "x as (() -> T)?",
         "x as A<T>.B",
         "x as A<out T>",
-        "f(x) { y }",
     ] {
         let diagnostics = parse_fingerprints(text);
         assert!(!diagnostics.is_empty(), "{text:?} must remain deferred");

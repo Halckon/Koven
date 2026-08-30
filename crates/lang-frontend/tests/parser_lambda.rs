@@ -323,7 +323,7 @@ fn expression_contexts_commit_lambda_while_block_dispatch_keeps_nested_block() {
         Expression::Group { .. }
     ));
 
-    let (_, split) = parsed_block("{ x { y } }");
+    let (_, split) = parsed_block("{ x\n{ y } }");
     assert!(split.diagnostics().is_empty(), "{:?}", split.diagnostics());
     let Statement::Block { elements } = split
         .ast()
@@ -374,7 +374,7 @@ fn expression_contexts_commit_lambda_while_block_dispatch_keeps_nested_block() {
 }
 
 #[test]
-fn lambda_accepts_existing_postfix_chain_but_not_trailing_lambda_call_sugar() {
+fn lambda_accepts_existing_postfix_chain_and_trailing_lambda_call_sugar() {
     let (_, parsed) = parsed_expression("{}(x).member[0]!!::ref");
     assert!(
         parsed.diagnostics().is_empty(),
@@ -388,12 +388,11 @@ fn lambda_accepts_existing_postfix_chain_but_not_trailing_lambda_call_sugar() {
 
     let (_, trailing) = parsed_expression("f {}");
     assert!(
-        trailing
-            .diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.code().to_string() == "L0013")
+        trailing.diagnostics().is_empty(),
+        "{:?}",
+        trailing.diagnostics()
     );
-    assert!(!matches!(
+    assert!(matches!(
         expression(&trailing, trailing.root()),
         Expression::Call { .. }
     ));

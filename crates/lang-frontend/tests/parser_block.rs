@@ -110,7 +110,7 @@ fn call_argument_lambda_is_not_mistaken_for_a_nested_block() {
 
 #[test]
 fn local_variables_expressions_and_nested_blocks_keep_source_order() {
-    let text = "{ x + y val x = 1 var y: Int = 2 {} }";
+    let text = "{ x + y val x = 1 var y: Int = 2\n{} }";
     let (_, parsed) = parsed_ok(text);
     let elements = root_elements(&parsed);
     assert_eq!(elements.len(), 4);

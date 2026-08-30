@@ -24,8 +24,8 @@ SPEC-0199 与 SPEC-0187 均已完成；完整 `for` 仍由 v0.37 候选链 0179/
 规范化为普通 `CallArgument` 的尾 lambda 调用糖及 headerless lambda 隐式 `it`，
 [§33](../guide/01-design-decisions.md#33-本地-project-process-entry-与公开-buildrunv033)
 另为无依赖本地 project 定义显式 package-qualified entry 与公开 build/run；它不改变单文件
-main，也不引入 manifest target/default 或 dependency build。SPEC-0213 已进入实施，0214
-等待 0213，0054 已批准并独立排队。
+main，也不引入 manifest target/default 或 dependency build。SPEC-0213 已完成，0214 前置已
+解除，0054 已批准并独立排队。
 
 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用)
 是以 v0.32 为基线、且不包含 v0.33 的独立 receiver 候选：它定义 member 声明的缺省 Borrow/
@@ -142,7 +142,7 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
-| 现行 v0.33 lambda 实施链 | SPEC-0213→0214 | 0213 只把尾 lambda 规范化为普通 CallArgument，已实施中；0214 为全部 headerless lambda 纵向接通 contextual `it` 的 name/type/mode/ownership，已批准并等待 0213 |
+| 现行 v0.33 lambda 实施链 | SPEC-0213→0214 | 0213 已把尾 lambda 规范化为普通 CallArgument；0214 为全部 headerless lambda 纵向接通 contextual `it` 的 name/type/mode/ownership，前置已解除 |
 | 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，0199 已完成 unit native lowering；0187 已完成 source-set v1、base/overlay unit diagnostics 与跨文件 definition |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
@@ -255,8 +255,8 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0114](./0114-parser-entry-mutation-lexer-invariants.md) | 强化六个独立入口 mutation 矩阵的共享双 Lexer 确定性不变量（`done`） | 0006–0009、0085–0090、0093、0103–0105、0111–0113 `done`；当前持续 Goal 的站立授权 |
 | [0115](./0115-fixture-frontend-output-invariants.md) | 强化 pass / fail fixture 的双 Lexer / 双 Parser 公开产物不变量（`done`） | 0005–0017、0062–0066、0103–0114 `done`；当前持续 Goal 的站立授权 |
 | [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
-| [0213](./0213-trailing-lambda-call-parser.md) | 把同行尾 lambda 规范化为最后一个普通 CallArgument（`in-progress`） | 0010、0012、0014、0175 `done`；v0.33 已启用 |
-| [0214](./0214-implicit-it-lambda-parameter.md) | 为 headerless lambda 建立 contextual 隐式 `it` 的 AST/name/type/ownership 纵向事实（`approved`） | 0010、0018、0019、0032、0067、0173、0197、0198 `done`；等待 0213 |
+| [0213](./0213-trailing-lambda-call-parser.md) | 把同行尾 lambda 规范化为最后一个普通 CallArgument（`done`） | 0010、0012、0014、0175 `done`；v0.33 已启用 |
+| [0214](./0214-implicit-it-lambda-parameter.md) | 为 headerless lambda 建立 contextual 隐式 `it` 的 AST/name/type/ownership 纵向事实（`approved`） | 0010、0018、0019、0032、0067、0173、0197、0198、0213 `done` |
 | [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`draft`） | 0017、0064、0176 `done`；v0.34 待启用 |
 
 ### Phase 2：名称与类型检查

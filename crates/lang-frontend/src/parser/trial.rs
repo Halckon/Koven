@@ -10,10 +10,12 @@ use super::{MAX_RECURSION_DEPTH, ParserInternalError};
 /// 一个调用点类型实参候选的严格识别结果。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CallTrial {
-    /// `<...>` 完整合法，且其后下一个非 trivia token 是 `(`。
+    /// `<...>` 完整合法，且其后下一个非 trivia token 是 `(` 或 `{`。
     Match {
         /// 匹配 `>` 在原始 lexeme 流中的下标。
         closing_raw: usize,
+        /// `>` 后的 `(` 或 `{` 在原始 lexeme 流中的下标。
+        suffix_raw: usize,
         /// 相对查询基线所需的最大附加递归深度。
         additional_depth: usize,
     },
@@ -78,22 +80,29 @@ impl StrictCallTrialIndex {
             .map(|trial| match trial {
                 Some(SignificantCallTrial::Match {
                     closing_significant,
+                    suffix_significant,
                     additional_depth,
-                }) => significant_to_raw
-                    .get(closing_significant)
-                    .copied()
-                    .map(|closing_raw| CallTrial::Match {
+                }) => {
+                    let closing_raw = significant_to_raw
+                        .get(closing_significant)
+                        .copied()
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    let suffix_raw = significant_to_raw
+                        .get(suffix_significant)
+                        .copied()
+                        .ok_or(ParserInternalError::InvalidLexemeStream)?;
+                    Ok(Some(CallTrial::Match {
                         closing_raw,
+                        suffix_raw,
                         additional_depth,
-                    })
-                    .map(Some)
-                    .ok_or(ParserInternalError::InvalidLexemeStream),
+                    }))
+                }
                 Some(SignificantCallTrial::NoMatch { additional_depth }) => {
                     Ok(Some(CallTrial::NoMatch { additional_depth }))
                 }
                 None => Ok(None),
             })
-            .collect::<Result<Vec<Option<_>>, _>>()?;
+            .collect::<Result<Vec<Option<_>>, ParserInternalError>>()?;
 
         Ok(Self {
             raw_to_significant,
@@ -181,6 +190,7 @@ struct ListTrial {
 enum SignificantCallTrial {
     Match {
         closing_significant: usize,
+        suffix_significant: usize,
         additional_depth: usize,
     },
     NoMatch {
@@ -246,9 +256,13 @@ impl<'a> TrialBuilder<'a> {
                 let list = self.parse_list(index, Symbol::Greater, &types)?;
                 angle_lists[index] = list;
                 call_trials[index] = Some(match list.success {
-                    Some(success) if self.is_symbol(success.end, Symbol::LeftParen) => {
+                    Some(success)
+                        if self.is_symbol(success.end, Symbol::LeftParen)
+                            || self.is_symbol(success.end, Symbol::LeftBrace) =>
+                    {
                         SignificantCallTrial::Match {
                             closing_significant: success.closing,
+                            suffix_significant: success.end,
                             additional_depth: list.explored_depth,
                         }
                     }
@@ -549,6 +563,7 @@ mod tests {
         let CallTrial::Match {
             closing_raw,
             additional_depth,
+            ..
         } = trial
         else {
             panic!("complete strict type arguments must match");
@@ -557,6 +572,18 @@ mod tests {
         assert!(matches!(
             lexed.lexemes()[closing_raw].kind(),
             LexemeKind::Token(TokenKind::Symbol(Symbol::Greater))
+        ));
+
+        let (lexed, index) = indexed("f<T> /* same line */ {}");
+        let CallTrial::Match { suffix_raw, .. } = index
+            .query(less_raw(&lexed, 0), 0)
+            .expect("trailing lambda type arguments must query")
+        else {
+            panic!("complete type arguments before a lambda must match");
+        };
+        assert!(matches!(
+            lexed.lexemes()[suffix_raw].kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
         ));
 
         for malformed in [
@@ -618,6 +645,15 @@ mod tests {
         fn successful(cases: usize) -> String {
             std::iter::repeat_n(
                 "f /* trivia */ <A.B.C<D, E>, move (borrow F, inout G<H>) -> I?> /* trivia */ ()",
+                cases,
+            )
+            .collect::<Vec<_>>()
+            .join(" + ")
+        }
+
+        fn successful_trailing(cases: usize) -> String {
+            std::iter::repeat_n(
+                "f /* trivia */ <A.B.C<D, E>, move (borrow F, inout G<H>) -> I?> /* trivia */ {}",
                 cases,
             )
             .collect::<Vec<_>>()
@@ -730,6 +766,12 @@ mod tests {
         assert_eq!(success_small.4, 64);
         assert_eq!(success_large.4, 128);
         assert_linear_doubling("successful", success_small, success_large);
+
+        let trailing_small = metrics(&successful_trailing(64));
+        let trailing_large = metrics(&successful_trailing(128));
+        assert_eq!(trailing_small.4, 64);
+        assert_eq!(trailing_large.4, 128);
+        assert_linear_doubling("successful trailing", trailing_small, trailing_large);
 
         let failed_small = metrics(&terminal_no_match(128));
         let failed_large = metrics(&terminal_no_match(256));

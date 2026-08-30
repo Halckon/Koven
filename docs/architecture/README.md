@@ -2,8 +2,8 @@
 
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
-[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.33 文档集定义。v0.33 已启用但
-SPEC-0213/0214/0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
+[`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.33 文档集定义。v0.33 已启用，
+SPEC-0213 已完成，0214/0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -158,7 +158,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.32 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.33
-的 Phase 1 增量等待 SPEC-0213/0214。仓库并已完成 Phase 4 的
+的尾随 lambda 已由 SPEC-0213 完成，隐式 `it` 等待 SPEC-0214。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
@@ -503,8 +503,8 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - Parser 跳过 trivia，消费 v0.6 的 primary、postfix、prefix、14 档中缀 / 赋值和递归
   `type_ref`；binding power 只在 `parser::engine` 中定义，`to` 由源码 `Span` 精确识别；
 - 声明入口消费 v0.7 的 `val`、`var`、`const val` 与具名 `fun`，保存三态名称 marker、参数与
-  泛型列表；调用点 `<type_ref, ...>(...)` 由单次 O(N) 反向预索引无副作用判定，查询 O(1)，
-  成功后才由正式 TypeRef parser 提交 AST；
+  泛型列表；调用点 `<type_ref, ...>(...)` / `<type_ref, ...> { ... }` 由单次 O(N) 反向预索引
+  无副作用判定，查询 O(1)，成功后才由正式 TypeRef parser 提交 AST；
 - 当前具名函数参数和函数类型参数共享封闭的
   `ParameterModeMarker::{Own, Borrow, Inout}`；无 marker 与显式 `borrow` 都规范化为 `Borrow`，
   `own` 规范化为既有 `Value`，`inout` 保持 `Inout`。函数类型使用内嵌
@@ -513,6 +513,10 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
 - basic、typed、member 与 chained call 统一保存源码有序的内嵌 `CallArgument`：可选命名
   前缀、调用点 `borrow` / `&` marker 和唯一 value 表达式。Parser 只保存 Phase 1 源码结构，
   不做名称映射、契约匹配、place、可变性或所有权检查；
+- SPEC-0213 在同一 postfix parser 中把无换行 trivia gap 后的 `{ ... }` 解析为最后一个无
+  name/mode 的普通 lambda `CallArgument`。无圆括号、已有 `(...)`、typed、member 与 chained
+  callee 都产生单一 `Expression::Call`；第二个尾 lambda 不形成嵌套 call。LF、CRLF 或含换行
+  comment 保留 expression statement 与 nested block 边界，失败的 typed-call 试探不提交 TypeRef；
 - 函数 Item 以 `FunctionForm` 同时封闭返回标注来源与 body：省略标注只产生
   `ImplicitUnitAbsent` 或引用真实 block statement 的 `ImplicitUnitBlock`，不合成 `Unit`
   TypeRef 或 colon；`Explicit` 保存真实 / 恢复插入的 colon `Span`、TypeRef ID，以及
@@ -533,8 +537,8 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   `ExpressionId`；`var (` / `const val (` 与独立声明上下文分别以错误 statement /
   item 恢复，不新增 pattern table或提前进行 Phase 2 / 3 检查；
 - expression primary 消费 v0.9 的普通与 `move` lambda，以 `Expression::Lambda` 唯一引用
-  独立 `Statement::LambdaBody`；block element 起点的 `{` 仍是 Unit block，等待 primary 的
-  `{` 才是 lambda，因而无需 trivia 或类型猜测即可区分两者；
+  独立 `Statement::LambdaBody`；block element 起点的 `{` 在没有同行可附着 callee 时仍是 Unit
+  block，expression primary 或尾 lambda 位置的 `{` 才是 lambda，判定只读取 trivia 换行；
 - scalar literal AST 以 `IntegerLiteralKind` / `FloatLiteralKind` 保存无后缀、`Long`、
   unsigned、`ULong`、`Double` 与 `Float` 规范化身份；Parser 只映射 token，不回读源码或
   提前做数值定型；
