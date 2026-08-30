@@ -134,6 +134,9 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      concat、分支 result、body local owner、显式 return 与 MoveOnly 参数继续 fail loud，等待 lambda-body
      exit-qualified owner/drop facts。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+   - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
+     closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
+     DISubprogram/DILocation 与输入反序后的完整 LLVM 文本确定性；object/native 仍由后续切片承接。
 25. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
@@ -283,6 +286,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib --locked --offline` | 223 passed, 1 ignored | MoveOnly callable result verified SSA 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第二切片沿用固定四层简化验收，不重复尚未接线的 LLVM/native matrix |
 | 独立 fresh-context 评审 | 通过 | 复核唯一 direct tail 门禁、thunk Return/caller result owner 转移、function pointer/concrete closure、跨文件确定性及 fail-loud 边界，未发现 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib unit_llvm_tests --locked --offline` | 1 passed | 真实 compilation-unit→verified LLVM、跨 package alias/callable/Borrow/String drop、multi-source DWARF 与输入反序全文确定性 |
+| `cargo test -p lang-codegen --lib --locked --offline` | 224 passed, 1 ignored | unit LLVM/DWARF 集成与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十四步第一切片采用“单一窄测 → crate 全量 → workspace Clippy”的简化验收，不重复历史 SSA 窄测或尚未接线的 native matrix |
+| 独立 fresh-context 评审与复审 | 通过 | 首轮发现 source metadata 关联与 Borrow/drop 时序断言不足两个 P2；改为解析 metadata/function/call identity，锁定两源 scope/location、environment-first ABI 与 inspect 后唯一 String drop，复审无 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -362,3 +369,12 @@ thunk 将该 owner 直接交给 `Return`，不生成提前 drop；`CallableInvok
 或 tail 是 local owner、显式 return、concat/分支等复合结果，仍在发布 program 前 fail loud；这些表面
 等待 lambda-body exit-qualified owner/drop facts，不以 codegen 推测替代 frontend 事实。MoveOnly 参数、
 一般 MoveOnly `if`/`when` result 与 `for` 也未因此解锁；现行 guide 语义未改变。
+
+第二十四步的第一切片把真实 compilation-unit product 接到既有 verified LLVM adapter 与 multi-source
+DWARF emitter。正向链从两个 package 的 source input 分别执行 name/type/ownership 分析，再生成单一
+SSA/LLVM module；fixture 同时覆盖 alias direct call、captured closure thunk、environment-first + user
+Borrow pointer ABI、MoveOnly String result、借用结束后的唯一 drop，以及 provider/consumer 各自的
+`DIFile`、`DISubprogram` 和代表性 `DILocation`。输入反序后重新分析并比较完整 LLVM 文本，证明 identity、
+函数顺序、drop glue 与 debug metadata 均不依赖 source input 顺序。该切片复用现有生产 adapter，没有
+新增公开 API；object 原子写入、link/run 与完整 native 正反矩阵仍由第二十五步承接，现行 guide 语义
+未改变。

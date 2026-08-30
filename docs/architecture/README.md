@@ -1146,6 +1146,14 @@ span 内的其他 MoveOnly temporary、local owner、显式 return、concat/分�
 `if`/`when` result 和缺 typed iteration plan 的 `for` 也未解锁；LLVM/multi-source DWARF 与
 object/native 仍由后续切片承接，现行 guide 语义未改变。
 
+SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
+集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM
+module；alias direct call、captured closure thunk、environment-first + user Borrow pointer ABI、MoveOnly
+String result/drop 均沿用现有生产 adapter。debug plan 为 provider/consumer 建立各自 `DIFile`，并把
+callable、entry 与 thunk 的 `DISubprogram`/代表性 `DILocation` 绑定回正确 source；输入反序后的完整
+LLVM 文本保持一致。该切片未新增公开 API，object 原子写入、link/run 和完整 native matrix 仍由
+SPEC-0199 后续切片承接，现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按
