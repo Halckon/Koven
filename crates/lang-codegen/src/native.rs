@@ -1,24 +1,42 @@
 //! 已完成 frontend analysis 到首个本机 object 的 workspace 公共边界。
 
-use std::{fmt, path::Path};
+#[cfg(test)]
+mod unit_tests;
+
+use std::{
+    fmt, fs,
+    fs::OpenOptions,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
-    name_resolution::{NameResolution, ScopeKind, SymbolId, SymbolKind},
-    ownership_checking::OwnershipCheckedFile,
+    name_resolution::{
+        DeclarationId, NameResolution, ScopeKind, SourceUnitInput, SymbolId, SymbolKind,
+        ValidatedCompilationUnitNames,
+    },
+    ownership_checking::{OwnershipCheckedFile, ValidatedCompilationUnitOwnership},
     parser::ParsedFile,
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, FunctionParameterType, IntrinsicTypeConstructor, ParameterMode, TypeKind,
-        TypedFile,
+        BuiltinType, FunctionParameterType, IntrinsicTypeConstructor, ParameterMode,
+        TypeEnvironment, TypeKind, TypedFile, UnitCallableTarget, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
 use crate::{
     llvm,
     llvm::entry::NativeEntryPlan,
-    ssa::{LoweringError, LoweringErrorKind, lower_scalar_file_with_entry},
+    ssa::{
+        LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
+        unit_lower::lower_scalar_unit_with_entry, unit_plan::validate_unit_inputs,
+    },
 };
+
+static NEXT_UNIT_OBJECT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
 /// 已由调用方完成名称选择的封闭 native process entry shape。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +142,34 @@ pub fn emit_native_object(
         .map_err(|error| map_backend_error(sources, &program, error))
 }
 
+/// 把 validated compilation-unit analysis chain 和显式顶层 `() -> Unit` entry 原子写为 object。
+///
+/// 所有 frontend、SSA、target layout 与 LLVM 验证均在 sibling temporary 上完成；只有完整 object
+/// 生成成功后才替换 `output`。失败时既有目标保持不变，临时文件由本函数清理。
+#[allow(clippy::too_many_arguments)]
+pub fn emit_native_unit_object(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    entry: DeclarationId,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    validate_unit_inputs(sources, inputs, names, environment, typed, owned)
+        .map_err(map_lowering_error)?;
+    validate_unit_entry(names, typed, entry)?;
+    let (program, function) =
+        lower_scalar_unit_with_entry(sources, inputs, names, environment, typed, owned, entry)
+            .map_err(map_lowering_error)?;
+    let plan = NativeEntryPlan::NoArguments { function };
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(&program, sources, plan, temporary.path())
+        .map_err(|error| map_backend_error(sources, &program, error))?;
+    temporary.commit(output)
+}
+
 fn validate_entry(
     names: &NameResolution,
     typed: &TypedFile,
@@ -176,6 +222,34 @@ fn validate_entry(
     };
     if !valid_parameters {
         return Err(invalid_entry(Some(symbol.span())));
+    }
+    Ok(())
+}
+
+fn validate_unit_entry(
+    names: &ValidatedCompilationUnitNames,
+    typed: &ValidatedCompilationUnitTypes,
+    entry: DeclarationId,
+) -> Result<(), NativeObjectError> {
+    let declaration = names
+        .names()
+        .index()
+        .declarations()
+        .get(entry.index())
+        .ok_or_else(|| invalid_entry(None))?;
+    let callable = typed
+        .types()
+        .signatures()
+        .declaration(entry)
+        .and_then(|signature| signature.callable())
+        .ok_or_else(|| invalid_entry(Some(declaration.name_span())))?;
+    if callable.target() != UnitCallableTarget::Declaration(entry)
+        || !callable.type_parameters().is_empty()
+        || !callable.parameters().is_empty()
+        || typed.types().types().get(callable.return_type())
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+    {
+        return Err(invalid_entry(Some(declaration.name_span())));
     }
     Ok(())
 }
@@ -307,5 +381,71 @@ pub(crate) fn map_backend_error(
         span: Some(origin.primary),
         detail: format!("{layout:?}"),
         diagnostic: diagnostic.map(Box::new),
+    }
+}
+
+struct SiblingObject {
+    path: Option<PathBuf>,
+}
+
+impl SiblingObject {
+    fn reserve(output: &Path) -> Result<Self, NativeObjectError> {
+        let parent = output
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        loop {
+            let sequence = NEXT_UNIT_OBJECT_TEMPORARY.fetch_add(1, Ordering::Relaxed);
+            let candidate = parent.join(format!(
+                ".koven-unit-object-{}-{sequence}.tmp",
+                std::process::id()
+            ));
+            if candidate == output {
+                continue;
+            }
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+            {
+                Ok(_) => {
+                    return Ok(Self {
+                        path: Some(candidate),
+                    });
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(backend_io_error("reserve sibling object", error));
+                }
+            }
+        }
+    }
+
+    fn path(&self) -> &Path {
+        self.path.as_deref().expect("live sibling object")
+    }
+
+    fn commit(mut self, output: &Path) -> Result<(), NativeObjectError> {
+        fs::rename(self.path(), output)
+            .map_err(|error| backend_io_error("commit sibling object", error))?;
+        self.path = None;
+        Ok(())
+    }
+}
+
+impl Drop for SiblingObject {
+    fn drop(&mut self) {
+        if let Some(path) = self.path.take() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn backend_io_error(operation: &str, error: std::io::Error) -> NativeObjectError {
+    NativeObjectError {
+        kind: NativeObjectErrorKind::Backend,
+        span: None,
+        detail: format!("{operation}: {error}"),
+        diagnostic: None,
     }
 }

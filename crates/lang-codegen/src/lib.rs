@@ -4,7 +4,10 @@ mod native;
 #[cfg(test)]
 mod native_tests;
 
-pub use native::{NativeEntry, NativeObjectError, NativeObjectErrorKind, emit_native_object};
+pub use native::{
+    NativeEntry, NativeObjectError, NativeObjectErrorKind, emit_native_object,
+    emit_native_unit_object,
+};
 
 // SPEC-0034 完成 SSA→LLVM adapter 后移除该暂时的未使用门禁。
 #[allow(dead_code)]

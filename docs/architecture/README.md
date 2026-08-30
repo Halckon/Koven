@@ -1154,6 +1154,16 @@ callable、entry 与 thunk 的 `DISubprogram`/代表性 `DILocation` 绑定回�
 LLVM 文本保持一致。该切片未新增公开 API，object 原子写入、link/run 和完整 native matrix 仍由
 SPEC-0199 后续切片承接，现行 guide 语义未改变。
 
+SPEC-0199 第二十五步的第一切片新增 public `emit_native_unit_object`。API 显式接收 source inputs、
+validated compilation-unit names/types/ownership、`TypeEnvironment`、resolved `DeclarationId` 与输出路径；
+统一 compatibility gate 先核对完整 analysis identity chain，再要求 entry 为非泛型零参数 `Unit` 顶层
+callable。verified LLVM object 只写同目录、通过 `create_new` 原子抢占的 sibling temporary，成功后以
+单次 rename 发布；backend 或 commit 失败由 RAII 清理 temporary，旧目标保持不变。首个 native matrix
+已覆盖两个 package 的 alias call、captured closure、Borrow、动态 String result/drop、Mach-O link/run，
+以及 InvalidEntry、UnsupportedSource、MismatchedAnalysis、commit failure 的原子负例。multi-file
+aggregate/Rc/constructor 与提前退出的完整矩阵仍由 SPEC-0199 后续子切片承接；project CLI 不在本 API
+边界内，现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

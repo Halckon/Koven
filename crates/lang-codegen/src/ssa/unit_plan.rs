@@ -101,7 +101,7 @@ pub(crate) fn plan_unit_instances(
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
 ) -> Result<Vec<UnitPlannedInstance>, LoweringError> {
-    validate_inputs(sources, inputs, names, environment, typed, owned)?;
+    validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let templates = collect_templates(names, typed, &parsed_by_source)?;
     let template_by_declaration = templates
@@ -204,7 +204,8 @@ pub(crate) fn plan_unit_instances(
     Ok(planned.into_values().collect())
 }
 
-fn validate_inputs(
+/// 核对 codegen 消费的 source inputs 与 validated unit analysis identity chain。
+pub(crate) fn validate_unit_inputs(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,

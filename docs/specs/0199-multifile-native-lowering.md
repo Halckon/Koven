@@ -138,6 +138,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
      DISubprogram/DILocation 与输入反序后的完整 LLVM 文本确定性；object/native 仍由后续切片承接。
 25. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+   - [x] 接首个 public unit object API：validated identity chain 先于 entry shape 校验，显式
+     `DeclarationId` 仅接受非泛型零参数 `Unit` callable；LLVM 只写同目录 `create_new` sibling
+     temporary，成功后单次 rename 提交。跨 package alias/captured closure/dynamic String 正例完成
+     Mach-O link/run；InvalidEntry、UnsupportedSource、MismatchedAnalysis 与 commit failure 均保留旧目标
+     并清理 temporary。aggregate/Rc/constructor 与提前退出的完整 native matrix 仍待后续子切片。
 
 ## 8. 提交计划
 
@@ -290,6 +295,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib --locked --offline` | 224 passed, 1 ignored | unit LLVM/DWARF 集成与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十四步第一切片采用“单一窄测 → crate 全量 → workspace Clippy”的简化验收，不重复历史 SSA 窄测或尚未接线的 native matrix |
 | 独立 fresh-context 评审与复审 | 通过 | 首轮发现 source metadata 关联与 Borrow/drop 时序断言不足两个 P2；改为解析 metadata/function/call identity，锁定两源 scope/location、environment-first ABI 与 inspect 后唯一 String drop，复审无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 2 passed | public unit object 原子替换、跨 package alias/closure/dynamic String link/run，以及 InvalidEntry/UnsupportedSource/MismatchedAnalysis/commit failure 的旧目标保留与 temporary 清理 |
+| `cargo test -p lang-codegen --lib --locked --offline` | 226 passed, 1 ignored | unit object/native 集成与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十五步第一切片沿用“单一窄测 → crate 全量 → workspace Clippy”的简化验收，不重复历史 SSA/LLVM 窄测或未覆盖的后续 native matrix |
+| 独立 fresh-context 评审与复审 | 通过 | 初审发现 entry shape 先于 analysis identity 会造成错误分类漂移的 P2；抽取唯一 `validate_unit_inputs` 并把 compatibility gate 前置，新增 foreign analysis 回归后复审无 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -378,3 +387,14 @@ Borrow pointer ABI、MoveOnly String result、借用结束后的唯一 drop，�
 函数顺序、drop glue 与 debug metadata 均不依赖 source input 顺序。该切片复用现有生产 adapter，没有
 新增公开 API；object 原子写入、link/run 与完整 native 正反矩阵仍由第二十五步承接，现行 guide 语义
 未改变。
+
+第二十五步的第一切片新增 public `emit_native_unit_object`，显式接收共同 `SourceMap`、source inputs、
+validated names/types/ownership、`TypeEnvironment`、resolved `DeclarationId` 与输出路径。入口首先复用
+unit plan 的唯一 compatibility gate，稳定拒绝混用 analysis chain；随后只接受非泛型、零参数、精确
+`Unit` 的顶层 callable。全部 frontend/SSA/target/LLVM 验证完成后，backend 只写输出同目录、以
+`create_new` 抢占的 sibling temporary；成功后单次 rename 发布，任一 backend/commit 失败均由 RAII
+清理 temporary，既有目标不被预删或截断。native 正例跨两个 package 运行 alias call、captured closure、
+Borrow、动态 String concat/result/drop，并真实生成 Mach-O、Clang link/run；负例锁定 InvalidEntry、
+UnsupportedSource、MismatchedAnalysis 与 commit failure 的错误分类及旧目标保留。该子切片尚不等于
+SPEC-0199 完整 native matrix；multi-file aggregate/Rc/constructor 与正常/提前退出组合仍由后续子切片
+承接，公开 project CLI 仍属于 SPEC-0054，现行 guide 语义未改变。
