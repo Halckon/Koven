@@ -49,6 +49,7 @@ pub(super) struct CallablePlan {
     pub(super) span: Span,
     pub(super) parameter_spans: Vec<Span>,
     pub(super) return_type: UnitTypeId,
+    pub(super) result_expression: Option<ExpressionId>,
     pub(super) captures: Vec<CapturePlan>,
     pub(super) substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
 }
@@ -158,9 +159,18 @@ pub(super) fn declare(
                     ParameterMode::Inout => unreachable!("Inout was rejected above"),
                 });
             }
-            let move_only_result =
-                if typed.types().copyability(return_type) == Copyability::MoveOnly {
-                    let tail = lambda_tail_expression(parsed, *body, span)?;
+            let result_expression = (builtin_type(typed, return_type) != Some(BuiltinType::Unit))
+                .then(|| lambda_tail_expression(parsed, *body, span))
+                .transpose()?;
+            if typed.types().copyability(return_type) == Copyability::MoveOnly {
+                let tail = result_expression
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let tail_node = parsed
+                    .ast()
+                    .expressions()
+                    .get(tail)
+                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if !matches!(tail_node.payload(), Expression::Return { .. }) {
                     let tail_id = UnitExpressionId::new(function.instance.source_unit(), tail);
                     let tail_type = typed
                         .types()
@@ -175,52 +185,19 @@ pub(super) fn declare(
                     if typed.types().expression_category(tail_id)
                         != Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
                         || tail_type != return_type
-                        || !super::type_lower::is_supported_storage_type(typed, tail_type)
                     {
                         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                     }
-                    Some(tail_id)
-                } else {
-                    None
-                };
+                }
+                if !super::type_lower::is_supported_storage_type(typed, return_type) {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+            }
             let callable_returns = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
                 Vec::new()
             } else {
                 vec![types.intern(module, typed, return_type, span)?]
             };
-            for (&candidate, &candidate_type) in typed.types().expression_types() {
-                if candidate.source_unit() != function.instance.source_unit() {
-                    continue;
-                }
-                let candidate_span = parsed
-                    .ast()
-                    .expressions()
-                    .get(candidate.expression())
-                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-                    .span();
-                if !strictly_contains(span, candidate_span) {
-                    continue;
-                }
-                let candidate_type = resolve_concrete_type(
-                    typed,
-                    candidate_type,
-                    function.instance.substitutions(),
-                    candidate_span,
-                )?;
-                if typed.types().expression_category(candidate)
-                    == Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
-                    && typed.types().copyability(candidate_type)
-                        == lang_frontend::type_checking::Copyability::MoveOnly
-                    && super::type_lower::is_supported_storage_type(typed, candidate_type)
-                    && Some(candidate) != move_only_result
-                {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        candidate_span,
-                    ));
-                }
-            }
-
             let mut captures = Vec::new();
             let mut environment_fields = Vec::new();
             let mut capture_types = Vec::new();
@@ -329,6 +306,7 @@ pub(super) fn declare(
                         span,
                         parameter_spans: parameters.clone(),
                         return_type,
+                        result_expression,
                         captures,
                         substitutions: function.instance.substitutions().clone(),
                     },
@@ -670,6 +648,34 @@ pub(super) fn finish_thunk(
     } else {
         lowerer.lower_tail_value_body(plan.body)?
     };
+    if let LoweredValue::Value(value) = result {
+        let expression = plan
+            .result_expression
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
+        lowerer.transfer_owned_expression(expression, value, plan.span)?;
+    }
+    if !lowerer.temporaries.is_empty() {
+        return Err(lowering_error(
+            LoweringErrorKind::UnsupportedNode,
+            plan.span,
+        ));
+    }
+    for symbol in lowerer.bindings.keys() {
+        let ty = lowerer
+            .typed
+            .types()
+            .body_symbol_types()
+            .get(symbol)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
+        let ty = resolve_concrete_type(lowerer.typed, ty, &plan.substitutions, plan.span)?;
+        if lowerer.typed.types().copyability(ty) == Copyability::MoveOnly {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                plan.span,
+            ));
+        }
+    }
     if result == LoweredValue::Diverged {
         return Ok(());
     }

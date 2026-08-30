@@ -242,7 +242,11 @@ fn analyze_unit() -> UnitAnalysis {
          }\n\
          fun entry(): Unit {\n\
              val offset = 2\n\
-             val action: move (borrow Int) -> String = move { item -> build(item + offset) }\n\
+             val action: move (borrow Int) -> String = move { item ->\n\
+                 val local = \"inside\"\n\
+                 val seen = p.inspect(local)\n\
+                 return build(item + offset)\n\
+             }\n\
              val message = action(3)\n\
              val seen = p.inspect(message)\n\
              val early = exercise(true)\n\
@@ -250,12 +254,12 @@ fn analyze_unit() -> UnitAnalysis {
          }\n\
          fun invalidEntry(number: Int): Unit {}\n\
          fun unsupported(): Unit {\n\
-             val captured = \"capture\"\n\
-             val action: move () -> Unit = move {\n\
-                 val local = \"inside\"\n\
-                 val seen = p.inspect(captured)\n\
+             val flag = true\n\
+             val action: move () -> String = move {\n\
+                 if (flag) { \"left\" } else { \"right\" }\n\
              }\n\
-             val invoked = action()\n\
+             val message = action()\n\
+             val seen = p.inspect(message)\n\
          }",
     );
     let inputs = [

@@ -5,7 +5,10 @@ use lang_frontend::{
 
 use super::{
     LoweringErrorKind,
-    model::{ClosureCaptureMode, EntityType, Function, LoanKind, Operation, SsaTypeKind},
+    model::{
+        ClosureCaptureMode, EntityId, EntityType, Function, LoanKind, Operation, SsaTypeKind,
+        TerminatorKind, ValueId,
+    },
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
@@ -364,7 +367,14 @@ fn lowers_direct_move_only_callable_results_deterministically() {
          fun inspect(message: String): Unit {}\n\
          fun make(number: Int): String = \"captured\"\n\
          fun create(): String {\n\
-             val factory: move () -> String = move { \"pointer\" }\n\
+             val factory: move () -> String = move { \"left\" + \"right\" }\n\
+             return factory()\n\
+         }\n\
+         fun explicit(): String {\n\
+             val factory: move () -> String = move {\n\
+                 val result = \"explicit\"\n\
+                 return result\n\
+             }\n\
              return factory()\n\
          }",
     );
@@ -374,13 +384,15 @@ fn lowers_direct_move_only_callable_results_deterministically() {
         "package q\n\
          fun entry(): Unit {\n\
              val offset = 2\n\
-             val action: move (borrow Int) -> String = move { item -> p.make(item + offset) }\n\
+             val action: move (borrow Int) -> String = move { item -> p.make(item + offset) + \"suffix\" }\n\
              val first = action(2)\n\
              val firstSeen = p.inspect(first)\n\
              val second = action(3)\n\
              val secondSeen = p.inspect(second)\n\
              val created = p.create()\n\
              val createdSeen = p.inspect(created)\n\
+             val explicit = p.explicit()\n\
+             val explicitSeen = p.inspect(explicit)\n\
          }",
     );
     let inputs = [
@@ -417,23 +429,26 @@ fn lowers_direct_move_only_callable_results_deterministically() {
     let module = &forward.modules[0];
     let entry = function(module, "q.entry");
     assert_eq!(operation_count(entry, is_callable_invoke), 2);
-    assert_eq!(operation_count(entry, is_drop), 4);
+    assert_eq!(operation_count(entry, is_drop), 5);
     let create = function(module, "p.create");
     assert_eq!(operation_count(create, is_callable_invoke), 1);
     assert_eq!(operation_count(create, is_drop), 1);
+    let explicit = function(module, "p.explicit");
+    assert_eq!(operation_count(explicit, is_callable_invoke), 1);
+    assert_eq!(operation_count(explicit, is_drop), 1);
     let thunks = module
         .functions
         .iter()
         .filter(|function| function.name.contains(".thunk"))
         .collect::<Vec<_>>();
-    assert_eq!(thunks.len(), 2);
+    assert_eq!(thunks.len(), 3);
     assert!(thunks.iter().all(|thunk| thunk.return_types.len() == 1));
     assert_eq!(
         thunks
             .iter()
             .map(|thunk| operation_count(thunk, is_string_literal))
             .sum::<usize>(),
-        1
+        4
     );
     assert_eq!(
         thunks
@@ -442,6 +457,102 @@ fn lowers_direct_move_only_callable_results_deterministically() {
             .sum::<usize>(),
         1
     );
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_string_concat))
+            .sum::<usize>(),
+        2
+    );
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|thunk| operation_count(thunk, is_drop))
+            .sum::<usize>(),
+        4,
+        "only composite operands drop inside the thunks; returned owners transfer"
+    );
+    let composite_thunks = thunks
+        .iter()
+        .copied()
+        .filter(|thunk| operation_count(thunk, is_string_concat) == 1)
+        .collect::<Vec<_>>();
+    assert_eq!(composite_thunks.len(), 2);
+    for thunk in composite_thunks {
+        let concat = thunk
+            .instructions
+            .iter()
+            .find_map(|instruction| {
+                matches!(instruction.operation, Operation::StringConcat { .. })
+                    .then(|| instruction.results[0])
+            })
+            .expect("composite thunk has one concat result");
+        let EntityId::Value(concat) = concat else {
+            panic!("concat result is a value");
+        };
+        assert_eq!(returned(thunk), &[concat]);
+        let dropped = dropped(thunk);
+        assert_eq!(dropped.len(), 2);
+        assert!(
+            !dropped.contains(&concat),
+            "the lambda result transfers instead of being dropped"
+        );
+    }
+    let explicit_thunk = thunks
+        .iter()
+        .copied()
+        .find(|thunk| {
+            operation_count(thunk, is_string_concat) == 0
+                && operation_count(thunk, is_direct_call) == 0
+        })
+        .expect("explicit-return thunk exists");
+    assert_eq!(returned(explicit_thunk).len(), 1);
+    assert!(dropped(explicit_thunk).is_empty());
+}
+
+#[test]
+fn lowers_fact_backed_lambda_body_owner_drop() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "test/body-owner.ko",
+        "package test\n\
+         fun inspect(message: String): Unit {}\n\
+         fun entry(): Unit {\n\
+             val action: move () -> Unit = move {\n\
+                 val local = \"inside\"\n\
+                 val seen = inspect(local)\n\
+             }\n\
+             val invoked = action()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/body-owner.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("lambda body owner lowers only with its frontend drop fact");
+
+    let thunk = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains(".thunk"))
+        .expect("lambda thunk exists");
+    assert_eq!(operation_count(thunk, is_string_literal), 1);
+    assert_eq!(operation_count(thunk, is_direct_call), 1);
+    assert_eq!(operation_count(thunk, is_drop), 1);
 }
 
 #[test]
@@ -520,19 +631,6 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/body-owner.ko",
-            "package test\n\
-             fun inspect(message: String): Unit {}\n\
-             fun entry(): Unit {\n\
-                 val captured = \"capture\"\n\
-                 val action: move () -> Unit = move {\n\
-                     val local = \"inside\"\n\
-                     val read = inspect(captured)\n\
-                 }\n\
-                 val invoked = action()\n\
-             }",
-        ),
-        (
             "test/temporary.ko",
             "package test\n\
              fun inspect(message: String): Unit {}\n\
@@ -573,7 +671,9 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             "test/complex-move-only-return.ko",
             "package test\n\
              fun entry(): Unit {\n\
-                 val action: move () -> String = move { \"left\" + \"right\" }\n\
+                 val action: move (borrow Boolean) -> String = move { flag ->\n\
+                     if (flag) { \"left\" } else { \"right\" }\n\
+                 }\n\
              }",
         ),
         (
@@ -683,6 +783,30 @@ fn operation_count(function: &Function, predicate: fn(&Operation) -> bool) -> us
         .count()
 }
 
+fn returned(function: &Function) -> &[ValueId] {
+    function
+        .blocks
+        .iter()
+        .find_map(
+            |block| match block.terminator.as_ref().map(|term| &term.kind) {
+                Some(TerminatorKind::Return { values }) => Some(values.as_slice()),
+                _ => None,
+            },
+        )
+        .expect("function returns")
+}
+
+fn dropped(function: &Function) -> Vec<ValueId> {
+    function
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction.operation {
+            Operation::Drop { owner } => Some(owner),
+            _ => None,
+        })
+        .collect()
+}
+
 fn is_closure_construct(operation: &Operation) -> bool {
     matches!(operation, Operation::ClosureConstruct { .. })
 }
@@ -709,4 +833,8 @@ fn is_drop(operation: &Operation) -> bool {
 
 fn is_string_literal(operation: &Operation) -> bool {
     matches!(operation, Operation::StringLiteral { .. })
+}
+
+fn is_string_concat(operation: &Operation) -> bool {
+    matches!(operation, Operation::StringConcat { .. })
 }

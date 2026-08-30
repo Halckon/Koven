@@ -1159,6 +1159,14 @@ expression element 按隐式返回 `Consume`：结果 owner 转交 caller，内�
 body-local owner 按既有精确 point 析构。MoveOnly Value 参数仍保持门禁，等待独立 lambda-entry drop
 point；该前端事实不自行放宽 SPEC-0199 的 codegen surface，现行 guide 语义未改变。
 
+SPEC-0199 第二十三步第三切片开始消费上述事实。callable thunk 不再按 AST 扫描并拒绝所有额外
+MoveOnly temporary，而是沿既有 lowering 消费 lambda body 的精确 drop points；隐式 tail owner 按
+source-qualified expression identity 转移给 `Return`，显式 return 复用 control-transfer 路径。thunk
+退出前必须同时满足 temporary 集合为空、剩余 named binding 不含 concrete MoveOnly 类型，因此
+String concat operand 与 body-local owner 精确析构且结果不 drop；缺完整 body plan 的 MoveOnly
+`if`/`when` result 仍原子失败，MoveOnly Value 参数仍等待 lambda-entry drop point。function pointer
+与 captured concrete closure 共用该契约，现行 guide 语义未改变。
+
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM
 module；alias direct call、captured closure thunk、environment-first + user Borrow pointer ABI、MoveOnly

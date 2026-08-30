@@ -133,6 +133,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      直接把新 owner 交给 `Return`，caller 取得独立 result owner 并复用既有 binding/return/drop 流；
      concat、分支 result、body local owner、显式 return 与 MoveOnly 参数继续 fail loud，等待 lambda-body
      exit-qualified owner/drop facts。
+   - [x] 消费 SPEC-0215 lambda body facts：function pointer/concrete closure thunk 支持 String concat
+     composite tail、body-local owner 精确 drop 与显式 return transfer；退出前同时验证无 temporary 或
+     MoveOnly named binding 残留。MoveOnly `if` / `when` result 因缺少完整 body plan 继续原子 fail loud，
+     MoveOnly Value 参数仍等待 lambda-entry drop point。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
@@ -294,6 +298,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib unit_lower --locked --offline` | 64 passed | scoped umbrella 合并 MoveOnly callable result 与 callable/closure/owner-aware control-flow 回归 |
 | `cargo test -p lang-codegen --lib --locked --offline` | 223 passed, 1 ignored | MoveOnly callable result verified SSA 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第二切片沿用固定四层简化验收，不重复尚未接线的 LLVM/native matrix |
+| `cargo test -p lang-codegen --lib unit_lower_closure_tests --locked --offline` | 7 passed | SPEC-0215 facts 驱动 composite result、body-local drop、显式 return、返回 owner 不 drop、输入置换与 MoveOnly control result fail-loud |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 2 passed | captured closure + body-local String owner 的 object/link/run 正例，以及 MoveOnly `if` result 的 UnsupportedSource 原子负例 |
+| `cargo test -p lang-codegen --locked --offline` | 227 passed, 1 ignored | 第二十三步第三切片的 affected-crate 全量基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第三切片沿用固定简化验收，覆盖 workspace 全 target/feature |
+| 独立 fresh-context 评审 | 无 P1/P2/P3 | 复核 declare 门禁、thunk/显式 return owner transfer、capture/function pointer、退出不变量、精确 drop 及 native 原子边界 |
 | 独立 fresh-context 评审 | 通过 | 复核唯一 direct tail 门禁、thunk Return/caller result owner 转移、function pointer/concrete closure、跨文件确定性及 fail-loud 边界，未发现 P1/P2/P3 |
 | `cargo test -p lang-codegen --lib unit_llvm_tests --locked --offline` | 1 passed | 真实 compilation-unit→verified LLVM、跨 package alias/callable/Borrow/String drop、multi-source DWARF 与输入反序全文确定性 |
 | `cargo test -p lang-codegen --lib --locked --offline` | 224 passed, 1 ignored | unit LLVM/DWARF 集成与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
@@ -386,6 +395,15 @@ thunk 将该 owner 直接交给 `Return`，不生成提前 drop；`CallableInvok
 或 tail 是 local owner、显式 return、concat/分支等复合结果，仍在发布 program 前 fail loud；这些表面
 等待 lambda-body exit-qualified owner/drop facts，不以 codegen 推测替代 frontend 事实。MoveOnly 参数、
 一般 MoveOnly `if`/`when` result 与 `for` 也未因此解锁；现行 guide 语义未改变。
+
+第二十三步的第三切片消费 SPEC-0215 发布的独立 lambda body liveness/drop facts，不再用“body 中存在
+额外 MoveOnly temporary”这一 AST 扫描近似完整性。thunk 沿普通 expression/statement 路径 lower
+String concat operand、body-local owner 与显式 return，并在隐式返回时按 tail expression identity
+转移结果 owner；返回前强制 temporary 集合为空，且剩余 named binding 中不得有 concrete MoveOnly
+类型。由此 function pointer 与 captured concrete closure 都支持 composite String result，operand 与
+local owner 只按 frontend 精确 point 析构，返回 owner 不 drop。MoveOnly `if`/`when` body 因
+SPEC-0215 原子回滚 plan 而无法满足退出不变量，继续在 program 发布前 fail loud；MoveOnly Value
+参数仍等待 lambda-entry drop point。现行 guide 语义未改变。
 
 第二十四步的第一切片把真实 compilation-unit product 接到既有 verified LLVM adapter 与 multi-source
 DWARF emitter。正向链从两个 package 的 source input 分别执行 name/type/ownership 分析，再生成单一
