@@ -3,7 +3,8 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.34 文档集定义。v0.34 已在完整
-v0.33 基线上启用；SPEC-0213/0214/0054 与首个 receiver Parser 切片 SPEC-0201 均已完成。
+v0.33 基线上启用；SPEC-0213/0214/0054、receiver Parser 切片 SPEC-0201 与 typed facts
+SPEC-0180 均已完成。
 本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
@@ -167,8 +168,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.33 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.34
-的显式 instance receiver Parser/AST 已由 SPEC-0201 完成；typed/ownership/native 继续等待
-SPEC-0180/0181/0191 分阶段交付。v0.33
+的显式 instance receiver Parser/AST 与 typed facts 已由 SPEC-0201/0180 完成；ownership/native
+继续等待 SPEC-0181/0191 分阶段交付。v0.33
 的尾随 lambda 与隐式 `it` 已由 SPEC-0213/0214 完成。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
@@ -824,9 +825,15 @@ SPEC-0197 第一阶段新增纯内存的
   declaring classifier identity 表示隐式 `this`；field 为 place、结构分量 call 为 temporary。member
   `private` 以 lexical owner 检查（含 safe/nullable recovery），owner-dependent generic bound 与
   alpha-equivalent override shape 保持实例语义；L0084/L0113、输入置换与失败 trial 回滚保持单文件
-  语义。本切片只实现由 v0.32 引入并在现行 v0.34 沿用的隐式 receiver；v0.34 receiver mode
-  已成为现行语义；SPEC-0201 Parser/AST 已落地，SPEC-0180/0181/0191 的 typed、ownership 与
-  lowering 尚未落地；
+  语义。SPEC-0180 在此基础上把缺省/显式 Borrow、Inout、Value 规范化为隐藏 receiver contract；
+  callable signature、实例 key、显式/隐式/`super<I>` call descriptor 均保存实例化 receiver type、
+  mode、place category 与 source-qualified origin。receiver mode 不进入 overload shape，但参与
+  interface replacement/override/default contract；`super<I>` 只允许当前 owner 的 interface closure，
+  并检查当前 receiver capability。裸 field 发布 `This(owner)` projection，具名 object 调用保留
+  instance receiver 且 object 非 Borrow marker 以 L0099 拒绝。窄化 `by` 委托按源码顺序发布
+  Borrow-only forwarder；任一剩余 Inout/Value requirement 以 `by` 为 primary、首个源码 member 为
+  label 发布 L0152，并原子清空该 plan 的 forwarders。receiver loan/move/drop/capture 与 native
+  lowering 仍分别由 SPEC-0181/0191 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为

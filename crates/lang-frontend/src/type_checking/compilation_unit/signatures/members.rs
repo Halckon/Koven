@@ -13,7 +13,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-        TypeCheckingError, UnitTypeRefId,
+        TypeCheckingError, UnitDelegationForwarderDescriptor, UnitTypeRefId,
     },
 };
 
@@ -43,6 +43,7 @@ struct MemberShape {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MemberContract {
+    receiver_mode: ParameterMode,
     modes: Vec<ParameterMode>,
     return_type: ShapeType,
 }
@@ -55,6 +56,10 @@ struct MemberSignature {
     modifiers: DeclarationModifiers,
     has_body: bool,
     owner: UnitTypeId,
+    target: UnitCallableTarget,
+    type_parameters: Vec<UnitSymbolId>,
+    parameters: Vec<super::super::UnitCallableParameter>,
+    return_type: UnitTypeId,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -77,7 +82,7 @@ impl SignatureCollector<'_> {
         for owner in &owners {
             self.check_concrete_member_bodies(owner.declaration())?;
         }
-        let delegations = self.validate_delegations(&owners)?;
+        let mut delegations = self.validate_delegations(&owners)?;
         for owner in owners {
             let local = self.members_for_instance(owner.ty())?;
             let mut inherited = Vec::new();
@@ -88,17 +93,19 @@ impl SignatureCollector<'_> {
             if owner.kind() == NominalKind::Interface {
                 self.check_interface_replacements(&local, &inherited)?;
             } else {
-                self.check_concrete_implementation(
-                    owner.declaration(),
-                    &local,
-                    &inherited,
-                    delegations
-                        .get(&owner.declaration())
-                        .cloned()
-                        .unwrap_or_default(),
-                )?;
+                let facts = delegations.entry(owner.declaration()).or_default();
+                self.check_concrete_implementation(owner.declaration(), &local, &inherited, facts)?;
             }
         }
+        for facts in delegations.values_mut() {
+            for plan in &mut facts.valid {
+                plan.sort_forwarders();
+            }
+        }
+        self.delegations = delegations
+            .into_values()
+            .flat_map(|facts| facts.valid)
+            .collect();
         Ok(())
     }
 
@@ -240,7 +247,6 @@ impl SignatureCollector<'_> {
                     .or_insert_with(DelegationFacts::default)
                     .valid
                     .push(plan);
-                self.delegations.push(plan);
             }
         }
         Ok(result)
@@ -273,9 +279,10 @@ impl SignatureCollector<'_> {
         owner: DeclarationId,
         local: &[MemberSignature],
         inherited: &[MemberSignature],
-        delegations: DelegationFacts,
+        delegations: &mut DelegationFacts,
     ) -> Result<(), CompilationUnitTypeError> {
         let owner_span = self.names.index().declarations()[owner.index()].name_span();
+        let mut incompatible_delegates = BTreeMap::<usize, (usize, Span)>::new();
         let mut by_shape = BTreeMap::<MemberShape, Vec<&MemberSignature>>::new();
         for member in inherited {
             by_shape
@@ -322,13 +329,13 @@ impl SignatureCollector<'_> {
                 continue;
             }
             let mut providing_delegates = Vec::new();
-            for plan in &delegations.valid {
+            for (index, plan) in delegations.valid.iter().enumerate() {
                 let mut provides = false;
                 for source in &active {
                     provides |= self.satisfies_interface(plan.interface(), source.owner)?;
                 }
                 if provides {
-                    providing_delegates.push(*plan);
+                    providing_delegates.push(index);
                 }
             }
             let mut foreign_defaults = Vec::new();
@@ -337,8 +344,9 @@ impl SignatureCollector<'_> {
                     continue;
                 }
                 let mut covered = false;
-                for plan in &providing_delegates {
-                    covered |= self.satisfies_interface(plan.interface(), source.owner)?;
+                for &index in &providing_delegates {
+                    covered |= self
+                        .satisfies_interface(delegations.valid[index].interface(), source.owner)?;
                 }
                 if !covered {
                     foreign_defaults.push(*source);
@@ -347,12 +355,12 @@ impl SignatureCollector<'_> {
             if providing_delegates.len() > 1
                 || !providing_delegates.is_empty() && !foreign_defaults.is_empty()
             {
-                let primary = providing_delegates
+                let primary = delegations.valid[*providing_delegates
                     .last()
-                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
-                    .by_span();
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?]
+                .by_span();
                 let previous = if providing_delegates.len() > 1 {
-                    providing_delegates[providing_delegates.len() - 2].by_span()
+                    delegations.valid[providing_delegates[providing_delegates.len() - 2]].by_span()
                 } else {
                     foreign_defaults[0].name_span
                 };
@@ -365,6 +373,43 @@ impl SignatureCollector<'_> {
                 continue;
             }
             if providing_delegates.len() == 1 {
+                let plan_index = providing_delegates[0];
+                if let Some(requirement) = active
+                    .iter()
+                    .find(|source| source.contract.receiver_mode != ParameterMode::Borrow)
+                {
+                    delegations.valid[plan_index].clear_forwarders();
+                    let source = match requirement.target {
+                        UnitCallableTarget::Symbol(symbol) => symbol.source_unit().index(),
+                        UnitCallableTarget::Declaration(_) => usize::MAX,
+                    };
+                    incompatible_delegates
+                        .entry(plan_index)
+                        .and_modify(|current| {
+                            if (source, requirement.name_span.start())
+                                < (current.0, current.1.start())
+                            {
+                                *current = (source, requirement.name_span);
+                            }
+                        })
+                        .or_insert((source, requirement.name_span));
+                    continue;
+                }
+                if incompatible_delegates.contains_key(&plan_index) {
+                    continue;
+                }
+                for requirement in &active {
+                    delegations.valid[plan_index].push_forwarder(
+                        UnitDelegationForwarderDescriptor::new(
+                            requirement.target,
+                            requirement.owner,
+                            requirement.type_parameters.clone(),
+                            requirement.parameters.clone(),
+                            requirement.return_type,
+                            requirement.name_span,
+                        ),
+                    );
+                }
                 continue;
             }
             let defaults = active.iter().filter(|source| source.has_body).count();
@@ -385,6 +430,15 @@ impl SignatureCollector<'_> {
                     "required member declared here",
                 )?;
             }
+        }
+        for (&plan_index, &(_, requirement)) in &incompatible_delegates {
+            self.emit_with_label(
+                codes::NON_BORROW_DELEGATION_RECEIVER,
+                "interface delegation cannot forward a non-Borrow receiver",
+                delegations.valid[plan_index].by_span(),
+                requirement,
+                "incompatible interface member declared here",
+            )?;
         }
         Ok(())
     }
@@ -503,6 +557,7 @@ impl SignatureCollector<'_> {
             .map(|(slot, symbol)| (*symbol, slot))
             .collect::<BTreeMap<_, _>>();
         let mut parameters = Vec::with_capacity(callable.parameters().len());
+        let mut instantiated_parameters = Vec::with_capacity(callable.parameters().len());
         let mut modes = Vec::with_capacity(callable.parameters().len());
         for parameter in callable.parameters() {
             let ty = self.substitute_type(parameter.ty(), substitutions)?;
@@ -511,9 +566,16 @@ impl SignatureCollector<'_> {
             };
             parameters.push(shape);
             modes.push(parameter.mode());
+            instantiated_parameters.push(super::super::UnitCallableParameter::new(
+                parameter.symbol(),
+                parameter.name().map(str::to_owned),
+                parameter.mode(),
+                ty,
+                parameter.span(),
+            ));
         }
-        let return_type = self.substitute_type(callable.return_type(), substitutions)?;
-        let Some(return_type) = self.shape_type(return_type, &slots) else {
+        let return_type_id = self.substitute_type(callable.return_type(), substitutions)?;
+        let Some(return_type) = self.shape_type(return_type_id, &slots) else {
             return Ok(None);
         };
         Ok(Some(MemberSignature {
@@ -522,11 +584,19 @@ impl SignatureCollector<'_> {
                 generic_arity: callable.type_parameters().len(),
                 parameters,
             },
-            contract: MemberContract { modes, return_type },
+            contract: MemberContract {
+                receiver_mode: receiver_mode(facts.modifiers.receiver_mode),
+                modes,
+                return_type,
+            },
             name_span: callable.name_span(),
             modifiers: facts.modifiers,
             has_body: function_has_body(facts.form),
             owner,
+            target: callable.target(),
+            type_parameters: callable.type_parameters().to_vec(),
+            parameters: instantiated_parameters,
+            return_type: return_type_id,
         }))
     }
 
@@ -639,5 +709,13 @@ const fn function_has_body(form: FunctionForm) -> bool {
         FunctionForm::ImplicitUnitAbsent => false,
         FunctionForm::ImplicitUnitBlock(_) => true,
         FunctionForm::Explicit { body, .. } => !matches!(body, FunctionBody::Absent),
+    }
+}
+
+const fn receiver_mode(marker: Option<crate::parser::ParameterModeMarker>) -> ParameterMode {
+    match marker {
+        None | Some(crate::parser::ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
+        Some(crate::parser::ParameterModeMarker::Own(_)) => ParameterMode::Value,
+        Some(crate::parser::ParameterModeMarker::Inout(_)) => ParameterMode::Inout,
     }
 }

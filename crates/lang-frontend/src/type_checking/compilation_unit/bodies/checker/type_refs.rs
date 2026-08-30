@@ -598,6 +598,7 @@ impl BodyChecker<'_> {
             return Ok(true);
         }
         match self.signatures.types().get(actual).cloned() {
+            Some(UnitTypeKind::StaticSelf(inner)) => self.satisfies_interface(inner, expected),
             Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,

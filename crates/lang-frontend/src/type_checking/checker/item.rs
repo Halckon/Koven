@@ -1,4 +1,6 @@
-use crate::parser::{ClassifierBody, FunctionBody, FunctionForm, Item, NameMarker, Statement};
+use crate::parser::{
+    ClassifierBody, DeclarationModifiers, FunctionBody, FunctionForm, Item, NameMarker, Statement,
+};
 
 use super::*;
 
@@ -82,6 +84,43 @@ impl Checker<'_> {
                             .nominal_by_scope
                             .get(&self.symbol_scopes[symbol.index()])
                             .copied();
+                        let modifiers = self.function_modifiers(symbol)?;
+                        let receiver = owner
+                            .and_then(|owner| {
+                                self.nominals
+                                    .iter()
+                                    .find(|descriptor| descriptor.id() == owner)
+                                    .cloned()
+                            })
+                            .and_then(|owner| {
+                                let mode = source_parameter_mode(modifiers.receiver_mode);
+                                if owner.kind() == NominalKind::Object
+                                    && mode != ParameterMode::Borrow
+                                {
+                                    None
+                                } else {
+                                    self.symbol_type(owner.id().symbol()).map(|ty| {
+                                        CallableReceiverDescriptor {
+                                            mode,
+                                            ty,
+                                            declaration_span: span,
+                                            marker_span: modifiers
+                                                .receiver_mode
+                                                .map(parameter_mode_span),
+                                        }
+                                    })
+                                }
+                            });
+                        if owner.is_some()
+                            && receiver.is_none()
+                            && let Some(marker) = modifiers.receiver_mode
+                        {
+                            self.emit(
+                                self.interface_member_mismatch_code,
+                                "object instance member receiver must be Borrow",
+                                parameter_mode_span(marker),
+                            )?;
+                        }
                         if let Some(owner) = owner
                             && let Some(descriptor) = self
                                 .nominals
@@ -93,6 +132,7 @@ impl Checker<'_> {
                         self.typed_callables.push(CallableDescriptor {
                             symbol,
                             owner,
+                            receiver,
                             type_parameters,
                             parameter_symbols,
                             parameters: function_parameters,
@@ -106,11 +146,51 @@ impl Checker<'_> {
         Ok(())
     }
 
+    fn function_modifiers(
+        &self,
+        symbol: SymbolId,
+    ) -> Result<DeclarationModifiers, TypeCheckingError> {
+        for (_, node) in self.ast().items().iter() {
+            let Item::Modified {
+                modifiers,
+                declaration,
+            } = node.payload()
+            else {
+                continue;
+            };
+            let Item::Function { name, .. } = self.ast().items().get(*declaration)?.payload()
+            else {
+                continue;
+            };
+            if matches!(*name, NameMarker::Present(span) if self.symbol_at(span) == Some(symbol)) {
+                return Ok(*modifiers);
+            }
+        }
+        Ok(DeclarationModifiers::default())
+    }
+
     pub(super) fn check_item(&mut self, id: ItemId) -> Result<(), TypeCheckingError> {
         let payload = self.ast().items().get(id)?.payload().clone();
         match payload {
             Item::Error => {}
-            Item::Modified { declaration, .. } => self.check_item(declaration)?,
+            Item::Modified {
+                modifiers,
+                declaration,
+            } => {
+                let previous = self.current_receiver_mode;
+                if !self.classifiers.is_empty()
+                    && matches!(
+                        self.ast().items().get(declaration)?.payload(),
+                        Item::Function { .. }
+                    )
+                {
+                    self.current_receiver_mode =
+                        Some(source_parameter_mode(modifiers.receiver_mode));
+                }
+                let result = self.check_item(declaration);
+                self.current_receiver_mode = previous;
+                result?;
+            }
             Item::Variable {
                 name,
                 type_ref,
@@ -133,7 +213,15 @@ impl Checker<'_> {
                 let ty = expected.unwrap_or(result.ty);
                 self.set_marker_symbol(name, ty);
             }
-            Item::Function { form, .. } => self.check_function(form)?,
+            Item::Function { form, .. } => {
+                let previous = self.current_receiver_mode;
+                if !self.classifiers.is_empty() && self.current_receiver_mode.is_none() {
+                    self.current_receiver_mode = Some(ParameterMode::Borrow);
+                }
+                let result = self.check_function(form);
+                self.current_receiver_mode = previous;
+                result?;
+            }
             Item::Classifier(classifier) => {
                 let classifier_type = match classifier.name {
                     NameMarker::Present(span) => self

@@ -8,10 +8,11 @@ use crate::{
     name_resolution::{
         DeclarationId, ExternalSymbolId, Namespace, SourceUnitId, UnitReferenceTarget,
     },
-    parser::{CallArgument, ParameterModeMarker},
+    parser::{CallArgument, Expression, ParameterModeMarker},
     type_checking::{
-        BuiltinType, DeferredReason, EnvironmentFunctionEffect, ExternalTypeBinding,
-        TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget,
+        BuiltinType, DeferredReason, EnvironmentFunctionEffect, ExternalTypeBinding, ParameterMode,
+        TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor,
+        UnitCallReceiverDescriptor, UnitCallReceiverOrigin, UnitCallTarget,
         UnitCallableInstanceKey, UnitCallableSignature, UnitExpressionId,
         UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, MappingError, map_arguments, parameter_mode_span},
@@ -32,6 +33,7 @@ struct CallCandidate {
     parameters: Vec<MappedParameter<UnitTypeId>>,
     return_type: UnitTypeId,
     instance_arguments: Vec<UnitTypeId>,
+    receiver: Option<(ParameterMode, UnitTypeId)>,
     owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,
@@ -61,6 +63,9 @@ impl CallCandidate {
                 .collect(),
             return_type: callable.return_type(),
             instance_arguments: Vec::new(),
+            receiver: callable
+                .receiver()
+                .map(|receiver| (receiver.mode(), receiver.ty())),
             owner_substitutions: BTreeMap::new(),
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
@@ -168,6 +173,15 @@ impl BodyChecker<'_> {
                 return_type,
             )?);
         }
+        if candidates.is_empty()
+            && let Expression::SuperMember {
+                interface,
+                name_span,
+                ..
+            } = callee_payload
+        {
+            candidates.extend(self.super_call_candidates(source, interface, name_span)?);
+        }
         match target.clone() {
             Some(UnitReferenceTarget::External(external)) => {
                 if let Some(candidate) = self.external_candidate(external) {
@@ -237,6 +251,7 @@ impl BodyChecker<'_> {
                         .collect(),
                     return_type,
                     instance_arguments: Vec::new(),
+                    receiver: None,
                     owner_substitutions: BTreeMap::new(),
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
@@ -420,25 +435,16 @@ impl BodyChecker<'_> {
             return self.overload_failure(callee_span, viable.is_empty());
         }
         let (candidate, mapping) = mapped.swap_remove(viable[0]);
-        let mut valid = true;
-        for (argument_index, argument) in arguments.iter().enumerate() {
-            valid &= self.validate_inout_argument(
-                source,
-                argument,
-                &candidate.parameters[mapping[argument_index]],
-            )?;
-        }
-        if !valid {
-            return Ok(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: true,
-            });
-        }
-        self.record_call(source, expression, callee, arguments, &candidate, &mapping);
-        Ok(ExpressionCheck {
-            ty: candidate.return_type,
-            falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
-        })
+        self.finish_candidate(
+            source,
+            expression,
+            callee,
+            arguments,
+            return_type,
+            &candidate,
+            &mapping,
+            Some(&argument_types.iter().copied().map(Some).collect::<Vec<_>>()),
+        )
     }
 
     fn external_candidate(&mut self, external: ExternalSymbolId) -> Option<CallCandidate> {
@@ -464,6 +470,7 @@ impl BodyChecker<'_> {
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
             instance_arguments: Vec::new(),
+            receiver: None,
             owner_substitutions: BTreeMap::new(),
             cross_thread_parameters: signature
                 .effects
@@ -585,6 +592,28 @@ impl BodyChecker<'_> {
             });
         }
         if !valid {
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
+        if let Expression::SuperMember { name_span, .. } = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?
+            .payload()
+            && candidate.receiver.is_some_and(|(target, _)| {
+                self.current_receiver_mode
+                    .is_some_and(|current| !receiver_mode_allows(current, target))
+            })
+        {
+            self.emit(
+                codes::INVALID_OVERRIDE,
+                "current receiver mode cannot satisfy the selected super member contract",
+                *name_span,
+            )?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -798,6 +827,31 @@ impl BodyChecker<'_> {
         candidate: &CallCandidate,
         mapping: &[usize],
     ) {
+        let receiver = candidate.receiver.and_then(|(mode, ty)| {
+            let payload = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(callee)
+                .expect("validated callee expression identity")
+                .payload();
+            let (origin, category) = match payload {
+                Expression::Member { receiver, .. } => (
+                    UnitCallReceiverOrigin::Expression(UnitExpressionId::new(source, *receiver)),
+                    self.expression_category(source, *receiver),
+                ),
+                _ => (
+                    UnitCallReceiverOrigin::ImplicitThis(self.current_owner?),
+                    crate::type_checking::ExpressionCategory::Place,
+                ),
+            };
+            Some(UnitCallReceiverDescriptor {
+                origin,
+                mode,
+                category,
+                ty,
+            })
+        });
         let descriptors = mapping
             .iter()
             .enumerate()
@@ -834,6 +888,7 @@ impl BodyChecker<'_> {
                 type_arguments: candidate.instance_arguments.clone(),
             },
             return_type: candidate.return_type,
+            receiver,
             arguments: descriptors,
             aborts: candidate.aborts,
             prints_line: candidate.prints_line,
@@ -911,4 +966,19 @@ impl BodyChecker<'_> {
             ),
         }
     }
+}
+
+const fn receiver_mode_allows(current: ParameterMode, target: ParameterMode) -> bool {
+    matches!(
+        (current, target),
+        (ParameterMode::Borrow, ParameterMode::Borrow)
+            | (
+                ParameterMode::Inout,
+                ParameterMode::Borrow | ParameterMode::Inout
+            )
+            | (
+                ParameterMode::Value,
+                ParameterMode::Borrow | ParameterMode::Value
+            )
+    )
 }

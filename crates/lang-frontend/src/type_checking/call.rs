@@ -15,6 +15,50 @@ pub enum ExpressionCategory {
     Temporary,
 }
 
+/// member call 的源码 receiver 来源。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallReceiverOrigin {
+    /// `receiver.member(...)` 中显式求值一次的 receiver expression。
+    Expression(ExpressionId),
+    /// 裸 member call 复用当前 callable 的唯一 `this` binding。
+    ImplicitThis(super::NominalId),
+}
+
+/// 成功 member call 的实例化 receiver 契约。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallReceiverDescriptor {
+    pub(crate) origin: CallReceiverOrigin,
+    pub(crate) mode: ParameterMode,
+    pub(crate) category: ExpressionCategory,
+    pub(crate) ty: TypeId,
+}
+
+impl CallReceiverDescriptor {
+    /// 返回显式 expression 或隐式 `this` 来源。
+    #[must_use]
+    pub const fn origin(self) -> CallReceiverOrigin {
+        self.origin
+    }
+
+    /// 返回已选择 callable 的 receiver mode。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
+    }
+
+    /// 返回 receiver 的 place/temporary 类别。
+    #[must_use]
+    pub const fn category(self) -> ExpressionCategory {
+        self.category
+    }
+
+    /// 返回 owner 类型实参替换后的 receiver 类型。
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+}
+
 /// 一个成功 call 的静态目标。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CallableTarget {
@@ -129,17 +173,20 @@ pub struct CallDescriptor {
     expression: ExpressionId,
     instance: CallableInstanceKey,
     return_type: TypeId,
+    receiver: Option<CallReceiverDescriptor>,
     arguments: Vec<CallArgumentDescriptor>,
     aborts: bool,
     prints_line: bool,
 }
 
 impl CallDescriptor {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         expression: ExpressionId,
         target: CallableTarget,
         type_arguments: Vec<TypeId>,
         return_type: TypeId,
+        receiver: Option<CallReceiverDescriptor>,
         arguments: Vec<CallArgumentDescriptor>,
         aborts: bool,
         prints_line: bool,
@@ -148,6 +195,7 @@ impl CallDescriptor {
             expression,
             instance: CallableInstanceKey::new(target, type_arguments),
             return_type,
+            receiver,
             arguments,
             aborts,
             prints_line,
@@ -176,6 +224,12 @@ impl CallDescriptor {
     #[must_use]
     pub const fn return_type(&self) -> TypeId {
         self.return_type
+    }
+
+    /// 返回 member call 的隐藏 receiver；非 member call 为 `None`。
+    #[must_use]
+    pub const fn receiver(&self) -> Option<CallReceiverDescriptor> {
+        self.receiver
     }
 
     /// 返回源码实参顺序的参数映射。

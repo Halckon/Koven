@@ -6,8 +6,9 @@ use lang_frontend::{
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
-        BuiltinType, Capability, DeferredReason, IntrinsicCallable, IntrinsicTypeConstructor,
-        TypeCheckingError, TypeEnvironment, TypeKind, TypedFile, check_types,
+        AggregateProjectionReceiver, BuiltinType, CallReceiverOrigin, Capability, DeferredReason,
+        IntrinsicCallable, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError,
+        TypeEnvironment, TypeKind, TypedFile, check_types,
     },
 };
 use std::{collections::BTreeSet, fs, path::Path};
@@ -1173,6 +1174,29 @@ fn overload_shape_is_alpha_equivalent_and_concrete_members_need_bodies() {
 }
 
 #[test]
+fn receiver_modes_are_contracts_but_not_overload_shapes() {
+    let (_, _, _, overload) = checked(
+        "class Duplicate {\n\
+             fun collide(input: Int): Unit {}\n\
+             inout fun collide(input: Int): Unit {}\n\
+         }",
+    );
+    assert_eq!(codes(overload.diagnostics()), ["L0097"]);
+
+    let (_, _, _, replacement) = checked(
+        "interface Base { fun act(): Unit }\n\
+         interface Child : Base { inout fun act(): Unit }",
+    );
+    assert_eq!(codes(replacement.diagnostics()), ["L0099"]);
+
+    let (_, _, _, implementation) = checked(
+        "interface Required { fun run(): Unit }\n\
+         class Bad : Required { override inout fun run(): Unit {} }",
+    );
+    assert_eq!(codes(implementation.diagnostics()), ["L0100"]);
+}
+
+#[test]
 fn interface_replacements_and_overrides_require_exact_contracts() {
     let (_, _, _, replacement) = checked(
         "interface Base { fun act(input: Int): Int }\n\
@@ -1238,7 +1262,7 @@ fn super_interface_member_uses_a_static_type_position() {
             typed
                 .expression_type(expression)
                 .and_then(|ty| typed.types().get(ty)),
-            Some(TypeKind::Deferred(DeferredReason::MemberAccess))
+            Some(TypeKind::Function { .. })
         ));
         assert!(matches!(
             typed
@@ -1247,6 +1271,57 @@ fn super_interface_member_uses_a_static_type_position() {
             Some(TypeKind::Nominal { .. })
         ));
     }
+    assert_eq!(
+        typed
+            .calls()
+            .iter()
+            .filter(|call| {
+                matches!(
+                    call.receiver().map(|receiver| receiver.origin()),
+                    Some(CallReceiverOrigin::ImplicitThis(_))
+                )
+            })
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn super_interface_requires_inheritance_and_receiver_capability() {
+    let (_, _, _, capability) = checked(
+        "interface Mutable { inout fun touch(): Unit {} }
+         class Bad : Mutable { fun run(): Unit { super<Mutable>.touch() } }",
+    );
+    assert_eq!(codes(capability.diagnostics()), ["L0100"]);
+
+    let (_, _, _, unrelated) = checked(
+        "interface Other { fun ping(): Unit {} }
+         class Bad { fun run(): Unit { super<Other>.ping() } }",
+    );
+    assert_eq!(codes(unrelated.diagnostics()), ["L0099"]);
+
+    let (_, _, _, overloaded) = checked(
+        "interface Mixed {\n\
+             inout fun choose(input: Int): Int = 1\n\
+             fun choose(input: String): Int = 2\n\
+         }\n\
+         class Good : Mixed { fun run(): Int = super<Mixed>.choose(\"ok\") }",
+    );
+    assert!(
+        overloaded.diagnostics().is_empty(),
+        "{:?}",
+        overloaded.diagnostics()
+    );
+
+    let (_, _, _, interface_default) = checked(
+        "interface Base { fun ping(): Int = 1 }\n\
+         interface Child : Base { fun run(): Int = super<Base>.ping() }",
+    );
+    assert!(
+        interface_default.diagnostics().is_empty(),
+        "{:?}",
+        interface_default.diagnostics()
+    );
 }
 
 #[test]
@@ -1440,6 +1515,71 @@ fn later_phase_nodes_keep_distinct_deferred_reasons() {
             "missing {expected:?}: {reasons:?}"
         );
     }
+}
+
+#[test]
+fn single_file_member_calls_publish_receiver_contracts() {
+    let (sources, parsed, _, typed) = checked(
+        "class Holder<T>(val item: T) {\n\
+             fun echo(input: T): T = input\n\
+             borrow fun same(input: T): T = echo(input)\n\
+             inout fun replace(own input: T): T = input\n\
+             fun current(): T = item\n\
+         }\n\
+         fun use(holder: Holder<Int>): Int = holder.same(1)",
+    );
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(
+        typed
+            .callables()
+            .iter()
+            .filter_map(|callable| callable.receiver().map(|receiver| receiver.mode()))
+            .collect::<Vec<_>>(),
+        [
+            ParameterMode::Borrow,
+            ParameterMode::Borrow,
+            ParameterMode::Inout,
+            ParameterMode::Borrow,
+        ]
+    );
+    let item = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find(|(_, node)| sources.slice(node.span()) == Ok("item"))
+        .expect("bare field expression")
+        .0;
+    assert!(matches!(
+        typed
+            .aggregate_projection(item)
+            .expect("bare field projection")
+            .receiver(),
+        AggregateProjectionReceiver::This(_)
+    ));
+    let call = |text: &str| {
+        let expression = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| sources.slice(node.span()) == Ok(text))
+            .expect("call expression")
+            .0;
+        typed.call(expression).expect("receiver call fact")
+    };
+    assert!(matches!(
+        call("echo(input)")
+            .receiver()
+            .expect("implicit receiver")
+            .origin(),
+        CallReceiverOrigin::ImplicitThis(_)
+    ));
+    assert!(matches!(
+        call("holder.same(1)")
+            .receiver()
+            .expect("explicit receiver")
+            .origin(),
+        CallReceiverOrigin::Expression(_)
+    ));
 }
 
 #[test]

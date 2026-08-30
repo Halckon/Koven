@@ -208,11 +208,104 @@ impl TypeParameterDescriptor {
 }
 
 /// 经静态验证的接口委托转发计划。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DelegationPlan {
     pub(crate) owner: NominalId,
     pub(crate) interface: TypeId,
     pub(crate) target: SymbolId,
+    pub(crate) delegation_span: crate::source::Span,
+    pub(crate) by_span: crate::source::Span,
+    pub(crate) forwarders: Vec<DelegationForwarderDescriptor>,
+}
+
+/// 一个 Borrow-only interface requirement 的单文件 delegate forwarder。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DelegationForwarderDescriptor {
+    pub(crate) requirement: SymbolId,
+    pub(crate) receiver_type: TypeId,
+    pub(crate) type_parameters: Vec<SymbolId>,
+    pub(crate) parameters: Vec<FunctionParameterType>,
+    pub(crate) return_type: TypeId,
+    pub(crate) declaration_span: crate::source::Span,
+}
+
+impl DelegationForwarderDescriptor {
+    /// 返回被转发的 interface member symbol。
+    #[must_use]
+    pub const fn requirement(&self) -> SymbolId {
+        self.requirement
+    }
+
+    /// 返回完整 interface instance receiver 类型。
+    #[must_use]
+    pub const fn receiver_type(&self) -> TypeId {
+        self.receiver_type
+    }
+
+    /// delegate forwarder receiver 固定为 Borrow。
+    #[must_use]
+    pub const fn receiver_mode(&self) -> ParameterMode {
+        ParameterMode::Borrow
+    }
+
+    /// 返回 callable 类型参数。
+    #[must_use]
+    pub fn type_parameters(&self) -> &[SymbolId] {
+        &self.type_parameters
+    }
+
+    /// 返回实例化后的显式参数契约。
+    #[must_use]
+    pub fn parameters(&self) -> &[FunctionParameterType] {
+        &self.parameters
+    }
+
+    /// 返回实例化后的返回类型。
+    #[must_use]
+    pub const fn return_type(&self) -> TypeId {
+        self.return_type
+    }
+
+    /// 返回 interface requirement 声明范围。
+    #[must_use]
+    pub const fn declaration_span(&self) -> crate::source::Span {
+        self.declaration_span
+    }
+}
+
+/// instance callable 的隐藏 receiver 契约。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallableReceiverDescriptor {
+    pub(crate) mode: ParameterMode,
+    pub(crate) ty: TypeId,
+    pub(crate) declaration_span: crate::source::Span,
+    pub(crate) marker_span: Option<crate::source::Span>,
+}
+
+impl CallableReceiverDescriptor {
+    /// 返回规范化后的 Borrow/Inout/Value receiver mode。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
+    }
+
+    /// 返回 owner 类型参数尚未实例化时的 receiver 类型模板。
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+
+    /// 返回 callable 声明名范围。
+    #[must_use]
+    pub const fn declaration_span(self) -> crate::source::Span {
+        self.declaration_span
+    }
+
+    /// 返回显式 receiver marker；缺省 Borrow 为 `None`。
+    #[must_use]
+    pub const fn marker_span(self) -> Option<crate::source::Span> {
+        self.marker_span
+    }
 }
 
 /// 已规范化的顶层或实例 member callable 签名。
@@ -220,6 +313,7 @@ pub struct DelegationPlan {
 pub struct CallableDescriptor {
     pub(crate) symbol: SymbolId,
     pub(crate) owner: Option<NominalId>,
+    pub(crate) receiver: Option<CallableReceiverDescriptor>,
     pub(crate) type_parameters: Vec<SymbolId>,
     pub(crate) parameter_symbols: Vec<Option<SymbolId>>,
     pub(crate) parameters: Vec<FunctionParameterType>,
@@ -281,6 +375,11 @@ impl CallableDescriptor {
     pub const fn owner(&self) -> Option<NominalId> {
         self.owner
     }
+    /// 返回 instance member 的隐藏 receiver 契约；顶层 callable 为 `None`。
+    #[must_use]
+    pub const fn receiver(&self) -> Option<CallableReceiverDescriptor> {
+        self.receiver
+    }
     /// 返回 callable 自身的源码顺序类型参数。
     #[must_use]
     pub fn type_parameters(&self) -> &[SymbolId] {
@@ -306,18 +405,45 @@ impl CallableDescriptor {
 impl DelegationPlan {
     /// 返回拥有该委托的 ordinary class。
     #[must_use]
-    pub const fn owner(self) -> NominalId {
+    pub const fn owner(&self) -> NominalId {
         self.owner
     }
     /// 返回完整 invariant interface 实例。
     #[must_use]
-    pub const fn interface(self) -> TypeId {
+    pub const fn interface(&self) -> TypeId {
         self.interface
     }
     /// 返回同一主构造器的 immutable field symbol。
     #[must_use]
-    pub const fn target(self) -> SymbolId {
+    pub const fn target(&self) -> SymbolId {
         self.target
+    }
+
+    /// 返回源码顺序的 Borrow-only delegate forwarder。
+    #[must_use]
+    pub fn forwarders(&self) -> &[DelegationForwarderDescriptor] {
+        &self.forwarders
+    }
+
+    /// 返回完整 delegation clause 范围。
+    #[must_use]
+    pub const fn delegation_span(&self) -> crate::source::Span {
+        self.delegation_span
+    }
+
+    /// 返回真实 `by` token 范围。
+    #[must_use]
+    pub const fn by_span(&self) -> crate::source::Span {
+        self.by_span
+    }
+
+    pub(crate) fn sort_forwarders(&mut self) {
+        self.forwarders.sort_by_key(|forwarder| {
+            (
+                forwarder.requirement.index(),
+                forwarder.declaration_span.start(),
+            )
+        });
     }
 }
 

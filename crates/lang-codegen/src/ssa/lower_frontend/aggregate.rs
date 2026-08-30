@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    type_checking::{DestructuringMode, NominalKind, TypeKind},
+    type_checking::{AggregateProjectionReceiver, DestructuringMode, NominalKind, TypeKind},
 };
 
 use super::{
@@ -32,11 +32,16 @@ impl ExpressionLowerer<'_> {
                 span: None,
             })?
             .span();
+        let AggregateProjectionReceiver::Expression(receiver_expression) = projection.receiver()
+        else {
+            // 隐式 `this` 的 native lowering 属于 SPEC-0191；当前必须保持确定性拒绝。
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        };
         let receiver_type = self
             .typed
-            .expression_type(projection.receiver())
+            .expression_type(receiver_expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let receiver = self.require_value(projection.receiver())?;
+        let receiver = self.require_value(receiver_expression)?;
         let result_type = self.expression_ssa_type(expression, span)?;
         match self.typed.types().get(receiver_type) {
             Some(TypeKind::Nominal { nominal, .. }) => {
@@ -65,7 +70,7 @@ impl ExpressionLowerer<'_> {
                 if descriptor.kind() != NominalKind::Class {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 }
-                let receiver_ssa = self.expression_ssa_type(projection.receiver(), span)?;
+                let receiver_ssa = self.expression_ssa_type(receiver_expression, span)?;
                 let payload = self
                     .heap_payloads
                     .get(&receiver_ssa)

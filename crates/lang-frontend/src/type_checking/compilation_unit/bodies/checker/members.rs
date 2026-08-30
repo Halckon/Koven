@@ -132,9 +132,13 @@ impl BodyChecker<'_> {
                     let signature =
                         self.member_signature(source, name, nominal, receiver.is_none())?;
                     let previous = self.current_receiver;
+                    let previous_mode = self.current_receiver_mode;
                     self.current_receiver = receiver;
+                    self.current_receiver_mode =
+                        signature.receiver().map(|receiver| receiver.mode());
                     let result = self.check_function(source, form, &signature);
                     self.current_receiver = previous;
+                    self.current_receiver_mode = previous_mode;
                     result?;
                 }
                 Item::Constant {

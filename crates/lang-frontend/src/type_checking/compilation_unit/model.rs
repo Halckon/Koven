@@ -340,10 +340,61 @@ pub struct UnitCallableSignature {
     name: String,
     name_span: Span,
     type_parameters: Vec<UnitSymbolId>,
+    receiver: Option<UnitCallableReceiver>,
     parameters: Vec<UnitCallableParameter>,
     return_type: UnitTypeId,
     callable_type: UnitTypeId,
     visibility: DeclarationVisibility,
+    has_body: bool,
+}
+
+/// compilation-unit instance callable 的隐藏 receiver 契约。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitCallableReceiver {
+    mode: ParameterMode,
+    ty: UnitTypeId,
+    declaration_span: Span,
+    marker_span: Option<Span>,
+}
+
+impl UnitCallableReceiver {
+    pub(crate) const fn new(
+        mode: ParameterMode,
+        ty: UnitTypeId,
+        declaration_span: Span,
+        marker_span: Option<Span>,
+    ) -> Self {
+        Self {
+            mode,
+            ty,
+            declaration_span,
+            marker_span,
+        }
+    }
+
+    /// 返回规范化 receiver mode。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
+    }
+
+    /// 返回 owner 类型参数尚未实例化时的 receiver 类型模板。
+    #[must_use]
+    pub const fn ty(self) -> UnitTypeId {
+        self.ty
+    }
+
+    /// 返回 callable 声明名范围。
+    #[must_use]
+    pub const fn declaration_span(self) -> Span {
+        self.declaration_span
+    }
+
+    /// 返回显式 marker 范围；缺省 Borrow 为 `None`。
+    #[must_use]
+    pub const fn marker_span(self) -> Option<Span> {
+        self.marker_span
+    }
 }
 
 /// compilation-unit 类型参数的规范化上界。
@@ -398,20 +449,24 @@ impl UnitCallableSignature {
         name: String,
         name_span: Span,
         type_parameters: Vec<UnitSymbolId>,
+        receiver: Option<UnitCallableReceiver>,
         parameters: Vec<UnitCallableParameter>,
         return_type: UnitTypeId,
         callable_type: UnitTypeId,
         visibility: DeclarationVisibility,
+        has_body: bool,
     ) -> Self {
         Self {
             target,
             name,
             name_span,
             type_parameters,
+            receiver,
             parameters,
             return_type,
             callable_type,
             visibility,
+            has_body,
         }
     }
 
@@ -439,6 +494,12 @@ impl UnitCallableSignature {
         &self.type_parameters
     }
 
+    /// 返回 instance member 的 receiver 契约；顶层/companion callable 为 `None`。
+    #[must_use]
+    pub const fn receiver(&self) -> Option<UnitCallableReceiver> {
+        self.receiver
+    }
+
     /// 返回声明顺序参数。
     #[must_use]
     pub fn parameters(&self) -> &[UnitCallableParameter] {
@@ -462,6 +523,12 @@ impl UnitCallableSignature {
     pub const fn visibility(&self) -> DeclarationVisibility {
         self.visibility
     }
+
+    /// 返回 callable 是否具有源码 body。
+    #[must_use]
+    pub const fn has_body(&self) -> bool {
+        self.has_body
+    }
 }
 
 /// 一个主构造器 field signature。
@@ -475,13 +542,87 @@ pub struct UnitFieldSignature {
 }
 
 /// 一个已验证、可供后续 body 与 lowering 消费的 interface 委托计划。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitDelegationPlan {
     owner: DeclarationId,
     interface: UnitTypeId,
     target: UnitSymbolId,
     delegation_span: Span,
     by_span: Span,
+    forwarders: Vec<UnitDelegationForwarderDescriptor>,
+}
+
+/// 一个 Borrow-only interface requirement 的静态 delegate forwarder。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitDelegationForwarderDescriptor {
+    requirement: UnitCallableTarget,
+    receiver_type: UnitTypeId,
+    type_parameters: Vec<UnitSymbolId>,
+    parameters: Vec<UnitCallableParameter>,
+    return_type: UnitTypeId,
+    declaration_span: Span,
+}
+
+impl UnitDelegationForwarderDescriptor {
+    pub(crate) fn new(
+        requirement: UnitCallableTarget,
+        receiver_type: UnitTypeId,
+        type_parameters: Vec<UnitSymbolId>,
+        parameters: Vec<UnitCallableParameter>,
+        return_type: UnitTypeId,
+        declaration_span: Span,
+    ) -> Self {
+        Self {
+            requirement,
+            receiver_type,
+            type_parameters,
+            parameters,
+            return_type,
+            declaration_span,
+        }
+    }
+
+    /// 返回被转发的 interface member target。
+    #[must_use]
+    pub const fn requirement(&self) -> UnitCallableTarget {
+        self.requirement
+    }
+
+    /// 返回完整 interface instance receiver 类型。
+    #[must_use]
+    pub const fn receiver_type(&self) -> UnitTypeId {
+        self.receiver_type
+    }
+
+    /// delegate forwarder receiver 固定为 Borrow。
+    #[must_use]
+    pub const fn receiver_mode(&self) -> ParameterMode {
+        ParameterMode::Borrow
+    }
+
+    /// 返回转发 callable 的源码顺序泛型参数。
+    #[must_use]
+    pub fn type_parameters(&self) -> &[UnitSymbolId] {
+        &self.type_parameters
+    }
+
+    /// 返回转发 callable 的显式参数契约。
+    #[must_use]
+    pub fn parameters(&self) -> &[UnitCallableParameter] {
+        &self.parameters
+    }
+
+    /// 返回转发 callable 的实例化返回类型。
+    #[must_use]
+    pub const fn return_type(&self) -> UnitTypeId {
+        self.return_type
+    }
+
+    /// 返回 interface requirement 声明范围。
+    #[must_use]
+    pub const fn declaration_span(&self) -> Span {
+        self.declaration_span
+    }
 }
 
 impl UnitDelegationPlan {
@@ -498,37 +639,67 @@ impl UnitDelegationPlan {
             target,
             delegation_span,
             by_span,
+            forwarders: Vec::new(),
         }
     }
 
     /// 返回声明委托的 concrete classifier。
     #[must_use]
-    pub const fn owner(self) -> DeclarationId {
+    pub const fn owner(&self) -> DeclarationId {
         self.owner
     }
 
     /// 返回包含完整类型实参的目标 interface instance。
     #[must_use]
-    pub const fn interface(self) -> UnitTypeId {
+    pub const fn interface(&self) -> UnitTypeId {
         self.interface
     }
 
     /// 返回同一主构造器中的 immutable delegate field。
     #[must_use]
-    pub const fn target(self) -> UnitSymbolId {
+    pub const fn target(&self) -> UnitSymbolId {
         self.target
     }
 
     /// 返回从 `by` 到 target 的完整 delegation clause 范围。
     #[must_use]
-    pub const fn delegation_span(self) -> Span {
+    pub const fn delegation_span(&self) -> Span {
         self.delegation_span
     }
 
     /// 返回真实 `by` token 范围。
     #[must_use]
-    pub const fn by_span(self) -> Span {
+    pub const fn by_span(&self) -> Span {
         self.by_span
+    }
+
+    /// 返回源码顺序的 Borrow-only delegate forwarder。
+    #[must_use]
+    pub fn forwarders(&self) -> &[UnitDelegationForwarderDescriptor] {
+        &self.forwarders
+    }
+
+    pub(crate) fn push_forwarder(&mut self, forwarder: UnitDelegationForwarderDescriptor) {
+        self.forwarders.push(forwarder);
+    }
+
+    pub(crate) fn clear_forwarders(&mut self) {
+        self.forwarders.clear();
+    }
+
+    pub(crate) fn sort_forwarders(&mut self) {
+        self.forwarders.sort_by_key(|forwarder| {
+            let symbol = match forwarder.requirement {
+                UnitCallableTarget::Symbol(symbol) => symbol,
+                UnitCallableTarget::Declaration(_) => {
+                    unreachable!("delegate requirements are instance member symbols")
+                }
+            };
+            (
+                symbol.source_unit().index(),
+                forwarder.declaration_span.start(),
+            )
+        });
     }
 }
 

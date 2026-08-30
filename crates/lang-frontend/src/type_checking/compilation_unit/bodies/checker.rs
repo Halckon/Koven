@@ -6,15 +6,17 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::{
-        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, UnitReferenceTarget, UnitSymbolId,
-        ValidatedCompilationUnitNames, ordered_unit_diagnostics,
+        DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
+        UnitSymbolId, ValidatedCompilationUnitNames, ordered_unit_diagnostics,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement, StringPart},
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionUse, ExternalTypeBinding,
-        TypeCheckingError, TypeEnvironment, UnitCallableSignature, UnitFunctionParameterType,
-        UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures, collect_expression_uses,
+        ParameterMode, TypeCheckingError, TypeEnvironment, UnitAggregateProjectionDescriptor,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallableSignature,
+        UnitFunctionParameterType, UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures,
+        collect_expression_uses,
     },
 };
 
@@ -85,6 +87,7 @@ pub(super) struct BodyChecker<'a> {
     callable_loop_bases: Vec<usize>,
     candidate_local_expected: bool,
     current_receiver: Option<UnitTypeId>,
+    current_receiver_mode: Option<ParameterMode>,
     current_owner: Option<DeclarationId>,
 }
 
@@ -165,6 +168,7 @@ impl<'a> BodyChecker<'a> {
             callable_loop_bases: Vec::new(),
             candidate_local_expected: false,
             current_receiver: None,
+            current_receiver_mode: None,
             current_owner: None,
         })
     }
@@ -756,13 +760,34 @@ impl<'a> BodyChecker<'a> {
                     .copied()
                     .unwrap_or(signature.ty()))
             }
-            Some(UnitReferenceTarget::Symbol(symbol)) => self
-                .parts
-                .symbol_types
-                .get(symbol)
-                .copied()
-                .or_else(|| self.signatures.symbol_type(*symbol))
-                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol),
+            Some(UnitReferenceTarget::Symbol(symbol)) => {
+                let ty = self
+                    .parts
+                    .symbol_types
+                    .get(symbol)
+                    .copied()
+                    .or_else(|| self.signatures.symbol_type(*symbol))
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                let kind = self.names.names().source_units()[symbol.source_unit().index()]
+                    .resolution()
+                    .symbols()
+                    .get(symbol.symbol().index())
+                    .map(|symbol| symbol.kind());
+                if kind == Some(SymbolKind::Field)
+                    && let Some(owner) = self.current_owner
+                {
+                    self.parts
+                        .aggregate_projections
+                        .push(UnitAggregateProjectionDescriptor::new(
+                            UnitExpressionId::new(source, expression),
+                            UnitAggregateProjectionReceiver::This(owner),
+                            *symbol,
+                            ty,
+                            UnitAggregateProjectionKind::Field,
+                        ));
+                }
+                Ok(ty)
+            }
             Some(UnitReferenceTarget::Symbols(symbols)) => {
                 let symbols = symbols.clone();
                 self.resolve_bare_symbol_candidates(source, expression, span, &symbols)

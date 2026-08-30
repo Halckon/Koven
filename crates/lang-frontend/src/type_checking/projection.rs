@@ -1,6 +1,15 @@
 use crate::{ast::ExpressionId, name_resolution::SymbolId};
 
-use super::TypeId;
+use super::{NominalId, TypeId};
+
+/// 单文件聚合投影的显式 expression 或隐式 `this` receiver。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AggregateProjectionReceiver {
+    /// 源码中存在独立 receiver expression。
+    Expression(ExpressionId),
+    /// 裸字段使用当前 classifier 的唯一 `this`。
+    This(NominalId),
+}
 
 /// 聚合分量投影的静态来源。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,7 +24,7 @@ pub enum AggregateProjectionKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AggregateProjectionDescriptor {
     expression: ExpressionId,
-    receiver: ExpressionId,
+    receiver: AggregateProjectionReceiver,
     field: SymbolId,
     ty: TypeId,
     kind: AggregateProjectionKind,
@@ -24,7 +33,7 @@ pub struct AggregateProjectionDescriptor {
 impl AggregateProjectionDescriptor {
     pub(crate) const fn new(
         expression: ExpressionId,
-        receiver: ExpressionId,
+        receiver: AggregateProjectionReceiver,
         field: SymbolId,
         ty: TypeId,
         kind: AggregateProjectionKind,
@@ -46,7 +55,7 @@ impl AggregateProjectionDescriptor {
 
     /// 返回聚合 receiver expression identity。
     #[must_use]
-    pub const fn receiver(self) -> ExpressionId {
+    pub const fn receiver(self) -> AggregateProjectionReceiver {
         self.receiver
     }
 

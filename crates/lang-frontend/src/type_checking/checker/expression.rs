@@ -367,9 +367,24 @@ impl Checker<'_> {
         }
         let target = self.reference(span, Namespace::Value).cloned();
         match target {
-            Some(ReferenceTarget::Symbol(symbol)) => Ok(self
-                .symbol_type(symbol)
-                .unwrap_or_else(|| self.deferred(DeferredReason::ForwardValueType))),
+            Some(ReferenceTarget::Symbol(symbol)) => {
+                let ty = self
+                    .symbol_type(symbol)
+                    .unwrap_or_else(|| self.deferred(DeferredReason::ForwardValueType));
+                if self.symbol_kinds.get(symbol.index()) == Some(&SymbolKind::Field)
+                    && let Some(owner) = self.current_receiver_nominal()
+                {
+                    self.aggregate_projections
+                        .push(AggregateProjectionDescriptor::new(
+                            id,
+                            AggregateProjectionReceiver::This(owner),
+                            symbol,
+                            ty,
+                            AggregateProjectionKind::Field,
+                        ));
+                }
+                Ok(ty)
+            }
             Some(ReferenceTarget::External(external)) => self.external_type(external),
             Some(ReferenceTarget::OverloadSet(_) | ReferenceTarget::ExternalOverloadSet(_)) => {
                 Ok(self.deferred(DeferredReason::OverloadSelection))

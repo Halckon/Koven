@@ -592,6 +592,7 @@ impl Checker<'_> {
             return Ok(true);
         }
         match self.kind(actual).clone() {
+            TypeKind::StaticSelf(inner) => self.satisfies_interface(inner, expected),
             TypeKind::Nominal { nominal, arguments } => {
                 let descriptor = self
                     .nominals

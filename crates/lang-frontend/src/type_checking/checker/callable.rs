@@ -6,8 +6,8 @@ use crate::{
     parser::{CallArgument, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
-        CallArgumentDescriptor, CallDescriptor, CallableTarget, EnvironmentFunctionEffect,
-        ExpressionCategory, ExternalTypeBinding,
+        CallArgumentDescriptor, CallDescriptor, CallReceiverDescriptor, CallReceiverOrigin,
+        CallableTarget, EnvironmentFunctionEffect, ExpressionCategory, ExternalTypeBinding,
     },
 };
 
@@ -21,11 +21,25 @@ struct CallCandidate {
     declaration_span: Option<Span>,
     type_parameters: Vec<SymbolId>,
     instance_arguments: Vec<TypeId>,
+    receiver: Option<CallReceiverDescriptor>,
     parameters: Vec<MappedParameter<TypeId>>,
     return_type: TypeId,
     cross_thread_parameters: BTreeSet<usize>,
     aborts: bool,
     prints_line: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum MemberCallShapeType {
+    Builtin(BuiltinType),
+    Nullable(Box<Self>),
+    Function(bool, Vec<Self>, Box<Self>),
+    Nominal(NominalId, Vec<Self>),
+    Intrinsic(IntrinsicTypeConstructor, Vec<Self>),
+    Parameter(usize),
+    OuterParameter(SymbolId),
+    Capability(Capability),
+    Other(TypeId),
 }
 
 impl Checker<'_> {
@@ -99,6 +113,7 @@ impl Checker<'_> {
                     declaration_span: None,
                     type_parameters: Vec::new(),
                     instance_arguments: Vec::new(),
+                    receiver: None,
                     parameters: parameters
                         .into_iter()
                         .map(|parameter| MappedParameter {
@@ -423,8 +438,109 @@ impl Checker<'_> {
                 safe,
                 ..
             } if !safe => self.member_call_candidates(receiver, name_span),
+            Expression::SuperMember {
+                interface,
+                name_span,
+                ..
+            } => self.super_call_candidates(interface, name_span),
             _ => Ok(Vec::new()),
         }
+    }
+
+    fn super_call_candidates(
+        &mut self,
+        interface: TypeRefId,
+        name_span: Span,
+    ) -> Result<Vec<CallCandidate>, TypeCheckingError> {
+        let interface = self.resolve_static_type_ref(interface)?;
+        let TypeKind::Nominal { nominal, arguments } = self.kind(interface).clone() else {
+            return Ok(Vec::new());
+        };
+        let owner = self
+            .nominals
+            .iter()
+            .find(|descriptor| descriptor.id() == nominal)
+            .cloned()
+            .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+        if owner.kind() != NominalKind::Interface {
+            self.emit(
+                self.interface_member_mismatch_code,
+                "super qualifier must name an inherited interface",
+                name_span,
+            )?;
+            return Ok(Vec::new());
+        }
+        let current_receiver = self
+            .classifiers
+            .last()
+            .copied()
+            .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+        if !self.satisfies_interface(current_receiver, interface)? {
+            self.emit(
+                self.interface_member_mismatch_code,
+                "super qualifier must name an inherited interface",
+                name_span,
+            )?;
+            return Ok(Vec::new());
+        }
+        let substitutions = owner
+            .type_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+            .collect::<BTreeMap<_, _>>();
+        let name = self.sources.slice(name_span)?.to_owned();
+        let mut instances = vec![interface];
+        for inherited in owner.interfaces() {
+            instances.push(self.substitute_type(*inherited, &substitutions)?);
+        }
+        let descriptors = self.typed_callables.clone();
+        let mut candidates = Vec::new();
+        let mut seen_shapes = BTreeSet::new();
+        for instance in instances {
+            let TypeKind::Nominal {
+                nominal: instance_owner,
+                arguments: instance_arguments,
+            } = self.kind(instance).clone()
+            else {
+                continue;
+            };
+            let instance_descriptor = self
+                .nominals
+                .iter()
+                .find(|descriptor| descriptor.id() == instance_owner)
+                .cloned()
+                .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+            let instance_substitutions = instance_descriptor
+                .type_parameters()
+                .iter()
+                .copied()
+                .zip(instance_arguments.iter().copied())
+                .collect::<BTreeMap<_, _>>();
+            for descriptor in descriptors
+                .iter()
+                .filter(|descriptor| descriptor.owner() == Some(instance_owner))
+            {
+                if self
+                    .sources
+                    .slice(self.symbol_spans[descriptor.symbol().index()])?
+                    != name
+                    || !self.callable_has_body(descriptor.symbol())?
+                {
+                    continue;
+                }
+                if let Some(candidate) = self.source_candidate(
+                    descriptor.symbol(),
+                    instance_substitutions.clone(),
+                    instance_arguments.clone(),
+                    None,
+                )? && seen_shapes.insert(self.member_call_shape(&candidate))
+                {
+                    candidates.push(candidate);
+                }
+            }
+        }
+        Ok(candidates)
     }
 
     fn name_call_candidates(
@@ -434,13 +550,13 @@ impl Checker<'_> {
         let target = self.reference(span, Namespace::Value).cloned();
         match target {
             Some(ReferenceTarget::Symbol(symbol)) => Ok(self
-                .source_candidate(symbol, BTreeMap::new(), Vec::new())?
+                .source_candidate(symbol, BTreeMap::new(), Vec::new(), None)?
                 .into_iter()
                 .collect()),
             Some(ReferenceTarget::OverloadSet(symbols)) => symbols
                 .into_iter()
                 .filter_map(|symbol| {
-                    self.source_candidate(symbol, BTreeMap::new(), Vec::new())
+                    self.source_candidate(symbol, BTreeMap::new(), Vec::new(), None)
                         .transpose()
                 })
                 .collect(),
@@ -461,6 +577,7 @@ impl Checker<'_> {
         name_span: Span,
     ) -> Result<Vec<CallCandidate>, TypeCheckingError> {
         let receiver_type = self.check_expression(receiver, None, None)?.ty;
+        let receiver_category = self.expression_categories[receiver.index()];
         let TypeKind::Nominal { nominal, arguments } = self.kind(receiver_type).clone() else {
             return Ok(Vec::new());
         };
@@ -519,15 +636,9 @@ impl Checker<'_> {
                     descriptor.symbol(),
                     owner_substitutions.clone(),
                     arguments.clone(),
+                    Some((receiver, receiver_type, receiver_category)),
                 )? {
-                    let shape = (
-                        !candidate.type_parameters.is_empty(),
-                        candidate
-                            .parameters
-                            .iter()
-                            .map(|parameter| parameter.ty)
-                            .collect::<Vec<_>>(),
-                    );
+                    let shape = self.member_call_shape(&candidate);
                     if seen_shapes.insert(shape) {
                         candidates.push(candidate);
                     }
@@ -537,11 +648,81 @@ impl Checker<'_> {
         Ok(candidates)
     }
 
+    fn member_call_shape(&self, candidate: &CallCandidate) -> (usize, Vec<MemberCallShapeType>) {
+        let parameters = candidate
+            .type_parameters
+            .iter()
+            .enumerate()
+            .map(|(slot, symbol)| (*symbol, slot))
+            .collect::<BTreeMap<_, _>>();
+        (
+            parameters.len(),
+            candidate
+                .parameters
+                .iter()
+                .map(|parameter| self.member_call_shape_type(parameter.ty, &parameters))
+                .collect(),
+        )
+    }
+
+    fn member_call_shape_type(
+        &self,
+        ty: TypeId,
+        parameters: &BTreeMap<SymbolId, usize>,
+    ) -> MemberCallShapeType {
+        match self.kind(ty) {
+            TypeKind::Builtin(builtin) => MemberCallShapeType::Builtin(*builtin),
+            TypeKind::Nullable(inner) => MemberCallShapeType::Nullable(Box::new(
+                self.member_call_shape_type(*inner, parameters),
+            )),
+            TypeKind::Function {
+                move_only,
+                parameters: function_parameters,
+                return_type,
+            } => MemberCallShapeType::Function(
+                *move_only,
+                function_parameters
+                    .iter()
+                    .map(|parameter| self.member_call_shape_type(parameter.ty, parameters))
+                    .collect(),
+                Box::new(self.member_call_shape_type(*return_type, parameters)),
+            ),
+            TypeKind::Nominal { nominal, arguments } => MemberCallShapeType::Nominal(
+                *nominal,
+                arguments
+                    .iter()
+                    .map(|argument| self.member_call_shape_type(*argument, parameters))
+                    .collect(),
+            ),
+            TypeKind::Intrinsic {
+                constructor,
+                arguments,
+            } => MemberCallShapeType::Intrinsic(
+                *constructor,
+                arguments
+                    .iter()
+                    .map(|argument| self.member_call_shape_type(*argument, parameters))
+                    .collect(),
+            ),
+            TypeKind::TypeParameter(symbol) => parameters.get(symbol).copied().map_or(
+                MemberCallShapeType::OuterParameter(*symbol),
+                MemberCallShapeType::Parameter,
+            ),
+            TypeKind::StaticSelf(inner) => self.member_call_shape_type(*inner, parameters),
+            TypeKind::Capability(capability) => MemberCallShapeType::Capability(*capability),
+            TypeKind::EnumCase { root, .. } => self.member_call_shape_type(*root, parameters),
+            TypeKind::IntegerLiteral(_) | TypeKind::Deferred(_) | TypeKind::Error => {
+                MemberCallShapeType::Other(ty)
+            }
+        }
+    }
+
     fn source_candidate(
         &mut self,
         symbol: SymbolId,
         substitutions: BTreeMap<SymbolId, TypeId>,
         owner_arguments: Vec<TypeId>,
+        explicit_receiver: Option<(ExpressionId, TypeId, ExpressionCategory)>,
     ) -> Result<Option<CallCandidate>, TypeCheckingError> {
         let Some(descriptor) = self
             .typed_callables
@@ -564,17 +745,47 @@ impl Checker<'_> {
                 span: symbol.map(|symbol| self.symbol_spans[symbol.index()]),
             });
         }
+        let receiver = descriptor.receiver().and_then(|receiver| {
+            let ty = explicit_receiver
+                .map_or_else(|| self.classifiers.last().copied(), |(_, ty, _)| Some(ty))?;
+            let origin = explicit_receiver.map_or_else(
+                || {
+                    self.current_receiver_nominal()
+                        .map(CallReceiverOrigin::ImplicitThis)
+                },
+                |(expression, _, _)| Some(CallReceiverOrigin::Expression(expression)),
+            )?;
+            Some(CallReceiverDescriptor {
+                origin,
+                mode: receiver.mode(),
+                category: explicit_receiver
+                    .map_or(ExpressionCategory::Place, |(_, _, category)| category),
+                ty,
+            })
+        });
         Ok(Some(CallCandidate {
             target: CallableTarget::Source(symbol),
             declaration_span: Some(self.symbol_spans[symbol.index()]),
             type_parameters: descriptor.type_parameters().to_vec(),
             instance_arguments: owner_arguments,
+            receiver,
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
         }))
+    }
+
+    pub(super) fn current_receiver_nominal(&self) -> Option<NominalId> {
+        let mut ty = *self.classifiers.last()?;
+        if let TypeKind::StaticSelf(inner) = self.kind(ty) {
+            ty = *inner;
+        }
+        match self.kind(ty) {
+            TypeKind::Nominal { nominal, .. } => Some(*nominal),
+            _ => None,
+        }
     }
 
     fn external_candidate(
@@ -601,6 +812,7 @@ impl Checker<'_> {
             declaration_span: None,
             type_parameters: Vec::new(),
             instance_arguments: Vec::new(),
+            receiver: None,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
             cross_thread_parameters: signature
@@ -691,6 +903,23 @@ impl Checker<'_> {
         candidate: CallCandidate,
         mapping: Vec<usize>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        if let Expression::SuperMember { name_span, .. } =
+            self.ast().expressions().get(callee)?.payload()
+            && candidate.receiver.is_some_and(|receiver| {
+                self.current_receiver_mode
+                    .is_some_and(|current| !receiver_mode_allows(current, receiver.mode))
+            })
+        {
+            self.emit(
+                self.invalid_override_code,
+                "current receiver mode cannot satisfy the selected super member contract",
+                *name_span,
+            )?;
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: true,
+            });
+        }
         let function = self.types.intern(TypeKind::Function {
             move_only: false,
             parameters: candidate
@@ -726,6 +955,7 @@ impl Checker<'_> {
             candidate.target,
             candidate.instance_arguments,
             candidate.return_type,
+            candidate.receiver,
             descriptors,
             candidate.aborts,
             candidate.prints_line,
@@ -807,4 +1037,19 @@ impl Checker<'_> {
             _ => false,
         }
     }
+}
+
+const fn receiver_mode_allows(current: ParameterMode, target: ParameterMode) -> bool {
+    matches!(
+        (current, target),
+        (ParameterMode::Borrow, ParameterMode::Borrow)
+            | (
+                ParameterMode::Inout,
+                ParameterMode::Borrow | ParameterMode::Inout
+            )
+            | (
+                ParameterMode::Value,
+                ParameterMode::Borrow | ParameterMode::Value
+            )
+    )
 }

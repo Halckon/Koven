@@ -16,9 +16,9 @@ use lang_frontend::{
         DestructuringMode, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
         EnvironmentType, ExpressionCategory, IntrinsicTypeConstructor, ParameterMode,
         RcOperationKind, SequentialContainerKind, TypeEnvironment, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
-        UnitStatementId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
-        standard_environments,
+        UnitAggregateProjectionReceiver, UnitCallReceiverOrigin, UnitCallTarget,
+        UnitConstructionTarget, UnitExpressionId, UnitStatementId, UnitTypeKind, UnitTypeRefId,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -3958,7 +3958,16 @@ fn member_visibility_shapes_and_owner_dependent_bounds_are_preserved() {
             .count(),
         8
     );
-    assert_eq!(typed.aggregate_projections().len(), 1);
+    assert_eq!(typed.aggregate_projections().len(), 2);
+    assert!(
+        typed
+            .aggregate_projections()
+            .iter()
+            .any(|projection| matches!(
+                projection.receiver(),
+                UnitAggregateProjectionReceiver::This(_)
+            ))
+    );
     assert!(typed.validate().is_err());
 }
 
@@ -5441,16 +5450,16 @@ fn remaining_expression_tails_publish_stable_types_and_traverse_cross_file_child
         ("produce() to produce()", DeferredReason::Call),
         ("produce() in produce()", DeferredReason::Call),
         ("produce() !in produce()", DeferredReason::Call),
-        (
-            "super<Parent>.ping(produce())",
-            DeferredReason::MemberAccess,
-        ),
     ] {
         assert!(matches!(
             expression_kind(text),
             Some(UnitTypeKind::Deferred(actual)) if *actual == reason
         ));
     }
+    assert!(matches!(
+        expression_kind("super<Parent>.ping(produce())"),
+        Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+    ));
     for expression in expressions_with_text(&sources, &consumer, "produce()") {
         assert!(matches!(
             typed
@@ -5573,4 +5582,306 @@ fn expression_tail_fallthrough_is_stable_under_input_permutation() {
         Some(UnitTypeKind::Builtin(BuiltinType::Int))
     ));
     assert!(typed.validate().is_err());
+}
+
+#[test]
+fn instance_receiver_contracts_and_call_origins_are_source_qualified() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "receivers.ko",
+        "package p\n\
+         class Holder<T>(val item: T) {\n\
+             fun echo(input: T): T = input\n\
+             borrow fun same(input: T): T = input\n\
+             inout fun replace(own input: T): T = input\n\
+             fun nested(input: T): T = echo(input)\n\
+             fun current(): T = item\n\
+         }\n\
+         interface Root<T> { fun identity(input: T): T = input }\n\
+         interface Parent<T>: Root<T>\n\
+         class Child<T>: Parent<T> {\n\
+             fun fromDefault(input: T): T = super<Parent<T>>.identity(input)\n\
+         }\n\
+         object Registry { fun ping(): Int = 1 }\n\
+         fun use(holder: Holder<Int>): Int = holder.echo(1)\n\
+         fun objectUse(): Int = Registry.ping()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/receivers.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("receiver contracts type check");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let holder = typed
+        .signatures()
+        .declaration(declaration(&names, "Holder"))
+        .and_then(|signature| signature.nominal())
+        .expect("Holder nominal signature");
+    let receiver_modes = holder
+        .members()
+        .iter()
+        .map(|member| {
+            (
+                member.name(),
+                member.receiver().expect("instance receiver").mode(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        receiver_modes,
+        [
+            ("echo", ParameterMode::Borrow),
+            ("same", ParameterMode::Borrow),
+            ("replace", ParameterMode::Inout),
+            ("nested", ParameterMode::Borrow),
+            ("current", ParameterMode::Borrow),
+        ]
+    );
+
+    let unit = source_unit(&names, source);
+    let explicit = expression_with_text(&sources, &file, "holder.echo(1)");
+    let implicit = expression_with_text(&sources, &file, "echo(input)");
+    let default_call = expression_with_text(&sources, &file, "super<Parent<T>>.identity(input)");
+    let object_call = expression_with_text(&sources, &file, "Registry.ping()");
+    let explicit_receiver = typed
+        .call(UnitExpressionId::new(unit, explicit))
+        .and_then(|call| call.receiver())
+        .expect("explicit receiver fact");
+    let implicit_receiver = typed
+        .call(UnitExpressionId::new(unit, implicit))
+        .and_then(|call| call.receiver())
+        .expect("implicit receiver fact");
+    assert!(matches!(
+        explicit_receiver.origin(),
+        UnitCallReceiverOrigin::Expression(_)
+    ));
+    assert_eq!(explicit_receiver.mode(), ParameterMode::Borrow);
+    assert_eq!(explicit_receiver.category(), ExpressionCategory::Place);
+    assert!(matches!(
+        implicit_receiver.origin(),
+        UnitCallReceiverOrigin::ImplicitThis(owner) if owner == declaration(&names, "Holder")
+    ));
+    let default_receiver = typed
+        .call(UnitExpressionId::new(unit, default_call))
+        .and_then(|call| call.receiver())
+        .expect("super default receiver fact");
+    assert!(matches!(
+        default_receiver.origin(),
+        UnitCallReceiverOrigin::ImplicitThis(owner) if owner == declaration(&names, "Child")
+    ));
+    assert!(
+        typed
+            .call(UnitExpressionId::new(unit, object_call))
+            .and_then(|call| call.receiver())
+            .is_some()
+    );
+    let bare_field = expression_with_text(&sources, &file, "item");
+    assert!(matches!(
+        typed
+            .aggregate_projection(UnitExpressionId::new(unit, bare_field))
+            .expect("bare field projection")
+            .receiver(),
+        UnitAggregateProjectionReceiver::This(owner) if owner == declaration(&names, "Holder")
+    ));
+}
+
+#[test]
+fn delegation_publishes_only_borrow_receiver_forwarders_and_reports_l0152() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "delegation-receivers.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 1 }\n\
+         class ReadHost(val reader: Reader): Readable by reader\n\
+         interface Mutable { inout fun z(): Unit; own fun a(): Unit }\n\
+         class Mutator: Mutable {\n\
+             override inout fun z(): Unit {}\n\
+             override own fun a(): Unit {}\n\
+         }\n\
+         class MutateHost(val mutator: Mutator): Mutable by mutator",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/delegation-receivers.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("delegation receiver diagnostics remain recoverable");
+
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0152"]
+    );
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("L0152 primary"),
+        "by"
+    );
+    assert_eq!(
+        typed.diagnostics()[0]
+            .details()
+            .iter()
+            .find_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => sources.slice(label.span()).ok(),
+                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+            }),
+        Some("z")
+    );
+    let plans = typed.signatures().delegations();
+    assert_eq!(plans.len(), 2);
+    let readable = plans
+        .iter()
+        .find(|plan| plan.owner() == declaration(&names, "ReadHost"))
+        .expect("Readable delegation");
+    let mutable = plans
+        .iter()
+        .find(|plan| plan.owner() == declaration(&names, "MutateHost"))
+        .expect("Mutable delegation");
+    assert_eq!(readable.forwarders().len(), 1);
+    assert_eq!(
+        readable.forwarders()[0].receiver_mode(),
+        ParameterMode::Borrow
+    );
+    assert!(mutable.forwarders().is_empty());
+}
+
+#[test]
+fn unit_super_uses_the_selected_receiver_mode_and_exact_interface_instance() {
+    let mut sources = SourceMap::new();
+    let (valid_source, valid) = parsed(
+        &mut sources,
+        "valid-super.ko",
+        "package valid\n\
+         interface Mixed {\n\
+             inout fun choose(input: Int): Int = 1\n\
+             fun choose(input: String): Int = 2\n\
+         }\n\
+         class Good: Mixed { fun run(): Int = super<Mixed>.choose(\"ok\") }",
+    );
+    let valid_inputs = [SourceUnitInput::new(
+        "root",
+        "valid/valid-super.ko",
+        valid_source,
+        &valid,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let valid_names = validated_names(&sources, &valid_inputs, &name_environment);
+    let valid_typed =
+        check_compilation_unit_types(&sources, &valid_inputs, &valid_names, &type_environment)
+            .expect("valid super overload remains recoverable");
+    assert!(
+        valid_typed.diagnostics().is_empty(),
+        "{:?}",
+        valid_typed.diagnostics()
+    );
+
+    let mut sources = SourceMap::new();
+    let (mode_source, mode) = parsed(
+        &mut sources,
+        "invalid-mode-super.ko",
+        "package mode\n\
+         interface Mixed {\n\
+             inout fun choose(input: Int): Int = 1\n\
+             fun choose(input: String): Int = 2\n\
+         }\n\
+         class Bad: Mixed { fun run(): Int = super<Mixed>.choose(1) }",
+    );
+    let mode_inputs = [SourceUnitInput::new(
+        "root",
+        "mode/invalid-mode-super.ko",
+        mode_source,
+        &mode,
+    )];
+    let mode_names = validated_names(&sources, &mode_inputs, &name_environment);
+    let mode_typed =
+        check_compilation_unit_types(&sources, &mode_inputs, &mode_names, &type_environment)
+            .expect("invalid selected super receiver remains recoverable");
+    assert_eq!(
+        mode_typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0100"]
+    );
+
+    let mut sources = SourceMap::new();
+    let (invalid_source, invalid) = parsed(
+        &mut sources,
+        "invalid-super.ko",
+        "package invalid\n\
+         interface Generic<T> { fun echo(input: T): T = input }\n\
+         class Bad: Generic<Int> {\n\
+             fun run(): String = super<Generic<String>>.echo(\"wrong\")\n\
+         }",
+    );
+    let invalid_inputs = [SourceUnitInput::new(
+        "root",
+        "invalid/invalid-super.ko",
+        invalid_source,
+        &invalid,
+    )];
+    let invalid_names = validated_names(&sources, &invalid_inputs, &name_environment);
+    let invalid_typed =
+        check_compilation_unit_types(&sources, &invalid_inputs, &invalid_names, &type_environment)
+            .expect("invalid generic super qualifier remains recoverable");
+    assert_eq!(
+        invalid_typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0099"]
+    );
+}
+
+#[test]
+fn object_rejects_non_borrow_receiver_at_the_marker() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "object-receiver.ko",
+        "package p\nobject Registry { inout fun reset(): Unit {} }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/object-receiver.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("object receiver diagnostic remains recoverable");
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0099"]
+    );
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("object receiver primary"),
+        "inout"
+    );
 }

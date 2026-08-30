@@ -12,9 +12,9 @@ use crate::{
         index_compilation_unit, ordered_unit_diagnostics,
     },
     parser::{
-        ClassifierBody, ClassifierDeclaration, ClassifierKind, FunctionForm, Item, NameMarker,
-        ParameterModeMarker, ParsedFile, SyntaxAst, TypePathSegment, TypeRef, ValueParameter,
-        VisibilityModifier,
+        ClassifierBody, ClassifierDeclaration, ClassifierKind, DeclarationModifiers, FunctionForm,
+        Item, NameMarker, ParameterModeMarker, ParsedFile, SyntaxAst, TypePathSegment, TypeRef,
+        ValueParameter, VisibilityModifier,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -25,9 +25,9 @@ use crate::{
 
 use super::{
     CompilationUnitSignatureFacts, CompilationUnitSignatures, CompilationUnitTypeError,
-    SignatureProvenance, UnitCallableParameter, UnitCallableSignature, UnitCallableTarget,
-    UnitDeclarationSignature, UnitDelegationPlan, UnitEnumCaseSignature, UnitFieldSignature,
-    UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+    SignatureProvenance, UnitCallableParameter, UnitCallableReceiver, UnitCallableSignature,
+    UnitCallableTarget, UnitDeclarationSignature, UnitDelegationPlan, UnitEnumCaseSignature,
+    UnitFieldSignature, UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
     UnitTypeParameterBound, UnitTypeParameterDescriptor, UnitTypeRefId, UnitTypeTable,
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
@@ -294,7 +294,18 @@ impl<'a> SignatureCollector<'a> {
             let mut companion_members = Vec::new();
             if let Some(body) = &classifier.body {
                 self.collect_member_constant_types(source, body)?;
-                self.collect_member_callables(source, body, &mut members, &mut companion_members)?;
+                let owner = self
+                    .nominals
+                    .get(&id)
+                    .map(|nominal| (nominal.ty(), nominal.kind()))
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                self.collect_member_callables(
+                    source,
+                    body,
+                    owner,
+                    &mut members,
+                    &mut companion_members,
+                )?;
             }
             self.check_duplicate_member_shapes(&members)?;
             self.check_duplicate_member_shapes(&companion_members)?;
@@ -391,6 +402,7 @@ impl<'a> SignatureCollector<'a> {
         &mut self,
         source: SourceUnitId,
         body: &ClassifierBody,
+        owner: (UnitTypeId, NominalKind),
         members: &mut Vec<UnitCallableSignature>,
         companion_members: &mut Vec<UnitCallableSignature>,
     ) -> Result<(), CompilationUnitTypeError> {
@@ -404,6 +416,7 @@ impl<'a> SignatureCollector<'a> {
                             self.item_symbol(source, *item)?
                                 .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?,
                         ),
+                        Some(owner),
                     )?,
                 ),
                 Item::Companion(companion) => {
@@ -423,6 +436,7 @@ impl<'a> SignatureCollector<'a> {
                                         CompilationUnitTypeError::MissingDeclarationSymbol,
                                     )?,
                                 ),
+                                None,
                             )?,
                         );
                     }
@@ -450,6 +464,7 @@ impl<'a> SignatureCollector<'a> {
                         source,
                         declaration.root(),
                         UnitCallableTarget::Declaration(declaration.id()),
+                        None,
                     )?;
                     (callable.callable_type(), Some(callable), None)
                 }
@@ -499,8 +514,10 @@ impl<'a> SignatureCollector<'a> {
         source: SourceUnitId,
         item: ItemId,
         target: UnitCallableTarget,
+        receiver_owner: Option<(UnitTypeId, NominalKind)>,
     ) -> Result<UnitCallableSignature, CompilationUnitTypeError> {
         let visibility = item_visibility(self.inputs[source.index()].ast(), item)?;
+        let modifiers = item_modifiers(self.inputs[source.index()].ast(), item)?;
         let item = unwrapped_item(self.inputs[source.index()].ast(), item)?;
         let Item::Function {
             name,
@@ -513,6 +530,27 @@ impl<'a> SignatureCollector<'a> {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         };
         let name_span = marker_span(*name);
+        let receiver = receiver_owner.and_then(|(ty, kind)| {
+            let mode = parameter_mode(modifiers.receiver_mode);
+            (kind != NominalKind::Object || mode == ParameterMode::Borrow).then(|| {
+                UnitCallableReceiver::new(
+                    mode,
+                    ty,
+                    name_span,
+                    modifiers.receiver_mode.map(parameter_mode_marker_span),
+                )
+            })
+        });
+        if receiver_owner.is_some()
+            && receiver.is_none()
+            && let Some(marker) = modifiers.receiver_mode
+        {
+            self.emit(
+                codes::INTERFACE_MEMBER_MISMATCH,
+                "object instance member receiver must be Borrow",
+                parameter_mode_marker_span(marker),
+            )?;
+        }
         let type_parameters = type_parameters
             .iter()
             .filter_map(|parameter| self.marker_symbol(source, parameter.name))
@@ -543,10 +581,18 @@ impl<'a> SignatureCollector<'a> {
             self.marker_text(*name)?.unwrap_or_default(),
             name_span,
             type_parameters,
+            receiver,
             parameters,
             return_type,
             callable_type,
             visibility,
+            match form {
+                FunctionForm::ImplicitUnitAbsent => false,
+                FunctionForm::ImplicitUnitBlock(_) => true,
+                FunctionForm::Explicit { body, .. } => {
+                    !matches!(body, crate::parser::FunctionBody::Absent)
+                }
+            },
         ))
     }
 
@@ -994,6 +1040,21 @@ fn item_visibility(
     })
 }
 
+fn item_modifiers(
+    ast: &SyntaxAst,
+    id: ItemId,
+) -> Result<DeclarationModifiers, CompilationUnitTypeError> {
+    let item = ast
+        .items()
+        .get(id)
+        .map_err(TypeCheckingError::from)?
+        .payload();
+    Ok(match item {
+        Item::Modified { modifiers, .. } => *modifiers,
+        _ => DeclarationModifiers::default(),
+    })
+}
+
 const fn normalized_visibility(visibility: Option<VisibilityModifier>) -> DeclarationVisibility {
     match visibility {
         Some(VisibilityModifier::Internal(_)) => DeclarationVisibility::Internal,
@@ -1014,6 +1075,14 @@ const fn parameter_mode(marker: Option<ParameterModeMarker>) -> ParameterMode {
         None | Some(ParameterModeMarker::Borrow(_)) => ParameterMode::Borrow,
         Some(ParameterModeMarker::Own(_)) => ParameterMode::Value,
         Some(ParameterModeMarker::Inout(_)) => ParameterMode::Inout,
+    }
+}
+
+const fn parameter_mode_marker_span(marker: ParameterModeMarker) -> Span {
+    match marker {
+        ParameterModeMarker::Own(span)
+        | ParameterModeMarker::Borrow(span)
+        | ParameterModeMarker::Inout(span) => span,
     }
 }
 

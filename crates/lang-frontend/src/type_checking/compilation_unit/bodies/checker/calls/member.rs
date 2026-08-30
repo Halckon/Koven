@@ -14,9 +14,9 @@ use crate::{
         BuiltinType, Capability, CompilationUnitTypeError, ExpressionCategory,
         IntrinsicTypeConstructor, NominalKind, TypeCheckingError,
         UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
-        UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallTarget,
-        UnitCallableInstanceKey, UnitCallableSignature, UnitCallableTarget, UnitExpressionId,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallReceiverDescriptor,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
+        UnitCallableTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -36,6 +36,86 @@ enum MemberCallShapeType {
 }
 
 impl BodyChecker<'_> {
+    pub(super) fn super_call_candidates(
+        &mut self,
+        source: SourceUnitId,
+        interface: TypeRefId,
+        name_span: Span,
+    ) -> Result<Vec<CallCandidate>, CompilationUnitTypeError> {
+        let interface = self.resolve_static_body_type_ref(source, interface)?;
+        let Some((declaration, arguments)) = self.nominal_type_parts(interface) else {
+            return Ok(Vec::new());
+        };
+        let nominal = self
+            .signatures
+            .declaration(declaration)
+            .and_then(|signature| signature.nominal())
+            .cloned()
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        if nominal.kind() != NominalKind::Interface {
+            self.emit(
+                crate::diagnostic::codes::INTERFACE_MEMBER_MISMATCH,
+                "super qualifier must name an inherited interface",
+                name_span,
+            )?;
+            return Ok(Vec::new());
+        }
+        let receiver = self
+            .current_receiver
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        let inherited = self.satisfies_interface(receiver, interface)?;
+        if !inherited {
+            self.emit(
+                crate::diagnostic::codes::INTERFACE_MEMBER_MISMATCH,
+                "super qualifier must name an inherited interface",
+                name_span,
+            )?;
+            return Ok(Vec::new());
+        }
+        let name = self
+            .sources
+            .slice(name_span)
+            .map_err(TypeCheckingError::from)?;
+        let substitutions = nominal
+            .type_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+            .collect::<BTreeMap<_, _>>();
+        let mut instances = vec![(declaration, arguments)];
+        for inherited in nominal.interfaces() {
+            let inherited = self.substitute_type(*inherited, &substitutions)?;
+            if let Some(instance) = self.nominal_type_parts(inherited) {
+                instances.push(instance);
+            }
+        }
+        let mut candidates = Vec::new();
+        let mut seen_shapes = BTreeSet::new();
+        for (owner, arguments) in instances {
+            let owner = self
+                .signatures
+                .declaration(owner)
+                .and_then(|signature| signature.nominal())
+                .cloned()
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            for callable in owner
+                .members()
+                .iter()
+                .filter(|callable| callable.name() == name && callable.has_body())
+            {
+                let mut candidate =
+                    self.source_member_candidate(callable, &owner, arguments.clone())?;
+                if let Some((mode, _)) = candidate.receiver {
+                    candidate.receiver = Some((mode, receiver));
+                }
+                if seen_shapes.insert(self.member_call_shape(&candidate)) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+        Ok(candidates)
+    }
+
     pub(super) fn symbol_candidate(
         &mut self,
         symbol: UnitSymbolId,
@@ -77,9 +157,15 @@ impl BodyChecker<'_> {
                         .filter_map(|parameter| self.signatures.symbol_type(*parameter))
                         .collect()
                 });
-            return self
-                .source_member_candidate(&callable, nominal, owner_arguments)
-                .map(Some);
+            let mut candidate =
+                self.source_member_candidate(&callable, nominal, owner_arguments)?;
+            if let Some((mode, _)) = candidate.receiver {
+                let receiver = self
+                    .current_receiver
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                candidate.receiver = Some((mode, receiver));
+            }
+            return Ok(Some(candidate));
         }
         Ok(None)
     }
@@ -119,7 +205,7 @@ impl BodyChecker<'_> {
             .sources
             .slice(name_span)
             .map_err(TypeCheckingError::from)?;
-        if static_owner == Some(owner_declaration) {
+        if static_owner == Some(owner_declaration) && owner.kind() != NominalKind::Object {
             return Ok(owner
                 .companion_members()
                 .iter()
@@ -163,8 +249,11 @@ impl BodyChecker<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             for callable in &callables {
-                let candidate =
+                let mut candidate =
                     self.source_member_candidate(callable, &nominal, arguments.clone())?;
+                if let Some((mode, _)) = candidate.receiver {
+                    candidate.receiver = Some((mode, receiver_type));
+                }
                 let shape = self.member_call_shape(&candidate);
                 if seen_shapes.insert(shape) {
                     candidates.push(candidate);
@@ -192,6 +281,9 @@ impl BodyChecker<'_> {
         let mut candidate = CallCandidate::from_source(UnitCallTarget::Symbol(symbol), callable);
         for parameter in &mut candidate.parameters {
             parameter.ty = self.substitute_type(parameter.ty, &substitutions)?;
+        }
+        if let Some((mode, ty)) = candidate.receiver {
+            candidate.receiver = Some((mode, self.substitute_type(ty, &substitutions)?));
         }
         candidate.return_type = self.substitute_type(candidate.return_type, &substitutions)?;
         candidate.instance_arguments = owner_arguments;
@@ -374,6 +466,12 @@ impl BodyChecker<'_> {
                 type_arguments: Vec::new(),
             },
             return_type: ty,
+            receiver: Some(UnitCallReceiverDescriptor {
+                origin: UnitCallReceiverOrigin::Expression(UnitExpressionId::new(source, receiver)),
+                mode: crate::type_checking::ParameterMode::Borrow,
+                category: self.expression_category(source, receiver),
+                ty: receiver_result.ty,
+            }),
             arguments: Vec::new(),
             aborts: false,
             prints_line: false,

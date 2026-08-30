@@ -61,7 +61,7 @@ impl Checker<'_> {
             self.aggregate_projections
                 .push(AggregateProjectionDescriptor::new(
                     expression,
-                    receiver,
+                    AggregateProjectionReceiver::Expression(receiver),
                     field,
                     ty,
                     AggregateProjectionKind::Field,
@@ -84,7 +84,7 @@ impl Checker<'_> {
         self.aggregate_projections
             .push(AggregateProjectionDescriptor::new(
                 expression,
-                receiver,
+                AggregateProjectionReceiver::Expression(receiver),
                 field,
                 ty,
                 AggregateProjectionKind::Field,
@@ -140,6 +140,12 @@ impl Checker<'_> {
             CallableTarget::StructuralComponent(field),
             Vec::new(),
             ty,
+            Some(CallReceiverDescriptor {
+                origin: CallReceiverOrigin::Expression(receiver),
+                mode: ParameterMode::Borrow,
+                category: self.expression_categories[receiver.index()],
+                ty: receiver_result.ty,
+            }),
             Vec::new(),
             false,
             false,
@@ -147,7 +153,7 @@ impl Checker<'_> {
         self.aggregate_projections
             .push(AggregateProjectionDescriptor::new(
                 expression,
-                receiver,
+                AggregateProjectionReceiver::Expression(receiver),
                 field,
                 ty,
                 AggregateProjectionKind::StructuralComponent,

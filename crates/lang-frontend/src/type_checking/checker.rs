@@ -37,8 +37,10 @@ use crate::{
 
 use super::ExpressionUse;
 use super::{
-    AggregateProjectionDescriptor, BuiltinType, CallDescriptor, CallableDescriptor, Capability,
-    ConstructionDescriptor, ContainerConstructionDescriptor, Copyability, DeferredReason,
+    AggregateProjectionDescriptor, AggregateProjectionKind, AggregateProjectionReceiver,
+    BuiltinType, CallDescriptor, CallReceiverDescriptor, CallReceiverOrigin, CallableDescriptor,
+    CallableReceiverDescriptor, Capability, ConstructionDescriptor,
+    ContainerConstructionDescriptor, Copyability, DeferredReason, DelegationForwarderDescriptor,
     DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
     EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
     FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
@@ -143,6 +145,7 @@ struct Checker<'a> {
     loop_depth: usize,
     candidate_local_expected: bool,
     classifiers: Vec<TypeId>,
+    current_receiver_mode: Option<ParameterMode>,
     diagnostics: Vec<Diagnostic>,
     builtin_arguments_code: DiagnosticCode,
     cannot_infer_code: DiagnosticCode,
@@ -168,6 +171,7 @@ struct Checker<'a> {
     invalid_delegation_target_code: DiagnosticCode,
     delegate_interface_mismatch_code: DiagnosticCode,
     delegation_member_conflict_code: DiagnosticCode,
+    non_borrow_delegation_receiver_code: DiagnosticCode,
     enum_case_type_position_code: DiagnosticCode,
     invalid_type_test_code: DiagnosticCode,
     invalid_when_condition_code: DiagnosticCode,
@@ -306,6 +310,7 @@ impl<'a> Checker<'a> {
             loop_depth: 0,
             candidate_local_expected: false,
             classifiers: Vec::new(),
+            current_receiver_mode: None,
             diagnostics: Vec::new(),
             builtin_arguments_code: catalog.resolve(codes::BUILTIN_TYPE_ARGUMENTS)?,
             cannot_infer_code: catalog.resolve(codes::CANNOT_INFER_TYPE)?,
@@ -332,6 +337,8 @@ impl<'a> Checker<'a> {
             delegate_interface_mismatch_code: catalog
                 .resolve(codes::DELEGATE_INTERFACE_MISMATCH)?,
             delegation_member_conflict_code: catalog.resolve(codes::DELEGATION_MEMBER_CONFLICT)?,
+            non_borrow_delegation_receiver_code: catalog
+                .resolve(codes::NON_BORROW_DELEGATION_RECEIVER)?,
             enum_case_type_position_code: catalog.resolve(codes::ENUM_CASE_TYPE_POSITION)?,
             invalid_type_test_code: catalog.resolve(codes::INVALID_TYPE_TEST)?,
             invalid_when_condition_code: catalog.resolve(codes::INVALID_WHEN_CONDITION)?,

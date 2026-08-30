@@ -80,6 +80,9 @@ impl Checker<'_> {
                     owner,
                     interface,
                     target: field_symbol.ok_or(TypeCheckingError::InvalidExternalBinding)?,
+                    delegation_span: delegation.span,
+                    by_span: delegation.by_span,
+                    forwarders: Vec::new(),
                 });
             }
         }

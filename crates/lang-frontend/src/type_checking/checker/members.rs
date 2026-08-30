@@ -29,6 +29,7 @@ struct MemberShape {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MemberContract {
+    receiver_mode: ParameterMode,
     modes: Vec<ParameterMode>,
     return_type: ShapeType,
 }
@@ -41,6 +42,10 @@ struct MemberSignature {
     modifiers: DeclarationModifiers,
     has_body: bool,
     owner: TypeId,
+    target: SymbolId,
+    type_parameters: Vec<SymbolId>,
+    parameters: Vec<FunctionParameterType>,
+    return_type: TypeId,
 }
 
 struct FunctionParts {
@@ -52,6 +57,19 @@ struct FunctionParts {
 }
 
 impl Checker<'_> {
+    pub(super) fn callable_has_body(&self, symbol: SymbolId) -> Result<bool, TypeCheckingError> {
+        for (id, _) in self.ast().items().iter() {
+            let Some(parts) = self.function_parts(id)? else {
+                continue;
+            };
+            if matches!(parts.name, NameMarker::Present(span) if self.symbol_at(span) == Some(symbol))
+            {
+                return Ok(function_has_body(parts.form));
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) fn check_callable_shapes_and_bodies(&mut self) -> Result<(), TypeCheckingError> {
         self.check_duplicate_callable_shapes()?;
         self.check_concrete_member_bodies()?;
@@ -284,12 +302,14 @@ impl Checker<'_> {
         inherited: &[MemberSignature],
     ) -> Result<(), TypeCheckingError> {
         let owner_span = self.symbol_spans[owner.symbol().index()];
-        let delegations = self
+        let delegation_indices = self
             .delegations
             .iter()
-            .filter(|plan| plan.owner() == owner)
-            .copied()
+            .enumerate()
+            .filter(|(_, plan)| plan.owner() == owner)
+            .map(|(index, _)| index)
             .collect::<Vec<_>>();
+        let mut incompatible_delegates = BTreeMap::<usize, Span>::new();
         let invalid_delegations = self
             .invalid_delegations
             .iter()
@@ -343,13 +363,14 @@ impl Checker<'_> {
                 continue;
             }
             let mut providing_delegates = Vec::new();
-            for plan in &delegations {
+            for &index in &delegation_indices {
                 let mut provides = false;
                 for source in &active {
-                    provides |= self.satisfies_interface(plan.interface(), source.owner)?;
+                    provides |= self
+                        .satisfies_interface(self.delegations[index].interface(), source.owner)?;
                 }
                 if provides {
-                    providing_delegates.push(*plan);
+                    providing_delegates.push(index);
                 }
             }
             let mut foreign_defaults = 0;
@@ -358,8 +379,9 @@ impl Checker<'_> {
                     continue;
                 }
                 let mut covered = false;
-                for plan in &providing_delegates {
-                    covered |= self.satisfies_interface(plan.interface(), source.owner)?;
+                for &index in &providing_delegates {
+                    covered |= self
+                        .satisfies_interface(self.delegations[index].interface(), source.owner)?;
                 }
                 foreign_defaults += usize::from(!covered);
             }
@@ -376,6 +398,37 @@ impl Checker<'_> {
                 continue;
             }
             if providing_delegates.len() == 1 {
+                let plan_index = providing_delegates[0];
+                if let Some(requirement) = active
+                    .iter()
+                    .find(|source| source.contract.receiver_mode != ParameterMode::Borrow)
+                {
+                    self.delegations[plan_index].forwarders.clear();
+                    incompatible_delegates
+                        .entry(plan_index)
+                        .and_modify(|span| {
+                            if requirement.name_span.start() < span.start() {
+                                *span = requirement.name_span;
+                            }
+                        })
+                        .or_insert(requirement.name_span);
+                    continue;
+                }
+                if incompatible_delegates.contains_key(&plan_index) {
+                    continue;
+                }
+                let forwarders = active
+                    .iter()
+                    .map(|requirement| DelegationForwarderDescriptor {
+                        requirement: requirement.target,
+                        receiver_type: requirement.owner,
+                        type_parameters: requirement.type_parameters.clone(),
+                        parameters: requirement.parameters.clone(),
+                        return_type: requirement.return_type,
+                        declaration_span: requirement.name_span,
+                    })
+                    .collect::<Vec<_>>();
+                self.delegations[plan_index].forwarders.extend(forwarders);
                 continue;
             }
             let defaults = active.iter().filter(|source| source.has_body).count();
@@ -396,6 +449,18 @@ impl Checker<'_> {
                     "required member declared here",
                 )?;
             }
+        }
+        for (&plan_index, &requirement) in &incompatible_delegates {
+            self.emit_with_label(
+                self.non_borrow_delegation_receiver_code,
+                "interface delegation cannot forward a non-Borrow receiver",
+                self.delegations[plan_index].by_span(),
+                requirement,
+                "incompatible interface member declared here",
+            )?;
+        }
+        for index in delegation_indices {
+            self.delegations[index].sort_forwarders();
         }
         Ok(())
     }
@@ -495,6 +560,7 @@ impl Checker<'_> {
             .collect::<BTreeMap<_, _>>();
         let mut shape_parameters = Vec::new();
         let mut modes = Vec::new();
+        let mut instantiated_parameters = Vec::new();
         for parameter in parameters {
             let ty = self.resolve_type_ref(parameter.type_ref)?;
             let ty = self.substitute_type(ty, substitutions)?;
@@ -502,24 +568,44 @@ impl Checker<'_> {
                 return Ok(None);
             };
             shape_parameters.push(shape);
-            modes.push(source_parameter_mode(parameter.mode_marker));
+            let mode = source_parameter_mode(parameter.mode_marker);
+            modes.push(mode);
+            instantiated_parameters.push(FunctionParameterType { mode, ty });
         }
-        let return_type = self.function_return_type(form)?;
-        let return_type = self.substitute_type(return_type, substitutions)?;
-        let Some(return_type) = self.shape_type(return_type, &slots) else {
+        let return_type_id = self.function_return_type(form)?;
+        let return_type_id = self.substitute_type(return_type_id, substitutions)?;
+        let Some(return_type) = self.shape_type(return_type_id, &slots) else {
             return Ok(None);
         };
+        let target = self
+            .symbol_at(name_span)
+            .ok_or(TypeCheckingError::InvalidExternalBinding)?;
+        let callable_type_parameters = type_parameters
+            .iter()
+            .filter_map(|parameter| match parameter.name {
+                NameMarker::Present(span) => self.symbol_at(span),
+                NameMarker::Missing(_) | NameMarker::Error(_) => None,
+            })
+            .collect();
         Ok(Some(MemberSignature {
             shape: MemberShape {
                 name: self.sources.slice(name_span)?.to_owned(),
                 generic_arity: type_parameters.len(),
                 parameters: shape_parameters,
             },
-            contract: MemberContract { modes, return_type },
+            contract: MemberContract {
+                receiver_mode: source_parameter_mode(modifiers.receiver_mode),
+                modes,
+                return_type,
+            },
             name_span,
             modifiers,
             has_body: function_has_body(form),
             owner,
+            target,
+            type_parameters: callable_type_parameters,
+            parameters: instantiated_parameters,
+            return_type: return_type_id,
         }))
     }
 

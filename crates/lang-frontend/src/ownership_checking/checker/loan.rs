@@ -7,8 +7,8 @@ use crate::{
     },
     source::Span,
     type_checking::{
-        AggregateProjectionKind, Copyability, ElementPlaceDescriptor, ExpressionCategory,
-        NominalKind, ParameterMode, TypeKind,
+        AggregateProjectionKind, AggregateProjectionReceiver, Copyability, ElementPlaceDescriptor,
+        ExpressionCategory, NominalKind, ParameterMode, TypeKind,
     },
 };
 
@@ -57,7 +57,11 @@ impl Checker<'_> {
                 if projection.kind() != AggregateProjectionKind::Field {
                     return Ok(None);
                 }
-                let Some(mut place) = self.place(projection.receiver())? else {
+                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+                else {
+                    return Ok(None);
+                };
+                let Some(mut place) = self.place(receiver)? else {
                     return Ok(None);
                 };
                 if place.push_field(projection.field()) {
@@ -462,15 +466,19 @@ impl Checker<'_> {
                 {
                     return Ok(false);
                 }
-                if self.expression_nominal_kind(projection.receiver()) == Some(NominalKind::Class) {
-                    let Some(place) = self.place(projection.receiver())? else {
+                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+                else {
+                    return Ok(false);
+                };
+                if self.expression_nominal_kind(receiver) == Some(NominalKind::Class) {
+                    let Some(place) = self.place(receiver)? else {
                         return Ok(false);
                     };
                     return Ok(
                         self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow)
                     );
                 }
-                self.is_mutable_place(projection.receiver())
+                self.is_mutable_place(receiver)
             }
             Expression::Index { .. } => {
                 let Some(descriptor) = self.element_place_descriptor(expression)? else {

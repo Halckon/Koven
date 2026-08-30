@@ -163,6 +163,7 @@ pub mod codes {
     pub(crate) const INVISIBLE_IMPORT_TARGET: &str = "L0149";
     pub(crate) const EXACT_IMPORT_BINDING_CONFLICT: &str = "L0150";
     pub(crate) const AMBIGUOUS_WILDCARD_IMPORT: &str = "L0151";
+    pub(crate) const NON_BORROW_DELEGATION_RECEIVER: &str = "L0152";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -317,6 +318,7 @@ pub mod codes {
         INVISIBLE_IMPORT_TARGET,
         EXACT_IMPORT_BINDING_CONFLICT,
         AMBIGUOUS_WILDCARD_IMPORT,
+        NON_BORROW_DELEGATION_RECEIVER,
     ];
 
     /// 由集中定义创建生产错误码目录。

@@ -9,8 +9,8 @@ use lang_frontend::{
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        AggregateProjectionKind, BuiltinType, CallableTarget, Capability, Copyability,
-        IntrinsicTypeConstructor, TypeEnvironment, TypedFile, check_types,
+        AggregateProjectionKind, AggregateProjectionReceiver, BuiltinType, CallableTarget,
+        Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment, TypedFile, check_types,
     },
 };
 
@@ -272,7 +272,10 @@ fn field_and_automatic_component_facts_reject_only_non_copyable_owned_results() 
         ]
     );
     for projection in projections {
-        assert!(typed.expression_type(projection.receiver()).is_some());
+        let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            panic!("structural fixture only contains explicit projection receivers");
+        };
+        assert!(typed.expression_type(receiver).is_some());
         assert_eq!(
             typed.expression_type(projection.expression()),
             Some(projection.ty())

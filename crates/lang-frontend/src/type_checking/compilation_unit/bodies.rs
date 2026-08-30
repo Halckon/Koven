@@ -74,6 +74,50 @@ pub struct UnitCallArgumentDescriptor {
     cross_thread: bool,
 }
 
+/// compilation-unit member call 的 receiver 来源。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitCallReceiverOrigin {
+    /// 显式 `receiver.member(...)` receiver。
+    Expression(UnitExpressionId),
+    /// 裸 member call 复用当前 callable 的 `this`。
+    ImplicitThis(DeclarationId),
+}
+
+/// 成功 member call 的实例化 receiver 契约。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitCallReceiverDescriptor {
+    pub(crate) origin: UnitCallReceiverOrigin,
+    pub(crate) mode: ParameterMode,
+    pub(crate) category: ExpressionCategory,
+    pub(crate) ty: UnitTypeId,
+}
+
+impl UnitCallReceiverDescriptor {
+    /// 返回显式 expression 或隐式 `this` 来源。
+    #[must_use]
+    pub const fn origin(self) -> UnitCallReceiverOrigin {
+        self.origin
+    }
+
+    /// 返回已选择 callable 的 receiver mode。
+    #[must_use]
+    pub const fn mode(self) -> ParameterMode {
+        self.mode
+    }
+
+    /// 返回 receiver 的 place/temporary 类别。
+    #[must_use]
+    pub const fn category(self) -> ExpressionCategory {
+        self.category
+    }
+
+    /// 返回 owner 实参替换后的 receiver 类型。
+    #[must_use]
+    pub const fn ty(self) -> UnitTypeId {
+        self.ty
+    }
+}
+
 impl UnitCallArgumentDescriptor {
     /// 返回实参在源码顺序中的下标。
     #[must_use]
@@ -118,6 +162,7 @@ pub struct UnitCallDescriptor {
     expression: UnitExpressionId,
     instance: UnitCallableInstanceKey,
     return_type: UnitTypeId,
+    receiver: Option<UnitCallReceiverDescriptor>,
     arguments: Vec<UnitCallArgumentDescriptor>,
     aborts: bool,
     prints_line: bool,
@@ -146,6 +191,12 @@ impl UnitCallDescriptor {
     #[must_use]
     pub const fn return_type(&self) -> UnitTypeId {
         self.return_type
+    }
+
+    /// 返回 member call 的隐藏 receiver；非 member call 为 `None`。
+    #[must_use]
+    pub const fn receiver(&self) -> Option<UnitCallReceiverDescriptor> {
+        self.receiver
     }
 
     /// 返回源码实参顺序的参数映射。
