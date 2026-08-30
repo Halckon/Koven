@@ -3,7 +3,7 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.33 文档集定义。v0.33 已启用，
-SPEC-0213 已完成，0214/0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
+SPEC-0213/0214 已完成，0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -158,7 +158,7 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.32 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.33
-的尾随 lambda 已由 SPEC-0213 完成，隐式 `it` 等待 SPEC-0214。仓库并已完成 Phase 4 的
+的尾随 lambda 与隐式 `it` 已由 SPEC-0213/0214 完成。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
 已实施的参数契约、显式实参调用期 loan、owned-value ASAP drop facts 与顺序容器核心 element place
@@ -517,6 +517,12 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   name/mode 的普通 lambda `CallArgument`。无圆括号、已有 `(...)`、typed、member 与 chained
   callee 都产生单一 `Expression::Call`；第二个尾 lambda 不形成嵌套 call。LF、CRLF 或含换行
   comment 保留 expression statement 与 nested block 边界，失败的 typed-call 试探不提交 TypeRef；
+- SPEC-0214 为每个 headerless lambda 保存真实 `{` anchor，并由名称解析建立 synthetic
+  `LambdaParameter` `it`。单文件与 compilation-unit 类型检查只在 unary expected function
+  contract 下发布其类型/mode；无 expected 使用 L0083，零/多参数结构冲突使用 L0084。
+  overload trial 快照 typed facts；局部同名 binding 在 initializer 后替换 candidate，ownership
+  复用普通参数的 move/loan/drop 规则并通过 lambda-local scope 排除 capture；unit closure
+  lowering 在 callable arity 为一时以同一 `{` anchor 作为参数来源范围，不改变 callable ABI；
 - 函数 Item 以 `FunctionForm` 同时封闭返回标注来源与 body：省略标注只产生
   `ImplicitUnitAbsent` 或引用真实 block statement 的 `ImplicitUnitBlock`，不合成 `Unit`
   TypeRef 或 colon；`Explicit` 保存真实 / 恢复插入的 colon `Span`、TypeRef ID，以及

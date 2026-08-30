@@ -611,6 +611,7 @@ impl<'a> BodyChecker<'a> {
             )?,
             Expression::Lambda {
                 move_span,
+                opener_span,
                 parameters,
                 arrow_span,
                 body,
@@ -618,6 +619,7 @@ impl<'a> BodyChecker<'a> {
                 source,
                 span,
                 move_span,
+                opener_span,
                 &parameters,
                 arrow_span,
                 body,

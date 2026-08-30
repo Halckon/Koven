@@ -535,6 +535,8 @@ pub enum Expression {
     Lambda {
         /// 可选的真实 `move` token 范围。
         move_span: Option<Span>,
+        /// 真实 `{`；headerless lambda 用它锚定 contextual `it` symbol。
+        opener_span: Span,
         /// 严格 header 中源码顺序的真实参数名称范围。
         parameters: Vec<Span>,
         /// 真实 `->`；`None` 精确表示 header 缺席。

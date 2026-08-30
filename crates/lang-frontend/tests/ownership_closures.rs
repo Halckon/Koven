@@ -317,6 +317,68 @@ fn default_and_move_lambdas_publish_borrow_copy_and_move_facts() {
 }
 
 #[test]
+fn implicit_it_is_a_value_parameter_and_never_a_capture() {
+    let text = "class Resource {}\n\
+                fun useResource(own item: Resource): Unit {}\n\
+                fun apply(callback: (own Resource) -> Unit): Unit {}\n\
+                fun use(): Unit {\n\
+                    apply {\n\
+                        val first = useResource(it)\n\
+                        val second = useResource(it)\n\
+                    }\n\
+                }";
+    let (_, parsed, names, typed, owned) = analyzed(text);
+    let lambda = lambdas(&parsed)[0];
+    let implicit = names
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "it")
+        .expect("implicit it symbol");
+
+    assert_eq!(
+        typed.parameter_mode(implicit.id()),
+        Some(ParameterMode::Value)
+    );
+    assert_eq!(owned.captures_of(lambda).count(), 0);
+    assert_eq!(codes(&owned), ["L0131"]);
+}
+
+#[test]
+fn implicit_borrow_and_inout_match_explicit_parameter_ownership() {
+    let text = "class Resource {}\n\
+                fun inspect(item: Resource): Unit {}\n\
+                fun use(): Unit {\n\
+                    val implicitBorrow: (borrow Resource) -> Unit = { val read = inspect(it) }\n\
+                    val explicitBorrow: (borrow Resource) -> Unit = { item -> val read = inspect(item) }\n\
+                    val implicitInout: (inout Int) -> Unit = { it = 2 }\n\
+                    val explicitInout: (inout Int) -> Unit = { item -> item = 2 }\n\
+                }";
+    let (_, parsed, names, typed, owned) = analyzed(text);
+
+    assert!(owned.diagnostics().is_empty());
+    assert!(
+        lambdas(&parsed)
+            .into_iter()
+            .all(|lambda| owned.captures_of(lambda).count() == 0)
+    );
+    assert_eq!(
+        names
+            .symbols()
+            .iter()
+            .filter(|symbol| symbol.kind()
+                == lang_frontend::name_resolution::SymbolKind::LambdaParameter)
+            .map(|symbol| typed.parameter_mode(symbol.id()))
+            .collect::<Vec<_>>(),
+        [
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Borrow),
+            Some(ParameterMode::Inout),
+            Some(ParameterMode::Inout),
+        ]
+    );
+}
+
+#[test]
 fn nested_capture_uses_symbol_identity_and_shadowing_does_not_capture() {
     let text = "fun nested(number: Int): Unit {\n\
                     val outer: () -> Unit = {\n\

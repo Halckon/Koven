@@ -688,6 +688,7 @@ impl Parser<'_> {
             self.span(start, end)?,
             Expression::Lambda {
                 move_span,
+                opener_span: opener,
                 parameters,
                 arrow_span,
                 body,

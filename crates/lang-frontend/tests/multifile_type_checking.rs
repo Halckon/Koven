@@ -2340,6 +2340,7 @@ fn cross_file_lambdas_publish_expected_contract_and_callable_boundaries() {
                  return\n\
              }\n\
              apply({ applied -> applied })\n\
+             val implicit = apply { it }\n\
              return 1\n\
          }",
     );
@@ -2404,6 +2405,26 @@ fn cross_file_lambdas_publish_expected_contract_and_callable_boundaries() {
             && forward.types().get(*return_type)
                 == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
     ));
+    let implicit_local = forward_names.names().source_units()[uses_unit.index()]
+        .resolution()
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.name() == "it")
+        .find_map(|symbol| {
+            forward.body_symbol_types().keys().find(|candidate| {
+                candidate.source_unit() == uses_unit
+                    && candidate.symbol() == symbol.id()
+                    && forward.body_parameter_mode(**candidate) == Some(ParameterMode::Borrow)
+            })
+        })
+        .copied()
+        .expect("activated implicit it symbol");
+    assert_eq!(
+        forward
+            .symbol_type(implicit_local)
+            .and_then(|ty| forward.types().get(ty)),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
 }
 
 #[test]

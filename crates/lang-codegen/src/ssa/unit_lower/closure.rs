@@ -103,7 +103,11 @@ pub(super) fn declare(
                 .get(expression)
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let Expression::Lambda {
-                parameters, body, ..
+                opener_span,
+                parameters,
+                arrow_span,
+                body,
+                ..
             } = node.payload()
             else {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -134,12 +138,20 @@ pub(super) fn declare(
                 function.instance.substitutions(),
                 span,
             )?;
-            if parameters.len() != callable_parameters.len() {
+            let parameter_spans = if arrow_span.is_none()
+                && parameters.is_empty()
+                && callable_parameters.len() == 1
+            {
+                std::slice::from_ref(opener_span)
+            } else {
+                parameters.as_slice()
+            };
+            if parameter_spans.len() != callable_parameters.len() {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             let mut callable_parameter_types = Vec::with_capacity(callable_parameters.len());
             let mut move_only_value_parameters = Vec::new();
-            for (parameter, parameter_span) in callable_parameters.iter().zip(parameters) {
+            for (parameter, parameter_span) in callable_parameters.iter().zip(parameter_spans) {
                 let concrete = resolve_concrete_type(
                     typed,
                     parameter.ty(),
@@ -333,7 +345,7 @@ pub(super) fn declare(
                         thunk,
                         body: *body,
                         span,
-                        parameter_spans: parameters.clone(),
+                        parameter_spans: parameter_spans.to_vec(),
                         return_type,
                         result_expression,
                         captures,

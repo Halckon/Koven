@@ -379,6 +379,7 @@ pub struct Symbol {
     scope: ScopeId,
     namespace: Namespace,
     kind: SymbolKind,
+    synthetic: bool,
 }
 impl Symbol {
     /// 返回 symbol 身份。
@@ -411,6 +412,11 @@ impl Symbol {
     pub const fn kind(&self) -> SymbolKind {
         self.kind
     }
+    /// 是否为没有源码 Identifier 的编译器合成 symbol。
+    #[must_use]
+    pub const fn is_synthetic(&self) -> bool {
+        self.synthetic
+    }
     pub(crate) fn new(
         id: SymbolId,
         name: String,
@@ -426,6 +432,24 @@ impl Symbol {
             scope,
             namespace,
             kind,
+            synthetic: false,
+        }
+    }
+
+    pub(crate) fn synthetic_lambda_parameter(
+        id: SymbolId,
+        name: String,
+        anchor: Span,
+        scope: ScopeId,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            span: anchor,
+            scope,
+            namespace: Namespace::Value,
+            kind: SymbolKind::LambdaParameter,
+            synthetic: true,
         }
     }
 }

@@ -332,6 +332,82 @@ fn expected_lambdas_adopt_and_publish_all_parameter_modes() {
 }
 
 #[test]
+fn headerless_lambdas_publish_contextual_it_or_stable_arity_diagnostics() {
+    let valid = "fun applyBorrow(callback: (borrow Int) -> Int): Int = callback(1)\n\
+                 fun applyOwn(callback: (own Int) -> Int): Int = callback(1)\n\
+                 fun use(): Int {\n\
+                     val first = applyBorrow { it }\n\
+                     val second = applyOwn({ it })\n\
+                     val mutate: (inout Int) -> Int = { it }\n\
+                     val unused: (borrow Int) -> Int = { 1 }\n\
+                     val shadowed: (borrow Int) -> Unit = {\n\
+                         val it = it\n\
+                     }\n\
+                     val nested: (borrow Int) -> (own Int) -> Int = { ({ it }) }\n\
+                     return first + second\n\
+                 }";
+    let (sources, parsed_file) = parsed(valid);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed_file, &names).expect("names");
+    assert!(resolution.diagnostics().is_empty());
+    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let implicit = resolution
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
+        .map(|symbol| {
+            (
+                symbol.name(),
+                sources.slice(symbol.span()).expect("real brace anchor"),
+                typed.parameter_mode(symbol.id()),
+                typed
+                    .symbol_type(symbol.id())
+                    .and_then(|ty| typed.types().get(ty)),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(implicit.len(), 7);
+    assert_eq!(
+        implicit
+            .iter()
+            .map(|(_, anchor, mode, _)| (*anchor, *mode))
+            .collect::<Vec<_>>(),
+        [
+            ("{", Some(ParameterMode::Borrow)),
+            ("{", Some(ParameterMode::Value)),
+            ("{", Some(ParameterMode::Inout)),
+            ("{", Some(ParameterMode::Borrow)),
+            ("{", Some(ParameterMode::Borrow)),
+            ("{", Some(ParameterMode::Borrow)),
+            ("{", Some(ParameterMode::Value)),
+        ]
+    );
+    assert!(implicit.iter().all(|(name, _, _, ty)| {
+        *name == "it" && matches!(ty, Some(TypeKind::Builtin(BuiltinType::Int)))
+    }));
+
+    let invalid = "val inferred = { it }\n\
+                   val zero: () -> Int = { it }\n\
+                   val pair: (Int, Int) -> Int = { 1 }\n\
+                   fun outer(it: Int): () -> Int = { -> it }";
+    let (sources, parsed_file) = parsed(invalid);
+    let resolution = resolve_names(&sources, &parsed_file, &names).expect("invalid names");
+    assert!(resolution.diagnostics().is_empty());
+    let typed = check_types(&sources, &parsed_file, &resolution, &types).expect("invalid types");
+    assert_eq!(codes(typed.diagnostics()), ["L0083", "L0084", "L0084"]);
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("primary"))
+            .collect::<Vec<_>>(),
+        ["{", "{", "{"]
+    );
+}
+
+#[test]
 fn implicit_and_explicit_borrow_function_types_share_one_identity() {
     let text = "val implicit: (Int) -> Unit = { input -> }\n\
                 val explicit: (borrow Int) -> Unit = { input -> }\n\
@@ -668,7 +744,7 @@ fn overload_lambda_trial_commits_only_the_unique_candidate_and_nested_call() {
                 fun resolve(callback: (String) -> String): String = \"text\"
                 fun intResult(input: Int): Int = input
                 fun use(): Unit {
-                    val selected = resolve({ item -> intResult(item) })
+                    val selected = resolve { intResult(it) }
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
@@ -708,8 +784,8 @@ fn ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts() {
     let text = "fun resolve(callback: (Int) -> Int): Int = 1
                 fun resolve(callback: (String) -> String): String = \"text\"
                 fun use(): Unit {
-                    val ambiguous = resolve({ item -> item })
-                    val noMatch = resolve({ item -> true })
+                    val ambiguous = resolve { it }
+                    val noMatch = resolve { true }
                 }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
@@ -726,6 +802,7 @@ fn ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts() {
         .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
     {
         assert_eq!(typed.parameter_mode(parameter.id()), None);
+        assert_eq!(typed.symbol_type(parameter.id()), None);
     }
     for (id, node) in parsed.ast().expressions().iter().filter(|(_, node)| {
         matches!(

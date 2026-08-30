@@ -183,10 +183,34 @@ impl<'a> Resolver<'a> {
                     Binding::Single(first) => *first,
                     Binding::Functions(ids) => ids[0],
                 };
+                if self.symbols[first.0].is_synthetic() && name == "it" && !is_function {
+                    *existing = Binding::Single(id);
+                    return Ok(id);
+                }
                 let first_span = self.symbols[first.0].span();
                 self.push_duplicate(span, first_span)?;
             }
         }
+        Ok(id)
+    }
+
+    fn insert_implicit_it(
+        &mut self,
+        scope: ScopeId,
+        anchor: Span,
+    ) -> Result<SymbolId, NameResolutionError> {
+        let name = "it".to_owned();
+        let id = SymbolId(self.symbols.len());
+        self.symbols.push(Symbol::synthetic_lambda_parameter(
+            id,
+            name.clone(),
+            anchor,
+            scope,
+        ));
+        let previous = self.scopes[scope.0]
+            .values
+            .insert(name, Binding::Single(id));
+        assert!(previous.is_none(), "fresh lambda scope must be empty");
         Ok(id)
     }
 
@@ -656,9 +680,16 @@ impl<'a> Resolver<'a> {
                 Ok(())
             }
             Expression::Lambda {
-                parameters, body, ..
+                opener_span,
+                parameters,
+                arrow_span,
+                body,
+                ..
             } => {
                 let lambda = self.add_scope(Some(scope), ScopeKind::Lambda, Some(span));
+                if arrow_span.is_none() {
+                    self.insert_implicit_it(lambda, opener_span)?;
+                }
                 for parameter in parameters {
                     self.insert_span(
                         lambda,

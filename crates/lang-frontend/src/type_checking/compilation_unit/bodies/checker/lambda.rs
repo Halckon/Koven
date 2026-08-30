@@ -3,7 +3,7 @@
 use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::codes,
-    name_resolution::SourceUnitId,
+    name_resolution::{Namespace, SourceUnitId, UnitReferenceTarget},
     source::Span,
     type_checking::{DeferredReason, UnitTypeId, UnitTypeKind},
 };
@@ -30,12 +30,22 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         span: Span,
         move_span: Option<Span>,
+        opener_span: Span,
         parameter_spans: &[Span],
         arrow_span: Option<Span>,
         body: StatementId,
         expected: Option<UnitTypeId>,
         expected_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let implicit_symbol = arrow_span
+            .is_none()
+            .then(|| self.symbol_at(source, opener_span, Namespace::Value))
+            .flatten();
+        let implicit_used = implicit_symbol.is_some_and(|symbol| {
+            self.references.values().any(
+                |target| matches!(target, UnitReferenceTarget::Symbol(candidate) if *candidate == symbol),
+            )
+        });
         let expected_function = expected.and_then(|ty| {
             let UnitTypeKind::Function {
                 move_only,
@@ -48,17 +58,29 @@ impl BodyChecker<'_> {
             Some((ty, move_only, parameters, return_type))
         });
         if let Some((function, move_only, parameters, return_type)) = expected_function {
-            let structure_matches =
-                move_only == move_span.is_some() && parameters.len() == parameter_spans.len();
+            let implicit_arity_matches = match parameters.len() {
+                0 => !implicit_used,
+                1 => true,
+                _ => false,
+            };
+            let structure_matches = move_only == move_span.is_some()
+                && if arrow_span.is_none() {
+                    implicit_arity_matches
+                } else {
+                    parameters.len() == parameter_spans.len()
+                };
             if !structure_matches {
                 self.emit_maybe_label(
                     codes::TYPE_MISMATCH,
                     "lambda structure does not match the expected function type",
-                    arrow_span.or(move_span).unwrap_or(span),
+                    arrow_span.or(move_span).unwrap_or(opener_span),
                     expected_span,
                     "expected function type introduced here",
                 )?;
                 let error = self.error_type();
+                if implicit_symbol.is_some() {
+                    self.set_span_symbol(source, opener_span, error);
+                }
                 for &parameter_span in parameter_spans {
                     self.set_span_symbol(source, parameter_span, error);
                 }
@@ -68,7 +90,12 @@ impl BodyChecker<'_> {
                     falls_through: true,
                 });
             }
-            for (&parameter_span, parameter) in parameter_spans.iter().zip(&parameters) {
+            let effective_spans = if arrow_span.is_none() && parameters.len() == 1 {
+                vec![opener_span]
+            } else {
+                parameter_spans.to_vec()
+            };
+            for (&parameter_span, parameter) in effective_spans.iter().zip(&parameters) {
                 self.set_span_symbol(source, parameter_span, parameter.ty());
                 self.set_parameter_mode(source, parameter_span, parameter.mode());
             }
@@ -82,6 +109,20 @@ impl BodyChecker<'_> {
             return Ok(ExpressionCheck {
                 ty: function,
                 falls_through: body.falls_through,
+            });
+        }
+        if arrow_span.is_none() && implicit_used {
+            self.emit(
+                codes::CANNOT_INFER_TYPE,
+                "implicit it requires a unary expected function type",
+                opener_span,
+            )?;
+            let error = self.error_type();
+            self.set_span_symbol(source, opener_span, error);
+            self.check_lambda_body(source, body, error, None, None)?;
+            return Ok(ExpressionCheck {
+                ty: error,
+                falls_through: true,
             });
         }
         if parameter_spans.is_empty() {

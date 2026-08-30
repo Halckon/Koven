@@ -2540,6 +2540,7 @@ fn lambda_value_parameters_publish_entry_read_and_transfer_drop_facts() {
              val explicitAction: move (own String) -> String = move { explicitValue -> return explicitValue }\n\
              val borrowed: move (borrow String) -> String = move { item -> \"borrow-a\" + \"borrow-b\" }\n\
              val copied: move (own Int) -> String = move { item -> \"copy-a\" + \"copy-b\" }\n\
+             val implicitUnused: move (own String) -> String = move { \"implicit-a\" + \"implicit-b\" }\n\
          }",
     );
     let inputs = [
@@ -2608,6 +2609,14 @@ fn lambda_value_parameters_publish_entry_read_and_transfer_drop_facts() {
             "move { item -> \"copy-a\" + \"copy-b\" }",
         ),
     );
+    let implicit_unused_lambda = UnitExpressionId::new(
+        source_unit,
+        expression_with_text(
+            &sources,
+            &consumer,
+            "move { \"implicit-a\" + \"implicit-b\" }",
+        ),
+    );
     let first = symbol_named(&ownership, &names, source_unit, "first");
     let second = symbol_named(&ownership, &names, source_unit, "second");
     let observed = symbol_named(&ownership, &names, source_unit, "observed");
@@ -2623,6 +2632,11 @@ fn lambda_value_parameters_publish_entry_read_and_transfer_drop_facts() {
         [UnitDropTarget::Named(second), UnitDropTarget::Named(first)],
         "unused MoveOnly Value parameters drop at lambda entry in reverse declaration order"
     );
+    let implicit_it = symbol_named(&ownership, &names, source_unit, "it");
+    assert!(ownership.drops().iter().any(|fact| {
+        fact.point() == UnitDropPoint::LambdaEntry(implicit_unused_lambda)
+            && fact.target() == UnitDropTarget::Named(implicit_it)
+    }));
     assert!(
         ownership.drops().iter().any(|fact| {
             fact.target() == UnitDropTarget::Named(observed)

@@ -75,6 +75,7 @@ fn lambda(
         parameters,
         arrow_span,
         body,
+        ..
     } = expression(parsed, id)
     else {
         panic!("expected lambda, got {:?}", expression(parsed, id));

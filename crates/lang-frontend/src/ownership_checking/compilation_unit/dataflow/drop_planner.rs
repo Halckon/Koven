@@ -22,7 +22,7 @@ use crate::ownership_checking::{
     UnitDropFact, UnitOwnershipDeferredFact,
 };
 
-use super::{Checker, OwnershipCheckingError, UnitCallArgumentOwnershipKind, liveness};
+use super::{Checker, OwnershipCheckingError, UnitCallArgumentOwnershipKind, liveness, span_key};
 use model::{
     DropExpressionUse, OwnedValue, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
     StringOperandDrop, ValueState, marker_span, merge_value_states,
@@ -79,12 +79,23 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
             let Expression::Lambda {
-                parameters, body, ..
+                opener_span,
+                parameters,
+                arrow_span,
+                body,
+                ..
             } = node.payload()
             else {
                 continue;
             };
-            self.plan_lambda_body(lambda, parameters, *body)?;
+            let mut effective_parameters = parameters.clone();
+            if arrow_span.is_none()
+                && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
+                && self.checker.typed.body_parameter_mode(*symbol).is_some()
+            {
+                effective_parameters.push(*opener_span);
+            }
+            self.plan_lambda_body(lambda, &effective_parameters, *body)?;
         }
         Ok(self.facts)
     }

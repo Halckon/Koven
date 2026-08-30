@@ -367,7 +367,7 @@ fn lowers_move_only_value_lambda_parameters_from_exact_drop_facts() {
          fun inspect(message: String): Unit {}\n\
          fun consume(own message: String): Unit {}\n\
          fun exercise(): Unit {\n\
-             val unused: move (own String) -> Unit = move { item -> }\n\
+             val unused: move (own String) -> Unit = move { }\n\
              val read: move (own String) -> Unit = move { item -> inspect(item) }\n\
              val consumed: move (own String) -> Unit = move { item -> consume(item) }\n\
              val implicit: move (own String) -> String = move { item -> item }\n\
