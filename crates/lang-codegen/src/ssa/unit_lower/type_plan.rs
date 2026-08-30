@@ -1,7 +1,5 @@
 //! Reachable compilation-unit body 使用的 scalar storage type 预规划。
 
-use std::collections::BTreeMap;
-
 use lang_frontend::{
     parser::{
         AssignmentOperator, BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator,
@@ -11,9 +9,9 @@ use lang_frontend::{
 };
 
 use super::{
-    super::{LoweringError, LoweringErrorKind, model::SsaTypeId, unit_plan::resolve_concrete_type},
+    super::{LoweringError, LoweringErrorKind, unit_plan::resolve_concrete_type},
     builtin_type, lowering_error,
-    type_lower::{intern_supported_type, is_supported_storage_type},
+    type_lower::{UnitTypeLowering, is_supported_storage_type},
 };
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
 
@@ -23,7 +21,7 @@ pub(super) fn intern_body_scalar_types(
     parsed: &ParsedFile,
     instance: &UnitPlannedInstance,
     typed: &ValidatedCompilationUnitTypes,
-    type_ids: &mut BTreeMap<UnitTypeId, SsaTypeId>,
+    types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
     for (&expression, &ty) in typed.types().expression_types() {
         if expression.source_unit() != instance.source_unit() {
@@ -48,12 +46,12 @@ pub(super) fn intern_body_scalar_types(
                 .types()
                 .builtin(BuiltinType::Boolean)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            intern_supported_type(module, typed, type_ids, boolean, span)?;
+            types.intern(module, typed, boolean, span)?;
         }
         if builtin_type(typed, concrete) != Some(BuiltinType::Unit)
             && is_supported_storage_type(typed, concrete)
         {
-            intern_supported_type(module, typed, type_ids, concrete, span)?;
+            types.intern(module, typed, concrete, span)?;
         }
     }
     Ok(())
@@ -198,11 +196,11 @@ mod tests {
         let module = program
             .module_mut(module_id)
             .expect("new test module exists");
-        let mut type_ids = BTreeMap::new();
-        intern_body_scalar_types(module, &provider, keep, &typed, &mut type_ids)
+        let mut types = UnitTypeLowering::new();
+        intern_body_scalar_types(module, &provider, keep, &typed, &mut types)
             .expect("direct T body fact resolves through the String substitution");
 
         assert_eq!(module.types, vec![SsaTypeKind::StringOwner]);
-        assert_eq!(type_ids.len(), 1);
+        assert_eq!(types.type_ids().len(), 1);
     }
 }

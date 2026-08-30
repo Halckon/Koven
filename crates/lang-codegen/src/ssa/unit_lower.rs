@@ -1,7 +1,9 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 
+mod aggregate;
 mod assignment;
 mod cfg;
+mod construction;
 mod control;
 mod loop_control;
 mod ownership;
@@ -82,7 +84,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
     let module = program
         .module_mut(module_id)
         .expect("new unit module must exist");
-    let mut type_ids = BTreeMap::new();
+    let mut types = type_lower::UnitTypeLowering::new();
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
 
@@ -155,13 +157,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 instance.substitutions(),
                 parameter.span(),
             )?;
-            let ty = type_lower::intern_supported_type(
-                module,
-                typed,
-                &mut type_ids,
-                concrete,
-                parameter.span(),
-            )?;
+            let ty = types.intern(module, typed, concrete, parameter.span())?;
             parameter_symbols.push(symbol);
             parameter_types.push(EntityType::Value(ty));
         }
@@ -174,13 +170,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {
-            vec![type_lower::intern_supported_type(
-                module,
-                typed,
-                &mut type_ids,
-                return_type,
-                instance.span(),
-            )?]
+            vec![types.intern(module, typed, return_type, instance.span())?]
         };
         let id = module
             .add_function(
@@ -212,7 +202,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             parsed_by_source[plan.instance.source_unit().index()],
             &plan.instance,
             typed,
-            &mut type_ids,
+            &mut types,
         )?;
     }
 
@@ -264,7 +254,9 @@ pub(crate) fn lower_scalar_unit_with_entry(
             typed,
             owned,
             function_ids: &function_ids,
-            type_ids: &type_ids,
+            type_ids: types.type_ids(),
+            heap_payloads: types.heap_payloads(),
+            field_indices: types.field_indices(),
             substitutions: plan.instance.substitutions(),
             references: &references,
             function,
@@ -322,6 +314,8 @@ struct UnitExpressionLowerer<'a> {
     owned: &'a ValidatedCompilationUnitOwnership,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
+    heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    field_indices: &'a BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
     substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
     references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
     function: &'a mut Function,
@@ -369,11 +363,30 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
-        if self.typed.types().construction(unit_expression).is_some() {
-            return self.lower_rc_construction(expression, span);
+        if let Some(construction) = self.typed.types().construction(unit_expression) {
+            return match construction.target() {
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
+                    self.lower_rc_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::Nominal(_)
+                | lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox => {
+                    self.lower_aggregate_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
+                    Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+                }
+            };
         }
         if self.typed.types().rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
+        }
+        if self
+            .typed
+            .types()
+            .aggregate_projection(unit_expression)
+            .is_some()
+        {
+            return self.lower_aggregate_projection(expression, span);
         }
         match node.payload() {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),

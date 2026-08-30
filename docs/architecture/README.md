@@ -1032,6 +1032,22 @@ temporary 则唯一转移而不重复 drop。结构测试覆盖输入置换、`R
 `String -> Rc<String>` Move delivery；MoveOnly payload read、nullable Rc、temporary receiver、nominal
 payload 与复合泛型实例化仍是显式后续边界。
 
+第十六切片把 unit type mapper 扩展为共享的 concrete type/layout 规划器，接通无类型参数的
+`value class`、普通 `class` 与 intrinsic `Box<value class>`。inline nominal 形成具名
+`Aggregate`，class 与 Box 形成 unit-global `HeapOwner`；class payload 独立保存字段 layout，handle
+先声明，再按 payload 依赖递归完成 pending definition；`Value -> class -> Value`、`Rc<Class>` 与
+nested Rc 等有限 owner 图不会退化为 inline cycle，也不会把未定义 handle 交给 SharedOwner。
+construction lowering 集中消费 typed descriptor 与 SPEC-0198 ordered-delivery/root obligation：
+operand 按源码 `evaluation_index` 求值，
+Copy/Move/temporary effect 精确核对后再按 parameter index 组装字段；class 先构造 payload 再
+`HeapAllocate`，Box 直接交付单一 payload。显式 receiver 的 Copyable field projection 对 value class
+使用 `AggregateProject`，对 class 使用 `HeapPayloadPlace + FieldPlace + Read`，外层 source-qualified
+drop facts 继续负责 owner 的唯一析构。结构测试锁定反序具名参数、跨文件 value/class/Box 构造与
+transfer、class field read 后 drop、返回 owner 不提前 drop、输入置换，以及 generic nominal 和
+MoveOnly field read 在发布 program 前 fail loud。缺少精确 outer drop fact 的 MoveOnly temporary receiver
+同样在生成 receiver SSA 前拒绝。enum case、结构化 component/隐式 `this`、generic nominal、MoveOnly
+field 借用/读取、container 与 closure 仍由后续切片承接。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

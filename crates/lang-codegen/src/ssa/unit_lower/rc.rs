@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{ConstructionDeliveryKind, ConstructionRootKind, RcOwnershipEffectKind},
+    ownership_checking::RcOwnershipEffectKind,
     source::Span,
     type_checking::{
         Copyability, ExpressionCategory, IntrinsicTypeConstructor, RcOperationKind,
@@ -22,34 +22,11 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .types()
-            .construction(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let descriptor = self.construction_descriptor(expression, span)?;
         if descriptor.target() != UnitConstructionTarget::IntrinsicRc {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let mut plans = self
-            .owned
-            .ownership()
-            .construction_plans()
-            .iter()
-            .filter(|plan| plan.construction() == id);
-        let plan = plans
-            .next()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if plans.next().is_some()
-            || plan.target() != descriptor.target()
-            || plan.terminating_operand().is_some()
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         let [argument] = descriptor.arguments() else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        let [delivery] = plan.deliveries() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let [type_argument] = descriptor.instance().type_arguments() else {
@@ -65,69 +42,24 @@ impl UnitExpressionLowerer<'_> {
         let [result_payload] = result_arguments.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let root = plan
-            .root_obligation()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let expected_delivery = match (
-            argument.category(),
-            self.typed.types().copyability(argument.parameter_type()),
-        ) {
-            (ExpressionCategory::Temporary, _) => ConstructionDeliveryKind::DeliverTemporary,
-            (ExpressionCategory::Place, Copyability::Copyable) => ConstructionDeliveryKind::Copy,
-            (ExpressionCategory::Place, Copyability::MoveOnly) => ConstructionDeliveryKind::Move,
-            (ExpressionCategory::Place, Copyability::Unknown | Copyability::Error) => {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-        };
-        if descriptor.expression() != id
-            || delivery.construction() != id
-            || delivery.argument() != argument.argument()
-            || delivery.parameter_index() != argument.parameter_index()
-            || delivery.parameter_symbol() != argument.parameter_symbol()
-            || delivery.evaluation_index() != argument.evaluation_index()
-            || argument.evaluation_index() != 0
-            || delivery.kind() != expected_delivery
-            || *type_argument != argument.parameter_type()
+        if *type_argument != argument.parameter_type()
             || *result_payload != argument.parameter_type()
-            || self.typed.types().expression_type(argument.argument())
-                != Some(argument.parameter_type())
-            || self.typed.types().expression_category(argument.argument())
-                != Some(argument.category())
-            || self.typed.types().expression_type(id) != Some(descriptor.result_type())
-            || root.construction() != id
-            || root.result_type() != descriptor.result_type()
-            || root.kind() != ConstructionRootKind::SharedOwner
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let LoweredValue::Value(mut payload) = self.lower(argument.argument().expression())? else {
+        let fields = self.lower_construction_fields(&descriptor, span)?;
+        let [payload] = fields.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        match delivery.kind() {
-            ConstructionDeliveryKind::Copy => {
-                let payload_type =
-                    self.expression_ssa_type(argument.argument().expression(), span)?;
-                let (_, results) = self
-                    .function
-                    .append_instruction(
-                        self.block,
-                        Operation::Copy { source: payload },
-                        vec![EntityType::Value(payload_type)],
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                payload = require_value(results[0], span)?;
-            }
-            ConstructionDeliveryKind::Move | ConstructionDeliveryKind::DeliverTemporary => {
-                self.transfer_owned_expression(argument.argument().expression(), payload, span)?;
-            }
-        }
         let owner = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
-                Operation::SharedAllocate { owner, payload },
+                Operation::SharedAllocate {
+                    owner,
+                    payload: *payload,
+                },
                 vec![EntityType::Value(owner)],
                 Origin::Source(span),
             )
