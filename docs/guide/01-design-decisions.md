@@ -2497,7 +2497,7 @@ class Counter(var count: Int) {
     }
 }
 
-fun <T : Comparable<T>> max(own a: T, own b: T): T = if (a > b) a else b
+fun <T : Copyable> identity(own value: T): T = value
 ```
 
 ---

@@ -13,6 +13,22 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 - [ADR](./adr/)：长期架构选择及其理由、替代方案与代价。
 - [Architecture](./architecture/)：仓库当前已实现架构的最新快照。
 
+## 设计审计（非规范）
+
+以下文档用于评估现状和规划后续工作，不启用语言语义，也不替代 guide、Spec、ADR 或
+Architecture：
+
+- [Koven 语言设计审计（v0.32）](./language-design-audit-v0.32.md)：现状、关键风险、设计门禁与
+  编译流水线结论；
+- [Kotlin 语法语义与 Rust 所有权对照清单](./kotlin-rust-design-matrix-v0.32.md)：逐项说明已实现、
+  部分实现、候选、延后和不支持能力；
+- [v0.32 后续语言与编译器开发路线](./post-v0.32-development-roadmap.md)：系统编程、FFI、标准库、
+  并发/异步、优化、元编程和自举的依赖波次与验收门禁。
+
+这三份材料是 2026-08-30 的冻结审计快照，不随每个 Spec 持续改写；实时状态与实施顺序仍以
+guide、Specs/ADR 和 Architecture 为准。现行 guide 版本变化后，应把本组标为历史审计或由新版
+审计取代。
+
 ## 工作流
 
 ```text
@@ -45,7 +61,7 @@ SSA/LLVM native 闭环。Phase 5 已发布标准 `error()` Abort、首个 litera
 `println(String)` stdout/Hello World 闭环，以及目标语言 `Pair` / `Result` 的条件复制、构造、
 投影与解构验收；一般 String runtime 已由 SPEC-0192 完成，容器 relocation API 仍待后续
 Spec。Phase 6 已提供
-公开单文件显式 entry 与零参数 conventional `main` 的 `kovenc build/run`、机器可读诊断、LSP diagnostics/definition、
+公开单文件显式 entry 与零参数 conventional `main` 的 `kovenc build/run`、机器可读诊断、单文档 LSP diagnostics/definition、
 formatter，以及 TextMate 与 Tree-sitter grammar。各编译阶段的准确状态见
 [架构快照](./architecture/README.md)。
 
