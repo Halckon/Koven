@@ -5,11 +5,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-180` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
-| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
+| 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
+| 批准依据 | 无；当前仍等待前置 SPEC-0201 完成后的独立批准 |
 | 前置 Spec | SPEC-0020、0067、0176、0177、0201；除 0201 外均 `done` |
 | 前置 ADR | 无 |
-| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0201 `done` |
+| 阻塞项 | SPEC-0201 `done` |
 | 影响范围 | `lang-frontend` name/type checking、receiver/member/delegation model、L0152；Architecture/Roadmap |
 | 语言语义变更 | 否；发布候选 guide 已定义的 typed facts |
 
@@ -50,7 +50,7 @@ delegate forwarder 都具有唯一、实例化后的 receiver typed identity，P
 - [ ] receiver mode 不形成 overload，L0099/L0100 contract mismatch 稳定；L0152 primary 为
   `by`/delegate target，label 指向首个仍需转发的不兼容 member。
 - [ ] Borrow-only delegate forwarder descriptor 与手写等价签名一致；非 Borrow requirement 不发布半成品。
-- [ ] frontend 窄测试和 workspace 五项基线通过，Architecture/Roadmap 同步。
+- [ ] 受影响 frontend 窄测试及 workspace Layer 2 静态门禁通过，Architecture/Roadmap 同步。
 
 ## 5. 技术方案与边界
 
@@ -81,3 +81,4 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | member target 已可选择，但现有 CallDescriptor 不含 receiver，ownership 明确保留 deferred |
 | 2026-08-26 候选闭合审计 | 通过 | v0.34 明确直接基于 v0.32、不包含 v0.33（含后增 grammar §9/SPEC-0213/0214 与 §33）；typed Goal 仍严格等待 0201 与 guide 启用 |
+| 2026-08-31 重基审计 | 通过 | v0.34 已重基到完整 v0.33；本 Spec 只剩 SPEC-0201 完成与独立批准门禁 |

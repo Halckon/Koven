@@ -2,7 +2,7 @@
 
 > 本文档是 Koven 语言设计规范多文档结构的一部分（原单文件 guide 第四部分 §7–8），完整
 > 文档地图、版本治理规则与跨文件索引见 [`00-index.md`](./00-index.md)。现行语法版本：v0.27；
-> §11.1 含由 v0.32 引入并在现行 v0.33 沿用的名称绑定解释；§13.5–§13.7 分别同步未启用的 v0.34 receiver、v0.36
+> §11.1 含由 v0.32 引入并在现行 v0.34 沿用的名称绑定解释；§13.5 是现行 v0.34 receiver grammar，§13.6–§13.7 分别同步未启用的 v0.36
 > const expression 与 v0.37 iteration 候选，均不改变现行 Parser。
 > 保留原节号 §7–8 以维持既有 SPEC 引用不变；共享的表达式/类型引用基础见
 > [03-grammar-core.md](./03-grammar-core.md)，调用参数/lambda/解构见[05-grammar-calls-lambda.md](./05-grammar-calls-lambda.md)。
@@ -789,7 +789,7 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
 - delegate 字段持有具体名义类型，Phase 2 必须证明该类型静态满足目标 interface；裸
   interface、`dyn`、反射代理或运行时查找不属于 v1；
 - 自动转发完整保持原成员的显式参数模式、类型、返回类型与 `Result` 契约，不插入隐式 `?`
-  或异常层；现行 v0.33 尚未定义 instance receiver mode，未启用的 v0.34 §34.3 候选拟把自动
+  或异常层；现行 v0.34 §34.3 已把自动
   转发收窄为 Borrow receiver；手写 override 优先，多来源同签名冲突必须显式 override；
 - delegate field 的移动、借用和析构与普通 owned field 相同，不获得隐藏共享或生命周期；
 - `val/var property by expression` 属性委托明确不支持。
@@ -825,11 +825,11 @@ SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser；SPEC-006
   d 层 delimiter 的 class-family 声明解析与恢复必须为 `O(n)` 时间、`O(d)` owner 空间，不从
   每个 member/variant/type parameter 回扫整个声明。
 
-### 13.5 v0.34 receiver grammar 候选（未启用）
+### 13.5 v0.34 receiver grammar
 
-本小节与设计正文 §34 同为候选，不改变现行 v0.33 Parser。只有后续 guide 先明确 v0.34 如何
-重基并取代 v0.33、且用户明确启用后，以下
-产生式才取代本节开头的 `method_modifiers` 及对应 instance member 产生式：
+本小节与设计正文 §34 已于 2026-08-31 随 v0.34 明确启用并重基到完整 v0.33；以下产生式
+取代本节开头的 `method_modifiers` 及对应 instance member 产生式。SPEC-0201 完成前，仓库
+Parser 尚未实现这些新形态，不能把规范生效误写成代码已支持：
 
 ```ebnf
 method_receiver_mode = "borrow" | "inout" | "own" ;
@@ -855,7 +855,7 @@ enum_member = method_modifiers, function_declaration
   marker 解释为函数名或普通参数 mode。
 - object 的 Borrow/Inout/Value 三种显式形态都先进入 AST；其无状态 singleton 只允许 Borrow
   的语言限制由 SPEC-0180 检查，Parser 不从 classifier kind 提前做 Phase 2 判断。
-- 本候选不改变普通 callable 参数、调用点 argument marker、function type、extension receiver、
+- 本节不改变普通 callable 参数、调用点 argument marker、function type、extension receiver、
   callable reference 或 safe-call grammar；formatter 与 grammar bridge 必须保存原 token，不能
   把省略形式重写成显式 `borrow`。
 
@@ -863,7 +863,7 @@ enum_member = method_modifiers, function_declaration
 
 本小节不新增 Parser 产生式：`constant_declaration` 的 initializer 继续解析普通 `expression`，
 由候选设计正文 §36 和 SPEC-0026 在 Phase 2 选择封闭子集。只有用户明确启用 v0.36 后以下
-解释才生效；现行版本仍为 v0.32。
+  解释才生效；现行版本为 v0.34。
 
 - 合法子集为 Boolean/整数/Char/plain String literal、group、const reference（含
   `Object.CONST`/`Type.CONST`）、`+`/`-`/`!`、整数算术/比较/相等、Boolean `&&`/`||` 与

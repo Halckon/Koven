@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-191` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用) |
-| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
+| 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
+| 批准依据 | 无；当前仍等待前置 SPEC-0180/0181 完成后的独立批准 |
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195 `done`；SPEC-0180/0181 待完成 |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0180/0181 `done` |
+| 阻塞项 | SPEC-0180/0181 `done` |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -58,7 +58,7 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
-- [ ] `lang-codegen`/CLI 窄测及 workspace 五项基线通过，Architecture/Roadmap/Spec 同步。
+- [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
 
 ## 5. 技术方案与边界
 
@@ -90,3 +90,4 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | 既有 callable SSA 只遍历显式参数；ADR-0016 已为未来 receiver 固定 pointer ABI |
 | 2026-08-26 候选闭合审计 | 通过 | 移除无 bound method source path 的 CallableInvoke receiver 验收，只保留 DirectCall |
+| 2026-08-31 重基审计 | 通过 | v0.34 已重基到完整 v0.33；本 Spec 继续等待 SPEC-0180/0181 与独立批准 |

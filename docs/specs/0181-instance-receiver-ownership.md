@@ -5,12 +5,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P3-181` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
-| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
+| 语言规范 | 现行 [v0.34 §34.2–34.3](../guide/01-design-decisions.md#342-调用顺序this-与所有权能力) |
+| 批准依据 | 无；当前仍等待前置 SPEC-0180 完成后的独立批准 |
 | 前置 Spec | SPEC-0029、0032 `done`；SPEC-0180 待完成 |
 | 前置 ADR | 无 |
 | 关联 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) |
-| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用；SPEC-0180 `done` |
+| 阻塞项 | SPEC-0180 `done` |
 | 影响范围 | `lang-frontend` ownership receiver/place/loan/drop/capture facts；Architecture/Roadmap |
 | 语言语义变更 | 否；消费 SPEC-0180 typed facts |
 
@@ -57,7 +57,7 @@
 - [ ] verifier/facts 拒绝 Inout receiver 重绑或替换 handle；class payload field mutation 保持同一 owner。
 - [ ] direct `this` move capture 使用 L0138；Value `this`→local→move closure 的
   `Transferable`/use-after-move/drop，以及 Borrow delegate 与手写转发 ownership facts 等价。
-- [ ] 无一般 MemberReceiver deferred；frontend 窄测试和 workspace 五项基线通过并同步 Architecture。
+- [ ] 无一般 MemberReceiver deferred；受影响 frontend 窄测试及 workspace Layer 2 静态门禁通过并同步 Architecture。
 
 ## 5. 技术方案与边界
 
@@ -88,3 +88,4 @@
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | 现有 place/loan/capture 基元可复用；一般 member receiver 当前明确 deferred |
 | 2026-08-26 候选闭合审计 | 通过 | Value `this` 固定为 owned-but-immutable；在本候选内，Value→`var` local 是取得 mutable root 的显式路径 |
+| 2026-08-31 重基审计 | 通过 | v0.34 已重基到完整 v0.33；本 Spec 继续等待 SPEC-0180 与独立批准 |

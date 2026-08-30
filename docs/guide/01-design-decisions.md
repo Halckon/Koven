@@ -7,7 +7,7 @@
 > 第 25 节是 v0.25 已启用的现行规则；第 26 节是 v0.26 已启用的现行规则；第 27 节是
 > v0.27 已启用的现行规则；第 28 节是 v0.28 已启用的现行规则；第 29 节是 v0.29 已启用的
 > 现行规则；第 30–33 节分别是 v0.30–v0.33 已启用的现行规则；
-> 第 34–37 节分别是尚未启用的 v0.34–v0.37 候选；附录收录原第二部分的核心结构声明总览。
+> 第 34 节是现行 v0.34 receiver 契约，第 35–37 节是尚未启用的 v0.35–v0.37 候选；附录收录原第二部分的核心结构声明总览。
 
 > **阅读说明（v0.20 更新）**：本部分示例使用的 control-flow 已由
 > [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md) §12 正式定义；
@@ -2107,12 +2107,12 @@ fun start(args: Array<String>): Unit { ... }
 
 ---
 
-## 34. 显式 instance receiver 契约与静态分发调用（v0.34 候选，未启用）
+## 34. 显式 instance receiver 契约与静态分发调用（v0.34）
 
-> **候选状态**：本节起草时直接以 v0.32 为基线，只增加 receiver 契约，因而不自动包含现行
-> v0.33 grammar §9/SPEC-0213/0214 与 §33 project build。当前唯一权威版本已是 v0.33；若后续
-> 要让 v0.34 取代 v0.33，必须先通过 guide 变更明确把本节重基到 v0.33，不能静默丢弃现行语义。
-> SPEC-0201、0180、0181、0191 在此之前保持 `draft`。本节复用 ADR-0016 已接受的
+> **现行状态**：v0.34 已于 2026-08-31 由用户明确启用并取代 v0.33。本节已显式重基到完整
+> v0.33，因此保留 grammar §9/SPEC-0213/0214 与 §33/SPEC-0054 的全部现行语义，只新增 receiver
+> 契约。SPEC-0201 先实施 Parser/AST，0180、0181、0191 再按 Phase 2→3→4 顺序推进；规范启用
+> 不等于这些实现已经完成。本节复用 ADR-0016 已接受的
 > Value/Borrow/Inout 内部 callable ABI，不新增 receiver ABI ADR。这里的“静态分发”指
 > instance member target 在编译期确定，不是 companion/type-level static member。
 
@@ -2144,9 +2144,9 @@ class Buffer(var size: Int) {
   `object` 没有运行时状态，只接受缺省或显式 Borrow。顶层函数、companion 关联函数与其他
   声明不接受 receiver marker。顺序固定为 visibility、`override`、receiver mode、`fun`；
   重复或乱序使用既有 invalid/unsupported declaration modifier 诊断，不把 marker 当成函数名。
-- 本节启用后，整体取代 §13.1 对 instance-function modifier 的旧封闭列表：`borrow`、`inout`、
-  `own` 只按本节位置合法，`nocopy` 及其他未列 modifier 继续 unsupported；在 v0.34 未启用时，
-  §13.1 的现行 Parser 规则继续有效。
+- 本节整体取代 §13.1 对 instance-function modifier 的旧封闭列表：`borrow`、`inout`、
+  `own` 只按本节位置合法，`nocopy` 及其他未列 modifier 继续 unsupported。Parser 实现由
+  SPEC-0201 分阶段接入；在该 Spec 完成前，代码仍会按旧实现拒绝新形态。
 - receiver mode 不参与 overload shape；缺省 Borrow 与显式 Borrow 不能形成重载。interface
   replacement、concrete `override`、default 冲突与 `super<I>` 选择必须精确比较规范化 receiver
   mode，如同既有显式参数 contract，不允许用返回类型或 mode 区分同 shape overload。
@@ -2218,8 +2218,8 @@ L0099/L0100（contract）、L0131–L0135（move/loan/mutable place），不得�
 ## 35. nullable `when` 剩余域与 `!!` 所有权（v0.35 候选，未启用）
 
 > **候选状态**：本节起草时直接以 v0.32 为基线，只闭合既有 nullable 控制形式的 frontend
-> facts、所有权和分阶段 lowering；它不自动包含现行 v0.33 grammar §9/§33 或 §34 receiver。
-> 当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系才能启用本节；
+> facts、所有权和分阶段 lowering；它不自动包含现行 v0.34（含 v0.33 grammar §9/§33 与 §34 receiver）。
+> 当前唯一权威版本已是 v0.34；后续必须先明确重基/版本取代关系才能启用本节；
 > SPEC-0202–0207 在此之前保持 `draft`。本节不改变既有语法、`T?` 类型规则或 ADR-0017
 > pointer-like null-niche ABI。
 
@@ -2297,8 +2297,8 @@ Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和
 
 ## 36. 无运行时存储的关联常量与封闭求值（v0.36 候选，未启用）
 
-> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.33（grammar §9/§33）
-> 或 §34–§35。当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系，本节才可成为
+> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.34（含 grammar §9/§33）
+> 或 §34–§35。当前唯一权威版本已是 v0.34；后续必须先明确重基/版本取代关系，本节才可成为
 > 常量求值与关联选择的现行契约；
 > import 终端仍由现行 §32 规定。SPEC-0026/0208–0210 在此之前保持 `draft`。本节不引入通用 CTFE、runtime global、
 > singleton 初始化或 object instance receiver。
@@ -2378,8 +2378,8 @@ global/init 或稳定跨 object 常量 ABI，则必须另行 guide/ADR。
 
 ## 37. 借用式顺序容器迭代 provider（v0.37 候选，未启用）
 
-> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.33（grammar §9/§33）
-> 或 §34–§36。当前唯一权威版本已是 v0.33；后续必须先明确重基/版本取代关系，本节才可成为
+> **候选状态**：本节起草时直接以 v0.32 为基线，不自动包含现行 v0.34（含 grammar §9/§33）
+> 或 §34–§36。当前唯一权威版本已是 v0.34；后续必须先明确重基/版本取代关系，本节才可成为
 > `for` 的现行类型、所有权和 provider
 > 契约；ADR-0023 与 SPEC-0179/0182/0211/0212 在此之前保持 `proposed` / `draft`。本候选不
 > 引入公开 `Iterable` / `Iterator` interface、普通 receiver 调用或消费式迭代。

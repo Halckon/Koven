@@ -55,13 +55,13 @@ Lambda 是 expression primary，可以继续接受 call、member、index 等 pos
 要求一个 primary 时，`{` 提交 lambda；block dispatch 在 element 起点直接看到 `{` 时仍提交
 nested block。因而 `val f = { x }` 的 initializer 是零参数 lambda，body 尾值为 `x`；`{ x }`
 作为外层 block 的直接 element 则是 nested block。需要在 statement 位置强制表达 lambda 时可写
-`({ x })`。`move { ... }` 只能是 lambda。**现行 v0.33** 接受下述同行 trailing lambda
+`({ x })`。`move { ... }` 只能是 lambda。**v0.33 引入并在现行 v0.34 沿用**下述同行 trailing lambda
 （`f { ... }`）；跨换行仍把 `{ ... }` 留给后续 nested block element。
 
 [04-grammar-declarations-blocks.md](./04-grammar-declarations-blocks.md)第 8 节的 `{` soft element stop 因此是 parser-state-sensitive 的：已有完整左表达式且没有运算符
 要求右 operand 时，顶层 `{` 留给下一 nested-block element；initializer 起点、prefix / binary
 右 operand、grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入
-lambda parser。现行 v0.33 中 `x { y }` 是一个尾 lambda call，`x\n{ y }` 才是 expression
+lambda parser。现行 v0.34 中 `x { y }` 是一个尾 lambda call，`x\n{ y }` 才是 expression
 statement `x` 后接 nested block；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
 尾 lambda 的换行边界，不依赖名称或推测类型。
 

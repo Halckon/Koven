@@ -1,6 +1,6 @@
 # Koven Spec 路线图
 
-本目录依据现行 [v0.33 语言规范](../guide/00-index.md) 维护可独立验证、可独立
+本目录依据现行 [v0.34 语言规范](../guide/00-index.md) 维护可独立验证、可独立
 提交的 Goal；已完成 Spec 保留其实施时适用的 guide 引用。路线图负责排序，Spec 文件负责
 定义一次交付；路线图条目本身不等于已批准的 Spec，也不授权实现。
 
@@ -26,10 +26,10 @@ SPEC-0199 与 SPEC-0187 均已完成；完整 `for` 仍由 v0.37 候选链 0179/
 另为无依赖本地 project 定义显式 package-qualified entry 与公开 build/run；它不改变单文件
 main，也不引入 manifest target/default 或 dependency build。SPEC-0213/0214/0054 均已完成。
 
-[v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034-候选未启用)
-是以 v0.32 为基线、且不包含 v0.33 的独立 receiver 候选：它定义 member 声明的缺省 Borrow/
-显式 Borrow/Inout/Value、receiver 所有权交付与静态分发，并把窄化 `by` 委托限制为 Borrow
-receiver；不定义 iterator、具体标准库 API 或动态分发。
+[v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034)
+已于 2026-08-31 显式重基到完整 v0.33 并启用：它保留 v0.33 grammar §9/§33，新增 member
+声明的缺省 Borrow/显式 Borrow/Inout/Value、receiver 所有权交付与静态分发，并把窄化 `by`
+委托限制为 Borrow receiver；不定义 iterator、具体标准库 API 或动态分发。
 
 [v0.35 §35](../guide/01-design-decisions.md#35-nullable-when-剩余域与-所有权v035-候选未启用)
 是同样以 v0.32 为基线、且不包含 v0.33/v0.34 的独立 nullable 控制流候选：它封闭 nullable
@@ -137,7 +137,7 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
-| 已物化 receiver 候选 | SPEC-0201→0180→0181→0191 | v0.34 §34 已起草；Parser、typed、ownership、native 分层，复用 ADR-0016；未启用，全部保持 draft |
+| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201 approved，typed/ownership/native 继续按前置保持 draft，复用 ADR-0016 |
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
@@ -151,8 +151,8 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 审计据解锁价值选择 package/import，并把原先从 SPEC-0025 直接跳向 LSP/项目构建的缺口补成
 名称→类型→所有权，再分叉到 native 与 LSP。v0.32 与 ADR-0020 已解除 compilation-unit
 门禁，SPEC-0025 已完成名称层；后继分支的 ADR-0021/0022 均已接受，仍须完成各自前置 Spec。
-公开 project build 已由 v0.33 解锁；receiver 主线仍是直接基于 v0.32、不包含 v0.33 的
-v0.34 独立候选。nullable `when`/`!!`、const/object、iteration 已分别物化为 v0.35/v0.36/v0.37 候选；
+公开 project build 已由 v0.33 完成；receiver 主线已由现行 v0.34 解锁并从 SPEC-0201 开始。
+nullable `when`/`!!`、const/object、iteration 已分别物化为 v0.35/v0.36/v0.37 候选；
 Map 继续等待 guide/ADR 门禁。
 
 ## Phase 0 Spec 队列
@@ -183,9 +183,9 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 计划。已有链接但尚未批准或仍带阻塞项的文件继续保持 `draft`，不得据此实施。这能避免
 长期空壳 Spec 与实现事实漂移。
 
-下列 Phase 队列中所有以 v0.34–v0.37 为语言依据的 `draft` 条目，共同前置都是：先明确该
-候选对现行 v0.33 的重基与取代关系，再启用对应 guide 版本。各表中的“待启用”是这一完整
-门禁的缩写，不能只凭启用动作跳过重基。
+下列 Phase 队列中所有以 v0.35–v0.37 为语言依据的 `draft` 条目，共同前置都是：先明确该
+候选对现行 v0.34 的重基与取代关系，再启用对应 guide 版本。各表中的“待启用”是这一完整
+门禁的缩写，不能只凭启用动作跳过重基；v0.34 已完成该门禁，不再属于此集合。
 
 ### Phase 1：Lexer / Parser
 
@@ -257,7 +257,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
 | [0213](./0213-trailing-lambda-call-parser.md) | 把同行尾 lambda 规范化为最后一个普通 CallArgument（`done`） | 0010、0012、0014、0175 `done`；v0.33 已启用 |
 | [0214](./0214-implicit-it-lambda-parameter.md) | 为 headerless lambda 建立 contextual 隐式 `it` 的 AST/name/type/ownership 纵向事实（`done`） | 0010、0018、0019、0032、0067、0173、0197、0198、0213 `done` |
-| [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`draft`） | 0017、0064、0176 `done`；v0.34 待启用 |
+| [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`approved`） | 0017、0064、0176 `done`；v0.34 已启用 |
 
 ### Phase 2：名称与类型检查
 
@@ -284,7 +284,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`done`） | 0067、0173、0177 `done` |
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
 | [0179](./0179-sequential-iteration-typed-plan.md) | 为三种 intrinsic 顺序容器发布 provider、元素与名称/discard/value-class Borrow binding typed plan（`draft`） | 0016、0018–0020、0022、0023、0178 `done`；v0.37 待启用；ADR-0023 `proposed` |
-| [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201；v0.34 待启用 |
+| [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201 `done` 后批准 |
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`done`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
@@ -307,7 +307,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0208](./0208-constant-materialization-ownership.md) | 把 const use 解释为 scalar inline 或独立 String temporary owner（`draft`） | 0028、0029 `done`；0026；v0.36 待启用 |
 | [0211](./0211-sequential-iteration-ownership.md) | 发布 whole-loop source loan、逐轮 Borrow binding 与全部退出 cleanup facts（`draft`） | 0029、0030、0032 `done`；0179；v0.37 待启用；ADR-0023 `proposed` |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
-| [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`draft`） | 0029、0032 `done`；0180；v0.34 待启用 |
+| [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`draft`） | 0029、0032 `done`；0180 `done` 后批准 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |
@@ -329,7 +329,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0212](./0212-borrowed-sequential-iteration-ssa.md) | 封闭 borrowed length、Int/size_t bridge 与 provider SSA/LLVM primitives（`draft`） | 0034、0036、0186、0195 `done`；v0.37 待启用；ADR-0023 `proposed` |
 | [0182](./0182-sequential-for-lowering.md) | 把 validated `for` typed/ownership/provider plans 拼装到 SSA/LLVM/native（`draft`） | 0179、0211、0212；v0.37 待启用；ADR-0023 `proposed`；不依赖 0181/0191/0046 |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
-| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`draft`） | 0180、0181；0034、0035、0038、0039、0177、0184、0195 `done`；v0.34 待启用；ADR-0016 accepted |
+| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`draft`） | 0180、0181 `done` 后批准；0034、0035、0038、0039、0177、0184、0195 `done`；ADR-0016 accepted |
 | [0204](./0204-pointer-nullable-when-lowering.md) | 把 owned-root/temporary class/Box/Rc nullable `when` lower 到 verified SSA/LLVM/native（`draft`） | 0034、0184、0196 `done`；0202、0203；v0.35 待启用；ADR-0017 `accepted` |
 | [0207](./0207-pointer-non-null-assertion-lowering.md) | 把 owned-root/temporary class/Box/Rc `!!` lower 到 NullableBranch/Take/Abort 与 native（`draft`） | 0034、0039、0184、0196 `done`；0205、0206；v0.35 待启用；ADR-0017 `accepted` |
 | [0209](./0209-associated-constant-lowering.md) | 把单文件 scalar/Char/String const use 重新物化到 SSA/LLVM/native（`draft`） | 0034、0039、0185、0189、0192 `done`；0026、0208；v0.36 待启用 |
@@ -436,7 +436,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 增量编译不预留在 Phase 0–6 主链中。它依赖稳定 package identity、package lock、SSA 和依赖
 图；推荐在 SPEC-0054 完成后另建 Phase 6+ Spec，并先接受缓存键与失效策略 ADR。
 
-现行 v0.33 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
+现行 v0.34 沿用 v0.14 已确定的规则：v1 的 `Transferable` 与 `Copyable` 一样由编译器结构化自动推导，不开放
 手动实现；标准库并发类型的例外由后续实施 Spec 逐项锁定，`Shareable` 连同跨线程共享原语
 延后到 v2。该规则及跨线程 effect identity 已由 SPEC-0032 实施，不属于下列未决推荐。
 

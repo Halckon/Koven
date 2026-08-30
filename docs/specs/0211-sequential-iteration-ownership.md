@@ -8,10 +8,10 @@
 | Goal ID | `KOV-P3-211` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 起草基线 v0.32；候选 [v0.37 §37](../guide/01-design-decisions.md#37-借用式顺序容器迭代-providerv037-候选未启用) |
-| 批准依据 | 无；v0.37 尚未启用，且尚未显式重基到现行 v0.33 |
+| 批准依据 | 无；v0.37 尚未启用，且尚未显式重基到现行 v0.34 |
 | 前置 Spec | SPEC-0029、0030、0032 `done`；SPEC-0179 待完成 |
 | 前置 ADR | [ADR-0023](../adr/0023-borrowed-sequential-iteration-provider.md) 待 `accepted` |
-| 阻塞项 | 明确 v0.37 对现行 v0.33 的重基与取代关系；v0.37 启用；ADR-0023 `accepted`；SPEC-0179 `done` |
+| 阻塞项 | 明确 v0.37 对现行 v0.34 的重基与取代关系；v0.37 启用；ADR-0023 `accepted`；SPEC-0179 `done` |
 | 影响范围 | `lang-frontend` iteration ownership/loan/liveness/drop/capture facts、fixtures；Roadmap/Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.37 iteration lifecycle |
 

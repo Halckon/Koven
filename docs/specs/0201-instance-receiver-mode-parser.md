@@ -2,16 +2,16 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P1-201` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
-| 批准依据 | 无；v0.34 尚未启用，且尚未显式重基到现行 v0.33 |
+| 语言规范 | 现行 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
+| 批准依据 | 2026-08-31 当前持续 Goal 明确要求在 v0.33 完成后显式启用 v0.34 并继续分阶段实施 |
 | 前置 Spec | SPEC-0017、0064、0176 `done` |
 | 前置 ADR | 无 |
-| 阻塞项 | 明确 v0.34 对现行 v0.33 的重基与取代关系；v0.34 启用 |
+| 阻塞项 | 无；v0.34 已启用，前置 Spec 均为 `done` |
 | 影响范围 | `lang-frontend` Parser/AST、class-family grammar/fixtures、formatter/grammar bridges；Architecture/Roadmap |
-| 语言语义变更 | 否；只实施候选 guide 获得效力后的声明语法 |
+| 语言语义变更 | 否；实施现行 guide 已生效的声明语法 |
 
 ## 1. Goal
 
@@ -44,7 +44,8 @@
 - [ ] visibility/override/receiver 固定顺序、重复/逆序、顶层/companion/非函数位置正反矩阵通过。
 - [ ] 缺 `fun`、缺名称/body 与相邻 member 恢复保持确定，L0076/L0077 primary 精确。
 - [ ] formatter、TextMate/Tree-sitter bridge 与双 Lexer/Parser 不变量不回归。
-- [ ] `lang-frontend` 窄测试和 workspace 五项基线通过，Architecture/Roadmap 同步。
+- [ ] 受影响 `lang-frontend` 窄测试及 workspace Layer 2 静态门禁通过，Architecture/Roadmap 同步；
+  除非风险升级，不机械运行完整 frontend 测试集。
 
 ## 5. 技术方案与边界
 
@@ -74,3 +75,4 @@ function parser。formatter 仍按源码 token 保守输出，不因规范化改
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | Lexer 已有三个 marker；现行 member modifier 明确拒绝它们，需独立 Parser Goal |
 | 2026-08-26 候选闭合审计 | 通过 | grammar §13.5 已同步产生式、合法 owner slot、固定顺序与恢复边界；v0.34 未启用，仍不授权实现 |
+| 2026-08-31 重基与启用审计 | 通过 | v0.34 已重基到完整 v0.33 并显式启用；SPEC-0201 前置均完成，批准进入实施 |
