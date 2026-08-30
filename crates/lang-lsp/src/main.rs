@@ -6,6 +6,7 @@ mod diagnostic_adapter;
 mod position_adapter;
 mod server;
 mod source_set;
+mod unit_session;
 
 use std::error::Error;
 

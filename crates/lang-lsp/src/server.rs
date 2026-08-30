@@ -21,6 +21,7 @@ use crate::{
     diagnostic_adapter::{DiagnosticMappingError, convert_diagnostics},
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
+    unit_session::{UnitPublication, UnitSession, UnitSessionError},
 };
 
 /// 运行一个已建立 transport 的 Koven LSP 会话。
@@ -40,7 +41,7 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
             return Ok(());
         }
     };
-    let _source_set = match SourceSetConfig::from_initialization_options(
+    let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
         Ok(source_set) => source_set,
@@ -56,6 +57,36 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
             return Ok(());
         }
     };
+    let (mut state, initial_publications) = match source_set {
+        Some(config) => match UnitSession::new(config) {
+            Ok(session) => match session.publications() {
+                Ok(publications) => (SessionState::Unit(Box::new(session)), Some(publications)),
+                Err(error) => {
+                    send_response(
+                        &connection,
+                        Response::new_err(
+                            initialize_id,
+                            ErrorCode::InternalError as i32,
+                            error.to_string(),
+                        ),
+                    )?;
+                    return Ok(());
+                }
+            },
+            Err(error) => {
+                send_response(
+                    &connection,
+                    Response::new_err(
+                        initialize_id,
+                        ErrorCode::InternalError as i32,
+                        error.to_string(),
+                    ),
+                )?;
+                return Ok(());
+            }
+        },
+        None => (SessionState::Legacy(BTreeMap::new()), None),
+    };
     let initialize_result = InitializeResult {
         capabilities: capabilities(),
         server_info: Some(ServerInfo {
@@ -64,8 +95,11 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
         }),
     };
     connection.initialize_finish(initialize_id, serde_json::to_value(initialize_result)?)?;
+    if let Some(publications) = initial_publications {
+        publish_unit(&connection, &publications)
+            .map_err(|error| ServerError::Internal(error.to_string()))?;
+    }
 
-    let mut documents = BTreeMap::new();
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
@@ -73,7 +107,7 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
                     return Ok(());
                 }
                 if request.method == GotoDefinition::METHOD {
-                    handle_definition_request(&connection, request, &documents)?;
+                    handle_definition_request(&connection, request, &state)?;
                     continue;
                 }
                 send_response(
@@ -86,7 +120,7 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
                 )?;
             }
             Message::Notification(notification) => {
-                if let Err(error) = handle_notification(&connection, notification, &mut documents) {
+                if let Err(error) = handle_notification(&connection, notification, &mut state) {
                     send_log(&connection, error.to_string())?;
                 }
             }
@@ -118,6 +152,11 @@ struct OpenDocument {
     analysis: Analysis,
 }
 
+enum SessionState {
+    Legacy(BTreeMap<String, OpenDocument>),
+    Unit(Box<UnitSession>),
+}
+
 impl OpenDocument {
     fn analyze(uri: &Uri, version: i32, text: &str) -> Result<Self, AnalysisError> {
         Ok(Self {
@@ -128,6 +167,19 @@ impl OpenDocument {
 }
 
 fn handle_notification(
+    connection: &Connection,
+    notification: Notification,
+    state: &mut SessionState,
+) -> Result<(), NotificationError> {
+    match state {
+        SessionState::Legacy(documents) => {
+            handle_legacy_notification(connection, notification, documents)
+        }
+        SessionState::Unit(session) => handle_unit_notification(connection, notification, session),
+    }
+}
+
+fn handle_legacy_notification(
     connection: &Connection,
     notification: Notification,
     documents: &mut BTreeMap<String, OpenDocument>,
@@ -173,6 +225,60 @@ fn handle_notification(
     Ok(())
 }
 
+fn handle_unit_notification(
+    connection: &Connection,
+    notification: Notification,
+    session: &mut UnitSession,
+) -> Result<(), NotificationError> {
+    let update = match notification.method.as_str() {
+        DidOpenTextDocument::METHOD => {
+            let params: DidOpenTextDocumentParams = serde_json::from_value(notification.params)?;
+            session.prepare_open(
+                &params.text_document.uri,
+                params.text_document.version,
+                params.text_document.text,
+            )?
+        }
+        DidChangeTextDocument::METHOD => {
+            let params: DidChangeTextDocumentParams = serde_json::from_value(notification.params)?;
+            let [change] = params.content_changes.as_slice() else {
+                return Err(NotificationError::ExpectedSingleFullChange);
+            };
+            if change.range.is_some() || change.range_length.is_some() {
+                return Err(NotificationError::ExpectedSingleFullChange);
+            }
+            session.prepare_change(
+                &params.text_document.uri,
+                params.text_document.version,
+                change.text.clone(),
+            )?
+        }
+        DidCloseTextDocument::METHOD => {
+            let params: DidCloseTextDocumentParams = serde_json::from_value(notification.params)?;
+            session.prepare_close(&params.text_document.uri)?
+        }
+        _ => return Ok(()),
+    };
+    publish_unit(connection, update.publications())?;
+    session.commit(update);
+    Ok(())
+}
+
+fn publish_unit(
+    connection: &Connection,
+    publications: &[UnitPublication],
+) -> Result<(), NotificationError> {
+    for publication in publications {
+        publish(
+            connection,
+            publication.uri.clone(),
+            publication.version,
+            publication.diagnostics.clone(),
+        )?;
+    }
+    Ok(())
+}
+
 fn publish_document(
     connection: &Connection,
     uri: &Uri,
@@ -189,9 +295,9 @@ fn publish_document(
 fn handle_definition_request(
     connection: &Connection,
     request: Request,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &SessionState,
 ) -> Result<(), ServerError> {
-    let response = match definition_response(request.params, documents) {
+    let response = match definition_response(request.params, state) {
         Ok(result) => Response::new_ok(request.id, serde_json::to_value(result)?),
         Err(RequestError::InvalidParams(message)) => {
             Response::new_err(request.id, ErrorCode::InvalidParams as i32, message)
@@ -205,11 +311,14 @@ fn handle_definition_request(
 
 fn definition_response(
     params: serde_json::Value,
-    documents: &BTreeMap<String, OpenDocument>,
+    state: &SessionState,
 ) -> Result<Option<GotoDefinitionResponse>, RequestError> {
     let params: GotoDefinitionParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
     let position = params.text_document_position_params;
+    let SessionState::Legacy(documents) = state else {
+        return Ok(None);
+    };
     let Some(document) = documents.get(position.text_document.uri.as_str()) else {
         return Ok(None);
     };
@@ -301,6 +410,7 @@ fn send_response(connection: &Connection, response: Response) -> Result<(), Serv
 pub(crate) enum ServerError {
     Protocol(lsp_server::ProtocolError),
     Json(serde_json::Error),
+    Internal(String),
     Disconnected,
 }
 
@@ -309,6 +419,7 @@ impl fmt::Display for ServerError {
         match self {
             Self::Protocol(error) => write!(formatter, "LSP protocol error: {error}"),
             Self::Json(error) => write!(formatter, "invalid LSP JSON payload: {error}"),
+            Self::Internal(message) => write!(formatter, "LSP internal failure: {message}"),
             Self::Disconnected => formatter.write_str("LSP connection disconnected"),
         }
     }
@@ -333,6 +444,7 @@ enum NotificationError {
     Json(serde_json::Error),
     Analysis(AnalysisError),
     Mapping(DiagnosticMappingError),
+    Unit(UnitSessionError),
     Server(ServerError),
     ExpectedSingleFullChange,
 }
@@ -343,6 +455,7 @@ impl fmt::Display for NotificationError {
             Self::Json(error) => write!(formatter, "invalid notification params: {error}"),
             Self::Analysis(error) => write!(formatter, "document analysis failed: {error}"),
             Self::Mapping(error) => write!(formatter, "diagnostic mapping failed: {error}"),
+            Self::Unit(error) => write!(formatter, "source-set update failed: {error}"),
             Self::Server(error) => write!(formatter, "diagnostic publication failed: {error}"),
             Self::ExpectedSingleFullChange => {
                 formatter.write_str("didChange must contain exactly one full-document change")
@@ -364,6 +477,7 @@ macro_rules! notification_error_from {
 notification_error_from!(serde_json::Error, Json);
 notification_error_from!(AnalysisError, Analysis);
 notification_error_from!(DiagnosticMappingError, Mapping);
+notification_error_from!(UnitSessionError, Unit);
 notification_error_from!(ServerError, Server);
 
 #[cfg(test)]
@@ -373,12 +487,12 @@ mod tests {
     use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId};
     use lsp_types::{
         DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-        GotoDefinitionResponse, InitializeParams, InitializeResult, InitializedParams, Position,
-        PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-        TextDocumentItem, VersionedTextDocumentIdentifier,
+        GotoDefinitionResponse, InitializeParams, InitializeResult, InitializedParams,
+        LogMessageParams, Position, PublishDiagnosticsParams, TextDocumentContentChangeEvent,
+        TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
         notification::{
             DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Exit, Initialized,
-            Notification as LspNotification, PublishDiagnostics,
+            LogMessage, Notification as LspNotification, PublishDiagnostics,
         },
         request::{GotoDefinition, Initialize, Request as LspRequest, Shutdown},
     };
@@ -424,6 +538,9 @@ mod tests {
             Initialized::METHOD,
             serde_json::to_value(InitializedParams {}).expect("initialized params"),
         );
+        let initial = receive_diagnostics(&client);
+        assert_eq!(initial.version, None);
+        assert!(initial.diagnostics.is_empty());
         shutdown(&client);
         server_thread
             .join()
@@ -700,13 +817,490 @@ mod tests {
             .expect("server result");
     }
 
+    #[test]
+    fn source_set_lifecycle_rebuilds_all_diagnostics_and_restores_base_text() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let provider_uri: lsp_types::Uri = "file:///workspace/p/api.ko".parse().expect("uri");
+        let consumer_uri: lsp_types::Uri = "file:///workspace/q/use.ko".parse().expect("uri");
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [
+                    {
+                        "root": "main",
+                        "logicalPath": "q/use.ko",
+                        "uri": consumer_uri,
+                        "text": "package q\nfun use(): Int = p.missing()"
+                    },
+                    {
+                        "root": "main",
+                        "logicalPath": "p/api.ko",
+                        "uri": provider_uri,
+                        "text": "package p\nfun make(): Int = 1"
+                    }
+                ]
+            }}})),
+        );
+
+        let initial = receive_publications(&client, 2);
+        assert_publication_order(&initial, &provider_uri, &consumer_uri);
+        assert_eq!(initial[0].version, None);
+        assert_eq!(initial[1].version, None);
+        assert!(has_code(&initial[1], "L0080"));
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    consumer_uri.clone(),
+                    "koven".to_owned(),
+                    1,
+                    "package q\nfun use(): Int = p.make()".to_owned(),
+                ),
+            })
+            .expect("consumer open"),
+        );
+        let consumer_open = receive_publications(&client, 2);
+        assert_publication_order(&consumer_open, &provider_uri, &consumer_uri);
+        assert_eq!(consumer_open[0].version, None);
+        assert_eq!(consumer_open[1].version, Some(1));
+        assert!(
+            consumer_open.iter().all(|item| item.diagnostics.is_empty()),
+            "{consumer_open:?}"
+        );
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    provider_uri.clone(),
+                    "koven".to_owned(),
+                    5,
+                    "package p\nfun other(): Int = 2".to_owned(),
+                ),
+            })
+            .expect("provider open"),
+        );
+        let provider_open = receive_publications(&client, 2);
+        assert_eq!(provider_open[0].version, Some(5));
+        assert_eq!(provider_open[1].version, Some(1));
+        assert!(has_code(&provider_open[1], "L0080"));
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(consumer_uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package q\nfun use(): Int = p.other()".to_owned(),
+                }],
+            })
+            .expect("consumer change"),
+        );
+        let consumer_change = receive_publications(&client, 2);
+        assert_eq!(consumer_change[0].version, Some(5));
+        assert_eq!(consumer_change[1].version, Some(2));
+        assert!(
+            consumer_change
+                .iter()
+                .all(|item| item.diagnostics.is_empty())
+        );
+
+        send_notification(
+            &client,
+            DidCloseTextDocument::METHOD,
+            serde_json::to_value(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(provider_uri.clone()),
+            })
+            .expect("provider close"),
+        );
+        let provider_close = receive_publications(&client, 2);
+        assert_eq!(provider_close[0].version, None);
+        assert_eq!(provider_close[1].version, Some(2));
+        assert!(has_code(&provider_close[1], "L0080"));
+
+        send_notification(
+            &client,
+            DidCloseTextDocument::METHOD,
+            serde_json::to_value(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(consumer_uri.clone()),
+            })
+            .expect("consumer close"),
+        );
+        let consumer_close = receive_publications(&client, 2);
+        assert_eq!(consumer_close[0].version, None);
+        assert_eq!(consumer_close[1].version, None);
+        assert!(has_code(&consumer_close[1], "L0080"));
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
+    fn source_set_protocol_events_log_and_preserve_last_good_state() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let uri: lsp_types::Uri = "file:///workspace/app/main.ko".parse().expect("uri");
+        let unknown: lsp_types::Uri = "file:///workspace/app/unknown.ko".parse().expect("uri");
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [{
+                    "root": "main",
+                    "logicalPath": "app/main.ko",
+                    "uri": uri,
+                    "text": "package app\nfun main(): Unit {}"
+                }]
+            }}})),
+        );
+        receive_diagnostics(&client);
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    unknown.clone(),
+                    "koven".to_owned(),
+                    1,
+                    "package app".to_owned(),
+                ),
+            })
+            .expect("unknown open"),
+        );
+        assert!(receive_log(&client).message.contains("unknown URI"));
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "koven".to_owned(),
+                    4,
+                    "package app\nfun main(): Unit {}".to_owned(),
+                ),
+            })
+            .expect("known open"),
+        );
+        assert_eq!(receive_diagnostics(&client).version, Some(4));
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "koven".to_owned(),
+                    5,
+                    "@".to_owned(),
+                ),
+            })
+            .expect("duplicate open"),
+        );
+        assert!(receive_log(&client).message.contains("duplicated URI"));
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 4),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "@".to_owned(),
+                }],
+            })
+            .expect("stale change"),
+        );
+        assert!(receive_log(&client).message.contains("is not newer"));
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 5),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: Some(lsp_types::Range::new(
+                        Position::new(0, 0),
+                        Position::new(0, 0),
+                    )),
+                    range_length: None,
+                    text: "@".to_owned(),
+                }],
+            })
+            .expect("partial change"),
+        );
+        assert!(receive_log(&client).message.contains("full-document"));
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 5),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package app\nfun changed(): Unit {}".to_owned(),
+                }],
+            })
+            .expect("valid change"),
+        );
+        let changed = receive_diagnostics(&client);
+        assert_eq!(changed.version, Some(5));
+        assert!(changed.diagnostics.is_empty());
+
+        send_notification(
+            &client,
+            DidCloseTextDocument::METHOD,
+            serde_json::to_value(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+            })
+            .expect("close"),
+        );
+        assert_eq!(receive_diagnostics(&client).version, None);
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 6),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "@".to_owned(),
+                }],
+            })
+            .expect("unopened change"),
+        );
+        assert!(receive_log(&client).message.contains("unopened URI"));
+
+        send_notification(
+            &client,
+            DidCloseTextDocument::METHOD,
+            serde_json::to_value(DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier::new(unknown),
+            })
+            .expect("unknown close"),
+        );
+        assert!(receive_log(&client).message.contains("unopened URI"));
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
+    fn source_set_internal_analysis_failure_preserves_last_good_snapshot() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let uri: lsp_types::Uri = "file:///workspace/app/main.ko".parse().expect("uri");
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [{
+                    "root": "main",
+                    "logicalPath": "app/main.ko",
+                    "uri": uri,
+                    "text": "package app\nfun main(): Unit {}"
+                }]
+            }}})),
+        );
+        receive_diagnostics(&client);
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "koven".to_owned(),
+                    1,
+                    "package app\nfun main(): Unit {}".to_owned(),
+                ),
+            })
+            .expect("open"),
+        );
+        assert_eq!(receive_diagnostics(&client).version, Some(1));
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package app\nfun broken(): Unit { this }".to_owned(),
+                }],
+            })
+            .expect("internally unsupported change"),
+        );
+        assert!(
+            receive_log(&client)
+                .message
+                .contains("does not yet support node")
+        );
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package app\nfun recovered(): Unit {}".to_owned(),
+                }],
+            })
+            .expect("recovery change"),
+        );
+        let recovered = receive_diagnostics(&client);
+        assert_eq!(recovered.version, Some(2));
+        assert!(recovered.diagnostics.is_empty());
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
+    fn source_set_diagnostics_follow_parser_type_and_ownership_validation_gates() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let provider_uri: lsp_types::Uri = "file:///workspace/p/api.ko".parse().expect("uri");
+        let consumer_uri: lsp_types::Uri = "file:///workspace/q/use.ko".parse().expect("uri");
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [
+                    {
+                        "root": "main",
+                        "logicalPath": "p/api.ko",
+                        "uri": provider_uri,
+                        "text": "package p\nfun helper(): Unit {}"
+                    },
+                    {
+                        "root": "main",
+                        "logicalPath": "q/use.ko",
+                        "uri": consumer_uri,
+                        "text": "package q\nfun ok(): Unit {}"
+                    }
+                ]
+            }}})),
+        );
+        receive_publications(&client, 2);
+
+        send_notification(
+            &client,
+            DidOpenTextDocument::METHOD,
+            serde_json::to_value(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    consumer_uri.clone(),
+                    "koven".to_owned(),
+                    1,
+                    "#".to_owned(),
+                ),
+            })
+            .expect("parser overlay"),
+        );
+        let parser = receive_publications(&client, 2);
+        assert_publication_order(&parser, &provider_uri, &consumer_uri);
+        assert!(parser[0].diagnostics.is_empty());
+        assert_eq!(code_count(&parser[1], "L0001"), 1);
+        assert_eq!(code_count(&parser[1], "L0084"), 0);
+        assert_eq!(code_count(&parser[1], "L0131"), 0);
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(consumer_uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package q\nfun typed(): Unit { val item: String = 1 }".to_owned(),
+                }],
+            })
+            .expect("type overlay"),
+        );
+        let typed = receive_publications(&client, 2);
+        assert!(typed[0].diagnostics.is_empty());
+        assert_eq!(code_count(&typed[1], "L0001"), 0);
+        assert_eq!(code_count(&typed[1], "L0084"), 1);
+        assert_eq!(code_count(&typed[1], "L0131"), 0);
+
+        send_notification(
+            &client,
+            DidChangeTextDocument::METHOD,
+            serde_json::to_value(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(consumer_uri.clone(), 3),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "package q\n\
+                           class Resource()\n\
+                           fun take(own resource: Resource): Unit {}\n\
+                           fun moved(own resource: Resource): Unit {\n\
+                               val first = take(resource)\n\
+                               val second = take(resource)\n\
+                           }"
+                    .to_owned(),
+                }],
+            })
+            .expect("ownership overlay"),
+        );
+        let owned = receive_publications(&client, 2);
+        assert!(owned[0].diagnostics.is_empty());
+        assert_eq!(code_count(&owned[1], "L0001"), 0);
+        assert_eq!(code_count(&owned[1], "L0084"), 0);
+        assert_eq!(code_count(&owned[1], "L0131"), 1);
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
     fn initialize(client: &Connection) {
+        initialize_with_options(client, None);
+    }
+
+    fn initialize_with_options(client: &Connection, options: Option<serde_json::Value>) {
+        let mut params = serde_json::to_value(InitializeParams::default()).expect("params");
+        if let Some(options) = options {
+            params["initializationOptions"] = options;
+        }
         client
             .sender
             .send(Message::Request(Request {
                 id: RequestId::from(1_i32),
                 method: Initialize::METHOD.to_owned(),
-                params: serde_json::to_value(InitializeParams::default()).expect("params"),
+                params,
             }))
             .expect("initialize request");
         let Message::Response(response) = client.receiver.recv_timeout(TIMEOUT).expect("response")
@@ -845,5 +1439,45 @@ mod tests {
         };
         assert_eq!(notification.method, PublishDiagnostics::METHOD);
         serde_json::from_value(notification.params).expect("diagnostics params")
+    }
+
+    fn receive_publications(client: &Connection, count: usize) -> Vec<PublishDiagnosticsParams> {
+        (0..count).map(|_| receive_diagnostics(client)).collect()
+    }
+
+    fn receive_log(client: &Connection) -> LogMessageParams {
+        let Message::Notification(notification) = client
+            .receiver
+            .recv_timeout(TIMEOUT)
+            .expect("log notification")
+        else {
+            panic!("expected log notification");
+        };
+        assert_eq!(notification.method, LogMessage::METHOD);
+        serde_json::from_value(notification.params).expect("log params")
+    }
+
+    fn assert_publication_order(
+        publications: &[PublishDiagnosticsParams],
+        first: &lsp_types::Uri,
+        second: &lsp_types::Uri,
+    ) {
+        assert_eq!(publications.len(), 2);
+        assert_eq!(&publications[0].uri, first);
+        assert_eq!(&publications[1].uri, second);
+    }
+
+    fn has_code(publication: &PublishDiagnosticsParams, code: &str) -> bool {
+        code_count(publication, code) != 0
+    }
+
+    fn code_count(publication: &PublishDiagnosticsParams, code: &str) -> usize {
+        publication
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.code == Some(lsp_types::NumberOrString::String(code.to_owned()))
+            })
+            .count()
     }
 }

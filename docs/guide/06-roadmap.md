@@ -612,8 +612,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
 - [ ] **[SPEC-0187](../specs/0187-multifile-lsp-diagnostics-definition.md)（实施中）**：复用
       SPEC-0025/0197/0198 的 compilation-unit frontend 产物提供跨文件诊断与跳转定义；不得在
       LSP 内复制 resolver；它与 SPEC-0199 并行，不依赖 native。ADR-0021 已接受并封闭版本化
-      显式 base source-set wire；0025/0197/0198 前置已完成，version 1 初始化正反矩阵已接入，
-      base/overlay snapshot 与跨文件语义仍按后续切片实施。project CLI
+      显式 base source-set wire；0025/0197/0198 前置已完成，version 1 初始化、base/overlay 原子
+      snapshot 与跨文件 diagnostics 已接入，跨文件 definition 仍按后续切片实施。project CLI
       manifest discovery 已由 SPEC-0052 完成，project build 等待 SPEC-0054；二者不成为 LSP 隐式输入。
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码

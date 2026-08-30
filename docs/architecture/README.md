@@ -1312,8 +1312,17 @@ SPEC-0187 第一切片在 legacy 单文档状态之外接入 ADR-0021 的可选 
 `(root, logicalPath)`/URI 一一映射、ADR-0005 逻辑路径和绝对 URI，并按稳定 source key 规范排序；
 无关 initialization options 与缺席 source-set 继续进入 legacy 模式。URI 只解析为 presentation
 identity，base text 完全来自初始化 payload，不读取磁盘。非法协议在 initialize 阶段返回 JSON-RPC
-`InvalidParams`，不会进入文档生命周期；base/overlay snapshot、跨文件诊断与 definition 仍由本 Spec
-后续切片接入。
+`InvalidParams`，不会进入文档生命周期；在该切片当时，base/overlay snapshot、跨文件诊断与
+definition 仍由本 Spec 后续切片接入。
+
+SPEC-0187 第二切片新增 source-set 专用 `UnitSession`。每次 initial/open/change/close 都从 immutable
+base 与候选 overlay 集合重建一个共同 `SourceMap`、全部 `ParsedFile` 及 compilation-unit
+name/type/ownership recovery 链；普通源码错误成为新 snapshot 的诊断，frontend 内部失败则记录日志并
+保留 last-good overlay/version/snapshot。diagnostic adapter 按 primary `SourceId` 分组，related label
+按自身 source URI 映射；全部 URI（包括空集合）在映射成功后按 `(root, logicalPath)` 顺序发布，打开
+文档携带 overlay version，base-only/close 回落为 `None`。unknown/duplicate open、unopened/stale/
+partial change 与 unknown close 只记录协议日志；候选 payload 全部发送成功后才提交状态。legacy 模式
+继续使用既有每 URI `Analysis`；source-set definition 暂返回 `null`，由第三切片接入。
 
 ## 索引式 AST 存储
 

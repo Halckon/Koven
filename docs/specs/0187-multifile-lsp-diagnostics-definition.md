@@ -51,10 +51,10 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 
 - [x] version 1 初始化正反矩阵覆盖 schema/version、重复 root/key/URI、未知 root、非法路径/URI，
   并证明 server 不读取 URI 指向的磁盘内容。
-- [ ] 多文件 open/change/close 测试覆盖诊断新增、迁移、清除、base 回落、version 与确定发布顺序。
+- [x] 多文件 open/change/close 测试覆盖诊断新增、迁移、清除、base 回落、version 与确定发布顺序。
 - [ ] definition 覆盖 exact alias、wildcard、限定名、同 package 及 private/inaccessible 反例。
-- [ ] 跨 source primary/related URI、UTF-16/CRLF/空 Span 和 internal failure last-good 原子性通过。
-- [ ] sourceSet 缺席时 SPEC-0055/0056 的 legacy suite 精确回归。
+- [x] 跨 source primary/related URI、UTF-16/CRLF/空 Span 和 internal failure last-good 原子性通过。
+- [x] sourceSet 缺席时 SPEC-0055/0056 的 legacy suite 精确回归。
 - [ ] LSP 不包含第二套 import resolver；lang-lsp/workspace 基线与 Architecture 同步。
 
 ## 6. 技术方案与边界
@@ -67,7 +67,7 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 ## 7. 实施计划
 
 1. [x] 解析 version 1 source set 并保留 legacy fallback → 验证：initialize 正反矩阵。
-2. [ ] 建立 immutable base、buffer overlay 与原子 unit snapshot → 验证：open/change/close、
+2. [x] 建立 immutable base、buffer overlay 与原子 unit snapshot → 验证：open/change/close、
    stale/internal-failure 测试。
 3. [ ] 接跨文件 diagnostics/definition → 验证：多 URI、UTF-16 与 frontend 正反矩阵。
 4. [ ] 同步 Architecture 并跑 workspace 基线。
@@ -96,3 +96,8 @@ source set；LSP 对该 unit 发布跨文件 package/import、类型和所有权
 | `cargo test -q -p lang-lsp source_set_initialization --locked --offline` | 7 passed | strict schema/version/field、root/key/URI/path、确定排序、不读取 URI、legacy 缺席、valid session 与 initialize `InvalidParams` |
 | `cargo clippy -p lang-lsp --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第一切片只跑 LSP 窄测与受影响 crate 静态门禁，不运行 `lang-frontend` 全量 |
 | 独立 fresh-context 评审 | 通过 | 复核 ADR-0021 strict wire、无关 option、路径/URI/排序、不读磁盘、InvalidParams 与 legacy fallback；修正 Specs 总路线图状态漂移后无 P1/P2/P3 |
+| `cargo test -q -p lang-lsp server::tests --locked --offline` | 9 passed | initial base、全 URI stable-order publish、跨文件诊断新增/清除、overlay version/base 回落、协议忽略、internal failure last-good、parser/type/ownership validation gate 与 legacy lifecycle |
+| `cargo test -q -p lang-lsp diagnostic_adapter::tests --locked --offline` | 2 passed | primary source 分组、cross-source related URI/UTF-16 range，并回归 CRLF、空 Span 与单文档映射 |
+| `cargo test -q -p lang-lsp source_set_ --locked --offline` | 11 passed | 第二切片的聚合窄测入口；覆盖初始化、unit lifecycle、诊断门禁与 last-good，不运行 `lang-frontend` 全量 |
+| `cargo clippy -p lang-lsp --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二切片复用 LSP scoped tests + 受影响 crate 静态门禁，不运行 `lang-frontend` 全量 |
+| 第二切片独立 fresh-context 复审 | 通过 | 确认 snapshot 保留同源 name/type/ownership recovery products、三阶段诊断门禁与 Box 后原子 commit 语义；无 P1/P2/P3 |

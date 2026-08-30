@@ -247,7 +247,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0212 | 借用式顺序迭代 SSA/LLVM primitives | `01-design-decisions.md` §37、`../specs/0212-borrowed-sequential-iteration-ssa.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0213 | 尾 lambda 调用 Parser | `05-grammar-calls-lambda.md`、`../specs/0213-trailing-lambda-call-parser.md` | ⏸ draft；v0.33 未启用 |
 | SPEC-0214 | 隐式 `it` lambda 参数 | `05-grammar-calls-lambda.md`、`../specs/0214-implicit-it-lambda-parameter.md` | ⏸ draft；v0.33 未启用；等待 SPEC-0213 |
-| SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | 🚧 实施中；source-set v1 初始化已接入 |
+| SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | 🚧 实施中；source-set v1 与 unit diagnostics 已接入 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0179 | 顺序容器借用迭代 typed plan | `01-design-decisions.md` §37、`../specs/0179-sequential-iteration-typed-plan.md` | ⏸ draft；v0.37 未启用 |

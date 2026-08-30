@@ -125,6 +125,11 @@ impl SourceSetConfig {
             sources,
         })
     }
+
+    /// 返回按 `(root, logicalPath)` 规范排序的 base sources。
+    pub(crate) fn sources(&self) -> &[BaseSource] {
+        &self.sources
+    }
 }
 
 /// source-set 中一份不可变 base source。
@@ -139,6 +144,26 @@ pub(crate) struct BaseSource {
 impl BaseSource {
     fn key(&self) -> (&str, &str) {
         (&self.root, &self.logical_path)
+    }
+
+    /// 返回稳定 root identity。
+    pub(crate) fn root(&self) -> &str {
+        &self.root
+    }
+
+    /// 返回 root 内逻辑路径。
+    pub(crate) fn logical_path(&self) -> &str {
+        &self.logical_path
+    }
+
+    /// 返回只用于 LSP 展示和事件定位的绝对 URI。
+    pub(crate) const fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    /// 返回 host 提供的不可变 base text。
+    pub(crate) fn text(&self) -> &str {
+        &self.text
     }
 }
 

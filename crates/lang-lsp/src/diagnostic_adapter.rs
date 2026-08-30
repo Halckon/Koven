@@ -1,14 +1,45 @@
 //! frontend 结构化诊断到标准 LSP diagnostic 的纯转换。
 
+use std::{error::Error, fmt};
+
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
-    source::SourceMap,
+    source::{SourceId, SourceMap},
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString, Uri};
 
 use crate::position_adapter::{PositionMappingError, span_range};
 
-pub(crate) type DiagnosticMappingError = PositionMappingError;
+/// diagnostic 的 source/UTF-16 映射失败。
+#[derive(Debug)]
+pub(crate) enum DiagnosticMappingError {
+    Position(PositionMappingError),
+    UnknownSource(SourceId),
+}
+
+impl fmt::Display for DiagnosticMappingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Position(error) => {
+                write!(formatter, "diagnostic position mapping failed: {error}")
+            }
+            Self::UnknownSource(source) => {
+                write!(
+                    formatter,
+                    "diagnostic references unmapped source {source:?}"
+                )
+            }
+        }
+    }
+}
+
+impl Error for DiagnosticMappingError {}
+
+impl From<PositionMappingError> for DiagnosticMappingError {
+    fn from(error: PositionMappingError) -> Self {
+        Self::Position(error)
+    }
+}
 
 /// 把确定性 frontend 诊断转换为同序的 LSP 诊断。
 pub(crate) fn convert_diagnostics(
@@ -18,20 +49,49 @@ pub(crate) fn convert_diagnostics(
 ) -> Result<Vec<lsp_types::Diagnostic>, DiagnosticMappingError> {
     diagnostics
         .iter()
-        .map(|diagnostic| convert_diagnostic(sources, uri, diagnostic))
+        .map(|diagnostic| convert_diagnostic(sources, diagnostic, |_| Some(uri)))
         .collect()
 }
 
-fn convert_diagnostic(
+/// 按 primary source 分组转换 unit diagnostics；related label 使用自身 source URI。
+pub(crate) fn convert_unit_diagnostics(
     sources: &SourceMap,
-    uri: &Uri,
+    uris: &[(SourceId, Uri)],
+    diagnostics: &[Diagnostic],
+) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
+    let mut grouped = vec![Vec::new(); uris.len()];
+    for diagnostic in diagnostics {
+        let source = diagnostic.primary_span().source_id();
+        let index = uris
+            .iter()
+            .position(|(candidate, _)| *candidate == source)
+            .ok_or(DiagnosticMappingError::UnknownSource(source))?;
+        let converted = convert_diagnostic(sources, diagnostic, |source| {
+            uris.iter()
+                .find(|(candidate, _)| *candidate == source)
+                .map(|(_, uri)| uri)
+        })?;
+        grouped[index].push(converted);
+    }
+    Ok(grouped)
+}
+
+fn convert_diagnostic<'uri>(
+    sources: &SourceMap,
     diagnostic: &Diagnostic,
+    uri_for_source: impl Fn(SourceId) -> Option<&'uri Uri>,
 ) -> Result<lsp_types::Diagnostic, DiagnosticMappingError> {
+    let _primary_uri = uri_for_source(diagnostic.primary_span().source_id()).ok_or(
+        DiagnosticMappingError::UnknownSource(diagnostic.primary_span().source_id()),
+    )?;
     let mut message = diagnostic.message().to_owned();
     let mut related = Vec::new();
     for detail in diagnostic.details() {
         match detail {
             DiagnosticDetail::Label(label) => {
+                let uri = uri_for_source(label.span().source_id()).ok_or(
+                    DiagnosticMappingError::UnknownSource(label.span().source_id()),
+                )?;
                 related.push(DiagnosticRelatedInformation {
                     location: Location::new(uri.clone(), span_range(sources, label.span())?),
                     message: label.message().to_owned(),
@@ -70,7 +130,7 @@ mod tests {
     };
     use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range, Uri};
 
-    use super::convert_diagnostics;
+    use super::{convert_diagnostics, convert_unit_diagnostics};
 
     #[test]
     fn maps_utf16_crlf_empty_ranges_and_details_without_losing_order() {
@@ -134,5 +194,48 @@ mod tests {
             mapped_warning[0].severity,
             Some(DiagnosticSeverity::WARNING)
         );
+    }
+
+    #[test]
+    fn maps_unit_primary_and_related_locations_to_their_own_uris() {
+        let mut sources = SourceMap::new();
+        let provider = sources
+            .add_source("provider", "fun target(): Unit {}")
+            .expect("provider");
+        let consumer = sources
+            .add_source("consumer", "fun use(): Unit { target() }")
+            .expect("consumer");
+        let primary = sources.span(consumer, 18, 24).expect("primary");
+        let target = sources.span(provider, 4, 10).expect("target");
+        let catalog = codes::catalog().expect("catalog");
+        let mut diagnostic = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0080").expect("code"),
+            "cross-source diagnostic",
+            primary,
+        )
+        .expect("diagnostic");
+        diagnostic
+            .add_label(&sources, target, "declared here")
+            .expect("related label");
+        let provider_uri: Uri = "file:///workspace/p/provider.ko".parse().expect("uri");
+        let consumer_uri: Uri = "file:///workspace/q/consumer.ko".parse().expect("uri");
+
+        let grouped = convert_unit_diagnostics(
+            &sources,
+            &[(provider, provider_uri.clone()), (consumer, consumer_uri)],
+            &[diagnostic],
+        )
+        .expect("unit diagnostic mapping");
+
+        assert!(grouped[0].is_empty());
+        assert_eq!(grouped[1].len(), 1);
+        let related = grouped[1][0]
+            .related_information
+            .as_ref()
+            .expect("related information");
+        assert_eq!(related[0].location.uri, provider_uri);
+        assert_eq!(related[0].location.range.start, Position::new(0, 4));
     }
 }

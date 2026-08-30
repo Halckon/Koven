@@ -142,7 +142,7 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
 | 已物化 v0.33 lambda 候选 | SPEC-0213→0214 | 0213 只把尾 lambda 规范化为普通 CallArgument；0214 为全部 headerless lambda 纵向接通 contextual `it` 的 name/type/mode/ownership，未启用，保持 draft |
-| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，0199 已完成 unit native lowering；0187 已接入 source-set v1 初始化，snapshot/跨文件语义待后续切片 |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，0199 已完成 unit native lowering；0187 已接入 source-set v1 与 base/overlay unit diagnostics，跨文件 definition 待后续切片 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
 | 项目构建后继 | SPEC-0053/0054、0200 | 0052/0199 已满足显式 entry 的无依赖 build 技术前置；0054 仍等待 v0.33 用户启用，0053/0200 独立承接依赖 lock/build |
@@ -367,7 +367,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | 0200 | 编排 dependency-aware project build | 0053、0054；跨 compilation-unit export/ABI guide 与 ADR |
 | [0055](./0055-single-document-lsp-diagnostics.md) | 让 LSP 对打开的单文档发布完整 frontend 诊断（`done`） | 0002、0003、0018–0023、0027–0030、0032 `done`；跨文件诊断继续等待 0025；当前持续 Goal 的站立授权 |
 | [0056](./0056-single-document-definition.md) | 让 LSP 对打开 buffer 提供单文档语义跳转定义（`done`） | 0055、0018–0023、0067 `done`；跨文件目标明确排除；当前持续 Goal 的站立授权 |
-| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`in-progress`） | 0025、0197、0198、0055、0056 `done`；v0.32 已启用；ADR-0020/0021 `accepted`；source-set v1 初始化已接入 |
+| [0187](./0187-multifile-lsp-diagnostics-definition.md) | 把 LSP 诊断与跳转定义扩展到跨文件 package/import（`in-progress`） | 0025、0197、0198、0055、0056 `done`；v0.32 已启用；ADR-0020/0021 `accepted`；source-set v1 与 base/overlay unit diagnostics 已接入 |
 | [0057](./0057-conservative-source-formatter.md) | 实现稳定、幂等的格式化器（`done`） | 0014、0006 `done`；[ADR-0013](../adr/0013-conservative-source-formatting.md) `accepted` |
 | [0058](./0058-textmate-grammar.md) | 提供 TextMate grammar 与回归 fixture（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
 | [0059](./0059-tree-sitter-grammar.md) | 提供 Tree-sitter grammar 与 corpus（`done`） | 0014、0015 `done`；当前持续 Goal 的站立授权 |
