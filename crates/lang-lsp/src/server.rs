@@ -21,7 +21,7 @@ use crate::{
     diagnostic_adapter::{DiagnosticMappingError, convert_diagnostics},
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
-    unit_session::{UnitPublication, UnitSession, UnitSessionError},
+    unit_session::{UnitDefinitionQueryError, UnitPublication, UnitSession, UnitSessionError},
 };
 
 /// 运行一个已建立 transport 的 Koven LSP 会话。
@@ -316,36 +316,51 @@ fn definition_response(
     let params: GotoDefinitionParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
     let position = params.text_document_position_params;
-    let SessionState::Legacy(documents) = state else {
-        return Ok(None);
-    };
-    let Some(document) = documents.get(position.text_document.uri.as_str()) else {
-        return Ok(None);
-    };
-    let source_id = document.analysis.definitions.source_id();
-    let offset = match byte_offset(&document.analysis.sources, source_id, position.position) {
-        Ok(offset) => offset,
-        Err(PositionMappingError::InsideSurrogatePair) => {
-            return Err(RequestError::InvalidParams(
-                "definition position splits a UTF-16 surrogate pair".to_owned(),
-            ));
+    let locations = match state {
+        SessionState::Unit(session) => {
+            match session.definition_locations(&position.text_document.uri, position.position) {
+                Ok(locations) => locations,
+                Err(UnitDefinitionQueryError::Position(
+                    PositionMappingError::InsideSurrogatePair,
+                )) => {
+                    return Err(RequestError::InvalidParams(
+                        "definition position splits a UTF-16 surrogate pair".to_owned(),
+                    ));
+                }
+                Err(error) => return Err(RequestError::Internal(error.to_string())),
+            }
         }
-        Err(error) => return Err(RequestError::Internal(error.to_string())),
+        SessionState::Legacy(documents) => {
+            let Some(document) = documents.get(position.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let source_id = document.analysis.definitions.source_id();
+            let offset = match byte_offset(&document.analysis.sources, source_id, position.position)
+            {
+                Ok(offset) => offset,
+                Err(PositionMappingError::InsideSurrogatePair) => {
+                    return Err(RequestError::InvalidParams(
+                        "definition position splits a UTF-16 surrogate pair".to_owned(),
+                    ));
+                }
+                Err(error) => return Err(RequestError::Internal(error.to_string())),
+            };
+            let Some(offset) = offset else {
+                return Ok(None);
+            };
+            document
+                .analysis
+                .definitions
+                .targets_at(offset)
+                .iter()
+                .map(|target| {
+                    span_range(&document.analysis.sources, *target)
+                        .map(|range| Location::new(position.text_document.uri.clone(), range))
+                        .map_err(|error| RequestError::Internal(error.to_string()))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
     };
-    let Some(offset) = offset else {
-        return Ok(None);
-    };
-    let locations = document
-        .analysis
-        .definitions
-        .targets_at(offset)
-        .iter()
-        .map(|target| {
-            span_range(&document.analysis.sources, *target)
-                .map(|range| Location::new(position.text_document.uri.clone(), range))
-                .map_err(|error| RequestError::Internal(error.to_string()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(match locations.as_slice() {
         [] => None,
         [location] => Some(GotoDefinitionResponse::Scalar(location.clone())),
@@ -818,6 +833,194 @@ mod tests {
     }
 
     #[test]
+    fn source_set_definition_resolves_imports_qualified_and_same_package() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let provider_uri: lsp_types::Uri = "file:///workspace/lib/api.ko".parse().expect("uri");
+        let same_uri: lsp_types::Uri = "file:///workspace/lib/use.ko".parse().expect("uri");
+        let app_uri: lsp_types::Uri = "file:///workspace/app/use.ko".parse().expect("uri");
+        let provider = "package lib\n/* 😀 */ public fun exactValue(): Int = 1";
+        let same = "package lib\nfun same(): Int = exactValue()";
+        let app = "package app\nimport lib.exactValue as Alias\nimport lib.*\n\
+            fun exact(): Int = /* 😀 */ Alias()\n\
+            fun wild(): Int = exactValue()\n\
+            fun qualified(): Int = lib.exactValue()";
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [
+                    {
+                        "root": "main",
+                        "logicalPath": "lib/api.ko",
+                        "uri": provider_uri,
+                        "text": provider
+                    },
+                    {
+                        "root": "main",
+                        "logicalPath": "lib/use.ko",
+                        "uri": same_uri,
+                        "text": same
+                    },
+                    {
+                        "root": "main",
+                        "logicalPath": "app/use.ko",
+                        "uri": app_uri,
+                        "text": app
+                    }
+                ]
+            }}})),
+        );
+        let initial = receive_publications(&client, 3);
+        assert!(
+            initial
+                .iter()
+                .all(|publication| publication.diagnostics.is_empty()),
+            "{initial:#?}"
+        );
+
+        for (id, needle, index) in [
+            (70, "exactValue", 0),
+            (71, "Alias", 0),
+            (72, "Alias", 1),
+            (73, "exactValue", 1),
+            (74, "exactValue", 2),
+        ] {
+            assert_scalar_definition(
+                &client,
+                RequestId::from(id),
+                &app_uri,
+                position_of(app, needle, index),
+                &provider_uri,
+                provider,
+                "exactValue",
+                0,
+            );
+        }
+        assert_scalar_definition(
+            &client,
+            RequestId::from(75_i32),
+            &same_uri,
+            position_of(same, "exactValue", 0),
+            &provider_uri,
+            provider,
+            "exactValue",
+            0,
+        );
+        assert!(
+            request_definition(
+                &client,
+                RequestId::from(76_i32),
+                &app_uri,
+                position_of(app, "*", 0),
+            )
+            .is_none()
+        );
+        assert!(
+            request_definition(
+                &client,
+                RequestId::from(77_i32),
+                &app_uri,
+                position_of(app, "lib", 2),
+            )
+            .is_none()
+        );
+        let unknown_uri: lsp_types::Uri = "file:///workspace/unknown.ko".parse().expect("uri");
+        assert!(
+            request_definition(
+                &client,
+                RequestId::from(78_i32),
+                &unknown_uri,
+                Position::new(0, 0),
+            )
+            .is_none()
+        );
+        let emoji = position_of(app, "😀", 0);
+        let surrogate_id = RequestId::from(79_i32);
+        send_request(
+            &client,
+            surrogate_id.clone(),
+            GotoDefinition::METHOD,
+            serde_json::json!({
+                "textDocument": { "uri": app_uri },
+                "position": { "line": emoji.line, "character": emoji.character + 1 },
+            }),
+        );
+        let surrogate = receive_response(&client);
+        assert_eq!(surrogate.id, surrogate_id);
+        assert_eq!(
+            surrogate
+                .response_result
+                .expect_err("surrogate position must be invalid")
+                .code,
+            ErrorCode::InvalidParams as i32
+        );
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
+    fn source_set_definition_rejects_private_and_unresolved_targets() {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        let provider_uri: lsp_types::Uri = "file:///workspace/lib/private.ko".parse().expect("uri");
+        let app_uri: lsp_types::Uri = "file:///workspace/app/use.ko".parse().expect("uri");
+        let app = "package app\nimport lib.secret\nfun hidden(): Int = lib.secret\n\
+            fun missing(): Int = absent";
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": ["main"],
+                "sources": [
+                    {
+                        "root": "main",
+                        "logicalPath": "lib/private.ko",
+                        "uri": provider_uri,
+                        "text": "package lib\nprivate val secret = 1"
+                    },
+                    {
+                        "root": "main",
+                        "logicalPath": "app/use.ko",
+                        "uri": app_uri,
+                        "text": app
+                    }
+                ]
+            }}})),
+        );
+        assert!(
+            receive_publications(&client, 2)
+                .iter()
+                .any(|publication| !publication.diagnostics.is_empty())
+        );
+
+        for (id, needle, index) in [(79, "secret", 0), (80, "secret", 1), (81, "absent", 0)] {
+            assert!(
+                request_definition(
+                    &client,
+                    RequestId::from(id),
+                    &app_uri,
+                    position_of(app, needle, index),
+                )
+                .is_none()
+            );
+        }
+
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server result");
+    }
+
+    #[test]
     fn source_set_lifecycle_rebuilds_all_diagnostics_and_restores_base_text() {
         let (server, client) = Connection::memory();
         let server_thread = thread::spawn(|| run(server));
@@ -1111,6 +1314,7 @@ mod tests {
         let (server, client) = Connection::memory();
         let server_thread = thread::spawn(|| run(server));
         let uri: lsp_types::Uri = "file:///workspace/app/main.ko".parse().expect("uri");
+        let stable = "package app\nfun target(): Unit {}\nfun use(): Unit { target() }";
         initialize_with_options(
             &client,
             Some(serde_json::json!({"koven": {"sourceSet": {
@@ -1121,7 +1325,7 @@ mod tests {
                     "root": "main",
                     "logicalPath": "app/main.ko",
                     "uri": uri,
-                    "text": "package app\nfun main(): Unit {}"
+                    "text": stable
                 }]
             }}})),
         );
@@ -1134,12 +1338,22 @@ mod tests {
                     uri.clone(),
                     "koven".to_owned(),
                     1,
-                    "package app\nfun main(): Unit {}".to_owned(),
+                    stable.to_owned(),
                 ),
             })
             .expect("open"),
         );
         assert_eq!(receive_diagnostics(&client).version, Some(1));
+        assert_scalar_definition(
+            &client,
+            RequestId::from(82_i32),
+            &uri,
+            position_of(stable, "target", 1),
+            &uri,
+            stable,
+            "target",
+            0,
+        );
 
         send_notification(
             &client,
@@ -1159,7 +1373,18 @@ mod tests {
                 .message
                 .contains("does not yet support node")
         );
+        assert_scalar_definition(
+            &client,
+            RequestId::from(83_i32),
+            &uri,
+            position_of(stable, "target", 1),
+            &uri,
+            stable,
+            "target",
+            0,
+        );
 
+        let recovered_source = "package app\n\nfun target(): Unit {}\nfun use(): Unit { target() }";
         send_notification(
             &client,
             DidChangeTextDocument::METHOD,
@@ -1168,7 +1393,7 @@ mod tests {
                 content_changes: vec![TextDocumentContentChangeEvent {
                     range: None,
                     range_length: None,
-                    text: "package app\nfun recovered(): Unit {}".to_owned(),
+                    text: recovered_source.to_owned(),
                 }],
             })
             .expect("recovery change"),
@@ -1176,6 +1401,16 @@ mod tests {
         let recovered = receive_diagnostics(&client);
         assert_eq!(recovered.version, Some(2));
         assert!(recovered.diagnostics.is_empty());
+        assert_scalar_definition(
+            &client,
+            RequestId::from(84_i32),
+            &uri,
+            position_of(recovered_source, "target", 1),
+            &uri,
+            recovered_source,
+            "target",
+            0,
+        );
 
         shutdown(&client);
         server_thread
@@ -1387,6 +1622,35 @@ mod tests {
         assert_eq!(response.id, id);
         serde_json::from_value(response.response_result.expect("definition result"))
             .expect("typed definition response")
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn assert_scalar_definition(
+        client: &Connection,
+        id: RequestId,
+        source_uri: &lsp_types::Uri,
+        source_position: Position,
+        target_uri: &lsp_types::Uri,
+        target_source: &str,
+        target_needle: &str,
+        target_index: usize,
+    ) {
+        let definition = request_definition(client, id, source_uri, source_position)
+            .expect("definition response");
+        let GotoDefinitionResponse::Scalar(location) = definition else {
+            panic!("expected one definition");
+        };
+        let start = position_of(target_source, target_needle, target_index);
+        assert_eq!(&location.uri, target_uri);
+        assert_eq!(location.range.start, start);
+        assert_eq!(
+            location.range.end,
+            Position::new(
+                start.line,
+                start.character
+                    + u32::try_from(target_needle.encode_utf16().count()).expect("target width"),
+            )
+        );
     }
 
     fn send_request(

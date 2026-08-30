@@ -20,10 +20,12 @@ use lang_frontend::{
         standard_environments,
     },
 };
-use lsp_types::Uri;
+use lsp_types::{Location, Position, Uri};
 
 use crate::{
+    definition::{DefinitionIndexError, UnitDefinitionIndex},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
+    position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
 };
 
@@ -134,6 +136,16 @@ impl UnitSession {
         self.snapshot = update.snapshot;
     }
 
+    /// 查询当前 last-good snapshot 中的跨文件 definition locations。
+    pub(crate) fn definition_locations(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        self.snapshot
+            .definition_locations(&self.config, uri, position)
+    }
+
     fn prepare_update(
         &self,
         overlays: BTreeMap<String, Overlay>,
@@ -175,11 +187,13 @@ struct UnitSnapshot {
     sources: SourceMap,
     source_ids: Vec<SourceId>,
     diagnostics: Vec<Diagnostic>,
-    // Recovery products must share this snapshot's SourceMap identity. The definition slice
-    // derives its index from these fields instead of rebuilding or mixing analysis generations.
-    _names: CompilationUnitNames,
+    // Recovery products and definition facts share this snapshot's SourceMap identity. They must
+    // be replaced together so a request can never observe spans from another analysis generation.
+    _parsed: Vec<ParsedFile>,
+    names: CompilationUnitNames,
     _typed: Option<CompilationUnitTypes>,
     _owned: Option<CompilationUnitOwnership>,
+    definitions: UnitDefinitionIndex,
 }
 
 impl UnitSnapshot {
@@ -213,13 +227,21 @@ impl UnitSnapshot {
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)?;
         let mut diagnostics = names.diagnostics().to_vec();
         let Ok(validated_names) = names.clone().validate() else {
-            return Self::finish(sources, source_ids, names, None, None, diagnostics);
+            return Self::finish(sources, source_ids, parsed, names, None, None, diagnostics);
         };
         let typed =
             check_compilation_unit_types(&sources, &inputs, &validated_names, &type_environment)?;
         diagnostics.extend_from_slice(typed.diagnostics());
         let Ok(validated_typed) = typed.clone().validate() else {
-            return Self::finish(sources, source_ids, names, Some(typed), None, diagnostics);
+            return Self::finish(
+                sources,
+                source_ids,
+                parsed,
+                names,
+                Some(typed),
+                None,
+                diagnostics,
+            );
         };
         let owned = check_compilation_unit_ownership(
             &sources,
@@ -232,6 +254,7 @@ impl UnitSnapshot {
         Self::finish(
             sources,
             source_ids,
+            parsed,
             names,
             Some(typed),
             Some(owned),
@@ -242,6 +265,7 @@ impl UnitSnapshot {
     fn finish(
         sources: SourceMap,
         source_ids: Vec<SourceId>,
+        parsed: Vec<ParsedFile>,
         names: CompilationUnitNames,
         typed: Option<CompilationUnitTypes>,
         owned: Option<CompilationUnitOwnership>,
@@ -252,13 +276,16 @@ impl UnitSnapshot {
                 .into_iter()
                 .cloned()
                 .collect();
+        let definitions = UnitDefinitionIndex::build(&parsed, &names, typed.as_ref())?;
         Ok(Self {
             sources,
             source_ids,
             diagnostics,
-            _names: names,
+            _parsed: parsed,
+            names,
             _typed: typed,
             _owned: owned,
+            definitions,
         })
     }
 
@@ -288,6 +315,66 @@ impl UnitSnapshot {
             })
             .collect())
     }
+
+    fn definition_locations(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        let Some(source_index) = config
+            .sources()
+            .iter()
+            .position(|source| source.uri() == uri)
+        else {
+            return Ok(Vec::new());
+        };
+        let source_id = self.source_ids[source_index];
+        let source_unit = self
+            .names
+            .index()
+            .source_units()
+            .iter()
+            .find(|source| source.source_id() == source_id)
+            .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
+            .id();
+        let Some(offset) = byte_offset(&self.sources, source_id, position)? else {
+            return Ok(Vec::new());
+        };
+        self.definitions
+            .targets_at(source_unit, offset)
+            .iter()
+            .map(|target| {
+                let target_source = self
+                    .names
+                    .index()
+                    .source_units()
+                    .get(target.source_unit.index())
+                    .filter(|source| source.id() == target.source_unit)
+                    .ok_or(UnitDefinitionQueryError::UnknownSource(
+                        target.span.source_id(),
+                    ))?;
+                if target.span.source_id() != target_source.source_id() {
+                    return Err(UnitDefinitionQueryError::MismatchedTargetSource {
+                        expected: target_source.source_id(),
+                        actual: target.span.source_id(),
+                    });
+                }
+                let target_index = self
+                    .source_ids
+                    .iter()
+                    .position(|source_id| *source_id == target_source.source_id())
+                    .ok_or(UnitDefinitionQueryError::UnknownSource(
+                        target_source.source_id(),
+                    ))?;
+                let range = span_range(&self.sources, target.span)?;
+                Ok(Location::new(
+                    config.sources()[target_index].uri().clone(),
+                    range,
+                ))
+            })
+            .collect()
+    }
 }
 
 /// source-set lifecycle 的协议拒绝或内部 snapshot 失败。
@@ -303,6 +390,7 @@ pub(crate) enum UnitSessionError {
     Ownership(OwnershipCheckingError),
     Diagnostic(UnitDiagnosticOrderError),
     Mapping(DiagnosticMappingError),
+    Definition(DefinitionIndexError),
 }
 
 impl fmt::Display for UnitSessionError {
@@ -325,6 +413,9 @@ impl fmt::Display for UnitSessionError {
                 write!(formatter, "unit diagnostic ordering failed: {error}")
             }
             Self::Mapping(error) => write!(formatter, "unit diagnostic mapping failed: {error}"),
+            Self::Definition(error) => {
+                write!(formatter, "unit definition indexing failed: {error}")
+            }
         }
     }
 }
@@ -350,3 +441,41 @@ unit_session_error_from!(CompilationUnitTypeError, Type);
 unit_session_error_from!(OwnershipCheckingError, Ownership);
 unit_session_error_from!(UnitDiagnosticOrderError, Diagnostic);
 unit_session_error_from!(DiagnosticMappingError, Mapping);
+unit_session_error_from!(DefinitionIndexError, Definition);
+
+/// definition request 的 position 映射或 snapshot source identity 错误。
+#[derive(Debug)]
+pub(crate) enum UnitDefinitionQueryError {
+    Position(PositionMappingError),
+    UnknownSource(SourceId),
+    MismatchedTargetSource {
+        expected: SourceId,
+        actual: SourceId,
+    },
+}
+
+impl fmt::Display for UnitDefinitionQueryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Position(error) => write!(formatter, "unit definition position failed: {error}"),
+            Self::UnknownSource(source) => {
+                write!(
+                    formatter,
+                    "unit definition references unknown source {source:?}"
+                )
+            }
+            Self::MismatchedTargetSource { expected, actual } => write!(
+                formatter,
+                "unit definition target source mismatch: expected {expected:?}, got {actual:?}"
+            ),
+        }
+    }
+}
+
+impl Error for UnitDefinitionQueryError {}
+
+impl From<PositionMappingError> for UnitDefinitionQueryError {
+    fn from(error: PositionMappingError) -> Self {
+        Self::Position(error)
+    }
+}

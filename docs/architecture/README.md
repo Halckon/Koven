@@ -1322,7 +1322,16 @@ name/type/ownership recovery 链；普通源码错误成为新 snapshot 的诊�
 按自身 source URI 映射；全部 URI（包括空集合）在映射成功后按 `(root, logicalPath)` 顺序发布，打开
 文档携带 overlay version，base-only/close 回落为 `None`。unknown/duplicate open、unopened/stale/
 partial change 与 unknown close 只记录协议日志；候选 payload 全部发送成功后才提交状态。legacy 模式
-继续使用既有每 URI `Analysis`；source-set definition 暂返回 `null`，由第三切片接入。
+继续使用既有每 URI `Analysis`；在该切片当时，source-set definition 暂返回 `null`。
+
+SPEC-0187 第三切片从 snapshot 已保存的 `CompilationUnitNames.references()` 直接建立
+`UnitDefinitionIndex`：`DeclarationId` 映射到 index 的精确声明 Span，`UnitSymbolId` 映射到对应
+source-local symbol；可用的 `CompilationUnitTypes` call/projection facts 只负责把 overload/member
+引用收敛到唯一静态 target，LSP 不解析 package/import 或可见性。exact import terminal/alias、wildcard
+实际使用名、限定名与同 package 引用可跨 URI 跳转；wildcard `*`、纯 package segment、private/
+unresolved 与 compiler-bound external 返回无目标。definition query 复用共同 `SourceMap` 的 UTF-16
+position adapter，并按 target source identity 选择 URI；snapshot 更新成功时 definition facts 与诊断
+一起切换，内部分析失败继续查询 last-good facts。legacy 单文档 definition 行为不变。
 
 ## 索引式 AST 存储
 

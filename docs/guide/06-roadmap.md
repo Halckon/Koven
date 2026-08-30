@@ -6,7 +6,8 @@
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
 > SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025/0197/0198 已完成 compilation-unit
-> 名称、类型与所有权产物，SPEC-0199 已完成 unit native lowering，SPEC-0187 仍可按独立前置推进。
+> 名称、类型与所有权产物，SPEC-0199 已完成 unit native lowering，SPEC-0187 已完成显式
+> source-set、跨文件诊断与跳转定义。
 > 2026-08-27 的现行 v0.32
 > 纯勘误已拆开 exact import 与普通静态限定名。
 > 2026-08-28 审计确认现行 Parser 由 guide/SPEC/回归明确拒绝尾 lambda；该语法不回开已完成
@@ -609,11 +610,11 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       完整 frontend 流水线，以 UTF-16 range 发布确定性 `Ldddd` 诊断；不读取磁盘或展开 import
 - [x] **SPEC-0056（已实现）**：LSP 对打开 buffer 提供基于名称/类型事实的单文档语义跳转定义，
       支持 UTF-16 cursor、overload/member 精确目标与版本生命周期
-- [ ] **[SPEC-0187](../specs/0187-multifile-lsp-diagnostics-definition.md)（实施中）**：复用
+- [x] **[SPEC-0187](../specs/0187-multifile-lsp-diagnostics-definition.md)（已实现）**：复用
       SPEC-0025/0197/0198 的 compilation-unit frontend 产物提供跨文件诊断与跳转定义；不得在
       LSP 内复制 resolver；它与 SPEC-0199 并行，不依赖 native。ADR-0021 已接受并封闭版本化
-      显式 base source-set wire；0025/0197/0198 前置已完成，version 1 初始化、base/overlay 原子
-      snapshot 与跨文件 diagnostics 已接入，跨文件 definition 仍按后续切片实施。project CLI
+      显式 base source-set wire；version 1 初始化、base/overlay 原子 snapshot、跨文件 diagnostics
+      与 definition 已接入并保持 legacy fallback。project CLI
       manifest discovery 已由 SPEC-0052 完成，project build 等待 SPEC-0054；二者不成为 LSP 隐式输入。
 - [x] **SPEC-0057（已实现）**：提供保留 token/comment/newline 字节的保守、幂等 formatter，
       `kovenc format <path>` 输出 stdout，`--check` 使用 0/1 且不原地修改源码

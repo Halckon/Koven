@@ -20,8 +20,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   已完成实施。
 - **v0.32 已明确启用**：§32 的 package/import 绑定、跨文件可见性与 compilation-unit
   Phase 边界已成为现行语义；ADR-0020 已接受，SPEC-0025/0197/0198 已完成多文件名称解析、
-  compilation-unit 类型与所有权检查，SPEC-0199 已完成 unit native lowering；SPEC-0187 的 frontend
-  前置链已解除。ADR-0021 已接受并封闭 LSP 显式 source-set wire；SPEC-0187 仍须按独立 Spec 状态流实施。
+  compilation-unit 类型与所有权检查，SPEC-0199 已完成 unit native lowering；SPEC-0187 已完成
+  显式 source-set、跨文件诊断与跳转定义。ADR-0021 已接受并封闭 LSP 显式 source-set wire。
   ADR-0022 已接受并与 SPEC-0052 物化后继本地 manifest provider；2026-08-27 依赖复核确认
   它只消费已完成的 SPEC-0025 Stage 1 source-unit input contract，现已完成，且该分支不定义
   project build。同日纯勘误已把 §32.4 的 exact import 与普通静态限定名拆开，恢复 §32.3 和
@@ -247,7 +247,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0212 | 借用式顺序迭代 SSA/LLVM primitives | `01-design-decisions.md` §37、`../specs/0212-borrowed-sequential-iteration-ssa.md` | ⏸ draft；v0.37 未启用 |
 | SPEC-0213 | 尾 lambda 调用 Parser | `05-grammar-calls-lambda.md`、`../specs/0213-trailing-lambda-call-parser.md` | ⏸ draft；v0.33 未启用 |
 | SPEC-0214 | 隐式 `it` lambda 参数 | `05-grammar-calls-lambda.md`、`../specs/0214-implicit-it-lambda-parameter.md` | ⏸ draft；v0.33 未启用；等待 SPEC-0213 |
-| SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | 🚧 实施中；source-set v1 与 unit diagnostics 已接入 |
+| SPEC-0187 | 跨文件 LSP 诊断与跳转定义 | `../specs/0187-multifile-lsp-diagnostics-definition.md` | ✅ 已实现 |
 | SPEC-0174 | overload-lambda 候选隔离检查 | `01-design-decisions.md` §28、`../specs/0174-overload-lambda-candidate-isolation.md` | ✅ 已实现 |
 | SPEC-0177 | 泛型 callable 实例化与实例 key | `01-design-decisions.md` §28、`../specs/0177-generic-callable-instantiation.md` | ✅ 已实现 |
 | SPEC-0179 | 顺序容器借用迭代 typed plan | `01-design-decisions.md` §37、`../specs/0179-sequential-iteration-typed-plan.md` | ⏸ draft；v0.37 未启用 |
