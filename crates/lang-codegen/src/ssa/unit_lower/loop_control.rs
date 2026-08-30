@@ -12,18 +12,18 @@ use lang_frontend::{
 
 use super::{
     LoweredValue, UnitExpressionLowerer,
-    cfg::{CarriedBinding, carried_edge},
-    control::BranchExit,
+    cfg::{BranchExit, CarriedBinding, carried_edge},
     lowering_error,
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Origin, TerminatorKind},
+    model::{BlockId, LoanId, Origin, TerminatorKind},
 };
 
 struct LoopJump {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     span: Span,
 }
@@ -109,6 +109,7 @@ impl UnitExpressionLowerer<'_> {
             block: false_block,
             result: LoweredValue::Unit,
             bindings: false_bindings,
+            borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
         });
         self.merge_loop_exits(exits, span)?;
@@ -147,6 +148,7 @@ impl UnitExpressionLowerer<'_> {
         self.finish_continues(&context)?;
         if context.breaks.is_empty() {
             self.bindings.clear();
+            self.borrow_bindings.clear();
             self.closure_bindings.clear();
             self.temporaries.clear();
             return Ok(LoweredValue::Diverged);
@@ -231,6 +233,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoopJump {
             block: self.block,
             bindings: self.bindings.clone(),
+            borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
             span,
         })
@@ -306,6 +309,7 @@ fn branch_exit(jump: LoopJump) -> BranchExit {
         block: jump.block,
         result: LoweredValue::Unit,
         bindings: jump.bindings,
+        borrow_bindings: jump.borrow_bindings,
         closure_bindings: jump.closure_bindings,
     }
 }

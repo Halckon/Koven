@@ -43,6 +43,8 @@ mod unit_lower_container_element_tests;
 #[cfg(test)]
 mod unit_lower_container_tests;
 #[cfg(test)]
+mod unit_lower_control_result_tests;
+#[cfg(test)]
 mod unit_lower_enum_tests;
 #[cfg(test)]
 mod unit_lower_loop_tests;

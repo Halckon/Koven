@@ -305,12 +305,17 @@ pub(crate) fn lower_scalar_unit_with_entry(
             plan.instance.source_unit(),
             plan.function_item,
         )))?;
-        let result = match plan.body {
-            FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,
-            FunctionPlanBody::Block(statement) => lowerer.lower_statement(statement)?,
+        let (result, result_expression) = match plan.body {
+            FunctionPlanBody::Expression(expression) => {
+                (lowerer.lower(expression)?, Some(expression))
+            }
+            FunctionPlanBody::Block(statement) => (lowerer.lower_statement(statement)?, None),
         };
         if result == LoweredValue::Diverged {
             continue;
+        }
+        if let (Some(expression), LoweredValue::Value(value)) = (result_expression, result) {
+            lowerer.transfer_owned_expression(expression, value, plan.instance.span())?;
         }
         let values = match (builtin_type(typed, plan.return_type), result) {
             (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),

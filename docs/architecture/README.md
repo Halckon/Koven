@@ -878,12 +878,13 @@ named/direct closure 最后使用结束的 loan，owned capture 执行 Copy/Move
 第九切片复用单文件 liveness/drop planner 契约，发布带 `UnitExpressionId` / `UnitStatementId` /
 `UnitItemId` 的 source-qualified `UnitDropPoint`、named/temporary/replaced-element/captured
 `UnitDropTarget` 与稳定 `UnitDropFact`；覆盖 unused parameter/local、String binary、call temporary、
-replacement、branch/loop/control-transfer、return 与 closure environment 逆序析构。SPEC-0215 当前
-切片在 root traversal 后按 AST identity 独立计算 lambda body liveness，并为不含 MoveOnly Value
+replacement、branch/loop/control-transfer、return 与 closure environment 逆序析构。SPEC-0215 实施时
+在 root traversal 后按 AST identity 独立计算 lambda body liveness，并为不含 MoveOnly Value
 参数的受支持 body 把最后一个 expression element 按隐式返回 Consume：结果 owner 转交 caller，
-String composite operand 仍按 `AfterBinaryOperands` 逆求值顺序析构。含 MoveOnly `if` / `when`
-result 的 body 会原子回滚本轮 lambda drop facts，继续保持后继控制流结果切片的 fail-loud 边界，
-且不影响相邻 lambda 或外层 formation state。element 后字段
+String composite operand 仍按 `AfterBinaryOperands` 逆求值顺序析构。该切片最初对含 MoveOnly
+`if` / `when` result 的 body 原子回滚本轮 lambda drop facts；SPEC-0216 随后统一 control-tail usage
+并移除该回滚，SPEC-0199 第二十三步第四切片现已消费这些 facts，且不影响相邻 lambda 或外层
+formation state。element 后字段
 投影仍按单文件契约显式发布 `IndexPlace` deferred fact，并跳过所属 callable 的不完整 drop plan；
 任一 ownership error 原子清空全部可执行 facts。只有无 error 且无 deferred drop 边界时，
 `CompilationUnitOwnership::validate` 才发布不可伪造的 `ValidatedCompilationUnitOwnership`，供
@@ -932,18 +933,18 @@ SPEC-0199 后续切片承接。
 binding 槽，edge 参数保持同一确定顺序。只有一个正常出口时直接沿用其结果，全部分支 diverge 时
 返回 `Diverged`；因此 `Nothing` 与普通标量的 join 不需要伪造值。result gate 先按当前 instance 的
 substitutions 解析 concrete type，再判断 builtin/Copyability，不误拒 `T : Copyable` 的 `Int` 实例。
-当前跨文件测试覆盖 `Int`/泛型 concrete 双出口、result 与同型 live binding 的 edge 槽位顺序、输入
-置换和一支提前 `return`。String 等 MoveOnly value result 在建立结果 owner transfer 前仍于创建 CFG
-前返回 `UnsupportedNode`；`when`、循环和复合 owner 继续由 SPEC-0199 后续切片承接。
+第五切片当时的跨文件测试覆盖 `Int`/泛型 concrete 双出口、result 与同型 live binding 的 edge 槽位
+顺序、输入置换和一支提前 `return`；String 等 MoveOnly value result 当时在建立结果 owner transfer
+前返回 `UnsupportedNode`，现已由 SPEC-0216 与第二十三步第四切片闭合。
 
 第六切片复用上述 conditional/merge 核心接入 exhaustive Boolean-subject `when`。当前只接受恰好
 一个 bare `true` 与一个 bare `false` literal condition；subject 求值一次并直接作为 conditional condition，
 true/false edge 可以与源码 entry 顺序不同，但各正常出口的 `UnitDropPoint::BranchExit.branch` 始终保留
 原 entry index。Copyable value result 与 Unit entry 内的 MoveOnly Value delivery 共用已经验证的
-result/binding 合流；subjectless、`else`、多 condition 及非 Boolean subject 均 fail loud。MoveOnly
-control result 尚未发布：现行 unit drop planner 会为 String control-tail temporary 发布
-`AfterExpression` drop，而不是结果转移，unit lowerer 不会绕过 validated facts；该 frontend 漂移需先由
-独立 follow-up 修正。其余 `when`、循环与复合 owner 继续由 SPEC-0199 后续切片承接。
+result/binding 合流；该切片当时让 subjectless、`else`、多 condition 及非 Boolean subject fail loud，
+且 MoveOnly control result 尚未发布：unit drop planner 会为 String control-tail temporary 发布
+`AfterExpression` drop，而不是结果转移。该 frontend 漂移后来由 SPEC-0216 修正，第二十三步第四
+切片现已消费对应 facts；unit lowerer 始终不绕过 validated facts。
 
 第七切片把 `if`/`when` 原有的 carried-binding block/edge/rebind 基元提为 compilation-unit CFG
 共享职责，并接入无 jump 的 Unit `while`。preheader 把当前 binding 交付 header block parameter；
@@ -968,8 +969,9 @@ condition 的 false edge 进入下一个 condition/entry，同一 entry 的所�
 一次 body；body 出口继续消费原源码 entry index 的 `BranchExit`。bare literal 与 `else` 会规范化为
 true/false 语义 arm，若同一 entry 同时覆盖两值，则 subject 仍求值但 body 不复制。verified SSA 测试已
 覆盖 subjectful `else`、subjectless 双 condition、动态 comparison、同 entry 多 condition、三条路径一致
-消费同一 String owner、implicit unmatched synthetic branch index 及输入置换。当前只接受 Boolean
-expression condition；type-test/contains、非 Boolean subject 和 MoveOnly control result 仍 fail loud。
+消费同一 String owner、implicit unmatched synthetic branch index 及输入置换。该切片只接受 Boolean
+expression condition；type-test/contains 与非 Boolean subject 仍保持各自门禁，MoveOnly control result
+后来由 SPEC-0216 与第二十三步第四切片闭合。
 
 第十切片增加独立 `unit_lower::type_plan`，补齐只在 reachable body 中出现、未进入 callable signature
 的 scalar storage type。unit lowering 先按原顺序建立全部 reachable callable signature/function，再以第二遍
@@ -1175,6 +1177,19 @@ source-qualified expression identity 转移给 `Return`，显式 return 复用 c
 String concat operand 与 body-local owner 精确析构且结果不 drop；该切片尚未消费 SPEC-0216 的
 MoveOnly `if`/`when` result facts，故仍原子失败，MoveOnly Value 参数仍等待 lambda-entry drop point。
 function pointer 与 captured concrete closure 共用该契约，现行 guide 语义未改变。
+
+SPEC-0199 第二十三步第四切片消费 SPEC-0216 的 MoveOnly control result facts。control result gate
+按 concrete type 的现行 SSA storage 能力判断，同时保留无需 storage 的 `Nothing` 全 diverge 路径；
+每条正常 branch 在形成 `BranchExit` 前按 tail expression
+identity 转移 Place/Temporary owner，operand 与未选 alternative 仅消费 frontend 的精确 drop point。
+多出口 merge 以 result、live value binding、live loan 的固定顺序建立 block parameters；单出口直接
+沿用 branch state，全 diverge 不伪造结果。named callable、function pointer 与 captured concrete closure
+共享该路径，nested `if` / `when`、`Nothing` 提前退出与输入置换均由同一组窄测锁定。为保持线性实体
+显式，control edge 同时携带 environment `SharedFieldLoan` 与用户 Borrow loan；checked arithmetic 的
+success/failure continuation 也复用该 value-prefix/loan-suffix block 约定，因此 branch 内 checked CFG
+不会形成 hidden linear live-in。public native fixture 已覆盖 alias direct call、named/captured String
+control result 与 checked arithmetic 的 object/link/run；MoveOnly Value lambda 参数仍等待独立
+lambda-entry drop point。现行 guide 语义未改变。
 
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM

@@ -668,15 +668,6 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/complex-move-only-return.ko",
-            "package test\n\
-             fun entry(): Unit {\n\
-                 val action: move (borrow Boolean) -> String = move { flag ->\n\
-                     if (flag) { \"left\" } else { \"right\" }\n\
-                 }\n\
-             }",
-        ),
-        (
             "test/direct-argument-return.ko",
             "package test\n\
              fun select(first: Int, own second: Int): Int = second\n\

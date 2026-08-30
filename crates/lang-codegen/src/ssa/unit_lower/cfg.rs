@@ -1,18 +1,36 @@
-//! compilation-unit CFG 中跨 edge 携带 binding 的共享基元。
+//! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lang_frontend::{name_resolution::UnitSymbolId, source::Span, type_checking::Copyability};
+use lang_frontend::{
+    name_resolution::UnitSymbolId,
+    source::Span,
+    type_checking::{Copyability, UnitExpressionId},
+};
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Edge, EntityId, EntityType, Origin, ValueId},
+    model::{BlockId, Edge, EntityId, EntityType, LoanId, Origin, TerminatorKind, ValueId},
 };
+
+pub(super) struct BranchExit {
+    pub(super) block: BlockId,
+    pub(super) result: LoweredValue,
+    pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
+}
 
 pub(super) struct CarriedBinding {
     symbol: UnitSymbolId,
     source: ValueId,
+    ty: EntityType,
+}
+
+pub(super) struct CarriedLoan {
+    symbol: UnitSymbolId,
+    source: LoanId,
     ty: EntityType,
 }
 
@@ -65,6 +83,46 @@ impl UnitExpressionLowerer<'_> {
         Ok(carried)
     }
 
+    pub(super) fn carried_loans(
+        &self,
+        loans: &BTreeMap<UnitSymbolId, LoanId>,
+        span: Span,
+    ) -> Result<Vec<CarriedLoan>, LoweringError> {
+        loans
+            .iter()
+            .map(|(symbol, source)| {
+                let ty = self
+                    .function
+                    .entity(EntityId::Loan(*source))
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                Ok(CarriedLoan {
+                    symbol: *symbol,
+                    source: *source,
+                    ty,
+                })
+            })
+            .collect()
+    }
+
+    pub(super) fn add_carried_control_block(
+        &mut self,
+        bindings: &[CarriedBinding],
+        loans: &[CarriedLoan],
+        span: Span,
+    ) -> Result<BlockId, LoweringError> {
+        self.function
+            .add_block(
+                bindings
+                    .iter()
+                    .map(|binding| binding.ty)
+                    .chain(loans.iter().map(|loan| loan.ty))
+                    .collect(),
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
+    }
+
     pub(super) fn add_carried_block(
         &mut self,
         carried: &[CarriedBinding],
@@ -85,12 +143,40 @@ impl UnitExpressionLowerer<'_> {
         carried: &[CarriedBinding],
         span: Span,
     ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
+        self.rebind_carried_prefix(baseline, block, carried, carried.len(), span)
+    }
+
+    pub(super) fn rebind_carried_control(
+        &self,
+        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
+        block: BlockId,
+        bindings: &[CarriedBinding],
+        loans: &[CarriedLoan],
+        span: Span,
+    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
+        self.rebind_carried_prefix(
+            baseline,
+            block,
+            bindings,
+            bindings.len() + loans.len(),
+            span,
+        )
+    }
+
+    fn rebind_carried_prefix(
+        &self,
+        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
+        block: BlockId,
+        carried: &[CarriedBinding],
+        expected_parameter_count: usize,
+        span: Span,
+    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
         let parameters = &self
             .function
             .block(block)
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
             .parameters;
-        if parameters.len() != carried.len() {
+        if parameters.len() != expected_parameter_count {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         let mut rebound = baseline.clone();
@@ -101,6 +187,212 @@ impl UnitExpressionLowerer<'_> {
             rebound.insert(slot.symbol, LoweredValue::Value(*value));
         }
         Ok(rebound)
+    }
+
+    pub(super) fn rebind_carried_loans(
+        &self,
+        block: BlockId,
+        binding_count: usize,
+        loans: &[CarriedLoan],
+        span: Span,
+    ) -> Result<BTreeMap<UnitSymbolId, LoanId>, LoweringError> {
+        let parameters = &self
+            .function
+            .block(block)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            .parameters;
+        if parameters.len() != binding_count + loans.len() {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        }
+        loans
+            .iter()
+            .zip(parameters.iter().skip(binding_count))
+            .map(|(slot, parameter)| {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                Ok((slot.symbol, *loan))
+            })
+            .collect()
+    }
+
+    pub(super) fn merge_unit_exits(
+        &mut self,
+        exits: Vec<BranchExit>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let Some(first) = exits.first() else {
+            self.bindings.clear();
+            self.borrow_bindings.clear();
+            self.closure_bindings.clear();
+            self.temporaries.clear();
+            return Ok(LoweredValue::Diverged);
+        };
+        if exits.len() == 1 {
+            self.block = first.block;
+            self.bindings = first.bindings.clone();
+            self.borrow_bindings = first.borrow_bindings.clone();
+            self.closure_bindings = first.closure_bindings.clone();
+            self.temporaries.clear();
+            return Ok(first.result);
+        }
+        let symbols = first.bindings.keys().copied().collect::<Vec<_>>();
+        let loan_symbols = first.borrow_bindings.keys().copied().collect::<Vec<_>>();
+        if exits.iter().any(|exit| {
+            exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
+                || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
+                || exit.closure_bindings != first.closure_bindings
+                || std::mem::discriminant(&exit.result) != std::mem::discriminant(&first.result)
+                || symbols.iter().any(|symbol| {
+                    std::mem::discriminant(&exit.bindings[symbol])
+                        != std::mem::discriminant(&first.bindings[symbol])
+                })
+        }) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let result_type = match first.result {
+            LoweredValue::Unit => None,
+            LoweredValue::Value(value) => Some(
+                self.function
+                    .entity(EntityId::Value(value))
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?,
+            ),
+            LoweredValue::Diverged => {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
+        };
+        if let Some(expected) = result_type
+            && exits.iter().any(|exit| match exit.result {
+                LoweredValue::Value(value) => self
+                    .function
+                    .entity(EntityId::Value(value))
+                    .is_none_or(|entity| entity.ty != expected),
+                LoweredValue::Unit | LoweredValue::Diverged => true,
+            })
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let value_symbols = symbols
+            .iter()
+            .copied()
+            .filter(|symbol| matches!(first.bindings[symbol], LoweredValue::Value(_)))
+            .collect::<Vec<_>>();
+        let mut parameter_types = result_type.into_iter().collect::<Vec<_>>();
+        parameter_types.extend(
+            value_symbols
+                .iter()
+                .map(|symbol| match first.bindings[symbol] {
+                    LoweredValue::Value(value) => self
+                        .function
+                        .entity(EntityId::Value(value))
+                        .map(|entity| entity.ty)
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span)),
+                    LoweredValue::Unit | LoweredValue::Diverged => {
+                        Err(lowering_error(LoweringErrorKind::InvalidModel, span))
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        let loan_types = loan_symbols
+            .iter()
+            .map(|symbol| {
+                self.function
+                    .entity(EntityId::Loan(first.borrow_bindings[symbol]))
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if exits.iter().any(|exit| {
+            loan_symbols
+                .iter()
+                .zip(&loan_types)
+                .any(|(symbol, expected)| {
+                    self.function
+                        .entity(EntityId::Loan(exit.borrow_bindings[symbol]))
+                        .is_none_or(|entity| entity.ty != *expected)
+                })
+        }) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        parameter_types.extend(loan_types);
+        let merge = self
+            .function
+            .add_block(parameter_types, Origin::Source(span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        for exit in &exits {
+            let mut arguments = match exit.result {
+                LoweredValue::Unit => Vec::new(),
+                LoweredValue::Value(value) => vec![EntityId::Value(value)],
+                LoweredValue::Diverged => {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                }
+            };
+            arguments.extend(
+                value_symbols
+                    .iter()
+                    .map(|symbol| match exit.bindings[symbol] {
+                        LoweredValue::Value(value) => Ok(EntityId::Value(value)),
+                        LoweredValue::Unit | LoweredValue::Diverged => {
+                            Err(lowering_error(LoweringErrorKind::InvalidModel, span))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+            arguments.extend(
+                loan_symbols
+                    .iter()
+                    .map(|symbol| EntityId::Loan(exit.borrow_bindings[symbol])),
+            );
+            self.function
+                .set_terminator(
+                    exit.block,
+                    TerminatorKind::Branch(Edge {
+                        target: merge,
+                        arguments,
+                    }),
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        }
+        let parameters = self
+            .function
+            .block(merge)
+            .expect("new merge block exists")
+            .parameters
+            .clone();
+        let mut parameters = parameters.into_iter();
+        let result = if result_type.is_some() {
+            let EntityId::Value(value) = parameters
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            LoweredValue::Value(value)
+        } else {
+            LoweredValue::Unit
+        };
+        let mut bindings = first.bindings.clone();
+        for (symbol, parameter) in value_symbols.into_iter().zip(parameters.by_ref()) {
+            let EntityId::Value(value) = parameter else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            bindings.insert(symbol, LoweredValue::Value(value));
+        }
+        let mut borrow_bindings = BTreeMap::new();
+        for (symbol, parameter) in loan_symbols.into_iter().zip(parameters) {
+            let EntityId::Loan(loan) = parameter else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            borrow_bindings.insert(symbol, loan);
+        }
+        self.block = merge;
+        self.bindings = bindings;
+        self.borrow_bindings = borrow_bindings;
+        self.closure_bindings = first.closure_bindings.clone();
+        self.temporaries.clear();
+        Ok(result)
     }
 
     pub(super) fn carried_edge_from(
@@ -147,6 +439,21 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.remove(&symbol);
         }
         Ok(())
+    }
+}
+
+pub(super) fn carried_control_edge(
+    target: BlockId,
+    bindings: &[CarriedBinding],
+    loans: &[CarriedLoan],
+) -> Edge {
+    Edge {
+        target,
+        arguments: bindings
+            .iter()
+            .map(|binding| EntityId::Value(binding.source))
+            .chain(loans.iter().map(|loan| EntityId::Loan(loan.source)))
+            .collect(),
     }
 }
 

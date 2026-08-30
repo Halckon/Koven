@@ -227,16 +227,18 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let baseline = self.bindings.clone();
+        let baseline_borrows = self.borrow_bindings.clone();
         let carried = self.move_only_carried_bindings(&baseline, span)?;
-        let failure = self.add_carried_block(&carried, span)?;
-        let success = self.add_carried_block(&carried, span)?;
+        let carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        let failure = self.add_carried_control_block(&carried, &carried_loans, span)?;
+        let success = self.add_carried_control_block(&carried, &carried_loans, span)?;
         self.function
             .set_terminator(
                 self.block,
                 TerminatorKind::Conditional {
                     condition: require_value(results[1], span)?,
-                    when_true: super::cfg::carried_edge(failure, &carried),
-                    when_false: super::cfg::carried_edge(success, &carried),
+                    when_true: super::cfg::carried_control_edge(failure, &carried, &carried_loans),
+                    when_false: super::cfg::carried_control_edge(success, &carried, &carried_loans),
                 },
                 Origin::Source(span),
             )
@@ -245,7 +247,10 @@ impl UnitExpressionLowerer<'_> {
             .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = success;
-        self.bindings = self.rebind_carried(&baseline, success, &carried, span)?;
+        self.bindings =
+            self.rebind_carried_control(&baseline, success, &carried, &carried_loans, span)?;
+        self.borrow_bindings =
+            self.rebind_carried_loans(success, carried.len(), &carried_loans, span)?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 

@@ -52,9 +52,11 @@
   原子更新；输入置换后的规范化 SSA/LLVM 与诊断一致（不要求 object 字节完全相同）。
 - [ ] 多 source DWARF 行表保留各自源码定位；codegen/workspace 基线与 Architecture 同步。
 
-剩余切片采用固定四层验收：开发期只跑本切片窄测；提交前跑一次受影响 crate 全量；再跑一次
-workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审。历史窄测由 crate 全量覆盖，尚未
-接线的 LLVM/native matrix 留到对应门禁切片，不在每个 SSA 切片重复执行。
+剩余切片采用简化三层验收：开发期与提交前只跑受影响的窄测试过滤器；再跑一次 workspace Clippy；
+涉及逻辑或共享代码时由 fresh-context 独立评审。受影响 crate 全量仅在公共边界、高风险改动或窄测
+无法覆盖时显式追加，不再作为每个切片的固定门禁；尤其不重复约一小时的 `lang-frontend` 全量测试。
+共享 Cargo target 的命令顺序执行，文档同步、diff 审计与独立静态复审可并行，不以并发 Cargo 进程
+争用 target lock。历史窄测和尚未接线的 LLVM/native matrix 不在每个 SSA 切片重复执行。
 
 ## 6. 技术方案与边界
 
@@ -137,9 +139,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
      composite tail、body-local owner 精确 drop 与显式 return transfer；退出前同时验证无 temporary 或
      MoveOnly named binding 残留。MoveOnly `if` / `when` result 继续原子 fail loud，MoveOnly Value
      参数仍等待 lambda-entry drop point。
-   - [ ] 消费 SPEC-0216 control result facts：MoveOnly `if` / `when` 各正常 branch tail owner 转交 merge
+   - [x] 消费 SPEC-0216 control result facts：MoveOnly `if` / `when` 各正常 branch tail owner 转交 merge
      result，operand/alternative owner 只按 frontend 精确 point 析构；lambda/named callable、nested
-     control、正常/提前退出与输入置换共同锁定。
+     control、正常/提前退出与输入置换共同锁定。captured closure 的 environment/user loan 与 checked
+     arithmetic continuation 均作为显式 block/edge 参数携带，不形成 hidden linear live-in。
 24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
@@ -188,8 +191,9 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 ## 9. 未决问题
 
 - 多 object/增量 ABI 明确留给后续 ADR。
-- SPEC-0216 已修正 MoveOnly control-tail 的 Consume/transfer 与 alternative drop facts；0199 仍不得
-  忽略 validated facts，必须在独立 SSA 切片消费并验证后才放宽现行 fail-loud 门禁。
+- SPEC-0216 的 MoveOnly control-tail Consume/transfer 与 alternative drop facts 已由第二十三步第四
+  切片消费；剩余 MoveOnly Value lambda 参数、`for` 与未列入现行 storage/ownership 表面的节点仍按
+  各自后继切片推进，不从本次 control result 闭环推导额外语义。
 - guide 的 `when_condition = expression` 可推出括号表达式 condition，但现行 parser 对
   `(true) ->` 报 L0058/L0065；0199 只 lower 可达的 bare Boolean literal，不在 Phase 4 内修改 Phase 1
   语法。该 parser/guide 漂移由独立 frontend follow-up 锁定并修正。
@@ -303,6 +307,17 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 2 passed | captured closure + body-local String owner 的 object/link/run 正例，以及 MoveOnly `if` result 的 UnsupportedSource 原子负例 |
 | `cargo test -p lang-codegen --locked --offline` | 227 passed, 1 ignored | 第二十三步第三切片的 affected-crate 全量基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十三步第三切片沿用固定简化验收，覆盖 workspace 全 target/feature |
+| `cargo test -q -p lang-codegen --lib unit_lower_control_result_tests` | 1 passed | MoveOnly named `if` alternatives、expression-body `when` composite、nested control、`Nothing` 退出、function pointer/captured closure result、显式 loan edge 与输入置换 |
+| `cargo test -q -p lang-codegen --lib unit_lower_tests` | 14 passed | named block/expression result、owner transfer 与既有跨文件 lowering 回归 |
+| `cargo test -q -p lang-codegen --lib unit_lower_when_tests` | 6 passed | Boolean entry chain、result merge 与 when owner/drop 回归 |
+| `cargo test -q -p lang-codegen --lib unit_lower_closure_tests` | 7 passed | callable ABI、closure body/result/drop 与现行原子边界回归 |
+| `cargo test -q -p lang-codegen --lib unit_lower_scalar_tests` | 3 passed | checked arithmetic success/failure CFG 携带 live loan，整数 scalar 回归 |
+| `cargo test -q -p lang-codegen --lib unit_lower_short_circuit_tests` | 2 passed | `&&` / `||` true/false edge 的 value/loan 显式携带回归 |
+| `cargo test -q -p lang-codegen --lib unit_lower_loop_tests` | 7 passed | `Nothing` 全 diverge control、break/continue、nested loop target 与既有 owner/drop 回归 |
+| `cargo test -q -p lang-codegen --lib native::unit_tests` | 2 passed | named/captured MoveOnly control result、branch 内 checked arithmetic 的 object/link/run，以及 MoveOnly Value lambda 参数 UnsupportedSource 负例 |
+| `cargo test -q -p lang-codegen --lib unit_lower` | 65 passed | fresh-context 复审补跑 scoped umbrella，覆盖 owner-aware unit lowering 回归，不扩张到 crate/frontend 全量 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十三步第四切片采用窄测试过滤器 + workspace 静态门禁，不运行 `lang-frontend` 全量测试 |
+| 独立 fresh-context 评审与复审 | 通过 | 初审发现 control block value/loan 参数计数、checked continuation hidden loan、`Nothing` loop gate 三处回归；分别修复并补齐 control/scalar/loop/native 门禁后，最终无 P1/P2/P3 |
 | 独立 fresh-context 评审 | 无 P1/P2/P3 | 复核 declare 门禁、thunk/显式 return owner transfer、capture/function pointer、退出不变量、精确 drop 及 native 原子边界 |
 | 独立 fresh-context 评审 | 通过 | 复核唯一 direct tail 门禁、thunk Return/caller result owner 转移、function pointer/concrete closure、跨文件确定性及 fail-loud 边界，未发现 P1/P2/P3 |
 | `cargo test -p lang-codegen --lib unit_llvm_tests --locked --offline` | 1 passed | 真实 compilation-unit→verified LLVM、跨 package alias/callable/Borrow/String drop、multi-source DWARF 与输入反序全文确定性 |
@@ -405,6 +420,18 @@ String concat operand、body-local owner 与显式 return，并在隐式返回�
 local owner 只按 frontend 精确 point 析构，返回 owner 不 drop。MoveOnly `if`/`when` body 因
 SPEC-0215 原子回滚 plan 而无法满足退出不变量，继续在 program 发布前 fail loud；MoveOnly Value
 参数仍等待 lambda-entry drop point。现行 guide 语义未改变。
+
+第二十三步的第四切片消费 SPEC-0216 control result facts。`if` / `when` result gate 改为检查 concrete
+type 是否具有现行 SSA storage，并保留无需 storage 的 `Nothing` 全 diverge 路径，不再用 Copyability
+拒绝 String 等 MoveOnly owner；每条正常 branch
+完成 tail lowering 后，按 source-qualified expression category 把 Place/Temporary owner 转交 merge
+result，再消费 operand、alternative 与 BranchExit 精确 drop facts。merge parameter 顺序固定为
+result、live value binding、live loan；named callable、function pointer 与 captured concrete closure
+共用该路径，nested control、`Nothing` 分支与输入置换不另设特例。captured thunk 的 environment field
+loan/user Borrow 参数及 checked arithmetic 的 success/failure continuation 都通过显式 block/edge 参数
+重绑，避免在内层 CFG 形成 hidden linear live-in。public native fixture 同时覆盖跨 package alias、named
+MoveOnly `if` result、captured lambda control result 与 branch 内 checked arithmetic；UnsupportedSource
+负例改由尚未实现的 MoveOnly Value lambda 参数锁定。现行 guide 语义未改变。
 
 第二十四步的第一切片把真实 compilation-unit product 接到既有 verified LLVM adapter 与 multi-source
 DWARF emitter。正向链从两个 package 的 source input 分别执行 name/type/ownership 分析，再生成单一

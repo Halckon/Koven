@@ -213,7 +213,11 @@ fn analyze_unit() -> UnitAnalysis {
         "package p\n\
          value class Token(val item: Int)\n\
          class Bundle(val text: String, val count: Int)\n\
-         fun make(number: Int): String = \"provider\" + \"!\"\n\
+         fun make(number: Int): String = if (number == 5) {\n\
+             \"provider\" + \"!\"\n\
+         } else {\n\
+             \"fallback\" + \"!\"\n\
+         }\n\
          fun inspect(message: String): Unit {}\n\
          fun makeBundle(): Bundle = Bundle(count = 7, text = \"bundle\" + \"!\")\n\
          fun count(own bundle: Bundle): Int = bundle.count\n\
@@ -243,9 +247,11 @@ fn analyze_unit() -> UnitAnalysis {
          fun entry(): Unit {\n\
              val offset = 2\n\
              val action: move (borrow Int) -> String = move { item ->\n\
-                 val local = \"inside\"\n\
-                 val seen = p.inspect(local)\n\
-                 return build(item + offset)\n\
+                 if (item == 3) {\n\
+                     build(item + offset)\n\
+                 } else {\n\
+                     \"unused\" + \"!\"\n\
+                 }\n\
              }\n\
              val message = action(3)\n\
              val seen = p.inspect(message)\n\
@@ -254,12 +260,8 @@ fn analyze_unit() -> UnitAnalysis {
          }\n\
          fun invalidEntry(number: Int): Unit {}\n\
          fun unsupported(): Unit {\n\
-             val flag = true\n\
-             val action: move () -> String = move {\n\
-                 if (flag) { \"left\" } else { \"right\" }\n\
-             }\n\
-             val message = action()\n\
-             val seen = p.inspect(message)\n\
+             val action: move (own String) -> Unit = move { message -> p.inspect(message) }\n\
+             val invoked = action(\"unsupported\")\n\
          }",
     );
     let inputs = [

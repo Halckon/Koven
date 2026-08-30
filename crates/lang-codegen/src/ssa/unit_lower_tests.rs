@@ -833,34 +833,6 @@ fn value_if_with_one_diverging_branch_returns_the_normal_result() {
 }
 
 #[test]
-fn move_only_value_if_remains_an_explicit_unsupported_boundary() {
-    let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(
-        &mut sources,
-        "p/main.ko",
-        "package p\nfun entry(): String = if (true) \"left\" else \"right\"",
-    );
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-
-    let error = match lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "p", "entry"),
-    ) {
-        Ok(_) => panic!("MoveOnly value-if must stay outside the scalar result slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
-}
-
-#[test]
 fn path_specific_outer_owner_move_on_break_remains_an_explicit_boundary() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

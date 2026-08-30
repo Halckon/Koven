@@ -14,8 +14,9 @@ member operation、core container construction、container place/assignment、co
 null-comparison/non-null-use flow、String interpolation、top-level variable/const initializer 与现行
 expression-tail typed traversal，并通过完成审计；
 SPEC-0198 已完成；SPEC-0215 已补齐受支持 lambda body 的独立 liveness 与隐式结果 Consume，
-SPEC-0216 已统一 MoveOnly `if` / `when` control tail 的 checker/drop usage facts；SPEC-0199 已按
-解锁价值推进 unit reachability、SSA、LLVM 与 object/native 切片，0187 仍可独立推进。
+SPEC-0216 已统一 MoveOnly `if` / `when` control tail 的 checker/drop usage facts，SPEC-0199 已消费
+这些 facts 并闭合 named/lambda/captured control result SSA/native 路径；0199 继续按解锁价值推进其余
+unit lowering 切片，0187 仍可独立推进。
 已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
