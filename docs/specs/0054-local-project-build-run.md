@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P6-054` |
 | 所属 Phase | Phase 6 |
 | 语言规范 | 现行 v0.33 §33 |
@@ -61,17 +61,18 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 
 ## 5. 验收标准
 
-- [ ] CLI 正反矩阵覆盖固定 project build/run、所有缺失/重复/未知参数、selector grammar、`--`
+- [x] CLI 正反矩阵覆盖固定 project build/run、所有缺失/重复/未知参数、selector grammar、`--`
   分隔与单文件形式回归。
-- [ ] 真实多文件、多 package project 通过 exact/alias import 分别运行零参数和 argv entry，stdout、
+- [x] 真实多文件、多 package project 通过 exact/alias import 分别运行零参数和 argv entry，stdout、
   stderr、参数顺序、退出状态与最终 executable 均正确。
-- [ ] selector 矩阵覆盖默认/具名 package、任意函数名、public/internal/private、无 body、generic、
+- [x] selector 矩阵覆盖默认/具名 package、任意函数名、public/internal/private、无 body、generic、
   两种合法 shape、非法 overload 混合及 missing/inaccessible/invalid/ambiguous 分类。
-- [ ] 跨文件 frontend human/JSON Lines 诊断按 source key 排序并先于 entry error；project operational
+- [x] 跨文件 frontend human/JSON Lines 诊断按 source key 排序并先于 entry error；project operational
   error 保持单条 stderr 且没有伪造 `Ldddd`。
-- [ ] 注入 object/link/commit/cleanup failure，证明 build 不覆盖 existing/racing output、不发布
+- [x] 注入 object/link/commit/cleanup failure，证明 build 不覆盖 existing/racing output、不发布
   部分 executable、拒绝 manifest/source 路径重合、临时产物按契约清理，run 不丢失程序结果。
-- [ ] `lang-cli`/workspace 五项基线、Architecture/Guide/Roadmap 同步完成。
+- [x] 受影响窄测、直接下游 native 回归与 workspace 第 2 层静态门禁通过，Architecture/Guide/
+  Roadmap 同步完成；本 Spec 未触发约一小时的 `lang-frontend` 全量测试。
 
 ## 6. 技术方案与边界
 
@@ -86,10 +87,10 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 
 ## 7. 实施计划
 
-1. [ ] 扩展 project CLI parser 与错误优先级 → 验证：参数/单文件兼容矩阵。
-2. [ ] 编排 snapshot→validated unit 与 project entry resolver → 验证：frontend/selector 正反矩阵。
-3. [ ] 接 unit object、link、no-replace commit 与 run → 验证：真实 executable/argv/故障注入。
-4. [ ] 同步 Architecture/Spec 验收并跑 workspace 五项基线。
+1. [x] 扩展 project CLI parser 与错误优先级 → 验证：参数/单文件兼容矩阵。
+2. [x] 编排 snapshot→validated unit 与 project entry resolver → 验证：frontend/selector 正反矩阵。
+3. [x] 接 unit object、link、no-replace commit 与 run → 验证：真实 executable/argv/故障注入。
+4. [x] 同步 Architecture/Spec 验收并执行分层提交门禁。
 
 ## 8. 提交计划
 
@@ -107,3 +108,10 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-26 project-entry 审计 | 通过 | CLI/selector/output/error 边界已物化；当时因候选 guide/前置链未生效保持 draft |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_string_tests --locked --offline` | 4/4 通过 | 锁定 unit `println`/`error` effect、Borrow loan 结束与发散 Borrow 实参传播 |
+| `cargo test -p lang-codegen --lib native::unit_tests::unit_object_failures_preserve_targets_and_cleanup_sibling_temporary --locked --offline -- --exact` | 1/1 通过 | 锁定 object failure 不覆盖目标并清理 sibling temporary |
+| `cargo test -p lang-cli --locked --offline` | 通过 | 47 个 CLI 单元测试、3 个 formatter、8 个既有单文件 native、3 个 project 进程测试全部通过 |
+| `cargo check --workspace --all-targets --locked --offline` | 通过 | 覆盖五个 member 与全部 target 的编译兼容 |
+| `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | 通过 | workspace 严格静态检查 |
+| `cargo build -p lang-cli --locked --offline` | 通过 | 公开 `kovenc` binary 构建 |
+| `cargo fmt --all -- --check`、`git diff --check` | 通过 | 格式与 whitespace 门禁；按分层规则未运行 `lang-frontend` 全量测试 |

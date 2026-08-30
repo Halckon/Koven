@@ -10,6 +10,91 @@ use super::{
 };
 
 #[test]
+fn lowers_standard_print_and_abort_calls_in_unit_source() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "test/entry.ko",
+        "package test\n\
+         fun entry(): Unit {\n\
+             val printed = println(\"before abort\")\n\
+             val stopped = error(\"failure\")\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "test/entry.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("standard print and abort calls lower to verified unit SSA");
+
+    let function = &program.modules[0].functions[0];
+    let printed_loan = function
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction.operation {
+            Operation::PrintString { value } => Some(value),
+            _ => None,
+        })
+        .expect("println emits a string print operation");
+    assert!(function.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::BorrowEnd { loan } if loan == printed_loan
+    )));
+    assert!(function.blocks.iter().any(|block| {
+        block
+            .terminator
+            .as_ref()
+            .is_some_and(|terminator| matches!(terminator.kind, TerminatorKind::Abort))
+    }));
+}
+
+#[test]
+fn preserves_a_nested_abort_used_as_a_borrow_argument() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "test/entry.ko",
+        "package test\nfun entry(): Unit { val stopped = println(error(\"stop\")) }",
+    );
+    let inputs = [SourceUnitInput::new("root", "test/entry.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("a diverging Borrow argument propagates its inner Abort");
+
+    let function = &program.modules[0].functions[0];
+    assert!(function.blocks.iter().any(|block| {
+        block
+            .terminator
+            .as_ref()
+            .is_some_and(|terminator| matches!(terminator.kind, TerminatorKind::Abort))
+    }));
+    assert!(
+        !function
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::PrintString { .. })),
+        "the outer println is unreachable after the nested Abort"
+    );
+}
+
+#[test]
 fn returns_literal_concat_after_dropping_only_its_operand_owners() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(

@@ -22,6 +22,12 @@ pub(super) fn execute_build(
     arguments: &[OsString],
     message_format: MessageFormat,
 ) -> CommandOutput {
+    if arguments
+        .first()
+        .is_some_and(|argument| argument == "--project")
+    {
+        return crate::project_command::execute_build(arguments, message_format);
+    }
     let (source, entry, executable) = match arguments {
         [source, entry_flag, entry, output_flag, executable]
             if entry_flag == "--entry"
@@ -79,6 +85,12 @@ pub(super) fn execute_build(
 }
 
 pub(super) fn execute_run(arguments: &[OsString], message_format: MessageFormat) -> CommandOutput {
+    if arguments
+        .first()
+        .is_some_and(|argument| argument == "--project")
+    {
+        return crate::project_command::execute_run(arguments, message_format);
+    }
     let separator = arguments.iter().position(|argument| argument == "--");
     let (compiler_arguments, program_arguments) = match separator {
         Some(separator) => (&arguments[..separator], &arguments[separator + 1..]),

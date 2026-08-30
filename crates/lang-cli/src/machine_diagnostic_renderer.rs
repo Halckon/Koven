@@ -18,8 +18,16 @@ pub(super) fn render_machine_diagnostics(
     diagnostics: &[Diagnostic],
 ) -> Result<String, MachineDiagnosticError> {
     let ordered = ordered_diagnostics(sources, diagnostics)?;
-    let records = ordered
-        .into_iter()
+    render_machine_diagnostics_in_order(sources, &ordered)
+}
+
+/// 按调用方已经建立的稳定顺序编码诊断，不再按展示路径重排。
+pub(super) fn render_machine_diagnostics_in_order(
+    sources: &SourceMap,
+    diagnostics: &[&Diagnostic],
+) -> Result<String, MachineDiagnosticError> {
+    let records = diagnostics
+        .iter()
         .map(|diagnostic| diagnostic_value(sources, diagnostic))
         .collect::<Result<Vec<_>, _>>()?;
     let mut rendered = String::new();

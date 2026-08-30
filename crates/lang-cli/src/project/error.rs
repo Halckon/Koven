@@ -51,6 +51,7 @@ pub(crate) enum ProjectLoadError {
     /// 同一个物理 `.ko` 文件通过两个 source key 被发现。
     DuplicatePhysicalSource { first: PathBuf, second: PathBuf },
     /// 宿主文件系统没有提供可靠的普通文件物理 identity。
+    #[cfg_attr(unix, allow(dead_code))]
     PhysicalSourceIdentityUnavailable { path: PathBuf },
     /// 具体文件系统操作失败。
     Io {

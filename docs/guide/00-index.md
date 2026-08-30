@@ -33,7 +33,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   尾 lambda 调用糖及所有 headerless lambda 的 contextual 隐式 `it` 参数，§33 为无依赖本地
   project 固定显式 package-qualified entry、两种 process
   shape 与失败原子 build/run。SPEC-0213/0214 已完成尾随 lambda 与隐式 `it`，SPEC-0054
-  project build/run 尚待实施；尚未完成的实现不得伪装为当前代码事实。v0.33 不改变单文件 main，也不定义
+  已完成 project build/run。v0.33 不改变单文件 main，也不定义
   manifest target/default 或 dependency build。
 - **v0.34 目前只是独立后继候选，未启用**：§34 以 v0.32 为基线，不自动包含 v0.33 的
   grammar §9/SPEC-0213/0214 或 §33；它
@@ -228,6 +228,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0035 | 聚合、class/Box allocation 与显式 drop/free 后端基元 | `06-roadmap.md` Phase 4、`../specs/0035-aggregate-class-allocation-drop.md` | ✅ 已实现 |
 | SPEC-0036 | 顺序容器连续缓冲区、checked-index 与 drop 后端基元 | `06-roadmap.md` Phase 4、`../specs/0036-sequential-container-runtime.md` | ✅ 已实现 |
 | SPEC-0042 | 标准库目标语言 bootstrap 闭环 | `06-roadmap.md` Phase 5、`../specs/0042-standard-library-bootstrap.md` | ✅ 已实现 |
+| SPEC-0054 | 无依赖本地 project build/run | `01-design-decisions.md` §33、`../specs/0054-local-project-build-run.md` | ✅ 已实现 |
 | SPEC-0189 | 标准 `println(String)` 与最小 stdout 输出 | `06-roadmap.md` Phase 5、`../specs/0189-standard-println-output.md` | ✅ 已实现 |
 | SPEC-0192 | 一般 UTF-8 String owner/runtime | `01-design-decisions.md` §31、`../specs/0192-general-string-runtime.md` | ✅ 已实现 |
 | SPEC-0190 | 公开单文件 `kovenc build/run` | `06-roadmap.md` Phase 6、`../specs/0190-public-single-file-build-run.md` | ✅ 已实现 |

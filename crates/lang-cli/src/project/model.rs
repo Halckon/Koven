@@ -22,6 +22,7 @@ impl ProjectSourceSet {
     }
 
     /// 返回 manifest 中的展示名称；它不参与 Koven package identity。
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -53,6 +54,7 @@ impl ProjectSourceRoot {
     }
 
     /// 返回可直接交给 compilation-unit Stage 1 的稳定 root identity。
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn identity(&self) -> &str {
         &self.identity
     }

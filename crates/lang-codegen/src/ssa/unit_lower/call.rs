@@ -95,6 +95,55 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if descriptor.aborts() {
+            let Some(lowered) = self.lower_call_arguments(call, arguments, descriptor, span)?
+            else {
+                return Ok(LoweredValue::Diverged);
+            };
+            if !matches!(lowered.arguments.as_slice(), [EntityId::Loan(_)]) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            self.function
+                .set_terminator(
+                    self.block,
+                    crate::ssa::model::TerminatorKind::Abort,
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Diverged);
+        }
+        if descriptor.prints_line() {
+            let Some(LoweredCallArguments {
+                arguments: lowered,
+                created_loans,
+            }) = self.lower_call_arguments(call, arguments, descriptor, span)?
+            else {
+                return Ok(LoweredValue::Diverged);
+            };
+            let [EntityId::Loan(loan)] = lowered.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::PrintString { value: *loan },
+                    Vec::new(),
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            for (loan, end_span) in created_loans.into_iter().rev() {
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::BorrowEnd { loan },
+                        Vec::new(),
+                        Origin::Source(end_span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+            }
+            self.emit_drops(UnitDropPoint::CallReturn(call))?;
+            return Ok(LoweredValue::Unit);
+        }
         if descriptor.target() == UnitCallTarget::FunctionValue {
             return self.lower_function_value_call(
                 expression,
@@ -208,6 +257,29 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
                 ParameterMode::Borrow => {
+                    let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
+                    let argument_type = self
+                        .typed
+                        .types()
+                        .expression_type(argument_id)
+                        .ok_or_else(|| {
+                            lowering_error(LoweringErrorKind::MissingFact, argument.span)
+                        })?;
+                    let argument_type = resolve_concrete_type(
+                        self.typed,
+                        argument_type,
+                        self.substitutions,
+                        argument.span,
+                    )?;
+                    if builtin_type(self.typed, argument_type) == Some(BuiltinType::Nothing) {
+                        return match self.lower(argument.value)? {
+                            LoweredValue::Diverged => Ok(None),
+                            LoweredValue::Value(_) | LoweredValue::Unit => Err(lowering_error(
+                                LoweringErrorKind::InvalidModel,
+                                argument.span,
+                            )),
+                        };
+                    }
                     let parameter_type = resolve_concrete_type(
                         self.typed,
                         mapping.parameter_type(),

@@ -9,9 +9,9 @@ mod format;
 mod linker;
 mod machine_diagnostic_renderer;
 mod native_command;
-// SPEC-0052 只提供内部 source-set provider；公开 project 命令等待 SPEC-0054。
-#[allow(dead_code)]
 mod project;
+mod project_build;
+mod project_command;
 
 use std::{ffi::OsString, io::Write, process::ExitCode};
 

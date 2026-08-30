@@ -3,7 +3,7 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.33 文档集定义。v0.33 已启用，
-SPEC-0213/0214 已完成，0054 尚未完成；本文件只把已落地代码写成实现事实。class-family 与
+SPEC-0213/0214/0054 均已完成；本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -144,13 +144,21 @@ Array 和 String SSA identity。参数化 wrapper 使用 `i32 main(i32 argc, ptr
 pointer ABI 调用 Koven main，返回后复用既有 drop glue 逆序析构 String 并唯一释放 buffer。
 frontend→SSA 同时只为 Borrow 调用实参接通 active shared `Array<T>` loan 的 checked element
 place，不开放 owned element extraction、replace 或 relocation。`kovenc run` 通过 `--` 分隔
-compiler/program 参数，并以 `OsString` 原样转交；默认 output、多文件/package/project build 仍未实现；
+compiler/program 参数，并以 `OsString` 原样转交；默认 output 仍未实现；
 SPEC-0052 已在 `lang-cli::project` 建立内部 version 1 `project.toml` provider：调用方显式提供
 manifest，strict schema 拒绝未知 dependency/target/entry 字段，manifest-relative roots 经路径、
 symlink、重叠和物理 identity 检查后递归读取普通 `.ko`，最终发布按 `(root identity, logical path)`
 排序的不可变 root/logical/text/presentation snapshot。该模块不调用 frontend、不查询 cwd、不选择
-entry，也没有公开 project CLI；若宿主不能提供可靠的普通文件物理 identity 则 fail loud。加载期
+entry；若宿主不能提供可靠的普通文件物理 identity 则 fail loud。加载期
 项目树并发替换不在首版原子保证内；
+SPEC-0054 在 provider 之上新增固定顺序的 `kovenc build/run --project ... --entry ...`：同一
+`SourceMap` 依次完成 unit name/type/ownership validated gate，诊断按 source key 进入 human/JSON
+renderer；entry resolver 只在 typed package index 中选择有 body、非泛型、非 private 的顶层
+`() -> Unit` 或 Borrow `(Array<String>) -> Unit`，并以 `NativeUnitEntry` identity 交给 codegen。
+build 的 object/linker output 是 final 同目录的 create-new sibling temporary，object 清理后以
+`hard_link` 原子 no-replace 发布；run 使用唯一临时目录并原样传递 `OsString` argv、stdout、stderr
+与可表示状态。manifest/source 重合、existing/racing output、codegen/link/commit/cleanup failure
+均 fail loud，dependency、manifest target/default 与隐式跨 package `main` 仍未实现；
 SPEC-0058 已提供独立 TextMate grammar 与由生产
 Lexer 校验的高亮回归 corpus；SPEC-0059 已提供 Tree-sitter grammar、生成 parser、外部
 identifier scanner、原生 corpus 与生产前端交叉验收。
@@ -1977,7 +1985,7 @@ renderer；显式全局 `--message-format=json` 仅把该诊断分支切换为 A
 真实 binary 测试锁定 human/machine stderr、stdout、0/1/2 矩阵和输入不变，unit test 另锁定
 输出 writer 失败不 panic。原地写入、目录遍历、stdin、配置和 range formatting 尚未实现。
 
-## Local project source-set provider
+## Local project source-set 与 native CLI
 
 `lang-cli::project::load_project_source_set` 接受显式、文件名精确为 `project.toml` 的路径，只负责
 manifest IO、严格 version 1 value 校验与本地 filesystem discovery。root identity 是已验证并排序的
@@ -1987,8 +1995,11 @@ manifest-relative `/` 路径；source identity 是 root-relative UTF-8 logical p
 identity 均作为 project operational error fail loud，不产生 `Ldddd`。
 
 provider 读取完成后才发布不可变 snapshot，目录项错误和成功 source 均先稳定选择/排序；空 root
-与空 source set 合法。当前没有公开 project check/build/run 命令，也不运行 package directive、
-frontend、entry 或 dependency 分析；单次加载期间项目树不被并发替换是首版 operational assumption。
+与空 source set 合法。`lang-cli::project_build` 把 snapshot 转为同一 `SourceMap` 的 parsed unit，
+顺序运行 name/type/ownership validated frontend，并在全部源码诊断清空后选择显式 entry；
+`lang-cli::project_command` 负责固定 CLI、sibling temporary、link/no-replace publish、launch 与 cleanup。
+当前没有公开 project check、dependency build、manifest target/default 或隐式 entry；单次加载期间项目树
+不被并发替换是首版 operational assumption。
 
 ## Single-file native CLI
 
@@ -2077,9 +2088,10 @@ thunk 通过 shared environment pointer 读取 capture，closure owner 仍是唯
 interpolation、`String?` native ABI、String member 与其他 printable 重载仍未实现。
 SPEC-0044 已在同一 prelude 实现 `Pair` / `Result` 声明，并验证条件复制、
 MoveOnly 诊断、构造、投影与解构的 native 正反路径。SPEC-0190/0193 已公开单文件显式 entry
-和零参数 conventional main build/run；SPEC-0194 已增加参数化 main/argv，但仍不等于多文件
-标准库或项目构建模型。SPEC-0052 已提供 manifest→immutable base source-set 的内部 provider，
-但尚未把 snapshot 送入 frontend 或公开 project build。
+和零参数 conventional main build/run；SPEC-0194 已增加参数化 main/argv。SPEC-0052 的
+manifest→immutable base source-set provider 已由 SPEC-0054 接入 validated multi-file frontend、
+显式 package-qualified entry、unit object/link/no-replace publish 与 argv run；依赖 compilation unit
+与多文件标准库装配仍未实现。
 内部值/系统分配 ABI
 及对应 LLVM aggregate、allocation/drop 后端基元已由 ADR-0008 / SPEC-0035 完成；SPEC-0185
 已允许未使用的声明型 type roots 共存；SPEC-0184 已完成源码 nominal/enum/Box constructor、

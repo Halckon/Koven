@@ -21,9 +21,17 @@ pub(super) fn render_diagnostics(
     diagnostics: &[Diagnostic],
 ) -> Result<String, DiagnosticError> {
     let ordered = ordered_diagnostics(sources, diagnostics)?;
+    render_diagnostics_in_order(sources, &ordered)
+}
+
+/// 按调用方已经建立的稳定顺序渲染诊断，不再按展示路径重排。
+pub(super) fn render_diagnostics_in_order(
+    sources: &SourceMap,
+    diagnostics: &[&Diagnostic],
+) -> Result<String, DiagnosticError> {
     let mut rendered = String::new();
 
-    for diagnostic in ordered {
+    for diagnostic in diagnostics {
         let primary = resolve_location(sources, SpanRole::Primary, diagnostic.primary_span())?;
         rendered.push_str(&format!(
             "{}[{}] {}:{}:{}-{}:{}: {}\n",
