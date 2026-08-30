@@ -137,7 +137,7 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
-| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201 approved，typed/ownership/native 继续按前置保持 draft，复用 ADR-0016 |
+| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201 done，typed/ownership/native 继续按批准与前置保持 draft，复用 ADR-0016 |
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
@@ -257,7 +257,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0175](./0175-call-argument-lambda-boundary.md) | 修复 block 内 call argument lambda 被 outer block stop 误判（`done`） | 0010、0012 `done`；实施时适用 v0.25；当前持续 Goal 的站立授权 |
 | [0213](./0213-trailing-lambda-call-parser.md) | 把同行尾 lambda 规范化为最后一个普通 CallArgument（`done`） | 0010、0012、0014、0175 `done`；v0.33 已启用 |
 | [0214](./0214-implicit-it-lambda-parameter.md) | 为 headerless lambda 建立 contextual 隐式 `it` 的 AST/name/type/ownership 纵向事实（`done`） | 0010、0018、0019、0032、0067、0173、0197、0198、0213 `done` |
-| [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`approved`） | 0017、0064、0176 `done`；v0.34 已启用 |
+| [0201](./0201-instance-receiver-mode-parser.md) | 解析 instance member 的缺省/显式 Borrow、Inout、Value receiver marker（`done`） | 0017、0064、0176 `done`；v0.34 已启用 |
 
 ### Phase 2：名称与类型检查
 
@@ -284,7 +284,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0174](./0174-overload-lambda-candidate-isolation.md) | 对多 overload 候选逐一隔离检查 lambda expected contract/body（`done`） | 0067、0173、0177 `done` |
 | [0178](./0178-jump-target-checking.md) | 检查 break/continue 最近词法 loop 与 callable boundary（`done`） | 0016、0019 `done`；现行 v0.18/v0.28 语义已封闭；当前持续 Goal 的站立授权 |
 | [0179](./0179-sequential-iteration-typed-plan.md) | 为三种 intrinsic 顺序容器发布 provider、元素与名称/discard/value-class Borrow binding typed plan（`draft`） | 0016、0018–0020、0022、0023、0178 `done`；v0.37 待启用；ADR-0023 `proposed` |
-| [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177 `done`；0201 `done` 后批准 |
+| [0180](./0180-instance-receiver-typed-facts.md) | 发布 instance member、`this` 与 Borrow-only 委托的 receiver typed facts（`draft`） | 0020、0067、0176、0177、0201 `done`；等待独立批准 |
 | [0183](./0183-constructor-typed-facts.md) | 发布普通/泛型 nominal、enum case 与 intrinsic Box constructor 的 target、实例类型、Value 参数映射和字段/case 顺序 typed fact（`done`） | 0020、0022、0067、0177 `done`；v0.29 已生效 |
 | 0024 | 检查 `Map` / `MutableMap` 的 key 契约、value 所有权约束和查询结果类型 | 0020；新 guide 明确 key 等价关系、返回所有权与修改 API |
 | [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`done`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |

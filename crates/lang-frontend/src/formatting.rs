@@ -550,6 +550,15 @@ mod tests {
     }
 
     #[test]
+    fn preserves_explicit_instance_receiver_mode_tokens() {
+        let source = "class C{public override own fun consume():Unit{}}";
+        let expected = "class C{public override own fun consume(): Unit{}}";
+        let first = formatted(source);
+        assert_eq!(first, expected);
+        assert_eq!(formatted(&first), first);
+    }
+
+    #[test]
     fn rejects_user_diagnostics_and_foreign_source_identity() {
         let mut invalid_sources = SourceMap::new();
         let invalid = invalid_sources

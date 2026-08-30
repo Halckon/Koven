@@ -268,7 +268,8 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_class_field(&mut self) -> Result<Option<ClassField>, ParserInternalError> {
-        let modifiers = self.parse_declaration_modifiers(false)?;
+        let modifiers =
+            self.parse_declaration_modifiers(false, ReceiverModifierPolicy::NotRecognized)?;
         let visibility = modifiers.visibility;
         let current_start = self.current()?.span().start();
         let start = declaration_modifier_start(modifiers).unwrap_or(current_start);
@@ -600,8 +601,23 @@ impl Parser<'_> {
         context: ClassMemberContext,
     ) -> Result<ItemId, ParserInternalError> {
         let member_stops = self.root_expression_stops().with(Stops::RIGHT_BRACE);
-        let modifiers = self.parse_declaration_modifiers(context.allows_override())?;
+        let receiver_policy = if matches!(context, ClassMemberContext::Companion) {
+            ReceiverModifierPolicy::Rejected
+        } else {
+            ReceiverModifierPolicy::Allowed
+        };
+        let mut modifiers =
+            self.parse_declaration_modifiers(context.allows_override(), receiver_policy)?;
         let primary = self.current()?.span();
+        if !self.current_is_keyword(Keyword::Fun)
+            && let Some(receiver) = modifiers.receiver_mode.take()
+        {
+            self.emit(
+                codes::INVALID_DECLARATION_MODIFIER,
+                "invalid declaration modifier",
+                parameter_mode_span(receiver),
+            )?;
+        }
         if matches!(context, ClassMemberContext::Interface)
             && self.current_is_keyword(Keyword::Fun)
             && let Some(

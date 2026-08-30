@@ -828,8 +828,8 @@ SPEC-0017 只实现不带 `delegation_clause` 的 class-family Parser；SPEC-006
 ### 13.5 v0.34 receiver grammar
 
 本小节与设计正文 §34 已于 2026-08-31 随 v0.34 明确启用并重基到完整 v0.33；以下产生式
-取代本节开头的 `method_modifiers` 及对应 instance member 产生式。SPEC-0201 完成前，仓库
-Parser 尚未实现这些新形态，不能把规范生效误写成代码已支持：
+取代本节开头的 `method_modifiers` 及对应 instance member 产生式，并已由 SPEC-0201 接入
+Parser/AST。typed receiver contract 仍等待 SPEC-0180：
 
 ```ebnf
 method_receiver_mode = "borrow" | "inout" | "own" ;

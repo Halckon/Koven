@@ -105,6 +105,19 @@ impl Parser<'_> {
         declaration_stops: Stops,
     ) -> Result<ItemId, ParserInternalError> {
         let fun_span = self.bump()?.span();
+        // receiver mode 只能位于 `fun` 前；在这里定向消费逆序 token，避免把它恢复成函数名
+        // 或拆成后续伪 member。
+        while self.current_is_keyword(Keyword::Borrow)
+            || self.current_is_keyword(Keyword::Inout)
+            || self.current_is_keyword(Keyword::Own)
+        {
+            let primary = self.bump()?.span();
+            self.emit(
+                codes::INVALID_DECLARATION_MODIFIER,
+                "invalid declaration modifier",
+                primary,
+            )?;
+        }
         let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
         let name = self.parse_name_marker(
             codes::EXPECTED_DECLARATION_NAME,

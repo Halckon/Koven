@@ -2111,7 +2111,7 @@ fun start(args: Array<String>): Unit { ... }
 
 > **现行状态**：v0.34 已于 2026-08-31 由用户明确启用并取代 v0.33。本节已显式重基到完整
 > v0.33，因此保留 grammar §9/SPEC-0213/0214 与 §33/SPEC-0054 的全部现行语义，只新增 receiver
-> 契约。SPEC-0201 先实施 Parser/AST，0180、0181、0191 再按 Phase 2→3→4 顺序推进；规范启用
+> 契约。SPEC-0201 已完成 Parser/AST，0180、0181、0191 再按 Phase 2→3→4 顺序推进；规范启用
 > 不等于这些实现已经完成。本节复用 ADR-0016 已接受的
 > Value/Borrow/Inout 内部 callable ABI，不新增 receiver ABI ADR。这里的“静态分发”指
 > instance member target 在编译期确定，不是 companion/type-level static member。
@@ -2145,8 +2145,8 @@ class Buffer(var size: Int) {
   声明不接受 receiver marker。顺序固定为 visibility、`override`、receiver mode、`fun`；
   重复或乱序使用既有 invalid/unsupported declaration modifier 诊断，不把 marker 当成函数名。
 - 本节整体取代 §13.1 对 instance-function modifier 的旧封闭列表：`borrow`、`inout`、
-  `own` 只按本节位置合法，`nocopy` 及其他未列 modifier 继续 unsupported。Parser 实现由
-  SPEC-0201 分阶段接入；在该 Spec 完成前，代码仍会按旧实现拒绝新形态。
+  `own` 只按本节位置合法，`nocopy` 及其他未列 modifier 继续 unsupported。Parser 实现已由
+  SPEC-0201 接入；后续类型/所有权/后端语义仍不得从 Parser 支持反推为已实现。
 - receiver mode 不参与 overload shape；缺省 Borrow 与显式 Borrow 不能形成重载。interface
   replacement、concrete `override`、default 冲突与 `super<I>` 选择必须精确比较规范化 receiver
   mode，如同既有显式参数 contract，不允许用返回类型或 mode 区分同 shape overload。

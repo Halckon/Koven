@@ -6,10 +6,10 @@
 | Goal ID | `KOV-P2-180` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
-| 批准依据 | 无；当前仍等待前置 SPEC-0201 完成后的独立批准 |
-| 前置 Spec | SPEC-0020、0067、0176、0177、0201；除 0201 外均 `done` |
+| 批准依据 | 无；当前仍等待独立批准 |
+| 前置 Spec | SPEC-0020、0067、0176、0177、0201 `done` |
 | 前置 ADR | 无 |
-| 阻塞项 | SPEC-0201 `done` |
+| 阻塞项 | 无技术阻塞；等待独立批准 |
 | 影响范围 | `lang-frontend` name/type checking、receiver/member/delegation model、L0152；Architecture/Roadmap |
 | 语言语义变更 | 否；发布候选 guide 已定义的 typed facts |
 

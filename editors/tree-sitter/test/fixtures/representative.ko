@@ -4,11 +4,11 @@ import sample.math.add as plus
 public value class Point(val x: Int, val y: Int)
 
 interface Shape {
-    fun area(): Double
+    borrow fun area(): Double
 }
 
 class Circle(val radius: Double): Shape {
-    override fun area(): Double = radius * radius
+    override borrow fun area(): Double = radius * radius
     companion object {
         const val KIND: String = "circle"
     }
@@ -17,7 +17,7 @@ class Circle(val radius: Double): Shape {
 enum class Result<T> {
     Ok(payload: T),
     Error(message: String);
-    fun valueOr(own default: T): T = when (this) {
+    own fun valueOr(own default: T): T = when (this) {
         is Result.Ok -> this.payload
         else -> default
     }
@@ -25,6 +25,7 @@ enum class Result<T> {
 
 object Origin {
     const val NAME: String = "origin"
+    inout fun reset(): Unit {}
 }
 
 fun compute(inout total: Int): Int {

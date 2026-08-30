@@ -91,6 +91,9 @@ pub(super) fn class_member_start_kind(kind: LexemeKind) -> bool {
                     | Keyword::Internal
                     | Keyword::Private
                     | Keyword::Override
+                    | Keyword::Borrow
+                    | Keyword::Inout
+                    | Keyword::Own
             ))
         )
 }
@@ -110,7 +113,23 @@ pub(super) fn declaration_modifier_start(modifiers: DeclarationModifiers) -> Opt
         .map(Span::start)
         .into_iter()
         .chain(modifiers.override_span.map(Span::start))
+        .chain(
+            modifiers
+                .receiver_mode
+                .map(parameter_mode_span)
+                .map(Span::start),
+        )
         .min()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ReceiverModifierPolicy {
+    /// 当前语法位置另有定向诊断，不由通用 modifier scanner 消费 receiver token。
+    NotRecognized,
+    /// 消费 receiver token 并以 L0076 拒绝，但不写入 AST modifier。
+    Rejected,
+    /// instance-function slot 可保存 receiver token；最终仍须由 member parser 确认后接 `fun`。
+    Allowed,
 }
 
 pub(super) fn classifier_keyword_start(kind: ClassifierKind) -> usize {
@@ -154,7 +173,13 @@ pub(super) fn file_construct_start_kind(kind: LexemeKind) -> bool {
     simple_declaration_start_kind(kind)
         || matches!(
             kind,
-            LexemeKind::Token(TokenKind::Keyword(Keyword::Package | Keyword::Import))
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Package
+                    | Keyword::Import
+                    | Keyword::Borrow
+                    | Keyword::Inout
+                    | Keyword::Own
+            ))
         )
 }
 

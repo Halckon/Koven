@@ -17,7 +17,7 @@
 > 后续三路门禁审计按解锁面选择 instance receiver，并在 §34 起草 v0.34 及
 > SPEC-0201→0180→0181→0191；二次审计已同步 grammar、固定 Value `this` 不隐含可变性，
 > 并移除无源码路径的 CallableInvoke 验收。2026-08-31 已把 §34 显式重基到完整 v0.33 并启用
-> v0.34；SPEC-0201 获准先实施，后续节点继续按前置顺序推进。
+> v0.34；SPEC-0201 已完成 Parser/AST，后续节点继续按批准与前置顺序推进。
 > 2026-08-27 对 nullable、iteration、const/Map 再审计后，选择不依赖 exact-import 或 receiver
 > 的 nullable 控制流作为下一候选，并在 §35 物化 v0.35 与
 > SPEC-0202→0203→0204、SPEC-0205→0206→0207 两条 Phase 2→3→4 链；候选未启用。
@@ -181,7 +181,7 @@ fun main(): Unit {
 - [x] **[SPEC-0214](../specs/0214-implicit-it-lambda-parameter.md)（已完成；Phase 1/2/3 纵向）**：
       在 0213 后为所有 headerless lambda 建立 contextual 隐式 `it`，由唯一一参数 expected
       function type 提供类型/mode，并接通单/多文件名称、类型、ownership 与 capture 排除事实。
-- [ ] **[SPEC-0201](../specs/0201-instance-receiver-mode-parser.md)（approved）**：按现行 v0.34 固定
+- [x] **[SPEC-0201](../specs/0201-instance-receiver-mode-parser.md)（已完成）**：按现行 v0.34 固定
       `[visibility] [override] [borrow|inout|own] fun` member modifier、AST Span 与恢复；
       不把 receiver 语义混入 Parser。
 

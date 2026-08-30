@@ -13,7 +13,7 @@ internal enum class Result {
 }
 
 private interface Drawable {
-    fun draw(borrow label: String): Unit
+    borrow fun draw(borrow label: String): Unit
 }
 
 object Origin

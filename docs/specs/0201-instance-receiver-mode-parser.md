@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-201` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [v0.34 §34.1](../guide/01-design-decisions.md#341-声明语法与规范化-receiver) |
@@ -39,12 +39,12 @@
 
 ## 4. 验收标准
 
-- [ ] class/value/interface/enum 的缺省、Borrow、Inout、Value，以及 object 的三种显式 marker
+- [x] class/value/interface/enum 的缺省、Borrow、Inout、Value，以及 object 的三种显式 marker
   均能形成保留真实语法的 AST/Span；object Inout/Value 的语言拒绝留给 SPEC-0180。
-- [ ] visibility/override/receiver 固定顺序、重复/逆序、顶层/companion/非函数位置正反矩阵通过。
-- [ ] 缺 `fun`、缺名称/body 与相邻 member 恢复保持确定，L0076/L0077 primary 精确。
-- [ ] formatter、TextMate/Tree-sitter bridge 与双 Lexer/Parser 不变量不回归。
-- [ ] 受影响 `lang-frontend` 窄测试及 workspace Layer 2 静态门禁通过，Architecture/Roadmap 同步；
+- [x] visibility/override/receiver 固定顺序、重复/逆序、顶层/companion/非函数位置正反矩阵通过。
+- [x] 缺 `fun`、缺名称/body 与相邻 member 恢复保持确定，L0076/L0077 primary 精确。
+- [x] formatter、TextMate/Tree-sitter bridge 与双 Lexer/Parser 不变量不回归。
+- [x] 受影响 `lang-frontend` 窄测试及 workspace Layer 2 静态门禁通过，Architecture/Roadmap 同步；
   除非风险升级，不机械运行完整 frontend 测试集。
 
 ## 5. 技术方案与边界
@@ -55,9 +55,9 @@ function parser。formatter 仍按源码 token 保守输出，不因规范化改
 
 ## 6. 实施计划
 
-1. [ ] 扩展 grammar/AST 与 modifier scanner → 验证：Parser AST/Span 窄测。
-2. [ ] 完成非法位置、顺序和恢复矩阵 → 验证：class-family compile-fail fixtures。
-3. [ ] 同步 grammar bridges、Architecture/Spec 并运行 workspace 基线。
+1. [x] 扩展 grammar/AST 与 modifier scanner → 验证：Parser AST/Span 窄测。
+2. [x] 完成非法位置、顺序和恢复矩阵 → 验证：class-family compile-fail fixtures。
+3. [x] 同步 grammar bridges、Architecture/Spec 并运行 workspace 基线。
 
 ## 7. 提交计划
 
@@ -76,3 +76,17 @@ function parser。formatter 仍按源码 token 保守输出，不因规范化改
 | 2026-08-26 receiver 审计 | 通过 | Lexer 已有三个 marker；现行 member modifier 明确拒绝它们，需独立 Parser Goal |
 | 2026-08-26 候选闭合审计 | 通过 | grammar §13.5 已同步产生式、合法 owner slot、固定顺序与恢复边界；v0.34 未启用，仍不授权实现 |
 | 2026-08-31 重基与启用审计 | 通过 | v0.34 已重基到完整 v0.33 并显式启用；SPEC-0201 前置均完成，批准进入实施 |
+| `cargo test -p lang-frontend --test parser_class_family --no-fail-fast` | 通过 | 19/19；五类 owner、Span、顺序/重复/逆序、非法位置、缺 `fun` 与后继恢复 |
+| `cargo test -p lang-frontend --test parser_file --no-fail-fast` | 通过 | 27/27；file boundary 与后继 root 回归 |
+| `cargo test -p lang-frontend --test parser_interface_delegation --no-fail-fast` | 通过 | 5/5；既有 interface/member 语法回归 |
+| `cargo test -p lang-frontend --test tree_sitter_grammar --no-fail-fast` | 通过 | 4/4；生产 Lexer/Parser 与 grammar fixture 一致 |
+| `XDG_CACHE_HOME=/tmp/koven-tree-sitter-cache npm test` | 通过 | Tree-sitter 8/8；缓存隔离在 `/tmp` |
+| `npm test`（`editors/textmate`） | 通过 | 80/80 lexical contract |
+| formatter receiver exact test | 通过 | marker token 保真且幂等 |
+| `cargo test -p lang-frontend --lib --no-fail-fast` | 基线漂移 | 49/51；两项既有 block/lambda 线性访问阈值失败，receiver boundary 收窄后失败计数不变，不冒充全量通过 |
+| `cargo test -p lang-frontend --test parser_declaration --no-fail-fast` | 基线漂移 | 21/22；旧断言仍把 v0.33 已合法的同行 `x {}` 当 trailing block，不属于本 Spec |
+| `cargo fmt --all -- --check` | 通过 | final tree 无格式差异 |
+| `cargo clippy -p lang-frontend --all-targets -- -D warnings` | 通过 | final tree，零 warning |
+| `cargo check --workspace --all-targets` | 通过 | final tree；workspace 下游编译兼容 |
+| `cargo build -p lang-cli` | 通过 | CLI build 门禁 |
+| 独立复审 | 通过 | 首轮发现 `fun borrow` 逆序 P2；修复并补三模式矩阵后复审确认关闭，无剩余 P1/P2 |

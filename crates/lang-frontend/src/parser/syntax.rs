@@ -46,6 +46,8 @@ pub struct DeclarationModifiers {
     pub visibility: Option<VisibilityModifier>,
     /// 实例函数可选的 `override`。
     pub override_span: Option<Span>,
+    /// instance function 可选的显式 receiver mode；缺省 Borrow 保持为 `None`。
+    pub receiver_mode: Option<ParameterModeMarker>,
 }
 
 /// class-family 声明种类及其真实关键字范围。

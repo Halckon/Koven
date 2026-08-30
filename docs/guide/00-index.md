@@ -37,8 +37,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   manifest target/default 或 dependency build。
 - **v0.34 已明确启用**：§34 已显式重基到完整 v0.33，保留 grammar §9/SPEC-0213/0214 与
   §33/SPEC-0054，并新增默认 Borrow、显式 Borrow/Inout/Value 的 instance receiver、静态分发调用
-  和 Borrow-only 窄化委托。SPEC-0201 已批准并先实施 Parser/AST；0180/0181/0191 继续等待各自
-  前置，规范生效不等于仓库已实现 receiver。
+  和 Borrow-only 窄化委托。SPEC-0201 已完成 Parser/AST；0180/0181/0191 继续等待各自批准与
+  前置，规范生效不等于 typed/ownership/native receiver 已实现。
 - **v0.35 目前只是独立后继候选，未启用**：§35 同样以 v0.32 为基线，不自动包含现行
   v0.34（含 grammar §9/§33 与 §34）；它封闭 nullable `when` 的剩余域证明与 `!!` 的 Copy/Consume 所有权，并把一般
   frontend facts 与 owned pointer-like SSA/LLVM 拆为 SPEC-0202–0207。inline nullable ABI、
@@ -237,7 +237,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ✅ 已实现；unit signature/body、跨文件 target/instance 与 recovery/validated gate 已完成 |
 | SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ✅ 已实现；source-qualified loan/move/drop/capture、return 与 validated ownership gate 已完成 |
 | SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ✅ 已实现 |
-| SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ▶ approved；v0.34 已启用 |
+| SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ✅ 已实现 |
 | SPEC-0202 | nullable `when` 剩余域 typed facts | `01-design-decisions.md` §35、`../specs/0202-nullable-when-flow-facts.md` | ⏸ draft；v0.35 未启用 |
 | SPEC-0203 | nullable `when` view/extraction 所有权 | `01-design-decisions.md` §35、`../specs/0203-nullable-when-ownership.md` | ⏸ draft；v0.35 未启用 |
 | SPEC-0204 | owned pointer-like nullable `when` lowering | `01-design-decisions.md` §35、`../specs/0204-pointer-nullable-when-lowering.md` | ⏸ draft；v0.35 未启用 |

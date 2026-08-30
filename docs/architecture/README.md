@@ -3,8 +3,8 @@
 本目录描述仓库**当前已经实现**的架构。设计原因记录在 [`../adr/`](../adr/)，单次交付范围
 记录在 [`../specs/`](../specs/)，语言语义由
 [`../guide/00-index.md`](../guide/00-index.md) 导航的现行 v0.34 文档集定义。v0.34 已在完整
-v0.33 基线上启用；SPEC-0213/0214/0054 均已完成，首个 receiver Parser 切片 SPEC-0201
-已批准但尚未实施。本文件只把已落地代码写成实现事实。class-family 与
+v0.33 基线上启用；SPEC-0213/0214/0054 与首个 receiver Parser 切片 SPEC-0201 均已完成。
+本文件只把已落地代码写成实现事实。class-family 与
 窄化接口委托已分别由 SPEC-0017、SPEC-0064 实现；SPEC-0018 已建立单文件名称解析，
 SPEC-0019 已建立基础类型检查，SPEC-0020 已建立名义/泛型/interface 类型检查。
 SPEC-0021 已建立 enum case type、`when` 穷尽性与 flow-sensitive smart cast；SPEC-0022 已
@@ -167,7 +167,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.33 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.34
-的显式 instance receiver 语义已启用，但实现仍等待从 SPEC-0201 开始的分阶段交付。v0.33
+的显式 instance receiver Parser/AST 已由 SPEC-0201 完成；typed/ownership/native 继续等待
+SPEC-0180/0181/0191 分阶段交付。v0.33
 的尾随 lambda 与隐式 `it` 已由 SPEC-0213/0214 完成。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
@@ -586,6 +587,12 @@ Parser 的公开路径继续统一由 `parser/mod.rs` 门面提供：`syntax` �
   identifier，但 ordinary class supertype entry 可提交 `Interface by field` 并保存
   `DelegationClause`；L0078 覆盖缺失目标。非 ordinary class、匿名 / nested / local
   class-family、构造器调用、普通 body field、属性委托与任意 delegate expression 仍被拒绝；
+- SPEC-0201 已让 class/value/interface/enum/object 的 instance function 按固定
+  visibility→`override`→receiver→`fun` 顺序保存缺省或显式 Borrow/Inout/Value receiver；
+  `DeclarationModifiers` 保留真实 marker kind/Span。顶层、companion、constant、field 与 classifier
+  位置只消费并定向拒绝非法 marker，不把它泄漏进 AST；L0076/L0077 与既有 owner-aware recovery
+  保留下一 member、enum delimiter、所属 `}` 和后续顶层声明。该阶段不规范化 receiver，也不检查
+  object/override/interface contract；
 - variable / constant / function declaration 显式接收调用位置的 expression stops：文件根保持
   file declaration 边界，class-family member 额外保留所属 `}`，因此缺失类型、initializer 或
   函数表达式体不会消费 class closer 并把后续顶层声明误归入 member body；
@@ -818,8 +825,8 @@ SPEC-0197 第一阶段新增纯内存的
   `private` 以 lexical owner 检查（含 safe/nullable recovery），owner-dependent generic bound 与
   alpha-equivalent override shape 保持实例语义；L0084/L0113、输入置换与失败 trial 回滚保持单文件
   语义。本切片只实现由 v0.32 引入并在现行 v0.34 沿用的隐式 receiver；v0.34 receiver mode
-  已成为现行语义，但 SPEC-0201/0180/0181/0191 的 Parser、typed、ownership 与 lowering 实现
-  均尚未落地；
+  已成为现行语义；SPEC-0201 Parser/AST 已落地，SPEC-0180/0181/0191 的 typed、ownership 与
+  lowering 尚未落地；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为

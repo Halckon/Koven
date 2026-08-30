@@ -1297,11 +1297,15 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": true,
       "types": [
         {
           "type": "function_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_mode",
           "named": true
         }
       ]
@@ -1489,6 +1493,10 @@
       "types": [
         {
           "type": "function_declaration",
+          "named": true
+        },
+        {
+          "type": "parameter_mode",
           "named": true
         },
         {

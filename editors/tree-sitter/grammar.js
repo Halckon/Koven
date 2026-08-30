@@ -257,11 +257,12 @@ module.exports = grammar({
       seq(
         optional($.visibility_modifier),
         optional("override"),
+        optional($.parameter_mode),
         $.function_declaration,
       ),
 
     interface_method_declaration: ($) =>
-      seq(optional("public"), $.function_declaration),
+      seq(optional("public"), optional($.parameter_mode), $.function_declaration),
 
     _object_constant_declaration: ($) =>
       seq(optional($.visibility_modifier), $.constant_declaration),

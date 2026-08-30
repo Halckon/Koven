@@ -227,7 +227,7 @@ impl Parser<'_> {
                 continue;
             }
 
-            let started_as_declaration = simple_declaration_start_kind(self.current()?.kind());
+            let started_as_declaration = file_construct_start_kind(self.current()?.kind());
             let before = self.index;
             let root = self.parse_declaration_item()?;
             if self.index <= before {
@@ -270,7 +270,8 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_declaration_item(&mut self) -> Result<ItemId, ParserInternalError> {
-        let modifiers = self.parse_declaration_modifiers(false)?;
+        let modifiers =
+            self.parse_declaration_modifiers(false, ReceiverModifierPolicy::Rejected)?;
         let declaration = self.parse_unmodified_declaration_item()?;
         self.wrap_modified_item(modifiers, declaration)
     }
@@ -337,9 +338,11 @@ impl Parser<'_> {
     pub(super) fn parse_declaration_modifiers(
         &mut self,
         allow_override: bool,
+        receiver_policy: ReceiverModifierPolicy,
     ) -> Result<DeclarationModifiers, ParserInternalError> {
         let mut modifiers = DeclarationModifiers::default();
         let mut saw_override = false;
+        let mut saw_receiver = false;
         loop {
             let visibility = if self.current_is_keyword(Keyword::Public) {
                 Some(VisibilityModifier::Public(self.current()?.span()))
@@ -352,7 +355,7 @@ impl Parser<'_> {
             };
             if let Some(visibility) = visibility {
                 let span = self.bump()?.span();
-                if modifiers.visibility.is_some() || saw_override {
+                if modifiers.visibility.is_some() || saw_override || saw_receiver {
                     self.emit(
                         codes::INVALID_DECLARATION_MODIFIER,
                         "invalid declaration modifier",
@@ -365,7 +368,7 @@ impl Parser<'_> {
             }
             if self.current_is_keyword(Keyword::Override) {
                 let span = self.bump()?.span();
-                if !allow_override || saw_override {
+                if !allow_override || saw_override || saw_receiver {
                     self.emit(
                         codes::INVALID_DECLARATION_MODIFIER,
                         "invalid declaration modifier",
@@ -377,7 +380,32 @@ impl Parser<'_> {
                 saw_override = true;
                 continue;
             }
-            break;
+            let receiver = if self.current_is_keyword(Keyword::Borrow) {
+                Some(ParameterModeMarker::Borrow(self.current()?.span()))
+            } else if self.current_is_keyword(Keyword::Inout) {
+                Some(ParameterModeMarker::Inout(self.current()?.span()))
+            } else if self.current_is_keyword(Keyword::Own) {
+                Some(ParameterModeMarker::Own(self.current()?.span()))
+            } else {
+                None
+            };
+            let Some(receiver) = receiver else {
+                break;
+            };
+            if receiver_policy == ReceiverModifierPolicy::NotRecognized {
+                break;
+            }
+            let span = self.bump()?.span();
+            if receiver_policy == ReceiverModifierPolicy::Rejected || saw_receiver {
+                self.emit(
+                    codes::INVALID_DECLARATION_MODIFIER,
+                    "invalid declaration modifier",
+                    span,
+                )?;
+            } else {
+                modifiers.receiver_mode = Some(receiver);
+            }
+            saw_receiver = true;
         }
         Ok(modifiers)
     }

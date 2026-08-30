@@ -3,8 +3,8 @@
 use lang_frontend::{
     diagnostic::Diagnostic,
     parser::{
-        ClassifierDeclaration, ClassifierKind, Item, NameMarker, ParsedDeclaration, ParsedFile,
-        VisibilityModifier,
+        ClassifierDeclaration, ClassifierKind, Item, NameMarker, ParameterModeMarker,
+        ParsedDeclaration, ParsedFile, VisibilityModifier,
     },
     source::{SourceId, SourceMap},
 };
@@ -54,6 +54,25 @@ fn classifier(parsed: &ParsedDeclaration) -> &ClassifierDeclaration {
         panic!("expected classifier")
     };
     classifier
+}
+
+fn receiver_mode(
+    parsed: &ParsedDeclaration,
+    id: lang_frontend::ast::ItemId,
+) -> Option<ParameterModeMarker> {
+    match item(parsed, id) {
+        Item::Modified { modifiers, .. } => modifiers.receiver_mode,
+        Item::Function { .. } => None,
+        other => panic!("expected function member, got {other:?}"),
+    }
+}
+
+fn receiver_mode_span(marker: ParameterModeMarker) -> lang_frontend::source::Span {
+    match marker {
+        ParameterModeMarker::Own(span)
+        | ParameterModeMarker::Borrow(span)
+        | ParameterModeMarker::Inout(span) => span,
+    }
 }
 
 #[test]
@@ -142,6 +161,203 @@ fn class_header_and_members_preserve_typed_children_and_modifiers() {
     assert!(matches!(
         item(&parsed, body.members[1]),
         Item::Modified { .. }
+    ));
+}
+
+#[test]
+fn instance_receiver_modes_preserve_marker_kind_and_source_span_for_every_owner() {
+    for text in [
+        "class C { fun plain(): Unit {}; borrow fun read(): Unit {}; inout fun write(): Unit {}; own fun take(): Unit {} }",
+        "value class V(val raw: Int) { fun plain(): Unit {}; borrow fun read(): Unit {}; inout fun write(): Unit {}; own fun take(): Unit {} }",
+        "interface I { fun plain(): Unit {}; borrow fun read(): Unit {}; inout fun write(): Unit {}; own fun take(): Unit {} }",
+        "enum class E { A; fun plain(): Unit {}; borrow fun read(): Unit {}; inout fun write(): Unit {}; own fun take(): Unit {} }",
+        "object O { fun plain(): Unit {}; borrow fun read(): Unit {}; inout fun write(): Unit {}; own fun take(): Unit {} }",
+    ] {
+        let (sources, parsed) = declaration(text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{text}: {:?}",
+            parsed.diagnostics()
+        );
+        let members = &classifier(&parsed).body.as_ref().expect("body").members;
+        assert_eq!(members.len(), 4, "{text}");
+        assert_eq!(receiver_mode(&parsed, members[0]), None, "{text}");
+        for (id, expected) in members[1..].iter().zip(["borrow", "inout", "own"]) {
+            let marker = receiver_mode(&parsed, *id).expect("explicit receiver mode");
+            assert_eq!(
+                sources
+                    .slice(receiver_mode_span(marker))
+                    .expect("receiver span"),
+                expected,
+                "{text}"
+            );
+        }
+        assert!(matches!(
+            receiver_mode(&parsed, members[1]),
+            Some(ParameterModeMarker::Borrow(_))
+        ));
+        assert!(matches!(
+            receiver_mode(&parsed, members[2]),
+            Some(ParameterModeMarker::Inout(_))
+        ));
+        assert!(matches!(
+            receiver_mode(&parsed, members[3]),
+            Some(ParameterModeMarker::Own(_))
+        ));
+    }
+}
+
+#[test]
+fn receiver_mode_follows_visibility_and_override_in_the_shared_modifier_wrapper() {
+    let text = "class C { public override own fun consume(): Unit {} }";
+    let (sources, parsed) = declaration(text);
+    assert!(parsed.diagnostics().is_empty());
+    let member = classifier(&parsed).body.as_ref().expect("body").members[0];
+    let Item::Modified { modifiers, .. } = item(&parsed, member) else {
+        panic!("modified member")
+    };
+    assert!(matches!(
+        modifiers.visibility,
+        Some(VisibilityModifier::Public(_))
+    ));
+    assert!(modifiers.override_span.is_some());
+    let marker = modifiers.receiver_mode.expect("receiver mode");
+    assert!(matches!(marker, ParameterModeMarker::Own(_)));
+    assert_eq!(
+        sources
+            .slice(receiver_mode_span(marker))
+            .expect("receiver span"),
+        "own"
+    );
+}
+
+#[test]
+fn receiver_mode_rejects_duplicates_ordering_and_non_instance_positions() {
+    let cases = [
+        ("class C { borrow borrow fun f(): Unit {} }", "borrow"),
+        ("class C { borrow public fun f(): Unit {} }", "public"),
+        ("class C { borrow override fun f(): Unit {} }", "override"),
+        ("borrow fun top(): Unit {}", "borrow"),
+        ("borrow class C", "borrow"),
+        (
+            "class C { companion object { borrow fun f(): Unit {} } }",
+            "borrow",
+        ),
+        ("object O { borrow const val X: Int = 1 }", "borrow"),
+        ("class C { borrow companion object {} }", "borrow"),
+        (
+            "interface I { internal borrow fun f(): Unit {} }",
+            "internal",
+        ),
+    ];
+    for (text, expected_primary) in cases {
+        let (sources, parsed) = declaration(text);
+        let diagnostic = parsed
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0076")
+            .unwrap_or_else(|| panic!("{text}: {:?}", parsed.diagnostics()));
+        assert_eq!(
+            sources
+                .slice(diagnostic.primary_span())
+                .expect("modifier primary"),
+            expected_primary,
+            "{text}: {diagnostic:?}"
+        );
+    }
+
+    let (_, top_level) = declaration("borrow fun top(): Unit {}");
+    assert!(matches!(
+        item(&top_level, top_level.root()),
+        Item::Function { .. }
+    ));
+
+    let (_, object) = declaration("object O { borrow const val X: Int = 1 }");
+    let constant = classifier(&object).body.as_ref().expect("body").members[0];
+    assert!(matches!(item(&object, constant), Item::Constant { .. }));
+}
+
+#[test]
+fn malformed_receiver_member_recovers_before_later_member_and_root() {
+    let text = concat!(
+        "class C { borrow @\n",
+        "fun next(): Unit {} }\n",
+        "class After",
+    );
+    let (_, parsed) = file(text);
+    assert_eq!(parsed.roots().len(), 2, "{:?}", parsed.diagnostics());
+    let Item::Classifier(first) = parsed
+        .ast()
+        .items()
+        .get(parsed.roots()[0])
+        .expect("first root")
+        .payload()
+    else {
+        panic!("classifier")
+    };
+    let members = &first.body.as_ref().expect("body").members;
+    assert_eq!(members.len(), 2, "{:?}", parsed.diagnostics());
+    assert!(matches!(
+        parsed
+            .ast()
+            .items()
+            .get(members[1])
+            .expect("next")
+            .payload(),
+        Item::Function { .. }
+    ));
+    assert!(codes(parsed.diagnostics()).contains(&"L0076".to_owned()));
+    assert!(codes(parsed.diagnostics()).contains(&"L0071".to_owned()));
+}
+
+#[test]
+fn receiver_without_fun_does_not_attach_to_the_next_member() {
+    let text = concat!(
+        "class C { borrow val state: Int = 1\n",
+        "fun next(): Unit {} }",
+    );
+    let (_, parsed) = declaration(text);
+    let members = &classifier(&parsed).body.as_ref().expect("body").members;
+    assert_eq!(members.len(), 2, "{:?}", parsed.diagnostics());
+    assert!(matches!(item(&parsed, members[0]), Item::Variable { .. }));
+    assert!(matches!(item(&parsed, members[1]), Item::Function { .. }));
+    assert!(codes(parsed.diagnostics()).contains(&"L0076".to_owned()));
+    assert!(codes(parsed.diagnostics()).contains(&"L0077".to_owned()));
+}
+
+#[test]
+fn receiver_after_fun_is_rejected_without_becoming_a_name_or_sibling_member() {
+    for mode in ["borrow", "inout", "own"] {
+        let text =
+            format!("class C {{ fun {mode} misplaced(): Unit {{}}; fun next(): Unit {{}} }}");
+        let (sources, parsed) = declaration(&text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0076"], "{text}");
+        assert_eq!(
+            sources
+                .slice(parsed.diagnostics()[0].primary_span())
+                .expect("misplaced receiver"),
+            mode
+        );
+        let members = &classifier(&parsed).body.as_ref().expect("body").members;
+        assert_eq!(members.len(), 2, "{text}");
+        assert!(
+            members
+                .iter()
+                .all(|member| matches!(item(&parsed, *member), Item::Function { .. }))
+        );
+    }
+
+    let (sources, top_level) = declaration("fun own top(): Unit {}");
+    assert_eq!(codes(top_level.diagnostics()), ["L0076"]);
+    assert_eq!(
+        sources
+            .slice(top_level.diagnostics()[0].primary_span())
+            .expect("top-level misplaced receiver"),
+        "own"
+    );
+    assert!(matches!(
+        item(&top_level, top_level.root()),
+        Item::Function { .. }
     ));
 }
 
