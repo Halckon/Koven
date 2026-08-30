@@ -20,8 +20,8 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   已完成实施。
 - **v0.32 已明确启用**：§32 的 package/import 绑定、跨文件可见性与 compilation-unit
   Phase 边界已成为现行语义；ADR-0020 已接受，SPEC-0025/0197/0198 已完成多文件名称解析、
-  compilation-unit 类型与所有权检查；0199/0187 的 frontend 前置链已解除。ADR-0021 已接受并封闭 LSP 显式
-  source-set wire；SPEC-0187 仍须按独立 Spec 状态流实施。
+  compilation-unit 类型与所有权检查，SPEC-0199 已完成 unit native lowering；SPEC-0187 的 frontend
+  前置链已解除。ADR-0021 已接受并封闭 LSP 显式 source-set wire；SPEC-0187 仍须按独立 Spec 状态流实施。
   ADR-0022 已接受并与 SPEC-0052 物化后继本地 manifest provider；2026-08-27 依赖复核确认
   它只消费已完成的 SPEC-0025 Stage 1 source-unit input contract，现已完成，且该分支不定义
   project build。同日纯勘误已把 §32.4 的 exact import 与普通静态限定名拆开，恢复 §32.3 和
@@ -232,7 +232,7 @@ Phase 1 全部写完后原文档大概率会超过 4000 行，Phase 2 及以后�
 | SPEC-0194 | 参数化 main 与 argv owner bridge | `01-design-decisions.md` §30.1、`../specs/0194-parameterized-main-argv.md` | ✅ 已实现 |
 | SPEC-0197 | 跨文件类型检查 | `../specs/0197-multifile-type-checking.md` | ✅ 已实现；unit signature/body、跨文件 target/instance 与 recovery/validated gate 已完成 |
 | SPEC-0198 | 跨文件所有权检查 | `../specs/0198-multifile-ownership-checking.md` | ✅ 已实现；source-qualified loan/move/drop/capture、return 与 validated ownership gate 已完成 |
-| SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ⏸ draft |
+| SPEC-0199 | 多文件 compilation-unit native lowering | `../specs/0199-multifile-native-lowering.md` | ✅ 已实现 |
 | SPEC-0201 | instance receiver mode Parser/AST | `01-design-decisions.md` §34、`../specs/0201-instance-receiver-mode-parser.md` | ⏸ draft；v0.34 未启用 |
 | SPEC-0202 | nullable `when` 剩余域 typed facts | `01-design-decisions.md` §35、`../specs/0202-nullable-when-flow-facts.md` | ⏸ draft；v0.35 未启用 |
 | SPEC-0203 | nullable `when` view/extraction 所有权 | `01-design-decisions.md` §35、`../specs/0203-nullable-when-ownership.md` | ⏸ draft；v0.35 未启用 |

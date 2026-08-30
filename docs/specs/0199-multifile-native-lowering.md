@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-199` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 v0.32 §32 |
@@ -46,11 +46,11 @@
 
 ## 5. 验收标准
 
-- [ ] SSA/LLVM 测试证明跨文件 identity、实例与 drop glue 只生成一次且顺序确定。
-- [ ] 真实 native build/run 覆盖至少两个 package、exact/alias import 与 MoveOnly 跨文件传递。
-- [ ] 非法 unit 在 object 写盘前失败；新 unit object API 通过 sibling temporary + commit 保证目标
+- [x] SSA/LLVM 测试证明跨文件 identity、实例与 drop glue 只生成一次且顺序确定。
+- [x] 真实 native build/run 覆盖至少两个 package、exact/alias import 与 MoveOnly 跨文件传递。
+- [x] 非法 unit 在 object 写盘前失败；新 unit object API 通过 sibling temporary + commit 保证目标
   原子更新；输入置换后的规范化 SSA/LLVM 与诊断一致（不要求 object 字节完全相同）。
-- [ ] 多 source DWARF 行表保留各自源码定位；codegen/workspace 基线与 Architecture 同步。
+- [x] 多 source DWARF 行表保留各自源码定位；codegen/workspace 基线与 Architecture 同步。
 
 剩余切片采用简化三层验收：开发期与提交前只跑受影响的窄测试过滤器；再跑一次 workspace Clippy；
 涉及逻辑或共享代码时由 fresh-context 独立评审。受影响 crate 全量仅在公共边界、高风险改动或窄测
@@ -125,8 +125,10 @@
 22. [x] 接无 capture lambda function-pointer core → 验证：普通与 `move` lambda 共用 canonical
    零参数 `Unit` signature、独立 thunk/`FunctionAddress`、无 environment/`ClosureConstruct`、具名
    transfer/repeated invoke/drop 与输入置换；captured closure 表示和参数化/非 `Unit` 边界不回归。
-23. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
+23. [x] 扩展 MoveOnly value result、其余现行 `when` 与 closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
+   完整 `for` 已按 typed provider/runtime 依赖迁移到 SPEC-0179/0211/0212/0182，不再作为现行
+   v0.32 本 Spec 的隐式收口条件。
    - [x] 接 Copyable callable ABI：function pointer/concrete closure 支持 Copyable storage 的
      Borrow/Value 参数与 Unit/Copyable storage 返回，thunk entry 保持 environment-first，调用复用
      source-qualified loan/Value delivery；`Inout`、`Borrow(Unit)`、MoveOnly 参数/返回、跳出实参的
@@ -146,7 +148,7 @@
    - [x] 消费 SPEC-0217 lambda Value 参数 facts：thunk entry 建立 MoveOnly Value binding，并按
      `LambdaEntry` / last-use / control-transfer 精确转移或析构；frontend 事实已就绪，当前 codegen
      已支持具有现行 storage 的 MoveOnly Value 参数，MoveOnly Borrow / `Inout` 仍 fail loud。
-24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+24. [x] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
    - [x] 接首条真实 compilation-unit frontend→SSA→LLVM/DWARF 链：跨 package alias call、captured
      closure、environment-first + Borrow pointer ABI、MoveOnly String result/drop、两源 DIFile/
      DISubprogram/DILocation 与输入反序后的完整 LLVM 文本确定性；object/native 仍由后续切片承接。
@@ -342,6 +344,12 @@
 | `cargo test -p lang-codegen --lib --locked --offline` | 226 passed, 1 ignored | 完整 native matrix 与 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 第二十五步完成切片继续采用“单一窄测 → crate 全量 → workspace Clippy”，不重复历史 SSA/LLVM 窄测或拆分多个 link/run fixture |
 | 独立 fresh-context 评审与复审 | 通过 | 复核 constructor/generic owner、String/Rc/aggregate 正常与提前退出析构，以及 public commit-failure 错误传播、旧目标保持和 temporary 清理；修复 helper-only 覆盖的 P3 后无 P1/P2/P3 |
+| `cargo test -q -p lang-codegen --lib unit_plan_tests` | 3 passed | 完成审计复核 unit reachability、递归/泛型实例去重与输入置换 |
+| `cargo test -q -p lang-codegen --lib unit_lower_tests` | 14 passed | 完成审计复核跨文件 identity、owner-aware SSA 与 fail-loud 边界 |
+| `cargo test -q -p lang-codegen --lib unit_llvm_tests` | 1 passed | 完整 LLVM 文本输入置换、multi-source DWARF，并直接锁定 String drop helper 定义只生成一次 |
+| `cargo test -q -p lang-codegen --lib native::unit_tests` | 2 passed | exact/alias import、完整 native owner/drop matrix、原子失败，以及输入置换后的错误类别与 `Span` 一致 |
+| `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` | 通过 | 完成审计沿用窄测 + workspace 静态门禁，未运行 `lang-frontend` 全量 |
+| 独立 fresh-context 完成审计与复审 | 通过 | 初审发现 guide 状态、输入置换诊断与 drop helper 唯一性三项证据缺口；补齐状态与直接断言后复审确认闭环，并同步解除 SPEC-0054 的已完成前置门禁，无其余 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续

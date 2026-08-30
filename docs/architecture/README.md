@@ -897,8 +897,8 @@ SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reacha
 ownership 的完整身份链，并以显式 `DeclarationId` entry 为唯一根；只遍历可达 body，函数实例 key
 固定为 `DeclarationId + UnitTypeId type arguments`。pending/planned 均使用有序集合，递归、重复泛型
 调用与输入置换产生同一计划；每项计划保留 `SourceUnitId + ItemId + Span` body locator 和
-`UnitSymbolId -> UnitTypeId` 类型替换。当前只发布 planning 层，尚未表示多文件 verified SSA/LLVM、
-DWARF 或 object/native 已完成；这些仍由 SPEC-0199 后续提交承接。
+`UnitSymbolId -> UnitTypeId` 类型替换。该首切片当时只发布 planning 层，多文件
+verified SSA/LLVM、DWARF 与 object/native 由本 Spec 后续切片承接并已在下文完成。
 
 第二切片新增独立的 `ssa::unit_lower`，直接消费上述 plan，而不是把跨文件 call 降级成逐文件重新
 分析。当前已把可复制 builtin scalar、`own` 参数、literal/name/group、source `DeclarationId`
@@ -1215,8 +1215,8 @@ SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend�
 module；alias direct call、captured closure thunk、environment-first + user Borrow pointer ABI、MoveOnly
 String result/drop 均沿用现有生产 adapter。debug plan 为 provider/consumer 建立各自 `DIFile`，并把
 callable、entry 与 thunk 的 `DISubprogram`/代表性 `DILocation` 绑定回正确 source；输入反序后的完整
-LLVM 文本保持一致。该切片未新增公开 API，object 原子写入、link/run 和完整 native matrix 仍由
-SPEC-0199 后续切片承接，现行 guide 语义未改变。
+LLVM 文本保持一致。该切片未新增公开 API，object 原子写入、link/run 和完整 native matrix
+在该切片当时仍由 SPEC-0199 后续切片承接，现行 guide 语义未改变。
 
 SPEC-0199 第二十五步的第一切片新增 public `emit_native_unit_object`。API 显式接收 source inputs、
 validated compilation-unit names/types/ownership、`TypeEnvironment`、resolved `DeclarationId` 与输出路径；
@@ -1236,6 +1236,15 @@ owner/drop matrix。provider 的 named class、value class→Box、`Rc<Int>` 与
 类别复制 object/link/run 流程。commit failure 仍从 public API 端到端验证错误传播、旧目标保持和 sibling
 temporary 清理。由此第二十五步的单 object 原子写入、native 正反矩阵与 workspace 基线完成；project CLI
 仍属于 SPEC-0054，现行 guide 语义未改变。
+
+SPEC-0199 完成审计确认上述切片已形成单一封闭产物：validated compilation-unit identity
+从显式 `DeclarationId` entry 经 unit-wide reachability/单态化、owner-aware verified SSA、单 LLVM
+module 与 multi-source DWARF，到 sibling-temporary 原子提交的单 object/native executable。输入
+置换锁定规范化 SSA/LLVM，真实 fixture 同时执行 exact import、alias import、MoveOnly 跨文件
+传递、nominal/Box/Rc/String owner 及正常/提前退出 drop；InvalidEntry、UnsupportedSource、
+MismatchedAnalysis 与 commit failure 均不覆盖旧目标。因此 SPEC-0199 已 `done`。完整 `for`
+依赖的 typed provider、ownership cleanup 与 runtime primitive 已明确迁移到 v0.37 候选链
+SPEC-0179/0211/0212/0182，不是 v0.32 本 Spec 的隐式未完成项。
 
 ## 结构化诊断与 renderer
 

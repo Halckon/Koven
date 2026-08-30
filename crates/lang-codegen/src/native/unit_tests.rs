@@ -142,6 +142,7 @@ fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();
     let inputs = analysis.inputs();
+    let reversed_inputs = [inputs[1], inputs[0]];
     let directory = TestDirectory::create();
     let object = directory.join("preserved.o");
     fs::write(&object, b"preserve me").expect("seed output");
@@ -171,6 +172,34 @@ fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
         assert_eq!(fs::read(&object).expect("preserved output"), b"preserve me");
         assert_no_sibling_temporary(&directory.0);
     }
+
+    let unsupported_entry = analysis.declaration("q", "unsupportedBorrow");
+    let forward_error = emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        unsupported_entry,
+        &object,
+    )
+    .expect_err("unsupported unit must fail in canonical input order");
+    let reversed_error = emit_native_unit_object(
+        &analysis.sources,
+        &reversed_inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        unsupported_entry,
+        &object,
+    )
+    .expect_err("input permutation must preserve the unsupported diagnostic");
+    assert_eq!(forward_error.kind(), reversed_error.kind());
+    assert_eq!(forward_error.span(), reversed_error.span());
+    assert_eq!(fs::read(&object).expect("preserved output"), b"preserve me");
+    assert_no_sibling_temporary(&directory.0);
 
     let error = emit_native_unit_object(
         &analysis.sources,
@@ -235,6 +264,7 @@ fn analyze_unit() -> UnitAnalysis {
         "q/consumer.ko",
         "package q\n\
          import p.make as build\n\
+         import p.inspect\n\
          fun exercise(flag: Boolean): Unit {\n\
              val bundle = p.makeBundle()\n\
              val boxed = p.boxed()\n\
@@ -254,8 +284,8 @@ fn analyze_unit() -> UnitAnalysis {
                  }\n\
              }\n\
              val message = action(3)\n\
-             val seen = p.inspect(message)\n\
-             val ownedAction: move (own String) -> Unit = move { owned -> p.inspect(owned) }\n\
+             val seen = inspect(message)\n\
+             val ownedAction: move (own String) -> Unit = move { owned -> inspect(owned) }\n\
              val ownedInvoked = ownedAction(\"native-owned\")\n\
              val early = exercise(true)\n\
              val normal = exercise(false)\n\

@@ -15,8 +15,8 @@ null-comparison/non-null-use flow、String interpolation、top-level variable/co
 expression-tail typed traversal，并通过完成审计；
 SPEC-0198 已完成；SPEC-0215 已补齐受支持 lambda body 的独立 liveness 与隐式结果 Consume，
 SPEC-0216 已统一 MoveOnly `if` / `when` control tail 的 checker/drop usage facts，SPEC-0199 已消费
-这些 facts 并闭合 named/lambda/captured control result SSA/native 路径；0199 继续按解锁价值推进其余
-unit lowering 切片，0187 仍可独立推进。
+这些 facts 并闭合完整现行 unit SSA/LLVM/multi-source DWARF/single-object native 路径，
+SPEC-0199 已完成；完整 `for` 仍由 v0.37 候选链 0179/0211/0212/0182 独立承接，0187 仍可独立推进。
 已接受 ADR-0022，SPEC-0052 已完成
 后继本地 manifest/source provider，不把项目 IO 反向塞入 frontend 或 LSP。
 
@@ -142,10 +142,10 @@ case 合并为一次带 filter 的 Cargo 调用，并依赖 Rust test harness �
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
 | 已物化 v0.33 lambda 候选 | SPEC-0213→0214 | 0213 只把尾 lambda 规范化为普通 CallArgument；0214 为全部 headerless lambda 纵向接通 contextual `it` 的 name/type/mode/ownership，未启用，保持 draft |
-| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，之后分叉到 0199/0187 |
+| 现行多文件实施链 | SPEC-0025、0197、0198、0199、0187 | v0.32 §32 已启用，ADR-0020 已接受；0025/0197/0198 已完成 compilation-unit 名称、类型与 validated ownership 产物，0199 已完成 unit native lowering，0187 仍待实施 |
 | 仍有 Map 门禁 | SPEC-0024、0031、0037、0047 | 缺 Hashable/receiver/ownership/storage ADR 与完整公共 API；不能从顺序容器反推语义 |
 | 已完成项目 source provider | SPEC-0052 | 消费 SPEC-0025 Stage 1 输入契约；ADR-0022 accepted，只产出本地 base snapshot，不等于已接入多文件 frontend 或项目构建 |
-| 项目构建后继 | SPEC-0053/0054、0200 | v0.33/SPEC-0054 已满足 0052，仍等待 0199 做显式 entry 的无依赖 build；0053/0200 独立承接依赖 lock/build |
+| 项目构建后继 | SPEC-0053/0054、0200 | 0052/0199 已满足显式 entry 的无依赖 build 技术前置；0054 仍等待 v0.33 用户启用，0053/0200 独立承接依赖 lock/build |
 
 审计据解锁价值选择 package/import，并把原先从 SPEC-0025 直接跳向 LSP/项目构建的缺口补成
 名称→类型→所有权，再分叉到 native 与 LSP。v0.32 与 ADR-0020 已解除 compilation-unit
@@ -332,7 +332,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0038](./0038-closure-environment-codegen.md) | 生成捕获闭包环境和无捕获函数指针（`done`） | 0032、0034、0035 `done`；[ADR-0009](../adr/0009-concrete-closure-internal-abi.md) `accepted` |
 | [0039](./0039-native-object-entry-link.md) | 生成 object、链接显式 entry，并为后续标准库 `error()` identity 提供 abort 边界（`done`） | 0035、0038 `done`；[ADR-0010](../adr/0010-first-native-object-and-linker-contract.md) `accepted`；源码 entry 选择与标准库 identity 不按名称猜测 |
 | [0040](./0040-dwarf-line-tables-lldb.md) | 生成首个 DWARF 行表并用 LLDB 验收源码断点（`done`） | 0039 `done`；[ADR-0011](../adr/0011-first-dwarf-line-mapping.md) `accepted`；当前持续 Goal 的站立授权 |
-| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`in-progress`） | 0198 `done`；v0.32 已启用；ADR-0020 `accepted` |
+| [0199](./0199-multifile-native-lowering.md) | 对完整 unit 做 reachability/单态化并生成单 object executable（`done`） | 0198 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | 0041 | 提供用户可见 `extern` FFI | 0039；新 guide 定义 FFI 与所有权边界，非 v1 主路径 |
 
 ### Phase 5：最小标准库

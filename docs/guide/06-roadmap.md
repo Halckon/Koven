@@ -6,7 +6,8 @@
 > runtime，SPEC-0194 已完成参数化 main 与 argv owner bridge。
 > v0.32 已启用且 ADR-0020 已接受；package/import 多文件链按
 > SPEC-0025→0197→0198→{0199,0187} 推进；SPEC-0025/0197/0198 已完成 compilation-unit
-> 名称、类型与所有权产物，下一节点可在 SPEC-0199/0187 间按独立前置推进。2026-08-27 的现行 v0.32
+> 名称、类型与所有权产物，SPEC-0199 已完成 unit native lowering，SPEC-0187 仍可按独立前置推进。
+> 2026-08-27 的现行 v0.32
 > 纯勘误已拆开 exact import 与普通静态限定名。
 > 2026-08-28 审计确认现行 Parser 由 guide/SPEC/回归明确拒绝尾 lambda；该语法不回开已完成
 > SPEC-0010/0012/0175，也不混入 SPEC-0197，已作为 v0.33 候选 SPEC-0213 物化。后续确认尾
@@ -329,7 +330,7 @@ Spec 之前，本条限制不变。）
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
 v0.36/v0.37 链。它们未完成不应被误记为已实现，但不反向否定已通过的核心验收。多文件链已物化，
-其中 SPEC-0025/0197/0198 已完成；0199/0187 的共同 frontend 前置链已解除。
+其中 SPEC-0025/0197/0198/0199 已完成；SPEC-0187 的共同 frontend 前置链已解除。
 
 ## Phase 3：所有权 / 借用检查
 
@@ -510,10 +511,11 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，
       LLDB 静态解析并真实启动进程命中 Koven `app` 源码断点与 frame
-- [ ] **[SPEC-0199](../specs/0199-multifile-native-lowering.md)（draft）**：在 SPEC-0198 后按
-      ADR-0020 对完整 compilation unit 做 reachability/单态化，生成单一 object 并复用现有
-      linker contract；内部入口为已解析 `DeclarationId`，不引入每文件 object、跨 package ABI
-      或公开多文件 CLI；SPEC-0198 前置已完成，仍须按本 Spec 独立批准/实施。
+- [x] **[SPEC-0199](../specs/0199-multifile-native-lowering.md)（已实现）**：在 SPEC-0198 后按
+      ADR-0020 对完整 compilation unit 完成 reachability/单态化、owner-aware verified SSA、
+      单一 LLVM module、多 source DWARF 与原子 single-object/native 闭环；内部入口为已解析
+      `DeclarationId`，不引入每文件 object、跨 package ABI 或公开多文件 CLI。完整 `for` 仍由
+      v0.37 候选链 SPEC-0179/0211/0212/0182 独立承接。
 
 **验收标准**：能编译并运行[01-design-decisions.md](./01-design-decisions.md)附录（原第二部分核心结构声明总览）示例代码，产出正确结果的可执行文件；带副作用的解构
 右值只执行一次，消费式解构后的每个不可复制字段恰好析构一次，不可复制 `value class`
@@ -588,8 +590,8 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       不等待无关的 Stage 2 import/visibility，也不做依赖、entry、build 或 LSP overlay。
 - [ ] SPEC-0053：在独立 dependency/lock ADR 后实现依赖解析与确定性 `project.lock`；每个依赖
       仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界。
-- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（draft）**：在已完成的 SPEC-0052 与
-      待完成的 SPEC-0199 后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地
+- [ ] **[SPEC-0054](../specs/0054-local-project-build-run.md)（draft）**：在已完成的 SPEC-0052/0199
+      后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地
       project build/run；不做跨
       package 隐式 `main` 搜索或 manifest target。dependency-aware build 另交 SPEC-0200。
 - [x] **SPEC-0190（前置：SPEC-0039、0042、0043、0184、0189 `done`）**：公开固定参数的

@@ -110,6 +110,8 @@ fn lowers_compilation_unit_to_deterministic_multisource_debug_llvm() {
         })
         .expect("String LLVM type is declared");
     let string_drop = format!("call void @koven.drop.{string_type}(");
+    let string_drop_definition = format!("define internal void @koven.drop.{string_type}(");
+    assert_eq!(forward.matches(&string_drop_definition).count(), 1);
     assert_eq!(forward.matches(&string_drop).count(), 1);
     assert_eq!(forward.matches("call void @free(ptr").count(), 1);
     assert!(
