@@ -107,12 +107,13 @@ fn lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically() {
         .iter()
         .enumerate()
         .find_map(|(index, instruction)| match &instruction.operation {
-            Operation::DirectCall { callee, arguments }
-                if *callee == pair.id
-                    && matches!(
-                        arguments.as_slice(),
-                        [EntityId::Loan(_), EntityId::Loan(_), EntityId::Value(_)]
-                    ) =>
+            Operation::DirectCall {
+                callee, arguments, ..
+            } if *callee == pair.id
+                && matches!(
+                    arguments.as_slice(),
+                    [EntityId::Loan(_), EntityId::Loan(_), EntityId::Value(_)]
+                ) =>
             {
                 let [
                     EntityId::Loan(left),

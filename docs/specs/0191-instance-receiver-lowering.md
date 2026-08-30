@@ -2,15 +2,15 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-191` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
-| 批准依据 | 无；当前仍等待前置 SPEC-0180/0181 完成后的独立批准 |
-| 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195 `done`；SPEC-0180/0181 待完成 |
+| 批准依据 | 2026-08-31 持续 Goal 要求继续按 Phase 推进 guide 对应 Specs，并简化验收；v0.34 已启用且 SPEC-0180/0181 已完成 |
+| 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | SPEC-0180/0181 `done` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -50,7 +50,7 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 
 ## 4. 验收标准
 
-- [ ] SSA signature/DirectCall receiver mode 与 verifier 正反矩阵通过；本 Spec 不为已排除的
+- [x] SSA signature/DirectCall receiver mode 与 verifier 正反矩阵通过；本 Spec 不为已排除的
   bound method value 虚构 `CallableInvoke` receiver source path。
 - [ ] class/value/enum/object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
 - [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
@@ -69,7 +69,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 
 ## 6. 实施计划
 
-1. [ ] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
+1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
 2. [ ] 接 frontend member body/call 与 LLVM ABI → 验证：nominal/generic native tests。
 3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
@@ -78,7 +78,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | receiver callable SSA/verifier 与 frontend/LLVM native 闭环 | `feat(codegen): lower member receivers (SPEC-0191)` |
+| 1 | receiver callable SSA/verifier 与 LLVM receiver-first operand 基元 | `feat(codegen): model instance receivers (SPEC-0191)` |
+| 2 | frontend member/委托接线与 native 闭环 | `feat(codegen): lower member receivers (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -90,4 +91,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 |---|---|---|
 | 2026-08-26 receiver 审计 | 通过 | 既有 callable SSA 只遍历显式参数；ADR-0016 已为未来 receiver 固定 pointer ABI |
 | 2026-08-26 候选闭合审计 | 通过 | 移除无 bound method source path 的 CallableInvoke receiver 验收，只保留 DirectCall |
-| 2026-08-31 重基审计 | 通过 | v0.34 已重基到完整 v0.33；本 Spec 继续等待 SPEC-0180/0181 与独立批准 |
+| 2026-08-31 重基审计 | 通过 | v0.34 已重基到完整 v0.33；SPEC-0180/0181 已完成，持续 Goal 的站立授权允许进入 Phase 4 |
+| `cargo test -p lang-codegen --lib direct_call` | 5/5 通过 | Layer 1：receiver presence/mode/type、receiver-first render/LLVM 与既有 DirectCall ownership 回归 |
+| `cargo test -p lang-codegen --lib` | 231 通过、1 ignored | 共享 DirectCall IR 不变量触发 Layer 3；ignored 为既有 debugserver task-port 权限用例 |
+| `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 当前 SSA 切片的 Layer 2 静态门禁 |
+| 独立高风险复核 | 通过 | 未发现 receiver/argument 边界、ownership、FunctionAddress 或 LLVM 顺序的 P1/P2 |

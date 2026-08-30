@@ -112,9 +112,9 @@ fn lowers_cross_file_and_or_with_exact_short_edges_and_carried_owner() {
         .instructions
         .iter()
         .find_map(|instruction| match &instruction.operation {
-            Operation::DirectCall { callee, arguments } if *callee == consume => {
-                Some(arguments.as_slice())
-            }
+            Operation::DirectCall {
+                callee, arguments, ..
+            } if *callee == consume => Some(arguments.as_slice()),
             _ => None,
         })
         .expect("consume call exists after both merges");

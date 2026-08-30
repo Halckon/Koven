@@ -304,8 +304,12 @@ fn apply_operation(
                 ));
             }
         }
-        Operation::DirectCall { arguments, .. } => {
-            for argument in arguments {
+        Operation::DirectCall {
+            receiver,
+            arguments,
+            ..
+        } => {
+            for argument in receiver.iter().chain(arguments) {
                 match argument {
                     EntityId::Value(value) => {
                         consume_value(

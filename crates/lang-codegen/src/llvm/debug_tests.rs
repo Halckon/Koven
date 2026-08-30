@@ -152,6 +152,7 @@ fn debug_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) {
             entry_block,
             Operation::DirectCall {
                 callee: helper,
+                receiver: None,
                 arguments: vec![],
             },
             vec![],
@@ -228,6 +229,7 @@ fn native_debug_program(source_name: &str) -> (SourceMap, Program, crate::ssa::m
             entry_block,
             Operation::DirectCall {
                 callee: helper,
+                receiver: None,
                 arguments: vec![],
             },
             vec![],

@@ -162,7 +162,20 @@ fn write_callable_signature(output: &mut String, signature: &CallableSignature) 
 fn write_function(output: &mut String, function: &Function) -> fmt::Result {
     write!(output, "  func {:?}(", function.name)?;
     if let Some(entry) = function.blocks.first() {
-        write_entities_with_types(output, function, &entry.parameters)?;
+        if function.receiver.is_some() {
+            if let Some((receiver, parameters)) = entry.parameters.split_first() {
+                output.write_str("receiver ")?;
+                write_entities_with_types(output, function, std::slice::from_ref(receiver))?;
+                if !parameters.is_empty() {
+                    output.write_str("; ")?;
+                    write_entities_with_types(output, function, parameters)?;
+                }
+            } else {
+                output.write_str("receiver <missing>")?;
+            }
+        } else {
+            write_entities_with_types(output, function, &entry.parameters)?;
+        }
     }
     output.write_str(") -> (")?;
     write_type_ids(output, &function.return_types)?;
@@ -371,8 +384,19 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("not ")?;
             write_entity_id(output, EntityId::Value(*operand))
         }
-        Operation::DirectCall { callee, arguments } => {
+        Operation::DirectCall {
+            callee,
+            receiver,
+            arguments,
+        } => {
             write!(output, "call @f{}(", callee.index())?;
+            if let Some(receiver) = receiver {
+                output.write_str("receiver ")?;
+                write_entity_id(output, *receiver)?;
+                if !arguments.is_empty() {
+                    output.write_str("; ")?;
+                }
+            }
             write_entity_ids(output, arguments)?;
             output.push(')');
             Ok(())

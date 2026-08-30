@@ -202,7 +202,11 @@ impl UnitExpressionLowerer<'_> {
             .function
             .append_instruction(
                 self.block,
-                Operation::DirectCall { callee, arguments },
+                Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                },
                 result_types,
                 Origin::Source(span),
             )

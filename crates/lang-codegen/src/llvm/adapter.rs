@@ -464,8 +464,17 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     .build_not(self.int_value(*operand)?, &value_name(*result))?;
                 self.values.insert(*result, value.into());
             }
-            Operation::DirectCall { callee, arguments } => {
-                self.lower_call(*callee, arguments, &results)?;
+            Operation::DirectCall {
+                callee,
+                receiver,
+                arguments,
+            } => {
+                let operands = receiver
+                    .iter()
+                    .copied()
+                    .chain(arguments.iter().copied())
+                    .collect::<Vec<_>>();
+                self.lower_call(*callee, &operands, &results)?;
             }
             Operation::FunctionAddress { target } => {
                 self.lower_function_address(*target, &results)?;

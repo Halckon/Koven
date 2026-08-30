@@ -134,6 +134,7 @@ fn aggregate_values_calls_returns_and_phi_lower_as_first_class_llvm_values() {
                 entry,
                 Operation::DirectCall {
                     callee: swap_id,
+                    receiver: None,
                     arguments: vec![EntityId::Value(input)],
                 },
                 vec![EntityType::Value(point)],

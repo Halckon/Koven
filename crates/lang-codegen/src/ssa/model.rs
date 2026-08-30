@@ -360,6 +360,8 @@ pub(crate) enum Operation {
     },
     DirectCall {
         callee: FunctionId,
+        /// instance call 的隐藏第零操作数；普通函数调用为 `None`。
+        receiver: Option<EntityId>,
         arguments: Vec<EntityId>,
     },
     FunctionAddress {
@@ -505,7 +507,15 @@ impl Operation {
             | Self::Compare { left, right, .. } => {
                 vec![EntityId::Value(*left), EntityId::Value(*right)]
             }
-            Self::DirectCall { arguments, .. } => arguments.clone(),
+            Self::DirectCall {
+                receiver,
+                arguments,
+                ..
+            } => receiver
+                .iter()
+                .copied()
+                .chain(arguments.iter().copied())
+                .collect(),
             Self::FunctionAddress { .. } => Vec::new(),
             Self::ClosureConstruct { captures, .. } => captures
                 .iter()
@@ -683,6 +693,8 @@ pub(crate) struct Function {
     pub(crate) id: FunctionId,
     pub(crate) name: String,
     pub(crate) return_types: Vec<SsaTypeId>,
+    /// instance callable 的隐藏 receiver 参数类型；它必须是 entry block 的首个参数。
+    pub(crate) receiver: Option<EntityType>,
     pub(crate) blocks: Vec<Block>,
     pub(crate) instructions: Vec<Instruction>,
     pub(crate) values: Vec<EntityData>,
@@ -694,6 +706,10 @@ pub(crate) struct Function {
 impl Function {
     pub(crate) const fn id(&self) -> FunctionId {
         self.id
+    }
+
+    pub(crate) const fn receiver(&self) -> Option<EntityType> {
+        self.receiver
     }
 
     pub(crate) fn entry_block(&self) -> Option<BlockId> {
@@ -937,6 +953,39 @@ impl Module {
         return_types: Vec<SsaTypeId>,
         origin: Origin,
     ) -> Result<FunctionId, ModelError> {
+        self.add_function_with_receiver(name, None, return_types, origin)
+    }
+
+    /// 新增具有显式隐藏 receiver 契约的 instance callable。
+    pub(crate) fn add_instance_function(
+        &mut self,
+        name: impl Into<String>,
+        receiver: EntityType,
+        return_types: Vec<SsaTypeId>,
+        origin: Origin,
+    ) -> Result<FunctionId, ModelError> {
+        self.add_function_with_receiver(name, Some(receiver), return_types, origin)
+    }
+
+    fn add_function_with_receiver(
+        &mut self,
+        name: impl Into<String>,
+        receiver: Option<EntityType>,
+        return_types: Vec<SsaTypeId>,
+        origin: Origin,
+    ) -> Result<FunctionId, ModelError> {
+        if let Some(receiver) = receiver {
+            let ty = receiver.semantic_type();
+            if ty.module() != self.id {
+                return Err(ModelError::WrongTypeOwner {
+                    expected: self.id,
+                    actual: ty.module(),
+                });
+            }
+            if self.type_kind(ty).is_none() {
+                return Err(ModelError::UnknownType { ty });
+            }
+        }
         for ty in &return_types {
             if ty.module() != self.id {
                 return Err(ModelError::WrongTypeOwner {
@@ -956,6 +1005,7 @@ impl Module {
             id,
             name: name.into(),
             return_types,
+            receiver,
             blocks: Vec::new(),
             instructions: Vec::new(),
             values: Vec::new(),

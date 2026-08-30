@@ -312,9 +312,9 @@ fn lowers_cross_file_concat_equality_and_value_delivery_deterministically() {
         .instructions
         .iter()
         .find_map(|instruction| match &instruction.operation {
-            Operation::DirectCall { callee, arguments } if *callee == identity => {
-                Some(arguments.as_slice())
-            }
+            Operation::DirectCall {
+                callee, arguments, ..
+            } if *callee == identity => Some(arguments.as_slice()),
             _ => None,
         })
         .expect("identity call exists");

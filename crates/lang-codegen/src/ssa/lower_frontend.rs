@@ -1062,7 +1062,11 @@ impl ExpressionLowerer<'_> {
             )]
         };
         let (_, results) = self.append(
-            Operation::DirectCall { callee, arguments },
+            Operation::DirectCall {
+                callee,
+                receiver: None,
+                arguments,
+            },
             result_types,
             span,
         )?;

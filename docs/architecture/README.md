@@ -934,6 +934,15 @@ SPEC-0199 等后继阶段消费。
 
 ## Compilation-unit codegen planning
 
+SPEC-0191 的首个 Phase 4 切片先扩展共享 typed SSA 契约，而不提前猜测 frontend member body。
+`Function` 以可选 receiver `EntityType` 标记 instance callable，并要求它精确对应 entry block 首参数；
+`DirectCall` 把 receiver 保存为独立于显式 arguments 的隐藏第零操作数。verifier 同时核对 receiver
+presence、Value/shared-loan/exclusive-loan mode、具体类型、显式参数边界与返回类型，ownership verifier
+按 receiver→arguments 顺序消费 Value 或检查 active loan；`FunctionAddress` 继续拒绝 instance target，
+不虚构 bound method value。renderer 显式显示 receiver 分隔，LLVM adapter 按 receiver-first ABI 组装
+operands。现行 compilation-unit lowerer 在 SPEC-0191 后续切片接线前仍只生成 `receiver: None` 的顶层
+direct call，不把 SSA 基元存在描述成 source member native 已完成。
+
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated
 ownership 的完整身份链，并以显式 `DeclarationId` entry 为唯一根；只遍历可达 body，函数实例 key

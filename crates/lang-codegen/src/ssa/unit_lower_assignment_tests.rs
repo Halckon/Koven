@@ -124,7 +124,9 @@ fn replaces_a_string_owner_only_after_the_rhs_finishes() {
         .iter()
         .enumerate()
         .find_map(|(index, instruction)| match &instruction.operation {
-            Operation::DirectCall { callee, arguments } if *callee == identity => {
+            Operation::DirectCall {
+                callee, arguments, ..
+            } if *callee == identity => {
                 Some((index, (arguments.as_slice(), instruction.results[0])))
             }
             _ => None,

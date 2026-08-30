@@ -251,6 +251,7 @@ fn comparisons_and_direct_calls_have_exact_scalar_signatures() {
             caller_entry,
             Operation::DirectCall {
                 callee,
+                receiver: None,
                 arguments: vec![EntityId::Value(value(arguments[0]))],
             },
             vec![EntityType::Value(integer)],
@@ -383,6 +384,7 @@ fn direct_borrow_call_preserves_move_only_owner_and_uses_pointer_abi() {
             entry,
             Operation::DirectCall {
                 callee,
+                receiver: None,
                 arguments: vec![EntityId::Loan(loan)],
             },
             Vec::new(),
@@ -419,6 +421,177 @@ fn direct_borrow_call_preserves_move_only_owner_and_uses_pointer_abi() {
     );
     assert!(llvm.contains("call void @f0.inspect(ptr %p0)"), "{llvm}");
     assert_eq!(llvm.matches("call void @free").count(), 1, "{llvm}");
+}
+
+#[test]
+fn instance_direct_call_models_receiver_before_explicit_arguments() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("instance-receiver");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let receiver_owner = module
+        .declare_heap_owner("Receiver")
+        .expect("receiver owner must be valid");
+    let payload = module
+        .add_aggregate_type("Receiver.payload", Vec::new())
+        .expect("receiver payload must be valid");
+    module
+        .define_heap_owner(receiver_owner, payload)
+        .expect("receiver owner must be defined");
+    let receiver_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: receiver_owner,
+    };
+
+    let callee = module
+        .add_instance_function("inspect", receiver_type, Vec::new(), origin.clone())
+        .expect("instance callee must be valid");
+    let callee_function = module.function_mut(callee).expect("callee must exist");
+    let callee_entry = callee_function
+        .add_block(
+            vec![receiver_type, EntityType::Value(integer)],
+            origin.clone(),
+        )
+        .expect("callee entry must be valid");
+    callee_function
+        .set_terminator(
+            callee_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin.clone(),
+        )
+        .expect("callee must return");
+
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .expect("caller must be valid");
+    let caller_function = module.function_mut(caller).expect("caller must exist");
+    let caller_entry = caller_function
+        .add_block(
+            vec![
+                EntityType::Value(receiver_owner),
+                EntityType::Value(integer),
+            ],
+            origin.clone(),
+        )
+        .expect("caller entry must be valid");
+    let parameters = caller_function
+        .block(caller_entry)
+        .expect("caller entry must exist")
+        .parameters
+        .clone();
+    let owner = value(parameters[0]);
+    let argument = value(parameters[1]);
+    let (_, places) = caller_function
+        .append_instruction(
+            caller_entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(receiver_owner)],
+            origin.clone(),
+        )
+        .expect("receiver place must append");
+    let (_, loans) = caller_function
+        .append_instruction(
+            caller_entry,
+            Operation::BorrowBegin {
+                place: place(places[0]),
+                kind: LoanKind::Shared,
+            },
+            vec![receiver_type],
+            origin.clone(),
+        )
+        .expect("receiver loan must append");
+    let receiver = loan(loans[0]);
+    caller_function
+        .append_instruction(
+            caller_entry,
+            Operation::DirectCall {
+                callee,
+                receiver: Some(EntityId::Loan(receiver)),
+                arguments: vec![EntityId::Value(argument)],
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("instance call must append");
+    caller_function
+        .append_instruction(
+            caller_entry,
+            Operation::BorrowEnd { loan: receiver },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("receiver loan must end");
+    caller_function
+        .append_instruction(
+            caller_entry,
+            Operation::Drop { owner },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("receiver owner must drop");
+    caller_function
+        .set_terminator(
+            caller_entry,
+            TerminatorKind::Return { values: Vec::new() },
+            origin,
+        )
+        .expect("caller must return");
+
+    verify_program(&program).expect("matching instance receiver must verify");
+    let rendered = render_program(&program);
+    assert!(
+        rendered.contains("call @f0(receiver %l0; %v1)"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("func \"inspect\"(receiver "),
+        "{rendered}"
+    );
+    let llvm = render_verified_program(&program).expect("instance receiver must lower to LLVM");
+    assert!(
+        llvm.contains("call void @f0.inspect(ptr %p0, i32 %v1)"),
+        "{llvm}"
+    );
+
+    let Operation::DirectCall {
+        receiver: call_receiver,
+        ..
+    } = &mut program.modules[0].functions[1].instructions[2].operation
+    else {
+        panic!("expected instance direct call");
+    };
+    *call_receiver = None;
+    assert!(
+        verify_program(&program)
+            .expect_err("missing receiver must fail")
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+    );
+
+    let Operation::DirectCall {
+        receiver: call_receiver,
+        ..
+    } = &mut program.modules[0].functions[1].instructions[2].operation
+    else {
+        panic!("expected instance direct call");
+    };
+    *call_receiver = Some(EntityId::Loan(receiver));
+    program.modules[0].functions[0].receiver = Some(EntityType::Loan {
+        kind: LoanKind::Exclusive,
+        target: receiver_owner,
+    });
+    assert!(
+        verify_program(&program)
+            .expect_err("receiver contract and entry mode mismatch must fail")
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
+    );
 }
 
 #[test]
@@ -813,6 +986,7 @@ fn direct_call_rejects_value_for_borrow_and_wrong_loan_kind() {
                 entry,
                 Operation::DirectCall {
                     callee,
+                    receiver: None,
                     arguments: vec![argument],
                 },
                 Vec::new(),
@@ -919,6 +1093,7 @@ fn direct_call_rejects_inactive_borrow_argument() {
             entry,
             Operation::DirectCall {
                 callee,
+                receiver: None,
                 arguments: vec![EntityId::Loan(shared_loan)],
             },
             Vec::new(),
@@ -1006,6 +1181,7 @@ fn malformed_checked_results_and_call_signatures_are_rejected() {
             entry,
             Operation::DirectCall {
                 callee,
+                receiver: None,
                 arguments: Vec::new(),
             },
             vec![EntityType::Value(boolean)],

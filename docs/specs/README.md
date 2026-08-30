@@ -147,7 +147,7 @@ Cargo target lock 的检查与独立复审可以并行；会争用 build directo
 | 已完成 | SPEC-0196 nullable handle lowering | pointer-like nullable 的 frontend `if` proof、独立 SSA/verifier、LLVM null niche/conditional drop 与 class/Box/Rc native 主线完成 |
 | 已完成 | SPEC-0192 | 一般 String owner、操作、drop、复合 owner/容器/closure native 闭环完成 |
 | 已完成 | SPEC-0194 | 参数化 main、两阶段 argv owner bridge、Borrow Array 索引与 CLI 原始参数转交完成 |
-| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201/0180/0181 done，native 下一步按批准与前置推进，复用 ADR-0016 |
+| 现行 receiver 实施链 | SPEC-0201→0180→0181→0191 | v0.34 §34 已重基并启用；0201/0180/0181 done，0191 已按持续 Goal 的站立授权进入 native 实施，复用 ADR-0016 |
 | 已物化 nullable 候选 | SPEC-0202→0203→0204；0205→0206→0207 | v0.35 §35 已起草；remaining-domain/`!!` 按 typed、ownership、pointer-like native 分层，复用 ADR-0017；未启用，全部保持 draft |
 | 已物化 const/object 候选 | SPEC-0026→0208→0209；0210 | v0.36 §36 已起草；单文件 typed/eval→materialization ownership→native，unit typed integration 等待 0025/0197；未启用，全部保持 draft |
 | 已物化 iteration 候选 | `{SPEC-0179→0211, SPEC-0212}→SPEC-0182` | v0.37 §37 与 proposed ADR-0023 已起草；typed/lifecycle 与 provider primitive 汇合到 native，不依赖 receiver/0046；未启用，全部保持 draft |
@@ -339,7 +339,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0212](./0212-borrowed-sequential-iteration-ssa.md) | 封闭 borrowed length、Int/size_t bridge 与 provider SSA/LLVM primitives（`draft`） | 0034、0036、0186、0195 `done`；v0.37 待启用；ADR-0023 `proposed` |
 | [0182](./0182-sequential-for-lowering.md) | 把 validated `for` typed/ownership/provider plans 拼装到 SSA/LLVM/native（`draft`） | 0179、0211、0212；v0.37 待启用；ADR-0023 `proposed`；不依赖 0181/0191/0046 |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
-| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`draft`） | 0180、0181 `done` 后批准；0034、0035、0038、0039、0177、0184、0195 `done`；ADR-0016 accepted |
+| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`in-progress`） | 0180、0181 `done`；SSA receiver/verifier 基元已完成，frontend/native 接线继续实施；ADR-0016 accepted |
 | [0204](./0204-pointer-nullable-when-lowering.md) | 把 owned-root/temporary class/Box/Rc nullable `when` lower 到 verified SSA/LLVM/native（`draft`） | 0034、0184、0196 `done`；0202、0203；v0.35 待启用；ADR-0017 `accepted` |
 | [0207](./0207-pointer-non-null-assertion-lowering.md) | 把 owned-root/temporary class/Box/Rc `!!` lower 到 NullableBranch/Take/Abort 与 native（`draft`） | 0034、0039、0184、0196 `done`；0205、0206；v0.35 待启用；ADR-0017 `accepted` |
 | [0209](./0209-associated-constant-lowering.md) | 把单文件 scalar/Char/String const use 重新物化到 SSA/LLVM/native（`draft`） | 0034、0039、0185、0189、0192 `done`；0026、0208；v0.36 待启用 |

@@ -177,6 +177,23 @@ fn verify_function_structure(module: &Module, function: &Function, errors: &mut 
         return;
     }
 
+    if let Some(receiver) = function.receiver {
+        let valid_receiver = !matches!(receiver, EntityType::Place(_))
+            && function.blocks[0]
+                .parameters
+                .first()
+                .and_then(|parameter| function.entity(*parameter))
+                .is_some_and(|parameter| parameter.ty == receiver);
+        if !valid_receiver {
+            errors.push(function_error(
+                function,
+                VerifyErrorKind::OperationContract {
+                    reason: "instance receiver must be the first entry parameter with the declared mode and type",
+                },
+            ));
+        }
+    }
+
     for ty in &function.return_types {
         verify_type(
             module,

@@ -54,9 +54,11 @@ pub(super) fn verify_operation(
             value_type(function, *operand).is_some_and(|ty| is_boolean(module, ty))
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
-        Operation::DirectCall { callee, arguments } => {
-            direct_call_contract(module, function, *callee, arguments, &results)
-        }
+        Operation::DirectCall {
+            callee,
+            receiver,
+            arguments,
+        } => direct_call_contract(module, function, *callee, *receiver, arguments, &results),
         Operation::FunctionAddress { target } => {
             function_address_contract(module, *target, &results)
         }
@@ -660,6 +662,7 @@ fn direct_call_contract(
     module: &Module,
     function: &Function,
     callee: super::model::FunctionId,
+    receiver: Option<EntityId>,
     arguments: &[EntityId],
     results: &[EntityType],
 ) -> bool {
@@ -677,7 +680,9 @@ fn direct_call_contract(
     else {
         return false;
     };
-    if parameter_types.len() != arguments.len()
+    let receiver_count = usize::from(callee.receiver.is_some());
+    if parameter_types.len() != arguments.len() + receiver_count
+        || callee.receiver.is_some() != receiver.is_some()
         || !parameter_types.iter().all(|ty| match ty {
             EntityType::Value(ty) => is_first_class(module, *ty),
             EntityType::Loan { target, .. } => is_first_class(module, *target),
@@ -690,9 +695,15 @@ fn direct_call_contract(
     {
         return false;
     }
+    let receiver_matches = receiver
+        .zip(callee.receiver)
+        .is_none_or(|(receiver, expected)| {
+            !matches!(receiver, EntityId::Place(_))
+                && function.entity(receiver).map(|entity| entity.ty) == Some(expected)
+        });
     let arguments_match = arguments
         .iter()
-        .zip(parameter_types)
+        .zip(parameter_types.into_iter().skip(receiver_count))
         .all(|(argument, parameter)| {
             !matches!(argument, EntityId::Place(_))
                 && function.entity(*argument).map(|entity| entity.ty) == Some(parameter)
@@ -704,7 +715,7 @@ fn direct_call_contract(
             .copied()
             .map(EntityType::Value)
             .collect::<Vec<_>>();
-    arguments_match && results_match
+    receiver_matches && arguments_match && results_match
 }
 
 fn function_address_contract(module: &Module, target: FunctionId, results: &[EntityType]) -> bool {
@@ -790,6 +801,9 @@ fn function_matches_signature(
     let Some(function) = module.function(target) else {
         return false;
     };
+    if function.receiver.is_some() {
+        return false;
+    }
     let Some(entry) = function.blocks.first() else {
         return false;
     };
