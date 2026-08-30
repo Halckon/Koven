@@ -4,6 +4,7 @@ mod aggregate;
 mod assignment;
 mod cfg;
 mod construction;
+mod container;
 mod control;
 mod enum_lower;
 mod loop_control;
@@ -386,6 +387,14 @@ impl UnitExpressionLowerer<'_> {
         }
         if self.typed.types().rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
+        }
+        if self
+            .typed
+            .types()
+            .container_construction(unit_expression)
+            .is_some()
+        {
+            return self.lower_container_construction(expression, span);
         }
         if self
             .typed

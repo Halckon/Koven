@@ -1063,6 +1063,19 @@ enum subject、结构化解构、container 与 closure 仍由后续切片承接�
 drop fact 位于 subject `AfterExpression`，尚无 branch-qualified owner/drop facts，lowerer 在生成 subject
 SSA 前拒绝而不猜测事实。现行 guide 语义未改变。
 
+第十八切片把同一 unit type/layout 规划器扩展到 concrete `Array<T>`、`List<T>` 与
+`MutableList<T>`：容器 identity 保留 kind 与递归 element type，列表式 `arrayOf`/`listOf`/
+`mutableListOf` 和空 `MutableList<T>()` 直接生成既有 `ContainerConstruct`。lowering 对每个源码
+实参核对唯一的 SPEC-0198 Value delivery fact；Copyable place 保留源 binding，MoveOnly place 与
+temporary 精确转交给容器，nested container 和 String/class owner 不产生第二次 drop。`Unit` 元素在
+保留原调用副作用后物化为 `ScalarConstant::Unit`，使合法 ZST element 仍有 verified SSA value。
+结构测试锁定跨文件 owner transfer/drop、Copy/Move/temporary 三条路径、Unit
+`DirectCall -> Constant -> ContainerConstruct`、空/嵌套构造和输入置换。runtime-length initializer
+仍等待 callable bridge，element read/borrow/replace 仍等待 source-qualified operation lowering；不支持
+element type 在 type planning 阶段拒绝，runtime-length 在任何实参 SSA 前拒绝。Unit constant 的 LLVM
+materialization、multi-source DWARF 与 object/native 闭环仍由 SPEC-0199 后续切片承接；现行 guide
+语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

@@ -100,10 +100,14 @@
 17. [x] 接 concrete non-generic enum core → 验证：unit-global tagged/payload layout identity、case
    construction ordered delivery、Copyable enum type-test `when` discriminant/smart-cast payload
    projection、MoveOnly root drop、有限 owner 递归、输入置换，以及 generic enum fail-loud 边界。
-18. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 container/closure owner/drop SSA →
+18. [x] 接 concrete 顺序容器 construction core → 验证：unit-global `Array`/`List`/`MutableList`
+   element identity、列表式与空构造、逐元素 Copy/Move/temporary delivery、Unit ZST materialization、
+   nested container、跨文件 owner transfer/drop、输入置换，以及 runtime-length initializer 与不支持
+   element type 的 fail-loud 边界。
+19. [ ] 扩展 MoveOnly value result、其余 `when`/for、container element operation 与 closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-19. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-20. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+20. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+21. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -126,9 +130,10 @@
 | 15 | concrete non-null Rc owner-aware verified SSA | `feat(codegen): lower multifile rc owners (SPEC-0199)` |
 | 16 | concrete non-generic nominal/Box aggregate core | `feat(codegen): lower multifile nominal aggregates (SPEC-0199)` |
 | 17 | concrete non-generic enum core | `feat(codegen): lower multifile enums (SPEC-0199)` |
-| 18 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 19 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 20 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 18 | concrete 顺序容器 construction core | `feat(codegen): lower multifile containers (SPEC-0199)` |
+| 19 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 20 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 21 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -213,6 +218,10 @@
 | `cargo test -p lang-codegen --lib unit_lower` | 52 passed | scoped umbrella 合并 enum、aggregate、Rc、assignment、type-plan、scalar/String 与 unit control-flow 回归，不逐条重复历史窄测 |
 | `cargo test -p lang-codegen --lib` | 211 passed, 1 ignored | concrete non-generic enum TaggedUnion、owner-aware CFG 与既有 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十七切片继续采用“enum 窄测 → scoped umbrella → codegen 全量 → workspace 静态门禁”，未重复尚未接线的 multifile native matrix |
+| `cargo test -p lang-codegen --lib unit_lower_container_tests` | 2 passed | 跨文件列表式/空构造、Copy/Move/temporary delivery、nested container、Unit `call -> constant -> construct`、反序重新分析，以及 runtime-length/unsupported element 拒绝边界 |
+| `cargo test -p lang-codegen --lib unit_lower` | 54 passed | scoped umbrella 合并 container、enum、aggregate、Rc、assignment、type-plan、scalar/String 与 unit control-flow 回归，不逐条重复历史窄测 |
+| `cargo test -p lang-codegen --lib` | 213 passed, 1 ignored | concrete 顺序容器 verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十八切片继续采用“container 窄测 → scoped umbrella → codegen 全量 → workspace 静态门禁”，不重复尚未接线的 multifile native matrix |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -222,3 +231,9 @@ MoveOnly enum subject 没有列入本切片的 `when` 正向表面：SPEC-0198 �
 `AfterExpression` 发布 named root drop，而不是在各 `BranchExit` 发布可沿 CFG 重绑定的 owner/drop
 facts。unit lowerer 在生成 subject SSA 前返回 `UnsupportedNode`，不搬移或忽略 validated drop point；
 待 frontend 发布 branch-qualified subject facts 后再单独放宽。
+
+顺序容器 runtime-length initializer 仍依赖 callable bridge；element read/borrow/replace 仍依赖
+source-qualified container operation 与 loan/replacement lowering。两者均未进入第十八切片，lowerer
+分别在实参求值前或 type planning 阶段 fail loud。Unit element 已在 verified SSA 中显式物化为
+`ScalarConstant::Unit`；其 LLVM value/materialization 由第 20 步统一接入，不把 SSA 进度误写为
+native 闭环。

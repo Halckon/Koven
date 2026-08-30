@@ -14,7 +14,7 @@ use lang_frontend::{
 use super::lowering_error;
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{Module, SsaTypeId, SsaTypeKind},
+    model::{Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind},
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
@@ -136,6 +136,13 @@ impl UnitTypeLowering {
                 constructor: IntrinsicTypeConstructor::Box,
                 arguments,
             } => self.intern_box(module, ty, &arguments, span)?,
+            UnitTypeKind::Intrinsic {
+                constructor:
+                    constructor @ (IntrinsicTypeConstructor::Array
+                    | IntrinsicTypeConstructor::List
+                    | IntrinsicTypeConstructor::MutableList),
+                arguments,
+            } => self.intern_container(module, typed, constructor, &arguments, span)?,
             UnitTypeKind::Nominal {
                 declaration,
                 arguments,
@@ -271,6 +278,29 @@ impl UnitTypeLowering {
             },
         );
         Ok(owner)
+    }
+
+    fn intern_container(
+        &mut self,
+        module: &mut Module,
+        typed: &ValidatedCompilationUnitTypes,
+        constructor: IntrinsicTypeConstructor,
+        arguments: &[UnitTypeId],
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        let [element] = arguments else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let kind = match constructor {
+            IntrinsicTypeConstructor::Array => SsaContainerKind::Array,
+            IntrinsicTypeConstructor::List => SsaContainerKind::List,
+            IntrinsicTypeConstructor::MutableList => SsaContainerKind::MutableList,
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let element = self.intern_inner(module, typed, *element, span)?;
+        module
+            .add_sequential_container_type(kind, element)
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
     }
 
     fn intern_nominal(
@@ -435,6 +465,15 @@ pub(super) fn is_supported_storage_type(
             arguments,
         }) => {
             matches!(arguments.as_slice(), [payload] if is_supported_storage_type(typed, *payload))
+        }
+        Some(UnitTypeKind::Intrinsic {
+            constructor:
+                IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList,
+            arguments,
+        }) => {
+            matches!(arguments.as_slice(), [element] if is_supported_storage_type(typed, *element))
         }
         Some(UnitTypeKind::Nominal {
             declaration,
