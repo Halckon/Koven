@@ -223,7 +223,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             &mut types,
         )?;
     }
-    let closure_plans =
+    let callable_plans =
         closure::declare(module, &parsed_by_source, &plans, typed, owned, &mut types)?;
 
     let entry_id = function_ids
@@ -295,7 +295,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             borrow_bindings,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
-            closure_plans: &closure_plans,
+            callable_plans: &callable_plans,
             closure_scope: plan.id,
             temporaries: BTreeMap::new(),
             loops: Vec::new(),
@@ -341,7 +341,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
-    for plan in closure_plans.values() {
+    for plan in callable_plans.values() {
         let parsed = parsed_by_source[plan.source_unit.index()];
         let references = symbol_references(names, plan.source_unit, Namespace::Value);
         let type_references = symbol_references(names, plan.source_unit, Namespace::Type);
@@ -372,7 +372,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             borrow_bindings: BTreeMap::new(),
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
-            closure_plans: &closure_plans,
+            callable_plans: &callable_plans,
             closure_scope: plan.scope,
             temporaries: BTreeMap::new(),
             loops: Vec::new(),
@@ -409,7 +409,7 @@ struct UnitExpressionLowerer<'a> {
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     closure_binding_context: bool,
-    closure_plans: &'a BTreeMap<closure::ClosurePlanKey, closure::ClosurePlan>,
+    callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
     closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     loops: Vec<loop_control::LoopContext>,
@@ -497,7 +497,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Call {
                 callee, arguments, ..
             } => self.lower_call(expression, *callee, arguments, span),
-            Expression::Lambda { .. } => self.lower_move_closure(expression, span),
+            Expression::Lambda { .. } => self.lower_callable_literal(expression, span),
             Expression::Prefix {
                 operator, operand, ..
             } => self.lower_prefix(*operator, *operand, expression, span),

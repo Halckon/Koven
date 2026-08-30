@@ -12,6 +12,108 @@ use super::{
 };
 
 #[test]
+fn lowers_no_capture_lambdas_as_deterministic_function_pointers() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun observe(): Unit {}\n\
+         fun create(): Unit {\n\
+             val action: () -> Unit = { observe() }\n\
+             val moved = action\n\
+             val first = moved()\n\
+             val second = moved()\n\
+         }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val action: move () -> Unit = move { p.observe() }\n\
+             val invoked = action()\n\
+             val created = p.create()\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (reverse_names, reverse_typed, reverse_owned) =
+        analyze(&sources, &reversed, &name_environment, &type_environment);
+    let (forward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("no-capture lambdas lower as function pointers");
+    let (backward, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &reversed,
+        &reverse_names,
+        &type_environment,
+        &reverse_typed,
+        &reverse_owned,
+        declaration(&reverse_names, "q", "entry"),
+    )
+    .expect("input permutation preserves function-pointer identities");
+    assert_eq!(render_program(&forward), render_program(&backward));
+
+    let module = &forward.modules[0];
+    assert_eq!(
+        module
+            .types
+            .iter()
+            .filter(|kind| matches!(kind, SsaTypeKind::FunctionPointer { .. }))
+            .count(),
+        1,
+        "the zero-parameter Unit signature has one canonical pointer type"
+    );
+    assert!(
+        !module
+            .types
+            .iter()
+            .any(|kind| matches!(kind, SsaTypeKind::ConcreteClosure { .. }))
+    );
+    let create = function(module, "p.create");
+    assert_eq!(operation_count(create, is_function_address), 1);
+    assert_eq!(operation_count(create, is_callable_invoke), 2);
+    assert_eq!(operation_count(create, is_drop), 1);
+    let entry = function(module, "q.entry");
+    assert_eq!(operation_count(entry, is_function_address), 1);
+    assert_eq!(operation_count(entry, is_callable_invoke), 1);
+    assert_eq!(operation_count(entry, is_drop), 1);
+    assert_eq!(operation_count(entry, is_closure_construct), 0);
+    let thunks = module
+        .functions
+        .iter()
+        .filter(|function| function.name.contains(".thunk"))
+        .collect::<Vec<_>>();
+    assert_eq!(thunks.len(), 2);
+    assert!(thunks.iter().all(|thunk| {
+        thunk
+            .entry_block()
+            .and_then(|entry| thunk.block(entry))
+            .is_some_and(|entry| entry.parameters.is_empty())
+    }));
+    assert_eq!(
+        thunks
+            .iter()
+            .map(|function| operation_count(function, is_direct_call))
+            .sum::<usize>(),
+        2
+    );
+}
+
+#[test]
 fn lowers_cross_file_owned_move_closure_and_thunk_deterministically() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(
@@ -184,7 +286,7 @@ fn restores_owned_closure_provenance_across_control_flow() {
 }
 
 #[test]
-fn borrowed_and_empty_move_closures_remain_atomic_boundaries() {
+fn unsupported_closure_surfaces_remain_atomic_boundaries() {
     for (path, source) in [
         (
             "test/borrowed.ko",
@@ -193,14 +295,6 @@ fn borrowed_and_empty_move_closures_remain_atomic_boundaries() {
              fun entry(): Unit {\n\
                  val message = \"borrowed\"\n\
                  val action: () -> Unit = { -> val read = inspect(message) }\n\
-                 val invoked = action()\n\
-             }",
-        ),
-        (
-            "test/empty.ko",
-            "package test\n\
-             fun entry(): Unit {\n\
-                 val action: move () -> Unit = move { val number = 1 }\n\
                  val invoked = action()\n\
              }",
         ),
@@ -304,6 +398,10 @@ fn operation_count(function: &Function, predicate: fn(&Operation) -> bool) -> us
 
 fn is_closure_construct(operation: &Operation) -> bool {
     matches!(operation, Operation::ClosureConstruct { .. })
+}
+
+fn is_function_address(operation: &Operation) -> bool {
+    matches!(operation, Operation::FunctionAddress { .. })
 }
 
 fn is_callable_invoke(operation: &Operation) -> bool {

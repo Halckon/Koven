@@ -1,4 +1,4 @@
-//! compilation-unit concrete move closure 的环境、thunk 与调用 lowering。
+//! compilation-unit lambda 的 function pointer/concrete closure、thunk 与调用 lowering。
 
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ use crate::ssa::{
     },
 };
 
-pub(super) type ClosurePlanKey = (FunctionId, UnitExpressionId);
+pub(super) type CallablePlanKey = (FunctionId, UnitExpressionId);
 
 #[derive(Clone, Copy)]
 pub(super) struct CapturePlan {
@@ -37,10 +37,10 @@ pub(super) struct CapturePlan {
 }
 
 #[derive(Clone)]
-pub(super) struct ClosurePlan {
+pub(super) struct CallablePlan {
     pub(super) scope: FunctionId,
     pub(super) source_unit: SourceUnitId,
-    pub(super) closure: SsaTypeId,
+    pub(super) callable: SsaTypeId,
     pub(super) thunk: FunctionId,
     pub(super) body: StatementId,
     pub(super) span: Span,
@@ -55,7 +55,7 @@ pub(super) fn declare(
     typed: &lang_frontend::type_checking::ValidatedCompilationUnitTypes,
     owned: &lang_frontend::ownership_checking::ValidatedCompilationUnitOwnership,
     types: &mut UnitTypeLowering,
-) -> Result<BTreeMap<ClosurePlanKey, ClosurePlan>, LoweringError> {
+) -> Result<BTreeMap<CallablePlanKey, CallablePlan>, LoweringError> {
     let mut closures = BTreeMap::new();
     for function in plans {
         let parsed = parsed_by_source
@@ -122,9 +122,7 @@ pub(super) fn declare(
                 function.instance.substitutions(),
                 span,
             )?;
-            if !descriptor.move_owned()
-                || !*move_only
-                || !parameters.is_empty()
+            if !parameters.is_empty()
                 || !callable_parameters.is_empty()
                 || builtin_type(typed, return_type) != Some(BuiltinType::Unit)
             {
@@ -165,7 +163,11 @@ pub(super) fn declare(
             let mut captures = Vec::new();
             let mut environment_fields = Vec::new();
             let mut capture_types = Vec::new();
-            for capture in owned.ownership().captures_of(id) {
+            let capture_facts = owned.ownership().captures_of(id).collect::<Vec<_>>();
+            if !capture_facts.is_empty() && (!descriptor.move_owned() || !*move_only) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            for capture in capture_facts {
                 let UnitClosureCaptureSource::Symbol(symbol) = capture.source() else {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
@@ -208,27 +210,38 @@ pub(super) fn declare(
                     span: capture.reference_span(),
                 });
             }
-            if captures.is_empty() {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
             let identity = format!(
                 "unit.lambda.f{}.s{}.e{}",
                 function.id.index(),
                 function.instance.source_unit().index(),
                 expression.index()
             );
-            let environment = module
-                .add_aggregate_type(format!("{identity}.environment"), environment_fields)
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let closure = module
-                .add_concrete_closure_type(
-                    format!("{identity}.closure"),
-                    Vec::new(),
-                    Vec::new(),
-                    environment,
-                    capture_types,
+            let (callable, thunk_parameters) = if captures.is_empty() {
+                let callable = module
+                    .add_function_pointer_type(Vec::new(), Vec::new())
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                (callable, Vec::new())
+            } else {
+                let environment = module
+                    .add_aggregate_type(format!("{identity}.environment"), environment_fields)
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                let callable = module
+                    .add_concrete_closure_type(
+                        format!("{identity}.closure"),
+                        Vec::new(),
+                        Vec::new(),
+                        environment,
+                        capture_types,
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                (
+                    callable,
+                    vec![EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: environment,
+                    }],
                 )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            };
             let thunk = module
                 .add_function(
                     format!("{identity}.thunk"),
@@ -239,21 +252,15 @@ pub(super) fn declare(
             module
                 .function_mut(thunk)
                 .expect("new unit closure thunk exists")
-                .add_block(
-                    vec![EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: environment,
-                    }],
-                    Origin::Source(span),
-                )
+                .add_block(thunk_parameters, Origin::Source(span))
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             if closures
                 .insert(
                     (function.id, id),
-                    ClosurePlan {
+                    CallablePlan {
                         scope: function.id,
                         source_unit: function.instance.source_unit(),
-                        closure,
+                        callable,
                         thunk,
                         body: *body,
                         span,
@@ -271,7 +278,7 @@ pub(super) fn declare(
 }
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn lower_move_closure(
+    pub(super) fn lower_callable_literal(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -280,7 +287,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let plan = self
-            .closure_plans
+            .callable_plans
             .get(&(
                 self.closure_scope,
                 UnitExpressionId::new(self.source_unit, expression),
@@ -332,16 +339,28 @@ impl UnitExpressionLowerer<'_> {
             };
             captures.push(ClosureCaptureOperand::Owned(value));
         }
+        if captures.is_empty() {
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::FunctionAddress { target: plan.thunk },
+                    vec![EntityType::Value(plan.callable)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Value(require_value(results[0], span)?));
+        }
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
                 Operation::ClosureConstruct {
-                    closure: plan.closure,
+                    closure: plan.callable,
                     thunk: plan.thunk,
                     captures,
                 },
-                vec![EntityType::Value(plan.closure)],
+                vec![EntityType::Value(plan.callable)],
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
@@ -426,7 +445,19 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(super) fn bind_capture_views(&mut self, plan: &ClosurePlan) -> Result<(), LoweringError> {
+    pub(super) fn bind_capture_views(&mut self, plan: &CallablePlan) -> Result<(), LoweringError> {
+        if plan.captures.is_empty() {
+            let parameters = &self
+                .function
+                .block(self.block)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, plan.span))?
+                .parameters;
+            return if parameters.is_empty() {
+                Ok(())
+            } else {
+                Err(lowering_error(LoweringErrorKind::InvalidModel, plan.span))
+            };
+        }
         let [EntityId::Loan(environment)] = self
             .function
             .block(self.block)
@@ -490,7 +521,7 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             };
             let plan = self
-                .closure_plans
+                .callable_plans
                 .get(&(self.closure_scope, closure))
                 .ok_or_else(|| {
                     lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
@@ -525,7 +556,7 @@ impl UnitExpressionLowerer<'_> {
 
 pub(super) fn finish_thunk(
     lowerer: &mut UnitExpressionLowerer<'_>,
-    plan: &ClosurePlan,
+    plan: &CallablePlan,
 ) -> Result<(), LoweringError> {
     lowerer.bind_capture_views(plan)?;
     let result = lowerer.lower_statement(plan.body)?;

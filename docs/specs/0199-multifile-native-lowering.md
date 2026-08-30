@@ -119,11 +119,14 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 21. [x] 接 concrete owned move closure core → 验证：unit-global concrete environment/thunk identity、
    Copy/Move capture、具名局部 transfer/repeated invoke、shared capture view、`Captured`/Named 精确反序
    drop、输入置换与 CFG provenance 恢复；borrowed、temporary/direct、nested、参数化、非 `Unit` 返回、
-   body 内 MoveOnly temporary 和 empty capture 保持 fail-loud 边界。
-22. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
+   body 内 MoveOnly temporary 保持 fail-loud 边界。
+22. [x] 接无 capture lambda function-pointer core → 验证：普通与 `move` lambda 共用 canonical
+   零参数 `Unit` signature、独立 thunk/`FunctionAddress`、无 environment/`ClosureConstruct`、具名
+   transfer/repeated invoke/drop 与输入置换；captured closure 表示和参数化/非 `Unit` 边界不回归。
+23. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-23. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-24. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+24. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+25. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -150,9 +153,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | 19 | shared-Borrow callable core | `feat(codegen): lower multifile borrows (SPEC-0199)` |
 | 20 | container element core | `feat(codegen): lower multifile container elements (SPEC-0199)` |
 | 21 | concrete owned move closure core | `feat(codegen): lower multifile closures (SPEC-0199)` |
-| 22 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 23 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 24 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 22 | 无 capture lambda function-pointer core | `feat(codegen): lower multifile function pointers (SPEC-0199)` |
+| 23 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 24 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 25 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -256,6 +260,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib` | 220 passed, 1 ignored | concrete owned move closure verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十一切片继续采用固定四层验收，不重复历史窄命令或尚未接线的 LLVM/native matrix |
 | 独立 fresh-context 评审与复审 | 通过 | 发现 temporary capture-drop、CFG provenance 与 coarse LoopExit stale facts 三个 P2，以及 LoopExit provenance 清理 P3；收窄为具名局部 closure，补齐 branch/loop 状态、live-fact 精确 drop 与 all-breaks-consumed 回归后复审确认无 P1/P2/可观察 P3 |
+| `cargo test -p lang-codegen --lib unit_lower_closure_tests` | 4 passed | 普通/`move` 无 capture lambda 的 canonical function pointer、独立 thunk、transfer/repeated invoke/drop、输入置换，以及 captured closure 和既有原子边界回归 |
+| `cargo test -p lang-codegen --lib unit_lower` | 62 passed | scoped umbrella 合并 function pointer、closure、container element、Borrow、construction、aggregate/Rc/enum、assignment 与 control-flow 回归 |
+| `cargo test -p lang-codegen --lib` | 221 passed, 1 ignored | 无 capture function-pointer verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十二切片继续采用固定四层验收，不重复历史窄命令或尚未接线的 LLVM/native matrix |
+| 独立 fresh-context 评审 | 通过 | 复核 Guide/SPEC-0038 两种 callable 表示、普通与 move descriptor、thunk signature、owner transfer/drop 和 captured 回归，未发现 P1/P2/P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -269,7 +278,7 @@ facts。unit lowerer 在生成 subject SSA 前返回 `UnsupportedNode`，不搬�
 顺序容器 runtime-length initializer 仍依赖 callable bridge；element read/borrow/replace 仍依赖
 source-qualified container operation 与 loan/replacement lowering。两者均未进入第十八切片，lowerer
 分别在实参求值前或 type planning 阶段 fail loud。Unit element 已在 verified SSA 中显式物化为
-`ScalarConstant::Unit`；其 LLVM value/materialization 由第 22 步统一接入，不把 SSA 进度误写为
+`ScalarConstant::Unit`；其 LLVM value/materialization 由第 24 步统一接入，不把 SSA 进度误写为
 native 闭环。
 
 第十九切片先接通后续 callable/container/closure 共用的 shared-Borrow 基础：Borrow 参数在 function
@@ -304,3 +313,12 @@ drop；closure provenance 与普通 owner binding 一起经过 `if`、`when`、�
 合流。temporary/direct delivery、borrowed/empty/nested、参数化或非 `Unit` closure、body 内 MoveOnly
 temporary 仍在发布 program 前 fail loud；一般 closure surface、LLVM/multi-source DWARF 与 native
 继续由后续切片承接，现行 guide 语义未改变。
+
+第二十二切片补齐 Guide §4 与 §27 明确的无 capture callable 表示：普通 lambda 与 `move` lambda
+都生成 signature-deduplicated `FunctionPointer`，每个源码 lambda 仍有独立 thunk，并通过
+`FunctionAddress` 取得地址；不创建空 environment、`ConcreteClosure`、`ClosureConstruct` 或
+`SharedFieldLoan`。function pointer 按 SPEC-0038 继续作为 MoveOnly owner，可绑定、转移、重复
+`CallableInvoke`，并由既有 drop fact 唯一 discharge；LLVM 的 function-pointer drop glue 最终为空操作。
+结构测试锁定跨文件输入置换、普通/move 两种 surface、canonical type、独立零参数 thunk、无隐藏
+environment，以及 captured concrete closure 不回归。参数化、非 `Unit`、temporary/direct delivery
+和一般 callable ABI 仍在发布 program 前 fail loud；现行 guide 语义未改变。

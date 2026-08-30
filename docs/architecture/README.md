@@ -1110,8 +1110,18 @@ identity；environment 只接收 owned Copy/Move capture，thunk entry 使用 sh
 输入置换、String Move/Int Copy capture、thunk field loan、移动后重复调用、if 双路径消费、while LoopExit
 drop 与 bare loop 全出口已消费后的 coarse stale fact 跳过，以及 borrowed/temporary/nested/参数化/非
 Unit 等原子边界。temporary/direct closure delivery、
-empty environment、borrowed capture、一般 callable ABI、LLVM/multi-source DWARF 与 object/native 仍由
+borrowed capture、一般 callable ABI、LLVM/multi-source DWARF 与 object/native 仍由
 SPEC-0199 后续切片承接；现行 guide 语义未改变。
+
+第二十二切片补齐无 capture lambda 的 unit lowering：普通 lambda 与 `move` lambda 都映射到
+signature-deduplicated `FunctionPointer`，每个源码 lambda 创建独立的零参数 `Unit` thunk，并由
+`FunctionAddress` 形成 callable value；该路径不创建 environment、`ConcreteClosure`、
+`ClosureConstruct` 或 `SharedFieldLoan`。function pointer 保持 SPEC-0038 的 MoveOnly owner contract，
+支持具名 binding transfer、重复 `CallableInvoke` 与唯一 SSA drop discharge；captured lambda 继续走
+第二十一切片的 concrete closure/capture drop 路径。结构测试锁定跨文件输入置换、普通/move 两类
+surface、canonical pointer type、独立 thunk、无隐藏 environment 及 captured 回归。参数化、非 `Unit`、
+temporary/direct delivery、一般 callable ABI、LLVM/multi-source DWARF 与 object/native 仍由后续切片
+承接；现行 guide 语义未改变。
 
 ## 结构化诊断与 renderer
 
