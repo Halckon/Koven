@@ -3,14 +3,16 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    parser::{BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator},
+    parser::{
+        AssignmentOperator, BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator,
+    },
     source::Span,
-    type_checking::{BuiltinType, UnitTypeId, ValidatedCompilationUnitTypes},
+    type_checking::{BuiltinType, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes},
 };
 
 use super::{
     super::{LoweringError, LoweringErrorKind, model::SsaTypeId, unit_plan::resolve_concrete_type},
-    builtin_type, intern_scalar_type, is_scalar_storage_builtin, lowering_error,
+    builtin_type, intern_scalar_type, lowering_error,
 };
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
 
@@ -36,8 +38,9 @@ pub(super) fn intern_body_scalar_types(
             continue;
         }
         let concrete = resolve_concrete_type(typed, ty, instance.substitutions(), span)?;
-        if builtin_type(typed, concrete).is_some_and(is_integer_builtin)
-            && requires_checked_failure_type(parsed, expression.expression())?
+        if checked_operand_type(parsed, instance, typed, expression, concrete)?
+            .and_then(|ty| builtin_type(typed, ty))
+            .is_some_and(is_integer_builtin)
         {
             let boolean = typed
                 .types()
@@ -67,27 +70,35 @@ const fn is_integer_builtin(builtin: BuiltinType) -> bool {
     )
 }
 
-fn requires_checked_failure_type(
+const fn is_scalar_storage_builtin(builtin: BuiltinType) -> bool {
+    matches!(builtin, BuiltinType::Boolean | BuiltinType::String) || is_integer_builtin(builtin)
+}
+
+fn checked_operand_type(
     parsed: &ParsedFile,
-    expression: lang_frontend::ast::ExpressionId,
-) -> Result<bool, LoweringError> {
+    instance: &UnitPlannedInstance,
+    typed: &ValidatedCompilationUnitTypes,
+    expression: UnitExpressionId,
+    expression_type: UnitTypeId,
+) -> Result<Option<UnitTypeId>, LoweringError> {
     let node = parsed
         .ast()
         .expressions()
-        .get(expression)
+        .get(expression.expression())
         .map_err(|_| LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
-    let required = match node.payload() {
-        Expression::Binary { operator, .. } => matches!(
-            operator,
-            BinaryOperator::Add
+    let checked = match node.payload() {
+        Expression::Binary {
+            operator:
+                BinaryOperator::Add
                 | BinaryOperator::Subtract
                 | BinaryOperator::Multiply
                 | BinaryOperator::Divide
-                | BinaryOperator::Remainder
-        ),
+                | BinaryOperator::Remainder,
+            ..
+        } => Some(expression_type),
         Expression::Prefix {
             operator: PrefixOperator::Minus,
             operand,
@@ -101,14 +112,29 @@ fn requires_checked_failure_type(
                     kind: LoweringErrorKind::MissingFact,
                     span: None,
                 })?;
-            !matches!(
+            (!matches!(
                 operand.payload(),
                 Expression::Literal(LiteralKind::Integer(_))
-            )
+            ))
+            .then_some(expression_type)
         }
-        _ => false,
+        Expression::Assignment {
+            target, operator, ..
+        } if *operator != AssignmentOperator::Assign => {
+            let target = typed
+                .types()
+                .expression_type(UnitExpressionId::new(expression.source_unit(), *target))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            Some(resolve_concrete_type(
+                typed,
+                target,
+                instance.substitutions(),
+                node.span(),
+            )?)
+        }
+        _ => None,
     };
-    Ok(required)
+    Ok(checked)
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {

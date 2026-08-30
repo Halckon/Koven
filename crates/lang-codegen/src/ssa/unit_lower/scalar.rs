@@ -198,7 +198,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn checked(
+    pub(super) fn checked(
         &mut self,
         operator: CheckedArithmeticOperator,
         left: ValueId,
@@ -271,7 +271,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn expression_builtin_type(
+    pub(super) fn expression_builtin_type(
         &self,
         expression: ExpressionId,
         span: Span,
@@ -304,7 +304,7 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-const fn is_integer_builtin(builtin: BuiltinType) -> bool {
+pub(super) const fn is_integer_builtin(builtin: BuiltinType) -> bool {
     matches!(
         builtin,
         BuiltinType::Byte

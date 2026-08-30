@@ -29,6 +29,8 @@ mod tests;
 #[cfg(test)]
 mod type_tests;
 #[cfg(test)]
+mod unit_lower_assignment_tests;
+#[cfg(test)]
 mod unit_lower_loop_tests;
 #[cfg(test)]
 mod unit_lower_scalar_tests;

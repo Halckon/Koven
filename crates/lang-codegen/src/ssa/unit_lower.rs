@@ -1,5 +1,6 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 
+mod assignment;
 mod cfg;
 mod control;
 mod loop_control;
@@ -376,6 +377,12 @@ impl UnitExpressionLowerer<'_> {
                 right,
                 ..
             } => self.lower_scalar_binary(*left, *operator, *right, expression, span),
+            Expression::Assignment {
+                target,
+                operator,
+                value,
+                ..
+            } => self.lower_assignment(*target, *operator, *value, span),
             Expression::If {
                 condition,
                 then_branch,
@@ -908,22 +915,6 @@ fn builtin_type(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> Option
         Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
         _ => None,
     }
-}
-
-const fn is_scalar_storage_builtin(builtin: BuiltinType) -> bool {
-    matches!(
-        builtin,
-        BuiltinType::Boolean
-            | BuiltinType::Byte
-            | BuiltinType::Short
-            | BuiltinType::Int
-            | BuiltinType::Long
-            | BuiltinType::UByte
-            | BuiltinType::UShort
-            | BuiltinType::UInt
-            | BuiltinType::ULong
-            | BuiltinType::String
-    )
 }
 
 fn instance_function_name(

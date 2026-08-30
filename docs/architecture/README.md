@@ -1006,6 +1006,17 @@ temporary/local named drops、joined owner 传给 identity、两条 equality 的
 `StringEqual -> Drop(RHS) -> BooleanNot` 时序和输入置换。Borrow String 参数仍受 unit function ABI 的
 既有显式门禁，不把本切片描述成完整 Borrow lowering。
 
+第十四切片把 compilation-unit lowering 扩展到 root name assignment。普通 `=` 先完整 lower RHS，
+消费 frontend 发布的旧 named owner drop，再按 expression category 转移 RHS temporary/place owner 并写回
+binding；若 MoveOnly 旧 binding 未被精确 fact 移除则以 `MissingFact` 失败，不静默覆盖。整数
+`+=` / `-=` / `*=` / `/=` / `%=` 复用 checked arithmetic 的 `true -> Abort` CFG，type planner 从
+compound target 的 concrete type 补入 Boolean failure identity，而不是误用 assignment 自身的 deferred
+`Unit` type；每次 success result 都成为下一次 assignment 的 binding。由于 compilation-unit 一般
+assignment 类型关系仍是 frontend deferred 边界，lowerer 在写回前显式要求 target/RHS concrete SSA type
+相同。结构测试锁定跨文件 String `concat -> RHS drop -> old drop -> replacement delivery`、五类 compound
+的逐次 operand/result chain、failure edge、最终返回、输入置换，以及 String compound 与 `Int = Boolean`
+原子拒绝。element/member target 和 Inout parameter 仍分别受 name-target 与 function ABI 既有门禁。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

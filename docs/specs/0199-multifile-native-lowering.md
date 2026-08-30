@@ -86,10 +86,12 @@
    Copyable result 与 MoveOnly owner carry、输入置换，以及 RHS-only owner move 的 fail-loud 门禁。
 13. [x] 接 String concat/equality binary → 验证：source-order view identity、right-to-left operand
    drop、concat result transfer/return、`!=` 的 equal/drop/not 时序、跨文件调用与输入置换。
-14. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
+14. [x] 接 root name assignment → 验证：String RHS-before-drop/replacement owner transfer、五类整数
+   compound checked failure CFG、逐次 binding identity、deferred type fail-loud 与输入置换。
+15. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 aggregate/Rc/container/closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-15. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-16. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+16. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+17. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -108,9 +110,10 @@
 | 11 | integer scalar operators 与 checked failure CFG | `feat(codegen): lower multifile scalar operators (SPEC-0199)` |
 | 12 | Boolean short-circuit owner-aware CFG | `feat(codegen): lower multifile short circuits (SPEC-0199)` |
 | 13 | String binary views 与 operand drops | `feat(codegen): lower multifile string binary (SPEC-0199)` |
-| 14 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 15 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 16 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 14 | root name owner/scalar assignment | `feat(codegen): lower multifile assignments (SPEC-0199)` |
+| 15 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 16 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 17 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -179,3 +182,7 @@
 | `cargo test -p lang-codegen --lib unit_lower_scalar_tests` | 3 passed | String dispatch 接入后的整数 checked/comparison 回归 |
 | `cargo test -p lang-codegen --lib` | 198 passed, 1 ignored | String binary 切片后的 codegen 全量 lib 基线 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十三切片继续复用窄测试 → 受影响 crate 全量 → workspace 静态门禁 |
+| `cargo test -p lang-codegen --lib unit_lower_assignment_tests` | 3 passed | String replacement 的精确 RHS/drop/transfer、五类整数 compound binding chain/failure edge、非整数 compound 与 deferred mismatch 原子拒绝 |
+| `cargo test -p lang-codegen --lib unit_lower` | 42 passed | 用单一 scoped filter 合并 assignment、type-plan、scalar/String 与既有 unit control-flow 回归，减少重复窄命令 |
+| `cargo test -p lang-codegen --lib` | 201 passed, 1 ignored | root name assignment 切片后的 codegen 全量 lib 基线 |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十四切片继续采用“切片窄测 → scoped umbrella → 受影响 crate 全量 → workspace 静态门禁”，不重复无关 native matrix |
