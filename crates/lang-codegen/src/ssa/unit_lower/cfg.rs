@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{name_resolution::UnitSymbolId, source::Span, type_checking::Copyability};
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error};
+use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{BlockId, Edge, EntityId, EntityType, Origin, ValueId},
@@ -17,6 +17,26 @@ pub(super) struct CarriedBinding {
 }
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn move_only_carried_bindings(
+        &self,
+        bindings: &BTreeMap<UnitSymbolId, LoweredValue>,
+        span: Span,
+    ) -> Result<Vec<CarriedBinding>, LoweringError> {
+        let mut move_only = BTreeMap::new();
+        for (symbol, binding) in bindings {
+            let ty = self
+                .typed
+                .types()
+                .symbol_type(*symbol)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let ty = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+            if self.typed.types().copyability(ty) == Copyability::MoveOnly {
+                move_only.insert(*symbol, *binding);
+            }
+        }
+        self.carried_bindings(&move_only, span)
+    }
+
     pub(super) fn carried_bindings(
         &self,
         bindings: &BTreeMap<UnitSymbolId, LoweredValue>,

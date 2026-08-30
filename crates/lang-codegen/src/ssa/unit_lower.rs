@@ -419,6 +419,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return self.lower_container_construction(expression, span);
         }
+        if self.typed.types().element_place(unit_expression).is_some() {
+            return self.lower_container_index(expression, span);
+        }
         if self
             .typed
             .types()
@@ -447,7 +450,7 @@ impl UnitExpressionLowerer<'_> {
                 operator,
                 value,
                 ..
-            } => self.lower_assignment(*target, *operator, *value, span),
+            } => self.lower_assignment(expression, *target, *operator, *value, span),
             Expression::If {
                 condition,
                 then_branch,

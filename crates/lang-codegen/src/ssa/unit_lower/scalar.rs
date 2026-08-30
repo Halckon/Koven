@@ -15,7 +15,7 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        CheckedArithmeticOperator, ComparisonOperator, Edge, EntityType, Operation, Origin,
+        CheckedArithmeticOperator, ComparisonOperator, EntityType, Operation, Origin,
         ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
 };
@@ -226,27 +226,17 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let failure = self
-            .function
-            .add_block(Vec::new(), Origin::Source(span))
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let success = self
-            .function
-            .add_block(Vec::new(), Origin::Source(span))
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let baseline = self.bindings.clone();
+        let carried = self.move_only_carried_bindings(&baseline, span)?;
+        let failure = self.add_carried_block(&carried, span)?;
+        let success = self.add_carried_block(&carried, span)?;
         self.function
             .set_terminator(
                 self.block,
                 TerminatorKind::Conditional {
                     condition: require_value(results[1], span)?,
-                    when_true: Edge {
-                        target: failure,
-                        arguments: Vec::new(),
-                    },
-                    when_false: Edge {
-                        target: success,
-                        arguments: Vec::new(),
-                    },
+                    when_true: super::cfg::carried_edge(failure, &carried),
+                    when_false: super::cfg::carried_edge(success, &carried),
                 },
                 Origin::Source(span),
             )
@@ -255,6 +245,7 @@ impl UnitExpressionLowerer<'_> {
             .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = success;
+        self.bindings = self.rebind_carried(&baseline, success, &carried, span)?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 

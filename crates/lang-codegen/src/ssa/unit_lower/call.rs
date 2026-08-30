@@ -313,7 +313,7 @@ impl UnitExpressionLowerer<'_> {
             }
             return Ok((loan, false, fact.end_span()));
         }
-        let place = self.lower_borrow_place(fact.target(), target, span)?;
+        let place = self.lower_borrow_place(argument, fact.target(), target, span)?;
         let (_, results) = self
             .function
             .append_instruction(
@@ -340,10 +340,16 @@ impl UnitExpressionLowerer<'_> {
 
     fn lower_borrow_place(
         &mut self,
+        argument: ExpressionId,
         loan_target: &UnitLoanTarget,
         target: SsaTypeId,
         span: Span,
     ) -> Result<PlaceId, LoweringError> {
+        if let Some(place) =
+            self.lower_borrowed_container_element(argument, loan_target, target, span)?
+        {
+            return Ok(place);
+        }
         let owner = match loan_target {
             UnitLoanTarget::Place(place) if place.is_root() => self
                 .bindings

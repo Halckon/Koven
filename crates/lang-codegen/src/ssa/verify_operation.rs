@@ -569,7 +569,7 @@ fn container_replace_contract(
     };
     results.is_empty()
         && kind.elements_are_mutable()
-        && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+        && value_type(function, index).is_some_and(|ty| is_koven_container_index(module, ty))
         && value_type(function, value) == Some(element)
 }
 

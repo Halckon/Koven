@@ -52,6 +52,10 @@
   原子更新；输入置换后的规范化 SSA/LLVM 与诊断一致（不要求 object 字节完全相同）。
 - [ ] 多 source DWARF 行表保留各自源码定位；codegen/workspace 基线与 Architecture 同步。
 
+剩余切片采用固定四层验收：开发期只跑本切片窄测；提交前跑一次受影响 crate 全量；再跑一次
+workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审。历史窄测由 crate 全量覆盖，尚未
+接线的 LLVM/native matrix 留到对应门禁切片，不在每个 SSA 切片重复执行。
+
 ## 6. 技术方案与边界
 
 在 frontend unit product 与现有 function-level lowering 之间增加确定的 reachability/instance plan，
@@ -108,10 +112,14 @@
    source-qualified root/temporary loan、已有参数 loan 无嵌套转发、Copyable loan read、混合具名实参的
    源码求值/参数槽位/逆序结束、CallReturn drop 与输入置换；`Inout`、非 root projection 和
    `Borrow(Unit)` 在发布 program 前 fail loud。
-20. [ ] 扩展 MoveOnly value result、其余 `when`/for、container element operation 与 closure owner/drop SSA →
+20. [x] 接 container element core → 验证：Copyable read、owned/Borrow/temporary receiver shared
+   element loan、`Array`/`MutableList` simple 与整数 compound replacement、MoveOnly RHS transfer、
+   `AfterReplacement/ReplacedElement` 精确旧元素 drop、checked CFG owner carry 与输入置换；field-backed
+   receiver、`size`、temporary compound、一般 `Inout` 与 MoveOnly element read 保持 fail-loud 边界。
+21. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-21. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-22. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+22. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+23. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -136,9 +144,10 @@
 | 17 | concrete non-generic enum core | `feat(codegen): lower multifile enums (SPEC-0199)` |
 | 18 | concrete 顺序容器 construction core | `feat(codegen): lower multifile containers (SPEC-0199)` |
 | 19 | shared-Borrow callable core | `feat(codegen): lower multifile borrows (SPEC-0199)` |
-| 20 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 21 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 22 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 20 | container element core | `feat(codegen): lower multifile container elements (SPEC-0199)` |
+| 21 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 22 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 23 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -232,6 +241,11 @@
 | `cargo test -p lang-codegen --lib` | 215 passed, 1 ignored | shared-Borrow callable verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第十九切片沿用“Borrow 窄测 → scoped umbrella → codegen 全量 → workspace 静态门禁”的简化验收，不重复尚未接线的 multifile native matrix |
 | 独立 fresh-context 评审 | 通过 | 发现 `Borrow(Unit)` entry 可绕过 call-site 门禁；修复为 concrete substitution 后、SSA 类型/函数创建前拒绝，并复审确认 generic `T = Unit` 同样闭环 |
+| `cargo test -p lang-codegen --lib unit_lower_container_element_tests` | 2 passed | Copyable element read、owned/Borrow/temporary shared loan、simple/compound/MoveOnly replacement、精确 checked owner carry、输入置换与显式 fail-loud 边界 |
+| `cargo test -p lang-codegen --lib unit_lower` | 58 passed | scoped umbrella 合并 container element、Borrow、construction、aggregate/Rc/enum、assignment 与 control-flow 回归 |
+| `cargo test -p lang-codegen --lib` | 217 passed, 1 ignored | container element verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十切片落实固定四层验收，不重复历史窄命令或尚未接线的 multifile native matrix |
+| 独立 fresh-context 评审与复审 | 通过 | 发现 grouped temporary container loan 的 owner identity/drop 消费缺口；修复为按 frontend temporary origin 校验、按 source-qualified loan target 唯一重绑定后，复审确认无新 P1/P2 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -245,7 +259,7 @@ facts。unit lowerer 在生成 subject SSA 前返回 `UnsupportedNode`，不搬�
 顺序容器 runtime-length initializer 仍依赖 callable bridge；element read/borrow/replace 仍依赖
 source-qualified container operation 与 loan/replacement lowering。两者均未进入第十八切片，lowerer
 分别在实参求值前或 type planning 阶段 fail loud。Unit element 已在 verified SSA 中显式物化为
-`ScalarConstant::Unit`；其 LLVM value/materialization 由第 21 步统一接入，不把 SSA 进度误写为
+`ScalarConstant::Unit`；其 LLVM value/materialization 由第 22 步统一接入，不把 SSA 进度误写为
 native 闭环。
 
 第十九切片先接通后续 callable/container/closure 共用的 shared-Borrow 基础：Borrow 参数在 function
@@ -257,3 +271,16 @@ loan `Read`。源码实参仍按源码顺序 lower，再按 parameter index 组�
 以及 callable ABI 中的 `Borrow(Unit)` 仍是显式边界；其中 `Borrow(Unit)` 在 concrete substitution 后、
 任何 SSA 类型或函数发布前拒绝，等待后续 ABI 擦除方案。该切片只闭合 verified SSA，不表示 LLVM、
 container element borrow、closure thunk 或 native 已接通。
+
+第二十切片消费 typed element-place、source-qualified loan 与 replacement drop facts，接通 concrete
+顺序容器的元素核心。Copyable element 直接形成 `ContainerElementPlace + Read`；Borrow 实参可从
+owned root、已有 Borrow 参数或 temporary container 形成 shared element loan；带 group 的 temporary
+receiver 先按 frontend temporary origin 核对，再把实际 owner 唯一重绑定到 source-qualified loan target，
+使 CallReturn 精确 drop 而不残留同 ValueId 别名。`Array`/`MutableList` simple replacement 先求值
+receiver/index/RHS，再执行 `ContainerReplace`；MoveOnly RHS 先按既有
+Value delivery 转交，旧元素只在精确 `AfterReplacement/ReplacedElement` fact 存在时由 replace intrinsic
+承担 drop。整数 compound replacement 复用 checked failure CFG，并只携带 live MoveOnly bindings，
+success block 使用重绑定后的 owner，避免隐藏 linear live-in。source `Int` index 为 i32，verifier 因而
+统一接受有符号 i32/i64 container index，同时继续拒绝无符号或其他宽度。field-backed receiver、
+`size`、temporary compound、一般 `Inout` 与 MoveOnly element read 仍在发布 program 前 fail loud；
+LLVM/native 尚未接线，现行 guide 语义未改变。

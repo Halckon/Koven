@@ -1088,6 +1088,18 @@ Rc projection、MoveOnly Borrow name read 仍 fail loud。由于现行 callable 
 ABI 擦除方案。container element borrow、closure thunk、LLVM/multi-source DWARF 与 object/native
 仍由 SPEC-0199 后续切片承接；现行 guide 语义未改变。
 
+第二十切片把 compilation-unit lowering 扩展到 concrete 顺序容器 element core。Copyable element
+read 生成 `ContainerElementPlace + Read`；shared-Borrow call 可从 owned root、已有 Borrow 参数或
+temporary container 建立 element loan。grouped temporary 先按 frontend temporary origin 校验，再把
+实际 owner 唯一重绑定到 source-qualified loan target，使 CallReturn 精确 drop 且不保留同 ValueId
+别名。`Array`/`MutableList` simple 与整数 compound replacement 生成 `ContainerReplace`，MoveOnly RHS
+先消费 Value delivery，旧元素只在精确
+`AfterReplacement/ReplacedElement` fact 存在时由 replace intrinsic drop。checked arithmetic 的 CFG
+只携带 live MoveOnly bindings，success block 使用重绑定 owner；普通 scalar CFG 因而保持原来的空边。
+verifier 的 container index 契约与 source `Int` 对齐为 signed i32/i64。field-backed receiver、`size`、
+temporary compound、一般 `Inout` 与 MoveOnly element read 仍 fail loud；LLVM/multi-source DWARF 与
+object/native 继续由 SPEC-0199 后续切片承接，现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

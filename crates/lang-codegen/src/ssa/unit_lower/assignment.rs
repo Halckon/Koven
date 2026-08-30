@@ -15,11 +15,15 @@ use crate::ssa::{LoweringError, LoweringErrorKind, model::CheckedArithmeticOpera
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_assignment(
         &mut self,
+        expression: ExpressionId,
         target: ExpressionId,
         operator: AssignmentOperator,
         value: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.element_place_descriptor(target)?.is_some() {
+            return self.lower_container_assignment(expression, target, operator, value, span);
+        }
         let target_node = self
             .parsed
             .ast()
