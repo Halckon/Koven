@@ -508,14 +508,16 @@ cargo clippy -p <affected-crate> --all-targets -- -D warnings
 cargo test -p <affected-crate> --lib
 cargo test -p <affected-crate> --test <affected-suite-1> --test <affected-suite-2>
 cargo check --workspace --all-targets
-cargo test --workspace --lib --bins
 cargo build -p lang-cli
 ```
 
 `<affected-suite-*>` 由 Spec 验收矩阵和实际依赖面决定，必须至少包含行为正反例、最近公共调用方
 和一个既有回归套件；不得固定成一个永远不变的“快速名单”。修改公开跨 crate API 时，追加直接
 下游 crate 的相关 integration tests；修改 LLVM/native 行为时，追加对应 codegen/CLI build-run
-验收。只改 Markdown 时不机械运行 Rust 门禁，按文档规则检查链接、术语、版本与 diff。
+验收。第 2 层不运行 `cargo test --workspace --lib --bins`，因为它会重复执行包括 frontend 慢矩阵
+在内的全部库测试；workspace 编译兼容由 `cargo check --workspace --all-targets` 覆盖，行为正确性由
+受影响 crate 与直接下游的显式套件覆盖。只改 Markdown 时不机械运行 Rust 门禁，按文档规则检查
+链接、术语、版本与 diff。
 
 ### 第 3 层：高风险与里程碑全量门禁
 
