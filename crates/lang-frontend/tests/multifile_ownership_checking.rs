@@ -2412,6 +2412,246 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
 }
 
 #[test]
+fn lambda_tail_consumes_result_and_drops_only_body_owned_inputs() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nfun make(): String = \"made\"",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         val topAction: move () -> String = move {\n\
+             val result = \"owned\"\n\
+             return result\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val action: move () -> String = move { \"left\" + p.make() }\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let consumer_unit = source_unit(&names, consumer_source);
+    let tail = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "\"left\" + p.make()"),
+    );
+    let left = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "\"left\""),
+    );
+    let call = UnitExpressionId::new(
+        consumer_unit,
+        expression_with_text(&sources, &consumer, "p.make()"),
+    );
+    let operand_drops = ownership
+        .drops()
+        .iter()
+        .filter_map(|fact| {
+            (fact.point() == UnitDropPoint::AfterBinaryOperands(tail)).then_some(fact.target())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operand_drops,
+        [
+            UnitDropTarget::Temporary(call),
+            UnitDropTarget::Temporary(left)
+        ],
+        "lambda tail operands drop in reverse evaluation order"
+    );
+    assert!(
+        !ownership
+            .drops()
+            .iter()
+            .any(|fact| fact.target() == UnitDropTarget::Temporary(tail)),
+        "implicit lambda result transfers to the caller instead of being dropped"
+    );
+    let result = names.names().source_units()[consumer_unit.index()]
+        .resolution()
+        .symbols()
+        .iter()
+        .find(|symbol| symbol.name() == "result")
+        .expect("lambda body local exists")
+        .id();
+    assert!(
+        !ownership.drops().iter().any(|fact| {
+            matches!(
+                fact.target(),
+                UnitDropTarget::Named(target)
+                    if target.source_unit() == consumer_unit && target.symbol() == result
+            )
+        }),
+        "a body-local owner returned from a top-level initializer lambda remains live until transfer"
+    );
+    ownership
+        .clone()
+        .validate()
+        .expect("complete lambda drop facts validate");
+    let reversed_names = validated_names(&sources, &reversed_inputs, &name_environment);
+    let reversed_typed = validated_types(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+    );
+    let reversed = check_compilation_unit_ownership(
+        &sources,
+        &reversed_inputs,
+        &reversed_names,
+        &type_environment,
+        &reversed_typed,
+    )
+    .expect("reversed unit ownership product");
+    assert_eq!(ownership.drops(), reversed.drops());
+}
+
+#[test]
+fn lambda_drop_planning_skips_only_move_only_value_parameters() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun entry(): Unit {\n\
+             val owned: move (own String) -> String = move { item -> \"owned-a\" + \"owned-b\" }\n\
+             val borrowed: move (borrow String) -> String = move { item -> \"borrow-a\" + \"borrow-b\" }\n\
+             val copied: move (own Int) -> String = move { item -> \"copy-a\" + \"copy-b\" }\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "q/consumer.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let source_unit = source_unit(&names, source);
+    let owned_tail = UnitExpressionId::new(
+        source_unit,
+        expression_with_text(&sources, &parsed, "\"owned-a\" + \"owned-b\""),
+    );
+    let borrowed_tail = UnitExpressionId::new(
+        source_unit,
+        expression_with_text(&sources, &parsed, "\"borrow-a\" + \"borrow-b\""),
+    );
+    let copied_tail = UnitExpressionId::new(
+        source_unit,
+        expression_with_text(&sources, &parsed, "\"copy-a\" + \"copy-b\""),
+    );
+    let has_operand_drop = |expression| {
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| fact.point() == UnitDropPoint::AfterBinaryOperands(expression))
+    };
+    assert!(
+        !has_operand_drop(owned_tail),
+        "a MoveOnly Value parameter keeps the existing deferred lambda boundary"
+    );
+    assert!(
+        has_operand_drop(borrowed_tail),
+        "a MoveOnly Borrow parameter does not defer lambda body drop planning"
+    );
+    assert!(
+        has_operand_drop(copied_tail),
+        "a Copyable Value parameter does not defer lambda body drop planning"
+    );
+    ownership
+        .validate()
+        .expect("parameter-gated lambda drop facts validate");
+}
+
+#[test]
+fn lambda_drop_planning_defers_move_only_control_results() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         val selected: move (borrow Boolean) -> String = move { flag ->\n\
+             val prefix = \"prefix-a\" + \"prefix-b\"\n\
+             val result = when (flag) {\n\
+                 true -> \"when-a\" + \"when-b\"\n\
+                 false -> \"when-c\" + \"when-d\"\n\
+             }\n\
+             return result\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val conditional: move (borrow Boolean) -> String = move { flag ->\n\
+                 if (flag) { \"if-a\" + \"if-b\" } else { \"else-a\" + \"else-b\" }\n\
+             }\n\
+             val supported: move () -> String = move { \"supported-a\" + \"supported-b\" }\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "q/consumer.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let source_unit = source_unit(&names, source);
+    let expression =
+        |text| UnitExpressionId::new(source_unit, expression_with_text(&sources, &parsed, text));
+    let has_operand_drop = |text| {
+        let expression = expression(text);
+        ownership
+            .drops()
+            .iter()
+            .any(|fact| fact.point() == UnitDropPoint::AfterBinaryOperands(expression))
+    };
+    for deferred in [
+        "\"if-a\" + \"if-b\"",
+        "\"else-a\" + \"else-b\"",
+        "\"when-a\" + \"when-b\"",
+        "\"when-c\" + \"when-d\"",
+    ] {
+        assert!(
+            !has_operand_drop(deferred),
+            "an unsupported MoveOnly control result must defer the complete lambda body plan"
+        );
+    }
+    assert!(
+        !has_operand_drop("\"prefix-a\" + \"prefix-b\""),
+        "deferring a lambda body must roll back facts emitted before the unsupported result"
+    );
+    assert!(
+        has_operand_drop("\"supported-a\" + \"supported-b\""),
+        "deferring one lambda body must not suppress a supported sibling"
+    );
+    ownership
+        .validate()
+        .expect("control-result gate preserves a valid partial surface");
+}
+
+#[test]
 fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(

@@ -1,3 +1,4 @@
+mod lambda;
 mod model;
 
 use std::collections::BTreeMap;
@@ -57,6 +58,8 @@ struct DropPlanner<'a, 'checker> {
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
     binding_depths: BTreeMap<UnitSymbolId, usize>,
+    planning_lambda_body: bool,
+    lambda_body_supported: bool,
 }
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
@@ -68,12 +71,29 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loop_boundaries: Vec::new(),
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
+            planning_lambda_body: false,
+            lambda_body_supported: true,
         }
     }
 
     fn run(mut self) -> Result<Vec<PlannerDropFact>, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
+        }
+        for (_, node) in self.checker.parsed.ast().expressions().iter() {
+            let Expression::Lambda {
+                parameters, body, ..
+            } = node.payload()
+            else {
+                continue;
+            };
+            if parameters
+                .iter()
+                .any(|span| self.is_move_only_lambda_parameter(*span))
+            {
+                continue;
+            }
+            self.plan_lambda_body(*body)?;
         }
         Ok(self.facts)
     }
@@ -363,6 +383,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             return Ok(true);
         }
         let node = self.checker.parsed.ast().expressions().get(id)?;
+        // 分支 result 需要独立的 exit-qualified 事实；当前切片宁可回滚整个 lambda plan，
+        // 也不能把各分支按普通 statement 提前析构。
+        if self.planning_lambda_body
+            && matches!(
+                node.payload(),
+                Expression::If { .. } | Expression::When { .. }
+            )
+            && self.is_move_only_temporary(id)
+        {
+            self.lambda_body_supported = false;
+        }
         match node.payload().clone() {
             Expression::Error
             | Expression::This

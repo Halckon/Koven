@@ -47,6 +47,11 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
     for &root in checker.parsed.roots() {
         builder.item(root)?;
     }
+    for (_, node) in checker.parsed.ast().expressions().iter() {
+        if let Expression::Lambda { body, .. } = node.payload() {
+            builder.statement(*body, LiveSet::new())?;
+        }
+    }
     Ok(Liveness {
         expression_after: builder.expression_after,
         statement_after: builder.statement_after,

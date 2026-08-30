@@ -878,7 +878,12 @@ named/direct closure 最后使用结束的 loan，owned capture 执行 Copy/Move
 第九切片复用单文件 liveness/drop planner 契约，发布带 `UnitExpressionId` / `UnitStatementId` /
 `UnitItemId` 的 source-qualified `UnitDropPoint`、named/temporary/replaced-element/captured
 `UnitDropTarget` 与稳定 `UnitDropFact`；覆盖 unused parameter/local、String binary、call temporary、
-replacement、branch/loop/control-transfer、return 与 closure environment 逆序析构。element 后字段
+replacement、branch/loop/control-transfer、return 与 closure environment 逆序析构。SPEC-0215 当前
+切片在 root traversal 后按 AST identity 独立计算 lambda body liveness，并为不含 MoveOnly Value
+参数的受支持 body 把最后一个 expression element 按隐式返回 Consume：结果 owner 转交 caller，
+String composite operand 仍按 `AfterBinaryOperands` 逆求值顺序析构。含 MoveOnly `if` / `when`
+result 的 body 会原子回滚本轮 lambda drop facts，继续保持后继控制流结果切片的 fail-loud 边界，
+且不影响相邻 lambda 或外层 formation state。element 后字段
 投影仍按单文件契约显式发布 `IndexPlace` deferred fact，并跳过所属 callable 的不完整 drop plan；
 任一 ownership error 原子清空全部可执行 facts。只有无 error 且无 deferred drop 边界时，
 `CompilationUnitOwnership::validate` 才发布不可伪造的 `ValidatedCompilationUnitOwnership`，供
@@ -1145,6 +1150,14 @@ span 内的其他 MoveOnly temporary、local owner、显式 return、concat/分�
 在 program 发布前 fail loud，等待 lambda-body exit-qualified owner/drop facts。一般 MoveOnly
 `if`/`when` result 和缺 typed iteration plan 的 `for` 也未解锁；LLVM/multi-source DWARF 与
 object/native 仍由后续切片承接，现行 guide 语义未改变。
+
+SPEC-0215 在 compilation-unit ownership 中为 lambda body 建立独立 callable 活性与析构规划。root
+liveness traversal 不进入 lambda body，只保留 formation 的 capture source；随后 liveness 与 drop planner
+统一按 AST identity 枚举全部 lambda body，因此顶层/member initializer 与嵌套 lambda 不依赖外层 item
+是否遍历 initializer。无 MoveOnly Value 参数时，body prefix 沿用普通 statement 规则，最后一个
+expression element 按隐式返回 `Consume`：结果 owner 转交 caller，内部 composite operand 与未转移的
+body-local owner 按既有精确 point 析构。MoveOnly Value 参数仍保持门禁，等待独立 lambda-entry drop
+point；该前端事实不自行放宽 SPEC-0199 的 codegen surface，现行 guide 语义未改变。
 
 SPEC-0199 第二十四步的第一切片建立真实 compilation-unit frontend→SSA→LLVM/multi-source DWARF
 集成证据。两个 package 的 source input 经过独立 name/type/ownership 分析后汇入单一 verified SSA/LLVM
