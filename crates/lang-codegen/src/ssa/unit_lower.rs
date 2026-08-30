@@ -4,6 +4,7 @@ mod aggregate;
 mod assignment;
 mod call;
 mod cfg;
+mod closure;
 mod construction;
 mod container;
 mod control;
@@ -222,6 +223,8 @@ pub(crate) fn lower_scalar_unit_with_entry(
             &mut types,
         )?;
     }
+    let closure_plans =
+        closure::declare(module, &parsed_by_source, &plans, typed, owned, &mut types)?;
 
     let entry_id = function_ids
         .get(&UnitFunctionInstanceKey::for_entry(entry))
@@ -290,6 +293,10 @@ pub(crate) fn lower_scalar_unit_with_entry(
             block,
             bindings,
             borrow_bindings,
+            closure_bindings: BTreeMap::new(),
+            closure_binding_context: false,
+            closure_plans: &closure_plans,
+            closure_scope: plan.id,
             temporaries: BTreeMap::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
@@ -326,6 +333,54 @@ pub(crate) fn lower_scalar_unit_with_entry(
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, plan.instance.span()))?;
     }
 
+    let unit = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Unit)
+        .ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    for plan in closure_plans.values() {
+        let parsed = parsed_by_source[plan.source_unit.index()];
+        let references = symbol_references(names, plan.source_unit, Namespace::Value);
+        let type_references = symbol_references(names, plan.source_unit, Namespace::Type);
+        let function = module
+            .function_mut(plan.thunk)
+            .expect("planned unit closure thunk exists");
+        let block = function
+            .entry_block()
+            .expect("planned unit closure thunk has entry");
+        let mut lowerer = UnitExpressionLowerer {
+            sources,
+            parsed,
+            source_unit: plan.source_unit,
+            names,
+            typed,
+            owned,
+            function_ids: &function_ids,
+            type_ids: types.type_ids(),
+            heap_payloads: types.heap_payloads(),
+            enum_payloads: types.enum_payloads(),
+            field_indices: types.field_indices(),
+            substitutions: &plan.substitutions,
+            references: &references,
+            type_references: &type_references,
+            function,
+            block,
+            bindings: BTreeMap::new(),
+            borrow_bindings: BTreeMap::new(),
+            closure_bindings: BTreeMap::new(),
+            closure_binding_context: false,
+            closure_plans: &closure_plans,
+            closure_scope: plan.scope,
+            temporaries: BTreeMap::new(),
+            loops: Vec::new(),
+            return_type: unit,
+        };
+        closure::finish_thunk(&mut lowerer, plan)?;
+    }
+
     verify_program(&program).map_err(|_| LoweringError {
         kind: LoweringErrorKind::InvalidSsa,
         span: None,
@@ -352,6 +407,10 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
+    closure_binding_context: bool,
+    closure_plans: &'a BTreeMap<closure::ClosurePlanKey, closure::ClosurePlan>,
+    closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     loops: Vec<loop_control::LoopContext>,
     return_type: UnitTypeId,
@@ -435,7 +494,10 @@ impl UnitExpressionLowerer<'_> {
             Expression::String { .. } => self.lower_string_literal(expression, span),
             Expression::Name => self.lower_name(expression, span),
             Expression::Group { expression } => self.lower(*expression),
-            Expression::Call { arguments, .. } => self.lower_call(expression, arguments, span),
+            Expression::Call {
+                callee, arguments, ..
+            } => self.lower_call(expression, *callee, arguments, span),
+            Expression::Lambda { .. } => self.lower_move_closure(expression, span),
             Expression::Prefix {
                 operator, operand, ..
             } => self.lower_prefix(*operator, *operand, expression, span),
@@ -634,20 +696,32 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let lowered = self.lower(initializer)?;
+        let closure = self.closure_origin(initializer)?;
+        let name_span = present_name(name)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let discards_binding = self.sources.slice(name_span).is_ok_and(|name| name == "_");
+        if closure.is_some() && discards_binding {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let previous_context = self.closure_binding_context;
+        self.closure_binding_context = closure.is_some();
+        let lowered = self.lower(initializer);
+        self.closure_binding_context = previous_context;
+        let lowered = lowered?;
         if lowered == LoweredValue::Diverged {
             return Ok(lowered);
         }
         if let LoweredValue::Value(value) = lowered {
             self.transfer_owned_expression(initializer, value, span)?;
         }
-        let name_span = present_name(name)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.sources.slice(name_span).is_ok_and(|name| name == "_") {
+        if discards_binding {
             return Ok(LoweredValue::Unit);
         }
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
         self.bindings.insert(symbol, lowered);
+        if let Some(closure) = closure {
+            self.closure_bindings.insert(symbol, closure);
+        }
         Ok(LoweredValue::Unit)
     }
 

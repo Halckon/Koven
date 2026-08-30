@@ -24,6 +24,7 @@ use crate::ssa::{
 struct LoopJump {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     span: Span,
 }
 
@@ -31,6 +32,7 @@ pub(super) struct LoopContext {
     header: BlockId,
     carried: Vec<CarriedBinding>,
     entry_symbols: BTreeSet<UnitSymbolId>,
+    entry_closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     continues: Vec<LoopJump>,
     breaks: Vec<LoopJump>,
 }
@@ -47,6 +49,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
+        let baseline_closures = self.closure_bindings.clone();
         let context = self.create_loop_context(&baseline, span)?;
         let header = context.header;
         self.function
@@ -59,11 +62,13 @@ impl UnitExpressionLowerer<'_> {
 
         self.block = header;
         self.bindings = self.rebind_carried(&baseline, header, &context.carried, span)?;
+        self.closure_bindings = baseline_closures;
         let condition = self.require_expression_value(condition)?;
         if !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let condition_bindings = self.bindings.clone();
+        let condition_closures = self.closure_bindings.clone();
         let body_block = self.add_carried_block(&context.carried, self.statement_span(body)?)?;
         let false_block = self.add_carried_block(&context.carried, span)?;
         let when_true =
@@ -86,6 +91,7 @@ impl UnitExpressionLowerer<'_> {
         self.block = body_block;
         let carried = &self.loops.last().expect("while context exists").carried;
         self.bindings = self.rebind_carried(&condition_bindings, body_block, carried, span)?;
+        self.closure_bindings = condition_closures.clone();
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
         }
@@ -103,6 +109,7 @@ impl UnitExpressionLowerer<'_> {
             block: false_block,
             result: LoweredValue::Unit,
             bindings: false_bindings,
+            closure_bindings: condition_closures,
         });
         self.merge_loop_exits(exits, span)?;
         self.emit_loop_exit(statement)?;
@@ -119,6 +126,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
+        let baseline_closures = self.closure_bindings.clone();
         let context = self.create_loop_context(&baseline, span)?;
         let header = context.header;
         self.function
@@ -130,6 +138,7 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = header;
         self.bindings = self.rebind_carried(&baseline, header, &context.carried, span)?;
+        self.closure_bindings = baseline_closures;
         self.loops.push(context);
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
@@ -138,6 +147,7 @@ impl UnitExpressionLowerer<'_> {
         self.finish_continues(&context)?;
         if context.breaks.is_empty() {
             self.bindings.clear();
+            self.closure_bindings.clear();
             self.temporaries.clear();
             return Ok(LoweredValue::Diverged);
         }
@@ -195,6 +205,7 @@ impl UnitExpressionLowerer<'_> {
             header,
             carried,
             entry_symbols: baseline.keys().copied().collect(),
+            entry_closure_bindings: self.closure_bindings.clone(),
             continues: Vec::new(),
             breaks: Vec::new(),
         })
@@ -220,6 +231,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoopJump {
             block: self.block,
             bindings: self.bindings.clone(),
+            closure_bindings: self.closure_bindings.clone(),
             span,
         })
     }
@@ -237,6 +249,12 @@ impl UnitExpressionLowerer<'_> {
 
     fn finish_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
         for jump in &context.continues {
+            if jump.closure_bindings != context.entry_closure_bindings {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    jump.span,
+                ));
+            }
             let edge = self.carried_edge_from(
                 context.header,
                 &context.carried,
@@ -288,5 +306,6 @@ fn branch_exit(jump: LoopJump) -> BranchExit {
         block: jump.block,
         result: LoweredValue::Unit,
         bindings: jump.bindings,
+        closure_bindings: jump.closure_bindings,
     }
 }

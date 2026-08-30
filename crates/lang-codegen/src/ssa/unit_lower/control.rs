@@ -27,6 +27,7 @@ pub(super) struct BranchExit {
     pub(super) block: BlockId,
     pub(super) result: LoweredValue,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+    pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
 }
 
 #[derive(Clone, Copy)]
@@ -51,6 +52,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let left = self.require_expression_value(left)?;
         let baseline = self.bindings.clone();
+        let baseline_closures = self.closure_bindings.clone();
         let carried = self.carried_bindings(&baseline, span)?;
         let right_span = self
             .parsed
@@ -88,6 +90,7 @@ impl UnitExpressionLowerer<'_> {
 
         self.block = right_block;
         self.bindings = self.rebind_carried(&baseline, right_block, &carried, span)?;
+        self.closure_bindings = baseline_closures.clone();
         let right_result = self.lower(right)?;
         let mut exits = Vec::with_capacity(2);
         if right_result != LoweredValue::Diverged {
@@ -98,11 +101,13 @@ impl UnitExpressionLowerer<'_> {
                 block: self.block,
                 result: right_result,
                 bindings: self.bindings.clone(),
+                closure_bindings: self.closure_bindings.clone(),
             });
         }
 
         self.block = short_block;
         self.bindings = self.rebind_carried(&baseline, short_block, &carried, span)?;
+        self.closure_bindings = baseline_closures;
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
             .function
@@ -120,6 +125,7 @@ impl UnitExpressionLowerer<'_> {
             block: self.block,
             result: LoweredValue::Value(short_result),
             bindings: self.bindings.clone(),
+            closure_bindings: self.closure_bindings.clone(),
         });
         self.merge_unit_exits(exits, span)
     }
@@ -274,6 +280,7 @@ impl UnitExpressionLowerer<'_> {
             self.block,
             arm.body,
             self.bindings.clone(),
+            self.closure_bindings.clone(),
             UnitDropPoint::BranchExit {
                 control: UnitExpressionId::new(self.source_unit, expression),
                 branch: arm.index,
@@ -299,12 +306,13 @@ impl UnitExpressionLowerer<'_> {
             None => None,
         };
         let baseline = self.bindings.clone();
+        let baseline_closures = self.closure_bindings.clone();
         let control = UnitExpressionId::new(self.source_unit, expression);
-        let mut unmatched = Some((self.block, baseline.clone()));
+        let mut unmatched = Some((self.block, baseline.clone(), baseline_closures));
         let mut exits = Vec::new();
 
         for (index, entry) in entries.iter().enumerate() {
-            let (unmatched_block, unmatched_bindings) = unmatched
+            let (unmatched_block, unmatched_bindings, unmatched_closures) = unmatched
                 .take()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
             if entry.else_span.is_some() {
@@ -312,6 +320,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_block,
                     entry.body,
                     unmatched_bindings,
+                    unmatched_closures,
                     UnitDropPoint::BranchExit {
                         control,
                         branch: index,
@@ -328,10 +337,12 @@ impl UnitExpressionLowerer<'_> {
 
             let mut next_block = unmatched_block;
             let mut next_bindings = unmatched_bindings;
+            let mut next_closures = unmatched_closures;
             let mut matches = Vec::new();
             for condition in &entry.conditions {
                 self.block = next_block;
                 self.bindings = next_bindings;
+                self.closure_bindings = next_closures;
                 self.temporaries.clear();
                 let condition = self.lower_when_condition(subject, condition, entry.span)?;
                 if !self.temporaries.is_empty() {
@@ -341,6 +352,7 @@ impl UnitExpressionLowerer<'_> {
                     ));
                 }
                 let after_condition = self.bindings.clone();
+                let after_condition_closures = self.closure_bindings.clone();
                 let carried = self.carried_bindings(&after_condition, entry.span)?;
                 let matched = self.add_carried_block(&carried, entry.span)?;
                 let next = self.add_carried_block(&carried, entry.span)?;
@@ -364,10 +376,12 @@ impl UnitExpressionLowerer<'_> {
                         &carried,
                         entry.span,
                     )?,
+                    closure_bindings: after_condition_closures.clone(),
                 });
                 next_block = next;
                 next_bindings =
                     self.rebind_carried(&after_condition, next, &carried, entry.span)?;
+                next_closures = after_condition_closures;
             }
 
             self.merge_unit_exits(matches, entry.span)?;
@@ -375,6 +389,7 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 entry.body,
                 self.bindings.clone(),
+                self.closure_bindings.clone(),
                 UnitDropPoint::BranchExit {
                     control,
                     branch: index,
@@ -383,10 +398,10 @@ impl UnitExpressionLowerer<'_> {
             )? {
                 exits.push(exit);
             }
-            unmatched = Some((next_block, next_bindings));
+            unmatched = Some((next_block, next_bindings, next_closures));
         }
 
-        if let Some((unmatched_block, unmatched_bindings)) = unmatched {
+        if let Some((unmatched_block, unmatched_bindings, unmatched_closures)) = unmatched {
             if result_required {
                 if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
                     self.function
@@ -403,6 +418,7 @@ impl UnitExpressionLowerer<'_> {
             }
             self.block = unmatched_block;
             self.bindings = unmatched_bindings;
+            self.closure_bindings = unmatched_closures;
             self.temporaries.clear();
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
@@ -412,6 +428,7 @@ impl UnitExpressionLowerer<'_> {
                 block: self.block,
                 result: LoweredValue::Unit,
                 bindings: self.bindings.clone(),
+                closure_bindings: self.closure_bindings.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -599,6 +616,7 @@ impl UnitExpressionLowerer<'_> {
         let result_required = self.control_result_required(expression, span)?;
         let condition = self.require_expression_value(condition)?;
         let baseline = self.bindings.clone();
+        let baseline_closures = self.closure_bindings.clone();
         let carried = self.carried_bindings(&baseline, span)?;
         let then_block = self.add_carried_block(&carried, self.statement_span(then_branch)?)?;
         let else_origin = else_branch
@@ -625,6 +643,7 @@ impl UnitExpressionLowerer<'_> {
             then_block,
             then_branch,
             then_baseline,
+            baseline_closures.clone(),
             UnitDropPoint::BranchExit {
                 control,
                 branch: then_index,
@@ -638,6 +657,7 @@ impl UnitExpressionLowerer<'_> {
                 else_block,
                 else_branch,
                 else_baseline,
+                baseline_closures.clone(),
                 UnitDropPoint::BranchExit {
                     control,
                     branch: else_index,
@@ -652,6 +672,7 @@ impl UnitExpressionLowerer<'_> {
             }
             self.block = else_block;
             self.bindings = else_baseline;
+            self.closure_bindings = baseline_closures;
             self.temporaries.clear();
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
@@ -661,6 +682,7 @@ impl UnitExpressionLowerer<'_> {
                 block: else_block,
                 result: LoweredValue::Unit,
                 bindings: self.bindings.clone(),
+                closure_bindings: self.closure_bindings.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -671,12 +693,14 @@ impl UnitExpressionLowerer<'_> {
         block: BlockId,
         statement: StatementId,
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
+        closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
         drop_point: UnitDropPoint,
         result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
         self.block = block;
         let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
+        self.closure_bindings = closure_bindings;
         self.temporaries.clear();
         let result = if result_required {
             self.lower_control_body(statement)?
@@ -703,6 +727,7 @@ impl UnitExpressionLowerer<'_> {
             block: self.block,
             result,
             bindings: self.bindings.clone(),
+            closure_bindings: self.closure_bindings.clone(),
         }))
     }
 
@@ -748,18 +773,21 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let Some(first) = exits.first() else {
             self.bindings.clear();
+            self.closure_bindings.clear();
             self.temporaries.clear();
             return Ok(LoweredValue::Diverged);
         };
         if exits.len() == 1 {
             self.block = first.block;
             self.bindings = first.bindings.clone();
+            self.closure_bindings = first.closure_bindings.clone();
             self.temporaries.clear();
             return Ok(first.result);
         }
         let symbols = first.bindings.keys().copied().collect::<Vec<_>>();
         if exits.iter().any(|exit| {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
+                || exit.closure_bindings != first.closure_bindings
                 || std::mem::discriminant(&exit.result) != std::mem::discriminant(&first.result)
                 || symbols.iter().any(|symbol| {
                     std::mem::discriminant(&exit.bindings[symbol])
@@ -873,6 +901,7 @@ impl UnitExpressionLowerer<'_> {
         }
         self.block = merge;
         self.bindings = bindings;
+        self.closure_bindings = first.closure_bindings.clone();
         self.temporaries.clear();
         Ok(result)
     }

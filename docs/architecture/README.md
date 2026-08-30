@@ -1100,6 +1100,19 @@ verifier 的 container index 契约与 source `Int` 对齐为 signed i32/i64。f
 temporary compound、一般 `Inout` 与 MoveOnly element read 仍 fail loud；LLVM/multi-source DWARF 与
 object/native 继续由 SPEC-0199 后续切片承接，现行 guide 语义未改变。
 
+第二十一切片把 compilation-unit lowering 扩展到 concrete owned move closure core。reachable lambda
+以所属 function instance 与 source-qualified expression 形成 unit-global environment、closure 与 thunk
+identity；environment 只接收 owned Copy/Move capture，thunk entry 使用 shared environment loan，并为
+每个 capture 建立 `SharedFieldLoan` Borrow 视图。具名局部 closure 支持 owner transfer、重复
+`CallableInvoke`，并严格配对 Named owner 与反序 `Captured` facts，在最后使用、BranchExit 或 LoopExit
+只生成一次 recursive drop。closure provenance 随 `if`、`when`、短路和 loop 的 owner state 一起快照、
+恢复与一致合流；loop 回边拒绝 provenance 变化，避免猜测逐迭代 capture lifetime。结构测试锁定跨文件
+输入置换、String Move/Int Copy capture、thunk field loan、移动后重复调用、if 双路径消费、while LoopExit
+drop 与 bare loop 全出口已消费后的 coarse stale fact 跳过，以及 borrowed/temporary/nested/参数化/非
+Unit 等原子边界。temporary/direct closure delivery、
+empty environment、borrowed capture、一般 callable ABI、LLVM/multi-source DWARF 与 object/native 仍由
+SPEC-0199 后续切片承接；现行 guide 语义未改变。
+
 ## 结构化诊断与 renderer
 
 `lang_frontend::diagnostic` 按

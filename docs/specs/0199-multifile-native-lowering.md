@@ -116,10 +116,14 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
    element loan、`Array`/`MutableList` simple 与整数 compound replacement、MoveOnly RHS transfer、
    `AfterReplacement/ReplacedElement` 精确旧元素 drop、checked CFG owner carry 与输入置换；field-backed
    receiver、`size`、temporary compound、一般 `Inout` 与 MoveOnly element read 保持 fail-loud 边界。
-21. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
+21. [x] 接 concrete owned move closure core → 验证：unit-global concrete environment/thunk identity、
+   Copy/Move capture、具名局部 transfer/repeated invoke、shared capture view、`Captured`/Named 精确反序
+   drop、输入置换与 CFG provenance 恢复；borrowed、temporary/direct、nested、参数化、非 `Unit` 返回、
+   body 内 MoveOnly temporary 和 empty capture 保持 fail-loud 边界。
+22. [ ] 扩展 MoveOnly value result、其余 `when`/for 与 closure owner/drop SSA →
    验证：正常和提前退出、结果 owner 转移、复合 drop glue unit-wide 去重。
-22. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
-23. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
+23. [ ] 接 LLVM 与多 source DWARF → 验证：规范化 LLVM 顺序置换和源码定位窄测试。
+24. [ ] 接单 object 原子写入并完成 native 正反矩阵、Architecture 与 workspace 基线。
 
 ## 8. 提交计划
 
@@ -145,9 +149,10 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | 18 | concrete 顺序容器 construction core | `feat(codegen): lower multifile containers (SPEC-0199)` |
 | 19 | shared-Borrow callable core | `feat(codegen): lower multifile borrows (SPEC-0199)` |
 | 20 | container element core | `feat(codegen): lower multifile container elements (SPEC-0199)` |
-| 21 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
-| 22 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
-| 23 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
+| 21 | concrete owned move closure core | `feat(codegen): lower multifile closures (SPEC-0199)` |
+| 22 | 其余现行表面的 owner-aware verified SSA | `feat(codegen): lower multifile units (SPEC-0199)` |
+| 23 | LLVM 与 multi-source DWARF | `feat(codegen): lower multifile LLVM (SPEC-0199)` |
+| 24 | single-object/native integration 闭环 | `feat(codegen): emit multifile objects (SPEC-0199)` |
 
 ## 9. 未决问题
 
@@ -246,6 +251,11 @@ workspace Clippy；涉及逻辑或共享代码时由 fresh-context 独立评审�
 | `cargo test -p lang-codegen --lib` | 217 passed, 1 ignored | container element verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十切片落实固定四层验收，不重复历史窄命令或尚未接线的 multifile native matrix |
 | 独立 fresh-context 评审与复审 | 通过 | 发现 grouped temporary container loan 的 owner identity/drop 消费缺口；修复为按 frontend temporary origin 校验、按 source-qualified loan target 唯一重绑定后，复审确认无新 P1/P2 |
+| `cargo test -p lang-codegen --lib unit_lower_closure_tests` | 3 passed | 跨文件 Move closure、输入置换、Copy/Move capture、transfer/repeated invoke/thunk、if/while provenance 与 LoopExit drop，以及 borrowed/temporary/nested/参数化/非 Unit 等原子边界 |
+| `cargo test -p lang-codegen --lib unit_lower` | 61 passed | scoped umbrella 合并 closure、container element、Borrow、construction、aggregate/Rc/enum、assignment 与 control-flow 回归 |
+| `cargo test -p lang-codegen --lib` | 220 passed, 1 ignored | concrete owned move closure verified SSA 与既有 codegen 全量 lib 基线；LLDB sandbox 用例按既有约定 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 | 第二十一切片继续采用固定四层验收，不重复历史窄命令或尚未接线的 LLVM/native matrix |
+| 独立 fresh-context 评审与复审 | 通过 | 发现 temporary capture-drop、CFG provenance 与 coarse LoopExit stale facts 三个 P2，以及 LoopExit provenance 清理 P3；收窄为具名局部 closure，补齐 branch/loop 状态、live-fact 精确 drop 与 all-breaks-consumed 回归后复审确认无 P1/P2/可观察 P3 |
 
 `Rc<T>` composite generic 没有列入上述 lowering 窄测：现行 source parser 会先发布诊断，因而不存在可合法
 传入 SPEC-0199 的 `ValidatedCompilationUnitTypes`。该已知 frontend 实现缺口不由 codegen 测试伪造；若后续
@@ -284,3 +294,13 @@ success block 使用重绑定后的 owner，避免隐藏 linear live-in。source
 统一接受有符号 i32/i64 container index，同时继续拒绝无符号或其他宽度。field-backed receiver、
 `size`、temporary compound、一般 `Inout` 与 MoveOnly element read 仍在发布 program 前 fail loud；
 LLVM/native 尚未接线，现行 guide 语义未改变。
+
+第二十一切片消费 SPEC-0198 的 closure capture/drop provenance，并复用 SPEC-0038 的 concrete closure
+SSA model。reachable lambda 以所属 function instance 与 source-qualified expression 形成稳定 identity，
+environment 字段只接受 owned Copy/Move capture；thunk 通过 shared environment loan 建立逐字段
+`SharedFieldLoan`，函数体中的捕获名因而保持 Borrow 视图。具名局部 closure 可移动、重复调用，并在
+最后一次使用、BranchExit 或 LoopExit 按 Named owner 与反序 `Captured` facts 精确生成一次 recursive
+drop；closure provenance 与普通 owner binding 一起经过 `if`、`when`、短路和 loop 的状态恢复与一致
+合流。temporary/direct delivery、borrowed/empty/nested、参数化或非 `Unit` closure、body 内 MoveOnly
+temporary 仍在发布 program 前 fail loud；一般 closure surface、LLVM/multi-source DWARF 与 native
+继续由后续切片承接，现行 guide 语义未改变。
