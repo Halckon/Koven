@@ -1,5 +1,7 @@
 use lang_frontend::{
-    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+    name_resolution::SourceUnitInput,
+    source::SourceMap,
+    type_checking::{BuiltinType, UnitTypeKind, standard_environments},
 };
 
 use super::{
@@ -723,6 +725,79 @@ fn interface_default_dispatches_ancestor_requirement_to_inherited_default() {
         } if callee == implementation.id() && actual == receiver
     )));
     render_verified_program(&program).expect("inherited default dispatch must lower to LLVM");
+}
+
+#[test]
+fn inherited_owner_key_does_not_materialize_parameter_independent_wrapper_layout() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/class-inherited.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val marker: Int)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(): Int = Host<Int>().throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/class-inherited.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper = declaration(&names, "p", "Wrapper");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: wrapper,
+            arguments: vec![int],
+        })
+        .expect("frontend canonical Wrapper<Int>");
+    let wrapper_ssa_name = format!("class#d{}.u{}", wrapper.index(), wrapper_int.index());
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("inherited owner key must not require Wrapper runtime layout");
+    let module = &program.modules[0];
+    assert!(
+        module.types.iter().all(|kind| !matches!(
+            kind,
+            SsaTypeKind::HeapOwner { name, .. } if name == &wrapper_ssa_name
+        )),
+        "Wrapper<Int> must remain instance-key-only: {:?}",
+        module.types
+    );
+    assert_eq!(
+        module
+            .functions
+            .iter()
+            .flat_map(|function| &function.instructions)
+            .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+            .count(),
+        1,
+        "only Host<Int> is constructed"
+    );
+    let llvm = render_verified_program(&program).expect("class inherited owner LLVM");
+    assert!(!llvm.contains(&wrapper_ssa_name), "{llvm}");
 }
 
 #[test]

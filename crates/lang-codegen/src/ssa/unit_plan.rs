@@ -1004,7 +1004,7 @@ fn instantiate_dispatch_owner_arguments(
     Ok((*declaration, arguments))
 }
 
-/// 只为 frontend 已选定的 inherited effective implementation 实例化有限 `List` owner recipe。
+/// 只为 frontend 已选定的 inherited effective implementation 实例化有限 owner recipe。
 fn instantiate_inherited_dispatch_owner_arguments(
     typed: &ValidatedCompilationUnitTypes,
     owner_template: UnitTypeId,
@@ -1077,6 +1077,48 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
                 .types()
                 .find(&UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::List,
+                    arguments: vec![argument],
+                })
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => {
+            let nominal = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if nominal.kind() != NominalKind::Class
+                || nominal.type_parameters().len() != 1
+                || arguments.len() != 1
+            {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            for field in nominal.fields() {
+                let kind = typed
+                    .types()
+                    .types()
+                    .get(field.ty())
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if contains_type_parameter(typed, kind) {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+            }
+            let argument = resolve_inherited_dispatch_owner_argument(
+                typed,
+                arguments[0],
+                substitutions,
+                span,
+                visiting,
+            )?;
+            typed
+                .types()
+                .types()
+                .find(&UnitTypeKind::Nominal {
+                    declaration: *declaration,
                     arguments: vec![argument],
                 })
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))

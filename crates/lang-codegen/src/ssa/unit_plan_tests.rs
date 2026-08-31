@@ -1080,7 +1080,7 @@ fn delegated_dispatch_owner_recipe_keeps_unsupported_nested_kinds_closed() {
 }
 
 #[test]
-fn inherited_dispatch_owner_recipe_keeps_non_list_kinds_and_missing_canonical_closed() {
+fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_closed() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -1097,6 +1097,8 @@ fn inherited_dispatch_owner_recipe_keeps_non_list_kinds_and_missing_canonical_cl
          class NominalOwner<T>(val item: Wrapper<T>)\n\
          class GrowingOwner<T>(val item: GrowingOwner<List<T>>)\n\
          class ListOwner<T>(val item: List<T>)\n\
+         class Marker<T>(val marker: Int)\n\
+         class MarkerOwner<T>(val item: Marker<T>)\n\
          fun entry(): Long = 1L",
     );
     let inputs = [SourceUnitInput::new(
@@ -1177,6 +1179,41 @@ fn inherited_dispatch_owner_recipe_keeps_non_list_kinds_and_missing_canonical_cl
             })
             .is_none(),
         "fixture must not pre-intern List<Long>"
+    );
+    let error = resolve_inherited_dispatch_owner_argument(
+        &typed,
+        field.ty(),
+        &BTreeMap::from([(*parameter, long)]),
+        field.span(),
+        &mut BTreeSet::new(),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
+    assert_eq!(error.span, Some(field.span()));
+
+    let marker = declaration(&names, "Marker");
+    let marker_owner = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "MarkerOwner"))
+        .and_then(|signature| signature.nominal())
+        .expect("MarkerOwner signature");
+    let [parameter] = marker_owner.type_parameters() else {
+        panic!("MarkerOwner has one type parameter");
+    };
+    let [field] = marker_owner.fields() else {
+        panic!("MarkerOwner has one field");
+    };
+    assert!(
+        typed
+            .types()
+            .types()
+            .find(&UnitTypeKind::Nominal {
+                declaration: marker,
+                arguments: vec![long],
+            })
+            .is_none(),
+        "fixture must not pre-intern Marker<Long>"
     );
     let error = resolve_inherited_dispatch_owner_argument(
         &typed,
@@ -1601,42 +1638,108 @@ fn remaps_list_inherited_owner_recipe_to_the_effective_default() {
 }
 
 #[test]
-fn rejects_nested_nominal_inherited_owner_recipe_before_scoped_support() {
+fn remaps_parameter_independent_class_inherited_owner_recipe() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/class-inherited.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val marker: Int)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(host: Host<Int>): Int = host.throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/class-inherited.ko",
+        source,
+        &parsed,
+    )];
     let (name_environment, type_environment) = standard_environments();
-    for (name, declarations) in [(
-        "nominal",
-        "class Wrapper<T>(val marker: Int)\nclass Host<Y>: Derived<Wrapper<Y>> {}",
-    )] {
-        let mut sources = SourceMap::new();
-        let path = format!("p/{name}.ko");
-        let text = format!(
-            "package p\n\
-             interface Base<A> {{\n\
-                 fun read(): Int\n\
-                 fun throughRequirement(): Int = this.read()\n\
-             }}\n\
-             interface Derived<B>: Base<String> {{ fun read(): Int = 7 }}\n\
-             {declarations}\n\
-             fun entry(host: Host<Int>): Int = host.throughRequirement()"
-        );
-        let (source, parsed) = parsed(&mut sources, &path, &text);
-        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
-        let (names, typed, owned) =
-            analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper = declaration(&names, "Wrapper");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: wrapper,
+            arguments: vec![int],
+        })
+        .expect("frontend must intern canonical Wrapper<Int>");
+    let implementation = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| {
+            nominal
+                .members()
+                .iter()
+                .find(|member| member.name() == "read")
+        })
+        .expect("inherited default implementation")
+        .target();
+    let requirement = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Base"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| {
+            nominal
+                .members()
+                .iter()
+                .find(|member| member.name() == "read")
+        })
+        .expect("ancestor abstract requirement")
+        .target();
 
-        let error = plan_unit_instances(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            declaration(&names, "entry"),
-        )
-        .expect_err("nested nominal owner recipes remain behind scoped inherited support");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
-        assert!(error.span.is_some(), "{name}");
-    }
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("parameter-independent class owner recipe must select the inherited default");
+    let implementation = instances
+        .iter()
+        .find(|instance| instance.key().target() == implementation)
+        .expect("concrete inherited default instance");
+    assert_eq!(implementation.key().type_arguments(), &[wrapper_int]);
+    assert!(matches!(
+        typed.types().types().get(wrapper_int),
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) if *declaration == wrapper && arguments == &[int]
+    ));
+    let static_self = implementation
+        .key()
+        .static_self()
+        .expect("inherited default retains concrete StaticSelf");
+    assert!(matches!(
+        typed.types().types().get(static_self),
+        Some(UnitTypeKind::Nominal {
+            declaration: owner,
+            arguments,
+        }) if *owner == declaration(&names, "Host") && arguments == &[int]
+    ));
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement)
+    );
 }
 
 #[test]

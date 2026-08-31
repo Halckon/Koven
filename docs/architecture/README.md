@@ -1040,9 +1040,11 @@ layout/construction/projection 以 concrete actual 建模，但 generic member r
 SPEC-0220 对 class/Box/Rc concrete actual 开放；function、其他 intrinsic、generic value/enum/interface
 或多参数 wrapper、参数增长型 nested owner 仍以 `UnsupportedNode` 拒绝。abstract requirement 到
 frontend 已选定 inherited effective implementation 的映射另以作用域受限 resolver 开放有限
-`Derived<List<Y>>` recipe：只替换 direct owner slot/closed/List，要求 concrete canonical `UnitTypeId`
-已存在，保留 concrete `StaticSelf` 且不实例化 abstract requirement；`Derived<Wrapper<Y>>`、Array、
-nullable、function、generic value class、多参数 class 与缺 canonical identity 继续 fail loud。
+`Derived<List<Y>>` 与布局参数无关的单参数 ordinary-class recipe：后者要求所有 runtime fields 不含
+自身类型参数，替换后只查找已存在的 concrete canonical `UnitTypeId`。两者都保留 concrete
+`StaticSelf` 且不实例化 abstract requirement；instance-key-only `Wrapper<Int>` 不形成 SSA heap owner、
+allocation 或 LLVM drop glue。dependent/self-growing ordinary class、Array、nullable、function、generic
+value class、多参数 class 与缺 canonical identity 继续 fail loud。
 SPEC-0220 复用 ADR-0017，把 compilation-unit 的 pointer-like concrete nullable 映射为独立
 `NullableHandle`，并用同一 expected-type adaptation 处理 local、constructor Value delivery、Value call、
 root assignment、return 与 current-receiver field replacement。non-null inner 先按 frontend ownership
