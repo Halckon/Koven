@@ -990,6 +990,12 @@ declaration；replacement 与独立唯一 default 已完成真实 native 闭环�
 generic/Inout/Value interface default 与静态委托仍由 SPEC-0191 后续切片承接；当前 owner recipe 只
 实例化直接 type-parameter slots，`Derived<List<Y>>` 等嵌套 recipe 在 generic nominal layout 完成前
 以 `UnsupportedNode` 确定性拒绝。
+Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
+shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
+loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原
+heap handle 后直接 GEP payload field，不读取字段 value、不 retain/copy owner，也不建立另一套调用
+ABI。该基元尚不表示 delegate route 已接线；route 必须在后续切片消费 frontend validated typed 与
+ownership facts 后才可生成。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

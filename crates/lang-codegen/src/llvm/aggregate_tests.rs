@@ -2,7 +2,8 @@ use inkwell::context::Context;
 use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::{
-    Edge, EntityId, EntityType, Operation, Origin, Program, SsaTypeKind, TerminatorKind, ValueId,
+    Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program, SsaTypeKind, TerminatorKind,
+    ValueId,
 };
 
 use super::{first_target_machine, render_verified_program, type_map::TypeMap};
@@ -295,4 +296,118 @@ fn heap_owner_drop_lowers_to_explicit_unique_free_glue() {
     assert!(llvm.contains("define internal void @koven.drop.t1(ptr %0)"));
     assert_eq!(llvm.matches("call void @free(ptr %0)").count(), 1);
     assert_eq!(llvm.matches("call void @koven.drop.t1").count(), 1);
+}
+
+#[test]
+fn shared_heap_field_loan_loads_the_handle_before_projecting_payload() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("heap_field_loan");
+    let module = program.module_mut(module_id).expect("module must exist");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let delegate_payload = module
+        .add_aggregate_type("Reader.payload", vec![integer])
+        .expect("delegate payload must be valid");
+    let delegate = module
+        .declare_heap_owner("Reader")
+        .expect("delegate owner declaration must be valid");
+    module
+        .define_heap_owner(delegate, delegate_payload)
+        .expect("delegate owner definition must be valid");
+    let payload = module
+        .add_aggregate_type("Host.payload", vec![delegate])
+        .expect("host payload must be valid");
+    let host = module
+        .declare_heap_owner("Host")
+        .expect("host owner declaration must be valid");
+    module
+        .define_heap_owner(host, payload)
+        .expect("host owner definition must be valid");
+    let delegate_receiver = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: delegate,
+    };
+    let read_id = module
+        .add_instance_function("read", delegate_receiver, Vec::new(), origin.clone())
+        .expect("delegate function must be valid");
+    let read = module
+        .function_mut(read_id)
+        .expect("delegate function must exist");
+    let read_entry = read
+        .add_block(vec![delegate_receiver], origin.clone())
+        .expect("delegate entry must be valid");
+    read.set_terminator(
+        read_entry,
+        TerminatorKind::Return { values: Vec::new() },
+        origin.clone(),
+    )
+    .expect("delegate return must be valid");
+    let receiver_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: host,
+    };
+    let function_id = module
+        .add_instance_function("project", receiver_type, Vec::new(), origin.clone())
+        .expect("function must be valid");
+    let function = module
+        .function_mut(function_id)
+        .expect("function must exist");
+    let entry = function
+        .add_block(vec![receiver_type], origin.clone())
+        .expect("entry must be valid");
+    let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
+        panic!("receiver loan");
+    };
+    let field_loan = function
+        .append_instruction(
+            entry,
+            Operation::SharedHeapFieldLoan {
+                base: receiver,
+                field: 0,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: delegate,
+            }],
+            origin.clone(),
+        )
+        .expect("field loan must be appendable")
+        .1[0];
+    let EntityId::Loan(field_loan) = field_loan else {
+        panic!("field loan result");
+    };
+    function
+        .append_instruction(
+            entry,
+            Operation::DirectCall {
+                callee: read_id,
+                receiver: Some(EntityId::Loan(field_loan)),
+                arguments: Vec::new(),
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("delegate call must be appendable");
+    function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan: field_loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("field loan end must be appendable");
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("return must be valid");
+
+    let llvm = render_verified_program(&program).expect("heap field loan LLVM must verify");
+    assert!(llvm.contains("%l1.handle = load ptr, ptr %l0"));
+    assert!(llvm.contains("getelementptr inbounds nuw"));
+    assert!(llvm.contains("ptr %l1.handle"));
+    assert!(llvm.contains("call void @f0.read(ptr %l1)"));
+    assert!(!llvm.contains("load ptr, ptr %l1"));
+    assert!(!llvm.contains("extractvalue"));
 }

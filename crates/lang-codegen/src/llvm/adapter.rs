@@ -332,6 +332,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::SharedPayloadPlace { .. }
                 | Operation::FieldPlace { .. }
                 | Operation::SharedFieldLoan { .. }
+                | Operation::SharedHeapFieldLoan { .. }
                 | Operation::SharedReborrow { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
@@ -848,6 +849,18 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     *field as u32,
                     &format!("l{}", result.index()),
                 )?;
+                self.loans.insert(*result, pointer);
+            }
+            Operation::SharedHeapFieldLoan { base, field } => {
+                let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "shared heap field loan",
+                        1,
+                        instruction.results.len(),
+                    ));
+                };
+                let pointer =
+                    self.heap_field_pointer(*base, *field, &format!("l{}", result.index()))?;
                 self.loans.insert(*result, pointer);
             }
             Operation::SharedReborrow { source } => {

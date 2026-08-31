@@ -932,6 +932,120 @@ fn heap_field_replace_requires_an_active_unshadowed_exclusive_receiver() {
     )));
 }
 
+#[test]
+fn shared_heap_field_loan_tracks_the_receiver_dependency() {
+    let valid = shared_heap_field_loan_program(false, false, 0);
+    assert_eq!(verify_program(&valid), Ok(()));
+
+    let parent_ended_first = errors(&shared_heap_field_loan_program(true, false, 0));
+    assert!(has_kind(&parent_ended_first, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanDependencyActive { .. }
+    )));
+
+    let exclusive_receiver = errors(&shared_heap_field_loan_program(false, true, 0));
+    assert!(has_kind(&exclusive_receiver, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let out_of_bounds = errors(&shared_heap_field_loan_program(false, false, 1));
+    assert!(has_kind(&out_of_bounds, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+}
+
+fn shared_heap_field_loan_program(
+    end_parent_first: bool,
+    exclusive_receiver: bool,
+    field: usize,
+) -> Program {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("heap-field-loan");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let payload = module
+        .add_aggregate_type("Host.payload", vec![integer])
+        .expect("payload");
+    let owner = module.declare_heap_owner("Host").expect("owner");
+    module
+        .define_heap_owner(owner, payload)
+        .expect("owner payload");
+    let receiver_kind = if exclusive_receiver {
+        LoanKind::Exclusive
+    } else {
+        LoanKind::Shared
+    };
+    let function_id = module
+        .add_instance_function(
+            "project",
+            EntityType::Loan {
+                kind: receiver_kind,
+                target: owner,
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("function");
+    let function = module.function_mut(function_id).expect("function");
+    let entry = function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: receiver_kind,
+                target: owner,
+            }],
+            origin.clone(),
+        )
+        .expect("entry");
+    let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
+        panic!("receiver loan");
+    };
+    let (_, results) = function
+        .append_instruction(
+            entry,
+            Operation::SharedHeapFieldLoan {
+                base: receiver,
+                field,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("field loan");
+    let EntityId::Loan(field_loan) = results[0] else {
+        panic!("field loan result");
+    };
+    if end_parent_first {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: receiver },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end receiver");
+    }
+    function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan: field_loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("end field loan");
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("return");
+    program
+}
+
 #[derive(Clone, Copy)]
 enum HeapFieldAction {
     Read,

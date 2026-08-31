@@ -213,6 +213,23 @@ pub(super) fn verify_operation(
                         }]
                 })
         }
+        Operation::SharedHeapFieldLoan { base, field } => {
+            matches!(
+                function
+                    .entity(EntityId::Loan(*base))
+                    .map(|entity| entity.ty),
+                Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    ..
+                })
+            ) && heap_field_type(module, function, *base, *field).is_some_and(|field_ty| {
+                results
+                    == [EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: field_ty,
+                    }]
+            })
+        }
         Operation::SharedReborrow { source } => {
             matches!(
                 function.entity(EntityId::Loan(*source)).map(|entity| entity.ty),

@@ -738,7 +738,7 @@ fn apply_operation(
         Operation::FieldPlace { base, .. } => {
             require_place(*base, state, location, origin, errors);
         }
-        Operation::SharedFieldLoan { base, .. } => {
+        Operation::SharedFieldLoan { base, .. } | Operation::SharedHeapFieldLoan { base, .. } => {
             if !state.loans.contains(base) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *base },
@@ -1287,8 +1287,10 @@ impl ReborrowDependencies {
             .instructions
             .iter()
             .filter_map(|instruction| {
-                let Operation::SharedReborrow { source } = instruction.operation else {
-                    return None;
+                let source = match instruction.operation {
+                    Operation::SharedReborrow { source }
+                    | Operation::SharedHeapFieldLoan { base: source, .. } => source,
+                    _ => return None,
                 };
                 let [EntityId::Loan(child)] = instruction.results.as_slice() else {
                     return None;
@@ -1500,6 +1502,10 @@ impl AliasRoots {
                             union_from(&mut roots, instruction.results[0], EntityId::Place(*base));
                     }
                     Operation::SharedFieldLoan { base, .. } => {
+                        changed |=
+                            union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
+                    }
+                    Operation::SharedHeapFieldLoan { base, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
                     }
