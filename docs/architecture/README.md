@@ -1038,15 +1038,18 @@ layout/construction/projection 以 concrete actual 建模，但 generic member r
 接入 construction/projection/replacement；`List<List<T>>` 与 `Wrapper<List<T>>` 已进入 concrete layout，
 `Wrapper<T>` replacement 的 LLVM 顺序保持 old load→field-typed drop→store。direct `T?` 已由
 SPEC-0220 对 class/Box/Rc concrete actual 开放；function、其他 intrinsic、generic value/enum/interface
-或多参数 wrapper、参数增长型 nested owner，以及
-`Derived<List<Y>>` / `Derived<Wrapper<Y>>` 等 inherited owner recipe 仍以 `UnsupportedNode` 拒绝。
+或多参数 wrapper、参数增长型 nested owner 仍以 `UnsupportedNode` 拒绝。abstract requirement 到
+frontend 已选定 inherited effective implementation 的映射另以作用域受限 resolver 开放有限
+`Derived<List<Y>>` recipe：只替换 direct owner slot/closed/List，要求 concrete canonical `UnitTypeId`
+已存在，保留 concrete `StaticSelf` 且不实例化 abstract requirement；`Derived<Wrapper<Y>>`、Array、
+nullable、function、generic value class、多参数 class 与缺 canonical identity 继续 fail loud。
 SPEC-0220 复用 ADR-0017，把 compilation-unit 的 pointer-like concrete nullable 映射为独立
 `NullableHandle`，并用同一 expected-type adaptation 处理 local、constructor Value delivery、Value call、
 root assignment、return 与 current-receiver field replacement。non-null inner 先按 frontend ownership
 fact 消费，再生成 `NullableWrap`；`null` 只按 expression type 生成 `NullableNull`。nullable field replace
 继续核对唯一 `BeforeReplacement/ReplacedField` fact，LLVM 在 setter 中先 load 旧字段、调用 nullable
 drop glue（其内部按 null niche 分支）再 store 新值；真实 object/link/run 已覆盖非空→null→非空。
-inline/function/String nullable、nullable control flow、`List<T?>` / `Wrapper<T?>`、inherited/参数增长 recipe
+inline/function/String nullable、nullable control flow、`List<T?>` / `Wrapper<T?>`、其他 inherited/参数增长 recipe
 与需要尚未定义 inner owner 的递归 SSA type cycle 均保持带 Span 的确定性门禁。
 non-generic enum instance receiver 继续复用同一 receiver-first ABI，不新增 enum-only IR：Copyable enum 的
 Borrow/Inout receiver 从 root tagged value 分别建立 shared/exclusive loan，MoveOnly enum 的 Value/temporary receiver 把同一

@@ -987,6 +987,54 @@ fn inherited_and_unrelated_defaults_satisfy_abstract_requirements_natively() {
 }
 
 #[test]
+fn list_inherited_owner_recipe_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Host<Y>: Derived<List<Y>> {}\n\
+         fun entry(): Unit {\n\
+             val actual = Host<Int>().throughRequirement()\n\
+             if (actual == 7) { println(\"list-inherited-owner\") }\
+             else { error(\"wrong inherited owner recipe\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("list-inherited-owner.o");
+    let executable = directory.join("list-inherited-owner");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("List inherited owner recipe must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked List inherited-owner executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"list-inherited-owner\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn borrow_only_interface_delegation_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

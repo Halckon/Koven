@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181、0219 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 有限递归 `List` / 单参数 ordinary-class recipe 已消费 SPEC-0219；direct `T?` 的 pointer-like concrete actual 已由 SPEC-0220 完成，参数增长型与 inherited owner recipe 仍保持门禁 |
+| 阻塞项 | 有限递归 runtime recipe 已消费 SPEC-0219；direct `T?` 已由 SPEC-0220 完成；inherited effective implementation 的 `List` owner recipe 已开放，参数增长型 runtime 与 nested nominal inherited recipe 仍保持门禁 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -62,6 +62,9 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   route 使用具体 receiver type。descriptor 必须逐字段核对 symbol/template/span/concrete type；
   direct `T?` 由 SPEC-0220 仅对 ordinary class/Box/Rc concrete actual 开放；function、其他 intrinsic、
   非 class / 多参数 wrapper 与参数增长型 nested owner 继续拒绝。
+- abstract requirement 到 frontend 已选定 inherited effective implementation 的 owner 参数可递归替换
+  有限 `List<owner-slot>` recipe，并要求 concrete `UnitTypeId` 已存在；local override 与 delegation
+  route 继续使用原 resolver，ordinary-class/其他 nested inherited recipe 保持门禁。
 - SSA/verifier 拒绝 receiver mode/type/loan kind、instance key、ownership plan 与 callee signature
   不一致；verified-before-LLVM 不变。
 - 真实 source→object→link→run 覆盖多种 nominal/generic receiver、drop 与调用顺序；DWARF
@@ -88,6 +91,9 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [x] exact owner descriptor 开放有限递归 `List` / 单参数 ordinary-class recipe；深层
   construction/projection/delegation 通过，非 direct nullable/function/其他 intrinsic/非 class 或多参数
   wrapper 及参数增长型 owner 负矩阵保持。
+- [x] frontend 已选定的 inherited effective implementation 可把 `Derived<List<Y>>` 精确实例化为
+  `Derived<List<Int>>`，保留 `StaticSelf = Host<Int>` 且不实例化 abstract requirement；non-List 与缺
+  canonical identity 的负矩阵保持，真实 native 返回 inherited default 结果。
 - [x] direct `T?` 在 class/Box/Rc concrete actual 下形成 nullable field layout；construction、Value
   delivery、Inout replacement、conditional drop 与 native 闭环由 SPEC-0220 完成，其余 nullable recipe
   和 control flow 仍保持门禁。
@@ -150,7 +156,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    callable suffix；参数无关 generic outer/delegate runtime nominal 已完成 native 闭环，direct owner
    type-parameter field 已开放；有限递归 `List` / 单参数 ordinary-class recipe 已按 exact owner
    descriptor 解析 concrete delegate field，并只在 validated delegation 最终 forwarder 映射中递归
-   替换 dispatch owner argument；深层 nominal delegation 已完成 native，inherited owner recipe 继续拒绝。
+   替换 dispatch owner argument；深层 nominal delegation 已完成 native。非委托 inherited effective
+   implementation 另只开放有限 `List<owner-slot>` recipe，nested nominal inherited recipe 继续拒绝。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -176,6 +183,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 17 | 补齐 MoveOnly inline root 在 Inout loan-end 后的 take/rebind | `feat(codegen): take move-only inline inout roots (SPEC-0191)` |
 | 18 | 允许 MoveOnly inline owner 修改 Copyable field | `feat(codegen): mutate copyable fields in move-only inline owners (SPEC-0191)` |
 | 19 | 允许 MoveOnly inline field 精确替换并析构旧字段 | `feat(codegen): replace move-only inline fields (SPEC-0191)` |
+| 20 | 开放 inherited effective implementation 的有限 List owner recipe | `feat(codegen): lower inherited list owner recipes (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -183,7 +191,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
   recipe construction/projection/current receiver 已开放；nested recipe 按 exact owner `UnitTypeId`
   消费 SPEC-0219 的 declaration + 完整 arguments + 字段顺序 concrete layout，不依赖全局 canonical
   presence 或 construction descriptor。direct `T?` 的 pointer-like actual 已由 SPEC-0220 完成；
-  参数增长型与 inherited owner recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression。
+  参数增长型 runtime owner 仍需递归 SSA/drop cycle 策略。inherited effective implementation 的有限
+  `List<owner-slot>` 已开放，ordinary-class/其他 nested inherited recipe 仍需后续独立门禁；这些边界
+  均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - value-class Inout 的 MoveOnly root take/rebind 与 Copyable/MoveOnly target field mutation 已开放；
@@ -300,7 +310,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 静态门禁，零 warning |
 | 独立高风险复核（nested generic field layout） | 通过 | 首轮发现 exact descriptor 会误开放任意深层 recipe 的 P1；加入模板 recipe 白名单与 nullable/deep/non-class 负矩阵后复核关闭，最终无 P1/P2/P3 |
 | 深层 recipe 红测 | 按预期失败后转绿 | `List<List<T>>` / `Wrapper<List<T>>` 初始以 `UnsupportedNode` 失败；递归白名单接线后进入 concrete layout |
-| `cargo test -p lang-codegen --lib unit_plan_tests --locked --offline` | 23/23 通过 | 深层 delegation、helper 白盒负矩阵及 `Derived<List<Y>>` / `Derived<Wrapper<Y>>` inherited owner 拒绝回归 |
+| 历史 `unit_plan_tests` 门禁（后继切片已部分解除） | 23/23 通过 | 当时 `Derived<List<Y>>` / `Derived<Wrapper<Y>>` 均拒绝；后继仅开放 inherited List，nested nominal 继续门禁 |
 | `cargo test -p lang-codegen --lib unit_lower_aggregate_tests --locked --offline` | 6/6 通过 | 有限递归 List/class recipe 正例，以及 nullable/Array/value wrapper/参数增长型 owner 负矩阵 |
 | `cargo test -p lang-codegen --lib unit_lower_receiver_tests --locked --offline` | 32/32 通过 | receiver/replacement/delegation SSA 与 LLVM 回归 |
 | `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 19/19 通过 | `Reader<Wrapper<T>>` delegation 与既有 receiver native 小模块完整回归 |
@@ -367,3 +377,13 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
 | `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁，零 warning；未运行耗时 frontend 全量测试 |
 | 独立高风险复核（MoveOnly inline field replacement） | 通过 | 复核 frontend 精确 fact、exclusive/no-derived verifier、递归 drop glue、RHS→old load/drop/store、caller take/rebind 与 MoveOnly read/部分移动门禁，未发现 P1/P2/P3 |
+| inherited List owner recipe 红测 | 按预期失败后转绿 | `Host<Y>: Derived<List<Y>>` 已通过 frontend analyze，初始只在 planner direct-slot owner resolver 以 `UnsupportedNode` 失败；接入 inherited-only resolver 后转绿 |
+| `cargo test -p lang-codegen --lib remaps_list_inherited_owner_recipe_to_the_effective_default --locked --offline -- --test-threads=1` | 1/1 通过 | 精确得到 `Derived<List<Int>>`、`StaticSelf = Host<Int>`，abstract `Base.read` 未生成实例 |
+| `cargo test -p lang-codegen --lib inherited_dispatch_owner_recipe_keeps_non_list_kinds_and_missing_canonical_closed --locked --offline -- --test-threads=1` | 1/1 通过 | Array、nullable、function、generic value class、双参数/ordinary class、真实参数增长型 self recipe 均拒绝；缺 `List<Long>` canonical identity 返回 `MissingFact` |
+| `cargo test -p lang-codegen --lib list_inherited_owner_recipe_links_and_runs --locked --offline -- --test-threads=1` | 1/1 通过 | `Host<Int>` 经 source→object→Clang link→run 输出 `list-inherited-owner`，实际执行 inherited default=7 |
+| `cargo test -p lang-codegen --lib ssa::unit_plan_tests --locked --offline -- --test-threads=1` | 25/25 通过 | local override、delegation next-hop/final forwarder、generic slots、cycle 与新 inherited recipe 正负矩阵通过 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 40/40 通过 | receiver/default/delegation/replacement 与 `StaticSelf` lowering 回归通过 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline -- --test-threads=1` | 28/28 通过 | inherited List 与既有 receiver/default/delegation/generic native 小模块通过 |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁，零 warning；未运行耗时 frontend 全量测试 |
+| 独立高风险复核（inherited List owner recipe） | 通过 | 首轮发现 non-List/canonical 负矩阵 P3，二轮发现参数增长 fixture 偏差 P3；补齐精确白盒矩阵后复核 resolver 作用域、target/type/StaticSelf identity 与全部门禁，无剩余 P1/P2/P3 |

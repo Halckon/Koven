@@ -20,7 +20,8 @@ use super::{
     LoweringErrorKind,
     unit_plan::{
         UnitPlannedInstance, plan_unit_instances, resolve_delegated_dispatch_owner_argument,
-        resolve_nominal_runtime_field_types, resolve_unit_call_instance,
+        resolve_inherited_dispatch_owner_argument, resolve_nominal_runtime_field_types,
+        resolve_unit_call_instance,
     },
 };
 
@@ -1079,6 +1080,117 @@ fn delegated_dispatch_owner_recipe_keeps_unsupported_nested_kinds_closed() {
 }
 
 #[test]
+fn inherited_dispatch_owner_recipe_keeps_non_list_kinds_and_missing_canonical_closed() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/inherited-recipes.ko",
+        "package p\n\
+         value class ValueWrapper<T>(val item: T)\n\
+         class Wrapper<T>(val item: T)\n\
+         class Pair<A, B>(val first: A, val second: B)\n\
+         class ArrayOwner<T>(val item: Array<T>)\n\
+         class NullableOwner<T>(val item: T?)\n\
+         class FunctionOwner<T>(val item: (T) -> T)\n\
+         class ValueOwner<T>(val item: ValueWrapper<T>)\n\
+         class MultiOwner<T>(val item: Pair<T, T>)\n\
+         class NominalOwner<T>(val item: Wrapper<T>)\n\
+         class GrowingOwner<T>(val item: GrowingOwner<List<T>>)\n\
+         class ListOwner<T>(val item: List<T>)\n\
+         fun entry(): Long = 1L",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/inherited-recipes.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, _) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+
+    for owner_name in [
+        "ArrayOwner",
+        "NullableOwner",
+        "FunctionOwner",
+        "ValueOwner",
+        "MultiOwner",
+        "NominalOwner",
+        "GrowingOwner",
+    ] {
+        let owner = typed
+            .types()
+            .signatures()
+            .declaration(declaration(&names, owner_name))
+            .and_then(|signature| signature.nominal())
+            .unwrap_or_else(|| panic!("{owner_name} signature"));
+        let [parameter] = owner.type_parameters() else {
+            panic!("{owner_name} has one type parameter");
+        };
+        let [field] = owner.fields() else {
+            panic!("{owner_name} has one field");
+        };
+        let error = resolve_inherited_dispatch_owner_argument(
+            &typed,
+            field.ty(),
+            &BTreeMap::from([(*parameter, int)]),
+            field.span(),
+            &mut BTreeSet::new(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.kind,
+            LoweringErrorKind::UnsupportedNode,
+            "{owner_name}"
+        );
+        assert_eq!(error.span, Some(field.span()), "{owner_name}");
+    }
+
+    let list_owner = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "ListOwner"))
+        .and_then(|signature| signature.nominal())
+        .expect("ListOwner signature");
+    let [parameter] = list_owner.type_parameters() else {
+        panic!("ListOwner has one type parameter");
+    };
+    let [field] = list_owner.fields() else {
+        panic!("ListOwner has one field");
+    };
+    let long = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Long)
+        .expect("Long type");
+    assert!(
+        typed
+            .types()
+            .types()
+            .find(&UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::List,
+                arguments: vec![long],
+            })
+            .is_none(),
+        "fixture must not pre-intern List<Long>"
+    );
+    let error = resolve_inherited_dispatch_owner_argument(
+        &typed,
+        field.ty(),
+        &BTreeMap::from([(*parameter, long)]),
+        field.span(),
+        &mut BTreeSet::new(),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
+    assert_eq!(error.span, Some(field.span()));
+}
+
+#[test]
 fn remaps_generic_delegation_owner_prefix_and_callable_suffix() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
@@ -1382,15 +1494,119 @@ fn remaps_inherited_default_owner_recipe_and_callable_slots() {
 }
 
 #[test]
-fn rejects_nested_inherited_owner_recipe_before_generic_nominal_layout() {
+fn remaps_list_inherited_owner_recipe_to_the_effective_default() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/list-inherited.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Host<Y>: Derived<List<Y>> {}\n\
+         fun entry(host: Host<Int>): Int = host.throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/list-inherited.ko",
+        source,
+        &parsed,
+    )];
     let (name_environment, type_environment) = standard_environments();
-    for (name, declarations) in [
-        ("intrinsic", "class Host<Y>: Derived<List<Y>> {}"),
-        (
-            "nominal",
-            "class Wrapper<T>(val marker: Int)\nclass Host<Y>: Derived<Wrapper<Y>> {}",
-        ),
-    ] {
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let derived = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .expect("Derived signature");
+    let implementation = derived
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("inherited default implementation")
+        .target();
+    let requirement = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Base"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| {
+            nominal
+                .members()
+                .iter()
+                .find(|member| member.name() == "read")
+        })
+        .expect("ancestor abstract requirement")
+        .target();
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("List owner recipe must select the exact inherited default");
+    let implementation = instances
+        .iter()
+        .find(|instance| instance.key().target() == implementation)
+        .expect("concrete inherited default instance");
+    let [owner_argument] = implementation.key().type_arguments() else {
+        panic!("Derived default has one concrete owner argument");
+    };
+    let Some(UnitTypeKind::Intrinsic {
+        constructor: IntrinsicTypeConstructor::List,
+        arguments,
+    }) = typed.types().types().get(*owner_argument)
+    else {
+        panic!("inherited owner argument must be List<Int>");
+    };
+    assert!(matches!(
+        arguments.as_slice(),
+        [argument]
+            if matches!(
+                typed.types().types().get(*argument),
+                Some(UnitTypeKind::Builtin(BuiltinType::Int))
+            )
+    ));
+    let static_self = implementation
+        .key()
+        .static_self()
+        .expect("inherited default retains concrete StaticSelf");
+    assert!(matches!(
+        typed.types().types().get(static_self),
+        Some(UnitTypeKind::Nominal {
+            declaration: owner,
+            arguments,
+        }) if *owner == declaration(&names, "Host")
+            && matches!(
+                arguments.as_slice(),
+                [argument]
+                    if matches!(
+                        typed.types().types().get(*argument),
+                        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+                    )
+            )
+    ));
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement)
+    );
+}
+
+#[test]
+fn rejects_nested_nominal_inherited_owner_recipe_before_scoped_support() {
+    let (name_environment, type_environment) = standard_environments();
+    for (name, declarations) in [(
+        "nominal",
+        "class Wrapper<T>(val marker: Int)\nclass Host<Y>: Derived<Wrapper<Y>> {}",
+    )] {
         let mut sources = SourceMap::new();
         let path = format!("p/{name}.ko");
         let text = format!(
@@ -1417,7 +1633,7 @@ fn rejects_nested_inherited_owner_recipe_before_generic_nominal_layout() {
             &owned,
             declaration(&names, "entry"),
         )
-        .expect_err("nested generic owner recipes remain behind generic nominal layout");
+        .expect_err("nested nominal owner recipes remain behind scoped inherited support");
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
         assert!(error.span.is_some(), "{name}");
     }

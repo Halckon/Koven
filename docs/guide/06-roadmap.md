@@ -549,7 +549,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
       Phase 2 L0099 拒绝。
       `T?`、function、其他 intrinsic、
-      非 class / 多参数 wrapper、参数增长型与 inherited owner recipe 继续保持确定性门禁。复用 ADR-0016，只
+      非 class / 多参数 wrapper与参数增长型 runtime recipe 继续保持确定性门禁；inherited effective
+      implementation 已开放有限 `List<owner-slot>`，ordinary-class/其他 nested inherited recipe 仍拒绝。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
