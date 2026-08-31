@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 参数无关及字段恰为 owner direct type parameter 的 generic ordinary-class runtime layout 已闭合；嵌套依赖 owner type parameter 的实例化 recipe 仍等待后续切片 |
+| 阻塞项 | 参数无关及字段恰为 owner direct type parameter 的 generic ordinary-class runtime layout 已闭合；嵌套 recipe 需要 frontend 发布 owner-instance-qualified field-layout fact，`T?` 另需 compilation-unit nullable type lowering |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -133,7 +133,10 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 ## 8. 未决问题
 
 - generic runtime nominal 的参数无关及 direct `T` ordinary-class construction/projection/current receiver
-  已开放；`List<T>`、`Wrapper<T>`、`T?` 等嵌套 recipe 仍等待统一结构实例化，不扩张任意 owner expression。
+  已开放；`List<T>`、`Wrapper<T>` 等嵌套 recipe 不能以全局 canonical type presence 或全局
+  construction descriptor 代替 provenance，等待 frontend 发布不依赖 callable reachability 的
+  owner declaration + 完整 owner arguments + 字段顺序 concrete type fact。`T?` 还需独立补齐
+  compilation-unit nullable storage type lowering；这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
@@ -238,3 +241,4 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib --locked --offline` | 301 通过、1 ignored | direct `T` 的 `Cell<Int>`/`Cell<Long>` concrete layout、String/Int replacement、nested recipe 拒绝与动态 String native 均通过；ignored 为既有 LLDB sandbox 用例，未运行耗时 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与 codegen library 回归并行执行，零 warning |
 | 独立高风险复核（direct owner type-parameter field layout） | 通过 | 复核 direct-slot substitution、template ownership fact/concrete SSA 双 identity、String drop/Int trivial store、generic nominal kind 门禁与 List/Wrapper/nullable 负矩阵后无 P1/P2/P3 |
+| nested generic field recipe 前置审计 | 保持拒绝 | 两轮原型分别暴露 closed nominal 回归、全局 canonical 偶然授权、深层 recipe 误开放及不可达 exact construction 授权；试验代码已全部撤回。后续必须先发布 owner-instance-qualified field-layout fact，并为 nullable storage 单独设门禁；未把窄测通过误记为实现完成 |
