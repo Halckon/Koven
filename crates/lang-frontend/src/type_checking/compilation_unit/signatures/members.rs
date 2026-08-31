@@ -90,12 +90,18 @@ impl SignatureCollector<'_> {
             for interface in owner.interfaces() {
                 inherited.extend(self.members_for_instance(*interface)?);
             }
-            let inherited = self.unshadowed_members(inherited)?;
+            let active = self.unshadowed_members(inherited.clone())?;
             if owner.kind() == NominalKind::Interface {
-                self.check_interface_replacements(&local, &inherited)?;
+                self.check_interface_replacements(&local, &active)?;
             } else {
                 let facts = delegations.entry(owner.declaration()).or_default();
-                self.check_concrete_implementation(owner.declaration(), &local, &inherited, facts)?;
+                self.check_concrete_implementation(
+                    owner.declaration(),
+                    &local,
+                    &active,
+                    &inherited,
+                    facts,
+                )?;
             }
         }
         for facts in delegations.values_mut() {
@@ -259,18 +265,19 @@ impl SignatureCollector<'_> {
         inherited: &[MemberSignature],
     ) -> Result<(), CompilationUnitTypeError> {
         for member in local {
-            let Some(parent) = inherited.iter().find(|parent| parent.shape == member.shape) else {
+            let Some(parent) = inherited
+                .iter()
+                .find(|parent| parent.shape == member.shape && parent.contract != member.contract)
+            else {
                 continue;
             };
-            if member.contract != parent.contract {
-                self.emit_with_label(
-                    codes::INTERFACE_MEMBER_MISMATCH,
-                    "interface member replacement has a different callable contract",
-                    member.name_span,
-                    parent.name_span,
-                    "inherited member declared here",
-                )?;
-            }
+            self.emit_with_label(
+                codes::INTERFACE_MEMBER_MISMATCH,
+                "interface member replacement has a different callable contract",
+                member.name_span,
+                parent.name_span,
+                "inherited member declared here",
+            )?;
         }
         Ok(())
     }
@@ -280,6 +287,7 @@ impl SignatureCollector<'_> {
         owner: DeclarationId,
         local: &[MemberSignature],
         inherited: &[MemberSignature],
+        all_inherited: &[MemberSignature],
         delegations: &mut DelegationFacts,
     ) -> Result<(), CompilationUnitTypeError> {
         let owner_span = self.names.index().declarations()[owner.index()].name_span();
@@ -288,6 +296,13 @@ impl SignatureCollector<'_> {
         let mut by_shape = BTreeMap::<MemberShape, Vec<&MemberSignature>>::new();
         for member in inherited {
             by_shape
+                .entry(member.shape.clone())
+                .or_default()
+                .push(member);
+        }
+        let mut all_by_shape = BTreeMap::<MemberShape, Vec<&MemberSignature>>::new();
+        for member in all_inherited {
+            all_by_shape
                 .entry(member.shape.clone())
                 .or_default()
                 .push(member);
@@ -317,16 +332,23 @@ impl SignatureCollector<'_> {
             }
             if member.modifiers.override_span.is_some() && valid_target && public {
                 static_dispatch_overrides.extend(
-                    targets
-                        .iter()
-                        .filter(|target| !target.has_body)
+                    all_by_shape
+                        .get(&member.shape)
+                        .into_iter()
+                        .flatten()
+                        .filter(|target| !target.has_body && target.contract == member.contract)
                         .map(|target| {
-                            UnitStaticDispatchOverride::new(target.target, member.target)
+                            UnitStaticDispatchOverride::new(
+                                target.target,
+                                target.owner,
+                                member.target,
+                                member.owner,
+                            )
                         }),
                 );
             }
         }
-        for sources in by_shape.into_values() {
+        for (shape, sources) in by_shape {
             let mut active = Vec::new();
             for source in sources {
                 let mut poisoned = false;
@@ -441,6 +463,28 @@ impl SignatureCollector<'_> {
                     active[0].name_span,
                     "required member declared here",
                 )?;
+            } else {
+                let implementation = active
+                    .iter()
+                    .find(|source| source.has_body)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                static_dispatch_overrides.extend(
+                    all_by_shape
+                        .get(&shape)
+                        .into_iter()
+                        .flatten()
+                        .filter(|source| {
+                            !source.has_body && source.contract == implementation.contract
+                        })
+                        .map(|requirement| {
+                            UnitStaticDispatchOverride::new(
+                                requirement.target,
+                                requirement.owner,
+                                implementation.target,
+                                implementation.owner,
+                            )
+                        }),
+                );
             }
         }
         for (&plan_index, &(_, requirement)) in &incompatible_delegates {

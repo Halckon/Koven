@@ -845,21 +845,27 @@ pub struct UnitNominalSignature {
     static_dispatch_overrides: Vec<UnitStaticDispatchOverride>,
 }
 
-/// concrete classifier 对一个 abstract interface requirement 的静态 override target。
+/// concrete classifier 对一个非委托 abstract requirement 的静态 effective implementation。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UnitStaticDispatchOverride {
     requirement: UnitCallableTarget,
+    requirement_owner: UnitTypeId,
     implementation: UnitCallableTarget,
+    implementation_owner: UnitTypeId,
 }
 
 impl UnitStaticDispatchOverride {
     pub(crate) const fn new(
         requirement: UnitCallableTarget,
+        requirement_owner: UnitTypeId,
         implementation: UnitCallableTarget,
+        implementation_owner: UnitTypeId,
     ) -> Self {
         Self {
             requirement,
+            requirement_owner,
             implementation,
+            implementation_owner,
         }
     }
 
@@ -869,10 +875,22 @@ impl UnitStaticDispatchOverride {
         self.requirement
     }
 
-    /// 返回 concrete classifier 中已验证的 override identity。
+    /// 返回 requirement 所属的 owner type template。
+    #[must_use]
+    pub const fn requirement_owner(self) -> UnitTypeId {
+        self.requirement_owner
+    }
+
+    /// 返回已验证的本地 override 或唯一 inherited default identity。
     #[must_use]
     pub const fn implementation(self) -> UnitCallableTarget {
         self.implementation
+    }
+
+    /// 返回 implementation 所属的 owner type template。
+    #[must_use]
+    pub const fn implementation_owner(self) -> UnitTypeId {
+        self.implementation_owner
     }
 }
 
@@ -966,7 +984,7 @@ impl UnitNominalSignature {
         &self.companion_members
     }
 
-    /// 返回 abstract interface requirement 到本 concrete classifier override 的确定映射。
+    /// 返回非委托 abstract requirement 到 effective implementation 的确定映射。
     #[must_use]
     pub fn static_dispatch_overrides(&self) -> &[UnitStaticDispatchOverride] {
         &self.static_dispatch_overrides

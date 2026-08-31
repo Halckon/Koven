@@ -233,7 +233,181 @@ fn concrete_override_publishes_static_abstract_requirement_dispatch() {
         child.static_dispatch_overrides()[0].implementation(),
         implementation
     );
+    assert_eq!(
+        child.static_dispatch_overrides()[0].implementation_owner(),
+        child.ty()
+    );
     assert!(typed.clone().validate().is_ok());
+}
+
+#[test]
+fn inherited_replacements_publish_ancestor_requirement_dispatch() {
+    for (replacement, expected_owner) in [
+        ("fun read(): Int = 7", "Derived"),
+        ("fun read(): Int", "Child"),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "package p\n\
+             interface Base {{\n\
+                 fun read(): Int\n\
+                 fun throughRequirement(): Int = this.read()\n\
+             }}\n\
+             interface Derived: Base {{ {replacement} }}\n\
+             class Child: Derived {{\n\
+                 {}\n\
+             }}",
+            (expected_owner == "Child")
+                .then_some("override fun read(): Int = 7")
+                .unwrap_or("")
+        );
+        let (source, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+            .expect("unit type checking succeeds internally");
+
+        assert!(typed.diagnostics().is_empty(), "{replacement}");
+        let base = typed
+            .signatures()
+            .declaration(declaration(&names, "Base"))
+            .and_then(|signature| signature.nominal())
+            .expect("Base signature");
+        let expected = typed
+            .signatures()
+            .declaration(declaration(&names, expected_owner))
+            .and_then(|signature| signature.nominal())
+            .expect("effective implementation owner");
+        let derived = typed
+            .signatures()
+            .declaration(declaration(&names, "Derived"))
+            .and_then(|signature| signature.nominal())
+            .expect("Derived signature");
+        let child = typed
+            .signatures()
+            .declaration(declaration(&names, "Child"))
+            .and_then(|signature| signature.nominal())
+            .expect("Child signature");
+        let mut requirements = vec![(
+            base.members()
+                .iter()
+                .find(|member| member.name() == "read")
+                .expect("ancestor abstract requirement")
+                .target(),
+            base.ty(),
+        )];
+        if expected_owner == "Child" {
+            requirements.push((
+                derived
+                    .members()
+                    .iter()
+                    .find(|member| member.name() == "read")
+                    .expect("intermediate abstract requirement")
+                    .target(),
+                derived.ty(),
+            ));
+        }
+        let implementation = expected
+            .members()
+            .iter()
+            .find(|member| member.name() == "read")
+            .expect("effective implementation")
+            .target();
+
+        assert_eq!(child.static_dispatch_overrides().len(), requirements.len());
+        for (requirement, requirement_owner) in requirements {
+            let dispatch = child
+                .static_dispatch_overrides()
+                .iter()
+                .find(|dispatch| {
+                    dispatch.requirement() == requirement
+                        && dispatch.implementation() == implementation
+                })
+                .expect("ancestor requirement dispatch");
+            assert_eq!(dispatch.requirement_owner(), requirement_owner);
+            assert_eq!(dispatch.implementation_owner(), expected.ty());
+        }
+        assert!(typed.clone().validate().is_ok());
+    }
+}
+
+#[test]
+fn unique_unrelated_default_publishes_abstract_requirement_dispatch() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Required {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Provided { fun read(): Int = 7 }\n\
+         class Child: Required, Provided {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unit type checking succeeds internally");
+
+    assert!(typed.diagnostics().is_empty());
+    let required = typed
+        .signatures()
+        .declaration(declaration(&names, "Required"))
+        .and_then(|signature| signature.nominal())
+        .expect("Required signature");
+    let provided = typed
+        .signatures()
+        .declaration(declaration(&names, "Provided"))
+        .and_then(|signature| signature.nominal())
+        .expect("Provided signature");
+    let child = typed
+        .signatures()
+        .declaration(declaration(&names, "Child"))
+        .and_then(|signature| signature.nominal())
+        .expect("Child signature");
+    let requirement = required.members()[0].target();
+    let implementation = provided.members()[0].target();
+    let dispatch = child
+        .static_dispatch_overrides()
+        .first()
+        .expect("unique inherited default dispatch");
+
+    assert_eq!(child.static_dispatch_overrides().len(), 1);
+    assert_eq!(dispatch.requirement(), requirement);
+    assert_eq!(dispatch.requirement_owner(), required.ty());
+    assert_eq!(dispatch.implementation(), implementation);
+    assert_eq!(dispatch.implementation_owner(), provided.ty());
+    assert!(typed.clone().validate().is_ok());
+}
+
+#[test]
+fn interface_replacement_checks_every_same_shape_contract() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Matching { fun read(): Int }\n\
+         interface Mismatched { fun read(): Long }\n\
+         interface Combined: Matching, Mismatched { fun read(): Int }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("replacement diagnostics remain recoverable");
+
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0099"]
+    );
 }
 
 #[test]

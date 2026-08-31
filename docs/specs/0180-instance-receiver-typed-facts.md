@@ -16,9 +16,9 @@
 ## 1. Goal
 
 完成后，每个 instance callable、`this`、显式/隐式 member call 与 Borrow-only interface
-delegate forwarder 都具有唯一、实例化后的 receiver typed identity；concrete classifier 对已验证
-abstract requirement 的本地 override 另有确定 target 映射，后继阶段不再从 AST 名称或函数体
-推断 receiver mode 或重新选择实现。
+delegate forwarder 都具有唯一、实例化后的 receiver typed identity；concrete classifier 对每个已验证、
+非委托的 abstract requirement 另有确定 effective implementation 与双方 owner template，后继阶段
+不再从 AST 名称或函数体推断 receiver mode、重新选择实现或猜测泛型 owner 参数。
 
 ## 2. 范围与需求
 
@@ -35,9 +35,11 @@ abstract requirement 的本地 override 另有确定 target 映射，后继阶�
   纳入 overload/lambda trial rollback。
 - 把 interface-level `DelegationPlan` 展开为源码有序的 Borrow-receiver forwarder descriptor；
   手写 override/default 解析后仍需转发 Inout/Value requirement 时在 `by` 处产生 L0152。
-- concrete classifier 对 contract 完全匹配且 public 的显式本地 override，发布每个 abstract
-  requirement identity 到 concrete implementation identity 的有序映射；有体 default 与无效实现
-  不发布映射，generic callable 参数只按已验证 slot 位置交付。
+- concrete classifier 按手写 override > delegate > 唯一 active default 的既有优先级解析每个 shape；
+  delegate shape 继续由独立 `DelegationPlan` 表达，其余成功 shape 对 contract 完全匹配的每个
+  bodyless requirement 发布 requirement/implementation target 及双方 owner template。被 interface
+  replacement 遮蔽的 ancestor requirement 仍保留映射；有体 default 不作为 key，但可作为唯一
+  effective implementation。冲突或无效实现不发布半成品。
 - typed 产物提供声明/使用 Span、receiver place origin 与后续 ownership/codegen 所需的稳定查询，
   不暴露 LLVM 类型。
 
@@ -56,8 +58,9 @@ abstract requirement 的本地 override 另有确定 target 映射，后继阶�
 - [x] receiver mode 不形成 overload，L0099/L0100 contract mismatch 稳定；L0152 primary 为
   `by`/delegate target，label 指向首个仍需转发的不兼容 member。
 - [x] Borrow-only delegate forwarder descriptor 与手写等价签名一致；非 Borrow requirement 不发布半成品。
-- [x] abstract requirement 到本地 concrete override 的映射只来自 signature contract 检查结果；
-  多 target 去重确定，default/`super<I>` 不被误重定向。
+- [x] abstract requirement 到本地 override 或唯一 inherited default 的映射只来自 signature contract
+  检查结果；双方 owner template 可表达不同泛型参数配方，多 target 去重确定，有体 default/
+  `super<I>` 不被误作为重定向 key。
 - [x] 受影响 frontend Layer 1 测试及 workspace library Layer 2 静态门禁通过，Architecture/Roadmap
   同步；Layer 3 未升级，因为变更未涉及依赖/feature/发布矩阵且直接测试已覆盖跨 crate API。
 
@@ -72,7 +75,8 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 1. [x] 规范化声明 receiver 并检查 contract → 验证：member/interface typed tests。
 2. [x] 扩展 member selection/CallDescriptor/implicit-this → 验证：target/instance/trial 白盒矩阵。
 3. [x] 发布 Borrow-only delegate forwarder 与 L0152 → 验证：delegation 正反矩阵。
-4. [x] 发布 abstract requirement 到本地 concrete override 的静态映射 → 验证：signature 白盒测试。
+4. [x] 发布 abstract requirement 到 effective implementation 的静态映射与 owner templates → 验证：
+   本地 override、replacement、唯一独立 default 与冲突白盒矩阵。
 5. [x] 同步 Architecture/Spec 并运行分层验收门禁。
 
 ## 7. 提交计划
@@ -81,6 +85,7 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 |---|---|---|
 | 1 | receiver contract、member call 与 delegate typed facts | `feat(frontend): type member receivers (SPEC-0180)` |
 | 2 | concrete abstract-requirement override target fact | `fix(frontend): publish static override targets (SPEC-0180)` |
+| 3 | inherited effective implementation 与双方 owner templates | `fix(frontend): publish inherited dispatch facts (SPEC-0180)` |
 
 ## 8. 未决问题
 
@@ -105,3 +110,5 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | `cargo test -p lang-frontend --test multifile_type_checking cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts --locked --offline` | 通过 | 修正 interface callable receiver template 的事实漂移：signature 与 body `this` 都使用同一 `StaticSelf(interface)`，外部 call descriptor 仍为 concrete receiver |
 | frontend 分层回归：`multifile_type_checking receiver` / `multifile_ownership_checking` | 4/4、51/51 通过 | 锁定 receiver/default/super/delegation typed contract 及全部 Phase 3 compilation-unit receiver ownership 消费；未运行约一小时的 frontend 全量测试 |
 | `cargo test -p lang-frontend --test multifile_type_checking concrete_override_publishes_static_abstract_requirement_dispatch` | 通过 | signature contract 阶段发布 abstract requirement→本地 concrete override 的唯一映射，default 不进入映射 |
+| `cargo test -p lang-frontend --test multifile_type_checking dispatch -- --nocapture` | 3/3 通过 | 本地 override、abstract replacement→本地 override、ancestor requirement→replacement/独立唯一 default 均发布 effective target 与双方 owner template |
+| `cargo test -p lang-frontend --test multifile_type_checking interface_replacement_checks_every_same_shape_contract -- --nocapture` | 通过 | replacement 检查全部同 shape inherited contracts，不因首个来源匹配而漏掉后续 L0099 |
