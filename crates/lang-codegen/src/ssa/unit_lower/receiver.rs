@@ -32,7 +32,7 @@ impl UnitExpressionLowerer<'_> {
         call: UnitExpressionId,
         descriptor: &UnitCallDescriptor,
         receiver: Option<LoweredReceiver>,
-        route: UnitDelegatedCallRoute,
+        routes: &[UnitDelegatedCallRoute],
         span: Span,
     ) -> Result<Option<LoweredReceiver>, LoweringError> {
         let Some(mut receiver) = receiver else {
@@ -53,28 +53,35 @@ impl UnitExpressionLowerer<'_> {
             self.static_self,
             span,
         )?;
-        let outer_target = self
-            .type_ids
-            .get(&route.outer_receiver())
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let delegate_target = self
-            .type_ids
-            .get(&route.delegate_receiver())
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let field = self
-            .field_indices
-            .get(&(route.outer_receiver(), route.field()))
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let EntityId::Loan(base) = receiver.entity else {
+        let Some(first) = routes.first() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        if concrete != route.outer_receiver()
+        if concrete != first.outer_receiver()
             || receiver_descriptor.mode() != ParameterMode::Borrow
             || fact.kind() != UnitReceiverOwnershipKind::SharedLoan
-            || self
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        for route in routes {
+            let outer_target = self
+                .type_ids
+                .get(&route.outer_receiver())
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let delegate_target = self
+                .type_ids
+                .get(&route.delegate_receiver())
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let field = self
+                .field_indices
+                .get(&(route.outer_receiver(), route.field()))
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let EntityId::Loan(base) = receiver.entity else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            if self
                 .function
                 .entity(EntityId::Loan(base))
                 .map(|entity| entity.ty)
@@ -82,26 +89,27 @@ impl UnitExpressionLowerer<'_> {
                     kind: LoanKind::Shared,
                     target: outer_target,
                 })
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::SharedHeapFieldLoan { base, field },
+                    vec![EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: delegate_target,
+                    }],
+                    Origin::Source(fact.begin_span()),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let EntityId::Loan(delegate) = results[0] else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            receiver.entity = EntityId::Loan(delegate);
+            receiver.created_loans.push((delegate, fact.end_span()));
         }
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::SharedHeapFieldLoan { base, field },
-                vec![EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: delegate_target,
-                }],
-                Origin::Source(fact.begin_span()),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let EntityId::Loan(delegate) = results[0] else {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        };
-        receiver.entity = EntityId::Loan(delegate);
-        receiver.created_loans.push((delegate, fact.end_span()));
         Ok(Some(receiver))
     }
 

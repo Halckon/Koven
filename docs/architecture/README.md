@@ -1012,9 +1012,16 @@ resolver 先核对 call key 的 requirement owner prefix 与 forwarder receiver 
 implementation owner template 替换该 prefix，并原序追加 callable type-argument suffix；interface
 default 保留实现 owner 实参与 delegate concrete `StaticSelf`，concrete override 只保留其实际 owner/
 callable slots。`Mapper<String>.map<Long>` 的 default/local override 已完成真实 native 闭环。
-generic outer/delegate runtime nominal、delegation chain 与 frontend `None` route 仍在生成 SSA 前以
-`UnsupportedNode` 原子拒绝；codegen 不因 requirement 自带 body 而绕过 field route、静默调用 outer
-interface default。
+codegen 不因 requirement 自带 body 而绕过 field route、静默调用 outer interface default。同
+requirement identity 的非泛型 chain 也已开放：resolver 逐跳要求唯一 exact
+typed forwarder 与 Phase 3 ownership plan，以 `(owner, requirement)` visited identity 拒绝 cycle；每跳
+记录 outer/field/delegate concrete type，lowerer 依次建立 `SharedHeapFieldLoan`，DirectCall 使用最内层
+loan，结束顺序为 argument→inner→outer→原 receiver。delegate 上存在同 target route 时，即使 outer
+forwarder 带 inherited default `Some` 也必须继续，避免 bodyful default 截断；nested local override 因
+没有对应 forwarder而正常成为 endpoint。若下一跳 requirement identity 等于当前 selected implementation
+但不同于原 target，则在 frontend 发布显式 next-hop identity 前以 `UnsupportedNode` 拒绝；无关 delegation
+不触发该门禁。三跳 native 已锁定 default=1 不得替代 endpoint override=7。generic runtime nominal、
+identity-changing chain 与无 endpoint `None` route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 仍等待 Phase 3 为 `StaticSelf` 发布条件 receiver-drop fact；在该事实

@@ -55,7 +55,7 @@ impl UnitDelegatedCallRoute {
 /// planner 与 expression lowerer 共用的静态 call route。
 pub(crate) struct ResolvedUnitCallInstance {
     key: UnitFunctionInstanceKey,
-    delegation: Option<UnitDelegatedCallRoute>,
+    delegation: Vec<UnitDelegatedCallRoute>,
 }
 
 impl ResolvedUnitCallInstance {
@@ -63,8 +63,8 @@ impl ResolvedUnitCallInstance {
         &self.key
     }
 
-    pub(crate) const fn delegation(&self) -> Option<UnitDelegatedCallRoute> {
-        self.delegation
+    pub(crate) fn delegation(&self) -> &[UnitDelegatedCallRoute] {
+        &self.delegation
     }
 }
 
@@ -546,150 +546,181 @@ pub(crate) fn resolve_unit_call_instance(
         resolve_direct_unit_call_instance(typed, target, type_arguments.clone(), receiver, span)
             .map(|key| ResolvedUnitCallInstance {
                 key,
-                delegation: None,
+                delegation: Vec::new(),
             })
     };
     let Some(receiver) = receiver else {
         return direct();
     };
-    let Some(UnitTypeKind::Nominal {
-        declaration,
-        arguments,
-    }) = typed.types().types().get(receiver)
-    else {
-        return direct();
-    };
-    let nominal = typed
-        .types()
-        .signatures()
-        .declaration(*declaration)
-        .and_then(|signature| signature.nominal())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let routes = typed
-        .types()
-        .signatures()
-        .delegations()
-        .iter()
-        .filter(|plan| plan.owner() == *declaration)
-        .flat_map(|plan| {
-            plan.forwarders()
-                .iter()
-                .filter(move |forwarder| forwarder.requirement() == target)
-                .map(move |forwarder| (plan, forwarder))
-        })
-        .collect::<Vec<_>>();
-    let (route, forwarder) = match routes.as_slice() {
-        [] => return direct(),
-        [(route, forwarder)] => (*route, *forwarder),
-        _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-    };
-    let ownership_routes = owned
-        .ownership()
-        .delegations()
-        .iter()
-        .filter(|plan| {
-            plan.owner() == *declaration
-                && plan.target() == route.target()
-                && plan.forwarders().contains(&target)
-        })
-        .collect::<Vec<_>>();
-    if !matches!(ownership_routes.as_slice(), [_]) {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    }
-    let implementation = forwarder
-        .implementation()
-        .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-    if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    let field = nominal
-        .fields()
-        .iter()
-        .find(|field| field.symbol() == route.target())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let Some(UnitTypeKind::Nominal {
-        declaration: delegate,
-        arguments: delegate_arguments,
-    }) = typed.types().types().get(field.ty())
-    else {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    };
-    let delegate_nominal = typed
-        .types()
-        .signatures()
-        .declaration(*delegate)
-        .and_then(|signature| signature.nominal())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    if !delegate_arguments.is_empty() || !delegate_nominal.type_parameters().is_empty() {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    if typed.types().signatures().delegations().iter().any(|plan| {
-        plan.owner() == *delegate
-            && plan
-                .forwarders()
-                .iter()
-                .any(|forwarder| forwarder.requirement() == target)
-    }) {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    // Frontend 已选定 effective implementation；这里只校验 recipe 并重映射泛型槽位，
-    // 不重新执行 member selection。
-    let requirement_callable = unit_callable_signature(typed, target)
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let implementation_callable = unit_callable_signature(typed, implementation.target())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let (requirement_owner, requirement_owner_arguments) = instantiate_dispatch_owner_arguments(
-        typed,
-        forwarder.receiver_type(),
-        nominal,
-        arguments,
-        span,
-    )?;
-    let (implementation_owner, implementation_owner_arguments) =
-        instantiate_dispatch_owner_arguments(
-            typed,
-            implementation.receiver_type(),
-            nominal,
+    let mut current_receiver = receiver;
+    let mut delegation = Vec::new();
+    let mut visited = BTreeSet::new();
+    loop {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
             arguments,
-            span,
-        )?;
-    let (declared_requirement_owner, declared_requirement_owner_arity) =
-        unit_callable_owner(typed, target)
+        }) = typed.types().types().get(current_receiver)
+        else {
+            return if delegation.is_empty() {
+                direct()
+            } else {
+                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            };
+        };
+        let nominal = typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let (declared_implementation_owner, declared_implementation_owner_arity) =
-        unit_callable_owner(typed, implementation.target())
+        let routes = typed
+            .types()
+            .signatures()
+            .delegations()
+            .iter()
+            .filter(|plan| plan.owner() == *declaration)
+            .flat_map(|plan| {
+                plan.forwarders()
+                    .iter()
+                    .filter(move |forwarder| forwarder.requirement() == target)
+                    .map(move |forwarder| (plan, forwarder))
+            })
+            .collect::<Vec<_>>();
+        let (route, forwarder) = match routes.as_slice() {
+            [] if delegation.is_empty() => return direct(),
+            [] => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            [(route, forwarder)] => (*route, *forwarder),
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        if !visited.insert((*declaration, target)) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let ownership_routes = owned
+            .ownership()
+            .delegations()
+            .iter()
+            .filter(|plan| {
+                plan.owner() == *declaration
+                    && plan.target() == route.target()
+                    && plan.forwarders().contains(&target)
+            })
+            .collect::<Vec<_>>();
+        if !matches!(ownership_routes.as_slice(), [_]) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let field = nominal
+            .fields()
+            .iter()
+            .find(|field| field.symbol() == route.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    if !implementation_callable.has_body()
-        || implementation_callable.type_parameters().len()
-            != requirement_callable.type_parameters().len()
-        || declared_requirement_owner != requirement_owner
-        || declared_implementation_owner != implementation_owner
-        || declared_requirement_owner_arity != requirement_owner_arguments.len()
-        || declared_implementation_owner_arity != implementation_owner_arguments.len()
-        || type_arguments.len()
-            != requirement_owner_arguments.len() + requirement_callable.type_parameters().len()
-        || type_arguments[..requirement_owner_arguments.len()] != requirement_owner_arguments
-    {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    }
-    let callable_argument_start = requirement_owner_arguments.len();
-    let mut implementation_arguments = implementation_owner_arguments;
-    implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
-    let key = resolve_direct_unit_call_instance(
-        typed,
-        implementation.target(),
-        implementation_arguments,
-        Some(field.ty()),
-        span,
-    )?;
-    Ok(ResolvedUnitCallInstance {
-        key,
-        delegation: Some(UnitDelegatedCallRoute {
-            outer_receiver: receiver,
+        let Some(UnitTypeKind::Nominal {
+            declaration: delegate,
+            arguments: delegate_arguments,
+        }) = typed.types().types().get(field.ty())
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let delegate_nominal = typed
+            .types()
+            .signatures()
+            .declaration(*delegate)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if !delegate_arguments.is_empty() || !delegate_nominal.type_parameters().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        delegation.push(UnitDelegatedCallRoute {
+            outer_receiver: current_receiver,
             field: route.target(),
             delegate_receiver: field.ty(),
-        }),
-    })
+        });
+        let nested_forwarders = typed
+            .types()
+            .signatures()
+            .delegations()
+            .iter()
+            .filter(|plan| plan.owner() == *delegate)
+            .flat_map(|plan| plan.forwarders())
+            .collect::<Vec<_>>();
+        let nested_routes = nested_forwarders
+            .iter()
+            .copied()
+            .filter(|nested| nested.requirement() == target)
+            .collect::<Vec<_>>();
+        match nested_routes.as_slice() {
+            [_] => {
+                current_receiver = field.ty();
+                continue;
+            }
+            [] => {}
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+        let Some(implementation) = forwarder.implementation() else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        if nested_forwarders
+            .iter()
+            .any(|nested| nested.requirement() == implementation.target())
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+
+        // Frontend 已选定 effective implementation；这里只校验 recipe 并重映射泛型槽位，
+        // 不重新执行 member selection。
+        let requirement_callable = unit_callable_signature(typed, target)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let implementation_callable = unit_callable_signature(typed, implementation.target())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (requirement_owner, requirement_owner_arguments) =
+            instantiate_dispatch_owner_arguments(
+                typed,
+                forwarder.receiver_type(),
+                nominal,
+                arguments,
+                span,
+            )?;
+        let (implementation_owner, implementation_owner_arguments) =
+            instantiate_dispatch_owner_arguments(
+                typed,
+                implementation.receiver_type(),
+                nominal,
+                arguments,
+                span,
+            )?;
+        let (declared_requirement_owner, declared_requirement_owner_arity) =
+            unit_callable_owner(typed, target)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (declared_implementation_owner, declared_implementation_owner_arity) =
+            unit_callable_owner(typed, implementation.target())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if !implementation_callable.has_body()
+            || implementation_callable.type_parameters().len()
+                != requirement_callable.type_parameters().len()
+            || declared_requirement_owner != requirement_owner
+            || declared_implementation_owner != implementation_owner
+            || declared_requirement_owner_arity != requirement_owner_arguments.len()
+            || declared_implementation_owner_arity != implementation_owner_arguments.len()
+            || type_arguments.len()
+                != requirement_owner_arguments.len() + requirement_callable.type_parameters().len()
+            || type_arguments[..requirement_owner_arguments.len()] != requirement_owner_arguments
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let callable_argument_start = requirement_owner_arguments.len();
+        let mut implementation_arguments = implementation_owner_arguments;
+        implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
+        let key = resolve_direct_unit_call_instance(
+            typed,
+            implementation.target(),
+            implementation_arguments,
+            Some(field.ty()),
+            span,
+        )?;
+        return Ok(ResolvedUnitCallInstance { key, delegation });
+    }
 }
 
 fn resolve_direct_unit_call_instance(

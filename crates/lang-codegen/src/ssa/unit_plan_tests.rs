@@ -444,7 +444,7 @@ fn plans_delegate_implementation_from_validated_forwarder_route() {
 }
 
 #[test]
-fn rejects_chained_delegation_before_lowering_any_partial_route() {
+fn plans_same_requirement_delegation_chain_to_the_direct_implementation() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -460,6 +460,103 @@ fn rejects_chained_delegation_before_lowering_any_partial_route() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
+    let implementation = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature")
+        .members()[0]
+        .target();
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("same-requirement delegation chain must resolve to its direct endpoint");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+}
+
+#[test]
+fn bodyful_requirement_chain_prefers_the_nested_route_over_an_inherited_default() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Middle(val reader: Reader): Readable by reader {}\n\
+         class Host(val middle: Middle): Readable by middle {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let readable = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let default = readable.members()[0].target();
+    let endpoint = reader.members()[0].target();
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("bodyful same-requirement chain must follow the nested route");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == endpoint)
+    );
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != default),
+        "the inherited outer default must not truncate the delegation chain"
+    );
+}
+
+#[test]
+fn rejects_delegation_chain_that_changes_requirement_identity() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base { fun read(): Int = 1 }\n\
+         interface Derived: Base { fun read(): Int = 2 }\n\
+         class Reader: Derived { override fun read(): Int = 7 }\n\
+         class Middle(val reader: Reader): Derived by reader {}\n\
+         class Host(val middle: Middle): Base by middle {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
     let error = plan_unit_instances(
         &sources,
         &inputs,
@@ -469,7 +566,80 @@ fn rejects_chained_delegation_before_lowering_any_partial_route() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("the first native delegation slice is deliberately single-layer");
+    .expect_err("identity-changing delegation chain needs an explicit frontend next-hop fact");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+}
+
+#[test]
+fn nested_delegate_local_override_terminates_the_outer_route() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Middle(val reader: Reader): Readable by reader {\n\
+             override fun read(): Int = 9\n\
+         }\n\
+         class Host(val middle: Middle): Readable by middle {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let middle = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Middle"))
+        .and_then(|signature| signature.nominal())
+        .expect("Middle signature");
+    let override_target = middle.members()[0].target();
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("nested delegate local override must terminate the outer route");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == override_target)
+    );
+}
+
+#[test]
+fn rejects_delegation_cycle_before_planning_a_partial_instance() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         fun entry(first: First): Int = first.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("delegation cycle must fail before publishing a partial instance");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 }

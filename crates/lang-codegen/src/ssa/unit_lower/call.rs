@@ -204,10 +204,16 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
-        let receiver = if let Some(route) = resolved.delegation() {
-            self.lower_delegated_call_receiver(call, descriptor, receiver, route, span)?
-        } else {
+        let receiver = if resolved.delegation().is_empty() {
             receiver
+        } else {
+            self.lower_delegated_call_receiver(
+                call,
+                descriptor,
+                receiver,
+                resolved.delegation(),
+                span,
+            )?
         };
         let Some(LoweredCallArguments {
             arguments,
