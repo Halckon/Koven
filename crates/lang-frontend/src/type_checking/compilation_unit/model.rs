@@ -557,7 +557,7 @@ pub struct UnitDelegationPlan {
 pub struct UnitDelegationForwarderDescriptor {
     requirement: UnitCallableTarget,
     receiver_type: UnitTypeId,
-    implementation: Option<UnitDelegationImplementationDescriptor>,
+    resolution: UnitDelegationForwarderResolution,
     type_parameters: Vec<UnitSymbolId>,
     parameters: Vec<UnitCallableParameter>,
     return_type: UnitTypeId,
@@ -577,7 +577,10 @@ impl UnitDelegationForwarderDescriptor {
         Self {
             requirement,
             receiver_type,
-            implementation,
+            resolution: implementation.map_or(
+                UnitDelegationForwarderResolution::Unresolved,
+                UnitDelegationForwarderResolution::Implementation,
+            ),
             type_parameters,
             parameters,
             return_type,
@@ -599,11 +602,34 @@ impl UnitDelegationForwarderDescriptor {
 
     /// 返回 delegate concrete type 上可直接调用的已验证有体实现。
     ///
-    /// `None` 表示合法转发仍需递归委托或具体单态化/实例化类型实参才能解析；后续阶段
-    /// 不得把 abstract requirement 伪装成 concrete implementation。
+    /// `None` 表示该 forwarder 是 exact next hop 或仍需具体单态化/实例化才能解析。
     #[must_use]
     pub const fn implementation(&self) -> Option<UnitDelegationImplementationDescriptor> {
-        self.implementation
+        match self.resolution {
+            UnitDelegationForwarderResolution::Implementation(implementation) => {
+                Some(implementation)
+            }
+            UnitDelegationForwarderResolution::NextHop(_)
+            | UnitDelegationForwarderResolution::Unresolved => None,
+        }
+    }
+
+    /// 返回 delegate 自身 delegation plan 中已验证的精确下一跳。
+    #[must_use]
+    pub const fn next_hop(&self) -> Option<UnitDelegationNextHopDescriptor> {
+        match self.resolution {
+            UnitDelegationForwarderResolution::NextHop(next_hop) => Some(next_hop),
+            UnitDelegationForwarderResolution::Implementation(_)
+            | UnitDelegationForwarderResolution::Unresolved => None,
+        }
+    }
+
+    pub(crate) const fn set_next_hop(&mut self, next_hop: UnitDelegationNextHopDescriptor) {
+        self.resolution = UnitDelegationForwarderResolution::NextHop(next_hop);
+    }
+
+    pub(crate) const fn set_unresolved(&mut self) {
+        self.resolution = UnitDelegationForwarderResolution::Unresolved;
     }
 
     /// delegate forwarder receiver 固定为 Borrow。
@@ -637,6 +663,13 @@ impl UnitDelegationForwarderDescriptor {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UnitDelegationForwarderResolution {
+    Implementation(UnitDelegationImplementationDescriptor),
+    NextHop(UnitDelegationNextHopDescriptor),
+    Unresolved,
+}
+
 /// 一个 delegate forwarder 已解析出的直接有体实现及其 receiver template。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitDelegationImplementationDescriptor {
@@ -659,6 +692,34 @@ impl UnitDelegationImplementationDescriptor {
     }
 
     /// 返回实现所属的完整 receiver type template。
+    #[must_use]
+    pub const fn receiver_type(self) -> UnitTypeId {
+        self.receiver_type
+    }
+}
+
+/// 一个 delegate forwarder 已解析出的 delegation plan 下一跳。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitDelegationNextHopDescriptor {
+    requirement: UnitCallableTarget,
+    receiver_type: UnitTypeId,
+}
+
+impl UnitDelegationNextHopDescriptor {
+    pub(crate) const fn new(requirement: UnitCallableTarget, receiver_type: UnitTypeId) -> Self {
+        Self {
+            requirement,
+            receiver_type,
+        }
+    }
+
+    /// 返回下一跳 forwarder 的精确 requirement identity。
+    #[must_use]
+    pub const fn requirement(self) -> UnitCallableTarget {
+        self.requirement
+    }
+
+    /// 返回下一跳 requirement 所属的完整 receiver type template。
     #[must_use]
     pub const fn receiver_type(self) -> UnitTypeId {
         self.receiver_type
@@ -717,6 +778,10 @@ impl UnitDelegationPlan {
     #[must_use]
     pub fn forwarders(&self) -> &[UnitDelegationForwarderDescriptor] {
         &self.forwarders
+    }
+
+    pub(crate) fn forwarders_mut(&mut self) -> &mut [UnitDelegationForwarderDescriptor] {
+        &mut self.forwarders
     }
 
     pub(crate) fn push_forwarder(&mut self, forwarder: UnitDelegationForwarderDescriptor) {

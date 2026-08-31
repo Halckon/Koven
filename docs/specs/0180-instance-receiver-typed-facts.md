@@ -16,9 +16,9 @@
 ## 1. Goal
 
 完成后，每个 instance callable、`this`、显式/隐式 member call 与 Borrow-only interface
-delegate forwarder 都具有唯一、实例化后的 receiver typed identity；可直接解析的 delegate forwarder
-还具有确定 effective implementation 与 owner template，递归委托或 type-parameter delegate 则明确
-标记为尚未解析；concrete classifier 对每个已验证、非委托的 abstract requirement 另有确定 effective
+delegate forwarder 都具有唯一、实例化后的 receiver typed identity；每个 forwarder 精确区分 direct
+effective implementation、delegate 自身 validated plan 的 exact next hop 与 unresolved 三态，只有
+type-parameter delegate 等尚不能实例化的路径保留 unresolved；concrete classifier 对每个已验证、非委托的 abstract requirement 另有确定 effective
 implementation 与双方 owner template。后继阶段不再从 AST 名称或函数体推断 receiver mode、重新
 选择实现或猜测泛型 owner 参数。
 
@@ -37,8 +37,9 @@ implementation 与双方 owner template。后继阶段不再从 AST 名称或函
   纳入 overload/lambda trial rollback。
 - 把 interface-level `DelegationPlan` 展开为源码有序的 Borrow-receiver forwarder descriptor；
   手写 override/default 解析后仍需转发 Inout/Value requirement 时在 `by` 处产生 L0152。direct
-  concrete delegate 同时发布有体 effective target 与完整 owner template；合法递归委托或
-  type-parameter delegate 发布 `None`，不得把 abstract requirement 冒充 concrete implementation。
+  concrete delegate 同时发布有体 effective target 与完整 owner template；delegate 自身存在唯一
+  validated route 时发布 exact next requirement identity 与经 field actuals 实例化的 receiver template；
+  type-parameter delegate 保持 unresolved，不得把 abstract requirement 冒充 concrete implementation。
 - concrete classifier 按手写 override > delegate > 唯一 active default 的既有优先级解析每个 shape；
   delegate shape 继续由独立 `DelegationPlan` 表达，其余成功 shape 对 contract 完全匹配的每个
   bodyless requirement 发布 requirement/implementation target 及双方 owner template。被 interface
@@ -63,7 +64,8 @@ implementation 与双方 owner template。后继阶段不再从 AST 名称或函
   `by`/delegate target，label 指向首个仍需转发的不兼容 member。
 - [x] Borrow-only delegate forwarder descriptor 与手写等价签名一致；非 Borrow requirement 不发布半成品。
 - [x] direct concrete delegate 的本地 override、继承 default 与 replacement default 发布 exact
-  implementation/owner template；泛型 owner 参数保持 substitution，链式未解析路径原子发布 `None`。
+  implementation/owner template；same/changed requirement identity 的链发布 exact next hop，泛型
+  receiver template 按 delegate field actuals 完整 substitution，type-parameter 路径保持 unresolved。
 - [x] abstract requirement 到本地 override 或唯一 inherited default 的映射只来自 signature contract
   检查结果；双方 owner template 可表达不同泛型参数配方，多 target 去重确定，有体 default/
   `super<I>` 不被误作为重定向 key。
@@ -84,8 +86,10 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 4. [x] 发布 abstract requirement 到 effective implementation 的静态映射与 owner templates → 验证：
    本地 override、replacement、唯一独立 default 与冲突白盒矩阵。
 5. [x] 扩展 delegate forwarder 的可选 effective implementation fact → 验证：本地 override、继承/
-   replacement default、泛型 owner template 与递归委托 `None` 白盒矩阵。
-6. [x] 同步 Architecture/Spec 并运行分层验收门禁。
+   replacement default、泛型 owner template 与 unresolved 白盒矩阵。
+6. [x] 发布 direct/next-hop/unresolved 三态 → 验证：same/changed identity、泛型 field substitution、
+   type-parameter unresolved 与下游兼容矩阵。
+7. [x] 同步 Architecture/Spec 并运行分层验收门禁。
 
 ## 7. 提交计划
 
@@ -95,6 +99,7 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | 2 | concrete abstract-requirement override target fact | `fix(frontend): publish static override targets (SPEC-0180)` |
 | 3 | inherited effective implementation 与双方 owner templates | `fix(frontend): publish inherited dispatch facts (SPEC-0180)` |
 | 4 | delegate exact effective implementation 与未解析边界 | `fix(frontend): publish delegation targets (SPEC-0180)` |
+| 5 | delegate exact next-hop identity 与实例化 receiver template | `feat(frontend): publish delegation next hops (SPEC-0180)` |
 
 ## 8. 未决问题
 
@@ -126,3 +131,8 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | `cargo test -p lang-frontend --test multifile_ownership_checking borrow_only_delegation --locked --offline` | 1/1 通过 | Phase 3 继续消费同一 Borrow-only plan，新增可选 implementation fact 不改变 loan 契约 |
 | `cargo clippy -p lang-frontend --lib --locked --offline -- -D warnings` | 通过 | frontend library Layer 2 静态门禁，零 warning |
 | 独立复审 | 通过 | 无 P1/P2；修正“运行期类型实参”为 v1 单态化语义，interface-bound delegate 与多文件置换为非阻断后续加固项 |
+| `cargo test -p lang-frontend --test multifile_type_checking delegation --locked --offline` | 5/5 通过 | direct endpoint、same/changed identity next hop、generic field substitution 与 type-parameter unresolved 三态白盒；未运行 frontend 全量测试 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking borrow_only_delegation --locked --offline` | 1/1 通过 | Phase 3 仍消费同一 per-hop ownership plan，新增 typed resolution 不改变 loan 契约 |
+| `cargo test -p lang-codegen ssa::unit_plan_tests --locked --offline` | 19/19 通过 | 下游继续兼容 direct/same-target route；identity-changing route 在 Phase 4 消费 next-hop fact 前保持 fail loud |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 聚焦测试并行执行的 workspace library 静态门禁 |
+| 独立高风险复核（delegation next-hop facts） | 通过 | 首轮发现 generic field arguments 未实例化的 P2；复用递归 type substitution 后，nested receiver 携带 outer template，复核至无 P1/P2/P3 |

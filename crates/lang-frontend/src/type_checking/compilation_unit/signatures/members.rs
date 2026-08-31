@@ -14,7 +14,7 @@ use crate::{
     type_checking::{
         BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, ParameterMode,
         TypeCheckingError, UnitDelegationForwarderDescriptor,
-        UnitDelegationImplementationDescriptor, UnitTypeRefId,
+        UnitDelegationImplementationDescriptor, UnitDelegationNextHopDescriptor, UnitTypeRefId,
     },
 };
 
@@ -105,6 +105,7 @@ impl SignatureCollector<'_> {
                 )?;
             }
         }
+        self.resolve_delegation_next_hops(&mut delegations)?;
         for facts in delegations.values_mut() {
             for plan in &mut facts.valid {
                 plan.sort_forwarders();
@@ -114,6 +115,91 @@ impl SignatureCollector<'_> {
             .into_values()
             .flat_map(|facts| facts.valid)
             .collect();
+        Ok(())
+    }
+
+    fn resolve_delegation_next_hops(
+        &mut self,
+        delegations: &mut BTreeMap<DeclarationId, DelegationFacts>,
+    ) -> Result<(), CompilationUnitTypeError> {
+        let mut forwarders_by_owner =
+            BTreeMap::<DeclarationId, Vec<(UnitCallableTarget, UnitTypeId)>>::new();
+        for facts in delegations.values() {
+            for plan in &facts.valid {
+                forwarders_by_owner.entry(plan.owner()).or_default().extend(
+                    plan.forwarders()
+                        .iter()
+                        .map(|forwarder| (forwarder.requirement(), forwarder.receiver_type())),
+                );
+            }
+        }
+
+        for facts in delegations.values_mut() {
+            for plan in &mut facts.valid {
+                let delegate_type = self
+                    .nominals
+                    .get(&plan.owner())
+                    .and_then(|nominal| {
+                        nominal
+                            .fields()
+                            .iter()
+                            .find(|field| field.symbol() == plan.target())
+                    })
+                    .map(|field| field.ty())
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                let Some(UnitTypeKind::Nominal {
+                    declaration: delegate,
+                    arguments: delegate_arguments,
+                }) = self.types.get(delegate_type).cloned()
+                else {
+                    continue;
+                };
+                let delegate_nominal = self
+                    .nominals
+                    .get(&delegate)
+                    .cloned()
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                if delegate_nominal.type_parameters().len() != delegate_arguments.len() {
+                    return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+                }
+                let substitutions = delegate_nominal
+                    .type_parameters()
+                    .iter()
+                    .copied()
+                    .zip(delegate_arguments)
+                    .collect::<BTreeMap<_, _>>();
+                let Some(candidates) = forwarders_by_owner.get(&delegate) else {
+                    continue;
+                };
+                for forwarder in plan.forwarders_mut() {
+                    let direct = forwarder.implementation();
+                    let mut matching = candidates
+                        .iter()
+                        .copied()
+                        .filter(|(requirement, _)| *requirement == forwarder.requirement())
+                        .collect::<Vec<_>>();
+                    if matching.is_empty() {
+                        matching.extend(candidates.iter().copied().filter(|(requirement, _)| {
+                            direct.is_some_and(|implementation| {
+                                *requirement == implementation.target()
+                            })
+                        }));
+                    }
+                    match matching.as_slice() {
+                        [(requirement, receiver_type)] => {
+                            let receiver_type =
+                                self.substitute_type(*receiver_type, &substitutions)?;
+                            forwarder.set_next_hop(UnitDelegationNextHopDescriptor::new(
+                                *requirement,
+                                receiver_type,
+                            ));
+                        }
+                        [] => {}
+                        _ => forwarder.set_unresolved(),
+                    }
+                }
+            }
+        }
         Ok(())
     }
 

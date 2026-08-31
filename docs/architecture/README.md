@@ -841,8 +841,10 @@ SPEC-0197 第一阶段新增纯内存的
   Borrow-only forwarder；任一剩余 Inout/Value requirement 以 `by` 为 primary、首个源码 member 为
   label 发布 L0152，并原子清空该 plan 的 forwarders。direct concrete delegate 的 forwarder 还发布
   已验证有体 effective target 与完整 owner template；本地 override、继承/default replacement 与泛型
-  substitution 保持原 identity，合法递归委托或 type-parameter delegate 明确为 `None`，不把 abstract
-  requirement 伪装为实现。SPEC-0181 进一步消费这些 facts，发布
+  substitution 保持原 identity。所有 plans 完成后，forwarder resolution 收敛为 direct implementation、
+  exact next hop 或 unresolved 私有三态：same/changed requirement identity 的下一跳保存稳定 target 与
+  receiver template，后者按 delegate nominal formals→field actuals 递归实例化；type-parameter delegate
+  保持 unresolved，不把 abstract requirement 伪装为实现。SPEC-0181 进一步消费这些 facts，发布
   receiver loan/copy/move、Value `this` unique drop 与 Borrow-only delegation ownership plan，
   并移除一般 member call 的 `MemberReceiver` deferred；native lowering 由 SPEC-0191 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
@@ -1019,8 +1021,8 @@ typed forwarder 与 Phase 3 ownership plan，以 `(owner, requirement)` visited 
 loan，结束顺序为 argument→inner→outer→原 receiver。delegate 上存在同 target route 时，即使 outer
 forwarder 带 inherited default `Some` 也必须继续，避免 bodyful default 截断；nested local override 因
 没有对应 forwarder而正常成为 endpoint。若下一跳 requirement identity 等于当前 selected implementation
-但不同于原 target，则在 frontend 发布显式 next-hop identity 前以 `UnsupportedNode` 拒绝；无关 delegation
-不触发该门禁。三跳 native 已锁定 default=1 不得替代 endpoint override=7。generic runtime nominal、
+但不同于原 target，则当前 Phase 4 仍以 `UnsupportedNode` 拒绝；SPEC-0180 已发布显式 next-hop identity，
+等待后续 lowering 切片直接消费。无关 delegation 不触发该门禁。三跳 native 已锁定 default=1 不得替代 endpoint override=7。generic runtime nominal、
 identity-changing chain 与无 endpoint `None` route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete

@@ -237,7 +237,8 @@ fun main(): Unit {
       穷尽性检查
 - [x] **[SPEC-0180](../specs/0180-instance-receiver-typed-facts.md)（已完成）**：在 0201 后规范化
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
-      不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
+      delegate forwarder 以 direct implementation / exact next hop / unresolved 三态保存稳定 target
+      与实例化 receiver template；不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
 - [ ] **[SPEC-0179](../specs/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
       只为 intrinsic Array/List/MutableList 发布 provider/element 与名称/discard/value-class
       borrowed projection typed plan；L0159/L0160 拒绝非 provider source/非法结构 binding，
@@ -519,9 +520,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       与 replacement default/local override lowering 也已完成，`StaticSelf` 精确取 delegate field concrete
       type；非泛型 outer/delegate runtime nominal 上的 generic interface owner/callable slots 已完成精确
       重映射与 default/local override native 闭环，runtime generic nominal 仍保持拒绝；递归/type-parameter
-      未解析路径显式为 `None`。同 requirement identity 的非泛型 delegation chain 已完成逐跳
+      路径现已区分 exact next hop 与 type-parameter unresolved。同 requirement identity 的非泛型 delegation chain 已完成逐跳
       typed/ownership route、field-loan chain、cycle 拒绝和三跳 native 闭环；identity-changing chain
-      等待 frontend 精确 next-hop fact。非泛型 ordinary-class Inout interface default
+      的 frontend 精确 next-hop fact 已由 SPEC-0180 发布，等待 Phase 4 直接消费。非泛型 ordinary-class Inout interface default
       已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；MoveOnly Value default
       等待 Phase 3 条件 receiver-drop fact。继续补齐 generic runtime receiver/delegation、Value interface
       default、MoveOnly field replacement 与 generic/identity-changing delegation chain。复用 ADR-0016，只

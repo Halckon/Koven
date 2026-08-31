@@ -6342,7 +6342,7 @@ fn delegation_forwarders_publish_inherited_effective_default_targets() {
 }
 
 #[test]
-fn delegation_forwarders_keep_generic_owner_templates_and_mark_recursive_routes_unresolved() {
+fn delegation_forwarders_keep_generic_owner_templates_and_publish_exact_next_hops() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -6351,6 +6351,7 @@ fn delegation_forwarders_keep_generic_owner_templates_and_mark_recursive_routes_
          interface Readable { fun read(): Int }\n\
          class Reader<T>: Readable { override fun read(): Int = 7 }\n\
          class GenericHost<T>(val reader: Reader<T>): Readable by reader\n\
+         class DeferredHost<T: Readable>(val target: T): Readable by target\n\
          class Middle(val reader: Reader<Int>): Readable by reader\n\
          class RecursiveHost(val middle: Middle): Readable by middle",
     );
@@ -6406,15 +6407,130 @@ fn delegation_forwarders_keep_generic_owner_templates_and_mark_recursive_routes_
             if *parameter == generic_host.type_parameters()[0]
     ));
 
+    let deferred = &plan("DeferredHost").forwarders()[0];
+    assert_eq!(deferred.implementation(), None);
+    assert_eq!(
+        deferred.next_hop(),
+        None,
+        "type-parameter delegate stays unresolved until monomorphization"
+    );
+
     assert!(
         plan("Middle").forwarders()[0].implementation().is_some(),
         "the first direct forwarding hop must remain concrete"
     );
-    assert_eq!(
-        plan("RecursiveHost").forwarders()[0].implementation(),
-        None,
-        "a legal recursive delegation route must not publish an abstract requirement as a body"
+    let recursive = &plan("RecursiveHost").forwarders()[0];
+    assert_eq!(recursive.implementation(), None);
+    let next = recursive
+        .next_hop()
+        .expect("a legal recursive delegation route must publish its exact next hop");
+    assert_eq!(next.requirement(), recursive.requirement());
+    assert_eq!(next.receiver_type(), recursive.receiver_type());
+}
+
+#[test]
+fn delegation_forwarders_publish_identity_changing_next_hops() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "delegation-replacement-next-hop.ko",
+        "package p\n\
+         interface Base { fun read(): Int = 1 }\n\
+         interface Derived: Base { fun read(): Int = 2 }\n\
+         class Reader: Derived { override fun read(): Int = 7 }\n\
+         class Middle(val reader: Reader): Derived by reader\n\
+         class Host(val middle: Middle): Base by middle",
     );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/delegation-replacement-next-hop.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("identity-changing delegation facts remain recoverable")
+        .validate()
+        .expect("identity-changing delegation fixture must be valid");
+    let signatures = typed.types().signatures();
+    let nominal = |name| {
+        signatures
+            .declaration(declaration(&names, name))
+            .and_then(|signature| signature.nominal())
+            .unwrap_or_else(|| panic!("{name} signature"))
+    };
+    let base = nominal("Base");
+    let derived = nominal("Derived");
+    let plan = |name| {
+        signatures
+            .delegations()
+            .iter()
+            .find(|plan| plan.owner() == declaration(&names, name))
+            .unwrap_or_else(|| panic!("{name} delegation"))
+    };
+
+    let outer = &plan("Host").forwarders()[0];
+    assert_eq!(outer.requirement(), base.members()[0].target());
+    assert_eq!(outer.implementation(), None);
+    let next = outer
+        .next_hop()
+        .expect("replacement chain must publish the Derived requirement identity");
+    assert_eq!(next.requirement(), derived.members()[0].target());
+    assert_eq!(next.receiver_type(), derived.ty());
+}
+
+#[test]
+fn delegation_next_hop_receiver_is_instantiated_through_the_delegate_field() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "delegation-generic-next-hop.ko",
+        "package p\n\
+         interface Echo<T> { fun echo(own input: T): T }\n\
+         class Leaf<T>: Echo<T> { override fun echo(own input: T): T = input }\n\
+         class Middle<U>(val leaf: Leaf<U>): Echo<U> by leaf\n\
+         class Host<T>(val middle: Middle<T>): Echo<T> by middle",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/delegation-generic-next-hop.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("generic delegation next-hop facts remain recoverable")
+        .validate()
+        .expect("generic delegation next-hop fixture must be valid");
+    let signatures = typed.types().signatures();
+    let host = signatures
+        .declaration(declaration(&names, "Host"))
+        .and_then(|signature| signature.nominal())
+        .expect("Host signature");
+    let plan = signatures
+        .delegations()
+        .iter()
+        .find(|plan| plan.owner() == host.declaration())
+        .expect("Host delegation");
+    let next = plan.forwarders()[0]
+        .next_hop()
+        .expect("generic chain must publish an exact next hop");
+    let Some(UnitTypeKind::Nominal { arguments, .. }) =
+        typed.types().signatures().types().get(next.receiver_type())
+    else {
+        panic!("next-hop receiver must remain a nominal interface instance");
+    };
+    assert!(matches!(
+        arguments.as_slice(),
+        [argument]
+            if matches!(
+                typed.types().signatures().types().get(*argument),
+                Some(UnitTypeKind::TypeParameter(parameter))
+                    if *parameter == host.type_parameters()[0]
+            )
+    ));
 }
 
 #[test]
