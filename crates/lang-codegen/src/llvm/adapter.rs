@@ -19,8 +19,8 @@ use inkwell::{
 
 use crate::ssa::model::{
     BinaryOperator, BlockId, CheckedArithmeticOperator, ComparisonOperator, Edge, EntityId,
-    EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, PlaceAccess, PlaceId,
-    ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
+    EntityType, Function, FunctionId, Instruction, LoanId, Module, Operation, Ownership,
+    PlaceAccess, PlaceId, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
 };
 
 use super::{
@@ -627,11 +627,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 field,
                 value,
             } => {
+                let field_type = value_type(self.function, *value)?;
                 let pointer = self.heap_field_pointer(
                     *receiver,
                     *field,
                     &format!("replace.i{}", instruction.id.index()),
                 )?;
+                if self.module.type_ownership(field_type) == Some(Ownership::MoveOnly) {
+                    let old = self.builder.build_load(
+                        self.dependencies.type_map.basic_type(field_type)?,
+                        pointer,
+                        &format!("replace.i{}.old", instruction.id.index()),
+                    )?;
+                    self.dependencies
+                        .runtime
+                        .emit_drop(&self.builder, field_type, old)?;
+                }
                 self.builder.build_store(pointer, self.value(*value)?)?;
             }
             Operation::SharedAllocate { owner, payload } => {

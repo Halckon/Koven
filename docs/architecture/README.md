@@ -978,13 +978,14 @@ typed 前置已解除。SPEC-0191 的下一切片已直接消费该 descriptor�
 增加 `HeapFieldRead` 与 `HeapFieldReplace`：read 允许 shared/exclusive receiver 但只读取 Copyable
 field，replace 只接受无 active derived loan 的 exclusive receiver，并使用 RHS 而不消费 receiver。
 LLVM 从 receiver loan 指向的 caller handle storage load 同一 handle，再以 payload aggregate 做 field
-GEP；它只对 field 执行 field-typed load/store，不写 receiver storage、不替换 handle，也不建立 payload-only
+GEP；它只对 field 执行 field-typed load/store/drop，不写 receiver storage、不替换 handle，也不建立 payload-only
 call ABI。普通 `=` 先完整 lower RHS，`Nothing` 路径不生成 replace；正常路径核对 assignment 的
 expression/target/value/operator/storage-type/control identity 后才写 field。裸 field、`this.field` 与
 grouped `this` 共享同一 current receiver identity；真实 object/link/run 由后续 Borrow getter 从同一
-caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；frontend
-现已发布 MoveOnly 旧字段 replacement fact，但 SSA/LLVM 尚未消费，因此 MoveOnly field replacement
-仍在 program 发布前确定性拒绝。interface callable template
+caller owner 观察更新值。MoveOnly field 另要求唯一 `BeforeReplacement/ReplacedField` fact，交叉核对
+assignment、field symbol 与 target origin；RHS owner 先转交，LLVM 再 load/drop 旧字段并 store 新值，
+动态 String 的 source→object→link→run 已闭合。`HeapFieldRead` 仍只接受 Copyable field，任意 owner
+expression 与 generic payload layout 继续保持拒绝。interface callable template
 以 `StaticSelf(interface)` 保存 receiver；
 unit instance key 另存 concrete self，
 使同一 default 对不同 concrete owner 分别单态化并计入实例上限。直接 default、concrete override

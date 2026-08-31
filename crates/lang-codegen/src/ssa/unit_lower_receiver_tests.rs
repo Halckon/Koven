@@ -893,6 +893,82 @@ fn inout_class_receiver_replaces_and_reads_the_same_payload_field() {
 }
 
 #[test]
+fn inout_class_receiver_replaces_a_move_only_payload_field() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Cell(var item: String) {\n\
+             inout fun set(): Unit {\n\
+                 val ignored: Unit = (this.item = \"n\" + \"ew\")\n\
+             }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val cell = Cell(\"old\")\n\
+             val ignored = cell.set()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("MoveOnly class payload replacement must consume the old-field drop fact");
+
+    let module = &program.modules[0];
+    let member = function(module.functions.iter(), ".Cell.set.s");
+    let concat = member
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction.operation, Operation::StringConcat { .. }))
+        .expect("replacement RHS concat");
+    let replace = member
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::HeapFieldReplace { field: 0, .. }
+            )
+        })
+        .expect("MoveOnly payload replacement");
+    assert!(
+        concat < replace,
+        "RHS must finish before old-field replacement"
+    );
+
+    let llvm = render_verified_program(&program).expect("MoveOnly field replacement LLVM");
+    let member_llvm = llvm
+        .split("define internal void @f1.koven.p.Cell.set")
+        .nth(1)
+        .and_then(|body| body.split("define internal").next())
+        .unwrap_or_else(|| panic!("member LLVM body:\n{llvm}"));
+    let old_load = member_llvm
+        .find(".old = load")
+        .unwrap_or_else(|| panic!("old field is loaded after RHS evaluation:\n{member_llvm}"));
+    let old_drop = member_llvm[old_load..]
+        .find("call void @koven.drop")
+        .map(|offset| old_load + offset)
+        .expect("old MoveOnly field is dropped");
+    let replacement_store = member_llvm[old_drop..]
+        .find("store")
+        .map(|offset| old_drop + offset)
+        .expect("new field is committed after the old drop");
+    assert!(
+        old_load < old_drop && old_drop < replacement_store,
+        "{member_llvm}"
+    );
+}
+
+#[test]
 fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

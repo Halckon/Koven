@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | Copyable ordinary-class Inout payload assignment 与非泛型 Value interface default 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact；generic runtime nominal 等待独立布局切片 |
+| 阻塞项 | Copyable/MoveOnly ordinary-class Inout payload assignment 与非泛型 Value interface default 已闭合；generic runtime nominal 等待独立布局切片 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -36,6 +36,10 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - Value interface default 只消费 SPEC-0181 的 conditional receiver-drop fact：精确核对 interface
   owner、原始 `StaticSelf` template、concrete specialization 与 Value ABI；MoveOnly callee 在每个
   退出边析构一次，Copyable specialization 跳过，不由 codegen 自行推断 drop point。
+- 非泛型 ordinary-class Inout receiver 的 MoveOnly `var` field replacement 必须消费唯一
+  `BeforeReplacement/ReplacedField` fact，并交叉核对 assignment、field symbol 与 target origin；
+  RHS owned value 转交给 field，LLVM 按 RHS 完成→load old→drop old→store new 的 guide 顺序执行。
+  `HeapFieldRead` 仍只开放 Copyable field，receiver handle/storage 与公开 ABI 不变。
 - 无状态 object receiver 按静态唯一 value identity lower，可使用临时 ZST addressization 满足
   Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。
 - Borrow-only delegation 生成确定性静态 thunk 或等价直接转发；只投影 delegate field 和转交
@@ -59,6 +63,8 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
 - [x] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
+- [x] MoveOnly class payload replacement 精确消费旧字段 fact，exclusive loan/verifier 接受且
+  shared/inactive/derived-loan/read 负矩阵保持；LLVM old-drop-before-store 与 native 动态 String 闭环通过。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -76,7 +82,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
-   已完成，generic nominal layout 与 MoveOnly field replacement 继续实施。
+   已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
+   generic nominal layout 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
@@ -111,11 +118,12 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 6 | 同 requirement identity 的非泛型 delegation chain | `feat(codegen): lower delegation chains (SPEC-0191)` |
 | 7 | identity-changing delegation chain 的 exact next-hop 消费 | `feat(codegen): lower replacement delegation chains (SPEC-0191)` |
 | 8 | Value interface default 的 conditional receiver-drop 消费 | `feat(codegen): lower value interface defaults (SPEC-0191)` |
+| 9 | MoveOnly ordinary-class field replacement fact/SSA/LLVM/native 消费 | `feat(codegen): lower move-only field replacement (SPEC-0191)` |
 
 ## 8. 未决问题
 
-- generic runtime nominal receiver/delegation 等待统一实例化布局；MoveOnly field replacement 等待
-  Phase 3 旧字段 drop/replacement fact。
+- generic runtime nominal receiver/delegation 等待统一实例化布局；本切片只开放 current
+  non-generic ordinary-class receiver field，不扩张任意 owner expression 或 generic payload layout。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
@@ -208,3 +216,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib --locked --offline`（独立复审） | 292 通过、1 ignored | 完整 codegen library 回归；ignored 为既有 LLDB sandbox 用例，未运行 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与 receiver/native 职责测试并行执行；未运行约一小时的 frontend 全量测试 |
 | 独立高风险复核（Value interface default） | 通过 | 发现并关闭 Copyable 分支未就地核对 Value entity ABI 的 P3；复核 unconditional→conditional drop 顺序、owner/template/concrete/ABI、duplicate/mismatch fail-loud、CFG/loop/thunk 路径后无剩余 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline` | 29/29 通过 | setter body 内动态 `StringConcat` 先于 `HeapFieldReplace`；LLVM 锁定 old load→drop glue→new store，既有 receiver/default/delegation 回归不变 |
+| `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline` | 13/13 通过 | MoveOnly replace 允许 active exclusive receiver；shared/inactive/active descendant loan、MoveOnly read 与越界 field 继续拒绝 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 15/15 通过 | caller 动态 old/next String 经 Value 转交，真实 source→object→clang→run 输出 `done`；完整 receiver/default/delegation native 小模块回归通过 |
+| `cargo test -p lang-codegen --lib --locked --offline`（独立复审） | 294 通过、1 ignored | 完整 codegen library 回归；ignored 为既有 LLDB sandbox 用例，未运行耗时 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与 receiver/verifier/native 三组职责测试并行执行，零 warning |
+| 独立高风险复核（MoveOnly field replacement） | 通过 | 首轮发现同 body RHS 顺序覆盖 P3；改用 setter 内动态 concat 并锁定 SSA 顺序后，复核 fact identity、owner transfer、implicit old drop、runtime glue、LLVM/ABI 与文档边界均无剩余 P1/P2/P3 |

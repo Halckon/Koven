@@ -2,6 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
+    name_resolution::UnitSymbolId,
     source::Span,
     type_checking::{
         Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind, ParameterMode,
@@ -21,6 +22,7 @@ pub(super) struct CurrentClassField {
     pub(super) receiver_kind: LoanKind,
     pub(super) ty: UnitTypeId,
     pub(super) ssa_type: SsaTypeId,
+    pub(super) symbol: UnitSymbolId,
     pub(super) field: usize,
 }
 
@@ -442,6 +444,7 @@ impl UnitExpressionLowerer<'_> {
             receiver_kind,
             ty: projection.ty(),
             ssa_type,
+            symbol: projection.field(),
             field,
         }))
     }

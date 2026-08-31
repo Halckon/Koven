@@ -507,6 +507,55 @@ fn inout_class_payload_mutation_is_observed_by_a_later_borrow() {
 }
 
 #[test]
+fn move_only_class_payload_replacement_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         class Cell(var item: String) {\n\
+             inout fun set(own next: String): Unit {\n\
+                 val ignored: Unit = (this.item = next)\n\
+             }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val old = \"o\" + \"ld\"\n\
+             val cell = Cell(old)\n\
+             val next = \"n\" + \"ew\"\n\
+             val ignored = cell.set(next)\n\
+             if (true) { println(\"done\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("move-only-field.o");
+    let executable = directory.join("move-only-field");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("MoveOnly field replacement must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked MoveOnly field replacement executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn stateless_object_borrow_receiver_links_and_runs_without_runtime_storage() {
     let analysis = analyze_sources(
         "package p\n\

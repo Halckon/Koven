@@ -414,7 +414,8 @@ pub(crate) enum Operation {
         receiver: LoanId,
         field: usize,
     },
-    /// Replace one Copyable payload field through an active exclusive heap-owner receiver loan.
+    /// Replace one payload field through an active exclusive heap-owner receiver loan.
+    /// MoveOnly fields implicitly drop the old value before committing the replacement.
     HeapFieldReplace {
         receiver: LoanId,
         field: usize,

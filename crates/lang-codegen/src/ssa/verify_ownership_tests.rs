@@ -905,18 +905,15 @@ fn heap_field_replace_requires_an_active_unshadowed_exclusive_receiver() {
         VerifyErrorKind::OperationContract { .. }
     )));
 
-    let move_only = errors(&heap_field_program(
+    let move_only = heap_field_program(
         LoanKind::Exclusive,
         false,
         false,
         0,
         TestType::MoveOnly,
         HeapFieldAction::Replace,
-    ));
-    assert!(has_kind(&move_only, |kind| matches!(
-        kind,
-        VerifyErrorKind::OperationContract { .. }
-    )));
+    );
+    assert_eq!(verify_program(&move_only), Ok(()));
 
     let move_only_read = errors(&heap_field_program(
         LoanKind::Shared,

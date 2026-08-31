@@ -2,6 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
+    ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, Expression},
     source::Span,
     type_checking::{Copyability, UnitExpressionId},
@@ -136,13 +137,14 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .assignment(expression_id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let copyability = self.typed.types().copyability(field.ty);
         if descriptor.expression() != expression_id
             || descriptor.target() != target_id
             || descriptor.value() != value_id
             || descriptor.operator() != AssignmentOperator::Assign
             || descriptor.target_type() != field.ty
             || field.receiver_kind != LoanKind::Exclusive
-            || self.typed.types().copyability(field.ty) != Copyability::Copyable
+            || !matches!(copyability, Copyability::Copyable | Copyability::MoveOnly)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -159,6 +161,18 @@ impl UnitExpressionLowerer<'_> {
         if self.expression_ssa_type(value, span)? != field.ssa_type {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        self.validate_field_replacement_drop(
+            expression_id,
+            field.symbol,
+            copyability,
+            self.parsed
+                .ast()
+                .expressions()
+                .get(target)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .span(),
+        )?;
+        self.transfer_owned_expression(value, assigned, span)?;
         self.function
             .append_instruction(
                 self.block,
@@ -172,6 +186,48 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Unit)
+    }
+
+    fn validate_field_replacement_drop(
+        &self,
+        expression: UnitExpressionId,
+        field: lang_frontend::name_resolution::UnitSymbolId,
+        copyability: Copyability,
+        target_span: Span,
+    ) -> Result<(), LoweringError> {
+        let point = UnitDropPoint::BeforeReplacement(expression);
+        let facts = self
+            .owned
+            .ownership()
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| {
+                fact.point() == point
+                    || matches!(
+                        fact.target(),
+                        UnitDropTarget::ReplacedField { assignment, .. }
+                            if assignment == expression
+                    )
+            })
+            .collect::<Vec<_>>();
+        let exact = matches!(
+            facts.as_slice(),
+            [fact]
+                if fact.point() == point
+                    && fact.target()
+                        == UnitDropTarget::ReplacedField {
+                            assignment: expression,
+                            field,
+                        }
+                    && fact.value_origin() == target_span
+        );
+        if (copyability == Copyability::MoveOnly && exact)
+            || (copyability == Copyability::Copyable && facts.is_empty())
+        {
+            return Ok(());
+        }
+        Err(lowering_error(LoweringErrorKind::MissingFact, target_span))
     }
 
     fn require_matching_assignment_type(
