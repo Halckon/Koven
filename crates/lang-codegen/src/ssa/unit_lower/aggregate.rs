@@ -20,9 +20,17 @@ use crate::ssa::{
     unit_plan::resolve_nominal_runtime_field_types,
 };
 
-pub(super) struct CurrentClassField {
-    pub(super) receiver: LoanId,
-    pub(super) receiver_kind: LoanKind,
+pub(super) enum CurrentReceiverFieldStorage {
+    Heap {
+        receiver: LoanId,
+        receiver_kind: LoanKind,
+    },
+    Inline,
+}
+
+pub(super) struct CurrentReceiverField {
+    pub(super) storage: CurrentReceiverFieldStorage,
+    pub(super) owner_ty: UnitTypeId,
     pub(super) ty: UnitTypeId,
     pub(super) ssa_type: SsaTypeId,
     pub(super) symbol: UnitSymbolId,
@@ -209,20 +217,27 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        if let Some(field) = self.current_class_field(expression, span)? {
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::HeapFieldRead {
-                        receiver: field.receiver,
-                        field: field.field,
-                    },
-                    vec![EntityType::Value(field.ssa_type)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            return Ok(LoweredValue::Value(require_value(results[0], span)?));
+        if let Some(field) = self.current_receiver_field(expression, span)? {
+            match field.storage {
+                CurrentReceiverFieldStorage::Heap { receiver, .. } => {
+                    let (_, results) = self
+                        .function
+                        .append_instruction(
+                            self.block,
+                            Operation::HeapFieldRead {
+                                receiver,
+                                field: field.field,
+                            },
+                            vec![EntityType::Value(field.ssa_type)],
+                            Origin::Source(span),
+                        )
+                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                    return Ok(LoweredValue::Value(require_value(results[0], span)?));
+                }
+                CurrentReceiverFieldStorage::Inline => {
+                    return self.lower_this_value_field(field.field, field.ssa_type, span);
+                }
+            }
         }
         let (receiver_type, explicit_receiver) = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
@@ -373,11 +388,11 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 
-    pub(super) fn current_class_field(
+    pub(super) fn current_receiver_field(
         &self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<Option<CurrentClassField>, LoweringError> {
+    ) -> Result<Option<CurrentReceiverField>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let Some(projection) = self.typed.types().aggregate_projection(id) else {
             return Ok(None);
@@ -432,40 +447,56 @@ impl UnitExpressionLowerer<'_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal.kind() != NominalKind::Class
+        if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
             || arguments.len() != nominal.type_parameters().len()
+            || (nominal.kind() == NominalKind::ValueClass && !arguments.is_empty())
         {
             return Ok(None);
         }
         let concrete_fields =
             resolve_nominal_runtime_field_types(self.typed, current.ty, nominal, arguments)?;
-        let EntityId::Loan(receiver) = current.entity else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let receiver_kind = match current.mode {
-            ParameterMode::Borrow => LoanKind::Shared,
-            ParameterMode::Inout => LoanKind::Exclusive,
-            ParameterMode::Value => {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
-        };
         let receiver_ssa = self
             .type_ids
             .get(&current.ty)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self
-            .function
-            .entity(EntityId::Loan(receiver))
-            .map(|entity| entity.ty)
-            != Some(EntityType::Loan {
-                kind: receiver_kind,
-                target: receiver_ssa,
-            })
-            || !self.heap_payloads.contains_key(&receiver_ssa)
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
+        let storage = match nominal.kind() {
+            NominalKind::Class => {
+                let EntityId::Loan(receiver) = current.entity else {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                };
+                let receiver_kind = match current.mode {
+                    ParameterMode::Borrow => LoanKind::Shared,
+                    ParameterMode::Inout => LoanKind::Exclusive,
+                    ParameterMode::Value => {
+                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                };
+                if self
+                    .function
+                    .entity(EntityId::Loan(receiver))
+                    .map(|entity| entity.ty)
+                    != Some(EntityType::Loan {
+                        kind: receiver_kind,
+                        target: receiver_ssa,
+                    })
+                    || !self.heap_payloads.contains_key(&receiver_ssa)
+                {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                CurrentReceiverFieldStorage::Heap {
+                    receiver,
+                    receiver_kind,
+                }
+            }
+            NominalKind::ValueClass => {
+                if self.heap_payloads.contains_key(&receiver_ssa) {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                CurrentReceiverFieldStorage::Inline
+            }
+            NominalKind::Interface | NominalKind::EnumClass | NominalKind::Object => unreachable!(),
+        };
         let field = self
             .field_indices
             .get(&(current.ty, projection.field()))
@@ -490,9 +521,9 @@ impl UnitExpressionLowerer<'_> {
             .get(&concrete_type)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        Ok(Some(CurrentClassField {
-            receiver,
-            receiver_kind,
+        Ok(Some(CurrentReceiverField {
+            storage,
+            owner_ty: current.ty,
             ty: projection.ty(),
             ssa_type,
             symbol: projection.field(),

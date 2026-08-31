@@ -539,9 +539,11 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       `Reader<Wrapper<T>>` Borrow delegation 已完成 native 闭环。non-generic enum Borrow/Value receiver
       已复用 root tagged identity；SPEC-0221 已补齐整体 MoveOnly enum 的空 payload case，使其经
       local/return/Value call/Value receiver 唯一转移，并与含 String payload case 共用 tag-dispatch drop glue。
-      non-generic value class/enum read-only Inout 已通过 call-scoped addressization 建立 exclusive pointer
-      ABI，value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；inline `var` field
-      replacement/mutation write-back 仍 fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
+      non-generic value class/enum Inout 已通过 call-scoped addressization 建立 exclusive pointer ABI，
+      value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；整体与目标字段均
+      Copyable 的 value class 已通过 `InlineFieldReplace` 完成原位 mutation、caller loan-end 后 same-root
+      read/rebind 与 native 闭环，implicit Inout `this` 直接转发既有 exclusive loan。整体或字段 MoveOnly
+      的 inline mutation/write-back 仍 fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
       Phase 2 L0099 拒绝。
       `T?`、function、其他 intrinsic、
       非 class / 多参数 wrapper、参数增长型与 inherited owner recipe 继续保持确定性门禁。复用 ADR-0016，只

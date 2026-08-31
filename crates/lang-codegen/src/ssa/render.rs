@@ -511,6 +511,16 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write!(output, ", {field}, ")?;
             write_entity_id(output, EntityId::Value(*value))
         }
+        Operation::InlineFieldReplace {
+            receiver,
+            field,
+            value,
+        } => {
+            output.write_str("inline.field_replace ")?;
+            write_entity_id(output, EntityId::Loan(*receiver))?;
+            write!(output, ", {field}, ")?;
+            write_entity_id(output, EntityId::Value(*value))
+        }
         Operation::SharedAllocate { owner, payload } => {
             output.write_str("shared.allocate ")?;
             write_type_id(output, *owner)?;

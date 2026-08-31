@@ -979,12 +979,17 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 返回的 `ControlTransfer` drop 已进入 verified SSA/LLVM。真实 compilation-unit object/link/run 已覆盖
 非泛型 value class 的 Borrow/Copyable Value receiver 与 ordinary class 的 Borrow/MoveOnly Value
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
-唯一析构；non-generic value class/enum 的 read-only Inout 先把当前 SSA value addressize 为 call-scoped
+唯一析构；non-generic value class/enum 的 Inout 先把当前 SSA value addressize 为 call-scoped
 storage，callee 保持 exact aggregate/tagged type 的 exclusive pointer ABI。value-class Inout 读取 Copyable field 时先从 exclusive
 receiver 建立短 shared reborrow，再投影字段并按 field→reborrow 逆序结束 derived loan；真实 native
 输出已锁定两种 inline receiver。ownership verifier 已把 `SharedFieldLoan` 登记为 parent/child
-dependency，拒绝 derived field loan 活跃时提前结束 reborrow。inline `var` field replacement 与
-mutation write-back 尚未开放，并在 SSA 发布前 fail loud。后续 generic ordinary-class layout
+dependency，拒绝 derived field loan 活跃时提前结束 reborrow。整体与目标字段均满足 Copyable 的
+non-generic value class 已使用独立 `InlineFieldReplace` 完成 inline `var` field mutation：verifier
+要求 active、无派生 loan 的 exact exclusive aggregate receiver 与 exact Copyable value，LLVM 对
+receiver storage 直接 field GEP/store，不加载或析构旧 Copyable field。caller 在 DirectCall 后依次
+结束实参 loan 与 receiver loan，再从同一 `RootPlace` 读取并重绑定源码 root；implicit Inout `this`
+则直接转发既有 exclusive loan，不重复 addressize/write-back。整体或字段 MoveOnly 继续在发布 SSA
+前 fail loud，等待 take/move、旧字段 drop fact 与 owner write-back 契约。后续 generic ordinary-class layout
 已按 concrete `UnitTypeId` 开放参数无关 field、恰为 owner direct type parameter 的 field，以及
 SPEC-0219 exact owner descriptor 授权、由 `List` / 单参数 ordinary class 递归组成的有限 field recipe；
 descriptor 消费逐项核对 owner declaration/arguments 与 field symbol/template/span/concrete type，

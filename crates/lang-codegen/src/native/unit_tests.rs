@@ -649,6 +649,53 @@ fn inline_inout_read_only_receivers_link_and_run() {
 }
 
 #[test]
+fn copyable_inline_inout_mutation_is_observed_after_writeback() {
+    let analysis = analyze_sources(
+        "package p\n\
+         fun next(): Int = 7\n\
+         value class Counter(var item: Int) {\n\
+             inout fun set(own nextValue: Int): Unit { item = nextValue }\n\
+             fun read(): Int = item\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var counter = Counter(1)\n\
+             val ignored = counter.set(next())\n\
+             if (counter.read() == 7) { println(\"inline-writeback\") } else { error(\"stale value\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("inline-inout-writeback.o");
+    let executable = directory.join("inline-inout-writeback");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("Copyable inline Inout write-back must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked inline write-back executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"inline-writeback\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn interface_default_and_super_static_calls_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\

@@ -5,7 +5,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, Expression},
     source::Span,
-    type_checking::{Copyability, UnitExpressionId},
+    type_checking::{Copyability, ParameterMode, UnitExpressionId},
 };
 
 use super::{
@@ -13,7 +13,7 @@ use super::{
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{CheckedArithmeticOperator, EntityType, LoanKind, Operation, Origin},
+    model::{CheckedArithmeticOperator, EntityId, EntityType, LoanKind, Operation, Origin},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -26,10 +26,10 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         if operator == AssignmentOperator::Assign
-            && let Some(field) = self.current_class_field(target, span)?
+            && let Some(field) = self.current_receiver_field(target, span)?
         {
             return self
-                .lower_current_class_field_assignment(expression, target, value, field, span);
+                .lower_current_receiver_field_assignment(expression, target, value, field, span);
         }
         if operator == AssignmentOperator::Assign
             && self
@@ -146,12 +146,12 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Unit)
     }
 
-    fn lower_current_class_field_assignment(
+    fn lower_current_receiver_field_assignment(
         &mut self,
         expression: ExpressionId,
         target: ExpressionId,
         value: ExpressionId,
-        field: super::aggregate::CurrentClassField,
+        field: super::aggregate::CurrentReceiverField,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let expression_id = UnitExpressionId::new(self.source_unit, expression);
@@ -168,11 +168,51 @@ impl UnitExpressionLowerer<'_> {
             || descriptor.value() != value_id
             || descriptor.operator() != AssignmentOperator::Assign
             || descriptor.target_type() != field.ty
-            || field.receiver_kind != LoanKind::Exclusive
             || !matches!(copyability, Copyability::Copyable | Copyability::MoveOnly)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let operation = match field.storage {
+            super::aggregate::CurrentReceiverFieldStorage::Heap {
+                receiver,
+                receiver_kind: LoanKind::Exclusive,
+            } => CurrentFieldOperation::Heap(receiver),
+            super::aggregate::CurrentReceiverFieldStorage::Inline
+                if self.typed.types().copyability(field.owner_ty) == Copyability::Copyable
+                    && copyability == Copyability::Copyable =>
+            {
+                let current = self
+                    .current_receiver
+                    .filter(|current| {
+                        current.ty == field.owner_ty && current.mode == ParameterMode::Inout
+                    })
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let EntityId::Loan(receiver) = current.entity else {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                };
+                let target = self
+                    .type_ids
+                    .get(&field.owner_ty)
+                    .copied()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if self
+                    .function
+                    .entity(EntityId::Loan(receiver))
+                    .map(|entity| entity.ty)
+                    != Some(EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        target,
+                    })
+                {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                CurrentFieldOperation::Inline(receiver)
+            }
+            super::aggregate::CurrentReceiverFieldStorage::Heap { .. }
+            | super::aggregate::CurrentReceiverFieldStorage::Inline => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        };
         let assigned = self.lower(value)?;
         let assigned = match assigned {
             LoweredValue::Diverged if !descriptor.falls_through() => {
@@ -199,14 +239,22 @@ impl UnitExpressionLowerer<'_> {
         if !transferred {
             self.transfer_owned_expression(value, assigned, span)?;
         }
+        let operation = match operation {
+            CurrentFieldOperation::Heap(receiver) => Operation::HeapFieldReplace {
+                receiver,
+                field: field.field,
+                value: assigned,
+            },
+            CurrentFieldOperation::Inline(receiver) => Operation::InlineFieldReplace {
+                receiver,
+                field: field.field,
+                value: assigned,
+            },
+        };
         self.function
             .append_instruction(
                 self.block,
-                Operation::HeapFieldReplace {
-                    receiver: field.receiver,
-                    field: field.field,
-                    value: assigned,
-                },
+                operation,
                 Vec::<EntityType>::new(),
                 Origin::Source(span),
             )
@@ -267,6 +315,11 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+}
+
+enum CurrentFieldOperation {
+    Heap(crate::ssa::model::LoanId),
+    Inline(crate::ssa::model::LoanId),
 }
 
 fn assignment_operator(operator: AssignmentOperator) -> CheckedArithmeticOperator {

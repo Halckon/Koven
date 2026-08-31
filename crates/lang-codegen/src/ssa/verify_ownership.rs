@@ -598,6 +598,9 @@ fn apply_operation(
         }
         Operation::HeapFieldReplace {
             receiver, value, ..
+        }
+        | Operation::InlineFieldReplace {
+            receiver, value, ..
         } => {
             if !state.loans.contains(receiver) {
                 errors.push(error(

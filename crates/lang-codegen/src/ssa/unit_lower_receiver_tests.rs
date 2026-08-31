@@ -1065,18 +1065,18 @@ fn inline_inout_read_only_receivers_use_exclusive_call_storage() {
 }
 
 #[test]
-fn inline_inout_field_replacement_remains_an_explicit_boundary() {
+fn move_only_inline_inout_field_replacement_remains_an_explicit_boundary() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/inline-inout-replacement.ko",
         "package p\n\
-         value class Counter(var item: Int) {\n\
-             inout fun set(own next: Int): Unit { item = next }\n\
+         value class Resource(var item: String) {\n\
+             inout fun set(own next: String): Unit { item = next }\n\
          }\n\
          fun entry(): Unit {\n\
-             var counter = Counter(1)\n\
-             val ignored = counter.set(2)\n\
+             var resource = Resource(\"old\")\n\
+             val ignored = resource.set(\"new\")\n\
          }",
     );
     let inputs = [SourceUnitInput::new(
@@ -1098,10 +1098,274 @@ fn inline_inout_field_replacement_remains_an_explicit_boundary() {
         declaration(&names, "p", "entry"),
     ) {
         Err(error) => error,
-        Ok(_) => panic!("inline field replacement requires storage write-back support"),
+        Ok(_) => panic!("MoveOnly inline field replacement requires take/write-back support"),
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+}
+
+#[test]
+fn copyable_inline_inout_rebinds_the_mutated_value_after_the_call() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/copyable-inline-inout.ko",
+        "package p\n\
+         value class Counter(var item: Int) {\n\
+             inout fun set(next: Int): Unit { item = next }\n\
+             fun read(): Int = item\n\
+         }\n\
+         fun entry(): Int {\n\
+             var counter = Counter(1)\n\
+             val ignored = counter.set(7)\n\
+             return counter.read()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/copyable-inline-inout.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("Copyable inline Inout mutation must rebind the caller value");
+    let module = &program.modules[0];
+    let setter = function(module.functions.iter(), ".Counter.set.s");
+    let EntityId::Loan(setter_receiver) = setter.blocks[0].parameters[0] else {
+        panic!("setter receiver loan");
+    };
+    let EntityId::Loan(next) = setter.blocks[0].parameters[1] else {
+        panic!("setter borrowed parameter");
+    };
+    let next_value = setter
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (
+                    Operation::Read {
+                        source: PlaceAccess::Loan(actual),
+                    },
+                    [EntityId::Value(value)],
+                ) if *actual == next => Some(*value),
+                _ => None,
+            },
+        )
+        .expect("borrowed replacement read");
+    assert!(setter.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::InlineFieldReplace {
+            receiver,
+            field: 0,
+            value,
+        } if receiver == setter_receiver && value == next_value
+    )));
+
+    let getter = function(module.functions.iter(), ".Counter.read.s");
+    let entry = function(module.functions.iter(), ".entry.d");
+    let set_call = entry
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::DirectCall { callee, .. } if callee == setter.id()
+            )
+        })
+        .expect("setter call");
+    let (receiver, argument, place) = match &entry.instructions[set_call].operation {
+        Operation::DirectCall {
+            receiver: Some(EntityId::Loan(receiver)),
+            arguments,
+            ..
+        } => {
+            let [EntityId::Loan(argument)] = arguments.as_slice() else {
+                panic!("setter borrowed argument: {arguments:?}");
+            };
+            let place = entry.instructions[..set_call]
+                .iter()
+                .find_map(|instruction| {
+                    match (&instruction.operation, instruction.results.as_slice()) {
+                        (
+                            Operation::BorrowBegin {
+                                place,
+                                kind: LoanKind::Exclusive,
+                            },
+                            [EntityId::Loan(actual)],
+                        ) if actual == receiver => Some(*place),
+                        _ => None,
+                    }
+                })
+                .expect("setter receiver place");
+            (*receiver, *argument, place)
+        }
+        ref other => panic!("setter call receiver: {other:?}"),
+    };
+    let post_call = entry.instructions[set_call + 1..]
+        .iter()
+        .take_while(|instruction| {
+            !matches!(
+                instruction.operation,
+                Operation::DirectCall { callee, .. } if callee == getter.id()
+            )
+        })
+        .collect::<Vec<_>>();
+    let relevant = post_call
+        .iter()
+        .filter_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowEnd { loan }, []) if *loan == argument => {
+                    Some(("argument-end", None))
+                }
+                (Operation::BorrowEnd { loan }, []) if *loan == receiver => {
+                    Some(("receiver-end", None))
+                }
+                (
+                    Operation::Read {
+                        source: PlaceAccess::Place(actual),
+                    },
+                    [EntityId::Value(value)],
+                ) if *actual == place => Some(("writeback", Some(*value))),
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(
+        relevant.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(),
+        ["argument-end", "receiver-end", "writeback"]
+    );
+    let writeback = relevant[2].1.expect("writeback value");
+    let getter_owner = entry
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::RootPlace { owner }, [EntityId::Place(_)]) if *owner == writeback => {
+                    Some(*owner)
+                }
+                _ => None,
+            },
+        )
+        .expect("getter must addressize the rebound value");
+    assert_eq!(getter_owner, writeback);
+    render_verified_program(&program).expect("Copyable inline mutation must lower to LLVM");
+}
+
+#[test]
+fn move_only_inline_inout_read_rejects_caller_writeback() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/move-only-inline-inout-read.ko",
+        "package p\n\
+         value class Resource(val owner: String) {\n\
+             inout fun inspect(): Int = 7\n\
+         }\n\
+         fun entry(): Int {\n\
+             var resource = Resource(\"owned\")\n\
+             return resource.inspect()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/move-only-inline-inout-read.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("MoveOnly inline Inout caller requires take/write-back support"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let span = error.span.expect("MoveOnly receiver span");
+    assert_eq!(
+        sources.slice(span).expect("MoveOnly receiver source"),
+        "resource"
+    );
+}
+
+#[test]
+fn inline_inout_this_forwards_the_existing_exclusive_receiver() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/inline-inout-forward.ko",
+        "package p\n\
+         value class Counter(var item: Int) {\n\
+             inout fun set(own next: Int): Unit { item = next }\n\
+             inout fun forward(own next: Int): Unit { val ignored = set(next) }\n\
+             fun read(): Int = item\n\
+         }\n\
+         fun entry(): Int {\n\
+             var counter = Counter(1)\n\
+             val ignored = counter.forward(7)\n\
+             return counter.read()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/inline-inout-forward.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("Inout this must forward its existing exclusive receiver");
+
+    let module = &program.modules[0];
+    let setter = function(module.functions.iter(), ".Counter.set.s");
+    let forward = function(module.functions.iter(), ".Counter.forward.s");
+    let EntityId::Loan(receiver) = forward.blocks[0].parameters[0] else {
+        panic!("forward receiver loan");
+    };
+    assert!(forward.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(actual)),
+            ..
+        } if callee == setter.id() && actual == receiver
+    )));
+    assert!(!forward.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::RootPlace { .. }
+            | Operation::BorrowBegin { .. }
+            | Operation::Read {
+                source: PlaceAccess::Place(_),
+            }
+    )));
+    render_verified_program(&program).expect("forwarded inline Inout receiver must lower to LLVM");
 }
 
 #[test]

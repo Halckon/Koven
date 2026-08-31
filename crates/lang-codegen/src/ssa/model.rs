@@ -421,6 +421,12 @@ pub(crate) enum Operation {
         field: usize,
         value: ValueId,
     },
+    /// Replace one Copyable inline aggregate field through an active exclusive receiver loan.
+    InlineFieldReplace {
+        receiver: LoanId,
+        field: usize,
+        value: ValueId,
+    },
     SharedAllocate {
         owner: SsaTypeId,
         payload: ValueId,
@@ -564,6 +570,9 @@ impl Operation {
             }
             Self::HeapFieldRead { receiver, .. } => vec![EntityId::Loan(*receiver)],
             Self::HeapFieldReplace {
+                receiver, value, ..
+            }
+            | Self::InlineFieldReplace {
                 receiver, value, ..
             } => vec![EntityId::Loan(*receiver), EntityId::Value(*value)],
             Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],

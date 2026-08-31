@@ -138,6 +138,26 @@ pub(super) fn verify_operation(
                     ) && value_type(function, *value) == Some(field)
                 })
         }
+        Operation::InlineFieldReplace {
+            receiver,
+            field,
+            value,
+        } => {
+            results.is_empty()
+                && matches!(
+                    function
+                        .entity(EntityId::Loan(*receiver))
+                        .map(|entity| entity.ty),
+                    Some(EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        ..
+                    })
+                )
+                && inline_field_type(module, function, *receiver, *field).is_some_and(|field| {
+                    module.type_ownership(field) == Some(Ownership::Copyable)
+                        && value_type(function, *value) == Some(field)
+                })
+        }
         Operation::SharedAllocate { owner, payload } => {
             shared_allocate_contract(module, function, *owner, *payload, &results)
         }
@@ -519,6 +539,22 @@ fn heap_field_type(
     module
         .heap_payload(target)
         .and_then(|payload| module.aggregate_fields(payload))
+        .and_then(|fields| fields.get(field))
+        .copied()
+}
+
+fn inline_field_type(
+    module: &Module,
+    function: &Function,
+    receiver: super::model::LoanId,
+    field: usize,
+) -> Option<SsaTypeId> {
+    let EntityType::Loan { target, .. } = function.entity(EntityId::Loan(receiver))?.ty else {
+        return None;
+    };
+    (module.type_ownership(target) == Some(Ownership::Copyable))
+        .then(|| module.aggregate_fields(target))
+        .flatten()
         .and_then(|fields| fields.get(field))
         .copied()
 }

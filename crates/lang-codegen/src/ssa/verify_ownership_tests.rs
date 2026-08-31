@@ -930,6 +930,178 @@ fn heap_field_replace_requires_an_active_unshadowed_exclusive_receiver() {
 }
 
 #[test]
+fn inline_field_replace_requires_copyable_storage_and_an_unshadowed_exclusive_receiver() {
+    let valid =
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, false, false);
+    assert_eq!(verify_program(&valid), Ok(()));
+
+    let shared = errors(&inline_field_replace_program(
+        LoanKind::Shared,
+        false,
+        false,
+        0,
+        false,
+        false,
+        false,
+    ));
+    assert!(has_kind(&shared, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let inactive = errors(&inline_field_replace_program(
+        LoanKind::Exclusive,
+        true,
+        false,
+        0,
+        false,
+        false,
+        false,
+    ));
+    assert!(has_kind(&inactive, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanInactive { .. }
+    )));
+
+    let dependent = errors(&inline_field_replace_program(
+        LoanKind::Exclusive,
+        false,
+        true,
+        0,
+        false,
+        false,
+        false,
+    ));
+    assert!(has_kind(&dependent, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanDependencyActive { .. }
+    )));
+
+    for invalid in [
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 1, false, false, false),
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, true, false, false),
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, true, false),
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, false, true),
+    ] {
+        assert!(has_kind(&errors(&invalid), |kind| matches!(
+            kind,
+            VerifyErrorKind::OperationContract { .. }
+        )));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inline_field_replace_program(
+    receiver_kind: LoanKind,
+    end_receiver: bool,
+    shared_child: bool,
+    field: usize,
+    move_only_receiver: bool,
+    move_only_field: bool,
+    wrong_value_type: bool,
+) -> Program {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("inline-field-replace");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let boolean = module.intern_type(SsaTypeKind::Boolean);
+    let resource = module.intern_type(SsaTypeKind::Opaque {
+        name: "Resource".to_owned(),
+        ownership: Ownership::MoveOnly,
+    });
+    let field_type = if move_only_field { resource } else { integer };
+    let mut fields = vec![field_type];
+    if move_only_receiver && !move_only_field {
+        fields.push(resource);
+    }
+    let receiver_type = module
+        .add_aggregate_type("Inline", fields)
+        .expect("inline aggregate");
+    let value_type = if wrong_value_type {
+        boolean
+    } else {
+        field_type
+    };
+    let receiver_entity_type = EntityType::Loan {
+        kind: receiver_kind,
+        target: receiver_type,
+    };
+    let function_id = module
+        .add_instance_function("replace", receiver_entity_type, Vec::new(), origin.clone())
+        .expect("function");
+    let function = module.function_mut(function_id).expect("function");
+    let entry = function
+        .add_block(
+            vec![receiver_entity_type, EntityType::Value(value_type)],
+            origin.clone(),
+        )
+        .expect("entry");
+    let parameters = function.block(entry).expect("entry").parameters.clone();
+    let [EntityId::Loan(receiver), EntityId::Value(value)] = parameters.as_slice() else {
+        panic!("receiver and replacement parameters");
+    };
+    if end_receiver {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: *receiver },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end receiver");
+    }
+    let child = if shared_child {
+        let (_, results) = function
+            .append_instruction(
+                entry,
+                Operation::SharedReborrow { source: *receiver },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: receiver_type,
+                }],
+                origin.clone(),
+            )
+            .expect("shared child");
+        let EntityId::Loan(child) = results[0] else {
+            panic!("shared child loan");
+        };
+        Some(child)
+    } else {
+        None
+    };
+    function
+        .append_instruction(
+            entry,
+            Operation::InlineFieldReplace {
+                receiver: *receiver,
+                field,
+                value: *value,
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("inline field replace");
+    if let Some(child) = child {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: child },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end child");
+    }
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("return");
+    program
+}
+
+#[test]
 fn shared_heap_field_loan_tracks_the_receiver_dependency() {
     let valid = shared_heap_field_loan_program(false, false, 0);
     assert_eq!(verify_program(&valid), Ok(()));

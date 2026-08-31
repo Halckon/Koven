@@ -645,6 +645,33 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 }
                 self.builder.build_store(pointer, self.value(*value)?)?;
             }
+            Operation::InlineFieldReplace {
+                receiver,
+                field,
+                value,
+            } => {
+                let EntityType::Loan { target, .. } = self
+                    .function
+                    .entity(EntityId::Loan(*receiver))
+                    .ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa(
+                            "inline field replace receiver is missing".to_owned(),
+                        )
+                    })?
+                    .ty
+                else {
+                    return Err(LlvmAdapterError::InvalidSsa(
+                        "inline field replace receiver is not a loan".to_owned(),
+                    ));
+                };
+                let pointer = self.builder.build_struct_gep(
+                    self.dependencies.type_map.aggregate_type(target)?,
+                    self.access(PlaceAccess::Loan(*receiver))?,
+                    *field as u32,
+                    &format!("inline.replace.i{}", instruction.id.index()),
+                )?;
+                self.builder.build_store(pointer, self.value(*value)?)?;
+            }
             Operation::SharedAllocate { owner, payload } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("shared allocate", 1, results.len()));

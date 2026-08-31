@@ -262,18 +262,41 @@ impl UnitExpressionLowerer<'_> {
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
         }
-        for (loan, end_span) in receiver
-            .into_iter()
-            .flat_map(|receiver| receiver.created_loans.into_iter().rev())
-        {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(end_span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        if let Some(receiver) = receiver {
+            for (loan, end_span) in receiver.created_loans.into_iter().rev() {
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::BorrowEnd { loan },
+                        Vec::new(),
+                        Origin::Source(end_span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+            }
+            if let Some(writeback) = receiver.writeback {
+                if self.bindings.get(&writeback.symbol).copied()
+                    != Some(LoweredValue::Value(writeback.original))
+                {
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        writeback.span,
+                    ));
+                }
+                let (_, values) = self
+                    .function
+                    .append_instruction(
+                        self.block,
+                        Operation::Read {
+                            source: PlaceAccess::Place(writeback.place),
+                        },
+                        vec![EntityType::Value(writeback.target)],
+                        Origin::Source(writeback.span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, writeback.span))?;
+                let value = require_value(values[0], writeback.span)?;
+                self.bindings
+                    .insert(writeback.symbol, LoweredValue::Value(value));
+            }
         }
         self.emit_drops(UnitDropPoint::CallReturn(call))?;
         match results.as_slice() {
