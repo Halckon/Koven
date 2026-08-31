@@ -533,6 +533,11 @@ impl<'a> SignatureCollector<'a> {
         let receiver = receiver_owner.and_then(|(ty, kind)| {
             let mode = parameter_mode(modifiers.receiver_mode);
             (kind != NominalKind::Object || mode == ParameterMode::Borrow).then(|| {
+                let ty = if kind == NominalKind::Interface {
+                    self.types.intern(UnitTypeKind::StaticSelf(ty))
+                } else {
+                    ty
+                };
                 UnitCallableReceiver::new(
                     mode,
                     ty,

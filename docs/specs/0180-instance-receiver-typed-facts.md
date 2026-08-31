@@ -23,6 +23,8 @@ delegate forwarder 都具有唯一、实例化后的 receiver typed identity，P
 
 - 把缺省/显式 Borrow、Inout、Value 规范化为隐藏 first receiver contract；owner type arguments
   先替换，callable type arguments 后替换，并纳入 stable callable instance key。
+- interface callable template 的 receiver type 使用 `StaticSelf(interface instance)`；具体 member/
+  `super<I>` call descriptor 继续保存实际 concrete receiver type，不把 interface 物化为 runtime type。
 - receiver mode 不参与 overload shape，但 interface replacement、override/default/`super<I>`
   contract 精确比较；object 只接受 Borrow，companion/top-level 不产生 receiver。
 - 为 `this`、裸 field/member 与显式 `receiver.member(...)` 发布静态 owner/target；局部/参数遮蔽
@@ -92,3 +94,5 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | `cargo check --workspace --lib` | 通过 | frontend 公共 receiver projection API 与 codegen/CLI library 下游兼容 |
 | `cargo check --workspace --all-targets`、frontend `clippy --lib --tests` | 未升级 | 大型测试 target 长时间无输出后主动停止；直接 test target 已执行，按分层流程不重复作为门禁 |
 | 独立复审 | 通过 | 三轮依次发现并关闭 super capability/qualifier/closure、implicit-this/object/generic shape、L0152 source-order 与 unit overload 旁路；最终确认无剩余 P1/P2 |
+| `cargo test -p lang-frontend --test multifile_type_checking cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts --locked --offline` | 通过 | 修正 interface callable receiver template 的事实漂移：signature 与 body `this` 都使用同一 `StaticSelf(interface)`，外部 call descriptor 仍为 concrete receiver |
+| frontend 分层回归：`multifile_type_checking receiver` / `multifile_ownership_checking` | 4/4、51/51 通过 | 锁定 receiver/default/super/delegation typed contract 及全部 Phase 3 compilation-unit receiver ownership 消费；未运行约一小时的 frontend 全量测试 |

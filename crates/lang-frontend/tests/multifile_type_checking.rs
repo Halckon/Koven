@@ -3992,6 +3992,22 @@ fn cross_file_member_bodies_calls_and_fields_publish_source_qualified_facts() {
         })
         .collect::<Vec<_>>();
     assert!(matches!(this_types[0], UnitTypeKind::StaticSelf(_)));
+    let named = declaration(&forward_names, "Named");
+    let named_signature = forward
+        .signatures()
+        .declaration(named)
+        .and_then(|signature| signature.nominal())
+        .expect("Named interface signature");
+    let current_receiver = named_signature
+        .members()
+        .iter()
+        .find(|member| member.name() == "current")
+        .and_then(|member| member.receiver())
+        .expect("interface default receiver contract");
+    assert!(matches!(
+        forward.types().get(current_receiver.ty()),
+        Some(UnitTypeKind::StaticSelf(interface)) if *interface == named_signature.ty()
+    ));
     assert!(
         this_types[1..]
             .iter()
