@@ -752,6 +752,69 @@ fn borrow_only_interface_delegation_links_and_runs() {
 }
 
 #[test]
+fn generic_interface_owner_and_callable_delegation_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Mapper<T> {\n\
+             fun <R> map(own input: R): R {\n\
+                 println(\"generic-default\")\n\
+                 return input\n\
+             }\n\
+         }\n\
+         class DefaultMapper: Mapper<String> {}\n\
+         class OverrideMapper: Mapper<String> {\n\
+             override fun <R> map(own input: R): R {\n\
+                 println(\"generic-override\")\n\
+                 return input\n\
+             }\n\
+         }\n\
+         class DefaultHost(val delegate: DefaultMapper): Mapper<String> by delegate {}\n\
+         class OverrideHost(val delegate: OverrideMapper): Mapper<String> by delegate {}\n\
+         fun entry(): Unit {\n\
+             val inherited = DefaultHost(DefaultMapper()).map<Long>(7L)\n\
+             val overridden = OverrideHost(OverrideMapper()).map<Long>(9L)\n\
+             if (inherited + overridden == 16L) { println(\"generic-delegate\") }\
+             else { error(\"wrong generic delegate\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("generic-delegate.o");
+    let executable = directory.join("generic-delegate");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("generic interface owner/callable delegation must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked generic-delegation executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"generic-default\ngeneric-override\ngeneric-delegate\n"
+    );
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

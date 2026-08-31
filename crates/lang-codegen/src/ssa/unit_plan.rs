@@ -599,8 +599,7 @@ pub(crate) fn resolve_unit_call_instance(
     let implementation = forwarder
         .implementation()
         .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-    if !arguments.is_empty() || !nominal.type_parameters().is_empty() || !type_arguments.is_empty()
-    {
+    if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
     let field = nominal
@@ -633,31 +632,53 @@ pub(crate) fn resolve_unit_call_instance(
     }) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
-    // Frontend 已选定 effective implementation；这里只校验 owner/body，不重新执行 member selection。
-    let Some(UnitTypeKind::Nominal {
-        declaration: implementation_owner,
-        arguments: implementation_owner_arguments,
-    }) = typed.types().types().get(implementation.receiver_type())
-    else {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    };
+    // Frontend 已选定 effective implementation；这里只校验 recipe 并重映射泛型槽位，
+    // 不重新执行 member selection。
+    let requirement_callable = unit_callable_signature(typed, target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let implementation_callable = unit_callable_signature(typed, implementation.target())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let (requirement_owner, requirement_owner_arguments) = instantiate_dispatch_owner_arguments(
+        typed,
+        forwarder.receiver_type(),
+        nominal,
+        arguments,
+        span,
+    )?;
+    let (implementation_owner, implementation_owner_arguments) =
+        instantiate_dispatch_owner_arguments(
+            typed,
+            implementation.receiver_type(),
+            nominal,
+            arguments,
+            span,
+        )?;
+    let (declared_requirement_owner, declared_requirement_owner_arity) =
+        unit_callable_owner(typed, target)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
     let (declared_implementation_owner, declared_implementation_owner_arity) =
         unit_callable_owner(typed, implementation.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    if *implementation_owner != declared_implementation_owner
-        || implementation_owner_arguments.len() != declared_implementation_owner_arity
-        || !unit_callable_signature(typed, implementation.target())
-            .is_some_and(UnitCallableSignature::has_body)
+    if !implementation_callable.has_body()
+        || implementation_callable.type_parameters().len()
+            != requirement_callable.type_parameters().len()
+        || declared_requirement_owner != requirement_owner
+        || declared_implementation_owner != implementation_owner
+        || declared_requirement_owner_arity != requirement_owner_arguments.len()
+        || declared_implementation_owner_arity != implementation_owner_arguments.len()
+        || type_arguments.len()
+            != requirement_owner_arguments.len() + requirement_callable.type_parameters().len()
+        || type_arguments[..requirement_owner_arguments.len()] != requirement_owner_arguments
     {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     }
-    if !implementation_owner_arguments.is_empty() {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
+    let callable_argument_start = requirement_owner_arguments.len();
+    let mut implementation_arguments = implementation_owner_arguments;
+    implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
     let key = resolve_direct_unit_call_instance(
         typed,
         implementation.target(),
-        type_arguments,
+        implementation_arguments,
         Some(field.ty()),
         span,
     )?;

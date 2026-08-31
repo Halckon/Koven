@@ -86,8 +86,10 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    ordinary-class 切片已消费 typed/ownership 双重 validated route，以 `SharedHeapFieldLoan` 直接转发
    concrete delegate Borrow receiver；abstract requirement、本地 override、继承/default replacement
    均直接消费 frontend forwarder 的 exact effective target/owner template，interface default 的
-   `StaticSelf` 固定为 delegate field concrete type。generic outer/delegate/interface owner/call instance
-   与 chained/`None` route 确定性拒绝，禁止静默调用 outer interface default。
+   `StaticSelf` 固定为 delegate field concrete type。非泛型 outer/delegate runtime nominal 上的 generic
+   interface owner 与 callable slots 已按 forwarder/implementation owner template 精确重组，并由
+   default/local override 的 native 闭环锁定；generic runtime nominal、chained/`None` route 继续
+   确定性拒绝，禁止静默调用 outer interface default。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -98,6 +100,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 2 | frontend member/委托接线与 native 闭环 | `feat(codegen): lower member receivers (SPEC-0191)` |
 | 3 | bodyful/default Borrow delegation exact-target 接线 | `feat(codegen): lower default delegation (SPEC-0191)` |
 | 4 | Inout interface default 的 concrete exclusive ABI 闭环 | `test(codegen): close inout default lowering (SPEC-0191)` |
+| 5 | 非泛型 runtime nominal 上的 generic delegation owner/callable 槽位重映射 | `feat(codegen): remap generic delegation slots (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -170,3 +173,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 独立高风险复核（bodyful/default Borrow delegation） | 通过 | 无 P1/P2/P3；确认 exact typed+ownership route、delegate concrete `StaticSelf`、field-loan ABI 及所有未开放 generic/chain 边界 |
 | `cargo test -p lang-codegen interface_inout_default_preserves_exclusive_receiver_abi --locked --offline` | 通过 | interface `StaticSelf` 专化为 concrete `Counter`，callee receiver 与 caller operand 均为同类型 exclusive loan，verified SSA/LLVM 通过 |
 | `cargo test -p lang-codegen inout_interface_default_links_and_runs --locked --offline` | 通过 | source→object→link→run 中 default 返回 7、concrete payload 保持 5，合计 12 后输出 `inout-default` |
+| `cargo test -p lang-codegen ssa::unit_plan_tests --locked --offline` | 15/15 通过 | generic delegation 的 requirement owner prefix 精确替换为 implementation owner template，callable `Long` 后缀原序保留；runtime generic outer/delegate 与 chain 均 fail loud |
+| `cargo test -p lang-codegen ssa::unit_lower_receiver_tests --locked --offline` | 24/24 通过 | receiver/field-loan/DirectCall ABI 回归；generic slot 重映射不改变既有 `SharedHeapFieldLoan` 路径 |
+| `cargo test -p lang-codegen native::unit_tests::generic_interface_owner_and_callable_delegation_links_and_runs --locked --offline` | 1/1 通过 | `Mapper<String>.map<Long>` 的 default 与 concrete override 分别输出独立 body 标记并返回 7/9，真实 link/run 最后输出 `generic-delegate` |
+| `cargo test -p lang-codegen native::unit_tests --locked --offline` | 11/11 通过 | receiver/default/delegation 的完整 native 小模块回归；仍未运行 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与三组聚焦测试并行执行；未运行约一小时的 frontend 全量测试 |
+| 独立高风险复核（generic delegation slots） | 通过 | 首轮发现 generic outer 负例与 native 路由可观察性两项 P3；补 `Host<String>` fail-loud 和 default/override 独立 stdout 标记后复核至无 P1/P2/P3 |

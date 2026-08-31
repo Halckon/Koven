@@ -505,16 +505,16 @@ fn rejects_generic_delegate_field_in_the_route_resolver() {
 }
 
 #[test]
-fn rejects_generic_interface_owner_before_forwarding_type_arguments_to_implementation() {
+fn rejects_generic_outer_receiver_in_the_route_resolver() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/main.ko",
         "package p\n\
-         interface Readable<T> { fun read(own input: T): T }\n\
-         class Reader: Readable<Int> { override fun read(own input: Int): Int = input }\n\
-         class Host(val delegate: Reader): Readable<Int> by delegate {}\n\
-         fun entry(host: Host): Int = host.read(7)",
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Host<T>(val delegate: Reader): Readable by delegate {}\n\
+         fun entry(host: Host<String>): Int = host.read()",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
@@ -529,9 +529,96 @@ fn rejects_generic_interface_owner_before_forwarding_type_arguments_to_implement
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("generic interface owner remapping remains outside this delegation slice");
+    .expect_err("generic outer layout remains outside this native route slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+}
+
+#[test]
+fn remaps_generic_delegation_owner_prefix_and_callable_suffix() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Mapper<T> { fun <R> map(own input: R): R = input }\n\
+         class DefaultMapper: Mapper<String> {}\n\
+         class OverrideMapper: Mapper<String> {\n\
+             override fun <R> map(own input: R): R = input\n\
+         }\n\
+         class DefaultHost(val delegate: DefaultMapper): Mapper<String> by delegate {}\n\
+         class OverrideHost(val delegate: OverrideMapper): Mapper<String> by delegate {}\n\
+         fun entry(first: DefaultHost, second: OverrideHost): Long =\n\
+             first.map<Long>(7L) + second.map<Long>(9L)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let mapper = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Mapper"))
+        .and_then(|signature| signature.nominal())
+        .expect("Mapper signature");
+    let default_mapper = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "DefaultMapper"))
+        .and_then(|signature| signature.nominal())
+        .expect("DefaultMapper signature");
+    let override_mapper = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "OverrideMapper"))
+        .and_then(|signature| signature.nominal())
+        .expect("OverrideMapper signature");
+    let requirement = mapper.members()[0].target();
+    let override_target = override_mapper.members()[0].target();
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("generic interface owner/callable delegation must plan");
+    let default = instances
+        .iter()
+        .find(|instance| instance.key().target() == requirement)
+        .expect("generic interface default instance");
+    assert_eq!(default.key().static_self(), Some(default_mapper.ty()));
+    assert!(matches!(
+        default
+            .key()
+            .type_arguments()
+            .iter()
+            .map(|argument| typed.types().types().get(*argument))
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [
+            Some(UnitTypeKind::Builtin(BuiltinType::String)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Long))
+        ]
+    ));
+    let overridden = instances
+        .iter()
+        .find(|instance| instance.key().target() == override_target)
+        .expect("generic concrete override instance");
+    assert_eq!(overridden.key().static_self(), None);
+    assert!(matches!(
+        overridden
+            .key()
+            .type_arguments()
+            .iter()
+            .map(|argument| typed.types().types().get(*argument))
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [Some(UnitTypeKind::Builtin(BuiltinType::Long))]
+    ));
 }
 
 #[test]

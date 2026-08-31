@@ -1007,9 +1007,14 @@ payload 中的唯一 `Reader` owner 返回结果，并且不读取/copy field va
 当前已开放非泛型 ordinary class 的单层 abstract/bodyful Borrow delegation：planner 直接消费
 frontend forwarder 的 exact effective-target/owner-template，本地 override 与继承/replacement default
 均复用同一 field route；default 的 `StaticSelf` 使用 delegate field concrete type，而非 outer host。
-generic outer/delegate/interface owner/call instance、delegation chain 与 frontend `None` route 均在
-生成 SSA 前以 `UnsupportedNode` 原子拒绝；codegen 不因 requirement 自带 body 而绕过 field route、
-静默调用 outer interface default。
+当 outer/delegate runtime nominal 均非泛型时，generic interface owner/call instance 也已开放：
+resolver 先核对 call key 的 requirement owner prefix 与 forwarder receiver template，再以 exact
+implementation owner template 替换该 prefix，并原序追加 callable type-argument suffix；interface
+default 保留实现 owner 实参与 delegate concrete `StaticSelf`，concrete override 只保留其实际 owner/
+callable slots。`Mapper<String>.map<Long>` 的 default/local override 已完成真实 native 闭环。
+generic outer/delegate runtime nominal、delegation chain 与 frontend `None` route 仍在生成 SSA 前以
+`UnsupportedNode` 原子拒绝；codegen 不因 requirement 自带 body 而绕过 field route、静默调用 outer
+interface default。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 仍等待 Phase 3 为 `StaticSelf` 发布条件 receiver-drop fact；在该事实
