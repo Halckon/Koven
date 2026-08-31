@@ -635,6 +635,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("root_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::RootPlaceTake { owner, place } => {
+            output.write_str("root_place_take ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Place(*place))
+        }
         Operation::BorrowBegin { place, kind } => {
             write!(
                 output,

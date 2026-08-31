@@ -273,6 +273,12 @@ pub(super) fn verify_operation(
                     value_type(function, *owner).expect("valid value"),
                 )]
         }
+        Operation::RootPlaceTake { owner, place } => {
+            root_place_owner(function, *place) == Some(*owner)
+                && module.type_ownership(value_type(function, *owner).expect("valid value"))
+                    == Some(Ownership::MoveOnly)
+                && single_value_result(&results) == value_type(function, *owner)
+        }
         Operation::BorrowBegin { place, kind } => {
             let target = entity_type(function, EntityId::Place(*place)).semantic_type();
             results
@@ -302,6 +308,23 @@ pub(super) fn verify_operation(
             location: VerifyLocation::Instruction(instruction.id),
             origin: Some(instruction.origin.clone()),
         });
+    }
+}
+
+fn root_place_owner(
+    function: &Function,
+    place: super::model::PlaceId,
+) -> Option<super::model::ValueId> {
+    let super::model::Definition::InstructionResult {
+        instruction,
+        index: 0,
+    } = function.entity(EntityId::Place(place))?.definition
+    else {
+        return None;
+    };
+    match function.instruction(instruction)?.operation {
+        Operation::RootPlace { owner } => Some(owner),
+        _ => None,
     }
 }
 

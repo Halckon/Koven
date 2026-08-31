@@ -696,6 +696,51 @@ fn copyable_inline_inout_mutation_is_observed_after_writeback() {
 }
 
 #[test]
+fn move_only_inline_inout_takes_the_owner_back_without_double_drop() {
+    let analysis = analyze_sources(
+        "package p\n\
+         fun seed(): String = \"owned\" + \"-resource\"\n\
+         value class Resource(val owner: String) {\n\
+             inout fun inspect(): Int = 7\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var resource = Resource(seed())\n\
+             if (resource.inspect() == 7) { println(\"move-only-writeback\") } else { error(\"wrong receiver\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("move-only-inline-inout.o");
+    let executable = directory.join("move-only-inline-inout");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("MoveOnly inline Inout write-back must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked MoveOnly inline Inout executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"move-only-writeback\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn interface_default_and_super_static_calls_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\

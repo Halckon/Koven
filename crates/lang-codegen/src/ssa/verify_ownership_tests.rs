@@ -512,6 +512,202 @@ fn shared_loans_can_coexist_and_exclusive_loan_reads_are_legal() {
 }
 
 #[test]
+fn root_place_take_requires_one_unborrowed_move_only_direct_root() {
+    let mut valid = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = valid.parameter(0);
+    let entry = valid.entry;
+    let move_only = valid.move_only;
+    let place = entity_place(
+        valid.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let loan = entity_loan(
+        valid.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: move_only,
+            }],
+        )[0],
+    );
+    valid.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    let rebound = value(
+        valid.append(
+            entry,
+            Operation::RootPlaceTake { owner, place },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    valid.append(entry, Operation::Drop { owner: rebound }, Vec::new());
+    valid.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert_eq!(verify_program(&valid.program), Ok(()));
+
+    let mut borrowed = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = borrowed.parameter(0);
+    let entry = borrowed.entry;
+    let move_only = borrowed.move_only;
+    let place = entity_place(
+        borrowed.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let loan = entity_loan(
+        borrowed.append(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: move_only,
+            }],
+        )[0],
+    );
+    let rebound = value(
+        borrowed.append(
+            entry,
+            Operation::RootPlaceTake { owner, place },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    borrowed.append(entry, Operation::BorrowEnd { loan }, Vec::new());
+    borrowed.append(entry, Operation::Drop { owner: rebound }, Vec::new());
+    borrowed.append(entry, Operation::Drop { owner }, Vec::new());
+    borrowed.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&borrowed.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::OwnerLoanConflict { value } if *value == owner
+    )));
+
+    let mut mismatched = Harness::new(&[TestType::MoveOnly, TestType::MoveOnly], &[]);
+    let owner = mismatched.parameter(0);
+    let other = mismatched.parameter(1);
+    let entry = mismatched.entry;
+    let move_only = mismatched.move_only;
+    let other_place = entity_place(
+        mismatched.append(
+            entry,
+            Operation::RootPlace { owner: other },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    mismatched.append(
+        entry,
+        Operation::RootPlaceTake {
+            owner,
+            place: other_place,
+        },
+        vec![EntityType::Value(move_only)],
+    );
+    mismatched.append(entry, Operation::Drop { owner: other }, Vec::new());
+    mismatched.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&mismatched.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let mut copyable = Harness::new(&[TestType::Integer], &[TestType::Integer]);
+    let owner = copyable.parameter(0);
+    let entry = copyable.entry;
+    let integer = copyable.integer;
+    let place = entity_place(
+        copyable.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(integer)],
+        )[0],
+    );
+    let result = value(
+        copyable.append(
+            entry,
+            Operation::RootPlaceTake { owner, place },
+            vec![EntityType::Value(integer)],
+        )[0],
+    );
+    copyable.terminate(
+        entry,
+        TerminatorKind::Return {
+            values: vec![result],
+        },
+    );
+    assert!(has_kind(&errors(&copyable.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let mut wrong_result = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = wrong_result.parameter(0);
+    let entry = wrong_result.entry;
+    let move_only = wrong_result.move_only;
+    let integer = wrong_result.integer;
+    let place = entity_place(
+        wrong_result.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    wrong_result.append(
+        entry,
+        Operation::RootPlaceTake { owner, place },
+        vec![EntityType::Value(integer)],
+    );
+    wrong_result.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    assert!(has_kind(&errors(&wrong_result.program), |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let mut repeated = Harness::new(&[TestType::MoveOnly], &[]);
+    let owner = repeated.parameter(0);
+    let entry = repeated.entry;
+    let move_only = repeated.move_only;
+    let place = entity_place(
+        repeated.append(
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(move_only)],
+        )[0],
+    );
+    let first = value(
+        repeated.append(
+            entry,
+            Operation::RootPlaceTake { owner, place },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    let second = value(
+        repeated.append(
+            entry,
+            Operation::RootPlaceTake { owner, place },
+            vec![EntityType::Value(move_only)],
+        )[0],
+    );
+    repeated.append(entry, Operation::Drop { owner: first }, Vec::new());
+    repeated.append(entry, Operation::Drop { owner: second }, Vec::new());
+    repeated.terminate(entry, TerminatorKind::Return { values: Vec::new() });
+    let failures = errors(&repeated.program);
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::ValueUnavailable { value } if *value == owner
+    )));
+    assert!(has_kind(&failures, |kind| matches!(
+        kind,
+        VerifyErrorKind::PlaceUnavailable { place: actual } if *actual == place
+    )));
+}
+
+#[test]
 fn conflicting_borrow_mutation_and_owner_drop_are_rejected() {
     let mut borrow = Harness::new(&[TestType::MoveOnly], &[]);
     let owner = borrow.parameter(0);

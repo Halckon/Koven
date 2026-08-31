@@ -988,8 +988,12 @@ non-generic value class 已使用独立 `InlineFieldReplace` 完成 inline `var`
 要求 active、无派生 loan 的 exact exclusive aggregate receiver 与 exact Copyable value，LLVM 对
 receiver storage 直接 field GEP/store，不加载或析构旧 Copyable field。caller 在 DirectCall 后依次
 结束实参 loan 与 receiver loan，再从同一 `RootPlace` 读取并重绑定源码 root；implicit Inout `this`
-则直接转发既有 exclusive loan，不重复 addressize/write-back。整体或字段 MoveOnly 继续在发布 SSA
-前 fail loud，等待 take/move、旧字段 drop fact 与 owner write-back 契约。后续 generic ordinary-class layout
+则直接转发既有 exclusive loan，不重复 addressize/write-back。non-generic MoveOnly value class/enum
+的 root Inout call 在结束全部实参与 receiver loan 后使用 `RootPlaceTake` 从同一 direct root storage
+取回 owner；operation contract 要求 MoveOnly、exact root-owner/result type，ownership verifier 消费旧
+owner 与 place，并拒绝 active loan 或重复 take，LLVM 只加载 addressized storage。take 结果重绑定源码
+root 并在原 drop point 唯一析构，动态 String payload native 已锁定无 double free。MoveOnly inline field
+mutation/replacement 仍在 SSA 发布前 fail loud，等待旧字段 drop/glue。后续 generic ordinary-class layout
 已按 concrete `UnitTypeId` 开放参数无关 field、恰为 owner direct type parameter 的 field，以及
 SPEC-0219 exact owner descriptor 授权、由 `List` / 单参数 ordinary class 递归组成的有限 field recipe；
 descriptor 消费逐项核对 owner declaration/arguments 与 field symbol/template/span/concrete type，

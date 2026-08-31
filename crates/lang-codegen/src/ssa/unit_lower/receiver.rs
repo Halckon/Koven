@@ -35,6 +35,13 @@ pub(super) struct ReceiverWriteback {
     pub(super) target: SsaTypeId,
     pub(super) original: crate::ssa::model::ValueId,
     pub(super) span: Span,
+    pub(super) kind: ReceiverWritebackKind,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ReceiverWritebackKind {
+    Copyable,
+    MoveOnly,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -268,7 +275,7 @@ impl UnitExpressionLowerer<'_> {
             }
             UnitReceiverOwnershipKind::ExclusiveLoan => {
                 self.validate_receiver_loan_target(fact.target(), expression, fact.begin_span())?;
-                let writeback = self.inline_receiver_writeback_symbol(
+                let writeback = self.inline_receiver_writeback(
                     concrete,
                     fact.target(),
                     expression.expression(),
@@ -559,7 +566,7 @@ impl UnitExpressionLowerer<'_> {
         kind: LoanKind,
         begin_span: Span,
         end_span: Span,
-        writeback_symbol: Option<UnitSymbolId>,
+        writeback: Option<(UnitSymbolId, ReceiverWritebackKind)>,
     ) -> Result<Option<LoweredReceiver>, LoweringError> {
         let (_, places) = self
             .function
@@ -588,24 +595,25 @@ impl UnitExpressionLowerer<'_> {
         Ok(Some(LoweredReceiver {
             entity: EntityId::Loan(loan),
             created_loans: vec![(loan, end_span)],
-            writeback: writeback_symbol.map(|symbol| ReceiverWriteback {
+            writeback: writeback.map(|(symbol, kind)| ReceiverWriteback {
                 symbol,
                 place,
                 target,
                 original: value,
                 span: end_span,
+                kind,
             }),
         }))
     }
 
-    fn inline_receiver_writeback_symbol(
+    fn inline_receiver_writeback(
         &self,
         concrete: UnitTypeId,
         target: &UnitReceiverOwnershipTarget,
         expression: ExpressionId,
         value: crate::ssa::model::ValueId,
         span: Span,
-    ) -> Result<Option<UnitSymbolId>, LoweringError> {
+    ) -> Result<Option<(UnitSymbolId, ReceiverWritebackKind)>, LoweringError> {
         let Some(UnitTypeKind::Nominal { declaration, .. }) =
             self.typed.types().types().get(concrete)
         else {
@@ -622,9 +630,13 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(kind, NominalKind::ValueClass | NominalKind::EnumClass) {
             return Ok(None);
         }
-        if self.typed.types().copyability(concrete) != Copyability::Copyable {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        let kind = match self.typed.types().copyability(concrete) {
+            Copyability::Copyable => ReceiverWritebackKind::Copyable,
+            Copyability::MoveOnly => ReceiverWritebackKind::MoveOnly,
+            Copyability::Unknown | Copyability::Error => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        };
         let UnitReceiverOwnershipTarget::Place(place) = target else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
@@ -637,7 +649,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        Ok(Some(symbol))
+        Ok(Some((symbol, kind)))
     }
 
     fn validate_receiver_loan_target(

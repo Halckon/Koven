@@ -542,8 +542,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       non-generic value class/enum Inout 已通过 call-scoped addressization 建立 exclusive pointer ABI，
       value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；整体与目标字段均
       Copyable 的 value class 已通过 `InlineFieldReplace` 完成原位 mutation、caller loan-end 后 same-root
-      read/rebind 与 native 闭环，implicit Inout `this` 直接转发既有 exclusive loan。整体或字段 MoveOnly
-      的 inline mutation/write-back 仍 fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
+      read/rebind 与 native 闭环，implicit Inout `this` 直接转发既有 exclusive loan。non-generic
+      MoveOnly value class/enum root 已通过 loan-end 后 `RootPlaceTake` 完成 read-only Inout take/rebind，
+      旧 owner 不 drop、take owner 在原 drop point 唯一析构；MoveOnly inline field mutation/replacement
+      仍 fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
       Phase 2 L0099 拒绝。
       `T?`、function、其他 intrinsic、
       非 class / 多参数 wrapper、参数增长型与 inherited owner recipe 继续保持确定性门禁。复用 ADR-0016，只

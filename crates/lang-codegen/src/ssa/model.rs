@@ -499,6 +499,11 @@ pub(crate) enum Operation {
     RootPlace {
         owner: ValueId,
     },
+    /// Take one MoveOnly owner back from its direct root place after all loans end.
+    RootPlaceTake {
+        owner: ValueId,
+        place: PlaceId,
+    },
     BorrowBegin {
         place: PlaceId,
         kind: LoanKind,
@@ -613,6 +618,9 @@ impl Operation {
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
                 vec![EntityId::Value(*owner)]
+            }
+            Self::RootPlaceTake { owner, place } => {
+                vec![EntityId::Value(*owner), EntityId::Place(*place)]
             }
             Self::BorrowBegin { place, .. } => vec![EntityId::Place(*place)],
             Self::BorrowEnd { loan } => vec![EntityId::Loan(*loan)],

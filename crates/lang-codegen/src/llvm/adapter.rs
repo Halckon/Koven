@@ -977,6 +977,18 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.builder.build_store(pointer, self.value(*owner)?)?;
                 self.places.insert(result, pointer);
             }
+            Operation::RootPlaceTake { place, .. } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("root place take", 1, results.len()));
+                };
+                let result_type = value_type(self.function, *result)?;
+                let value = self.builder.build_load(
+                    self.dependencies.type_map.basic_type(result_type)?,
+                    self.access(PlaceAccess::Place(*place))?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value);
+            }
             Operation::BorrowBegin { place, .. } => {
                 let result = loan_result(instruction)?;
                 self.loans.insert(result, self.place(*place)?);

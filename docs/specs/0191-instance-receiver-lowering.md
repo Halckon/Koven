@@ -45,6 +45,10 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   field；caller 依次结束显式实参 loan 与 receiver loan，再从同一 `RootPlace` 读取并重绑定源码 root。
   隐式 `this` 已持有 exact exclusive loan 时直接转发，不重复 addressize 或写回。整体或字段
   MoveOnly 继续 fail loud，等待 take/move 与旧字段 drop fact。
+- non-generic MoveOnly value class/enum 的 root Inout call 在所有实参与 receiver loan 结束后，使用
+  `RootPlaceTake` 从同一 direct root storage 取回 owner：该操作只接受 MoveOnly、精确 root-owner
+  identity、无 active loan 的 place，消费旧 SSA owner 与 place 后发布唯一新 owner。LLVM 只加载
+  addressized storage，不复制或提前析构；字段 mutation/replacement 仍保持独立门禁。
 - 无状态 object receiver 按静态唯一 value identity lower，可使用临时 ZST addressization 满足
   Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。现行 guide 不允许
   object 使用 Inout/Value receiver，Phase 2 必须继续以 L0099 拒绝，Phase 4 不为其虚构 source path。
@@ -92,6 +96,9 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [x] 整体与目标字段均为 Copyable 的 non-generic value class 已完成 `InlineFieldReplace`、caller
   loan-end 后 same-root read/rebind 与 native 可观察 mutation；隐式 Inout `this` 直接转发 exact loan。
   整体或字段 MoveOnly 的 inline mutation/write-back 继续以 `UnsupportedNode` 明确拒绝。
+- [x] non-generic MoveOnly value class/enum 的 root Inout call 已完成 loan-end 后 `RootPlaceTake` 与
+  caller binding rebind；旧 owner 不再析构，take 结果在原语义 drop point 恰好析构一次，动态 String
+  owner native 闭环无 double free。MoveOnly inline field mutation/replacement 不在本切片开放。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -112,7 +119,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
    non-generic value class/enum Inout 的 exclusive pointer ABI 与 value-class Copyable field read 已完成；
    整体/字段均 Copyable 的 value-class `var` field replacement、caller same-root write-back 与 implicit
-   Inout `this` exact-loan 转发已完成，MoveOnly inline storage 仍保持门禁；
+   Inout `this` exact-loan 转发已完成；MoveOnly inline root 已通过 `RootPlaceTake` 完成 read-only Inout
+   caller take/rebind，MoveOnly inline field mutation/replacement 仍保持门禁；
    参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
    receiver 已完成；SPEC-0219 exact owner descriptor 已接入有限递归 `List` / 单参数 ordinary-class
    recipe 的 construction/projection/replacement；direct `T?` 的 pointer-like nullable storage/drop 已由
@@ -162,6 +170,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 14 | 补齐 non-generic enum Borrow/Value receiver 的 tagged identity 与 native 证据 | `test(codegen): cover enum instance receivers (SPEC-0191)` |
 | 15 | 补齐 non-generic value class/enum Inout exclusive ABI 与 inline field read | `feat(codegen): lower inline inout receivers (SPEC-0191)` |
 | 16 | 补齐 Copyable value-class inline field mutation 与 caller same-root write-back | `feat(codegen): lower copyable inline inout mutation (SPEC-0191)` |
+| 17 | 补齐 MoveOnly inline root 在 Inout loan-end 后的 take/rebind | `feat(codegen): take move-only inline inout roots (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -172,9 +181,10 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
   参数增长型与 inherited owner recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
-- value-class Inout `var` field replacement 已只对整体与目标字段都满足 Copyable 的 exact inline
-  layout 开放；整体或字段 MoveOnly 仍需 take/move、旧字段 drop fact 与 caller owner write-back 契约，
-  不把 heap-owner `HeapFieldReplace` 或无依据的 copy 误用于 inline layout。
+- value-class Inout 的 MoveOnly root take/rebind 已开放；`var` field replacement 仍只对整体与目标字段
+  都满足 Copyable 的 exact inline layout 开放。MoveOnly owner + Copyable field mutation，以及 MoveOnly
+  field replacement 的旧字段 drop/glue 分别等待后续切片，不把 heap-owner `HeapFieldReplace` 或无依据
+  的 copy 误用于 inline layout。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
 
 ## 9. 验证记录
@@ -320,3 +330,13 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib ssa::unit_lower_aggregate_tests --locked --offline -- --test-threads=1` | 9/9 通过 | inline/heap current receiver 元数据重构不扩张 generic aggregate 门禁 |
 | `cargo test -p lang-codegen --lib native::unit_tests --locked --offline -- --test-threads=1` | 24/24 通过 | Copyable inline setter 经 object→Clang link→run 输出更新后的 `inline-writeback`，其余 native 小模块通过 |
 | 独立高风险复核（Copyable inline mutation/write-back） | 通过 | 首轮发现 Borrow 实参结束顺序与 whole-MoveOnly caller gate 证据不足一项 P3；补 exact identity/顺序及只读 MoveOnly 反例后复核至无 P1/P2/P3 |
+| MoveOnly inline root 红测 | 按预期失败后转绿 | read-only Inout call 初始因 MoveOnly place 不能 `Read` 而以 `UnsupportedNode` 失败；加入 direct-root-only `RootPlaceTake` 后 take/rebind 通过 |
+| `cargo test -p lang-codegen --lib move_only_inline_inout_read_takes_the_same_root_back_after_the_call --locked --offline -- --test-threads=1` | 1/1 通过 | exact `RootPlace(original)`→exclusive loan→call→loan-end→`RootPlaceTake(original, same place)`，旧 owner 不 drop、take owner drop 一次 |
+| `cargo test -p lang-codegen --lib root_place_take_requires_one_unborrowed_move_only_direct_root --locked --offline -- --test-threads=1` | 1/1 通过 | verifier 接受唯一正常 take，拒绝 active loan、错 root owner、Copyable、错误 result type 与重复 owner/place take |
+| `cargo test -p lang-codegen --lib move_only_inline_inout_takes_the_owner_back_without_double_drop --locked --offline -- --test-threads=1` | 1/1 通过 | 动态 String payload 经 source→object→Clang link→run 输出 `move-only-writeback`，无 double free |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 39/39 通过 | MoveOnly take/rebind 与 field replacement fail-loud 同时保持 |
+| `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline -- --test-threads=1` | 16/16 通过 | 新 take 线性状态与既有 loan/move/drop 矩阵通过 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline -- --test-threads=1` | 25/25 通过 | MoveOnly take native 与既有 receiver/default/delegation/generic 小模块通过 |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁；未运行耗时 frontend 全量测试 |
+| 独立高风险复核（MoveOnly inline root take/write-back） | 通过 | 复核 direct-root contract、旧 owner/place 唯一消费、active-loan/重复 take、LLVM load、caller rebind/drop 及 field replacement 双重门禁，未发现 P1/P2/P3 |

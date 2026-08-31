@@ -1263,7 +1263,7 @@ fn copyable_inline_inout_rebinds_the_mutated_value_after_the_call() {
 }
 
 #[test]
-fn move_only_inline_inout_read_rejects_caller_writeback() {
+fn move_only_inline_inout_read_takes_the_same_root_back_after_the_call() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -1286,7 +1286,7 @@ fn move_only_inline_inout_read_rejects_caller_writeback() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = match lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -1294,16 +1294,79 @@ fn move_only_inline_inout_read_rejects_caller_writeback() {
         &typed,
         &owned,
         declaration(&names, "p", "entry"),
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("MoveOnly inline Inout caller requires take/write-back support"),
+    )
+    .expect("MoveOnly inline Inout caller must take the same root back after the loan ends");
+
+    let module = &program.modules[0];
+    let inspect = function(module.functions.iter(), ".Resource.inspect.s");
+    let entry = function(module.functions.iter(), ".entry.d");
+    let call = entry
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::DirectCall { callee, .. } if callee == inspect.id()
+            )
+        })
+        .expect("inspect call");
+    let receiver = match entry.instructions[call].operation {
+        Operation::DirectCall {
+            receiver: Some(EntityId::Loan(receiver)),
+            ..
+        } => receiver,
+        ref other => panic!("MoveOnly inspect receiver: {other:?}"),
     };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    let span = error.span.expect("MoveOnly receiver span");
+    let (original, place) = entry.instructions[..call]
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::RootPlace { owner }, [EntityId::Place(place)]) => {
+                    Some((*owner, *place))
+                }
+                _ => None,
+            },
+        )
+        .expect("MoveOnly receiver root place");
+    let relevant = entry.instructions[call + 1..]
+        .iter()
+        .filter_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowEnd { loan }, []) if *loan == receiver => {
+                    Some(("receiver-end", None))
+                }
+                (
+                    Operation::RootPlaceTake {
+                        owner,
+                        place: actual,
+                    },
+                    [EntityId::Value(value)],
+                ) if *owner == original && *actual == place => Some(("take", Some(*value))),
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
     assert_eq!(
-        sources.slice(span).expect("MoveOnly receiver source"),
-        "resource"
+        relevant.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(),
+        ["receiver-end", "take"]
     );
+    let rebound = relevant[1].1.expect("MoveOnly rebound owner");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::Drop { owner } if owner == rebound
+            ))
+            .count(),
+        1
+    );
+    assert!(!entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::Drop { owner } if owner == original
+    )));
+    render_verified_program(&program).expect("MoveOnly root-place take must lower to LLVM");
 }
 
 #[test]

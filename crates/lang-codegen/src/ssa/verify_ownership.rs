@@ -786,6 +786,36 @@ fn apply_operation(
         Operation::RootPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
+        Operation::RootPlaceTake { owner, place } => {
+            let place_active = require_place(*place, state, location.clone(), origin, errors);
+            let owner_available = require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            let allowed_places = BTreeSet::from([*place]);
+            if place_active
+                && owner_available
+                && consume_value(
+                    module,
+                    function,
+                    *owner,
+                    aliases,
+                    state,
+                    &BTreeSet::new(),
+                    &allowed_places,
+                    location,
+                    origin,
+                    errors,
+                )
+            {
+                state.places.remove(place);
+            }
+        }
         Operation::BorrowBegin { place, kind } => {
             if require_place(*place, state, location.clone(), origin, errors)
                 && has_borrow_conflict(function, *place, *kind, aliases, state)

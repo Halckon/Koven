@@ -282,13 +282,20 @@ impl UnitExpressionLowerer<'_> {
                         writeback.span,
                     ));
                 }
+                let operation = match writeback.kind {
+                    super::receiver::ReceiverWritebackKind::Copyable => Operation::Read {
+                        source: PlaceAccess::Place(writeback.place),
+                    },
+                    super::receiver::ReceiverWritebackKind::MoveOnly => Operation::RootPlaceTake {
+                        owner: writeback.original,
+                        place: writeback.place,
+                    },
+                };
                 let (_, values) = self
                     .function
                     .append_instruction(
                         self.block,
-                        Operation::Read {
-                            source: PlaceAccess::Place(writeback.place),
-                        },
+                        operation,
                         vec![EntityType::Value(writeback.target)],
                         Origin::Source(writeback.span),
                     )
