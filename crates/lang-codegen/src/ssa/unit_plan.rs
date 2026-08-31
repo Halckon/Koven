@@ -12,8 +12,9 @@ use lang_frontend::{
     parser::{Item, NameMarker, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        TypeEnvironment, UnitCallTarget, UnitCallableSignature, UnitCallableTarget,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
+        IntrinsicTypeConstructor, NominalKind, TypeEnvironment, UnitCallTarget,
+        UnitCallableSignature, UnitCallableTarget, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
@@ -655,18 +656,23 @@ pub(crate) fn resolve_unit_call_instance(
         if arguments.len() != nominal.type_parameters().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if !nominal_runtime_layout_is_parameter_independent(typed, nominal) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let field = nominal
+        let concrete_fields =
+            resolve_nominal_runtime_field_types(typed, current_receiver, nominal, arguments)?;
+        let field_index = nominal
             .fields()
             .iter()
-            .find(|field| field.symbol() == route.target())
+            .enumerate()
+            .find(|(_, field)| field.symbol() == route.target())
+            .map(|(index, _)| index)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let delegate_receiver = concrete_fields
+            .get(field_index)
+            .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let Some(UnitTypeKind::Nominal {
             declaration: delegate,
             arguments: delegate_arguments,
-        }) = typed.types().types().get(field.ty())
+        }) = typed.types().types().get(delegate_receiver)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
@@ -679,13 +685,16 @@ pub(crate) fn resolve_unit_call_instance(
         if delegate_arguments.len() != delegate_nominal.type_parameters().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if !nominal_runtime_layout_is_parameter_independent(typed, delegate_nominal) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        resolve_nominal_runtime_field_types(
+            typed,
+            delegate_receiver,
+            delegate_nominal,
+            delegate_arguments,
+        )?;
         delegation.push(UnitDelegatedCallRoute {
             outer_receiver: current_receiver,
             field: route.target(),
-            delegate_receiver: field.ty(),
+            delegate_receiver,
         });
         if let Some(next_hop) = forwarder.next_hop() {
             current_type_arguments = remap_delegation_next_hop_arguments(
@@ -700,7 +709,7 @@ pub(crate) fn resolve_unit_call_instance(
                 span,
             )?;
             current_target = next_hop.requirement();
-            current_receiver = field.ty();
+            current_receiver = delegate_receiver;
             continue;
         }
         let Some(implementation) = forwarder.implementation() else {
@@ -757,7 +766,7 @@ pub(crate) fn resolve_unit_call_instance(
             typed,
             implementation.target(),
             implementation_arguments,
-            Some(field.ty()),
+            Some(delegate_receiver),
             span,
         )?;
         return Ok(ResolvedUnitCallInstance { key, delegation });
@@ -1005,37 +1014,69 @@ fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTyp
     }
 }
 
-/// 判断 nominal 的现行 runtime field layout 是否无需替换 owner type parameter。
-///
-/// 这允许 phantom/参数无关的泛型 owner 复用 concrete `UnitTypeId` 身份，同时把任何直接或
-/// 嵌套依赖类型参数的字段留在后续统一实例化布局切片。
-pub(crate) fn nominal_runtime_layout_is_parameter_independent(
-    typed: &ValidatedCompilationUnitTypes,
-    nominal: &UnitNominalSignature,
-) -> bool {
-    nominal.fields().iter().all(|field| {
-        typed
-            .types()
-            .types()
-            .get(field.ty())
-            .is_some_and(|kind| !contains_type_parameter(typed, kind))
-    })
-}
-
 /// 把 nominal runtime fields 解析为当前 concrete owner instance 的存储类型。
 ///
-/// 只支持 closed field 或恰好为 owner direct type-parameter slot 的 field；任何嵌套 recipe
-/// 继续等待统一结构替换，避免 codegen 扩张 frontend 已验证的泛型体语义。
+/// 优先消费 SPEC-0219 按 exact owner 发布的 descriptor。字段替换中新 intern、未进入 frontend
+/// owner 候选快照的 nested owner 只允许回退到 closed/direct type-parameter 旧规则。
 pub(crate) fn resolve_nominal_runtime_field_types(
     typed: &ValidatedCompilationUnitTypes,
+    owner_type: UnitTypeId,
     nominal: &UnitNominalSignature,
     arguments: &[UnitTypeId],
 ) -> Result<Vec<UnitTypeId>, LoweringError> {
+    let owner_matches = matches!(
+        typed.types().types().get(owner_type),
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments: owner_arguments,
+        }) if *declaration == nominal.declaration() && owner_arguments == arguments
+    );
+    if !owner_matches {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        });
+    }
     if nominal.type_parameters().len() != arguments.len() {
         return Err(LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: None,
         });
+    }
+    if let Some(layout) = typed.types().runtime_field_layout(owner_type) {
+        if layout.declaration() != nominal.declaration()
+            || layout.arguments() != arguments
+            || layout.fields().len() != nominal.fields().len()
+        {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            });
+        }
+        return layout
+            .fields()
+            .iter()
+            .zip(nominal.fields())
+            .map(|(actual, template)| {
+                if actual.symbol() != template.symbol()
+                    || actual.template_type() != template.ty()
+                    || actual.span() != template.span()
+                    || typed.types().types().get(actual.concrete_type()).is_none()
+                {
+                    Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        template.span(),
+                    ))
+                } else if !supported_nested_runtime_field_recipe(typed, nominal, template.ty()) {
+                    Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        template.span(),
+                    ))
+                } else {
+                    Ok(actual.concrete_type())
+                }
+            })
+            .collect();
     }
     nominal
         .fields()
@@ -1055,6 +1096,68 @@ pub(crate) fn resolve_nominal_runtime_field_types(
             None => Err(lowering_error(LoweringErrorKind::MissingFact, field.span())),
         })
         .collect()
+}
+
+/// SPEC-0191 当前只新增一层 `List<T>` 或单参数 ordinary-class `Wrapper<T>` recipe。
+fn supported_nested_runtime_field_recipe(
+    typed: &ValidatedCompilationUnitTypes,
+    owner: &UnitNominalSignature,
+    template: UnitTypeId,
+) -> bool {
+    let Some(kind) = typed.types().types().get(template) else {
+        return false;
+    };
+    if !contains_type_parameter(typed, kind) {
+        return true;
+    }
+    match kind {
+        UnitTypeKind::TypeParameter(parameter) => owner.type_parameters().contains(parameter),
+        UnitTypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::List,
+            arguments,
+        } => matches!(
+            arguments.as_slice(),
+            [argument] if direct_owner_type_parameter(typed, owner, *argument)
+        ),
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            matches!(
+                arguments.as_slice(),
+                [argument] if direct_owner_type_parameter(typed, owner, *argument)
+            ) && typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .is_some_and(|nested| {
+                    nested.kind() == NominalKind::Class && nested.type_parameters().len() == 1
+                })
+        }
+        UnitTypeKind::Builtin(_)
+        | UnitTypeKind::Nullable(_)
+        | UnitTypeKind::Function { .. }
+        | UnitTypeKind::Intrinsic { .. }
+        | UnitTypeKind::EnumCase { .. }
+        | UnitTypeKind::StaticSelf(_)
+        | UnitTypeKind::Capability(_)
+        | UnitTypeKind::IntegerLiteral(_)
+        | UnitTypeKind::Deferred(_)
+        | UnitTypeKind::Error => false,
+    }
+}
+
+fn direct_owner_type_parameter(
+    typed: &ValidatedCompilationUnitTypes,
+    owner: &UnitNominalSignature,
+    ty: UnitTypeId,
+) -> bool {
+    matches!(
+        typed.types().types().get(ty),
+        Some(UnitTypeKind::TypeParameter(parameter))
+            if owner.type_parameters().contains(parameter)
+    )
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {

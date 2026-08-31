@@ -139,8 +139,12 @@ impl UnitExpressionLowerer<'_> {
                 {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
-                let concrete_fields =
-                    resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
+                let concrete_fields = resolve_nominal_runtime_field_types(
+                    self.typed,
+                    descriptor.result_type(),
+                    nominal,
+                    arguments,
+                )?;
                 if *result_declaration != declaration
                     || arguments.len() != nominal.type_parameters().len()
                     || arguments != descriptor.instance().type_arguments()
@@ -280,7 +284,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let concrete_fields = resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
+        let concrete_fields =
+            resolve_nominal_runtime_field_types(self.typed, receiver_type, nominal, arguments)?;
         let field = self
             .field_indices
             .get(&(receiver_type, projection.field()))
@@ -432,7 +437,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok(None);
         }
-        let concrete_fields = resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
+        let concrete_fields =
+            resolve_nominal_runtime_field_types(self.typed, current.ty, nominal, arguments)?;
         let EntityId::Loan(receiver) = current.entity else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };

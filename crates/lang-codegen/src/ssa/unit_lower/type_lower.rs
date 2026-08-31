@@ -329,7 +329,7 @@ impl UnitTypeLowering {
             return self.intern_enum(module, typed, ty, declaration, nominal.enum_cases(), span);
         }
         let fields = nominal.fields().to_vec();
-        let concrete_fields = resolve_nominal_runtime_field_types(typed, nominal, arguments)?;
+        let concrete_fields = resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)?;
         if nominal.kind() == NominalKind::ValueClass && !self.active_inline.insert(ty) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -508,7 +508,7 @@ pub(super) fn is_supported_storage_type(
                         )
                     } else {
                         nominal.kind() == NominalKind::Class
-                            && resolve_nominal_runtime_field_types(typed, nominal, arguments)
+                            && resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
                                 .is_ok()
                     }
             }),

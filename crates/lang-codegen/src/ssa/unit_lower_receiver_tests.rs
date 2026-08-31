@@ -1082,6 +1082,69 @@ fn direct_slot_generic_receiver_keeps_concrete_int_replacement_trivial() {
 }
 
 #[test]
+fn nested_generic_receiver_replaces_a_concrete_wrapper_owner() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Wrapper<T>(val item: T)\n\
+         class Holder<T>(var wrapped: Wrapper<T>) {\n\
+             inout fun set(own replacement: Wrapper<T>): Unit {\n\
+                 val ignored: Unit = (this.wrapped = replacement)\n\
+             }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val holder = Holder<String>(Wrapper<String>(\"old\" + \"-value\"))\n\
+             val ignored = holder.set(Wrapper<String>(\"new\" + \"-value\"))\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("SPEC-0219 nested Wrapper<T> layout must lower by exact Holder<String> owner");
+
+    let member = function(program.modules[0].functions.iter(), ".Holder.set.s");
+    assert!(member.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldReplace { field: 0, .. }
+    )));
+    let llvm = render_verified_program(&program).expect("nested Wrapper owner replacement LLVM");
+    let member_llvm = llvm
+        .split("define internal")
+        .find(|body| {
+            body.split('{')
+                .next()
+                .is_some_and(|header| header.contains("koven.p.Holder.set"))
+        })
+        .unwrap_or_else(|| panic!("nested generic member LLVM body:\n{llvm}"));
+    let old_load = member_llvm
+        .find(".old = load ptr")
+        .unwrap_or_else(|| panic!("old Wrapper owner is loaded:\n{member_llvm}"));
+    let old_drop = member_llvm[old_load..]
+        .find("call void @koven.drop")
+        .map(|offset| old_load + offset)
+        .expect("old Wrapper owner is dropped");
+    let replacement_store = member_llvm[old_drop..]
+        .find("store ptr")
+        .map(|offset| old_drop + offset)
+        .expect("new Wrapper owner is stored after old drop");
+    assert!(
+        old_load < old_drop && old_drop < replacement_store,
+        "{member_llvm}"
+    );
+}
+
+#[test]
 fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

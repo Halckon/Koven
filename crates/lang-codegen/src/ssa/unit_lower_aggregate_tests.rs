@@ -322,14 +322,16 @@ fn direct_slot_generic_class_instances_keep_distinct_layout_identities() {
 }
 
 #[test]
-fn rejects_nested_parameter_dependent_generic_class_field_layouts() {
+fn lowers_frontend_authorized_nested_generic_class_field_layouts() {
     let (name_environment, type_environment) = standard_environments();
-    for (name, text) in [
+    for (name, text, heap_owners, containers) in [
         (
             "intrinsic",
             "package test\n\
              class Dependent<T>(val items: List<T>)\n\
              fun entry(own input: Dependent<Int>): Int = 1",
+            1,
+            1,
         ),
         (
             "nominal",
@@ -337,17 +339,73 @@ fn rejects_nested_parameter_dependent_generic_class_field_layouts() {
              class Wrapper<T>(val marker: Int)\n\
              class Dependent<T>(val item: Wrapper<T>)\n\
              fun entry(own input: Dependent<Int>): Int = 1",
-        ),
-        (
-            "nullable",
-            "package test\n\
-             class Dependent<T>(val item: T?)\n\
-             fun entry(own input: Dependent<Int>): Int = 1",
+            2,
+            0,
         ),
     ] {
         let mut sources = SourceMap::new();
         let path = format!("test/{name}.ko");
         let (source, parsed) = parsed(&mut sources, &path, text);
+        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .expect("frontend-authorized nested generic field layout must lower");
+        let module = &program.modules[0];
+        assert_eq!(
+            module
+                .types
+                .iter()
+                .filter(|ty| matches!(ty, SsaTypeKind::HeapOwner { .. }))
+                .count(),
+            heap_owners,
+            "{name}"
+        );
+        assert_eq!(
+            module
+                .types
+                .iter()
+                .filter(|ty| matches!(ty, SsaTypeKind::SequentialContainer { .. }))
+                .count(),
+            containers,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn rejects_unauthorized_nested_generic_class_field_layouts() {
+    let (name_environment, type_environment) = standard_environments();
+    for (name, declarations) in [
+        ("nullable", "class Dependent<T>(val item: T?)"),
+        (
+            "deep-intrinsic",
+            "class Dependent<T>(val item: List<List<T>>)",
+        ),
+        (
+            "deep-nominal",
+            "class Wrapper<T>(val item: T)\nclass Dependent<T>(val item: Wrapper<List<T>>)",
+        ),
+        (
+            "value-wrapper",
+            "value class Wrapper<T>(val item: T)\nclass Dependent<T>(val item: Wrapper<T>)",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let path = format!("test/{name}.ko");
+        let text = format!(
+            "package test\n{declarations}\n\
+             fun entry(own input: Dependent<Int>): Int = 1"
+        );
+        let (source, parsed) = parsed(&mut sources, &path, &text);
         let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
@@ -360,10 +418,11 @@ fn rejects_nested_parameter_dependent_generic_class_field_layouts() {
             &owned,
             declaration(&names, "test", "entry"),
         ) {
-            Ok(_) => panic!("parameter-dependent generic class layout must remain unsupported"),
+            Ok(_) => panic!("unauthorized nested runtime recipe must remain unsupported: {name}"),
             Err(error) => error,
         };
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
+        assert!(error.span.is_some(), "{name}");
     }
 }
 

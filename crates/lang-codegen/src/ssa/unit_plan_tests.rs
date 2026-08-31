@@ -8,14 +8,18 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, TypeEnvironment, UnitCallTarget, UnitCallableTarget, UnitTypeKind,
-        ValidatedCompilationUnitTypes, check_compilation_unit_types, standard_environments,
+        BuiltinType, IntrinsicTypeConstructor, TypeEnvironment, UnitCallTarget, UnitCallableTarget,
+        UnitTypeKind, ValidatedCompilationUnitTypes, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
 use super::{
     LoweringErrorKind,
-    unit_plan::{UnitPlannedInstance, plan_unit_instances, resolve_unit_call_instance},
+    unit_plan::{
+        UnitPlannedInstance, plan_unit_instances, resolve_nominal_runtime_field_types,
+        resolve_unit_call_instance,
+    },
 };
 
 fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
@@ -119,6 +123,63 @@ fn plan<'a>(
         entry,
     )
     .expect("unit instance plan")
+}
+
+#[test]
+fn nested_runtime_layout_requires_the_exact_frontend_owner_descriptor() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/layout.ko",
+        "package p\n\
+         class Dependent<T>(val items: List<T>)\n\
+         fun entry(input: Dependent<Int>): Unit {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/layout.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, _) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let dependent = declaration(&names, "Dependent");
+    let nominal = typed
+        .types()
+        .signatures()
+        .declaration(dependent)
+        .and_then(|signature| signature.nominal())
+        .expect("Dependent signature exists");
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int is seeded");
+    let string = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::String)
+        .expect("String is seeded");
+    let owner = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: dependent,
+            arguments: vec![int],
+        })
+        .expect("Dependent<Int> is canonical");
+
+    let fields = resolve_nominal_runtime_field_types(&typed, owner, nominal, &[int])
+        .expect("exact owner descriptor resolves nested List<Int>");
+    assert!(matches!(
+        fields.as_slice(),
+        [field]
+            if matches!(
+                typed.types().types().get(*field),
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::List,
+                    arguments,
+                }) if arguments == &[int]
+            )
+    ));
+    let error = resolve_nominal_runtime_field_types(&typed, owner, nominal, &[string])
+        .expect_err("owner arguments cannot be replaced by another global canonical type");
+    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
 }
 
 #[test]
@@ -871,7 +932,7 @@ fn plans_parameter_independent_generic_outer_receiver() {
 }
 
 #[test]
-fn rejects_parameter_dependent_generic_delegate_layout() {
+fn plans_frontend_authorized_nested_generic_delegate_layout() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -879,14 +940,21 @@ fn rejects_parameter_dependent_generic_delegate_layout() {
         "package p\n\
          interface Readable { fun read(): Int }\n\
          class Reader<T>(val item: T): Readable { override fun read(): Int = 7 }\n\
-         class Host(val delegate: Reader<Int>): Readable by delegate {}\n\
-         fun entry(host: Host): Int = host.read()",
+         class Host<T>(val delegate: Reader<T>): Readable by delegate {}\n\
+         fun entry(host: Host<Int>): Int = host.read()",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = plan_unit_instances(
+    let reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let implementation = reader.members()[0].target();
+    let instances = plan_unit_instances(
         &sources,
         &inputs,
         &names,
@@ -895,9 +963,31 @@ fn rejects_parameter_dependent_generic_delegate_layout() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("a field whose layout depends on T must remain unsupported");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    .expect("SPEC-0219 exact Host<Int> field layout must route to Reader<Int>");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+    let resolved = only_member_call_route(&parsed, &typed, &owned);
+    let [route] = resolved.delegation() else {
+        panic!("one nested generic delegate route");
+    };
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    assert!(matches!(
+        typed.types().types().get(route.outer_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: owner, arguments })
+            if *owner == declaration(&names, "Host") && arguments == &[int]
+    ));
+    assert!(matches!(
+        typed.types().types().get(route.delegate_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: delegate, arguments })
+            if *delegate == declaration(&names, "Reader") && arguments == &[int]
+    ));
 }
 
 #[test]

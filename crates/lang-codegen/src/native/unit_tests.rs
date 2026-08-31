@@ -1028,6 +1028,61 @@ fn parameter_independent_generic_nominal_delegation_links_and_runs() {
 }
 
 #[test]
+fn nested_generic_nominal_delegation_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader<T>(val item: T): Readable {\n\
+             override fun read(): Int {\n\
+                 println(\"nested-generic-reader\")\n\
+                 return 7\n\
+             }\n\
+         }\n\
+         class Host<T>(val delegate: Reader<T>): Readable by delegate {}\n\
+         fun entry(): Unit {\n\
+             val actual = Host<String>(Reader<String>(\"payload\")).read()\n\
+             if (actual == 7) { println(\"nested-generic-delegate\") }\
+             else { error(\"wrong nested generic delegation\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("nested-generic-delegate.o");
+    let executable = directory.join("nested-generic-delegate");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("nested generic delegation must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked nested-generic delegation executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"nested-generic-reader\nnested-generic-delegate\n"
+    );
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn direct_slot_generic_string_replacement_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\
@@ -1069,6 +1124,53 @@ fn direct_slot_generic_string_replacement_links_and_runs() {
     let run = Command::new(&executable)
         .output()
         .expect("linked direct-slot generic executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
+fn nested_generic_wrapper_replacement_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         class Wrapper<T>(val item: T)\n\
+         class Holder<T>(var wrapped: Wrapper<T>) {\n\
+             inout fun set(own replacement: Wrapper<T>): Unit { this.wrapped = replacement }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val holder = Holder<String>(Wrapper<String>(\"old\" + \"-value\"))\n\
+             val ignored = holder.set(Wrapper<String>(\"new\" + \"-value\"))\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("nested-generic-wrapper.o");
+    let executable = directory.join("nested-generic-wrapper");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("nested generic Wrapper<T> replacement must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked nested-generic executable must launch");
     assert!(run.status.success(), "{run:?}");
     assert!(run.stdout.is_empty(), "{run:?}");
     assert!(run.stderr.is_empty(), "{run:?}");
