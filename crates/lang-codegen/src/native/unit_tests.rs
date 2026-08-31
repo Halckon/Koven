@@ -1038,9 +1038,10 @@ fn nested_generic_nominal_delegation_links_and_runs() {
                  return 7\n\
              }\n\
          }\n\
-         class Host<T>(val delegate: Reader<T>): Readable by delegate {}\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<T>(val delegate: Reader<Wrapper<T>>): Readable by delegate {}\n\
          fun entry(): Unit {\n\
-             val actual = Host<String>(Reader<String>(\"payload\")).read()\n\
+             val actual = Host<String>(Reader<Wrapper<String>>(Wrapper<String>(\"payload\"))).read()\n\
              if (actual == 7) { println(\"nested-generic-delegate\") }\
              else { error(\"wrong nested generic delegation\") }\n\
          }",

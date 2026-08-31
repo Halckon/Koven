@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -17,8 +19,8 @@ use lang_frontend::{
 use super::{
     LoweringErrorKind,
     unit_plan::{
-        UnitPlannedInstance, plan_unit_instances, resolve_nominal_runtime_field_types,
-        resolve_unit_call_instance,
+        UnitPlannedInstance, plan_unit_instances, resolve_delegated_dispatch_owner_argument,
+        resolve_nominal_runtime_field_types, resolve_unit_call_instance,
     },
 };
 
@@ -940,7 +942,8 @@ fn plans_frontend_authorized_nested_generic_delegate_layout() {
         "package p\n\
          interface Readable { fun read(): Int }\n\
          class Reader<T>(val item: T): Readable { override fun read(): Int = 7 }\n\
-         class Host<T>(val delegate: Reader<T>): Readable by delegate {}\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<T>(val delegate: Reader<Wrapper<T>>): Readable by delegate {}\n\
          fun entry(host: Host<Int>): Int = host.read()",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
@@ -986,8 +989,93 @@ fn plans_frontend_authorized_nested_generic_delegate_layout() {
     assert!(matches!(
         typed.types().types().get(route.delegate_receiver()),
         Some(UnitTypeKind::Nominal { declaration: delegate, arguments })
-            if *delegate == declaration(&names, "Reader") && arguments == &[int]
+            if *delegate == declaration(&names, "Reader")
+                && matches!(
+                    arguments.as_slice(),
+                    [argument]
+                        if matches!(
+                            typed.types().types().get(*argument),
+                            Some(UnitTypeKind::Nominal {
+                                declaration: wrapper,
+                                arguments: wrapper_arguments,
+                            }) if *wrapper == declaration(&names, "Wrapper")
+                                && wrapper_arguments == &[int]
+                        )
+                )
     ));
+}
+
+#[test]
+fn delegated_dispatch_owner_recipe_keeps_unsupported_nested_kinds_closed() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/dispatch-recipes.ko",
+        "package p\n\
+         value class ValueWrapper<T>(val item: T)\n\
+         class Pair<A, B>(val first: A, val second: B)\n\
+         class ArrayOwner<T>(val item: Array<T>)\n\
+         class NullableOwner<T>(val item: T?)\n\
+         class FunctionOwner<T>(val item: (T) -> T)\n\
+         class ValueOwner<T>(val item: ValueWrapper<T>)\n\
+         class MultiOwner<T>(val item: Pair<T, T>)\n\
+         fun entry(\n\
+             array: ArrayOwner<Int>,\n\
+             nullable: NullableOwner<Int>,\n\
+             callable: FunctionOwner<Int>,\n\
+             wrapped: ValueOwner<Int>,\n\
+             multi: MultiOwner<Int>\n\
+         ): Unit {}",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/dispatch-recipes.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, _) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+
+    for owner_name in [
+        "ArrayOwner",
+        "NullableOwner",
+        "FunctionOwner",
+        "ValueOwner",
+        "MultiOwner",
+    ] {
+        let owner = typed
+            .types()
+            .signatures()
+            .declaration(declaration(&names, owner_name))
+            .and_then(|signature| signature.nominal())
+            .unwrap_or_else(|| panic!("{owner_name} signature"));
+        let [parameter] = owner.type_parameters() else {
+            panic!("{owner_name} has one type parameter");
+        };
+        let [field] = owner.fields() else {
+            panic!("{owner_name} has one field");
+        };
+        let substitutions = BTreeMap::from([(*parameter, int)]);
+        let error = resolve_delegated_dispatch_owner_argument(
+            &typed,
+            field.ty(),
+            &substitutions,
+            field.span(),
+            &mut BTreeSet::new(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.kind,
+            LoweringErrorKind::UnsupportedNode,
+            "{owner_name}"
+        );
+        assert_eq!(error.span, Some(field.span()), "{owner_name}");
+    }
 }
 
 #[test]

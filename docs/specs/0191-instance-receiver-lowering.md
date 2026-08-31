@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181、0219 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 一层 `List<T>` / 单参数 ordinary-class `Wrapper<T>` 已消费 SPEC-0219；`T?` 仍需 compilation-unit nullable type lowering，深层 recipe 与 inherited owner recipe 仍保持门禁 |
+| 阻塞项 | 有限递归 `List` / 单参数 ordinary-class recipe 已消费 SPEC-0219；`T?` 仍需 compilation-unit nullable SSA/storage/drop lowering，参数增长型与 inherited owner recipe 仍保持门禁 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -45,11 +45,11 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - Borrow-only delegation 生成确定性静态 thunk 或等价直接转发；只投影 delegate field 和转交
   既有 loan/arguments，不生成隐藏 AST、retain、proxy allocation或新 owner。
 - generic ordinary class 的 runtime field 可为 closed type、恰好为 owner direct type parameter，或
-  SPEC-0219 exact owner descriptor 明确发布的一层 `List<T>` / 单参数 ordinary-class `Wrapper<T>`；
+  SPEC-0219 exact owner descriptor 明确发布、由 `List` / 单参数 ordinary class 递归组成的有限 recipe；
   direct/nested slot 按 concrete owner arguments 实例化，同时泛型 member body 仍按模板 recipe 消费
   所有权 fact。每个 concrete `UnitTypeId` 保持独立 heap-owner/layout identity，generic outer/delegate
   route 使用具体 receiver type。descriptor 必须逐字段核对 symbol/template/span/concrete type；
-  `T?`、`List<List<T>>`、`Wrapper<List<T>>` 与非 ordinary-class wrapper 继续拒绝。
+  `T?`、function、其他 intrinsic、非 class / 多参数 wrapper 与参数增长型 nested owner 继续拒绝。
 - SSA/verifier 拒绝 receiver mode/type/loan kind、instance key、ownership plan 与 callee signature
   不一致；verified-before-LLVM 不变。
 - 真实 source→object→link→run 覆盖多种 nominal/generic receiver、drop 与调用顺序；DWARF
@@ -73,8 +73,9 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   shared/inactive/derived-loan/read 负矩阵保持；LLVM old-drop-before-store 与 native 动态 String 闭环通过。
 - [x] generic ordinary-class direct `T` field 按 concrete actual 建立 layout/construction/projection；
   generic replacement 对 `String` 生成 old load/drop/store，对 `Int` 仍核对模板 fact 但只生成直接 store。
-- [x] exact owner descriptor 只开放一层 `List<T>` 与单参数 ordinary-class `Wrapper<T>`；nested
-  construction/projection/replacement/delegation 通过，nullable、深层及非 class wrapper 负矩阵保持。
+- [x] exact owner descriptor 开放有限递归 `List` / 单参数 ordinary-class recipe；深层
+  construction/projection/delegation 通过，nullable/function/其他 intrinsic/非 class 或多参数 wrapper
+  及参数增长型 owner 负矩阵保持。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -94,8 +95,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
    参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
-   receiver 已完成；SPEC-0219 exact owner descriptor 已接入一层 `List<T>` 与单参数 ordinary-class
-   `Wrapper<T>` 的 construction/projection/replacement，深层 recipe 与 nullable storage 继续保持门禁。
+   receiver 已完成；SPEC-0219 exact owner descriptor 已接入有限递归 `List` / 单参数 ordinary-class
+   recipe 的 construction/projection/replacement；nullable storage/drop 与参数增长型 owner 继续保持门禁。
 3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
@@ -116,8 +117,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    local override 正常终止 route，cycle 与无 endpoint unresolved chain 在 SSA 前拒绝。identity-changing
    chain 已直接消费 SPEC-0180 exact next-hop target/receiver template，按 hop 重组 owner prefix 并保留
    callable suffix；参数无关 generic outer/delegate runtime nominal 已完成 native 闭环，direct owner
-   type-parameter field 已开放；一层 `List<T>` / 单参数 ordinary-class `Wrapper<T>` 已按 exact owner
-   descriptor 解析 concrete delegate field 并完成 native 闭环，深层与 inherited owner recipe 继续拒绝。
+   type-parameter field 已开放；有限递归 `List` / 单参数 ordinary-class recipe 已按 exact owner
+   descriptor 解析 concrete delegate field，并只在 validated delegation 最终 forwarder 映射中递归
+   替换 dispatch owner argument；深层 nominal delegation 已完成 native，inherited owner recipe 继续拒绝。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -136,14 +138,15 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 10 | 参数无关 generic ordinary-class layout、receiver 与 delegation native 闭环 | `feat(codegen): lower closed generic nominal layouts (SPEC-0191)` |
 | 11 | direct owner type-parameter field 的 concrete layout、replacement 与 native 闭环 | `feat(codegen): lower direct generic field layouts (SPEC-0191)` |
 | 12 | 消费 SPEC-0219 的 owner-instance-qualified nested concrete field layout | `feat(codegen): lower nested generic field layouts (SPEC-0191)` |
+| 13 | 在 exact descriptor 下递归消费有限 `List` / 单参数 ordinary-class recipe | `feat(codegen): lower recursive generic field recipes (SPEC-0191)` |
 
 ## 8. 未决问题
 
-- generic runtime nominal 的参数无关、direct `T` 以及一层 `List<T>` / 单参数 ordinary-class
-  `Wrapper<T>` construction/projection/current receiver 已开放；后两者按 exact owner `UnitTypeId`
+- generic runtime nominal 的参数无关、direct `T` 以及有限递归 `List` / 单参数 ordinary-class
+  recipe construction/projection/current receiver 已开放；nested recipe 按 exact owner `UnitTypeId`
   消费 SPEC-0219 的 declaration + 完整 arguments + 字段顺序 concrete layout，不依赖全局 canonical
-  presence 或 construction descriptor。`T?`、深层 recipe 与 inherited owner recipe 仍需后续独立门禁；
-  这些边界均不扩张任意 owner expression。
+  presence 或 construction descriptor。`T?` 需要独立的 compilation-unit nullable SSA/storage/drop
+  切片；参数增长型与 inherited owner recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
@@ -257,3 +260,12 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo check --workspace --lib --locked --offline` | 通过 | workspace library Layer 2 构建门禁；未运行耗时 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 静态门禁，零 warning |
 | 独立高风险复核（nested generic field layout） | 通过 | 首轮发现 exact descriptor 会误开放任意深层 recipe 的 P1；加入模板 recipe 白名单与 nullable/deep/non-class 负矩阵后复核关闭，最终无 P1/P2/P3 |
+| 深层 recipe 红测 | 按预期失败后转绿 | `List<List<T>>` / `Wrapper<List<T>>` 初始以 `UnsupportedNode` 失败；递归白名单接线后进入 concrete layout |
+| `cargo test -p lang-codegen --lib unit_plan_tests --locked --offline` | 23/23 通过 | 深层 delegation、helper 白盒负矩阵及 `Derived<List<Y>>` / `Derived<Wrapper<Y>>` inherited owner 拒绝回归 |
+| `cargo test -p lang-codegen --lib unit_lower_aggregate_tests --locked --offline` | 6/6 通过 | 有限递归 List/class recipe 正例，以及 nullable/Array/value wrapper/参数增长型 owner 负矩阵 |
+| `cargo test -p lang-codegen --lib unit_lower_receiver_tests --locked --offline` | 32/32 通过 | receiver/replacement/delegation SSA 与 LLVM 回归 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 19/19 通过 | `Reader<Wrapper<T>>` delegation 与既有 receiver native 小模块完整回归 |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| `cargo check --workspace --lib --locked --offline` | 通过 | workspace library Layer 2 构建门禁；未运行耗时 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 静态门禁，零 warning |
+| 独立高风险复核（有限递归 generic recipe） | 通过 | 首轮发现递归 helper 误扩张通用 inherited dispatch 的 P1 与 helper 负矩阵 P3；收窄到 validated delegation 最终 forwarder、补 canonical 已存在仍拒绝的五类白盒负例后复核无 P1/P2/P3 |

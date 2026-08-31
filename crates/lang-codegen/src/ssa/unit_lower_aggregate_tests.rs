@@ -342,6 +342,23 @@ fn lowers_frontend_authorized_nested_generic_class_field_layouts() {
             2,
             0,
         ),
+        (
+            "deep-intrinsic",
+            "package test\n\
+             class Dependent<T>(val items: List<List<T>>)\n\
+             fun entry(own input: Dependent<Int>): Int = 1",
+            1,
+            2,
+        ),
+        (
+            "deep-nominal",
+            "package test\n\
+             class Wrapper<T>(val item: T)\n\
+             class Dependent<T>(val item: Wrapper<List<T>>)\n\
+             fun entry(own input: Dependent<Int>): Int = 1",
+            2,
+            1,
+        ),
     ] {
         let mut sources = SourceMap::new();
         let path = format!("test/{name}.ko");
@@ -386,17 +403,14 @@ fn rejects_unauthorized_nested_generic_class_field_layouts() {
     let (name_environment, type_environment) = standard_environments();
     for (name, declarations) in [
         ("nullable", "class Dependent<T>(val item: T?)"),
-        (
-            "deep-intrinsic",
-            "class Dependent<T>(val item: List<List<T>>)",
-        ),
-        (
-            "deep-nominal",
-            "class Wrapper<T>(val item: T)\nclass Dependent<T>(val item: Wrapper<List<T>>)",
-        ),
+        ("other-intrinsic", "class Dependent<T>(val item: Array<T>)"),
         (
             "value-wrapper",
             "value class Wrapper<T>(val item: T)\nclass Dependent<T>(val item: Wrapper<T>)",
+        ),
+        (
+            "growing-owner",
+            "class Dependent<T>(val item: Dependent<List<T>>)",
         ),
     ] {
         let mut sources = SourceMap::new();

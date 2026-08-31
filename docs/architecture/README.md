@@ -981,9 +981,10 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
 唯一析构；ordinary class 的该用例暂不读取 payload。后续 generic ordinary-class layout
 已按 concrete `UnitTypeId` 开放参数无关 field、恰为 owner direct type parameter 的 field，以及
-SPEC-0219 exact owner descriptor 授权的一层 `List<T>` / 单参数 ordinary-class `Wrapper<T>` field；
+SPEC-0219 exact owner descriptor 授权、由 `List` / 单参数 ordinary class 递归组成的有限 field recipe；
 descriptor 消费逐项核对 owner declaration/arguments 与 field symbol/template/span/concrete type，
-fallback 仍只接受 closed/direct-`T`。`T?`、深层 recipe 与非 ordinary-class wrapper 保持确定性拒绝；
+fallback 仍只接受 closed/direct-`T`。`T?`、function、其他 intrinsic、非 class / 多参数 wrapper
+与参数增长型 nested owner 保持确定性拒绝；
 SPEC-0218 已发布普通 `=` 的 Phase 2 descriptor，ordinary-class Inout payload field mutation 的
 typed 前置已解除。SPEC-0191 的下一切片已直接消费该 descriptor，为 active heap-owner receiver loan
 增加 `HeapFieldRead` 与 `HeapFieldReplace`：read 允许 shared/exclusive receiver 但只读取 Copyable
@@ -1015,11 +1016,11 @@ payload layout，generic outer/delegate route 只携带具体 receiver type；`M
 `Marker<Long>` 的参数无关布局 identity 已由 SSA 测试隔离。字段恰为 owner direct type parameter 时，
 layout/construction/projection 以 concrete actual 建模，但 generic member replacement 仍按模板 `T`
 核对 Phase 3 fact；`Cell<String>` 因而生成 old load/drop/store，`Cell<Int>` 只生成直接 store。
-一层 `List<T>` 与单参数 ordinary-class `Wrapper<T>` 已由 SPEC-0191 按 SPEC-0219 exact owner
-descriptor 接入 construction/projection/replacement；`Wrapper<T>` replacement 的 LLVM 顺序保持
-old load→field-typed drop→store。`T?`、`List<List<T>>`、`Wrapper<List<T>>`、generic value/enum/interface
-wrapper，以及 `Derived<List<Y>>` / `Derived<Wrapper<Y>>` 等 inherited owner recipe 仍以
-`UnsupportedNode` 确定性拒绝。
+有限递归 `List` / 单参数 ordinary-class recipe 已由 SPEC-0191 按 SPEC-0219 exact owner descriptor
+接入 construction/projection/replacement；`List<List<T>>` 与 `Wrapper<List<T>>` 已进入 concrete layout，
+`Wrapper<T>` replacement 的 LLVM 顺序保持 old load→field-typed drop→store。`T?`、function、其他
+intrinsic、generic value/enum/interface 或多参数 wrapper、参数增长型 nested owner，以及
+`Derived<List<Y>>` / `Derived<Wrapper<Y>>` 等 inherited owner recipe 仍以 `UnsupportedNode` 拒绝。
 Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
 shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
 loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原
@@ -1051,10 +1052,12 @@ current target，并把当前 owner prefix 替换为 next owner prefix、原序�
 plan 或按 shape 重选。`Base<Long>.map<Int>`→`Derived<String,Long>.map<Int>` 的 planner key 精确为
 `[String, Long, Int]`，真实 native 同时排除 Base default=1 与 Derived default=2，只执行 endpoint override=7。
 参数无关 generic runtime ordinary-class outer/delegate、direct owner type-parameter field layout，以及
-exact owner descriptor 授权的一层 `List<T>` / 单参数 ordinary-class `Wrapper<T>` delegate field 已开放；
+exact owner descriptor 授权的有限递归 `List` / 单参数 ordinary-class delegate field 已开放；
 planner 从 outer concrete layout 取得 delegate concrete type，再以同一 resolver 验证 delegate layout，
-route/current receiver/`StaticSelf` 全程保留 concrete `UnitTypeId`。nested generic delegation 已完成
-source→object→link→run；深层/inherited recipe 与无 endpoint unresolved route 仍未开放。
+route/current receiver/`StaticSelf` 全程保留 concrete `UnitTypeId`；递归 dispatch owner argument 只在
+validated delegation 的最终 forwarder 映射启用，不扩张通用 default/override owner substitution。
+`Reader<Wrapper<T>>` delegation 已完成 source→object→link→run；inherited recipe 与无 endpoint
+unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181
