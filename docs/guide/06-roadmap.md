@@ -522,10 +522,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       重映射与 default/local override native 闭环，runtime generic nominal 仍保持拒绝；递归/type-parameter
       路径现已区分 exact next hop 与 type-parameter unresolved。同 requirement identity 的非泛型 delegation chain 已完成逐跳
       typed/ownership route、field-loan chain、cycle 拒绝和三跳 native 闭环；identity-changing chain
-      的 frontend 精确 next-hop fact 已由 SPEC-0180 发布，等待 Phase 4 直接消费。非泛型 ordinary-class Inout interface default
+      已消费 SPEC-0180 精确 next-hop fact，完成 target/owner/callable slots 重映射与 native 闭环。非泛型 ordinary-class Inout interface default
       已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；MoveOnly Value default
       等待 Phase 3 条件 receiver-drop fact。继续补齐 generic runtime receiver/delegation、Value interface
-      default、MoveOnly field replacement 与 generic/identity-changing delegation chain。复用 ADR-0016，只
+      default、MoveOnly field replacement 与 generic runtime delegation。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`

@@ -90,8 +90,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    interface owner 与 callable slots 已按 forwarder/implementation owner template 精确重组，并由
    default/local override 的 native 闭环锁定。同 requirement identity 的非泛型 chain 已逐跳消费
    typed/ownership plan，并按 outer→inner 建立 field-loan chain；bodyful default 不得截断下一跳，
-   local override 正常终止 route，cycle 与 identity-changing/无 endpoint `None` chain 在 SSA 前拒绝。
-   generic runtime nominal 继续确定性拒绝。
+   local override 正常终止 route，cycle 与无 endpoint unresolved chain 在 SSA 前拒绝。identity-changing
+   chain 已直接消费 SPEC-0180 exact next-hop target/receiver template，按 hop 重组 owner prefix 并保留
+   callable suffix；generic runtime nominal 继续确定性拒绝。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -104,6 +105,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 4 | Inout interface default 的 concrete exclusive ABI 闭环 | `test(codegen): close inout default lowering (SPEC-0191)` |
 | 5 | 非泛型 runtime nominal 上的 generic delegation owner/callable 槽位重映射 | `feat(codegen): remap generic delegation slots (SPEC-0191)` |
 | 6 | 同 requirement identity 的非泛型 delegation chain | `feat(codegen): lower delegation chains (SPEC-0191)` |
+| 7 | identity-changing delegation chain 的 exact next-hop 消费 | `feat(codegen): lower replacement delegation chains (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -187,3 +189,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen native::unit_tests --locked --offline` | 12/12 通过 | 三跳 bodyful chain 到 endpoint override=7，未被 interface default=1 截断；完整 receiver/default/delegation native 小模块回归 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 四组职责门禁并行执行；未运行约一小时的 frontend 全量测试 |
 | 独立高风险复核（same-requirement delegation chain） | 通过 | 两轮发现 bodyful same-target 与 Base→Derived identity-changing chain 被 default 静默截断的 P1；补 route precedence、identity 门禁、local override/cycle/三跳 native 后复核至无 P1/P2/P3 |
+| `cargo test -p lang-codegen ssa::unit_plan_tests --locked --offline` | 20/20 通过 | identity-changing endpoint 排除 Base/Derived defaults；泛型 next hop 把 `[Long, Int]` 重组为 `[String, Long, Int]` |
+| `cargo test -p lang-codegen ssa::unit_lower_receiver_tests --locked --offline` | 25/25 通过 | target identity 更新不改变逐跳 field-loan ABI 与逆序 end |
+| `cargo test -p lang-codegen native::unit_tests --locked --offline` | 13/13 通过 | Base default=1、Derived default=2 均不得截断，真实 endpoint override=7 输出 replacement 标记 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | planner/receiver/native 与静态门禁并行，未运行 frontend 全量测试 |
+| 独立高风险复核（identity-changing delegation chain） | 通过 | 补泛型 owner prefix/callable suffix 与默认实例排除两项 P3 后，无剩余 P1/P2/P3 |

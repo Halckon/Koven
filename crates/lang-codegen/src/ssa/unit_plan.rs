@@ -553,6 +553,8 @@ pub(crate) fn resolve_unit_call_instance(
         return direct();
     };
     let mut current_receiver = receiver;
+    let mut current_target = target;
+    let mut current_type_arguments = type_arguments.clone();
     let mut delegation = Vec::new();
     let mut visited = BTreeSet::new();
     loop {
@@ -582,7 +584,7 @@ pub(crate) fn resolve_unit_call_instance(
             .flat_map(|plan| {
                 plan.forwarders()
                     .iter()
-                    .filter(move |forwarder| forwarder.requirement() == target)
+                    .filter(move |forwarder| forwarder.requirement() == current_target)
                     .map(move |forwarder| (plan, forwarder))
             })
             .collect::<Vec<_>>();
@@ -592,7 +594,7 @@ pub(crate) fn resolve_unit_call_instance(
             [(route, forwarder)] => (*route, *forwarder),
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
-        if !visited.insert((*declaration, target)) {
+        if !visited.insert((*declaration, current_target)) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let ownership_routes = owned
@@ -602,7 +604,7 @@ pub(crate) fn resolve_unit_call_instance(
             .filter(|plan| {
                 plan.owner() == *declaration
                     && plan.target() == route.target()
-                    && plan.forwarders().contains(&target)
+                    && plan.forwarders().contains(&current_target)
             })
             .collect::<Vec<_>>();
         if !matches!(ownership_routes.as_slice(), [_]) {
@@ -637,40 +639,29 @@ pub(crate) fn resolve_unit_call_instance(
             field: route.target(),
             delegate_receiver: field.ty(),
         });
-        let nested_forwarders = typed
-            .types()
-            .signatures()
-            .delegations()
-            .iter()
-            .filter(|plan| plan.owner() == *delegate)
-            .flat_map(|plan| plan.forwarders())
-            .collect::<Vec<_>>();
-        let nested_routes = nested_forwarders
-            .iter()
-            .copied()
-            .filter(|nested| nested.requirement() == target)
-            .collect::<Vec<_>>();
-        match nested_routes.as_slice() {
-            [_] => {
-                current_receiver = field.ty();
-                continue;
-            }
-            [] => {}
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        if let Some(next_hop) = forwarder.next_hop() {
+            current_type_arguments = remap_delegation_next_hop_arguments(
+                typed,
+                current_target,
+                next_hop.requirement(),
+                forwarder.receiver_type(),
+                next_hop.receiver_type(),
+                nominal,
+                arguments,
+                &current_type_arguments,
+                span,
+            )?;
+            current_target = next_hop.requirement();
+            current_receiver = field.ty();
+            continue;
         }
         let Some(implementation) = forwarder.implementation() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if nested_forwarders
-            .iter()
-            .any(|nested| nested.requirement() == implementation.target())
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
 
         // Frontend 已选定 effective implementation；这里只校验 recipe 并重映射泛型槽位，
         // 不重新执行 member selection。
-        let requirement_callable = unit_callable_signature(typed, target)
+        let requirement_callable = unit_callable_signature(typed, current_target)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let implementation_callable = unit_callable_signature(typed, implementation.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -691,7 +682,7 @@ pub(crate) fn resolve_unit_call_instance(
                 span,
             )?;
         let (declared_requirement_owner, declared_requirement_owner_arity) =
-            unit_callable_owner(typed, target)
+            unit_callable_owner(typed, current_target)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (declared_implementation_owner, declared_implementation_owner_arity) =
             unit_callable_owner(typed, implementation.target())
@@ -703,15 +694,17 @@ pub(crate) fn resolve_unit_call_instance(
             || declared_implementation_owner != implementation_owner
             || declared_requirement_owner_arity != requirement_owner_arguments.len()
             || declared_implementation_owner_arity != implementation_owner_arguments.len()
-            || type_arguments.len()
+            || current_type_arguments.len()
                 != requirement_owner_arguments.len() + requirement_callable.type_parameters().len()
-            || type_arguments[..requirement_owner_arguments.len()] != requirement_owner_arguments
+            || current_type_arguments[..requirement_owner_arguments.len()]
+                != requirement_owner_arguments
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let callable_argument_start = requirement_owner_arguments.len();
         let mut implementation_arguments = implementation_owner_arguments;
-        implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
+        implementation_arguments
+            .extend_from_slice(&current_type_arguments[callable_argument_start..]);
         let key = resolve_direct_unit_call_instance(
             typed,
             implementation.target(),
@@ -721,6 +714,57 @@ pub(crate) fn resolve_unit_call_instance(
         )?;
         return Ok(ResolvedUnitCallInstance { key, delegation });
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn remap_delegation_next_hop_arguments(
+    typed: &ValidatedCompilationUnitTypes,
+    current_target: UnitCallableTarget,
+    next_target: UnitCallableTarget,
+    current_owner_template: UnitTypeId,
+    next_owner_template: UnitTypeId,
+    concrete_owner: &UnitNominalSignature,
+    concrete_arguments: &[UnitTypeId],
+    type_arguments: &[UnitTypeId],
+    span: Span,
+) -> Result<Vec<UnitTypeId>, LoweringError> {
+    let current_callable = unit_callable_signature(typed, current_target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let next_callable = unit_callable_signature(typed, next_target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let (current_owner, current_owner_arguments) = instantiate_dispatch_owner_arguments(
+        typed,
+        current_owner_template,
+        concrete_owner,
+        concrete_arguments,
+        span,
+    )?;
+    let (next_owner, next_owner_arguments) = instantiate_dispatch_owner_arguments(
+        typed,
+        next_owner_template,
+        concrete_owner,
+        concrete_arguments,
+        span,
+    )?;
+    let (declared_current_owner, current_owner_arity) = unit_callable_owner(typed, current_target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let (declared_next_owner, next_owner_arity) = unit_callable_owner(typed, next_target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if current_callable.type_parameters().len() != next_callable.type_parameters().len()
+        || declared_current_owner != current_owner
+        || declared_next_owner != next_owner
+        || current_owner_arity != current_owner_arguments.len()
+        || next_owner_arity != next_owner_arguments.len()
+        || type_arguments.len()
+            != current_owner_arguments.len() + current_callable.type_parameters().len()
+        || type_arguments[..current_owner_arguments.len()] != current_owner_arguments
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    let callable_argument_start = current_owner_arguments.len();
+    let mut remapped = next_owner_arguments;
+    remapped.extend_from_slice(&type_arguments[callable_argument_start..]);
+    Ok(remapped)
 }
 
 fn resolve_direct_unit_call_instance(

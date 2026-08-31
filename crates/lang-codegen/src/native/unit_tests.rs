@@ -806,6 +806,60 @@ fn same_requirement_delegation_chain_links_and_runs() {
 }
 
 #[test]
+fn identity_changing_delegation_chain_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Base { fun read(): Int = 1 }\n\
+         interface Derived: Base { fun read(): Int = 2 }\n\
+         class Reader: Derived {\n\
+             override fun read(): Int {\n\
+                 println(\"replacement-endpoint\")\n\
+                 return 7\n\
+             }\n\
+         }\n\
+         class Middle(val reader: Reader): Derived by reader {}\n\
+         class Host(val middle: Middle): Base by middle {}\n\
+         fun entry(): Unit {\n\
+             val actual = Host(Middle(Reader())).read()\n\
+             if (actual == 7) { println(\"identity-chain\") }\
+             else { error(\"wrong replacement endpoint\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("identity-chain.o");
+    let executable = directory.join("identity-chain");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("identity-changing delegation chain must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked identity-chain executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"replacement-endpoint\nidentity-chain\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn generic_interface_owner_and_callable_delegation_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

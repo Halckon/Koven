@@ -1021,9 +1021,11 @@ typed forwarder 与 Phase 3 ownership plan，以 `(owner, requirement)` visited 
 loan，结束顺序为 argument→inner→outer→原 receiver。delegate 上存在同 target route 时，即使 outer
 forwarder 带 inherited default `Some` 也必须继续，避免 bodyful default 截断；nested local override 因
 没有对应 forwarder而正常成为 endpoint。若下一跳 requirement identity 等于当前 selected implementation
-但不同于原 target，则当前 Phase 4 仍以 `UnsupportedNode` 拒绝；SPEC-0180 已发布显式 next-hop identity，
-等待后续 lowering 切片直接消费。无关 delegation 不触发该门禁。三跳 native 已锁定 default=1 不得替代 endpoint override=7。generic runtime nominal、
-identity-changing chain 与无 endpoint `None` route 仍未开放。
+但不同于原 target，resolver 现直接消费 SPEC-0180 的 exact next-hop identity 与 receiver template，更新
+current target，并把当前 owner prefix 替换为 next owner prefix、原序保留 callable suffix；不扫描 nested
+plan 或按 shape 重选。`Base<Long>.map<Int>`→`Derived<String,Long>.map<Int>` 的 planner key 精确为
+`[String, Long, Int]`，真实 native 同时排除 Base default=1 与 Derived default=2，只执行 endpoint override=7。
+generic runtime nominal 与无 endpoint unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 仍等待 Phase 3 为 `StaticSelf` 发布条件 receiver-drop fact；在该事实

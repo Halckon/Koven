@@ -540,7 +540,7 @@ fn bodyful_requirement_chain_prefers_the_nested_route_over_an_inherited_default(
 }
 
 #[test]
-fn rejects_delegation_chain_that_changes_requirement_identity() {
+fn plans_identity_changing_delegation_chain_to_the_direct_endpoint() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -557,7 +557,26 @@ fn rejects_delegation_chain_that_changes_requirement_identity() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = plan_unit_instances(
+    let signatures = typed.types().signatures();
+    let base_default = signatures
+        .declaration(declaration(&names, "Base"))
+        .and_then(|signature| signature.nominal())
+        .expect("Base signature")
+        .members()[0]
+        .target();
+    let derived_default = signatures
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .expect("Derived signature")
+        .members()[0]
+        .target();
+    let endpoint = signatures
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature")
+        .members()[0]
+        .target();
+    let instances = plan_unit_instances(
         &sources,
         &inputs,
         &names,
@@ -566,9 +585,71 @@ fn rejects_delegation_chain_that_changes_requirement_identity() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("identity-changing delegation chain needs an explicit frontend next-hop fact");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    .expect("identity-changing chain must consume the exact frontend next-hop fact");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == endpoint)
+    );
+    assert!(instances.iter().all(|instance| !matches!(
+        instance.key().target(),
+        target if target == base_default || target == derived_default
+    )));
+}
+
+#[test]
+fn remaps_identity_changing_next_hop_owner_prefix_and_callable_suffix() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun <R> map(own input: R): R = input }\n\
+         interface Derived<X, Y>: Base<Y> { fun <R> map(own input: R): R = input }\n\
+         class Reader: Derived<String, Long> {}\n\
+         class Middle(val reader: Reader): Derived<String, Long> by reader {}\n\
+         class Host(val middle: Middle): Base<Long> by middle {}\n\
+         fun entry(host: Host): Int = host.map<Int>(7)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let derived = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .expect("Derived signature");
+    let endpoint = derived.members()[0].target();
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("generic identity-changing next hop must remap its slots");
+    let endpoint = instances
+        .iter()
+        .find(|instance| instance.key().target() == endpoint)
+        .expect("Derived default endpoint");
+    assert!(matches!(
+        endpoint
+            .key()
+            .type_arguments()
+            .iter()
+            .map(|argument| typed.types().types().get(*argument))
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [
+            Some(UnitTypeKind::Builtin(BuiltinType::String)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Long)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
+        ]
+    ));
 }
 
 #[test]
