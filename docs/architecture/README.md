@@ -755,9 +755,12 @@ SPEC-0197 第一阶段新增纯内存的
   `if` 按全部 fall-through 出口求交并排除 `Nothing` 出口。enum case 可赋给/join 回 root，既有
   v0.24 `T? is T` 同样产生 non-null flow type 并支持 `T`/`T?` join；非法关系与 case type 的普通
   标注分别复用 L0106/L0114。该切片不包含候选 v0.35 nullable `when`/`!!`；
-- 第五个 body 切片已接通一般 assignment：先在原 flow facts 下检查 target 与 RHS，再清除稳定
-  target 的 smart-cast fact；六种赋值运算均保持单文件现行 `Deferred(Assignment)` 边界，不把
-  Phase 3 mutable-place/loan 或尚未封闭的一般 RHS 相容性伪装成 Phase 2 诊断；
+- 第五个 body 切片先在原 flow facts 下检查 assignment target 与 RHS，再清除稳定 target 的
+  smart-cast fact；SPEC-0218 已把非 container 普通 `=` 收口为声明/storage type 驱动的 expected
+  检查，成功节点固定为 `Unit` 并发布 source-qualified target/value/operator/storage-type/
+  `falls_through` descriptor，RHS 不匹配复用 L0084。descriptor 随完整 trial parts 原子回滚，
+  错误节点不发布半成品；Phase 3 mutable-place/loan 仍不前移。五种 compound assignment 因现行
+  guide 尚未封闭 target 单次求值与旧值读取顺序，继续保持 `Deferred(Assignment)`；
 - 第六个 body 切片已接通局部 value-class 解构：initializer 只检查一次，跨文件 generic field
   类型按实际实参替换，产物以 `UnitStatementId` / `UnitSymbolId` 发布有序 component 与
   `Copy`/`Consume` descriptor；普通 class 保持 `Deferred(Destructuring)`，错误 arity 复用 L0118
@@ -956,9 +959,10 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 非泛型 value class 的 Borrow/Copyable Value receiver 与 ordinary class 的 Borrow/MoveOnly Value
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
 唯一析构；ordinary class 的该用例暂不读取 payload。generic nominal layout 仍保持既有确定性拒绝；
-一般 assignment typed 产物仍为 `Deferred(Assignment)`，因此 ordinary-class Inout payload field
-mutation 必须先取得 Phase 2 descriptor，不能由 codegen 重推。default/override/`super<I>`、无状态
-object 与静态委托仍由 SPEC-0191 后续切片承接。
+SPEC-0218 已发布普通 `=` 的 Phase 2 descriptor，ordinary-class Inout payload field mutation 的
+typed 前置已解除，但本段记录的 native receiver 切片尚未消费该事实；下一 SPEC-0191 切片必须直接
+消费 descriptor，不能由 codegen 重推。default/override/`super<I>`、无状态 object 与静态委托仍由
+SPEC-0191 后续切片承接。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated
@@ -1086,11 +1090,11 @@ temporary/local named drops、joined owner 传给 identity、两条 equality 的
 binding；若 MoveOnly 旧 binding 未被精确 fact 移除则以 `MissingFact` 失败，不静默覆盖。整数
 `+=` / `-=` / `*=` / `/=` / `%=` 复用 checked arithmetic 的 `true -> Abort` CFG，type planner 从
 compound target 的 concrete type 补入 Boolean failure identity，而不是误用 assignment 自身的 deferred
-`Unit` type；每次 success result 都成为下一次 assignment 的 binding。由于 compilation-unit 一般
-assignment 类型关系仍是 frontend deferred 边界，lowerer 在写回前显式要求 target/RHS concrete SSA type
-相同。结构测试锁定跨文件 String `concat -> RHS drop -> old drop -> replacement delivery`、五类 compound
-的逐次 operand/result chain、failure edge、最终返回、输入置换，以及 String compound 与 `Int = Boolean`
-原子拒绝。element/member target 和 Inout parameter 仍分别受 name-target 与 function ABI 既有门禁。
+`Unit` type；每次 success result 都成为下一次 assignment 的 binding。SPEC-0218 之后 validated 普通
+`=` 已携带 descriptor，`Int = Boolean` 在 Phase 2 以 L0084 原子拒绝；这条既有 root-name lowerer 仍保留
+等型内部断言，而新增 consumer 必须直接使用 descriptor。五种 compound 仍处于 frontend deferred/
+guide 未封闭边界；结构测试只把现有 checked-arithmetic lowering 锁为实现回归，不把它反向声明成语言
+语义。element/member target 和 Inout parameter 仍分别受 name-target 与 function ABI 既有门禁。
 
 第十五切片把 compilation-unit type mapper 与 expression lowering 扩展到已具体化、non-null 的
 intrinsic `Rc<T>` core。`type_lower` 递归建立有限 `Rc<具体类型>` 的 unit-global `SharedOwner`

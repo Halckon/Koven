@@ -319,6 +319,11 @@ Spec 之前，本条限制不变。）
       `ForwardValueType` 边界，const evaluator
       不提前启用；interpolation native lowering 仍保持确定性拒绝。
       不得把 0025 的名称产物、仅签名产物或当前局部切片直接冒充完整 typed unit。
+- [x] **[SPEC-0218](../specs/0218-compilation-unit-assignment-facts.md)（done）**：把非 container
+      普通 `=` 从 `Deferred(Assignment)` 收口为 source-qualified target/value/operator/
+      storage-type/control descriptor，并保持 RHS 后 kill smart cast；不在 Phase 2 定义普通
+      immutable-place 诊断，也不从实现反推五种复合赋值语义。该节点解除 SPEC-0191 的
+      ordinary-class Inout payload mutation typed 前置。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
@@ -507,8 +512,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（实施中）**：SSA/verifier/LLVM
       receiver-first 基元与 source member 的基础 Borrow/Inout/Value/隐式 `this` 接线已完成；非泛型
       value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
-      object/link/run。继续补齐 ordinary-class Inout payload mutation（先发布一般 assignment typed
-      descriptor）、default/override/`super<I>`、object 与 Borrow-only 静态委托。复用 ADR-0016，只
+      object/link/run。继续补齐 ordinary-class Inout payload mutation（直接消费 SPEC-0218 已发布的
+      assignment descriptor）、default/override/`super<I>`、object 与 Borrow-only 静态委托。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`

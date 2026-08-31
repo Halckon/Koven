@@ -9,7 +9,7 @@ use lang_frontend::{
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
         resolve_compilation_unit_names,
     },
-    parser::{Expression, ParsedFile, Statement, parse_file},
+    parser::{AssignmentOperator, Expression, ParsedFile, Statement, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
         BuiltinType, CompilationUnitTypes, ContainerConstructionKind, DeferredReason,
@@ -1660,7 +1660,7 @@ fn invalid_cross_file_type_tests_and_case_annotations_keep_precise_diagnostics()
 }
 
 #[test]
-fn assignment_checks_rhs_before_killing_flow_facts_and_stays_unit_deferred() {
+fn assignment_publishes_plain_storage_facts_and_keeps_compounds_deferred() {
     let mut sources = SourceMap::new();
     let (types_source, types) = parsed(
         &mut sources,
@@ -1683,8 +1683,7 @@ fn assignment_checks_rhs_before_killing_flow_facts_and_stays_unit_deferred() {
          fun subtractAssign(inout number: Int): Unit { number -= 2 }\n\
          fun multiplyAssign(inout number: Int): Unit { number *= 2 }\n\
          fun divideAssign(inout number: Int): Unit { number /= 2 }\n\
-         fun remainderAssign(inout number: Int): Unit { number %= 2 }\n\
-         fun deferredMismatch(inout number: Int): Unit { number = false }",
+         fun remainderAssign(inout number: Int): Unit { number %= 2 }",
     );
     let forward_inputs = [
         SourceUnitInput::new("root", "p/uses.ko", uses_source, &uses),
@@ -1709,6 +1708,7 @@ fn assignment_checks_rhs_before_killing_flow_facts_and_stays_unit_deferred() {
     assert!(forward.clone().validate().is_ok());
     assert_eq!(forward.expression_types(), reverse.expression_types());
     assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
+    assert_eq!(forward.assignments(), reverse.assignments());
     assert_eq!(forward.diagnostics(), reverse.diagnostics());
 
     let uses_unit = source_unit(&forward_names, uses_source);
@@ -1738,13 +1738,200 @@ fn assignment_checks_rhs_before_killing_flow_facts_and_stays_unit_deferred() {
     assert_eq!(current_types[4], root);
 
     let assignments = assignment_expressions(&uses);
-    assert_eq!(assignments.len(), 7);
-    assert!(assignments.iter().all(|&expression| matches!(
+    assert_eq!(assignments.len(), 6);
+    let replacement = expression_with_text(&sources, &uses, "current = current");
+    let replacement_id = UnitExpressionId::new(uses_unit, replacement);
+    let descriptor = forward
+        .assignment(replacement_id)
+        .expect("plain replacement publishes a descriptor");
+    assert_eq!(descriptor.expression(), replacement_id);
+    assert_eq!(descriptor.operator(), AssignmentOperator::Assign);
+    assert_eq!(descriptor.target_type(), root);
+    assert!(descriptor.falls_through());
+    assert_eq!(
+        sources.slice(
+            uses.ast()
+                .expressions()
+                .get(descriptor.target().expression())
+                .expect("assignment target")
+                .span(),
+        ),
+        Ok("current")
+    );
+    assert_eq!(
+        sources.slice(
+            uses.ast()
+                .expressions()
+                .get(descriptor.value().expression())
+                .expect("assignment value")
+                .span(),
+        ),
+        Ok("current")
+    );
+    assert_eq!(forward.assignments(), [descriptor]);
+    assert!(matches!(
         forward
-            .expression_type(UnitExpressionId::new(uses_unit, expression))
+            .expression_type(replacement_id)
             .and_then(|ty| forward.types().get(ty)),
-        Some(UnitTypeKind::Deferred(DeferredReason::Assignment))
-    )));
+        Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+    ));
+    assert!(
+        assignments
+            .into_iter()
+            .filter(|&expression| expression != replacement)
+            .all(|expression| matches!(
+                forward
+                    .expression_type(UnitExpressionId::new(uses_unit, expression))
+                    .and_then(|ty| forward.types().get(ty)),
+                Some(UnitTypeKind::Deferred(DeferredReason::Assignment))
+            ))
+    );
+}
+
+#[test]
+fn assignment_rejects_mismatched_rhs_without_publishing_a_descriptor() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assignment-error.ko",
+        "package p\nfun bad(inout number: Int): Unit { number = false }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/assignment-error.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("assignment mismatch stays in the recovery product");
+
+    assert_eq!(typed.body_diagnostics().len(), 1);
+    let diagnostic = &typed.body_diagnostics()[0];
+    assert_eq!(diagnostic.code().to_string(), "L0084");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok("false"));
+    let expected_label = diagnostic
+        .details()
+        .iter()
+        .find_map(|detail| match detail {
+            DiagnosticDetail::Label(label) => Some(label),
+            DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+        })
+        .expect("expected type origin label");
+    assert_eq!(sources.slice(expected_label.span()), Ok("number"));
+    let target = expression_with_text(&sources, &file, "number");
+    let target_span = file
+        .ast()
+        .expressions()
+        .get(target)
+        .expect("assignment target")
+        .span();
+    assert_ne!(expected_label.span(), target_span);
+    assert!(expected_label.span().start() < target_span.start());
+    assert!(typed.assignments().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn assignment_contextual_mismatch_rolls_back_its_descriptor() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assignment-context-error.ko",
+        "package p\nfun bad(inout number: Int): Int = number = 1",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/assignment-context-error.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("contextual mismatch stays in the recovery product");
+
+    assert_eq!(typed.body_diagnostics().len(), 1);
+    assert_eq!(typed.body_diagnostics()[0].code().to_string(), "L0084");
+    assert_eq!(
+        sources.slice(typed.body_diagnostics()[0].primary_span()),
+        Ok("number = 1")
+    );
+    let unit = source_unit(&names, source);
+    let assignment = assignment_expressions(&file)
+        .into_iter()
+        .next()
+        .expect("assignment expression");
+    assert!(matches!(
+        typed
+            .expression_type(UnitExpressionId::new(unit, assignment))
+            .and_then(|ty| typed.types().get(ty)),
+        Some(UnitTypeKind::Error)
+    ));
+    assert!(typed.assignments().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn assignment_publishes_group_field_and_nothing_control_facts() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assignment-places.ko",
+        "package p\n\
+         class Cell(var payload: Int) {\n\
+             fun updateBare(inout other: Int): Unit { payload = other }\n\
+             fun updateGroup(inout other: Int): Unit { (other) = payload }\n\
+             fun stop(): Unit { this.payload = error(\"stop\") }\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/assignment-places.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("assignment place facts succeed");
+
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let unit = source_unit(&names, source);
+    let int = typed.types().builtin(BuiltinType::Int).expect("Int seed");
+    let assignments = typed.assignments();
+    assert_eq!(assignments.len(), 3);
+    assert_eq!(
+        assignments
+            .iter()
+            .map(|descriptor| {
+                sources.slice(
+                    file.ast()
+                        .expressions()
+                        .get(descriptor.target().expression())
+                        .expect("assignment target")
+                        .span(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [Ok("payload"), Ok("(other)"), Ok("this.payload")]
+    );
+    assert!(assignments.iter().all(|descriptor| {
+        descriptor.operator() == AssignmentOperator::Assign && descriptor.target_type() == int
+    }));
+    assert!(assignments[0].falls_through());
+    assert!(assignments[1].falls_through());
+    assert!(!assignments[2].falls_through());
+    for expression in assignment_expressions(&file) {
+        assert!(matches!(
+            typed
+                .expression_type(UnitExpressionId::new(unit, expression))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(UnitTypeKind::Builtin(BuiltinType::Unit))
+        ));
+    }
+    assert!(typed.validate().is_ok());
 }
 
 #[test]
@@ -2495,7 +2682,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
 }
 
 #[test]
-fn overload_lambda_trial_commits_only_the_unique_cross_file_candidate() {
+fn overload_lambda_assignment_trial_commits_only_the_unique_cross_file_candidate() {
     let mut sources = SourceMap::new();
     let (declarations_source, declarations) = parsed(
         &mut sources,
@@ -2506,15 +2693,18 @@ fn overload_lambda_trial_commits_only_the_unique_cross_file_candidate() {
          fun intResult(input: Int): Int = input\n\
          fun pick(input: Int, callback: (Int) -> Int): Int = input\n\
          fun pick(input: String, callback: (String) -> String): String = input\n\
-         fun makeInt(): Int = 1",
+         fun makeInt(): Int = 1\n\
+         fun mutate(callback: (Int) -> Unit): Unit {}\n\
+         fun mutate(callback: (String) -> Unit): String = \"text\"",
     );
     let (uses_source, uses) = parsed(
         &mut sources,
         "uses.ko",
         "package p\n\
-         fun use(): Unit {\n\
+         fun use(inout target: Int): Unit {\n\
              val selected = resolve({ item -> intResult(item) })\n\
              val filtered = pick(makeInt(), { filteredItem -> filteredItem })\n\
+             val mutated = mutate({ candidate -> target = candidate })\n\
          }",
     );
     let forward_inputs = [
@@ -2550,10 +2740,16 @@ fn overload_lambda_trial_commits_only_the_unique_cross_file_candidate() {
         reverse.body_parameter_modes()
     );
     assert_eq!(forward.calls(), reverse.calls());
-    assert_eq!(forward.calls().len(), 4);
-    assert!(forward.calls().iter().all(|call| {
+    assert_eq!(forward.assignments(), reverse.assignments());
+    assert_eq!(forward.calls().len(), 5);
+    assert!(forward.calls()[..4].iter().all(|call| {
         forward.types().get(call.return_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
     }));
+    assert_eq!(forward.assignments().len(), 1);
+    assert_eq!(
+        forward.types().get(forward.assignments()[0].target_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
     let uses_unit = source_unit(&forward_names, uses_source);
     let parameter = symbol_named(&forward, &forward_names, uses_unit, "item");
     assert_eq!(
@@ -2569,22 +2765,22 @@ fn overload_lambda_trial_commits_only_the_unique_cross_file_candidate() {
 }
 
 #[test]
-fn failed_and_ambiguous_unit_overload_lambda_trials_leak_no_candidate_facts() {
+fn failed_and_ambiguous_assignment_trials_leak_no_candidate_facts() {
     let mut sources = SourceMap::new();
     let (declarations_source, declarations) = parsed(
         &mut sources,
         "declarations.ko",
         "package p\n\
-         fun resolve(callback: (Int) -> Int): Int = 1\n\
-         fun resolve(callback: (String) -> String): String = \"text\"",
+         fun resolve(callback: (Int) -> Unit): Int = 1\n\
+         fun resolve(callback: (String) -> Unit): String = \"text\"",
     );
     let (uses_source, uses) = parsed(
         &mut sources,
         "uses.ko",
         "package p\n\
-         fun use(): Unit {\n\
-             val ambiguous = resolve({ first -> first })\n\
-             val noMatch = resolve({ second -> true })\n\
+         fun use(inout target: Int): Unit {\n\
+             val ambiguous = resolve({ first -> target = 1 })\n\
+             val noMatch = resolve({ second -> target = true })\n\
          }",
     );
     let forward_inputs = [
@@ -2614,6 +2810,7 @@ fn failed_and_ambiguous_unit_overload_lambda_trials_leak_no_candidate_facts() {
         reverse.body_parameter_modes()
     );
     assert_eq!(forward.calls(), reverse.calls());
+    assert_eq!(forward.assignments(), reverse.assignments());
     assert_eq!(forward.diagnostics(), reverse.diagnostics());
 
     assert_eq!(
@@ -2643,6 +2840,7 @@ fn failed_and_ambiguous_unit_overload_lambda_trials_leak_no_candidate_facts() {
             })
     );
     assert!(forward.calls().is_empty());
+    assert!(forward.assignments().is_empty());
     let unit = source_unit(&forward_names, uses_source);
     assert!(forward.body_parameter_modes().is_empty());
     let lambda_parameters = forward_names.names().source_units()[unit.index()]

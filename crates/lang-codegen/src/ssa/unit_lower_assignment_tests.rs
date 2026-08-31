@@ -324,39 +324,30 @@ fn updates_the_binding_after_each_checked_compound_assignment() {
 }
 
 #[test]
-fn keeps_deferred_assignment_types_outside_this_slice() {
-    for source_text in [
-        "package p\n\
+fn keeps_undefined_compound_assignment_types_outside_this_slice() {
+    let source_text = "package p\n\
          fun entry(): Unit {\n\
              var text = \"left\"\n\
              { text += \"right\" }\n\
-         }",
-        "package p\n\
-         fun entry(): Unit {\n\
-             var number = 1\n\
-             { number = false }\n\
-         }",
-    ] {
-        let mut sources = SourceMap::new();
-        let (source, file) = parsed(&mut sources, "p/main.ko", source_text);
-        let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
-        let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) =
-            analyze(&sources, &inputs, &name_environment, &type_environment);
+         }";
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "p/main.ko", source_text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-        let error = match lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            declaration(&names, "p", "entry"),
-        ) {
-            Err(error) => error,
-            Ok(_) => panic!("deferred assignment types remain an explicit boundary"),
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert!(error.span.is_some());
-    }
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("undefined compound assignment remains an explicit boundary"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
 }

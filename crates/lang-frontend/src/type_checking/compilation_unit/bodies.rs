@@ -17,6 +17,7 @@ use super::{
     UnitTypeId, UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
 };
 
+mod assignment;
 mod checker;
 mod container;
 mod nullable;
@@ -25,7 +26,7 @@ mod rc;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
-pub use {container::*, nullable::*, projection::*, rc::*};
+pub use {assignment::*, container::*, nullable::*, projection::*, rc::*};
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -434,9 +435,11 @@ impl UnitDestructuringDescriptor {
 pub(crate) struct CompilationUnitTypeParts {
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
+    pub(crate) expression_falls_through: BTreeMap<UnitExpressionId, bool>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
+    pub(crate) assignments: Vec<UnitAssignmentDescriptor>,
     pub(crate) calls: Vec<UnitCallDescriptor>,
     pub(crate) aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
@@ -465,6 +468,7 @@ pub struct CompilationUnitTypes {
     type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     parameter_modes: BTreeMap<UnitSymbolId, ParameterMode>,
+    assignments: Vec<UnitAssignmentDescriptor>,
     calls: Vec<UnitCallDescriptor>,
     aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     constructions: Vec<UnitConstructionDescriptor>,
@@ -495,6 +499,7 @@ impl CompilationUnitTypes {
             type_ref_types: parts.type_ref_types,
             symbol_types: parts.symbol_types,
             parameter_modes: parts.parameter_modes,
+            assignments: parts.assignments,
             calls: parts.calls,
             aggregate_projections: parts.aggregate_projections,
             constructions: parts.constructions,
@@ -572,6 +577,21 @@ impl CompilationUnitTypes {
     #[must_use]
     pub fn expression_category(&self, expression: UnitExpressionId) -> Option<ExpressionCategory> {
         self.expression_categories.get(&expression).copied()
+    }
+
+    /// 返回源码稳定顺序的成功普通替换赋值事实。
+    #[must_use]
+    pub fn assignments(&self) -> &[UnitAssignmentDescriptor] {
+        &self.assignments
+    }
+
+    /// 查询一个成功普通替换赋值 expression 的 descriptor。
+    #[must_use]
+    pub fn assignment(&self, expression: UnitExpressionId) -> Option<UnitAssignmentDescriptor> {
+        self.assignments
+            .iter()
+            .copied()
+            .find(|descriptor| descriptor.expression() == expression)
     }
 
     /// 返回源码稳定顺序的成功 call facts。
@@ -786,7 +806,7 @@ mod tests {
             NameEnvironment, SourceUnitInput, index_compilation_unit,
             resolve_compilation_unit_names,
         },
-        parser::{ParsedFile, parse_file},
+        parser::{AssignmentOperator, ParsedFile, parse_file},
         source::{SourceId, SourceMap},
         type_checking::{
             BuiltinType, TypeEnvironment, UnitStatementId, collect_compilation_unit_signatures,
@@ -895,12 +915,27 @@ mod tests {
         parts
             .expression_types
             .insert(UnitExpressionId::new(source_unit, expression), int);
+        parts.assignments.push(UnitAssignmentDescriptor::new(
+            UnitExpressionId::new(source_unit, expression),
+            UnitExpressionId::new(source_unit, expression),
+            UnitExpressionId::new(source_unit, expression),
+            AssignmentOperator::Assign,
+            int,
+            true,
+        ));
         let product = CompilationUnitTypes::new(signatures, parts, Vec::new(), Vec::new());
 
         assert_eq!(
             product.expression_type(UnitExpressionId::new(source_unit, expression)),
             Some(int)
         );
+        assert_eq!(
+            product
+                .assignment(UnitExpressionId::new(source_unit, expression))
+                .map(UnitAssignmentDescriptor::target_type),
+            Some(int)
+        );
+        assert_eq!(product.assignments().len(), 1);
         assert_eq!(
             product.type_ref_type(UnitTypeRefId::new(source_unit, type_ref)),
             Some(int)

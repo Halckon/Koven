@@ -413,10 +413,13 @@ impl<'a> BodyChecker<'a> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let key = UnitExpressionId::new(source, expression);
         if let Some(ty) = self.parts.expression_types.get(&key).copied() {
-            return Ok(ExpressionCheck {
-                ty,
-                falls_through: !self.is_builtin(ty, BuiltinType::Nothing),
-            });
+            let falls_through = self
+                .parts
+                .expression_falls_through
+                .get(&key)
+                .copied()
+                .unwrap_or_else(|| !self.is_builtin(ty, BuiltinType::Nothing));
+            return Ok(ExpressionCheck { ty, falls_through });
         }
         let node = self
             .file(source)
@@ -659,9 +662,17 @@ impl<'a> BodyChecker<'a> {
                 operator,
                 operator_span,
                 value,
-            } => {
-                self.check_assignment(source, target, operator, operator_span, value, return_type)?
-            }
+            } => self.check_assignment(
+                source,
+                assignment::AssignmentExpression {
+                    expression,
+                    target,
+                    operator,
+                    operator_span,
+                    value,
+                },
+                return_type,
+            )?,
             Expression::Index { receiver, index } => {
                 self.check_container_index(source, expression, receiver, index, return_type)?
             }
@@ -684,10 +695,16 @@ impl<'a> BodyChecker<'a> {
                     self.type_name(result.ty)
                 ),
             )?;
+            self.parts
+                .assignments
+                .retain(|descriptor| descriptor.expression() != key);
             result.ty = self.error_type();
         }
         self.record_nullable_facts(source, expression, result.ty);
         self.record_expression(source, expression, result.ty);
+        self.parts
+            .expression_falls_through
+            .insert(key, result.falls_through);
         Ok(result)
     }
 
