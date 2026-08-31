@@ -1263,6 +1263,179 @@ fn copyable_inline_inout_rebinds_the_mutated_value_after_the_call() {
 }
 
 #[test]
+fn move_only_inline_inout_rebinds_after_copyable_field_mutation() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/move-only-owner-copyable-field.ko",
+        "package p\n\
+         value class Resource(val owner: String, var generation: Int) {\n\
+             inout fun set(next: Int): Unit { generation = next }\n\
+             fun read(): Int = generation\n\
+         }\n\
+         fun entry(): Int {\n\
+             var resource = Resource(\"owned\", 1)\n\
+             val ignored = resource.set(7)\n\
+             return resource.read()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/move-only-owner-copyable-field.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("MoveOnly inline owner must allow Copyable field mutation");
+    let module = &program.modules[0];
+    let setter = function(module.functions.iter(), ".Resource.set.s");
+    let EntityId::Loan(next) = setter.blocks[0].parameters[1] else {
+        panic!("setter borrowed replacement");
+    };
+    let next_value = setter
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (
+                    Operation::Read {
+                        source: PlaceAccess::Loan(actual),
+                    },
+                    [EntityId::Value(value)],
+                ) if *actual == next => Some(*value),
+                _ => None,
+            },
+        )
+        .expect("borrowed Copyable replacement read");
+    assert!(setter.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::InlineFieldReplace {
+            field: 1,
+            value,
+            ..
+        } if value == next_value
+    )));
+
+    let getter = function(module.functions.iter(), ".Resource.read.s");
+    let entry = function(module.functions.iter(), ".entry.d");
+    let set_call = entry
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::DirectCall { callee, .. } if callee == setter.id()
+            )
+        })
+        .expect("setter call");
+    let (receiver, argument, original, place) = match &entry.instructions[set_call].operation {
+        Operation::DirectCall {
+            receiver: Some(EntityId::Loan(receiver)),
+            arguments,
+            ..
+        } => {
+            let [EntityId::Loan(argument)] = arguments.as_slice() else {
+                panic!("setter Borrow argument: {arguments:?}");
+            };
+            let place = entry.instructions[..set_call]
+                .iter()
+                .find_map(|instruction| {
+                    match (&instruction.operation, instruction.results.as_slice()) {
+                        (
+                            Operation::BorrowBegin {
+                                place,
+                                kind: LoanKind::Exclusive,
+                            },
+                            [EntityId::Loan(actual)],
+                        ) if actual == receiver => Some(*place),
+                        _ => None,
+                    }
+                })
+                .expect("MoveOnly setter receiver place");
+            let original = entry.instructions[..set_call]
+                .iter()
+                .find_map(|instruction| {
+                    match (&instruction.operation, instruction.results.as_slice()) {
+                        (Operation::RootPlace { owner }, [EntityId::Place(actual)])
+                            if *actual == place =>
+                        {
+                            Some(*owner)
+                        }
+                        _ => None,
+                    }
+                })
+                .expect("MoveOnly setter original owner");
+            (*receiver, *argument, original, place)
+        }
+        other => panic!("MoveOnly setter receiver: {other:?}"),
+    };
+    let relevant = entry.instructions[set_call + 1..]
+        .iter()
+        .filter_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowEnd { loan }, []) if *loan == argument => {
+                    Some(("argument-end", None))
+                }
+                (Operation::BorrowEnd { loan }, []) if *loan == receiver => {
+                    Some(("receiver-end", None))
+                }
+                (
+                    Operation::RootPlaceTake {
+                        owner,
+                        place: actual,
+                    },
+                    [EntityId::Value(value)],
+                ) if *owner == original && *actual == place => Some(("take", Some(*value))),
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(
+        relevant.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(),
+        ["argument-end", "receiver-end", "take"]
+    );
+    let rebound = relevant[2]
+        .1
+        .expect("receiver-end followed by same-root MoveOnly take");
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        (&instruction.operation, instruction.results.as_slice()),
+        (Operation::RootPlace { owner }, [EntityId::Place(_)]) if *owner == rebound
+    )));
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall { callee, .. } if callee == getter.id()
+    )));
+    assert!(!entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::Drop { owner } if owner == original
+    )));
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::Drop { owner } if owner == rebound
+            ))
+            .count(),
+        1
+    );
+    render_verified_program(&program)
+        .expect("MoveOnly owner with Copyable inline mutation must lower to LLVM");
+}
+
+#[test]
 fn move_only_inline_inout_read_takes_the_same_root_back_after_the_call() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

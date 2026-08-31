@@ -1126,10 +1126,14 @@ fn heap_field_replace_requires_an_active_unshadowed_exclusive_receiver() {
 }
 
 #[test]
-fn inline_field_replace_requires_copyable_storage_and_an_unshadowed_exclusive_receiver() {
+fn inline_field_replace_requires_a_copyable_field_and_an_unshadowed_exclusive_receiver() {
     let valid =
         inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, false, false);
     assert_eq!(verify_program(&valid), Ok(()));
+
+    let move_only_owner =
+        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, true, false, false);
+    assert_eq!(verify_program(&move_only_owner), Ok(()));
 
     let shared = errors(&inline_field_replace_program(
         LoanKind::Shared,
@@ -1175,7 +1179,6 @@ fn inline_field_replace_requires_copyable_storage_and_an_unshadowed_exclusive_re
 
     for invalid in [
         inline_field_replace_program(LoanKind::Exclusive, false, false, 1, false, false, false),
-        inline_field_replace_program(LoanKind::Exclusive, false, false, 0, true, false, false),
         inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, true, false),
         inline_field_replace_program(LoanKind::Exclusive, false, false, 0, false, false, true),
     ] {

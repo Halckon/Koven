@@ -575,9 +575,8 @@ fn inline_field_type(
     let EntityType::Loan { target, .. } = function.entity(EntityId::Loan(receiver))?.ty else {
         return None;
     };
-    (module.type_ownership(target) == Some(Ownership::Copyable))
-        .then(|| module.aggregate_fields(target))
-        .flatten()
+    module
+        .aggregate_fields(target)
         .and_then(|fields| fields.get(field))
         .copied()
 }

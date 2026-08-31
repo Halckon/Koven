@@ -741,6 +741,54 @@ fn move_only_inline_inout_takes_the_owner_back_without_double_drop() {
 }
 
 #[test]
+fn move_only_inline_owner_mutates_a_copyable_field_natively() {
+    let analysis = analyze_sources(
+        "package p\n\
+         fun seed(): String = \"owned\" + \"-resource\"\n\
+         fun next(): Int = 7\n\
+         value class Resource(val owner: String, var generation: Int) {\n\
+             inout fun set(nextValue: Int): Unit { generation = nextValue }\n\
+             fun read(): Int = generation\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var resource = Resource(seed(), 1)\n\
+             val ignored = resource.set(next())\n\
+             if (resource.read() == 7) { println(\"move-only-copyable-field\") } else { error(\"stale field\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("move-only-copyable-field.o");
+    let executable = directory.join("move-only-copyable-field");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("MoveOnly inline owner Copyable field mutation must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked MoveOnly inline field mutation executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"move-only-copyable-field\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn interface_default_and_super_static_calls_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\

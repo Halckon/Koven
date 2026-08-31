@@ -421,7 +421,7 @@ pub(crate) enum Operation {
         field: usize,
         value: ValueId,
     },
-    /// Replace one Copyable inline aggregate field through an active exclusive receiver loan.
+    /// Replace one Copyable field of an inline aggregate through an active exclusive receiver loan.
     InlineFieldReplace {
         receiver: LoanId,
         field: usize,
