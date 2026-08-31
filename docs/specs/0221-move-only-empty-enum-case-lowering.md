@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-221` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34](../guide/00-index.md) 的既有 `enum class`、constructor 与所有权规则 |
@@ -42,16 +42,16 @@
 
 ## 4. 验收标准
 
-- [ ] 红测锁定 `enum class Owned { Empty, Full(value: String) }` 的 `Owned.Empty` 不再以
+- [x] 红测锁定 `enum class Owned { Empty, Full(value: String) }` 的 `Owned.Empty` 不再以
   `UnsupportedNode` 失败，且与 `Owned.Full` 共用唯一 root tagged identity。
-- [ ] empty temporary/local/return/Value call 与 Value receiver 至少覆盖三类边界，SSA verifier 锁定唯一
+- [x] empty temporary/local/return/Value call 与 Value receiver 至少覆盖三类边界，SSA verifier 锁定唯一
   take/drop；Copyable 全空 enum 与既有 non-empty MoveOnly case 回归不变。
-- [ ] LLVM 锁定 empty variant construction、tag-dispatch drop 与 Full payload 精确析构；真实
+- [x] LLVM 锁定 empty variant construction、tag-dispatch drop 与 Full payload 精确析构；真实
   source→object→Clang link→run 同时执行 Empty 与 Full 路径，无 leak/double drop。
-- [ ] generic enum 与 MoveOnly enum `when` 继续确定性拒绝；不修改 frontend facts。
-- [ ] 运行 `unit_lower_enum_tests`、相关 receiver 与 `native::unit_tests`，再运行 workspace library
+- [x] generic enum 与 MoveOnly enum `when` 继续确定性拒绝；不修改 frontend facts。
+- [x] 运行 `unit_lower_enum_tests`、相关 receiver 与 `native::unit_tests`，再运行 workspace library
   check/clippy、fmt/diff及独立复核；不运行约一小时的 `lang-frontend` 全量测试，除非窄测证明公共事实错误。
-- [ ] Architecture、Roadmap、SPEC-0191 与本 Spec 验证记录同步。
+- [x] Architecture、Roadmap、SPEC-0191 与本 Spec 验证记录同步。
 
 ## 5. 技术方案与边界
 
@@ -62,10 +62,10 @@
 
 ## 6. 实施计划
 
-1. [ ] 建立 Empty/Full fact 与 red-test 对照 → 验证：错误 Span、descriptor/root obligation 差异明确。
-2. [ ] 修复空 case owner construction/transfer → 验证：enum SSA 正反矩阵与 verifier。
-3. [ ] 接 LLVM/native Empty+Full drop 闭环 → 验证：tag 分支、析构次数与真实运行。
-4. [ ] 独立复核、同步 Architecture/Roadmap/SPEC-0191 并运行精简分层验收。
+1. [x] 建立 Empty/Full fact 与 red-test 对照 → 验证：错误 Span、descriptor/root obligation 差异明确。
+2. [x] 修复空 case owner construction/transfer → 验证：enum SSA 正反矩阵与 verifier。
+3. [x] 接 LLVM/native Empty+Full drop 闭环 → 验证：tag 分支、析构次数与真实运行。
+4. [x] 独立复核、同步 Architecture/Roadmap/SPEC-0191 并运行精简分层验收。
 
 ## 7. 提交计划
 
@@ -83,3 +83,13 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-09-01 receiver characterization | 缺口已隔离 | 拆分 Copyable enum Borrow 与 MoveOnly enum Full Value receiver 后均通过；把二者合并为 `Signal { Ready, Full(String) }` 时首个 `Signal.Ready` local construction 以带 Span `UnsupportedNode` 失败，证明问题位于空 case MoveOnly root 而非 receiver ABI |
+| frontend fact 窄审计 | 通过 | bare Empty 已发布 root nominal construction descriptor、空 ordered deliveries 与 MoveOnly Inline root obligation；表达式体 return 使用 Consume，未修改 frontend facts或运行全量 frontend 测试 |
+| 红测与根因 | 按预期失败后转绿 | `Owned.Empty` 初始在 `direct_place_symbol` 以带 Span `UnsupportedNode` 失败；codegen 现以 validated construction fact 优先识别每次求值新建的 temporary tagged owner，并穿透透明 Group 后按 canonical origin + ValueId 转移，不放宽普通 place identity |
+| `unit_lower_enum_tests` | 5/5 通过 | 覆盖 grouped Empty local→Value call、grouped 表达式体 return、经 local binding 的 Value receiver，以及 grouped Full receiver 消费后进入 `if` 的 temporary-alias 清理；Copyable/MoveOnly 回归和 generic enum/MoveOnly `when` 门禁不变 |
+| `unit_lower_receiver_tests` | 34/34 通过 | receiver-first ABI、enum tagged identity 及 Borrow/Inout/Value/default/delegation 回归不变 |
+| `native::unit_tests` | 22/22 通过 | Empty 与 Full 同源执行，source→object→Clang link→run 输出 `empty-enum-owner`；Full 的 String payload 走既有 tag-dispatch drop glue |
+| direct construction call/receiver 边界 | 保持门禁 | `Owned.Empty.score()` 或直接把 grouped bare case 作为 Value 实参仍由 Phase 3 `InvalidUnitArgumentPlace` 拒绝；本 Spec 通过 local owner 覆盖 Value call/receiver，不扩大 frontend |
+| `cargo check --workspace --lib --locked --offline` | 通过 | workspace library Layer 2 构建门禁；未运行耗时 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 静态门禁，零 warning |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| 独立高风险复核 | 通过 | 首轮发现 Group 丢失 construction origin 的 P2 与 LLVM drop 证据 P3；第二轮发现 grouped Full 残留 alias 的 P2。补 canonical origin+ValueId 核对、透明 alias 清理、CFG 回归与 tag-switch/Empty-no-drop/Full-one-drop 断言后，最终复核无 P1/P2/P3 |

@@ -9,6 +9,7 @@ use super::{
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
 };
+use crate::llvm::render_verified_program;
 
 #[test]
 fn lowers_move_only_enum_root_and_finite_recursion_through_a_class_handle() {
@@ -72,6 +73,117 @@ fn lowers_move_only_enum_root_and_finite_recursion_through_a_class_handle() {
             .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
             .count(),
         1
+    );
+}
+
+#[test]
+fn lowers_empty_case_of_a_move_only_enum_as_the_root_tagged_owner() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/empty-owned.ko",
+        "package p\n\
+         enum class Owned {\n\
+             Empty, Full(text: String);\n\
+             own fun score(): Int = 9\n\
+         }\n\
+         fun empty(): Owned = (Owned.Empty)\n\
+         fun consume(own input: Owned): Int = 7\n\
+         fun entry(): Int {\n\
+             val local = (Owned.Empty)\n\
+             val receiver = Owned.Empty\n\
+             val groupedFull = (Owned.Full(\"payload\"))\n\
+             val fullScore = groupedFull.score()\n\
+             if (true) { val checked = fullScore } else { val checked = 0 }\n\
+             return consume(local) + consume(empty()) + receiver.score() + fullScore\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/empty-owned.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("empty case of a MoveOnly enum must remain a root tagged owner");
+
+    let module = &program.modules[0];
+    let empty_variant_count = module
+        .functions
+        .iter()
+        .flat_map(|function| function.instructions.iter())
+        .filter(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::TaggedConstruct { variant: 0, .. }
+            )
+        })
+        .count();
+    assert_eq!(
+        empty_variant_count, 3,
+        "grouped local/return and Value-receiver Empty constructions"
+    );
+    let score = function(module, ".Owned.score.s");
+    assert_eq!(
+        score
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "unused Value receiver is dropped exactly once"
+    );
+    let tagged = module
+        .types
+        .iter()
+        .enumerate()
+        .find_map(|(index, ty)| match ty {
+            SsaTypeKind::TaggedUnion { variants, .. } => Some((index, variants)),
+            _ => None,
+        })
+        .expect("Owned root tagged identity");
+    let [empty_payload, full_payload] = tagged.1.as_slice() else {
+        panic!("Owned has exactly Empty and Full payload layouts");
+    };
+    let llvm = render_verified_program(&program).expect("MoveOnly Empty/Full LLVM must verify");
+    let drop_start = llvm
+        .find(&format!("define internal void @koven.drop.t{}", tagged.0))
+        .expect("tagged drop glue exists");
+    let drop_tail = &llvm[drop_start..];
+    let drop_end = drop_tail[1..]
+        .find("\ndefine ")
+        .map_or(drop_tail.len(), |offset| offset + 1);
+    let drop_glue = &drop_tail[..drop_end];
+    assert!(drop_glue.contains("switch i32"), "{drop_glue}");
+    let empty_case = drop_glue
+        .split_once("case0:")
+        .and_then(|(_, tail)| tail.split_once("case1:"))
+        .map(|(body, _)| body)
+        .expect("Empty and Full drop branches exist");
+    assert!(
+        !empty_case.contains("call void @koven.drop"),
+        "Empty payload must not run drop glue:\n{empty_case}"
+    );
+    assert!(
+        !drop_glue.contains(&format!("call void @koven.drop.t{}", empty_payload.index())),
+        "Empty aggregate is Copyable and has no drop call:\n{drop_glue}"
+    );
+    assert_eq!(
+        drop_glue
+            .matches(&format!("call void @koven.drop.t{}", full_payload.index()))
+            .count(),
+        1,
+        "Full payload is dropped exactly once per tagged owner"
     );
 }
 

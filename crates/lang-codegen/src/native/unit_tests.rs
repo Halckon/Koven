@@ -1283,6 +1283,63 @@ fn enum_borrow_and_value_receivers_link_and_run() {
 }
 
 #[test]
+fn move_only_empty_enum_case_links_and_runs_with_full_case_drop_glue() {
+    let analysis = analyze_sources(
+        "package p\n\
+         enum class Owned {\n\
+             Empty, Full(text: String);\n\
+             own fun score(): Int = 9\n\
+         }\n\
+         fun empty(): Owned = (Owned.Empty)\n\
+         fun consume(own input: Owned): Int = 7\n\
+         fun entry(): Unit {\n\
+             val local = (Owned.Empty)\n\
+             val receiver = Owned.Empty\n\
+             val fromLocal = consume(local)\n\
+             val fromReturn = consume(empty())\n\
+             val fromReceiver = receiver.score()\n\
+             val groupedFull = (Owned.Full(\"payload\"))\n\
+             val full = groupedFull.score()\n\
+             if (fromLocal + fromReturn + fromReceiver + full == 32) {\n\
+                 println(\"empty-enum-owner\")\n\
+             } else { error(\"wrong empty enum owner result\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("empty-enum-owner.o");
+    let executable = directory.join("empty-enum-owner");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("MoveOnly empty and Full enum cases must emit one native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked MoveOnly empty enum executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"empty-enum-owner\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

@@ -538,14 +538,15 @@ impl UnitExpressionLowerer<'_> {
         let result = self.lower_expression(expression)?;
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
         if let LoweredValue::Value(value) = result
-            && self.typed.types().expression_category(unit_expression)
-                == Some(ExpressionCategory::Temporary)
             && self
                 .typed
                 .types()
                 .expression_type(unit_expression)
                 .map(|ty| self.typed.types().copyability(ty))
                 == Some(Copyability::MoveOnly)
+            && (self.typed.types().expression_category(unit_expression)
+                == Some(ExpressionCategory::Temporary)
+                || self.typed.types().construction(unit_expression).is_some())
         {
             self.temporaries.insert(unit_expression, value);
         }

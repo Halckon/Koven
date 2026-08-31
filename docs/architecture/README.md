@@ -1035,7 +1035,11 @@ non-generic enum instance receiver 继续复用同一 receiver-first ABI，不�
 Borrow receiver 从 root tagged value 建立 shared loan，MoveOnly enum 的 Value/temporary receiver 把同一
 tagged owner 交给 callee 并由既有 drop facts 唯一析构。SSA/LLVM 锁定 caller operand 与 callee hidden
 receiver 的 tagged identity，真实 object/link/run 已覆盖两种 mode 并输出 `enum-receiver`。generic enum
-仍受既有 storage 门禁；MoveOnly enum 的空 payload case construction 是独立缺口，不由 receiver 证据掩盖。
+仍受既有 storage 门禁。SPEC-0221 已补齐整体 MoveOnly 的 non-generic enum 空 payload case：虽然 bare case
+expression 保留 member-access 的 Place 类别，validated construction/root obligation 仍优先把每次求值建模为
+新的 temporary tagged owner；lowerer 在 local、表达式体 return、Value call 与经 local binding 的 Value
+receiver 交付时消费同一 owner。空 case 仍生成零字段 payload aggregate 与 `TaggedConstruct`，LLVM drop glue
+按 runtime tag 跳过空 payload、只对 Full payload 执行字段析构；generic enum 与 MoveOnly enum `when` 门禁不变。
 Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
 shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
 loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原

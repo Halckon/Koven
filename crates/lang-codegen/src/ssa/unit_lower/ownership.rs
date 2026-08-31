@@ -33,6 +33,11 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.types().copyability(ty) != Copyability::MoveOnly {
             return Ok(());
         }
+        // 零 payload enum case 保留 member-access 的 Place 类别，但 construction fact 仍表示
+        // 每次求值新建一个 root owner；透明 group 也必须回到该 construction identity 转移。
+        if let Some(origin) = self.construction_origin(expression.expression(), span)? {
+            return self.take_owned_temporary_origin(origin, value, span);
+        }
         match self.typed.types().expression_category(expression) {
             Some(ExpressionCategory::Temporary) => self.take_owned_temporary(value, span),
             Some(ExpressionCategory::Place) => {
@@ -105,6 +110,43 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         Ok(())
+    }
+
+    fn take_owned_temporary_origin(
+        &mut self,
+        origin: UnitExpressionId,
+        value: ValueId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        match self.temporaries.get(&origin) {
+            Some(temporary) if *temporary == value => {
+                // Group 会以相同 ValueId 登记透明 alias；canonical origin 验证通过后一起清除。
+                self.temporaries.retain(|_, temporary| *temporary != value);
+                Ok(())
+            }
+            Some(_) | None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+    }
+
+    fn construction_origin(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<UnitExpressionId>, LoweringError> {
+        let origin = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.types().construction(origin).is_some() {
+            return Ok(Some(origin));
+        }
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        match node.payload() {
+            Expression::Group { expression } => self.construction_origin(*expression, node.span()),
+            _ => Ok(None),
+        }
     }
 
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {

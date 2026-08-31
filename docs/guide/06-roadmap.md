@@ -536,7 +536,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       已消费 Phase 3 精确旧字段 fact，并完成 old-drop-before-store 的 SSA/LLVM/native 闭环。generic
       ordinary-class 已开放参数无关、direct owner `T`，以及按 SPEC-0219 exact owner descriptor
       授权的有限递归 `List` / 单参数 ordinary-class runtime recipe；深层 layout 与
-      `Reader<Wrapper<T>>` Borrow delegation 已完成 native 闭环。`T?`、function、其他 intrinsic、
+      `Reader<Wrapper<T>>` Borrow delegation 已完成 native 闭环。non-generic enum Borrow/Value receiver
+      已复用 root tagged identity；SPEC-0221 已补齐整体 MoveOnly enum 的空 payload case，使其经
+      local/return/Value call/Value receiver 唯一转移，并与含 String payload case 共用 tag-dispatch drop glue。
+      `T?`、function、其他 intrinsic、
       非 class / 多参数 wrapper、参数增长型与 inherited owner recipe 继续保持确定性门禁。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。
