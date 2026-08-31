@@ -468,6 +468,19 @@ impl SignatureCollector<'_> {
                     .iter()
                     .find(|source| source.has_body)
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                if let Some(requirement) = active
+                    .iter()
+                    .find(|source| !source.has_body && source.contract != implementation.contract)
+                {
+                    self.emit_with_label(
+                        codes::MISSING_INTERFACE_MEMBER,
+                        "concrete classifier does not implement an abstract interface member",
+                        owner_span,
+                        requirement.name_span,
+                        "required member declared here",
+                    )?;
+                    continue;
+                }
                 static_dispatch_overrides.extend(
                     all_by_shape
                         .get(&shape)

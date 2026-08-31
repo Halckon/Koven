@@ -411,6 +411,40 @@ fn interface_replacement_checks_every_same_shape_contract() {
 }
 
 #[test]
+fn incompatible_unique_default_does_not_satisfy_abstract_requirement() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Required { fun read(): Int }\n\
+         interface Incompatible { fun read(): Long = 1L }\n\
+         class Child: Required, Incompatible {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("missing implementation diagnostics remain recoverable");
+
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0101"]
+    );
+    let child = typed
+        .signatures()
+        .declaration(declaration(&names, "Child"))
+        .and_then(|signature| signature.nominal())
+        .expect("Child signature");
+    assert!(child.static_dispatch_overrides().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
 fn cross_file_named_call_publishes_declaration_and_argument_facts() {
     let mut sources = SourceMap::new();
     let (declarations_source, declarations) = parsed(

@@ -112,3 +112,4 @@ solver。`this` 使用 callable-local receiver identity，不伪装成普通源�
 | `cargo test -p lang-frontend --test multifile_type_checking concrete_override_publishes_static_abstract_requirement_dispatch` | 通过 | signature contract 阶段发布 abstract requirement→本地 concrete override 的唯一映射，default 不进入映射 |
 | `cargo test -p lang-frontend --test multifile_type_checking dispatch -- --nocapture` | 3/3 通过 | 本地 override、abstract replacement→本地 override、ancestor requirement→replacement/独立唯一 default 均发布 effective target 与双方 owner template |
 | `cargo test -p lang-frontend --test multifile_type_checking interface_replacement_checks_every_same_shape_contract -- --nocapture` | 通过 | replacement 检查全部同 shape inherited contracts，不因首个来源匹配而漏掉后续 L0099 |
+| `cargo test -p lang-frontend --test multifile_type_checking incompatible_unique_default_does_not_satisfy_abstract_requirement -- --nocapture` | 通过 | 同 shape 唯一 default 若 contract 不满足 active abstract requirement，发布 L0101 且不泄漏 dispatch fact |
