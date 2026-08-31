@@ -1031,6 +1031,11 @@ fact 消费，再生成 `NullableWrap`；`null` 只按 expression type 生成 `N
 drop glue（其内部按 null niche 分支）再 store 新值；真实 object/link/run 已覆盖非空→null→非空。
 inline/function/String nullable、nullable control flow、`List<T?>` / `Wrapper<T?>`、inherited/参数增长 recipe
 与需要尚未定义 inner owner 的递归 SSA type cycle 均保持带 Span 的确定性门禁。
+non-generic enum instance receiver 继续复用同一 receiver-first ABI，不新增 enum-only IR：Copyable enum 的
+Borrow receiver 从 root tagged value 建立 shared loan，MoveOnly enum 的 Value/temporary receiver 把同一
+tagged owner 交给 callee 并由既有 drop facts 唯一析构。SSA/LLVM 锁定 caller operand 与 callee hidden
+receiver 的 tagged identity，真实 object/link/run 已覆盖两种 mode 并输出 `enum-receiver`。generic enum
+仍受既有 storage 门禁；MoveOnly enum 的空 payload case construction 是独立缺口，不由 receiver 证据掩盖。
 Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
 shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
 loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原

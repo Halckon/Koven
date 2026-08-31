@@ -144,6 +144,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 11 | direct owner type-parameter field 的 concrete layout、replacement 与 native 闭环 | `feat(codegen): lower direct generic field layouts (SPEC-0191)` |
 | 12 | 消费 SPEC-0219 的 owner-instance-qualified nested concrete field layout | `feat(codegen): lower nested generic field layouts (SPEC-0191)` |
 | 13 | 在 exact descriptor 下递归消费有限 `List` / 单参数 ordinary-class recipe | `feat(codegen): lower recursive generic field recipes (SPEC-0191)` |
+| 14 | 补齐 non-generic enum Borrow/Value receiver 的 tagged identity 与 native 证据 | `test(codegen): cover enum instance receivers (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -275,3 +276,4 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 静态门禁，零 warning |
 | 独立高风险复核（有限递归 generic recipe） | 通过 | 首轮发现递归 helper 误扩张通用 inherited dispatch 的 P1 与 helper 负矩阵 P3；收窄到 validated delegation 最终 forwarder、补 canonical 已存在仍拒绝的五类白盒负例后复核无 P1/P2/P3 |
 | SPEC-0220 direct `T?` 后继 | 通过 | class/Box/Rc concrete nullable layout、generic construction/Value delivery/Inout replacement、conditional drop 与 20/20 unit native 已闭环；错误 delivery root 经独立复核后 fail loud，参数增长型/inherited recipe 门禁不变 |
+| enum receiver characterization | 通过 | Copyable enum Borrow 与 MoveOnly enum Value/Temporary 共用 root tagged identity，经 34/34 receiver SSA/LLVM 与 21/21 unit native 验收，object→Clang link→run 输出 `enum-receiver`；同时把 MoveOnly root 的空 payload case construction 缺口隔离给 SPEC-0221 |

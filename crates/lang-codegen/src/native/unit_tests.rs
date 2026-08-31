@@ -1229,6 +1229,60 @@ fn generic_pointer_nullable_field_replacement_links_and_runs() {
 }
 
 #[test]
+fn enum_borrow_and_value_receivers_link_and_run() {
+    let analysis = analyze_sources(
+        "package p\n\
+         enum class Signal {\n\
+             Ready;\n\
+             fun code(): Int = 7\n\
+         }\n\
+         enum class Owned {\n\
+             Full(text: String);\n\
+             own fun consume(): Int = 8\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val signal = Signal.Ready\n\
+             val borrowed = signal.code()\n\
+             val consumed = Owned.Full(\"owned\").consume()\n\
+             if (borrowed + consumed == 15) { println(\"enum-receiver\") }\n\
+             else { error(\"wrong enum receiver result\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("enum-receiver.o");
+    let executable = directory.join("enum-receiver");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("enum receiver program must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked enum receiver executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"enum-receiver\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\
