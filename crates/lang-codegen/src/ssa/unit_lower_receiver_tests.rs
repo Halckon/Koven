@@ -84,7 +84,7 @@ fn borrow_delegation_projects_one_heap_field_loan_and_forwards_it_directly() {
         &mut sources,
         "p/main.ko",
         "package p\n\
-         interface Readable { fun read(message: String): Int }\n\
+         interface Readable { fun read(message: String): Int = 1 }\n\
          class Reader: Readable { override fun read(message: String): Int = 7 }\n\
          class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
          fun entry(): Int = Host(0, Reader()).read(\"argument\")",

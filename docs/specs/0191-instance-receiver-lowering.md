@@ -81,10 +81,11 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    ancestor requirement→interface replacement/唯一独立 default 已消费双方 owner template 并完成
    native 闭环，`Host<X,Y>: Derived<Y>` 的 owner/callable slot 配方已由 planner 锁定；generic
    nominal native layout 与 Inout/Value default 继续实施。Borrow delegate 的首个非泛型、单层、
-   abstract-requirement ordinary-class 切片已消费 typed/ownership 双重 validated route，以
-   `SharedHeapFieldLoan` 直接转发 concrete delegate Borrow receiver；generic/chained delegation
-   确定性拒绝，有体 default delegation 在 frontend 发布 delegate effective-target fact 前同样以
-   `UnsupportedNode` fail loud，禁止静默调用 outer interface default。
+   ordinary-class 切片已消费 typed/ownership 双重 validated route，以 `SharedHeapFieldLoan` 直接转发
+   concrete delegate Borrow receiver；abstract requirement、本地 override、继承/default replacement
+   均直接消费 frontend forwarder 的 exact effective target/owner template，interface default 的
+   `StaticSelf` 固定为 delegate field concrete type。generic outer/delegate/interface owner/call instance
+   与 chained/`None` route 确定性拒绝，禁止静默调用 outer interface default。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -93,6 +94,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 |---|---|---|
 | 1 | receiver callable SSA/verifier 与 LLVM receiver-first operand 基元 | `feat(codegen): model instance receivers (SPEC-0191)` |
 | 2 | frontend member/委托接线与 native 闭环 | `feat(codegen): lower member receivers (SPEC-0191)` |
+| 3 | bodyful/default Borrow delegation exact-target 接线 | `feat(codegen): lower default delegation (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -157,3 +159,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 最终并行职责组：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` / `multifile_ownership_checking` | 13/13、23/23、9/9、51/51 通过 | exact route、default/generic/chain 拒绝、receiver/argument loan 顺序、真实 source→object→link→run 与 Phase 3 delegation fact 分层覆盖；未运行约一小时的 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与四组定向测试并行执行的 workspace lib 静态门禁 |
 | 独立高风险复核（首个 abstract Borrow delegation route） | 通过 | 首轮发现 bodyful default 绕过 route 的 P1、generic delegate 门禁 P2 与字段/隐藏操作覆盖 P3；改为 route-first、default fail-loud、generic/chain 独立门禁及非零 field 后复核至无 P1/P2/P3 |
+| `cargo test -p lang-codegen ssa::unit_plan_tests --locked --offline` | 14/14 通过 | exact forwarder target、replacement default/local override、chain、generic delegate 与 generic interface owner fail-loud |
+| `cargo test -p lang-codegen ssa::unit_lower_receiver_tests --locked --offline` | 23/23 通过 | bodyful requirement 仍按 outer loan→heap field loan→DirectCall→逆序 end；无 field value read/copy/retain/proxy allocation |
+| `cargo test -p lang-codegen native::unit_tests --locked --offline` | 9/9 通过 | replacement default=2 与 delegate local override=7 同一 source→object→link→run 得 9，排除 outer default=1 误调用 |
+| `cargo test -p lang-codegen --lib --locked --offline`（独立复审） | 276 通过、1 ignored | 完整 codegen library 回归；ignored 为既有 debugserver 权限用例，未运行约一小时的 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library Layer 2 静态门禁，零 warning |
+| 独立高风险复核（bodyful/default Borrow delegation） | 通过 | 无 P1/P2/P3；确认 exact typed+ownership route、delegate concrete `StaticSelf`、field-loan ABI 及所有未开放 generic/chain 边界 |

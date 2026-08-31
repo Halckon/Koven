@@ -570,17 +570,17 @@ pub(crate) fn resolve_unit_call_instance(
         .signatures()
         .delegations()
         .iter()
-        .filter(|plan| {
-            plan.owner() == *declaration
-                && plan
-                    .forwarders()
-                    .iter()
-                    .any(|forwarder| forwarder.requirement() == target)
+        .filter(|plan| plan.owner() == *declaration)
+        .flat_map(|plan| {
+            plan.forwarders()
+                .iter()
+                .filter(move |forwarder| forwarder.requirement() == target)
+                .map(move |forwarder| (plan, forwarder))
         })
         .collect::<Vec<_>>();
-    let route = match routes.as_slice() {
+    let (route, forwarder) = match routes.as_slice() {
         [] => return direct(),
-        [route] => *route,
+        [(route, forwarder)] => (*route, *forwarder),
         _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
     };
     let ownership_routes = owned
@@ -596,11 +596,11 @@ pub(crate) fn resolve_unit_call_instance(
     if !matches!(ownership_routes.as_slice(), [_]) {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     }
-    if unit_callable_signature(typed, target).is_some_and(UnitCallableSignature::has_body) {
-        // Frontend 尚未发布 bodyful default 在 delegate concrete type 上的 effective target。
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
+    let implementation = forwarder
+        .implementation()
+        .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+    if !arguments.is_empty() || !nominal.type_parameters().is_empty() || !type_arguments.is_empty()
+    {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
     let field = nominal
@@ -633,8 +633,34 @@ pub(crate) fn resolve_unit_call_instance(
     }) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
-    let key =
-        resolve_direct_unit_call_instance(typed, target, type_arguments, Some(field.ty()), span)?;
+    // Frontend 已选定 effective implementation；这里只校验 owner/body，不重新执行 member selection。
+    let Some(UnitTypeKind::Nominal {
+        declaration: implementation_owner,
+        arguments: implementation_owner_arguments,
+    }) = typed.types().types().get(implementation.receiver_type())
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let (declared_implementation_owner, declared_implementation_owner_arity) =
+        unit_callable_owner(typed, implementation.target())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if *implementation_owner != declared_implementation_owner
+        || implementation_owner_arguments.len() != declared_implementation_owner_arity
+        || !unit_callable_signature(typed, implementation.target())
+            .is_some_and(UnitCallableSignature::has_body)
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    if !implementation_owner_arguments.is_empty() {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let key = resolve_direct_unit_call_instance(
+        typed,
+        implementation.target(),
+        type_arguments,
+        Some(field.ty()),
+        span,
+    )?;
     Ok(ResolvedUnitCallInstance {
         key,
         delegation: Some(UnitDelegatedCallRoute {

@@ -704,13 +704,16 @@ fn inherited_and_unrelated_defaults_satisfy_abstract_requirements_natively() {
 fn borrow_only_interface_delegation_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\
-         interface Readable { fun read(): Int }\n\
-         class Reader: Readable { override fun read(): Int = 7 }\n\
-         class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         interface Derived: Readable { fun read(): Int = 2 }\n\
+         class DefaultReader: Derived {}\n\
+         class OverrideReader: Readable { override fun read(): Int = 7 }\n\
+         class DefaultHost(val delegate: DefaultReader): Readable by delegate {}\n\
+         class OverrideHost(val tag: Int, val delegate: OverrideReader): Readable by delegate {}\n\
          fun entry(): Unit {\n\
-             val host = Host(0, Reader())\n\
-             val actual = host.read()\n\
-             if (actual == 7) { println(\"borrow-delegate\") }\
+             val inherited = DefaultHost(DefaultReader()).read()\n\
+             val overridden = OverrideHost(0, OverrideReader()).read()\n\
+             if (inherited + overridden == 9) { println(\"borrow-delegate\") }\
              else { error(\"wrong delegate\") }\n\
          }",
         "package q\nfun unused(): Unit {}",
@@ -731,7 +734,7 @@ fn borrow_only_interface_delegation_links_and_runs() {
         entry_declaration,
         &object,
     )
-    .expect("Borrow-only interface delegation must emit a native object");
+    .expect("bodyful Borrow-only interface delegation must emit a native object");
     let linked = Command::new("/usr/bin/clang")
         .arg(&object)
         .arg("-o")

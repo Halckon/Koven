@@ -505,16 +505,16 @@ fn rejects_generic_delegate_field_in_the_route_resolver() {
 }
 
 #[test]
-fn rejects_bodyful_delegation_until_frontend_publishes_effective_target() {
+fn rejects_generic_interface_owner_before_forwarding_type_arguments_to_implementation() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/main.ko",
         "package p\n\
-         interface Readable { fun read(): Int = 1 }\n\
-         class Reader: Readable { override fun read(): Int = 7 }\n\
-         class Host(val delegate: Reader): Readable by delegate {}\n\
-         fun entry(host: Host): Int = host.read()",
+         interface Readable<T> { fun read(own input: T): T }\n\
+         class Reader: Readable<Int> { override fun read(own input: Int): Int = input }\n\
+         class Host(val delegate: Reader): Readable<Int> by delegate {}\n\
+         fun entry(host: Host): Int = host.read(7)",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
@@ -529,9 +529,81 @@ fn rejects_bodyful_delegation_until_frontend_publishes_effective_target() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("bodyful delegation needs an exact frontend effective-target fact");
+    .expect_err("generic interface owner remapping remains outside this delegation slice");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
+}
+
+#[test]
+fn plans_bodyful_delegation_from_frontend_effective_targets() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         interface Derived: Readable { fun read(): Int = 2 }\n\
+         class DefaultReader: Derived {}\n\
+         class OverrideReader: Readable { override fun read(): Int = 7 }\n\
+         class DefaultHost(val delegate: DefaultReader): Readable by delegate {}\n\
+         class OverrideHost(val delegate: OverrideReader): Readable by delegate {}\n\
+         fun entry(defaultHost: DefaultHost, overrideHost: OverrideHost): Int =\n\
+             defaultHost.read() + overrideHost.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let readable = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let default_reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "DefaultReader"))
+        .and_then(|signature| signature.nominal())
+        .expect("DefaultReader signature");
+    let derived = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .expect("Derived signature");
+    let override_reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "OverrideReader"))
+        .and_then(|signature| signature.nominal())
+        .expect("OverrideReader signature");
+    let requirement = readable.members()[0].target();
+    let inherited_target = derived.members()[0].target();
+    let override_target = override_reader.members()[0].target();
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("bodyful delegation must consume exact frontend effective targets");
+    assert!(instances.iter().any(|instance| {
+        instance.key().target() == inherited_target
+            && instance.key().static_self() == Some(default_reader.ty())
+    }));
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement),
+        "outer interface default must not bypass the delegate field route"
+    );
+    assert!(instances.iter().any(|instance| {
+        instance.key().target() == override_target && instance.key().static_self().is_none()
+    }));
 }
 
 #[test]

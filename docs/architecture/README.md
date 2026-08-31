@@ -1004,11 +1004,12 @@ plan 全部一致，再在 delegate concrete nominal 的既有 static-dispatch f
 不按名称或 callable shape 重选。lower 顺序固定为 outer shared loan→`SharedHeapFieldLoan`→显式
 arguments→DirectCall，结束顺序为 arguments→field loan→outer loan；真实 native 用例由 `Host`
 payload 中的唯一 `Reader` owner 返回结果，并且不读取/copy field value、不 retain、不分配 proxy。
-当前只开放非泛型 ordinary class 的单层 abstract-requirement delegation；generic outer/delegate、
-delegation chain，以及有体 default requirement 分别以 `UnsupportedNode` 保持原子拒绝。frontend
-现已在 direct concrete forwarder 上发布 exact effective-target/owner-template，递归或 type-parameter
-未解析路径为 `None`；下一 Phase 4 切片将消费该 fact 接通 bodyful default，codegen 不得因
-requirement 自带 body 而绕过 field route、静默调用 outer interface default。
+当前已开放非泛型 ordinary class 的单层 abstract/bodyful Borrow delegation：planner 直接消费
+frontend forwarder 的 exact effective-target/owner-template，本地 override 与继承/replacement default
+均复用同一 field route；default 的 `StaticSelf` 使用 delegate field concrete type，而非 outer host。
+generic outer/delegate/interface owner/call instance、delegation chain 与 frontend `None` route 均在
+生成 SSA 前以 `UnsupportedNode` 原子拒绝；codegen 不因 requirement 自带 body 而绕过 field route、
+静默调用 outer interface default。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
