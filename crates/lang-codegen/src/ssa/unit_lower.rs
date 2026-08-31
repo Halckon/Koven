@@ -406,7 +406,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             plan.instance.source_unit(),
             plan.function_item,
         )))?;
-        let (result, result_expression) = match plan.body {
+        let (mut result, result_expression) = match plan.body {
             FunctionPlanBody::Expression(expression) => {
                 (lowerer.lower(expression)?, Some(expression))
             }
@@ -416,7 +416,16 @@ pub(crate) fn lower_scalar_unit_with_entry(
             continue;
         }
         if let (Some(expression), LoweredValue::Value(value)) = (result_expression, result) {
-            lowerer.transfer_owned_expression(expression, value, plan.instance.span())?;
+            let (value, transferred) = lowerer.adapt_owned_value_to_expected(
+                expression,
+                value,
+                plan.return_type,
+                plan.instance.span(),
+            )?;
+            if !transferred {
+                lowerer.transfer_owned_expression(expression, value, plan.instance.span())?;
+            }
+            result = LoweredValue::Value(value);
         }
         if let Some(expression) = result_expression {
             lowerer.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
@@ -644,14 +653,28 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if literal == LiteralKind::Null {
+            let ty = self.expression_ssa_type(expression, span)?;
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::NullableNull { nullable: ty },
+                    vec![EntityType::Value(ty)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Value(require_value(results[0], span)?));
+        }
         let constant = match literal {
             LiteralKind::Boolean(value) => ScalarConstant::Boolean(value),
             LiteralKind::Integer(kind) => {
                 ScalarConstant::Integer(parse_integer_literal(self.sources, kind, span)?)
             }
-            LiteralKind::Float(_) | LiteralKind::Char | LiteralKind::Null => {
+            LiteralKind::Float(_) | LiteralKind::Char => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
+            LiteralKind::Null => unreachable!("handled above"),
         };
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
@@ -696,15 +719,24 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let result = match value {
+        let mut result = match value {
             Some(value) => self.lower(value)?,
             None => LoweredValue::Unit,
         };
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
-        if let (Some(value_expression), LoweredValue::Value(value)) = (value, result) {
-            self.transfer_owned_expression(value_expression, value, span)?;
+        if let (Some(value_expression), LoweredValue::Value(lowered)) = (value, result) {
+            let (lowered, transferred) = self.adapt_owned_value_to_expected(
+                value_expression,
+                lowered,
+                self.return_type,
+                span,
+            )?;
+            if !transferred {
+                self.transfer_owned_expression(value_expression, lowered, span)?;
+            }
+            result = LoweredValue::Value(lowered);
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -820,13 +852,30 @@ impl UnitExpressionLowerer<'_> {
         if lowered == LoweredValue::Diverged {
             return Ok(lowered);
         }
-        if let LoweredValue::Value(value) = lowered {
-            self.transfer_owned_expression(initializer, value, span)?;
-        }
         if discards_binding {
+            if let LoweredValue::Value(value) = lowered {
+                self.transfer_owned_expression(initializer, value, span)?;
+            }
             return Ok(LoweredValue::Unit);
         }
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
+        let declared = self
+            .typed
+            .types()
+            .symbol_type(symbol)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let lowered = match lowered {
+            LoweredValue::Value(value) => {
+                let (value, transferred) =
+                    self.adapt_owned_value_to_expected(initializer, value, declared, span)?;
+                if !transferred {
+                    self.transfer_owned_expression(initializer, value, span)?;
+                }
+                LoweredValue::Value(value)
+            }
+            LoweredValue::Unit => LoweredValue::Unit,
+            LoweredValue::Diverged => unreachable!("divergence returned above"),
+        };
         self.bindings.insert(symbol, lowered);
         if let Some(closure) = closure {
             self.closure_bindings.insert(symbol, closure);
@@ -893,6 +942,66 @@ impl UnitExpressionLowerer<'_> {
             .get(&ty)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+    }
+
+    /// 把 frontend 已批准的 `inner -> inner?` 隐式适配映射为消费式 nullable wrap。
+    ///
+    /// 返回值中的布尔量表示原表达式 owner 已被本方法消费；调用方仍负责 exact-type
+    /// delivery 的 move/copy fact，避免适配 helper 重算 Phase 3 所有权语义。
+    pub(super) fn adapt_owned_value_to_expected(
+        &mut self,
+        expression: ExpressionId,
+        value: ValueId,
+        expected: UnitTypeId,
+        span: Span,
+    ) -> Result<(ValueId, bool), LoweringError> {
+        let actual = self
+            .typed
+            .types()
+            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let actual = resolve_concrete_type(
+            self.typed,
+            actual,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let expected = resolve_concrete_type(
+            self.typed,
+            expected,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if actual == expected {
+            return Ok((value, false));
+        }
+        let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().types().get(expected) else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        if *inner != actual {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let nullable = self
+            .type_ids
+            .get(&expected)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.transfer_owned_expression(expression, value, span)?;
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::NullableWrap {
+                    nullable,
+                    owner: value,
+                },
+                vec![EntityType::Value(nullable)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok((require_value(results[0], span)?, true))
     }
 }
 

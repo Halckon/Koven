@@ -58,14 +58,15 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?;
         let target_ssa_type = self.expression_ssa_type(target, target_node.span())?;
 
-        let assigned = match operator {
-            AssignmentOperator::Assign => {
-                let assigned = self.lower(value)?;
-                if assigned != LoweredValue::Diverged {
-                    self.require_matching_assignment_type(value, target_ssa_type, span)?;
+        let (assigned, transferred) = match operator {
+            AssignmentOperator::Assign => match self.lower(value)? {
+                LoweredValue::Value(assigned) => {
+                    let (assigned, transferred) =
+                        self.adapt_owned_value_to_expected(value, assigned, target_type, span)?;
+                    (LoweredValue::Value(assigned), transferred)
                 }
-                assigned
-            }
+                assigned => (assigned, false),
+            },
             AssignmentOperator::AddAssign
             | AssignmentOperator::SubtractAssign
             | AssignmentOperator::MultiplyAssign
@@ -97,19 +98,24 @@ impl UnitExpressionLowerer<'_> {
                     }
                 };
                 self.require_matching_assignment_type(value, target_ssa_type, span)?;
-                self.checked(
-                    assignment_operator(operator),
-                    left,
-                    right,
-                    target_ssa_type,
-                    span,
-                )?
+                (
+                    self.checked(
+                        assignment_operator(operator),
+                        left,
+                        right,
+                        target_ssa_type,
+                        span,
+                    )?,
+                    false,
+                )
             }
         };
         if assigned == LoweredValue::Diverged {
             return Ok(assigned);
         }
-        if let LoweredValue::Value(value_id) = assigned {
+        if let LoweredValue::Value(value_id) = assigned
+            && !transferred
+        {
             self.transfer_owned_expression(value, value_id, span)?;
         }
         if self.typed.types().copyability(target_type) == Copyability::MoveOnly
@@ -158,9 +164,8 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         };
-        if self.expression_ssa_type(value, span)? != field.ssa_type {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
+        let (assigned, transferred) =
+            self.adapt_owned_value_to_expected(value, assigned, field.ty, span)?;
         self.validate_field_replacement_drop(
             expression_id,
             field.symbol,
@@ -172,7 +177,9 @@ impl UnitExpressionLowerer<'_> {
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
                 .span(),
         )?;
-        self.transfer_owned_expression(value, assigned, span)?;
+        if !transferred {
+            self.transfer_owned_expression(value, assigned, span)?;
+        }
         self.function
             .append_instruction(
                 self.block,

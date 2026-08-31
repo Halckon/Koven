@@ -509,6 +509,14 @@ pub(crate) fn resolve_concrete_type(
         Some(UnitTypeKind::StaticSelf(_)) => {
             static_self.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
         }
+        Some(UnitTypeKind::Nullable(inner)) => {
+            let inner = resolve_concrete_type(typed, *inner, substitutions, static_self, span)?;
+            typed
+                .types()
+                .types()
+                .find(&UnitTypeKind::Nullable(inner))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
         Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -1221,6 +1229,9 @@ fn supported_nested_runtime_field_recipe(
     owner: &UnitNominalSignature,
     template: UnitTypeId,
 ) -> bool {
+    if let Some(UnitTypeKind::Nullable(inner)) = typed.types().types().get(template) {
+        return direct_owner_type_parameter(typed, owner, *inner);
+    }
     supported_nested_runtime_field_recipe_with(typed, owner, template, &mut BTreeSet::new())
 }
 
@@ -1287,6 +1298,18 @@ fn supported_nested_runtime_field_recipe_with(
         | UnitTypeKind::Deferred(_)
         | UnitTypeKind::Error => false,
     }
+}
+
+fn direct_owner_type_parameter(
+    typed: &ValidatedCompilationUnitTypes,
+    owner: &UnitNominalSignature,
+    ty: UnitTypeId,
+) -> bool {
+    matches!(
+        typed.types().types().get(ty),
+        Some(UnitTypeKind::TypeParameter(parameter))
+            if owner.type_parameters().contains(parameter)
+    )
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {

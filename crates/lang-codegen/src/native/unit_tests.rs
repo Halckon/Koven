@@ -1179,6 +1179,56 @@ fn nested_generic_wrapper_replacement_links_and_runs() {
 }
 
 #[test]
+fn generic_pointer_nullable_field_replacement_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         class Node\n\
+         class Holder<T>(var item: T?) {\n\
+             inout fun set(own replacement: T?): Unit { this.item = replacement }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val holder = Holder<Node>(Node())\n\
+             val cleared = holder.set(null)\n\
+             val next: Node? = Node()\n\
+             val replaced = holder.set(next)\n\
+             if (true) { println(\"nullable-field\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("generic-nullable-field.o");
+    let executable = directory.join("generic-nullable-field");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("generic pointer nullable field must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked generic nullable executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"nullable-field\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

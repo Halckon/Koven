@@ -3,7 +3,7 @@ use lang_frontend::{
 };
 
 use super::{
-    model::{EntityId, EntityType, Function, LoanKind, Operation, TerminatorKind},
+    model::{EntityId, EntityType, Function, LoanKind, Operation, SsaTypeKind, TerminatorKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
@@ -1141,6 +1141,102 @@ fn nested_generic_receiver_replaces_a_concrete_wrapper_owner() {
     assert!(
         old_load < old_drop && old_drop < replacement_store,
         "{member_llvm}"
+    );
+}
+
+#[test]
+fn generic_nullable_receiver_replaces_pointer_like_values_with_conditional_drop() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/nullable-field.ko",
+        "package p\n\
+         class Node\n\
+         class Holder<T>(var item: T?) {\n\
+             inout fun set(own replacement: T?): Unit { this.item = replacement }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val holder = Holder<Node>(Node())\n\
+             val cleared = holder.set(null)\n\
+             val next: Node? = Node()\n\
+             val replaced = holder.set(next)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/nullable-field.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("pointer-like nullable generic field must lower");
+
+    let module = &program.modules[0];
+    assert_eq!(
+        module
+            .types
+            .iter()
+            .filter(|ty| matches!(ty, SsaTypeKind::NullableHandle { .. }))
+            .count(),
+        1
+    );
+    let entry = function(module.functions.iter(), ".entry");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. }))
+            .count(),
+        2
+    );
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::NullableNull { .. }))
+            .count(),
+        1
+    );
+    let setter = function(module.functions.iter(), ".Holder.set.s");
+    assert!(setter.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldReplace { field: 0, .. }
+    )));
+
+    let llvm = render_verified_program(&program).expect("nullable field replacement LLVM");
+    let setter_llvm = llvm
+        .split("define internal")
+        .find(|body| {
+            body.split('{')
+                .next()
+                .is_some_and(|header| header.contains("koven.p.Holder.set"))
+        })
+        .unwrap_or_else(|| panic!("nullable setter LLVM body:\n{llvm}"));
+    let old_load = setter_llvm
+        .find(".old = load ptr")
+        .unwrap_or_else(|| panic!("old nullable is loaded:\n{setter_llvm}"));
+    let nullable_drop = setter_llvm[old_load..]
+        .find("call void @koven.drop.")
+        .map(|offset| old_load + offset)
+        .unwrap_or_else(|| panic!("old nullable is conditionally dropped:\n{setter_llvm}"));
+    let replacement_store = setter_llvm[nullable_drop..]
+        .find("store ptr")
+        .map(|offset| nullable_drop + offset)
+        .expect("new nullable is stored after conditional drop");
+    assert!(old_load < nullable_drop && nullable_drop < replacement_store);
+    assert!(
+        llvm.contains("is_null = icmp eq ptr") && llvm.contains("br i1 %is_null"),
+        "nullable drop glue must check the niche before dropping:\n{llvm}"
     );
 }
 

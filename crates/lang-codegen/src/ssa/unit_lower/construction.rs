@@ -87,16 +87,23 @@ impl UnitExpressionLowerer<'_> {
                 || delivery.parameter_symbol() != argument.parameter_symbol()
                 || delivery.evaluation_index() != evaluation_index
                 || delivery.kind() != expected_delivery
-                || self.typed.types().expression_type(argument.argument())
-                    != Some(argument.parameter_type())
                 || self.typed.types().expression_category(argument.argument())
                     != Some(argument.category())
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            let mut field = self.require_expression_value(argument.argument().expression())?;
+            let field = self.require_expression_value(argument.argument().expression())?;
+            let (mut field, transferred) = self.adapt_owned_value_to_expected(
+                argument.argument().expression(),
+                field,
+                argument.parameter_type(),
+                span,
+            )?;
             match delivery.kind() {
                 ConstructionDeliveryKind::Copy => {
+                    if transferred {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
                     let ty = self.expression_ssa_type(argument.argument().expression(), span)?;
                     let (_, results) = self
                         .function
@@ -110,7 +117,13 @@ impl UnitExpressionLowerer<'_> {
                     field = require_value(results[0], span)?;
                 }
                 ConstructionDeliveryKind::Move | ConstructionDeliveryKind::DeliverTemporary => {
-                    self.transfer_owned_expression(argument.argument().expression(), field, span)?;
+                    if !transferred {
+                        self.transfer_owned_expression(
+                            argument.argument().expression(),
+                            field,
+                            span,
+                        )?;
+                    }
                 }
             }
             let slot = fields

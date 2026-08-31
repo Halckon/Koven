@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-220` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34](../guide/00-index.md) 的既有 `T?`、generic 与 instance receiver 规则 |
@@ -42,22 +42,27 @@ SSA→LLVM→object/link/run 主线。
 - 不实现 inline value/enum/function/String nullable ABI，不改变 ADR-0017。
 - 不接 nullable `if`/smart cast、nullable `when`、`!!`、Elvis、safe-call 或 non-null extraction；单文件
   SPEC-0196 能力不会因本 Spec 自动扩张到 compilation-unit control flow。
+- 不扩张 closure thunk 的隐式 tail expected-type gate；本次 `return` 适配限定在具名 callable 的
+  expression body 与显式 `return` 路径。
 - 不开放 `List<T?>`、`Wrapper<T?>`、参数增长型 owner 或 inherited owner recipe；SPEC-0191 其他门禁不变。
+- 不改变 `Module::add_nullable_handle_type` 的“inner owner 已定义”不变量；因此
+  `class Node(val next: Node?)` 这类 owner-definition cycle 留给独立 SSA type-cycle Spec，本次保持带 Span
+  的确定性拒绝。
 - 不新增 frontend fact、诊断码、runtime ABI、依赖或公开跨 unit callable ABI。
 
 ## 4. 验收标准
 
-- [ ] class/Box/Rc concrete nullable type 形成独立 `NullableHandle`；Int/value class/function/String nullable
+- [x] class/Box/Rc concrete nullable type 形成独立 `NullableHandle`；Int/value class/function/String nullable
   以带来源 Span 的确定性错误拒绝。
-- [ ] generic `Holder<T>(var item: T?)` 对 class actual 完成 exact layout、non-null/null construction、Value
+- [x] generic `Holder<T>(var item: T?)` 对 class actual 完成 exact layout、non-null/null construction、Value
   delivery 与 field replacement；模板 `T?` 与 concrete `Node?` 双 identity 均被核对。
-- [ ] SSA/LLVM 锁定 `NullableWrap`/`NullableNull`、RHS-before-old-load、nullable conditional drop-before-store，
+- [x] SSA/LLVM 锁定 `NullableWrap`/`NullableNull`、RHS-before-old-load、nullable conditional drop-before-store，
   且无 tag、wrapper allocation、copy 或 retain。
-- [ ] source→object→Clang link→run 覆盖旧值非空→null→新非空 replacement，退出 0 且无重复 drop/free。
-- [ ] 运行 `unit_plan_tests`、nullable type/aggregate/receiver 职责组与 `native::unit_tests`；运行 workspace
+- [x] source→object→Clang link→run 覆盖旧值非空→null→新非空 replacement，退出 0 且无重复 drop/free。
+- [x] 运行 `unit_plan_tests`、nullable type/aggregate/receiver 职责组与 `native::unit_tests`；运行 workspace
   library check/clippy、fmt/diff，并由独立复核检查 fact/owner/ABI 边界。不运行约一小时的
   `lang-frontend` 全量测试，除非窄测暴露 frontend 公共不变量问题。
-- [ ] Architecture、Roadmap、SPEC-0191 与本 Spec 验证记录同步。
+- [x] Architecture、Roadmap、SPEC-0191 与本 Spec 验证记录同步。
 
 ## 5. 技术方案与边界
 
@@ -71,10 +76,10 @@ owner parameter 的 nullable 模板，concrete inner 再由 type lowerer 核对 
 
 ## 6. 实施计划
 
-1. [ ] 建立 unit nullable type/substitution/storage gate → 验证：type planner 与正反 layout 窄测。
-2. [ ] 接 null/wrap expected-type adaptation 与 construction/call/assignment/return → 验证：SSA 正反矩阵。
-3. [ ] 接 generic nullable field replacement 的 LLVM/native 闭环 → 验证：顺序、conditional drop、真实运行。
-4. [ ] 独立复核、同步 Architecture/Roadmap/SPEC-0191 并运行分层验收。
+1. [x] 建立 unit nullable type/substitution/storage gate → 验证：type planner 与正反 layout 窄测。
+2. [x] 接 null/wrap expected-type adaptation 与 construction/call/assignment/return → 验证：SSA 正反矩阵。
+3. [x] 接 generic nullable field replacement 的 LLVM/native 闭环 → 验证：顺序、conditional drop、真实运行。
+4. [x] 独立复核、同步 Architecture/Roadmap/SPEC-0191 并运行分层验收。
 
 ## 7. 提交计划
 
@@ -93,3 +98,13 @@ owner parameter 的 nullable 模板，concrete inner 再由 type lowerer 核对 
 |---|---|---|
 | 2026-08-31 前置审计 | 通过 | SPEC-0196 已提供 nullable SSA/verifier/LLVM；SPEC-0219 exact descriptor 已含 concrete `T?`，缺口限定在 compilation-unit Phase 4 type/adaptation/drop 消费 |
 | `git diff --check` | 通过 | Spec staging 文档空白门禁 |
+| nullable 红测 | 按预期失败后转绿 | generic `Holder<T>(T?)` 初始在 construction exact-type gate 以 `MissingFact` 失败；type/substitution 与统一 expected-type adaptation 接线后通过 |
+| `cargo test -p lang-codegen --lib unit_plan_tests` | 23/23 通过 | direct nullable recipe 不扩张 inherited/参数增长型 recipe |
+| `cargo test -p lang-codegen --lib 'ssa::unit_lower_'` | 106/106 通过 | nullable type 正反矩阵、local/construction/call/root assignment/return、receiver replacement 及全部 unit-lower 职责回归 |
+| `cargo test -p lang-codegen --lib 'native::unit_tests'` | 20/20 通过 | generic nullable field 的非空→null→非空 replacement 经 object→Clang link→run 输出 `nullable-field`；其余 unit native 回归不变 |
+| 递归 owner-definition cycle 审计 | 显式保持门禁 | `class Node(val next: Node?)` 需要放宽共享 SSA model 的“inner owner 已定义”不变量，留给独立 Spec；当前以带 Span `UnsupportedNode` 拒绝 |
+| `cargo check --workspace --lib --locked --offline` | 通过 | workspace library Layer 2 构建门禁；未运行耗时 `lang-frontend` 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 首轮发现并移除 assignment 分支的冗余 let，复跑零 warning |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | Rust 格式与补丁空白门禁 |
+| 独立高风险复核（nullable delivery/fact/ABI） | 通过 | 首轮发现 Move place→nullable adaptation 跳过 delivery root identity 的 P2 与对应覆盖缺口 P3；加入 fact root＝AST place symbol＝live ValueId 核对及 place fixture 后二次复核关闭，无剩余 P1/P2/P3 |
+| 独立复核 `cargo test -p lang-codegen --lib` | 312 通过、1 ignored | ignored 为既有 LLDB 权限用例；未运行约一小时的 `lang-frontend` 全量测试 |

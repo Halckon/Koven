@@ -303,7 +303,12 @@ impl UnitExpressionLowerer<'_> {
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
             let entity = match mapping.mode() {
                 ParameterMode::Value => {
-                    match self.lower_value_argument(call, argument.value, argument.span)? {
+                    match self.lower_value_argument(
+                        call,
+                        argument.value,
+                        mapping.parameter_type(),
+                        argument.span,
+                    )? {
                         LoweredValue::Value(value) => EntityId::Value(value),
                         LoweredValue::Diverged => return Ok(None),
                         LoweredValue::Unit => {
@@ -392,6 +397,7 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         call: UnitExpressionId,
         argument: ExpressionId,
+        parameter_type: lang_frontend::type_checking::UnitTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let value = match self.lower(argument)? {
@@ -433,15 +439,39 @@ impl UnitExpressionLowerer<'_> {
                     .place()
                     .filter(|place| place.is_root())
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                self.take_owned_binding(place.root(), value, span)?;
+                let actual = self.direct_place_symbol(argument.expression(), span)?;
+                if actual != place.root()
+                    || self.bindings.get(&actual).copied() != Some(LoweredValue::Value(value))
+                {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
             }
             UnitValueDeliveryKind::Temporary => {
                 if delivery.source() != &UnitValueDeliverySource::Temporary(argument) {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
-                if self.typed.types().copyability(ty) == Copyability::MoveOnly {
+            }
+        }
+        let (value, transferred) =
+            self.adapt_owned_value_to_expected(argument.expression(), value, parameter_type, span)?;
+        match expected {
+            UnitValueDeliveryKind::Copy if !transferred => {}
+            UnitValueDeliveryKind::Move => {
+                let place = delivery
+                    .place()
+                    .filter(|place| place.is_root())
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if !transferred {
+                    self.take_owned_binding(place.root(), value, span)?;
+                }
+            }
+            UnitValueDeliveryKind::Temporary => {
+                if !transferred && self.typed.types().copyability(ty) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, span)?;
                 }
+            }
+            UnitValueDeliveryKind::Copy => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
         Ok(LoweredValue::Value(value))

@@ -129,6 +129,17 @@ impl UnitTypeLowering {
             }
             UnitTypeKind::Builtin(BuiltinType::String) => module.add_string_owner_type(),
             UnitTypeKind::Builtin(BuiltinType::Unit) => module.intern_type(SsaTypeKind::Unit),
+            UnitTypeKind::Nullable(inner) => {
+                if !is_supported_nullable_inner(typed, inner) {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                let inner_type = inner;
+                let inner = self.intern_inner(module, typed, inner_type, span)?;
+                self.define_pending_owner(module, typed, inner_type)?;
+                module
+                    .add_nullable_handle_type(inner)
+                    .map_err(|_| lowering_error(LoweringErrorKind::UnsupportedNode, span))?
+            }
             UnitTypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::Rc,
                 arguments,
@@ -488,6 +499,7 @@ pub(super) fn is_supported_storage_type(
         }) => {
             matches!(arguments.as_slice(), [element] if is_supported_storage_type(typed, *element))
         }
+        Some(UnitTypeKind::Nullable(inner)) => is_supported_nullable_inner(typed, *inner),
         Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -511,6 +523,33 @@ pub(super) fn is_supported_storage_type(
                             && resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
                                 .is_ok()
                     }
+            }),
+        _ => false,
+    }
+}
+
+fn is_supported_nullable_inner(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> bool {
+    match typed.types().types().get(ty) {
+        Some(UnitTypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::Box,
+            arguments,
+        }) => {
+            matches!(arguments.as_slice(), [payload] if is_supported_storage_type(typed, *payload))
+        }
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| {
+                nominal.kind() == NominalKind::Class
+                    && arguments.len() == nominal.type_parameters().len()
+                    && (nominal.type_parameters().is_empty()
+                        || resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
+                            .is_ok())
             }),
         _ => false,
     }

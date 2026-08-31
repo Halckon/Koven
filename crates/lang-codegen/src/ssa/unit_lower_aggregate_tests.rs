@@ -399,25 +399,126 @@ fn lowers_frontend_authorized_nested_generic_class_field_layouts() {
 }
 
 #[test]
+fn lowers_pointer_like_nullable_generic_class_field_layouts() {
+    let (name_environment, type_environment) = standard_environments();
+    for (name, declarations, actual) in [
+        ("class", "class Node", "Node"),
+        ("box", "value class Token(val item: Int)", "Box<Token>"),
+        ("rc", "", "Rc<Int>"),
+    ] {
+        let mut sources = SourceMap::new();
+        let path = format!("test/nullable-{name}.ko");
+        let text = format!(
+            "package test\n{declarations}\n\
+             class Holder<T>(val item: T?)\n\
+             fun entry(own input: Holder<{actual}>): Int = 1"
+        );
+        let (source, parsed) = parsed(&mut sources, &path, &text);
+        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .unwrap_or_else(|error| panic!("{name} nullable layout must lower: {error:?}"));
+        assert_eq!(
+            program.modules[0]
+                .types
+                .iter()
+                .filter(|ty| matches!(ty, SsaTypeKind::NullableHandle { .. }))
+                .count(),
+            1,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn adapts_pointer_like_nullable_storage_at_each_owned_value_boundary() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "test/nullable-boundaries.ko",
+        "package test\n\
+         class Node\n\
+         fun make(): Node? = Node()\n\
+         fun pass(own input: Node?): Node? = input\n\
+         fun entry(): Unit {\n\
+             var current: Node? = Node()\n\
+             { current = Node() }\n\
+             val source = Node()\n\
+             val passed = pass(source)\n\
+             val made = make()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/nullable-boundaries.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("nullable local/call/assignment/return boundaries must lower");
+
+    assert_eq!(
+        program.modules[0]
+            .functions
+            .iter()
+            .flat_map(|function| function.instructions.iter())
+            .filter(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. }))
+            .count(),
+        4,
+        "local initialization, root assignment, Value call and return each consume one inner owner"
+    );
+}
+
+#[test]
 fn rejects_unauthorized_nested_generic_class_field_layouts() {
     let (name_environment, type_environment) = standard_environments();
-    for (name, declarations) in [
-        ("nullable", "class Dependent<T>(val item: T?)"),
-        ("other-intrinsic", "class Dependent<T>(val item: Array<T>)"),
+    for (name, declarations, actual) in [
+        ("inline-nullable", "class Dependent<T>(val item: T?)", "Int"),
+        (
+            "string-nullable",
+            "class Dependent<T>(val item: T?)",
+            "String",
+        ),
+        (
+            "other-intrinsic",
+            "class Dependent<T>(val item: Array<T>)",
+            "Int",
+        ),
         (
             "value-wrapper",
             "value class Wrapper<T>(val item: T)\nclass Dependent<T>(val item: Wrapper<T>)",
+            "Int",
         ),
         (
             "growing-owner",
             "class Dependent<T>(val item: Dependent<List<T>>)",
+            "Int",
         ),
     ] {
         let mut sources = SourceMap::new();
         let path = format!("test/{name}.ko");
         let text = format!(
             "package test\n{declarations}\n\
-             fun entry(own input: Dependent<Int>): Int = 1"
+             fun entry(own input: Dependent<{actual}>): Int = 1"
         );
         let (source, parsed) = parsed(&mut sources, &path, &text);
         let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
@@ -438,6 +539,40 @@ fn rejects_unauthorized_nested_generic_class_field_layouts() {
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
         assert!(error.span.is_some(), "{name}");
     }
+}
+
+#[test]
+fn rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "test/recursive-nullable.ko",
+        "package test\n\
+         class Node(val next: Node?)\n\
+         fun entry(own input: Node): Int = 1",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/recursive-nullable.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    ) {
+        Ok(_) => panic!("recursive nullable owner requires a separate SSA type-cycle slice"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
 }
 
 #[test]
