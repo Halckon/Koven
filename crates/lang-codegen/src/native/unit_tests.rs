@@ -596,6 +596,55 @@ fn interface_default_and_super_static_calls_link_and_run() {
 }
 
 #[test]
+fn interface_default_abstract_requirement_override_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Readable {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         class Child: Readable { override fun read(): Int = 7 }\n\
+         fun entry(): Unit {\n\
+             val actual = Child().throughRequirement()\n\
+             if (actual == 7) { println(\"abstract-override\") }\
+             else { error(\"wrong override\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("abstract-override.o");
+    let executable = directory.join("abstract-override");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("abstract requirement must resolve to its concrete override");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked abstract override executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"abstract-override\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();

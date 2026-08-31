@@ -217,10 +217,6 @@ pub(crate) fn plan_unit_instances(
                 | UnitCallTarget::FunctionValue
                 | UnitCallTarget::StructuralComponent(_) => continue,
             };
-            let target_template_index = template_by_target
-                .get(&target)
-                .copied()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
             let arguments = call
                 .instance()
                 .type_arguments()
@@ -229,28 +225,29 @@ pub(crate) fn plan_unit_instances(
                     resolve_concrete_type(typed, *ty, &substitutions, key.static_self(), *span)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            if arguments.len() != templates[target_template_index].type_parameters.len() {
+            let receiver = call
+                .receiver()
+                .map(|receiver| {
+                    resolve_concrete_type(
+                        typed,
+                        receiver.ty(),
+                        &substitutions,
+                        key.static_self(),
+                        *span,
+                    )
+                })
+                .transpose()?;
+            let target_key = resolve_unit_call_instance(typed, target, arguments, receiver, *span)?;
+            let target_template_index = template_by_target
+                .get(&target_key.target())
+                .copied()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
+            if target_key.type_arguments().len()
+                != templates[target_template_index].type_parameters.len()
+            {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
-            let static_self = if callable_static_self_receiver(typed, target)? {
-                let receiver = call
-                    .receiver()
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
-                Some(resolve_concrete_type(
-                    typed,
-                    receiver.ty(),
-                    &substitutions,
-                    key.static_self(),
-                    *span,
-                )?)
-            } else {
-                None
-            };
-            pending.insert(UnitFunctionInstanceKey::for_specialized_target(
-                target,
-                arguments,
-                static_self,
-            ));
+            pending.insert(target_key);
         }
 
         if key.is_specialized() {
@@ -484,7 +481,91 @@ pub(crate) fn callable_static_self_receiver(
     typed: &ValidatedCompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Result<bool, LoweringError> {
-    let callable = match target {
+    let callable = unit_callable_signature(typed, target).ok_or(LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: None,
+    })?;
+    let Some(receiver) = callable.receiver() else {
+        return Ok(false);
+    };
+    Ok(matches!(
+        typed.types().types().get(receiver.ty()),
+        Some(UnitTypeKind::StaticSelf(_))
+    ))
+}
+
+/// 把 typed call target 与 concrete receiver 解析为 planner/lowerer 共用的实例 identity。
+pub(crate) fn resolve_unit_call_instance(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+    type_arguments: Vec<UnitTypeId>,
+    receiver: Option<UnitTypeId>,
+    span: Span,
+) -> Result<UnitFunctionInstanceKey, LoweringError> {
+    let callable = unit_callable_signature(typed, target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if callable.has_body() {
+        let static_self = if callable_static_self_receiver(typed, target)? {
+            Some(receiver.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?)
+        } else {
+            None
+        };
+        return Ok(UnitFunctionInstanceKey::for_specialized_target(
+            target,
+            type_arguments,
+            static_self,
+        ));
+    }
+
+    let receiver = receiver.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments: owner_arguments,
+    }) = typed.types().types().get(receiver)
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let nominal = typed
+        .types()
+        .signatures()
+        .declaration(*declaration)
+        .and_then(|signature| signature.nominal())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let implementation = nominal
+        .static_dispatch_overrides()
+        .iter()
+        .find(|dispatch| dispatch.requirement() == target)
+        .map(|dispatch| dispatch.implementation())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let implementation_callable = unit_callable_signature(typed, implementation)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let requirement_owner_arguments = unit_callable_owner_parameter_count(typed, target)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let implementation_owner_arguments = unit_callable_owner_parameter_count(typed, implementation)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if !implementation_callable.has_body()
+        || implementation_callable.type_parameters().len() != callable.type_parameters().len()
+        || type_arguments.len() != requirement_owner_arguments + callable.type_parameters().len()
+        || owner_arguments.len() != implementation_owner_arguments
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    let callable_argument_start = type_arguments.len() - callable.type_parameters().len();
+    let mut implementation_arguments = owner_arguments.clone();
+    implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
+    let static_self = callable_static_self_receiver(typed, implementation)?.then_some(receiver);
+    Ok(UnitFunctionInstanceKey::for_specialized_target(
+        implementation,
+        implementation_arguments,
+        static_self,
+    ))
+}
+
+fn unit_callable_signature(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+) -> Option<&UnitCallableSignature> {
+    match target {
         UnitCallableTarget::Declaration(declaration) => typed
             .types()
             .signatures()
@@ -496,20 +577,32 @@ pub(crate) fn callable_static_self_receiver(
             .declarations()
             .iter()
             .filter_map(|signature| signature.nominal())
-            .flat_map(|nominal| nominal.members())
+            .flat_map(|nominal| nominal.members().iter().chain(nominal.companion_members()))
             .find(|callable| callable.target() == target),
     }
-    .ok_or(LoweringError {
-        kind: LoweringErrorKind::MissingFact,
-        span: None,
-    })?;
-    let Some(receiver) = callable.receiver() else {
-        return Ok(false);
-    };
-    Ok(matches!(
-        typed.types().types().get(receiver.ty()),
-        Some(UnitTypeKind::StaticSelf(_))
-    ))
+}
+
+fn unit_callable_owner_parameter_count(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+) -> Option<usize> {
+    match target {
+        UnitCallableTarget::Declaration(_) => Some(0),
+        UnitCallableTarget::Symbol(_) => typed
+            .types()
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|signature| signature.nominal())
+            .find(|nominal| {
+                nominal
+                    .members()
+                    .iter()
+                    .chain(nominal.companion_members())
+                    .any(|callable| callable.target() == target)
+            })
+            .map(|nominal| nominal.type_parameters().len()),
+    }
 }
 
 fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTypeKind) -> bool {

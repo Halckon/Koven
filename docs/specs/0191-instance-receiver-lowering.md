@@ -76,8 +76,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    已完成，generic nominal layout 与 MoveOnly field replacement 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
-   concrete `StaticSelf` 传播已完成；abstract requirement→concrete override、generic、Inout/Value
-   default 与 Borrow delegate 继续实施。
+   concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
+   已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
+   inherited default/replacement、Inout/Value default 与 Borrow delegate 继续实施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -133,4 +134,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib interface_default_and_super_static_calls_link_and_run --locked --offline` | 通过 | 真实 source→object→clang→run 输出 `default-super\n` |
 | 最终并行小集合：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` | 5/5、20/20、6/6 通过 | 分别锁定 bounded concrete-self 实例 identity、receiver SSA/LLVM 与真实 source→object→link→run；不重复 frontend 全量回归 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace 库级静态门禁，零 warning |
+| `cargo test -p lang-codegen abstract_requirement -- --nocapture` | 3/3 通过 | planner 不再计划无 body requirement，SSA DirectCall 复用原 receiver loan，真实 object/link/run 输出 `abstract-override\n` |
+| `cargo test -p lang-codegen remaps_requirement_arguments_to_concrete_owner_and_callable_slots -- --nocapture` | 通过 | 非空 `GenericBase<String>` owner prefix 被替换为 `Host<Int>` owner arguments，`Long` callable argument 按已验证 slot 保留 |
+| 定向分层回归：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` / `multifile_ownership_checking` | 7/7、21/21、7/7、51/51 通过 | planner、SSA/LLVM、真实 link/run 与 Phase 3 facts 职责分离；未运行约一小时的 frontend 全量测试 |
+| `cargo clippy --workspace --lib -- -D warnings` | 通过 | workspace 库级静态门禁，零 warning |
+| 独立高风险复核（abstract requirement→本地 override 切片） | 通过 | 无 P1/P2；发现泛型用例 owner prefix 为空与记录计数两项 P3，补非空 prefix 矩阵并同步 7/7 后关闭 |
 | 独立高风险复核（concrete `StaticSelf` direct-default/`super<I>` 切片） | 通过 | 首轮发现双 concrete symbol、`this.otherDefault()` 与完成范围措辞三处 P3，补测试/收窄文档后复核至无 P1/P2/P3 |

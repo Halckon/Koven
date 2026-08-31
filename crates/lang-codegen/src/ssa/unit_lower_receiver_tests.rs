@@ -311,6 +311,53 @@ fn interface_default_propagates_concrete_self_through_explicit_this_call() {
 }
 
 #[test]
+fn interface_default_dispatches_abstract_requirement_to_concrete_override() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         class Child: Readable {\n\
+             override fun read(): Int = 7\n\
+         }\n\
+         fun entry(): Int = Child().throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("abstract requirement target must statically resolve to Child.read");
+
+    let module = &program.modules[0];
+    let requirement = function(module.functions.iter(), ".Readable.throughRequirement.s");
+    let implementation = function(module.functions.iter(), ".Child.read.s");
+    let EntityId::Loan(receiver) = requirement.blocks[0].parameters[0] else {
+        panic!("requirement default concrete receiver loan")
+    };
+    assert!(requirement.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(actual)),
+            ..
+        } if callee == implementation.id() && actual == receiver
+    )));
+    render_verified_program(&program).expect("resolved abstract requirement must lower to LLVM");
+}
+
+#[test]
 fn stateless_object_receiver_uses_zst_addressization_without_runtime_storage() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

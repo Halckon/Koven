@@ -24,7 +24,7 @@ use crate::ssa::{
     model::{
         EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, PlaceId, SsaTypeId,
     },
-    unit_plan::{UnitFunctionInstanceKey, callable_static_self_receiver},
+    unit_plan::resolve_unit_call_instance,
 };
 
 pub(super) struct LoweredCallArguments {
@@ -178,27 +178,23 @@ impl UnitExpressionLowerer<'_> {
                 resolve_concrete_type(self.typed, *ty, self.substitutions, self.static_self, span)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let static_self = if callable_static_self_receiver(self.typed, target)? {
-            let receiver = descriptor
-                .receiver()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            Some(resolve_concrete_type(
-                self.typed,
-                receiver.ty(),
-                self.substitutions,
-                self.static_self,
-                span,
-            )?)
-        } else {
-            None
-        };
+        let receiver = descriptor
+            .receiver()
+            .map(|receiver| {
+                resolve_concrete_type(
+                    self.typed,
+                    receiver.ty(),
+                    self.substitutions,
+                    self.static_self,
+                    span,
+                )
+            })
+            .transpose()?;
+        let callee_key =
+            resolve_unit_call_instance(self.typed, target, type_arguments, receiver, span)?;
         let callee = self
             .function_ids
-            .get(&UnitFunctionInstanceKey::for_specialized_target(
-                target,
-                type_arguments,
-                static_self,
-            ))
+            .get(&callee_key)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let receiver = self.lower_call_receiver(call, descriptor, span)?;

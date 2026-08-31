@@ -328,6 +328,132 @@ fn plans_one_interface_default_instance_per_concrete_static_self() {
 }
 
 #[test]
+fn plans_concrete_override_instead_of_abstract_requirement() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         class Child: Readable { override fun read(): Int = 7 }\n\
+         fun entry(): Int = Child().throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let readable = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let child = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Child"))
+        .and_then(|signature| signature.nominal())
+        .expect("Child signature");
+    let requirement = readable
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("abstract requirement")
+        .target();
+    let implementation = child
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("concrete override")
+        .target();
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement),
+        "abstract declarations must never become lowering templates"
+    );
+}
+
+#[test]
+fn remaps_requirement_arguments_to_concrete_owner_and_callable_slots() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface GenericBase<A> {\n\
+             fun <R> id(own input: R): R\n\
+             fun <R> throughRequirement(own input: R): R = this.id(input)\n\
+         }\n\
+         class Host<T>: GenericBase<String> {\n\
+             override fun <R> id(own input: R): R = input\n\
+         }\n\
+         fun entry(host: Host<Int>): Long = host.throughRequirement(2L)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let host = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Host"))
+        .and_then(|signature| signature.nominal())
+        .expect("Host signature");
+    let implementation = host
+        .members()
+        .iter()
+        .find(|member| member.name() == "id")
+        .expect("generic concrete override")
+        .target();
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    let implementation = instances
+        .iter()
+        .find(|instance| instance.key().target() == implementation)
+        .expect("concrete generic override instance");
+    assert_eq!(implementation.key().type_arguments().len(), 2);
+    assert!(matches!(
+        typed
+            .types()
+            .types()
+            .get(implementation.key().type_arguments()[0]),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(matches!(
+        typed
+            .types()
+            .types()
+            .get(implementation.key().type_arguments()[1]),
+        Some(UnitTypeKind::Builtin(BuiltinType::Long))
+    ));
+}
+
+#[test]
 fn rejects_non_callable_entries_and_foreign_ownership_products() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
