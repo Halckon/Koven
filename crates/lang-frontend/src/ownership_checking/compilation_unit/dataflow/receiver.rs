@@ -6,13 +6,15 @@ use crate::{
     parser::Expression,
     type_checking::{
         Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitCallReceiverOrigin,
+        UnitCallTarget, UnitTypeKind,
     },
 };
 
 use super::{
     AccessKind, ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Checker, OwnershipBindingKind,
-    OwnershipCheckingError, State, UnitCallReceiverOwnershipContract, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, add_parameter_label,
+    OwnershipCheckingError, State, UnitCallReceiverOwnershipContract,
+    UnitConditionalReceiverDeliveryFact, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, add_parameter_label,
 };
 
 impl Checker<'_> {
@@ -318,6 +320,13 @@ impl Checker<'_> {
                 UnitReceiverOwnershipKind::ExclusiveLoan
             }
             UnitCallArgumentOwnershipKind::Value => {
+                if matches!(
+                    self.typed.types().get(contract.receiver_type()),
+                    Some(UnitTypeKind::StaticSelf(_))
+                ) {
+                    self.publish_conditional_receiver_delivery(contract, current, owner)?;
+                    return Ok(None);
+                }
                 match self.typed.copyability(contract.receiver_type()) {
                     Copyability::Copyable => UnitReceiverOwnershipKind::Copy,
                     Copyability::MoveOnly => {
@@ -334,6 +343,79 @@ impl Checker<'_> {
             }
         };
         Ok(Some((UnitReceiverOwnershipTarget::This(owner), effect)))
+    }
+
+    fn publish_conditional_receiver_delivery(
+        &mut self,
+        contract: UnitCallReceiverOwnershipContract,
+        current: super::ReceiverContext,
+        owner: crate::name_resolution::DeclarationId,
+    ) -> Result<(), OwnershipCheckingError> {
+        let selected_receiver =
+            super::super::contracts::source_callable_signature(self.typed, contract.target())
+                .and_then(crate::type_checking::UnitCallableSignature::receiver);
+        let valid_template =
+            self.static_self_owner(contract.receiver_type()) == Some(current.owner);
+        let selected_owner = selected_receiver
+            .filter(|receiver| receiver.mode() == ParameterMode::Value)
+            .and_then(|receiver| self.static_self_owner(receiver.ty()));
+        let selected_owner_is_reachable = selected_owner.is_some_and(|selected_owner| {
+            selected_owner == current.owner
+                || self
+                    .typed
+                    .signatures()
+                    .declaration(current.owner)
+                    .and_then(|declaration| declaration.nominal())
+                    .is_some_and(|nominal| {
+                        nominal.interfaces().iter().any(|interface| {
+                            matches!(
+                                self.typed.types().get(*interface),
+                                Some(UnitTypeKind::Nominal { declaration, .. })
+                                    if *declaration == selected_owner
+                            )
+                        })
+                    })
+        });
+        if !valid_template
+            || current.owner != owner
+            || current.mode != ParameterMode::Value
+            || current.ty != contract.receiver_type()
+            || !matches!(contract.target(), UnitCallTarget::Symbol(_))
+            || !selected_owner_is_reachable
+            || self
+                .conditional_receiver_deliveries
+                .iter()
+                .any(|fact| fact.call() == contract.call())
+        {
+            return Err(OwnershipCheckingError::InvalidUnitCall {
+                source_unit: contract.call().source_unit().index(),
+                expression: contract.call().expression().index(),
+            });
+        }
+        self.conditional_receiver_deliveries
+            .push(UnitConditionalReceiverDeliveryFact::new(
+                contract.call(),
+                contract.source(),
+                current.owner,
+                contract.target(),
+                contract.receiver_type(),
+                current.declaration_span,
+                contract.receiver_span(),
+            ));
+        Ok(())
+    }
+
+    fn static_self_owner(
+        &self,
+        receiver_type: crate::type_checking::UnitTypeId,
+    ) -> Option<crate::name_resolution::DeclarationId> {
+        let UnitTypeKind::StaticSelf(interface) = self.typed.types().get(receiver_type)? else {
+            return None;
+        };
+        match self.typed.types().get(*interface)? {
+            UnitTypeKind::Nominal { declaration, .. } => Some(*declaration),
+            _ => None,
+        }
     }
 
     pub(super) fn require_mutable_this(

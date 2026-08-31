@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-222` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
@@ -38,12 +38,15 @@ validated compilation-unit ownership 产物会发布精确、条件化的 receiv
 
 ## 4. 验收标准
 
-- [ ] compile-pass 覆盖 MoveOnly/Copyable `StaticSelf` 的显式 `this` delivery 与隐式 Value receiver call。
-- [ ] conditional delivery 与 receiver-drop fact 的 point/template identity 可交叉核对，frontend 不发布
+- [x] compile-pass 覆盖 MoveOnly/Copyable `StaticSelf` 的显式 `this` delivery 与隐式 Value receiver call。
+- [x] conditional delivery 与 receiver-drop fact 的 point/template identity 可交叉核对，frontend 不发布
   concrete Copy/Move 结论。
-- [ ] Borrow/Inout receiver、target/template identity 不匹配及重复 fact 的负矩阵 fail loud，Span 指向调用点。
-- [ ] failure recovery 不发布可伪造 validated fact，既有 receiver ownership 窄回归通过。
-- [ ] Architecture、Roadmap 与 SPEC-0223 前置状态同步；不运行 `lang-frontend` 全量测试。
+- [x] Borrow/Inout receiver 不进入 conditional delivery；selected target 必须解析为当前 interface 或其传递
+  父 interface 的 Value `StaticSelf` callable，target/template identity 不匹配及重复 fact 的内部 guard
+  fail loud，Span 指向调用点。
+- [x] ownership error 与 deferred boundary recovery 不发布可执行 conditional delivery，既有 receiver
+  ownership 窄回归通过。
+- [x] Architecture、Roadmap 与 SPEC-0223 前置状态同步；未运行 `lang-frontend` 全量测试。
 
 ## 5. 技术方案与边界
 
@@ -53,9 +56,9 @@ concrete Copy/Move 与 drop 互斥由 SPEC-0223 在单态化后决定。事实�
 
 ## 6. 实施计划
 
-1. [ ] 建立显式/隐式 Value receiver 红测与现有 drop fact 对照 → 验证：唯一缺失事实明确。
-2. [ ] 发布、验证并恢复 conditional receiver delivery fact → 验证：identity、恢复与 Span 正反矩阵。
-3. [ ] 运行 ownership 窄回归并同步 Architecture/Spec → 验证：SPEC-0223 可只消费 validated fact。
+1. [x] 建立显式/隐式 Value receiver 红测与现有 drop fact 对照 → 验证：唯一缺失事实明确。
+2. [x] 发布、验证并恢复 conditional receiver delivery fact → 验证：identity、恢复与 Span 正反矩阵。
+3. [x] 运行 ownership 窄回归并同步 Architecture/Spec → 验证：SPEC-0223 可只消费 validated fact。
 
 ## 7. 提交计划
 
@@ -71,4 +74,9 @@ concrete Copy/Move 与 drop 互斥由 SPEC-0223 在单态化后决定。事实�
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 待实施 | 未执行 | 只运行命中的 ownership integration target，不运行 `lang-frontend` 全量测试 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking static_self_value_calls_publish_conditional_receiver_deliveries --locked --offline -- --test-threads=1` | 通过，1/1 | 覆盖显式/隐式、inherited/`super`、Borrow/Inout 排除与 concrete Copy/Move |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline -- --test-threads=1` | 通过，56/56 | compilation-unit ownership 窄目标；未运行 `lang-frontend` 全量测试 |
+| `cargo check --workspace --lib --locked --offline` | 通过 | workspace library 基线 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 无 warning |
+| `cargo fmt --all -- --check`、`git diff --check` | 通过 | 格式与 patch whitespace |
+| 独立 fresh-context 审查 | 通过 | 第三轮无 P1/P2；保留非阻塞 P3：无公开源码路径可伪造 unrelated target/重复 fact，生产 guard 已 fail loud |

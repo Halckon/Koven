@@ -858,7 +858,12 @@ SPEC-0197 第一阶段新增纯内存的
   receiver loan/copy/move、Value `this` unique drop 与 Borrow-only delegation ownership plan，
   并移除一般 member call 的 `MemberReceiver` deferred。interface default 的 Value `StaticSelf` 不修改
   通用 copyability，而以 owner/type-template/point/origin 精确且去重的
-  `UnitConditionalReceiverDropFact` 单独发布；失败恢复原子清空该事实。native lowering 由 SPEC-0191 承接；
+  `UnitConditionalReceiverDropFact` 单独发布。SPEC-0222 进一步为显式 `this.member()` 与裸 member
+  Value receiver call 发布 source/call/current owner/静态 target/type-template/origin 精确的
+  `UnitConditionalReceiverDeliveryFact`；显式与隐式路径都保留同一 conditional drop 状态，不伪造
+  concrete Copy/Move `UnitReceiverOwnershipFact`；selected source target 必须是当前 interface 或其传递
+  父 interface 的 Value `StaticSelf` callable，ownership error/deferred recovery 不泄漏可执行 delivery。receiver
+  native 主线由 SPEC-0191 完成，该 conditional delivery 的 concrete 消费由 SPEC-0223 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为

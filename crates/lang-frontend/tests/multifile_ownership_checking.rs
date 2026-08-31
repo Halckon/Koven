@@ -810,6 +810,169 @@ fn static_self_value_receiver_publishes_conditional_drop_without_unconditional_d
 }
 
 #[test]
+fn static_self_value_calls_publish_conditional_receiver_deliveries() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Parent { own fun inherited(): Int = 3 }\n\
+         interface Chain: Parent {\n\
+             fun read(): Int = 1\n\
+             inout fun revise(): Unit {}\n\
+             inout fun adjust(): Unit { val adjusted = revise() }\n\
+             own fun endpoint(): Int = 2\n\
+             own fun explicit(): Int {\n\
+                 val observed = read()\n\
+                 return this.endpoint()\n\
+             }\n\
+             own fun implicit(): Int = endpoint()\n\
+             own fun inheritedExplicit(): Int = this.inherited()\n\
+             own fun inheritedSuper(): Int = super<Parent>.inherited()\n\
+         }\n\
+         class Resource: Chain {}\n\
+         value class Counter(val item: Int): Chain {}\n\
+         fun exercise(): Unit {\n\
+             val resource = Resource()\n\
+             val moved = resource.explicit()\n\
+             val counter = Counter(1)\n\
+             val copied = counter.implicit()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    let unit = source_unit(&names, source);
+    let expected_calls = [
+        ("this.endpoint()", Some("this")),
+        ("endpoint()", Some("endpoint")),
+        ("this.inherited()", Some("this")),
+        ("super<Parent>.inherited()", Some("super<Parent>.inherited")),
+    ]
+    .map(|(text, delivery)| {
+        (
+            UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, text)),
+            delivery,
+        )
+    });
+    assert_eq!(ownership.conditional_receiver_deliveries().len(), 4);
+    for (call, delivery) in expected_calls {
+        let fact = ownership
+            .conditional_receiver_delivery(call)
+            .expect("StaticSelf Value receiver delivery fact");
+        let typed_call = typed
+            .types()
+            .calls()
+            .iter()
+            .find(|descriptor| descriptor.expression() == call)
+            .expect("typed call descriptor");
+        assert_eq!(fact.call(), call);
+        assert_eq!(fact.target(), typed_call.target());
+        assert!(matches!(
+            typed.types().types().get(fact.receiver_type()),
+            Some(UnitTypeKind::StaticSelf(_))
+        ));
+        assert!(ownership.conditional_receiver_drops().iter().any(|drop| {
+            drop.owner() == fact.owner()
+                && drop.receiver_type() == fact.receiver_type()
+                && drop.value_origin() == fact.receiver_origin()
+        }));
+        assert!(ownership.receiver_fact(call).is_none());
+        match fact.source() {
+            UnitCallReceiverOrigin::Expression(receiver) => {
+                assert_eq!(
+                    sources.slice(fact.delivery_span()).unwrap(),
+                    delivery.unwrap()
+                );
+                assert_eq!(receiver.source_unit(), unit);
+            }
+            UnitCallReceiverOrigin::ImplicitThis(owner) => {
+                assert_eq!(owner, fact.owner());
+                assert_eq!(
+                    sources.slice(fact.delivery_span()).unwrap(),
+                    delivery.unwrap()
+                );
+            }
+        }
+    }
+
+    let read_call = UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, "read()"));
+    assert_eq!(
+        ownership
+            .receiver_fact(read_call)
+            .expect("Borrow receiver fact")
+            .kind(),
+        UnitReceiverOwnershipKind::SharedLoan,
+    );
+    let revise_call =
+        UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, "revise()"));
+    assert_eq!(
+        ownership
+            .receiver_fact(revise_call)
+            .expect("Inout receiver fact")
+            .kind(),
+        UnitReceiverOwnershipKind::ExclusiveLoan,
+    );
+    assert!(
+        ownership
+            .conditional_receiver_delivery(revise_call)
+            .is_none()
+    );
+    for (text, expected) in [
+        ("resource.explicit()", UnitReceiverOwnershipKind::Move),
+        ("counter.implicit()", UnitReceiverOwnershipKind::Copy),
+    ] {
+        let call = UnitExpressionId::new(unit, expression_with_text(&sources, &parsed, text));
+        assert_eq!(
+            ownership
+                .receiver_fact(call)
+                .expect("concrete Value receiver fact")
+                .kind(),
+            expected,
+        );
+        assert!(ownership.conditional_receiver_delivery(call).is_none());
+    }
+}
+
+#[test]
+fn ownership_error_clears_conditional_receiver_delivery_facts_atomically() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Finishable {\n\
+             own fun finish(): Unit {}\n\
+             own fun forward(): Unit { val result = finish() }\n\
+         }\n\
+         class Resource {}\n\
+         fun invalid(own resource: Resource): Unit {\n\
+             val first = resource\n\
+             val second = resource\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership recovery product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0131"]);
+    assert!(ownership.conditional_receiver_deliveries().is_empty());
+    assert!(ownership.conditional_receiver_drops().is_empty());
+}
+
+#[test]
 fn conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
@@ -3705,6 +3868,10 @@ fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
         &mut sources,
         "p/provider.ko",
         "package p\n\
+         interface Finishable {\n\
+             own fun finish(): Unit {}\n\
+             own fun forward(): Unit { val result = finish() }\n\
+         }\n\
          class Resource {}\n\
          class Holder(var payload: Resource)",
     );
@@ -3734,6 +3901,10 @@ fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
         ownership.diagnostics()
     );
     assert_eq!(ownership.deferred().len(), 1);
+    assert!(
+        ownership.conditional_receiver_deliveries().is_empty(),
+        "a deferred ownership boundary must not expose executable conditional deliveries"
+    );
     assert_eq!(
         ownership.deferred()[0].reason(),
         OwnershipDeferredReason::IndexPlace

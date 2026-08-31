@@ -365,6 +365,10 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       移除一般 MemberReceiver deferred；bodyful Value interface default 已发布具体化后仅对 MoveOnly
       receiver 生效的 `StaticSelf` conditional drop fact，不污染通用 copyability；普通 MoveOnly
       字段替换已发布 assignment/field 身份精确的旧字段 drop fact，Copyable 与完全发散 RHS 不发布。
+- [x] **[SPEC-0222](../specs/0222-static-self-value-delivery-facts.md)**：为 Value interface
+      default 内显式 `this.member()` 与裸 Value member call 发布 conditional receiver delivery fact；
+      inherited/`super<Interface>` target 按传递 interface closure 校验；Phase 3 只保存
+      source/call/target/`StaticSelf` template/origin，不提前决定 concrete Copy/Move。
 - [x] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
       按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移

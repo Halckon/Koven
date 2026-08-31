@@ -33,8 +33,9 @@ use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, Transferability,
     UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
     UnitCallReceiverOwnershipContract, UnitClosureCaptureDescriptor, UnitClosureDescriptor,
-    UnitConditionalReceiverDropFact, UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact,
-    UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
+    UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact, UnitLoanTarget,
+    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
     UnitReceiverOwnershipTarget, UnitValueDeliveryFact,
 };
@@ -45,6 +46,7 @@ pub(super) struct Analysis {
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
     pub(super) receiver_facts: Vec<UnitReceiverOwnershipFact>,
+    pub(super) conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
@@ -153,6 +155,7 @@ pub(super) fn analyze(
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
+    let mut conditional_receiver_deliveries = Vec::new();
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut drops = Vec::new();
@@ -198,6 +201,7 @@ pub(super) fn analyze(
             &mut loans,
             &mut value_deliveries,
             &mut receiver_facts,
+            &mut conditional_receiver_deliveries,
             &mut rc_effects,
             &mut construction_plans,
         )?;
@@ -212,11 +216,15 @@ pub(super) fn analyze(
             .into_iter()
             .cloned()
             .collect();
+    if !deferred.is_empty() {
+        conditional_receiver_deliveries.clear();
+    }
     Ok(Analysis {
         diagnostics,
         loans,
         value_deliveries,
         receiver_facts,
+        conditional_receiver_deliveries,
         rc_effects,
         construction_plans,
         drops,
@@ -300,6 +308,7 @@ struct Checker<'a> {
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
     receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
+    conditional_receiver_deliveries: &'a mut Vec<UnitConditionalReceiverDeliveryFact>,
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
 }
@@ -324,6 +333,7 @@ impl<'a> Checker<'a> {
         loans: &'a mut Vec<UnitLoanFact>,
         value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
         receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
+        conditional_receiver_deliveries: &'a mut Vec<UnitConditionalReceiverDeliveryFact>,
         rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
         construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
     ) -> Result<Self, OwnershipCheckingError> {
@@ -373,12 +383,22 @@ impl<'a> Checker<'a> {
                 .or_default()
                 .push(contract);
         }
-        let receiver_contracts_by_call = receiver_contracts
+        let mut receiver_contracts_by_call = BTreeMap::new();
+        for contract in receiver_contracts
             .iter()
             .copied()
             .filter(|contract| contract.call().source_unit() == source_unit)
-            .map(|contract| (contract.call(), contract))
-            .collect();
+        {
+            if receiver_contracts_by_call
+                .insert(contract.call(), contract)
+                .is_some()
+            {
+                return Err(OwnershipCheckingError::InvalidUnitCall {
+                    source_unit: contract.call().source_unit().index(),
+                    expression: contract.call().expression().index(),
+                });
+            }
+        }
         Ok(Self {
             sources,
             parsed,
@@ -404,6 +424,7 @@ impl<'a> Checker<'a> {
             loans,
             value_deliveries,
             receiver_facts,
+            conditional_receiver_deliveries,
             rc_effects,
             construction_plans,
         })

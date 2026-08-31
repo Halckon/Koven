@@ -750,11 +750,21 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             let receiver = receiver.expression();
                             match contract.kind() {
                                 UnitCallArgumentOwnershipKind::Value => {
-                                    if !self.expression(
-                                        receiver,
-                                        DropExpressionUse::Consume,
-                                        state,
-                                    )? {
+                                    let conditional_static_self =
+                                        self.checker.expression_is_this(receiver)?
+                                            && matches!(
+                                                self.checker
+                                                    .typed
+                                                    .types()
+                                                    .get(contract.receiver_type()),
+                                                Some(UnitTypeKind::StaticSelf(_))
+                                            );
+                                    let usage = if conditional_static_self {
+                                        DropExpressionUse::Place
+                                    } else {
+                                        DropExpressionUse::Consume
+                                    };
+                                    if !self.expression(receiver, usage, state)? {
                                         return Ok(false);
                                     }
                                 }

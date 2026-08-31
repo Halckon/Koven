@@ -14,8 +14,9 @@ pub use construction::{
     UnitConstructionRootDropObligation,
 };
 pub use receiver::{
-    UnitCallReceiverOwnershipContract, UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
+    UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget,
 };
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -639,6 +640,7 @@ pub struct CompilationUnitOwnership {
     call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
     call_receiver_contracts: Vec<UnitCallReceiverOwnershipContract>,
     receiver_facts: Vec<UnitReceiverOwnershipFact>,
+    conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     delegations: Vec<UnitDelegationOwnershipPlan>,
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -698,6 +700,7 @@ impl CompilationUnitOwnership {
             call_argument_contracts,
             call_receiver_contracts,
             receiver_facts: dataflow.receiver_facts,
+            conditional_receiver_deliveries: dataflow.conditional_receiver_deliveries,
             delegations,
             loans: dataflow.loans,
             value_deliveries: dataflow.value_deliveries,
@@ -795,6 +798,24 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn receiver_fact(&self, call: UnitExpressionId) -> Option<&UnitReceiverOwnershipFact> {
         self.receiver_facts.iter().find(|fact| fact.call() == call)
+    }
+
+    /// 返回源码/调用顺序稳定的 `StaticSelf` Value receiver 条件交付事实。
+    #[must_use]
+    pub fn conditional_receiver_deliveries(&self) -> &[UnitConditionalReceiverDeliveryFact] {
+        &self.conditional_receiver_deliveries
+    }
+
+    /// 查询指定 member call 的 `StaticSelf` Value receiver 条件交付事实。
+    #[must_use]
+    pub fn conditional_receiver_delivery(
+        &self,
+        call: UnitExpressionId,
+    ) -> Option<UnitConditionalReceiverDeliveryFact> {
+        self.conditional_receiver_deliveries
+            .iter()
+            .copied()
+            .find(|fact| fact.call() == call)
     }
 
     /// 返回 Borrow-only 委托的 outer receiver/delegate field shared-loan plans。
@@ -922,8 +943,9 @@ impl ValidatedCompilationUnitOwnership {
 /// 建立 source-qualified compilation-unit ownership recovery product。
 ///
 /// 当前发布 callable parameter bindings、call argument contracts、普通 call 与 intrinsic
-/// container 的 loan/value deliveries、intrinsic Rc effects、constructor ordered delivery/root
-/// obligations、closure capture/formation/Transferability，以及完整 body-local ASAP drop facts。
+/// container 的 loan/value deliveries、receiver loan/delivery 与 `StaticSelf` conditional delivery、
+/// intrinsic Rc effects、constructor ordered delivery/root obligations、closure
+/// capture/formation/Transferability，以及完整 body-local ASAP drop facts。
 /// recovery product 可能携带诊断或显式 deferred drop 边界；调用 [`CompilationUnitOwnership::validate`]
 /// 后才获得 codegen 可消费的 view。
 pub fn check_compilation_unit_ownership(
@@ -975,6 +997,7 @@ pub fn check_compilation_unit_ownership(
     )?;
     if !dataflow.diagnostics.is_empty() {
         dataflow.receiver_facts.clear();
+        dataflow.conditional_receiver_deliveries.clear();
         dataflow.loans.clear();
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();

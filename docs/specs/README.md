@@ -320,7 +320,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0211](./0211-sequential-iteration-ownership.md) | 发布 whole-loop source loan、逐轮 Borrow binding 与全部退出 cleanup facts（`draft`） | 0029、0030、0032 `done`；0179；v0.37 待启用；ADR-0023 `proposed` |
 | [0030](./0030-sequential-container-element-ownership.md) | 检查顺序容器元素 place 的读取、借用、替换与析构所有权规则（`done`） | 0023、0029 `done`；v0.26 生效；当前持续 Goal 的站立授权 |
 | [0181](./0181-instance-receiver-ownership.md) | 检查 instance receiver/`this` 的字段访问、loan、移动、capture 与 drop（`done`） | 0029、0032、0180 `done`；含 Value `StaticSelf` conditional receiver-drop fact，Phase 4 消费由 0191 承接 |
-| [0222](./0222-static-self-value-delivery-facts.md) | 发布 `StaticSelf` Value receiver 的 conditional delivery/move fact（`approved`） | 0180、0181 `done`；与 receiver-drop obligation 互斥；持续 Goal 站立授权 |
+| [0222](./0222-static-self-value-delivery-facts.md) | 发布 `StaticSelf` Value receiver 的 conditional delivery fact（`done`） | 0180、0181 `done`；concrete Copy/Move 后置到 0223；持续 Goal 站立授权 |
 | 0031 | 检查 `Map` / `MutableMap` 查询和修改的 key / value 所有权规则 | 0024、0029；新 guide 明确完整 Map 契约 |
 | [0032](./0032-move-closure-transferable.md) | 检查 move closure 与 `Transferable`（`done`） | 0020、0029 `done`；v0.27 已生效；当前持续 Goal 的站立授权 |
 | [0188](./0188-constructor-ownership-effects.md) | 检查 constructor ordered Value delivery、construction root owner 与 drop obligation（`done`） | 0183、0029 `done`；v0.29 已生效；当前持续 Goal 的站立授权 |

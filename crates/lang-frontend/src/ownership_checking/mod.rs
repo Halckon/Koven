@@ -16,7 +16,8 @@ use crate::{
 pub use compilation_unit::{
     CompilationUnitOwnership, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
     UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor,
-    UnitConditionalReceiverDropFact, UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
+    UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
+    UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDropFact, UnitDropPoint,
     UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor,
     UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,

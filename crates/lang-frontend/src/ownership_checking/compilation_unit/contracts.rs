@@ -54,6 +54,7 @@ pub(super) fn collect_call_receiver_contracts(
         };
         contracts.push(UnitCallReceiverOwnershipContract::new(
             call_id,
+            call.target(),
             receiver.origin(),
             receiver.ty(),
             receiver.category(),
@@ -427,7 +428,7 @@ fn source_receiver_span(typed: &CompilationUnitTypes, target: UnitCallTarget) ->
         })
 }
 
-fn source_callable_signature(
+pub(super) fn source_callable_signature(
     typed: &CompilationUnitTypes,
     target: UnitCallTarget,
 ) -> Option<&UnitCallableSignature> {

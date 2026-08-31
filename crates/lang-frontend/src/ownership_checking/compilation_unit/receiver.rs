@@ -4,8 +4,8 @@ use crate::{
     name_resolution::{DeclarationId, UnitSymbolId},
     source::Span,
     type_checking::{
-        ExpressionCategory, UnitCallReceiverOrigin, UnitCallableTarget, UnitExpressionId,
-        UnitTypeId,
+        ExpressionCategory, UnitCallReceiverOrigin, UnitCallTarget, UnitCallableTarget,
+        UnitExpressionId, UnitTypeId,
     },
 };
 
@@ -15,6 +15,7 @@ use super::{UnitCallArgumentOwnershipKind, UnitOwnershipPlace};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitCallReceiverOwnershipContract {
     call: UnitExpressionId,
+    target: UnitCallTarget,
     source: UnitCallReceiverOrigin,
     receiver_type: UnitTypeId,
     category: ExpressionCategory,
@@ -28,6 +29,7 @@ impl UnitCallReceiverOwnershipContract {
     #[allow(clippy::too_many_arguments)]
     pub(super) const fn new(
         call: UnitExpressionId,
+        target: UnitCallTarget,
         source: UnitCallReceiverOrigin,
         receiver_type: UnitTypeId,
         category: ExpressionCategory,
@@ -38,6 +40,7 @@ impl UnitCallReceiverOwnershipContract {
     ) -> Self {
         Self {
             call,
+            target,
             source,
             receiver_type,
             category,
@@ -51,6 +54,11 @@ impl UnitCallReceiverOwnershipContract {
     #[must_use]
     pub const fn call(self) -> UnitExpressionId {
         self.call
+    }
+
+    #[must_use]
+    pub const fn target(self) -> UnitCallTarget {
+        self.target
     }
 
     #[must_use]
@@ -86,6 +94,83 @@ impl UnitCallReceiverOwnershipContract {
     #[must_use]
     pub const fn declaration_span(self) -> Option<Span> {
         self.declaration_span
+    }
+}
+
+/// interface default 中尚待 concrete specialization 决定 Copy/Move 的 Value receiver 交付。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitConditionalReceiverDeliveryFact {
+    call: UnitExpressionId,
+    source: UnitCallReceiverOrigin,
+    owner: DeclarationId,
+    target: UnitCallTarget,
+    receiver_type: UnitTypeId,
+    receiver_origin: Span,
+    delivery_span: Span,
+}
+
+impl UnitConditionalReceiverDeliveryFact {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) const fn new(
+        call: UnitExpressionId,
+        source: UnitCallReceiverOrigin,
+        owner: DeclarationId,
+        target: UnitCallTarget,
+        receiver_type: UnitTypeId,
+        receiver_origin: Span,
+        delivery_span: Span,
+    ) -> Self {
+        Self {
+            call,
+            source,
+            owner,
+            target,
+            receiver_type,
+            receiver_origin,
+            delivery_span,
+        }
+    }
+
+    /// 返回发生 conditional delivery 的 member call。
+    #[must_use]
+    pub const fn call(self) -> UnitExpressionId {
+        self.call
+    }
+
+    /// 返回显式 `this` expression 或裸 member 的 implicit-this identity。
+    #[must_use]
+    pub const fn source(self) -> UnitCallReceiverOrigin {
+        self.source
+    }
+
+    /// 返回当前 `StaticSelf` receiver 的 interface owner。
+    #[must_use]
+    pub const fn owner(self) -> DeclarationId {
+        self.owner
+    }
+
+    /// 返回类型阶段唯一选择的静态 callable target。
+    #[must_use]
+    pub const fn target(self) -> UnitCallTarget {
+        self.target
+    }
+
+    /// 返回必须由下游实例化的 `StaticSelf` receiver template。
+    #[must_use]
+    pub const fn receiver_type(self) -> UnitTypeId {
+        self.receiver_type
+    }
+
+    /// 返回当前 Value receiver binding 的声明位置。
+    #[must_use]
+    pub const fn receiver_origin(self) -> Span {
+        self.receiver_origin
+    }
+
+    /// 返回本次 receiver delivery operand 的源码位置。
+    #[must_use]
+    pub const fn delivery_span(self) -> Span {
+        self.delivery_span
     }
 }
 
