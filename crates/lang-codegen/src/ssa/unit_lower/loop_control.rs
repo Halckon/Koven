@@ -23,6 +23,7 @@ use crate::ssa::{
 struct LoopJump {
     block: BlockId,
     receiver: Option<super::ReceiverBinding>,
+    consumed_receiver: Option<super::ConsumedReceiver>,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -32,6 +33,8 @@ struct LoopJump {
 pub(super) struct LoopContext {
     header: BlockId,
     carried: Vec<CarriedBinding>,
+    entry_receiver: Option<super::ReceiverBinding>,
+    entry_consumed_receiver: Option<super::ConsumedReceiver>,
     entry_symbols: BTreeSet<UnitSymbolId>,
     entry_closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     continues: Vec<LoopJump>,
@@ -62,6 +65,8 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
 
         self.block = header;
+        self.current_receiver = context.entry_receiver;
+        self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_carried(&baseline, header, &context.carried, span)?;
         self.closure_bindings = baseline_closures;
         let condition = self.require_expression_value(condition)?;
@@ -70,6 +75,8 @@ impl UnitExpressionLowerer<'_> {
         }
         let condition_bindings = self.bindings.clone();
         let condition_closures = self.closure_bindings.clone();
+        let condition_receiver = self.current_receiver;
+        let condition_consumed_receiver = self.consumed_receiver;
         let body_block = self.add_carried_block(&context.carried, self.statement_span(body)?)?;
         let false_block = self.add_carried_block(&context.carried, span)?;
         let when_true = self.carried_edge_from(
@@ -106,6 +113,8 @@ impl UnitExpressionLowerer<'_> {
             .expect("while context exists")
             .carried
             .clone();
+        self.current_receiver = condition_receiver;
+        self.consumed_receiver = condition_consumed_receiver;
         self.bindings = self.rebind_carried(&condition_bindings, body_block, &carried, span)?;
         self.closure_bindings = condition_closures.clone();
         if self.lower_statement(body)? != LoweredValue::Diverged {
@@ -114,6 +123,8 @@ impl UnitExpressionLowerer<'_> {
         let context = self.loops.pop().expect("while context must be balanced");
         self.finish_continues(&context)?;
 
+        self.current_receiver = condition_receiver;
+        self.consumed_receiver = condition_consumed_receiver;
         let false_bindings =
             self.rebind_carried(&condition_bindings, false_block, &context.carried, span)?;
         let mut exits = context
@@ -125,6 +136,7 @@ impl UnitExpressionLowerer<'_> {
             block: false_block,
             result: LoweredValue::Unit,
             receiver: self.current_receiver,
+            consumed_receiver: self.consumed_receiver,
             bindings: false_bindings,
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
@@ -155,6 +167,8 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = header;
+        self.current_receiver = context.entry_receiver;
+        self.consumed_receiver = context.entry_consumed_receiver;
         self.bindings = self.rebind_carried(&baseline, header, &context.carried, span)?;
         self.closure_bindings = baseline_closures;
         self.loops.push(context);
@@ -165,6 +179,7 @@ impl UnitExpressionLowerer<'_> {
         self.finish_continues(&context)?;
         if context.breaks.is_empty() {
             self.current_receiver = None;
+            self.consumed_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
@@ -224,6 +239,8 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoopContext {
             header,
             carried,
+            entry_receiver: self.current_receiver,
+            entry_consumed_receiver: self.consumed_receiver,
             entry_symbols: baseline.keys().copied().collect(),
             entry_closure_bindings: self.closure_bindings.clone(),
             continues: Vec::new(),
@@ -251,6 +268,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoopJump {
             block: self.block,
             receiver: self.current_receiver,
+            consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
@@ -272,6 +290,12 @@ impl UnitExpressionLowerer<'_> {
     fn finish_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
         for jump in &context.continues {
             if jump.closure_bindings != context.entry_closure_bindings {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    jump.span,
+                ));
+            }
+            if jump.consumed_receiver != context.entry_consumed_receiver {
                 return Err(lowering_error(
                     LoweringErrorKind::UnsupportedNode,
                     jump.span,
@@ -329,6 +353,7 @@ fn branch_exit(jump: LoopJump) -> BranchExit {
         block: jump.block,
         result: LoweredValue::Unit,
         receiver: jump.receiver,
+        consumed_receiver: jump.consumed_receiver,
         bindings: jump.bindings,
         borrow_bindings: jump.borrow_bindings,
         closure_bindings: jump.closure_bindings,

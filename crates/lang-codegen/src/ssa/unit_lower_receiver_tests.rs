@@ -2972,12 +2972,15 @@ fn interface_value_default_skips_drop_for_copyable_concrete_receiver() {
         &mut sources,
         "p/main.ko",
         "package p\n\
-         interface Finishable { own fun finish(): Int = 40 }\n\
+         interface Finishable {\n\
+             own fun finish(): Int = 40\n\
+             own fun relay(): Int = finish()\n\
+         }\n\
          value class Counter(val item: Int): Finishable {}\n\
          fun entry(): Int {\n\
              val counter = Counter(1)\n\
-             val first = counter.finish()\n\
-             return counter.finish() + first\n\
+             val first = counter.relay()\n\
+             return counter.relay() + first\n\
          }",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
@@ -3002,20 +3005,119 @@ fn interface_value_default_skips_drop_for_copyable_concrete_receiver() {
             .iter()
             .any(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
     );
+    let relay = function(module.functions.iter(), ".Finishable.relay.s");
+    assert!(relay.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall {
+            receiver: Some(EntityId::Value(_)),
+            ..
+        }
+    )));
+    assert!(
+        !relay
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+    );
     render_verified_program(&program).expect("Copyable interface Value default must lower to LLVM");
 }
 
 #[test]
-fn interface_value_default_drops_receiver_on_each_early_return_edge() {
+fn interface_value_defaults_deliver_static_self_through_explicit_and_implicit_calls() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Parent { own fun finish(): Int = 40 }\n\
+         interface Finishable: Parent {\n\
+             own fun terminal(own item: Int): Int = item\n\
+             own fun relay(): Int = terminal(40)\n\
+             own fun forward(): Int = this.relay()\n\
+             own fun inherited(): Int = this.finish()\n\
+             own fun qualified(): Int = super<Parent>.finish()\n\
+         }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().forward() + Resource().inherited() + Resource().qualified()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("conditional StaticSelf deliveries must lower without a synthetic receiver fact");
+
+    let module = &program.modules[0];
+    let finish = function(module.functions.iter(), ".Finishable.terminal.s");
+    let relay = function(module.functions.iter(), ".Finishable.relay.s");
+    let forward = function(module.functions.iter(), ".Finishable.forward.s");
+    let inherited = function(module.functions.iter(), ".Finishable.inherited.s");
+    let qualified = function(module.functions.iter(), ".Finishable.qualified.s");
+    assert_eq!(
+        finish
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "the terminal Value receiver owner is dropped exactly once",
+    );
+    let parent_finish = function(module.functions.iter(), ".Parent.finish.s");
+    assert_eq!(
+        parent_finish
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+    );
+    for caller in [relay, forward, inherited, qualified] {
+        let arguments = caller.instructions.iter().find_map(|instruction| {
+            let Operation::DirectCall {
+                receiver: Some(EntityId::Value(_)),
+                arguments,
+                ..
+            } = &instruction.operation
+            else {
+                return None;
+            };
+            Some(arguments)
+        });
+        let arguments = arguments.expect("Value receiver must be the zeroth call operand");
+        if caller.name.contains(".relay.") {
+            assert_eq!(arguments.len(), 1, "explicit arguments follow the receiver");
+        }
+        assert!(
+            !caller
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.operation, Operation::Drop { .. })),
+            "an intermediate owner is delivered, not dropped",
+        );
+    }
+    render_verified_program(&program)
+        .expect("explicit and implicit StaticSelf Value deliveries must lower to LLVM");
+}
+
+#[test]
+fn interface_value_default_delivers_receiver_on_each_early_return_edge() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/main.ko",
         "package p\n\
          interface Finishable {\n\
+             own fun terminal(): Int = 1\n\
              own fun finish(flag: Boolean): Int {\n\
-                 if (flag) { return 1 }\n\
-                 return 2\n\
+                 if (flag) { return terminal() }\n\
+                 return terminal()\n\
              }\n\
          }\n\
          class Resource: Finishable {}\n\
@@ -3036,16 +3138,165 @@ fn interface_value_default_drops_receiver_on_each_early_return_edge() {
     .expect("conditional receiver drops must cover every reachable return edge");
 
     let finish = function(program.modules[0].functions.iter(), ".Finishable.finish.s");
+    assert!(
+        !finish
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::Drop { .. })),
+        "each return edge transfers the receiver instead of dropping it",
+    );
     assert_eq!(
         finish
             .instructions
             .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::DirectCall {
+                    receiver: Some(EntityId::Value(_)),
+                    ..
+                }
+            ))
             .count(),
         2,
-        "each mutually exclusive return edge owns one receiver drop",
+    );
+    let terminal = function(
+        program.modules[0].functions.iter(),
+        ".Finishable.terminal.s",
+    );
+    assert_eq!(
+        terminal
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "the selected terminal callee owns the receiver",
     );
     render_verified_program(&program).expect("early-return receiver drops must lower to LLVM");
+}
+
+#[test]
+fn interface_value_default_merges_delivered_and_retained_receiver_paths() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable {\n\
+             own fun terminal(): Unit {}\n\
+             own fun maybe(flag: Boolean): Int {\n\
+                 if (flag) { val delivered = terminal() }\n\
+                 return 2\n\
+             }\n\
+             own fun both(flag: Boolean): Int {\n\
+                 if (flag) { val left = terminal() }\n\
+                 else { val right = terminal() }\n\
+                 return 3\n\
+             }\n\
+         }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().maybe(false) + Resource().both(true)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("the retained path must drop while the delivered path keeps no receiver owner");
+
+    render_verified_program(&program)
+        .expect("asymmetric conditional receiver ownership must lower to verified LLVM");
+}
+
+#[test]
+fn consumed_receiver_identity_survives_divergent_sibling_lowering() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable {\n\
+             own fun terminal(): Unit {}\n\
+             own fun finish(outer: Boolean, inner: Boolean): Int {\n\
+                 val delivered = terminal()\n\
+                 if (outer) {\n\
+                     if (inner) { return 1 } else { return 2 }\n\
+                 } else {}\n\
+                 return 3\n\
+             }\n\
+         }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().finish(false, false)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("a divergent sibling must not erase the already-delivered receiver identity");
+
+    let finish = function(program.modules[0].functions.iter(), ".Finishable.finish.s");
+    assert!(
+        !finish
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::Drop { .. })),
+        "the receiver was delivered before the nested control split",
+    );
+    render_verified_program(&program)
+        .expect("consumed receiver identity must survive nested divergent control flow");
+}
+
+#[test]
+fn consumed_receiver_identity_survives_divergent_while_body_lowering() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable {\n\
+             own fun terminal(): Unit {}\n\
+             own fun finish(repeat: Boolean, inner: Boolean): Int {\n\
+                 val delivered = terminal()\n\
+                 while (repeat) {\n\
+                     if (inner) { return 1 } else { return 2 }\n\
+                 }\n\
+                 return 3\n\
+             }\n\
+         }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().finish(false, false)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("a divergent while body must not erase the false-edge receiver identity");
+
+    render_verified_program(&program)
+        .expect("consumed receiver identity must survive a divergent while body");
 }
 
 fn function<'a>(

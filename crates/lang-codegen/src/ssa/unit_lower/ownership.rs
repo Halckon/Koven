@@ -2,12 +2,13 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::UnitSymbolId,
+    name_resolution::{DeclarationId, UnitSymbolId},
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::Expression,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitExpressionId, UnitTypeKind,
+        Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitExpressionId, UnitTypeId,
+        UnitTypeKind,
     },
 };
 
@@ -18,6 +19,56 @@ use crate::ssa::{
 };
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn require_conditional_receiver_drop_obligation(
+        &self,
+        owner: DeclarationId,
+        receiver_type: UnitTypeId,
+        concrete: UnitTypeId,
+        origin: Span,
+    ) -> Result<Span, LoweringError> {
+        let Some(UnitTypeKind::StaticSelf(interface)) =
+            self.typed.types().types().get(receiver_type)
+        else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, origin));
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) =
+            self.typed.types().types().get(*interface)
+        else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, origin));
+        };
+        let interface_kind = self
+            .typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .map(|nominal| nominal.kind());
+        let resolved = super::resolve_concrete_type(
+            self.typed,
+            receiver_type,
+            self.substitutions,
+            self.static_self,
+            origin,
+        )?;
+        if *declaration != owner
+            || interface_kind != Some(NominalKind::Interface)
+            || resolved != concrete
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, origin));
+        }
+        self.owned
+            .ownership()
+            .conditional_receiver_drops()
+            .iter()
+            .find(|fact| {
+                fact.owner() == owner
+                    && fact.receiver_type() == receiver_type
+                    && fact.value_origin() == origin
+            })
+            .map(|fact| fact.value_origin())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, origin))
+    }
+
     pub(super) fn transfer_owned_expression(
         &mut self,
         expression: ExpressionId,
@@ -57,6 +108,7 @@ impl UnitExpressionLowerer<'_> {
                 if receiver.mode == ParameterMode::Value
                     && receiver.entity == EntityId::Value(value) =>
             {
+                self.consumed_receiver = Some(receiver.into());
                 self.current_receiver = None;
                 Ok(())
             }
@@ -199,6 +251,7 @@ impl UnitExpressionLowerer<'_> {
                         if receiver.owner == owner
                             && matches!(receiver.entity, crate::ssa::model::EntityId::Value(_)) =>
                     {
+                        self.consumed_receiver = Some(receiver.into());
                         let crate::ssa::model::EntityId::Value(value) = receiver.entity else {
                             unreachable!("receiver entity shape was checked")
                         };
@@ -248,6 +301,7 @@ impl UnitExpressionLowerer<'_> {
                 })?;
         }
         if let Some((fact, owner)) = conditional_drop {
+            self.consumed_receiver = self.current_receiver.map(Into::into);
             self.current_receiver = None;
             self.function
                 .append_instruction(
@@ -303,15 +357,46 @@ impl UnitExpressionLowerer<'_> {
             self.static_self,
             fact.value_origin(),
         )?;
-        let receiver = self
-            .current_receiver
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
-        if fact.owner() != *declaration
-            || receiver.owner != fact.owner()
-            || receiver.mode != ParameterMode::Value
-            || receiver.template_ty != fact.receiver_type()
-            || receiver.ty != concrete
-        {
+        if fact.owner() != *declaration {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.value_origin(),
+            ));
+        }
+        let valid_identity = |owner, mode, template_ty, ty, origin| {
+            owner == fact.owner()
+                && mode == ParameterMode::Value
+                && template_ty == fact.receiver_type()
+                && ty == concrete
+                && origin == fact.value_origin()
+        };
+        let Some(receiver) = self.current_receiver else {
+            let consumed = self.consumed_receiver.ok_or_else(|| {
+                lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
+            })?;
+            if self.typed.types().copyability(concrete) != Copyability::MoveOnly
+                || !valid_identity(
+                    consumed.owner,
+                    consumed.mode,
+                    consumed.template_ty,
+                    consumed.ty,
+                    consumed.origin,
+                )
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    fact.value_origin(),
+                ));
+            }
+            return Ok(None);
+        };
+        if !valid_identity(
+            receiver.owner,
+            receiver.mode,
+            receiver.template_ty,
+            receiver.ty,
+            receiver.origin,
+        ) {
             return Err(lowering_error(
                 LoweringErrorKind::MissingFact,
                 fact.value_origin(),

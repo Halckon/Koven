@@ -527,9 +527,12 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       direct `T`、direct `T?` 和 exact descriptor 限定的有限 `List` / 单参数 class recipe；真实
       source→object→link→run 与 project CLI build/run 已闭环。不生成 vtable、proxy、隐式 retain 或
       bound method `CallableInvoke`。
-- [ ] **[SPEC-0222](../specs/0222-static-self-value-delivery-facts.md) / [SPEC-0223](../specs/0223-static-self-value-delivery-lowering.md)**：
-      先由 Phase 3 发布 `StaticSelf` Value-to-Value conditional delivery/move fact，再由 Phase 4 消费；
-      codegen 不从 specialization 猜测 owner delivery。
+- [x] **[SPEC-0222](../specs/0222-static-self-value-delivery-facts.md)**：Phase 3 已发布
+      `StaticSelf` Value-to-Value conditional delivery fact。
+- [x] **[SPEC-0223](../specs/0223-static-self-value-delivery-lowering.md)（已完成）**：Phase 4 按
+      concrete copyability 消费 conditional fact，保持 Value receiver delivery/drop 互斥，并在
+      CFG 分支/循环中保留 source-qualified consumed identity；codegen 不从 specialization 猜测
+      owner delivery。
 - [ ] **[SPEC-0224](../specs/0224-dependent-inherited-owner-recipes.md)**：独立开放 dependent inherited
       owner recipe，并显式区分只进入 instance key 与确需 runtime layout 的 concrete type。
 - [ ] **[SPEC-0225](../specs/0225-parameter-growing-runtime-type-cycles.md)**：等待参数增长型 runtime recipe

@@ -49,6 +49,8 @@ impl UnitExpressionLowerer<'_> {
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
+        let baseline_receiver = self.current_receiver;
+        let baseline_consumed_receiver = self.consumed_receiver;
         let carried = self.carried_bindings(&baseline, span)?;
         let carried_loans = self.carried_loans(&baseline_borrows, span)?;
         let right_span = self
@@ -86,6 +88,8 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
 
         self.block = right_block;
+        self.current_receiver = baseline_receiver;
+        self.consumed_receiver = baseline_consumed_receiver;
         self.bindings =
             self.rebind_carried_control(&baseline, right_block, &carried, &carried_loans, span)?;
         self.borrow_bindings =
@@ -101,6 +105,7 @@ impl UnitExpressionLowerer<'_> {
                 block: self.block,
                 result: right_result,
                 receiver: self.current_receiver,
+                consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -108,6 +113,8 @@ impl UnitExpressionLowerer<'_> {
         }
 
         self.block = short_block;
+        self.current_receiver = baseline_receiver;
+        self.consumed_receiver = baseline_consumed_receiver;
         self.bindings =
             self.rebind_carried_control(&baseline, short_block, &carried, &carried_loans, span)?;
         self.borrow_bindings =
@@ -130,6 +137,7 @@ impl UnitExpressionLowerer<'_> {
             block: self.block,
             result: LoweredValue::Value(short_result),
             receiver: self.current_receiver,
+            consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
@@ -292,6 +300,7 @@ impl UnitExpressionLowerer<'_> {
             self.block,
             arm.body,
             self.current_receiver,
+            self.consumed_receiver,
             self.bindings.clone(),
             self.borrow_bindings.clone(),
             self.closure_bindings.clone(),
@@ -326,6 +335,7 @@ impl UnitExpressionLowerer<'_> {
         let mut unmatched = Some((
             self.block,
             self.current_receiver,
+            self.consumed_receiver,
             baseline.clone(),
             baseline_borrows,
             baseline_closures,
@@ -336,6 +346,7 @@ impl UnitExpressionLowerer<'_> {
             let (
                 unmatched_block,
                 unmatched_receiver,
+                unmatched_consumed_receiver,
                 unmatched_bindings,
                 unmatched_borrows,
                 unmatched_closures,
@@ -347,6 +358,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_block,
                     entry.body,
                     unmatched_receiver,
+                    unmatched_consumed_receiver,
                     unmatched_bindings,
                     unmatched_borrows,
                     unmatched_closures,
@@ -366,6 +378,7 @@ impl UnitExpressionLowerer<'_> {
 
             let mut next_block = unmatched_block;
             let mut next_receiver = unmatched_receiver;
+            let mut next_consumed_receiver = unmatched_consumed_receiver;
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
             let mut next_closures = unmatched_closures;
@@ -373,6 +386,7 @@ impl UnitExpressionLowerer<'_> {
             for condition in &entry.conditions {
                 self.block = next_block;
                 self.current_receiver = next_receiver;
+                self.consumed_receiver = next_consumed_receiver;
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
                 self.closure_bindings = next_closures;
@@ -387,6 +401,8 @@ impl UnitExpressionLowerer<'_> {
                 let after_condition = self.bindings.clone();
                 let after_condition_borrows = self.borrow_bindings.clone();
                 let after_condition_closures = self.closure_bindings.clone();
+                let after_condition_receiver = self.current_receiver;
+                let after_condition_consumed_receiver = self.consumed_receiver;
                 let carried = self.carried_bindings(&after_condition, entry.span)?;
                 let carried_loans = self.carried_loans(&after_condition_borrows, entry.span)?;
                 let matched =
@@ -403,26 +419,29 @@ impl UnitExpressionLowerer<'_> {
                         Origin::Source(entry.span),
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
+                self.current_receiver = after_condition_receiver;
+                self.consumed_receiver = after_condition_consumed_receiver;
+                let matched_bindings = self.rebind_carried_control(
+                    &after_condition,
+                    matched,
+                    &carried,
+                    &carried_loans,
+                    entry.span,
+                )?;
+                let matched_borrows =
+                    self.rebind_carried_loans(matched, carried.len(), &carried_loans, entry.span)?;
                 matches.push(BranchExit {
                     block: matched,
                     result: LoweredValue::Unit,
-                    bindings: self.rebind_carried_control(
-                        &after_condition,
-                        matched,
-                        &carried,
-                        &carried_loans,
-                        entry.span,
-                    )?,
-                    borrow_bindings: self.rebind_carried_loans(
-                        matched,
-                        carried.len(),
-                        &carried_loans,
-                        entry.span,
-                    )?,
+                    bindings: matched_bindings,
+                    borrow_bindings: matched_borrows,
                     receiver: self.current_receiver,
+                    consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
                 });
                 next_block = next;
+                self.current_receiver = after_condition_receiver;
+                self.consumed_receiver = after_condition_consumed_receiver;
                 next_bindings = self.rebind_carried_control(
                     &after_condition,
                     next,
@@ -433,6 +452,7 @@ impl UnitExpressionLowerer<'_> {
                 next_borrows =
                     self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
                 next_receiver = self.current_receiver;
+                next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
             }
 
@@ -441,6 +461,7 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 entry.body,
                 self.current_receiver,
+                self.consumed_receiver,
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
                 self.closure_bindings.clone(),
@@ -455,6 +476,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched = Some((
                 next_block,
                 next_receiver,
+                next_consumed_receiver,
                 next_bindings,
                 next_borrows,
                 next_closures,
@@ -464,6 +486,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some((
             unmatched_block,
             unmatched_receiver,
+            unmatched_consumed_receiver,
             unmatched_bindings,
             unmatched_borrows,
             unmatched_closures,
@@ -485,6 +508,7 @@ impl UnitExpressionLowerer<'_> {
             }
             self.block = unmatched_block;
             self.current_receiver = unmatched_receiver;
+            self.consumed_receiver = unmatched_consumed_receiver;
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
             self.closure_bindings = unmatched_closures;
@@ -497,6 +521,7 @@ impl UnitExpressionLowerer<'_> {
                 block: self.block,
                 result: LoweredValue::Unit,
                 receiver: self.current_receiver,
+                consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -694,6 +719,8 @@ impl UnitExpressionLowerer<'_> {
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
+        let baseline_receiver = self.current_receiver;
+        let baseline_consumed_receiver = self.consumed_receiver;
         let carried = self.carried_bindings(&baseline, span)?;
         let carried_loans = self.carried_loans(&baseline_borrows, span)?;
         let then_block = self.add_carried_control_block(
@@ -718,21 +745,28 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
 
+        self.current_receiver = baseline_receiver;
+        self.consumed_receiver = baseline_consumed_receiver;
         let then_baseline =
             self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
         let then_receiver = self.current_receiver;
+        let then_consumed_receiver = self.consumed_receiver;
+        self.current_receiver = baseline_receiver;
+        self.consumed_receiver = baseline_consumed_receiver;
         let else_baseline =
             self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
         let else_receiver = self.current_receiver;
+        let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
             then_receiver,
+            then_consumed_receiver,
             then_baseline,
             then_borrows,
             baseline_closures.clone(),
@@ -749,6 +783,7 @@ impl UnitExpressionLowerer<'_> {
                 else_block,
                 else_branch,
                 else_receiver,
+                else_consumed_receiver,
                 else_baseline,
                 else_borrows,
                 baseline_closures.clone(),
@@ -766,6 +801,7 @@ impl UnitExpressionLowerer<'_> {
             }
             self.block = else_block;
             self.current_receiver = else_receiver;
+            self.consumed_receiver = else_consumed_receiver;
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
             self.closure_bindings = baseline_closures;
@@ -778,6 +814,7 @@ impl UnitExpressionLowerer<'_> {
                 block: else_block,
                 result: LoweredValue::Unit,
                 receiver: self.current_receiver,
+                consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
@@ -792,6 +829,7 @@ impl UnitExpressionLowerer<'_> {
         block: BlockId,
         statement: StatementId,
         receiver: Option<super::ReceiverBinding>,
+        consumed_receiver: Option<super::ConsumedReceiver>,
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -800,6 +838,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<BranchExit>, LoweringError> {
         self.block = block;
         self.current_receiver = receiver;
+        self.consumed_receiver = consumed_receiver;
         let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
@@ -836,6 +875,7 @@ impl UnitExpressionLowerer<'_> {
             block: self.block,
             result,
             receiver: self.current_receiver,
+            consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),

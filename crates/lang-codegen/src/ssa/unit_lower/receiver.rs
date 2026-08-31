@@ -138,16 +138,37 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredReceiver>, LoweringError> {
         let Some(receiver) = descriptor.receiver() else {
-            if self.owned.ownership().receiver_fact(call).is_some() {
+            if self.owned.ownership().receiver_fact(call).is_some()
+                || self
+                    .owned
+                    .ownership()
+                    .conditional_receiver_delivery(call)
+                    .is_some()
+            {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             return Ok(None);
         };
-        let fact = self
+        let fact = self.owned.ownership().receiver_fact(call);
+        let conditional = self
             .owned
             .ownership()
-            .receiver_fact(call)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            .conditional_receiver_deliveries()
+            .iter()
+            .copied()
+            .filter(|fact| fact.call() == call)
+            .collect::<Vec<_>>();
+        match (fact, conditional.as_slice()) {
+            (None, [conditional]) => {
+                return self.lower_conditional_this_receiver(descriptor, *conditional, receiver);
+            }
+            (Some(_), []) => {}
+            (None, []) => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            (Some(_), _) | (None, [_, _, ..]) => {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
+        }
+        let fact = fact.expect("regular receiver fact shape was checked");
         if fact.source() != receiver.origin()
             || fact.receiver_type() != receiver.ty()
             || !receiver_kind_matches(receiver.mode(), fact.kind())
@@ -342,6 +363,79 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
+    fn lower_conditional_this_receiver(
+        &mut self,
+        descriptor: &UnitCallDescriptor,
+        fact: lang_frontend::ownership_checking::UnitConditionalReceiverDeliveryFact,
+        receiver_descriptor: lang_frontend::type_checking::UnitCallReceiverDescriptor,
+    ) -> Result<Option<LoweredReceiver>, LoweringError> {
+        let current = self
+            .current_receiver
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.delivery_span()))?;
+        let concrete = resolve_concrete_type(
+            self.typed,
+            fact.receiver_type(),
+            self.substitutions,
+            self.static_self,
+            fact.delivery_span(),
+        )?;
+        let valid_template = matches!(
+            self.typed.types().types().get(fact.receiver_type()),
+            Some(UnitTypeKind::StaticSelf(interface))
+                if matches!(
+                    self.typed.types().types().get(*interface),
+                    Some(UnitTypeKind::Nominal { declaration, .. })
+                        if *declaration == fact.owner()
+                )
+        );
+        if !valid_template
+            || descriptor.target() != fact.target()
+            || receiver_descriptor.origin() != fact.source()
+            || receiver_descriptor.mode() != ParameterMode::Value
+            || receiver_descriptor.ty() != fact.receiver_type()
+            || current.owner != fact.owner()
+            || current.mode != ParameterMode::Value
+            || current.template_ty != fact.receiver_type()
+            || current.ty != concrete
+            || current.origin != fact.receiver_origin()
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.delivery_span(),
+            ));
+        }
+        self.require_conditional_receiver_drop_obligation(
+            fact.owner(),
+            fact.receiver_type(),
+            concrete,
+            fact.receiver_origin(),
+        )?;
+        let EntityId::Value(value) = current.entity else {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                fact.delivery_span(),
+            ));
+        };
+        match self.typed.types().copyability(concrete) {
+            Copyability::Copyable => {}
+            Copyability::MoveOnly => {
+                self.consumed_receiver = Some(current.into());
+                self.current_receiver = None;
+            }
+            Copyability::Unknown | Copyability::Error => {
+                return Err(lowering_error(
+                    LoweringErrorKind::InvalidModel,
+                    fact.delivery_span(),
+                ));
+            }
+        }
+        Ok(Some(LoweredReceiver {
+            entity: EntityId::Value(value),
+            created_loans: Vec::new(),
+            writeback: None,
+        }))
+    }
+
     fn lower_stateless_object_receiver(
         &mut self,
         expression: ExpressionId,
@@ -516,6 +610,7 @@ impl UnitExpressionLowerer<'_> {
             (UnitReceiverOwnershipKind::Move, EntityId::Value(value))
                 if receiver.mode == ParameterMode::Value =>
             {
+                self.consumed_receiver = Some(receiver.into());
                 self.current_receiver = None;
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Value(value),

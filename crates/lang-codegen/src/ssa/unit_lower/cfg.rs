@@ -11,13 +11,16 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{BlockId, Edge, EntityId, EntityType, LoanId, Origin, TerminatorKind, ValueId},
+    model::{
+        BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
+    },
 };
 
 pub(super) struct BranchExit {
     pub(super) block: BlockId,
     pub(super) result: LoweredValue,
     pub(super) receiver: Option<super::ReceiverBinding>,
+    pub(super) consumed_receiver: Option<super::ConsumedReceiver>,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -231,6 +234,7 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 receiver.entity = EntityId::Value(*value);
                 self.current_receiver = Some(receiver);
+                self.consumed_receiver = None;
             }
         }
         Ok(rebound)
@@ -264,6 +268,7 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 receiver.entity = EntityId::Loan(*loan);
                 self.current_receiver = Some(receiver);
+                self.consumed_receiver = None;
             }
         }
         Ok(rebound)
@@ -271,26 +276,31 @@ impl UnitExpressionLowerer<'_> {
 
     pub(super) fn merge_unit_exits(
         &mut self,
-        exits: Vec<BranchExit>,
+        mut exits: Vec<BranchExit>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let Some(first) = exits.first() else {
+        if exits.is_empty() {
             self.current_receiver = None;
+            self.consumed_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
             self.temporaries.clear();
             return Ok(LoweredValue::Diverged);
-        };
+        }
         if exits.len() == 1 {
+            let first = &exits[0];
             self.block = first.block;
             self.current_receiver = first.receiver;
+            self.consumed_receiver = first.consumed_receiver;
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
             self.temporaries.clear();
             return Ok(first.result);
         }
+        self.normalize_receiver_exits(&mut exits, span)?;
+        let first = &exits[0];
         let symbols = first.bindings.keys().copied().collect::<Vec<_>>();
         let loan_symbols = first.borrow_bindings.keys().copied().collect::<Vec<_>>();
         let receiver_type = first
@@ -306,6 +316,7 @@ impl UnitExpressionLowerer<'_> {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
                 || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
                 || exit.closure_bindings != first.closure_bindings
+                || exit.consumed_receiver != first.consumed_receiver
                 || match (first.receiver, exit.receiver) {
                     (None, None) => false,
                     (Some(expected), Some(actual)) => {
@@ -461,6 +472,7 @@ impl UnitExpressionLowerer<'_> {
             }
             None => None,
         };
+        self.consumed_receiver = first.consumed_receiver;
         let mut bindings = first.bindings.clone();
         for (symbol, parameter) in value_symbols.into_iter().zip(parameters.by_ref()) {
             let EntityId::Value(value) = parameter else {
@@ -481,6 +493,54 @@ impl UnitExpressionLowerer<'_> {
         self.closure_bindings = first.closure_bindings.clone();
         self.temporaries.clear();
         Ok(result)
+    }
+
+    fn normalize_receiver_exits(
+        &mut self,
+        exits: &mut [BranchExit],
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(consumed) = exits.iter().find_map(|exit| exit.consumed_receiver) else {
+            return Ok(());
+        };
+        if consumed.mode != lang_frontend::type_checking::ParameterMode::Value
+            || self.typed.types().copyability(consumed.ty) != Copyability::MoveOnly
+            || exits.iter().any(|exit| {
+                (exit.receiver.is_some() && exit.consumed_receiver.is_some())
+                    || exit
+                        .consumed_receiver
+                        .is_some_and(|actual| actual != consumed)
+                    || exit
+                        .receiver
+                        .is_some_and(|receiver| super::ConsumedReceiver::from(receiver) != consumed)
+            })
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let drop_origin = self.require_conditional_receiver_drop_obligation(
+            consumed.owner,
+            consumed.template_ty,
+            consumed.ty,
+            consumed.origin,
+        )?;
+        for exit in exits {
+            let Some(receiver) = exit.receiver.take() else {
+                continue;
+            };
+            let EntityId::Value(owner) = receiver.entity else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            self.function
+                .append_instruction(
+                    exit.block,
+                    Operation::Drop { owner },
+                    Vec::new(),
+                    Origin::Source(drop_origin),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            exit.consumed_receiver = Some(consumed);
+        }
+        Ok(())
     }
 
     pub(super) fn carried_edge_from(

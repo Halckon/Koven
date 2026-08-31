@@ -1725,13 +1725,22 @@ fn inout_interface_default_links_and_runs() {
 fn value_interface_default_move_only_and_copyable_specializations_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\
-         interface Finishable { own fun finish(): Int = 40 }\n\
+         interface Finishable {\n\
+             own fun finish(): Int = 40\n\
+             own fun relay(): Int = finish()\n\
+             own fun forward(): Int = this.relay()\n\
+             own fun choose(flag: Boolean): Int {\n\
+                 if (flag) { return finish() }\n\
+                 return finish()\n\
+             }\n\
+         }\n\
          class Resource: Finishable {}\n\
          value class Counter(val item: Int): Finishable {}\n\
          fun entry(): Unit {\n\
              val counter = Counter(1)\n\
-             val actual = Resource().finish() + counter.finish() + counter.finish()\n\
-             if (actual == 120) { println(\"value-default\") }\
+             val actual = Resource().forward() + counter.forward() + counter.forward()\n\
+                 + Resource().choose(true) + counter.choose(false)\n\
+             if (actual == 200) { println(\"value-default\") }\
              else { error(\"wrong Value receiver default\") }\n\
          }",
         "package q\nfun unused(): Unit {}",

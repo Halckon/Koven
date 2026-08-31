@@ -80,6 +80,7 @@ struct ReceiverPlan {
     template_ty: UnitTypeId,
     ty: UnitTypeId,
     entity_type: EntityType,
+    origin: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -89,6 +90,28 @@ struct ReceiverBinding {
     template_ty: UnitTypeId,
     ty: UnitTypeId,
     entity: EntityId,
+    origin: Span,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ConsumedReceiver {
+    owner: DeclarationId,
+    mode: ParameterMode,
+    template_ty: UnitTypeId,
+    ty: UnitTypeId,
+    origin: Span,
+}
+
+impl From<ReceiverBinding> for ConsumedReceiver {
+    fn from(receiver: ReceiverBinding) -> Self {
+        Self {
+            owner: receiver.owner,
+            mode: receiver.mode,
+            template_ty: receiver.template_ty,
+            ty: receiver.ty,
+            origin: receiver.origin,
+        }
+    }
 }
 
 /// 把 compilation unit 当前封闭的 scalar expression-body 子集 lower 为 verified SSA。
@@ -177,6 +200,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                     template_ty: receiver.ty(),
                     ty: concrete,
                     entity_type,
+                    origin: receiver.declaration_span(),
                 })
             }
             (None, None) => None,
@@ -339,6 +363,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                         template_ty: receiver.template_ty,
                         ty: receiver.ty,
                         entity: *entity,
+                        origin: receiver.origin,
                     }),
                     parameters,
                 )
@@ -394,6 +419,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             bindings,
             borrow_bindings,
             current_receiver,
+            consumed_receiver: None,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
             callable_plans: &callable_plans,
@@ -485,6 +511,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             bindings: BTreeMap::new(),
             borrow_bindings: BTreeMap::new(),
             current_receiver: None,
+            consumed_receiver: None,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
             callable_plans: &callable_plans,
@@ -524,6 +551,7 @@ struct UnitExpressionLowerer<'a> {
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     current_receiver: Option<ReceiverBinding>,
+    consumed_receiver: Option<ConsumedReceiver>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     closure_binding_context: bool,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,

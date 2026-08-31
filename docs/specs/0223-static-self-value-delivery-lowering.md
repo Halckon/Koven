@@ -2,15 +2,15 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-223` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
-| 批准依据 | 待 SPEC-0222 完成后按持续 Goal 审计 |
-| 前置 Spec | SPEC-0191 `done`；SPEC-0222 待完成 |
+| 批准依据 | 2026-09-01 持续 Goal；SPEC-0222 已完成并提交 validated conditional delivery fact |
+| 前置 Spec | SPEC-0191、SPEC-0222 `done` |
 | 前置 ADR | ADR-0016 `accepted` |
 | 关联 Spec | SPEC-0181、0191 |
-| 阻塞项 | SPEC-0222 尚未发布 validated conditional delivery/move fact |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-codegen` receiver SSA/frontend lowering/LLVM/native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；只消费 SPEC-0222 的 validated facts |
 
@@ -35,11 +35,11 @@
 
 ## 4. 验收标准
 
-- [ ] SSA/verifier 正反矩阵锁定 MoveOnly take/deliver、Copyable copy 与 receiver-first 顺序。
-- [ ] 显式 `this` delivery、隐式 Value receiver call及正常/提前 return 均经 native link/run。
-- [ ] 缺失、重复或 identity 不匹配的 SPEC-0222 fact 在 LLVM 前 fail loud 并保留 Span。
-- [ ] receiver 与 native 职责窄测、workspace library check/clippy、fmt/diff 通过；不跑 frontend 全量测试。
-- [ ] Architecture/Roadmap/Spec 同步。
+- [x] SSA/verifier 正反矩阵锁定 MoveOnly take/deliver、Copyable copy 与 receiver-first 顺序。
+- [x] 显式 `this` delivery、隐式 Value receiver call及正常/提前 return 均经 native link/run。
+- [x] 缺失、重复或 identity 不匹配的 SPEC-0222 fact 在 LLVM 前 fail loud 并保留 Span。
+- [x] receiver 与 native 职责窄测、workspace library check/clippy、fmt/diff 通过；未跑 frontend 全量测试。
+- [x] Architecture/Roadmap/Spec 同步。
 
 ## 5. 技术方案与边界
 
@@ -48,9 +48,9 @@
 
 ## 6. 实施计划
 
-1. [ ] 消费 SPEC-0222 facts 并建立 verifier 红测 → 验证：缺 fact 不可进入 LLVM。
-2. [ ] lower CFG delivery/drop 互斥与 LLVM Value ABI → 验证：SSA/LLVM 正反矩阵。
-3. [ ] 接 native 正常/提前 return 并同步文档 → 验证：真实运行与精简静态门禁。
+1. [x] 消费 SPEC-0222 facts 并建立 verifier 红测 → 验证：缺 fact 不可进入 LLVM。
+2. [x] lower CFG delivery/drop 互斥与 LLVM Value ABI → 验证：SSA/LLVM 正反矩阵。
+3. [x] 接 native 正常/提前 return 并同步文档 → 验证：真实运行与精简静态门禁。
 
 ## 7. 提交计划
 
@@ -60,10 +60,15 @@
 
 ## 8. 未决问题
 
-- 无；状态仅由 SPEC-0222 前置阻塞。
+- 无。
 
 ## 9. 验证记录
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 待前置完成 | 未执行 |  |
+| `cargo test -p lang-codegen ssa::unit_lower_receiver_tests:: --locked --offline -- --test-threads=1` | 通过，45/45 | 含 MoveOnly/Copyable、显式/隐式/继承/`super`、正常/提前 return、非对称合流及发散 sibling/while 回归 |
+| `cargo test -p lang-codegen native::unit_tests::value_interface_default_move_only_and_copyable_specializations_link_and_run --locked --offline -- --test-threads=1` | 通过，1/1 | 真实 object/link/run，stdout 为 `value-default` |
+| `cargo check --workspace --lib --locked --offline` | 通过 | 精简 workspace library 静态门禁 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 未启用 frontend 全量测试 |
+| `cargo fmt --all -- --check` | 通过 |  |
+| `git diff --check` | 通过 |  |

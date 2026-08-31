@@ -862,8 +862,11 @@ SPEC-0197 第一阶段新增纯内存的
   Value receiver call 发布 source/call/current owner/静态 target/type-template/origin 精确的
   `UnitConditionalReceiverDeliveryFact`；显式与隐式路径都保留同一 conditional drop 状态，不伪造
   concrete Copy/Move `UnitReceiverOwnershipFact`；selected source target 必须是当前 interface 或其传递
-  父 interface 的 Value `StaticSelf` callable，ownership error/deferred recovery 不泄漏可执行 delivery。receiver
-  native 主线由 SPEC-0191 完成，该 conditional delivery 的 concrete 消费由 SPEC-0223 承接；
+  父 interface 的 Value `StaticSelf` callable，ownership error/deferred recovery 不泄漏可执行 delivery。
+  SPEC-0223 已在 SPEC-0191 receiver native 主线上消费该 conditional delivery：lowerer 交叉核对
+  source/call/target、当前 owner、`StaticSelf(interface)` template、concrete specialization 与 origin，
+  Copyable specialization 复用 Value，MoveOnly specialization 唯一转交当前 owner；缺失、重复或身份不匹配
+  在 LLVM 前 fail loud；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为
@@ -1111,8 +1114,15 @@ loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 �
 payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181
 发布并由 SPEC-0191 显式消费：lowerer 在写入任何该 point 的 drop 前核对 fact 唯一性、interface
 owner、原始 receiver template、concrete specialization 与 Value ABI；MoveOnly callee 在正常/提前
-return edge 各析构一次，Copyable specialization 跳过。两者已完成 verified SSA/LLVM 与同源 native 闭环。
-无状态 object Borrow receiver
+  return edge 各析构一次，Copyable specialization 跳过。两者已完成 verified SSA/LLVM 与同源 native 闭环。
+  SPEC-0223 又把同一 conditional drop fact 作为 Value-to-Value delivery 的前置证据：DirectCall 保持
+  receiver-first operand，MoveOnly 交付后以 source-qualified consumed-receiver identity 代替 live owner，
+  Copyable 则保留 live receiver。CFG 合流若同时出现已交付与仍持有的 MoveOnly 路径，只在仍持有的
+  predecessor 插入一次 drop，再把所有出口归一为同一 consumed identity；`if` / `when` / 短路表达式与
+  loop context 均成对保存 live/consumed receiver 状态，避免先 lower 的发散 sibling 污染后续路径。
+  显式 `this.member()`、裸 Value member call、继承 default 与 `super<I>` 已完成 SSA/LLVM 和真实 native
+  正常/提前 return 闭环，不新增 receiver-only ABI、allocation 或 retain。
+  无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
 再复用 `RootPlace`/`BorrowBegin` pointer ABI；LLVM 仅为调用期 addressization 建临时 storage，不生成
