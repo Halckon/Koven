@@ -57,6 +57,10 @@ where
         self.ids.get(&K::builtin(builtin)).copied()
     }
 
+    pub(crate) fn find(&self, kind: &K) -> Option<K::Id> {
+        self.ids.get(kind).copied()
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.kinds.len()
     }

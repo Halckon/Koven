@@ -1,4 +1,4 @@
-//! concrete non-generic nominal aggregate 与 intrinsic Box lowering。
+//! concrete nominal aggregate 与 intrinsic Box lowering。
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -11,10 +11,13 @@ use lang_frontend::{
     },
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
+use super::{
+    LoweredValue, UnitExpressionLowerer, lowering_error, require_value, resolve_concrete_type,
+};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, SsaTypeId},
+    unit_plan::nominal_runtime_layout_is_parameter_independent,
 };
 
 pub(super) struct CurrentClassField {
@@ -123,11 +126,10 @@ impl UnitExpressionLowerer<'_> {
                     .declaration(declaration)
                     .and_then(|signature| signature.nominal())
                     .filter(|nominal| {
-                        nominal.type_parameters().is_empty()
-                            && matches!(
-                                nominal.kind(),
-                                NominalKind::Class | NominalKind::ValueClass
-                            )
+                        matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
+                            && (nominal.type_parameters().is_empty()
+                                || nominal.kind() == NominalKind::Class)
+                            && nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
                     })
                     .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
                 let Some(UnitTypeKind::Nominal {
@@ -138,8 +140,8 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
                 if *result_declaration != declaration
-                    || !arguments.is_empty()
-                    || !descriptor.instance().type_arguments().is_empty()
+                    || arguments.len() != nominal.type_parameters().len()
+                    || arguments != descriptor.instance().type_arguments()
                     || descriptor.arguments().len() != nominal.fields().len()
                     || descriptor.arguments().iter().any(|argument| {
                         nominal
@@ -263,9 +265,6 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if !arguments.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let nominal = self
             .typed
             .types()
@@ -273,6 +272,12 @@ impl UnitExpressionLowerer<'_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if arguments.len() != nominal.type_parameters().len()
+            || (!nominal.type_parameters().is_empty() && nominal.kind() != NominalKind::Class)
+            || !nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let field = self
             .field_indices
             .get(&(receiver_type, projection.field()))
@@ -375,7 +380,19 @@ impl UnitExpressionLowerer<'_> {
                 let current = self
                     .current_receiver
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if self.typed.types().expression_type(receiver) != Some(current.ty) {
+                let receiver_type = self
+                    .typed
+                    .types()
+                    .expression_type(receiver)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if resolve_concrete_type(
+                    self.typed,
+                    receiver_type,
+                    self.substitutions,
+                    self.static_self,
+                    span,
+                )? != current.ty
+                {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
                 current.owner
@@ -399,7 +416,10 @@ impl UnitExpressionLowerer<'_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal.kind() != NominalKind::Class || !arguments.is_empty() {
+        if nominal.kind() != NominalKind::Class
+            || arguments.len() != nominal.type_parameters().len()
+            || !nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
+        {
             return Ok(None);
         }
         let EntityId::Loan(receiver) = current.entity else {

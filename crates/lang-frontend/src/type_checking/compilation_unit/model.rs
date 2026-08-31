@@ -253,6 +253,12 @@ impl UnitTypeTable {
         self.canonical.builtin(builtin)
     }
 
+    /// 查询一个已经由 validated compilation-unit product 规范化的类型 identity。
+    #[must_use]
+    pub fn find(&self, kind: &UnitTypeKind) -> Option<UnitTypeId> {
+        self.canonical.find(kind)
+    }
+
     /// 返回类型数量。
     #[must_use]
     pub fn len(&self) -> usize {

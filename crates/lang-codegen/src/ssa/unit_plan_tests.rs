@@ -8,14 +8,14 @@ use lang_frontend::{
     parser::{ParsedFile, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, TypeEnvironment, UnitCallableTarget, UnitTypeKind,
+        BuiltinType, TypeEnvironment, UnitCallTarget, UnitCallableTarget, UnitTypeKind,
         ValidatedCompilationUnitTypes, check_compilation_unit_types, standard_environments,
     },
 };
 
 use super::{
     LoweringErrorKind,
-    unit_plan::{UnitPlannedInstance, plan_unit_instances},
+    unit_plan::{UnitPlannedInstance, plan_unit_instances, resolve_unit_call_instance},
 };
 
 fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
@@ -54,6 +54,39 @@ fn analyze(
         .validate()
         .expect("valid ownership");
     (names, typed, owned)
+}
+
+fn only_member_call_route(
+    parsed: &ParsedFile,
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+) -> super::unit_plan::ResolvedUnitCallInstance {
+    let call = typed
+        .types()
+        .calls()
+        .iter()
+        .find(|call| call.receiver().is_some())
+        .expect("one member call");
+    let target = match call.target() {
+        UnitCallTarget::Declaration(declaration) => UnitCallableTarget::Declaration(declaration),
+        UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
+        _ => panic!("source member call has a static target"),
+    };
+    let span = parsed
+        .ast()
+        .expressions()
+        .get(call.expression().expression())
+        .expect("call expression")
+        .span();
+    resolve_unit_call_instance(
+        typed,
+        owned,
+        target,
+        call.instance().type_arguments().to_vec(),
+        call.receiver().map(|receiver| receiver.ty()),
+        span,
+    )
+    .expect("member route resolves")
 }
 
 fn declaration(names: &ValidatedCompilationUnitNames, name: &str) -> DeclarationId {
@@ -726,7 +759,7 @@ fn rejects_delegation_cycle_before_planning_a_partial_instance() {
 }
 
 #[test]
-fn rejects_generic_delegate_field_in_the_route_resolver() {
+fn plans_parameter_independent_generic_delegate_field() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -734,6 +767,118 @@ fn rejects_generic_delegate_field_in_the_route_resolver() {
         "package p\n\
          interface Readable { fun read(): Int }\n\
          class Reader<T>: Readable { override fun read(): Int = 7 }\n\
+         class Host(val delegate: Reader<Int>): Readable by delegate {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let implementation = reader.members()[0].target();
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("parameter-independent generic delegate layout must be routable");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+    let resolved = only_member_call_route(&parsed, &typed, &owned);
+    let [route] = resolved.delegation() else {
+        panic!("one generic delegate route");
+    };
+    assert!(matches!(
+        typed.types().types().get(route.outer_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: owner, arguments })
+            if *owner == declaration(&names, "Host") && arguments.is_empty()
+    ));
+    assert!(matches!(
+        typed.types().types().get(route.delegate_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: delegate, arguments })
+            if *delegate == declaration(&names, "Reader")
+                && arguments.as_slice()
+                    == [typed.types().types().builtin(BuiltinType::Int).expect("Int type")]
+    ));
+}
+
+#[test]
+fn plans_parameter_independent_generic_outer_receiver() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Host<T>(val delegate: Reader): Readable by delegate {}\n\
+         fun entry(host: Host<String>): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let implementation = reader.members()[0].target();
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("parameter-independent generic outer layout must be routable");
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+    let resolved = only_member_call_route(&parsed, &typed, &owned);
+    let [route] = resolved.delegation() else {
+        panic!("one generic outer route");
+    };
+    assert!(matches!(
+        typed.types().types().get(route.outer_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: owner, arguments })
+            if *owner == declaration(&names, "Host")
+                && arguments.as_slice()
+                    == [typed.types().types().builtin(BuiltinType::String).expect("String type")]
+    ));
+    assert!(matches!(
+        typed.types().types().get(route.delegate_receiver()),
+        Some(UnitTypeKind::Nominal { declaration: delegate, arguments })
+            if *delegate == declaration(&names, "Reader") && arguments.is_empty()
+    ));
+}
+
+#[test]
+fn rejects_parameter_dependent_generic_delegate_layout() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader<T>(val item: T): Readable { override fun read(): Int = 7 }\n\
          class Host(val delegate: Reader<Int>): Readable by delegate {}\n\
          fun entry(host: Host): Int = host.read()",
     );
@@ -750,37 +895,7 @@ fn rejects_generic_delegate_field_in_the_route_resolver() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect_err("generic delegate layout remains outside the first native route slice");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
-}
-
-#[test]
-fn rejects_generic_outer_receiver_in_the_route_resolver() {
-    let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(
-        &mut sources,
-        "p/main.ko",
-        "package p\n\
-         interface Readable { fun read(): Int }\n\
-         class Reader: Readable { override fun read(): Int = 7 }\n\
-         class Host<T>(val delegate: Reader): Readable by delegate {}\n\
-         fun entry(host: Host<String>): Int = host.read()",
-    );
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-
-    let error = plan_unit_instances(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "entry"),
-    )
-    .expect_err("generic outer layout remains outside this native route slice");
+    .expect_err("a field whose layout depends on T must remain unsupported");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 }
@@ -1090,35 +1205,44 @@ fn remaps_inherited_default_owner_recipe_and_callable_slots() {
 
 #[test]
 fn rejects_nested_inherited_owner_recipe_before_generic_nominal_layout() {
-    let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(
-        &mut sources,
-        "p/main.ko",
-        "package p\n\
-         interface Base<A> {\n\
-             fun read(): Int\n\
-             fun throughRequirement(): Int = this.read()\n\
-         }\n\
-         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
-         class Host<Y>: Derived<List<Y>> {}\n\
-         fun entry(host: Host<Int>): Int = host.throughRequirement()",
-    );
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
     let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    for (name, declarations) in [
+        ("intrinsic", "class Host<Y>: Derived<List<Y>> {}"),
+        (
+            "nominal",
+            "class Wrapper<T>(val marker: Int)\nclass Host<Y>: Derived<Wrapper<Y>> {}",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let path = format!("p/{name}.ko");
+        let text = format!(
+            "package p\n\
+             interface Base<A> {{\n\
+                 fun read(): Int\n\
+                 fun throughRequirement(): Int = this.read()\n\
+             }}\n\
+             interface Derived<B>: Base<String> {{ fun read(): Int = 7 }}\n\
+             {declarations}\n\
+             fun entry(host: Host<Int>): Int = host.throughRequirement()"
+        );
+        let (source, parsed) = parsed(&mut sources, &path, &text);
+        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = plan_unit_instances(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "entry"),
-    )
-    .expect_err("nested generic owner recipes remain behind generic nominal layout");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+        let error = plan_unit_instances(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "entry"),
+        )
+        .expect_err("nested generic owner recipes remain behind generic nominal layout");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
+        assert!(error.span.is_some(), "{name}");
+    }
 }
 
 #[test]

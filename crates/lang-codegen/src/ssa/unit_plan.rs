@@ -508,6 +508,48 @@ pub(crate) fn resolve_concrete_type(
         Some(UnitTypeKind::StaticSelf(_)) => {
             static_self.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
         }
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => {
+            let arguments = arguments
+                .iter()
+                .map(|argument| {
+                    resolve_direct_type_argument(typed, *argument, substitutions, static_self, span)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            typed
+                .types()
+                .types()
+                .find(&UnitTypeKind::Nominal {
+                    declaration: *declaration,
+                    arguments,
+                })
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(kind) if contains_type_parameter(typed, kind) => {
+            Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+        }
+        Some(_) => Ok(ty),
+        None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+    }
+}
+
+fn resolve_direct_type_argument(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    static_self: Option<UnitTypeId>,
+    span: Span,
+) -> Result<UnitTypeId, LoweringError> {
+    match typed.types().types().get(ty) {
+        Some(UnitTypeKind::TypeParameter(parameter)) => substitutions
+            .get(parameter)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span)),
+        Some(UnitTypeKind::StaticSelf(_)) => {
+            static_self.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
         Some(kind) if contains_type_parameter(typed, kind) => {
             Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
         }
@@ -610,7 +652,10 @@ pub(crate) fn resolve_unit_call_instance(
         if !matches!(ownership_routes.as_slice(), [_]) {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
+        if arguments.len() != nominal.type_parameters().len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !nominal_runtime_layout_is_parameter_independent(typed, nominal) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let field = nominal
@@ -631,7 +676,10 @@ pub(crate) fn resolve_unit_call_instance(
             .declaration(*delegate)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !delegate_arguments.is_empty() || !delegate_nominal.type_parameters().is_empty() {
+        if delegate_arguments.len() != delegate_nominal.type_parameters().len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !nominal_runtime_layout_is_parameter_independent(typed, delegate_nominal) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         delegation.push(UnitDelegatedCallRoute {
@@ -924,7 +972,7 @@ fn instantiate_dispatch_owner_arguments(
         .collect::<BTreeMap<_, _>>();
     let arguments = arguments
         .iter()
-        .map(|argument| resolve_concrete_type(typed, *argument, &substitutions, None, span))
+        .map(|argument| resolve_direct_type_argument(typed, *argument, &substitutions, None, span))
         .collect::<Result<Vec<_>, _>>()?;
     Ok((*declaration, arguments))
 }
@@ -955,6 +1003,23 @@ fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTyp
         | UnitTypeKind::Deferred(_)
         | UnitTypeKind::Error => false,
     }
+}
+
+/// 判断 nominal 的现行 runtime field layout 是否无需替换 owner type parameter。
+///
+/// 这允许 phantom/参数无关的泛型 owner 复用 concrete `UnitTypeId` 身份，同时把任何直接或
+/// 嵌套依赖类型参数的字段留在后续统一实例化布局切片。
+pub(crate) fn nominal_runtime_layout_is_parameter_independent(
+    typed: &ValidatedCompilationUnitTypes,
+    nominal: &UnitNominalSignature,
+) -> bool {
+    nominal.fields().iter().all(|field| {
+        typed
+            .types()
+            .types()
+            .get(field.ty())
+            .is_some_and(|kind| !contains_type_parameter(typed, kind))
+    })
 }
 
 fn span_contains(owner: Span, child: Span) -> bool {

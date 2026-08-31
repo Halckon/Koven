@@ -972,6 +972,62 @@ fn generic_interface_owner_and_callable_delegation_links_and_runs() {
 }
 
 #[test]
+fn parameter_independent_generic_nominal_delegation_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader<T>(val marker: Int): Readable {\n\
+             override fun read(): Int = this.readMarker()\n\
+             fun readMarker(): Int {\n\
+                 println(\"generic-runtime-reader\")\n\
+                 return this.marker\n\
+             }\n\
+         }\n\
+         class Host<T>(val delegate: Reader<Int>): Readable by delegate {}\n\
+         fun entry(): Unit {\n\
+             val actual = Host<String>(Reader<Int>(7)).read()\n\
+             if (actual == 7) { println(\"generic-runtime-layout\") }\
+             else { error(\"wrong generic runtime layout\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("generic-runtime-layout.o");
+    let executable = directory.join("generic-runtime-layout");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("parameter-independent generic nominal layout must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked generic-runtime executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"generic-runtime-reader\ngeneric-runtime-layout\n"
+    );
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

@@ -15,6 +15,7 @@ use super::lowering_error;
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind},
+    unit_plan::nominal_runtime_layout_is_parameter_independent,
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
@@ -318,7 +319,13 @@ impl UnitTypeLowering {
             .declaration(declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
+        if arguments.len() != nominal.type_parameters().len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if !nominal.type_parameters().is_empty()
+            && (nominal.kind() != NominalKind::Class
+                || !nominal_runtime_layout_is_parameter_independent(typed, nominal))
+        {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if nominal.kind() == NominalKind::EnumClass {
@@ -485,20 +492,25 @@ pub(super) fn is_supported_storage_type(
         Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
-        }) if arguments.is_empty() => typed
+        }) => typed
             .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .is_some_and(|nominal| {
-                nominal.type_parameters().is_empty()
-                    && matches!(
-                        nominal.kind(),
-                        NominalKind::Class
-                            | NominalKind::ValueClass
-                            | NominalKind::EnumClass
-                            | NominalKind::Object
-                    )
+                arguments.len() == nominal.type_parameters().len()
+                    && if nominal.type_parameters().is_empty() {
+                        matches!(
+                            nominal.kind(),
+                            NominalKind::Class
+                                | NominalKind::ValueClass
+                                | NominalKind::EnumClass
+                                | NominalKind::Object
+                        )
+                    } else {
+                        nominal.kind() == NominalKind::Class
+                            && nominal_runtime_layout_is_parameter_independent(typed, nominal)
+                    }
             }),
         _ => false,
     }

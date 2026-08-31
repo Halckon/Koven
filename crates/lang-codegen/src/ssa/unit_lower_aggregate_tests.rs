@@ -269,6 +269,98 @@ fn finite_value_class_recursion_through_a_heap_handle_lowers() {
 }
 
 #[test]
+fn parameter_independent_generic_class_instances_keep_distinct_layout_identities() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "test/generic-layout.ko",
+        "package test\n\
+         class Marker<T>(val item: Int)\n\
+         fun entry(): Int {\n\
+             val text = Marker<String>(20)\n\
+             val number = Marker<Long>(22)\n\
+             return text.item + number.item\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "test/generic-layout.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("parameter-independent generic class instances must lower");
+    let module = &program.modules[0];
+    assert_eq!(
+        module
+            .types
+            .iter()
+            .filter(|ty| matches!(ty, SsaTypeKind::HeapOwner { .. }))
+            .count(),
+        2,
+        "Marker<String> and Marker<Long> keep distinct owner/layout identities"
+    );
+    let entry = function(module, "test.entry");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn rejects_parameter_dependent_generic_class_field_layouts() {
+    let (name_environment, type_environment) = standard_environments();
+    for (name, text) in [
+        (
+            "direct",
+            "package test\n\
+             class Dependent<T>(val item: T)\n\
+             fun entry(own input: Dependent<Int>): Int = 1",
+        ),
+        (
+            "nested",
+            "package test\n\
+             class Dependent<T>(val items: List<T>)\n\
+             fun entry(own input: Dependent<Int>): Int = 1",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let path = format!("test/{name}.ko");
+        let (source, parsed) = parsed(&mut sources, &path, text);
+        let inputs = [SourceUnitInput::new("root", &path, source, &parsed)];
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let error = match lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        ) {
+            Ok(_) => panic!("parameter-dependent generic class layout must remain unsupported"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
+    }
+}
+
+#[test]
 fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
     let (name_environment, type_environment) = standard_environments();
     let mut sources = SourceMap::new();
