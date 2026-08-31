@@ -189,3 +189,6 @@ ID 从不脱离 source/body 使用；结果汇总为带 recovery diagnostics 与
 | `git diff --check` | 通过 | 第九切片 Rust 源码无空白错误；文档同步后将再次执行 |
 | 第九切片复审 | 通过 | 发现并修复跨文件 element-field 投影误报 L0136、入口 rustdoc 过期及 FunctionEntry 注释反向三项问题；终局未发现剩余 High/Medium/Low |
 | 第九切片 Tier 3 判定 | 未触发 | 可界定的 frontend Phase 产物与 additive public API；未改 parser/harness、依赖、guide 语义或未知下游，按根 `AGENTS.md` §9 使用 Tier 2，并由 workspace check 覆盖已知下游 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking member_assignment_requires_a_var_field_and_inout_receiver --locked --offline` | 通过 | SPEC-0191 前置复核：裸字段、`this.field`、grouped `this` 的 `val` 赋值均报 L0134，Copyable `var` 在 Inout receiver 下通过 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking rejected_assignment_rolls_back_rhs_move_and_executable_facts --locked --offline` | 通过 | 不可变 target 保留 L0134，但回滚 MoveOnly RHS 状态与 call/receiver/loan/Rc/construction 可执行 facts，不产生级联 use-after-move |
+| `cargo test -p lang-frontend --test multifile_ownership_checking divergent_rhs_still_checks_static_field_mutability --locked --offline` | 通过 | `error()` RHS 不执行动态 target access，但仍静态拒绝 `val` 或非 Inout receiver；合法 Inout `var` 保持发散控制流；未运行耗时 frontend 全量套件 |

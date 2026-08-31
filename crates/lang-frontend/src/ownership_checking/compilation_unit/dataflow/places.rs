@@ -256,6 +256,12 @@ impl Checker<'_> {
                                 expression: expression.index(),
                             });
                         }
+                        if self.is_this_receiver(receiver.expression())? {
+                            return Ok(Some(UnitOwnershipPlace::new(
+                                projection.field(),
+                                Vec::new(),
+                            )));
+                        }
                         let Some(mut place) = self.place(receiver.expression())? else {
                             return Ok(None);
                         };
@@ -374,6 +380,11 @@ impl Checker<'_> {
                 if receiver.source_unit() != self.source_unit {
                     return Ok(false);
                 }
+                if self.is_this_receiver(receiver.expression())? {
+                    return Ok(self.current_receiver.is_some_and(|receiver| {
+                        receiver.mode == crate::type_checking::ParameterMode::Inout
+                    }));
+                }
                 if self.expression_nominal_kind(receiver.expression()) == Some(NominalKind::Class) {
                     let Some(place) = self.place(receiver.expression())? else {
                         return Ok(false);
@@ -421,5 +432,13 @@ impl Checker<'_> {
             .declaration(*declaration)?
             .nominal()
             .map(|nominal| nominal.kind())
+    }
+
+    fn is_this_receiver(&self, expression: ExpressionId) -> Result<bool, OwnershipCheckingError> {
+        match self.parsed.ast().expressions().get(expression)?.payload() {
+            Expression::This => Ok(true),
+            Expression::Group { expression } => self.is_this_receiver(*expression),
+            _ => Ok(false),
+        }
     }
 }

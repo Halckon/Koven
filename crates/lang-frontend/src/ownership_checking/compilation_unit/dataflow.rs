@@ -557,6 +557,15 @@ impl<'a> Checker<'a> {
         value: ExpressionId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let entry_state = state.clone();
+        let diagnostic_count = self.diagnostics.len();
+        let fact_lengths = (
+            self.loans.len(),
+            self.value_deliveries.len(),
+            self.receiver_facts.len(),
+            self.rc_effects.len(),
+            self.construction_plans.len(),
+        );
         let mut flows = self.check_expression(
             value,
             state,
@@ -564,11 +573,36 @@ impl<'a> Checker<'a> {
                 parameter_span: None,
             },
         )?;
+        if self.diagnostics.len() != diagnostic_count {
+            self.rollback_facts(fact_lengths);
+            return Ok(Self::restore_flow_states(flows, &entry_state));
+        }
+        let target_span = self.parsed.ast().expressions().get(target)?.span();
+        let place = self.place(target)?;
+        if let Some(place) = &place
+            && !self.is_mutable_place(target)?
+        {
+            let declaration = place.fields().last().copied().unwrap_or(place.root());
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.immutable_inout,
+                "assignment target is not a mutable place",
+                target_span,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                self.symbol_span(declaration)?,
+                "immutable binding declared here",
+            )?;
+            self.diagnostics.push(diagnostic);
+            self.rollback_facts(fact_lengths);
+            return Ok(Self::restore_flow_states(flows, &entry_state));
+        }
         let Some(state) = flows.next.as_mut() else {
             return Ok(flows);
         };
-        let target_span = self.parsed.ast().expressions().get(target)?.span();
-        if let Some(place) = self.place(target)? {
+        if let Some(place) = place {
             if operator != AssignmentOperator::Assign {
                 self.access_place(&place, AccessKind::Read, target_span, None, state)?;
             }
@@ -578,10 +612,35 @@ impl<'a> Checker<'a> {
             {
                 state.moved.remove(&place.root());
             }
+            if self.diagnostics.len() != diagnostic_count {
+                self.rollback_facts(fact_lengths);
+                return Ok(Self::restore_flow_states(flows, &entry_state));
+            }
         } else {
             flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
+            if self.diagnostics.len() != diagnostic_count {
+                self.rollback_facts(fact_lengths);
+                return Ok(Self::restore_flow_states(flows, &entry_state));
+            }
         }
         Ok(flows)
+    }
+
+    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize)) {
+        self.loans.truncate(lengths.0);
+        self.value_deliveries.truncate(lengths.1);
+        self.receiver_facts.truncate(lengths.2);
+        self.rc_effects.truncate(lengths.3);
+        self.construction_plans.truncate(lengths.4);
+    }
+
+    fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {
+        for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues] {
+            if state.is_some() {
+                *state = Some(entry.clone());
+            }
+        }
+        flows
     }
 
     fn chain_expression(
