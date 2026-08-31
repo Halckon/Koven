@@ -661,6 +661,47 @@ fn member_receiver_is_checked_as_the_zeroth_call_operand() {
 }
 
 #[test]
+fn stateless_object_borrow_receiver_has_no_runtime_drop_fact() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "object Registry { fun ping(): Int = 7 }\n\
+         fun entry(): Int = Registry.ping()",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("stateless object ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let unit = source_unit(&names, source);
+    let call = UnitExpressionId::new(
+        unit,
+        expression_with_text(&sources, &parsed, "Registry.ping()"),
+    );
+    let fact = ownership
+        .receiver_fact(call)
+        .expect("object Borrow receiver fact");
+    assert_eq!(fact.kind(), UnitReceiverOwnershipKind::SharedLoan);
+    assert!(matches!(
+        fact.target(),
+        UnitReceiverOwnershipTarget::Temporary(receiver) if *receiver == match fact.source() {
+            UnitCallReceiverOrigin::Expression(receiver) => receiver,
+            UnitCallReceiverOrigin::ImplicitThis(_) => panic!("object call uses an explicit receiver"),
+        }
+    ));
+    assert!(
+        ownership.drops().is_empty(),
+        "a stateless object has no runtime owner to drop: {:?}",
+        ownership.drops()
+    );
+}
+
+#[test]
 fn member_body_receiver_capability_controls_this_and_implicit_calls() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
@@ -2560,7 +2601,7 @@ fn shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move() 
         check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
             .expect("recovery ownership product");
 
-    assert_eq!(diagnostic_codes(&ownership), ["L0135", "L0135"]);
+    assert_eq!(diagnostic_codes(&ownership), ["L0135", "L0134"]);
     assert!(ownership.captures().is_empty());
 }
 

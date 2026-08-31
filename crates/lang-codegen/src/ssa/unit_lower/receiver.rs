@@ -2,10 +2,13 @@
 
 use lang_frontend::{
     ast::ExpressionId,
+    name_resolution::{Namespace, SymbolKind, UnitReferenceTarget},
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
+    parser::Expression,
     source::Span,
     type_checking::{
-        Copyability, ParameterMode, UnitCallDescriptor, UnitCallReceiverOrigin, UnitExpressionId,
+        Copyability, NominalKind, ParameterMode, UnitCallDescriptor, UnitCallReceiverOrigin,
+        UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -98,7 +101,25 @@ impl UnitExpressionLowerer<'_> {
                 created_loan: None,
             }));
         }
-        let value = match self.lower(expression.expression())? {
+        let object_value = if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+            && matches!(
+                fact.target(),
+                UnitReceiverOwnershipTarget::Temporary(target) if *target == expression
+            ) {
+            self.lower_stateless_object_receiver(
+                expression.expression(),
+                concrete,
+                target,
+                fact.begin_span(),
+            )?
+        } else {
+            None
+        };
+        let lowered = match object_value {
+            Some(value) => LoweredValue::Value(value),
+            None => self.lower(expression.expression())?,
+        };
+        let value = match lowered {
             LoweredValue::Value(value) => value,
             LoweredValue::Unit | LoweredValue::Diverged => {
                 return Err(lowering_error(
@@ -173,6 +194,92 @@ impl UnitExpressionLowerer<'_> {
                     created_loan: None,
                 }))
             }
+        }
+    }
+
+    fn lower_stateless_object_receiver(
+        &mut self,
+        expression: ExpressionId,
+        concrete: UnitTypeId,
+        target: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<Option<crate::ssa::model::ValueId>, LoweringError> {
+        let Some(declaration) = self.stateless_object_declaration(expression)? else {
+            return Ok(None);
+        };
+        let Some(UnitTypeKind::Nominal {
+            declaration: type_declaration,
+            arguments,
+        }) = self.typed.types().types().get(concrete)
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let declarations = self.names.names().index().declarations();
+        let value_declaration = declarations.get(declaration.index());
+        let type_declaration_record = declarations.get(type_declaration.index());
+        // `object` 在值/类型命名空间各有 declaration；共同 AST root 才是同一 singleton identity。
+        let is_object = arguments.is_empty()
+            && matches!(value_declaration, Some(declaration) if declaration.kind() == SymbolKind::ObjectValue)
+            && matches!(
+                (value_declaration, type_declaration_record),
+                (Some(value), Some(ty))
+                    if value.source_unit() == ty.source_unit() && value.root() == ty.root()
+            )
+            && self
+                .typed
+                .types()
+                .signatures()
+                .declaration(*type_declaration)
+                .and_then(|signature| signature.nominal())
+                .is_some_and(|nominal| nominal.kind() == NominalKind::Object);
+        if !is_object {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::AggregateConstruct {
+                    aggregate: target,
+                    fields: Vec::new(),
+                },
+                vec![EntityType::Value(target)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(Some(require_value(results[0], span)?))
+    }
+
+    fn stateless_object_declaration(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<lang_frontend::name_resolution::DeclarationId>, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        match node.payload() {
+            Expression::Group { expression } => self.stateless_object_declaration(*expression),
+            Expression::Name => Ok(self
+                .names
+                .names()
+                .references()
+                .iter()
+                .find(|reference| {
+                    reference.source_unit() == self.source_unit
+                        && reference.namespace() == Some(Namespace::Value)
+                        && reference.span() == node.span()
+                })
+                .and_then(|reference| match reference.target() {
+                    UnitReferenceTarget::Declaration(declaration) => Some(*declaration),
+                    _ => None,
+                })),
+            _ => Ok(None),
         }
     }
 

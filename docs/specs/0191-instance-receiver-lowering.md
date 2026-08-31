@@ -72,8 +72,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
 2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
-   object/link/run；ordinary-class Inout Copyable payload mutation 已完成，generic nominal layout
-   与 MoveOnly field replacement 继续实施。
+   object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
+   已完成，generic nominal layout 与 MoveOnly field replacement 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
@@ -120,3 +120,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 最终并行小集合：`unit_lower_receiver_tests` / `verify_ownership_tests` / `native::unit_tests` | 14/14、12/12、4/4 通过 | 以三组职责测试替代重复的 frontend 全量回归；分别锁定 descriptor lowering、loan/field contract 与真实 object/link/run |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与三组定向测试并行执行的 workspace lib 静态门禁 |
 | 独立高风险复核（ordinary-class Inout payload 切片） | 通过 | 补 MoveOnly read 明确反例并修正文档后复核至无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib stateless_object_receiver_uses_zst_addressization_without_runtime_storage --locked --offline` | 通过 | grouped/bare object value identity 只在 Borrow receiver context 物化一次 ZST；SSA 无 heap/shared allocation、retain/drop，LLVM 只有临时 addressization、无 malloc/global |
+| `cargo test -p lang-codegen --lib stateless_object_borrow_receiver_links_and_runs_without_runtime_storage --locked --offline` | 通过 | 真实 source→object→clang→run 输出 `object\n`，且无状态 object 不建立 runtime singleton storage |
+| 最终分层小集合：`multifile_ownership_checking` / `unit_lower_receiver_tests` / `native::unit_tests` | 51/51、15/15、5/5 通过 | 用单个 frontend integration target 加两组 codegen 职责测试覆盖 Phase 3 facts、SSA/LLVM 与真实 link/run；未运行约一小时的 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace 库级静态门禁 |
+| 独立高风险复核（stateless object Borrow receiver 切片） | 通过 | 复核 object 双命名空间身份、runtime drop 排除边界、ZST receiver-only 门禁及 `L0134` 优先级，最终无 P1/P2/P3 |

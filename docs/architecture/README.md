@@ -289,7 +289,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   SPEC-0181 已让 member receiver 作为第零操作数先于显式实参建立 shared/exclusive loan 或
   Value copy/move，并发布 stable place、temporary、implicit `this`、call-return 与 drop facts；
   Borrow/Inout/Value `this` 的字段、reborrow、整体移动、capture 冲突和 Borrow-only delegate
-  outer/field shared-loan plan 已进入 compilation-unit ownership 产物；
+  outer/field shared-loan plan 已进入 compilation-unit ownership 产物。无状态 object 保留 MoveOnly
+  源码能力与 call-scoped shared receiver fact，但没有 runtime owner，因此不发布 temporary drop；
 - `lang-frontend` 已有 Cargo 实际执行的 Phase 0 source-loading，以及 Phase 1 Lexer 与
   parser-expression、parser-declaration、parser-block、parser-lambda、parser-implicit-unit、
   parser-file pass / fail fixture harness，以及 Phase 2 名称解析和基础/名义类型检查 pass / fail fixture；
@@ -973,7 +974,11 @@ expression/target/value/operator/storage-type/control identity 后才写 field�
 grouped `this` 共享同一 current receiver identity；真实 object/link/run 由后续 Borrow getter 从同一
 caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；MoveOnly field
 replacement 在 frontend 发布旧字段 drop/replacement fact 前确定性拒绝。generic nominal layout、
-default/override/`super<I>`、无状态 object 与静态委托仍由 SPEC-0191 后续切片承接。
+default/override/`super<I>` 与静态委托仍由 SPEC-0191 后续切片承接。无状态 object Borrow receiver
+已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
+declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
+再复用 `RootPlace`/`BorrowBegin` pointer ABI；LLVM 仅为调用期 addressization 建临时 storage，不生成
+singleton allocation、global、retain 或 drop。普通 object Value lowering仍未开放。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated

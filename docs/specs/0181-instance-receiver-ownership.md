@@ -23,7 +23,8 @@
 
 - receiver expression 先求值一次；在首个显式 argument 前建立 shared/exclusive loan或 Value
   copy/move，并让 receiver loan 覆盖全部 argument 求值和同步 call。
-- Borrow temporary 延命到返回；Inout 要求 §26.3 的可独占 receiver place且拒绝 temporary；
+- 有运行时 owner 的 Borrow temporary 延命到返回；无状态 object 只形成 call-scoped shared receiver
+  fact，不发布 temporary drop。Inout 要求 §26.3 的可独占 receiver place且拒绝 temporary；
   Value 对 Copyable 复制、对 MoveOnly 移动，后续使用沿用 L0131。
 - `this` 按 callable receiver mode 形成 non-owning shared/exclusive binding 或 owned local；检查字段
   读写、reborrow、普通字段部分移动、正常退出 drop 与提前控制转移。
@@ -95,3 +96,6 @@
 | `cargo check --workspace --lib` | 通过 | Layer 2 workspace 库级构建门禁 |
 | Layer 3 全 targets / 全量 frontend | 未升级 | 本变更未触发依赖、feature、target、CLI/protocol 或平台风险；按分层策略不运行约一小时的全量 frontend |
 | 独立高风险复核 | 通过 | 发现并关闭 shared `this` capture 可用性/borrowed move 与 capture trial 半提交问题；最终无 P1/P2 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking stateless_object_borrow_receiver_has_no_runtime_drop_fact --locked --offline` | 通过 | 修正 object 的 MoveOnly 能力与 runtime drop obligation 混淆：保留 shared receiver fact，但不生成不存在的 owner drop |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 51/51 通过 | 单个 Phase 3 integration target；同时锁定普通 class Borrow temporary 仍在 call return drop、object 不 drop，以及 Borrow `this` 字段写优先使用 L0134 |
+| 独立高风险复核（stateless object temporary drop 修正） | 通过 | 确认仅 nominal `Object` 排除 runtime drop，普通 MoveOnly class 的 `CallReturn` drop 保持；最终无 P1/P2/P3 |

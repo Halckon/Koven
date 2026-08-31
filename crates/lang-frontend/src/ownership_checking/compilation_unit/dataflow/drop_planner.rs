@@ -12,8 +12,8 @@ use crate::{
         Statement, StringPart, WhenCondition,
     },
     type_checking::{
-        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, ParameterMode,
-        UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        BuiltinType, Copyability, DestructuringMode, ExpressionCategory, NominalKind,
+        ParameterMode, UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -871,16 +871,26 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn is_move_only_temporary(&self, expression: ExpressionId) -> bool {
+        let unit = self.checker.unit_expression(expression);
+        let Some(ty) = self.checker.typed.expression_type(unit) else {
+            return false;
+        };
+        self.checker.typed.expression_category(unit) == Some(ExpressionCategory::Temporary)
+            && self.checker.typed.copyability(ty) == Copyability::MoveOnly
+            && !self.is_stateless_object_type(ty)
+    }
+
+    fn is_stateless_object_type(&self, ty: crate::type_checking::UnitTypeId) -> bool {
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = self.checker.typed.types().get(ty)
+        else {
+            return false;
+        };
         self.checker
             .typed
-            .expression_category(self.checker.unit_expression(expression))
-            == Some(ExpressionCategory::Temporary)
-            && self
-                .checker
-                .typed
-                .expression_type(self.checker.unit_expression(expression))
-                .map(|ty| self.checker.typed.copyability(ty))
-                == Some(Copyability::MoveOnly)
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| nominal.kind() == NominalKind::Object)
     }
 
     fn is_string_expression(&self, expression: ExpressionId) -> bool {

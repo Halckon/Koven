@@ -507,6 +507,47 @@ fn inout_class_payload_mutation_is_observed_by_a_later_borrow() {
 }
 
 #[test]
+fn stateless_object_borrow_receiver_links_and_runs_without_runtime_storage() {
+    let analysis = analyze_sources(
+        "package p\n\
+         object Registry { fun message(): String = \"object\" }\n\
+         fun entry(): Unit { println(Registry.message()) }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("object-receiver.o");
+    let executable = directory.join("object-receiver");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("stateless object Borrow receiver must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked object receiver executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"object\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();

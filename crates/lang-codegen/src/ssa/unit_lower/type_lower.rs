@@ -374,6 +374,13 @@ impl UnitTypeLowering {
                 self.active_inline.remove(&ty);
                 result
             }
+            // v1 object 无运行时状态；空 aggregate 只为 Borrow ABI 提供可 addressize 的 ZST identity。
+            NominalKind::Object if fields.is_empty() => module
+                .add_aggregate_type(
+                    format!("object#d{}.u{}", declaration.index(), ty.index()),
+                    Vec::new(),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span)),
             NominalKind::Interface | NominalKind::EnumClass | NominalKind::Object => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
@@ -487,7 +494,10 @@ pub(super) fn is_supported_storage_type(
                 nominal.type_parameters().is_empty()
                     && matches!(
                         nominal.kind(),
-                        NominalKind::Class | NominalKind::ValueClass | NominalKind::EnumClass
+                        NominalKind::Class
+                            | NominalKind::ValueClass
+                            | NominalKind::EnumClass
+                            | NominalKind::Object
                     )
             }),
         _ => false,

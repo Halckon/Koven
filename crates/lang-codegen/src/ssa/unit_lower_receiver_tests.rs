@@ -11,6 +11,85 @@ use super::{
 use crate::llvm::render_verified_program;
 
 #[test]
+fn stateless_object_receiver_uses_zst_addressization_without_runtime_storage() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         object Registry { fun ping(): Int = 7 }\n\
+         fun entry(): Int = (Registry).ping()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    assert!(
+        owned.ownership().drops().is_empty(),
+        "stateless object receiver has no runtime drop: {:?}",
+        owned.ownership().drops()
+    );
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("stateless object Borrow receiver must lower through a temporary ZST address");
+
+    let module = &program.modules[0];
+    let member = function(module.functions.iter(), ".Registry.ping.s");
+    assert!(matches!(
+        member.receiver(),
+        Some(EntityType::Loan {
+            kind: LoanKind::Shared,
+            ..
+        })
+    ));
+    let entry = function(module.functions.iter(), ".entry.d");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::AggregateConstruct { ref fields, .. } if fields.is_empty()
+            ))
+            .count(),
+        1,
+        "the object receiver is materialized once as a ZST value"
+    );
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::BorrowBegin {
+            kind: LoanKind::Shared,
+            ..
+        }
+    )));
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall {
+            receiver: Some(EntityId::Loan(_)),
+            ..
+        }
+    )));
+    assert!(!entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapAllocate { .. }
+            | Operation::SharedAllocate { .. }
+            | Operation::SharedRetain { .. }
+            | Operation::Drop { .. }
+    )));
+
+    let llvm = render_verified_program(&program).expect("object ZST receiver must lower to LLVM");
+    assert!(llvm.contains("alloca"), "{llvm}");
+    assert!(!llvm.contains("@malloc"), "{llvm}");
+    assert!(!llvm.contains(" global "), "{llvm}");
+}
+
+#[test]
 fn inout_class_receiver_replaces_and_reads_the_same_payload_field() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
