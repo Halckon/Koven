@@ -6,7 +6,7 @@ use crate::{
         DeclarationId, ExternalSymbolId, SourceUnitInput, UnitSymbolId,
         ValidatedCompilationUnitNames,
     },
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
         Copyability, DestructuringMode, ExpressionCategory, ParameterMode, TypeEnvironment,
     },
@@ -390,6 +390,104 @@ pub struct UnitDestructuringDescriptor {
     components: Vec<UnitDestructuringComponent>,
 }
 
+/// concrete ordinary-class owner 的一个已替换 runtime field。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitRuntimeFieldLayoutField {
+    symbol: UnitSymbolId,
+    template_type: UnitTypeId,
+    concrete_type: UnitTypeId,
+    span: Span,
+}
+
+impl UnitRuntimeFieldLayoutField {
+    pub(crate) const fn new(
+        symbol: UnitSymbolId,
+        template_type: UnitTypeId,
+        concrete_type: UnitTypeId,
+        span: Span,
+    ) -> Self {
+        Self {
+            symbol,
+            template_type,
+            concrete_type,
+            span,
+        }
+    }
+
+    /// 返回源码 field identity。
+    #[must_use]
+    pub const fn symbol(self) -> UnitSymbolId {
+        self.symbol
+    }
+
+    /// 返回 owner declaration 中的字段模板类型。
+    #[must_use]
+    pub const fn template_type(self) -> UnitTypeId {
+        self.template_type
+    }
+
+    /// 返回按当前 owner arguments 递归替换后的字段类型。
+    #[must_use]
+    pub const fn concrete_type(self) -> UnitTypeId {
+        self.concrete_type
+    }
+
+    /// 返回字段名称范围。
+    #[must_use]
+    pub const fn span(self) -> Span {
+        self.span
+    }
+}
+
+/// owner-instance-qualified ordinary-class runtime field layout。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitRuntimeFieldLayoutDescriptor {
+    owner_type: UnitTypeId,
+    declaration: DeclarationId,
+    arguments: Vec<UnitTypeId>,
+    fields: Vec<UnitRuntimeFieldLayoutField>,
+}
+
+impl UnitRuntimeFieldLayoutDescriptor {
+    pub(crate) fn new(
+        owner_type: UnitTypeId,
+        declaration: DeclarationId,
+        arguments: Vec<UnitTypeId>,
+        fields: Vec<UnitRuntimeFieldLayoutField>,
+    ) -> Self {
+        Self {
+            owner_type,
+            declaration,
+            arguments,
+            fields,
+        }
+    }
+
+    /// 返回完整 concrete owner type identity。
+    #[must_use]
+    pub const fn owner_type(&self) -> UnitTypeId {
+        self.owner_type
+    }
+
+    /// 返回 owner classifier declaration identity。
+    #[must_use]
+    pub const fn declaration(&self) -> DeclarationId {
+        self.declaration
+    }
+
+    /// 返回完整 owner type arguments。
+    #[must_use]
+    pub fn arguments(&self) -> &[UnitTypeId] {
+        &self.arguments
+    }
+
+    /// 返回主构造器源码字段顺序的 concrete layout。
+    #[must_use]
+    pub fn fields(&self) -> &[UnitRuntimeFieldLayoutField] {
+        &self.fields
+    }
+}
+
 impl UnitDestructuringDescriptor {
     pub(crate) fn new(
         statement: UnitStatementId,
@@ -444,6 +542,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
+    pub(crate) runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
@@ -473,6 +572,7 @@ pub struct CompilationUnitTypes {
     aggregate_projections: Vec<UnitAggregateProjectionDescriptor>,
     constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
+    runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
@@ -504,6 +604,7 @@ impl CompilationUnitTypes {
             aggregate_projections: parts.aggregate_projections,
             constructions: parts.constructions,
             destructurings: parts.destructurings,
+            runtime_field_layouts: parts.runtime_field_layouts,
             rc_operations: parts.rc_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
@@ -673,6 +774,24 @@ impl CompilationUnitTypes {
         self.destructurings
             .iter()
             .find(|descriptor| descriptor.statement() == statement)
+    }
+
+    /// 返回按 owner `UnitTypeId` 稳定排序的 ordinary-class runtime field layouts。
+    #[must_use]
+    pub fn runtime_field_layouts(&self) -> &[UnitRuntimeFieldLayoutDescriptor] {
+        &self.runtime_field_layouts
+    }
+
+    /// 查询一个 concrete ordinary-class owner 的 runtime field layout。
+    #[must_use]
+    pub fn runtime_field_layout(
+        &self,
+        owner_type: UnitTypeId,
+    ) -> Option<&UnitRuntimeFieldLayoutDescriptor> {
+        self.runtime_field_layouts
+            .binary_search_by_key(&owner_type.index(), |layout| layout.owner_type().index())
+            .ok()
+            .map(|index| &self.runtime_field_layouts[index])
     }
 
     /// 查询 source-qualified type reference 的规范类型。

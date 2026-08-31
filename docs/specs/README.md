@@ -300,7 +300,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`done`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
 | [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`done`） | 0025 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | [0218](./0218-compilation-unit-assignment-facts.md) | 发布普通 `=` 的 target/value/operator/storage-type/control descriptor，移除合法路径的 `Deferred(Assignment)`（`done`） | 0019、0020、0197 `done`；现行 v0.34；当前持续 Goal 的站立授权 |
-| [0219](./0219-compilation-unit-runtime-field-layout-facts.md) | 发布 ordinary-class owner-instance-qualified concrete runtime field layout（`in-progress`） | 0020、0177、0197 `done`；解锁 0191 nested generic field recipe；当前持续 Goal 的站立授权 |
+| [0219](./0219-compilation-unit-runtime-field-layout-facts.md) | 发布 ordinary-class owner-instance-qualified concrete runtime field layout（`done`） | 0020、0177、0197 `done`；已解除 0191 nested generic field recipe 的 frontend 前置；当前持续 Goal 的站立授权 |
 
 Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
 完成 overload-lambda 候选隔离。两项均实施现行 v0.28 语义；它们不是
@@ -341,7 +341,7 @@ SPEC-0027–0032 的前置，但进入依赖具体实例的 SSA / codegen Goal �
 | [0212](./0212-borrowed-sequential-iteration-ssa.md) | 封闭 borrowed length、Int/size_t bridge 与 provider SSA/LLVM primitives（`draft`） | 0034、0036、0186、0195 `done`；v0.37 待启用；ADR-0023 `proposed` |
 | [0182](./0182-sequential-for-lowering.md) | 把 validated `for` typed/ownership/provider plans 拼装到 SSA/LLVM/native（`draft`） | 0179、0211、0212；v0.37 待启用；ADR-0023 `proposed`；不依赖 0181/0191/0046 |
 | [0184](./0184-nominal-construction-lowering.md) | 把 0183/0188 的 nominal/enum/Box constructor、projection、destructuring、ordered delivery 与 root drop facts lower 到 SPEC-0035 aggregate/heap-owner SSA，并把 0186 布局失败映射到来源类型诊断（`done`） | 0183、0188、0035、0186 `done`；v0.29 已生效；instance method receiver 仍排除 |
-| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`in-progress`） | 0180、0181 `done`；基础 receiver/native、ordinary-class Inout/MoveOnly payload、无状态 object Borrow receiver、concrete `StaticSelf` default/`super<I>`、非泛型 Value interface default、abstract requirement→本地 override/inherited default、generic delegation slots、same/changed-identity chain、参数无关及 direct owner type-parameter generic ordinary-class runtime layout 已完成；nested generic field recipe 继续实施；ADR-0016 accepted |
+| [0191](./0191-instance-receiver-lowering.md) | 把 instance receiver 与 Borrow-only 静态委托 lower 到 SSA/LLVM（`in-progress`） | 0180、0181、0219 `done`；基础 receiver/native、ordinary-class Inout/MoveOnly payload、无状态 object Borrow receiver、concrete `StaticSelf` default/`super<I>`、非泛型 Value interface default、abstract requirement→本地 override/inherited default、generic delegation slots、same/changed-identity chain、参数无关及 direct owner type-parameter generic ordinary-class runtime layout 已完成；nested generic field fact 已就绪、Phase 4 消费继续实施；ADR-0016 accepted |
 | [0204](./0204-pointer-nullable-when-lowering.md) | 把 owned-root/temporary class/Box/Rc nullable `when` lower 到 verified SSA/LLVM/native（`draft`） | 0034、0184、0196 `done`；0202、0203；v0.35 待启用；ADR-0017 `accepted` |
 | [0207](./0207-pointer-non-null-assertion-lowering.md) | 把 owned-root/temporary class/Box/Rc `!!` lower 到 NullableBranch/Take/Abort 与 native（`draft`） | 0034、0039、0184、0196 `done`；0205、0206；v0.35 待启用；ADR-0017 `accepted` |
 | [0209](./0209-associated-constant-lowering.md) | 把单文件 scalar/Char/String const use 重新物化到 SSA/LLVM/native（`draft`） | 0034、0039、0185、0189、0192 `done`；0026、0208；v0.36 待启用 |

@@ -325,6 +325,11 @@ Spec 之前，本条限制不变。）
       storage-type/control descriptor，并保持 RHS 后 kill smart cast；不在 Phase 2 定义普通
       immutable-place 诊断，也不从实现反推五种复合赋值语义。该节点解除 SPEC-0191 的
       ordinary-class Inout payload mutation typed 前置。
+- [x] **[SPEC-0219](../specs/0219-compilation-unit-runtime-field-layout-facts.md)（done）**：为
+      concrete ordinary-class owner instance 发布 declaration/arguments/字段顺序限定的 runtime
+      layout fact；字段递归替换不依赖 construction/call reachability，冻结候选快照避免参数增长型
+      heap 递归无限物化。该节点解除 SPEC-0191 的 `List<T>` / `Wrapper<T>` frontend 前置；`T?`
+      storage lowering 仍独立。
 - [ ] **[SPEC-0202](../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、

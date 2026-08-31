@@ -13,10 +13,11 @@ use crate::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitSignatures, DeferredReason, ExpressionUse, ExternalTypeBinding,
-        ParameterMode, TypeCheckingError, TypeEnvironment, UnitAggregateProjectionDescriptor,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallableSignature,
-        UnitFunctionParameterType, UnitTypeId, UnitTypeKind, collect_compilation_unit_signatures,
-        collect_expression_uses,
+        NominalKind, ParameterMode, TypeCheckingError, TypeEnvironment,
+        UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitCallableSignature, UnitFunctionParameterType,
+        UnitRuntimeFieldLayoutDescriptor, UnitRuntimeFieldLayoutField, UnitTypeId, UnitTypeKind,
+        collect_compilation_unit_signatures, collect_expression_uses,
     },
 };
 
@@ -227,6 +228,7 @@ impl<'a> BodyChecker<'a> {
                 ));
             }
         }
+        self.materialize_runtime_field_layouts()?;
         let source_units = self.names.names().index().source_units();
         let body_diagnostics =
             ordered_unit_diagnostics(self.sources, source_units, &self.diagnostics)?
@@ -245,6 +247,133 @@ impl<'a> BodyChecker<'a> {
             body_diagnostics,
             diagnostics,
         ))
+    }
+
+    /// 在 body traversal 结束后的最终 unit type graph 上物化 ordinary-class field layouts。
+    fn materialize_runtime_field_layouts(&mut self) -> Result<(), CompilationUnitTypeError> {
+        if self
+            .signatures
+            .diagnostics()
+            .iter()
+            .chain(&self.diagnostics)
+            .any(|diagnostic| diagnostic.severity() == Severity::Error)
+        {
+            return Ok(());
+        }
+        // 冻结候选 owner 集合，避免 Grow<T> -> Grow<List<T>> 一类合法 heap 递归无限扩张。
+        let owner_count = self.signatures.types().len();
+        let mut index = 0;
+        while index < owner_count {
+            let owner_type = UnitTypeId::new(index);
+            index += 1;
+            let Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) = self.signatures.types().get(owner_type).cloned()
+            else {
+                continue;
+            };
+            let nominal = self
+                .signatures
+                .declaration(declaration)
+                .and_then(|signature| signature.nominal())
+                .cloned()
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            if nominal.kind() != NominalKind::Class {
+                continue;
+            }
+            if nominal.type_parameters().len() != arguments.len() {
+                return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+            }
+            let mut owner_is_concrete = true;
+            for argument in &arguments {
+                owner_is_concrete &=
+                    self.type_is_concrete_runtime_recipe(*argument, &mut BTreeSet::new())?;
+            }
+            if !owner_is_concrete {
+                continue;
+            }
+            let substitutions = nominal
+                .type_parameters()
+                .iter()
+                .copied()
+                .zip(arguments.iter().copied())
+                .collect::<BTreeMap<_, _>>();
+            let fields = nominal
+                .fields()
+                .iter()
+                .map(|field| {
+                    let concrete_type = self.substitute_type(field.ty(), &substitutions)?;
+                    if !self.type_is_concrete_runtime_recipe(concrete_type, &mut BTreeSet::new())? {
+                        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+                    }
+                    Ok(UnitRuntimeFieldLayoutField::new(
+                        field.symbol(),
+                        field.ty(),
+                        concrete_type,
+                        field.span(),
+                    ))
+                })
+                .collect::<Result<Vec<_>, CompilationUnitTypeError>>()?;
+            self.parts
+                .runtime_field_layouts
+                .push(UnitRuntimeFieldLayoutDescriptor::new(
+                    owner_type,
+                    declaration,
+                    arguments,
+                    fields,
+                ));
+        }
+        Ok(())
+    }
+
+    fn type_is_concrete_runtime_recipe(
+        &self,
+        ty: UnitTypeId,
+        visiting: &mut BTreeSet<UnitTypeId>,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        if !visiting.insert(ty) {
+            return Ok(true);
+        }
+        let kind = self
+            .signatures
+            .types()
+            .get(ty)
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        let is_concrete = match kind {
+            UnitTypeKind::Builtin(_) => true,
+            UnitTypeKind::Nullable(inner) => {
+                self.type_is_concrete_runtime_recipe(*inner, visiting)?
+            }
+            UnitTypeKind::Function {
+                parameters,
+                return_type,
+                ..
+            } => {
+                let mut is_concrete = true;
+                for parameter in parameters {
+                    is_concrete &=
+                        self.type_is_concrete_runtime_recipe(parameter.ty(), visiting)?;
+                }
+                is_concrete && self.type_is_concrete_runtime_recipe(*return_type, visiting)?
+            }
+            UnitTypeKind::Nominal { arguments, .. } | UnitTypeKind::Intrinsic { arguments, .. } => {
+                let mut is_concrete = true;
+                for argument in arguments {
+                    is_concrete &= self.type_is_concrete_runtime_recipe(*argument, visiting)?;
+                }
+                is_concrete
+            }
+            UnitTypeKind::TypeParameter(_)
+            | UnitTypeKind::StaticSelf(_)
+            | UnitTypeKind::EnumCase { .. }
+            | UnitTypeKind::Capability(_)
+            | UnitTypeKind::IntegerLiteral(_)
+            | UnitTypeKind::Deferred(_)
+            | UnitTypeKind::Error => false,
+        };
+        visiting.remove(&ty);
+        Ok(is_concrete)
     }
 
     fn check_function(

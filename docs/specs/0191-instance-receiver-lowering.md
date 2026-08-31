@@ -7,10 +7,10 @@
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
 | 批准依据 | 2026-08-31 持续 Goal 要求继续按 Phase 推进 guide 对应 Specs，并简化验收；v0.34 已启用且 SPEC-0180/0181 已完成 |
-| 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
+| 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181、0219 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 参数无关及字段恰为 owner direct type parameter 的 generic ordinary-class runtime layout 已闭合；嵌套 recipe 需要 frontend 发布 owner-instance-qualified field-layout fact，`T?` 另需 compilation-unit nullable type lowering |
+| 阻塞项 | `List<T>` / `Wrapper<T>` 的 owner-instance-qualified frontend field-layout fact 已由 SPEC-0219 发布，等待本 Spec 消费；`T?` 另需 compilation-unit nullable type lowering |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -47,7 +47,8 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - generic ordinary class 的 runtime field 可为 closed type 或恰好为 owner direct type parameter；
   direct slot 按 concrete owner arguments 实例化，同时泛型 member body 仍按模板 `T` 消费所有权
   fact。每个 concrete `UnitTypeId` 保持独立 heap-owner/layout identity，generic outer/delegate route
-  使用具体 receiver type；`List<T>`、`Wrapper<T>`、`T?` 等嵌套 recipe 继续在 SSA 前确定性拒绝。
+  使用具体 receiver type；`List<T>`、`Wrapper<T>` 必须按精确 owner type 消费 SPEC-0219 descriptor，
+  在该接线完成前继续拒绝；`T?` 另等待 nullable storage lowering。
 - SSA/verifier 拒绝 receiver mode/type/loan kind、instance key、ownership plan 与 callee signature
   不一致；verified-before-LLVM 不变。
 - 真实 source→object→link→run 覆盖多种 nominal/generic receiver、drop 与调用顺序；DWARF
@@ -90,7 +91,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
    参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
-   receiver 已完成，嵌套参数 recipe 布局继续实施。
+   receiver 已完成；SPEC-0219 frontend fact 已就绪，嵌套参数 recipe 的 Phase 4 消费继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
@@ -111,7 +112,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    local override 正常终止 route，cycle 与无 endpoint unresolved chain 在 SSA 前拒绝。identity-changing
    chain 已直接消费 SPEC-0180 exact next-hop target/receiver template，按 hop 重组 owner prefix 并保留
    callable suffix；参数无关 generic outer/delegate runtime nominal 已完成 native 闭环，direct owner
-   type-parameter field 已开放，nested recipe 继续确定性拒绝。
+   type-parameter field 已开放；nested recipe 在消费 SPEC-0219 前继续确定性拒绝。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -129,14 +130,15 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 9 | MoveOnly ordinary-class field replacement fact/SSA/LLVM/native 消费 | `feat(codegen): lower move-only field replacement (SPEC-0191)` |
 | 10 | 参数无关 generic ordinary-class layout、receiver 与 delegation native 闭环 | `feat(codegen): lower closed generic nominal layouts (SPEC-0191)` |
 | 11 | direct owner type-parameter field 的 concrete layout、replacement 与 native 闭环 | `feat(codegen): lower direct generic field layouts (SPEC-0191)` |
+| 12 | 消费 SPEC-0219 的 owner-instance-qualified nested concrete field layout | `feat(codegen): lower nested generic field layouts (SPEC-0191)` |
 
 ## 8. 未决问题
 
 - generic runtime nominal 的参数无关及 direct `T` ordinary-class construction/projection/current receiver
-  已开放；`List<T>`、`Wrapper<T>` 等嵌套 recipe 不能以全局 canonical type presence 或全局
-  construction descriptor 代替 provenance，等待 frontend 发布不依赖 callable reachability 的
-  owner declaration + 完整 owner arguments + 字段顺序 concrete type fact。`T?` 还需独立补齐
-  compilation-unit nullable storage type lowering；这些边界均不扩张任意 owner expression。
+  已开放；SPEC-0219 已为 `List<T>`、`Wrapper<T>` 等嵌套 recipe 发布不依赖 callable reachability 的
+  owner declaration + 完整 owner arguments + 字段顺序 concrete type fact。本 Spec 下一切片必须按
+  exact owner `UnitTypeId` 消费，不能退回全局 canonical presence 或 construction descriptor。
+  `T?` 还需独立补齐 compilation-unit nullable storage type lowering；这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。

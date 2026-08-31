@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-219` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.34](../guide/00-index.md)、[名义类型与泛型](../guide/01-design-decisions.md#23-名义类型泛型接口实现与窄化委托v023) |
@@ -30,7 +30,7 @@ validated typed product 统一发布结果。
 
 ## 3. 范围与需求
 
-- 在完整 compilation-unit body 类型检查结束、类型表稳定后，为类型表中的具体
+- 在完整 compilation-unit body 类型检查结束后冻结 owner 候选快照，为快照中的具体
   `UnitTypeKind::Nominal` ordinary-class 实例物化 `UnitRuntimeFieldLayoutDescriptor`。
 - descriptor 精确保存 owner `UnitTypeId`、`DeclarationId`、完整 owner arguments，以及主构造器
   源码字段顺序的 field symbol、template type、递归替换后的 concrete type 与 field `Span`。
@@ -39,9 +39,11 @@ validated typed product 统一发布结果。
   参数替换。
 - descriptor 以 owner instance 为唯一键，按稳定 `UnitTypeId` 顺序发布；同一实例只发布一次，
   不依赖 construction、call 或 entry reachability，输入文件置换不改变语义结果。
-- descriptor 纳入 recovery product；只有全 unit 无 error 时才能经
-  `ValidatedCompilationUnitTypes` 交给后续阶段。缺声明、arity 不符、残留 owner type parameter 或
-  非 ordinary-class owner 不发布半成品事实。
+- 字段递归替换可向 canonical type table 加入结果类型，但不得把这些新类型继续加入本次 owner
+  候选；`Grow<T>` 包含 `Grow<List<T>>` 等合法 heap 递归必须有限终止。
+- descriptor 纳入 recovery product，但任一 signature/body error 都使本集合原子保持为空；只有
+  全 unit 无 error 时才能经 `ValidatedCompilationUnitTypes` 交给后续阶段。缺声明、arity 不符、
+  残留 owner type parameter 或非 ordinary-class owner 不发布半成品事实。
 
 ## 4. 非目标
 
@@ -55,30 +57,32 @@ validated typed product 统一发布结果。
 
 ## 5. 验收标准
 
-- [ ] `Cell<T>` 的 direct `T` 与 `Holder<T>` 的 `List<T>` / `Wrapper<T>` 发布精确 concrete 字段类型。
-- [ ] 不同 owner actual、跨文件声明/使用与输入置换得到各自唯一、稳定 descriptor。
-- [ ] 不可达 construction/call 的有无不影响同一个 owner instance 的 descriptor；仅有无关 nested
+- [x] `Cell<T>` 的 direct `T` 与 `Holder<T>` 的 `List<T>` / `Wrapper<T>` 发布精确 concrete 字段类型。
+- [x] 不同 owner actual、跨文件声明/使用与输入置换得到各自唯一、稳定 descriptor。
+- [x] 不可达 construction/call 的有无不影响同一个 owner instance 的 descriptor；仅有无关 nested
   concrete type 不会为另一个 owner 实例产生授权。
-- [ ] arity/provenance/kind/recovery 负例不泄漏 descriptor，validated product 保持原子性。
-- [ ] 运行受影响 frontend model/lib 与 `multifile_type_checking` 定向窄测，以及 Layer 2 workspace
+- [x] arity/provenance/kind/recovery 边界不泄漏 descriptor，validated product 保持原子性。
+- [x] 参数增长型 recursive class 的字段可精确替换且物化有限终止，不生成无限 owner closure。
+- [x] 运行受影响 frontend model/lib 与 `multifile_type_checking` 定向窄测，以及 Layer 2 workspace
   library check/clippy；不运行约一小时的 `lang-frontend` 全量测试。
-- [ ] Architecture、Roadmap 与 SPEC-0191 前置边界同步。
+- [x] Architecture、Roadmap 与 SPEC-0191 前置边界同步。
 
 ## 6. 技术方案与边界
 
 在 `CompilationUnitTypes` 中保存独立 descriptor 集合；body checker 完成所有 source traversal 后，
-从最终 `UnitTypeTable` 快照枚举 concrete ordinary-class owner，并通过 frontend 统一替换函数计算
+从 body traversal 结束时的 `UnitTypeTable` 候选快照枚举 concrete ordinary-class owner，并通过 frontend 统一替换函数计算
 字段类型。枚举只选择 owner instance，字段结果仍来自 owner declaration signature；因此事实既不
-依赖表达式可达性，也不把“某个嵌套类型存在”提升为另一个 owner 的 provenance。
+依赖表达式可达性，也不把“某个嵌套类型存在”提升为另一个 owner 的 provenance。替换过程中新增
+的 canonical type 只作为字段结果，不递归扩张 owner 候选集合。
 
 descriptor 查询入口接收精确 owner `UnitTypeId`。Phase 4 consumer 只能按正在 lowering 的 owner
 实例查询并核对 declaration/arguments，不得退回扫描 construction 或重新执行模板替换。
 
 ## 7. 实施计划
 
-1. [ ] 增加 runtime field-layout descriptor、稳定查询与 recovery/validated product 接线 → 验证：model/lib 窄测。
-2. [ ] 在 body type finalization 物化 ordinary-class concrete layouts → 验证：direct/nested/负例/置换矩阵。
-3. [ ] 同步 Architecture/Roadmap/SPEC-0191 并运行分层验收。
+1. [x] 增加 runtime field-layout descriptor、稳定查询与 recovery/validated product 接线 → 验证：model/lib 窄测。
+2. [x] 在 body type finalization 物化 ordinary-class concrete layouts → 验证：direct/nested/负例/置换矩阵。
+3. [x] 同步 Architecture/Roadmap/SPEC-0191 并运行分层验收。
 
 ## 8. 提交计划
 
@@ -95,6 +99,9 @@ descriptor 查询入口接收精确 owner `UnitTypeId`。Phase 4 consumer 只能
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-31 前置审计 | 通过 | 两轮 SPEC-0191 原型已排除 global type presence 与 construction reachability 作为授权来源；试验代码均撤回 |
-| frontend 定向测试 | 未执行 | 实施后填写；不运行 frontend 全量 |
-| workspace library check/clippy | 未执行 | 实施后填写 |
-| 独立高风险复审 | 未执行 | 本事实跨 frontend/codegen 公共边界，实施后按共享逻辑执行 |
+| `cargo test -p lang-frontend --test multifile_type_checking runtime_field_layouts --locked --offline` | 2/2 通过 | direct/nested actual、完整 descriptor、strict owner order、输入置换、callable-local template/value class 拒绝、参数增长型递归有限终止与 body-error recovery 原子性；未运行 frontend 全量 |
+| `cargo test -p lang-frontend --lib product_queries_use_the_unit_type_space_and_preserve_analysis_identity --locked --offline` | 1/1 通过 | recovery/validated product 使用同一 unit type space 与分析身份 |
+| `cargo check --workspace --lib --locked --offline` | 通过 | Layer 2 跨 crate library 编译门禁 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | Layer 2 跨 crate public API 静态门禁，零 warning |
+| `cargo fmt --all` / `git diff --check` | 通过 | Rust 格式与 whitespace 门禁 |
+| 独立高风险复审 | 通过 | 首轮发现“无 TypeParameter”误当 runtime concrete 的 P2；改为统一拒绝 StaticSelf/EnumCase/Capability/IntegerLiteral/Deferred/Error 的递归 predicate，并补完整 descriptor/排序/置换/callable-local 负例后复审无 P1/P2。逐项 poison kind 与 signature-error 白盒用例仅为 P3 测试深度建议 |

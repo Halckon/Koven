@@ -765,6 +765,13 @@ SPEC-0197 第一阶段新增纯内存的
   `falls_through` descriptor，RHS 不匹配复用 L0084。descriptor 随完整 trial parts 原子回滚，
   错误节点不发布半成品；Phase 3 mutable-place/loan 仍不前移。五种 compound assignment 因现行
   guide 尚未封闭 target 单次求值与旧值读取顺序，继续保持 `Deferred(Assignment)`；
+- SPEC-0219 在全部 body traversal 后冻结 unit type table 的 owner 候选快照，为其中 concrete
+  ordinary-class instance 发布 `UnitRuntimeFieldLayoutDescriptor`：descriptor 以 owner `UnitTypeId`
+  唯一限定，保存 declaration、完整 arguments，以及源码字段顺序的 symbol/template/concrete type/
+  span。字段 concrete type 由 frontend 递归替换并 canonicalize，不依赖 construction/call/entry
+  reachability；替换中新 intern 的类型不反向扩张本轮 owner 候选，因此
+  `Grow<T> -> Grow<List<T>>` 一类 heap 递归有限终止。generic template、非 class 与任一诊断恢复均
+  不发布布局，validated product 才能交给 codegen；
 - 第六个 body 切片已接通局部 value-class 解构：initializer 只检查一次，跨文件 generic field
   类型按实际实参替换，产物以 `UnitStatementId` / `UnitSymbolId` 发布有序 component 与
   `Copy`/`Consume` descriptor；普通 class 保持 `Deferred(Destructuring)`，错误 arity 复用 L0118
@@ -973,8 +980,9 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 非泛型 value class 的 Borrow/Copyable Value receiver 与 ordinary class 的 Borrow/MoveOnly Value
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
 唯一析构；ordinary class 的该用例暂不读取 payload。后续 generic ordinary-class layout
-已按 concrete `UnitTypeId` 开放参数无关 field 及恰为 owner direct type parameter 的 field；嵌套
-参数 recipe 仍保持确定性拒绝；
+已按 concrete `UnitTypeId` 开放参数无关 field 及恰为 owner direct type parameter 的 field；
+SPEC-0219 已发布 owner-instance-qualified nested concrete field layout，Phase 4 消费尚未接线，
+因此嵌套参数 recipe 仍保持确定性拒绝；
 SPEC-0218 已发布普通 `=` 的 Phase 2 descriptor，ordinary-class Inout payload field mutation 的
 typed 前置已解除。SPEC-0191 的下一切片已直接消费该 descriptor，为 active heap-owner receiver loan
 增加 `HeapFieldRead` 与 `HeapFieldReplace`：read 允许 shared/exclusive receiver 但只读取 Copyable
@@ -1006,8 +1014,10 @@ payload layout，generic outer/delegate route 只携带具体 receiver type；`M
 `Marker<Long>` 的参数无关布局 identity 已由 SSA 测试隔离。字段恰为 owner direct type parameter 时，
 layout/construction/projection 以 concrete actual 建模，但 generic member replacement 仍按模板 `T`
 核对 Phase 3 fact；`Cell<String>` 因而生成 old load/drop/store，`Cell<Int>` 只生成直接 store。
-`List<T>`、`Wrapper<T>`、`T?`、generic runtime interface default，以及 `Derived<List<Y>>` 等 nested
-owner recipe 仍以 `UnsupportedNode` 确定性拒绝；nominal 形式 `Derived<Wrapper<Y>>` 使用同一门禁。
+`List<T>`、`Wrapper<T>` 的 frontend layout 前置已由 SPEC-0219 解除，但 SPEC-0191 尚未消费；
+`T?` 还缺 compilation-unit nullable storage lowering。generic runtime interface default，以及
+`Derived<List<Y>>` 等 nested owner recipe 仍以 `UnsupportedNode` 确定性拒绝；nominal 形式
+`Derived<Wrapper<Y>>` 使用同一门禁。
 Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
 shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
 loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原
