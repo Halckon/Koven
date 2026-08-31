@@ -994,7 +994,7 @@ default 或独立接口提供的唯一 default，有体 default 本身不作为�
 requirement prefix，再原位追加 callable arguments。`Host<X,Y>: Derived<Y>` 因此不会误用 `Host`
 的完整参数作为 `Derived` prefix。最终 DirectCall 复用同一 concrete receiver loan 且不计划 abstract
 declaration；replacement 与独立唯一 default 已完成真实 native 闭环。generic nominal native layout、
-generic/Inout/Value interface default 与静态委托仍由 SPEC-0191 后续切片承接；当前 owner recipe 只
+generic runtime interface default 与静态委托仍由 SPEC-0191 后续切片承接；当前 owner recipe 只
 实例化直接 type-parameter slots，`Derived<List<Y>>` 等嵌套 recipe 在 generic nominal layout 完成前
 以 `UnsupportedNode` 确定性拒绝。
 Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` SSA 基元：它只接受 active
@@ -1031,7 +1031,9 @@ generic runtime nominal 与无 endpoint unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181
-发布；codegen 仍须由 SPEC-0191 显式消费并核对 concrete specialization，不能自行补析构。
+发布并由 SPEC-0191 显式消费：lowerer 在写入任何该 point 的 drop 前核对 fact 唯一性、interface
+owner、原始 receiver template、concrete specialization 与 Value ABI；MoveOnly callee 在正常/提前
+return edge 各析构一次，Copyable specialization 跳过。两者已完成 verified SSA/LLVM 与同源 native 闭环。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

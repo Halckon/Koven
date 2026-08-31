@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | Copyable ordinary-class Inout payload assignment 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact；Value interface default 的 MoveOnly concrete `StaticSelf` 等待 Phase 3 条件 receiver-drop fact |
+| 阻塞项 | Copyable ordinary-class Inout payload assignment 与非泛型 Value interface default 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact；generic runtime nominal 等待独立布局切片 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -33,6 +33,9 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   把 payload pointer 误当成另一套公开 ABI；inline receiver 继续借用实际 inline storage。
 - default/override/`super<I>` 只生成静态 direct call；interface `Self` 在单态化时替换为具体
   owner，不产生 runtime interface value。
+- Value interface default 只消费 SPEC-0181 的 conditional receiver-drop fact：精确核对 interface
+  owner、原始 `StaticSelf` template、concrete specialization 与 Value ABI；MoveOnly callee 在每个
+  退出边析构一次，Copyable specialization 跳过，不由 codegen 自行推断 drop point。
 - 无状态 object receiver 按静态唯一 value identity lower，可使用临时 ZST addressization 满足
   Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。
 - Borrow-only delegation 生成确定性静态 thunk 或等价直接转发；只投影 delegate field 和转交
@@ -80,9 +83,10 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
    ancestor requirement→interface replacement/唯一独立 default 已消费双方 owner template 并完成
    native 闭环，`Host<X,Y>: Derived<Y>` 的 owner/callable slot 配方已由 planner 锁定；generic
-   nominal native layout 与 Value default 继续实施。非泛型 ordinary-class Inout default 已完成
-   exclusive concrete receiver 的 SSA/LLVM 与 native 闭环；MoveOnly Value default 不由 codegen 猜测
-   `StaticSelf` 析构，等待 Phase 3 发布条件 receiver-drop fact。Borrow delegate 的首个非泛型、单层、
+   nominal native layout 继续实施。非泛型 ordinary-class Inout default 已完成 exclusive concrete
+   receiver 的 SSA/LLVM 与 native 闭环；非泛型 Value default 已消费 Phase 3 conditional fact，
+   MoveOnly concrete `StaticSelf` 在 callee 正常/提前退出恰好 drop，Copyable concrete receiver
+   跳过并可重复调用。Borrow delegate 的首个非泛型、单层、
    ordinary-class 切片已消费 typed/ownership 双重 validated route，以 `SharedHeapFieldLoan` 直接转发
    concrete delegate Borrow receiver；abstract requirement、本地 override、继承/default replacement
    均直接消费 frontend forwarder 的 exact effective target/owner template，interface default 的
@@ -106,10 +110,15 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 5 | 非泛型 runtime nominal 上的 generic delegation owner/callable 槽位重映射 | `feat(codegen): remap generic delegation slots (SPEC-0191)` |
 | 6 | 同 requirement identity 的非泛型 delegation chain | `feat(codegen): lower delegation chains (SPEC-0191)` |
 | 7 | identity-changing delegation chain 的 exact next-hop 消费 | `feat(codegen): lower replacement delegation chains (SPEC-0191)` |
+| 8 | Value interface default 的 conditional receiver-drop 消费 | `feat(codegen): lower value interface defaults (SPEC-0191)` |
 
 ## 8. 未决问题
 
-- 无；iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
+- generic runtime nominal receiver/delegation 等待统一实例化布局；MoveOnly field replacement 等待
+  Phase 3 旧字段 drop/replacement fact。
+- `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
+  delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
+- iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
 
 ## 9. 验证记录
 
@@ -194,3 +203,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen native::unit_tests --locked --offline` | 13/13 通过 | Base default=1、Derived default=2 均不得截断，真实 endpoint override=7 输出 replacement 标记 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | planner/receiver/native 与静态门禁并行，未运行 frontend 全量测试 |
 | 独立高风险复核（identity-changing delegation chain） | 通过 | 补泛型 owner prefix/callable suffix 与默认实例排除两项 P3 后，无剩余 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib unit_lower_receiver_tests --locked --offline` | 28/28 通过 | MoveOnly/Copyable Value default、正常与两个提前 return 边、既有 Borrow/Inout/Value/`StaticSelf`/delegation SSA 与 LLVM 回归 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline` | 14/14 通过 | 同一 default 的 MoveOnly class 与可重复 Copyable value-class specialization 真实 source→object→clang→run 输出 `value-default` |
+| `cargo test -p lang-codegen --lib --locked --offline`（独立复审） | 292 通过、1 ignored | 完整 codegen library 回归；ignored 为既有 LLDB sandbox 用例，未运行 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与 receiver/native 职责测试并行执行；未运行约一小时的 frontend 全量测试 |
+| 独立高风险复核（Value interface default） | 通过 | 发现并关闭 Copyable 分支未就地核对 Value entity ABI 的 P3；复核 unconditional→conditional drop 顺序、owner/template/concrete/ABI、duplicate/mismatch fail-loud、CFG/loop/thunk 路径后无剩余 P1/P2/P3 |

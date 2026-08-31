@@ -77,6 +77,7 @@ struct FunctionPlan {
 struct ReceiverPlan {
     owner: DeclarationId,
     mode: ParameterMode,
+    template_ty: UnitTypeId,
     ty: UnitTypeId,
     entity_type: EntityType,
 }
@@ -85,6 +86,7 @@ struct ReceiverPlan {
 struct ReceiverBinding {
     owner: DeclarationId,
     mode: ParameterMode,
+    template_ty: UnitTypeId,
     ty: UnitTypeId,
     entity: EntityId,
 }
@@ -172,6 +174,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 Some(ReceiverPlan {
                     owner,
                     mode: receiver.mode(),
+                    template_ty: receiver.ty(),
                     ty: concrete,
                     entity_type,
                 })
@@ -333,6 +336,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                     Some(ReceiverBinding {
                         owner: receiver.owner,
                         mode: receiver.mode,
+                        template_ty: receiver.template_ty,
                         ty: receiver.ty,
                         entity: *entity,
                     }),

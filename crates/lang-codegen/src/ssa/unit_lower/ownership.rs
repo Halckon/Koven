@@ -6,7 +6,9 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::Expression,
     source::Span,
-    type_checking::{Copyability, ExpressionCategory, ParameterMode, UnitExpressionId},
+    type_checking::{
+        Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitExpressionId, UnitTypeKind,
+    },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, span_key};
@@ -106,6 +108,20 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        let conditional = self
+            .owned
+            .ownership()
+            .conditional_receiver_drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.point() == point)
+            .collect::<Vec<_>>();
+        if conditional.len() > 1 {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                conditional[0].value_origin(),
+            ));
+        }
         let facts = self
             .owned
             .ownership()
@@ -114,6 +130,25 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
+        if !conditional.is_empty()
+            && facts
+                .iter()
+                .any(|fact| matches!(fact.target(), UnitDropTarget::This(_)))
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                conditional[0].value_origin(),
+            ));
+        }
+        let conditional_drop = conditional
+            .first()
+            .copied()
+            .map(|fact| {
+                self.conditional_receiver_drop_owner(fact)
+                    .map(|owner| owner.map(|owner| (fact, owner)))
+            })
+            .transpose()?
+            .flatten();
         self.validate_closure_drop_facts(&facts)?;
         for fact in facts {
             let owner = match fact.target() {
@@ -170,7 +205,90 @@ impl UnitExpressionLowerer<'_> {
                     lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
                 })?;
         }
+        if let Some((fact, owner)) = conditional_drop {
+            self.current_receiver = None;
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::Drop { owner },
+                    Vec::new(),
+                    Origin::Source(fact.value_origin()),
+                )
+                .map_err(|_| {
+                    lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
+                })?;
+        }
         Ok(())
+    }
+
+    fn conditional_receiver_drop_owner(
+        &self,
+        fact: lang_frontend::ownership_checking::UnitConditionalReceiverDropFact,
+    ) -> Result<Option<ValueId>, LoweringError> {
+        let Some(UnitTypeKind::StaticSelf(interface)) =
+            self.typed.types().types().get(fact.receiver_type())
+        else {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                fact.value_origin(),
+            ));
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) =
+            self.typed.types().types().get(*interface)
+        else {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                fact.value_origin(),
+            ));
+        };
+        let interface_kind = self
+            .typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .map(|nominal| nominal.kind());
+        if interface_kind != Some(NominalKind::Interface) {
+            return Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                fact.value_origin(),
+            ));
+        }
+        let concrete = super::resolve_concrete_type(
+            self.typed,
+            fact.receiver_type(),
+            self.substitutions,
+            self.static_self,
+            fact.value_origin(),
+        )?;
+        let receiver = self
+            .current_receiver
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
+        if fact.owner() != *declaration
+            || receiver.owner != fact.owner()
+            || receiver.mode != ParameterMode::Value
+            || receiver.template_ty != fact.receiver_type()
+            || receiver.ty != concrete
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.value_origin(),
+            ));
+        }
+        let EntityId::Value(owner) = receiver.entity else {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.value_origin(),
+            ));
+        };
+        match self.typed.types().copyability(concrete) {
+            Copyability::Copyable => Ok(None),
+            Copyability::MoveOnly => Ok(Some(owner)),
+            Copyability::Unknown | Copyability::Error => Err(lowering_error(
+                LoweringErrorKind::InvalidModel,
+                fact.value_origin(),
+            )),
+        }
     }
 
     /// LoopExit facts 基于 loop-entry state 发布；若所有实际出口已一致消费 owner，缺失 binding

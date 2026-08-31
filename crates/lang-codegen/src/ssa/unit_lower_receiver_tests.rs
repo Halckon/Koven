@@ -1595,6 +1595,135 @@ fn value_receiver_is_rebound_across_while_edges() {
     render_verified_program(&program).expect("loop-carried receiver must lower to LLVM");
 }
 
+#[test]
+fn interface_value_default_drops_move_only_concrete_receiver_once() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable { own fun finish(): Int = 40 }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().finish()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("MoveOnly StaticSelf specialization must consume its conditional receiver drop");
+
+    let module = &program.modules[0];
+    let finish = function(module.functions.iter(), ".Finishable.finish.s");
+    assert_eq!(
+        finish
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "callee owns and drops the concrete Resource exactly once",
+    );
+    let entry = function(module.functions.iter(), ".entry.d");
+    assert!(
+        !entry
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+    );
+    render_verified_program(&program).expect("MoveOnly interface Value default must lower to LLVM");
+}
+
+#[test]
+fn interface_value_default_skips_drop_for_copyable_concrete_receiver() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable { own fun finish(): Int = 40 }\n\
+         value class Counter(val item: Int): Finishable {}\n\
+         fun entry(): Int {\n\
+             val counter = Counter(1)\n\
+             val first = counter.finish()\n\
+             return counter.finish() + first\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("Copyable StaticSelf specialization must skip its conditional receiver drop");
+
+    let module = &program.modules[0];
+    let finish = function(module.functions.iter(), ".Finishable.finish.s");
+    assert!(
+        !finish
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+    );
+    render_verified_program(&program).expect("Copyable interface Value default must lower to LLVM");
+}
+
+#[test]
+fn interface_value_default_drops_receiver_on_each_early_return_edge() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Finishable {\n\
+             own fun finish(flag: Boolean): Int {\n\
+                 if (flag) { return 1 }\n\
+                 return 2\n\
+             }\n\
+         }\n\
+         class Resource: Finishable {}\n\
+         fun entry(): Int = Resource().finish(true)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("conditional receiver drops must cover every reachable return edge");
+
+    let finish = function(program.modules[0].functions.iter(), ".Finishable.finish.s");
+    assert_eq!(
+        finish
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        2,
+        "each mutually exclusive return edge owns one receiver drop",
+    );
+    render_verified_program(&program).expect("early-return receiver drops must lower to LLVM");
+}
+
 fn function<'a>(
     mut functions: impl Iterator<Item = &'a Function>,
     name_fragment: &str,
