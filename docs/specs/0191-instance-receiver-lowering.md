@@ -40,11 +40,12 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   `BeforeReplacement/ReplacedField` fact，并交叉核对 assignment、field symbol 与 target origin；
   RHS owned value 转交给 field，LLVM 按 RHS 完成→load old→drop old→store new 的 guide 顺序执行。
   `HeapFieldRead` 仍只开放 Copyable field，receiver handle/storage 与公开 ABI 不变。
-- 非泛型 value class 的 Copyable `var` field replacement 使用独立
-  `InlineFieldReplace`：callee 只在 active、无派生 loan 的 exact exclusive receiver 上写 Copyable
-  field；Copyable owner 在 caller 结束 loans 后从同一 `RootPlace` 读取并重绑定，MoveOnly owner 使用
-  `RootPlaceTake` 消费旧 identity 后重绑定。隐式 `this` 已持有 exact exclusive loan 时直接转发，
-  不重复 addressize 或写回。MoveOnly target field 继续 fail loud，等待旧字段 drop/glue。
+- 非泛型 value class 的 `var` field replacement 使用独立 `InlineFieldReplace`：callee 只在 active、
+  无派生 loan 的 exact exclusive receiver 上写 exact field type；Copyable field 直接 store，MoveOnly
+  field 必须消费唯一 `BeforeReplacement/ReplacedField` fact，并按 RHS 完成→load old→drop old→store new
+  执行，同时递归收集字段 drop glue。Copyable owner 在 caller 结束 loans 后从同一 `RootPlace` 读取并
+  重绑定，MoveOnly owner 使用 `RootPlaceTake` 消费旧 identity 后重绑定。隐式 `this` 已持有 exact
+  exclusive loan 时直接转发，不重复 addressize 或写回；MoveOnly field read/部分移动仍保持门禁。
 - non-generic MoveOnly value class/enum 的 root Inout call 在所有实参与 receiver loan 结束后，使用
   `RootPlaceTake` 从同一 direct root storage 取回 owner：该操作只接受 MoveOnly、精确 root-owner
   identity、无 active loan 的 place，消费旧 SSA owner 与 place 后发布唯一新 owner。LLVM 只加载
@@ -93,12 +94,13 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [x] non-generic value class/enum 的 Inout call 已把当前 SSA value addressize 为 call-scoped
   storage；callee receiver 与 caller operand 均为 exact concrete type 的 exclusive loan，value-class
   Copyable field read 通过短 shared reborrow 投影并逆序结束 derived loan，LLVM/native 闭环通过。
-- [x] Copyable target field 的 non-generic value class 已完成 `InlineFieldReplace` 与 native 可观察
-  mutation；Copyable/MoveOnly owner 分别执行 caller same-root read/take-rebind，implicit Inout `this`
-  直接转发 exact loan。MoveOnly target field 继续以 `UnsupportedNode` 明确拒绝。
+- [x] Copyable/MoveOnly target field 的 non-generic value class 已完成 `InlineFieldReplace` 与 native
+  mutation；MoveOnly target 精确消费旧字段 fact，LLVM 按 old-drop-before-store 执行并递归收集嵌套
+  drop glue。Copyable/MoveOnly owner 分别执行 caller same-root read/take-rebind，implicit Inout `this`
+  直接转发 exact loan；MoveOnly field read/部分移动仍明确拒绝。
 - [x] non-generic MoveOnly value class/enum 的 root Inout call 已完成 loan-end 后 `RootPlaceTake` 与
   caller binding rebind；旧 owner 不再析构，take 结果在原语义 drop point 恰好析构一次，动态 String
-  owner native 闭环无 double free。MoveOnly target field replacement 不在本切片开放。
+  owner native 闭环无 double free。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -120,7 +122,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    non-generic value class/enum Inout 的 exclusive pointer ABI 与 value-class Copyable field read 已完成；
    Copyable target field 的 value-class `var` field replacement、caller same-root write-back 与 implicit
    Inout `this` exact-loan 转发已完成；MoveOnly inline root 已通过 `RootPlaceTake` 完成 read-only Inout
-   caller take/rebind，并可在 callee 修改 Copyable field；MoveOnly target field replacement 仍保持门禁；
+   caller take/rebind，并可在 callee 修改 Copyable/MoveOnly field；MoveOnly target 精确消费旧字段 fact、
+   递归 drop glue 并完成 old-drop-before-store，MoveOnly field read/部分移动仍保持门禁；
    参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
    receiver 已完成；SPEC-0219 exact owner descriptor 已接入有限递归 `List` / 单参数 ordinary-class
    recipe 的 construction/projection/replacement；direct `T?` 的 pointer-like nullable storage/drop 已由
@@ -172,6 +175,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 16 | 补齐 Copyable value-class inline field mutation 与 caller same-root write-back | `feat(codegen): lower copyable inline inout mutation (SPEC-0191)` |
 | 17 | 补齐 MoveOnly inline root 在 Inout loan-end 后的 take/rebind | `feat(codegen): take move-only inline inout roots (SPEC-0191)` |
 | 18 | 允许 MoveOnly inline owner 修改 Copyable field | `feat(codegen): mutate copyable fields in move-only inline owners (SPEC-0191)` |
+| 19 | 允许 MoveOnly inline field 精确替换并析构旧字段 | `feat(codegen): replace move-only inline fields (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -182,9 +186,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
   参数增长型与 inherited owner recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
-- value-class Inout 的 MoveOnly root take/rebind 与 Copyable target field mutation 已开放；MoveOnly
-  target field replacement 仍等待旧字段 drop fact/glue 的独立切片，不把 heap-owner
-  `HeapFieldReplace` 或无依据的 copy 误用于 inline layout。
+- value-class Inout 的 MoveOnly root take/rebind 与 Copyable/MoveOnly target field mutation 已开放；
+  MoveOnly field read 与部分移动仍按 guide 拒绝，不把 replacement 的旧字段精确消费扩张为投影读取。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
 
 ## 9. 验证记录
@@ -311,7 +314,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | inline Inout receiver 红测 | 按预期失败后转绿 | value-class Inout field read 初始在 exclusive receiver 上以 `UnsupportedNode` 失败；加入短 shared reborrow 后与 enum Inout 共用 receiver-first exclusive pointer ABI |
 | `cargo test -p lang-codegen --lib inline_inout_read_only_receivers_use_exclusive_call_storage --locked --offline` | 1/1 通过 | callee exact aggregate/tagged type、caller value→`RootPlace`→exclusive `BorrowBegin`→DirectCall identity、value-class `SharedReborrow`→field loan→read 与 verified LLVM |
 | `cargo test -p lang-codegen --lib inline_inout_read_only_receivers_link_and_run --locked --offline` | 1/1 通过 | source→object→Clang link→run 输出 `inline-inout`；只验收 read-only call-scoped addressization，不宣称 mutation write-back |
-| `cargo test -p lang-codegen --lib move_only_inline_inout_field_replacement_remains_an_explicit_boundary --locked --offline` | 1/1 通过 | MoveOnly inline field assignment 在发布 SSA 前以带 Span 的 `UnsupportedNode` fail loud，不被误降级为 local binding replacement |
+| MoveOnly inline field replacement 历史门禁（后继切片已解除） | 1/1 通过 | 当时在发布 SSA 前以带 Span 的 `UnsupportedNode` fail loud；后继切片在精确旧字段 fact 与 drop glue 就绪后转为正例 |
 | `cargo test -p lang-codegen --lib shared_inline_field_loan_blocks_ending_its_parent_reborrow --locked --offline` | 1/1 通过 | ownership verifier 把 `SharedFieldLoan` 纳入 reborrow dependency，拒绝 field loan 活跃时提前结束 parent |
 | `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 36/36 通过 | Borrow/Inout/Value、class/value/enum/object/interface/default/delegation、generic/nullable replacement 与 inline fail-loud 职责回归 |
 | `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline -- --test-threads=1` | 14/14 通过 | `SharedFieldLoan` parent dependency、既有 `SharedHeapFieldLoan`/reborrow、loan/move/drop 负矩阵通过 |
@@ -342,8 +345,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 独立高风险复核（MoveOnly inline root take/write-back） | 通过 | 复核 direct-root contract、旧 owner/place 唯一消费、active-loan/重复 take、LLVM load、caller rebind/drop 及 field replacement 双重门禁，未发现 P1/P2/P3 |
 | MoveOnly owner + Copyable field 红测 | 按预期失败后转绿 | 非零 Int field assignment 初始在 whole-owner Copyable gate 以 `UnsupportedNode` 失败；只移除 aggregate ownership gate 后进入既有 `InlineFieldReplace` + `RootPlaceTake` 链 |
 | `cargo test -p lang-codegen --lib move_only_inline_inout_rebinds_after_copyable_field_mutation --locked --offline -- --test-threads=1` | 1/1 通过 | setter 精确写 field 1、Borrow RHS read；caller argument-end→receiver-end→same-root take，旧 owner 零 drop、新 owner 一次 drop，getter 使用 rebound owner |
-| `cargo test -p lang-codegen --lib inline_field_replace_requires_a_copyable_field_and_an_unshadowed_exclusive_receiver --locked --offline -- --test-threads=1` | 1/1 通过 | verifier 接受 MoveOnly aggregate + Copyable field，继续拒绝 shared/inactive/derived loan、越界、MoveOnly field 与错误 RHS type |
-| `cargo test -p lang-codegen --lib move_only_inline_inout_field_replacement_remains_an_explicit_boundary --locked --offline -- --test-threads=1` | 1/1 通过 | MoveOnly target field 仍在 RHS/SSA replacement 前 fail loud |
+| `cargo test -p lang-codegen --lib inline_field_replace_requires_an_owned_field_and_an_unshadowed_exclusive_receiver --locked --offline -- --test-threads=1` | 1/1 通过 | verifier 接受 MoveOnly aggregate + Copyable/MoveOnly field，继续拒绝 shared/inactive/derived loan、越界与错误 RHS type |
+| MoveOnly target field 历史门禁（后继切片已解除） | 1/1 通过 | 旧边界在 RHS/SSA replacement 前 fail loud；现由精确 replacement fact 与 old-drop-before-store 取代 |
 | `cargo test -p lang-codegen --lib move_only_inline_owner_mutates_a_copyable_field_natively --locked --offline -- --test-threads=1` | 1/1 通过 | 动态 String owner 与动态 Int replacement 经 object→Clang link→run 输出 `move-only-copyable-field` |
 | `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 40/40 通过 | Copyable/MoveOnly owner write-back、field mutation与 MoveOnly field boundary 回归 |
 | `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline -- --test-threads=1` | 16/16 通过 | inline replace/take 与既有 loan/move/drop 矩阵通过 |
@@ -352,3 +355,15 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
 | `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁；未运行耗时 frontend 全量测试 |
 | 独立高风险复核（MoveOnly owner + Copyable inline field） | 通过 | 确认只移除 aggregate ownership gate，field Copyable/exact RHS/exclusive loan/drop-fact、non-zero GEP、caller take/drop 与 MoveOnly field 门禁均保持，未发现 P1/P2/P3 |
+| MoveOnly inline target field 红测 | 按预期失败后转绿 | 原历史门禁正例化后先以 `UnsupportedNode` 失败；接入既有 `InlineFieldReplace`、旧字段 drop 与递归 runtime requirement 后通过 |
+| `cargo test -p lang-codegen --lib move_only_inline_inout_replaces_a_move_only_field --locked --offline -- --test-threads=1` | 1/1 通过 | field 1 的动态 String RHS 在 replace 前完成；caller receiver-end→same-root take，LLVM old load→drop→store，新 owner 在原 drop point 唯一析构 |
+| `cargo test -p lang-codegen --lib inline_field_replace_requires_an_owned_field_and_an_unshadowed_exclusive_receiver --locked --offline -- --test-threads=1` | 1/1 通过 | verifier 接受 Copyable/MoveOnly field，继续要求 exact RHS 与 active、无派生 loan 的 exclusive receiver |
+| `cargo test -p lang-codegen --lib move_only_inline_replacement_collects_nested_field_drop_glue --locked --offline -- --test-threads=1` | 1/1 通过 | 嵌套 MoveOnly value-class field 经 source→object→Clang link→run，证明 runtime requirements 递归收集 drop glue |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 40/40 通过 | receiver、inline replacement、caller take/rebind 与既有 default/delegation/generic 职责回归 |
+| `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline -- --test-threads=1` | 16/16 通过 | inline replace/take 与既有 loan/move/drop 负矩阵通过 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_assignment_tests --locked --offline -- --test-threads=1` | 3/3 通过 | 共享 assignment 路径与 replacement 顺序回归通过 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_aggregate_tests --locked --offline -- --test-threads=1` | 9/9 通过 | MoveOnly field read/部分移动与 generic aggregate 既有门禁保持 |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline -- --test-threads=1` | 27/27 通过 | 嵌套 drop glue 与既有 receiver/default/delegation/generic native 小模块通过 |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁，零 warning；未运行耗时 frontend 全量测试 |
+| 独立高风险复核（MoveOnly inline field replacement） | 通过 | 复核 frontend 精确 fact、exclusive/no-derived verifier、递归 drop glue、RHS→old load/drop/store、caller take/rebind 与 MoveOnly read/部分移动门禁，未发现 P1/P2/P3 |

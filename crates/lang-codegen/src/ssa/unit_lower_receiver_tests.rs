@@ -3,7 +3,6 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweringErrorKind,
     model::{
         EntityId, EntityType, Function, LoanKind, Operation, PlaceAccess, SsaTypeKind,
         TerminatorKind,
@@ -1065,18 +1064,18 @@ fn inline_inout_read_only_receivers_use_exclusive_call_storage() {
 }
 
 #[test]
-fn move_only_inline_inout_field_replacement_remains_an_explicit_boundary() {
+fn move_only_inline_inout_replaces_a_move_only_field() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "p/inline-inout-replacement.ko",
         "package p\n\
-         value class Resource(var item: String) {\n\
-             inout fun set(own next: String): Unit { item = next }\n\
+         value class Resource(val marker: Int, var item: String) {\n\
+             inout fun set(): Unit { item = \"n\" + \"ew\" }\n\
          }\n\
          fun entry(): Unit {\n\
-             var resource = Resource(\"old\")\n\
-             val ignored = resource.set(\"new\")\n\
+             var resource = Resource(1, \"old\")\n\
+             val ignored = resource.set()\n\
          }",
     );
     let inputs = [SourceUnitInput::new(
@@ -1088,7 +1087,7 @@ fn move_only_inline_inout_field_replacement_remains_an_explicit_boundary() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let error = match lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -1096,12 +1095,111 @@ fn move_only_inline_inout_field_replacement_remains_an_explicit_boundary() {
         &typed,
         &owned,
         declaration(&names, "p", "entry"),
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("MoveOnly inline field replacement requires take/write-back support"),
+    )
+    .expect("MoveOnly inline field replacement must consume the exact old-field fact");
+
+    let module = &program.modules[0];
+    let setter = function(module.functions.iter(), ".Resource.set.s");
+    let replace = setter
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::InlineFieldReplace { field: 1, .. }
+            )
+        })
+        .expect("MoveOnly inline field replacement");
+    let replacement = match setter.instructions[replace].operation {
+        Operation::InlineFieldReplace { value, .. } => value,
+        _ => unreachable!(),
     };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    assert!(setter.instructions[..replace].iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::StringConcat { .. } if instruction.results == [EntityId::Value(replacement)]
+    )));
+
+    let entry = function(module.functions.iter(), ".entry.d");
+    let call = entry
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::DirectCall { callee, .. } if callee == setter.id()
+            )
+        })
+        .expect("setter call");
+    let receiver = match &entry.instructions[call].operation {
+        Operation::DirectCall {
+            receiver: Some(EntityId::Loan(receiver)),
+            arguments,
+            ..
+        } => {
+            assert!(arguments.is_empty(), "setter arguments: {arguments:?}");
+            *receiver
+        }
+        ref other => panic!("MoveOnly setter receiver: {other:?}"),
+    };
+    let relevant = entry.instructions[call + 1..]
+        .iter()
+        .filter_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::BorrowEnd { loan }, []) if *loan == receiver => {
+                    Some(("receiver-end", None))
+                }
+                (Operation::RootPlaceTake { .. }, [EntityId::Value(value)]) => {
+                    Some(("take", Some(*value)))
+                }
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(
+        relevant.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(),
+        ["receiver-end", "take"]
+    );
+    let rebound = relevant[1]
+        .1
+        .expect("MoveOnly caller must take the mutated root after receiver end");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(
+                instruction.operation,
+                Operation::Drop { owner } if owner == rebound
+            ))
+            .count(),
+        1
+    );
+
+    let llvm = render_verified_program(&program).expect("MoveOnly inline replacement LLVM");
+    let setter_llvm = llvm
+        .split("define internal void @f1.koven.p.Resource.set")
+        .nth(1)
+        .and_then(|body| body.split("define internal").next())
+        .unwrap_or_else(|| panic!("setter LLVM body:\n{llvm}"));
+    let old_load = setter_llvm
+        .find(".old = load")
+        .unwrap_or_else(|| panic!("old inline field load:\n{setter_llvm}"));
+    let field_gep = setter_llvm
+        .lines()
+        .find(|line| line.contains("getelementptr") && line.contains("inline.replace"))
+        .unwrap_or_else(|| panic!("inline replacement field GEP:\n{setter_llvm}"));
+    assert!(field_gep.contains("i32 1"), "{field_gep}");
+    let old_drop = setter_llvm[old_load..]
+        .find("call void @koven.drop")
+        .map(|offset| old_load + offset)
+        .expect("old inline field drop");
+    let replacement_store = setter_llvm[old_drop..]
+        .find("store")
+        .map(|offset| old_drop + offset)
+        .expect("replacement store after old drop");
+    assert!(
+        old_load < old_drop && old_drop < replacement_store,
+        "{setter_llvm}"
+    );
 }
 
 #[test]

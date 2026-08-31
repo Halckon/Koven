@@ -670,6 +670,17 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     *field as u32,
                     &format!("inline.replace.i{}", instruction.id.index()),
                 )?;
+                let field_type = value_type(self.function, *value)?;
+                if self.module.type_ownership(field_type) == Some(Ownership::MoveOnly) {
+                    let old = self.builder.build_load(
+                        self.dependencies.type_map.basic_type(field_type)?,
+                        pointer,
+                        &format!("inline.replace.i{}.old", instruction.id.index()),
+                    )?;
+                    self.dependencies
+                        .runtime
+                        .emit_drop(&self.builder, field_type, old)?;
+                }
                 self.builder.build_store(pointer, self.value(*value)?)?;
             }
             Operation::SharedAllocate { owner, payload } => {

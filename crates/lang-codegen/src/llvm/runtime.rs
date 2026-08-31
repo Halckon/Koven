@@ -876,6 +876,30 @@ impl RuntimeRequirements {
                             })?;
                         requirements.collect_drop_type(module, field)?;
                     }
+                    Operation::InlineFieldReplace {
+                        receiver, field, ..
+                    } => {
+                        let owner = match function
+                            .entity(EntityId::Loan(receiver))
+                            .map(|data| data.ty)
+                        {
+                            Some(EntityType::Loan { target, .. }) => target,
+                            _ => {
+                                return Err(LlvmAdapterError::InvalidSsa(
+                                    "inline field replace receiver 缺少 loan target".to_owned(),
+                                ));
+                            }
+                        };
+                        let field = module
+                            .aggregate_fields(owner)
+                            .and_then(|fields| fields.get(field).copied())
+                            .ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa(
+                                    "inline field replace 缺少 field type".to_owned(),
+                                )
+                            })?;
+                        requirements.collect_drop_type(module, field)?;
+                    }
                     Operation::PrintLiteral { .. } => {
                         requirements.needs_print = true;
                         requirements.needs_abort = true;

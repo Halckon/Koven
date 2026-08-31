@@ -789,6 +789,51 @@ fn move_only_inline_owner_mutates_a_copyable_field_natively() {
 }
 
 #[test]
+fn move_only_inline_replacement_collects_nested_field_drop_glue() {
+    let analysis = analyze_sources(
+        "package p\n\
+         value class Payload(val text: String)\n\
+         value class Resource(val marker: Int, var item: Payload) {\n\
+             inout fun reset(): Unit { item = Payload(\"n\" + \"ew\") }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var resource = Resource(1, Payload(\"o\" + \"ld\"))\n\
+             val ignored = resource.reset()\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("nested-inline-replacement.o");
+    let executable = directory.join("nested-inline-replacement");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("nested MoveOnly inline field replacement must collect recursive drop glue");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("nested inline replacement executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn interface_default_and_super_static_calls_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\

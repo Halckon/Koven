@@ -154,8 +154,10 @@ pub(super) fn verify_operation(
                     })
                 )
                 && inline_field_type(module, function, *receiver, *field).is_some_and(|field| {
-                    module.type_ownership(field) == Some(Ownership::Copyable)
-                        && value_type(function, *value) == Some(field)
+                    matches!(
+                        module.type_ownership(field),
+                        Some(Ownership::Copyable | Ownership::MoveOnly)
+                    ) && value_type(function, *value) == Some(field)
                 })
         }
         Operation::SharedAllocate { owner, payload } => {

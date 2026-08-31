@@ -540,11 +540,12 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       已复用 root tagged identity；SPEC-0221 已补齐整体 MoveOnly enum 的空 payload case，使其经
       local/return/Value call/Value receiver 唯一转移，并与含 String payload case 共用 tag-dispatch drop glue。
       non-generic value class/enum Inout 已通过 call-scoped addressization 建立 exclusive pointer ABI，
-      value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；Copyable target field
-      已通过 `InlineFieldReplace` 完成原位 mutation，Copyable/MoveOnly owner 分别在 caller loan-end 后
+      value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；Copyable/MoveOnly target
+      field 已通过 `InlineFieldReplace` 完成原位 mutation，MoveOnly target 精确消费旧字段 fact，LLVM
+      按 old-drop-before-store 执行并递归收集嵌套 drop glue；Copyable/MoveOnly owner 分别在 caller loan-end 后
       same-root read/take-rebind 并完成 native 闭环，implicit Inout `this` 直接转发既有 exclusive loan。non-generic
       MoveOnly value class/enum root 已通过 loan-end 后 `RootPlaceTake` 完成 read-only Inout take/rebind，
-      旧 owner 不 drop、take owner 在原 drop point 唯一析构；MoveOnly target field replacement 仍
+      旧 owner 不 drop、take owner 在原 drop point 唯一析构；MoveOnly field read/部分移动仍
       fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
       Phase 2 L0099 拒绝。
       `T?`、function、其他 intrinsic、

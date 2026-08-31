@@ -178,7 +178,7 @@ impl UnitExpressionLowerer<'_> {
                 receiver_kind: LoanKind::Exclusive,
             } => CurrentFieldOperation::Heap(receiver),
             super::aggregate::CurrentReceiverFieldStorage::Inline
-                if copyability == Copyability::Copyable =>
+                if matches!(copyability, Copyability::Copyable | Copyability::MoveOnly) =>
             {
                 let current = self
                     .current_receiver
