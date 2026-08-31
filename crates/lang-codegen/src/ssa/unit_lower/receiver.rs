@@ -18,14 +18,93 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess},
+    unit_plan::UnitDelegatedCallRoute,
 };
 
 pub(super) struct LoweredReceiver {
     pub(super) entity: EntityId,
-    pub(super) created_loan: Option<(LoanId, Span)>,
+    pub(super) created_loans: Vec<(LoanId, Span)>,
 }
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn lower_delegated_call_receiver(
+        &mut self,
+        call: UnitExpressionId,
+        descriptor: &UnitCallDescriptor,
+        receiver: Option<LoweredReceiver>,
+        route: UnitDelegatedCallRoute,
+        span: Span,
+    ) -> Result<Option<LoweredReceiver>, LoweringError> {
+        let Some(mut receiver) = receiver else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let Some(receiver_descriptor) = descriptor.receiver() else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let fact = self
+            .owned
+            .ownership()
+            .receiver_fact(call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete = resolve_concrete_type(
+            self.typed,
+            receiver_descriptor.ty(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let outer_target = self
+            .type_ids
+            .get(&route.outer_receiver())
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let delegate_target = self
+            .type_ids
+            .get(&route.delegate_receiver())
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let field = self
+            .field_indices
+            .get(&(route.outer_receiver(), route.field()))
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let EntityId::Loan(base) = receiver.entity else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        if concrete != route.outer_receiver()
+            || receiver_descriptor.mode() != ParameterMode::Borrow
+            || fact.kind() != UnitReceiverOwnershipKind::SharedLoan
+            || self
+                .function
+                .entity(EntityId::Loan(base))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: outer_target,
+                })
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (_, results) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::SharedHeapFieldLoan { base, field },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: delegate_target,
+                }],
+                Origin::Source(fact.begin_span()),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Loan(delegate) = results[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        receiver.entity = EntityId::Loan(delegate);
+        receiver.created_loans.push((delegate, fact.end_span()));
+        Ok(Some(receiver))
+    }
+
     pub(super) fn lower_call_receiver(
         &mut self,
         call: UnitExpressionId,
@@ -99,7 +178,7 @@ impl UnitExpressionLowerer<'_> {
             }
             return Ok(Some(LoweredReceiver {
                 entity: EntityId::Loan(loan),
-                created_loan: None,
+                created_loans: Vec::new(),
             }));
         }
         let object_value = if fact.kind() == UnitReceiverOwnershipKind::SharedLoan
@@ -152,7 +231,7 @@ impl UnitExpressionLowerer<'_> {
             }
             UnitReceiverOwnershipKind::Copy => Ok(Some(LoweredReceiver {
                 entity: EntityId::Value(value),
-                created_loan: None,
+                created_loans: Vec::new(),
             })),
             UnitReceiverOwnershipKind::Move => {
                 let UnitReceiverOwnershipTarget::Place(place) = fact.target() else {
@@ -170,7 +249,7 @@ impl UnitExpressionLowerer<'_> {
                 self.take_owned_binding(place.root(), value, fact.begin_span())?;
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Value(value),
-                    created_loan: None,
+                    created_loans: Vec::new(),
                 }))
             }
             UnitReceiverOwnershipKind::Temporary => {
@@ -192,7 +271,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Value(value),
-                    created_loan: None,
+                    created_loans: Vec::new(),
                 }))
             }
         }
@@ -327,7 +406,7 @@ impl UnitExpressionLowerer<'_> {
                         target: actual,
                     }) if actual == target => Ok(Some(LoweredReceiver {
                         entity: EntityId::Loan(loan),
-                        created_loan: None,
+                        created_loans: Vec::new(),
                     })),
                     Some(EntityType::Loan {
                         kind: LoanKind::Exclusive,
@@ -354,7 +433,7 @@ impl UnitExpressionLowerer<'_> {
             {
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Loan(loan),
-                    created_loan: None,
+                    created_loans: Vec::new(),
                 }))
             }
             (UnitReceiverOwnershipKind::Copy, EntityId::Value(value))
@@ -362,7 +441,7 @@ impl UnitExpressionLowerer<'_> {
             {
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Value(value),
-                    created_loan: None,
+                    created_loans: Vec::new(),
                 }))
             }
             (UnitReceiverOwnershipKind::Move, EntityId::Value(value))
@@ -371,7 +450,7 @@ impl UnitExpressionLowerer<'_> {
                 self.current_receiver = None;
                 Ok(Some(LoweredReceiver {
                     entity: EntityId::Value(value),
-                    created_loan: None,
+                    created_loans: Vec::new(),
                 }))
             }
             _ => Err(lowering_error(
@@ -405,7 +484,7 @@ impl UnitExpressionLowerer<'_> {
         };
         Ok(Some(LoweredReceiver {
             entity: EntityId::Loan(loan),
-            created_loan: Some((loan, end_span)),
+            created_loans: vec![(loan, end_span)],
         }))
     }
 
@@ -443,7 +522,7 @@ impl UnitExpressionLowerer<'_> {
         };
         Ok(Some(LoweredReceiver {
             entity: EntityId::Loan(loan),
-            created_loan: Some((loan, end_span)),
+            created_loans: vec![(loan, end_span)],
         }))
     }
 

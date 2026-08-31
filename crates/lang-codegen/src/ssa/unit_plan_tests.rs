@@ -392,6 +392,149 @@ fn plans_concrete_override_instead_of_abstract_requirement() {
 }
 
 #[test]
+fn plans_delegate_implementation_from_validated_forwarder_route() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Host(val delegate: Reader): Readable by delegate {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let readable = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let reader = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let requirement = readable.members()[0].target();
+    let implementation = reader.members()[0].target();
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    assert!(
+        instances
+            .iter()
+            .any(|instance| instance.key().target() == implementation)
+    );
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement),
+        "delegated abstract requirement must not become a lowering template"
+    );
+}
+
+#[test]
+fn rejects_chained_delegation_before_lowering_any_partial_route() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Middle(val reader: Reader): Readable by reader {}\n\
+         class Host(val middle: Middle): Readable by middle {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("the first native delegation slice is deliberately single-layer");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+}
+
+#[test]
+fn rejects_generic_delegate_field_in_the_route_resolver() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader<T>: Readable { override fun read(): Int = 7 }\n\
+         class Host(val delegate: Reader<Int>): Readable by delegate {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("generic delegate layout remains outside the first native route slice");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+}
+
+#[test]
+fn rejects_bodyful_delegation_until_frontend_publishes_effective_target() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Host(val delegate: Reader): Readable by delegate {}\n\
+         fun entry(host: Host): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("bodyful delegation needs an exact frontend effective-target fact");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+}
+
+#[test]
 fn remaps_requirement_arguments_to_concrete_owner_and_callable_slots() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

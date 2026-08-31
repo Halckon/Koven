@@ -701,6 +701,54 @@ fn inherited_and_unrelated_defaults_satisfy_abstract_requirements_natively() {
 }
 
 #[test]
+fn borrow_only_interface_delegation_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader: Readable { override fun read(): Int = 7 }\n\
+         class Host(val tag: Int, val delegate: Reader): Readable by delegate {}\n\
+         fun entry(): Unit {\n\
+             val host = Host(0, Reader())\n\
+             val actual = host.read()\n\
+             if (actual == 7) { println(\"borrow-delegate\") }\
+             else { error(\"wrong delegate\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("borrow-delegate.o");
+    let executable = directory.join("borrow-delegate");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("Borrow-only interface delegation must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked Borrow delegation executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"borrow-delegate\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();

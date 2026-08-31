@@ -994,8 +994,17 @@ Borrow-only 静态委托的下一切片已先建立独立 `SharedHeapFieldLoan` 
 shared heap-owner receiver loan，结果类型精确取 payload aggregate 的目标字段，并登记为 receiver
 loan 的派生依赖，因此 field loan 结束前不能结束父 loan。LLVM 从 caller receiver storage load 原
 heap handle 后直接 GEP payload field，不读取字段 value、不 retain/copy owner，也不建立另一套调用
-ABI。该基元尚不表示 delegate route 已接线；route 必须在后续切片消费 frontend validated typed 与
-ownership facts 后才可生成。
+ABI。该基元提交时尚不表示 delegate route 已接线；route 必须消费 frontend validated typed 与
+ownership facts 后才可生成。后续首个接线切片现已完成：planner/lowerer 共用 exact route resolver，
+要求 concrete outer declaration、forwarder requirement、delegate field symbol 与 Phase 3 ownership
+plan 全部一致，再在 delegate concrete nominal 的既有 static-dispatch facts 上解析真实有体 target；
+不按名称或 callable shape 重选。lower 顺序固定为 outer shared loan→`SharedHeapFieldLoan`→显式
+arguments→DirectCall，结束顺序为 arguments→field loan→outer loan；真实 native 用例由 `Host`
+payload 中的唯一 `Reader` owner 返回结果，并且不读取/copy field value、不 retain、不分配 proxy。
+当前只开放非泛型 ordinary class 的单层 abstract-requirement delegation；generic outer/delegate、
+delegation chain，以及有体 default requirement 分别以 `UnsupportedNode` 保持原子拒绝。最后一项
+必须等待 frontend 在 forwarder 上发布 delegate concrete type 的 exact effective-target identity；
+codegen 不得因 requirement 自带 body 而绕过 field route、静默调用 outer interface default。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

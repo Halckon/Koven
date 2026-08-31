@@ -30,6 +30,44 @@ pub(crate) struct UnitFunctionInstanceKey {
     static_self: Option<UnitTypeId>,
 }
 
+/// 一个已解析的 Borrow-only delegation receiver 投影。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UnitDelegatedCallRoute {
+    outer_receiver: UnitTypeId,
+    field: UnitSymbolId,
+    delegate_receiver: UnitTypeId,
+}
+
+impl UnitDelegatedCallRoute {
+    pub(crate) const fn outer_receiver(self) -> UnitTypeId {
+        self.outer_receiver
+    }
+
+    pub(crate) const fn field(self) -> UnitSymbolId {
+        self.field
+    }
+
+    pub(crate) const fn delegate_receiver(self) -> UnitTypeId {
+        self.delegate_receiver
+    }
+}
+
+/// planner 与 expression lowerer 共用的静态 call route。
+pub(crate) struct ResolvedUnitCallInstance {
+    key: UnitFunctionInstanceKey,
+    delegation: Option<UnitDelegatedCallRoute>,
+}
+
+impl ResolvedUnitCallInstance {
+    pub(crate) const fn key(&self) -> &UnitFunctionInstanceKey {
+        &self.key
+    }
+
+    pub(crate) const fn delegation(&self) -> Option<UnitDelegatedCallRoute> {
+        self.delegation
+    }
+}
+
 impl UnitFunctionInstanceKey {
     pub(crate) fn new(declaration: DeclarationId, type_arguments: Vec<UnitTypeId>) -> Self {
         Self::for_target(UnitCallableTarget::Declaration(declaration), type_arguments)
@@ -237,17 +275,18 @@ pub(crate) fn plan_unit_instances(
                     )
                 })
                 .transpose()?;
-            let target_key = resolve_unit_call_instance(typed, target, arguments, receiver, *span)?;
+            let target_key =
+                resolve_unit_call_instance(typed, owned, target, arguments, receiver, *span)?;
             let target_template_index = template_by_target
-                .get(&target_key.target())
+                .get(&target_key.key().target())
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
-            if target_key.type_arguments().len()
+            if target_key.key().type_arguments().len()
                 != templates[target_template_index].type_parameters.len()
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
-            pending.insert(target_key);
+            pending.insert(target_key.key);
         }
 
         if key.is_specialized() {
@@ -496,6 +535,117 @@ pub(crate) fn callable_static_self_receiver(
 
 /// 把 typed call target 与 concrete receiver 解析为 planner/lowerer 共用的实例 identity。
 pub(crate) fn resolve_unit_call_instance(
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    target: UnitCallableTarget,
+    type_arguments: Vec<UnitTypeId>,
+    receiver: Option<UnitTypeId>,
+    span: Span,
+) -> Result<ResolvedUnitCallInstance, LoweringError> {
+    let direct = || {
+        resolve_direct_unit_call_instance(typed, target, type_arguments.clone(), receiver, span)
+            .map(|key| ResolvedUnitCallInstance {
+                key,
+                delegation: None,
+            })
+    };
+    let Some(receiver) = receiver else {
+        return direct();
+    };
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments,
+    }) = typed.types().types().get(receiver)
+    else {
+        return direct();
+    };
+    let nominal = typed
+        .types()
+        .signatures()
+        .declaration(*declaration)
+        .and_then(|signature| signature.nominal())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let routes = typed
+        .types()
+        .signatures()
+        .delegations()
+        .iter()
+        .filter(|plan| {
+            plan.owner() == *declaration
+                && plan
+                    .forwarders()
+                    .iter()
+                    .any(|forwarder| forwarder.requirement() == target)
+        })
+        .collect::<Vec<_>>();
+    let route = match routes.as_slice() {
+        [] => return direct(),
+        [route] => *route,
+        _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+    };
+    let ownership_routes = owned
+        .ownership()
+        .delegations()
+        .iter()
+        .filter(|plan| {
+            plan.owner() == *declaration
+                && plan.target() == route.target()
+                && plan.forwarders().contains(&target)
+        })
+        .collect::<Vec<_>>();
+    if !matches!(ownership_routes.as_slice(), [_]) {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    if unit_callable_signature(typed, target).is_some_and(UnitCallableSignature::has_body) {
+        // Frontend 尚未发布 bodyful default 在 delegate concrete type 上的 effective target。
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let field = nominal
+        .fields()
+        .iter()
+        .find(|field| field.symbol() == route.target())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let Some(UnitTypeKind::Nominal {
+        declaration: delegate,
+        arguments: delegate_arguments,
+    }) = typed.types().types().get(field.ty())
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let delegate_nominal = typed
+        .types()
+        .signatures()
+        .declaration(*delegate)
+        .and_then(|signature| signature.nominal())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if !delegate_arguments.is_empty() || !delegate_nominal.type_parameters().is_empty() {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    if typed.types().signatures().delegations().iter().any(|plan| {
+        plan.owner() == *delegate
+            && plan
+                .forwarders()
+                .iter()
+                .any(|forwarder| forwarder.requirement() == target)
+    }) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let key =
+        resolve_direct_unit_call_instance(typed, target, type_arguments, Some(field.ty()), span)?;
+    Ok(ResolvedUnitCallInstance {
+        key,
+        delegation: Some(UnitDelegatedCallRoute {
+            outer_receiver: receiver,
+            field: route.target(),
+            delegate_receiver: field.ty(),
+        }),
+    })
+}
+
+fn resolve_direct_unit_call_instance(
     typed: &ValidatedCompilationUnitTypes,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,

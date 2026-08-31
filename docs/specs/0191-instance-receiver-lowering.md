@@ -80,9 +80,11 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
    ancestor requirement→interface replacement/唯一独立 default 已消费双方 owner template 并完成
    native 闭环，`Host<X,Y>: Derived<Y>` 的 owner/callable slot 配方已由 planner 锁定；generic
-   nominal native layout、Inout/Value default 与 Borrow delegate 继续实施。Borrow delegate 的
-   独立前置基元 `SharedHeapFieldLoan` 已完成 SSA contract、父子 loan dependency 与 LLVM
-   heap-handle→payload-field projection；下一切片只负责消费 validated delegation route 并接线调用。
+   nominal native layout 与 Inout/Value default 继续实施。Borrow delegate 的首个非泛型、单层、
+   abstract-requirement ordinary-class 切片已消费 typed/ownership 双重 validated route，以
+   `SharedHeapFieldLoan` 直接转发 concrete delegate Borrow receiver；generic/chained delegation
+   确定性拒绝，有体 default delegation 在 frontend 发布 delegate effective-target fact 前同样以
+   `UnsupportedNode` fail loud，禁止静默调用 outer interface default。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -152,3 +154,6 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen shared_heap_field_loan --no-fail-fast`（拆分为两个 exact 用例执行） | 2/2 通过 | verifier 正反矩阵锁定 shared receiver、越界及 parent-before-child end；LLVM 锁定先 load heap handle 再 GEP payload field，且不生成 aggregate value extract |
 | `cargo test -p lang-codegen --lib --locked --offline` | 269 通过、1 ignored | 独立复核运行共享 codegen 回归；ignored 为既有 debugserver 权限用例，未运行 frontend 全量测试 |
 | 独立高风险复核（heap-owner delegate field loan 基元） | 通过 | 首轮发现既有 inline `SharedFieldLoan` 生命周期被误扩张的 P1 与 LLVM 断言覆盖不足两项 P3；收窄 dependency、改用 MoveOnly delegate owner direct-call 链后复核至无 P1/P2/P3 |
+| 最终并行职责组：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` / `multifile_ownership_checking` | 13/13、23/23、9/9、51/51 通过 | exact route、default/generic/chain 拒绝、receiver/argument loan 顺序、真实 source→object→link→run 与 Phase 3 delegation fact 分层覆盖；未运行约一小时的 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与四组定向测试并行执行的 workspace lib 静态门禁 |
+| 独立高风险复核（首个 abstract Borrow delegation route） | 通过 | 首轮发现 bodyful default 绕过 route 的 P1、generic delegate 门禁 P2 与字段/隐藏操作覆盖 P3；改为 route-first、default fail-loud、generic/chain 独立门禁及非零 field 后复核至无 P1/P2/P3 |

@@ -190,14 +190,25 @@ impl UnitExpressionLowerer<'_> {
                 )
             })
             .transpose()?;
-        let callee_key =
-            resolve_unit_call_instance(self.typed, target, type_arguments, receiver, span)?;
+        let resolved = resolve_unit_call_instance(
+            self.typed,
+            self.owned,
+            target,
+            type_arguments,
+            receiver,
+            span,
+        )?;
         let callee = self
             .function_ids
-            .get(&callee_key)
+            .get(resolved.key())
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
+        let receiver = if let Some(route) = resolved.delegation() {
+            self.lower_delegated_call_receiver(call, descriptor, receiver, route, span)?
+        } else {
+            receiver
+        };
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
@@ -245,7 +256,10 @@ impl UnitExpressionLowerer<'_> {
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
         }
-        if let Some((loan, end_span)) = receiver.and_then(|receiver| receiver.created_loan) {
+        for (loan, end_span) in receiver
+            .into_iter()
+            .flat_map(|receiver| receiver.created_loans.into_iter().rev())
+        {
             self.function
                 .append_instruction(
                     self.block,

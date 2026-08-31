@@ -514,9 +514,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
       object/link/run；ordinary-class Inout Copyable payload、无状态 object Borrow receiver，以及
       concrete `StaticSelf` direct-default/concrete `super<I>`、abstract requirement→effective
-      implementation 静态解析及 heap-owner delegate field shared-loan 基元已完成。继续补齐 generic
-      receiver、Inout/Value interface default、MoveOnly field replacement 与 Borrow-only 静态委托
-      调用接线。复用 ADR-0016，只
+      implementation 静态解析，以及非泛型单层 ordinary-class 的 abstract-requirement Borrow-only
+      静态委托 native 闭环已完成。继续补齐 bodyful default 的 delegate effective-target fact、generic
+      receiver/delegation、Inout/Value interface default、MoveOnly field replacement 与 delegation
+      chain。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
