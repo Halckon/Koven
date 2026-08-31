@@ -1084,6 +1084,55 @@ fn parameter_independent_class_inherited_owner_recipe_links_and_runs() {
 }
 
 #[test]
+fn dependent_class_inherited_owner_recipe_value_roundtrip_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Base<A> { fun read(): Int }\n\
+         interface Derived<B>: Base<String> {\n\
+             fun read(): Int = 7\n\
+             fun echo(own input: B): B = input\n\
+         }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(): Unit {\n\
+             val result = Host<Int>().echo(Wrapper<Int>(7))\n\
+             if (result.item == 7) { println(\"dependent-class-inherited-owner\") }\
+             else { error(\"wrong dependent class inherited owner recipe\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let directory = TestDirectory::create();
+    let object = directory.join("dependent-class-inherited-owner.o");
+    let executable = directory.join("dependent-class-inherited-owner");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("p", "entry"),
+        &object,
+    )
+    .expect("dependent class inherited owner recipe must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked dependent class inherited-owner executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"dependent-class-inherited-owner\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn borrow_only_interface_delegation_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

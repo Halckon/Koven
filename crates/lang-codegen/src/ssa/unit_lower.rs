@@ -46,7 +46,8 @@ use super::{
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
     unit_plan::{
-        UnitFunctionInstanceKey, UnitPlannedInstance, plan_unit_instances, resolve_concrete_type,
+        UnitFunctionInstanceKey, UnitPlannedInstance, UnitRuntimeTypeDemand, plan_unit_instances,
+        resolve_concrete_type,
     },
     verify::verify_program,
 };
@@ -124,7 +125,9 @@ pub(crate) fn lower_scalar_unit_with_entry(
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
-    let instances = plan_unit_instances(sources, inputs, names, environment, typed, owned, entry)?;
+    let instance_plan =
+        plan_unit_instances(sources, inputs, names, environment, typed, owned, entry)?;
+    let (instances, runtime_type_demands) = instance_plan.into_parts();
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let mut program = Program::default();
     let module_id = program.add_module("main");
@@ -315,6 +318,25 @@ pub(crate) fn lower_scalar_unit_with_entry(
         owned,
         &mut types,
     )?;
+    for (ty, demand) in runtime_type_demands {
+        let materialized = types.type_ids().contains_key(&ty);
+        match demand {
+            UnitRuntimeTypeDemand::InstanceKeyOnly if materialized => {
+                return Err(LoweringError {
+                    kind: LoweringErrorKind::InvalidModel,
+                    span: None,
+                });
+            }
+            UnitRuntimeTypeDemand::RuntimeLayoutRequired if !materialized => {
+                return Err(LoweringError {
+                    kind: LoweringErrorKind::InvalidModel,
+                    span: None,
+                });
+            }
+            UnitRuntimeTypeDemand::InstanceKeyOnly
+            | UnitRuntimeTypeDemand::RuntimeLayoutRequired => {}
+        }
+    }
 
     let entry_id = function_ids
         .get(&UnitFunctionInstanceKey::for_entry(entry))

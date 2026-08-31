@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-224` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
@@ -37,12 +37,13 @@ layout 则必须来自 exact SPEC-0219 descriptor 并完成 verified SSA/LLVM/na
 
 ## 4. 验收标准
 
-- [ ] planner 白盒覆盖 dependent class 的 instance-key-only 与 runtime-layout-required 两类正例。
-- [ ] SSA/LLVM 证明前者不物化 nominal identity，后者只物化 exact concrete layout/drop requirements。
-- [ ] missing descriptor、self-growing、参数增长、多参数、value class、intrinsic 与输入置换负矩阵稳定。
-- [ ] inherited default/override 的 source→object→link→run 覆盖 dependent field read 或 delivery。
-- [ ] `unit_plan_tests`、receiver/native 职责测试与 workspace library 静态门禁通过；不跑 frontend 全量测试。
-- [ ] Architecture/Roadmap/Spec 同步并经独立高风险复核。
+- [x] planner 白盒覆盖 dependent class 的 instance-key-only 与 runtime-layout-required 两类正例。
+- [x] SSA/LLVM 证明前者不物化 nominal identity，后者只物化 exact concrete layout/drop requirements。
+- [x] missing/mismatched descriptor、self-growing、参数增长、多参数、value class、intrinsic、固定参数 SCC
+  与输入置换矩阵稳定。
+- [x] inherited default 的 source→object→link→run 覆盖 dependent Value delivery；既有 override 路径保持独立。
+- [x] `unit_plan_tests`、receiver/native 职责测试与 workspace library 静态门禁通过；未跑 frontend 全量测试。
+- [x] Architecture/Roadmap/Spec 同步并经独立高风险复核。
 
 ## 5. 技术方案与边界
 
@@ -52,9 +53,9 @@ instance key 或 frontend target identity。
 
 ## 6. 实施计划
 
-1. [ ] 用成对 fixture 锁定 instance-key-only/runtime-demand 分界 → 验证：planner 白盒与输入置换。
-2. [ ] 接 exact dependent layout 与 fail-loud 门禁 → 验证：SSA/LLVM 正反矩阵。
-3. [ ] 接 inherited native 闭环并同步文档 → 验证：真实运行、精简回归与独立复核。
+1. [x] 用成对 fixture 锁定 instance-key-only/runtime-demand 分界 → 验证：planner 白盒与输入置换。
+2. [x] 接 exact dependent layout 与 fail-loud 门禁 → 验证：SSA/LLVM 正反矩阵。
+3. [x] 接 inherited native 闭环并同步文档 → 验证：真实运行、精简回归与独立复核。
 
 ## 7. 提交计划
 
@@ -70,4 +71,11 @@ instance key 或 frontend target identity。
 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
-| 待实施 | 未执行 |  |
+| `cargo test -p lang-codegen ssa::unit_plan_tests:: --locked --offline` | 通过，29/29 | planner、descriptor、SCC、lambda ABI/enum payload demand；未跑 frontend 全量测试 |
+| `cargo test -p lang-codegen ssa::unit_lower_receiver_tests:: --locked --offline` | 通过，46/46 | key-only 与 exact runtime layout 的 SSA/LLVM 职责矩阵 |
+| `cargo test -p lang-codegen ssa::unit_lower_closure_tests:: --locked --offline` | 通过，8/8 | closure declaration 后的最终 materialization guard |
+| `cargo test -p lang-codegen dependent_class_inherited_owner_recipe_value_roundtrip_links_and_runs --locked --offline` | 通过，1/1 | source→object→link→run |
+| `cargo check --workspace --lib --locked --offline` | 通过 | workspace library 静态门禁 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library lint 门禁 |
+| `cargo fmt --all -- --check`；`git diff --check` | 通过 | 格式与补丁卫生 |
+| 独立高风险复核 | 通过 | 首轮发现 demand 闭包/lambda 晚物化与闭合 SCC 漏洞；修复并补回归后复核 |

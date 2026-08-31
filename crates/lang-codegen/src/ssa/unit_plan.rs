@@ -1,6 +1,9 @@
 //! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Deref,
+};
 
 use lang_frontend::{
     ast::ItemId,
@@ -57,6 +60,7 @@ impl UnitDelegatedCallRoute {
 pub(crate) struct ResolvedUnitCallInstance {
     key: UnitFunctionInstanceKey,
     delegation: Vec<UnitDelegatedCallRoute>,
+    dependent_owner_types: BTreeSet<UnitTypeId>,
 }
 
 impl ResolvedUnitCallInstance {
@@ -66,6 +70,52 @@ impl ResolvedUnitCallInstance {
 
     pub(crate) fn delegation(&self) -> &[UnitDelegatedCallRoute] {
         &self.delegation
+    }
+}
+
+/// dependent inherited owner concrete type 在当前 unit plan 中的最强运行时需求。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum UnitRuntimeTypeDemand {
+    InstanceKeyOnly,
+    RuntimeLayoutRequired,
+}
+
+/// 可达 callable 实例与 dependent owner 的确定性 strongest-demand 计划。
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct UnitInstancePlan {
+    instances: Vec<UnitPlannedInstance>,
+    runtime_type_demands: BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+}
+
+impl UnitInstancePlan {
+    pub(crate) fn runtime_type_demand(&self, ty: UnitTypeId) -> Option<UnitRuntimeTypeDemand> {
+        self.runtime_type_demands.get(&ty).copied()
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        Vec<UnitPlannedInstance>,
+        BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+    ) {
+        (self.instances, self.runtime_type_demands)
+    }
+}
+
+impl Deref for UnitInstancePlan {
+    type Target = [UnitPlannedInstance];
+
+    fn deref(&self) -> &Self::Target {
+        &self.instances
+    }
+}
+
+impl IntoIterator for UnitInstancePlan {
+    type Item = UnitPlannedInstance;
+    type IntoIter = std::vec::IntoIter<UnitPlannedInstance>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.instances.into_iter()
     }
 }
 
@@ -167,7 +217,7 @@ pub(crate) fn plan_unit_instances(
     typed: &ValidatedCompilationUnitTypes,
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
-) -> Result<Vec<UnitPlannedInstance>, LoweringError> {
+) -> Result<UnitInstancePlan, LoweringError> {
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let templates = collect_templates(names, typed, &parsed_by_source)?;
@@ -204,6 +254,7 @@ pub(crate) fn plan_unit_instances(
     let calls_by_template = index_calls(typed, &parsed_by_source, &templates)?;
     let mut pending = BTreeSet::from([UnitFunctionInstanceKey::new(entry, Vec::new())]);
     let mut planned = BTreeMap::new();
+    let mut runtime_type_demands = BTreeMap::new();
     let mut generic_instance_count = 0;
 
     while let Some(key) = pending.pop_first() {
@@ -287,6 +338,11 @@ pub(crate) fn plan_unit_instances(
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
+            for dependent in target_key.dependent_owner_types {
+                runtime_type_demands
+                    .entry(dependent)
+                    .or_insert(UnitRuntimeTypeDemand::InstanceKeyOnly);
+            }
             pending.insert(target_key.key);
         }
 
@@ -306,7 +362,68 @@ pub(crate) fn plan_unit_instances(
         );
     }
 
-    Ok(planned.into_values().collect())
+    let instances = planned.into_values().collect::<Vec<_>>();
+    classify_runtime_type_demands(
+        typed,
+        &parsed_by_source,
+        &instances,
+        &mut runtime_type_demands,
+    )?;
+    Ok(UnitInstancePlan {
+        instances,
+        runtime_type_demands,
+    })
+}
+
+fn dependent_inherited_owner_types(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+    type_arguments: &[UnitTypeId],
+    receiver: Option<UnitTypeId>,
+    span: Span,
+) -> Result<BTreeSet<UnitTypeId>, LoweringError> {
+    let Some(receiver_declaration) = receiver.and_then(|receiver| {
+        let UnitTypeKind::Nominal { declaration, .. } = typed.types().types().get(receiver)? else {
+            return None;
+        };
+        Some(*declaration)
+    }) else {
+        return Ok(BTreeSet::new());
+    };
+    let Some((target_owner, owner_arity)) = unit_callable_owner(typed, target) else {
+        return Ok(BTreeSet::new());
+    };
+    if target_owner == receiver_declaration || type_arguments.len() < owner_arity {
+        return Ok(BTreeSet::new());
+    }
+    let mut dependent = BTreeSet::new();
+    for &ty in type_arguments.iter().take(owner_arity) {
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().types().get(ty) else {
+            continue;
+        };
+        let nominal = typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal.fields().iter().any(|field| {
+            typed
+                .types()
+                .types()
+                .get(field.ty())
+                .is_some_and(|kind| contains_type_parameter(typed, kind))
+        }) {
+            validate_dependent_inherited_nominal_recipe(
+                typed,
+                nominal,
+                span,
+                &mut BTreeSet::new(),
+            )?;
+            dependent.insert(ty);
+        }
+    }
+    Ok(dependent)
 }
 
 /// 核对 codegen 消费的 source inputs 与 validated unit analysis identity chain。
@@ -596,8 +713,9 @@ pub(crate) fn resolve_unit_call_instance(
     let direct = || {
         resolve_direct_unit_call_instance(typed, target, type_arguments.clone(), receiver, span)
             .map(|key| ResolvedUnitCallInstance {
-                key,
+                key: key.0,
                 delegation: Vec::new(),
+                dependent_owner_types: key.1,
             })
     };
     let Some(receiver) = receiver else {
@@ -770,14 +888,18 @@ pub(crate) fn resolve_unit_call_instance(
         let mut implementation_arguments = implementation_owner_arguments;
         implementation_arguments
             .extend_from_slice(&current_type_arguments[callable_argument_start..]);
-        let key = resolve_direct_unit_call_instance(
+        let (key, dependent_owner_types) = resolve_direct_unit_call_instance(
             typed,
             implementation.target(),
             implementation_arguments,
             Some(delegate_receiver),
             span,
         )?;
-        return Ok(ResolvedUnitCallInstance { key, delegation });
+        return Ok(ResolvedUnitCallInstance {
+            key,
+            delegation,
+            dependent_owner_types,
+        });
     }
 }
 
@@ -838,19 +960,20 @@ fn resolve_direct_unit_call_instance(
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
     span: Span,
-) -> Result<UnitFunctionInstanceKey, LoweringError> {
+) -> Result<(UnitFunctionInstanceKey, BTreeSet<UnitTypeId>), LoweringError> {
     let callable = unit_callable_signature(typed, target)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
     if callable.has_body() {
+        let dependent_owner_types =
+            dependent_inherited_owner_types(typed, target, &type_arguments, receiver, span)?;
         let static_self = if callable_static_self_receiver(typed, target)? {
             Some(receiver.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?)
         } else {
             None
         };
-        return Ok(UnitFunctionInstanceKey::for_specialized_target(
-            target,
-            type_arguments,
-            static_self,
+        return Ok((
+            UnitFunctionInstanceKey::for_specialized_target(target, type_arguments, static_self),
+            dependent_owner_types,
         ));
     }
 
@@ -889,6 +1012,7 @@ fn resolve_direct_unit_call_instance(
         owner_arguments,
         span,
     )?;
+    let mut dependent_owner_types = BTreeSet::new();
     let (implementation_owner, implementation_owner_arguments) =
         if implementation_declaration == *declaration {
             instantiate_dispatch_owner_arguments(
@@ -905,6 +1029,7 @@ fn resolve_direct_unit_call_instance(
                 nominal,
                 owner_arguments,
                 span,
+                &mut dependent_owner_types,
             )?
         };
     if !implementation_callable.has_body()
@@ -923,10 +1048,13 @@ fn resolve_direct_unit_call_instance(
     let mut implementation_arguments = implementation_owner_arguments;
     implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
     let static_self = callable_static_self_receiver(typed, implementation)?.then_some(receiver);
-    Ok(UnitFunctionInstanceKey::for_specialized_target(
-        implementation,
-        implementation_arguments,
-        static_self,
+    Ok((
+        UnitFunctionInstanceKey::for_specialized_target(
+            implementation,
+            implementation_arguments,
+            static_self,
+        ),
+        dependent_owner_types,
     ))
 }
 
@@ -1011,6 +1139,7 @@ fn instantiate_inherited_dispatch_owner_arguments(
     concrete_owner: &UnitNominalSignature,
     concrete_arguments: &[UnitTypeId],
     span: Span,
+    dependent_owner_types: &mut BTreeSet<UnitTypeId>,
 ) -> Result<(DeclarationId, Vec<UnitTypeId>), LoweringError> {
     let Some(UnitTypeKind::Nominal {
         declaration,
@@ -1037,6 +1166,7 @@ fn instantiate_inherited_dispatch_owner_arguments(
                 &substitutions,
                 span,
                 &mut BTreeSet::new(),
+                dependent_owner_types,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -1049,6 +1179,7 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     span: Span,
     visiting: &mut BTreeSet<UnitTypeId>,
+    dependent_owner_types: &mut BTreeSet<UnitTypeId>,
 ) -> Result<UnitTypeId, LoweringError> {
     if !visiting.insert(ty) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -1071,6 +1202,7 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
                 substitutions,
                 span,
                 visiting,
+                dependent_owner_types,
             )?;
             typed
                 .types()
@@ -1097,31 +1229,38 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
             {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
-            for field in nominal.fields() {
-                let kind = typed
-                    .types()
-                    .types()
-                    .get(field.ty())
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if contains_type_parameter(typed, kind) {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-            }
+            validate_dependent_inherited_nominal_recipe(
+                typed,
+                nominal,
+                span,
+                &mut BTreeSet::new(),
+            )?;
             let argument = resolve_inherited_dispatch_owner_argument(
                 typed,
                 arguments[0],
                 substitutions,
                 span,
                 visiting,
+                dependent_owner_types,
             )?;
-            typed
+            let concrete = typed
                 .types()
                 .types()
                 .find(&UnitTypeKind::Nominal {
                     declaration: *declaration,
                     arguments: vec![argument],
                 })
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if nominal.fields().iter().any(|field| {
+                typed
+                    .types()
+                    .types()
+                    .get(field.ty())
+                    .is_some_and(|kind| contains_type_parameter(typed, kind))
+            }) {
+                dependent_owner_types.insert(concrete);
+            }
+            Ok(concrete)
         }
         Some(kind) if contains_type_parameter(typed, kind) => {
             Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
@@ -1129,6 +1268,234 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
         Some(_) => Ok(ty),
         None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
     }
+}
+
+/// dependent inherited owner 只开放有限、非增长的单参数 ordinary-class field graph。
+fn validate_dependent_inherited_nominal_recipe(
+    typed: &ValidatedCompilationUnitTypes,
+    nominal: &UnitNominalSignature,
+    span: Span,
+    visiting: &mut BTreeSet<DeclarationId>,
+) -> Result<(), LoweringError> {
+    if nominal.kind() != NominalKind::Class || nominal.type_parameters().len() != 1 {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    if !visiting.insert(nominal.declaration()) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let parameter = nominal.type_parameters()[0];
+    for field in nominal.fields() {
+        validate_dependent_inherited_field_recipe(
+            typed,
+            field.ty(),
+            parameter,
+            field.span(),
+            visiting,
+        )?;
+    }
+    visiting.remove(&nominal.declaration());
+    Ok(())
+}
+
+fn validate_dependent_inherited_field_recipe(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    owner_parameter: UnitSymbolId,
+    span: Span,
+    visiting: &mut BTreeSet<DeclarationId>,
+) -> Result<(), LoweringError> {
+    let kind = typed
+        .types()
+        .types()
+        .get(ty)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if !contains_type_parameter(typed, kind) {
+        return validate_closed_nominal_recipe_cycles(typed, ty, span, visiting);
+    }
+    match kind {
+        UnitTypeKind::TypeParameter(parameter) if *parameter == owner_parameter => Ok(()),
+        UnitTypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::List,
+            arguments,
+        } => {
+            let [argument] = arguments.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            validate_dependent_inherited_field_recipe(
+                typed,
+                *argument,
+                owner_parameter,
+                span,
+                visiting,
+            )
+        }
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            let [argument] = arguments.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if !matches!(
+                typed.types().types().get(*argument),
+                Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
+            ) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let nested = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            validate_dependent_inherited_nominal_recipe(typed, nested, span, visiting)
+        }
+        _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+    }
+}
+
+/// 闭合实际参数仍可能把同一 nominal declaration 带回 field graph；这类 SCC 没有
+/// SPEC-0219 的有限 descriptor，不能因为字段不再含 owner parameter 而静默放行。
+fn validate_closed_nominal_recipe_cycles(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    span: Span,
+    visiting: &mut BTreeSet<DeclarationId>,
+) -> Result<(), LoweringError> {
+    let kind = typed
+        .types()
+        .types()
+        .get(ty)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    match kind {
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            if !visiting.insert(*declaration) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let nominal = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if nominal.kind() != NominalKind::EnumClass
+                && typed.types().runtime_field_layout(ty).is_some()
+            {
+                for (concrete, field) in
+                    resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)?
+                        .into_iter()
+                        .zip(nominal.fields())
+                {
+                    validate_closed_nominal_recipe_cycles(typed, concrete, field.span(), visiting)?;
+                }
+                visiting.remove(declaration);
+                return Ok(());
+            }
+            let substitutions = nominal
+                .type_parameters()
+                .iter()
+                .copied()
+                .zip(arguments.iter().copied())
+                .collect::<BTreeMap<_, _>>();
+            for (template, field_span) in nominal
+                .fields()
+                .iter()
+                .map(|field| (field.ty(), field.span()))
+                .chain(nominal.enum_cases().iter().flat_map(|case| {
+                    case.payloads()
+                        .iter()
+                        .map(|payload| (payload.ty(), payload.span()))
+                }))
+            {
+                let concrete =
+                    resolve_closed_recipe_type(typed, template, &substitutions, field_span)?;
+                validate_closed_nominal_recipe_cycles(typed, concrete, field_span, visiting)?;
+            }
+            visiting.remove(declaration);
+            Ok(())
+        }
+        UnitTypeKind::Intrinsic { arguments, .. } => {
+            for &argument in arguments {
+                validate_closed_nominal_recipe_cycles(typed, argument, span, visiting)?;
+            }
+            Ok(())
+        }
+        UnitTypeKind::Nullable(inner) | UnitTypeKind::StaticSelf(inner) => {
+            validate_closed_nominal_recipe_cycles(typed, *inner, span, visiting)
+        }
+        UnitTypeKind::EnumCase { root, .. } => {
+            validate_closed_nominal_recipe_cycles(typed, *root, span, visiting)
+        }
+        UnitTypeKind::Builtin(_)
+        | UnitTypeKind::Function { .. }
+        | UnitTypeKind::TypeParameter(_)
+        | UnitTypeKind::Capability(_)
+        | UnitTypeKind::IntegerLiteral(_)
+        | UnitTypeKind::Deferred(_)
+        | UnitTypeKind::Error => Ok(()),
+    }
+}
+
+/// closed recipe 的 SCC 检查需要完整替换容器内参数，但不因此扩张通用 callable
+/// specialization 支持面。
+fn resolve_closed_recipe_type(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    span: Span,
+) -> Result<UnitTypeId, LoweringError> {
+    let resolve_arguments = |arguments: &[UnitTypeId]| {
+        arguments
+            .iter()
+            .map(|argument| resolve_closed_recipe_type(typed, *argument, substitutions, span))
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let concrete =
+        match typed.types().types().get(ty) {
+            Some(UnitTypeKind::TypeParameter(parameter)) => {
+                return substitutions
+                    .get(parameter)
+                    .copied()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            Some(UnitTypeKind::Nullable(inner)) => UnitTypeKind::Nullable(
+                resolve_closed_recipe_type(typed, *inner, substitutions, span)?,
+            ),
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => UnitTypeKind::Nominal {
+                declaration: *declaration,
+                arguments: resolve_arguments(arguments)?,
+            },
+            Some(UnitTypeKind::Intrinsic {
+                constructor,
+                arguments,
+            }) => UnitTypeKind::Intrinsic {
+                constructor: *constructor,
+                arguments: resolve_arguments(arguments)?,
+            },
+            Some(UnitTypeKind::EnumCase { case, root }) => UnitTypeKind::EnumCase {
+                case: *case,
+                root: resolve_closed_recipe_type(typed, *root, substitutions, span)?,
+            },
+            Some(UnitTypeKind::Function { .. }) => return Ok(ty),
+            Some(kind) if contains_type_parameter(typed, kind) => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            Some(_) => return Ok(ty),
+            None => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+    Ok(typed
+        .types()
+        .types()
+        .find(&concrete)
+        // SCC 检查只依赖 declaration graph；frontend 未 intern 中间 closed
+        // constructor 时保留模板 identity，不能把有限 DAG 误报成 missing fact。
+        .unwrap_or(ty))
 }
 
 fn instantiate_delegated_dispatch_owner_arguments(
@@ -1273,6 +1640,207 @@ fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTyp
         | UnitTypeKind::Deferred(_)
         | UnitTypeKind::Error => false,
     }
+}
+
+fn classify_runtime_type_demands(
+    typed: &ValidatedCompilationUnitTypes,
+    parsed_by_source: &[&ParsedFile],
+    instances: &[UnitPlannedInstance],
+    demands: &mut BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+) -> Result<(), LoweringError> {
+    if demands.is_empty() {
+        return Ok(());
+    }
+    let dependent_types = demands.keys().copied().collect::<Vec<_>>();
+    for instance in instances {
+        let callable = unit_callable_signature(typed, instance.key().target())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+        for (template, span) in callable
+            .parameters()
+            .iter()
+            .map(|parameter| (parameter.ty(), parameter.span()))
+            .chain(std::iter::once((callable.return_type(), instance.span())))
+        {
+            let concrete = resolve_concrete_type(
+                typed,
+                template,
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            upgrade_runtime_demands(typed, concrete, &dependent_types, demands, span)?;
+        }
+
+        let parsed = parsed_by_source
+            .get(instance.source_unit().index())
+            .copied()
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        for (&expression, &template) in typed.types().expression_types() {
+            if expression.source_unit() != instance.source_unit() {
+                continue;
+            }
+            let span = parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
+                .span();
+            if !span_contains(instance.span(), span) {
+                continue;
+            }
+            let concrete = resolve_concrete_type(
+                typed,
+                template,
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            upgrade_runtime_demands(typed, concrete, &dependent_types, demands, span)?;
+        }
+    }
+
+    for (&ty, &demand) in demands.iter() {
+        if demand == UnitRuntimeTypeDemand::RuntimeLayoutRequired {
+            require_exact_runtime_field_layout(typed, ty)?;
+        }
+    }
+    Ok(())
+}
+
+fn upgrade_runtime_demands(
+    typed: &ValidatedCompilationUnitTypes,
+    concrete: UnitTypeId,
+    dependent_types: &[UnitTypeId],
+    demands: &mut BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+    span: Span,
+) -> Result<(), LoweringError> {
+    for &dependent in dependent_types {
+        if runtime_storage_depends_on(typed, concrete, dependent, &mut BTreeSet::new(), span)? {
+            demands.insert(dependent, UnitRuntimeTypeDemand::RuntimeLayoutRequired);
+        }
+    }
+    Ok(())
+}
+
+fn runtime_storage_depends_on(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    dependent: UnitTypeId,
+    visiting: &mut BTreeSet<UnitTypeId>,
+    span: Span,
+) -> Result<bool, LoweringError> {
+    if ty == dependent {
+        return Ok(true);
+    }
+    if !visiting.insert(ty) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let result = match typed.types().types().get(ty) {
+        Some(UnitTypeKind::Nullable(inner)) | Some(UnitTypeKind::StaticSelf(inner)) => {
+            runtime_storage_depends_on(typed, *inner, dependent, visiting, span)
+        }
+        Some(UnitTypeKind::Function {
+            parameters,
+            return_type,
+            ..
+        }) => parameters
+            .iter()
+            .map(|parameter| parameter.ty())
+            .chain(std::iter::once(*return_type))
+            .try_fold(false, |found, nested| {
+                Ok(found || runtime_storage_depends_on(typed, nested, dependent, visiting, span)?)
+            }),
+        Some(UnitTypeKind::Intrinsic { arguments, .. }) => {
+            arguments
+                .iter()
+                .copied()
+                .try_fold(false, |found, argument| {
+                    Ok(found
+                        || runtime_storage_depends_on(typed, argument, dependent, visiting, span)?)
+                })
+        }
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => {
+            let nominal = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let fields = if nominal.kind() == NominalKind::EnumClass {
+                let substitutions = nominal
+                    .type_parameters()
+                    .iter()
+                    .copied()
+                    .zip(arguments.iter().copied())
+                    .collect::<BTreeMap<_, _>>();
+                nominal
+                    .enum_cases()
+                    .iter()
+                    .flat_map(|case| case.payloads())
+                    .map(|payload| {
+                        resolve_concrete_type(
+                            typed,
+                            payload.ty(),
+                            &substitutions,
+                            None,
+                            payload.span(),
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)?
+            };
+            fields.into_iter().try_fold(false, |found, field| {
+                Ok(found || runtime_storage_depends_on(typed, field, dependent, visiting, span)?)
+            })
+        }
+        Some(UnitTypeKind::EnumCase { root, .. }) => {
+            runtime_storage_depends_on(typed, *root, dependent, visiting, span)
+        }
+        Some(_) => Ok(false),
+        None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+    }?;
+    visiting.remove(&ty);
+    Ok(result)
+}
+
+fn require_exact_runtime_field_layout(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+) -> Result<(), LoweringError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments,
+    }) = typed.types().types().get(ty)
+    else {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        });
+    };
+    let nominal = typed
+        .types()
+        .signatures()
+        .declaration(*declaration)
+        .and_then(|signature| signature.nominal())
+        .ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+    if typed.types().runtime_field_layout(ty).is_none() {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: nominal.fields().first().map(|field| field.span()),
+        });
+    }
+    resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)?;
+    Ok(())
 }
 
 /// 把 nominal runtime fields 解析为当前 concrete owner instance 的存储类型。

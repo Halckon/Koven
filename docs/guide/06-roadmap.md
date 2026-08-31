@@ -533,8 +533,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       concrete copyability 消费 conditional fact，保持 Value receiver delivery/drop 互斥，并在
       CFG 分支/循环中保留 source-qualified consumed identity；codegen 不从 specialization 猜测
       owner delivery。
-- [ ] **[SPEC-0224](../specs/0224-dependent-inherited-owner-recipes.md)**：独立开放 dependent inherited
-      owner recipe，并显式区分只进入 instance key 与确需 runtime layout 的 concrete type。
+- [x] **[SPEC-0224](../specs/0224-dependent-inherited-owner-recipes.md)（已完成）**：开放非增长的
+      dependent inherited owner recipe，以确定性 strongest-demand 区分 instance-key-only 与
+      runtime-layout-required；后者只消费 exact frontend descriptor，固定参数 SCC 继续 fail loud。
 - [ ] **[SPEC-0225](../specs/0225-parameter-growing-runtime-type-cycles.md)**：等待参数增长型 runtime recipe
       ADR 在确定性拒绝、有限 type graph、type erasure 或共享 glue 间作出选择；当前继续 fail loud。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`

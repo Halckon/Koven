@@ -19,9 +19,9 @@ use lang_frontend::{
 use super::{
     LoweringErrorKind,
     unit_plan::{
-        UnitPlannedInstance, plan_unit_instances, resolve_delegated_dispatch_owner_argument,
-        resolve_inherited_dispatch_owner_argument, resolve_nominal_runtime_field_types,
-        resolve_unit_call_instance,
+        UnitInstancePlan, UnitRuntimeTypeDemand, plan_unit_instances,
+        resolve_delegated_dispatch_owner_argument, resolve_inherited_dispatch_owner_argument,
+        resolve_nominal_runtime_field_types, resolve_unit_call_instance,
     },
 };
 
@@ -115,7 +115,7 @@ fn plan<'a>(
     typed: &ValidatedCompilationUnitTypes,
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
-) -> Vec<UnitPlannedInstance> {
+) -> UnitInstancePlan {
     plan_unit_instances(
         sources,
         inputs,
@@ -314,6 +314,78 @@ fn canonicalizes_generic_instances_and_is_input_order_independent() {
             .iter()
             .filter(|instance| !instance.key().type_arguments().is_empty())
             .all(|instance| instance.substitutions().len() == 1)
+    );
+}
+
+#[test]
+fn merges_dependent_inherited_runtime_demand_independent_of_input_order() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> {\n\
+             fun read(): Int = 7\n\
+             fun echo(own input: B): B = input\n\
+         }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun keyOnly(): Int = Host<Int>().throughRequirement()\n\
+         fun runtime(): Int = Host<Int>().echo(Wrapper<Int>(7)).item",
+    );
+    let (entry_source, entry_file) = parsed(
+        &mut sources,
+        "p/entry.ko",
+        "package p\nfun entry(): Int = keyOnly() + runtime()",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "p/entry.ko", entry_source, &entry_file),
+    ];
+    let reversed_inputs = [inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: declaration(&names, "Wrapper"),
+            arguments: vec![int],
+        })
+        .expect("frontend exact Wrapper<Int> identity");
+    let entry = declaration(&names, "entry");
+
+    let forward = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    );
+    let reversed = plan(
+        &sources,
+        &reversed_inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    );
+    assert_eq!(forward, reversed);
+    assert_eq!(
+        forward.runtime_type_demand(wrapper_int),
+        Some(UnitRuntimeTypeDemand::RuntimeLayoutRequired),
     );
 }
 
@@ -1096,6 +1168,26 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
          class MultiOwner<T>(val item: Pair<T, T>)\n\
          class NominalOwner<T>(val item: Wrapper<T>)\n\
          class GrowingOwner<T>(val item: GrowingOwner<List<T>>)\n\
+         class SelfNode<T>(val next: SelfNode<T>)\n\
+         class SelfOwner<T>(val item: SelfNode<T>)\n\
+         class LeftNode<T>(val right: RightNode<T>)\n\
+         class RightNode<T>(val left: LeftNode<T>)\n\
+         class MutualOwner<T>(val item: LeftNode<T>)\n\
+         class ClosedSelf<T>(val item: T, val next: ClosedSelf<Int>)\n\
+         class ClosedSelfOwner<T>(val item: ClosedSelf<T>)\n\
+         class ClosedLeft<T>(val item: T, val right: ClosedRight<Int>)\n\
+         class ClosedRight<T>(val item: T, val left: ClosedLeft<Int>)\n\
+         class ClosedMutualOwner<T>(val item: ClosedLeft<T>)\n\
+         class ParamLeft<T>(val right: ParamRight<Int>)\n\
+         class ParamRight<U>(val left: ParamLeft<U>)\n\
+         class ParamCycleOwner<T>(val item: ParamLeft<T>)\n\
+         enum class ClosedChoice { Item(item: ClosedEnumNode<Int>), Empty }\n\
+         class ClosedEnumNode<T>(val item: T, val choice: ClosedChoice)\n\
+         class ClosedEnumOwner<T>(val item: ClosedEnumNode<T>)\n\
+         class ClosedLeaf<U>(val items: List<U>)\n\
+         class ClosedDag<T>(val item: T, val leaf: ClosedLeaf<Int>)\n\
+         class ClosedDagOwner<T>(val item: ClosedDag<T>)\n\
+         fun closedDagSeed(input: ClosedDag<Int>, items: List<Int>): Unit {}\n\
          class ListOwner<T>(val item: List<T>)\n\
          class Marker<T>(val marker: Int)\n\
          class MarkerOwner<T>(val item: Marker<T>)\n\
@@ -1121,8 +1213,13 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         "FunctionOwner",
         "ValueOwner",
         "MultiOwner",
-        "NominalOwner",
         "GrowingOwner",
+        "SelfOwner",
+        "MutualOwner",
+        "ClosedSelfOwner",
+        "ClosedMutualOwner",
+        "ParamCycleOwner",
+        "ClosedEnumOwner",
     ] {
         let owner = typed
             .types()
@@ -1142,6 +1239,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
             &BTreeMap::from([(*parameter, int)]),
             field.span(),
             &mut BTreeSet::new(),
+            &mut BTreeSet::new(),
         )
         .unwrap_err();
         assert_eq!(
@@ -1149,7 +1247,19 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
             LoweringErrorKind::UnsupportedNode,
             "{owner_name}"
         );
-        assert_eq!(error.span, Some(field.span()), "{owner_name}");
+        if matches!(
+            owner_name,
+            "SelfOwner"
+                | "MutualOwner"
+                | "ClosedSelfOwner"
+                | "ClosedMutualOwner"
+                | "ParamCycleOwner"
+                | "ClosedEnumOwner"
+        ) {
+            assert!(error.span.is_some(), "{owner_name}");
+        } else {
+            assert_eq!(error.span, Some(field.span()), "{owner_name}");
+        }
     }
 
     let list_owner = typed
@@ -1186,10 +1296,33 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         &BTreeMap::from([(*parameter, long)]),
         field.span(),
         &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
     )
     .unwrap_err();
     assert_eq!(error.kind, LoweringErrorKind::MissingFact);
     assert_eq!(error.span, Some(field.span()));
+
+    let dag_owner = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "ClosedDagOwner"))
+        .and_then(|signature| signature.nominal())
+        .expect("ClosedDagOwner signature");
+    let [parameter] = dag_owner.type_parameters() else {
+        panic!("ClosedDagOwner has one type parameter");
+    };
+    let [field] = dag_owner.fields() else {
+        panic!("ClosedDagOwner has one field");
+    };
+    resolve_inherited_dispatch_owner_argument(
+        &typed,
+        field.ty(),
+        &BTreeMap::from([(*parameter, int)]),
+        field.span(),
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+    )
+    .expect("closed generic List substitution is a finite recipe");
 
     let marker = declaration(&names, "Marker");
     let marker_owner = typed
@@ -1220,6 +1353,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         field.ty(),
         &BTreeMap::from([(*parameter, long)]),
         field.span(),
+        &mut BTreeSet::new(),
         &mut BTreeSet::new(),
     )
     .unwrap_err();
@@ -1638,7 +1772,7 @@ fn remaps_list_inherited_owner_recipe_to_the_effective_default() {
 }
 
 #[test]
-fn remaps_parameter_independent_class_inherited_owner_recipe() {
+fn plans_dependent_inherited_owner_recipe_as_instance_key_only() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -1649,7 +1783,7 @@ fn remaps_parameter_independent_class_inherited_owner_recipe() {
              fun throughRequirement(): Int = this.read()\n\
          }\n\
          interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
-         class Wrapper<T>(val marker: Int)\n\
+         class Wrapper<T>(val item: T)\n\
          class Host<Y>: Derived<Wrapper<Y>> {}\n\
          fun entry(host: Host<Int>): Int = host.throughRequirement()",
     );
@@ -1711,7 +1845,11 @@ fn remaps_parameter_independent_class_inherited_owner_recipe() {
         &owned,
         declaration(&names, "entry"),
     )
-    .expect("parameter-independent class owner recipe must select the inherited default");
+    .expect("dependent class owner recipe must select the inherited default");
+    assert_eq!(
+        instances.runtime_type_demand(wrapper_int),
+        Some(UnitRuntimeTypeDemand::InstanceKeyOnly),
+    );
     let implementation = instances
         .iter()
         .find(|instance| instance.key().target() == implementation)
@@ -1739,6 +1877,172 @@ fn remaps_parameter_independent_class_inherited_owner_recipe() {
         instances
             .iter()
             .all(|instance| instance.key().target() != requirement)
+    );
+}
+
+#[test]
+fn upgrades_dependent_inherited_owner_recipe_to_runtime_layout_required() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/dependent-runtime.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int }\n\
+         interface Derived<B>: Base<String> {\n\
+             fun read(): Int = 7\n\
+             fun echo(own input: B): B = input\n\
+         }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(host: Host<Int>, own input: Wrapper<Int>): Wrapper<Int> = host.echo(input)",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/dependent-runtime.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: declaration(&names, "Wrapper"),
+            arguments: vec![int],
+        })
+        .expect("frontend exact Wrapper<Int> identity");
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("runtime dependent owner recipe must use the exact frontend descriptor");
+    assert_eq!(
+        instances.runtime_type_demand(wrapper_int),
+        Some(UnitRuntimeTypeDemand::RuntimeLayoutRequired),
+    );
+}
+
+#[test]
+fn upgrades_dependent_inherited_owner_recipe_used_only_by_lambda_abi() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/dependent-lambda.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(host: Host<Int>): Int {\n\
+             val action: move (own Wrapper<Int>) -> Unit = move { item -> val read = item.item }\n\
+             return host.throughRequirement()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/dependent-lambda.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: declaration(&names, "Wrapper"),
+            arguments: vec![int],
+        })
+        .expect("frontend exact Wrapper<Int> identity");
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("lambda ABI must upgrade the dependent owner demand before lowering");
+    assert_eq!(
+        instances.runtime_type_demand(wrapper_int),
+        Some(UnitRuntimeTypeDemand::RuntimeLayoutRequired),
+    );
+}
+
+#[test]
+fn upgrades_dependent_inherited_owner_recipe_used_only_by_enum_payload() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/dependent-enum.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         enum class Payload { Item(item: Wrapper<Int>), Empty }\n\
+         fun entry(host: Host<Int>, own payload: Payload): Int = host.throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/dependent-enum.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: declaration(&names, "Wrapper"),
+            arguments: vec![int],
+        })
+        .expect("frontend exact Wrapper<Int> identity");
+
+    let instances = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect("enum payload storage must upgrade the dependent owner demand");
+    assert_eq!(
+        instances.runtime_type_demand(wrapper_int),
+        Some(UnitRuntimeTypeDemand::RuntimeLayoutRequired),
     );
 }
 

@@ -1106,9 +1106,12 @@ planner 从 outer concrete layout 取得 delegate concrete type，再以同一 r
 route/current receiver/`StaticSelf` 全程保留 concrete `UnitTypeId`；递归 dispatch owner argument 只在
 validated delegation 的最终 forwarder 映射启用，不扩张通用 default/override owner substitution。
 `Reader<Wrapper<T>>` delegation 已完成 source→object→link→run；inherited effective implementation
-已开放有限 `List` 与布局参数无关单参数 ordinary class recipe，后者只进入 instance key 时不物化
-runtime layout。dependent recipe 与参数增长型 runtime cycle 分别由 SPEC-0224/0225 承接；无 endpoint
-unresolved route 仍未开放。
+已由 SPEC-0224 开放非增长的 dependent 单参数 ordinary-class recipe：planner 对 concrete owner type
+发布确定性的 `InstanceKeyOnly` / `RuntimeLayoutRequired` strongest-demand，合并结果与 source input
+顺序无关；前者不物化 SSA nominal/layout/drop glue，后者只消费 SPEC-0219 的 exact owner-qualified
+field descriptor，并覆盖 callable/body、lambda ABI 与既有 nullable/owner/container 包装的递归物化
+边界。self-growing、固定实际参数 self/mutual SCC 与 unsupported recipe 继续 fail loud；参数增长型
+runtime cycle 由 SPEC-0225 承接。无 endpoint unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181

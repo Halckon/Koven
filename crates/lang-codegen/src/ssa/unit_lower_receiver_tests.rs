@@ -728,7 +728,7 @@ fn interface_default_dispatches_ancestor_requirement_to_inherited_default() {
 }
 
 #[test]
-fn inherited_owner_key_does_not_materialize_parameter_independent_wrapper_layout() {
+fn dependent_inherited_owner_key_does_not_materialize_wrapper_layout() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -739,7 +739,7 @@ fn inherited_owner_key_does_not_materialize_parameter_independent_wrapper_layout
              fun throughRequirement(): Int = this.read()\n\
          }\n\
          interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
-         class Wrapper<T>(val marker: Int)\n\
+         class Wrapper<T>(val item: T)\n\
          class Host<Y>: Derived<Wrapper<Y>> {}\n\
          fun entry(): Int = Host<Int>().throughRequirement()",
     );
@@ -798,6 +798,80 @@ fn inherited_owner_key_does_not_materialize_parameter_independent_wrapper_layout
     );
     let llvm = render_verified_program(&program).expect("class inherited owner LLVM");
     assert!(!llvm.contains(&wrapper_ssa_name), "{llvm}");
+}
+
+#[test]
+fn dependent_inherited_runtime_demand_materializes_exact_wrapper_layout() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/dependent-runtime.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int }\n\
+         interface Derived<B>: Base<String> {\n\
+             fun read(): Int = 7\n\
+             fun echo(own input: B): B = input\n\
+         }\n\
+         class Wrapper<T>(val item: T)\n\
+         class Host<Y>: Derived<Wrapper<Y>> {}\n\
+         fun entry(): Int {\n\
+             val result = Host<Int>().echo(Wrapper<Int>(7))\n\
+             return result.item\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/dependent-runtime.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let int = typed
+        .types()
+        .types()
+        .builtin(BuiltinType::Int)
+        .expect("Int type");
+    let wrapper = declaration(&names, "p", "Wrapper");
+    let wrapper_int = typed
+        .types()
+        .types()
+        .find(&UnitTypeKind::Nominal {
+            declaration: wrapper,
+            arguments: vec![int],
+        })
+        .expect("frontend exact Wrapper<Int> identity");
+    let wrapper_ssa_name = format!("class#d{}.u{}", wrapper.index(), wrapper_int.index());
+
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("runtime demand must materialize the exact dependent Wrapper<Int> layout");
+    let payload = program.modules[0]
+        .types
+        .iter()
+        .find_map(|kind| match kind {
+            SsaTypeKind::HeapOwner {
+                name,
+                payload: Some(payload),
+            } if name == &wrapper_ssa_name => Some(*payload),
+            _ => None,
+        })
+        .expect("Wrapper<Int> exact heap payload");
+    assert!(matches!(
+        &program.modules[0].types[payload.index()],
+        SsaTypeKind::Aggregate { fields, .. }
+            if matches!(fields.as_slice(), [field]
+                if matches!(program.modules[0].types[field.index()], SsaTypeKind::Integer { bits: 32, signed: true }))
+    ));
+    let llvm = render_verified_program(&program).expect("dependent runtime owner LLVM");
+    assert!(llvm.contains("type { i32 }"), "{llvm}");
 }
 
 #[test]
