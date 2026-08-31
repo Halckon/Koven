@@ -169,8 +169,8 @@ identifier scanner、原生 corpus 与生产前端交叉验收。
 ## 当前状态
 
 仓库已完成 Phase 0、截至 v0.33 的 Phase 1 与当前已实施的 Phase 2/Phase 3 主线；现行 v0.34
-的显式 instance receiver Parser/AST、typed facts 与 ownership facts 已由
-SPEC-0201/0180/0181 完成；native lowering 继续等待 SPEC-0191。v0.33
+的显式 instance receiver Parser/AST、typed facts、ownership facts 与 native receiver 主线已由
+SPEC-0201/0180/0181/0191 完成。v0.33
 的尾随 lambda 与隐式 `it` 已由 SPEC-0213/0214 完成。仓库并已完成 Phase 4 的
 SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容器后端基元、SPEC-0038
 闭包环境后端与 SPEC-0039 显式 entry/object/link/run 边界。截至 v0.32
@@ -1097,7 +1097,9 @@ exact owner descriptor 授权的有限递归 `List` / 单参数 ordinary-class d
 planner 从 outer concrete layout 取得 delegate concrete type，再以同一 resolver 验证 delegate layout，
 route/current receiver/`StaticSelf` 全程保留 concrete `UnitTypeId`；递归 dispatch owner argument 只在
 validated delegation 的最终 forwarder 映射启用，不扩张通用 default/override owner substitution。
-`Reader<Wrapper<T>>` delegation 已完成 source→object→link→run；inherited recipe 与无 endpoint
+`Reader<Wrapper<T>>` delegation 已完成 source→object→link→run；inherited effective implementation
+已开放有限 `List` 与布局参数无关单参数 ordinary class recipe，后者只进入 instance key 时不物化
+runtime layout。dependent recipe 与参数增长型 runtime cycle 分别由 SPEC-0224/0225 承接；无 endpoint
 unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete

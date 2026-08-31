@@ -517,43 +517,19 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       不按名称猜测
 - [x] SPEC-0035/0038/0184 已消费 Phase 3 drop facts，为聚合、heap owner、容器和 closure
       插入正常路径析构；abort 路径不生成 unwind cleanup
-- [ ] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（实施中）**：SSA/verifier/LLVM
-      receiver-first 基元与 source member 的基础 Borrow/Inout/Value/隐式 `this` 接线已完成；非泛型
-      value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
-      object/link/run；ordinary-class Inout Copyable payload、无状态 object Borrow receiver，以及
-      concrete `StaticSelf` direct-default/concrete `super<I>`、abstract requirement→effective
-      implementation 静态解析，以及非泛型单层 ordinary-class 的 abstract-requirement Borrow-only
-      静态委托 native 闭环已完成；bodyful delegate 的 direct effective-target/owner-template frontend fact
-      与 replacement default/local override lowering 也已完成，`StaticSelf` 精确取 delegate field concrete
-      type；非泛型 outer/delegate runtime nominal 上的 generic interface owner/callable slots 已完成精确
-      重映射与 default/local override native 闭环，runtime generic nominal 仍保持拒绝；递归/type-parameter
-      路径现已区分 exact next hop 与 type-parameter unresolved。同 requirement identity 的非泛型 delegation chain 已完成逐跳
-      typed/ownership route、field-loan chain、cycle 拒绝和三跳 native 闭环；identity-changing chain
-      已消费 SPEC-0180 精确 next-hop fact，完成 target/owner/callable slots 重映射与 native 闭环。非泛型 ordinary-class Inout interface default
-      已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；非泛型 Value
-      interface default 已消费 Phase 3 conditional receiver-drop fact，MoveOnly/Copyable specialization
-      的 SSA/LLVM/native 闭环完成；ordinary-class Inout receiver 的 MoveOnly field replacement
-      已消费 Phase 3 精确旧字段 fact，并完成 old-drop-before-store 的 SSA/LLVM/native 闭环。generic
-      ordinary-class 已开放参数无关、direct owner `T`，以及按 SPEC-0219 exact owner descriptor
-      授权的有限递归 `List` / 单参数 ordinary-class runtime recipe；深层 layout 与
-      `Reader<Wrapper<T>>` Borrow delegation 已完成 native 闭环。non-generic enum Borrow/Value receiver
-      已复用 root tagged identity；SPEC-0221 已补齐整体 MoveOnly enum 的空 payload case，使其经
-      local/return/Value call/Value receiver 唯一转移，并与含 String payload case 共用 tag-dispatch drop glue。
-      non-generic value class/enum Inout 已通过 call-scoped addressization 建立 exclusive pointer ABI，
-      value-class Copyable field read 通过短 shared reborrow 完成 SSA/LLVM/native；Copyable/MoveOnly target
-      field 已通过 `InlineFieldReplace` 完成原位 mutation，MoveOnly target 精确消费旧字段 fact，LLVM
-      按 old-drop-before-store 执行并递归收集嵌套 drop glue；Copyable/MoveOnly owner 分别在 caller loan-end 后
-      same-root read/take-rebind 并完成 native 闭环，implicit Inout `this` 直接转发既有 exclusive loan。non-generic
-      MoveOnly value class/enum root 已通过 loan-end 后 `RootPlaceTake` 完成 read-only Inout take/rebind，
-      旧 owner 不 drop、take owner 在原 drop point 唯一析构；MoveOnly field read/部分移动仍
-      fail loud。object 按 §34 仅允许 Borrow，Inout/Value 继续由
-      Phase 2 L0099 拒绝。
-      `T?`、function、其他 intrinsic、
-      非 class / 多参数 wrapper与参数增长型 runtime recipe 继续保持确定性门禁；inherited effective
-      implementation 已开放有限 `List` 与布局参数无关单参数 ordinary class；dependent/self-growing/
-      value-class/多参数/其他 nested inherited recipe 仍拒绝。复用 ADR-0016，只
-      验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
-      bound method CallableInvoke。
+- [x] **[SPEC-0191](../specs/0191-instance-receiver-lowering.md)（已实现）**：完成 receiver-first
+      SSA/verifier/LLVM、class/value/enum 与 Borrow-only object、default/override/`super<I>`、Borrow-only
+      delegation、Inout mutation、MoveOnly take/rebind/drop，以及 generic ordinary-class 的参数无关、
+      direct `T`、direct `T?` 和 exact descriptor 限定的有限 `List` / 单参数 class recipe；真实
+      source→object→link→run 与 project CLI build/run 已闭环。不生成 vtable、proxy、隐式 retain 或
+      bound method `CallableInvoke`。
+- [ ] **[SPEC-0222](../specs/0222-static-self-value-delivery-facts.md) / [SPEC-0223](../specs/0223-static-self-value-delivery-lowering.md)**：
+      先由 Phase 3 发布 `StaticSelf` Value-to-Value conditional delivery/move fact，再由 Phase 4 消费；
+      codegen 不从 specialization 猜测 owner delivery。
+- [ ] **[SPEC-0224](../specs/0224-dependent-inherited-owner-recipes.md)**：独立开放 dependent inherited
+      owner recipe，并显式区分只进入 instance key 与确需 runtime layout 的 concrete type。
+- [ ] **[SPEC-0225](../specs/0225-parameter-growing-runtime-type-cycles.md)**：等待参数增长型 runtime recipe
+      ADR 在确定性拒绝、有限 type graph、type erasure 或共享 glue 间作出选择；当前继续 fail loud。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，

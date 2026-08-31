@@ -65,7 +65,8 @@ receiver mode、静态分发调用与 Borrow-only 窄化委托契约。
 
 `guide/01-design-decisions.md` §34 与 `guide/04-grammar-declarations-blocks.md` §13.5 已于
 2026-08-31 显式重基到完整 v0.33，并由用户明确启用 v0.34 取代 v0.33；SPEC-0201 已完成，
-0180/0181/0191 继续等待各自批准与前置。
+0180/0181/0191 均已完成；后继 `StaticSelf` Value delivery 与 inherited/runtime recipe 门禁已拆分为
+SPEC-0222—0225。
 
 `guide/05-grammar-calls-lambda.md` §9 与 `guide/01-design-decisions.md` §33 已于 2026-08-30
 由用户明确启用并取代 v0.32；SPEC-0213/0214/0054 均已完成。

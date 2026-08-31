@@ -151,6 +151,52 @@ fn project_build_and_run_link_multi_package_exact_alias_and_argv_entries() {
 }
 
 #[test]
+fn project_build_and_run_execute_instance_receivers() {
+    let project = TestProject::create("receiver");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/model/Counter.ko",
+        "package model\n\
+         class Counter(val item: Int) {\n\
+             fun read(): Int = item\n\
+         }\n",
+    );
+    project.write(
+        "src/app/Main.ko",
+        "package app\n\
+         import model.Counter\n\
+         fun start(): Unit {\n\
+             val counter = Counter(42)\n\
+             if (counter.read() == 42) { println(\"receiver-cli\") }\n\
+             else { error(\"wrong receiver result\") }\n\
+         }\n",
+    );
+    let executable = project.join("receiver-program");
+
+    let built = project_build(&manifest, "app.start", &executable, None);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    assert!(built.stdout.is_empty(), "{built:?}");
+    assert!(built.stderr.is_empty(), "{built:?}");
+    let launched = Command::new(&executable)
+        .output()
+        .expect("receiver project executable must launch");
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, b"receiver-cli\n");
+    assert!(launched.stderr.is_empty(), "{launched:?}");
+
+    let executed = run([
+        OsStr::new("run"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.start"),
+    ]);
+    assert_eq!(executed.status.code(), Some(0), "{executed:?}");
+    assert_eq!(executed.stdout, b"receiver-cli\n");
+    assert!(executed.stderr.is_empty(), "{executed:?}");
+}
+
+#[test]
 fn project_frontend_diagnostics_precede_entry_and_preserve_source_key_order() {
     let project = TestProject::create("diagnostics");
     let manifest = project.manifest(&["zroot", "aroot"]);

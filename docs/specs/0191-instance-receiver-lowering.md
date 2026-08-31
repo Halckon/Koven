@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-191` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.34 §34](../guide/01-design-decisions.md#34-显式-instance-receiver-契约与静态分发调用v034) |
@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181、0219 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 有限递归 runtime recipe 已消费 SPEC-0219；direct `T?` 已由 SPEC-0220 完成；inherited effective implementation 的 `List` / 布局参数无关单参数 ordinary-class owner recipe 已开放，参数增长型 runtime 与 dependent/其他 nested inherited recipe 仍保持门禁 |
+| 阻塞项 | 无；`StaticSelf` Value receiver delivery、dependent inherited recipe 与参数增长型 runtime cycle 已分别移交 SPEC-0222/0223、0224、0225 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -81,8 +81,8 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 
 - [x] SSA signature/DirectCall receiver mode 与 verifier 正反矩阵通过；本 Spec 不为已排除的
   bound method value 虚构 `CallableInvoke` receiver source path。
-- [ ] class/value/enum、Borrow-only object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
-- [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
+- [x] class/value/enum、Borrow-only object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
+- [x] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
 - [x] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
 - [x] MoveOnly class payload replacement 精确消费旧字段 fact，exclusive loan/verifier 接受且
@@ -111,9 +111,11 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [x] non-generic MoveOnly value class/enum 的 root Inout call 已完成 loan-end 后 `RootPlaceTake` 与
   caller binding rebind；旧 owner 不再析构，take 结果在原语义 drop point 恰好析构一次，动态 String
   owner native 闭环无 double free。
-- [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
-- [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
-- [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
+- [x] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
+- [x] 具有既有 concrete delivery/conditional-drop facts 的 MoveOnly Value receiver 唯一消费，Borrow/Inout
+  不消费，正常/提前退出 drop 精确；`StaticSelf` Value-to-Value delivery 不由 codegen 推断，移交
+  SPEC-0222/0223。
+- [x] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
 
 ## 5. 技术方案与边界
 
@@ -125,7 +127,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 ## 6. 实施计划
 
 1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
-2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
+2. [x] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
@@ -138,7 +140,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    receiver 已完成；SPEC-0219 exact owner descriptor 已接入有限递归 `List` / 单参数 ordinary-class
    recipe 的 construction/projection/replacement；direct `T?` 的 pointer-like nullable storage/drop 已由
    SPEC-0220 完成，参数增长型 owner 继续保持门禁。
-3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
+3. [x] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
    已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
@@ -163,7 +165,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    替换 dispatch owner argument；深层 nominal delegation 已完成 native。非委托 inherited effective
    implementation 另开放有限 `List` 与布局参数无关的单参数 ordinary-class recipe；dependent/
    self-growing/value-class/多参数/其他 nested inherited recipe 继续拒绝。
-4. [ ] 同步 Architecture/Spec并运行 workspace基线。
+4. [x] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
 
@@ -190,6 +192,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 19 | 允许 MoveOnly inline field 精确替换并析构旧字段 | `feat(codegen): replace move-only inline fields (SPEC-0191)` |
 | 20 | 开放 inherited effective implementation 的有限 List owner recipe | `feat(codegen): lower inherited list owner recipes (SPEC-0191)` |
 | 21 | 开放 inherited effective implementation 的布局参数无关 class owner recipe | `feat(codegen): lower inherited class owner recipes (SPEC-0191)` |
+| 22 | CLI project build/run smoke、后继门禁与完成状态同步 | `docs(spec): close instance receiver lowering (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -197,12 +200,12 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
   recipe construction/projection/current receiver 已开放；nested recipe 按 exact owner `UnitTypeId`
   消费 SPEC-0219 的 declaration + 完整 arguments + 字段顺序 concrete layout，不依赖全局 canonical
   presence 或 construction descriptor。direct `T?` 的 pointer-like actual 已由 SPEC-0220 完成；
-  参数增长型 runtime owner 仍需递归 SSA/drop cycle 策略。inherited effective implementation 的有限
+  参数增长型 runtime owner 的递归 SSA/drop cycle 策略由 SPEC-0225 承接。inherited effective implementation 的有限
   `List` 与布局参数无关单参数 ordinary class 已开放；dependent/self-growing/value-class/多参数/
-  其他 nested inherited recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression，也不把
+  其他 nested inherited recipe 由 SPEC-0224 承接。这些边界均不扩张任意 owner expression，也不把
   只用于 instance key 的 concrete argument 物化成 runtime layout。
-- `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
-  delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
+- `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 由 SPEC-0222 发布 Phase 3
+  conditional delivery/move fact，再由 SPEC-0223 lower；本 Spec 只消费既有 drop obligation。
 - value-class Inout 的 MoveOnly root take/rebind 与 Copyable/MoveOnly target field mutation 已开放；
   MoveOnly field read 与部分移动仍按 guide 拒绝，不把 replacement 的旧字段精确消费扩张为投影读取。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
@@ -405,3 +408,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
 | `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library 构建与静态门禁，零 warning；未运行耗时 frontend 全量测试 |
 | 独立高风险复核（inherited parameter-independent class recipe） | 通过 | 首轮发现 instance-key-only runtime 物化证据 P3；补 SSA/LLVM 无 Wrapper layout/allocation/drop 断言后，复核 kind/arity/field-independence/canonical checks 与全部门禁，无剩余 P1/P2/P3 |
+| `cargo test -p lang-cli --test project_cli project_build_and_run_execute_instance_receivers --locked --offline -- --test-threads=1` | 1/1 通过 | 跨 `model`/`app` package 两文件，公开 project build 产物启动与 project run 均输出 `receiver-cli` |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 收尾格式与补丁空白门禁；新增 Spec 逐文件无 whitespace error |
+| `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 收尾 workspace library 构建与静态门禁；未运行耗时 frontend 全量测试 |
+| 独立完成审计 | 通过 | 未发现阻止 done 的 P1/P2；指出的 Phase 3 concrete 决策、无限增长链 SCC 假设、CLI 跨文件证据与 Architecture 措辞均已修正 |
