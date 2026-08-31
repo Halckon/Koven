@@ -557,6 +557,7 @@ pub struct UnitDelegationPlan {
 pub struct UnitDelegationForwarderDescriptor {
     requirement: UnitCallableTarget,
     receiver_type: UnitTypeId,
+    implementation: Option<UnitDelegationImplementationDescriptor>,
     type_parameters: Vec<UnitSymbolId>,
     parameters: Vec<UnitCallableParameter>,
     return_type: UnitTypeId,
@@ -567,6 +568,7 @@ impl UnitDelegationForwarderDescriptor {
     pub(crate) fn new(
         requirement: UnitCallableTarget,
         receiver_type: UnitTypeId,
+        implementation: Option<UnitDelegationImplementationDescriptor>,
         type_parameters: Vec<UnitSymbolId>,
         parameters: Vec<UnitCallableParameter>,
         return_type: UnitTypeId,
@@ -575,6 +577,7 @@ impl UnitDelegationForwarderDescriptor {
         Self {
             requirement,
             receiver_type,
+            implementation,
             type_parameters,
             parameters,
             return_type,
@@ -592,6 +595,15 @@ impl UnitDelegationForwarderDescriptor {
     #[must_use]
     pub const fn receiver_type(&self) -> UnitTypeId {
         self.receiver_type
+    }
+
+    /// 返回 delegate concrete type 上可直接调用的已验证有体实现。
+    ///
+    /// `None` 表示合法转发仍需递归委托或具体单态化/实例化类型实参才能解析；后续阶段
+    /// 不得把 abstract requirement 伪装成 concrete implementation。
+    #[must_use]
+    pub const fn implementation(&self) -> Option<UnitDelegationImplementationDescriptor> {
+        self.implementation
     }
 
     /// delegate forwarder receiver 固定为 Borrow。
@@ -622,6 +634,34 @@ impl UnitDelegationForwarderDescriptor {
     #[must_use]
     pub const fn declaration_span(&self) -> Span {
         self.declaration_span
+    }
+}
+
+/// 一个 delegate forwarder 已解析出的直接有体实现及其 receiver template。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitDelegationImplementationDescriptor {
+    target: UnitCallableTarget,
+    receiver_type: UnitTypeId,
+}
+
+impl UnitDelegationImplementationDescriptor {
+    pub(crate) const fn new(target: UnitCallableTarget, receiver_type: UnitTypeId) -> Self {
+        Self {
+            target,
+            receiver_type,
+        }
+    }
+
+    /// 返回可直接调用的有体实现 identity。
+    #[must_use]
+    pub const fn target(self) -> UnitCallableTarget {
+        self.target
+    }
+
+    /// 返回实现所属的完整 receiver type template。
+    #[must_use]
+    pub const fn receiver_type(self) -> UnitTypeId {
+        self.receiver_type
     }
 }
 

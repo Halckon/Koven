@@ -839,7 +839,10 @@ SPEC-0197 第一阶段新增纯内存的
   并检查当前 receiver capability。裸 field 发布 `This(owner)` projection，具名 object 调用保留
   instance receiver 且 object 非 Borrow marker 以 L0099 拒绝。窄化 `by` 委托按源码顺序发布
   Borrow-only forwarder；任一剩余 Inout/Value requirement 以 `by` 为 primary、首个源码 member 为
-  label 发布 L0152，并原子清空该 plan 的 forwarders。SPEC-0181 进一步消费这些 facts，发布
+  label 发布 L0152，并原子清空该 plan 的 forwarders。direct concrete delegate 的 forwarder 还发布
+  已验证有体 effective target 与完整 owner template；本地 override、继承/default replacement 与泛型
+  substitution 保持原 identity，合法递归委托或 type-parameter delegate 明确为 `None`，不把 abstract
+  requirement 伪装为实现。SPEC-0181 进一步消费这些 facts，发布
   receiver loan/copy/move、Value `this` unique drop 与 Borrow-only delegation ownership plan，
   并移除一般 member call 的 `MemberReceiver` deferred；native lowering 由 SPEC-0191 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
@@ -1002,9 +1005,10 @@ plan 全部一致，再在 delegate concrete nominal 的既有 static-dispatch f
 arguments→DirectCall，结束顺序为 arguments→field loan→outer loan；真实 native 用例由 `Host`
 payload 中的唯一 `Reader` owner 返回结果，并且不读取/copy field value、不 retain、不分配 proxy。
 当前只开放非泛型 ordinary class 的单层 abstract-requirement delegation；generic outer/delegate、
-delegation chain，以及有体 default requirement 分别以 `UnsupportedNode` 保持原子拒绝。最后一项
-必须等待 frontend 在 forwarder 上发布 delegate concrete type 的 exact effective-target identity；
-codegen 不得因 requirement 自带 body 而绕过 field route、静默调用 outer interface default。
+delegation chain，以及有体 default requirement 分别以 `UnsupportedNode` 保持原子拒绝。frontend
+现已在 direct concrete forwarder 上发布 exact effective-target/owner-template，递归或 type-parameter
+未解析路径为 `None`；下一 Phase 4 切片将消费该 fact 接通 bodyful default，codegen 不得因
+requirement 自带 body 而绕过 field route、静默调用 outer interface default。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

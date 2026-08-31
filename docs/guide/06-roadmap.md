@@ -515,8 +515,9 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       object/link/run；ordinary-class Inout Copyable payload、无状态 object Borrow receiver，以及
       concrete `StaticSelf` direct-default/concrete `super<I>`、abstract requirement→effective
       implementation 静态解析，以及非泛型单层 ordinary-class 的 abstract-requirement Borrow-only
-      静态委托 native 闭环已完成。继续补齐 bodyful default 的 delegate effective-target fact、generic
-      receiver/delegation、Inout/Value interface default、MoveOnly field replacement 与 delegation
+      静态委托 native 闭环已完成；bodyful delegate 的 direct effective-target/owner-template frontend fact
+      已完成，递归/type-parameter 未解析路径显式为 `None`。继续接通 bodyful default lowering，并补齐
+      generic receiver/delegation、Inout/Value interface default、MoveOnly field replacement 与 delegation
       chain。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。

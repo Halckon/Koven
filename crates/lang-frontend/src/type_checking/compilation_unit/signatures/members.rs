@@ -13,7 +13,8 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-        TypeCheckingError, UnitDelegationForwarderDescriptor, UnitTypeRefId,
+        TypeCheckingError, UnitDelegationForwarderDescriptor,
+        UnitDelegationImplementationDescriptor, UnitTypeRefId,
     },
 };
 
@@ -432,17 +433,40 @@ impl SignatureCollector<'_> {
                 if incompatible_delegates.contains_key(&plan_index) {
                     continue;
                 }
+                let delegate_symbol = delegations.valid[plan_index].target();
+                let delegate_type = self
+                    .nominals
+                    .get(&owner)
+                    .and_then(|nominal| {
+                        nominal
+                            .fields()
+                            .iter()
+                            .find(|field| field.symbol() == delegate_symbol)
+                    })
+                    .map(|field| field.ty())
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                let mut forwarders = Vec::with_capacity(active.len());
                 for requirement in &active {
-                    delegations.valid[plan_index].push_forwarder(
-                        UnitDelegationForwarderDescriptor::new(
-                            requirement.target,
-                            requirement.owner,
-                            requirement.type_parameters.clone(),
-                            requirement.parameters.clone(),
-                            requirement.return_type,
-                            requirement.name_span,
-                        ),
-                    );
+                    let implementation = self
+                        .effective_delegation_member(delegate_type, requirement)?
+                        .map(|implementation| {
+                            UnitDelegationImplementationDescriptor::new(
+                                implementation.target,
+                                implementation.owner,
+                            )
+                        });
+                    forwarders.push(UnitDelegationForwarderDescriptor::new(
+                        requirement.target,
+                        requirement.owner,
+                        implementation,
+                        requirement.type_parameters.clone(),
+                        requirement.parameters.clone(),
+                        requirement.return_type,
+                        requirement.name_span,
+                    ));
+                }
+                for forwarder in forwarders {
+                    delegations.valid[plan_index].push_forwarder(forwarder);
                 }
                 continue;
             }
@@ -516,6 +540,57 @@ impl SignatureCollector<'_> {
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
             .set_static_dispatch_overrides(static_dispatch_overrides);
         Ok(())
+    }
+
+    fn effective_delegation_member(
+        &mut self,
+        delegate: UnitTypeId,
+        requirement: &MemberSignature,
+    ) -> Result<Option<MemberSignature>, CompilationUnitTypeError> {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.types.get(delegate).cloned()
+        else {
+            return Ok(None);
+        };
+        let nominal = self
+            .nominals
+            .get(&declaration)
+            .cloned()
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        if let Some(local) = self
+            .members_for_instance(delegate)?
+            .into_iter()
+            .find(|member| member.shape == requirement.shape)
+        {
+            return Ok((local.contract == requirement.contract && local.has_body).then_some(local));
+        }
+
+        let substitutions = nominal
+            .type_parameters()
+            .iter()
+            .copied()
+            .zip(arguments)
+            .collect::<BTreeMap<_, _>>();
+        let mut inherited = Vec::new();
+        for interface in nominal.interfaces() {
+            let interface = self.substitute_type(*interface, &substitutions)?;
+            inherited.extend(self.members_for_instance(interface)?);
+        }
+        let mut implementations =
+            self.unshadowed_members(inherited)?
+                .into_iter()
+                .filter(|member| {
+                    member.shape == requirement.shape
+                        && member.contract == requirement.contract
+                        && member.has_body
+                });
+        let implementation = implementations.next();
+        if implementations.next().is_some() {
+            return Ok(None);
+        }
+        Ok(implementation)
     }
 
     fn emit_delegation_conflict(

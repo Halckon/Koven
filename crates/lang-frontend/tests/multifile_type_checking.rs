@@ -6178,7 +6178,7 @@ fn delegation_publishes_only_borrow_receiver_forwarders_and_reports_l0152() {
         &mut sources,
         "delegation-receivers.ko",
         "package p\n\
-         interface Readable { fun read(): Int }\n\
+         interface Readable { fun read(): Int = 0 }\n\
          class Reader: Readable { override fun read(): Int = 1 }\n\
          class ReadHost(val reader: Reader): Readable by reader\n\
          interface Mutable { inout fun z(): Unit; own fun a(): Unit }\n\
@@ -6234,11 +6234,187 @@ fn delegation_publishes_only_borrow_receiver_forwarders_and_reports_l0152() {
         .find(|plan| plan.owner() == declaration(&names, "MutateHost"))
         .expect("Mutable delegation");
     assert_eq!(readable.forwarders().len(), 1);
+    let readable_signature = typed
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let reader_signature = typed
+        .signatures()
+        .declaration(declaration(&names, "Reader"))
+        .and_then(|signature| signature.nominal())
+        .expect("Reader signature");
+    let forwarder = &readable.forwarders()[0];
     assert_eq!(
-        readable.forwarders()[0].receiver_mode(),
-        ParameterMode::Borrow
+        forwarder.requirement(),
+        readable_signature.members()[0].target()
     );
+    assert_eq!(
+        forwarder
+            .implementation()
+            .map(|implementation| implementation.target()),
+        Some(reader_signature.members()[0].target(),),
+        "delegate local override must replace the interface default"
+    );
+    assert_eq!(
+        forwarder
+            .implementation()
+            .map(|implementation| implementation.receiver_type()),
+        Some(reader_signature.ty())
+    );
+    assert_eq!(forwarder.receiver_mode(), ParameterMode::Borrow);
     assert!(mutable.forwarders().is_empty());
+}
+
+#[test]
+fn delegation_forwarders_publish_inherited_effective_default_targets() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "delegation-default-targets.ko",
+        "package p\n\
+         interface Base { fun read(): Int = 1 }\n\
+         interface Derived: Base { fun read(): Int = 2 }\n\
+         class DefaultReader: Base {}\n\
+         class DerivedReader: Derived {}\n\
+         class DefaultHost(val reader: DefaultReader): Base by reader\n\
+         class DerivedHost(val reader: DerivedReader): Base by reader",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/delegation-default-targets.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("delegation default target facts remain recoverable")
+        .validate()
+        .expect("delegation default target fixture must be valid");
+    let nominal = |name| {
+        typed
+            .types()
+            .signatures()
+            .declaration(declaration(&names, name))
+            .and_then(|signature| signature.nominal())
+            .unwrap_or_else(|| panic!("{name} signature"))
+    };
+    let base = nominal("Base");
+    let derived = nominal("Derived");
+    let default_reader = nominal("DefaultReader");
+    let derived_reader = nominal("DerivedReader");
+    let plan = |name| {
+        typed
+            .types()
+            .signatures()
+            .delegations()
+            .iter()
+            .find(|plan| plan.owner() == declaration(&names, name))
+            .unwrap_or_else(|| panic!("{name} delegation"))
+    };
+
+    let inherited = &plan("DefaultHost").forwarders()[0];
+    assert_eq!(inherited.requirement(), base.members()[0].target());
+    let inherited_implementation = inherited.implementation().expect("inherited default");
+    assert_eq!(
+        inherited_implementation.target(),
+        base.members()[0].target()
+    );
+    assert_eq!(inherited_implementation.receiver_type(), base.ty());
+    assert_ne!(
+        inherited_implementation.receiver_type(),
+        default_reader.ty()
+    );
+
+    let replacement = &plan("DerivedHost").forwarders()[0];
+    assert_eq!(replacement.requirement(), base.members()[0].target());
+    let replacement_implementation = replacement.implementation().expect("replacement default");
+    assert_eq!(
+        replacement_implementation.target(),
+        derived.members()[0].target()
+    );
+    assert_eq!(replacement_implementation.receiver_type(), derived.ty());
+    assert_ne!(
+        replacement_implementation.receiver_type(),
+        derived_reader.ty()
+    );
+}
+
+#[test]
+fn delegation_forwarders_keep_generic_owner_templates_and_mark_recursive_routes_unresolved() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "delegation-generic-and-recursive.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class Reader<T>: Readable { override fun read(): Int = 7 }\n\
+         class GenericHost<T>(val reader: Reader<T>): Readable by reader\n\
+         class Middle(val reader: Reader<Int>): Readable by reader\n\
+         class RecursiveHost(val middle: Middle): Readable by middle",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/delegation-generic-and-recursive.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("delegation implementation facts remain recoverable")
+        .validate()
+        .expect("generic and recursive delegation fixture must be valid");
+    let signatures = typed.types().signatures();
+    let nominal = |name| {
+        signatures
+            .declaration(declaration(&names, name))
+            .and_then(|signature| signature.nominal())
+            .unwrap_or_else(|| panic!("{name} signature"))
+    };
+    let reader = nominal("Reader");
+    let generic_host = nominal("GenericHost");
+    let plan = |name| {
+        signatures
+            .delegations()
+            .iter()
+            .find(|plan| plan.owner() == declaration(&names, name))
+            .unwrap_or_else(|| panic!("{name} delegation"))
+    };
+
+    let generic = plan("GenericHost").forwarders()[0]
+        .implementation()
+        .expect("direct generic delegate implementation");
+    assert_eq!(generic.target(), reader.members()[0].target());
+    let Some(UnitTypeKind::Nominal {
+        declaration: receiver_declaration,
+        arguments,
+    }) = typed
+        .types()
+        .signatures()
+        .types()
+        .get(generic.receiver_type())
+    else {
+        panic!("generic implementation receiver must remain nominal");
+    };
+    assert_eq!(*receiver_declaration, declaration(&names, "Reader"));
+    assert_eq!(arguments.len(), 1);
+    assert!(matches!(
+        typed.types().signatures().types().get(arguments[0]),
+        Some(UnitTypeKind::TypeParameter(parameter))
+            if *parameter == generic_host.type_parameters()[0]
+    ));
+
+    assert!(
+        plan("Middle").forwarders()[0].implementation().is_some(),
+        "the first direct forwarding hop must remain concrete"
+    );
+    assert_eq!(
+        plan("RecursiveHost").forwarders()[0].implementation(),
+        None,
+        "a legal recursive delegation route must not publish an abstract requirement as a body"
+    );
 }
 
 #[test]
