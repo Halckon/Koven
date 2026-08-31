@@ -473,6 +473,8 @@ pub enum UnitDropPoint {
     FunctionEntry(UnitItemId),
     /// lambda callable body 开始、参数 binding 建立之后。
     LambdaEntry(UnitExpressionId),
+    /// 普通字段 replacement 的 RHS 正常完成、旧字段析构开始之前。
+    BeforeReplacement(UnitExpressionId),
     /// element replacement 已提交新值之后。
     AfterReplacement(UnitExpressionId),
 }
@@ -488,6 +490,13 @@ pub enum UnitDropTarget {
     Temporary(UnitExpressionId),
     /// replacement 前原 element value；payload 是 assignment expression。
     ReplacedElement(UnitExpressionId),
+    /// replacement 前原 field value；字段身份必须与 assignment target 的 typed projection 一致。
+    ReplacedField {
+        /// assignment expression。
+        assignment: UnitExpressionId,
+        /// 被替换字段的 source-qualified symbol。
+        field: UnitSymbolId,
+    },
     /// `move` closure environment 中一个 owned MoveOnly capture。
     Captured {
         /// 拥有 environment 的 lambda。

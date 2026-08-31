@@ -24,6 +24,7 @@ SPEC-0176 已把普通 callable 与 function-type 的无 marker / 显式 `borrow
 `Borrow`，并以声明侧 `own` 形成既有 `ParameterMode::Value`；
 SPEC-0029 已建立参数 binding 能力、名称/字段 place、同步调用期 loan、L0133–L0135 与
 owned-value ASAP drop facts；
+SPEC-0181 已补齐带 assignment/field 双重身份的普通 MoveOnly 字段 replacement drop facts；
 SPEC-0030 已建立顺序容器构造效果、逻辑 element place、L0136、元素 loan/replacement 与
 旧元素 drop facts；
 SPEC-0032 已建立解析身份驱动的 closure capture、borrowed/move formation effect、逃逸与
@@ -288,6 +289,8 @@ SPEC-0033/0034 标量主线、SPEC-0035 聚合/heap-owner、SPEC-0036 顺序容�
   非 intrinsic index、post-index field projection 与 Phase 5 relocation effect 仍明确 deferred；
   SPEC-0181 已让 member receiver 作为第零操作数先于显式实参建立 shared/exclusive loan 或
   Value copy/move，并发布 stable place、temporary、implicit `this`、call-return 与 drop facts；
+  普通字段 `=` 在 RHS 正常完成且字段为 MoveOnly 时发布唯一
+  `BeforeReplacement/ReplacedField` fact，Copyable 与完全发散 RHS 不发布；
   Borrow/Inout/Value `this` 的字段、reborrow、整体移动、capture 冲突和 Borrow-only delegate
   outer/field shared-loan plan 已进入 compilation-unit ownership 产物。无状态 object 保留 MoveOnly
   源码能力与 call-scoped shared receiver fact，但没有 runtime owner，因此不发布 temporary drop；
@@ -979,8 +982,9 @@ GEP；它只对 field 执行 field-typed load/store，不写 receiver storage、
 call ABI。普通 `=` 先完整 lower RHS，`Nothing` 路径不生成 replace；正常路径核对 assignment 的
 expression/target/value/operator/storage-type/control identity 后才写 field。裸 field、`this.field` 与
 grouped `this` 共享同一 current receiver identity；真实 object/link/run 由后续 Borrow getter 从同一
-caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；MoveOnly field
-replacement 在 frontend 发布旧字段 drop/replacement fact 前确定性拒绝。interface callable template
+caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；frontend
+现已发布 MoveOnly 旧字段 replacement fact，但 SSA/LLVM 尚未消费，因此 MoveOnly field replacement
+仍在 program 发布前确定性拒绝。interface callable template
 以 `StaticSelf(interface)` 保存 receiver；
 unit instance key 另存 concrete self，
 使同一 default 对不同 concrete owner 分别单态化并计入实例上限。直接 default、concrete override

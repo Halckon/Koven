@@ -358,7 +358,8 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       检查 receiver/`this` 的 shared/exclusive loan、Value copy/move、字段/capture 冲突与 drop；
       Value `this` 保持 owned-but-immutable，需先整体移入 `var` local 才能取得 mutable root；
       移除一般 MemberReceiver deferred；bodyful Value interface default 已发布具体化后仅对 MoveOnly
-      receiver 生效的 `StaticSelf` conditional drop fact，不污染通用 copyability。
+      receiver 生效的 `StaticSelf` conditional drop fact，不污染通用 copyability；普通 MoveOnly
+      字段替换已发布 assignment/field 身份精确的旧字段 drop fact，Copyable 与完全发散 RHS 不发布。
 - [x] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
       按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移

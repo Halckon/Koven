@@ -44,6 +44,9 @@
 - interface default 的 Value receiver 保留精确 `StaticSelf` 模板，另行发布 conditional receiver-drop
   fact：具体化为 MoveOnly 时析构，具体化为 Copyable 时跳过；不得修改通用 `StaticSelf`
   copyability 或把该义务伪装成无条件 `UnitDropFact`。
+- 普通字段 `=` 的 RHS 正常完成后，若字段实际类型为 MoveOnly，则发布带 assignment 与 field
+  symbol 双重身份的 `BeforeReplacement/ReplacedField` 唯一 drop fact；Copyable 字段与完全
+  `Nothing` RHS 不发布该事实。Phase 3 不猜测 SSA field index，也不在诊断恢复产物中泄漏事实。
 
 ## 3. 非目标
 
@@ -64,6 +67,9 @@
 - [x] 无一般 MemberReceiver deferred；受影响 frontend 窄测试及 workspace Layer 2 静态门禁通过并同步 Architecture。
 - [x] bodyful Value interface default 发布 owner/template/point/origin 精确且去重的 conditional
   receiver-drop fact；普通 MoveOnly class 仍发布无条件 drop，Copyable/Borrow/Inout/bodyless 与错误恢复不泄漏该事实。
+- [x] MoveOnly 普通字段替换发布精确 assignment/field/origin 的旧字段 drop fact；Copyable 与
+  non-fallthrough RHS 负矩阵不发布，发散结果贯穿 assignment/local/block/callable 边界且不规划
+  不可达 statement 或函数出口 drop，输入顺序置换保持确定。
 
 ## 5. 技术方案与边界
 
@@ -78,6 +84,7 @@
 3. [x] 接 Borrow delegate并移除 deferred → 验证：facts 等价与失败原子性。
 4. [x] 同步 Architecture/Spec 并运行分层验收。
 5. [x] 发布 `StaticSelf` Value receiver 条件析构义务 → 验证：正负能力矩阵、失败原子性及下游静态门禁。
+6. [x] 发布普通字段替换的旧字段析构义务 → 验证：MoveOnly/Copyable/`Nothing` RHS 与确定性窄矩阵。
 
 ## 7. 提交计划
 
@@ -85,12 +92,15 @@
 |---|---|---|
 | 1 | receiver loan/move/drop/capture ownership facts | `feat(frontend): check receiver ownership (SPEC-0181)` |
 | 2 | `StaticSelf` Value receiver conditional drop fact | `feat(frontend): publish conditional receiver drops (SPEC-0181)` |
+| 3 | MoveOnly 普通字段 replacement drop fact | `feat(frontend): publish replaced field drops (SPEC-0181)` |
 
 ## 8. 未决问题
 
 - conditional receiver-drop 的 SSA/native 消费由 SPEC-0191 承接。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 仍需要 conditional
   delivery/move fact；当前继续 fail loud，不由本 drop-only 切片推断。
+- `BeforeReplacement/ReplacedField` 的 SSA/LLVM 消费由 SPEC-0191 承接；本 Spec 不生成旧字段
+  load/drop/store，也不提前开放 MoveOnly field codegen。
 
 ## 9. 验证记录
 
@@ -111,3 +121,6 @@
 | `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 54/54 通过 | 条件事实的精确 owner/`StaticSelf`/point/origin、普通 MoveOnly 与 Copyable/Borrow/Inout/bodyless 负矩阵、错误恢复原子性及既有 receiver/ownership 回归 |
 | `cargo clippy -p lang-frontend --lib --locked --offline -- -D warnings` | 通过 | 与上述单 integration target 并行执行；未运行约一小时的 frontend 全量测试 |
 | 独立高风险复核（conditional receiver drop） | 通过 | 要求保持 `UnitDropFact` 的确定 drop 不变量；据此把 owner 收窄为专用字段并补 conditional fact 去重，最终结论见本次提交复核 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 54/54 通过 | MoveOnly `this.item` / `holder.item` 各发布 assignment/field 精确事实；Copyable、完全发散 RHS、不可达 statement 与重复函数出口 drop 为负矩阵；未运行 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与单个 frontend integration target 并行执行的 workspace 库级静态门禁 |
+| 独立高风险复核（MoveOnly replaced field drop） | 通过 | 首轮发现 assignment→local→block→callable 发散结果被分层吞掉的 P2 与 receiver 覆盖 P3；补四层传播及同字段不同 receiver 身份矩阵后复核至无 P1/P2/P3 |

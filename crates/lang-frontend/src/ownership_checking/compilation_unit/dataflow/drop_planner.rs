@@ -13,7 +13,8 @@ use crate::{
     },
     type_checking::{
         BuiltinType, Copyability, DestructuringMode, ExpressionCategory, NominalKind,
-        ParameterMode, UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        ParameterMode, UnitAggregateProjectionKind, UnitCallReceiverOrigin, UnitExpressionId,
+        UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -184,21 +185,28 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 match form {
                     FunctionForm::ImplicitUnitAbsent => {}
                     FunctionForm::ImplicitUnitBlock(body) => {
-                        self.statement(body, &mut state)?;
-                        self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
+                        if self.statement(body, &mut state)? {
+                            self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
+                        }
                     }
                     FunctionForm::Explicit { body, .. } => match body {
                         FunctionBody::Absent => {}
                         FunctionBody::Expression { expression, .. } => {
-                            self.expression(expression, DropExpressionUse::Consume, &mut state)?;
-                            self.drop_all(
-                                PlannerDropPoint::ControlTransfer(expression),
+                            if self.expression(
+                                expression,
+                                DropExpressionUse::Consume,
                                 &mut state,
-                            );
+                            )? {
+                                self.drop_all(
+                                    PlannerDropPoint::ControlTransfer(expression),
+                                    &mut state,
+                                );
+                            }
                         }
                         FunctionBody::Block(body) => {
-                            self.statement(body, &mut state)?;
-                            self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
+                            if self.statement(body, &mut state)? {
+                                self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
+                            }
                         }
                     },
                 }
@@ -265,7 +273,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(true);
                 };
                 let closure = self.closure_origin(initializer, state)?;
-                self.expression(initializer, DropExpressionUse::Consume, state)?;
+                if !self.expression(initializer, DropExpressionUse::Consume, state)? {
+                    return Ok(false);
+                }
                 if let Some(symbol) = self.checker.marker_symbol(name).copied()
                     && self.checker.is_move_only_variable(symbol)
                 {
@@ -640,7 +650,38 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     return Ok(true);
                 }
-                self.expression(value, DropExpressionUse::Consume, state)?;
+                if !self.expression(value, DropExpressionUse::Consume, state)? {
+                    return Ok(false);
+                }
+                let assignment = UnitExpressionId::new(self.checker.source_unit, id);
+                let assignment_target = UnitExpressionId::new(self.checker.source_unit, target);
+                let assignment_value = UnitExpressionId::new(self.checker.source_unit, value);
+                if operator == AssignmentOperator::Assign
+                    && self
+                        .checker
+                        .typed
+                        .assignment(assignment)
+                        .is_some_and(|descriptor| {
+                            descriptor.expression() == assignment
+                                && descriptor.target() == assignment_target
+                                && descriptor.value() == assignment_value
+                                && descriptor.operator() == AssignmentOperator::Assign
+                                && descriptor.falls_through()
+                        })
+                    && let Some(projection) =
+                        self.checker.typed.aggregate_projection(assignment_target)
+                    && projection.kind() == UnitAggregateProjectionKind::Field
+                    && self.checker.typed.copyability(projection.ty()) == Copyability::MoveOnly
+                {
+                    self.push_fact(PlannerDropFact::new(
+                        PlannerDropPoint::BeforeReplacement(id),
+                        PlannerDropTarget::ReplacedField {
+                            assignment: id,
+                            field: projection.field(),
+                        },
+                        self.checker.parsed.ast().expressions().get(target)?.span(),
+                    ));
+                }
                 if let Some(place) = self.checker.place(target)?
                     && place.is_root()
                 {
@@ -1128,6 +1169,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             | PlannerDropPoint::AfterBinaryOperands(expression)
             | PlannerDropPoint::CallReturn(expression)
             | PlannerDropPoint::ControlTransfer(expression)
+            | PlannerDropPoint::BeforeReplacement(expression)
             | PlannerDropPoint::AfterReplacement(expression)
             | PlannerDropPoint::BranchExit {
                 control: expression,

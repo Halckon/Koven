@@ -35,6 +35,7 @@ pub(super) enum PlannerDropPoint {
     LoopExit(StatementId),
     FunctionEntry(ItemId),
     LambdaEntry(ExpressionId),
+    BeforeReplacement(ExpressionId),
     AfterReplacement(ExpressionId),
 }
 
@@ -57,6 +58,7 @@ impl PlannerDropPoint {
                 UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))
             }
             Self::LambdaEntry(id) => UnitDropPoint::LambdaEntry(expression(id)),
+            Self::BeforeReplacement(id) => UnitDropPoint::BeforeReplacement(expression(id)),
             Self::AfterReplacement(id) => UnitDropPoint::AfterReplacement(expression(id)),
         }
     }
@@ -68,6 +70,10 @@ pub(super) enum PlannerDropTarget {
     Named(UnitSymbolId),
     Temporary(ExpressionId),
     ReplacedElement(ExpressionId),
+    ReplacedField {
+        assignment: ExpressionId,
+        field: UnitSymbolId,
+    },
     Captured {
         closure: ExpressionId,
         source: UnitClosureCaptureSource,
@@ -122,6 +128,12 @@ impl PlannerDropFact {
             PlannerDropTarget::Temporary(id) => UnitDropTarget::Temporary(expression(id)),
             PlannerDropTarget::ReplacedElement(id) => {
                 UnitDropTarget::ReplacedElement(expression(id))
+            }
+            PlannerDropTarget::ReplacedField { assignment, field } => {
+                UnitDropTarget::ReplacedField {
+                    assignment: expression(assignment),
+                    field,
+                }
             }
             PlannerDropTarget::Captured { closure, source } => UnitDropTarget::Captured {
                 closure: expression(closure),

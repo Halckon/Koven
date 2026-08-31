@@ -2837,8 +2837,24 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
         "p/provider.ko",
         "package p\n\
          class Resource {}\n\
+         class Holder(var item: Resource) {\n\
+         inout fun replace(own replacement: Resource): Unit {\n\
+                 val result = (this.item = replacement)\n\
+             }\n\
+             inout fun stop(): Unit {\n\
+                 val result = (item = error(\"stop\"))\n\
+             }\n\
+         }\n\
+         class CopyHolder(var item: Int) {\n\
+             inout fun replace(own replacement: Int): Unit {\n\
+                 val result = (item = replacement)\n\
+             }\n\
+         }\n\
          fun create(): Resource\n\
-         fun inspect(item: Resource): Unit {}",
+         fun inspect(item: Resource): Unit {}\n\
+         fun replaceOther(inout holder: Holder, own replacement: Resource): Unit {\n\
+             val result = (holder.item = replacement)\n\
+         }",
     );
     let (consumer_source, consumer) = parsed(
         &mut sources,
@@ -2879,6 +2895,11 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
          }\n\
          fun elementDrop(own items: MutableList<Resource>, own replacement: Resource): Unit {\n\
              val result = (items[0] = replacement)\n\
+         }\n\
+         fun divergentAssignment(): Unit {\n\
+             var target = create()\n\
+             val result = (target = error(\"root-stop\"))\n\
+             val unreachable = create()\n\
          }",
     );
     let inputs = [
@@ -2898,6 +2919,90 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
         ownership.diagnostics()
     );
     assert!(ownership.deferred().is_empty());
+    let provider_unit = source_unit(&names, provider_source);
+    let consumer_unit = source_unit(&names, consumer_source);
+    let field_assignments = [
+        UnitExpressionId::new(
+            provider_unit,
+            expression_with_text(&sources, &provider, "this.item = replacement"),
+        ),
+        UnitExpressionId::new(
+            provider_unit,
+            expression_with_text(&sources, &provider, "holder.item = replacement"),
+        ),
+    ];
+    let mut replaced_field = None;
+    for field_assignment in field_assignments {
+        let field_descriptor = typed
+            .types()
+            .assignment(field_assignment)
+            .expect("MoveOnly field assignment descriptor");
+        let projection = typed
+            .types()
+            .aggregate_projection(field_descriptor.target())
+            .expect("MoveOnly field projection");
+        if let Some(expected) = replaced_field {
+            assert_eq!(projection.field(), expected, "same Holder field identity");
+        } else {
+            replaced_field = Some(projection.field());
+        }
+        let facts = ownership
+            .drops()
+            .iter()
+            .filter(|fact| {
+                matches!(
+                    fact.point(),
+                    UnitDropPoint::BeforeReplacement(expression)
+                        if expression == field_assignment
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            facts.as_slice(),
+            [fact]
+                if matches!(
+                    fact.target(),
+                    UnitDropTarget::ReplacedField {
+                        assignment,
+                        field,
+                    } if assignment == field_assignment && field == projection.field()
+                ) && sources.slice(fact.value_origin()).unwrap().ends_with("item")
+        ));
+    }
+    assert_eq!(
+        ownership
+            .drops()
+            .iter()
+            .filter(|fact| matches!(fact.point(), UnitDropPoint::BeforeReplacement(_)))
+            .count(),
+        2,
+        "Copyable and non-fallthrough field assignments must not publish old-field drop facts"
+    );
+    let unreachable_drops = ownership
+        .drops()
+        .iter()
+        .filter(|fact| {
+            matches!(fact.target(), UnitDropTarget::Named(_))
+                && sources.slice(fact.value_origin()).unwrap() == "unreachable"
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        unreachable_drops.is_empty(),
+        "an aborting replacement RHS must stop planning unreachable statements: {unreachable_drops:?}"
+    );
+    let target_drops = ownership
+        .drops()
+        .iter()
+        .filter(|fact| {
+            matches!(fact.target(), UnitDropTarget::Named(_))
+                && sources.slice(fact.value_origin()).unwrap() == "target"
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        target_drops.len(),
+        1,
+        "ASAP may drop the unread target before abort, but must not add a second function-exit drop: {target_drops:?}"
+    );
     let named_origins = ownership
         .drops()
         .iter()
@@ -2906,6 +3011,7 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
             UnitDropTarget::This(_)
             | UnitDropTarget::Temporary(_)
             | UnitDropTarget::ReplacedElement(_)
+            | UnitDropTarget::ReplacedField { .. }
             | UnitDropTarget::Captured { .. } => None,
         })
         .collect::<Vec<_>>();
@@ -2928,7 +3034,6 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
         !named_origins.contains(&"result"),
         "returned owner must transfer instead of drop: {named_origins:?}"
     );
-    let consumer_unit = source_unit(&names, consumer_source);
     for predicate in [
         ownership.drops().iter().any(|fact| {
             matches!(
