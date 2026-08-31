@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | 参数无关 generic ordinary-class runtime layout 已闭合；字段直接/嵌套依赖 owner type parameter 的实例化布局仍等待后续切片 |
+| 阻塞项 | 参数无关及字段恰为 owner direct type parameter 的 generic ordinary-class runtime layout 已闭合；嵌套依赖 owner type parameter 的实例化 recipe 仍等待后续切片 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -44,9 +44,10 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。
 - Borrow-only delegation 生成确定性静态 thunk 或等价直接转发；只投影 delegate field 和转交
   既有 loan/arguments，不生成隐藏 AST、retain、proxy allocation或新 owner。
-- generic ordinary class 仅在全部 runtime field type 不含 owner type parameter 时开放；每个
-  concrete `UnitTypeId` 保持独立 heap-owner/layout identity，generic outer/delegate route 使用具体
-  receiver type。`T`、`List<T>` 等参数相关字段继续在 SSA 前确定性拒绝。
+- generic ordinary class 的 runtime field 可为 closed type 或恰好为 owner direct type parameter；
+  direct slot 按 concrete owner arguments 实例化，同时泛型 member body 仍按模板 `T` 消费所有权
+  fact。每个 concrete `UnitTypeId` 保持独立 heap-owner/layout identity，generic outer/delegate route
+  使用具体 receiver type；`List<T>`、`Wrapper<T>`、`T?` 等嵌套 recipe 继续在 SSA 前确定性拒绝。
 - SSA/verifier 拒绝 receiver mode/type/loan kind、instance key、ownership plan 与 callee signature
   不一致；verified-before-LLVM 不变。
 - 真实 source→object→link→run 覆盖多种 nominal/generic receiver、drop 与调用顺序；DWARF
@@ -68,6 +69,8 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
 - [x] MoveOnly class payload replacement 精确消费旧字段 fact，exclusive loan/verifier 接受且
   shared/inactive/derived-loan/read 负矩阵保持；LLVM old-drop-before-store 与 native 动态 String 闭环通过。
+- [x] generic ordinary-class direct `T` field 按 concrete actual 建立 layout/construction/projection；
+  generic replacement 对 `String` 生成 old load/drop/store，对 `Int` 仍核对模板 fact 但只生成直接 store。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -86,7 +89,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
-   参数无关 generic ordinary-class construction/projection/member receiver 已完成，参数相关字段布局继续实施。
+   参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
+   receiver 已完成，嵌套参数 recipe 布局继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
@@ -106,8 +110,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    typed/ownership plan，并按 outer→inner 建立 field-loan chain；bodyful default 不得截断下一跳，
    local override 正常终止 route，cycle 与无 endpoint unresolved chain 在 SSA 前拒绝。identity-changing
    chain 已直接消费 SPEC-0180 exact next-hop target/receiver template，按 hop 重组 owner prefix 并保留
-   callable suffix；参数无关 generic outer/delegate runtime nominal 已完成 native 闭环，参数相关
-   field layout 与 nested recipe 继续确定性拒绝。
+   callable suffix；参数无关 generic outer/delegate runtime nominal 已完成 native 闭环，direct owner
+   type-parameter field 已开放，nested recipe 继续确定性拒绝。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -124,11 +128,12 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 8 | Value interface default 的 conditional receiver-drop 消费 | `feat(codegen): lower value interface defaults (SPEC-0191)` |
 | 9 | MoveOnly ordinary-class field replacement fact/SSA/LLVM/native 消费 | `feat(codegen): lower move-only field replacement (SPEC-0191)` |
 | 10 | 参数无关 generic ordinary-class layout、receiver 与 delegation native 闭环 | `feat(codegen): lower closed generic nominal layouts (SPEC-0191)` |
+| 11 | direct owner type-parameter field 的 concrete layout、replacement 与 native 闭环 | `feat(codegen): lower direct generic field layouts (SPEC-0191)` |
 
 ## 8. 未决问题
 
-- generic runtime nominal 的参数无关 ordinary-class construction/projection/current receiver/delegation
-  已开放；字段为 `T`、`List<T>` 等参数相关类型时仍等待统一实例化布局，不扩张任意 owner expression。
+- generic runtime nominal 的参数无关及 direct `T` ordinary-class construction/projection/current receiver
+  已开放；`List<T>`、`Wrapper<T>`、`T?` 等嵌套 recipe 仍等待统一结构实例化，不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
@@ -230,3 +235,6 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib --locked --offline` | 298 通过、1 ignored | 参数无关 generic class 的双 concrete layout identity、outer/delegate planning、construction/projection/member receiver 与真实 native 闭环；ignored 为既有 LLDB sandbox 用例，未运行耗时 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | frontend canonical type 查询与 codegen layout/route 改动均为零 warning |
 | 独立高风险复核（参数无关 generic ordinary-class layout） | 通过 | 三轮发现并关闭 generic member `this` concrete 化、ordinary-class/nested-recipe 负矩阵及 nested nominal owner recipe 三类问题；最终复核 concrete identity、route loan、direct T/StaticSelf、generic slots 与未开放 value/enum/interface 边界均无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib --locked --offline` | 301 通过、1 ignored | direct `T` 的 `Cell<Int>`/`Cell<Long>` concrete layout、String/Int replacement、nested recipe 拒绝与动态 String native 均通过；ignored 为既有 LLDB sandbox 用例，未运行耗时 frontend 全量测试 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与 codegen library 回归并行执行，零 warning |
+| 独立高风险复核（direct owner type-parameter field layout） | 通过 | 复核 direct-slot substitution、template ownership fact/concrete SSA 双 identity、String drop/Int trivial store、generic nominal kind 门禁与 List/Wrapper/nullable 负矩阵后无 P1/P2/P3 |

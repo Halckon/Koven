@@ -269,17 +269,17 @@ fn finite_value_class_recursion_through_a_heap_handle_lowers() {
 }
 
 #[test]
-fn parameter_independent_generic_class_instances_keep_distinct_layout_identities() {
+fn direct_slot_generic_class_instances_keep_distinct_layout_identities() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
         "test/generic-layout.ko",
         "package test\n\
-         class Marker<T>(val item: Int)\n\
+         class Cell<T>(val item: T)\n\
          fun entry(): Int {\n\
-             val text = Marker<String>(20)\n\
-             val number = Marker<Long>(22)\n\
-             return text.item + number.item\n\
+             val narrow = Cell<Int>(20)\n\
+             val wide = Cell<Long>(22L)\n\
+             return narrow.item + 2\n\
          }",
     );
     let inputs = [SourceUnitInput::new(
@@ -299,7 +299,7 @@ fn parameter_independent_generic_class_instances_keep_distinct_layout_identities
         &owned,
         declaration(&names, "test", "entry"),
     )
-    .expect("parameter-independent generic class instances must lower");
+    .expect("direct-slot generic class instances must lower");
     let module = &program.modules[0];
     assert_eq!(
         module
@@ -308,7 +308,7 @@ fn parameter_independent_generic_class_instances_keep_distinct_layout_identities
             .filter(|ty| matches!(ty, SsaTypeKind::HeapOwner { .. }))
             .count(),
         2,
-        "Marker<String> and Marker<Long> keep distinct owner/layout identities"
+        "Cell<Int> and Cell<Long> keep distinct owner/layout identities"
     );
     let entry = function(module, "test.entry");
     assert_eq!(
@@ -322,19 +322,26 @@ fn parameter_independent_generic_class_instances_keep_distinct_layout_identities
 }
 
 #[test]
-fn rejects_parameter_dependent_generic_class_field_layouts() {
+fn rejects_nested_parameter_dependent_generic_class_field_layouts() {
     let (name_environment, type_environment) = standard_environments();
     for (name, text) in [
         (
-            "direct",
+            "intrinsic",
             "package test\n\
-             class Dependent<T>(val item: T)\n\
+             class Dependent<T>(val items: List<T>)\n\
              fun entry(own input: Dependent<Int>): Int = 1",
         ),
         (
-            "nested",
+            "nominal",
             "package test\n\
-             class Dependent<T>(val items: List<T>)\n\
+             class Wrapper<T>(val marker: Int)\n\
+             class Dependent<T>(val item: Wrapper<T>)\n\
+             fun entry(own input: Dependent<Int>): Int = 1",
+        ),
+        (
+            "nullable",
+            "package test\n\
+             class Dependent<T>(val item: T?)\n\
              fun entry(own input: Dependent<Int>): Int = 1",
         ),
     ] {

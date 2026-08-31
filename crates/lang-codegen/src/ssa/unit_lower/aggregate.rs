@@ -17,7 +17,7 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, SsaTypeId},
-    unit_plan::nominal_runtime_layout_is_parameter_independent,
+    unit_plan::resolve_nominal_runtime_field_types,
 };
 
 pub(super) struct CurrentClassField {
@@ -125,13 +125,7 @@ impl UnitExpressionLowerer<'_> {
                     .signatures()
                     .declaration(declaration)
                     .and_then(|signature| signature.nominal())
-                    .filter(|nominal| {
-                        matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
-                            && (nominal.type_parameters().is_empty()
-                                || nominal.kind() == NominalKind::Class)
-                            && nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
-                    })
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 let Some(UnitTypeKind::Nominal {
                     declaration: result_declaration,
                     arguments,
@@ -139,6 +133,14 @@ impl UnitExpressionLowerer<'_> {
                 else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
+                if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
+                    || (!nominal.type_parameters().is_empty()
+                        && nominal.kind() != NominalKind::Class)
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                let concrete_fields =
+                    resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
                 if *result_declaration != declaration
                     || arguments.len() != nominal.type_parameters().len()
                     || arguments != descriptor.instance().type_arguments()
@@ -147,9 +149,10 @@ impl UnitExpressionLowerer<'_> {
                         nominal
                             .fields()
                             .get(argument.parameter_index())
-                            .is_none_or(|field| {
+                            .zip(concrete_fields.get(argument.parameter_index()))
+                            .is_none_or(|(field, concrete)| {
                                 argument.parameter_symbol() != Some(field.symbol())
-                                    || argument.parameter_type() != field.ty()
+                                    || argument.parameter_type() != *concrete
                             })
                     })
                 {
@@ -274,16 +277,24 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if arguments.len() != nominal.type_parameters().len()
             || (!nominal.type_parameters().is_empty() && nominal.kind() != NominalKind::Class)
-            || !nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let concrete_fields = resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
         let field = self
             .field_indices
             .get(&(receiver_type, projection.field()))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let result_type = self.expression_ssa_type(expression, span)?;
+        let concrete_field = concrete_fields
+            .get(field)
+            .and_then(|ty| self.type_ids.get(ty))
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if result_type != concrete_field {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         if nominal.kind() == NominalKind::ValueClass {
             if explicit_receiver.is_none() {
                 return self.lower_this_value_field(field, result_type, span);
@@ -418,10 +429,10 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if nominal.kind() != NominalKind::Class
             || arguments.len() != nominal.type_parameters().len()
-            || !nominal_runtime_layout_is_parameter_independent(self.typed, nominal)
         {
             return Ok(None);
         }
+        let concrete_fields = resolve_nominal_runtime_field_types(self.typed, nominal, arguments)?;
         let EntityId::Loan(receiver) = current.entity else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
@@ -454,9 +465,23 @@ impl UnitExpressionLowerer<'_> {
             .get(&(current.ty, projection.field()))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete_type = concrete_fields
+            .get(field)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if resolve_concrete_type(
+            self.typed,
+            projection.ty(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )? != concrete_type
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let ssa_type = self
             .type_ids
-            .get(&projection.ty())
+            .get(&concrete_type)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         Ok(Some(CurrentClassField {

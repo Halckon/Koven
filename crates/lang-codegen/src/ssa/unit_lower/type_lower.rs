@@ -15,7 +15,7 @@ use super::lowering_error;
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind},
-    unit_plan::nominal_runtime_layout_is_parameter_independent,
+    unit_plan::resolve_nominal_runtime_field_types,
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
@@ -322,16 +322,14 @@ impl UnitTypeLowering {
         if arguments.len() != nominal.type_parameters().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if !nominal.type_parameters().is_empty()
-            && (nominal.kind() != NominalKind::Class
-                || !nominal_runtime_layout_is_parameter_independent(typed, nominal))
-        {
+        if !nominal.type_parameters().is_empty() && nominal.kind() != NominalKind::Class {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if nominal.kind() == NominalKind::EnumClass {
             return self.intern_enum(module, typed, ty, declaration, nominal.enum_cases(), span);
         }
         let fields = nominal.fields().to_vec();
+        let concrete_fields = resolve_nominal_runtime_field_types(typed, nominal, arguments)?;
         if nominal.kind() == NominalKind::ValueClass && !self.active_inline.insert(ty) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -358,7 +356,8 @@ impl UnitTypeLowering {
                         payload_name: format!("{base_name}.payload"),
                         fields: fields
                             .iter()
-                            .map(|field| (field.ty(), field.span()))
+                            .zip(concrete_fields)
+                            .map(|(field, concrete)| (concrete, field.span()))
                             .collect(),
                         span,
                     },
@@ -509,7 +508,8 @@ pub(super) fn is_supported_storage_type(
                         )
                     } else {
                         nominal.kind() == NominalKind::Class
-                            && nominal_runtime_layout_is_parameter_independent(typed, nominal)
+                            && resolve_nominal_runtime_field_types(typed, nominal, arguments)
+                                .is_ok()
                     }
             }),
         _ => false,

@@ -1028,6 +1028,54 @@ fn parameter_independent_generic_nominal_delegation_links_and_runs() {
 }
 
 #[test]
+fn direct_slot_generic_string_replacement_links_and_runs() {
+    let analysis = analyze_sources(
+        "package p\n\
+         class Cell<T>(var item: T) {\n\
+             inout fun set(own replacement: T): Unit { this.item = replacement }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val old = \"old\" + \"-value\"\n\
+             val replacement = \"new\" + \"-value\"\n\
+             val holder = Cell<String>(old)\n\
+             val ignored = holder.set(replacement)\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("direct-slot-generic.o");
+    let executable = directory.join("direct-slot-generic");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("direct-slot generic String replacement must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked direct-slot generic executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn inout_interface_default_links_and_runs() {
     let analysis = analyze_sources(
         "package p\n\

@@ -969,6 +969,119 @@ fn inout_class_receiver_replaces_a_move_only_payload_field() {
 }
 
 #[test]
+fn direct_slot_generic_receiver_replaces_a_concrete_string_field() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Cell<T>(var item: T) {\n\
+             inout fun set(own replacement: T): Unit {\n\
+                 val ignored: Unit = (this.item = replacement)\n\
+             }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val cell = Cell<String>(\"old\" + \"-value\")\n\
+             val ignored = cell.set(\"new\" + \"-value\")\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("generic T replacement fact must lower against the concrete String layout");
+
+    let module = &program.modules[0];
+    let member = function(module.functions.iter(), ".Cell.set.s");
+    assert!(member.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldReplace { field: 0, .. }
+    )));
+
+    let llvm = render_verified_program(&program).expect("generic String replacement LLVM");
+    let member_llvm = llvm
+        .split("define internal void @f1.koven.p.Cell.set")
+        .nth(1)
+        .and_then(|body| body.split("define internal").next())
+        .unwrap_or_else(|| panic!("generic member LLVM body:\n{llvm}"));
+    let old_load = member_llvm
+        .find(".old = load %koven.string")
+        .unwrap_or_else(|| {
+            panic!("concrete String field is loaded before replacement:\n{member_llvm}")
+        });
+    let old_drop = member_llvm[old_load..]
+        .find("call void @koven.drop")
+        .map(|offset| old_load + offset)
+        .expect("old concrete String owner is dropped");
+    let replacement_store = member_llvm[old_drop..]
+        .find("store %koven.string")
+        .map(|offset| old_drop + offset)
+        .expect("new concrete String owner is stored after the old drop");
+    assert!(
+        old_load < old_drop && old_drop < replacement_store,
+        "{member_llvm}"
+    );
+}
+
+#[test]
+fn direct_slot_generic_receiver_keeps_concrete_int_replacement_trivial() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Cell<T>(var item: T) {\n\
+             inout fun set(own replacement: T): Unit {\n\
+                 val ignored: Unit = (this.item = replacement)\n\
+             }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val cell = Cell<Int>(1)\n\
+             val ignored = cell.set(2)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("generic T replacement fact must remain valid for a concrete Copyable layout");
+
+    let member = function(program.modules[0].functions.iter(), ".Cell.set.s");
+    assert!(member.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldReplace { field: 0, .. }
+    )));
+    let llvm = render_verified_program(&program).expect("generic Int replacement LLVM");
+    let member_llvm = llvm
+        .split("define internal void @f1.koven.p.Cell.set")
+        .nth(1)
+        .and_then(|body| body.split("define internal").next())
+        .unwrap_or_else(|| panic!("generic member LLVM body:\n{llvm}"));
+    assert!(member_llvm.contains("store i32"), "{member_llvm}");
+    assert!(!member_llvm.contains(".old = load"), "{member_llvm}");
+    assert!(
+        !member_llvm.contains("call void @koven.drop"),
+        "{member_llvm}"
+    );
+}
+
+#[test]
 fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

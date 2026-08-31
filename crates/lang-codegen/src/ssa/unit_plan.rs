@@ -1022,6 +1022,41 @@ pub(crate) fn nominal_runtime_layout_is_parameter_independent(
     })
 }
 
+/// 把 nominal runtime fields 解析为当前 concrete owner instance 的存储类型。
+///
+/// 只支持 closed field 或恰好为 owner direct type-parameter slot 的 field；任何嵌套 recipe
+/// 继续等待统一结构替换，避免 codegen 扩张 frontend 已验证的泛型体语义。
+pub(crate) fn resolve_nominal_runtime_field_types(
+    typed: &ValidatedCompilationUnitTypes,
+    nominal: &UnitNominalSignature,
+    arguments: &[UnitTypeId],
+) -> Result<Vec<UnitTypeId>, LoweringError> {
+    if nominal.type_parameters().len() != arguments.len() {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        });
+    }
+    nominal
+        .fields()
+        .iter()
+        .map(|field| match typed.types().types().get(field.ty()) {
+            Some(UnitTypeKind::TypeParameter(parameter)) => nominal
+                .type_parameters()
+                .iter()
+                .position(|candidate| candidate == parameter)
+                .and_then(|index| arguments.get(index).copied())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, field.span())),
+            Some(kind) if contains_type_parameter(typed, kind) => Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                field.span(),
+            )),
+            Some(_) => Ok(field.ty()),
+            None => Err(lowering_error(LoweringErrorKind::MissingFact, field.span())),
+        })
+        .collect()
+}
+
 fn span_contains(owner: Span, child: Span) -> bool {
     owner.source_id() == child.source_id()
         && owner.start() <= child.start()
