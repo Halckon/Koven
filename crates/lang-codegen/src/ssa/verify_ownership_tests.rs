@@ -953,6 +953,119 @@ fn shared_heap_field_loan_tracks_the_receiver_dependency() {
     )));
 }
 
+#[test]
+fn shared_inline_field_loan_blocks_ending_its_parent_reborrow() {
+    let valid = shared_inline_field_loan_program(false);
+    assert_eq!(verify_program(&valid), Ok(()));
+
+    let parent_ended_first = errors(&shared_inline_field_loan_program(true));
+    assert!(has_kind(&parent_ended_first, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanDependencyActive { .. }
+    )));
+}
+
+fn shared_inline_field_loan_program(end_parent_first: bool) -> Program {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("inline-field-loan");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 64,
+        signed: true,
+    });
+    let receiver_type = module
+        .add_aggregate_type("Counter", vec![integer])
+        .expect("inline aggregate");
+    let function_id = module
+        .add_instance_function(
+            "read",
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: receiver_type,
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("function");
+    let function = module.function_mut(function_id).expect("function");
+    let entry = function
+        .add_block(
+            vec![EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: receiver_type,
+            }],
+            origin.clone(),
+        )
+        .expect("entry");
+    let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
+        panic!("receiver loan");
+    };
+    let (_, reborrow_results) = function
+        .append_instruction(
+            entry,
+            Operation::SharedReborrow { source: receiver },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: receiver_type,
+            }],
+            origin.clone(),
+        )
+        .expect("shared reborrow");
+    let EntityId::Loan(reborrow) = reborrow_results[0] else {
+        panic!("shared reborrow result");
+    };
+    let (_, field_results) = function
+        .append_instruction(
+            entry,
+            Operation::SharedFieldLoan {
+                base: reborrow,
+                field: 0,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: integer,
+            }],
+            origin.clone(),
+        )
+        .expect("field loan");
+    let EntityId::Loan(field_loan) = field_results[0] else {
+        panic!("field loan result");
+    };
+    if end_parent_first {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: reborrow },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end parent reborrow");
+    }
+    function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan: field_loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .expect("end field loan");
+    if !end_parent_first {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: reborrow },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end parent reborrow");
+    }
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("return");
+    program
+}
+
 fn shared_heap_field_loan_program(
     end_parent_first: bool,
     exclusive_receiver: bool,

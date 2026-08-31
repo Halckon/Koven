@@ -31,6 +31,25 @@ impl UnitExpressionLowerer<'_> {
             return self
                 .lower_current_class_field_assignment(expression, target, value, field, span);
         }
+        if operator == AssignmentOperator::Assign
+            && self
+                .typed
+                .types()
+                .aggregate_projection(UnitExpressionId::new(self.source_unit, target))
+                .is_some()
+        {
+            let target_span = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(target)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                target_span,
+            ));
+        }
         if self.element_place_descriptor(target)?.is_some() {
             return self.lower_container_assignment(expression, target, operator, value, span);
         }

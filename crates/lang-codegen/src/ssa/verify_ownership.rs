@@ -23,6 +23,7 @@ struct AliasRoots {
 
 struct ReborrowDependencies {
     parent_by_child: BTreeMap<LoanId, LoanId>,
+    must_end_children: BTreeSet<LoanId>,
     flows: LoanFlowAliases,
 }
 
@@ -1283,30 +1284,35 @@ fn error(
 
 impl ReborrowDependencies {
     fn compute(function: &Function) -> Self {
-        let parent_by_child = function
-            .instructions
-            .iter()
-            .filter_map(|instruction| {
-                let source = match instruction.operation {
-                    Operation::SharedReborrow { source }
-                    | Operation::SharedHeapFieldLoan { base: source, .. } => source,
-                    _ => return None,
-                };
-                let [EntityId::Loan(child)] = instruction.results.as_slice() else {
-                    return None;
-                };
-                Some((*child, source))
-            })
-            .collect();
+        let mut parent_by_child = BTreeMap::new();
+        let mut must_end_children = BTreeSet::new();
+        for instruction in &function.instructions {
+            let (source, must_end) = match instruction.operation {
+                Operation::SharedReborrow { source }
+                | Operation::SharedHeapFieldLoan { base: source, .. } => (source, true),
+                // Capture field views inherit a borrow parameter's function extent, but they still
+                // block an explicit parent end while active.
+                Operation::SharedFieldLoan { base: source, .. } => (source, false),
+                _ => continue,
+            };
+            let [EntityId::Loan(child)] = instruction.results.as_slice() else {
+                continue;
+            };
+            parent_by_child.insert(*child, source);
+            if must_end {
+                must_end_children.insert(*child);
+            }
+        }
         Self {
             parent_by_child,
+            must_end_children,
             flows: LoanFlowAliases::compute(function),
         }
     }
 
     fn is_derived(&self, loan: LoanId, _aliases: &AliasRoots) -> bool {
-        self.parent_by_child
-            .keys()
+        self.must_end_children
+            .iter()
             .any(|child| self.flows.equivalent(loan, *child))
     }
 

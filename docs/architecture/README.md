@@ -979,7 +979,12 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 返回的 `ControlTransfer` drop 已进入 verified SSA/LLVM。真实 compilation-unit object/link/run 已覆盖
 非泛型 value class 的 Borrow/Copyable Value receiver 与 ordinary class 的 Borrow/MoveOnly Value
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
-唯一析构；ordinary class 的该用例暂不读取 payload。后续 generic ordinary-class layout
+唯一析构；non-generic value class/enum 的 read-only Inout 先把当前 SSA value addressize 为 call-scoped
+storage，callee 保持 exact aggregate/tagged type 的 exclusive pointer ABI。value-class Inout 读取 Copyable field 时先从 exclusive
+receiver 建立短 shared reborrow，再投影字段并按 field→reborrow 逆序结束 derived loan；真实 native
+输出已锁定两种 inline receiver。ownership verifier 已把 `SharedFieldLoan` 登记为 parent/child
+dependency，拒绝 derived field loan 活跃时提前结束 reborrow。inline `var` field replacement 与
+mutation write-back 尚未开放，并在 SSA 发布前 fail loud。后续 generic ordinary-class layout
 已按 concrete `UnitTypeId` 开放参数无关 field、恰为 owner direct type parameter 的 field，以及
 SPEC-0219 exact owner descriptor 授权、由 `List` / 单参数 ordinary class 递归组成的有限 field recipe；
 descriptor 消费逐项核对 owner declaration/arguments 与 field symbol/template/span/concrete type，
@@ -1032,9 +1037,9 @@ drop glue（其内部按 null niche 分支）再 store 新值；真实 object/li
 inline/function/String nullable、nullable control flow、`List<T?>` / `Wrapper<T?>`、inherited/参数增长 recipe
 与需要尚未定义 inner owner 的递归 SSA type cycle 均保持带 Span 的确定性门禁。
 non-generic enum instance receiver 继续复用同一 receiver-first ABI，不新增 enum-only IR：Copyable enum 的
-Borrow receiver 从 root tagged value 建立 shared loan，MoveOnly enum 的 Value/temporary receiver 把同一
+Borrow/Inout receiver 从 root tagged value 分别建立 shared/exclusive loan，MoveOnly enum 的 Value/temporary receiver 把同一
 tagged owner 交给 callee 并由既有 drop facts 唯一析构。SSA/LLVM 锁定 caller operand 与 callee hidden
-receiver 的 tagged identity，真实 object/link/run 已覆盖两种 mode 并输出 `enum-receiver`。generic enum
+receiver 的 tagged identity，真实 object/link/run 已覆盖三种 mode 并输出 `enum-receiver` / `inline-inout`。generic enum
 仍受既有 storage 门禁。SPEC-0221 已补齐整体 MoveOnly 的 non-generic enum 空 payload case：虽然 bare case
 expression 保留 member-access 的 Place 类别，validated construction/root obligation 仍优先把每次求值建模为
 新的 temporary tagged owner；lowerer 在 local、表达式体 return、Value call 与经 local binding 的 Value
@@ -1087,7 +1092,8 @@ return edge 各析构一次，Copyable specialization 跳过。两者已完成 v
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
 再复用 `RootPlace`/`BorrowBegin` pointer ABI；LLVM 仅为调用期 addressization 建临时 storage，不生成
-singleton allocation、global、retain 或 drop。普通 object Value lowering仍未开放。
+singleton allocation、global、retain 或 drop。现行 v0.34 明确只允许 object 使用缺省/显式 Borrow；
+Inout/Value 在 Phase 2 以 L0099 拒绝，因而不是待补接线的 Phase 4 source path。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated

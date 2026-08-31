@@ -597,6 +597,58 @@ fn stateless_object_borrow_receiver_links_and_runs_without_runtime_storage() {
 }
 
 #[test]
+fn inline_inout_read_only_receivers_link_and_run() {
+    let analysis = analyze_sources(
+        "package p\n\
+         value class Counter(var item: Int) {\n\
+             inout fun read(): Int = item\n\
+         }\n\
+         enum class Signal {\n\
+             Ready;\n\
+             inout fun code(): Int = 9\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var counter = Counter(7)\n\
+             var signal = Signal.Ready\n\
+             val actual = counter.read() + signal.code()\n\
+             if (actual == 16) { println(\"inline-inout\") } else { error(\"wrong receiver\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("inline-inout-receiver.o");
+    let executable = directory.join("inline-inout-receiver");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("inline Inout receivers must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked inline Inout receiver executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"inline-inout\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn interface_default_and_super_static_calls_link_and_run() {
     let analysis = analyze_sources(
         "package p\n\

@@ -16,7 +16,7 @@
 
 ## 1. Goal
 
-完成后，class/value/enum/object/interface 的静态分发 member/default/override 与 Borrow-only
+完成后，class/value/enum/interface 以及 guide 限定为 Borrow-only 的 object 静态分发 member/default/override 与 Borrow-only
 delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mode 与 frontend
 所有权效果一致且不生成 vtable、proxy、隐式 copy/retain 或额外 allocation。
 
@@ -41,7 +41,8 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   RHS owned value 转交给 field，LLVM 按 RHS 完成→load old→drop old→store new 的 guide 顺序执行。
   `HeapFieldRead` 仍只开放 Copyable field，receiver handle/storage 与公开 ABI 不变。
 - 无状态 object receiver 按静态唯一 value identity lower，可使用临时 ZST addressization 满足
-  Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。
+  Borrow ABI；不生成 singleton allocation、全局初始化、guard 或退出析构。现行 guide 不允许
+  object 使用 Inout/Value receiver，Phase 2 必须继续以 L0099 拒绝，Phase 4 不为其虚构 source path。
 - Borrow-only delegation 生成确定性静态 thunk 或等价直接转发；只投影 delegate field 和转交
   既有 loan/arguments，不生成隐藏 AST、retain、proxy allocation或新 owner。
 - generic ordinary class 的 runtime field 可为 closed type、恰好为 owner direct type parameter，或
@@ -66,7 +67,7 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 
 - [x] SSA signature/DirectCall receiver mode 与 verifier 正反矩阵通过；本 Spec 不为已排除的
   bound method value 虚构 `CallableInvoke` receiver source path。
-- [ ] class/value/enum/object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
+- [ ] class/value/enum、Borrow-only object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
 - [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
 - [x] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
@@ -80,6 +81,10 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
 - [x] direct `T?` 在 class/Box/Rc concrete actual 下形成 nullable field layout；construction、Value
   delivery、Inout replacement、conditional drop 与 native 闭环由 SPEC-0220 完成，其余 nullable recipe
   和 control flow 仍保持门禁。
+- [x] non-generic value class/enum 的 read-only Inout call 已把当前 SSA value addressize 为 call-scoped
+  storage；callee receiver 与 caller operand 均为 exact concrete type 的 exclusive loan，value-class
+  Copyable field read 通过短 shared reborrow 投影并逆序结束 derived loan，LLVM/native 闭环通过。
+  inline mutation 后写回 caller binding 尚未开放并明确 fail loud。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
 - [ ] 受影响 `lang-codegen`/CLI 窄测及 workspace Layer 2 静态门禁通过，Architecture/Roadmap/Spec 同步。
@@ -98,6 +103,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成；MoveOnly field replacement 已消费 Phase 3 旧字段 fact，并完成 SSA/LLVM/native；
+   non-generic value class/enum Inout 的 exclusive pointer ABI 与 value-class Copyable field read 已完成，
+   inline `var` field replacement 仍保持门禁；
    参数无关及 direct owner type-parameter slot 的 generic ordinary-class construction/projection/member
    receiver 已完成；SPEC-0219 exact owner descriptor 已接入有限递归 `List` / 单参数 ordinary-class
    recipe 的 construction/projection/replacement；direct `T?` 的 pointer-like nullable storage/drop 已由
@@ -145,6 +152,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 12 | 消费 SPEC-0219 的 owner-instance-qualified nested concrete field layout | `feat(codegen): lower nested generic field layouts (SPEC-0191)` |
 | 13 | 在 exact descriptor 下递归消费有限 `List` / 单参数 ordinary-class recipe | `feat(codegen): lower recursive generic field recipes (SPEC-0191)` |
 | 14 | 补齐 non-generic enum Borrow/Value receiver 的 tagged identity 与 native 证据 | `test(codegen): cover enum instance receivers (SPEC-0191)` |
+| 15 | 补齐 non-generic value class/enum Inout exclusive ABI 与 inline field read | `feat(codegen): lower inline inout receivers (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -155,6 +163,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
   参数增长型与 inherited owner recipe 仍需后续独立门禁。这些边界均不扩张任意 owner expression。
 - `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 等待 Phase 3 conditional
   delivery/move fact；本切片只消费 drop obligation，不扩张该边界。
+- value-class Inout `var` field replacement 仍需可表示 inline storage mutation 的 SSA/verifier/LLVM
+  契约；当前只开放不消费 receiver 的 Copyable field read，不把 heap-owner `HeapFieldReplace` 误用于 inline layout。
 - iteration、nullable member forms 与跨 unit ABI 分别保持独立门禁。
 
 ## 9. 验证记录
@@ -278,3 +288,15 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | SPEC-0220 direct `T?` 后继 | 通过 | class/Box/Rc concrete nullable layout、generic construction/Value delivery/Inout replacement、conditional drop 与 20/20 unit native 已闭环；错误 delivery root 经独立复核后 fail loud，参数增长型/inherited recipe 门禁不变 |
 | enum receiver characterization | 通过 | Copyable enum Borrow 与 MoveOnly enum Value/Temporary 共用 root tagged identity，经 34/34 receiver SSA/LLVM 与 21/21 unit native 验收，object→Clang link→run 输出 `enum-receiver`；同时把 MoveOnly root 的空 payload case construction 缺口隔离给 SPEC-0221 |
 | SPEC-0221 空 case owner 后继 | 通过 | MoveOnly enum 的 Empty construction 已经 local binding 进入 Value receiver，并覆盖表达式体 return 与 Value call；34/34 receiver 回归及 22/22 unit native 通过，Empty/Full 共用 tagged identity 与 drop glue，generic enum/MoveOnly `when` 门禁不变 |
+| inline Inout receiver 红测 | 按预期失败后转绿 | value-class Inout field read 初始在 exclusive receiver 上以 `UnsupportedNode` 失败；加入短 shared reborrow 后与 enum Inout 共用 receiver-first exclusive pointer ABI |
+| `cargo test -p lang-codegen --lib inline_inout_read_only_receivers_use_exclusive_call_storage --locked --offline` | 1/1 通过 | callee exact aggregate/tagged type、caller value→`RootPlace`→exclusive `BorrowBegin`→DirectCall identity、value-class `SharedReborrow`→field loan→read 与 verified LLVM |
+| `cargo test -p lang-codegen --lib inline_inout_read_only_receivers_link_and_run --locked --offline` | 1/1 通过 | source→object→Clang link→run 输出 `inline-inout`；只验收 read-only call-scoped addressization，不宣称 mutation write-back |
+| `cargo test -p lang-codegen --lib inline_inout_field_replacement_remains_an_explicit_boundary --locked --offline` | 1/1 通过 | 当前 inline field assignment 在发布 SSA 前以带 Span 的 `UnsupportedNode` fail loud，不被误降级为 local binding replacement |
+| `cargo test -p lang-codegen --lib shared_inline_field_loan_blocks_ending_its_parent_reborrow --locked --offline` | 1/1 通过 | ownership verifier 把 `SharedFieldLoan` 纳入 reborrow dependency，拒绝 field loan 活跃时提前结束 parent |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_receiver_tests --locked --offline -- --test-threads=1` | 36/36 通过 | Borrow/Inout/Value、class/value/enum/object/interface/default/delegation、generic/nullable replacement 与 inline fail-loud 职责回归 |
+| `cargo test -p lang-codegen --lib ssa::verify_ownership_tests --locked --offline -- --test-threads=1` | 14/14 通过 | `SharedFieldLoan` parent dependency、既有 `SharedHeapFieldLoan`/reborrow、loan/move/drop 负矩阵通过 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_assignment_tests --locked --offline -- --test-threads=1` | 3/3 通过 | aggregate-projection fail-loud 不改变既有 root replacement 与 checked compound assignment |
+| `cargo test -p lang-codegen --lib native::unit_tests --locked --offline -- --test-threads=1` | 23/23 通过 | inline read-only receiver 与既有 closure、receiver/default/delegation/generic/native atomic publish 小模块全部通过 |
+| `cargo fmt --all -- --check` / `git diff --check` | 通过 | 格式与补丁空白门禁 |
+| `cargo check --workspace --lib --locked --offline` / `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library Layer 2 构建与静态门禁；未运行耗时 frontend 全量测试 |
+| 独立高风险复核（inline read-only Inout） | 通过 | 首轮发现 `SharedFieldLoan` 未登记 parent dependency 与“原始 storage”过度验收两项 P2；补 verifier 负例、call/loan exact identity、inline mutation fail-loud并收窄文档后复核至无 P1/P2/P3 |

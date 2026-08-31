@@ -3,7 +3,11 @@ use lang_frontend::{
 };
 
 use super::{
-    model::{EntityId, EntityType, Function, LoanKind, Operation, SsaTypeKind, TerminatorKind},
+    LoweringErrorKind,
+    model::{
+        EntityId, EntityType, Function, LoanKind, Operation, PlaceAccess, SsaTypeKind,
+        TerminatorKind,
+    },
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
@@ -869,6 +873,235 @@ fn enum_receivers_preserve_tagged_identity_for_borrow_and_value_modes() {
     assert!(tagged.contains(&receiver_types[1]));
     assert_ne!(receiver_types[0], receiver_types[1]);
     render_verified_program(&program).expect("enum receiver program must lower to LLVM");
+}
+
+#[test]
+fn inline_inout_read_only_receivers_use_exclusive_call_storage() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/inline-inout-receiver.ko",
+        "package p\n\
+         value class Counter(var item: Int) {\n\
+             inout fun read(): Int = item\n\
+         }\n\
+         enum class Signal {\n\
+             Ready;\n\
+             inout fun code(): Int = 9\n\
+         }\n\
+         fun entry(): Int {\n\
+             var counter = Counter(7)\n\
+             var signal = Signal.Ready\n\
+             return counter.read() + signal.code()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/inline-inout-receiver.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("inline Inout receivers must lower as exclusive storage loans");
+
+    let module = &program.modules[0];
+    let read = function(module.functions.iter(), ".Counter.read.s");
+    let counter_type = match read.receiver() {
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) => target,
+        other => panic!("value-class Inout receiver must be exclusive: {other:?}"),
+    };
+    assert!(matches!(
+        module.types.get(counter_type.index()),
+        Some(SsaTypeKind::Aggregate { .. })
+    ));
+    let reborrow = read
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::SharedReborrow { .. }, [EntityId::Loan(loan)]) => Some(*loan),
+                _ => None,
+            },
+        )
+        .expect("exclusive receiver shared reborrow");
+    let field_loan = read
+        .instructions
+        .iter()
+        .find_map(
+            |instruction| match (&instruction.operation, instruction.results.as_slice()) {
+                (Operation::SharedFieldLoan { base, .. }, [EntityId::Loan(field_loan)])
+                    if *base == reborrow =>
+                {
+                    Some(*field_loan)
+                }
+                _ => None,
+            },
+        )
+        .expect("field loan derived from the short shared reborrow");
+    let relevant_operations = read
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction.operation {
+            Operation::SharedReborrow { .. } => Some("reborrow"),
+            Operation::SharedFieldLoan { base, .. } if base == reborrow => Some("field-loan"),
+            Operation::Read {
+                source: PlaceAccess::Loan(loan),
+            } if loan == field_loan => Some("read"),
+            Operation::BorrowEnd { loan } if loan == field_loan => Some("end-field"),
+            Operation::BorrowEnd { loan } if loan == reborrow => Some("end-reborrow"),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        relevant_operations,
+        [
+            "reborrow",
+            "field-loan",
+            "read",
+            "end-field",
+            "end-reborrow",
+        ]
+    );
+
+    let code = function(module.functions.iter(), ".Signal.code.s");
+    let signal_type = match code.receiver() {
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) => target,
+        other => panic!("enum Inout receiver must be exclusive: {other:?}"),
+    };
+    assert!(matches!(
+        module.types.get(signal_type.index()),
+        Some(SsaTypeKind::TaggedUnion { .. })
+    ));
+
+    let entry = function(module.functions.iter(), ".entry.d");
+    let exclusive_receivers = entry
+        .instructions
+        .iter()
+        .filter_map(|instruction| match instruction.operation {
+            Operation::DirectCall {
+                receiver: Some(EntityId::Loan(receiver)),
+                ..
+            } if matches!(
+                entry
+                    .entity(EntityId::Loan(receiver))
+                    .map(|entity| entity.ty),
+                Some(EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    ..
+                })
+            ) =>
+            {
+                Some(receiver)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(exclusive_receivers.len(), 2);
+    let receiver_targets = exclusive_receivers
+        .iter()
+        .map(|receiver| {
+            let place = entry
+                .instructions
+                .iter()
+                .find_map(|instruction| {
+                    match (&instruction.operation, instruction.results.as_slice()) {
+                        (
+                            Operation::BorrowBegin {
+                                place,
+                                kind: LoanKind::Exclusive,
+                            },
+                            [EntityId::Loan(actual)],
+                        ) if actual == receiver => Some(*place),
+                        _ => None,
+                    }
+                })
+                .expect("exclusive receiver BorrowBegin");
+            let owner = entry
+                .instructions
+                .iter()
+                .find_map(|instruction| {
+                    match (&instruction.operation, instruction.results.as_slice()) {
+                        (Operation::RootPlace { owner }, [EntityId::Place(actual)])
+                            if *actual == place =>
+                        {
+                            Some(*owner)
+                        }
+                        _ => None,
+                    }
+                })
+                .expect("receiver call storage RootPlace");
+            let EntityType::Place(target) = entry
+                .entity(EntityId::Place(place))
+                .expect("receiver place")
+                .ty
+            else {
+                panic!("receiver root must be a place");
+            };
+            assert_eq!(
+                entry.entity(EntityId::Value(owner)).map(|entity| entity.ty),
+                Some(EntityType::Value(target))
+            );
+            target
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(receiver_targets, [counter_type, signal_type]);
+    render_verified_program(&program).expect("inline Inout receiver program must lower to LLVM");
+}
+
+#[test]
+fn inline_inout_field_replacement_remains_an_explicit_boundary() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/inline-inout-replacement.ko",
+        "package p\n\
+         value class Counter(var item: Int) {\n\
+             inout fun set(own next: Int): Unit { item = next }\n\
+         }\n\
+         fun entry(): Unit {\n\
+             var counter = Counter(1)\n\
+             val ignored = counter.set(2)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/inline-inout-replacement.ko",
+        source,
+        &parsed,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = match lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("inline field replacement requires storage write-back support"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
 }
 
 #[test]

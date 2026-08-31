@@ -526,21 +526,47 @@ impl UnitExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(require_value(results[0], span)?))
             }
             EntityId::Loan(base) => {
-                if self
+                let receiver_type = self
+                    .type_ids
+                    .get(&receiver.ty)
+                    .copied()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let receiver_kind = self
                     .function
                     .entity(EntityId::Loan(base))
-                    .map(|data| data.ty)
-                    != Some(EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: self
-                            .type_ids
-                            .get(&receiver.ty)
-                            .copied()
-                            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+                    .and_then(|data| match data.ty {
+                        EntityType::Loan { kind, target } if target == receiver_type => Some(kind),
+                        EntityType::Value(_) | EntityType::Place(_) | EntityType::Loan { .. } => {
+                            None
+                        }
                     })
-                {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+                let (base, reborrow) = match (receiver.mode, receiver_kind) {
+                    (ParameterMode::Borrow, LoanKind::Shared) => (base, None),
+                    (ParameterMode::Inout, LoanKind::Exclusive) => {
+                        let (_, loans) = self
+                            .function
+                            .append_instruction(
+                                self.block,
+                                Operation::SharedReborrow { source: base },
+                                vec![EntityType::Loan {
+                                    kind: LoanKind::Shared,
+                                    target: receiver_type,
+                                }],
+                                Origin::Source(span),
+                            )
+                            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                        let EntityId::Loan(reborrow) = loans[0] else {
+                            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                        };
+                        (reborrow, Some(reborrow))
+                    }
+                    (ParameterMode::Value, _)
+                    | (ParameterMode::Borrow, LoanKind::Exclusive)
+                    | (ParameterMode::Inout, LoanKind::Shared) => {
+                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                };
                 let (_, loans) = self
                     .function
                     .append_instruction(
@@ -575,6 +601,16 @@ impl UnitExpressionLowerer<'_> {
                         Origin::Source(span),
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                if let Some(reborrow) = reborrow {
+                    self.function
+                        .append_instruction(
+                            self.block,
+                            Operation::BorrowEnd { loan: reborrow },
+                            Vec::new(),
+                            Origin::Source(span),
+                        )
+                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                }
                 Ok(LoweredValue::Value(require_value(results[0], span)?))
             }
             EntityId::Place(_) => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
