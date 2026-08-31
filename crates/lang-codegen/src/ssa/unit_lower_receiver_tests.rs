@@ -3,12 +3,143 @@ use lang_frontend::{
 };
 
 use super::{
-    model::{EntityId, EntityType, Function, LoanKind, Operation},
+    model::{EntityId, EntityType, Function, LoanKind, Operation, TerminatorKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 use crate::llvm::render_verified_program;
+
+#[test]
+fn inout_class_receiver_replaces_and_reads_the_same_payload_field() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Counter(var item: Int) {\n\
+             inout fun set(own next: Int): Int {\n\
+                 val ignored: Unit = (this).item = next\n\
+                 return item\n\
+             }\n\
+         }\n\
+         fun entry(): Int {\n\
+             val counter = Counter(1)\n\
+             return counter.set(42)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("Inout class payload replacement must lower to verified SSA");
+
+    let module = &program.modules[0];
+    let member = function(module.functions.iter(), ".Counter.set.s");
+    let EntityId::Loan(receiver) = member.blocks[0].parameters[0] else {
+        panic!("Inout class receiver must remain an exclusive loan");
+    };
+    assert!(matches!(
+        member.receiver(),
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            ..
+        })
+    ));
+    let operations = member
+        .instructions
+        .iter()
+        .map(|instruction| &instruction.operation)
+        .collect::<Vec<_>>();
+    let replace = operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation,
+                Operation::HeapFieldReplace {
+                    receiver: actual,
+                    field: 0,
+                    ..
+                } if *actual == receiver
+            )
+        })
+        .expect("payload replacement");
+    let read = operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation,
+                Operation::HeapFieldRead {
+                    receiver: actual,
+                    field: 0
+                } if *actual == receiver
+            )
+        })
+        .expect("payload read after replacement");
+    assert!(replace < read);
+    assert!(!operations.iter().any(|operation| matches!(
+        operation,
+        Operation::RootPlace { .. } | Operation::BorrowBegin { .. } | Operation::Mutate { .. }
+    )));
+
+    let llvm = render_verified_program(&program).expect("payload replacement must lower to LLVM");
+    let member_llvm = llvm
+        .split("define internal i32 @f1.koven.p.Counter.set")
+        .nth(1)
+        .and_then(|body| body.split("define internal").next())
+        .unwrap_or_else(|| panic!("member LLVM body:\n{llvm}"));
+    assert!(member_llvm.contains("load ptr, ptr %l0"), "{member_llvm}");
+    assert!(member_llvm.contains("store i32"), "{member_llvm}");
+    assert!(!member_llvm.contains("store ptr"), "{member_llvm}");
+}
+
+#[test]
+fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         class Cell(var item: Int) {\n\
+             inout fun stop(): Unit = item = error(\"stop\")\n\
+         }\n\
+         fun entry(): Unit {\n\
+             val cell = Cell(1)\n\
+             val ignored = cell.stop()\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("divergent field assignment must lower without a payload write");
+
+    let member = function(program.modules[0].functions.iter(), ".Cell.stop.s");
+    assert!(!member.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldRead { .. } | Operation::HeapFieldReplace { .. }
+    )));
+    assert!(member.blocks.iter().any(|block| matches!(
+        block.terminator.as_ref().map(|terminator| &terminator.kind),
+        Some(TerminatorKind::Abort)
+    )));
+}
 
 #[test]
 fn lowers_borrow_member_receiver_before_explicit_arguments() {

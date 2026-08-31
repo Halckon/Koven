@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | ordinary-class Inout payload assignment 的 Phase 2 前置已由 SPEC-0218 解除，等待本 Spec 下一切片直接消费 descriptor；其他 receiver/native 切片无阻塞 |
+| 阻塞项 | Copyable ordinary-class Inout payload assignment 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact，其他 receiver/native 切片无阻塞 |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -54,7 +54,7 @@ delegate 调用可经 verified SSA、LLVM、object/link/run 执行，receiver mo
   bound method value 虚构 `CallableInvoke` receiver source path。
 - [ ] class/value/enum/object、generic owner+method、default/override/`super<I>` 静态实例运行正确。
 - [ ] Borrow/Inout LLVM pointer ABI、Value owner ABI、receiver-before-arguments 与一次求值被 IR/运行锁定。
-- [ ] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
+- [x] class Inout val-handle native mutation 保持 handle identity；verifier/LLVM 反例拒绝重绑
   receiver、写回另一 handle或使用 payload-only 私有 calling convention。
 - [ ] Borrow delegate 与手写转发结果/loan/drop 一致，无 vtable/proxy/retain/额外 allocation。
 - [ ] MoveOnly Value receiver 唯一消费、Borrow/Inout 不消费，正常/提前退出 drop 精确。
@@ -72,7 +72,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 1. [x] 扩展 SSA callable/operation/verifier receiver → 验证：model/render 正反矩阵。
 2. [ ] 接 frontend member body/call 与 LLVM ABI → 基础 Borrow/Inout/Value/隐式 `this` 已完成；
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
-   object/link/run；ordinary-class Inout payload mutation 与 generic nominal layout 继续实施。
+   object/link/run；ordinary-class Inout Copyable payload mutation 已完成，generic nominal layout
+   与 MoveOnly field replacement 继续实施。
 3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
@@ -111,3 +112,11 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo clippy -p lang-codegen --lib -- -D warnings` | 通过 | 与 native unit 小集合并行执行的 Layer 2 crate 静态门禁 |
 | Phase 2 assignment 门禁审计 | 已解除 | SPEC-0218 已发布普通 `=` 的 target/value/operator/storage-type/control descriptor；ordinary-class Inout payload mutation 的下一切片必须直接消费该事实，不得由 codegen 重推 |
 | 独立复核（direct member native 切片） | 通过 | 首轮发现 class 唯一 drop 仅靠 native 成功会假阳性；补同源 SSA owner/loan/drop identity 断言后复核关闭，最终无 P1/P2 |
+| `cargo test -p lang-codegen --lib inout_class_receiver_replaces_and_reads_the_same_payload_field --locked --offline` | 通过 | descriptor-driven grouped-`this` replacement 与 bare field read；callee 只持 exact exclusive receiver loan，LLVM 为 handle load→payload GEP→i32 store/load，member body 无 `store ptr` |
+| `cargo test -p lang-codegen --lib heap_field_replace_requires_an_active_unshadowed_exclusive_receiver --locked --offline` | 通过 | verifier 正反矩阵覆盖 exclusive success，以及 shared/inactive/active-derived-loan、越界 field、MoveOnly read/replace 拒绝 |
+| `cargo test -p lang-codegen --lib divergent_rhs_does_not_emit_an_inout_class_payload_replace --locked --offline` | 通过 | `Nothing` RHS 消费 descriptor 的 non-fallthrough fact，生成 Abort 且不生成 payload read/replace |
+| `cargo test -p lang-codegen --lib inout_class_payload_mutation_is_observed_by_a_later_borrow --locked --offline` | 通过 | 真实 source→object→clang→run 输出 `rhs\nobserved\n`；SSA 回链 setter/getter loan 到同一 caller owner |
+| `cargo test -p lang-codegen --lib --locked --offline` | 250 通过、1 ignored | 独立终审运行共享 SSA/verifier/LLVM 全 lib 回归；ignored 为既有 debugserver task-port 权限用例，未运行耗时 frontend 全量测试 |
+| 最终并行小集合：`unit_lower_receiver_tests` / `verify_ownership_tests` / `native::unit_tests` | 14/14、12/12、4/4 通过 | 以三组职责测试替代重复的 frontend 全量回归；分别锁定 descriptor lowering、loan/field contract 与真实 object/link/run |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | 与三组定向测试并行执行的 workspace lib 静态门禁 |
+| 独立高风险复核（ordinary-class Inout payload 切片） | 通过 | 补 MoveOnly read 明确反例并修正文档后复核至无 P1/P2/P3 |

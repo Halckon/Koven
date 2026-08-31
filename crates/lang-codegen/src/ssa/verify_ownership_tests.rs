@@ -827,3 +827,235 @@ fn ownership_errors_are_deterministic_and_do_not_use_frontend_diagnostics() {
         VerifyErrorKind::MissingOwnedExit { .. }
     ));
 }
+
+#[test]
+fn heap_field_replace_requires_an_active_unshadowed_exclusive_receiver() {
+    let exclusive = heap_field_program(
+        LoanKind::Exclusive,
+        false,
+        false,
+        0,
+        TestType::Integer,
+        HeapFieldAction::Replace,
+    );
+    assert_eq!(verify_program(&exclusive), Ok(()));
+
+    let shared = errors(&heap_field_program(
+        LoanKind::Shared,
+        false,
+        false,
+        0,
+        TestType::Integer,
+        HeapFieldAction::Replace,
+    ));
+    assert!(has_kind(&shared, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let inactive = errors(&heap_field_program(
+        LoanKind::Exclusive,
+        true,
+        false,
+        0,
+        TestType::Integer,
+        HeapFieldAction::Replace,
+    ));
+    assert!(has_kind(&inactive, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanInactive { .. }
+    )));
+
+    let dependent = errors(&heap_field_program(
+        LoanKind::Exclusive,
+        false,
+        true,
+        0,
+        TestType::Integer,
+        HeapFieldAction::Replace,
+    ));
+    assert!(has_kind(&dependent, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanDependencyActive { .. }
+    )));
+
+    let dependent_read = errors(&heap_field_program(
+        LoanKind::Exclusive,
+        false,
+        true,
+        0,
+        TestType::Integer,
+        HeapFieldAction::Read,
+    ));
+    assert!(has_kind(&dependent_read, |kind| matches!(
+        kind,
+        VerifyErrorKind::LoanDependencyActive { .. }
+    )));
+
+    let out_of_bounds = errors(&heap_field_program(
+        LoanKind::Exclusive,
+        false,
+        false,
+        1,
+        TestType::Integer,
+        HeapFieldAction::Replace,
+    ));
+    assert!(has_kind(&out_of_bounds, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let move_only = errors(&heap_field_program(
+        LoanKind::Exclusive,
+        false,
+        false,
+        0,
+        TestType::MoveOnly,
+        HeapFieldAction::Replace,
+    ));
+    assert!(has_kind(&move_only, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+
+    let move_only_read = errors(&heap_field_program(
+        LoanKind::Shared,
+        false,
+        false,
+        0,
+        TestType::MoveOnly,
+        HeapFieldAction::Read,
+    ));
+    assert!(has_kind(&move_only_read, |kind| matches!(
+        kind,
+        VerifyErrorKind::OperationContract { .. }
+    )));
+}
+
+#[derive(Clone, Copy)]
+enum HeapFieldAction {
+    Read,
+    Replace,
+}
+
+fn heap_field_program(
+    receiver_kind: LoanKind,
+    end_receiver: bool,
+    shared_child: bool,
+    field: usize,
+    field_type: TestType,
+    action: HeapFieldAction,
+) -> Program {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("heap-field");
+    let module = program.module_mut(module_id).expect("module");
+    let field_type = match field_type {
+        TestType::Boolean => module.intern_type(SsaTypeKind::Boolean),
+        TestType::Integer => module.intern_type(SsaTypeKind::Integer {
+            bits: 64,
+            signed: true,
+        }),
+        TestType::MoveOnly => module.intern_type(SsaTypeKind::Opaque {
+            name: "Payload".to_owned(),
+            ownership: Ownership::MoveOnly,
+        }),
+    };
+    let payload = module
+        .add_aggregate_type("Cell.payload", vec![field_type])
+        .expect("payload");
+    let owner = module.declare_heap_owner("Cell").expect("owner");
+    module
+        .define_heap_owner(owner, payload)
+        .expect("owner payload");
+    let receiver_type = EntityType::Loan {
+        kind: receiver_kind,
+        target: owner,
+    };
+    let function_id = module
+        .add_instance_function("replace", receiver_type, Vec::new(), origin.clone())
+        .expect("function");
+    let function = module.function_mut(function_id).expect("function");
+    let mut parameters = vec![receiver_type];
+    if matches!(action, HeapFieldAction::Replace) {
+        parameters.push(EntityType::Value(field_type));
+    }
+    let entry = function
+        .add_block(parameters, origin.clone())
+        .expect("entry");
+    let EntityId::Loan(receiver) = function.block(entry).expect("entry").parameters[0] else {
+        panic!("receiver loan");
+    };
+    if end_receiver {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: receiver },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end receiver");
+    }
+    let child = if shared_child {
+        let (_, results) = function
+            .append_instruction(
+                entry,
+                Operation::SharedReborrow { source: receiver },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: owner,
+                }],
+                origin.clone(),
+            )
+            .expect("shared child");
+        let EntityId::Loan(child) = results[0] else {
+            panic!("shared child loan");
+        };
+        Some(child)
+    } else {
+        None
+    };
+    match action {
+        HeapFieldAction::Read => {
+            function
+                .append_instruction(
+                    entry,
+                    Operation::HeapFieldRead { receiver, field },
+                    vec![EntityType::Value(field_type)],
+                    origin.clone(),
+                )
+                .expect("read");
+        }
+        HeapFieldAction::Replace => {
+            let EntityId::Value(value) = function.block(entry).expect("entry").parameters[1] else {
+                panic!("replacement value");
+            };
+            function
+                .append_instruction(
+                    entry,
+                    Operation::HeapFieldReplace {
+                        receiver,
+                        field,
+                        value,
+                    },
+                    Vec::new(),
+                    origin.clone(),
+                )
+                .expect("replace");
+        }
+    }
+    if let Some(child) = child {
+        function
+            .append_instruction(
+                entry,
+                Operation::BorrowEnd { loan: child },
+                Vec::new(),
+                origin.clone(),
+            )
+            .expect("end child");
+    }
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+        .expect("return");
+    program
+}

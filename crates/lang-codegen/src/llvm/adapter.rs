@@ -605,6 +605,34 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let result = place_result(instruction)?;
                 self.places.insert(result, self.pointer_value(*owner)?);
             }
+            Operation::HeapFieldRead { receiver, field } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("heap field read", 1, results.len()));
+                };
+                let result_type = value_type(self.function, *result)?;
+                let value = self.builder.build_load(
+                    self.dependencies.type_map.basic_type(result_type)?,
+                    self.heap_field_pointer(
+                        *receiver,
+                        *field,
+                        &format!("v{}.field", result.index()),
+                    )?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value);
+            }
+            Operation::HeapFieldReplace {
+                receiver,
+                field,
+                value,
+            } => {
+                let pointer = self.heap_field_pointer(
+                    *receiver,
+                    *field,
+                    &format!("replace.i{}", instruction.id.index()),
+                )?;
+                self.builder.build_store(pointer, self.value(*value)?)?;
+            }
             Operation::SharedAllocate { owner, payload } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("shared allocate", 1, results.len()));

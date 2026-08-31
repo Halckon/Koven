@@ -4,17 +4,25 @@ use lang_frontend::{
     ast::ExpressionId,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind,
+        Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind, ParameterMode,
         UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionDescriptor,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        UnitConstructionTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, LoanKind, Operation, Origin, PlaceAccess},
+    model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, SsaTypeId},
 };
+
+pub(super) struct CurrentClassField {
+    pub(super) receiver: LoanId,
+    pub(super) receiver_kind: LoanKind,
+    pub(super) ty: UnitTypeId,
+    pub(super) ssa_type: SsaTypeId,
+    pub(super) field: usize,
+}
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_aggregate_construction(
@@ -190,6 +198,21 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if let Some(field) = self.current_class_field(expression, span)? {
+            let (_, results) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::HeapFieldRead {
+                        receiver: field.receiver,
+                        field: field.field,
+                    },
+                    vec![EntityType::Value(field.ssa_type)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok(LoweredValue::Value(require_value(results[0], span)?));
+        }
         let (receiver_type, explicit_receiver) = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver) => {
                 if receiver.source_unit() != self.source_unit {
@@ -325,6 +348,102 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    pub(super) fn current_class_field(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<CurrentClassField>, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let Some(projection) = self.typed.types().aggregate_projection(id) else {
+            return Ok(None);
+        };
+        if projection.kind() != UnitAggregateProjectionKind::Field {
+            return Ok(None);
+        }
+        let owner = match projection.receiver() {
+            UnitAggregateProjectionReceiver::This(owner) => owner,
+            UnitAggregateProjectionReceiver::Expression(receiver) => {
+                if receiver.source_unit() != self.source_unit
+                    || !self.is_this_expression(receiver.expression(), span)?
+                {
+                    return Ok(None);
+                }
+                let current = self
+                    .current_receiver
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if self.typed.types().expression_type(receiver) != Some(current.ty) {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                current.owner
+            }
+        };
+        let current = self
+            .current_receiver
+            .filter(|receiver| receiver.owner == owner)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.typed.types().types().get(current.ty)
+        else {
+            return Ok(None);
+        };
+        let nominal = self
+            .typed
+            .types()
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal.kind() != NominalKind::Class || !arguments.is_empty() {
+            return Ok(None);
+        }
+        let EntityId::Loan(receiver) = current.entity else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let receiver_kind = match current.mode {
+            ParameterMode::Borrow => LoanKind::Shared,
+            ParameterMode::Inout => LoanKind::Exclusive,
+            ParameterMode::Value => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        };
+        let receiver_ssa = self
+            .type_ids
+            .get(&current.ty)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self
+            .function
+            .entity(EntityId::Loan(receiver))
+            .map(|entity| entity.ty)
+            != Some(EntityType::Loan {
+                kind: receiver_kind,
+                target: receiver_ssa,
+            })
+            || !self.heap_payloads.contains_key(&receiver_ssa)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let field = self
+            .field_indices
+            .get(&(current.ty, projection.field()))
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let ssa_type = self
+            .type_ids
+            .get(&projection.ty())
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        Ok(Some(CurrentClassField {
+            receiver,
+            receiver_kind,
+            ty: projection.ty(),
+            ssa_type,
+            field,
+        }))
     }
 
     fn lower_this_value_field(

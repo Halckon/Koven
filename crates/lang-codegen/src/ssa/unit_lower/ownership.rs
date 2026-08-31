@@ -57,7 +57,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn is_this_expression(
+    pub(super) fn is_this_expression(
         &self,
         expression: ExpressionId,
         span: Span,

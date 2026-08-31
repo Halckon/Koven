@@ -4,7 +4,7 @@ use super::{
     model::{
         BinaryOperator, CallableSignature, ClosureCaptureMode, ClosureCaptureOperand,
         ComparisonOperator, EntityId, EntityType, Function, FunctionId, Instruction, LoanKind,
-        Module, Operation, PlaceAccess, ScalarConstant, SsaTypeId, SsaTypeKind, ValueId,
+        Module, Operation, Ownership, PlaceAccess, ScalarConstant, SsaTypeId, SsaTypeKind, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
@@ -109,6 +109,32 @@ pub(super) fn verify_operation(
         }
         Operation::HeapPayloadPlace { owner } => {
             heap_payload_place_contract(module, function, *owner, &results)
+        }
+        Operation::HeapFieldRead { receiver, field } => {
+            heap_field_type(module, function, *receiver, *field).is_some_and(|field| {
+                module.type_ownership(field) == Some(Ownership::Copyable)
+                    && results == [EntityType::Value(field)]
+            })
+        }
+        Operation::HeapFieldReplace {
+            receiver,
+            field,
+            value,
+        } => {
+            results.is_empty()
+                && matches!(
+                    function
+                        .entity(EntityId::Loan(*receiver))
+                        .map(|entity| entity.ty),
+                    Some(EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        ..
+                    })
+                )
+                && heap_field_type(module, function, *receiver, *field).is_some_and(|field| {
+                    module.type_ownership(field) == Some(Ownership::Copyable)
+                        && value_type(function, *value) == Some(field)
+                })
         }
         Operation::SharedAllocate { owner, payload } => {
             shared_allocate_contract(module, function, *owner, *payload, &results)
@@ -460,6 +486,22 @@ fn heap_payload_place_contract(
     value_type(function, owner)
         .and_then(|owner| module.heap_payload(owner))
         .is_some_and(|payload| results == [EntityType::Place(payload)])
+}
+
+fn heap_field_type(
+    module: &Module,
+    function: &Function,
+    receiver: super::model::LoanId,
+    field: usize,
+) -> Option<SsaTypeId> {
+    let EntityType::Loan { target, .. } = function.entity(EntityId::Loan(receiver))?.ty else {
+        return None;
+    };
+    module
+        .heap_payload(target)
+        .and_then(|payload| module.aggregate_fields(payload))
+        .and_then(|fields| fields.get(field))
+        .copied()
 }
 
 fn shared_payload_place_contract(

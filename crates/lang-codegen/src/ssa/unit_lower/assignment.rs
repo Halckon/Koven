@@ -10,7 +10,10 @@ use lang_frontend::{
 use super::{
     LoweredValue, UnitExpressionLowerer, lowering_error, scalar::is_integer_builtin, span_key,
 };
-use crate::ssa::{LoweringError, LoweringErrorKind, model::CheckedArithmeticOperator};
+use crate::ssa::{
+    LoweringError, LoweringErrorKind,
+    model::{CheckedArithmeticOperator, EntityType, LoanKind, Operation, Origin},
+};
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn lower_assignment(
@@ -21,6 +24,12 @@ impl UnitExpressionLowerer<'_> {
         value: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if operator == AssignmentOperator::Assign
+            && let Some(field) = self.current_class_field(target, span)?
+        {
+            return self
+                .lower_current_class_field_assignment(expression, target, value, field, span);
+        }
         if self.element_place_descriptor(target)?.is_some() {
             return self.lower_container_assignment(expression, target, operator, value, span);
         }
@@ -108,6 +117,60 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         self.bindings.insert(symbol, assigned);
+        Ok(LoweredValue::Unit)
+    }
+
+    fn lower_current_class_field_assignment(
+        &mut self,
+        expression: ExpressionId,
+        target: ExpressionId,
+        value: ExpressionId,
+        field: super::aggregate::CurrentClassField,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let expression_id = UnitExpressionId::new(self.source_unit, expression);
+        let target_id = UnitExpressionId::new(self.source_unit, target);
+        let value_id = UnitExpressionId::new(self.source_unit, value);
+        let descriptor = self
+            .typed
+            .types()
+            .assignment(expression_id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != expression_id
+            || descriptor.target() != target_id
+            || descriptor.value() != value_id
+            || descriptor.operator() != AssignmentOperator::Assign
+            || descriptor.target_type() != field.ty
+            || field.receiver_kind != LoanKind::Exclusive
+            || self.typed.types().copyability(field.ty) != Copyability::Copyable
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let assigned = self.lower(value)?;
+        let assigned = match assigned {
+            LoweredValue::Diverged if !descriptor.falls_through() => {
+                return Ok(LoweredValue::Diverged);
+            }
+            LoweredValue::Value(value) if descriptor.falls_through() => value,
+            LoweredValue::Unit | LoweredValue::Value(_) | LoweredValue::Diverged => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        };
+        if self.expression_ssa_type(value, span)? != field.ssa_type {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.function
+            .append_instruction(
+                self.block,
+                Operation::HeapFieldReplace {
+                    receiver: field.receiver,
+                    field: field.field,
+                    value: assigned,
+                },
+                Vec::<EntityType>::new(),
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Unit)
     }
 

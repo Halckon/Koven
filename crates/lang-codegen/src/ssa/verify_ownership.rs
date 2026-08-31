@@ -562,6 +562,71 @@ fn apply_operation(
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
+        Operation::HeapFieldRead { receiver, .. } => {
+            if !state.loans.contains(receiver) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *receiver },
+                    location.clone(),
+                    origin,
+                ));
+            } else if loan_kind(function, *receiver) == LoanKind::Exclusive
+                && let Some(dependent) = reborrows.active_descendant(*receiver, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::LoanDependencyActive {
+                        parent: *receiver,
+                        dependent,
+                    },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            if instruction.results.first().is_some_and(|result| {
+                function
+                    .entity(*result)
+                    .is_some_and(|entity| type_is_move_only(module, entity.ty.semantic_type()))
+            }) {
+                errors.push(error(
+                    VerifyErrorKind::MoveOnlyPlaceRead {
+                        entity: EntityId::Loan(*receiver),
+                    },
+                    location,
+                    origin,
+                ));
+            }
+        }
+        Operation::HeapFieldReplace {
+            receiver, value, ..
+        } => {
+            if !state.loans.contains(receiver) {
+                errors.push(error(
+                    VerifyErrorKind::LoanInactive { loan: *receiver },
+                    location.clone(),
+                    origin,
+                ));
+            } else if let Some(dependent) = reborrows.active_descendant(*receiver, aliases, state) {
+                errors.push(error(
+                    VerifyErrorKind::LoanDependencyActive {
+                        parent: *receiver,
+                        dependent,
+                    },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *value,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::ContainerConstruct { elements, .. } => {
             for element in elements {
                 consume_value(

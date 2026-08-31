@@ -496,6 +496,21 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("heap.payload_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::HeapFieldRead { receiver, field } => {
+            output.write_str("heap.field_read ")?;
+            write_entity_id(output, EntityId::Loan(*receiver))?;
+            write!(output, ", {field}")
+        }
+        Operation::HeapFieldReplace {
+            receiver,
+            field,
+            value,
+        } => {
+            output.write_str("heap.field_replace ")?;
+            write_entity_id(output, EntityId::Loan(*receiver))?;
+            write!(output, ", {field}, ")?;
+            write_entity_id(output, EntityId::Value(*value))
+        }
         Operation::SharedAllocate { owner, payload } => {
             output.write_str("shared.allocate ")?;
             write_type_id(output, *owner)?;

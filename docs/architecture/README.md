@@ -963,9 +963,17 @@ value-class `this` 的 Copyable field read、Value `this` 返回转移、receive
 receiver，并以 stdout 锁定 receiver→argument→body 顺序、Copyable receiver 重复使用及 class owner
 唯一析构；ordinary class 的该用例暂不读取 payload。generic nominal layout 仍保持既有确定性拒绝；
 SPEC-0218 已发布普通 `=` 的 Phase 2 descriptor，ordinary-class Inout payload field mutation 的
-typed 前置已解除，但本段记录的 native receiver 切片尚未消费该事实；下一 SPEC-0191 切片必须直接
-消费 descriptor，不能由 codegen 重推。default/override/`super<I>`、无状态 object 与静态委托仍由
-SPEC-0191 后续切片承接。
+typed 前置已解除。SPEC-0191 的下一切片已直接消费该 descriptor，为 active heap-owner receiver loan
+增加 `HeapFieldRead` 与 `HeapFieldReplace`：read 允许 shared/exclusive receiver 但只读取 Copyable
+field，replace 只接受无 active derived loan 的 exclusive receiver，并使用 RHS 而不消费 receiver。
+LLVM 从 receiver loan 指向的 caller handle storage load 同一 handle，再以 payload aggregate 做 field
+GEP；它只对 field 执行 field-typed load/store，不写 receiver storage、不替换 handle，也不建立 payload-only
+call ABI。普通 `=` 先完整 lower RHS，`Nothing` 路径不生成 replace；正常路径核对 assignment 的
+expression/target/value/operator/storage-type/control identity 后才写 field。裸 field、`this.field` 与
+grouped `this` 共享同一 current receiver identity；真实 object/link/run 由后续 Borrow getter 从同一
+caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；MoveOnly field
+replacement 在 frontend 发布旧字段 drop/replacement fact 前确定性拒绝。generic nominal layout、
+default/override/`super<I>`、无状态 object 与静态委托仍由 SPEC-0191 后续切片承接。
 
 SPEC-0199 第一切片在 `lang-codegen::ssa::unit_plan` 建立 unit-wide reachability/instance plan。
 入口重新核对规范化 source inputs、validated names、`TypeEnvironment`、typed unit 与 validated

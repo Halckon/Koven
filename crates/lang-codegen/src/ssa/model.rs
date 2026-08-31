@@ -409,6 +409,17 @@ pub(crate) enum Operation {
     HeapPayloadPlace {
         owner: ValueId,
     },
+    /// Read one Copyable payload field through an active heap-owner receiver loan.
+    HeapFieldRead {
+        receiver: LoanId,
+        field: usize,
+    },
+    /// Replace one Copyable payload field through an active exclusive heap-owner receiver loan.
+    HeapFieldReplace {
+        receiver: LoanId,
+        field: usize,
+        value: ValueId,
+    },
     SharedAllocate {
         owner: SsaTypeId,
         payload: ValueId,
@@ -545,6 +556,10 @@ impl Operation {
             | Self::HeapPayloadPlace { owner: aggregate } => {
                 vec![EntityId::Value(*aggregate)]
             }
+            Self::HeapFieldRead { receiver, .. } => vec![EntityId::Loan(*receiver)],
+            Self::HeapFieldReplace {
+                receiver, value, ..
+            } => vec![EntityId::Loan(*receiver), EntityId::Value(*value)],
             Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],
             Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
                 vec![EntityId::Value(*owner)]

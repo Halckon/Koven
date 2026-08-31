@@ -362,6 +362,151 @@ fn direct_member_receivers_link_run_with_source_order_and_unique_class_drop() {
 }
 
 #[test]
+fn inout_class_payload_mutation_is_observed_by_a_later_borrow() {
+    let analysis = analyze_sources(
+        "package p\n\
+         class Cell(var item: Int) {\n\
+             inout fun set(own next: Int): Unit = item = next\n\
+             fun isUpdated(): Boolean = item == 42\n\
+         }\n\
+         fun rhs(): Int {\n\
+             println(\"rhs\")\n\
+             return 42\n\
+         }",
+        "package q\n\
+         import p.Cell\n\
+         fun entry(): Unit {\n\
+             val cell = Cell(1)\n\
+             val ignored = cell.set(p.rhs())\n\
+             val updated = cell.isUpdated()\n\
+             if (!updated) { error(\"payload mutation was not observed\") }\n\
+             println(\"observed\")\n\
+         }",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("q", "entry");
+    let (program, _) = lower_scalar_unit_with_entry(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+    )
+    .expect("Inout class payload mutation must lower to verified SSA");
+    let module = &program.modules[0];
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("q.entry"))
+        .expect("entry function");
+    let setter = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("Cell.set"))
+        .expect("Inout setter");
+    let getter = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("Cell.isUpdated"))
+        .expect("Borrow getter");
+    let receiver_owner = |callee| {
+        let loan = entry
+            .instructions
+            .iter()
+            .find_map(|instruction| match instruction.operation {
+                Operation::DirectCall {
+                    callee: actual,
+                    receiver: Some(EntityId::Loan(loan)),
+                    ..
+                } if actual == callee => Some(loan),
+                _ => None,
+            })
+            .expect("receiver call loan");
+        let place = entry
+            .instructions
+            .iter()
+            .find_map(|instruction| {
+                match (&instruction.operation, instruction.results.as_slice()) {
+                    (Operation::BorrowBegin { place, .. }, [EntityId::Loan(result)])
+                        if *result == loan =>
+                    {
+                        Some(*place)
+                    }
+                    _ => None,
+                }
+            })
+            .expect("receiver loan place");
+        entry
+            .instructions
+            .iter()
+            .find_map(|instruction| {
+                match (&instruction.operation, instruction.results.as_slice()) {
+                    (Operation::RootPlace { owner }, [EntityId::Place(result)])
+                        if *result == place =>
+                    {
+                        Some(*owner)
+                    }
+                    _ => None,
+                }
+            })
+            .expect("receiver root owner")
+    };
+    assert_eq!(receiver_owner(setter.id()), receiver_owner(getter.id()));
+    let EntityId::Loan(setter_receiver) = setter.blocks[0].parameters[0] else {
+        panic!("setter receiver loan");
+    };
+    assert!(setter.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldReplace {
+            receiver,
+            field: 0,
+            ..
+        } if receiver == setter_receiver
+    )));
+    let EntityId::Loan(getter_receiver) = getter.blocks[0].parameters[0] else {
+        panic!("getter receiver loan");
+    };
+    assert!(getter.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::HeapFieldRead {
+            receiver,
+            field: 0
+        } if receiver == getter_receiver
+    )));
+
+    let directory = TestDirectory::create();
+    let object = directory.join("inout-payload.o");
+    let executable = directory.join("inout-payload");
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("Inout payload source must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked Inout payload executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"rhs\nobserved\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();
