@@ -357,7 +357,8 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [x] **[SPEC-0181](../specs/0181-instance-receiver-ownership.md)（已完成）**：消费 0180 facts，
       检查 receiver/`this` 的 shared/exclusive loan、Value copy/move、字段/capture 冲突与 drop；
       Value `this` 保持 owned-but-immutable，需先整体移入 `var` local 才能取得 mutable root；
-      移除一般 MemberReceiver deferred。
+      移除一般 MemberReceiver deferred；bodyful Value interface default 已发布具体化后仅对 MoveOnly
+      receiver 生效的 `StaticSelf` conditional drop fact，不污染通用 copyability。
 - [x] Borrow-only 接口委托的转发调用复用同一套 receiver/字段 loan；Inout/Value requirement
       按 v0.34 形成 L0152 并要求手写 override，不生成隐藏共享运行时代理。
 - [x] 检查消费式解构：不可复制聚合解构后源值不可用，所有分量作为一个所有权动作转移
@@ -523,8 +524,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       路径现已区分 exact next hop 与 type-parameter unresolved。同 requirement identity 的非泛型 delegation chain 已完成逐跳
       typed/ownership route、field-loan chain、cycle 拒绝和三跳 native 闭环；identity-changing chain
       已消费 SPEC-0180 精确 next-hop fact，完成 target/owner/callable slots 重映射与 native 闭环。非泛型 ordinary-class Inout interface default
-      已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；MoveOnly Value default
-      等待 Phase 3 条件 receiver-drop fact。继续补齐 generic runtime receiver/delegation、Value interface
+      已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；Phase 3 已发布 MoveOnly
+      Value default 所需的条件 receiver-drop fact，Phase 4 消费与 native 闭环待接。继续补齐 generic runtime receiver/delegation、Value interface
       default、MoveOnly field replacement 与 generic runtime delegation。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。

@@ -755,6 +755,125 @@ fn member_body_receiver_capability_controls_this_and_implicit_calls() {
 }
 
 #[test]
+fn static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Finishable { own fun finish(): Int = 40 }\n\
+         class Resource: Finishable {}\n\
+         value class Counter(val item: Int): Finishable {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    assert!(
+        !ownership
+            .drops()
+            .iter()
+            .any(|fact| matches!(fact.target(), UnitDropTarget::This(_))),
+        "StaticSelf must not become an unconditional receiver drop",
+    );
+    let [fact] = ownership.conditional_receiver_drops() else {
+        panic!(
+            "one StaticSelf receiver-drop obligation expected: {:?}",
+            ownership.conditional_receiver_drops()
+        );
+    };
+    let UnitDropPoint::ControlTransfer(body) = fact.point() else {
+        panic!("expression-body receiver must drop on its return edge");
+    };
+    assert_eq!(sources.slice(fact.value_origin()).unwrap(), "finish");
+    let Some(UnitTypeKind::StaticSelf(interface)) = typed.types().types().get(fact.receiver_type())
+    else {
+        panic!("conditional receiver type must be StaticSelf");
+    };
+    let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().types().get(*interface)
+    else {
+        panic!("StaticSelf must wrap the declaring interface type");
+    };
+    assert_eq!(fact.owner(), *declaration);
+    assert_eq!(
+        body,
+        UnitExpressionId::new(
+            source_unit(&names, source),
+            expression_with_text(&sources, &parsed, "40"),
+        ),
+        "conditional drop point must name the exact default-body expression",
+    );
+}
+
+#[test]
+fn conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Actions {\n\
+             fun inspect(): Unit {}\n\
+             inout fun update(): Unit {}\n\
+             own fun missing(): Unit\n\
+             own fun finish(): Unit {}\n\
+         }\n\
+         class Resource { own fun consume(): Unit {} }\n\
+         value class Counter(val item: Int) { own fun copy(): Unit {} }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership product");
+
+    assert!(ownership.diagnostics().is_empty());
+    let [conditional] = ownership.conditional_receiver_drops() else {
+        panic!("only the bodyful StaticSelf Value receiver is conditional");
+    };
+    assert_eq!(sources.slice(conditional.value_origin()).unwrap(), "finish");
+    let unconditional_origins = ownership
+        .drops()
+        .iter()
+        .filter_map(|fact| {
+            matches!(fact.target(), UnitDropTarget::This(_))
+                .then(|| sources.slice(fact.value_origin()).expect("receiver origin"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(unconditional_origins, ["consume"]);
+}
+
+#[test]
+fn ownership_error_clears_conditional_receiver_drop_facts_atomically() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Finishable { own fun finish(): Unit {} }\n\
+         class Resource {}\n\
+         fun invalid(own resource: Resource): Unit {\n\
+             val first = resource\n\
+             val second = resource\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership recovery product");
+
+    assert_eq!(diagnostic_codes(&ownership), ["L0131"]);
+    assert!(ownership.conditional_receiver_drops().is_empty());
+}
+
+#[test]
 fn receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

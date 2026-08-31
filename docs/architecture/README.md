@@ -846,7 +846,9 @@ SPEC-0197 第一阶段新增纯内存的
   receiver template，后者按 delegate nominal formals→field actuals 递归实例化；type-parameter delegate
   保持 unresolved，不把 abstract requirement 伪装为实现。SPEC-0181 进一步消费这些 facts，发布
   receiver loan/copy/move、Value `this` unique drop 与 Borrow-only delegation ownership plan，
-  并移除一般 member call 的 `MemberReceiver` deferred；native lowering 由 SPEC-0191 承接；
+  并移除一般 member call 的 `MemberReceiver` deferred。interface default 的 Value `StaticSelf` 不修改
+  通用 copyability，而以 owner/type-template/point/origin 精确且去重的
+  `UnitConditionalReceiverDropFact` 单独发布；失败恢复原子清空该事实。native lowering 由 SPEC-0191 承接；
 - 第十六个 body 切片接通 non-nullable intrinsic `Rc<T>` 的 `.value` 与零参数 `.share()`：
   `UnitRcOperationDescriptor` 保留 source-qualified expression/receiver、unit-global payload type、
   compiler-bound operation identity 与 Borrow/Value result mode；`.value` 为 place，`.share()` 为
@@ -1028,8 +1030,8 @@ plan 或按 shape 重选。`Base<Long>.map<Int>`→`Derived<String,Long>.map<Int
 generic runtime nominal 与无 endpoint unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
-payload 保持 5。MoveOnly Value default 仍等待 Phase 3 为 `StaticSelf` 发布条件 receiver-drop fact；在该事实
-完成前，codegen 不自行根据 concrete type 补析构。
+payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181
+发布；codegen 仍须由 SPEC-0191 显式消费并核对 concrete specialization，不能自行补析构。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

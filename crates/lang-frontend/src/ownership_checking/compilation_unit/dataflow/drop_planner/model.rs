@@ -5,7 +5,10 @@ use std::collections::BTreeMap;
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
-    ownership_checking::{UnitClosureCaptureSource, UnitDropFact, UnitDropPoint, UnitDropTarget},
+    ownership_checking::{
+        UnitClosureCaptureSource, UnitConditionalReceiverDropFact, UnitDropFact, UnitDropPoint,
+        UnitDropTarget,
+    },
     parser::NameMarker,
     source::Span,
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
@@ -35,6 +38,30 @@ pub(super) enum PlannerDropPoint {
     AfterReplacement(ExpressionId),
 }
 
+impl PlannerDropPoint {
+    fn into_unit(self, source_unit: SourceUnitId) -> UnitDropPoint {
+        let expression = |id| UnitExpressionId::new(source_unit, id);
+        let statement = |id| UnitStatementId::new(source_unit, id);
+        match self {
+            Self::AfterExpression(id) => UnitDropPoint::AfterExpression(expression(id)),
+            Self::AfterBinaryOperands(id) => UnitDropPoint::AfterBinaryOperands(expression(id)),
+            Self::AfterStatement(id) => UnitDropPoint::AfterStatement(statement(id)),
+            Self::CallReturn(id) => UnitDropPoint::CallReturn(expression(id)),
+            Self::ControlTransfer(id) => UnitDropPoint::ControlTransfer(expression(id)),
+            Self::BranchExit { control, branch } => UnitDropPoint::BranchExit {
+                control: expression(control),
+                branch,
+            },
+            Self::LoopExit(id) => UnitDropPoint::LoopExit(statement(id)),
+            Self::FunctionEntry(id) => {
+                UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))
+            }
+            Self::LambdaEntry(id) => UnitDropPoint::LambdaEntry(expression(id)),
+            Self::AfterReplacement(id) => UnitDropPoint::AfterReplacement(expression(id)),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PlannerDropTarget {
     This(DeclarationId),
@@ -54,6 +81,25 @@ pub(super) struct PlannerDropFact {
     value_origin: Span,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PlannerConditionalReceiverDropFact {
+    pub(super) point: PlannerDropPoint,
+    pub(super) owner: DeclarationId,
+    pub(super) receiver_type: crate::type_checking::UnitTypeId,
+    pub(super) value_origin: Span,
+}
+
+impl PlannerConditionalReceiverDropFact {
+    pub(super) fn into_unit(self, source_unit: SourceUnitId) -> UnitConditionalReceiverDropFact {
+        UnitConditionalReceiverDropFact::new(
+            self.point.into_unit(source_unit),
+            self.owner,
+            self.receiver_type,
+            self.value_origin,
+        )
+    }
+}
+
 impl PlannerDropFact {
     pub(super) const fn new(
         point: PlannerDropPoint,
@@ -69,28 +115,7 @@ impl PlannerDropFact {
 
     pub(super) fn into_unit(self, source_unit: SourceUnitId) -> UnitDropFact {
         let expression = |id| UnitExpressionId::new(source_unit, id);
-        let statement = |id| UnitStatementId::new(source_unit, id);
-        let point = match self.point {
-            PlannerDropPoint::AfterExpression(id) => UnitDropPoint::AfterExpression(expression(id)),
-            PlannerDropPoint::AfterBinaryOperands(id) => {
-                UnitDropPoint::AfterBinaryOperands(expression(id))
-            }
-            PlannerDropPoint::AfterStatement(id) => UnitDropPoint::AfterStatement(statement(id)),
-            PlannerDropPoint::CallReturn(id) => UnitDropPoint::CallReturn(expression(id)),
-            PlannerDropPoint::ControlTransfer(id) => UnitDropPoint::ControlTransfer(expression(id)),
-            PlannerDropPoint::BranchExit { control, branch } => UnitDropPoint::BranchExit {
-                control: expression(control),
-                branch,
-            },
-            PlannerDropPoint::LoopExit(id) => UnitDropPoint::LoopExit(statement(id)),
-            PlannerDropPoint::FunctionEntry(id) => {
-                UnitDropPoint::FunctionEntry(UnitItemId::new(source_unit, id))
-            }
-            PlannerDropPoint::LambdaEntry(id) => UnitDropPoint::LambdaEntry(expression(id)),
-            PlannerDropPoint::AfterReplacement(id) => {
-                UnitDropPoint::AfterReplacement(expression(id))
-            }
-        };
+        let point = self.point.into_unit(source_unit);
         let target = match self.target {
             PlannerDropTarget::This(owner) => UnitDropTarget::This(owner),
             PlannerDropTarget::Named(symbol) => UnitDropTarget::Named(symbol),
@@ -118,6 +143,7 @@ pub(super) struct OwnedValue {
 pub(super) struct OwnedThis {
     pub(super) owner: DeclarationId,
     pub(super) origin: Span,
+    pub(super) conditional_type: Option<crate::type_checking::UnitTypeId>,
 }
 
 #[derive(Clone, Debug, Default)]

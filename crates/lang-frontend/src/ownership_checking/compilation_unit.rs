@@ -505,6 +505,59 @@ pub struct UnitDropFact {
     value_origin: Span,
 }
 
+/// interface default 的 `StaticSelf` Value receiver 析构义务。
+///
+/// Phase 4 必须先把 [`Self::receiver_type`] 实例化为具体 receiver；仅当具体类型为
+/// MoveOnly 时才消费该事实并生成析构。该事实与无条件 [`UnitDropFact`] 分开发布，避免在
+/// Copyable specialization 上误析构。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitConditionalReceiverDropFact {
+    point: UnitDropPoint,
+    owner: DeclarationId,
+    receiver_type: UnitTypeId,
+    value_origin: Span,
+}
+
+impl UnitConditionalReceiverDropFact {
+    pub(super) const fn new(
+        point: UnitDropPoint,
+        owner: DeclarationId,
+        receiver_type: UnitTypeId,
+        value_origin: Span,
+    ) -> Self {
+        Self {
+            point,
+            owner,
+            receiver_type,
+            value_origin,
+        }
+    }
+
+    /// 返回与普通 drop fact 相同的 source-qualified 控制流边界。
+    #[must_use]
+    pub const fn point(self) -> UnitDropPoint {
+        self.point
+    }
+
+    /// 返回声明 `StaticSelf` receiver 的 interface owner。
+    #[must_use]
+    pub const fn owner(self) -> DeclarationId {
+        self.owner
+    }
+
+    /// 返回必须由下游实例化的 `StaticSelf` 类型模板。
+    #[must_use]
+    pub const fn receiver_type(self) -> UnitTypeId {
+        self.receiver_type
+    }
+
+    /// 返回当前 receiver 值实例的建立位置。
+    #[must_use]
+    pub const fn value_origin(self) -> Span {
+        self.value_origin
+    }
+}
+
 impl UnitDropFact {
     pub(super) const fn new(
         point: UnitDropPoint,
@@ -583,6 +636,7 @@ pub struct CompilationUnitOwnership {
     rc_effects: Vec<UnitRcOwnershipEffect>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
+    conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     captures: Vec<UnitClosureCaptureDescriptor>,
     closures: Vec<UnitClosureDescriptor>,
     transferabilities: Vec<Transferability>,
@@ -641,6 +695,7 @@ impl CompilationUnitOwnership {
             rc_effects: dataflow.rc_effects,
             construction_plans: dataflow.construction_plans,
             drops: dataflow.drops,
+            conditional_receiver_drops: dataflow.conditional_receiver_drops,
             captures,
             closures: capture.closures,
             transferabilities: capture.transferabilities,
@@ -772,6 +827,12 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn drops(&self) -> &[UnitDropFact] {
         &self.drops
+    }
+
+    /// 返回源码/控制流顺序稳定的 `StaticSelf` Value receiver 条件析构事实。
+    #[must_use]
+    pub fn conditional_receiver_drops(&self) -> &[UnitConditionalReceiverDropFact] {
+        &self.conditional_receiver_drops
     }
 
     /// 返回 lambda/source 顺序稳定的 capture 输入事实。
@@ -910,6 +971,7 @@ pub fn check_compilation_unit_ownership(
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();
         dataflow.drops.clear();
+        dataflow.conditional_receiver_drops.clear();
     }
 
     Ok(CompilationUnitOwnership::new(

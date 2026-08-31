@@ -19,18 +19,20 @@ use crate::{
 
 use crate::ownership_checking::{
     ClosureCaptureEffect, ClosureCaptureMode, OwnershipDeferredReason, UnitClosureCaptureSource,
-    UnitDropFact, UnitOwnershipDeferredFact,
+    UnitConditionalReceiverDropFact, UnitDropFact, UnitOwnershipDeferredFact,
 };
 
 use super::{Checker, OwnershipCheckingError, UnitCallArgumentOwnershipKind, liveness, span_key};
 use model::{
-    DropExpressionUse, OwnedThis, OwnedValue, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
-    StringOperandDrop, ValueState, marker_span, merge_value_states,
+    DropExpressionUse, OwnedThis, OwnedValue, PlannerConditionalReceiverDropFact, PlannerDropFact,
+    PlannerDropPoint, PlannerDropTarget, StringOperandDrop, ValueState, marker_span,
+    merge_value_states,
 };
 
 #[derive(Default)]
 pub(super) struct Analysis {
     pub(super) drops: Vec<UnitDropFact>,
+    pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
@@ -44,18 +46,29 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
             UnitOwnershipDeferredFact::new(expression, OwnershipDeferredReason::IndexPlace)
         })
         .collect();
-    let facts = DropPlanner::new(checker, liveness).run()?;
-    let drops = facts
+    let planner = DropPlanner::new(checker, liveness).run()?;
+    let drops = planner
+        .facts
         .into_iter()
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
-    Ok(Analysis { drops, deferred })
+    let conditional_receiver_drops = planner
+        .conditional_receiver_facts
+        .into_iter()
+        .map(|fact| fact.into_unit(checker.source_unit))
+        .collect();
+    Ok(Analysis {
+        drops,
+        conditional_receiver_drops,
+        deferred,
+    })
 }
 
 struct DropPlanner<'a, 'checker> {
     checker: &'a Checker<'checker>,
     liveness: liveness::Liveness,
     facts: Vec<PlannerDropFact>,
+    conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
     binding_depths: BTreeMap<UnitSymbolId, usize>,
@@ -67,13 +80,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             checker,
             liveness,
             facts: Vec::new(),
+            conditional_receiver_facts: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
         }
     }
 
-    fn run(mut self) -> Result<Vec<PlannerDropFact>, OwnershipCheckingError> {
+    fn run(mut self) -> Result<Self, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
         }
@@ -97,7 +111,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             self.plan_lambda_body(lambda, &effective_parameters, *body)?;
         }
-        Ok(self.facts)
+        Ok(self)
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
@@ -115,12 +129,20 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 let mut state = ValueState::default();
                 if let Some(receiver) = self.checker.receiver_context(name)
                     && receiver.mode == ParameterMode::Value
-                    && self.checker.typed.copyability(receiver.ty) == Copyability::MoveOnly
                 {
-                    state.this = Some(OwnedThis {
-                        owner: receiver.owner,
-                        origin: receiver.declaration_span,
-                    });
+                    let conditional_type = match self.checker.typed.types().get(receiver.ty) {
+                        Some(UnitTypeKind::StaticSelf(_)) => Some(receiver.ty),
+                        _ => None,
+                    };
+                    if conditional_type.is_some()
+                        || self.checker.typed.copyability(receiver.ty) == Copyability::MoveOnly
+                    {
+                        state.this = Some(OwnedThis {
+                            owner: receiver.owner,
+                            origin: receiver.declaration_span,
+                            conditional_type,
+                        });
+                    }
                 }
                 for parameter in parameters {
                     if let Some(symbol) = self.checker.marker_symbol(parameter.name).copied()
@@ -548,11 +570,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     ));
                 }
                 if let Some(receiver) = state.this {
-                    self.push_fact(PlannerDropFact::new(
-                        PlannerDropPoint::ControlTransfer(id),
-                        PlannerDropTarget::This(receiver.owner),
-                        receiver.origin,
-                    ));
+                    self.push_this_fact(PlannerDropPoint::ControlTransfer(id), receiver);
                 }
                 Ok(true)
             }
@@ -1020,6 +1038,22 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             self.drop_named(point, symbol, state);
         }
         if let Some(receiver) = state.this.take() {
+            self.push_this_fact(point, receiver);
+        }
+    }
+
+    fn push_this_fact(&mut self, point: PlannerDropPoint, receiver: OwnedThis) {
+        if let Some(receiver_type) = receiver.conditional_type {
+            let fact = PlannerConditionalReceiverDropFact {
+                point,
+                owner: receiver.owner,
+                receiver_type,
+                value_origin: receiver.origin,
+            };
+            if !self.conditional_receiver_facts.contains(&fact) {
+                self.conditional_receiver_facts.push(fact);
+            }
+        } else {
             self.push_fact(PlannerDropFact::new(
                 point,
                 PlannerDropTarget::This(receiver.owner),

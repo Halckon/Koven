@@ -33,8 +33,8 @@ use super::{
     LoanKind, OwnershipBindingKind, OwnershipCheckingError, Transferability,
     UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
     UnitCallReceiverOwnershipContract, UnitClosureCaptureDescriptor, UnitClosureDescriptor,
-    UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact, UnitLoanTarget,
-    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitConditionalReceiverDropFact, UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact,
+    UnitLoanTarget, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
     UnitReceiverOwnershipTarget, UnitValueDeliveryFact,
 };
@@ -48,6 +48,7 @@ pub(super) struct Analysis {
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
+    pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
@@ -155,6 +156,7 @@ pub(super) fn analyze(
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut drops = Vec::new();
+    let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
     let empty_construction_descriptors = BTreeMap::new();
 
@@ -201,6 +203,7 @@ pub(super) fn analyze(
         )?;
         let drop_analysis = checker.run()?;
         drops.extend(drop_analysis.drops);
+        conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
     }
 
@@ -217,6 +220,7 @@ pub(super) fn analyze(
         rc_effects,
         construction_plans,
         drops,
+        conditional_receiver_drops,
         deferred,
     })
 }

@@ -41,6 +41,9 @@
   结束 loan，不生成 retain、隐藏 owner或字段 move。
 - 发布 codegen 可直接消费的 receiver delivery/loan/end/drop facts；删除一般 member路径上的
   `OwnershipDeferredReason::MemberReceiver`，失败节点不发布成功 plan。
+- interface default 的 Value receiver 保留精确 `StaticSelf` 模板，另行发布 conditional receiver-drop
+  fact：具体化为 MoveOnly 时析构，具体化为 Copyable 时跳过；不得修改通用 `StaticSelf`
+  copyability 或把该义务伪装成无条件 `UnitDropFact`。
 
 ## 3. 非目标
 
@@ -59,6 +62,8 @@
 - [x] direct `this` move capture 使用 L0138；Value `this`→local→move closure 的
   `Transferable`/use-after-move/drop，以及 Borrow delegate 与手写转发 ownership facts 等价。
 - [x] 无一般 MemberReceiver deferred；受影响 frontend 窄测试及 workspace Layer 2 静态门禁通过并同步 Architecture。
+- [x] bodyful Value interface default 发布 owner/template/point/origin 精确且去重的 conditional
+  receiver-drop fact；普通 MoveOnly class 仍发布无条件 drop，Copyable/Borrow/Inout/bodyless 与错误恢复不泄漏该事实。
 
 ## 5. 技术方案与边界
 
@@ -72,16 +77,20 @@
 2. [x] 接 member-body `this`、field/capture/drop → 验证：body/closure 正反矩阵。
 3. [x] 接 Borrow delegate并移除 deferred → 验证：facts 等价与失败原子性。
 4. [x] 同步 Architecture/Spec 并运行分层验收。
+5. [x] 发布 `StaticSelf` Value receiver 条件析构义务 → 验证：正负能力矩阵、失败原子性及下游静态门禁。
 
 ## 7. 提交计划
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | receiver loan/move/drop/capture ownership facts | `feat(frontend): check receiver ownership (SPEC-0181)` |
+| 2 | `StaticSelf` Value receiver conditional drop fact | `feat(frontend): publish conditional receiver drops (SPEC-0181)` |
 
 ## 8. 未决问题
 
-- 无；native lowering 由 SPEC-0191 承接。
+- conditional receiver-drop 的 SSA/native 消费由 SPEC-0191 承接。
+- `StaticSelf` Value default 直接消费 `this` 或隐式调用另一 Value receiver 仍需要 conditional
+  delivery/move fact；当前继续 fail loud，不由本 drop-only 切片推断。
 
 ## 9. 验证记录
 
@@ -99,3 +108,6 @@
 | `cargo test -p lang-frontend --test multifile_ownership_checking stateless_object_borrow_receiver_has_no_runtime_drop_fact --locked --offline` | 通过 | 修正 object 的 MoveOnly 能力与 runtime drop obligation 混淆：保留 shared receiver fact，但不生成不存在的 owner drop |
 | `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 51/51 通过 | 单个 Phase 3 integration target；同时锁定普通 class Borrow temporary 仍在 call return drop、object 不 drop，以及 Borrow `this` 字段写优先使用 L0134 |
 | 独立高风险复核（stateless object temporary drop 修正） | 通过 | 确认仅 nominal `Object` 排除 runtime drop，普通 MoveOnly class 的 `CallReturn` drop 保持；最终无 P1/P2/P3 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking --locked --offline` | 54/54 通过 | 条件事实的精确 owner/`StaticSelf`/point/origin、普通 MoveOnly 与 Copyable/Borrow/Inout/bodyless 负矩阵、错误恢复原子性及既有 receiver/ownership 回归 |
+| `cargo clippy -p lang-frontend --lib --locked --offline -- -D warnings` | 通过 | 与上述单 integration target 并行执行；未运行约一小时的 frontend 全量测试 |
+| 独立高风险复核（conditional receiver drop） | 通过 | 要求保持 `UnitDropFact` 的确定 drop 不变量；据此把 owner 收窄为专用字段并补 conditional fact 去重，最终结论见本次提交复核 |
