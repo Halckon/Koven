@@ -536,8 +536,8 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **[SPEC-0224](../specs/0224-dependent-inherited-owner-recipes.md)（已完成）**：开放非增长的
       dependent inherited owner recipe，以确定性 strongest-demand 区分 instance-key-only 与
       runtime-layout-required；后者只消费 exact frontend descriptor，固定参数 SCC 继续 fail loud。
-- [ ] **[SPEC-0225](../specs/0225-parameter-growing-runtime-type-cycles.md)**：等待参数增长型 runtime recipe
-      ADR 在确定性拒绝、有限 type graph、type erasure 或共享 glue 间作出选择；当前继续 fail loud。
+- [ ] **[SPEC-0225](../specs/0225-parameter-growing-runtime-type-cycles.md)**：ADR-0024 已选择在 planner
+      按 declaration path 确定性拒绝参数增长型 runtime recipe；等待稳定 Span、原子失败与输入置换验收。
 - [x] **SPEC-0043（已实现）**：把标准库 `error()` 的稳定 identity 接入已实现的 SSA/C `abort`
       primitive（不生成栈展开代码）
 - [x] **SPEC-0040（已实现）**：生成 line-tables-only DWARF，`dwarfdump` 验证真实 `.ko` 行列，
