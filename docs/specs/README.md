@@ -300,6 +300,7 @@ Phase 接近完成、适用 guide 已明确且必要 ADR 已接受时，才从�
 | [0025](./0025-multifile-package-import-name-resolution.md) | 建立 compilation-unit package/import 名称解析（`done`） | 0015、0018 `done`；v0.32 已启用；ADR-0005/0020 `accepted` |
 | [0197](./0197-multifile-type-checking.md) | 在统一声明身份上完成跨文件签名/body 类型检查（`done`） | 0025 `done`；v0.32 已启用；ADR-0020 `accepted` |
 | [0218](./0218-compilation-unit-assignment-facts.md) | 发布普通 `=` 的 target/value/operator/storage-type/control descriptor，移除合法路径的 `Deferred(Assignment)`（`done`） | 0019、0020、0197 `done`；现行 v0.34；当前持续 Goal 的站立授权 |
+| [0219](./0219-compilation-unit-runtime-field-layout-facts.md) | 发布 ordinary-class owner-instance-qualified concrete runtime field layout（`in-progress`） | 0020、0177、0197 `done`；解锁 0191 nested generic field recipe；当前持续 Goal 的站立授权 |
 
 Phase 2 roadmap 中的“泛型单态化类型层面准备”已物化为 SPEC-0177，随后由 SPEC-0174
 完成 overload-lambda 候选隔离。两项均实施现行 v0.28 语义；它们不是
