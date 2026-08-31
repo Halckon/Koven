@@ -27,6 +27,7 @@ const MAX_UNIT_GENERIC_INSTANCES: usize = 1024;
 pub(crate) struct UnitFunctionInstanceKey {
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
+    static_self: Option<UnitTypeId>,
 }
 
 impl UnitFunctionInstanceKey {
@@ -35,9 +36,18 @@ impl UnitFunctionInstanceKey {
     }
 
     pub(crate) fn for_target(target: UnitCallableTarget, type_arguments: Vec<UnitTypeId>) -> Self {
+        Self::for_specialized_target(target, type_arguments, None)
+    }
+
+    pub(crate) fn for_specialized_target(
+        target: UnitCallableTarget,
+        type_arguments: Vec<UnitTypeId>,
+        static_self: Option<UnitTypeId>,
+    ) -> Self {
         Self {
             target,
             type_arguments,
+            static_self,
         }
     }
 
@@ -51,6 +61,14 @@ impl UnitFunctionInstanceKey {
 
     pub(crate) fn type_arguments(&self) -> &[UnitTypeId] {
         &self.type_arguments
+    }
+
+    pub(crate) const fn static_self(&self) -> Option<UnitTypeId> {
+        self.static_self
+    }
+
+    pub(crate) fn is_specialized(&self) -> bool {
+        !self.type_arguments.is_empty() || self.static_self.is_some()
     }
 }
 
@@ -168,8 +186,14 @@ pub(crate) fn plan_unit_instances(
                 template.span,
             ));
         }
-        if !key.type_arguments().is_empty() && generic_instance_count >= MAX_UNIT_GENERIC_INSTANCES
-        {
+        let requires_static_self = callable_static_self_receiver(typed, key.target())?;
+        if requires_static_self != key.static_self().is_some() {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                template.span,
+            ));
+        }
+        if key.is_specialized() && generic_instance_count >= MAX_UNIT_GENERIC_INSTANCES {
             return Err(lowering_error(
                 LoweringErrorKind::InstanceLimitExceeded,
                 template.span,
@@ -201,15 +225,35 @@ pub(crate) fn plan_unit_instances(
                 .instance()
                 .type_arguments()
                 .iter()
-                .map(|ty| resolve_concrete_type(typed, *ty, &substitutions, *span))
+                .map(|ty| {
+                    resolve_concrete_type(typed, *ty, &substitutions, key.static_self(), *span)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             if arguments.len() != templates[target_template_index].type_parameters.len() {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
-            pending.insert(UnitFunctionInstanceKey::for_target(target, arguments));
+            let static_self = if callable_static_self_receiver(typed, target)? {
+                let receiver = call
+                    .receiver()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, *span))?;
+                Some(resolve_concrete_type(
+                    typed,
+                    receiver.ty(),
+                    &substitutions,
+                    key.static_self(),
+                    *span,
+                )?)
+            } else {
+                None
+            };
+            pending.insert(UnitFunctionInstanceKey::for_specialized_target(
+                target,
+                arguments,
+                static_self,
+            ));
         }
 
-        if !key.type_arguments().is_empty() {
+        if key.is_specialized() {
             generic_instance_count += 1;
         }
         planned.insert(
@@ -417,6 +461,7 @@ pub(crate) fn resolve_concrete_type(
     typed: &ValidatedCompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    static_self: Option<UnitTypeId>,
     span: Span,
 ) -> Result<UnitTypeId, LoweringError> {
     match typed.types().types().get(ty) {
@@ -424,12 +469,47 @@ pub(crate) fn resolve_concrete_type(
             .get(parameter)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span)),
+        Some(UnitTypeKind::StaticSelf(_)) => {
+            static_self.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
         Some(kind) if contains_type_parameter(typed, kind) => {
             Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
         }
         Some(_) => Ok(ty),
         None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
     }
+}
+
+pub(crate) fn callable_static_self_receiver(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+) -> Result<bool, LoweringError> {
+    let callable = match target {
+        UnitCallableTarget::Declaration(declaration) => typed
+            .types()
+            .signatures()
+            .declaration(declaration)
+            .and_then(|signature| signature.callable()),
+        UnitCallableTarget::Symbol(_) => typed
+            .types()
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|signature| signature.nominal())
+            .flat_map(|nominal| nominal.members())
+            .find(|callable| callable.target() == target),
+    }
+    .ok_or(LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: None,
+    })?;
+    let Some(receiver) = callable.receiver() else {
+        return Ok(false);
+    };
+    Ok(matches!(
+        typed.types().types().get(receiver.ty()),
+        Some(UnitTypeKind::StaticSelf(_))
+    ))
 }
 
 fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTypeKind) -> bool {

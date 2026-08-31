@@ -70,6 +70,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             descriptor.element_type(),
             self.substitutions,
+            self.static_self,
             span,
         )?;
         if self.typed.types().copyability(element) != Copyability::Copyable
@@ -154,6 +155,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             descriptor.element_type(),
             self.substitutions,
+            self.static_self,
             span,
         )?;
         self.validate_replacement_drop(expression, concrete_element, span)?;
@@ -268,6 +270,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             descriptor.element_type(),
             self.substitutions,
+            self.static_self,
             span,
         )?;
         let element = self

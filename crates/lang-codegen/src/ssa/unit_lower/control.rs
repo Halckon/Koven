@@ -162,8 +162,13 @@ impl UnitExpressionLowerer<'_> {
                 .types()
                 .expression_type(subject_id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let subject_type =
-                resolve_concrete_type(self.typed, subject_type, self.substitutions, span)?;
+            let subject_type = resolve_concrete_type(
+                self.typed,
+                subject_type,
+                self.substitutions,
+                self.static_self,
+                span,
+            )?;
             let subject_ssa = self.expression_ssa_type(subject, span)?;
             let is_boolean = builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean);
             let is_tagged = self
@@ -652,8 +657,13 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete_type =
-            resolve_concrete_type(self.typed, expression_type, self.substitutions, span)?;
+        let concrete_type = resolve_concrete_type(
+            self.typed,
+            expression_type,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
         let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
         if result_required
             && builtin_type(self.typed, concrete_type) != Some(BuiltinType::Nothing)

@@ -154,6 +154,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                     typed,
                     receiver.ty(),
                     instance.substitutions(),
+                    instance.key().static_self(),
                     receiver.declaration_span(),
                 )?;
                 let ty = types.intern(module, typed, concrete, receiver.declaration_span())?;
@@ -203,6 +204,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
                 typed,
                 parameter.ty(),
                 instance.substitutions(),
+                instance.key().static_self(),
                 parameter.span(),
             )?;
             if parameter.mode() == ParameterMode::Borrow
@@ -233,6 +235,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             typed,
             callable.return_type(),
             instance.substitutions(),
+            instance.key().static_self(),
             instance.span(),
         )?;
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
@@ -379,6 +382,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),
             substitutions: plan.instance.substitutions(),
+            static_self: plan.instance.key().static_self(),
             references: &references,
             type_references: &type_references,
             function,
@@ -460,6 +464,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),
             substitutions: &plan.substitutions,
+            static_self: plan.static_self,
             references: &references,
             type_references: &type_references,
             function,
@@ -498,6 +503,7 @@ struct UnitExpressionLowerer<'a> {
     enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     field_indices: &'a BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
     substitutions: &'a BTreeMap<UnitSymbolId, UnitTypeId>,
+    static_self: Option<UnitTypeId>,
     references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
     type_references: &'a BTreeMap<(usize, usize), UnitSymbolId>,
     function: &'a mut Function,
@@ -878,7 +884,7 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let ty = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+        let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
         self.type_ids
             .get(&ty)
             .copied()
@@ -993,6 +999,10 @@ fn instance_function_name(
     for argument in instance.key().type_arguments() {
         name.push_str(".t");
         name.push_str(&argument.index().to_string());
+    }
+    if let Some(static_self) = instance.key().static_self() {
+        name.push_str(".r");
+        name.push_str(&static_self.index().to_string());
     }
     name
 }

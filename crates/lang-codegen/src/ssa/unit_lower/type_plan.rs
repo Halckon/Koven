@@ -37,7 +37,13 @@ pub(super) fn intern_body_scalar_types(
         if !span_contains(instance.span(), span) {
             continue;
         }
-        let concrete = resolve_concrete_type(typed, ty, instance.substitutions(), span)?;
+        let concrete = resolve_concrete_type(
+            typed,
+            ty,
+            instance.substitutions(),
+            instance.key().static_self(),
+            span,
+        )?;
         if requires_enum_discriminant(parsed, expression)? {
             for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
                 let ty = typed
@@ -158,6 +164,7 @@ fn checked_operand_type(
                 typed,
                 target,
                 instance.substitutions(),
+                instance.key().static_self(),
                 node.span(),
             )?)
         }

@@ -264,6 +264,70 @@ fn plans_reachable_member_instances_with_owner_and_callable_arguments() {
 }
 
 #[test]
+fn plans_one_interface_default_instance_per_concrete_static_self() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int = 1 }\n\
+         class First: Readable {}\n\
+         class Second: Readable {}\n\
+         fun entry(): Int = First().read() + Second().read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    let defaults = instances
+        .iter()
+        .filter(|instance| instance.key().static_self().is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(defaults.len(), 2, "one default body per concrete Self");
+    assert!(
+        defaults
+            .iter()
+            .all(|instance| instance.key().is_specialized())
+    );
+    assert!(
+        instances
+            .iter()
+            .find(|instance| instance.key().target()
+                == UnitCallableTarget::Declaration(declaration(&names, "entry")))
+            .is_some_and(|instance| !instance.key().is_specialized()),
+        "concrete StaticSelf uses the same bounded specialization path as generic instances"
+    );
+    assert_eq!(defaults[0].key().target(), defaults[1].key().target());
+    assert_eq!(
+        defaults[0].key().type_arguments(),
+        defaults[1].key().type_arguments()
+    );
+    let concrete_owners = defaults
+        .iter()
+        .map(|instance| {
+            let ty = instance.key().static_self().expect("concrete StaticSelf");
+            match typed.types().types().get(ty) {
+                Some(UnitTypeKind::Nominal { declaration, .. }) => *declaration,
+                other => panic!("concrete StaticSelf must be nominal: {other:?}"),
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        concrete_owners,
+        [declaration(&names, "First"), declaration(&names, "Second")]
+    );
+}
+
+#[test]
 fn rejects_non_callable_entries_and_foreign_ownership_products() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

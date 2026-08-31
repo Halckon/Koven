@@ -24,7 +24,7 @@ use crate::ssa::{
     model::{
         EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, PlaceId, SsaTypeId,
     },
-    unit_plan::UnitFunctionInstanceKey,
+    unit_plan::{UnitFunctionInstanceKey, callable_static_self_receiver},
 };
 
 pub(super) struct LoweredCallArguments {
@@ -174,11 +174,31 @@ impl UnitExpressionLowerer<'_> {
             .instance()
             .type_arguments()
             .iter()
-            .map(|ty| resolve_concrete_type(self.typed, *ty, self.substitutions, span))
+            .map(|ty| {
+                resolve_concrete_type(self.typed, *ty, self.substitutions, self.static_self, span)
+            })
             .collect::<Result<Vec<_>, _>>()?;
+        let static_self = if callable_static_self_receiver(self.typed, target)? {
+            let receiver = descriptor
+                .receiver()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            Some(resolve_concrete_type(
+                self.typed,
+                receiver.ty(),
+                self.substitutions,
+                self.static_self,
+                span,
+            )?)
+        } else {
+            None
+        };
         let callee = self
             .function_ids
-            .get(&UnitFunctionInstanceKey::for_target(target, type_arguments))
+            .get(&UnitFunctionInstanceKey::for_specialized_target(
+                target,
+                type_arguments,
+                static_self,
+            ))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
@@ -193,6 +213,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             descriptor.return_type(),
             self.substitutions,
+            self.static_self,
             span,
         )?;
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
@@ -290,6 +311,7 @@ impl UnitExpressionLowerer<'_> {
                         self.typed,
                         argument_type,
                         self.substitutions,
+                        self.static_self,
                         argument.span,
                     )?;
                     if builtin_type(self.typed, argument_type) == Some(BuiltinType::Nothing) {
@@ -305,6 +327,7 @@ impl UnitExpressionLowerer<'_> {
                         self.typed,
                         mapping.parameter_type(),
                         self.substitutions,
+                        self.static_self,
                         argument.span,
                     )?;
                     let target = self.type_ids.get(&parameter_type).copied().ok_or_else(|| {

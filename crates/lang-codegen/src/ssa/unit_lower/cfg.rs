@@ -52,7 +52,8 @@ impl UnitExpressionLowerer<'_> {
                 .types()
                 .symbol_type(*symbol)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let ty = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+            let ty =
+                resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
             if self.typed.types().copyability(ty) == Copyability::MoveOnly {
                 move_only.insert(*symbol, *binding);
             }

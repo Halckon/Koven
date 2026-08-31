@@ -277,7 +277,8 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+        let concrete =
+            resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
         Ok(builtin_type(self.typed, concrete))
     }
 

@@ -74,7 +74,10 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    非泛型 value class Borrow/Copyable Value 与 ordinary class Borrow/MoveOnly Value 已完成真实
    object/link/run；ordinary-class Inout Copyable payload mutation及无状态 object Borrow receiver
    已完成，generic nominal layout 与 MoveOnly field replacement 继续实施。
-3. [ ] 接 default/override/super/delegate 静态转发 → 验证：运行、drop、无动态设施。
+3. [ ] 接 default/override/super/delegate 静态转发 → concrete receiver 直接调用有体 Borrow
+   default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
+   concrete `StaticSelf` 传播已完成；abstract requirement→concrete override、generic、Inout/Value
+   default 与 Borrow delegate 继续实施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -125,3 +128,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 最终分层小集合：`multifile_ownership_checking` / `unit_lower_receiver_tests` / `native::unit_tests` | 51/51、15/15、5/5 通过 | 用单个 frontend integration target 加两组 codegen 职责测试覆盖 Phase 3 facts、SSA/LLVM 与真实 link/run；未运行约一小时的 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace 库级静态门禁 |
 | 独立高风险复核（stateless object Borrow receiver 切片） | 通过 | 复核 object 双命名空间身份、runtime drop 排除边界、ZST receiver-only 门禁及 `L0134` 优先级，最终无 P1/P2/P3 |
+| `cargo test -p lang-codegen --lib plans_one_interface_default_instance_per_concrete_static_self --locked --offline` | 通过 | 同一 default target/type arguments 被两个 concrete implementor 使用时形成两个独立实例 key；`static_self` 与普通类型实参保持正交 |
+| concrete `StaticSelf` SSA 定向矩阵 | 5/5 通过 | 直接 default、同一 default 的双 concrete symbol、concrete override→`super<I>`、default→`super<Base>` 与 `this.otherDefault()` 均使用 concrete shared-loan target 和静态 DirectCall；无额外 reborrow/vtable/interface runtime type |
+| `cargo test -p lang-codegen --lib interface_default_and_super_static_calls_link_and_run --locked --offline` | 通过 | 真实 source→object→clang→run 输出 `default-super\n` |
+| 最终并行小集合：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` | 5/5、20/20、6/6 通过 | 分别锁定 bounded concrete-self 实例 identity、receiver SSA/LLVM 与真实 source→object→link→run；不重复 frontend 全量回归 |
+| `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace 库级静态门禁，零 warning |
+| 独立高风险复核（concrete `StaticSelf` direct-default/`super<I>` 切片） | 通过 | 首轮发现双 concrete symbol、`this.otherDefault()` 与完成范围措辞三处 P3，补测试/收窄文档后复核至无 P1/P2/P3 |

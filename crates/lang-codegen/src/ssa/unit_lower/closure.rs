@@ -55,6 +55,7 @@ pub(super) struct CallablePlan {
     pub(super) result_expression: Option<ExpressionId>,
     pub(super) captures: Vec<CapturePlan>,
     pub(super) substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pub(super) static_self: Option<UnitTypeId>,
 }
 
 pub(super) fn declare(
@@ -136,6 +137,7 @@ pub(super) fn declare(
                 typed,
                 *return_type,
                 function.instance.substitutions(),
+                function.instance.key().static_self(),
                 span,
             )?;
             let parameter_spans = if arrow_span.is_none()
@@ -156,6 +158,7 @@ pub(super) fn declare(
                     typed,
                     parameter.ty(),
                     function.instance.substitutions(),
+                    function.instance.key().static_self(),
                     *parameter_span,
                 )?;
                 let supported_value = parameter.mode() == ParameterMode::Value
@@ -214,6 +217,7 @@ pub(super) fn declare(
                         typed,
                         tail_type,
                         function.instance.substitutions(),
+                        function.instance.key().static_self(),
                         span,
                     )?;
                     let category = typed.types().expression_category(tail_id);
@@ -267,6 +271,7 @@ pub(super) fn declare(
                     typed,
                     capture.ty(),
                     function.instance.substitutions(),
+                    function.instance.key().static_self(),
                     capture.reference_span(),
                 )?;
                 if builtin_type(typed, concrete) == Some(BuiltinType::Unit) {
@@ -350,6 +355,7 @@ pub(super) fn declare(
                         result_expression,
                         captures,
                         substitutions: function.instance.substitutions().clone(),
+                        static_self: function.instance.key().static_self(),
                     },
                 )
                 .is_some()
@@ -469,6 +475,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             descriptor.return_type(),
             self.substitutions,
+            self.static_self,
             span,
         )?;
         if !matches!(callee_node.payload(), Expression::Name) {
@@ -712,7 +719,13 @@ pub(super) fn finish_thunk(
             .get(symbol)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
-        let ty = resolve_concrete_type(lowerer.typed, ty, &plan.substitutions, plan.span)?;
+        let ty = resolve_concrete_type(
+            lowerer.typed,
+            ty,
+            &plan.substitutions,
+            plan.static_self,
+            plan.span,
+        )?;
         if lowerer.typed.types().copyability(ty) == Copyability::MoveOnly {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,

@@ -974,7 +974,13 @@ expression/target/value/operator/storage-type/control identity 后才写 field�
 grouped `this` 共享同一 current receiver identity；真实 object/link/run 由后续 Borrow getter 从同一
 caller owner 观察更新值。当前切片只闭合非泛型 ordinary class 的 Copyable `var` field；MoveOnly field
 replacement 在 frontend 发布旧字段 drop/replacement fact 前确定性拒绝。generic nominal layout、
-default/override/`super<I>` 与静态委托仍由 SPEC-0191 后续切片承接。无状态 object Borrow receiver
+abstract requirement 到 concrete override 的解析、generic/Inout/Value interface default 与静态委托
+仍由 SPEC-0191 后续切片承接。interface callable template 以 `StaticSelf(interface)` 保存 receiver；
+unit instance key 另存 concrete self，
+使同一 default 对不同 concrete owner 分别单态化并计入实例上限。直接 default、concrete override
+中的 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 都复用 concrete receiver loan做静态 DirectCall；声明
+owner/源码 origin 仍保持 interface identity，不生成 interface runtime value、vtable 或额外 reborrow。
+无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
 再复用 `RootPlace`/`BorrowBegin` pointer ABI；LLVM 仅为调用期 addressization 建临时 storage，不生成

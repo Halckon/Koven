@@ -53,6 +53,7 @@ impl UnitExpressionLowerer<'_> {
             self.typed,
             receiver.ty(),
             self.substitutions,
+            self.static_self,
             fact.begin_span(),
         )?;
         let target = self
@@ -484,7 +485,7 @@ impl UnitExpressionLowerer<'_> {
             .types()
             .expression_type(expression)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let ty = resolve_concrete_type(self.typed, ty, self.substitutions, span)?;
+        let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
         if ty != receiver.ty {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
