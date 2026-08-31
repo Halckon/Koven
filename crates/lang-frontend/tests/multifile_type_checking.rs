@@ -180,6 +180,63 @@ fn symbol_named(
 }
 
 #[test]
+fn concrete_override_publishes_static_abstract_requirement_dispatch() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         class Child: Readable {\n\
+             override fun read(): Int = 7\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unit type checking succeeds internally");
+
+    assert!(typed.diagnostics().is_empty());
+    let readable = typed
+        .signatures()
+        .declaration(declaration(&names, "Readable"))
+        .and_then(|signature| signature.nominal())
+        .expect("Readable signature");
+    let child = typed
+        .signatures()
+        .declaration(declaration(&names, "Child"))
+        .and_then(|signature| signature.nominal())
+        .expect("Child signature");
+    let requirement = readable
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("abstract requirement")
+        .target();
+    let implementation = child
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("concrete override")
+        .target();
+
+    assert_eq!(child.static_dispatch_overrides().len(), 1);
+    assert_eq!(
+        child.static_dispatch_overrides()[0].requirement(),
+        requirement
+    );
+    assert_eq!(
+        child.static_dispatch_overrides()[0].implementation(),
+        implementation
+    );
+    assert!(typed.clone().validate().is_ok());
+}
+
+#[test]
 fn cross_file_named_call_publishes_declaration_and_argument_facts() {
     let mut sources = SourceMap::new();
     let (declarations_source, declarations) = parsed(

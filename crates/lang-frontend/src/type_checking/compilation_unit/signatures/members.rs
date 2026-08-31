@@ -19,7 +19,8 @@ use crate::{
 
 use super::super::{
     CompilationUnitTypeError, SignatureCollector, UnitCallableSignature, UnitCallableTarget,
-    UnitDelegationPlan, UnitTypeId, UnitTypeKind, marker_span, unwrapped_item,
+    UnitDelegationPlan, UnitStaticDispatchOverride, UnitTypeId, UnitTypeKind, marker_span,
+    unwrapped_item,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -282,6 +283,7 @@ impl SignatureCollector<'_> {
         delegations: &mut DelegationFacts,
     ) -> Result<(), CompilationUnitTypeError> {
         let owner_span = self.names.index().declarations()[owner.index()].name_span();
+        let mut static_dispatch_overrides = Vec::new();
         let mut incompatible_delegates = BTreeMap::<usize, (usize, Span)>::new();
         let mut by_shape = BTreeMap::<MemberShape, Vec<&MemberSignature>>::new();
         for member in inherited {
@@ -312,6 +314,16 @@ impl SignatureCollector<'_> {
                         .map_or(owner_span, |target| target.name_span),
                     "related interface member or owner declared here",
                 )?;
+            }
+            if member.modifiers.override_span.is_some() && valid_target && public {
+                static_dispatch_overrides.extend(
+                    targets
+                        .iter()
+                        .filter(|target| !target.has_body)
+                        .map(|target| {
+                            UnitStaticDispatchOverride::new(target.target, member.target)
+                        }),
+                );
             }
         }
         for sources in by_shape.into_values() {
@@ -440,6 +452,12 @@ impl SignatureCollector<'_> {
                 "incompatible interface member declared here",
             )?;
         }
+        static_dispatch_overrides.sort_unstable();
+        static_dispatch_overrides.dedup();
+        self.nominals
+            .get_mut(&owner)
+            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?
+            .set_static_dispatch_overrides(static_dispatch_overrides);
         Ok(())
     }
 

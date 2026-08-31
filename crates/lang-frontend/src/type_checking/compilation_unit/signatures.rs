@@ -27,8 +27,9 @@ use super::{
     CompilationUnitSignatureFacts, CompilationUnitSignatures, CompilationUnitTypeError,
     SignatureProvenance, UnitCallableParameter, UnitCallableReceiver, UnitCallableSignature,
     UnitCallableTarget, UnitDeclarationSignature, UnitDelegationPlan, UnitEnumCaseSignature,
-    UnitFieldSignature, UnitFunctionParameterType, UnitNominalSignature, UnitTypeId, UnitTypeKind,
-    UnitTypeParameterBound, UnitTypeParameterDescriptor, UnitTypeRefId, UnitTypeTable,
+    UnitFieldSignature, UnitFunctionParameterType, UnitNominalSignature,
+    UnitStaticDispatchOverride, UnitTypeId, UnitTypeKind, UnitTypeParameterBound,
+    UnitTypeParameterDescriptor, UnitTypeRefId, UnitTypeTable,
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
 

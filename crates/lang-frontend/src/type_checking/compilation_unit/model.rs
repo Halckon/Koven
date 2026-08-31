@@ -842,6 +842,38 @@ pub struct UnitNominalSignature {
     enum_cases: Vec<UnitEnumCaseSignature>,
     members: Vec<UnitCallableSignature>,
     companion_members: Vec<UnitCallableSignature>,
+    static_dispatch_overrides: Vec<UnitStaticDispatchOverride>,
+}
+
+/// concrete classifier 对一个 abstract interface requirement 的静态 override target。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnitStaticDispatchOverride {
+    requirement: UnitCallableTarget,
+    implementation: UnitCallableTarget,
+}
+
+impl UnitStaticDispatchOverride {
+    pub(crate) const fn new(
+        requirement: UnitCallableTarget,
+        implementation: UnitCallableTarget,
+    ) -> Self {
+        Self {
+            requirement,
+            implementation,
+        }
+    }
+
+    /// 返回 interface abstract requirement identity。
+    #[must_use]
+    pub const fn requirement(self) -> UnitCallableTarget {
+        self.requirement
+    }
+
+    /// 返回 concrete classifier 中已验证的 override identity。
+    #[must_use]
+    pub const fn implementation(self) -> UnitCallableTarget {
+        self.implementation
+    }
 }
 
 impl UnitNominalSignature {
@@ -864,6 +896,7 @@ impl UnitNominalSignature {
             enum_cases: Vec::new(),
             members: Vec::new(),
             companion_members: Vec::new(),
+            static_dispatch_overrides: Vec::new(),
         }
     }
 
@@ -933,6 +966,12 @@ impl UnitNominalSignature {
         &self.companion_members
     }
 
+    /// 返回 abstract interface requirement 到本 concrete classifier override 的确定映射。
+    #[must_use]
+    pub fn static_dispatch_overrides(&self) -> &[UnitStaticDispatchOverride] {
+        &self.static_dispatch_overrides
+    }
+
     pub(crate) fn set_direct_interfaces(&mut self, interfaces: Vec<UnitTypeId>) {
         self.direct_interfaces = interfaces;
     }
@@ -955,6 +994,13 @@ impl UnitNominalSignature {
 
     pub(crate) fn set_companion_members(&mut self, members: Vec<UnitCallableSignature>) {
         self.companion_members = members;
+    }
+
+    pub(crate) fn set_static_dispatch_overrides(
+        &mut self,
+        overrides: Vec<UnitStaticDispatchOverride>,
+    ) {
+        self.static_dispatch_overrides = overrides;
     }
 }
 
