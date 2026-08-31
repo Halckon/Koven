@@ -10,7 +10,7 @@
 | 前置 Spec | SPEC-0034、0035、0038、0039、0177、0184、0195、0180、0181 `done` |
 | 前置 ADR | [ADR-0016](../adr/0016-interprocedural-borrow-abi.md) `accepted` |
 | 关联 ADR | ADR-0006、0008、0009 |
-| 阻塞项 | Copyable ordinary-class Inout payload assignment 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact，其他 receiver/native 切片无阻塞 |
+| 阻塞项 | Copyable ordinary-class Inout payload assignment 已闭合；MoveOnly field replacement 等待 Phase 3 旧字段 drop/replacement fact；Value interface default 的 MoveOnly concrete `StaticSelf` 等待 Phase 3 条件 receiver-drop fact |
 | 影响范围 | `lang-codegen` callable SSA/frontend lowering/LLVM/member native tests；Architecture/Roadmap |
 | 语言语义变更 | 否；lower 已验证 receiver facts |
 
@@ -80,7 +80,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
    ancestor requirement→interface replacement/唯一独立 default 已消费双方 owner template 并完成
    native 闭环，`Host<X,Y>: Derived<Y>` 的 owner/callable slot 配方已由 planner 锁定；generic
-   nominal native layout 与 Inout/Value default 继续实施。Borrow delegate 的首个非泛型、单层、
+   nominal native layout 与 Value default 继续实施。非泛型 ordinary-class Inout default 已完成
+   exclusive concrete receiver 的 SSA/LLVM 与 native 闭环；MoveOnly Value default 不由 codegen 猜测
+   `StaticSelf` 析构，等待 Phase 3 发布条件 receiver-drop fact。Borrow delegate 的首个非泛型、单层、
    ordinary-class 切片已消费 typed/ownership 双重 validated route，以 `SharedHeapFieldLoan` 直接转发
    concrete delegate Borrow receiver；abstract requirement、本地 override、继承/default replacement
    均直接消费 frontend forwarder 的 exact effective target/owner template，interface default 的
@@ -95,6 +97,7 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | 1 | receiver callable SSA/verifier 与 LLVM receiver-first operand 基元 | `feat(codegen): model instance receivers (SPEC-0191)` |
 | 2 | frontend member/委托接线与 native 闭环 | `feat(codegen): lower member receivers (SPEC-0191)` |
 | 3 | bodyful/default Borrow delegation exact-target 接线 | `feat(codegen): lower default delegation (SPEC-0191)` |
+| 4 | Inout interface default 的 concrete exclusive ABI 闭环 | `test(codegen): close inout default lowering (SPEC-0191)` |
 
 ## 8. 未决问题
 
@@ -165,3 +168,5 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo test -p lang-codegen --lib --locked --offline`（独立复审） | 276 通过、1 ignored | 完整 codegen library 回归；ignored 为既有 debugserver 权限用例，未运行约一小时的 frontend 全量测试 |
 | `cargo clippy --workspace --lib --locked --offline -- -D warnings` | 通过 | workspace library Layer 2 静态门禁，零 warning |
 | 独立高风险复核（bodyful/default Borrow delegation） | 通过 | 无 P1/P2/P3；确认 exact typed+ownership route、delegate concrete `StaticSelf`、field-loan ABI 及所有未开放 generic/chain 边界 |
+| `cargo test -p lang-codegen interface_inout_default_preserves_exclusive_receiver_abi --locked --offline` | 通过 | interface `StaticSelf` 专化为 concrete `Counter`，callee receiver 与 caller operand 均为同类型 exclusive loan，verified SSA/LLVM 通过 |
+| `cargo test -p lang-codegen inout_interface_default_links_and_runs --locked --offline` | 通过 | source→object→link→run 中 default 返回 7、concrete payload 保持 5，合计 12 后输出 `inout-default` |

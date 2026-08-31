@@ -78,6 +78,70 @@ fn interface_default_receiver_is_specialized_to_the_concrete_owner() {
 }
 
 #[test]
+fn interface_inout_default_preserves_exclusive_receiver_abi() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Mutable { inout fun probe(): Int = 7 }\n\
+         class Counter(var count: Int): Mutable { fun read(): Int = count }\n\
+         fun entry(): Int {\n\
+             val counter = Counter(5)\n\
+             val defaultValue = counter.probe()\n\
+             return counter.read() + defaultValue\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("Inout interface default must lower");
+
+    let module = &program.modules[0];
+    let probe = function(module.functions.iter(), ".Mutable.probe.s");
+    let counter = match probe.receiver() {
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) => target,
+        other => panic!("Inout default must receive an exclusive Counter loan: {other:?}"),
+    };
+    let entry = function(module.functions.iter(), ".entry.d");
+    let counter_owner = entry
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction.operation {
+            Operation::HeapAllocate { owner, .. } => Some(owner),
+            _ => None,
+        })
+        .expect("Counter owner type");
+    assert_eq!(
+        counter, counter_owner,
+        "StaticSelf must be concrete Counter"
+    );
+    assert!(entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(receiver)),
+            ..
+        } if callee == probe.id()
+            && entry.entity(EntityId::Loan(receiver)).map(|entity| entity.ty)
+                == Some(EntityType::Loan { kind: LoanKind::Exclusive, target: counter })
+    )));
+    render_verified_program(&program).expect("Inout default receiver must lower to LLVM");
+}
+
+#[test]
 fn borrow_delegation_projects_one_heap_field_loan_and_forwards_it_directly() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

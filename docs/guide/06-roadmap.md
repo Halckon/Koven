@@ -517,8 +517,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       implementation 静态解析，以及非泛型单层 ordinary-class 的 abstract-requirement Borrow-only
       静态委托 native 闭环已完成；bodyful delegate 的 direct effective-target/owner-template frontend fact
       与 replacement default/local override lowering 也已完成，`StaticSelf` 精确取 delegate field concrete
-      type；递归/type-parameter 未解析路径显式为 `None`。继续补齐 generic receiver/delegation、
-      Inout/Value interface default、MoveOnly field replacement 与 delegation
+      type；递归/type-parameter 未解析路径显式为 `None`。非泛型 ordinary-class Inout interface default
+      已复用 concrete `StaticSelf` exclusive-loan ABI 完成 SSA/LLVM/native 闭环；MoveOnly Value default
+      等待 Phase 3 条件 receiver-drop fact。继续补齐 generic receiver/delegation、Value interface
+      default、MoveOnly field replacement 与 delegation
       chain。复用 ADR-0016，只
       验收具有源码生产路径的 DirectCall receiver，不生成 vtable/proxy/隐式 retain 或未定义的
       bound method CallableInvoke。

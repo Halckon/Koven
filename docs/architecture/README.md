@@ -1010,6 +1010,10 @@ frontend forwarder 的 exact effective-target/owner-template，本地 override �
 generic outer/delegate/interface owner/call instance、delegation chain 与 frontend `None` route 均在
 生成 SSA 前以 `UnsupportedNode` 原子拒绝；codegen 不因 requirement 自带 body 而绕过 field route、
 静默调用 outer interface default。
+非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
+loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
+payload 保持 5。MoveOnly Value default 仍等待 Phase 3 为 `StaticSelf` 发布条件 receiver-drop fact；在该事实
+完成前，codegen 不自行根据 concrete type 补析构。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，
