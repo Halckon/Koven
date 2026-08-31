@@ -645,6 +645,62 @@ fn interface_default_abstract_requirement_override_links_and_runs() {
 }
 
 #[test]
+fn inherited_and_unrelated_defaults_satisfy_abstract_requirements_natively() {
+    let analysis = analyze_sources(
+        "package p\n\
+         interface Base {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived: Base { fun read(): Int = 7 }\n\
+         class Child: Derived {}\n\
+         interface Required {\n\
+             fun otherRead(): Int\n\
+             fun throughRequirement(): Int = this.otherRead()\n\
+         }\n\
+         interface Provided { fun otherRead(): Int = 5 }\n\
+         class OtherChild: Required, Provided {}\n\
+         fun entry(): Unit {\n\
+             val actual = Child().throughRequirement() + OtherChild().throughRequirement()\n\
+             if (actual == 12) { println(\"inherited-defaults\") }\
+             else { error(\"wrong inherited default\") }\n\
+         }",
+        "package q\nfun unused(): Unit {}",
+    );
+    let inputs = analysis.inputs();
+    let entry_declaration = analysis.declaration("p", "entry");
+    let directory = TestDirectory::create();
+    let object = directory.join("inherited-defaults.o");
+    let executable = directory.join("inherited-defaults");
+
+    emit_native_unit_object(
+        &analysis.sources,
+        &inputs,
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        entry_declaration,
+        &object,
+    )
+    .expect("inherited effective defaults must emit a native object");
+    let linked = Command::new("/usr/bin/clang")
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&executable)
+        .output()
+        .expect("linked inherited default executable must launch");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"inherited-defaults\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+    assert_no_sibling_temporary(&directory.0);
+}
+
+#[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {
     let analysis = analyze_unit();
     let foreign = analyze_unit();

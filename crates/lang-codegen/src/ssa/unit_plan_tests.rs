@@ -454,6 +454,121 @@ fn remaps_requirement_arguments_to_concrete_owner_and_callable_slots() {
 }
 
 #[test]
+fn remaps_inherited_default_owner_recipe_and_callable_slots() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun <R> read(own input: R): R\n\
+             fun <R> throughRequirement(own input: R): R = this.read(input)\n\
+         }\n\
+         interface Derived<B>: Base<String> {\n\
+             fun <R> read(own input: R): R = input\n\
+         }\n\
+         class Host<X, Y>: Derived<Y> {}\n\
+         fun entry(host: Host<Int, Long>): Int = host.throughRequirement(2)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let derived = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Derived"))
+        .and_then(|signature| signature.nominal())
+        .expect("Derived signature");
+    let implementation = derived
+        .members()
+        .iter()
+        .find(|member| member.name() == "read")
+        .expect("inherited default implementation")
+        .target();
+    let requirement = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Base"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| {
+            nominal
+                .members()
+                .iter()
+                .find(|member| member.name() == "read")
+        })
+        .expect("ancestor abstract requirement")
+        .target();
+
+    let instances = plan(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    );
+    let implementation = instances
+        .iter()
+        .find(|instance| instance.key().target() == implementation)
+        .expect("inherited generic default instance");
+    assert_eq!(implementation.key().type_arguments().len(), 2);
+    assert!(matches!(
+        typed
+            .types()
+            .types()
+            .get(implementation.key().type_arguments()[0]),
+        Some(UnitTypeKind::Builtin(BuiltinType::Long))
+    ));
+    assert!(matches!(
+        typed
+            .types()
+            .types()
+            .get(implementation.key().type_arguments()[1]),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(implementation.key().static_self().is_some());
+    assert!(
+        instances
+            .iter()
+            .all(|instance| instance.key().target() != requirement)
+    );
+}
+
+#[test]
+fn rejects_nested_inherited_owner_recipe_before_generic_nominal_layout() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface Derived<B>: Base<String> { fun read(): Int = 7 }\n\
+         class Host<Y>: Derived<List<Y>> {}\n\
+         fun entry(host: Host<Int>): Int = host.throughRequirement()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("nested generic owner recipes remain behind generic nominal layout");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+}
+
+#[test]
 fn rejects_non_callable_entries_and_foreign_ownership_products() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

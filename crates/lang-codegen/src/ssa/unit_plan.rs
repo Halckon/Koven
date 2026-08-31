@@ -12,8 +12,8 @@ use lang_frontend::{
     parser::{Item, NameMarker, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        TypeEnvironment, UnitCallTarget, UnitCallableSignature, UnitCallableTarget, UnitTypeId,
-        UnitTypeKind, ValidatedCompilationUnitTypes,
+        TypeEnvironment, UnitCallTarget, UnitCallableSignature, UnitCallableTarget,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
@@ -531,27 +531,49 @@ pub(crate) fn resolve_unit_call_instance(
         .declaration(*declaration)
         .and_then(|signature| signature.nominal())
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let implementation = nominal
+    let dispatch = nominal
         .static_dispatch_overrides()
         .iter()
         .find(|dispatch| dispatch.requirement() == target)
-        .map(|dispatch| dispatch.implementation())
+        .copied()
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let implementation = dispatch.implementation();
     let implementation_callable = unit_callable_signature(typed, implementation)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let requirement_owner_arguments = unit_callable_owner_parameter_count(typed, target)
+    let (requirement_owner, requirement_owner_arguments) = instantiate_dispatch_owner_arguments(
+        typed,
+        dispatch.requirement_owner(),
+        nominal,
+        owner_arguments,
+        span,
+    )?;
+    let (implementation_owner, implementation_owner_arguments) =
+        instantiate_dispatch_owner_arguments(
+            typed,
+            dispatch.implementation_owner(),
+            nominal,
+            owner_arguments,
+            span,
+        )?;
+    let (requirement_declaration, requirement_owner_arity) = unit_callable_owner(typed, target)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let implementation_owner_arguments = unit_callable_owner_parameter_count(typed, implementation)
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let (implementation_declaration, implementation_owner_arity) =
+        unit_callable_owner(typed, implementation)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
     if !implementation_callable.has_body()
         || implementation_callable.type_parameters().len() != callable.type_parameters().len()
-        || type_arguments.len() != requirement_owner_arguments + callable.type_parameters().len()
-        || owner_arguments.len() != implementation_owner_arguments
+        || requirement_declaration != requirement_owner
+        || implementation_declaration != implementation_owner
+        || requirement_owner_arity != requirement_owner_arguments.len()
+        || implementation_owner_arity != implementation_owner_arguments.len()
+        || type_arguments.len()
+            != requirement_owner_arguments.len() + callable.type_parameters().len()
+        || type_arguments[..requirement_owner_arguments.len()] != requirement_owner_arguments
     {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     }
-    let callable_argument_start = type_arguments.len() - callable.type_parameters().len();
-    let mut implementation_arguments = owner_arguments.clone();
+    let callable_argument_start = requirement_owner_arguments.len();
+    let mut implementation_arguments = implementation_owner_arguments;
     implementation_arguments.extend_from_slice(&type_arguments[callable_argument_start..]);
     let static_self = callable_static_self_receiver(typed, implementation)?.then_some(receiver);
     Ok(UnitFunctionInstanceKey::for_specialized_target(
@@ -582,12 +604,12 @@ fn unit_callable_signature(
     }
 }
 
-fn unit_callable_owner_parameter_count(
+fn unit_callable_owner(
     typed: &ValidatedCompilationUnitTypes,
     target: UnitCallableTarget,
-) -> Option<usize> {
+) -> Option<(DeclarationId, usize)> {
     match target {
-        UnitCallableTarget::Declaration(_) => Some(0),
+        UnitCallableTarget::Declaration(_) => None,
         UnitCallableTarget::Symbol(_) => typed
             .types()
             .signatures()
@@ -601,8 +623,38 @@ fn unit_callable_owner_parameter_count(
                     .chain(nominal.companion_members())
                     .any(|callable| callable.target() == target)
             })
-            .map(|nominal| nominal.type_parameters().len()),
+            .map(|nominal| (nominal.declaration(), nominal.type_parameters().len())),
     }
+}
+
+fn instantiate_dispatch_owner_arguments(
+    typed: &ValidatedCompilationUnitTypes,
+    owner_template: UnitTypeId,
+    concrete_owner: &UnitNominalSignature,
+    concrete_arguments: &[UnitTypeId],
+    span: Span,
+) -> Result<(DeclarationId, Vec<UnitTypeId>), LoweringError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments,
+    }) = typed.types().types().get(owner_template)
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    if concrete_owner.type_parameters().len() != concrete_arguments.len() {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    let substitutions = concrete_owner
+        .type_parameters()
+        .iter()
+        .copied()
+        .zip(concrete_arguments.iter().copied())
+        .collect::<BTreeMap<_, _>>();
+    let arguments = arguments
+        .iter()
+        .map(|argument| resolve_concrete_type(typed, *argument, &substitutions, None, span))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((*declaration, arguments))
 }
 
 fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTypeKind) -> bool {

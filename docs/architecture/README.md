@@ -979,11 +979,17 @@ unit instance key 另存 concrete self，
 使同一 default 对不同 concrete owner 分别单态化并计入实例上限。直接 default、concrete override
 中的 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 都复用 concrete receiver loan做静态 DirectCall；声明
 owner/源码 origin 仍保持 interface identity，不生成 interface runtime value、vtable 或额外 reborrow。
-default body 调用无 body abstract requirement 时，frontend signature contract 另发布 concrete owner
-上的本地 override target；planner 与 call lowerer 共用同一实例解析入口，在查找 body template 前把
-requirement owner prefix 改写为 concrete owner arguments，并原位保留 callable arguments。最终
-DirectCall 复用同一 receiver loan 且不计划 abstract declaration。generic nominal native layout、
-inherited default/replacement、generic/Inout/Value interface default 与静态委托仍由 SPEC-0191 后续切片承接。
+default body 调用无 body abstract requirement 时，frontend signature contract 为每个非委托
+requirement 发布 effective implementation，并保存 requirement/implementation 双方处于 concrete
+classifier 参数环境中的 owner templates；来源可为本地 override、interface replacement 后的唯一
+default 或独立接口提供的唯一 default，有体 default 本身不作为重定向 key。planner 与 call lowerer
+共用同一实例解析入口，先以 concrete receiver formals→actuals 实例化双方 owner 参数、核对调用的
+requirement prefix，再原位追加 callable arguments。`Host<X,Y>: Derived<Y>` 因此不会误用 `Host`
+的完整参数作为 `Derived` prefix。最终 DirectCall 复用同一 concrete receiver loan 且不计划 abstract
+declaration；replacement 与独立唯一 default 已完成真实 native 闭环。generic nominal native layout、
+generic/Inout/Value interface default 与静态委托仍由 SPEC-0191 后续切片承接；当前 owner recipe 只
+实例化直接 type-parameter slots，`Derived<List<Y>>` 等嵌套 recipe 在 generic nominal layout 完成前
+以 `UnsupportedNode` 确定性拒绝。
 无状态 object Borrow receiver
 已使用空 aggregate 表示唯一且不可观察的 ZST value identity：lowerer 同时核对 value/type 双命名空间
 declaration 属于同一 object root，只在 validated temporary SharedLoan receiver context 构造一次 ZST，

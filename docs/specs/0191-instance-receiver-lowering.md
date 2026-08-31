@@ -78,7 +78,9 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
    default、concrete override 内 `super<I>`、default→`super<Base>` 及 `this.otherDefault()` 的
    concrete `StaticSelf` 传播已完成；default body 内 abstract requirement→本地 concrete override
    已消费 frontend 映射并完成 native 闭环，generic owner/callable slot 重组已由 planner 白盒锁定；
-   inherited default/replacement、Inout/Value default 与 Borrow delegate 继续实施。
+   ancestor requirement→interface replacement/唯一独立 default 已消费双方 owner template 并完成
+   native 闭环，`Host<X,Y>: Derived<Y>` 的 owner/callable slot 配方已由 planner 锁定；generic
+   nominal native layout、Inout/Value default 与 Borrow delegate 继续实施。
 4. [ ] 同步 Architecture/Spec并运行 workspace基线。
 
 ## 7. 提交计划
@@ -140,3 +142,8 @@ FunctionId，不形成源码 `DeclarationId` 或用户可见 stack frame。
 | `cargo clippy --workspace --lib -- -D warnings` | 通过 | workspace 库级静态门禁，零 warning |
 | 独立高风险复核（abstract requirement→本地 override 切片） | 通过 | 无 P1/P2；发现泛型用例 owner prefix 为空与记录计数两项 P3，补非空 prefix 矩阵并同步 7/7 后关闭 |
 | 独立高风险复核（concrete `StaticSelf` direct-default/`super<I>` 切片） | 通过 | 首轮发现双 concrete symbol、`this.otherDefault()` 与完成范围措辞三处 P3，补测试/收窄文档后复核至无 P1/P2/P3 |
+| `cargo test -p lang-codegen inherited -- --nocapture` | 3/3 通过 | planner 按双方 owner template 把 `Host<Int,Long>` 的 `Base<String>+Int` 重组为 `Derived<Long>+Int`；SSA 复用 concrete receiver loan；native 覆盖 replacement 与独立唯一 default |
+| `cargo test -p lang-codegen rejects_nested_inherited_owner_recipe_before_generic_nominal_layout -- --nocapture` | 通过 | 本切片只开放直接 owner slot；`Derived<List<Y>>` 在 generic nominal layout 完成前以 `UnsupportedNode` fail loud |
+| 最终并行职责组：`unit_plan_tests` / `unit_lower_receiver_tests` / `native::unit_tests` / `multifile_ownership_checking` | 9/9、22/22、8/8、51/51 通过 | 分别覆盖实例 recipe、SSA/LLVM、真实 link/run 与 Phase 3 facts；未运行约一小时的 frontend 全量测试 |
+| `cargo clippy --workspace --lib -- -D warnings` | 通过 | workspace 库级静态门禁，零 warning |
+| 独立高风险复核（inherited effective default 切片） | 通过 | 首轮发现 incompatible unique default 错误通过的 P1 及槽位同值/嵌套 recipe 边界两项 P3；补 L0101 原子拒绝、`[Long,Int]` 正例和 `UnsupportedNode` 负例后复核至无 P1/P2/P3 |
