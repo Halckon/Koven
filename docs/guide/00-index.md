@@ -40,7 +40,7 @@ Koven 是一门编译型语言：语法尽量贴近 Kotlin 命名与语法习惯
   和 Borrow-only 窄化委托。SPEC-0201/0180/0181/0191 已完成 Parser/AST、typed、ownership 与
   native receiver 主线，SPEC-0222/0223 已完成 `StaticSelf` Value conditional delivery facts 与
   concrete SSA/LLVM/native 消费，SPEC-0224 已完成 dependent inherited owner 的 strongest-demand
-  与 exact runtime layout；参数增长型 runtime cycle 继续由 SPEC-0225 承接。
+  与 exact runtime layout，SPEC-0225 已按 ADR-0024 固化参数增长型 runtime recipe 的确定性拒绝。
 - **v0.35 目前只是独立后继候选，未启用**：§35 同样以 v0.32 为基线，不自动包含现行
   v0.34（含 grammar §9/§33 与 §34）；它封闭 nullable `when` 的剩余域证明与 `!!` 的 Copy/Consume 所有权，并把一般
   frontend facts 与 owned pointer-like SSA/LLVM 拆为 SPEC-0202–0207。inline nullable ABI、

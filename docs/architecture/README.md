@@ -1110,8 +1110,21 @@ validated delegation 的最终 forwarder 映射启用，不扩张通用 default/
 发布确定性的 `InstanceKeyOnly` / `RuntimeLayoutRequired` strongest-demand，合并结果与 source input
 顺序无关；前者不物化 SSA nominal/layout/drop glue，后者只消费 SPEC-0219 的 exact owner-qualified
 field descriptor，并覆盖 callable/body、lambda ABI 与既有 nullable/owner/container 包装的递归物化
-边界。self-growing、固定实际参数 self/mutual SCC 与 unsupported recipe 继续 fail loud；参数增长型
-runtime cycle 由 SPEC-0225 承接。无 endpoint unresolved route 仍未开放。
+边界。self-growing、固定实际参数 self/mutual SCC 与 unsupported recipe 继续 fail loud；SPEC-0225
+按 ADR-0024 在 concrete expansion 与 generic instance 上限前检查参数增长型 recipe；普通错误与
+instance-limit 仍由正式 `UnitFunctionInstanceKey` frontier 定序，只有当前 specialized key 即将命中
+上限时，planner 才以当前及尚未处理的 concrete pending keys 各自的 arguments/`StaticSelf` 播种有限
+callable-template recipe facts；normal 路径则在正式 concrete call 边界先做 facts-aware recipe probe，
+recipe root 检查可消费 concrete substitution；无未解析参数的 canonical types 完整时先运行正式
+resolver，保留 outer owner 全字段、route 与 endpoint 的普通错误顺序。仅在 symbolic type parameter
+使正式解析无法完成时，才沿 frontend 已选定的 delegation forwarder 追踪 effective endpoint，并对
+确认落到 inherited/default body 的原始名义 owner recipe 做保守检查；追踪过程中按 receiver actual、
+nominal 参数与 delegate field actual 逐跳传播有限 root facts，delegate local override 不检查 requirement
+owner recipe。只有该 call 已确认 dedicated failure 时才对同一 frontier 汇总。两条路径跨 seed 统一选择
+稳定 root。
+direct bodyful inherited target 与 delegation endpoint 共用同一预检，按 declaration path
+深度优先，以第一条回边的 field/payload Span 返回 `UnsupportedNode`。输入置换与实例上限不改变
+witness，且不创建部分 SSA/LLVM 产物。无 endpoint unresolved route 仍未开放。
 非委托 interface default 的 Inout receiver 已使用既有 concrete `StaticSelf` specialization 与 exclusive
 loan pointer ABI 完成 verified SSA/LLVM 和 native 闭环；default 返回 7 时不重绑 class handle，concrete
 payload 保持 5。MoveOnly Value default 所需的 `StaticSelf` 条件 receiver-drop fact 已由 SPEC-0181

@@ -87,6 +87,14 @@ pub(crate) struct UnitInstancePlan {
     runtime_type_demands: BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct UnitRecipeFailure {
+    root: UnitSymbolId,
+    error: LoweringError,
+}
+
+type UnitRecipeRootFacts = BTreeMap<UnitSymbolId, BTreeSet<DeclarationId>>;
+
 impl UnitInstancePlan {
     pub(crate) fn runtime_type_demand(&self, ty: UnitTypeId) -> Option<UnitRuntimeTypeDemand> {
         self.runtime_type_demands.get(&ty).copied()
@@ -218,6 +226,29 @@ pub(crate) fn plan_unit_instances(
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
 ) -> Result<UnitInstancePlan, LoweringError> {
+    plan_unit_instances_with_limit(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed,
+        owned,
+        entry,
+        MAX_UNIT_GENERIC_INSTANCES,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn plan_unit_instances_with_limit(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    entry: DeclarationId,
+    max_generic_instances: usize,
+) -> Result<UnitInstancePlan, LoweringError> {
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let templates = collect_templates(names, typed, &parsed_by_source)?;
@@ -283,7 +314,19 @@ pub(crate) fn plan_unit_instances(
                 template.span,
             ));
         }
-        if key.is_specialized() && generic_instance_count >= MAX_UNIT_GENERIC_INSTANCES {
+        if key.is_specialized() && generic_instance_count >= max_generic_instances {
+            let recipe_frontier = pending_recipe_frontier(&key, &pending, &planned);
+            let mut recipe_failures = collect_frontier_unit_recipe_failures(
+                typed,
+                owned,
+                &templates,
+                &template_by_target,
+                &calls_by_template,
+                &recipe_frontier,
+            )?;
+            if !recipe_failures.is_empty() {
+                return Err(stable_recipe_failure(&mut recipe_failures));
+            }
             return Err(lowering_error(
                 LoweringErrorKind::InstanceLimitExceeded,
                 template.span,
@@ -295,6 +338,8 @@ pub(crate) fn plan_unit_instances(
             .copied()
             .zip(key.type_arguments().iter().copied())
             .collect::<BTreeMap<_, _>>();
+        let instance_recipe_facts =
+            recipe_root_facts_for_instance(typed, &template.type_parameters, key.type_arguments())?;
 
         for (call_index, span) in &calls_by_template[template_index] {
             let call = &typed.types().calls()[*call_index];
@@ -307,6 +352,32 @@ pub(crate) fn plan_unit_instances(
                 | UnitCallTarget::FunctionValue
                 | UnitCallTarget::StructuralComponent(_) => continue,
             };
+            let mut call_recipe_failures = Vec::new();
+            preflight_unit_call_recipes(
+                typed,
+                owned,
+                *call_index,
+                *span,
+                (
+                    key.static_self(),
+                    Some(&substitutions),
+                    &instance_recipe_facts,
+                ),
+                &mut call_recipe_failures,
+            )?;
+            if !call_recipe_failures.is_empty() {
+                let recipe_frontier = pending_recipe_frontier(&key, &pending, &planned);
+                let mut recipe_failures = collect_frontier_unit_recipe_failures(
+                    typed,
+                    owned,
+                    &templates,
+                    &template_by_target,
+                    &calls_by_template,
+                    &recipe_frontier,
+                )?;
+                recipe_failures.extend(call_recipe_failures);
+                return Err(stable_recipe_failure(&mut recipe_failures));
+            }
             let arguments = call
                 .instance()
                 .type_arguments()
@@ -396,15 +467,31 @@ fn dependent_inherited_owner_types(
     if target_owner == receiver_declaration || type_arguments.len() < owner_arity {
         return Ok(BTreeSet::new());
     }
+    let mut roots = type_arguments
+        .iter()
+        .take(owner_arity)
+        .filter_map(|&ty| {
+            let UnitTypeKind::Nominal { declaration, .. } = typed.types().types().get(ty)? else {
+                return None;
+            };
+            let nominal = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)?
+                .nominal()?;
+            Some((nominal.symbol(), *declaration, ty))
+        })
+        .collect::<Vec<_>>();
+    // UnitSymbolId 携带 compilation index 规范化的 SourceUnitId 与源码内 symbol 顺序；
+    // 以 concrete type 破同 declaration 的平局，避免 owner slot 顺序选择 witness。
+    roots.sort_unstable();
+
     let mut dependent = BTreeSet::new();
-    for &ty in type_arguments.iter().take(owner_arity) {
-        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().types().get(ty) else {
-            continue;
-        };
+    for (_, declaration, ty) in roots {
         let nominal = typed
             .types()
             .signatures()
-            .declaration(*declaration)
+            .declaration(declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if nominal.fields().iter().any(|field| {
@@ -611,6 +698,479 @@ fn index_calls(
     Ok(calls)
 }
 
+/// 在当前 concrete key 命中实例上限时，只沿可达 callable template 图收集 recipe failure。
+///
+/// 图节点只包含有限的 callable identity 与 frontend 已发布的 `StaticSelf` type identity，
+/// 不创建变化后的 type arguments，因此不会被 generic instance 上限或 pending key 顺序截断。
+/// 普通 lowering 错误仍由正式 planner 的 concrete frontier 报告。
+fn pending_recipe_frontier(
+    current: &UnitFunctionInstanceKey,
+    pending: &BTreeSet<UnitFunctionInstanceKey>,
+    planned: &BTreeMap<UnitFunctionInstanceKey, UnitPlannedInstance>,
+) -> Vec<UnitFunctionInstanceKey> {
+    std::iter::once(current.clone())
+        .chain(
+            pending
+                .iter()
+                .filter(|candidate| !planned.contains_key(*candidate))
+                .cloned(),
+        )
+        .collect()
+}
+
+fn preflight_unit_call_recipes(
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    call_index: usize,
+    span: Span,
+    context: (
+        Option<UnitTypeId>,
+        Option<&BTreeMap<UnitSymbolId, UnitTypeId>>,
+        &UnitRecipeRootFacts,
+    ),
+    failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<Option<ResolvedUnitCallInstance>, LoweringError> {
+    let (static_self, substitutions, facts) = context;
+    let call = &typed.types().calls()[call_index];
+    let target = match call.target() {
+        UnitCallTarget::Declaration(declaration) => UnitCallableTarget::Declaration(declaration),
+        UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
+        UnitCallTarget::External(_)
+        | UnitCallTarget::FunctionValue
+        | UnitCallTarget::StructuralComponent(_) => return Ok(None),
+    };
+    let specialized_type_arguments = call
+        .instance()
+        .type_arguments()
+        .iter()
+        .map(|&ty| specialize_preflight_type(typed, ty, static_self, substitutions))
+        .collect::<Option<Vec<_>>>();
+    let specialized_receiver = match call.receiver() {
+        Some(receiver) => {
+            specialize_preflight_type(typed, receiver.ty(), static_self, substitutions).map(Some)
+        }
+        None => Some(None),
+    };
+    if let (Some(type_arguments), Some(receiver)) =
+        (specialized_type_arguments.as_ref(), specialized_receiver)
+    {
+        let failures_before = failures.len();
+        let has_unresolved_type = type_arguments.iter().copied().chain(receiver).any(|ty| {
+            typed
+                .types()
+                .types()
+                .get(ty)
+                .is_none_or(|kind| contains_type_parameter(typed, kind))
+        });
+        let resolved = resolve_unit_call_instance_with_recipe_failures(
+            typed,
+            owned,
+            target,
+            type_arguments.clone(),
+            receiver,
+            span,
+            facts,
+            failures,
+        );
+        match resolved {
+            Ok(resolved) => {
+                let effective_receiver = resolved
+                    .key()
+                    .static_self()
+                    .or_else(|| {
+                        resolved
+                            .delegation()
+                            .last()
+                            .map(|route| route.delegate_receiver())
+                    })
+                    .or(receiver);
+                if preflight_direct_inherited_owner_recipes_with_facts(
+                    typed,
+                    resolved.key().target(),
+                    resolved.key().type_arguments(),
+                    effective_receiver,
+                    facts,
+                    failures,
+                )
+                .is_err()
+                {
+                    return Ok(None);
+                }
+                if failures.len() > failures_before {
+                    return Ok(None);
+                }
+                return Ok(Some(resolved));
+            }
+            Err(_) if failures.len() > failures_before || !has_unresolved_type => {
+                return Ok(None);
+            }
+            Err(_) => {}
+        }
+    }
+
+    let preflight_type_arguments = specialized_type_arguments
+        .as_deref()
+        .unwrap_or_else(|| call.instance().type_arguments());
+    let preflight_receiver = specialized_receiver
+        .flatten()
+        .or_else(|| call.receiver().map(|receiver| receiver.ty()));
+    let delegation_preflight = preflight_delegation_endpoint_owner_recipes(
+        typed,
+        target,
+        preflight_receiver,
+        facts,
+        failures,
+        span,
+    );
+    let Ok(has_delegation_route) = delegation_preflight else {
+        return Ok(None);
+    };
+    if !has_delegation_route
+        && preflight_direct_inherited_owner_recipes_with_facts(
+            typed,
+            target,
+            preflight_type_arguments,
+            preflight_receiver,
+            facts,
+            failures,
+        )
+        .is_err()
+    {
+        return Ok(None);
+    }
+    Ok(None)
+}
+
+/// 只消费 frontend 已选定的 delegation endpoint；local override 不需要 inherited owner recipe。
+fn preflight_delegation_endpoint_owner_recipes(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+    receiver: Option<UnitTypeId>,
+    facts: &UnitRecipeRootFacts,
+    failures: &mut Vec<UnitRecipeFailure>,
+    span: Span,
+) -> Result<bool, LoweringError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration: receiver_declaration,
+        arguments: receiver_arguments,
+    }) = receiver.and_then(|receiver| typed.types().types().get(receiver))
+    else {
+        return Ok(false);
+    };
+    let receiver_nominal = typed
+        .types()
+        .signatures()
+        .declaration(*receiver_declaration)
+        .and_then(|signature| signature.nominal())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let mut current_owner = *receiver_declaration;
+    let mut current_target = target;
+    let mut current_facts = extend_recipe_root_facts(
+        typed,
+        receiver_nominal.type_parameters(),
+        receiver_arguments,
+        facts,
+    )?;
+    let mut visited = BTreeSet::new();
+    let mut found_route = false;
+
+    loop {
+        if !visited.insert((current_owner, current_target)) {
+            return Ok(found_route);
+        }
+        let routes = typed
+            .types()
+            .signatures()
+            .delegations()
+            .iter()
+            .filter(|plan| plan.owner() == current_owner)
+            .flat_map(|plan| {
+                plan.forwarders()
+                    .iter()
+                    .filter(move |forwarder| forwarder.requirement() == current_target)
+                    .map(move |forwarder| (plan, forwarder))
+            })
+            .collect::<Vec<_>>();
+        let [(route, forwarder)] = routes.as_slice() else {
+            return Ok(found_route || !routes.is_empty());
+        };
+        found_route = true;
+        let Some((delegate_declaration, delegate_arguments)) = typed
+            .types()
+            .signatures()
+            .declaration(current_owner)
+            .and_then(|signature| signature.nominal())
+            .and_then(|nominal| {
+                nominal
+                    .fields()
+                    .iter()
+                    .find(|field| field.symbol() == route.target())
+            })
+            .and_then(|field| match typed.types().types().get(field.ty()) {
+                Some(UnitTypeKind::Nominal {
+                    declaration,
+                    arguments,
+                }) => Some((*declaration, arguments.as_slice())),
+                _ => None,
+            })
+        else {
+            return Ok(true);
+        };
+        let delegate_nominal = typed
+            .types()
+            .signatures()
+            .declaration(delegate_declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let delegate_facts = extend_recipe_root_facts(
+            typed,
+            delegate_nominal.type_parameters(),
+            delegate_arguments,
+            &current_facts,
+        )?;
+        if let Some(next_hop) = forwarder.next_hop() {
+            current_owner = delegate_declaration;
+            current_target = next_hop.requirement();
+            current_facts = delegate_facts;
+            continue;
+        }
+        let Some(implementation) = forwarder.implementation() else {
+            return Ok(true);
+        };
+        let Some((implementation_owner, _)) = unit_callable_owner(typed, implementation.target())
+        else {
+            return Ok(true);
+        };
+        if implementation_owner != delegate_declaration {
+            preflight_owner_template_recipes(
+                typed,
+                implementation.receiver_type(),
+                &delegate_facts,
+                failures,
+                span,
+            )?;
+        }
+        return Ok(true);
+    }
+}
+
+fn collect_frontier_unit_recipe_failures(
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    templates: &[UnitFunctionTemplate],
+    template_by_target: &BTreeMap<UnitCallableTarget, usize>,
+    calls_by_template: &[Vec<(usize, Span)>],
+    frontier: &[UnitFunctionInstanceKey],
+) -> Result<Vec<UnitRecipeFailure>, LoweringError> {
+    let mut failures = Vec::new();
+    for candidate in frontier {
+        let Some(&template_index) = template_by_target.get(&candidate.target()) else {
+            continue;
+        };
+        let template = &templates[template_index];
+        if template.type_parameters.len() != candidate.type_arguments().len() {
+            continue;
+        }
+        let facts = recipe_root_facts_for_instance(
+            typed,
+            &template.type_parameters,
+            candidate.type_arguments(),
+        )?;
+        let substitutions = template
+            .type_parameters
+            .iter()
+            .copied()
+            .zip(candidate.type_arguments().iter().copied())
+            .collect::<BTreeMap<_, _>>();
+        for (call_index, span) in &calls_by_template[template_index] {
+            preflight_unit_call_recipes(
+                typed,
+                owned,
+                *call_index,
+                *span,
+                (candidate.static_self(), Some(&substitutions), &facts),
+                &mut failures,
+            )?;
+        }
+        failures.extend(collect_reachable_unit_recipe_failures(
+            typed,
+            owned,
+            templates,
+            template_by_target,
+            calls_by_template,
+            (template_index, candidate.static_self(), facts),
+        )?);
+    }
+    Ok(failures)
+}
+
+fn collect_reachable_unit_recipe_failures(
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    templates: &[UnitFunctionTemplate],
+    template_by_target: &BTreeMap<UnitCallableTarget, usize>,
+    calls_by_template: &[Vec<(usize, Span)>],
+    entry: (usize, Option<UnitTypeId>, UnitRecipeRootFacts),
+) -> Result<Vec<UnitRecipeFailure>, LoweringError> {
+    let (entry_template, entry_static_self, entry_facts) = entry;
+    let entry_context = (entry_template, entry_static_self);
+    let mut pending = BTreeSet::from([entry_context]);
+    let mut facts_by_context = BTreeMap::from([(entry_context, entry_facts)]);
+    let mut failures = Vec::new();
+
+    while let Some((template_index, static_self)) = pending.pop_first() {
+        let facts = facts_by_context
+            .get(&(template_index, static_self))
+            .cloned()
+            .unwrap_or_default();
+        for (call_index, span) in &calls_by_template[template_index] {
+            let Some(resolved) = preflight_unit_call_recipes(
+                typed,
+                owned,
+                *call_index,
+                *span,
+                (static_self, None, &facts),
+                &mut failures,
+            )?
+            else {
+                continue;
+            };
+
+            let Some(&target_template) = template_by_target.get(&resolved.key().target()) else {
+                continue;
+            };
+            if templates[target_template].type_parameters.len()
+                != resolved.key().type_arguments().len()
+            {
+                continue;
+            }
+            let next_roots = templates[target_template]
+                .type_parameters
+                .iter()
+                .zip(resolved.key().type_arguments())
+                .map(|(&parameter, &argument)| {
+                    recipe_root_declarations_in_types(typed, &[argument], &facts)
+                        .map(|roots| (parameter, roots))
+                })
+                .collect::<Result<Vec<_>, _>>();
+            let Ok(next_roots) = next_roots else {
+                continue;
+            };
+            let mut next_facts = facts.clone();
+            for (parameter, roots) in next_roots {
+                next_facts.entry(parameter).or_default().extend(roots);
+            }
+            let context = (target_template, resolved.key().static_self());
+            let is_new = !facts_by_context.contains_key(&context);
+            let stored = facts_by_context.entry(context).or_default();
+            let mut changed = false;
+            for (parameter, roots) in next_facts {
+                let current = stored.entry(parameter).or_default();
+                let previous = current.len();
+                current.extend(roots);
+                changed |= current.len() != previous;
+            }
+            if is_new || changed {
+                pending.insert(context);
+            }
+        }
+    }
+
+    Ok(failures)
+}
+
+fn stable_recipe_failure(failures: &mut [UnitRecipeFailure]) -> LoweringError {
+    failures.sort_unstable_by_key(|failure| failure.root);
+    failures[0].error
+}
+
+fn recipe_root_facts_for_instance(
+    typed: &ValidatedCompilationUnitTypes,
+    parameters: &[UnitSymbolId],
+    arguments: &[UnitTypeId],
+) -> Result<UnitRecipeRootFacts, LoweringError> {
+    let empty = UnitRecipeRootFacts::new();
+    extend_recipe_root_facts(typed, parameters, arguments, &empty)
+}
+
+fn extend_recipe_root_facts(
+    typed: &ValidatedCompilationUnitTypes,
+    parameters: &[UnitSymbolId],
+    arguments: &[UnitTypeId],
+    facts: &UnitRecipeRootFacts,
+) -> Result<UnitRecipeRootFacts, LoweringError> {
+    if parameters.len() != arguments.len() {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        });
+    }
+    let additions = parameters
+        .iter()
+        .copied()
+        .zip(arguments.iter().copied())
+        .map(|(parameter, argument)| {
+            recipe_root_declarations_in_types(typed, &[argument], facts)
+                .map(|roots| (parameter, roots))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut extended = facts.clone();
+    for (parameter, roots) in additions {
+        extended.entry(parameter).or_default().extend(roots);
+    }
+    Ok(extended)
+}
+
+/// 只查找 frontend 已发布的 canonical specialization，不创建新的 concrete type。
+fn specialize_preflight_type(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    static_self: Option<UnitTypeId>,
+    substitutions: Option<&BTreeMap<UnitSymbolId, UnitTypeId>>,
+) -> Option<UnitTypeId> {
+    match typed.types().types().get(ty)? {
+        UnitTypeKind::TypeParameter(parameter) => substitutions
+            .and_then(|substitutions| substitutions.get(parameter).copied())
+            .or(Some(ty)),
+        UnitTypeKind::StaticSelf(_) => static_self,
+        UnitTypeKind::Nullable(inner) => {
+            let inner = specialize_preflight_type(typed, *inner, static_self, substitutions)?;
+            typed.types().types().find(&UnitTypeKind::Nullable(inner))
+        }
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            let arguments = arguments
+                .iter()
+                .map(|&argument| {
+                    specialize_preflight_type(typed, argument, static_self, substitutions)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            typed.types().types().find(&UnitTypeKind::Nominal {
+                declaration: *declaration,
+                arguments,
+            })
+        }
+        UnitTypeKind::Intrinsic {
+            constructor,
+            arguments,
+        } => {
+            let arguments = arguments
+                .iter()
+                .map(|&argument| {
+                    specialize_preflight_type(typed, argument, static_self, substitutions)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            typed.types().types().find(&UnitTypeKind::Intrinsic {
+                constructor: *constructor,
+                arguments,
+            })
+        }
+        _ => Some(ty),
+    }
+}
+
 pub(crate) fn resolve_concrete_type(
     typed: &ValidatedCompilationUnitTypes,
     ty: UnitTypeId,
@@ -710,16 +1270,48 @@ pub(crate) fn resolve_unit_call_instance(
     receiver: Option<UnitTypeId>,
     span: Span,
 ) -> Result<ResolvedUnitCallInstance, LoweringError> {
-    let direct = || {
-        resolve_direct_unit_call_instance(typed, target, type_arguments.clone(), receiver, span)
+    resolve_unit_call_instance_with_recipe_failures(
+        typed,
+        owned,
+        target,
+        type_arguments,
+        receiver,
+        span,
+        &UnitRecipeRootFacts::new(),
+        &mut Vec::new(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_unit_call_instance_with_recipe_failures(
+    typed: &ValidatedCompilationUnitTypes,
+    owned: &ValidatedCompilationUnitOwnership,
+    target: UnitCallableTarget,
+    type_arguments: Vec<UnitTypeId>,
+    receiver: Option<UnitTypeId>,
+    span: Span,
+    recipe_facts: &UnitRecipeRootFacts,
+    recipe_failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<ResolvedUnitCallInstance, LoweringError> {
+    macro_rules! direct {
+        () => {
+            resolve_direct_unit_call_instance(
+                typed,
+                target,
+                type_arguments.clone(),
+                receiver,
+                span,
+                recipe_failures,
+            )
             .map(|key| ResolvedUnitCallInstance {
                 key: key.0,
                 delegation: Vec::new(),
                 dependent_owner_types: key.1,
             })
-    };
+        };
+    }
     let Some(receiver) = receiver else {
-        return direct();
+        return direct!();
     };
     let mut current_receiver = receiver;
     let mut current_target = target;
@@ -733,7 +1325,7 @@ pub(crate) fn resolve_unit_call_instance(
         }) = typed.types().types().get(current_receiver)
         else {
             return if delegation.is_empty() {
-                direct()
+                direct!()
             } else {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             };
@@ -758,7 +1350,7 @@ pub(crate) fn resolve_unit_call_instance(
             })
             .collect::<Vec<_>>();
         let (route, forwarder) = match routes.as_slice() {
-            [] if delegation.is_empty() => return direct(),
+            [] if delegation.is_empty() => return direct!(),
             [] => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
             [(route, forwarder)] => (*route, *forwarder),
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
@@ -848,6 +1440,22 @@ pub(crate) fn resolve_unit_call_instance(
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let implementation_callable = unit_callable_signature(typed, implementation.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (declared_implementation_owner, declared_implementation_owner_arity) =
+            unit_callable_owner(typed, implementation.target())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if declared_implementation_owner != *delegate {
+            let failures_before = recipe_failures.len();
+            preflight_owner_template_recipes(
+                typed,
+                implementation.receiver_type(),
+                recipe_facts,
+                recipe_failures,
+                span,
+            )?;
+            if recipe_failures.len() > failures_before {
+                return Err(recipe_failures[failures_before].error);
+            }
+        }
         let (requirement_owner, requirement_owner_arguments) =
             instantiate_delegated_dispatch_owner_arguments(
                 typed,
@@ -866,9 +1474,6 @@ pub(crate) fn resolve_unit_call_instance(
             )?;
         let (declared_requirement_owner, declared_requirement_owner_arity) =
             unit_callable_owner(typed, current_target)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (declared_implementation_owner, declared_implementation_owner_arity) =
-            unit_callable_owner(typed, implementation.target())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if !implementation_callable.has_body()
             || implementation_callable.type_parameters().len()
@@ -894,6 +1499,7 @@ pub(crate) fn resolve_unit_call_instance(
             implementation_arguments,
             Some(delegate_receiver),
             span,
+            recipe_failures,
         )?;
         return Ok(ResolvedUnitCallInstance {
             key,
@@ -901,6 +1507,20 @@ pub(crate) fn resolve_unit_call_instance(
             dependent_owner_types,
         });
     }
+}
+
+fn preflight_owner_template_recipes(
+    typed: &ValidatedCompilationUnitTypes,
+    owner_template: UnitTypeId,
+    facts: &UnitRecipeRootFacts,
+    failures: &mut Vec<UnitRecipeFailure>,
+    span: Span,
+) -> Result<(), LoweringError> {
+    let Some(UnitTypeKind::Nominal { arguments, .. }) = typed.types().types().get(owner_template)
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    preflight_inherited_owner_recipes_with_facts(typed, arguments, facts, failures)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -960,10 +1580,22 @@ fn resolve_direct_unit_call_instance(
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
     span: Span,
+    recipe_failures: &mut Vec<UnitRecipeFailure>,
 ) -> Result<(UnitFunctionInstanceKey, BTreeSet<UnitTypeId>), LoweringError> {
     let callable = unit_callable_signature(typed, target)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
     if callable.has_body() {
+        let failures_before = recipe_failures.len();
+        preflight_direct_inherited_owner_recipes(
+            typed,
+            target,
+            &type_arguments,
+            receiver,
+            recipe_failures,
+        )?;
+        if recipe_failures.len() > failures_before {
+            return Err(recipe_failures[failures_before].error);
+        }
         let dependent_owner_types =
             dependent_inherited_owner_types(typed, target, &type_arguments, receiver, span)?;
         let static_self = if callable_static_self_receiver(typed, target)? {
@@ -1030,6 +1662,7 @@ fn resolve_direct_unit_call_instance(
                 owner_arguments,
                 span,
                 &mut dependent_owner_types,
+                recipe_failures,
             )?
         };
     if !implementation_callable.has_body()
@@ -1056,6 +1689,52 @@ fn resolve_direct_unit_call_instance(
         ),
         dependent_owner_types,
     ))
+}
+
+fn preflight_direct_inherited_owner_recipes(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+    type_arguments: &[UnitTypeId],
+    receiver: Option<UnitTypeId>,
+    failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<(), LoweringError> {
+    preflight_direct_inherited_owner_recipes_with_facts(
+        typed,
+        target,
+        type_arguments,
+        receiver,
+        &UnitRecipeRootFacts::new(),
+        failures,
+    )
+}
+
+fn preflight_direct_inherited_owner_recipes_with_facts(
+    typed: &ValidatedCompilationUnitTypes,
+    target: UnitCallableTarget,
+    type_arguments: &[UnitTypeId],
+    receiver: Option<UnitTypeId>,
+    facts: &UnitRecipeRootFacts,
+    failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<(), LoweringError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration: receiver_declaration,
+        ..
+    }) = receiver.and_then(|receiver| typed.types().types().get(receiver))
+    else {
+        return Ok(());
+    };
+    let Some((target_owner, owner_arity)) = unit_callable_owner(typed, target) else {
+        return Ok(());
+    };
+    if target_owner == *receiver_declaration || type_arguments.len() < owner_arity {
+        return Ok(());
+    }
+    preflight_inherited_owner_recipes_with_facts(
+        typed,
+        &type_arguments[..owner_arity],
+        facts,
+        failures,
+    )
 }
 
 fn unit_callable_signature(
@@ -1140,6 +1819,7 @@ fn instantiate_inherited_dispatch_owner_arguments(
     concrete_arguments: &[UnitTypeId],
     span: Span,
     dependent_owner_types: &mut BTreeSet<UnitTypeId>,
+    recipe_failures: &mut Vec<UnitRecipeFailure>,
 ) -> Result<(DeclarationId, Vec<UnitTypeId>), LoweringError> {
     let Some(UnitTypeKind::Nominal {
         declaration,
@@ -1150,6 +1830,11 @@ fn instantiate_inherited_dispatch_owner_arguments(
     };
     if concrete_owner.type_parameters().len() != concrete_arguments.len() {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    let failures_before = recipe_failures.len();
+    preflight_inherited_owner_recipes(typed, arguments, recipe_failures)?;
+    if recipe_failures.len() > failures_before {
+        return Err(recipe_failures[failures_before].error);
     }
     let substitutions = concrete_owner
         .type_parameters()
@@ -1171,6 +1856,322 @@ fn instantiate_inherited_dispatch_owner_arguments(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((*declaration, arguments))
+}
+
+/// 在按 owner slot 实例化前，以稳定 source identity 选择 dependent recipe 的失败 witness。
+fn preflight_inherited_owner_recipes(
+    typed: &ValidatedCompilationUnitTypes,
+    arguments: &[UnitTypeId],
+    failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<(), LoweringError> {
+    preflight_inherited_owner_recipes_with_facts(
+        typed,
+        arguments,
+        &UnitRecipeRootFacts::new(),
+        failures,
+    )
+}
+
+fn recipe_root_declarations_in_types(
+    typed: &ValidatedCompilationUnitTypes,
+    arguments: &[UnitTypeId],
+    facts: &UnitRecipeRootFacts,
+) -> Result<BTreeSet<DeclarationId>, LoweringError> {
+    fn collect(
+        typed: &ValidatedCompilationUnitTypes,
+        ty: UnitTypeId,
+        facts: &UnitRecipeRootFacts,
+        roots: &mut BTreeSet<DeclarationId>,
+    ) -> Result<(), LoweringError> {
+        match typed.types().types().get(ty) {
+            Some(UnitTypeKind::TypeParameter(parameter)) => {
+                if let Some(substituted) = facts.get(parameter) {
+                    roots.extend(substituted);
+                }
+            }
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => {
+                let nominal = typed
+                    .types()
+                    .signatures()
+                    .declaration(*declaration)
+                    .and_then(|signature| signature.nominal())
+                    .ok_or(LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
+                if nominal.kind() == NominalKind::Class && nominal.type_parameters().len() == 1 {
+                    roots.insert(nominal.declaration());
+                    if let [argument] = arguments.as_slice() {
+                        collect(typed, *argument, facts, roots)?;
+                    }
+                }
+            }
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::List,
+                arguments,
+            }) => {
+                for &argument in arguments {
+                    collect(typed, argument, facts, roots)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    let mut roots = BTreeSet::new();
+    for &argument in arguments {
+        collect(typed, argument, facts, &mut roots)?;
+    }
+    Ok(roots)
+}
+
+fn preflight_inherited_owner_recipes_with_facts(
+    typed: &ValidatedCompilationUnitTypes,
+    arguments: &[UnitTypeId],
+    facts: &UnitRecipeRootFacts,
+    failures: &mut Vec<UnitRecipeFailure>,
+) -> Result<(), LoweringError> {
+    let declarations = recipe_root_declarations_in_types(typed, arguments, facts)?;
+    let mut roots = declarations
+        .into_iter()
+        .map(|declaration| {
+            typed
+                .types()
+                .signatures()
+                .declaration(declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    roots.sort_unstable_by_key(|nominal| nominal.symbol());
+    for nominal in roots {
+        if let RecipeTraversal::Cycle(witness) =
+            parameter_growing_recipe_witness(typed, nominal, &mut BTreeSet::new())?
+        {
+            failures.push(UnitRecipeFailure {
+                root: nominal.symbol(),
+                error: lowering_error(LoweringErrorKind::UnsupportedNode, witness),
+            });
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RecipeTraversal {
+    Clean,
+    Cycle(Span),
+    Unsupported,
+}
+
+/// 只识别 ADR-0024 的 declaration back-edge；unsupported constructor 仍交给正式 resolver。
+fn parameter_growing_recipe_witness(
+    typed: &ValidatedCompilationUnitTypes,
+    nominal: &UnitNominalSignature,
+    visiting: &mut BTreeSet<DeclarationId>,
+) -> Result<RecipeTraversal, LoweringError> {
+    if nominal.kind() != NominalKind::Class || nominal.type_parameters().len() != 1 {
+        return Ok(RecipeTraversal::Unsupported);
+    }
+    if !visiting.insert(nominal.declaration()) {
+        return Ok(nominal
+            .fields()
+            .first()
+            .map_or(RecipeTraversal::Clean, |field| {
+                RecipeTraversal::Cycle(field.span())
+            }));
+    }
+
+    fn in_type(
+        typed: &ValidatedCompilationUnitTypes,
+        ty: UnitTypeId,
+        owner_parameter: UnitSymbolId,
+        span: Span,
+        visiting: &mut BTreeSet<DeclarationId>,
+    ) -> Result<RecipeTraversal, LoweringError> {
+        let kind = typed
+            .types()
+            .types()
+            .get(ty)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if !contains_type_parameter(typed, kind) {
+            return parameter_growing_closed_recipe_witness(typed, ty, span, visiting);
+        }
+        match kind {
+            UnitTypeKind::TypeParameter(parameter) if *parameter == owner_parameter => {
+                Ok(RecipeTraversal::Clean)
+            }
+            UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::List,
+                arguments,
+            } => {
+                let [argument] = arguments.as_slice() else {
+                    return Ok(RecipeTraversal::Unsupported);
+                };
+                in_type(typed, *argument, owner_parameter, span, visiting)
+            }
+            UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            } => {
+                let [argument] = arguments.as_slice() else {
+                    return Ok(RecipeTraversal::Unsupported);
+                };
+                if visiting.contains(declaration) {
+                    return Ok(RecipeTraversal::Cycle(span));
+                }
+                let nested = typed
+                    .types()
+                    .signatures()
+                    .declaration(*declaration)
+                    .and_then(|signature| signature.nominal())
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let result = parameter_growing_recipe_witness(typed, nested, visiting)?;
+                if result != RecipeTraversal::Clean {
+                    return Ok(result);
+                }
+                if matches!(
+                    typed.types().types().get(*argument),
+                    Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
+                ) {
+                    Ok(RecipeTraversal::Clean)
+                } else {
+                    Ok(RecipeTraversal::Unsupported)
+                }
+            }
+            _ => Ok(RecipeTraversal::Unsupported),
+        }
+    }
+
+    let owner_parameter = nominal.type_parameters()[0];
+    let mut result = RecipeTraversal::Clean;
+    for field in nominal.fields() {
+        result = in_type(typed, field.ty(), owner_parameter, field.span(), visiting)?;
+        if result != RecipeTraversal::Clean {
+            break;
+        }
+    }
+    visiting.remove(&nominal.declaration());
+    Ok(result)
+}
+
+fn parameter_growing_closed_recipe_witness(
+    typed: &ValidatedCompilationUnitTypes,
+    ty: UnitTypeId,
+    span: Span,
+    visiting: &mut BTreeSet<DeclarationId>,
+) -> Result<RecipeTraversal, LoweringError> {
+    let kind = typed
+        .types()
+        .types()
+        .get(ty)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    match kind {
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            if !visiting.insert(*declaration) {
+                return Ok(RecipeTraversal::Cycle(span));
+            }
+            let nominal = typed
+                .types()
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|signature| signature.nominal())
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let concrete_fields = if nominal.kind() != NominalKind::EnumClass
+                && typed.types().runtime_field_layout(ty).is_some()
+            {
+                match resolve_nominal_runtime_field_types(typed, ty, nominal, arguments) {
+                    Ok(fields) => fields
+                        .into_iter()
+                        .zip(nominal.fields())
+                        .map(|(concrete, field)| (concrete, field.span()))
+                        .collect::<Vec<_>>(),
+                    Err(error) if error.kind == LoweringErrorKind::UnsupportedNode => {
+                        visiting.remove(declaration);
+                        return Ok(RecipeTraversal::Unsupported);
+                    }
+                    Err(error) => {
+                        visiting.remove(declaration);
+                        return Err(error);
+                    }
+                }
+            } else {
+                let substitutions = nominal
+                    .type_parameters()
+                    .iter()
+                    .copied()
+                    .zip(arguments.iter().copied())
+                    .collect::<BTreeMap<_, _>>();
+                let mut concrete = Vec::new();
+                for (template, field_span) in nominal
+                    .fields()
+                    .iter()
+                    .map(|field| (field.ty(), field.span()))
+                    .chain(nominal.enum_cases().iter().flat_map(|case| {
+                        case.payloads()
+                            .iter()
+                            .map(|payload| (payload.ty(), payload.span()))
+                    }))
+                {
+                    match resolve_closed_recipe_type(typed, template, &substitutions, field_span) {
+                        Ok(ty) => concrete.push((ty, field_span)),
+                        Err(error) if error.kind == LoweringErrorKind::UnsupportedNode => {
+                            visiting.remove(declaration);
+                            return Ok(RecipeTraversal::Unsupported);
+                        }
+                        Err(error) => {
+                            visiting.remove(declaration);
+                            return Err(error);
+                        }
+                    }
+                }
+                concrete
+            };
+            let mut result = RecipeTraversal::Clean;
+            for (concrete, field_span) in concrete_fields {
+                result =
+                    parameter_growing_closed_recipe_witness(typed, concrete, field_span, visiting)?;
+                if result != RecipeTraversal::Clean {
+                    break;
+                }
+            }
+            visiting.remove(declaration);
+            Ok(result)
+        }
+        UnitTypeKind::Intrinsic { arguments, .. } => {
+            for &argument in arguments {
+                let result =
+                    parameter_growing_closed_recipe_witness(typed, argument, span, visiting)?;
+                if result != RecipeTraversal::Clean {
+                    return Ok(result);
+                }
+            }
+            Ok(RecipeTraversal::Clean)
+        }
+        UnitTypeKind::Nullable(inner) | UnitTypeKind::StaticSelf(inner) => {
+            parameter_growing_closed_recipe_witness(typed, *inner, span, visiting)
+        }
+        UnitTypeKind::EnumCase { root, .. } => {
+            parameter_growing_closed_recipe_witness(typed, *root, span, visiting)
+        }
+        UnitTypeKind::Builtin(_)
+        | UnitTypeKind::Function { .. }
+        | UnitTypeKind::TypeParameter(_)
+        | UnitTypeKind::Capability(_)
+        | UnitTypeKind::IntegerLiteral(_)
+        | UnitTypeKind::Deferred(_)
+        | UnitTypeKind::Error => Ok(RecipeTraversal::Clean),
+    }
 }
 
 pub(super) fn resolve_inherited_dispatch_owner_argument(
@@ -1336,19 +2337,22 @@ fn validate_dependent_inherited_field_recipe(
             let [argument] = arguments.as_slice() else {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             };
-            if !matches!(
-                typed.types().types().get(*argument),
-                Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
-            ) {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
             let nested = typed
                 .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            validate_dependent_inherited_nominal_recipe(typed, nested, span, visiting)
+            // ADR-0024：先沿有限 declaration/template graph 找第一条回边；不能因
+            // concrete argument 形状复杂而在更早的边上产生不稳定 witness。
+            validate_dependent_inherited_nominal_recipe(typed, nested, span, visiting)?;
+            if !matches!(
+                typed.types().types().get(*argument),
+                Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
+            ) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            Ok(())
         }
         _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
     }

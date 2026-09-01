@@ -20,8 +20,9 @@ use super::{
     LoweringErrorKind,
     unit_plan::{
         UnitInstancePlan, UnitRuntimeTypeDemand, plan_unit_instances,
-        resolve_delegated_dispatch_owner_argument, resolve_inherited_dispatch_owner_argument,
-        resolve_nominal_runtime_field_types, resolve_unit_call_instance,
+        plan_unit_instances_with_limit, resolve_delegated_dispatch_owner_argument,
+        resolve_inherited_dispatch_owner_argument, resolve_nominal_runtime_field_types,
+        resolve_unit_call_instance,
     },
 };
 
@@ -1662,6 +1663,974 @@ fn remaps_inherited_default_owner_recipe_and_callable_slots() {
             .iter()
             .all(|instance| instance.key().target() != requirement)
     );
+}
+
+#[test]
+fn rejects_parameter_growing_recipe_at_stable_back_edge_across_input_order() {
+    let mut sources = SourceMap::new();
+    let (a_source, a_file) = parsed(
+        &mut sources,
+        "p/a-grow.ko",
+        "package p\n\
+         interface Base<A> {\n\
+             fun read(): Int\n\
+             fun throughRequirement(): Int = this.read()\n\
+         }\n\
+         interface DerivedA<X>: Base<String> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class HostA<T>: DerivedA<Wrapper<GrowA<T>>> {}\n\
+         fun badA(host: HostA<Int>): Int = host.throughRequirement()",
+    );
+    let (z_source, z_file) = parsed(
+        &mut sources,
+        "p/z-grow.ko",
+        "package p\n\
+         interface DerivedZ<X>: Base<String> { fun read(): Int = 9 }\n\
+         class GrowZ<T>(val next: GrowY<List<T>>)\n\
+         class GrowY<U>(val next: GrowZ<U>)\n\
+         class HostZ<T>: DerivedZ<Wrapper<GrowZ<T>>> {}\n\
+         fun badZ(host: HostZ<Int>): Int = host.throughRequirement()",
+    );
+    let (entry_source, entry_file) = parsed(
+        &mut sources,
+        "p/entry.ko",
+        "package p\n\
+         fun entry(z: HostZ<Int>, a: HostA<Int>): Int = badZ(z) + badA(a)\n\
+         fun direct(a: HostA<Int>): Int = a.read()",
+    );
+    let inputs = [
+        // z-grow call 与 input 都在前；稳定 source identity 必须仍选择 a-grow 的 witness。
+        SourceUnitInput::new("root", "p/z-grow.ko", z_source, &z_file),
+        SourceUnitInput::new("root", "p/a-grow.ko", a_source, &a_file),
+        SourceUnitInput::new("root", "p/entry.ko", entry_source, &entry_file),
+    ];
+    let reversed_inputs = [inputs[2], inputs[1], inputs[0]];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+    let entry = declaration(&names, "entry");
+    let direct = declaration(&names, "direct");
+
+    for unit_inputs in [&inputs[..], &reversed_inputs[..]] {
+        let errors = [
+            plan_unit_instances(
+                &sources,
+                unit_inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry,
+            ),
+            plan_unit_instances_with_limit(
+                &sources,
+                unit_inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry,
+                0,
+            ),
+        ];
+        for result in errors {
+            let error = result
+                .expect_err("recipe failure must precede planning and the generic instance limit");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            assert_eq!(error.span, Some(witness));
+        }
+        let direct_error = plan_unit_instances(
+            &sources,
+            unit_inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            direct,
+        )
+        .expect_err("direct bodyful inherited target must use the same recipe preflight");
+        assert_eq!(direct_error.kind, LoweringErrorKind::UnsupportedNode);
+        assert_eq!(direct_error.span, Some(witness));
+    }
+}
+
+#[test]
+fn rejects_parameter_growing_recipe_at_delegation_endpoint() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Reader<T>: Base<Wrapper<GrowA<T>>> {}\n\
+         class Host<T>(val reader: Reader<T>): Base<Wrapper<GrowA<T>>> by reader {}\n\
+         fun entry(host: Host<Int>): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("delegation endpoint must not bypass inherited recipe preflight");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(witness));
+}
+
+#[test]
+fn rejects_generic_delegation_recipe_before_instance_limit() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Reader<T>: Base<Wrapper<GrowA<T>>> {}\n\
+         class Host<T>(val reader: Reader<T>): Base<Wrapper<GrowA<T>>> by reader {}\n\
+         fun <T> relay(host: Host<T>): Int = host.read()\n\
+         fun entry(host: Host<Int>): Int = relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+    let entry = declaration(&names, "entry");
+
+    let results = [
+        (
+            "normal",
+            plan_unit_instances(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry,
+            ),
+        ),
+        (
+            "limit",
+            plan_unit_instances_with_limit(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry,
+                0,
+            ),
+        ),
+    ];
+    for (mode, result) in results {
+        let error = result.expect_err(
+            "normal and limited generic delegation must select the same recipe witness",
+        );
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        assert_eq!(error.span, Some(witness), "{mode}: {error:?}");
+    }
+}
+
+#[test]
+fn keeps_generic_delegation_local_override_out_of_recipe_failures() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Reader<T>: Base<GrowA<T>> { override fun read(): Int = 9 }\n\
+         class Host<T>(val reader: Reader<T>): Base<GrowA<T>> by reader {}\n\
+         fun seed(growth: GrowA<Int>): Unit {}\n\
+         fun <T> relay(host: Host<T>): Int = host.read()\n\
+         fun entry(host: Host<Int>): Int = relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "entry");
+
+    plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+    )
+    .expect("a delegate local override must not instantiate the inherited owner recipe");
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry,
+        0,
+    )
+    .expect_err("the generic relay should still respect the concrete instance limit");
+    assert_eq!(error.kind, LoweringErrorKind::InstanceLimitExceeded);
+}
+
+#[test]
+fn keeps_delegation_owner_field_error_before_endpoint_recipe_failure() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Reader<T>: Base<GrowA<T>> {}\n\
+         class Host<T>(val bad: Array<T>, val reader: Reader<T>): Base<GrowA<T>> by reader {}\n\
+         fun entry(host: Host<Int>): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let bad = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Host"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("Host.bad field")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("the formal resolver must retain the earlier owner field failure");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(bad));
+}
+
+#[test]
+fn rejects_generic_delegation_recipe_across_helper_before_instance_limit() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Reader<T>: Base<T> {}\n\
+         class Host<T>(val reader: Reader<T>): Base<T> by reader {}\n\
+         fun <T> inner(host: Host<T>): Int = host.read()\n\
+         fun <T> outer(host: Host<T>): Int = inner(host)\n\
+         fun entry(host: Host<GrowA<Int>>): Int = outer(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+    let entry = declaration(&names, "entry");
+
+    let results = [
+        plan_unit_instances(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        ),
+        plan_unit_instances_with_limit(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+            0,
+        ),
+    ];
+    for result in results {
+        let error = result.expect_err(
+            "normal and limited helper traversal must retain delegated owner recipe facts",
+        );
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        assert_eq!(error.span, Some(witness));
+    }
+}
+
+#[test]
+fn rejects_generic_helper_recipe_before_instance_limit() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun <T> relay(host: Host<T>): Int = host.read()\n\
+         fun entry(host: Host<GrowA<Int>>): Int = relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+        0,
+    )
+    .expect_err("generic recipe facts must be propagated before the instance limit");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(witness));
+}
+
+#[test]
+fn rejects_fixed_argument_recipe_scc_before_instance_limit() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class Fixed<T>(val next: Fixed<Int>)\n\
+         class Left<T>(val next: Right<Int>)\n\
+         class Right<U>(val next: Left<String>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun <T> relay(host: Host<T>): Int = host.read()\n\
+         fun entrySelf(host: Host<Fixed<String>>): Int = relay(host)\n\
+         fun entryMutual(host: Host<Left<Long>>): Int = relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    for (entry, witness_owner) in [("entrySelf", "Fixed"), ("entryMutual", "Right")] {
+        let witness = typed
+            .types()
+            .signatures()
+            .declaration(declaration(&names, witness_owner))
+            .and_then(|signature| signature.nominal())
+            .and_then(|nominal| nominal.fields().first())
+            .expect("cycle back-edge field")
+            .span();
+        let error = plan_unit_instances_with_limit(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, entry),
+            0,
+        )
+        .expect_err("fixed-argument SCC must be rejected before the instance limit");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        assert_eq!(error.span, Some(witness));
+    }
+}
+
+#[test]
+fn keeps_earlier_unsupported_constructor_before_later_recipe_cycle() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Bad<T>(val first: Array<T>, val next: GrowA<T>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun entry(host: Host<Bad<Int>>): Int = host.read()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let first_field = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Bad"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("Bad.first field")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("ordinary unsupported constructor must retain source-order priority");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(first_field));
+}
+
+#[test]
+fn keeps_earlier_call_error_before_later_recipe_failure() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         interface Base<A> {\n\
+             fun readGrowth(): Int\n\
+             fun throughRequirement(): Int = this.readGrowth()\n\
+         }\n\
+         interface Derived<X>: Base<String> { fun readGrowth(): Int = 7 }\n\
+         class Wrapper<T>(val item: T)\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Derived<Wrapper<GrowA<T>>> {}\n\
+         fun badGrowth(host: Host<Int>): Int = host.throughRequirement()\n\
+         fun entry(first: First, host: Host<Int>): Int =\n\
+             first.read() + badGrowth(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let first = declaration(&names, "First");
+    let ordinary_call = typed
+        .types()
+        .calls()
+        .iter()
+        .find(|call| {
+            call.receiver().is_some_and(|receiver| {
+                matches!(
+                    typed.types().types().get(receiver.ty()),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == first
+                )
+            })
+        })
+        .expect("First.read call");
+    let ordinary_span = parsed
+        .ast()
+        .expressions()
+        .get(ordinary_call.expression().expression())
+        .expect("First.read call expression")
+        .span();
+    let recipe_span = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("the first ordinary call error must remain observable");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(ordinary_span));
+    assert_ne!(error.span, Some(recipe_span));
+}
+
+#[test]
+fn keeps_instance_limit_before_concrete_error_in_generic_body() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         fun <T> relay(first: First): Int = first.read()\n\
+         fun entry(first: First): Int = relay<Int>(first)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+        0,
+    )
+    .expect_err("a specialized template must pass the instance-limit gate before its body");
+    assert_eq!(error.kind, LoweringErrorKind::InstanceLimitExceeded);
+}
+
+#[test]
+fn keeps_earlier_sibling_instance_limit_before_helper_error() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         fun <T> generic(): Int = 0\n\
+         fun helper(first: First): Int = first.read()\n\
+         fun entry(first: First): Int = helper(first) + generic<Int>()",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let generic = declaration(&names, "generic");
+    let helper = declaration(&names, "helper");
+    assert!(
+        generic < helper,
+        "fixture must put the specialized key first"
+    );
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+        0,
+    )
+    .expect_err("the earlier sibling specialization must retain planner priority");
+    assert_eq!(error.kind, LoweringErrorKind::InstanceLimitExceeded);
+}
+
+#[test]
+fn keeps_earlier_helper_error_before_later_recipe_failure() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         fun helper(first: First): Int = first.read()\n\
+         interface Base<A> { fun readGrowth(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun <T> relay(host: Host<T>): Int = host.readGrowth()\n\
+         fun entry(first: First, host: Host<GrowA<Int>>): Int =\n\
+             helper(first) + relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let helper = declaration(&names, "helper");
+    let relay = declaration(&names, "relay");
+    assert!(helper < relay, "fixture must put the ordinary helper first");
+    let first = declaration(&names, "First");
+    let ordinary_call = typed
+        .types()
+        .calls()
+        .iter()
+        .find(|call| {
+            call.receiver().is_some_and(|receiver| {
+                matches!(
+                    typed.types().types().get(receiver.ty()),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == first
+                )
+            })
+        })
+        .expect("First.read call");
+    let ordinary_span = parsed
+        .ast()
+        .expressions()
+        .get(ordinary_call.expression().expression())
+        .expect("First.read call expression")
+        .span();
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+        0,
+    )
+    .expect_err("the earlier ordinary helper must stop recipe preflight");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(ordinary_span));
+}
+
+#[test]
+fn keeps_first_specialization_error_before_later_specialization_recipe() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         interface Base<A> { fun readGrowth(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun <T> relay(first: First, host: Host<T>): Int {\n\
+             host.readGrowth()\n\
+             return first.read()\n\
+         }\n\
+         fun entry(first: First, good: Host<Int>, bad: Host<GrowA<Int>>): Int =\n\
+             relay(first, good) + relay(first, bad)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let first = declaration(&names, "First");
+    let ordinary_call = typed
+        .types()
+        .calls()
+        .iter()
+        .find(|call| {
+            call.receiver().is_some_and(|receiver| {
+                matches!(
+                    typed.types().types().get(receiver.ty()),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == first
+                )
+            })
+        })
+        .expect("First.read call");
+    let ordinary_span = parsed
+        .ast()
+        .expressions()
+        .get(ordinary_call.expression().expression())
+        .expect("First.read call expression")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("the first concrete specialization must retain its ordinary error");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(ordinary_span));
+}
+
+#[test]
+fn keeps_declaration_frontier_before_earlier_source_symbol_recipe() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Readable { fun read(): Int }\n\
+         class First(val second: Second): Readable by second {}\n\
+         class Second(val first: First): Readable by first {}\n\
+         interface Base<A> { fun readGrowth(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Base<T> {}\n\
+         class Runner {\n\
+             fun relay(host: Host<GrowA<Int>>): Int = host.readGrowth()\n\
+         }\n\
+         fun helper(first: First): Int = first.read()\n\
+         fun entry(runner: Runner, first: First, bad: Host<GrowA<Int>>): Int =\n\
+             runner.relay(bad) + helper(first)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let first = declaration(&names, "First");
+    let ordinary_call = typed
+        .types()
+        .calls()
+        .iter()
+        .find(|call| {
+            call.receiver().is_some_and(|receiver| {
+                matches!(
+                    typed.types().types().get(receiver.ty()),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == first
+                )
+            })
+        })
+        .expect("First.read call");
+    let ordinary_span = parsed
+        .ast()
+        .expressions()
+        .get(ordinary_call.expression().expression())
+        .expect("First.read call expression")
+        .span();
+
+    let error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .expect_err("Declaration keys must remain ahead of Symbol keys");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(ordinary_span));
+}
+
+#[test]
+fn rejects_later_sibling_recipe_before_current_instance_limit() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun readGrowth(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class Host<T>: Base<GrowA<T>> {}\n\
+         fun <T> clean(): Int = 0\n\
+         fun <T> bad(host: Host<T>): Int = host.readGrowth()\n\
+         fun entry(host: Host<Int>): Int = clean<Int>() + bad(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let clean = declaration(&names, "clean");
+    let bad = declaration(&names, "bad");
+    assert!(clean < bad, "fixture must put the clean key first");
+    let witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+
+    let error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+        0,
+    )
+    .expect_err("a later pending recipe must not be hidden by the current limit");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(witness));
+}
+
+#[test]
+fn selects_stable_recipe_root_across_limit_hit_siblings() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun readGrowth(): Int = 7 }\n\
+         class GrowA<T>(val next: GrowB<List<T>>)\n\
+         class GrowB<U>(val next: GrowA<U>)\n\
+         class GrowZ<T>(val next: GrowY<List<T>>)\n\
+         class GrowY<U>(val next: GrowZ<U>)\n\
+         class HostA<T>: Base<GrowA<T>> {}\n\
+         class HostZ<T>: Base<GrowZ<T>> {}\n\
+         fun <T> badZ(host: HostZ<T>): Int = host.readGrowth()\n\
+         fun <T> badA(host: HostA<T>): Int = host.readGrowth()\n\
+         fun entry(z: HostZ<Int>, a: HostA<Int>): Int = badZ(z) + badA(a)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let bad_z = declaration(&names, "badZ");
+    let bad_a = declaration(&names, "badA");
+    assert!(bad_z < bad_a, "fixture must put the Z key first");
+    let a_witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowB"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowB.next field")
+        .span();
+    let z_witness = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "GrowY"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("GrowY.next field")
+        .span();
+
+    let entry = declaration(&names, "entry");
+    let results = [
+        plan_unit_instances(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        ),
+        plan_unit_instances_with_limit(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+            0,
+        ),
+    ];
+    for result in results {
+        let error = result
+            .expect_err("normal and limited planning must select the same stable recipe root");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{error:?}");
+        assert_eq!(error.span, Some(a_witness));
+        assert_ne!(error.span, Some(z_witness));
+    }
+}
+
+#[test]
+fn keeps_closed_descriptor_unsupported_out_of_cycle_failures() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         interface Base<A> { fun read(): Int = 7 }\n\
+         class Holder<T>(val item: Array<T>)\n\
+         class Outer<T>(val passthrough: T, val fixed: Holder<Int>)\n\
+         class Host<T>: Base<T> {}\n\
+         fun seed(holder: Holder<Int>): Unit {}\n\
+         fun <T> relay(host: Host<T>): Int = host.read()\n\
+         fun entryDirect(host: Host<Outer<String>>, holder: Holder<Int>): Int {\n\
+             seed(holder)\n\
+             return host.read()\n\
+         }\n\
+         fun entryLimit(host: Host<Outer<String>>): Int = relay(host)",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let item = typed
+        .types()
+        .signatures()
+        .declaration(declaration(&names, "Holder"))
+        .and_then(|signature| signature.nominal())
+        .and_then(|nominal| nominal.fields().first())
+        .expect("Holder.item field")
+        .span();
+
+    let direct_error = plan_unit_instances(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entryDirect"),
+    )
+    .expect_err("closed descriptor shape error must remain an ordinary planner failure");
+    assert_eq!(direct_error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(direct_error.span, Some(item));
+
+    let limit_error = plan_unit_instances_with_limit(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entryLimit"),
+        0,
+    )
+    .expect_err("closed descriptor error must not be mislabeled as a preflight cycle");
+    assert_eq!(limit_error.kind, LoweringErrorKind::InstanceLimitExceeded);
 }
 
 #[test]
