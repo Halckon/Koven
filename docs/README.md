@@ -5,8 +5,8 @@ Koven 以版本化语言规范为语义基础，并通过 Spec、ADR 和 archite
 
 ## 当前入口
 
-- [语言设计指南 v0.32](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
-  多文档真源；v0.32 已由用户明确启用并取代 v0.31。
+- [语言设计指南 v0.34](./guide/00-index.md)：当前语言语义及其中强制实现、Phase 边界的
+  多文档真源；v0.34 已由用户明确启用并取代 v0.33。
 - [历史单文件 guide](./agent-language-design-guide-v0.12.md)：v0.12 历史候选及更早版本的
   不可变历史快照；v0.11、v0.12 仅用于验证已合入 v0.14 的内容，不参与现行语义优先级。
 - [Specs 与路线图](./specs/)：单次功能或行为变更的范围、Goal、计划、依赖和验收标准。
@@ -23,11 +23,14 @@ Architecture：
 - [Kotlin 语法语义与 Rust 所有权对照清单](./kotlin-rust-design-matrix-v0.32.md)：逐项说明已实现、
   部分实现、候选、延后和不支持能力；
 - [v0.32 后续语言与编译器开发路线](./post-v0.32-development-roadmap.md)：系统编程、FFI、标准库、
-  并发/异步、优化、元编程和自举的依赖波次与验收门禁。
+  并发/异步、优化、元编程和自举的依赖波次与验收门禁；
+- [v2 interface 值与动态分发候选设计](./v2-interface-values-and-dynamic-dispatch.md)：记录裸
+  interface 值、异构集合、所有权表示、型变与 `reified` 的非规范候选方向。
 
-这三份材料是 2026-08-30 的冻结审计快照，不随每个 Spec 持续改写；实时状态与实施顺序仍以
-guide、Specs/ADR 和 Architecture 为准。现行 guide 版本变化后，应把本组标为历史审计或由新版
-审计取代。
+前三份 v0.32 材料是 2026-08-30 的冻结审计快照，不随每个 Spec 持续改写；实时状态与实施顺序
+仍以 guide、Specs/ADR 和 Architecture 为准。现行 guide 版本变化后，应把这组材料标为历史审计
+或由新版审计取代。v2 interface 候选设计是供未来 guide/ADR 取舍的独立参考，同样不具有规范
+效力。
 
 ## 工作流
 
