@@ -6,3 +6,7 @@
 - [`v0.34-pre-restructure/`](v0.34-pre-restructure/)：2026-09-02 领域重拆前的 v0.34 多文件快照。
 
 现行规范只从 [docs/guide/README.md](../../guide/README.md) 进入。
+
+- [v0.34 领域规范](v0.34/README.md)：启用 v0.35 前的完整快照。
+
+- [v0.35 启用前候选审查](v0.35-candidate.md)：冻结的候选与 R1–R3 问题记录。

@@ -284,11 +284,30 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 subject, entries, ..
             } => {
                 let mut live = live_after.clone();
-                for entry in &entries {
-                    live.extend(self.statement(entry.body, live_after.clone())?);
-                }
-                for entry in entries.into_iter().rev() {
-                    for condition in entry.conditions.into_iter().rev() {
+                let plan = self.checker.typed.nullable_when(id).cloned();
+                for (entry_index, entry) in entries.into_iter().enumerate().rev() {
+                    let descriptor = plan
+                        .as_ref()
+                        .and_then(|plan| plan.entries().get(entry_index));
+                    let body = self.statement(entry.body, live_after.clone())?;
+                    if entry.else_span.is_some() {
+                        live = body.clone();
+                    }
+                    for (alternative_index, condition) in
+                        entry.conditions.into_iter().enumerate().rev()
+                    {
+                        let alternative = descriptor
+                            .and_then(|entry| entry.alternatives().get(alternative_index));
+                        if alternative
+                            .is_some_and(|alternative| alternative.fallthrough_domain().is_empty())
+                        {
+                            live.clear();
+                        }
+                        if alternative
+                            .is_none_or(|alternative| !alternative.match_domain().is_empty())
+                        {
+                            live.extend(body.iter().copied());
+                        }
                         if let WhenCondition::Expression(expression)
                         | WhenCondition::Contains { expression, .. } = condition
                         {

@@ -850,6 +850,17 @@ fn target_layout_failure_bridges_to_l0145_with_use_and_declaration_spans() {
 }
 
 #[test]
+fn comma_when_match_edge_cleanup_links_and_runs() {
+    for (flag, expected) in [("true", 7), ("false", 8)] {
+        let text = format!(
+            "class Node {{}}\nfun probe(own node: Node): Boolean = false\nfun choose(flag: Boolean, own node: Node): Int = when {{ flag, probe(node) -> 7; else -> 8 }}\nfun main(): Unit {{ val result = choose({flag}, Node()) if (result != {expected}) {{ error(\"wrong branch\") }} }}"
+        );
+        let output = emit_link_and_run("comma-match.ko", &text, "main");
+        assert!(output.status.success(), "{output:?}");
+    }
+}
+
+#[test]
 fn nominal_enum_box_source_emits_links_and_runs() {
     let analysis = analyze(
         "nominal-run.ko",

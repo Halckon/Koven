@@ -2,7 +2,7 @@
 
 > **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审 v2 interface 值或动态分发时 · **唯一真源**：现行语义仍以 [v0.34 guide](../guide/README.md) 为准
 
-本文不修改、取代或启用 Koven v0.34，也不批准 guide、Spec 或 ADR，不授权实现。
+本文不修改、取代或启用 Koven v0.35，也不批准 guide、Spec 或 ADR，不授权实现。
 
 ## 1. 结论摘要
 
@@ -24,7 +24,7 @@ v2 候选方向应以 Kotlin 风格的使用体验表达动态 interface，同�
 8. Koven 的单态化泛型不需要照搬 Kotlin `reified`。未来若需要 downcast、序列化或插件注册，
    应独立设计显式 `TypeId` / `TypeInfo<T>` 能力。
 
-现行 v0.34 仍按
+现行 v0.35 仍按
 [v0.34 一致性边界](../guide/15-conformance-and-staging.md)与[类型/接口规则](../guide/03-types-generics.md) 执行：v1 不存在
 interface runtime value，本文不能作为实现依据。
 

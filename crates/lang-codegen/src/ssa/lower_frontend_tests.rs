@@ -1250,6 +1250,38 @@ fn carries_move_only_string_bindings_across_if_and_short_circuit_edges() {
 }
 
 #[test]
+fn comma_when_drops_owner_only_on_the_match_that_skips_consumption() {
+    let analysis = analyze(
+        "class Node {}\nfun probe(own node: Node): Boolean = false\nfun select(flag: Boolean, own node: Node): Int = when { flag, probe(node) -> 0; else -> 1 }",
+    );
+    assert!(
+        analysis.parsed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.parsed.diagnostics()
+    );
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("each matched edge must discharge its own owner before the shared body");
+    let rendered = render_program(&program);
+    assert_eq!(rendered.matches("drop ").count(), 2, "{rendered}");
+}
+
+#[test]
 fn lowers_boolean_when_subjectless_chains_and_diverging_entries() {
     let analysis = analyze(
         "fun select(flag: Boolean): Int = when (flag) {\n\

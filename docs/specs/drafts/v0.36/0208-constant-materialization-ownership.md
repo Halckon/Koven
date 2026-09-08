@@ -10,10 +10,10 @@
 | Goal ID | `KOV-P3-208` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 起草基线 v0.32；候选 [v0.36 §36](../../../proposals/v0.36-associated-constants.md) |
-| 批准依据 | 无；v0.36 尚未启用，且尚未显式重基到现行 v0.34 |
+| 批准依据 | 无；v0.36 尚未启用，且尚未显式重基到现行 v0.35 |
 | 前置 Spec | SPEC-0028、0029 `done`；SPEC-0026 待完成 |
 | 前置 ADR | 无 |
-| 阻塞项 | 明确 v0.36 对现行 v0.34 的重基与取代关系；v0.36 启用；SPEC-0026 `done` |
+| 阻塞项 | 明确 v0.36 对现行 v0.35 的重基与取代关系；v0.36 启用；SPEC-0026 `done` |
 | 影响范围 | `lang-frontend` ownership/liveness/drop facts 与测试；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.36 materialization 契约 |
 

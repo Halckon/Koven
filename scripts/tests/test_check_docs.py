@@ -91,7 +91,7 @@ class DocsCheckerTests(unittest.TestCase):
         self.assertTrue(any("状态 draft 与目录不一致" in error for error in checker.errors), checker.errors)
 
     def test_multiple_current_guide_markers_are_rejected(self) -> None:
-        marker = "<!-- current-guide: v0.34 -->\n"
+        marker = "<!-- current-guide: v0.35 -->\n"
         self.write("docs/guide/README.md", "# Guide\n" + marker)
         self.write("docs/proposals/accidental.md", "# Proposal\n" + marker)
         checker = DocsChecker(self.root)

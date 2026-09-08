@@ -230,6 +230,7 @@ impl Checker<'_> {
                 };
                 if let Some(key) = self.stable_flow_key(target) {
                     self.flow_facts.remove(&key);
+                    *self.flow_versions.entry(key).or_default() += 1;
                 }
                 result
             }
@@ -250,7 +251,22 @@ impl Checker<'_> {
                 type_arguments,
                 arguments,
                 ..
-            } => self.check_call(id, span, callee, type_arguments, arguments, expected)?,
+            } => {
+                let invalidated = arguments
+                    .iter()
+                    .filter(|argument| {
+                        matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
+                    })
+                    .filter_map(|argument| self.stable_flow_key(argument.value))
+                    .collect::<Vec<_>>();
+                let result =
+                    self.check_call(id, span, callee, type_arguments, arguments, expected)?;
+                for key in invalidated {
+                    self.flow_facts.remove(&key);
+                    *self.flow_versions.entry(key).or_default() += 1;
+                }
+                result
+            }
             Expression::Index { receiver, index } => {
                 self.check_container_index(id, receiver, index)?
             }

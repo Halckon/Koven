@@ -1036,7 +1036,39 @@ impl ExpressionLowerer<'_> {
                 return Err(error(LoweringErrorKind::MissingFact, argument.span));
             }
             let operand = match mapping.mode() {
-                ParameterMode::Value => EntityId::Value(self.require_value(argument.value)?),
+                ParameterMode::Value => {
+                    let value = self.require_value(argument.value)?;
+                    if self
+                        .typed
+                        .expression_type(argument.value)
+                        .and_then(|ty| self.typed.copyability(ty))
+                        == Some(Copyability::MoveOnly)
+                    {
+                        // The Value contract transfers this owner immediately. Branch
+                        // merges must not carry a stale binding for the consumed SSA value.
+                        let mut source = argument.value;
+                        loop {
+                            self.temporaries.remove(&source.index());
+                            let node =
+                                self.parsed.ast().expressions().get(source).map_err(|_| {
+                                    error(LoweringErrorKind::MissingFact, argument.span)
+                                })?;
+                            match node.payload() {
+                                Expression::Group { expression } => source = *expression,
+                                Expression::Name => {
+                                    let symbol =
+                                        self.references.get(&span_key(node.span())).ok_or_else(
+                                            || error(LoweringErrorKind::MissingFact, node.span()),
+                                        )?;
+                                    self.bindings.remove(symbol);
+                                    break;
+                                }
+                                _ => break,
+                            }
+                        }
+                    }
+                    EntityId::Value(value)
+                }
                 ParameterMode::Borrow => {
                     let (loan, ends_after_call) =
                         self.lower_borrow_argument(expression, argument.value, argument.span)?;

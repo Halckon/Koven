@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
-    ownership_checking::OwnershipCheckedFile,
+    ownership_checking::{DropPoint, OwnershipCheckedFile},
     parser::{ClassifierKind, FunctionBody, FunctionForm, Item, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{BuiltinType, CallableDescriptor, ParameterMode, TypeId, TypedFile},
@@ -38,6 +38,7 @@ const LOWERED_BUILTINS: [BuiltinType; 11] = [
 
 struct FunctionPlan {
     id: FunctionId,
+    item_id: ItemId,
     body: FunctionPlanBody,
     parameter_symbols: Vec<SymbolId>,
     return_type: TypeId,
@@ -46,6 +47,7 @@ struct FunctionPlan {
 }
 
 struct FunctionDeclaration {
+    item_id: ItemId,
     item: Item,
     symbol: SymbolId,
     callable: CallableDescriptor,
@@ -260,6 +262,7 @@ fn lower_scalar_file_product(
         function_ids.insert(instance.key.clone(), id);
         plans.push(FunctionPlan {
             id,
+            item_id: declaration.item_id,
             body,
             parameter_symbols,
             return_type,
@@ -334,6 +337,7 @@ fn lower_scalar_file_product(
             return_type: plan.return_type,
             loops: Vec::new(),
         };
+        lowerer.emit_drops(DropPoint::FunctionEntry(plan.item_id))?;
         let result = match plan.body {
             FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,
             FunctionPlanBody::Block(block) => lowerer.lower_statement(block)?,
@@ -473,6 +477,17 @@ fn collect_functions(
             span: None,
         })?;
         let (item, span) = unwrap_modified(parsed, *root)?;
+        // Entry drop facts refer to the function itself, not its modifier wrapper.
+        let mut item_id = *root;
+        while let Item::Modified { declaration, .. } = parsed
+            .ast()
+            .items()
+            .get(item_id)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+            .payload()
+        {
+            item_id = *declaration;
+        }
         let name = match &item {
             Item::Function { name, .. } => name,
             Item::Classifier(declaration)
@@ -503,6 +518,7 @@ fn collect_functions(
             .cloned()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))?;
         functions.push(FunctionDeclaration {
+            item_id,
             item,
             symbol,
             callable,

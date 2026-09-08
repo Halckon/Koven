@@ -103,6 +103,7 @@ struct Checker<'a> {
     parameter_modes: Vec<Option<ParameterMode>>,
     non_null_uses: Vec<NonNullUseDescriptor>,
     null_comparisons: Vec<NullComparisonDescriptor>,
+    nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
@@ -114,6 +115,7 @@ struct Checker<'a> {
     mutable_symbols: BTreeSet<SymbolId>,
     captured_mutable_symbols: BTreeSet<SymbolId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
+    flow_versions: BTreeMap<FlowKey, u64>,
     source_references: Vec<(ScopeId, ReferenceTarget)>,
     nominal_by_symbol: BTreeMap<SymbolId, NominalId>,
     nominal_by_scope: BTreeMap<ScopeId, NominalId>,
@@ -261,6 +263,7 @@ impl<'a> Checker<'a> {
             parameter_modes: vec![None; names.symbols().len()],
             non_null_uses: Vec::new(),
             null_comparisons: Vec::new(),
+            nullable_whens: Vec::new(),
             references,
             symbols_by_span,
             symbol_kinds,
@@ -272,6 +275,7 @@ impl<'a> Checker<'a> {
             mutable_symbols: BTreeSet::new(),
             captured_mutable_symbols: BTreeSet::new(),
             flow_facts: BTreeMap::new(),
+            flow_versions: BTreeMap::new(),
             source_references: names
                 .references()
                 .iter()
@@ -440,6 +444,7 @@ impl<'a> Checker<'a> {
                 parameter_bindings,
                 non_null_uses: self.non_null_uses,
                 null_comparisons: self.null_comparisons,
+                nullable_whens: self.nullable_whens,
                 nominals: self.nominals,
                 type_parameters: self.type_parameters,
                 delegations: self.delegations,

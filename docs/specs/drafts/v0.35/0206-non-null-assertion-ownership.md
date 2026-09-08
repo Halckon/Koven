@@ -1,6 +1,6 @@
 # SPEC-0206：非空断言 Copy/Consume 所有权
 
-> **性质**：draft Spec · **状态**：draft（blocked by unapproved v0.35 guide） · **读取时机**：评审 v0.35 proposal 或对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：draft Spec · **状态**：draft（等待前置 Spec） · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
@@ -9,12 +9,12 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P3-206` |
 | 所属 Phase | Phase 3 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.35 §35](../../../proposals/v0.35-nullable-when-and-non-null-assertion.md) |
-| 批准依据 | 无；v0.35 尚未启用，且尚未显式重基到现行 v0.34 |
+| 语言规范 | 现行 [v0.35 空安全](../../../guide/09-nullability-errors.md)与[阶段边界](../../../guide/15-conformance-and-staging.md) |
+| 批准依据 | 2026-09-08 用户明确启用 v0.35，按持续推进 Goal 分阶段实施；依赖未完成者保持 draft |
 | 前置 Spec | SPEC-0028、0029 `done`；SPEC-0205 待完成 |
 | 前置 ADR | 无 |
 | 关联 ADR | ADR-0017 |
-| 阻塞项 | 明确 v0.35 对现行 v0.34 的重基与取代关系；v0.35 启用；SPEC-0205 `done` |
+| 阻塞项 | SPEC-0205 `done` |
 | 影响范围 | `lang-frontend` ownership/drop facts/tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 ownership 契约 |
 
@@ -65,7 +65,7 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 
 ## 9. 未决问题
 
-- 无；状态门禁由元数据表达。
+- 无语义未决项；R1–R3 已随 v0.35 启用，前置依赖见元数据。
 
 ## 10. 验证记录
 

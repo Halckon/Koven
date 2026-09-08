@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 198 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 200 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -138,6 +138,8 @@
 
 ## Phase 2
 
+- [SPEC-0202](0202-nullable-when-flow-facts.md)：nullable when 剩余域 typed facts
+
 - [SPEC-0018](./0018-single-file-name-resolution.md)：建立单文件作用域与名称解析
 - [SPEC-0019](./0019-basic-type-checking.md)：建立基础类型检查与局部推导
 - [SPEC-0020](./0020-nominal-generic-interface-types.md)：建立名义/泛型类型与静态 interface 实现
@@ -192,6 +194,8 @@
 ## Phase 3/4 纵向切片
 
 - [SPEC-0195](./0195-interprocedural-borrow-lowering.md)：跨 callable Borrow 的 SSA/LLVM lowering
+
+- [SPEC-0203](./0203-nullable-when-ownership.md)：nullable when view/extraction 所有权
 
 ## Phase 4
 

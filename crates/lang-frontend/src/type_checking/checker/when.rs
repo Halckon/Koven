@@ -3,27 +3,27 @@ use std::collections::BTreeMap;
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{EnumCaseId, Namespace, ReferenceTarget},
+    name_resolution::{Namespace, ReferenceTarget},
     parser::{Expression, LiteralKind, WhenCondition, WhenEntry},
     source::Span,
 };
 
 use super::{
-    flow::{FlowKey, extend_facts, intersect_facts},
+    flow::{FlowKey, intersect_facts},
     *,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum CoverageAtom {
-    Boolean(bool),
-    Null,
-    Case(EnumCaseId),
-}
+use crate::type_checking::{
+    NullableWhenAlternativeDescriptor, NullableWhenDescriptor, NullableWhenEntryDescriptor,
+    NullableWhenSubjectCategory, WhenDomain, WhenDomainAtom,
+};
+use WhenDomainAtom as CoverageAtom;
 
 struct WhenConditionCheck {
     coverage: Vec<CoverageAtom>,
     facts: BTreeMap<FlowKey, TypeId>,
     valid: bool,
+    non_null: bool,
 }
 
 impl Checker<'_> {
@@ -44,7 +44,22 @@ impl Checker<'_> {
         };
         let subject_key = subject.and_then(|subject| self.stable_flow_key(subject));
         let domain = subject_type.and_then(|ty| self.closed_domain(ty));
+        let nullable_inner = subject_type.and_then(|ty| match self.kind(ty) {
+            TypeKind::Nullable(inner) => Some(*inner),
+            _ => None,
+        });
+        let diagnostic_start = self.diagnostics.len();
         let baseline = self.flow_facts.clone();
+        let subject_version =
+            subject_key.map(|key| self.flow_versions.get(&key).copied().unwrap_or_default());
+        let mut remaining_versions = self.flow_versions.clone();
+        let mut exit_versions = self.flow_versions.clone();
+        let mut remaining_facts = self.flow_facts.clone();
+        let mut remaining_domain = domain
+            .clone()
+            .map(WhenDomain::Finite)
+            .unwrap_or(WhenDomain::Nullable);
+        let mut plans = Vec::new();
         let mut covered = BTreeMap::<CoverageAtom, Span>::new();
         let mut first_else = None;
         let mut has_else = false;
@@ -52,9 +67,20 @@ impl Checker<'_> {
         let mut exits = Vec::new();
 
         for (entry_index, entry) in entries.iter().enumerate() {
+            self.flow_facts = remaining_facts.clone();
+            self.flow_versions = remaining_versions.clone();
+            let input_domain = remaining_domain.clone();
+            let mut body_domain = WhenDomain::Empty;
+            let mut alternative_plans = Vec::new();
             let mut entry_facts = None;
+            let mut entry_source_valid = subject_key.is_some_and(|key| {
+                Some(self.flow_versions.get(&key).copied().unwrap_or_default()) == subject_version
+            });
             if let Some(else_span) = entry.else_span {
                 has_else = true;
+                body_domain = input_domain.clone();
+                remaining_domain = WhenDomain::Empty;
+                entry_facts = Some(self.flow_facts.clone());
                 if let Some(first) = first_else {
                     self.emit_with_label(
                         self.duplicate_when_else_code,
@@ -84,6 +110,50 @@ impl Checker<'_> {
                         domain.as_deref(),
                         condition,
                     )?;
+                    let source_valid = subject_key.is_some_and(|key| {
+                        Some(self.flow_versions.get(&key).copied().unwrap_or_default())
+                            == subject_version
+                    });
+                    let (matched, missed) = split_domain(
+                        &input_domain,
+                        &checked.coverage,
+                        checked.non_null,
+                        checked.valid,
+                    );
+                    // Alternatives are judged against the entry input, while condition effects
+                    // persist along evaluation. Never restore pre-condition source proofs.
+                    let mut matched_facts = self.flow_facts.clone();
+                    if !matched.is_empty() {
+                        entry_source_valid &= source_valid;
+                        if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
+                            && source_valid
+                            && matched.is_non_null()
+                        {
+                            matched_facts.insert(key, inner);
+                        }
+                        for (key, ty) in &checked.facts {
+                            if source_valid {
+                                matched_facts.insert(*key, *ty);
+                            }
+                        }
+                        entry_facts = Some(match entry_facts {
+                            None => matched_facts,
+                            Some(previous) => intersect_facts(&previous, &matched_facts),
+                        });
+                        body_domain = union_domain(body_domain, matched.clone());
+                    }
+                    alternative_plans.push(NullableWhenAlternativeDescriptor {
+                        span: condition_span,
+                        match_domain: matched,
+                        fallthrough_domain: missed,
+                    });
+                    remaining_domain = split_domain(
+                        &remaining_domain,
+                        &checked.coverage,
+                        checked.non_null,
+                        checked.valid,
+                    )
+                    .1;
                     if checked.valid && !checked.coverage.is_empty() {
                         let mut first_previous = None;
                         let mut added = false;
@@ -105,24 +175,60 @@ impl Checker<'_> {
                             )?;
                         }
                     }
-                    entry_facts = Some(match entry_facts {
-                        None => checked.facts,
-                        Some(previous) => intersect_facts(&previous, &checked.facts),
-                    });
                 }
             }
-            self.flow_facts = if let Some(ref facts) = entry_facts {
-                extend_facts(&baseline, facts)
+            if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
+                && Some(self.flow_versions.get(&key).copied().unwrap_or_default())
+                    == subject_version
+                && remaining_domain.is_non_null()
+            {
+                self.flow_facts.insert(key, inner);
+            }
+            remaining_facts = self.flow_facts.clone();
+            remaining_versions = self.flow_versions.clone();
+            self.flow_facts = entry_facts.unwrap_or_else(|| remaining_facts.clone());
+            let body_type = if body_domain.is_non_null() {
+                nullable_inner
             } else {
-                baseline.clone()
+                None
             };
+            if let (Some(key), Some(inner)) = (subject_key, body_type)
+                && entry_source_valid
+                && !self.flow_facts.contains_key(&key)
+            {
+                self.flow_facts.insert(key, inner);
+            }
+            // Coverage is relative to the remaining domain, not the original nullable root.
+            // A single surviving enum case carries its payload type even after a negated test.
+            if entry_source_valid && let WhenDomain::Finite(atoms) = &body_domain {
+                let facts = self.facts_for_single_case(subject_type, subject_key, atoms)?;
+                self.flow_facts.extend(facts);
+            }
+            let stable_symbol = match subject_key {
+                Some(FlowKey::Symbol(symbol)) if entry_source_valid => Some(symbol),
+                _ => None,
+            };
+            plans.push(NullableWhenEntryDescriptor {
+                span: entry.span,
+                input_domain,
+                remaining_domain: remaining_domain.clone(),
+                alternatives: alternative_plans,
+                body_domain,
+                body_type,
+                stable_symbol,
+            });
             let result = self.check_value_body(entry.body, expected, expected_span)?;
             if result.falls_through {
                 exits.push(self.flow_facts.clone());
             }
+            for (&key, &version) in &self.flow_versions {
+                let previous = exit_versions.entry(key).or_default();
+                *previous = (*previous).max(version);
+            }
             branches.push(result);
         }
 
+        self.flow_versions = exit_versions;
         let exhaustive = has_else
             || domain
                 .as_ref()
@@ -132,7 +238,7 @@ impl Checker<'_> {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
         if !exhaustive {
-            exits.push(baseline.clone());
+            exits.push(remaining_facts);
         }
         self.flow_facts = exits
             .into_iter()
@@ -152,6 +258,42 @@ impl Checker<'_> {
         } else {
             self.join_when_branches(&entries, &branches)?
         };
+        if nullable_inner.is_some()
+            && self.diagnostics.len() == diagnostic_start
+            && let (Some(subject), Some(subject_type)) = (subject, subject_type)
+        {
+            let category = self.nullable_when_category(subject)?;
+            let native_eligible = matches!(
+                category,
+                NullableWhenSubjectCategory::OwnedRoot | NullableWhenSubjectCategory::Temporary
+            ) && nullable_inner.is_some_and(|inner| match self.kind(inner) {
+                TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc,
+                    ..
+                } => true,
+                TypeKind::Nominal { nominal, .. } => self
+                    .nominals
+                    .iter()
+                    .any(|item| item.id() == *nominal && item.kind() == NominalKind::Class),
+                _ => false,
+            });
+            self.nullable_whens.retain(|plan| plan.expression() != id);
+            self.nullable_whens.push(NullableWhenDescriptor {
+                expression: id,
+                subject,
+                span: keyword_span,
+                subject_type,
+                category,
+                stable_symbol: match subject_key {
+                    Some(FlowKey::Symbol(symbol)) => Some(symbol),
+                    _ => None,
+                },
+                native_eligible,
+                entries: plans,
+            });
+            self.nullable_whens
+                .sort_by_key(|plan| plan.expression().index());
+        }
         Ok(ExprCheck { ty, falls_through })
     }
 
@@ -195,6 +337,11 @@ impl Checker<'_> {
                 };
                 let facts = self.facts_for_single_case(subject, subject_key, &coverage)?;
                 Ok(WhenConditionCheck {
+                    non_null: valid
+                        && !matches!(
+                            self.kind(result.ty),
+                            TypeKind::Nullable(_) | TypeKind::Error | TypeKind::Deferred(_)
+                        ),
                     coverage,
                     facts,
                     valid,
@@ -218,6 +365,7 @@ impl Checker<'_> {
                         coverage: Vec::new(),
                         facts: BTreeMap::new(),
                         valid: false,
+                        non_null: false,
                     });
                 };
                 let valid = self.is_error(target) || self.valid_type_test_relation(subject, target);
@@ -249,6 +397,9 @@ impl Checker<'_> {
                     coverage,
                     facts,
                     valid,
+                    non_null: valid
+                        && !negated
+                        && !matches!(self.kind(target), TypeKind::Nullable(_)),
                 })
             }
             WhenCondition::Contains {
@@ -269,6 +420,7 @@ impl Checker<'_> {
                     coverage: Vec::new(),
                     facts: BTreeMap::new(),
                     valid,
+                    non_null: false,
                 })
             }
         }
@@ -461,5 +613,128 @@ impl Checker<'_> {
             }
             _ => None,
         }
+    }
+}
+
+/// 对内部单次求值 subject 分裂域，不把未知条件的失败误作完整补集。
+fn split_domain(
+    input: &WhenDomain,
+    coverage: &[CoverageAtom],
+    non_null: bool,
+    valid: bool,
+) -> (WhenDomain, WhenDomain) {
+    if !valid || input.is_empty() {
+        return (WhenDomain::Empty, input.clone());
+    }
+    if !coverage.is_empty() {
+        if let WhenDomain::Finite(atoms) = input {
+            return (
+                WhenDomain::Finite(
+                    atoms
+                        .iter()
+                        .copied()
+                        .filter(|atom| coverage.contains(atom))
+                        .collect(),
+                ),
+                WhenDomain::Finite(
+                    atoms
+                        .iter()
+                        .copied()
+                        .filter(|atom| !coverage.contains(atom))
+                        .collect(),
+                ),
+            );
+        }
+        if coverage == [CoverageAtom::Null] {
+            return match input {
+                WhenDomain::Null => (WhenDomain::Null, WhenDomain::Empty),
+                WhenDomain::NonNull => (WhenDomain::Empty, WhenDomain::NonNull),
+                _ => (WhenDomain::Null, WhenDomain::NonNull),
+            };
+        }
+    }
+    let matched = if non_null {
+        match input {
+            WhenDomain::Null => WhenDomain::Empty,
+            WhenDomain::Finite(atoms) => WhenDomain::Finite(
+                atoms
+                    .iter()
+                    .copied()
+                    .filter(|atom| *atom != CoverageAtom::Null)
+                    .collect(),
+            ),
+            _ => WhenDomain::NonNull,
+        }
+    } else {
+        input.clone()
+    };
+    (matched, input.clone())
+}
+
+fn union_domain(left: WhenDomain, right: WhenDomain) -> WhenDomain {
+    if left.is_empty() {
+        return right;
+    }
+    if right.is_empty() || left == right {
+        return left;
+    }
+    if let (WhenDomain::Finite(left), WhenDomain::Finite(right)) = (&left, &right) {
+        let mut atoms = left.clone();
+        atoms.extend(right.iter().filter(|atom| !left.contains(atom)).copied());
+        atoms.sort();
+        return WhenDomain::Finite(atoms);
+    }
+    WhenDomain::Nullable
+}
+
+impl Checker<'_> {
+    fn nullable_when_category(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<NullableWhenSubjectCategory, TypeCheckingError> {
+        use NullableWhenSubjectCategory as Category;
+        if let Expression::Group { expression } =
+            self.ast().expressions().get(expression)?.payload()
+        {
+            return self.nullable_when_category(*expression);
+        }
+        if self
+            .element_places
+            .iter()
+            .any(|place| place.expression() == expression)
+        {
+            return Ok(Category::ContainerElement);
+        }
+        if self.aggregate_projections.iter().any(|place| {
+            place.expression() == expression && place.kind() == AggregateProjectionKind::Field
+        }) {
+            return Ok(Category::OrdinaryField);
+        }
+        let source_key = self.stable_flow_key(expression).or_else(|| {
+            let node = self.ast().expressions().get(expression).ok()?;
+            if matches!(node.payload(), Expression::Name)
+                && let Some(ReferenceTarget::Symbol(symbol)) =
+                    self.reference(node.span(), Namespace::Value)
+            {
+                Some(FlowKey::Symbol(*symbol))
+            } else {
+                None
+            }
+        });
+        if let Some(key) = source_key {
+            return Ok(match key {
+                FlowKey::Symbol(symbol) => match self.parameter_modes[symbol.index()] {
+                    Some(ParameterMode::Borrow) => Category::BorrowRoot,
+                    Some(ParameterMode::Inout) => Category::InoutRoot,
+                    _ => Category::OwnedRoot,
+                },
+                FlowKey::This => match self.current_receiver_mode {
+                    Some(ParameterMode::Inout) => Category::InoutRoot,
+                    Some(ParameterMode::Value) => Category::OwnedRoot,
+                    _ => Category::BorrowRoot,
+                },
+            });
+        }
+        Ok(Category::Temporary)
     }
 }

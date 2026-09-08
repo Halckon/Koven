@@ -274,6 +274,12 @@ impl Checker<'_> {
             self.emit_loan_conflict(primary, conflict.origin, message)?;
             return Ok(false);
         }
+        if matches!(
+            access,
+            AccessKind::Mutation | AccessKind::ExclusiveLoan | AccessKind::Move
+        ) {
+            state.nullable_views.remove(&place.root());
+        }
         Ok(true)
     }
 

@@ -786,3 +786,18 @@ fn checked_in_phase3_ownership_fixtures_execute_pass_and_fail_cases() {
         }
     }
 }
+
+#[test]
+fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
+    // A null match skips later conditions, so their owned arguments cannot move this branch's value.
+    let text = "class Resource {}
+        fun probe(own resource: Resource): Boolean = true
+        fun read(resource: Resource): Int = 0
+        fun test(flag: Boolean?, own resource: Resource): Int = when (flag) {
+            null -> read(resource)
+            probe(resource) -> 0
+            else -> 0
+        }";
+    let (_, _, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}

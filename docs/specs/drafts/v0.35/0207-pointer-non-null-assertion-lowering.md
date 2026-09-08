@@ -1,6 +1,6 @@
 # SPEC-0207：pointer-like 非空断言 lowering
 
-> **性质**：draft Spec · **状态**：draft（blocked by unapproved v0.35 guide） · **读取时机**：评审 v0.35 proposal 或对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：draft Spec · **状态**：draft（等待前置 Spec） · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
@@ -9,11 +9,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-207` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.35 §35](../../../proposals/v0.35-nullable-when-and-non-null-assertion.md) |
-| 批准依据 | 无；v0.35 尚未启用，且尚未显式重基到现行 v0.34 |
+| 语言规范 | 现行 [v0.35 空安全](../../../guide/09-nullability-errors.md)与[阶段边界](../../../guide/15-conformance-and-staging.md) |
+| 批准依据 | 2026-09-08 用户明确启用 v0.35，按持续推进 Goal 分阶段实施；依赖未完成者保持 draft |
 | 前置 Spec | SPEC-0034、0039、0184、0196 `done`；SPEC-0205/0206 待完成 |
 | 前置 ADR | ADR-0017 `accepted` |
-| 阻塞项 | 明确 v0.35 对现行 v0.34 的重基与取代关系；v0.35 启用；SPEC-0205/0206 `done` |
+| 阻塞项 | SPEC-0205/0206 `done` |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 pointer-like lowering |
 
@@ -37,6 +37,8 @@
 - 不实现 inline/tagged nullable、borrow unwrap、Elvis、safe call、`as?` 或新的 Abort ABI。
 
 ## 5. 验收标准
+
+- [ ] native 覆盖同名 error 遮蔽时 !! 仍 abort，显式 error 调用仍选择源码声明。
 
 - [ ] SSA/verifier 覆盖合法 take、伪/跨 owner proof、重复 take/drop 与 null-edge direct Abort。
 - [ ] class/Box/Rc 非空结果与 null 进程终止 native 测试通过，operand副作用只发生一次。
@@ -64,9 +66,7 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 
 ## 9. 未决问题
 
-- 启用前处理 [v0.34 重基审查](../../../proposals/v0.35-nullable-when-and-non-null-assertion.md#v034-重基审查未启用)中的 R2（assertion Abort 名称绑定）。
-
-- 其余状态门禁由元数据表达。
+- 无语义未决项；R1–R3 已随 v0.35 启用，前置依赖见元数据。
 
 ## 10. 验证记录
 

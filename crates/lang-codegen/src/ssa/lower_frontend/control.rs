@@ -354,7 +354,7 @@ impl ExpressionLowerer<'_> {
         let mut unmatched_bindings = baseline.clone();
         let mut exits = Vec::new();
         let mut has_else = false;
-        for entry in entries {
+        for (entry_index, entry) in entries.iter().enumerate() {
             if entry.else_span.is_some() {
                 has_else = true;
                 if let Some(exit) =
@@ -369,31 +369,43 @@ impl ExpressionLowerer<'_> {
             }
             let entry_baseline = unmatched_bindings.clone();
             let mut matches = Vec::new();
-            for condition in &entry.conditions {
+            for (alternative, condition) in entry.conditions.iter().enumerate() {
                 self.block = unmatched_block;
                 self.bindings.clone_from(&unmatched_bindings);
                 let condition = self.lower_when_condition(subject, condition, entry.span)?;
-                let matched = self.add_empty_block(entry.span)?;
-                let next = self.add_empty_block(entry.span)?;
+                let after_condition = self.bindings.clone();
+                let carried = self.linear_binding_slots(&after_condition, entry.span)?;
+                let matched = self.add_linear_binding_block(&carried, entry.span)?;
+                let next = self.add_linear_binding_block(&carried, entry.span)?;
                 self.function
                     .set_terminator(
                         self.block,
                         TerminatorKind::Conditional {
                             condition,
-                            when_true: empty_edge(matched),
-                            when_false: empty_edge(next),
+                            when_true: linear_binding_edge(matched, &carried),
+                            when_false: linear_binding_edge(next, &carried),
                         },
                         Origin::Source(entry.span),
                     )
                     .map_err(|_| error(LoweringErrorKind::InvalidModel, entry.span))?;
-                let after_condition = self.bindings.clone();
+                self.block = matched;
+                self.bindings =
+                    self.rebind_linear_bindings(&after_condition, matched, &carried, entry.span)?;
+                self.emit_drops(
+                    lang_frontend::ownership_checking::DropPoint::WhenAlternativeMatch {
+                        control: expression,
+                        entry: entry_index,
+                        alternative,
+                    },
+                )?;
                 matches.push(BranchExit {
                     block: matched,
                     result: LoweredValue::Unit,
-                    bindings: after_condition.clone(),
+                    bindings: self.bindings.clone(),
                 });
                 unmatched_block = next;
-                unmatched_bindings = after_condition;
+                unmatched_bindings =
+                    self.rebind_linear_bindings(&after_condition, next, &carried, entry.span)?;
             }
 
             self.merge_exits(matches, &entry_baseline, entry.span)?;

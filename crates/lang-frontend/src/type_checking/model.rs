@@ -1061,6 +1061,7 @@ pub struct TypedFile {
     parameter_bindings: Vec<ParameterBindingDescriptor>,
     non_null_uses: Vec<NonNullUseDescriptor>,
     null_comparisons: Vec<NullComparisonDescriptor>,
+    nullable_whens: Vec<super::NullableWhenDescriptor>,
     nominals: Vec<NominalDescriptor>,
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
@@ -1085,6 +1086,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) parameter_bindings: Vec<ParameterBindingDescriptor>,
     pub(crate) non_null_uses: Vec<NonNullUseDescriptor>,
     pub(crate) null_comparisons: Vec<NullComparisonDescriptor>,
+    pub(crate) nullable_whens: Vec<super::NullableWhenDescriptor>,
     pub(crate) nominals: Vec<NominalDescriptor>,
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
@@ -1122,6 +1124,7 @@ impl TypedFile {
             parameter_bindings: parts.parameter_bindings,
             non_null_uses: parts.non_null_uses,
             null_comparisons: parts.null_comparisons,
+            nullable_whens: parts.nullable_whens,
             nominals: parts.nominals,
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
@@ -1350,5 +1353,23 @@ impl TypedFile {
     /// 返回稳定排序的类型诊断。
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
+    }
+}
+
+impl TypedFile {
+    /// 返回按 when expression identity 排序的 nullable flow plans。
+    #[must_use]
+    pub fn nullable_whens(&self) -> &[super::NullableWhenDescriptor] {
+        &self.nullable_whens
+    }
+    /// 查询单次 subject 求值对应的 nullable flow plan。
+    #[must_use]
+    pub fn nullable_when(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::NullableWhenDescriptor> {
+        self.nullable_whens
+            .iter()
+            .find(|plan| plan.expression() == expression)
     }
 }

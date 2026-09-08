@@ -3,8 +3,10 @@ use std::collections::BTreeMap;
 mod closure;
 mod construction;
 mod container;
+mod control;
 mod drop_planner;
 mod loan;
+mod nullable_when;
 mod rc;
 
 use crate::{
@@ -31,6 +33,7 @@ use loan::ActiveLoan;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
+    nullable_views: BTreeMap<SymbolId, nullable_when::Proof>,
     moved: BTreeMap<SymbolId, Span>,
     loans: Vec<ActiveLoan>,
     closures: BTreeMap<SymbolId, ExpressionId>,
@@ -87,6 +90,7 @@ pub(super) fn check(
 }
 
 struct Checker<'a> {
+    nullable_whens: BTreeMap<usize, super::NullableWhenOwnershipPlan>,
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
     names: &'a NameResolution,
@@ -193,6 +197,7 @@ impl<'a> Checker<'a> {
             cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
+            nullable_whens: BTreeMap::new(),
             diagnostics: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
@@ -249,12 +254,18 @@ impl<'a> Checker<'a> {
                 OwnershipBindingDescriptor::new(binding.symbol(), kind)
             })
             .collect();
-        let drops = if diagnostics.is_empty() {
+        let (drops, loan_ends) = if diagnostics.is_empty() {
             drop_planner::plan(&self)?
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        self.finish_nullable_drops(&drops)?;
+        let construction_plans = self.construction.finish(diagnostics.is_empty());
+        let nullable_whens = if diagnostics.is_empty() {
+            self.nullable_whens.into_values().collect()
         } else {
             Vec::new()
         };
-        let construction_plans = self.construction.finish(diagnostics.is_empty());
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
@@ -266,6 +277,8 @@ impl<'a> Checker<'a> {
             self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
+                nullable_whens,
+                loan_ends,
                 bindings,
                 loans: self.loans,
                 drops,
@@ -496,7 +509,14 @@ impl<'a> Checker<'a> {
             | Expression::SuperMember { .. } => Ok(Flows::next(state)),
             Expression::Name => {
                 let mut state = state;
+                let proof = self
+                    .reference_symbol(span)
+                    .and_then(|symbol| state.nullable_views.get(&symbol).cloned());
+                let errors = self.diagnostics.len();
                 self.use_name(span, usage, &mut state)?;
+                if errors == self.diagnostics.len() {
+                    self.record_nullable_extraction(id, usage, proof);
+                }
                 Ok(Flows::next(state))
             }
             Expression::Group { expression } => self.check_expression(expression, state, usage),
@@ -517,10 +537,10 @@ impl<'a> Checker<'a> {
                 then_branch,
                 else_branch,
                 ..
-            } => self.check_if(condition, then_branch, else_branch, state),
+            } => self.check_if(id, condition, then_branch, else_branch, state),
             Expression::When {
                 subject, entries, ..
-            } => self.check_when(subject, &entries, state),
+            } => self.check_when(id, subject, &entries, state),
             Expression::Return { value, .. } => {
                 let mut flows = Flows::next(state);
                 if let Some(value) = value {
@@ -714,6 +734,9 @@ impl<'a> Checker<'a> {
                         self.reject_partial_move(id, *name_span)?;
                     }
                 }
+                if self.is_nothing_expression(id) {
+                    flows.next = None;
+                }
                 Ok(flows)
             }
             Expression::Index { receiver, index } => {
@@ -737,6 +760,7 @@ impl<'a> Checker<'a> {
 
     fn check_if(
         &mut self,
+        id: ExpressionId,
         condition: ExpressionId,
         then_branch: StatementId,
         else_branch: Option<StatementId>,
@@ -746,9 +770,10 @@ impl<'a> Checker<'a> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
         };
-        let mut branches = self.check_statement(then_branch, base.clone())?;
+        let usage = self.control_result_usage(id);
+        let mut branches = self.check_control_body(then_branch, base.clone(), usage)?;
         branches.merge(if let Some(else_branch) = else_branch {
-            self.check_statement(else_branch, base)?
+            self.check_control_body(else_branch, base, usage)?
         } else {
             Flows::next(base)
         });
@@ -758,38 +783,76 @@ impl<'a> Checker<'a> {
 
     fn check_when(
         &mut self,
+        id: ExpressionId,
         subject: Option<ExpressionId>,
         entries: &[crate::parser::WhenEntry],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let mut prefix = Flows::next(state);
         if let Some(subject) = subject {
-            prefix = self.chain_expression(prefix, subject, ExpressionUse::Read)?;
+            prefix = self.check_nullable_subject(id, subject, prefix)?;
         }
-        let Some(mut base) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        for entry in entries {
-            for condition in &entry.conditions {
+        let plan = self.typed.nullable_when(id).cloned();
+        self.begin_nullable_when(id)?;
+        if let Some(state) = prefix.next.as_mut() {
+            self.register_nullable_subject(id, state)?;
+        }
+        let mut remaining = prefix.next.take();
+        for (entry_index, entry) in entries.iter().enumerate() {
+            let descriptor = plan
+                .as_ref()
+                .and_then(|plan| plan.entries().get(entry_index));
+            let mut matched = None;
+            if entry.else_span.is_some() {
+                matched = remaining.take();
+            }
+            // Only the unmatched edge evaluates the next alternative or entry.
+            for (alternative_index, condition) in entry.conditions.iter().enumerate() {
+                let Some(mut input) = remaining.take() else {
+                    break;
+                };
+                self.enter_nullable_edge(id, entry_index, Some(alternative_index), &mut input);
                 let expression = match condition {
                     WhenCondition::Expression(expression)
                     | WhenCondition::Contains { expression, .. } => Some(*expression),
                     WhenCondition::TypeTest { .. } => None,
                 };
-                if let Some(expression) = expression {
-                    let flows = self.check_expression(expression, base, ExpressionUse::Read)?;
-                    base = flows.next.unwrap_or_default();
+                let mut flows = if let Some(expression) = expression {
+                    self.check_expression(expression, input, ExpressionUse::Read)?
+                } else {
+                    Flows::next(input)
+                };
+                let mut next = flows.next.take();
+                if let Some(state) = next.as_mut() {
+                    self.enter_nullable_edge(id, entry_index, None, state);
+                }
+                prefix.merge(flows);
+                let alternative =
+                    descriptor.and_then(|entry| entry.alternatives().get(alternative_index));
+                if alternative.is_none_or(|alternative| !alternative.match_domain().is_empty()) {
+                    merge_optional_state(&mut matched, next.clone());
+                }
+                if alternative
+                    .is_none_or(|alternative| !alternative.fallthrough_domain().is_empty())
+                {
+                    remaining = next;
                 }
             }
+            if let Some(mut matched) = matched {
+                self.enter_nullable_edge(id, entry_index, None, &mut matched);
+                let flows =
+                    self.check_control_body(entry.body, matched, self.control_result_usage(id))?;
+                self.finish_nullable_branch(id, entry_index, &flows);
+                prefix.merge(flows);
+            }
         }
-        let mut branches = Flows::default();
-        for entry in entries {
-            branches.merge(self.check_statement(entry.body, base.clone())?);
+        merge_optional_state(&mut prefix.next, remaining);
+        for state in [&mut prefix.next, &mut prefix.breaks, &mut prefix.continues]
+            .into_iter()
+            .flatten()
+        {
+            state.nullable_views.retain(|_, proof| proof.control != id);
         }
-        if entries.iter().all(|entry| entry.else_span.is_none()) {
-            branches.merge(Flows::next(base));
-        }
-        prefix.merge(branches);
         Ok(prefix)
     }
 
@@ -876,17 +939,17 @@ impl<'a> Checker<'a> {
             let place = OwnershipPlace::new(symbol, Vec::new());
             return self.ensure_place_available(&place, span, state);
         }
-        let access = match usage {
-            ExpressionUse::Read => AccessKind::Read,
-            ExpressionUse::Consume => AccessKind::Move,
-            ExpressionUse::Place => unreachable!("place handled above"),
-        };
         let place = OwnershipPlace::new(symbol, Vec::new());
         let move_only = self
             .typed
             .symbol_type(symbol)
             .and_then(|ty| self.typed.copyability(ty))
             == Some(Copyability::MoveOnly);
+        let access = if usage == ExpressionUse::Consume && move_only {
+            AccessKind::Move
+        } else {
+            AccessKind::Read
+        };
         if !self.access_place(&place, access, move_only, span, state)? {
             return Ok(());
         }
@@ -904,6 +967,7 @@ impl<'a> Checker<'a> {
         }
         if matches!(usage, ExpressionUse::Consume) && self.is_move_only_variable(symbol) {
             state.moved.insert(symbol, span);
+            state.nullable_views.remove(&symbol);
         }
         Ok(())
     }
@@ -1030,6 +1094,9 @@ fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
 }
 
 fn merge_state(target: &mut State, source: State) {
+    target
+        .nullable_views
+        .retain(|symbol, proof| source.nullable_views.get(symbol) == Some(proof));
     target.loans.retain(|loan| source.loans.contains(loan));
     target
         .closures

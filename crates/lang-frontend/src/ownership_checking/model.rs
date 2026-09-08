@@ -161,7 +161,7 @@ pub enum LoanTarget {
     Temporary(ExpressionId),
 }
 
-/// 一次成功建立并在同步调用返回时结束的 loan。
+/// 一次成功建立的 loan；实际终止路径由 OwnershipCheckedFile::loan_ends 描述。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanFact {
     call: ExpressionId,
@@ -247,6 +247,15 @@ pub enum DropPoint {
         control: ExpressionId,
         /// 源码顺序的 branch 下标。
         branch: usize,
+    },
+    /// 一个 when alternative 匹配后、进入该 entry 的共享 body 之前。
+    WhenAlternativeMatch {
+        /// when 表达式。
+        control: ExpressionId,
+        /// 源码顺序的 entry 下标。
+        entry: usize,
+        /// 该 entry 内源码顺序的 alternative 下标。
+        alternative: usize,
     },
     /// while / for 的零次或正常退出边。
     LoopExit(StatementId),
@@ -498,6 +507,8 @@ impl OwnershipDeferredFact {
 /// Phase 3 单文件所有权检查产物。
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
+    loan_ends: Vec<LoanEndFact>,
+    nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     source_id: SourceId,
     environment_owner: Arc<()>,
     typed_analysis_owner: Arc<()>,
@@ -514,6 +525,8 @@ pub struct OwnershipCheckedFile {
 }
 
 pub(crate) struct OwnershipCheckedParts {
+    pub(crate) loan_ends: Vec<LoanEndFact>,
+    pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
     pub(crate) loans: Vec<LoanFact>,
     pub(crate) drops: Vec<DropFact>,
@@ -526,6 +539,23 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 返回实际控制流上的 loan 终止事实；同边先结束loan再执行drop。
+    pub fn loan_ends(&self) -> &[LoanEndFact] {
+        &self.loan_ends
+    }
+    /// 返回仅在无诊断时发布的 nullable ownership plans。
+    pub fn nullable_whens(&self) -> &[super::NullableWhenOwnershipPlan] {
+        &self.nullable_whens
+    }
+    /// 按 when 表达式身份查询 ownership plan。
+    pub fn nullable_when(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::NullableWhenOwnershipPlan> {
+        self.nullable_whens
+            .iter()
+            .find(|plan| plan.expression() == expression)
+    }
     pub(crate) fn new(
         source_id: SourceId,
         environment_owner: Arc<()>,
@@ -536,6 +566,8 @@ impl OwnershipCheckedFile {
         Self {
             source_id,
             environment_owner,
+            nullable_whens: parts.nullable_whens,
+            loan_ends: parts.loan_ends,
             typed_analysis_owner,
             diagnostics,
             bindings: parts.bindings,
@@ -601,7 +633,14 @@ impl OwnershipCheckedFile {
 
     /// 返回在指定同步 call 返回时结束的 loans。
     pub fn loans_ending_at(&self, call: ExpressionId) -> impl Iterator<Item = &LoanFact> {
-        self.loans.iter().filter(move |loan| loan.call() == call)
+        self.loans.iter().filter(move |loan| {
+            loan.call() == call
+                && self.loan_ends.iter().any(|end| {
+                    end.call == call
+                        && end.argument == loan.argument()
+                        && end.point == LoanEndPoint::CallReturn(call)
+                })
+        })
     }
 
     /// 返回源码 / 控制流顺序的有效 drop facts。
@@ -677,5 +716,36 @@ impl OwnershipCheckedFile {
     #[must_use]
     pub fn deferred(&self) -> &[OwnershipDeferredFact] {
         &self.deferred
+    }
+}
+
+/// 一次实际执行路径上的 loan 终止边；先终止 loan，再执行该边的 drop facts。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoanEndPoint {
+    /// 所有实参正常完成且同步调用已返回。
+    CallReturn(ExpressionId),
+    /// 尚未调用就由 return/break/continue 放弃调用求值。
+    ControlTransfer(ExpressionId),
+}
+
+/// 保留原 loan 的 call/argument identity，不建立第二个 loan。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoanEndFact {
+    pub(crate) call: ExpressionId,
+    pub(crate) argument: ExpressionId,
+    pub(crate) point: LoanEndPoint,
+}
+impl LoanEndFact {
+    /// 返回原 loan 所属调用。
+    pub fn call(&self) -> ExpressionId {
+        self.call
+    }
+    /// 返回建立原 loan 的实参或 receiver。
+    pub fn argument(&self) -> ExpressionId {
+        self.argument
+    }
+    /// 返回实际终止边；abort 不产生 unwind 终止事实。
+    pub fn point(&self) -> LoanEndPoint {
+        self.point
     }
 }

@@ -330,9 +330,9 @@ Spec 之前，本条限制不变。）
       layout fact；字段递归替换不依赖 construction/call reachability，冻结候选快照避免参数增长型
       heap 递归无限物化。该节点解除 SPEC-0191 的 `List<T>` / `Wrapper<T>` frontend 前置；`T?`
       storage lowering 仍独立。
-- [ ] **[SPEC-0202](../../../specs/drafts/v0.35/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
+- [ ] **[SPEC-0202](../../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
-- [ ] **[SPEC-0205](../../../specs/drafts/v0.35/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
+- [ ] **[SPEC-0205](../../../specs/active/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
       operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
 - [ ] **[SPEC-0026](../../../specs/drafts/v0.36/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
@@ -396,7 +396,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       Copy/Move/Temporary delivery、capture/Transferability、return 与 ASAP drop facts；错误 unit 原子
       清空可执行 facts，element-field projection 等显式 deferred 边界不通过 validated ownership gate，
       不新增跨过程所有权分析。
-- [ ] **[SPEC-0203](../../../specs/drafts/v0.35/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
+- [ ] **[SPEC-0203](../../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../../../specs/drafts/v0.35/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
@@ -456,7 +456,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       verifier；LLVM 使用单 pointer niche 和 conditional drop。class/Box/Rc 的 null/non-null、Rc
       非空分支 share/read 与 native build/link/run 已验收；inline nullable、nullable `when` 与 `!!`
       消费 lowering 保持确定性 unsupported，等待各自独立 Spec
-- [ ] **[SPEC-0204](../../../specs/drafts/v0.35/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
+- [ ] **[SPEC-0204](../../../specs/active/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
       复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
       SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
 - [ ] **[SPEC-0207](../../../specs/drafts/v0.35/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费

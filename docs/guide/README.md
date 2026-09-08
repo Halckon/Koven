@@ -1,10 +1,10 @@
-# Koven v0.34 语言规范
+# Koven v0.35 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.34） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.35） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.34 -->
+<!-- current-guide: v0.35 -->
 
-本规范定义 Koven v0.34。它不是教程，也不描述某项功能何时完成；当前实现事实见
+本规范定义 Koven v0.35。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
@@ -31,6 +31,7 @@
 
 ## 版本与边界
 
-- v0.34 已明确取代 v0.33；本次文档重组不改变任何 v0.34 语义。
-- v0.35–v0.37、Map 所有权和 v2 interface value 均未启用，不得作为实现依据。
+- 2026-09-08 用户明确启用 v0.35，完整继承并取代 v0.34；新增 nullable flow/extraction，
+  明确 named owner liveness、assertion Abort 绑定及内部 proof identity。
+- v0.36–v0.37、Map 所有权和 v2 interface value 均未启用，不得作为实现依据。
 - 旧版规范和重组前快照只在 [Archive](../archive/README.md) 中用于追溯。

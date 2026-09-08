@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
+mod control;
 mod liveness;
+mod pending_call;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -17,14 +19,17 @@ use crate::{
 };
 
 use crate::ownership_checking::{
-    ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropFact, DropPoint, DropTarget,
+    ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropFact, DropPoint,
+    DropTarget, LoanEndFact, LoanEndPoint, LoanTarget,
 };
 
 use super::{Checker, ExpressionUse, OwnershipCheckingError};
 
 use self::liveness::Liveness;
 
-pub(super) fn plan(checker: &Checker<'_>) -> Result<Vec<DropFact>, OwnershipCheckingError> {
+pub(super) fn plan(
+    checker: &Checker<'_>,
+) -> Result<(Vec<DropFact>, Vec<LoanEndFact>), OwnershipCheckingError> {
     let liveness = Liveness::build(checker)?;
     DropPlanner::new(checker, liveness).run()
 }
@@ -51,8 +56,19 @@ struct OwnedValue {
     scope_depth: usize,
 }
 
+#[derive(Clone, Debug)]
+struct NullableTemporary {
+    control: ExpressionId,
+    subject: ExpressionId,
+    origin: Span,
+    loop_depth: usize,
+    prior_symbols: Vec<SymbolId>,
+}
+
 #[derive(Clone, Debug, Default)]
 struct ValueState {
+    nullable_temporaries: Vec<NullableTemporary>,
+    pending_calls: Vec<pending_call::PendingCall>,
     values: Vec<OwnedValue>,
     closures: BTreeMap<SymbolId, ExpressionId>,
 }
@@ -81,6 +97,7 @@ struct DropPlanner<'a, 'checker> {
     checker: &'a Checker<'checker>,
     liveness: Liveness<'a, 'checker>,
     facts: Vec<DropFact>,
+    loan_ends: Vec<LoanEndFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
     binding_depths: BTreeMap<SymbolId, usize>,
@@ -92,17 +109,18 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             checker,
             liveness,
             facts: Vec::new(),
+            loan_ends: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
         }
     }
 
-    fn run(mut self) -> Result<Vec<DropFact>, OwnershipCheckingError> {
+    fn run(mut self) -> Result<(Vec<DropFact>, Vec<LoanEndFact>), OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
         }
-        Ok(self.facts)
+        Ok((self.facts, self.loan_ends))
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
@@ -233,7 +251,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(true);
                 };
                 let closure = self.closure_origin(initializer, state)?;
-                self.expression(initializer, ExpressionUse::Consume, state)?;
+                if !self.expression(initializer, ExpressionUse::Consume, state)? {
+                    return Ok(false);
+                }
                 if let Some(symbol) = self.checker.marker_symbol(name)
                     && self.checker.is_move_only_variable(symbol)
                 {
@@ -262,7 +282,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         DestructuringMode::Consume => ExpressionUse::Consume,
                     })
                     .unwrap_or(ExpressionUse::Read);
-                self.expression(initializer, usage, state)?;
+                if !self.expression(initializer, usage, state)? {
+                    return Ok(false);
+                }
                 if let Some(descriptor) = self.checker.typed.destructuring(id) {
                     for component in descriptor.components() {
                         let symbol = component.symbol();
@@ -417,13 +439,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 let base = state.clone();
                 let mut branch_states = Vec::new();
                 let mut then_state = base.clone();
-                if self.statement(then_branch, &mut then_state)? {
+                let usage = self.checker.control_result_usage(id);
+                if self.control_body(then_branch, usage, &mut then_state)? {
                     self.drop_branch_exit(id, 0, &mut then_state);
                     branch_states.push(then_state);
                 }
                 if let Some(else_branch) = else_branch {
                     let mut else_state = base;
-                    if self.statement(else_branch, &mut else_state)? {
+                    if self.control_body(else_branch, usage, &mut else_state)? {
                         self.drop_branch_exit(id, 1, &mut else_state);
                         branch_states.push(else_state);
                     }
@@ -439,29 +462,113 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::When {
                 subject, entries, ..
             } => {
-                if let Some(subject) = subject {
-                    self.expression(subject, ExpressionUse::Read, state)?;
+                if let Some(subject) = subject
+                    && !self.expression(subject, ExpressionUse::Read, state)?
+                {
+                    return Ok(false);
                 }
-                for entry in &entries {
-                    for condition in &entry.conditions {
-                        if let WhenCondition::Expression(expression)
-                        | WhenCondition::Contains { expression, .. } = condition
-                        {
-                            self.expression(*expression, ExpressionUse::Read, state)?;
-                        }
-                    }
+                let plan = self.checker.typed.nullable_when(id).cloned();
+                if let Some(plan) = &plan
+                    && plan.category()
+                        == crate::type_checking::NullableWhenSubjectCategory::Temporary
+                    && self.is_move_only_temporary(plan.subject())
+                {
+                    state.nullable_temporaries.push(NullableTemporary {
+                        control: id,
+                        subject: plan.subject(),
+                        origin: self
+                            .checker
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(plan.subject())?
+                            .span(),
+                        loop_depth: self.loop_boundaries.len(),
+                        prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
+                    });
                 }
-                let base = state.clone();
+                let mut remaining = Some(state.clone());
                 let mut branch_states = Vec::new();
                 for (index, entry) in entries.iter().enumerate() {
-                    let mut branch = base.clone();
-                    if self.statement(entry.body, &mut branch)? {
+                    let descriptor = plan.as_ref().and_then(|plan| plan.entries().get(index));
+                    let mut matched = Vec::new();
+                    let mut matched_alternatives = Vec::new();
+                    if entry.else_span.is_some() {
+                        matched.extend(remaining.take());
+                    }
+                    for (alternative_index, condition) in entry.conditions.iter().enumerate() {
+                        let Some(mut input) = remaining.take() else {
+                            break;
+                        };
+                        if let WhenCondition::Expression(expression)
+                        | WhenCondition::Contains { expression, .. } = condition
+                            && !self.expression(*expression, ExpressionUse::Read, &mut input)?
+                        {
+                            break;
+                        }
+                        let alternative = descriptor
+                            .and_then(|entry| entry.alternatives().get(alternative_index));
+                        if alternative
+                            .is_none_or(|alternative| !alternative.match_domain().is_empty())
+                        {
+                            matched.push(input.clone());
+                            matched_alternatives.push(alternative_index);
+                        }
+                        if alternative
+                            .is_none_or(|alternative| !alternative.fallthrough_domain().is_empty())
+                        {
+                            remaining = Some(input);
+                        }
+                    }
+                    if matched.is_empty() {
+                        continue;
+                    }
+                    // A successful ownership check guarantees that an owner missing on
+                    // another incoming edge cannot be read by the shared body. Release
+                    // each remaining obligation on its own edge before intersecting states.
+                    let common = matched[0]
+                        .values
+                        .iter()
+                        .filter(|value| {
+                            matched
+                                .iter()
+                                .all(|incoming| incoming.position(value.symbol).is_some())
+                        })
+                        .map(|value| value.symbol)
+                        .collect::<std::collections::BTreeSet<_>>();
+                    for (alternative, incoming) in
+                        matched_alternatives.into_iter().zip(&mut matched)
+                    {
+                        let exclusive = incoming
+                            .values
+                            .iter()
+                            .rev()
+                            .filter(|value| !common.contains(&value.symbol))
+                            .map(|value| value.symbol)
+                            .collect::<Vec<_>>();
+                        for symbol in exclusive {
+                            self.drop_named(
+                                DropPoint::WhenAlternativeMatch {
+                                    control: id,
+                                    entry: index,
+                                    alternative,
+                                },
+                                symbol,
+                                incoming,
+                            );
+                        }
+                    }
+                    let mut branch = merge_value_states(matched);
+                    if self.control_body(
+                        entry.body,
+                        self.checker.control_result_usage(id),
+                        &mut branch,
+                    )? {
                         self.drop_branch_exit(id, index, &mut branch);
                         branch_states.push(branch);
                     }
                 }
-                if entries.iter().all(|entry| entry.else_span.is_none()) {
-                    let mut implicit = base;
+                if let Some(mut implicit) = remaining {
                     self.drop_branch_exit(id, entries.len(), &mut implicit);
                     branch_states.push(implicit);
                 }
@@ -470,8 +577,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(continues)
             }
             Expression::Return { value, .. } => {
-                if let Some(value) = value {
-                    self.expression(value, ExpressionUse::Consume, state)?;
+                if let Some(value) = value
+                    && !self.expression(value, ExpressionUse::Consume, state)?
+                {
+                    return Ok(false);
                 }
                 self.drop_all(DropPoint::ControlTransfer(id), state);
                 Ok(false)
@@ -530,7 +639,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
                     self.expression(descriptor.receiver(), ExpressionUse::Place, state)?;
                     self.expression(descriptor.index(), ExpressionUse::Read, state)?;
-                    self.expression(value, ExpressionUse::Consume, state)?;
+                    if !self.expression(value, ExpressionUse::Consume, state)? {
+                        return Ok(false);
+                    }
                     if self.checker.typed.copyability(descriptor.element_type())
                         == Some(Copyability::MoveOnly)
                     {
@@ -558,7 +669,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     return Ok(true);
                 }
-                self.expression(value, ExpressionUse::Consume, state)?;
+                if !self.expression(value, ExpressionUse::Consume, state)? {
+                    return Ok(false);
+                }
                 if let Some(place) = self.checker.place(target)?
                     && place.is_root()
                 {
@@ -607,50 +720,34 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Call {
                 callee, arguments, ..
             } => {
+                state.pending_calls.push(pending_call::PendingCall::new(
+                    id,
+                    self.loop_boundaries.len(),
+                ));
                 let modes = self.checker.calls_by_expression.get(&id.index()).cloned();
-                let mut borrowed_roots = Vec::new();
                 match self
                     .checker
                     .receivers_by_expression
                     .get(&id.index())
                     .copied()
                 {
-                    Some(receiver) => match receiver.origin() {
-                        CallReceiverOrigin::Expression(expression) => match receiver.mode() {
-                            ParameterMode::Value => {
-                                self.expression(expression, ExpressionUse::Consume, state)?;
+                    Some(receiver) => {
+                        if let CallReceiverOrigin::Expression(expression) = receiver.origin() {
+                            let usage = if receiver.mode() == ParameterMode::Value {
+                                ExpressionUse::Consume
+                            } else {
+                                ExpressionUse::Place
+                            };
+                            if !self.expression(expression, usage, state)? {
+                                return Ok(false);
                             }
-                            ParameterMode::Borrow | ParameterMode::Inout => {
-                                if let Some(place) = self.checker.place(expression)? {
-                                    self.expression(expression, ExpressionUse::Place, state)?;
-                                    if state.position(place.root()).is_some() {
-                                        borrowed_roots.push(place.root());
-                                    }
-                                } else {
-                                    self.expression(expression, ExpressionUse::Place, state)?;
-                                    if receiver.mode() == ParameterMode::Borrow
-                                        && self.is_move_only_temporary(expression)
-                                    {
-                                        let origin = self
-                                            .checker
-                                            .parsed
-                                            .ast()
-                                            .expressions()
-                                            .get(expression)?
-                                            .span();
-                                        self.push_fact(DropFact::new(
-                                            DropPoint::CallReturn(id),
-                                            DropTarget::Temporary(expression),
-                                            origin,
-                                        ));
-                                    }
-                                }
-                            }
-                        },
-                        CallReceiverOrigin::ImplicitThis(_) => {}
-                    },
+                            self.register_pending_argument(id, expression, state)?;
+                        }
+                    }
                     None => {
-                        self.expression(callee, ExpressionUse::Read, state)?;
+                        if !self.expression(callee, ExpressionUse::Read, state)? {
+                            return Ok(false);
+                        }
                     }
                 }
                 for (index, argument) in arguments.into_iter().enumerate() {
@@ -659,47 +756,25 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         .and_then(|modes| modes.get(index))
                         .copied()
                         .unwrap_or(ParameterMode::Borrow);
-                    match mode {
-                        ParameterMode::Value => {
-                            self.expression(argument.value, ExpressionUse::Consume, state)?;
-                        }
-                        ParameterMode::Borrow | ParameterMode::Inout => {
-                            if let Some(place) = self.checker.place(argument.value)? {
-                                let root = place.root();
-                                self.expression(argument.value, ExpressionUse::Place, state)?;
-                                if state.position(root).is_some() && !borrowed_roots.contains(&root)
-                                {
-                                    borrowed_roots.push(root);
-                                }
-                            } else {
-                                self.expression(argument.value, ExpressionUse::Place, state)?;
-                                if let Some(temporary) = self
-                                    .checker
-                                    .temporary_element_owner(argument.value)?
-                                    .or_else(|| {
-                                        (mode == ParameterMode::Borrow
-                                            && self.is_move_only_temporary(argument.value))
-                                        .then_some(argument.value)
-                                    })
-                                {
-                                    let origin = self
-                                        .checker
-                                        .parsed
-                                        .ast()
-                                        .expressions()
-                                        .get(temporary)?
-                                        .span();
-                                    self.push_fact(DropFact::new(
-                                        DropPoint::CallReturn(id),
-                                        DropTarget::Temporary(temporary),
-                                        origin,
-                                    ));
-                                }
-                            }
-                        }
+                    let usage = if mode == ParameterMode::Value {
+                        ExpressionUse::Consume
+                    } else {
+                        ExpressionUse::Place
+                    };
+                    if !self.expression(argument.value, usage, state)? {
+                        return Ok(false);
                     }
+                    self.register_pending_argument(id, argument.value, state)?;
                 }
-                for root in borrowed_roots {
+                if self.checker.is_nothing_expression(id) {
+                    return Ok(false);
+                }
+                let roots = self
+                    .end_pending_calls(LoanEndPoint::CallReturn(id), state, |call| call.call == id);
+                self.drop_nullable_temporaries(DropPoint::CallReturn(id), state, |temporary| {
+                    temporary.control == id
+                });
+                for root in roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
                         self.drop_named(DropPoint::CallReturn(id), root, state);
                     }
@@ -809,6 +884,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_named(&mut self, point: DropPoint, symbol: SymbolId, state: &mut ValueState) {
+        if state.pending_calls.iter().any(|call| {
+            call.loans.iter().any(
+                |loan| matches!(loan.target(), LoanTarget::Place(place) if place.root() == symbol),
+            )
+        }) {
+            return;
+        }
         let closure = state.closures.remove(&symbol);
         if let Some(value) = state.remove_value(symbol) {
             let mut shared_sources = Vec::new();
@@ -845,7 +927,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             && capture.source() == ClosureCaptureSource::Symbol(source)
                     })
                 });
-                if !still_captured && !self.live_after(point).contains(&source) {
+                // Match-edge cleanup must not shorten the lifetime of a shared
+                // capture source that the entry body may still read. Its ordinary
+                // body/branch liveness remains responsible for that source.
+                if !still_captured
+                    && !matches!(point, DropPoint::WhenAlternativeMatch { .. })
+                    && !self.live_after(point).contains(&source)
+                {
                     self.drop_named(point, source, state);
                 }
             }
@@ -869,7 +957,63 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
+    /// Release inner scopes first, then the subject temporary, then older named owners.
+    fn drop_nullable_temporaries(
+        &mut self,
+        point: DropPoint,
+        state: &mut ValueState,
+        selected: impl Fn(&NullableTemporary) -> bool,
+    ) {
+        for index in (0..state.nullable_temporaries.len()).rev() {
+            if !selected(&state.nullable_temporaries[index]) {
+                continue;
+            }
+            let temporary = state.nullable_temporaries.remove(index);
+            let newer = state
+                .values
+                .iter()
+                .rev()
+                .filter(|value| {
+                    let newer = !temporary.prior_symbols.contains(&value.symbol)
+                        || value.origin.start() > temporary.origin.end();
+                    let leaving = match point {
+                        DropPoint::BranchExit { control, .. } | DropPoint::CallReturn(control) => {
+                            !self.liveness.expression_after[control.index()].contains(&value.symbol)
+                        }
+                        DropPoint::ControlTransfer(expression) => {
+                            self.checker
+                                .parsed
+                                .ast()
+                                .expressions()
+                                .get(expression)
+                                .is_ok_and(|node| {
+                                    matches!(node.payload(), Expression::Return { .. })
+                                })
+                                || value.scope_depth
+                                    > self.loop_boundaries.last().copied().unwrap_or(0)
+                        }
+                        _ => true,
+                    };
+                    newer && leaving
+                })
+                .map(|value| value.symbol)
+                .collect::<Vec<_>>();
+            for symbol in newer {
+                self.drop_named(point, symbol, state);
+            }
+            self.push_fact(DropFact::new(
+                point,
+                DropTarget::Temporary(temporary.subject),
+                temporary.origin,
+            ));
+        }
+    }
+
     fn drop_all(&mut self, point: DropPoint, state: &mut ValueState) {
+        if let DropPoint::ControlTransfer(expression) = point {
+            self.end_pending_calls(LoanEndPoint::ControlTransfer(expression), state, |_| true);
+        }
+        self.drop_nullable_temporaries(point, state, |_| true);
         while let Some(symbol) = state.values.last().map(|value| value.symbol) {
             self.drop_named(point, symbol, state);
         }
@@ -888,6 +1032,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_deeper_than(&mut self, depth: usize, point: DropPoint, state: &mut ValueState) {
+        let loop_depth = self.loop_boundaries.len();
+        if let DropPoint::ControlTransfer(expression) = point {
+            self.end_pending_calls(LoanEndPoint::ControlTransfer(expression), state, |call| {
+                call.loop_depth >= loop_depth
+            });
+        }
+        self.drop_nullable_temporaries(point, state, |temporary| {
+            temporary.loop_depth >= loop_depth
+        });
         let mut index = state.values.len();
         while index > 0 {
             index -= 1;
@@ -900,6 +1053,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_branch_exit(&mut self, control: ExpressionId, branch: usize, state: &mut ValueState) {
+        self.drop_nullable_temporaries(
+            DropPoint::BranchExit { control, branch },
+            state,
+            |temporary| temporary.control == control,
+        );
         let live_after = &self.liveness.expression_after[control.index()];
         let symbols = state
             .values
@@ -939,6 +1097,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             | DropPoint::ControlTransfer(expression)
             | DropPoint::AfterReplacement(expression)
             | DropPoint::BranchExit {
+                control: expression,
+                ..
+            }
+            | DropPoint::WhenAlternativeMatch {
                 control: expression,
                 ..
             } => &self.liveness.expression_after[expression.index()],

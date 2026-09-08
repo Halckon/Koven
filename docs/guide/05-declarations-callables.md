@@ -1,8 +1,8 @@
-# Koven v0.34：声明与 Callable
+# Koven v0.35：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.34） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.35） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.34 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.35 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -124,8 +124,8 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 - 普通不可变、可变与常量声明分别以 `val`、`var`、固定的 `const val` 开始；不存在
   `const x = 1` 或 `const var x = 1`。三者都必须有普通 `Identifier` 名称和 `=` 初始化式，
   parser 接受省略类型标注并保存完整 initializer。普通 `val` / `var` 的省略标注由 Phase 2
-  推导；v0.34 不启用 `const val` evaluator，具体边界见
-  [一致性与实施边界](15-conformance-and-staging.md#const-val-的-v034-边界)。parser 不按表达式
+  推导；v0.35 不启用 `const val` evaluator，具体边界见
+  [一致性与实施边界](15-conformance-and-staging.md#const-val-的-v035-边界)。parser 不按表达式
   内容提前判定。
 - `fun` 只声明具名函数。泛型参数表若存在，位于 `fun` 与函数名之间；参数可以在
   `name: type_ref` 前写一个 `own` / `borrow` / `inout` mode。无标记和显式 `borrow` 都表示

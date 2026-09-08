@@ -17,6 +17,20 @@ copyability、destructuring 和 flow facts。错误输入保留 recovery 事实�
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
 suites。
 
+## 单文件 nullable when 事实
+
+`TypedFile::nullable_whens` / `nullable_when` 发布 expression/subject 身份、来源类别、稳定 symbol、
+entry 输入/剩余域、alternative 匹配/未匹配域及 body 的非空 subject view。Boolean/enum 保留
+有限域原子；开放 nullable 域区分 null 与 non-null。native eligibility 仅标记 owned root/temporary
+承载的 class/Box/Rc；字段和元素的 proof 不绑定后续重新求值的源码表达式。
+
+condition 沿未匹配路径传递事实，entry body 独立检查；赋值和显式 inout 实参调用更新 source
+版本，防止后续条件把旧 subject proof 重新关联到已改变的 binding。identity 不存入类型收窄表，
+以免干扰嵌套或后续 if；descriptor 与版本表参与 callable trial snapshot/rollback。
+
+这里描述单文件 `TypedFile` 产物；compilation-unit 类型产物尚未发布等价 nullable when descriptor。
+所有权与 lowering 尚未消费这组新计划，不能将类型事实视为 native 能力已经交付。
+
 ## Compilation-unit 名称链
 
 多文件路径由 `name_resolution::compilation_unit` 提供，身份链如下：

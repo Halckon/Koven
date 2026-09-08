@@ -1,22 +1,22 @@
 # v0.35 阻塞草案
 
-> **性质**：draft Spec 索引 · **状态**：blocked by unapproved guide · **读取时机**：评审 v0.35 nullable 提案时 · **唯一真源**：本目录 Spec
+> **性质**：draft Spec 索引 · **状态**：等待前置 Spec · **读取时机**：推进 v0.35 nullable 实施链时 · **唯一真源**：本目录 Spec
 
-现行语义仍是 v0.34；以下草案均不可实施：
+现行 v0.35 已启用。0202/0203 已完成，0204/0205 已迁移至 active；本目录两份草案等待前置实现完成：
 
-- [SPEC-0202](0202-nullable-when-flow-facts.md)：nullable `when` typed facts
-- [SPEC-0203](0203-nullable-when-ownership.md)：nullable `when` ownership
-- [SPEC-0204](0204-pointer-nullable-when-lowering.md)：pointer nullable `when` lowering
-- [SPEC-0205](0205-non-null-assertion-facts.md)：`!!` typed facts
+- [SPEC-0202](../../../archive/specs/0202-nullable-when-flow-facts.md)：nullable `when` typed facts
+- [SPEC-0203](../../../archive/specs/0203-nullable-when-ownership.md)：nullable `when` ownership
+- [SPEC-0204](../../active/0204-pointer-nullable-when-lowering.md)：pointer nullable `when` lowering
+- [SPEC-0205](../../active/0205-non-null-assertion-facts.md)：`!!` typed facts
 - [SPEC-0206](0206-non-null-assertion-ownership.md)：`!!` ownership
 - [SPEC-0207](0207-pointer-non-null-assertion-lowering.md)：pointer `!!` lowering
 
-共同语义候选见 [v0.35 proposal](../../../proposals/v0.35-nullable-when-and-non-null-assertion.md)。
+现行语义见 [空安全](../../../guide/09-nullability-errors.md)与[阶段边界](../../../guide/15-conformance-and-staging.md)。
 
 ## 启用后的实施切片
 
-以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。先完成对现行 v0.34 的重基、
-明确取代关系并取得 guide 启用；有 ADR 前置时还须 accepted。每次推进一个依赖完备的 Spec。
+以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。v0.35 已继承并取代 v0.34；
+前置 Spec 须 done，有 ADR 前置时还须 accepted。每次推进一个依赖完备的 Spec。
 
 | 切片 | Spec / 组内前置 | 交付证据 |
 |---|---|---|

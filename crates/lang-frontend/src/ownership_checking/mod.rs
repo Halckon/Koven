@@ -6,6 +6,7 @@ mod compilation_unit;
 mod construction;
 mod error;
 mod model;
+mod nullable_when;
 mod rc;
 
 use crate::{
@@ -32,9 +33,14 @@ pub use construction::{
 pub use error::OwnershipCheckingError;
 pub use model::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,
-    ClosureDescriptor, DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanFact, LoanKind,
-    LoanTarget, OwnershipBindingDescriptor, OwnershipBindingKind, OwnershipCheckedFile,
-    OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace, Transferability,
+    ClosureDescriptor, DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanEndFact,
+    LoanEndPoint, LoanFact, LoanKind, LoanTarget, OwnershipBindingDescriptor, OwnershipBindingKind,
+    OwnershipCheckedFile, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
+    Transferability,
+};
+pub use nullable_when::{
+    NullableWhenBranchFact, NullableWhenBranchOutcome, NullableWhenExtractionFact,
+    NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,
 };
 pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
 

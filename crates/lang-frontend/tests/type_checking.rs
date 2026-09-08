@@ -1615,3 +1615,305 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
         }
     }
 }
+
+#[test]
+fn nullable_when_null_fallthrough_narrows_else_subject() {
+    // Removing null from the remaining domain must make the same stable subject usable as T.
+    let (_, _, _, typed) = checked("fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.non_null_uses().len(), 1);
+}
+
+#[test]
+fn nullable_when_mixed_alternatives_do_not_narrow_body() {
+    // A null alternative keeps the body nullable even when another alternative is non-null.
+    let (sources, _, _, typed) =
+        checked("fun extract(x: Boolean?): Boolean = when (x) { null, true -> x; else -> false }");
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("body span"),
+        "x"
+    );
+    assert!(typed.non_null_uses().is_empty());
+}
+
+#[test]
+fn nullable_when_remaining_domain_covers_boolean_and_enum_orders() {
+    // Both null position and comma alternatives affect the domain reaching each body.
+    for text in [
+        "fun extract(x: Boolean?): Boolean = when (x) { null -> false; true -> x; false -> x }",
+        "fun extract(x: Boolean?): Boolean = when (x) { true, false -> x; null -> false }",
+        "fun extract(x: Boolean?): Boolean = when (x) { true -> x; null -> false; else -> x }",
+        "enum class Flag { On, Off }\nfun extract(x: Flag?): Flag = when (x) { null -> Flag.Off; else -> x }",
+    ] {
+        let (_, _, _, typed) = checked(text);
+        assert!(
+            typed.diagnostics().is_empty(),
+            "{text}: {:?}",
+            typed.diagnostics()
+        );
+    }
+}
+
+#[test]
+fn nullable_when_body_mutation_does_not_leak_to_unselected_entry() {
+    // The null body's mutation cannot execute on the path selecting else.
+    let text = "fun extract(input: Int?, replacement: Int?): Int { var x = input
+        return (when (x) { null -> { x = replacement if (true) { 0 } else { 0 } }; else -> x })
+    }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn nullable_when_condition_mutation_invalidates_source_proof() {
+    // The tested subject is a snapshot; a later assignment changes the source binding.
+    let text = "fun extract(input: Boolean?, replacement: Boolean?): Boolean { var x = input
+        return (when (x) { null -> false;
+            if (true) { x = replacement if (true) { true } else { false } } else { false } -> false;
+            else -> x })
+    }";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("body span"),
+        "x"
+    );
+}
+
+#[test]
+fn nullable_when_does_not_smart_cast_repeated_field_read() {
+    // Each field read is a fresh source evaluation, not the internal subject identity.
+    let text = "class Holder(val item: Int?)\n
+        fun extract(h: Holder): Int = when (h.item) { null -> 0; else -> h.item }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert!(typed.non_null_uses().is_empty());
+}
+
+#[test]
+fn nullable_when_failed_overload_trials_do_not_publish_plans() {
+    // Neither candidate can return a nullable null branch as its non-null result.
+    let text = "fun choose(callback: (Int?) -> Int): Int = 1
+        fun choose(callback: (Boolean?) -> Boolean): Boolean = true
+        fun use(): Unit { val selected = choose { when (it) { null -> it; else -> it } } }";
+    let (_, _, _, typed) = checked(text);
+    assert!(!typed.diagnostics().is_empty());
+    assert!(typed.nullable_whens().is_empty());
+}
+
+#[test]
+fn nullable_when_plans_have_stable_identity_and_single_subject_evaluation() {
+    let text = "fun subject(): Int? = null
+        fun extract(): Int = when (subject()) { null -> 0; else -> 1 }";
+    let (sources, parsed) = parse(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeat types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.nullable_whens(), repeated.nullable_whens());
+    assert_eq!(typed.nullable_whens().len(), 1);
+    let plan = &typed.nullable_whens()[0];
+    assert_eq!(
+        sources
+            .slice(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(plan.subject())
+                    .expect("subject")
+                    .span()
+            )
+            .expect("text"),
+        "subject()"
+    );
+    assert_eq!(
+        typed
+            .calls()
+            .iter()
+            .filter(|call| call.expression() == plan.subject())
+            .count(),
+        1
+    );
+    assert_eq!(plan.entries().len(), 2);
+}
+
+#[test]
+fn nullable_when_subject_categories_bound_native_eligibility() {
+    use lang_frontend::type_checking::NullableWhenSubjectCategory as Category;
+    for (source, category, native) in [
+        (
+            "fun read(own x: Node?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::OwnedRoot,
+            true,
+        ),
+        (
+            "fun read(x: Node?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::BorrowRoot,
+            false,
+        ),
+        (
+            "fun read(inout x: Node?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::InoutRoot,
+            false,
+        ),
+        (
+            "fun read(h: Holder): Int = when (h.item) { null -> 0; else -> 1 }",
+            Category::OrdinaryField,
+            false,
+        ),
+        (
+            "fun read(xs: Array<Node?>): Int = when (xs[0]) { null -> 0; else -> 1 }",
+            Category::ContainerElement,
+            false,
+        ),
+        (
+            "fun make(): Node? = null\nfun read(): Int = when (make()) { null -> 0; else -> 1 }",
+            Category::Temporary,
+            true,
+        ),
+        (
+            "fun read(own x: Box<Token>?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::OwnedRoot,
+            true,
+        ),
+        (
+            "fun read(own x: Rc<Int>?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::OwnedRoot,
+            true,
+        ),
+        (
+            "fun read(own x: Int?): Int = when (x) { null -> 0; else -> 1 }",
+            Category::OwnedRoot,
+            false,
+        ),
+    ] {
+        let text = format!(
+            "class Node {{}}\nvalue class Token(val item: Int)\nclass Holder(val item: Node?)\n{source}"
+        );
+        let (_, _, _, typed) = checked(&text);
+        assert!(
+            typed.diagnostics().is_empty(),
+            "{source}: {:?}",
+            typed.diagnostics()
+        );
+        assert_eq!(typed.nullable_whens().len(), 1, "{source}");
+        let plan = &typed.nullable_whens()[0];
+        assert_eq!(plan.category(), category, "{source}");
+        assert_eq!(plan.native_eligible(), native, "{source}");
+        if matches!(
+            category,
+            Category::OrdinaryField | Category::ContainerElement | Category::Temporary
+        ) {
+            assert_eq!(plan.stable_symbol(), None, "{source}");
+        }
+    }
+}
+
+#[test]
+fn nullable_when_domains_encode_null_match_and_non_null_fallthrough() {
+    use lang_frontend::type_checking::WhenDomain;
+    let (_, _, _, typed) = checked("fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let plan = &typed.nullable_whens()[0];
+    let null = &plan.entries()[0];
+    assert_eq!(null.input_domain(), &WhenDomain::Nullable);
+    assert_eq!(null.alternatives()[0].match_domain(), &WhenDomain::Null);
+    assert_eq!(
+        null.alternatives()[0].fallthrough_domain(),
+        &WhenDomain::NonNull
+    );
+    assert_eq!(null.remaining_domain(), &WhenDomain::NonNull);
+    assert_eq!(null.body_type(), None);
+    let otherwise = &plan.entries()[1];
+    assert_eq!(otherwise.input_domain(), &WhenDomain::NonNull);
+    assert_eq!(otherwise.body_domain(), &WhenDomain::NonNull);
+    assert_eq!(otherwise.remaining_domain(), &WhenDomain::Empty);
+    assert!(matches!(
+        otherwise.body_type().and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+}
+
+#[test]
+fn nullable_when_successful_overload_trial_publishes_only_selected_plan() {
+    let text = "fun choose(callback: (Int?) -> Int): Int = 1
+        fun choose(callback: (Boolean?) -> Boolean): Boolean = true
+        fun use(): Unit { val selected = choose { when (it) { null -> 0; else -> it } } }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.nullable_whens().len(), 1);
+    let plan = &typed.nullable_whens()[0];
+    assert!(matches!(
+        plan.entries()[1]
+            .body_type()
+            .and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Builtin(BuiltinType::Int))
+    ));
+}
+
+#[test]
+fn nullable_when_captured_mutable_binding_is_not_a_stable_source() {
+    let text = "fun extract(input: Int?): Int { var x = input
+        val capture: () -> Int? = { x }
+        return (when (x) { null -> 0; else -> x })
+    }";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("body span"),
+        "x"
+    );
+}
+
+#[test]
+fn nullable_when_identity_does_not_interfere_with_later_if_refinement() {
+    let text = "fun extract(x: Boolean?): Boolean {
+        when (x) { null, true, false -> 0 }
+        return (if (x != null) { x } else { false })
+    }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn nullable_when_identity_does_not_interfere_with_body_if_refinement() {
+    let text = "fun extract(x: Boolean?): Boolean = when (x) {
+        null, true, false -> if (x != null) { x } else { false }
+    }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn nullable_when_remaining_single_case_keeps_payload_refinement() {
+    let text = "enum class Shape { Circle(radius: Int), Point }
+        fun extract(x: Shape?): Int = when (x) {
+            null -> 0; !is Shape.Point -> x.radius; else -> 0
+        }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn nullable_when_inout_condition_call_invalidates_subject_binding() {
+    let text = "fun mutate(inout input: Boolean?): Boolean = true
+        fun extract(input: Boolean?): Boolean { var x = input
+            return (when (x) { mutate(&x) -> false; null -> false; else -> x })
+        }";
+    let (sources, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .expect("body span"),
+        "x"
+    );
+}

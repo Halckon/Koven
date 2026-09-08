@@ -42,6 +42,18 @@ closure capture 按 lambda identity 和 source binding 发布。普通 closure �
 element、constructor root 和 closure environment。drop point 包括最后使用后、replacement 前、
 branch/loop/control transfer、return 和 callable 退出；复合 owner 按逆构造顺序析构。
 
+单文件 `when` 的条件沿未匹配路径依次检查。逗号 alternatives 合入同一 body 前，
+`WhenAlternativeMatch` 标记仅部分匹配路径仍持有的 owner 析构，避免状态交集丢失析构义务。
+nullable 条件路径消费 typed 剩余域；单文件产物提供 nullable plan 查询，包含 body-entry view、
+Copy/Consume extraction 和分支 drop 关联。proof 随 State 失效及合流，任何所有权诊断清空计划。
+extraction 区分 entry body 与 condition alternative；Nothing 调用没有正常出口。未消费 temporary
+subject 在正常、return、break/continue 边清理，abort 不展开析构。
+
+调用前缀已建立的 loan 与借用 temporary 随 ValueState 分支传递，保持较早实参 owner 活到调用结束。
+`LoanEndFact` 区分 CallReturn 与放弃尚未调用前缀的 ControlTransfer；同边先结束 loan，再执行 drop。
+这些前端事实不等于 native 支持：当前单文件 lowering 仅消费正常 CallReturn 的 loan end，
+ControlTransfer 结束事实还需 Phase 4 接入。
+
 ## 实现与测试位置
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其

@@ -16,6 +16,11 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 
 未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。
 
+单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
+交付后移除其源码 binding。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
+`WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
+该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。
+
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 
 ## Compilation-unit planning 与 lowering

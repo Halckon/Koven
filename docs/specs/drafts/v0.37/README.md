@@ -2,7 +2,7 @@
 
 > **性质**：draft Spec 索引 · **状态**：blocked by unapproved guide · **读取时机**：评审 v0.37 借用式迭代提案时 · **唯一真源**：本目录 Spec
 
-现行语义仍是 v0.34；以下草案均不可实施：
+现行语义仍是 v0.35；以下草案均不可实施：
 
 - [SPEC-0179](0179-sequential-iteration-typed-plan.md)：typed iteration plan
 - [SPEC-0211](0211-sequential-iteration-ownership.md)：iteration ownership
@@ -14,7 +14,7 @@
 
 ## 启用后的实施切片
 
-以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。先完成对现行 v0.34 的重基、
+以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。先完成对现行 v0.35 的重基、
 明确取代关系并取得 guide 启用；有 ADR 前置时还须 accepted。每次推进一个依赖完备的 Spec。
 
 | 切片 | Spec / 组内前置 | 交付证据 |

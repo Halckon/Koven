@@ -7,7 +7,7 @@
 
 1. 用户当前要求决定本次授权范围。
 2. 本文件及作用域更近的 `AGENTS.md` 规定工作方式。
-3. [现行 Koven v0.34 规范](docs/guide/README.md)规定语言语义与强制 Phase 边界。
+3. [现行 Koven v0.35 规范](docs/guide/README.md)规定语言语义与强制 Phase 边界。
 4. 已批准 Spec 规定一次交付；accepted ADR 记录 guide 留白处的长期架构决定。
 5. 代码、测试和 [Architecture](docs/architecture/README.md)证明当前实现事实。
 
