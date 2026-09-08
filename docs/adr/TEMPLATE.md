@@ -1,9 +1,11 @@
 <!--
-复制为 docs/adr/NNNN-kebab-case-topic.md。
+复制为 docs/adr/proposed/NNNN-kebab-case-topic.md。
 ADR 记录长期决策，不用于普通功能或局部实现细节。
 -->
 
 # ADR-NNNN: 〈决策标题〉
+
+> **性质**：ADR 模板 · **状态**：template · **读取时机**：创建 proposed ADR 时 · **唯一真源**：本模板
 
 ## 状态
 

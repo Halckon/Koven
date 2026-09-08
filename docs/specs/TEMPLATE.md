@@ -1,17 +1,19 @@
 <!--
-复制为 docs/specs/NNNN-kebab-case-title.md。
+复制为 docs/specs/drafts/NNNN-kebab-case-title.md；依赖未启用 guide 时放入对应版本子目录。
 删除所有提示注释，并用可验证内容替换占位符。
 一份 Spec 只描述一个 Goal，不再额外创建重复的 plan.md / tasks.md。
 -->
 
 # SPEC-NNNN: 〈一句话标题〉
 
+> **性质**：Spec 模板 · **状态**：template · **读取时机**：创建新 draft Spec 时 · **唯一真源**：本模板
+
 | 字段 | 值 |
 |---|---|
 | 状态 | draft |
 | Goal ID | `KOV-PN-NNN` |
 | 所属 Phase | Phase N |
-| 语言规范 | 现行 [`guide/00-index.md`](../guide/00-index.md) 及本 Spec 相关章节 |
+| 语言规范 | 现行 [`guide/README.md`](../guide/README.md) 及本 Spec 相关章节 |
 | 批准依据 | 待填写；单份明确确认或有效站立授权 |
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
@@ -56,7 +58,7 @@
 - [ ] compile-pass 用例
 - [ ] compile-fail 用例及预期错误码 / `Span`
 - [ ] AST、IR、目标产物或运行输出
-- [ ] 受影响 workspace member 的 Rust 测试
+- [ ] 按影响面选择的 Rust 目标测试（明确 suite/过滤器，禁止默认 frontend 全量）
 - [ ] Architecture 已更新为实现后的事实，或确认无需更新
 
 ## 6. 技术方案与边界
@@ -94,8 +96,9 @@
 
 ## 10. 验证记录
 
-<!-- 完成时填写实际证据；未执行或跳过的检查必须说明原因。 -->
+<!-- 按 testing.md 选择一次最小充分验收；实施步骤引用这里，避免重复门禁。
+填写验收项、目标/过滤器、实际命中数与结果；未运行项说明原因。 -->
 
-| 命令 / 检查 | 结果 | 备注 |
+| 验收项 / 命令（目标与过滤器） | 结果（实际测试数） | 未运行原因 / 复用证据 |
 |---|---|---|
 | 〈待填写〉 | 未执行 |  |
