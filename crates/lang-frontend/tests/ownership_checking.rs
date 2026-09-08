@@ -922,3 +922,111 @@ fn non_null_assertion_copy_from_field_during_shared_loan() {
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
+
+#[test]
+fn non_null_assertion_plans_bind_success_transfer_and_abort_to_one_evaluation() {
+    use lang_frontend::{
+        ownership_checking::NonNullAssertionTransferKind, type_checking::AssertionFailureEffect,
+    };
+    let text = "class Resource {}
+        fun create(): Resource? = Resource()
+        fun copy(source: Int?): Int = source!!
+        fun extract(own source: Resource?): Resource = source!!
+        fun temporary(): Resource = create()!!";
+    let (sources, parsed, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty());
+    let plans = owned.non_null_assertions();
+    assert_eq!(plans.len(), 3);
+    for (plan, (operand, kind, place)) in plans.iter().zip([
+        ("source", NonNullAssertionTransferKind::Copy, true),
+        ("source", NonNullAssertionTransferKind::Consume, true),
+        ("create()", NonNullAssertionTransferKind::Consume, false),
+    ]) {
+        let descriptor = plan.descriptor();
+        assert_eq!(
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(descriptor.operand())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            operand
+        );
+        assert_eq!(plan.non_null_transfer(), kind);
+        assert_eq!(plan.source_place().is_some(), place);
+        // The closed Abort effect has neither a transfer operation nor an unwind cleanup list.
+        assert_eq!(plan.null_effect(), AssertionFailureEffect::Abort);
+        assert_eq!(
+            owned.non_null_assertion(descriptor.expression()),
+            Some(plan)
+        );
+    }
+    let (_, _, again) = checked(text);
+    // Span retains SourceMap owner identity; compare stable map-local identities as above.
+    assert_eq!(
+        format!("{plans:?}"),
+        format!("{:?}", again.non_null_assertions())
+    );
+}
+
+#[test]
+fn non_null_assertion_plans_are_cleared_after_any_ownership_error() {
+    // A valid earlier extraction cannot leave a partially executable plan after a later error.
+    let (_, _, owned) = checked(
+        "class Resource {}
+        fun valid(source: Int?): Int = source!!
+        fun bad(source: Resource?): Resource = source!!",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0133"]);
+    assert!(owned.non_null_assertions().is_empty());
+}
+
+#[test]
+fn non_null_assertion_nested_operand_transfers_without_temporary_drop() {
+    // Both conditional branches deliver their selected nullable owner to the one assertion.
+    let text = "class Resource {}
+        fun choose(flag: Boolean, own left: Resource?, own right: Resource?): Resource =
+            (if (flag) { left } else { right })!!";
+    let (_, _, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(owned.non_null_assertions().len(), 1);
+    assert!(owned.non_null_assertions()[0].source_place().is_none());
+    assert_eq!(
+        owned.non_null_assertions()[0].non_null_transfer(),
+        lang_frontend::ownership_checking::NonNullAssertionTransferKind::Consume
+    );
+    assert!(
+        owned
+            .drops()
+            .iter()
+            .all(|fact| !matches!(fact.target(), DropTarget::Temporary(_))),
+        "{:?}",
+        owned.drops()
+    );
+}
+
+#[test]
+fn non_null_assertion_plans_skip_unreachable_and_record_loop_and_closure_bodies() {
+    // Plans describe executable AST sites, including deferred closure bodies, once per site.
+    let (_, _, owned) = checked(
+        "fun unreachable(source: Int?): Int { return 0
+            val never = source!! }
+        fun repeatRead(flag: Boolean, source: Int?): Int { while (flag) { val item = source!! }
+            return 0 }
+        fun closure(): Int { val callback: (Int?) -> Int = { source -> source!! }
+            return callback(1) }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(owned.non_null_assertions().len(), 2);
+    assert!(
+        owned
+            .non_null_assertions()
+            .iter()
+            .all(|plan| plan.non_null_transfer()
+                == lang_frontend::ownership_checking::NonNullAssertionTransferKind::Copy)
+    );
+}

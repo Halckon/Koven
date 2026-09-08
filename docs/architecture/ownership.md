@@ -36,8 +36,10 @@ loan，普通源码违规形成所有权诊断。
 `!!` 的操作数消费不受外层实参 Borrow mode 改写。单文件入口读取 typed assertion descriptor，
 Copyable inner 使用 Read，MoveOnly inner 使用 Consume；unit 入口复用按 Copyability 分流的消费检查。
 两条路径的 liveness/drop 同步整体转移，借用提取结果时由 assertion temporary 在 CallReturn 析构。
-SPEC-0206 尚在实施：独立 assertion ownership plan 与 null Abort/non-null transfer edge facts 尚未发布，
-此处不代表 Phase 4 lowering 已支持该操作。
+单文件 `NonNullAssertionOwnershipPlan` 保留 typed descriptor 的唯一求值身份和来源 place，
+分别发布 non-null Copy/Consume 转移与封闭 null Abort 效果；失败边没有 take、正常后继或 unwind
+cleanup。不可达 assertion 不登记，任意所有权诊断清空全部计划，发布顺序按 AST identity 固定。
+SPEC-0206 尚在实施：unit 对应 descriptor/ownership plan 尚待接入，此处不代表 Phase 4 lowering 支持。
 
 ## Capture、Transferability 与 drop
 

@@ -84,7 +84,11 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 | Borrow/Inout/field/element 拒绝及 Span | `ownership_checking non_null_assertion_rejects_borrowed_and_partial_move_sources` | 有效 red 已确认；最终套件通过 |
 | Copyable 保持源可用 | `ownership_checking non_null_assertion_copy_preserves_borrowed_source` | 包括 shared loan 下字段复制，最终套件通过 |
 | active loan、owned/temporary 提取后的 borrowed-result drop | `ownership_checking non_null_assertion` | 最终套件通过 |
-| ownership plan、null Abort、transfer edge、嵌套与确定性 | 依据实现 API 补充定向测试 | 待实施 |
+| Copy/Consume、root/temporary、Abort、单次身份与确定性 | `ownership_checking non_null_assertion_plans_bind_success_transfer_and_abort_to_one_evaluation` | 单文件套件通过 |
+| 后续错误清空先前计划 | `ownership_checking non_null_assertion_plans_are_cleared_after_any_ownership_error` | 单文件套件通过 |
+| 嵌套条件 operand 转移不产生 temporary drop | `ownership_checking non_null_assertion_nested_operand_transfers_without_temporary_drop` | 单文件套件通过 |
+| 不可达、循环与 closure body 的 AST site 登记 | `ownership_checking non_null_assertion_plans_skip_unreachable_and_record_loop_and_closure_bodies` | 单文件套件通过 |
+| unit descriptor/ownership plan | 多文件 source-qualified 对应契约 | 待实施 |
 | 多文件对应契约与 validated gate | `multifile_ownership_checking unit_non_null_assertion_consumption_and_source_restrictions`（7 个场景） | 最终套件通过 |
 
 首次新增测试因保留字和语句分隔语法失败，不作为所有权行为的 red 证据；修正后重新运行。
@@ -108,3 +112,27 @@ Consume。独立审查发现 Copyable 字段在 shared loan 下被误当 Move，
   `tests/multifile_ownership_checking.rs:1006` 的 `filter_map_bool_then` 阻断，未改动该行。
 - `cargo clippy -p lang-frontend --lib --test ownership_checking --test multifile_ownership_checking -- -D warnings -A clippy::filter_map_bool_then`：
   通过；显式允许上述一项既有 lint，不等同于严格 all-targets clippy 通过。
+
+### 单文件 ownership plan 切片（实施中）
+
+`NonNullAssertionOwnershipPlan` 复用 0205 descriptor，保留 operand/assertion 身份、source place、
+仅成功边上的 Copy/Consume 与 null Abort。getter 不引入可配置的 null transfer/cleanup，避免构造
+与规范冲突的失败边。任一所有权错误清空全部计划，不可达 expression 不登记，BTreeMap 稳定发布。
+
+
+
+新公开 API 测试先得到缺少接口的编译失败证据；首次运行中的 `move`/`loop` 函数名违反保留字规则，
+已更名，不将该语法错误作为所有权 red 证据。独立静态审查未发现新增阻塞问题；未据此宣称
+循环回边重复消费或 native Abort/transfer 已验证。unit 对应计划仍未实施。
+
+nullable-when 共享契约：合并命令中的 `ownership_nullable_when` 26 项通过，0 failed/ignored/filtered；
+同次 ownership 24 通过、2 项测试问题已修正，单独重跑 ownership，不重复已通过的 nullable suite。
+跨 SourceMap 的 Span 包含 owner identity，确定性测试按既有约定比较稳定的 map-local debug 产物。
+
+最终 `cargo test -p lang-frontend --test ownership_checking`：26 项通过，0 failed/ignored/filtered；
+连同未受测试修正影响的 nullable suite 共 52 项通过。本切片新增 4 项测试。
+
+- `cargo clippy -p lang-frontend --lib --test ownership_checking --test ownership_nullable_when -- -D warnings`：
+  通过，无 lint 豁免。已知 all-targets 既有警告见上一切片，未重复该失败门禁。
+- `cargo fmt --all -- --check`、`git diff --check`：通过。
+- `cargo check --workspace --all-targets`：已启动，结果待补；新增公开产物的下游编译验收尚未结束。

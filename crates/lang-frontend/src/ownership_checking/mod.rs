@@ -6,6 +6,7 @@ mod compilation_unit;
 mod construction;
 mod error;
 mod model;
+mod non_null_assertion;
 mod nullable_when;
 mod rc;
 
@@ -38,6 +39,7 @@ pub use model::{
     OwnershipCheckedFile, OwnershipDeferredFact, OwnershipDeferredReason, OwnershipPlace,
     Transferability,
 };
+pub use non_null_assertion::{NonNullAssertionOwnershipPlan, NonNullAssertionTransferKind};
 pub use nullable_when::{
     NullableWhenBranchFact, NullableWhenBranchOutcome, NullableWhenExtractionFact,
     NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,

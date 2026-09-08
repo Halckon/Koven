@@ -90,6 +90,7 @@ pub(super) fn check(
 }
 
 struct Checker<'a> {
+    non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
     nullable_whens: BTreeMap<usize, super::NullableWhenOwnershipPlan>,
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
@@ -198,6 +199,7 @@ impl<'a> Checker<'a> {
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             nullable_whens: BTreeMap::new(),
+            non_null_assertions: BTreeMap::new(),
             diagnostics: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
@@ -261,6 +263,11 @@ impl<'a> Checker<'a> {
         };
         self.finish_nullable_drops(&drops)?;
         let construction_plans = self.construction.finish(diagnostics.is_empty());
+        let non_null_assertions = if diagnostics.is_empty() {
+            self.non_null_assertions.into_values().collect()
+        } else {
+            Vec::new()
+        };
         let nullable_whens = if diagnostics.is_empty() {
             self.nullable_whens.into_values().collect()
         } else {
@@ -277,6 +284,7 @@ impl<'a> Checker<'a> {
             self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
+                non_null_assertions,
                 nullable_whens,
                 loan_ends,
                 bindings,
@@ -561,17 +569,34 @@ impl<'a> Checker<'a> {
                 ..Flows::default()
             }),
             Expression::NonNullAssert { operand, .. } => {
-                // Extraction mode is intrinsic to !!, independent of its consumer.
-                let usage = if self
-                    .typed
-                    .non_null_assertion(id)
-                    .is_some_and(|descriptor| descriptor.copyability() == Copyability::MoveOnly)
+                // Only the successful continuation consumes; null directly aborts without cleanup.
+                let descriptor = self.typed.non_null_assertion(id).copied();
+                let usage = if descriptor.is_some_and(|d| d.copyability() == Copyability::MoveOnly)
                 {
                     ExpressionUse::Consume
                 } else {
                     ExpressionUse::Read
                 };
-                self.check_expression(operand, state, usage)
+                let diagnostic_count = self.diagnostics.len();
+                let flows = self.check_expression(operand, state, usage)?;
+                if flows.next.is_some()
+                    && self.diagnostics.len() == diagnostic_count
+                    && let Some(descriptor) = descriptor
+                {
+                    self.non_null_assertions.insert(
+                        id.index(),
+                        super::NonNullAssertionOwnershipPlan {
+                            descriptor,
+                            source_place: self.place(operand)?,
+                            non_null_transfer: if usage == ExpressionUse::Consume {
+                                super::NonNullAssertionTransferKind::Consume
+                            } else {
+                                super::NonNullAssertionTransferKind::Copy
+                            },
+                        },
+                    );
+                }
+                Ok(flows)
             }
             Expression::Prefix { operand, .. }
             | Expression::Cast {

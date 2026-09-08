@@ -507,6 +507,7 @@ impl OwnershipDeferredFact {
 /// Phase 3 单文件所有权检查产物。
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
+    non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     loan_ends: Vec<LoanEndFact>,
     nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     source_id: SourceId,
@@ -525,6 +526,7 @@ pub struct OwnershipCheckedFile {
 }
 
 pub(crate) struct OwnershipCheckedParts {
+    pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
@@ -539,6 +541,22 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 返回按 assertion 身份排序、仅在无所有权诊断时发布的提取计划。
+    #[must_use]
+    pub fn non_null_assertions(&self) -> &[super::NonNullAssertionOwnershipPlan] {
+        &self.non_null_assertions
+    }
+    /// 按 assertion 表达式身份查询成功转移与 null Abort 计划。
+    #[must_use]
+    pub fn non_null_assertion(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::NonNullAssertionOwnershipPlan> {
+        self.non_null_assertions
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     /// 返回实际控制流上的 loan 终止事实；同边先结束loan再执行drop。
     pub fn loan_ends(&self) -> &[LoanEndFact] {
         &self.loan_ends
@@ -567,6 +585,7 @@ impl OwnershipCheckedFile {
             source_id,
             environment_owner,
             nullable_whens: parts.nullable_whens,
+            non_null_assertions: parts.non_null_assertions,
             loan_ends: parts.loan_ends,
             typed_analysis_owner,
             diagnostics,
