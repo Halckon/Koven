@@ -14,6 +14,9 @@ use super::{
 };
 use crate::llvm::render_verified_program;
 
+#[path = "call_lifetimes_tests.rs"]
+mod call_lifetimes_tests;
+
 struct Analysis {
     sources: SourceMap,
     parsed: ParsedFile,
@@ -454,6 +457,59 @@ fn lowers_nullable_rc_operations_through_the_proven_non_null_view() {
 }
 
 #[test]
+fn nullable_when_read_views_preserve_owned_subject_for_reuse() {
+    for inner in ["Node", "Box<Token>", "Rc<Int>"] {
+        let analysis = analyze(&format!(
+            "class Node()\nvalue class Token(val item: Int)\n\
+             fun observe(node: {inner}): Unit {{}}\n\
+             fun inspect(own node: {inner}?): Unit {{\n\
+                 when (node) {{ null -> {{}}; else -> {{ observe(node) }} }}\n\
+                 when (node) {{ null -> {{}}; else -> {{ observe(node) }} }}\n\
+             }}"
+        ));
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .expect("read-only nullable when must preserve the owner for a later when");
+        let ssa = render_program(&program);
+        assert_eq!(ssa.matches("nullable.branch").count(), 2, "{ssa}");
+        assert!(
+            !ssa.contains("nullable.take"),
+            "a view must not consume the owner: {ssa}"
+        );
+        assert!(
+            !ssa.contains("shared.retain"),
+            "read views must not share: {ssa}"
+        );
+        assert!(
+            !ssa.contains("heap.allocate"),
+            "proofs must not allocate: {ssa}"
+        );
+        let llvm = render_verified_program(&program)
+            .expect("both nullable branches must pass LLVM lowering");
+        assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
+        assert!(
+            !llvm.contains("%koven.enum"),
+            "pointer nullable needs no tag: {llvm}"
+        );
+    }
+}
+
+#[test]
 fn rejects_inline_nullable_lowering_without_panicking() {
     let analysis = analyze(
         "value class Token(val item: Int)\n\
@@ -477,10 +533,14 @@ fn rejects_inline_nullable_lowering_without_panicking() {
 }
 
 #[test]
-fn rejects_unimplemented_nullable_when_and_non_null_assertion_without_panicking() {
+fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
     for source in [
+        "class Node {}\nfun inspect(inout node: Node?): Unit { when (node) { null -> {}; else -> {} } }",
+        "class Node {}\nclass Holder(val item: Node?)\nfun inspect(holder: Holder): Unit { when (holder.item) { null -> {}; else -> {} } }",
+        "class Node {}\nfun inspect(items: List<Node?>): Unit { when (items[0]) { null -> {}; else -> {} } }",
+        "value class Token(val item: Int)\nfun inspect(own token: Token?): Unit { when (token) { null -> {}; else -> {} } }",
         "class Node {}\n\
-         fun inspect(own node: Node?): Unit {\n\
+         fun inspect(node: Node?): Unit {\n\
              when (node) { null -> {}; else -> {} }\n\
          }",
         "class Node {}\n\
@@ -1507,4 +1567,34 @@ fn llvm_function_body<'a>(llvm: &'a str, source_name: &str) -> &'a str {
         })
         .and_then(|definition| definition.split("\n}").next())
         .expect("LLVM function definition")
+}
+
+#[test]
+fn nullable_when_consumes_inner_without_duplicate_owner() {
+    for inner in ["Node", "Box<Token>", "Rc<Int>"] {
+        let analysis = analyze(&format!(
+            "class Node()\nvalue class Token(val item: Int)\nfun consume(own node: {inner}): Unit {{}}\nfun inspect(own node: {inner}?): Unit {{ when (node) {{ null -> {{}}; else -> {{ consume(node) }} }} }}"
+        ));
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .expect("consume the proven inner");
+        let ssa = render_program(&program);
+        assert_eq!(ssa.matches("nullable.take").count(), 1, "{ssa}");
+        render_verified_program(&program).expect("unique extracted owner verifies in LLVM");
+    }
 }

@@ -1,12 +1,14 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
+mod call_lifetimes;
 mod container;
 mod control;
 mod drops;
 mod instances;
 mod loop_control;
 mod nominal;
+mod nullable_when;
 pub(super) mod orchestrate;
 mod source_closure;
 pub(in crate::ssa) mod string_literal;
@@ -109,6 +111,7 @@ struct ExpressionLowerer<'a> {
     borrow_bindings: BTreeMap<SymbolId, LoanId>,
     non_null_bindings: BTreeMap<SymbolId, LoanId>,
     temporaries: BTreeMap<usize, ValueId>,
+    pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
     return_type: TypeId,
     loops: Vec<loop_control::LoopContext>,
 }
@@ -137,6 +140,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(value) = self.lower_nullable_extraction(expression)? {
+            return Ok(LoweredValue::Value(value));
+        }
         if self.typed.container_construction(expression).is_some() {
             return self.lower_container_construction(expression);
         }
@@ -193,8 +199,14 @@ impl ExpressionLowerer<'_> {
                 subject, entries, ..
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, value, span),
-            Expression::Break { .. } => self.lower_break(span),
-            Expression::Continue { .. } => self.lower_continue(span),
+            Expression::Break { .. } => {
+                self.emit_control_transfer_cleanup(expression)?;
+                self.lower_break(span)
+            }
+            Expression::Continue { .. } => {
+                self.emit_control_transfer_cleanup(expression)?;
+                self.lower_continue(span)
+            }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -507,6 +519,7 @@ impl ExpressionLowerer<'_> {
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
         let result = self.lower_statement_inner(statement)?;
         if !matches!(result, LoweredValue::Diverged) {
+            self.emit_drops(DropPoint::LoopExit(statement))?;
             self.emit_drops(DropPoint::AfterStatement(statement))?;
         }
         Ok(result)
@@ -571,6 +584,11 @@ impl ExpressionLowerer<'_> {
             present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         if self.source_slice(name_span)? == "_" {
             return Ok(LoweredValue::Unit);
+        }
+        // The initializer's owner is now tracked by the local binding, including
+        // grouped aliases of the same temporary value.
+        if let LoweredValue::Value(owner) = lowered {
+            self.temporaries.retain(|_, temporary| *temporary != owner);
         }
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
         let declared = self
@@ -927,7 +945,7 @@ impl ExpressionLowerer<'_> {
         if matches!(result, LoweredValue::Diverged) {
             return Ok(result);
         }
-        self.emit_drops(DropPoint::ControlTransfer(return_expression))?;
+        self.emit_control_transfer_cleanup(return_expression)?;
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function
             .set_terminator(
@@ -1073,6 +1091,10 @@ impl ExpressionLowerer<'_> {
                     let (loan, ends_after_call) =
                         self.lower_borrow_argument(expression, argument.value, argument.span)?;
                     call_loans.insert(argument.value.index(), ends_after_call.then_some(loan));
+                    self.pending_call_loans.insert(
+                        (expression.index(), argument.value.index()),
+                        ends_after_call.then_some(loan),
+                    );
                     EntityId::Loan(loan)
                 }
                 ParameterMode::Inout => {
@@ -1080,6 +1102,28 @@ impl ExpressionLowerer<'_> {
                 }
             };
             ordered[index] = Some(operand);
+        }
+        for mapping in descriptor.arguments() {
+            let argument = &arguments[mapping.argument_index()];
+            if let Some(Some(loan)) = self
+                .pending_call_loans
+                .get(&(expression.index(), argument.value.index()))
+            {
+                ordered[mapping.parameter_index()] = Some(EntityId::Loan(*loan));
+            } else if self
+                .pending_call_loans
+                .get(&(expression.index(), argument.value.index()))
+                == Some(&None)
+                && let Some(non_null) = self.typed.non_null_use(argument.value)
+            {
+                // 后续实参的 CFG 会重绑定视图；转发借用必须使用当前 block 的 loan。
+                let loan = self
+                    .non_null_bindings
+                    .get(&non_null.symbol())
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+                ordered[mapping.parameter_index()] = Some(EntityId::Loan(loan));
+            }
         }
         let arguments = ordered
             .into_iter()
@@ -1104,8 +1148,10 @@ impl ExpressionLowerer<'_> {
         )?;
         let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
         for fact in &ending_loans {
-            let loan = call_loans
-                .remove(&fact.argument().index())
+            call_loans.remove(&fact.argument().index());
+            let loan = self
+                .pending_call_loans
+                .remove(&(expression.index(), fact.argument().index()))
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
             if let Some(loan) = loan {
                 self.append(Operation::BorrowEnd { loan }, Vec::new(), fact.end_span())?;
@@ -1243,13 +1289,21 @@ impl ExpressionLowerer<'_> {
             vec![EntityType::Value(ty), EntityType::Value(boolean)],
             span,
         )?;
+        let baseline = self.bindings.clone();
+        let carried = self.linear_binding_slots(&baseline, span)?;
+        let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
+        let arguments = carried
+            .slots
+            .iter()
+            .map(|slot| slot.source)
+            .collect::<Vec<_>>();
         let failure = self
             .function
-            .add_block(Vec::new(), Origin::Source(span))
+            .add_block(parameter_types.clone(), Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         let success = self
             .function
-            .add_block(Vec::new(), Origin::Source(span))
+            .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.function
             .set_terminator(
@@ -1258,11 +1312,11 @@ impl ExpressionLowerer<'_> {
                     condition: value(results[1]),
                     when_true: Edge {
                         target: failure,
-                        arguments: Vec::new(),
+                        arguments: arguments.clone(),
                     },
                     when_false: Edge {
                         target: success,
-                        arguments: Vec::new(),
+                        arguments,
                     },
                 },
                 Origin::Source(span),
@@ -1272,6 +1326,7 @@ impl ExpressionLowerer<'_> {
             .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = success;
+        self.bindings = self.rebind_linear_bindings(&baseline, success, &carried, span)?;
         Ok(LoweredValue::Value(value(results[0])))
     }
 

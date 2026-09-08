@@ -456,7 +456,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       verifier；LLVM 使用单 pointer niche 和 conditional drop。class/Box/Rc 的 null/non-null、Rc
       非空分支 share/read 与 native build/link/run 已验收；inline nullable、nullable `when` 与 `!!`
       消费 lowering 保持确定性 unsupported，等待各自独立 Spec
-- [ ] **[SPEC-0204](../../../specs/active/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
+- [ ] **[SPEC-0204](../../specs/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
       复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
       SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
 - [ ] **[SPEC-0207](../../../specs/drafts/v0.35/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费

@@ -21,6 +21,14 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
 该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。
 
+单文件 pointer-like nullable `when` 消费 typed/ownership descriptor，对 owned whole-root 和
+temporary 的 class、Box、Rc 使用 `NullableBranch` proof；消费提取使用 `NullableTake`。
+class/Box/Rc 的只读后复用、循环读取、消费提取与 temporary 一次求值已有 object/link/run 证据。
+Borrow/Inout/field/element 与 inline nullable 不在该 lowering 范围内。调用实参之间的 CFG
+显式传递 temporary owner、pending loan 和 non-null view；ControlTransfer 的 loan-end 事实在
+return/break/continue cleanup 前消费，abort 直接终止。native 控制转移和分配/释放计数已覆盖三类
+owner：每类 8 次分配、8 次释放；Rc 另验证原 owner 释放后 retained alias 的 payload 仍可读取。
+
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 
 ## Compilation-unit planning 与 lowering

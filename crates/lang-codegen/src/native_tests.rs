@@ -741,6 +741,211 @@ fn nullable_class_box_and_rc_sources_link_run_and_release() {
 }
 
 #[test]
+fn nullable_when_class_box_and_rc_sources_link_run() {
+    for (inner, constructor) in [
+        ("Node", "Node()"),
+        ("Box<Token>", "Box(Token(1))"),
+        ("Rc<Int>", "Rc(41)"),
+    ] {
+        let consume = if inner == "Rc<Int>" {
+            r#"val retained = node.share()
+val checked = if (retained.value != 41) { error("lost shared payload") } else { 0 }
+val printed = println("consume")
+return"#
+        } else {
+            r#"println("consume")"#
+        };
+        let source = format!(
+            r#"
+class Node()
+value class Token(val item: Int)
+fun observe(node: {inner}): Unit {{
+val printed = println("view")
+return }}
+fun consume(own node: {inner}): Unit {{ {consume} }}
+fun outer(node: {inner}, own result: Int): Unit {{ error("transfer called outer") }}
+fun earlyReturn(own subject: {inner}?): Unit =
+    outer({constructor}, when (subject) {{ null -> 0; else -> return }})
+fun earlyBreak(own subject: {inner}?): Unit {{
+    loop {{ outer({constructor}, when (subject) {{ null -> 0; else -> break }}) }}
+}}
+fun earlyContinue(own subject: {inner}?): Unit {{
+    var count = 0
+    while (count < 1) {{
+        count = count + 1
+        val transferred = outer({constructor}, when (subject) {{ null -> 0; else -> continue }})
+    }}
+}}
+fun make(): {inner}? {{ val printed = println("make")
+val result: {inner}? = {constructor}
+return result }}
+fun inspect(own node: {inner}?): Unit {{
+    when (node) {{ null -> {{ println("null") }}; else -> {{ observe(node) }} }}
+    var count = 0
+    while (count < 2) {{
+        when (node) {{ null -> {{}}; else -> {{ observe(node) }} }}
+        count = count + 1
+    }}
+    when (node) {{ null -> {{}}; else -> {{ consume(node) }} }}
+}}
+fun nullableEntry(): Unit {{
+    val input: {inner}? = {constructor}
+    val present = inspect(input)
+    val absent = inspect(null)
+    val returnSubject: {inner}? = {constructor}
+    val returned = earlyReturn(returnSubject)
+    val breakSubject: {inner}? = {constructor}
+    val broken = earlyBreak(breakSubject)
+    val continueSubject: {inner}? = {constructor}
+    val continued = earlyContinue(continueSubject)
+    when (make()) {{ null -> {{}}; else -> {{ println("temporary") }} }}
+}}
+"#
+        );
+        let analysis = analyze("nullable-when.ko", &source);
+        assert!(
+            analysis.parsed.diagnostics().is_empty(),
+            "{inner}: {:?}",
+            analysis.parsed.diagnostics()
+        );
+        assert!(
+            analysis.names.diagnostics().is_empty(),
+            "{inner}: {:?}",
+            analysis.names.diagnostics()
+        );
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{inner}: {:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{inner}: {:?}",
+            analysis.owned.diagnostics()
+        );
+        let directory = TestDirectory::create();
+        let object = directory.join("nullable-when.o");
+        let executable = directory.join("nullable-when");
+        emit_native_object(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+            symbol(&analysis, "nullableEntry", SymbolKind::Function),
+            &object,
+        )
+        .unwrap_or_else(|error| panic!("{inner}: {error:?}"));
+        let linked = Command::new("/usr/bin/clang")
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("system clang must launch");
+        assert!(linked.status.success(), "{inner}: {linked:?}");
+        let run = Command::new(&executable)
+            .output()
+            .expect("nullable when executable must launch");
+        assert!(run.status.success(), "{inner}: {run:?}");
+        assert_eq!(
+            run.stdout, b"view\nview\nview\nconsume\nnull\nmake\ntemporary\n",
+            "{inner}"
+        );
+        assert!(run.stderr.is_empty(), "{inner}: {run:?}");
+
+        // 只改测试模块的 allocator 符号，记录 Koven 自身的分配与释放，隔离 libc I/O。
+        let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+            symbol(&analysis, "nullableEntry", SymbolKind::Function),
+        )
+        .expect("counted nullable program must verify");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("counted nullable LLVM must verify")
+            .replace("@malloc(", "@counted_malloc(")
+            .replace("@free(", "@counted_free(");
+        // Rc runtime 的引用计数加减各只有一个静态站点；计数调用验证动态执行次数。
+        let mut instrumented = String::new();
+        let mut retain_sites = 0;
+        let mut release_sites = 0;
+        for line in llvm.lines() {
+            instrumented.push_str(line);
+            instrumented.push('\n');
+            if line.contains(".next = add i64") {
+                retain_sites += 1;
+                instrumented.push_str("  call void @counted_retain()\n");
+            } else if line.contains("%strong.next = sub i64") {
+                release_sites += 1;
+                instrumented.push_str("  call void @counted_release()\n");
+            }
+        }
+        let shared = usize::from(inner == "Rc<Int>");
+        assert_eq!((retain_sites, release_sites), (shared, shared));
+        instrumented.push_str("declare void @counted_retain()\ndeclare void @counted_release()\n");
+        let ir = directory.join("counted.ll");
+        let counter = directory.join("counter.c");
+        let counted = directory.join("counted");
+        fs::write(&ir, instrumented).expect("write instrumented LLVM");
+        fs::write(
+            &counter,
+            r#"
+#include <stdlib.h>
+#include <assert.h>
+static void *live[16];
+static int allocations, releases;
+static int retains, shared_releases;
+void counted_retain(void) { ++retains; }
+void counted_release(void) { ++shared_releases; }
+void *counted_malloc(size_t size) {
+    assert(allocations < 16);
+    void *value = malloc(size);
+    assert(value);
+    live[allocations++] = value;
+    return value;
+}
+void counted_free(void *value) {
+    int index = 0;
+    while (index < allocations && live[index] != value) ++index;
+    assert(index < allocations && value);
+    live[index] = 0;
+    ++releases;
+    free(value);
+}
+__attribute__((destructor)) static void verify_counts(void) {
+    /* input, three subjects, three Borrow temporaries, and make(): once each. */
+    assert(allocations == 8);
+    assert(releases == allocations);
+    assert(retains == EXPECT_SHARED);
+    assert(shared_releases == 9 * EXPECT_SHARED);
+}
+"#,
+        )
+        .expect("write allocator counter");
+        let linked = Command::new("/usr/bin/clang")
+            .arg(&ir)
+            .arg(&counter)
+            .arg(format!("-DEXPECT_SHARED={shared}"))
+            .arg("-o")
+            .arg(&counted)
+            .output()
+            .expect("clang must build counted program");
+        assert!(linked.status.success(), "{inner}: {linked:?}");
+        let run = Command::new(&counted)
+            .output()
+            .expect("run counted program");
+        assert!(run.status.success(), "{inner}: {run:?}");
+        assert_eq!(
+            run.stdout,
+            b"view\nview\nview\nconsume\nnull\nmake\ntemporary\n"
+        );
+        assert!(run.stderr.is_empty(), "{inner}: {run:?}");
+    }
+}
+
+#[test]
 fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
     let directory = TestDirectory::create();
     let declarative = analyze(

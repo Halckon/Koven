@@ -196,6 +196,7 @@
 - [SPEC-0195](./0195-interprocedural-borrow-lowering.md)：跨 callable Borrow 的 SSA/LLVM lowering
 
 - [SPEC-0203](./0203-nullable-when-ownership.md)：nullable when view/extraction 所有权
+- [SPEC-0204](./0204-pointer-nullable-when-lowering.md)：pointer-like nullable when SSA/LLVM/native lowering
 
 ## Phase 4
 

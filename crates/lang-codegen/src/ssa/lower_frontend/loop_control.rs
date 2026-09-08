@@ -9,28 +9,23 @@ use lang_frontend::{
 };
 
 use super::{
-    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, control::BranchExit, error,
-    value,
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind,
+    control::{BranchExit, LinearBindingSlot, LinearBindings},
+    error,
 };
-use crate::ssa::model::{BlockId, Edge, EntityId, EntityType, Origin, TerminatorKind, ValueId};
+use crate::ssa::model::{BlockId, Edge, EntityId, Origin, TerminatorKind};
 
 struct LoopJump {
-    block: BlockId,
-    bindings: BTreeMap<SymbolId, LoweredValue>,
+    exit: BranchExit,
     span: Span,
 }
 
 pub(super) struct LoopContext {
+    pub(super) entry_views: BTreeMap<SymbolId, super::LoanId>,
     header: BlockId,
-    carried_symbols: Vec<SymbolId>,
+    carried: LinearBindings,
     continues: Vec<LoopJump>,
     breaks: Vec<BranchExit>,
-}
-
-struct LoopHeader {
-    block: BlockId,
-    bindings: BTreeMap<SymbolId, LoweredValue>,
-    carried_symbols: Vec<SymbolId>,
 }
 
 impl ExpressionLowerer<'_> {
@@ -41,54 +36,48 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let baseline = self.bindings.clone();
-        let header = self.create_loop_header(&baseline, span)?;
-        self.branch_with_bindings(
-            self.block,
-            header.block,
-            &header.carried_symbols,
-            &baseline,
-            span,
-        )?;
-        self.block = header.block;
-        self.bindings = header.bindings;
-
+        let context = self.create_loop_header(&baseline, span)?;
         let condition = self.require_value(condition)?;
         let condition_bindings = self.bindings.clone();
-        let body_block = self.add_empty_block(span)?;
-        let false_block = self.add_empty_block(span)?;
+        let carried = self.linear_binding_slots(&condition_bindings, span)?;
+        let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
+        let body_block = self
+            .function
+            .add_block(parameter_types.clone(), Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        let false_block = self
+            .function
+            .add_block(parameter_types, Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.function
             .set_terminator(
                 self.block,
                 TerminatorKind::Conditional {
                     condition,
-                    when_true: empty_edge(body_block),
-                    when_false: empty_edge(false_block),
+                    when_true: loop_edge(body_block, &carried),
+                    when_false: loop_edge(false_block, &carried),
                 },
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
-        self.loops.push(LoopContext {
-            header: header.block,
-            carried_symbols: header.carried_symbols,
-            continues: Vec::new(),
-            breaks: Vec::new(),
-        });
+        // Save the false edge before body lowering changes any owner or proof state.
+        self.block = false_block;
+        self.bindings =
+            self.rebind_linear_bindings(&condition_bindings, false_block, &carried, span)?;
+        let false_exit = self.loop_exit();
         self.block = body_block;
-        self.bindings.clone_from(&condition_bindings);
+        self.bindings =
+            self.rebind_linear_bindings(&condition_bindings, body_block, &carried, span)?;
+        self.loops.push(context);
         let body_result = self.lower_statement(body)?;
         if !matches!(body_result, LoweredValue::Diverged) {
             self.record_continue(span)?;
         }
         let context = self.loops.pop().expect("while context must be balanced");
         self.finish_loop_continues(&context)?;
-
         let mut exits = context.breaks;
-        exits.push(BranchExit {
-            block: false_block,
-            result: LoweredValue::Unit,
-            bindings: condition_bindings,
-        });
+        exits.push(false_exit);
         self.merge_exits(exits, &baseline, span)
     }
 
@@ -98,22 +87,8 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let baseline = self.bindings.clone();
-        let header = self.create_loop_header(&baseline, span)?;
-        self.branch_with_bindings(
-            self.block,
-            header.block,
-            &header.carried_symbols,
-            &baseline,
-            span,
-        )?;
-        self.loops.push(LoopContext {
-            header: header.block,
-            carried_symbols: header.carried_symbols,
-            continues: Vec::new(),
-            breaks: Vec::new(),
-        });
-        self.block = header.block;
-        self.bindings = header.bindings;
+        let context = self.create_loop_header(&baseline, span)?;
+        self.loops.push(context);
         let body_result = self.lower_statement(body)?;
         if !matches!(body_result, LoweredValue::Diverged) {
             self.record_continue(span)?;
@@ -123,12 +98,19 @@ impl ExpressionLowerer<'_> {
         self.merge_exits(context.breaks, &baseline, span)
     }
 
-    pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
-        let exit = BranchExit {
+    fn loop_exit(&self) -> BranchExit {
+        BranchExit {
             block: self.block,
             result: LoweredValue::Unit,
             bindings: self.bindings.clone(),
-        };
+            temporaries: self.temporaries.clone(),
+            loans: self.pending_call_loans.clone(),
+            views: self.non_null_bindings.clone(),
+        }
+    }
+
+    pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+        let exit = self.loop_exit();
         let context = self
             .loops
             .last_mut()
@@ -144,8 +126,7 @@ impl ExpressionLowerer<'_> {
 
     fn record_continue(&mut self, span: Span) -> Result<(), LoweringError> {
         let jump = LoopJump {
-            block: self.block,
-            bindings: self.bindings.clone(),
+            exit: self.loop_exit(),
             span,
         };
         let context = self
@@ -158,13 +139,22 @@ impl ExpressionLowerer<'_> {
 
     fn finish_loop_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
         for jump in &context.continues {
-            self.branch_with_bindings(
-                jump.block,
-                context.header,
-                &context.carried_symbols,
-                &jump.bindings,
-                jump.span,
-            )?;
+            let arguments = context
+                .carried
+                .slots
+                .iter()
+                .map(|slot| loop_slot_entity(slot, &jump.exit, jump.span))
+                .collect::<Result<Vec<_>, _>>()?;
+            self.function
+                .set_terminator(
+                    jump.exit.block,
+                    TerminatorKind::Branch(Edge {
+                        target: context.header,
+                        arguments,
+                    }),
+                    Origin::Source(jump.span),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, jump.span))?;
         }
         Ok(())
     }
@@ -173,15 +163,30 @@ impl ExpressionLowerer<'_> {
         &mut self,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
         span: Span,
-    ) -> Result<LoopHeader, LoweringError> {
-        let mut carried_symbols = Vec::new();
-        let mut parameter_types = Vec::new();
+    ) -> Result<LoopContext, LoweringError> {
+        let mut carried = self.linear_binding_slots(baseline, span)?;
+        // Scalar bindings may change on each iteration, so loops carry them too.
         for (&symbol, &binding) in baseline {
             match binding {
                 LoweredValue::Unit => {}
                 LoweredValue::Value(value) => {
-                    carried_symbols.push(symbol);
-                    parameter_types.push(self.value_type(value, span)?);
+                    if carried.slots.iter().any(|slot| slot.symbol == Some(symbol)) {
+                        continue;
+                    }
+                    let source = EntityId::Value(value);
+                    let ty = self
+                        .function
+                        .entity(source)
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                        .ty;
+                    carried.slots.push(LinearBindingSlot {
+                        symbol: Some(symbol),
+                        source,
+                        ty,
+                        temporaries: Vec::new(),
+                        loans: Vec::new(),
+                        views: Vec::new(),
+                    });
                 }
                 LoweredValue::Diverged => {
                     return Err(error(LoweringErrorKind::MissingFact, span));
@@ -190,68 +195,56 @@ impl ExpressionLowerer<'_> {
         }
         let header = self
             .function
-            .add_block(parameter_types, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        let parameters = self
-            .function
-            .block(header)
-            .expect("new loop header must exist")
-            .parameters
-            .clone();
-        let mut bindings = baseline.clone();
-        for (symbol, parameter) in carried_symbols.iter().copied().zip(parameters) {
-            bindings.insert(symbol, LoweredValue::Value(value(parameter)));
-        }
-        Ok(LoopHeader {
-            block: header,
-            bindings,
-            carried_symbols,
-        })
-    }
-
-    fn branch_with_bindings(
-        &mut self,
-        block: BlockId,
-        target: BlockId,
-        symbols: &[SymbolId],
-        bindings: &BTreeMap<SymbolId, LoweredValue>,
-        span: Span,
-    ) -> Result<(), LoweringError> {
-        let arguments = symbols
-            .iter()
-            .map(|symbol| {
-                let binding = bindings
-                    .get(symbol)
-                    .copied()
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                match binding {
-                    LoweredValue::Value(value) => Ok(EntityId::Value(value)),
-                    LoweredValue::Unit | LoweredValue::Diverged => {
-                        Err(error(LoweringErrorKind::MissingFact, span))
-                    }
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.function
-            .set_terminator(
-                block,
-                TerminatorKind::Branch(Edge { target, arguments }),
+            .add_block(
+                carried.slots.iter().map(|slot| slot.ty).collect(),
                 Origin::Source(span),
             )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    fn value_type(&self, value: ValueId, span: Span) -> Result<EntityType, LoweringError> {
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.function
-            .entity(EntityId::Value(value))
-            .map(|data| data.ty)
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))
+            .set_terminator(
+                self.block,
+                TerminatorKind::Branch(loop_edge(header, &carried)),
+                Origin::Source(span),
+            )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.bindings = self.rebind_linear_bindings(baseline, header, &carried, span)?;
+        self.block = header;
+        Ok(LoopContext {
+            entry_views: self.non_null_bindings.clone(),
+            header,
+            carried,
+            continues: Vec::new(),
+            breaks: Vec::new(),
+        })
     }
 }
 
-fn empty_edge(target: BlockId) -> Edge {
+fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
     Edge {
         target,
-        arguments: Vec::new(),
+        arguments: carried.slots.iter().map(|slot| slot.source).collect(),
     }
+}
+
+/// Resolve header slots from the exit snapshot, after nested CFG has rebound IDs.
+fn loop_slot_entity(
+    slot: &LinearBindingSlot,
+    exit: &BranchExit,
+    span: Span,
+) -> Result<EntityId, LoweringError> {
+    let entity = if let Some(symbol) = slot.symbol {
+        match exit.bindings.get(&symbol) {
+            Some(LoweredValue::Value(value)) => Some(EntityId::Value(*value)),
+            _ => None,
+        }
+    } else if let Some(key) = slot.temporaries.first() {
+        exit.temporaries.get(key).copied().map(EntityId::Value)
+    } else if let Some(key) = slot.loans.first() {
+        exit.loans.get(key).copied().flatten().map(EntityId::Loan)
+    } else if let Some(symbol) = slot.views.first() {
+        exit.views.get(symbol).copied().map(EntityId::Loan)
+    } else {
+        None
+    };
+    entity.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
 }

@@ -23,19 +23,33 @@ pub(super) struct BranchExit {
     pub(super) block: BlockId,
     pub(super) result: LoweredValue,
     pub(super) bindings: BTreeMap<SymbolId, LoweredValue>,
+    pub(super) temporaries: BTreeMap<usize, ValueId>,
+    pub(super) loans: BTreeMap<(usize, usize), Option<super::LoanId>>,
+    pub(super) views: BTreeMap<SymbolId, super::LoanId>,
 }
 
 #[derive(Clone, Copy)]
 enum MergeSlot {
     Result,
     Binding(SymbolId),
+    Temporary(usize),
+    PendingLoan((usize, usize)),
+    NonNullView(SymbolId),
 }
 
-#[derive(Clone, Copy)]
-struct LinearBindingSlot {
-    symbol: SymbolId,
-    source: ValueId,
-    ty: EntityType,
+pub(super) struct LinearBindings {
+    pub(super) slots: Vec<LinearBindingSlot>,
+    forwarded_loans: Vec<(usize, usize)>,
+}
+
+#[derive(Clone)]
+pub(super) struct LinearBindingSlot {
+    pub(super) symbol: Option<SymbolId>,
+    pub(super) source: EntityId,
+    pub(super) temporaries: Vec<usize>,
+    pub(super) loans: Vec<(usize, usize)>,
+    pub(super) views: Vec<SymbolId>,
+    pub(super) ty: EntityType,
 }
 
 impl ExpressionLowerer<'_> {
@@ -73,11 +87,12 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
         let then_baseline = self.rebind_linear_bindings(&baseline, then_block, &carried, span)?;
-        let else_baseline = self.rebind_linear_bindings(&baseline, else_block, &carried, span)?;
+
         let mut exits = Vec::with_capacity(2);
         if let Some(exit) = self.lower_control_branch(then_block, then_branch, &then_baseline)? {
             exits.push(exit);
         }
+        let else_baseline = self.rebind_linear_bindings(&baseline, else_block, &carried, span)?;
         if let Some(else_branch) = else_branch {
             if let Some(exit) =
                 self.lower_control_branch(else_block, else_branch, &else_baseline)?
@@ -89,6 +104,9 @@ impl ExpressionLowerer<'_> {
                 block: else_block,
                 result: LoweredValue::Unit,
                 bindings: else_baseline,
+                temporaries: self.temporaries.clone(),
+                loans: self.pending_call_loans.clone(),
+                views: self.non_null_bindings.clone(),
             });
         }
         if self.expression_is_unit(expression, span)? {
@@ -127,8 +145,25 @@ impl ExpressionLowerer<'_> {
             .type_ids
             .get(&self.resolve_type(inner, span)?)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let baseline = self.bindings.clone();
+        let mut carried = self.linear_binding_slots(&baseline, span)?;
+        // Copyable nullable subjects also need a parameter for the proof owner.
+        if !carried
+            .slots
+            .iter()
+            .any(|slot| slot.source == EntityId::Value(owner))
+        {
+            carried.slots.push(LinearBindingSlot {
+                symbol: Some(symbol),
+                source: EntityId::Value(owner),
+                ty: EntityType::Value(nullable),
+                temporaries: Vec::new(),
+                loans: Vec::new(),
+                views: Vec::new(),
+            });
+        }
         let branch_types = |proven| {
-            let mut types = vec![EntityType::Value(nullable)];
+            let mut types: Vec<_> = carried.slots.iter().map(|slot| slot.ty).collect();
             if proven {
                 types.push(EntityType::Loan {
                     kind: crate::ssa::model::LoanKind::Shared,
@@ -160,13 +195,13 @@ impl ExpressionLowerer<'_> {
             .function
             .block(non_null_block)
             .expect("new block exists")
-            .parameters[1];
+            .parameters[carried.slots.len()];
         let EntityId::Loan(view) = view else {
             unreachable!("loan parameter requested")
         };
         let make_edge = |target| Edge {
             target,
-            arguments: vec![EntityId::Value(owner)],
+            arguments: carried.slots.iter().map(|slot| slot.source).collect(),
         };
         let (when_null, when_non_null) = if descriptor.non_null_when_true() {
             (make_edge(else_block), make_edge(then_block))
@@ -186,8 +221,6 @@ impl ExpressionLowerer<'_> {
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
-        let baseline = self.bindings.clone();
-        let outer_non_null = self.non_null_bindings.clone();
         let mut exits = Vec::new();
         for (branch, block, statement, proven) in [
             (
@@ -199,18 +232,11 @@ impl ExpressionLowerer<'_> {
             (1, else_block, else_branch, !descriptor.non_null_when_true()),
         ] {
             self.block = block;
-            self.bindings.clone_from(&baseline);
-            let parameter = self
-                .function
-                .block(block)
-                .expect("branch block exists")
-                .parameters[0];
-            self.bindings
-                .insert(symbol, LoweredValue::Value(value(parameter)));
-            self.non_null_bindings.clone_from(&outer_non_null);
+            self.bindings = self.rebind_linear_bindings(&baseline, block, &carried, span)?;
             if proven {
                 self.non_null_bindings.insert(symbol, view);
             }
+            self.emit_null_condition_drops(descriptor.expression())?;
             let result = match statement {
                 Some(statement) => self.lower_control_body(statement)?,
                 None => LoweredValue::Unit,
@@ -220,21 +246,46 @@ impl ExpressionLowerer<'_> {
                     control: expression,
                     branch,
                 })?;
-                if proven && self.non_null_bindings.remove(&symbol).is_some() {
+                if proven && let Some(view) = self.non_null_bindings.remove(&symbol) {
                     self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
                 }
                 exits.push(BranchExit {
                     block: self.block,
                     result,
                     bindings: self.bindings.clone(),
+                    temporaries: self.temporaries.clone(),
+                    loans: self.pending_call_loans.clone(),
+                    views: self.non_null_bindings.clone(),
                 });
             }
         }
-        self.non_null_bindings = outer_non_null;
         if self.expression_is_unit(expression, span)? {
             discard_exit_results(&mut exits);
         }
         self.merge_exits(exits, &baseline, span)
+    }
+
+    // The discriminator replaces condition evaluation, but its ASAP cleanup still
+    // belongs after the read, on each runtime branch, before the branch body.
+    fn emit_null_condition_drops(&mut self, expression: ExpressionId) -> Result<(), LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        match node.payload().clone() {
+            Expression::Binary { left, right, .. } => {
+                self.emit_null_condition_drops(left)?;
+                self.emit_null_condition_drops(right)?;
+            }
+            Expression::Group { expression } => self.emit_null_condition_drops(expression)?,
+            _ => {}
+        }
+        self.emit_drops(lang_frontend::ownership_checking::DropPoint::AfterExpression(expression))
     }
 
     pub(super) fn lower_short_circuit(
@@ -288,6 +339,9 @@ impl ExpressionLowerer<'_> {
                 block: self.block,
                 result: right_result,
                 bindings: self.bindings.clone(),
+                temporaries: self.temporaries.clone(),
+                loans: self.pending_call_loans.clone(),
+                views: self.non_null_bindings.clone(),
             });
         }
 
@@ -303,6 +357,9 @@ impl ExpressionLowerer<'_> {
             block: self.block,
             result: LoweredValue::Value(value(results[0])),
             bindings: self.bindings.clone(),
+            temporaries: self.temporaries.clone(),
+            loans: self.pending_call_loans.clone(),
+            views: self.non_null_bindings.clone(),
         });
         self.merge_exits(exits, &baseline, span)
     }
@@ -314,6 +371,9 @@ impl ExpressionLowerer<'_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.typed.nullable_when(expression).is_some() {
+            return self.lower_nullable_when(expression, entries, span);
+        }
         let discard_result = self.expression_is_unit(expression, span)?;
         let subject = match subject {
             Some(subject) => {
@@ -352,9 +412,15 @@ impl ExpressionLowerer<'_> {
 
         let mut unmatched_block = self.block;
         let mut unmatched_bindings = baseline.clone();
+        let mut unmatched_temporaries = self.temporaries.clone();
+        let mut unmatched_loans = self.pending_call_loans.clone();
+        let mut unmatched_views = self.non_null_bindings.clone();
         let mut exits = Vec::new();
         let mut has_else = false;
         for (entry_index, entry) in entries.iter().enumerate() {
+            self.temporaries.clone_from(&unmatched_temporaries);
+            self.pending_call_loans.clone_from(&unmatched_loans);
+            self.non_null_bindings.clone_from(&unmatched_views);
             if entry.else_span.is_some() {
                 has_else = true;
                 if let Some(exit) =
@@ -402,10 +468,16 @@ impl ExpressionLowerer<'_> {
                     block: matched,
                     result: LoweredValue::Unit,
                     bindings: self.bindings.clone(),
+                    temporaries: self.temporaries.clone(),
+                    loans: self.pending_call_loans.clone(),
+                    views: self.non_null_bindings.clone(),
                 });
                 unmatched_block = next;
                 unmatched_bindings =
                     self.rebind_linear_bindings(&after_condition, next, &carried, entry.span)?;
+                unmatched_temporaries = self.temporaries.clone();
+                unmatched_loans = self.pending_call_loans.clone();
+                unmatched_views = self.non_null_bindings.clone();
             }
 
             self.merge_exits(matches, &entry_baseline, entry.span)?;
@@ -415,6 +487,9 @@ impl ExpressionLowerer<'_> {
                     block: self.block,
                     result,
                     bindings: self.bindings.clone(),
+                    temporaries: self.temporaries.clone(),
+                    loans: self.pending_call_loans.clone(),
+                    views: self.non_null_bindings.clone(),
                 });
             }
         }
@@ -437,6 +512,9 @@ impl ExpressionLowerer<'_> {
                     block: unmatched_block,
                     result: LoweredValue::Unit,
                     bindings: unmatched_bindings,
+                    temporaries: unmatched_temporaries,
+                    loans: unmatched_loans,
+                    views: unmatched_views,
                 });
             }
         }
@@ -455,31 +533,38 @@ impl ExpressionLowerer<'_> {
         discard_result: bool,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let true_block = self.add_empty_block(self.statement_span(when_true)?)?;
+        let carried = self.linear_binding_slots(baseline, span)?;
+        let true_block =
+            self.add_linear_binding_block(&carried, self.statement_span(when_true)?)?;
         let false_block = if when_false == when_true {
             true_block
         } else {
-            self.add_empty_block(self.statement_span(when_false)?)?
+            self.add_linear_binding_block(&carried, self.statement_span(when_false)?)?
         };
         self.function
             .set_terminator(
                 self.block,
                 TerminatorKind::Conditional {
                     condition: subject,
-                    when_true: empty_edge(true_block),
-                    when_false: empty_edge(false_block),
+                    when_true: linear_binding_edge(true_block, &carried),
+                    when_false: linear_binding_edge(false_block, &carried),
                 },
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         let mut exits = Vec::with_capacity(2);
-        if let Some(exit) = self.lower_control_branch(true_block, when_true, baseline)? {
+        let true_baseline = self.rebind_linear_bindings(baseline, true_block, &carried, span)?;
+        if let Some(exit) = self.lower_control_branch(true_block, when_true, &true_baseline)? {
             exits.push(exit);
         }
-        if when_false != when_true
-            && let Some(exit) = self.lower_control_branch(false_block, when_false, baseline)?
-        {
-            exits.push(exit);
+        if when_false != when_true {
+            let false_baseline =
+                self.rebind_linear_bindings(baseline, false_block, &carried, span)?;
+            if let Some(exit) =
+                self.lower_control_branch(false_block, when_false, &false_baseline)?
+            {
+                exits.push(exit);
+            }
         }
         if discard_result {
             discard_exit_results(&mut exits);
@@ -642,10 +727,13 @@ impl ExpressionLowerer<'_> {
             block: self.block,
             result,
             bindings: self.bindings.clone(),
+            temporaries: self.temporaries.clone(),
+            loans: self.pending_call_loans.clone(),
+            views: self.non_null_bindings.clone(),
         }))
     }
 
-    fn lower_control_body(
+    pub(super) fn lower_control_body(
         &mut self,
         statement: StatementId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -684,6 +772,9 @@ impl ExpressionLowerer<'_> {
         if exits.len() == 1 {
             self.block = first.block;
             self.bindings = first.bindings.clone();
+            self.temporaries = first.temporaries.clone();
+            self.pending_call_loans = first.loans.clone();
+            self.non_null_bindings = first.views.clone();
             return Ok(first.result);
         }
 
@@ -714,15 +805,57 @@ impl ExpressionLowerer<'_> {
             }
         }
 
-        let merge = self
-            .function
-            .add_block(parameter_types, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        for exit in &exits {
-            let arguments = slots
+        let mut temporaries = first.temporaries.clone();
+        temporaries.retain(|key, _| exits.iter().all(|exit| exit.temporaries.contains_key(key)));
+        for (&key, &owner) in &temporaries {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Value(owner))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::Temporary(key));
+        }
+        let mut loans = first.loans.clone();
+        loans.retain(|key, _| exits.iter().all(|exit| exit.loans.contains_key(key)));
+        for (&key, &loan) in &loans {
+            if let Some(loan) = loan {
+                parameter_types.push(
+                    self.function
+                        .entity(EntityId::Loan(loan))
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                        .ty,
+                );
+                slots.push(MergeSlot::PendingLoan(key));
+            }
+        }
+
+        let mut views = first.views.clone();
+        views.retain(|key, _| exits.iter().all(|exit| exit.views.contains_key(key)));
+        for (&symbol, &loan) in &views {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Loan(loan))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::NonNullView(symbol));
+        }
+
+        // Group 等表达式记录可指向同一实体；所有入边都相同时共享一个参数。
+        let mut columns = Vec::new();
+        let mut unique_types = Vec::new();
+        let mut slot_parameters = Vec::with_capacity(slots.len());
+        for (slot, ty) in slots.iter().zip(parameter_types) {
+            let column = exits
                 .iter()
-                .map(|slot| match slot {
+                .map(|exit| match slot {
                     MergeSlot::Result => lowered_entity(exit.result, span),
+                    MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[symbol])),
+                    MergeSlot::Temporary(key) => Ok(EntityId::Value(exit.temporaries[key])),
+                    MergeSlot::PendingLoan(key) => exit.loans[key]
+                        .map(EntityId::Loan)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span)),
                     MergeSlot::Binding(symbol) => lowered_entity(
                         exit.bindings
                             .get(symbol)
@@ -732,6 +865,22 @@ impl ExpressionLowerer<'_> {
                     ),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            let parameter = if let Some(index) = columns.iter().position(|other| *other == column) {
+                index
+            } else {
+                let index = columns.len();
+                columns.push(column);
+                unique_types.push(ty);
+                index
+            };
+            slot_parameters.push(parameter);
+        }
+        let merge = self
+            .function
+            .add_block(unique_types, Origin::Source(span))
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        for (index, exit) in exits.iter().enumerate() {
+            let arguments = columns.iter().map(|column| column[index]).collect();
             self.function
                 .set_terminator(
                     exit.block,
@@ -761,10 +910,33 @@ impl ExpressionLowerer<'_> {
                     .map(|binding| (*symbol, binding))
             })
             .collect::<BTreeMap<_, _>>();
-        for (slot, parameter) in slots.into_iter().zip(parameters) {
+        for (slot, index) in slots.into_iter().zip(slot_parameters) {
+            let parameter = parameters[index];
+            if let MergeSlot::PendingLoan(key) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                loans.insert(key, Some(loan));
+                continue;
+            }
+            if let MergeSlot::NonNullView(symbol) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                views.insert(symbol, loan);
+                continue;
+            }
             let parameter = LoweredValue::Value(value(parameter));
             match slot {
                 MergeSlot::Result => result = parameter,
+                MergeSlot::Temporary(key) => {
+                    if let LoweredValue::Value(owner) = parameter {
+                        temporaries.insert(key, owner);
+                    }
+                }
+                MergeSlot::PendingLoan(_) | MergeSlot::NonNullView(_) => {
+                    unreachable!("handled loan parameter")
+                }
                 MergeSlot::Binding(symbol) => {
                     bindings.insert(symbol, parameter);
                 }
@@ -772,6 +944,9 @@ impl ExpressionLowerer<'_> {
         }
         self.block = merge;
         self.bindings = bindings;
+        self.temporaries = temporaries;
+        self.pending_call_loans = loans;
+        self.non_null_bindings = views;
         Ok(result)
     }
 
@@ -802,11 +977,11 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
     }
 
-    fn linear_binding_slots(
+    pub(super) fn linear_binding_slots(
         &self,
         bindings: &BTreeMap<SymbolId, LoweredValue>,
         span: Span,
-    ) -> Result<Vec<LinearBindingSlot>, LoweringError> {
+    ) -> Result<LinearBindings, LoweringError> {
         let mut carried = Vec::new();
         for (&symbol, &binding) in bindings {
             let declared = self
@@ -830,29 +1005,106 @@ impl ExpressionLowerer<'_> {
             if !matches!(ty, EntityType::Value(_)) {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
-            carried.push(LinearBindingSlot { symbol, source, ty });
+            carried.push(LinearBindingSlot {
+                symbol: Some(symbol),
+                source: EntityId::Value(source),
+                ty,
+                temporaries: Vec::new(),
+                loans: Vec::new(),
+                views: Vec::new(),
+            });
         }
-        Ok(carried)
+        for (&key, &owner) in &self.temporaries {
+            let source = EntityId::Value(owner);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                slot.temporaries.push(key);
+            } else {
+                let ty = self
+                    .function
+                    .entity(source)
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                carried.push(LinearBindingSlot {
+                    symbol: None,
+                    source,
+                    ty,
+                    temporaries: vec![key],
+                    loans: Vec::new(),
+                    views: Vec::new(),
+                });
+            }
+        }
+        for (&key, &loan) in &self.pending_call_loans {
+            let Some(loan) = loan else {
+                continue;
+            };
+            let source = EntityId::Loan(loan);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                slot.loans.push(key);
+            } else {
+                let ty = self
+                    .function
+                    .entity(source)
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                carried.push(LinearBindingSlot {
+                    symbol: None,
+                    source,
+                    ty,
+                    temporaries: Vec::new(),
+                    loans: vec![key],
+                    views: Vec::new(),
+                });
+            }
+        }
+        for (&symbol, &loan) in &self.non_null_bindings {
+            let source = EntityId::Loan(loan);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                slot.views.push(symbol);
+            } else {
+                let ty = self
+                    .function
+                    .entity(source)
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                carried.push(LinearBindingSlot {
+                    symbol: None,
+                    source,
+                    ty,
+                    temporaries: Vec::new(),
+                    loans: Vec::new(),
+                    views: vec![symbol],
+                });
+            }
+        }
+        Ok(LinearBindings {
+            slots: carried,
+            forwarded_loans: self
+                .pending_call_loans
+                .iter()
+                .filter_map(|(&key, loan)| loan.is_none().then_some(key))
+                .collect(),
+        })
     }
 
     fn add_linear_binding_block(
         &mut self,
-        carried: &[LinearBindingSlot],
+        carried: &LinearBindings,
         span: Span,
     ) -> Result<BlockId, LoweringError> {
         self.function
             .add_block(
-                carried.iter().map(|slot| slot.ty).collect(),
+                carried.slots.iter().map(|slot| slot.ty).collect(),
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
     }
 
-    fn rebind_linear_bindings(
-        &self,
+    pub(super) fn rebind_linear_bindings(
+        &mut self,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
         block: BlockId,
-        carried: &[LinearBindingSlot],
+        carried: &LinearBindings,
         span: Span,
     ) -> Result<BTreeMap<SymbolId, LoweredValue>, LoweringError> {
         let parameters = &self
@@ -860,17 +1112,42 @@ impl ExpressionLowerer<'_> {
             .block(block)
             .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
             .parameters;
-        if parameters.len() != carried.len() {
+        if parameters.len() < carried.slots.len() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        // Restore the complete entry state before lowering each sibling branch.
+        self.temporaries.clear();
+        self.non_null_bindings.clear();
+        self.pending_call_loans = carried
+            .forwarded_loans
+            .iter()
+            .map(|&key| (key, None))
+            .collect();
         let mut bindings = baseline.clone();
-        for (slot, &parameter) in carried.iter().zip(parameters) {
-            bindings.insert(slot.symbol, LoweredValue::Value(value(parameter)));
+        for (slot, &parameter) in carried.slots.iter().zip(parameters) {
+            if let Some(symbol) = slot.symbol {
+                bindings.insert(symbol, LoweredValue::Value(value(parameter)));
+            }
+            for key in &slot.temporaries {
+                self.temporaries.insert(*key, value(parameter));
+            }
+            for symbol in &slot.views {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                self.non_null_bindings.insert(*symbol, loan);
+            }
+            for key in &slot.loans {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                self.pending_call_loans.insert(*key, Some(loan));
+            }
         }
         Ok(bindings)
     }
 
-    fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
+    pub(super) fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
         self.parsed
             .ast()
             .expressions()
@@ -894,7 +1171,7 @@ impl ExpressionLowerer<'_> {
             })
     }
 
-    fn expression_is_unit(
+    pub(super) fn expression_is_unit(
         &self,
         expression: ExpressionId,
         span: Span,
@@ -908,20 +1185,10 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-fn empty_edge(target: BlockId) -> Edge {
+fn linear_binding_edge(target: BlockId, carried: &LinearBindings) -> Edge {
     Edge {
         target,
-        arguments: Vec::new(),
-    }
-}
-
-fn linear_binding_edge(target: BlockId, carried: &[LinearBindingSlot]) -> Edge {
-    Edge {
-        target,
-        arguments: carried
-            .iter()
-            .map(|slot| EntityId::Value(slot.source))
-            .collect(),
+        arguments: carried.slots.iter().map(|slot| slot.source).collect(),
     }
 }
 

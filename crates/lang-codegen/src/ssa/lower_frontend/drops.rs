@@ -17,6 +17,12 @@ impl ExpressionLowerer<'_> {
         for fact in facts {
             let owner = match fact.target() {
                 DropTarget::Named(symbol) => {
+                    // Loop-exit facts include entry owners consumed on every actual exit.
+                    if matches!(point, DropPoint::LoopExit(_))
+                        && !self.bindings.contains_key(&symbol)
+                    {
+                        continue;
+                    }
                     // nullable 分支证明是 owner 的共享视图。ASAP drop 可能恰好位于证明分支的
                     // 最后一次使用处，因此必须先结束视图，再消费 owner。
                     if let Some(loan) = self.non_null_bindings.remove(&symbol) {
@@ -34,9 +40,15 @@ impl ExpressionLowerer<'_> {
                     }
                 }
                 DropTarget::Temporary(expression) => {
-                    self.temporaries
+                    let owner = self
+                        .temporaries
                         .remove(&expression.index())
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?
+                        .ok_or_else(|| {
+                            error(LoweringErrorKind::MissingFact, fact.value_origin())
+                        })?;
+                    // Group expressions can name the same temporary owner.
+                    self.temporaries.retain(|_, candidate| *candidate != owner);
+                    owner
                 }
                 // The closure owner recursively drops its owned environment slots.
                 DropTarget::Captured { .. } => continue,
