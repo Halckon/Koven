@@ -1,245 +1,59 @@
-# AGENTS.md — Koven 文档治理规范
+# AGENTS.md — Koven 文档治理
 
-本文件适用于 `docs/` 及其子目录。根 [`AGENTS.md`](../AGENTS.md) 规定工程实现方式；本文件
-规定文档如何分类、流转和保持一致。文档不是实现的替代品，但它们定义范围、记录决策并
-保存当前架构事实。
+> **性质**：文档工作规则 · **状态**：current · **读取时机**：修改 `docs/` 时 · **唯一真源**：本文件
 
----
+根 [AGENTS.md](../AGENTS.md) 仍然适用；本文件只增加文档分类、生命周期与一致性规则。
 
-## 1. 文档体系
+## 1. 文档职责
+
+| 区域 | 回答的问题 | 权威性 |
+|---|---|---|
+| `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.34 |
+| `architecture/` | 仓库现在已经实现成什么样 | 当前事实快照 |
+| `development/` | 如何开发、验证与交付 | 工程规则 |
+| `specs/` | 一次变更做什么、依赖与验收是什么 | 变更合同 |
+| `adr/` | guide 留白处为什么选择某项长期方案 | 决策记录 |
+| `proposals/` | 尚未启用的候选设计 | 非规范 |
+| `archive/` | 旧规范、完成证据和冻结材料 | 只读历史 |
+
+同一规则只保留一个真源。Guide 不写实现历史，Architecture 不写计划，Spec 不复制完整语义，
+ADR 不替代 guide，AGENTS 不保存版本实施清单。
+
+## 2. Guide
+
+- [guide/README.md](guide/README.md) 是唯一 current 入口，当前版本固定为 v0.34。
+- 纯结构、链接或不改变含义的表述修正不提升版本；关键字、语法、类型、所有权、标准库契约或
+  强制 Phase 边界变化必须形成新版本并由用户明确启用。
+- 候选规则只能进入 `proposals/`；创建更高版本号或 draft Spec 不会自动取得规范地位。
+- 规则正文优先于示例；发现冲突时保留原义、登记问题并请求决定，不能自行调和。
+
+## 3. Spec 与 ADR 生命周期
+
+Spec 编号跨目录全局递增且唯一：
 
 ```text
-docs/
-├── README.md
-├── AGENTS.md
-├── agent-language-design-guide-v*.md  # v0.12 及更早的单文件历史
-├── guide/                              # v0.14 起的现行滚动文档集
-│   ├── 00-index.md
-│   ├── 01-design-decisions.md
-│   ├── 02-lexical-spec.md
-│   ├── 03-grammar-core.md
-│   ├── 04-grammar-declarations-blocks.md
-│   ├── 05-grammar-calls-lambda.md
-│   ├── 06-roadmap.md
-│   └── 07-changelog-archive.md
-├── specs/
-│   ├── README.md
-│   ├── NNNN-kebab-case-title.md
-│   └── TEMPLATE.md
-├── adr/
-│   ├── README.md
-│   ├── NNNN-kebab-case-topic.md
-│   └── TEMPLATE.md
-└── architecture/
-    └── README.md
+draft              → specs/drafts/
+approved/in-progress → specs/active/
+done/superseded    → archive/specs/
 ```
 
-| 文档 | 回答的问题 | 生命周期 |
-|---|---|---|
-| 现行语言规范文档集 | 语言语义及 guide 已强制确定的实现、Phase 边界是什么 | 正文原地演进；变更归档与 Git 保留历史 |
-| 单文件历史 guide | 旧版本当时规定了什么 | 保留，不接收后续语义修改 |
-| Spec | 这一次具体做什么、如何验收 | `draft → approved → in-progress → done` |
-| ADR | 为什么选择这项长期架构决策 | 接受后不改写历史；由新 ADR 取代 |
-| Architecture | 仓库当前已经实现成什么样 | 随实现直接更新为最新事实 |
+- draft 的语义前置未启用时必须写明阻塞项，不得实施。
+- Spec 完成前逐条记录实际验收；状态迁移与路径迁移在同一变更中完成。
+- accepted ADR 放入 `adr/accepted/`，proposed 放入 `adr/proposed/`；rejected/superseded 进入 archive。
+- accepted ADR 不改写原决定；改变方案时新增 ADR 并建立双向取代关系。
+- 增删或迁移 Spec/ADR 时同步更新 `scripts/check_docs.py` 的冻结 inventory；否则结构门禁应失败。
 
-当前语言语义真源是 [`guide/00-index.md`](./guide/00-index.md) 导航的 v0.34 文档集。它是
-跨功能、跨 Phase 的版本化规范，不属于单次实现 Spec。v0.12 及更早单文件 guide 只保留为
-历史；v0.11、v0.12 候选快照在 v0.14 启用后补回，仅用于合入验证。v0.13 的内容已经合入
-v0.14，没有独立文件快照；v0.15 在滚动正文中补齐完整文件恢复契约，v0.16 修正顶层声明
-分隔规则，v0.17 采用 Kotlin 风格的 `package` / `import` 文件头，v0.18 封闭 Phase 1
-控制流与最近 callable `return` 契约，v0.19 封闭 `Result<T, E>` 错误值与 postfix `?`，
-v0.20 封闭 class-family、类型级 companion、匿名内部类边界及窄化接口委托契约，v0.21
-封闭单文件双命名空间、作用域、预声明环境与首批名称诊断契约，v0.22 封闭最小数值后缀、
-默认数值类型与基础类型检查契约，v0.23 封闭名义/泛型身份、interface 静态实现、
-override/default 冲突与窄化接口委托契约，v0.24 封闭 enum case type、`when` 穷尽性与
-smart cast 契约，v0.25 封闭条件 `Copyable`、有限内联布局、intrinsic `Box` 与结构化解构
-类型契约，v0.26 把 callable 声明默认模式改为 `Borrow`、以显式 `own` 表达内部 `Value`
-owned binding，并封闭同步调用期 loan 与 ASAP 析构点契约，v0.27 封闭简化 closure
-capture 与跨线程 `Transferable` 契约，v0.28 封闭泛型 callable 实例化与 overload-lambda
-候选隔离契约，v0.29 封闭 nominal/enum case/intrinsic Box constructor 契约，v0.30 封闭
-单文件 conventional main 与显式单线程 Rc 共享所有权契约，v0.31 封闭一般 UTF-8 String
-owner、最小连接/相等/动态输出与参数化 main 的 runtime 前置边界，v0.32 封闭多文件
-package/import、跨文件可见性与 compilation-unit 分阶段边界，v0.33 封闭尾 lambda、
-headerless lambda 隐式 `it` 与无依赖本地 project build/run 契约，v0.34 封闭 instance
-receiver mode、静态分发调用与 Borrow-only 窄化委托契约。
+## 4. Archive 与迁移
 
-`guide/01-design-decisions.md` §34 与 `guide/04-grammar-declarations-blocks.md` §13.5 已于
-2026-08-31 显式重基到完整 v0.33，并由用户明确启用 v0.34 取代 v0.33；SPEC-0201 已完成，
-0180/0181/0191 均已完成；后继 `StaticSelf` Value delivery 与 inherited/runtime recipe 门禁已拆分为
-SPEC-0222—0225。
+- 历史正文、结论和验收证据不得压缩或重写；允许机械更新本地链接和锚点。
+- live 文档不得把 archive 当作默认必读项；需要追溯时从 `archive/README.md` 进入。
+- 大规模重组先建立标题迁移账本，确保每个旧规则只有一个新归属；Git 历史不是遗漏正文的理由。
+- 旧路径不留跳转页。所有仓库内引用必须在同一变更中更新。
 
-`guide/05-grammar-calls-lambda.md` §9 与 `guide/01-design-decisions.md` §33 已于 2026-08-30
-由用户明确启用并取代 v0.32；SPEC-0213/0214/0054 均已完成。
+## 5. 页面与交付
 
-`guide/01-design-decisions.md` §32 已于 2026-08-26 由用户明确启用并取代 v0.31；ADR-0020
-依据有效站立授权完成接受，SPEC-0025/0197/0198/0199/0187 均已完成。
-
-`guide/01-design-decisions.md` §31 已于 2026-08-26 由用户明确启用并取代 v0.30；ADR-0018、
-ADR-0019 同时获明确接受，SPEC-0192 已完成实施。
-
-`guide/01-design-decisions.md` §30 已于 2026-08-26 由用户明确启用并取代 v0.29；零参数 main、
-参数化 main 与 Rc 仍按自身前置关系独立实施和验收。
-
----
-
-## 2. 推进顺序
-
-一次功能或行为变更按以下顺序推进：
-
-1. **读取规范**：确认现行语言 guide 与当前 Phase，不从 Kotlin、Rust 或旧文档推测语义。
-2. **起草 Spec**：在 `specs/` 中定义范围、非目标、验收标准、测试证据和受影响模块。
-3. **记录 ADR（按需）**：若工作改变长期架构边界，先接受 ADR，再批准引用它的 Spec。
-4. **实现与验证**：按 Spec 任务清单推进，测试结果必须能对应每条验收标准。
-5. **更新 Architecture**：只记录最终已经落地的结构、依赖和数据流，不把计划写成事实。
-6. **完成 Spec**：全部验收通过后标记 `done`；未执行检查必须明确记录，不能静默完成。
-7. **提交并完成 Goal**：创建只属于该 Spec 的提交；提交成功后才把关联 Goal 标为完成。
-
-如果只是修正文案、链接、拼写或清理无效旧文档，不必创建 Spec。纯 bug 修复可以不新建
-Spec，但必须添加回归测试；若修复会改变既有语言语义，则必须先更新规范并建立 Spec。
-
-### 站立授权与简化确认
-
-用户可以在当前任务或持续 Goal 中授予后续 Spec / ADR 的站立授权。站立授权仅在授予它的
-当前任务或持续 Goal 范围内有效；用户撤销、收窄授权或该 Goal 完成时终止，不自动延伸到
-其他任务。撤销或收窄只影响尚未发生的后续批准 / 接受，不回滚已经形成的 `approved` /
-`accepted` 历史。授权有效且未被撤销时：
-
-- 完整、无阻塞且符合现行 guide 的 Spec 可按 `draft → approved → in-progress` 的逻辑顺序
-  连续推进，无需逐份再次询问用户，也无需为 `approved` 单独创建状态提交；
-- ADR 在背景、决策、替代方案、收益与代价完整，且没有改变现行 guide 的语义或边界时，
-  可直接记录为 `accepted`，无需先提交 `proposed` 再创建纯状态提交；
-- 使用站立授权自动推进的新建 Spec / ADR，或首次由 `draft` / `proposed` 转为
-  `approved` / `accepted` 的文档，必须记录所依据的站立授权；既有 `done` / `accepted`
-  文档不追溯补写。授权只替代重复人工确认，不替代前置条件、阻塞审计、验收标准、测试、
-  Architecture 同步、验证记录或独立实现提交；
-- 批准可以自动化，验收可以自动执行，但不能自动视为通过。验收勾选和 `done` 状态必须由
-  实际行为证据、回归测试及适用的 workspace 基线支持；
-- 未决问题会改变范围、语言语义或用户可观察结果时，仍保持 `draft` / `proposed` 并请求
-  用户决定，不得把站立授权解释为允许猜测；
-- 站立授权不适用于语言 guide。每个新 guide 仍必须由用户明确指定具体版本取代当前版本，
-  才能成为真源。
-
----
-
-## 3. 版本化语言规范
-
-- v0.14 起，现行规范以 [`guide/00-index.md`](./guide/00-index.md) 为唯一入口；索引声明整个
-  文档集的当前版本与状态，每份正文顶部记录自身最近一次内容变更版本。
-- `docs/guide/` 正文原地演进，不为每个版本复制整套目录。每次版本变更必须追加
-  [`guide/07-changelog-archive.md`](./guide/07-changelog-archive.md)，并以 Git 提交保存可复核
-  的历史状态。v0.11、v0.12 的单文件候选快照已补回，不改变其内容已合入 v0.14
-  的状态；v0.13 是纯结构拆分，没有独立快照。
-- v0.12 及更早的 `agent-language-design-guide-vMAJOR.MINOR.md` 是单文件历史材料，继续保留，
-  不原地接收 v0.14 及后续语义修改。
-- 只有用户明确指定的新版本才能取代当前版本。创建了更高版本号文件不等于自动生效。
-- 新版本必须在索引中说明它取代的版本并维护变更记录。v0.3 之前的历史材料未随当前仓库
-  归档，不适用这条追溯要求。
-- 不改变既有语义的拼写、链接、表述或示例勘误可以修改当前版本；如果改变关键字、语法、
-  类型、所有权、标准库契约、强制实现边界或 Phase 验收，必须创建新版本，并同步更新相关
-  章节、关键字表（如适用）和版本变更记录。
-- 新版本只有经用户明确指定后才能成为当前真源；在此之前，相关 Spec 不能进入
-  `approved` / `in-progress`。
-- 根 `AGENTS.md` 只保留工程护栏，不复制完整语法表；避免形成第二语言语义真源。
-- guide 中存在正文与示例冲突时，按根 `AGENTS.md` 的优先级规则处理，并登记文档缺陷。
-
----
-
-## 4. Specs
-
-### 何时需要
-
-| 场景 | 是否需要 Spec |
-|---|---|
-| 新增编译器、标准库、CLI、LSP 或工具链功能 | 需要 |
-| 改变可观察行为、语言语义或诊断契约 | 需要 |
-| 跨多个 workspace member 的实质重构 | 需要 |
-| 不改变既定行为的局部重构 | 通常不需要 |
-| 有回归测试的纯 bug 修复 | 通常不需要 |
-| 文案、链接、格式或遗留文档清理 | 不需要 |
-
-### 命名与状态
-
-- 文件名为 `NNNN-kebab-case-title.md`，从 `0001` 起在 `specs/` 内单独递增。
-- 使用 [`specs/TEMPLATE.md`](./specs/TEMPLATE.md)，一个变更一份文件，不额外拆出重复的
-  `plan.md` / `tasks.md`。
-- 每份 Spec 只定义一个可验证 Goal，并显式列出 Phase、前置 Spec、前置 ADR、阻塞项、实施
-  计划与提交计划。一个提交不得混合多个 Spec；一个 Spec 可以有多个始终可验证且都引用该
-  Spec 编号的提交。
-- `前置 ADR` 是进入实现的强制门禁，必须为 `accepted`；`关联 ADR` 只用于追溯相关决策，
-  不自动构成状态门禁。不得用“关联 ADR”模糊替代前置条件。
-- 前置 Spec 全部 `done`、前置 ADR 全部 `accepted`、阻塞项全部解除后，Spec 才能进入
-  `in-progress`。不新增 `blocked` 状态；尚有阻塞时保持 `draft`。
-- 状态含义：
-  - `draft`：正在起草、尚未批准或仍有阻塞，不能开始正式实现；
-  - `approved`：用户或权威任务已确认目标与验收标准；
-  - `in-progress`：正在实现；
-  - `done`：全部验收完成且证据已记录；
-  - `superseded`：由另一 Spec 取代，保留原文件并链接替代者。
-- 不按状态创建子目录。完成和被取代的 Spec 留在原路径，以编号和 Git 历史追溯。
-
-### 内容约束
-
-- 验收标准必须可执行或可观察，不能使用“基本完成”“看起来正确”等表述。
-- 语言功能至少定义 compile-pass、compile-fail、错误码 / `Span`（适用时）以及相邻语法
-  回归用例；codegen 功能还需定义运行输出或目标产物。
-- Spec 写“做什么”和必要的实现边界，不在其中展开长期选型论证；复杂决策引用 ADR。
-- Spec 不复制 guide 或根 `AGENTS.md` 的规则，只链接适用章节并写本次增量。
-- `done` 前逐条勾选验收标准和任务，并记录实际检查命令；跳过项必须说明原因。
-- 完成实现、测试、Architecture 同步和 Spec 验收后先创建对应提交；提交成功后才可把关联
-  Goal 标记为完成。提交信息必须包含 `SPEC-NNNN`，使 Goal、Spec 与 Git 历史可互相追踪。
-
----
-
-## 5. ADR
-
-### 何时需要
-
-以下变化通常先写 ADR：
-
-- workspace member 或依赖方向变化；
-- 新增或替换 IR 层、LLVM 接入策略、runtime / ABI、链接或 bootstrap 方案；
-- 影响多个 Phase 的错误模型、缓存、增量编译或平台支持策略；
-- 引入会长期改变开发方式的核心依赖或架构模式。
-
-ADR 只能决定现行 guide 留白处的架构选择。若决策会改变 guide 已强制确定的 workspace、
-IR、后端或 Phase 边界，必须先形成并启用新 guide 版本，再由 ADR 记录其具体落地理由。
-局部实现细节、普通功能和 bug 修复不写 ADR。
-
-### 命名与状态
-
-- 文件名为 `NNNN-kebab-case-topic.md`，从 `0001` 起在 `adr/` 内单独递增。
-- 使用 [`adr/TEMPLATE.md`](./adr/TEMPLATE.md)，至少包含状态、背景、决策、后果和替代方案。
-- 状态使用 `proposed`、`accepted`、`rejected`、`superseded`。
-- 已接受 ADR 是历史记录，不因后来观点变化而改写原决策。需要改变时新增 ADR，并在两份
-  文件中互相链接。
-- 后果必须同时写收益与代价；只记录结论、不记录被放弃方案的 ADR 不完整。
-
----
-
-## 6. Architecture
-
-- `architecture/` 记录当前已实现的 workspace、编译流水线、依赖关系、核心数据结构、
-  诊断流、runtime / ABI 与平台边界。
-- 架构文档是可更新快照，不保留每次变化的历史叙事；决策历史属于 ADR。
-- 必须明确区分“已实现”“已批准但未实现”“未决问题”。尤其在 Phase 0 前，不得把 guide
-  的路线图写成仓库现状。
-- 实现使架构图、模块职责或数据流失真时，必须在同一任务中更新 architecture。
-- 推荐用小型 Mermaid 图表达依赖或流水线，但图必须配有文字边界与当前状态说明。
-
----
-
-## 7. 一致性与交付检查
-
-文档变更完成前检查：
-
-- [ ] 根 `AGENTS.md` 指向当前 guide 的真实路径；
-- [ ] `guide/00-index.md` 的版本与状态、受影响正文的内容版本、变更归档和 Git diff 一致；
-- [ ] Spec 的 guide 版本、Phase、ADR 和受影响 member 引用有效；
-- [ ] ADR 被取代关系是双向且编号正确；
-- [ ] Architecture 只描述已实现事实，计划和未决事项有显式标记；
-- [ ] Markdown 相对链接存在，章节引用仍对应正确内容；
-- [ ] 没有把语言规则完整复制到 Spec、ADR 或 architecture；
-- [ ] 没有把未运行的测试或检查写成“通过”。
-
-禁止保留其他项目的 Spec、ADR、architecture 或模板作为 Koven 的有效文档。需要历史材料时
-应明确归档为 legacy，且不得被当前索引或规则引用。
+- live 的 guide、architecture、development、proposal 和索引页顶部必须标明：性质、状态、读取
+  时机、唯一真源。
+- 默认任务路由最多列五份必读文档；扩展阅读和历史材料单独列出。
+- 只描述实际运行过的检查；纯 Markdown 不机械运行 Rust 门禁。
+- 提交前运行 `python3 scripts/check_docs.py`、检查迁移账本和 `git diff --check`。
