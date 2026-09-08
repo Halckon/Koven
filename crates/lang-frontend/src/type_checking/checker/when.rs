@@ -688,7 +688,7 @@ fn union_domain(left: WhenDomain, right: WhenDomain) -> WhenDomain {
 }
 
 impl Checker<'_> {
-    fn nullable_when_category(
+    pub(super) fn nullable_when_category(
         &self,
         expression: ExpressionId,
     ) -> Result<NullableWhenSubjectCategory, TypeCheckingError> {

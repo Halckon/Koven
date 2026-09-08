@@ -1617,6 +1617,239 @@ fn checked_in_phase2_type_fixtures_execute_real_pass_and_fail_cases() {
 }
 
 #[test]
+fn non_null_assertion_describes_one_evaluation_without_a_synthetic_call() {
+    let text = "class Node {}\nfun make(): Node? = null\nfun read(): Node = make()!!";
+    let (sources, parsed) = parse(text);
+    let (names, types) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let [plan] = typed.non_null_assertions() else {
+        panic!("one assertion must publish exactly one extraction and abort fact");
+    };
+    let node = parsed.ast().expressions().get(plan.expression()).unwrap();
+    let Expression::NonNullAssert {
+        operand,
+        operator_span,
+    } = node.payload()
+    else {
+        panic!("descriptor must retain the assertion AST identity");
+    };
+    assert_eq!(plan.operand(), *operand);
+    assert_eq!(plan.operator_span(), *operator_span);
+    assert_eq!(typed.expression_type(*operand), Some(plan.nullable_type()));
+    assert_eq!(
+        typed.expression_type(plan.expression()),
+        Some(plan.inner_type())
+    );
+    assert_eq!(
+        typed.types().get(plan.nullable_type()),
+        Some(&TypeKind::Nullable(plan.inner_type()))
+    );
+    assert_eq!(typed.non_null_assertion(plan.expression()), Some(plan));
+    assert_eq!(
+        typed.calls().len(),
+        1,
+        "only the source make() call is resolved"
+    );
+    let repeated = check_types(&sources, &parsed, &resolution, &types).expect("repeated types");
+    assert_eq!(typed.non_null_assertions(), repeated.non_null_assertions());
+}
+
+#[test]
+fn non_null_assertion_records_extraction_candidates_without_deciding_ownership() {
+    use lang_frontend::type_checking::{
+        Copyability, ExpressionCategory, NullableWhenSubjectCategory as Source,
+    };
+    for (inner, copyability) in [
+        ("Int", Copyability::Copyable),
+        ("Node", Copyability::MoveOnly),
+    ] {
+        for (declaration, operand, category) in [
+            (
+                format!("fun read(own x: {inner}?): {inner} = x!!"),
+                "x",
+                Source::OwnedRoot,
+            ),
+            (
+                format!("fun read(x: {inner}?): {inner} = x!!"),
+                "x",
+                Source::BorrowRoot,
+            ),
+            (
+                format!("fun read(inout x: {inner}?): {inner} = (x)!!"),
+                "(x)",
+                Source::InoutRoot,
+            ),
+            (
+                format!(
+                    "class Holder(val item: {inner}?)\nfun read(h: Holder): {inner} = h.item!!"
+                ),
+                "h.item",
+                Source::OrdinaryField,
+            ),
+            (
+                format!("fun read(xs: Array<{inner}?>): {inner} = xs[0]!!"),
+                "xs[0]",
+                Source::ContainerElement,
+            ),
+            (
+                format!("fun make(): {inner}? = null\nfun read(): {inner} = make()!!"),
+                "make()",
+                Source::Temporary,
+            ),
+        ] {
+            let text = format!("class Node {{}}\n{declaration}");
+            let (sources, parsed, _, typed) = checked(&text);
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            let [plan] = typed.non_null_assertions() else {
+                panic!("{text}")
+            };
+            assert_eq!(plan.source_category(), category, "{text}");
+            assert_eq!(plan.copyability(), copyability, "{text}");
+            assert_eq!(
+                plan.category(),
+                if category == Source::Temporary {
+                    ExpressionCategory::Temporary
+                } else {
+                    ExpressionCategory::Place
+                }
+            );
+            assert_eq!(
+                sources
+                    .slice(
+                        parsed
+                            .ast()
+                            .expressions()
+                            .get(plan.operand())
+                            .unwrap()
+                            .span()
+                    )
+                    .unwrap(),
+                operand
+            );
+            assert_eq!(sources.slice(plan.operator_span()).unwrap(), "!!");
+        }
+    }
+}
+
+#[test]
+fn non_null_assertion_abort_is_independent_of_shadowed_error() {
+    use lang_frontend::type_checking::{AssertionFailureEffect, CallableTarget};
+    let (_, _, names, typed) = checked(
+        "fun error(message: String): Int = 7\nfun read(x: Int?): Int { val ordinary = error(\"local\")\n return x!! }",
+    );
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let [plan] = typed.non_null_assertions() else {
+        panic!("one assertion")
+    };
+    assert_eq!(plan.failure_effect(), AssertionFailureEffect::Abort);
+    let [call] = typed.calls() else {
+        panic!("only explicit error resolves a callable")
+    };
+    let CallableTarget::Source(symbol) = call.target() else {
+        panic!("local error must win")
+    };
+    assert_eq!(names.symbols()[symbol.index()].name(), "error");
+    assert_eq!(
+        typed.types().get(call.return_type()),
+        Some(&TypeKind::Builtin(BuiltinType::Int))
+    );
+}
+
+#[test]
+fn non_null_assertion_failed_trials_roll_back_and_selected_trial_is_unique() {
+    for (body, success) in [("it!!", false), ("it!! + 1", true)] {
+        let text = format!(
+            "fun choose(callback: (Int?) -> Int): Int = 1\nfun choose(callback: (Boolean?) -> Boolean): Boolean = true\nfun use(): Unit {{ val selected = choose {{ {body} }} }}"
+        );
+        let (_, _, _, typed) = checked(&text);
+        assert_eq!(
+            typed.diagnostics().is_empty(),
+            success,
+            "{:?}",
+            typed.diagnostics()
+        );
+        assert_eq!(typed.non_null_assertions().len(), usize::from(success));
+        if success {
+            assert_eq!(
+                typed
+                    .types()
+                    .get(typed.non_null_assertions()[0].inner_type()),
+                Some(&TypeKind::Builtin(BuiltinType::Int))
+            );
+        }
+    }
+}
+
+#[test]
+fn non_null_assertion_invalid_nested_postfix_keeps_only_valid_inner_fact() {
+    let (sources, _, _, typed) = checked("fun read(x: Int?): Int = x!!!!\nfun bad(): Int = true!!");
+    assert_eq!(codes(typed.diagnostics()), ["L0085", "L0085"]);
+    for diagnostic in typed.diagnostics() {
+        assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "!!");
+    }
+    assert_eq!(typed.non_null_assertions().len(), 1);
+}
+
+#[test]
+fn non_null_assertion_failed_candidates_preserve_preexisting_fact() {
+    let (sources, parsed, _, typed) = checked(
+        "fun first(x: Int?): Int = x!!\nfun choose(callback: (Int?) -> Int): Int = 1\nfun choose(callback: (Boolean?) -> Boolean): Boolean = true\nfun use(): Unit { val selected = choose { it!! + true } }",
+    );
+    assert_eq!(codes(typed.diagnostics()), ["L0123"]);
+    let [plan] = typed.non_null_assertions() else {
+        panic!("failed candidates must preserve only the earlier committed assertion");
+    };
+    assert_eq!(
+        sources
+            .slice(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(plan.expression())
+                    .unwrap()
+                    .span()
+            )
+            .unwrap(),
+        "x!!"
+    );
+}
+
+#[test]
+fn non_null_assertion_preserves_conditional_copyability() {
+    use lang_frontend::type_checking::Copyability;
+    for (parameter, expected) in [
+        ("T: Copyable", Copyability::Copyable),
+        ("T", Copyability::MoveOnly),
+    ] {
+        let (_, _, _, typed) = checked(&format!("fun <{parameter}> read(own x: T?): T = x!!"));
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [plan] = typed.non_null_assertions() else {
+            panic!("one generic assertion")
+        };
+        assert_eq!(plan.copyability(), expected);
+        assert_eq!(typed.copyability(plan.inner_type()), Some(expected));
+    }
+}
+
+#[test]
+fn non_null_assertion_error_and_deferred_operands_do_not_publish_extraction() {
+    let (_, _, _, typed) =
+        checked("fun bad(): Int = (true + false)!!\nfun deferred(x: Int): Int = (x as Int)!!");
+    assert_eq!(
+        codes(typed.diagnostics()),
+        ["L0085"],
+        "operand error must not gain another assertion diagnostic"
+    );
+    assert!(typed.non_null_assertions().is_empty());
+}
+
+#[test]
 fn nullable_when_null_fallthrough_narrows_else_subject() {
     // Removing null from the remaining domain must make the same stable subject usable as T.
     let (_, _, _, typed) = checked("fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }");

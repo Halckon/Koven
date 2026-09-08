@@ -332,7 +332,7 @@ Spec 之前，本条限制不变。）
       storage lowering 仍独立。
 - [ ] **[SPEC-0202](../../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
-- [ ] **[SPEC-0205](../../../specs/active/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
+- [ ] **[SPEC-0205](../../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
       operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
 - [ ] **[SPEC-0026](../../../specs/drafts/v0.36/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
@@ -398,7 +398,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       不新增跨过程所有权分析。
 - [ ] **[SPEC-0203](../../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
-- [ ] **[SPEC-0206](../../../specs/drafts/v0.35/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
+- [ ] **[SPEC-0206](../../../specs/active/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
 - [ ] **[SPEC-0208](../../../specs/drafts/v0.36/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary

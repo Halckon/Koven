@@ -157,9 +157,26 @@ impl Checker<'_> {
                 operand,
                 operator_span,
             } => {
-                let operand = self.check_expression(operand, None, None)?;
-                let ty = match self.kind(operand.ty) {
-                    TypeKind::Nullable(inner) => *inner,
+                let checked = self.check_expression(operand, None, None)?;
+                let ty = match self.kind(checked.ty) {
+                    TypeKind::Nullable(inner) => {
+                        let inner = *inner;
+                        self.non_null_assertions.push(
+                            crate::type_checking::NonNullAssertionDescriptor {
+                                expression: id,
+                                operand,
+                                operator_span,
+                                nullable_type: checked.ty,
+                                inner_type: inner,
+                                category: self.expression_categories[operand.index()],
+                                source_category: self.nullable_when_category(operand)?,
+                                copyability: self.copyability_of(inner),
+                            },
+                        );
+                        self.non_null_assertions
+                            .sort_by_key(|plan| plan.expression().index());
+                        inner
+                    }
                     TypeKind::Error => self.error_type(),
                     TypeKind::Deferred(_) => self.deferred(DeferredReason::MemberAccess),
                     _ => {
@@ -173,7 +190,7 @@ impl Checker<'_> {
                 };
                 ExprCheck {
                     ty,
-                    falls_through: operand.falls_through,
+                    falls_through: checked.falls_through,
                 }
             }
             Expression::Cast {

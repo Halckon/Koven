@@ -1062,6 +1062,7 @@ pub struct TypedFile {
     non_null_uses: Vec<NonNullUseDescriptor>,
     null_comparisons: Vec<NullComparisonDescriptor>,
     nullable_whens: Vec<super::NullableWhenDescriptor>,
+    non_null_assertions: Vec<super::NonNullAssertionDescriptor>,
     nominals: Vec<NominalDescriptor>,
     type_parameters: Vec<TypeParameterDescriptor>,
     delegations: Vec<DelegationPlan>,
@@ -1087,6 +1088,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) non_null_uses: Vec<NonNullUseDescriptor>,
     pub(crate) null_comparisons: Vec<NullComparisonDescriptor>,
     pub(crate) nullable_whens: Vec<super::NullableWhenDescriptor>,
+    pub(crate) non_null_assertions: Vec<super::NonNullAssertionDescriptor>,
     pub(crate) nominals: Vec<NominalDescriptor>,
     pub(crate) type_parameters: Vec<TypeParameterDescriptor>,
     pub(crate) delegations: Vec<DelegationPlan>,
@@ -1125,6 +1127,7 @@ impl TypedFile {
             non_null_uses: parts.non_null_uses,
             null_comparisons: parts.null_comparisons,
             nullable_whens: parts.nullable_whens,
+            non_null_assertions: parts.non_null_assertions,
             nominals: parts.nominals,
             type_parameters: parts.type_parameters,
             delegations: parts.delegations,
@@ -1369,6 +1372,25 @@ impl TypedFile {
         expression: ExpressionId,
     ) -> Option<&super::NullableWhenDescriptor> {
         self.nullable_whens
+            .iter()
+            .find(|plan| plan.expression() == expression)
+    }
+}
+
+impl TypedFile {
+    /// 按 assertion AST identity 排序的单次求值 extraction 候选。
+    #[must_use]
+    pub fn non_null_assertions(&self) -> &[super::NonNullAssertionDescriptor] {
+        &self.non_null_assertions
+    }
+
+    /// 查询 compiler-bound assertion，不经过普通 callable 名称选择。
+    #[must_use]
+    pub fn non_null_assertion(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::NonNullAssertionDescriptor> {
+        self.non_null_assertions
             .iter()
             .find(|plan| plan.expression() == expression)
     }

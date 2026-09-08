@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 200 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 202 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -138,6 +138,7 @@
 
 ## Phase 2
 
+- [SPEC-0205](./0205-non-null-assertion-facts.md)：非空断言 extraction typed facts
 - [SPEC-0202](0202-nullable-when-flow-facts.md)：nullable when 剩余域 typed facts
 
 - [SPEC-0018](./0018-single-file-name-resolution.md)：建立单文件作用域与名称解析

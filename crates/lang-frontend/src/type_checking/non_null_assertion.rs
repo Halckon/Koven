@@ -1,0 +1,71 @@
+//! `!!` 的 Phase 2 单次 operand 求值与 extraction 候选；所有权合法性由 Phase 3 决定。
+use super::{Copyability, ExpressionCategory, NullableWhenSubjectCategory, TypeId};
+use crate::{ast::ExpressionId, source::Span};
+
+/// assertion 失败的封闭效果，不包含源码 callable target。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AssertionFailureEffect {
+    /// null edge 直接终止，没有正常后继或 unwind cleanup。
+    Abort,
+}
+
+/// 一个 assertion 与同一次 operand 求值绑定的类型事实。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NonNullAssertionDescriptor {
+    pub(crate) expression: ExpressionId,
+    pub(crate) operand: ExpressionId,
+    pub(crate) operator_span: Span,
+    pub(crate) nullable_type: TypeId,
+    pub(crate) inner_type: TypeId,
+    pub(crate) category: ExpressionCategory,
+    pub(crate) source_category: NullableWhenSubjectCategory,
+    pub(crate) copyability: Copyability,
+}
+
+impl NonNullAssertionDescriptor {
+    /// `NonNullAssert` AST identity，同时唯一标识其 compiler-bound Abort。
+    #[must_use]
+    pub fn expression(&self) -> ExpressionId {
+        self.expression
+    }
+    /// 后续阶段必须复用的唯一 operand 求值身份。
+    #[must_use]
+    pub fn operand(&self) -> ExpressionId {
+        self.operand
+    }
+    /// `!!` 的源码位置。
+    #[must_use]
+    pub fn operator_span(&self) -> Span {
+        self.operator_span
+    }
+    /// operand 的 nullable 类型。
+    #[must_use]
+    pub fn nullable_type(&self) -> TypeId {
+        self.nullable_type
+    }
+    /// 成功 edge 的结果类型。
+    #[must_use]
+    pub fn inner_type(&self) -> TypeId {
+        self.inner_type
+    }
+    /// operand 的 place/temporary 类别。
+    #[must_use]
+    pub fn category(&self) -> ExpressionCategory {
+        self.category
+    }
+    /// 与 nullable when 共用的 root binding/field/element 来源类别。
+    #[must_use]
+    pub fn source_category(&self) -> NullableWhenSubjectCategory {
+        self.source_category
+    }
+    /// Copyable 表示复制候选，MoveOnly 表示整体消费候选；不证明 move/loan/drop 合法。
+    #[must_use]
+    pub fn copyability(&self) -> Copyability {
+        self.copyability
+    }
+    /// 由 assertion AST 绑定，不查询名为 error 的声明。
+    #[must_use]
+    pub fn failure_effect(&self) -> AssertionFailureEffect {
+        AssertionFailureEffect::Abort
+    }
+}

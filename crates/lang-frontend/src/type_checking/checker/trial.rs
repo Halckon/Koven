@@ -27,6 +27,7 @@ pub(super) struct TrialState {
     non_null_uses: Vec<NonNullUseDescriptor>,
     null_comparisons: Vec<NullComparisonDescriptor>,
     nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
+    non_null_assertions: Vec<crate::type_checking::NonNullAssertionDescriptor>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     flow_facts: BTreeMap<FlowKey, TypeId>,
     flow_versions: BTreeMap<FlowKey, u64>,
@@ -52,6 +53,7 @@ impl Checker<'_> {
             non_null_uses: self.non_null_uses.clone(),
             null_comparisons: self.null_comparisons.clone(),
             nullable_whens: self.nullable_whens.clone(),
+            non_null_assertions: self.non_null_assertions.clone(),
             external_types: self.external_types.clone(),
             flow_facts: self.flow_facts.clone(),
             flow_versions: self.flow_versions.clone(),
@@ -76,6 +78,7 @@ impl Checker<'_> {
         self.non_null_uses = state.non_null_uses;
         self.null_comparisons = state.null_comparisons;
         self.nullable_whens = state.nullable_whens;
+        self.non_null_assertions = state.non_null_assertions;
         self.external_types = state.external_types;
         self.flow_facts = state.flow_facts;
         self.flow_versions = state.flow_versions;
