@@ -33,6 +33,12 @@ loan，普通源码违规形成所有权诊断。
 只提交已实际执行前缀的 effect。任一所有权错误会清空 executable loan/delivery/drop facts，避免后端
 消费部分成功状态。
 
+`!!` 的操作数消费不受外层实参 Borrow mode 改写。单文件入口读取 typed assertion descriptor，
+Copyable inner 使用 Read，MoveOnly inner 使用 Consume；unit 入口复用按 Copyability 分流的消费检查。
+两条路径的 liveness/drop 同步整体转移，借用提取结果时由 assertion temporary 在 CallReturn 析构。
+SPEC-0206 尚在实施：独立 assertion ownership plan 与 null Abort/non-null transfer edge facts 尚未发布，
+此处不代表 Phase 4 lowering 已支持该操作。
+
 ## Capture、Transferability 与 drop
 
 closure capture 按 lambda identity 和 source binding 发布。普通 closure 借用 capture；`move` closure

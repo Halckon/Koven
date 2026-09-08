@@ -314,6 +314,13 @@ impl Checker<'_> {
                 continues: Some(state),
                 ..Flows::default()
             }),
+            Expression::NonNullAssert { operand, .. } => self.check_expression(
+                operand,
+                state,
+                ExpressionUse::Consume {
+                    parameter_span: None,
+                },
+            ),
             Expression::Prefix { operand, .. }
             | Expression::Cast {
                 expression: operand,
@@ -323,7 +330,6 @@ impl Checker<'_> {
                 expression: operand,
                 ..
             }
-            | Expression::NonNullAssert { operand, .. }
             | Expression::Propagate { value: operand, .. } => {
                 self.check_expression(operand, state, ExpressionUse::Read)
             }

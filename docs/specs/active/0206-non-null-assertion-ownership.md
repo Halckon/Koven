@@ -1,12 +1,12 @@
 # SPEC-0206：非空断言 Copy/Consume 所有权
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P3-206` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.35 空安全](../../guide/09-nullability-errors.md)与[阶段边界](../../guide/15-conformance-and-staging.md) |
@@ -75,3 +75,36 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap 审计 | 通过 | checker/drop planner 当前均把 `!!` operand 当 Read，不能证明 MoveOnly extraction |
+
+### 本次验收映射（实施中）
+
+| 契约 | 定向证据 | 状态 |
+|---|---|---|
+| 外层 Borrow 不改变 MoveOnly extraction、后续使用 L0131 | `ownership_checking non_null_assertion_consumes_owned_source_even_for_borrowed_result` | 有效 red 已确认；最终套件通过 |
+| Borrow/Inout/field/element 拒绝及 Span | `ownership_checking non_null_assertion_rejects_borrowed_and_partial_move_sources` | 有效 red 已确认；最终套件通过 |
+| Copyable 保持源可用 | `ownership_checking non_null_assertion_copy_preserves_borrowed_source` | 包括 shared loan 下字段复制，最终套件通过 |
+| active loan、owned/temporary 提取后的 borrowed-result drop | `ownership_checking non_null_assertion` | 最终套件通过 |
+| ownership plan、null Abort、transfer edge、嵌套与确定性 | 依据实现 API 补充定向测试 | 待实施 |
+| 多文件对应契约与 validated gate | `multifile_ownership_checking unit_non_null_assertion_consumption_and_source_restrictions`（7 个场景） | 最终套件通过 |
+
+首次新增测试因保留字和语句分隔语法失败，不作为所有权行为的 red 证据；修正后重新运行。
+
+### 消费入口切片（尚未完成整个 Spec）
+
+六处 checker/liveness/drop 入口已接消费行为；单文件按 0205 descriptor 选择 Copyable Read / MoveOnly
+Consume。独立审查发现 Copyable 字段在 shared loan 下被误当 Move，已修正并增加专门回归。
+字段 L0132 复用既有 field-name primary Span，不把测试期望强行扩展为整个 operand。
+其余 assertion ownership plan、Abort/transfer edge facts 和嵌套控制流仍待实施。
+
+消费入口切片验证：
+
+- `cargo test -p lang-frontend --test ownership_checking --test multifile_ownership_checking --no-fail-fast`：
+  22 + 57 = 79 项通过，0 failed/ignored/filtered；其中新增单文件 6 项、多文件 1 项（7 个来源场景）。
+- `cargo fmt --all -- --check`、`git diff --check`：通过。
+- `python3 scripts/check_docs.py`：336 Markdown 通过；结构检查不证明语义等价。
+- 独立审查先发现 Copyable shared-loan 误判，修复后复核通过；审查为静态审查，运行证据见上。
+- 无公开 API 变化，本切片未追加 workspace check；未运行 frontend 全量。
+- `cargo clippy -p lang-frontend --all-targets -- -D warnings`：未通过；既有
+  `tests/multifile_ownership_checking.rs:1006` 的 `filter_map_bool_then` 阻断，未改动该行。
+- `cargo clippy -p lang-frontend --lib --test ownership_checking --test multifile_ownership_checking -- -D warnings -A clippy::filter_map_bool_then`：
+  通过；显式允许上述一项既有 lint，不等同于严格 all-targets clippy 通过。

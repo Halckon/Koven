@@ -560,6 +560,19 @@ impl<'a> Checker<'a> {
                 continues: Some(state),
                 ..Flows::default()
             }),
+            Expression::NonNullAssert { operand, .. } => {
+                // Extraction mode is intrinsic to !!, independent of its consumer.
+                let usage = if self
+                    .typed
+                    .non_null_assertion(id)
+                    .is_some_and(|descriptor| descriptor.copyability() == Copyability::MoveOnly)
+                {
+                    ExpressionUse::Consume
+                } else {
+                    ExpressionUse::Read
+                };
+                self.check_expression(operand, state, usage)
+            }
             Expression::Prefix { operand, .. }
             | Expression::Cast {
                 expression: operand,
@@ -569,7 +582,6 @@ impl<'a> Checker<'a> {
                 expression: operand,
                 ..
             }
-            | Expression::NonNullAssert { operand, .. }
             | Expression::Propagate { value: operand, .. } => {
                 self.check_expression(operand, state, ExpressionUse::Read)
             }

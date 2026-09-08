@@ -386,6 +386,13 @@ impl Builder<'_, '_> {
                 .last()
                 .map(|context| context.1.clone())
                 .unwrap_or_default()),
+            Expression::NonNullAssert { operand, .. } => self.expression(
+                operand,
+                ExpressionUse::Consume {
+                    parameter_span: None,
+                },
+                live_after,
+            ),
             Expression::Prefix { operand, .. }
             | Expression::Cast {
                 expression: operand,
@@ -395,7 +402,6 @@ impl Builder<'_, '_> {
                 expression: operand,
                 ..
             }
-            | Expression::NonNullAssert { operand, .. }
             | Expression::Propagate { value: operand, .. } => {
                 self.expression(operand, ExpressionUse::Read, live_after)
             }

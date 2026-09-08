@@ -338,6 +338,9 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 .last()
                 .map(|context| context.1.clone())
                 .unwrap_or_default()),
+            Expression::NonNullAssert { operand, .. } => {
+                self.expression(operand, ExpressionUse::Consume, live_after)
+            }
             Expression::Prefix { operand, .. }
             | Expression::Cast {
                 expression: operand,
@@ -347,7 +350,6 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 expression: operand,
                 ..
             }
-            | Expression::NonNullAssert { operand, .. }
             | Expression::Propagate { value: operand, .. } => {
                 self.expression(operand, ExpressionUse::Read, live_after)
             }

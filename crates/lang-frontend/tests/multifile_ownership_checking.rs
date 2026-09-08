@@ -3924,3 +3924,58 @@ fn validated_unit_ownership_rejects_deferred_element_field_drop_plans() {
     );
     assert!(ownership.clone().validate().is_err());
 }
+
+#[test]
+fn unit_non_null_assertion_consumption_and_source_restrictions() {
+    // Source-qualified calls must enforce extraction independently of the result's Borrow mode.
+    for (body, expected) in [
+        (
+            "fun test(own source: Resource?): Int { val first = read(source!!)\nreturn readNullable(source) }",
+            vec!["L0131"],
+        ),
+        (
+            "fun test(source: Resource?): Resource = source!!",
+            vec!["L0133"],
+        ),
+        (
+            "fun test(inout source: Resource?): Resource = source!!",
+            vec!["L0133"],
+        ),
+        (
+            "fun test(own source: Holder): Resource = source.item!!",
+            vec!["L0132"],
+        ),
+        (
+            "fun test(own source: Array<Resource?>): Resource = source[0]!!",
+            vec!["L0136"],
+        ),
+        (
+            "fun test(own source: Resource?): Int = use(source, source!!)",
+            vec!["L0135"],
+        ),
+        (
+            "fun test(source: Int?): Int { val first = source!!\nreturn first + source!! }",
+            vec![],
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (provider_id, provider) = parsed(
+            &mut sources,
+            "provider.ko",
+            "class Resource {}\nclass Holder(val item: Resource?) {}\nfun read(item: Resource): Int = 0\nfun readNullable(item: Resource?): Int = 0\nfun use(first: Resource?, second: Resource): Int = 0",
+        );
+        let (consumer_id, consumer) = parsed(&mut sources, "consumer.ko", body);
+        let inputs = [
+            SourceUnitInput::new("root", "provider.ko", provider_id, &provider),
+            SourceUnitInput::new("root", "consumer.ko", consumer_id, &consumer),
+        ];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert_eq!(diagnostic_codes(&ownership), expected, "{body}");
+        assert_eq!(ownership.validate().is_ok(), expected.is_empty(), "{body}");
+    }
+}

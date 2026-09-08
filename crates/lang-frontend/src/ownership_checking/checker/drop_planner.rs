@@ -590,6 +590,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.drop_deeper_than(boundary, DropPoint::ControlTransfer(id), state);
                 Ok(false)
             }
+            Expression::NonNullAssert { operand, .. } => {
+                self.expression(operand, ExpressionUse::Consume, state)
+            }
             Expression::Prefix { operand, .. }
             | Expression::Cast {
                 expression: operand,
@@ -598,10 +601,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             | Expression::TypeTest {
                 expression: operand,
                 ..
-            }
-            | Expression::NonNullAssert { operand, .. } => {
-                self.expression(operand, ExpressionUse::Read, state)
-            }
+            } => self.expression(operand, ExpressionUse::Read, state),
             Expression::Propagate { value, .. } => {
                 self.expression(value, ExpressionUse::Read, state)?;
                 for owned in state.values.iter().rev() {

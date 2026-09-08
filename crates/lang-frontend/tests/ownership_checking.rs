@@ -801,3 +801,124 @@ fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
     let (_, _, owned) = checked(text);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
 }
+
+#[test]
+fn non_null_assertion_consumes_owned_source_even_for_borrowed_result() {
+    // Borrowing the extracted result must not turn !! into a borrowed nullable view.
+    let text = "class Resource {}
+        fun read(item: Resource): Int = 0
+        fun readNullable(item: Resource?): Int = 0
+        fun test(own source: Resource?): Int {
+            val first = read(source!!)
+            val second = readNullable(source)
+            return 0
+        }";
+    let (sources, _, owned) = checked(text);
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+    assert_eq!(
+        sources
+            .slice(owned.diagnostics()[0].primary_span())
+            .unwrap(),
+        "source"
+    );
+}
+
+#[test]
+fn non_null_assertion_rejects_borrowed_and_partial_move_sources() {
+    // Extraction cannot leave a borrowed binding or a field with a missing owner.
+    for (parameter, operand, expected) in [
+        ("source: Resource?", "source", "L0133"),
+        ("inout source: Resource?", "source", "L0133"),
+        ("own source: Holder", "source.item", "L0132"),
+        ("own source: Array<Resource?>", "source[0]", "L0136"),
+    ] {
+        let text = format!(
+            "class Resource {{}}\nclass Holder(val item: Resource?) {{}}\nfun test({parameter}): Resource = {operand}!!"
+        );
+        let (sources, _, owned) = checked(&text);
+        assert_eq!(codes(owned.diagnostics()), [expected], "{text}");
+        // Field moves retain the shared diagnostic contract: highlight the field name.
+        let expected_span = if expected == "L0132" { "item" } else { operand };
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .unwrap(),
+            expected_span
+        );
+    }
+}
+
+#[test]
+fn non_null_assertion_copy_preserves_borrowed_source() {
+    // A Copyable extraction retains the source for a second extraction.
+    let (_, _, owned) = checked(
+        "fun test(source: Int?): Int { val first = source!!
+return first + source!! }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn non_null_assertion_rejects_active_loan() {
+    // A prior argument's shared loan lasts through extraction in the next argument.
+    let text = "class Resource {}
+        fun use(first: Resource?, second: Resource): Int = 0
+        fun test(own source: Resource?): Int = use(source, source!!)";
+    let (sources, _, owned) = checked(text);
+    assert_eq!(codes(owned.diagnostics()), ["L0135"]);
+    assert_eq!(
+        sources
+            .slice(owned.diagnostics()[0].primary_span())
+            .unwrap(),
+        "source"
+    );
+    assert!(owned.loans().is_empty());
+    assert!(owned.drops().is_empty());
+}
+
+#[test]
+fn non_null_assertion_transfers_drop_to_borrowed_result() {
+    // The nullable root has transferred its obligation; only the extracted temporary is dropped.
+    for operand in ["source", "create()"] {
+        let text = format!(
+            "class Resource {{}}
+            fun create(): Resource? = Resource()
+            fun read(item: Resource): Int = 0
+            fun test(own source: Resource?): Int = read({operand}!!)"
+        );
+        let (sources, _, owned) = checked(&text);
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let extraction = format!("{operand}!!");
+        let drops = owned
+            .drops()
+            .iter()
+            .filter(|fact| {
+                sources
+                    .slice(fact.value_origin())
+                    .is_ok_and(|span| span == extraction)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1, "{operand}: {:?}", owned.drops());
+        assert!(matches!(drops[0].target(), DropTarget::Temporary(_)));
+        assert!(matches!(drops[0].point(), DropPoint::CallReturn(_)));
+        if operand == "source" {
+            assert!(
+                owned
+                    .drops()
+                    .iter()
+                    .all(|fact| sources.slice(fact.value_origin()).unwrap() != "source")
+            );
+        }
+    }
+}
+
+#[test]
+fn non_null_assertion_copy_from_field_during_shared_loan() {
+    // Copying the inner Int neither mutates the field nor conflicts with a shared root loan.
+    let (_, _, owned) = checked(
+        "class Holder(val item: Int?) {}
+        fun pair(first: Holder, second: Int): Int = second
+        fun test(holder: Holder): Int = pair(holder, holder.item!!)",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
