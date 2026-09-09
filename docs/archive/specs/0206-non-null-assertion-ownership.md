@@ -1,12 +1,12 @@
 # SPEC-0206：非空断言 Copy/Consume 所有权
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-206` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.35 空安全](../../guide/09-nullability-errors.md)与[阶段边界](../../guide/15-conformance-and-staging.md) |
@@ -39,12 +39,12 @@ whole-root consumption、non-null inner transfer、null Abort edge 与精确 dro
 
 ## 5. 验收标准
 
-- [ ] Copyable place 保留、MoveOnly root/temporary move 与 use-after-move 矩阵通过。
-- [ ] MoveOnly Borrow/Inout/field/element/active loan 与重复使用分别产生稳定
+- [x] Copyable place 保留、MoveOnly root/temporary move 与 use-after-move 矩阵通过。
+- [x] MoveOnly Borrow/Inout/field/element/active loan 与重复使用分别产生稳定
   L0133/L0132/L0136/L0135/L0131 与精确 Span/labels。
-- [ ] null Abort、non-null transfer、nested control-flow/drop facts 无泄漏或双析构。
-- [ ] validated ownership plan、determinism 与现有 ownership/drop suite 回归。
-- [ ] Architecture 与实现事实同步。
+- [x] null Abort、non-null transfer、nested control-flow/drop facts 无泄漏或双析构。
+- [x] validated ownership plan、determinism 与现有 ownership/drop suite 回归。
+- [x] Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
 
@@ -53,9 +53,9 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 
 ## 7. 实施计划
 
-1. [ ] 建立 assertion extraction/abort ownership facts → 验证：model 正反测试。
-2. [ ] 接 checker、liveness、drop planner → 验证：move/loan/drop 矩阵。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+1. [x] 建立 assertion extraction/abort ownership facts → 验证：model 正反测试。
+2. [x] 接 checker、liveness、drop planner → 验证：move/loan/drop 矩阵。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -81,7 +81,7 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 | 多文件 typed descriptor 来源、顺序、overload trial rollback | `multifile_type_checking` | 100 passed / 3 既有 failed；新增 5 项通过，基线见下 |
 | 公开 descriptor / ownership API 下游编译 | `cargo check --workspace --all-targets` | `a2909e9` 状态通过，9m03s；循环修复未改变公开 API |
 | lint | frontend lib 与受影响定向 tests | lib 与上述五个 ownership suites 定向通过，仅允许既有 `filter_map_bool_then` |
-| 格式与文档结构 | `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | 通过；336 Markdown，结构检查不替代语义审查 |
+| 格式与文档结构 | `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | 代码提交前通过；336 Markdown，结构检查不替代语义审查 |
 
 ### 实现和独立复核
 
@@ -111,4 +111,7 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 两者仅在各自定向命令中显式允许该 lint 后通过，不能记录为严格 all-targets 通过。
 
 未运行 frontend 全量测试；Phase 4 SSA/LLVM/native 不属于本 Spec，由 SPEC-0207 承接。
-本轮 140 项共享回归、定向 lint 和独立复核已结束；下一步逐项核对第 5 节并迁移完成状态。
+2026-09-09 逐项验收完成：来源/诊断、Abort/transfer、nested/drop、validated identity 与确定性均有上述定向证据，Architecture 已同步。循环修复见 `93e043e`；本 Spec 完成不表示已实现 Phase 4 lowering。
+
+状态迁移验证：335 Markdown 结构检查、21 项检查器单元测试及 `git diff --check` 通过；
+独立复核确认完成范围、基线例外与历史链接未改义。

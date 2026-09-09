@@ -55,16 +55,15 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
         | set(range(62, 179))
         | {180, 181}
         | set(range(183, 200))
-        | {201, 202, 203, 204, 205}
+        | {201, 202, 203, 204, 205, 206}
         | set(range(213, 226))
     )
 )
 EXPECTED_DRAFT_SPEC_IDS = {
-    "v0.35": frozenset({"0207"}),
     "v0.36": frozenset({"0026", "0208", "0209", "0210"}),
     "v0.37": frozenset({"0179", "0182", "0211", "0212"}),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0206"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0207"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 23)), "0024"}
 )
@@ -541,7 +540,7 @@ class DocsChecker:
             set(proposals.glob("*.md")) - {proposals / "README.md"},
             "proposal",
         )
-        for version in ("v0.35", "v0.36", "v0.37"):
+        for version in EXPECTED_DRAFT_SPEC_IDS:
             directory = self.docs / "specs/drafts" / version
             self.require_direct_coverage(
                 directory / "README.md",

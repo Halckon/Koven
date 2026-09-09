@@ -398,7 +398,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       不新增跨过程所有权分析。
 - [ ] **[SPEC-0203](../../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
-- [ ] **[SPEC-0206](../../../specs/active/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
+- [ ] **[SPEC-0206](../../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
 - [ ] **[SPEC-0208](../../../specs/drafts/v0.36/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
@@ -459,7 +459,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0204](../../specs/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
       复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
       SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
-- [ ] **[SPEC-0207](../../../specs/drafts/v0.35/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
+- [ ] **[SPEC-0207](../../../specs/active/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
 - [ ] **[SPEC-0209](../../../specs/drafts/v0.36/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，

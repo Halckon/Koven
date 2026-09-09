@@ -4,7 +4,7 @@
 
 2026-09-08 用户启用 v0.35；以下 Spec 语义与前置依赖完备，状态为 approved / in-progress：
 
-- [SPEC-0206](0206-non-null-assertion-ownership.md)：非空断言 Copy/Consume 所有权。
+- [SPEC-0207](0207-pointer-non-null-assertion-lowering.md)：pointer-like 非空断言 lowering。
 
-默认先推进 SPEC-0206；后续 lowering 切片见 [v0.35 依赖链](../drafts/v0.35/README.md)。
+默认推进 SPEC-0207；前置 typed facts 与 ownership 切片均已完成。
 批准不表示实现或验收已经完成。

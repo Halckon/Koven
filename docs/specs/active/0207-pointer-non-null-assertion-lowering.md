@@ -1,19 +1,19 @@
 # SPEC-0207：pointer-like 非空断言 lowering
 
-> **性质**：draft Spec · **状态**：draft（等待前置 Spec） · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-207` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 现行 [v0.35 空安全](../../../guide/09-nullability-errors.md)与[阶段边界](../../../guide/15-conformance-and-staging.md) |
+| 语言规范 | 现行 [v0.35 空安全](../../guide/09-nullability-errors.md)与[阶段边界](../../guide/15-conformance-and-staging.md) |
 | 批准依据 | 2026-09-08 用户明确启用 v0.35，按持续推进 Goal 分阶段实施；依赖未完成者保持 draft |
-| 前置 Spec | SPEC-0034、0039、0184、0196 `done`；SPEC-0205/0206 待完成 |
+| 前置 Spec | SPEC-0034、0039、0184、0196、0205、0206 `done` |
 | 前置 ADR | ADR-0017 `accepted` |
-| 阻塞项 | SPEC-0205/0206 `done` |
+| 阻塞项 | 无 |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 pointer-like lowering |
 
@@ -56,7 +56,7 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 
 1. [ ] 接 extraction facts 到 NullableTake/CFG → 验证：lowering/verifier 窄测试。
 2. [ ] 接 LLVM/native class/Box/Rc → 验证：IR 与真实进程正反测试。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -70,7 +70,7 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 
 ## 10. 验证记录
 
-实施前按[分层验收](../../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
+实施前按[分层验收](../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
 记录命中数、结果与未运行原因。同一状态下的有效证据只运行一次，不默认运行 frontend 全量。
 
 | 命令 / 检查 | 结果 | 备注 |

@@ -178,6 +178,8 @@
 
 ## Phase 3
 
+- [SPEC-0206](0206-non-null-assertion-ownership.md)：非空断言 Copy/Consume 所有权
+
 - [SPEC-0027](./0027-variable-ownership-use-after-move.md)：建立变量所有权状态并检测 use-after-move
 - [SPEC-0028](./0028-conditional-copy-structural-move.md)：检查条件复制、消费式解构与结构分量移动
 - [SPEC-0029](./0029-call-loans-drop-points.md)：调用期借用与 ASAP 析构点
