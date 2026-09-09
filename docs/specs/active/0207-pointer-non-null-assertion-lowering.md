@@ -94,7 +94,9 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | Architecture 与文档门禁 | `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
 | compilation-unit lowering/LLVM | `cargo test -p lang-codegen --lib unit_non_null_assertion -- --nocapture` | 5 项通过，含 class/Box/Rc × root/group/call/group-call 的 12 个场景、跨文件 Rc、前序 Value/Borrow 实参、接收者/callable 与 class/container 构造 |
 | compilation-unit 共享回归与 Diverged 隔离 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture` | 126 项通过，含新增 assertion 测试与终止分支回归；`take(a, error("stop"))` 的兄弟分支执行 `take(a, b!!)`，修复前复现 InvalidSsa，恢复各层 pending 栈后通过 |
-| compilation-unit 控制流组合/native 与最终 verifier 拒绝用例 | 待验收 | 普通 if/when 携带 pending/temporary、unit native、重复 take/drop 显式拒绝用例尚未完成；Spec 保持 in-progress |
+| compilation-unit 控制流结果作为 assertion operand | `cargo test -p lang-codegen --lib unit_non_null_assertion_control_operand -- --nocapture` | 1 项通过，包含普通 if 与 Boolean when；两分支分别返回 owned nullable root 与 call temporary，合流结果通过 SSA/LLVM 验证 |
+| 重复消费的精确 verifier 拒绝 | `cargo test -p lang-codegen --lib nullable_operation_tests -- --nocapture` | 6 项通过；新增 1 项含重复 take、take 后 drop wrapper、inner 重复 drop 三个场景，均断言对应 owner 的 ValueUnavailable，并复用可通过验证的正例图 |
+| compilation-unit pending 控制流组合/native | 待验收 | 普通 if/when 携带 pending/temporary 与 unit native 尚未完成；Spec 保持 in-progress |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
 pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
@@ -102,8 +104,11 @@ pending Value 实参跨分支身份、nullable if 结果别名及不可达 inlin
 
 未运行 frontend 全量测试；未重复运行已知含既有 lint 的 frontend 全目标 clippy，仅检查受影响
 library 和两个 ownership integration targets。单文件 native 证据不代表 compilation-unit 路径完成，
-后者继续由本 Spec 承接。重复 take/drop 的显式拒绝用例仍需在最终验收核对。
+后者继续由本 Spec 承接。重复 take/drop 的显式拒绝证据见上表。
 
 编译单元独立复核发现前序构造字段跨 assertion 分支遗漏，以及 Diverged 分支遗留 pending
 实体污染兄弟分支；均已修复并复核。测试初版自定义 Nothing 函数触及既有 unsupported，
 改用标准 error 后取得上述红绿证据。编译单元切片未新增 native 验证，也未重复 frontend 测试。
+
+本次验收测试切片经过独立自检步骤：正例 SSA 图仍通过，三个反例逐个核对消耗对象，
+控制流操作数用例验证 root 与 temporary 汇合后只有一个可交付结果；没有修改生产逻辑。

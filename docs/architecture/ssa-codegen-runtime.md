@@ -43,7 +43,8 @@ class/Box/Rc 已有非空交付、null SIGABRT、error 名称遮蔽和 operand �
 `NullableBranch/Take` 合同提取 owned class/Box/Rc。待交付实参、借用、调用接收者、闭包
 callable、构造字段和容器元素在求值后续 `!!` 时显式携带并重绑定；同一实体只传递一次。
 该入口已有跨文件 SSA 与 pointer operand matrix 的 verified LLVM 证据，尚无本项 unit native
-证据。普通 if/when 与 pending operand 的组合仍待验收，不由直接 assertion 分支测试外推。
+证据。普通 if/Boolean when 的 nullable 结果作为 `!!` operand 已通过 SSA/LLVM 验证；
+这些分支与 pending operand 的组合仍待验收，不由独立 operand 测试外推。
 
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 

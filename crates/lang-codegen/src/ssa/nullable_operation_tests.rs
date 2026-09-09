@@ -103,8 +103,16 @@ fn nullable_handle_accepts_defined_pointer_owners_and_rejects_inline_types() {
     }));
 }
 
-#[test]
-fn nullable_operations_and_non_null_edge_verify_and_render() {
+#[derive(Clone, Copy, Debug)]
+enum RepeatedConsumption {
+    Take,
+    DropWrapper,
+    DropInner,
+}
+
+fn nullable_operations_program(
+    repeated: Option<RepeatedConsumption>,
+) -> (Program, ValueId, ValueId) {
     let origin = origin();
     let mut program = Program::default();
     let (module_id, inner, nullable) = add_pointer_types(&mut program);
@@ -195,6 +203,28 @@ fn nullable_operations_and_non_null_edge_verify_and_render() {
             origin.clone(),
         )
         .expect("inner drop");
+    // Inject each violation into the same otherwise valid ownership graph.
+    if let Some(repeated) = repeated {
+        let (operation, result_types) = match repeated {
+            RepeatedConsumption::Take => (
+                Operation::NullableTake {
+                    owner: non_null_owner,
+                    proof: view,
+                },
+                vec![EntityType::Value(inner)],
+            ),
+            RepeatedConsumption::DropWrapper => (
+                Operation::Drop {
+                    owner: non_null_owner,
+                },
+                Vec::new(),
+            ),
+            RepeatedConsumption::DropInner => (Operation::Drop { owner: taken }, Vec::new()),
+        };
+        inspect
+            .append_instruction(non_null_block, operation, result_types, origin.clone())
+            .expect("repeated consumption instruction");
+    }
     inspect
         .set_terminator(
             non_null_block,
@@ -261,6 +291,12 @@ fn nullable_operations_and_non_null_edge_verify_and_render() {
     )
     .expect("return");
 
+    (program, non_null_owner, taken)
+}
+
+#[test]
+fn nullable_operations_and_non_null_edge_verify_and_render() {
+    let (program, _, _) = nullable_operations_program(None);
     verify_program(&program).expect("nullable operations must verify");
     let rendered = render_program(&program);
     assert!(rendered.contains("nullable.is_null"));
@@ -268,6 +304,27 @@ fn nullable_operations_and_non_null_edge_verify_and_render() {
     assert!(rendered.contains("nullable.take"));
     assert!(rendered.contains("nullable.wrap"));
     assert!(rendered.contains("nullable.null"));
+}
+
+#[test]
+fn nullable_take_rejects_repeated_take_wrapper_drop_and_inner_drop() {
+    for repeated in [
+        RepeatedConsumption::Take,
+        RepeatedConsumption::DropWrapper,
+        RepeatedConsumption::DropInner,
+    ] {
+        let (program, wrapper, inner) = nullable_operations_program(Some(repeated));
+        let unavailable = match repeated {
+            RepeatedConsumption::Take | RepeatedConsumption::DropWrapper => wrapper,
+            RepeatedConsumption::DropInner => inner,
+        };
+        let errors = verify_program(&program)
+            .expect_err("take transfers ownership exactly once; neither wrapper nor inner can be consumed twice")
+            .errors;
+        assert!(errors.iter().any(|error| {
+            matches!(error.kind, VerifyErrorKind::ValueUnavailable { value } if value == unavailable)
+        }), "{repeated:?}: {errors:?}");
+    }
 }
 
 #[test]

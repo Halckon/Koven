@@ -101,6 +101,42 @@ fn unit_non_null_assertion_pointer_operand_matrix() {
 }
 
 #[test]
+fn unit_non_null_assertion_control_operand_transfers_result() {
+    for operand in [
+        "if (flag) { item } else { make() }",
+        "when (flag) { true -> item
+false -> make() }",
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "package p\nfun make(): Rc<Int>? = Rc(3)\nfun inspect(flag: Boolean, own item: Rc<Int>?): Rc<Int> = ({operand})!!"
+        );
+        let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "p/assertion.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "inspect"),
+        )
+        .unwrap_or_else(|error| panic!("{operand}: {error:?}"));
+        crate::llvm::render_verified_program(&program)
+            .expect("control operand transfers one nullable result");
+    }
+}
+
+#[test]
 fn unit_non_null_assertion_preserves_earlier_call_arguments() {
     for first in ["own first: Rc<Int>", "first: Rc<Int>"] {
         let mut sources = SourceMap::new();
