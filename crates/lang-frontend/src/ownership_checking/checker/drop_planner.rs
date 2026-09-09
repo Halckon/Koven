@@ -58,6 +58,7 @@ struct OwnedValue {
 
 #[derive(Clone, Debug)]
 struct NullableTemporary {
+    transfers_at_call: bool,
     control: ExpressionId,
     subject: ExpressionId,
     origin: Span,
@@ -474,6 +475,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     && self.is_move_only_temporary(plan.subject())
                 {
                     state.nullable_temporaries.push(NullableTemporary {
+                        transfers_at_call: false,
                         control: id,
                         subject: plan.subject(),
                         origin: self
@@ -741,7 +743,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             if !self.expression(expression, usage, state)? {
                                 return Ok(false);
                             }
-                            self.register_pending_argument(id, expression, state)?;
+                            self.register_pending_argument(id, expression, receiver.mode(), state)?;
                         }
                     }
                     None => {
@@ -764,13 +766,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     if !self.expression(argument.value, usage, state)? {
                         return Ok(false);
                     }
-                    self.register_pending_argument(id, argument.value, state)?;
+                    self.register_pending_argument(id, argument.value, mode, state)?;
                 }
                 if self.checker.is_nothing_expression(id) {
                     return Ok(false);
                 }
                 let roots = self
                     .end_pending_calls(LoanEndPoint::CallReturn(id), state, |call| call.call == id);
+                // Value parameters now own their arguments; only borrowed temporaries expire here.
+                state
+                    .nullable_temporaries
+                    .retain(|temporary| temporary.control != id || !temporary.transfers_at_call);
                 self.drop_nullable_temporaries(DropPoint::CallReturn(id), state, |temporary| {
                     temporary.control == id
                 });

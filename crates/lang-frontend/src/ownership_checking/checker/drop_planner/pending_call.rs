@@ -3,7 +3,12 @@ use super::{
     DropPlanner, LoanEndFact, LoanEndPoint, LoanTarget, NullableTemporary, OwnershipCheckingError,
     ValueState,
 };
-use crate::{ast::ExpressionId, name_resolution::SymbolId, ownership_checking::LoanFact};
+use crate::{
+    ast::ExpressionId,
+    name_resolution::SymbolId,
+    ownership_checking::LoanFact,
+    type_checking::{Copyability, ParameterMode},
+};
 
 #[derive(Clone, Debug)]
 pub(super) struct PendingCall {
@@ -25,8 +30,33 @@ impl DropPlanner<'_, '_> {
         &mut self,
         call: ExpressionId,
         argument: ExpressionId,
+        mode: ParameterMode,
         state: &mut ValueState,
     ) -> Result<(), OwnershipCheckingError> {
+        // Until the call actually happens, a consumed argument remains an evaluation obligation.
+        if mode == ParameterMode::Value
+            && self
+                .checker
+                .typed
+                .expression_type(argument)
+                .and_then(|ty| self.checker.typed.copyability(ty))
+                == Some(Copyability::MoveOnly)
+        {
+            state.nullable_temporaries.push(NullableTemporary {
+                transfers_at_call: true,
+                control: call,
+                subject: argument,
+                origin: self
+                    .checker
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(argument)?
+                    .span(),
+                loop_depth: self.loop_boundaries.len(),
+                prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
+            });
+        }
         let loans = self
             .checker
             .loans
@@ -39,6 +69,7 @@ impl DropPlanner<'_, '_> {
                 && self.is_move_only_temporary(*subject)
             {
                 state.nullable_temporaries.push(NullableTemporary {
+                    transfers_at_call: false,
                     control: call,
                     subject: *subject,
                     origin: self

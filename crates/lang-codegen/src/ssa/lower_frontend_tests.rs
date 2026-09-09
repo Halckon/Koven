@@ -543,10 +543,7 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
          fun inspect(node: Node?): Unit {\n\
              when (node) { null -> {}; else -> {} }\n\
          }",
-        "class Node {}\n\
-         fun inspect(own node: Node?): Unit {\n\
-             val actual = node!!\n\
-         }",
+        "fun inspect(node: Int?): Int = node!!",
     ] {
         let analysis = analyze(source);
         assert!(
@@ -1597,4 +1594,155 @@ fn nullable_when_consumes_inner_without_duplicate_owner() {
         assert_eq!(ssa.matches("nullable.take").count(), 1, "{ssa}");
         render_verified_program(&program).expect("unique extracted owner verifies in LLVM");
     }
+}
+
+#[test]
+fn non_null_assertion_owned_pointer_uses_proven_take_and_direct_abort() {
+    // The assertion transfers the original nullable owner, without allocating or retaining it.
+    for inner in ["Node", "Box<Token>", "Rc<Int>"] {
+        let analysis = analyze(&format!(
+            "class Node()\nvalue class Token(val item: Int)\nfun inspect(own node: {inner}?): {inner} = node!!"
+        ));
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.diagnostics().is_empty());
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+        assert_eq!(analysis.owned.non_null_assertions().len(), 1);
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .expect("owned pointer assertion must lower from its ownership plan");
+        let ssa = render_program(&program);
+        assert_eq!(ssa.matches("nullable.take").count(), 1, "{ssa}");
+        assert_eq!(ssa.matches("abort @source(").count(), 1, "{ssa}");
+        let llvm = render_verified_program(&program).expect("assertion SSA verifies before LLVM");
+        assert!(!llvm.contains("call ptr @malloc"), "{llvm}");
+        assert!(!ssa.contains("rc.retain"), "{ssa}");
+    }
+}
+
+#[test]
+fn non_null_assertion_preserves_pending_value_arguments_across_its_branch() {
+    // The first owner has been evaluated, but only the eventual call consumes it.
+    let analysis = analyze(
+        "class Node()\nfun take(own first: Node, own second: Node): Node = first\nfun inspect(own first: Node, own second: Node?): Node = take(first, second!!)",
+    );
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("both owners must reach the call in the proven branch");
+    render_verified_program(&program).expect("pending owner uses the current block parameter");
+}
+
+#[test]
+fn non_null_assertion_temporary_group_and_borrowed_call_results_keep_one_owner() {
+    for body in [
+        "fun inspect(): Node = make()!!",
+        "fun inspect(own node: Node?): Node = ((node))!!",
+        "fun inspect(own node: Node?): Unit = observe(Node(), node!!)",
+        "fun inspect(own node: Node?, flag: Boolean): Node = (if (flag) { node } else { make() })!!",
+        "fun inspect(own probe: Node?, own node: Node?): Node = (if (probe == null) { node } else { make() })!!",
+    ] {
+        let analysis = analyze(&format!(
+            "class Node()\nfun make(): Node? {{ val result: Node? = Node()\nreturn result }}\nfun observe(first: Node, second: Node): Unit {{}}\n{body}"
+        ));
+        assert!(
+            analysis.parsed.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.parsed.diagnostics()
+        );
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.owned.diagnostics()
+        );
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        render_verified_program(&program).expect("operand and call-result owners remain unique");
+    }
+}
+
+#[test]
+fn non_null_assertion_later_transfer_cleans_pending_value_owner() {
+    for body in [
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { return Node() } else { second })!!)",
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node { loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Node() }",
+        "fun inspect(flag: Boolean): Node { loop { val first = Node()\nval second: Node? = Node()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Node() }",
+        "fun inspect(own first: Node, own second: Node?, flag: Boolean): Node = take(first, (if (flag) { loop { break }\nsecond } else { second })!!)",
+    ] {
+        let analysis = analyze(&format!(
+            "class Node()\nfun take(own first: Node, own second: Node): Node = first\n{body}"
+        ));
+        assert!(
+            analysis.parsed.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.parsed.diagnostics()
+        );
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.owned.diagnostics()
+        );
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        render_verified_program(&program)
+            .expect("only escaping control transfers clean pending owners");
+    }
+}
+
+#[test]
+fn non_null_assertion_does_not_register_unreachable_inline_types() {
+    let analysis =
+        analyze("fun inspect(): Int { return 0\nval unused: Int? = 1\nval asserted = unused!! }");
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert_eq!(analysis.typed.non_null_assertions().len(), 1);
+    assert!(analysis.owned.non_null_assertions().is_empty());
+    lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("unreachable typed facts cannot enable or reject runtime layouts");
 }

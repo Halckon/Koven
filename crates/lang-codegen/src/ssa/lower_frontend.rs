@@ -8,6 +8,7 @@ mod drops;
 mod instances;
 mod loop_control;
 mod nominal;
+mod non_null_assertion;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod source_closure;
@@ -170,6 +171,7 @@ impl ExpressionLowerer<'_> {
             Expression::String { .. } => self.lower_string_literal(expression, span),
             Expression::Lambda { .. } => self.lower_source_closure(expression, span),
             Expression::Name => self.lower_name(expression, span),
+            Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
             Expression::Group { expression } => self.lower(expression),
             Expression::Prefix {
                 operator, operand, ..
@@ -519,7 +521,6 @@ impl ExpressionLowerer<'_> {
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
         let result = self.lower_statement_inner(statement)?;
         if !matches!(result, LoweredValue::Diverged) {
-            self.emit_drops(DropPoint::LoopExit(statement))?;
             self.emit_drops(DropPoint::AfterStatement(statement))?;
         }
         Ok(result)
@@ -557,8 +558,8 @@ impl ExpressionLowerer<'_> {
             Statement::Expression { expression } => self.lower(expression),
             Statement::While {
                 condition, body, ..
-            } => self.lower_while(condition, body, span),
-            Statement::Loop { body, .. } => self.lower_loop(body, span),
+            } => self.lower_while(statement, condition, body, span),
+            Statement::Loop { body, .. } => self.lower_loop(statement, body, span),
             Statement::For { .. } => Err(error(LoweringErrorKind::UnsupportedNode, span)),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
@@ -1062,8 +1063,8 @@ impl ExpressionLowerer<'_> {
                         .and_then(|ty| self.typed.copyability(ty))
                         == Some(Copyability::MoveOnly)
                     {
-                        // The Value contract transfers this owner immediately. Branch
-                        // merges must not carry a stale binding for the consumed SSA value.
+                        // The source is moved now, but SSA delivers it only when the call runs.
+                        // Keep the pending argument in the existing temporary carry/rebind map.
                         let mut source = argument.value;
                         loop {
                             self.temporaries.remove(&source.index());
@@ -1084,6 +1085,7 @@ impl ExpressionLowerer<'_> {
                                 _ => break,
                             }
                         }
+                        self.temporaries.insert(argument.value.index(), value);
                     }
                     EntityId::Value(value)
                 }
@@ -1105,6 +1107,19 @@ impl ExpressionLowerer<'_> {
         }
         for mapping in descriptor.arguments() {
             let argument = &arguments[mapping.argument_index()];
+            if mapping.mode() == ParameterMode::Value
+                && self
+                    .typed
+                    .expression_type(argument.value)
+                    .and_then(|ty| self.typed.copyability(ty))
+                    == Some(Copyability::MoveOnly)
+            {
+                let value = self
+                    .temporaries
+                    .remove(&argument.value.index())
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+                ordered[mapping.parameter_index()] = Some(EntityId::Value(value));
+            }
             if let Some(Some(loan)) = self
                 .pending_call_loans
                 .get(&(expression.index(), argument.value.index()))

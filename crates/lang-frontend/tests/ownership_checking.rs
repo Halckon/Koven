@@ -1078,3 +1078,55 @@ fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
         );
     }
 }
+
+#[test]
+fn pending_value_argument_cleanup_follows_control_transfer_not_call_return() {
+    for (body, expected) in [
+        (
+            "return take(first, (if (flag) { return Resource() } else { second })!!)",
+            1,
+        ),
+        (
+            "loop { val result = take(first, (if (flag) { break } else { second })!!)\nbreak }\nreturn Resource()",
+            1,
+        ),
+        (
+            "loop { val first = Resource()\nval second: Resource? = Resource()\nval result = take(first, (if (flag) { continue } else { second })!!)\nbreak }\nreturn Resource()",
+            1,
+        ),
+        ("return take(first, second!!)", 0),
+        (
+            "return take(first, (if (flag) { stop() } else { second })!!)",
+            0,
+        ),
+    ] {
+        let source = format!(
+            "class Resource {{}}\nfun stop(): Nothing = stop()\nfun take(own left: Resource, own right: Resource): Resource = left\nfun test(flag: Boolean, own first: Resource, own second: Resource?): Resource {{ {body} }}"
+        );
+        let (sources, parsed, owned) = checked(&source);
+        assert!(
+            owned.diagnostics().is_empty(),
+            "{body}: {:?}",
+            owned.diagnostics()
+        );
+        let pending = owned
+            .drops()
+            .iter()
+            .filter(|fact| {
+                let DropTarget::Temporary(argument) = fact.target() else {
+                    return false;
+                };
+                sources
+                    .slice(parsed.ast().expressions().get(argument).unwrap().span())
+                    .unwrap()
+                    == "first"
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(pending.len(), expected, "{body}: {pending:?}");
+        assert!(
+            pending
+                .iter()
+                .all(|fact| matches!(fact.point(), DropPoint::ControlTransfer(_)))
+        );
+    }
+}

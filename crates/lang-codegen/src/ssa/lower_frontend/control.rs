@@ -86,24 +86,29 @@ impl ExpressionLowerer<'_> {
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
-        let then_baseline = self.rebind_linear_bindings(&baseline, then_block, &carried, span)?;
-
         let mut exits = Vec::with_capacity(2);
-        if let Some(exit) = self.lower_control_branch(then_block, then_branch, &then_baseline)? {
-            exits.push(exit);
-        }
-        let else_baseline = self.rebind_linear_bindings(&baseline, else_block, &carried, span)?;
-        if let Some(else_branch) = else_branch {
-            if let Some(exit) =
-                self.lower_control_branch(else_block, else_branch, &else_baseline)?
-            {
-                exits.push(exit);
+        for (branch, block, statement) in [
+            (0, then_block, Some(then_branch)),
+            (1, else_block, else_branch),
+        ] {
+            self.block = block;
+            self.bindings = self.rebind_linear_bindings(&baseline, block, &carried, span)?;
+            let result = match statement {
+                Some(statement) => self.lower_control_body(statement)?,
+                None => LoweredValue::Unit,
+            };
+            if matches!(result, LoweredValue::Diverged) {
+                continue;
             }
-        } else {
+            self.transfer_branch_result(expression, result);
+            self.emit_drops(lang_frontend::ownership_checking::DropPoint::BranchExit {
+                control: expression,
+                branch,
+            })?;
             exits.push(BranchExit {
-                block: else_block,
-                result: LoweredValue::Unit,
-                bindings: else_baseline,
+                block: self.block,
+                result,
+                bindings: self.bindings.clone(),
                 temporaries: self.temporaries.clone(),
                 loans: self.pending_call_loans.clone(),
                 views: self.non_null_bindings.clone(),
@@ -242,6 +247,7 @@ impl ExpressionLowerer<'_> {
                 None => LoweredValue::Unit,
             };
             if !matches!(result, LoweredValue::Diverged) {
+                self.transfer_branch_result(expression, result);
                 self.emit_drops(lang_frontend::ownership_checking::DropPoint::BranchExit {
                     control: expression,
                     branch,
@@ -263,6 +269,21 @@ impl ExpressionLowerer<'_> {
             discard_exit_results(&mut exits);
         }
         self.merge_exits(exits, &baseline, span)
+    }
+
+    // The result slot owns a moved branch value; source aliases cannot also cross the join.
+    fn transfer_branch_result(&mut self, expression: ExpressionId, result: LoweredValue) {
+        let move_result = self
+            .typed
+            .expression_type(expression)
+            .and_then(|ty| self.typed.copyability(ty))
+            == Some(lang_frontend::type_checking::Copyability::MoveOnly);
+        if move_result && let LoweredValue::Value(owner) = result {
+            self.bindings.retain(
+                |_, binding| !matches!(binding, LoweredValue::Value(value) if *value == owner),
+            );
+            self.temporaries.retain(|_, value| *value != owner);
+        }
     }
 
     // The discriminator replaces condition evaluation, but its ASAP cleanup still

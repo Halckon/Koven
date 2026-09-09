@@ -29,6 +29,16 @@ Borrow/Inout/field/element 与 inline nullable 不在该 lowering 范围内。�
 return/break/continue cleanup 前消费，abort 直接终止。native 控制转移和分配/释放计数已覆盖三类
 owner：每类 8 次分配、8 次释放；Rc 另验证原 owner 释放后 retained alias 的 payload 仍可读取。
 
+单文件 `!!` lowering 消费 typed assertion 与 ownership plan，owned root/temporary 经
+`NullableBranch` proof 和 `NullableTake` 转移，null 边直接 Abort。待交付的 Value 实参复用
+linear temporary 携带与重绑定，调用前刷新参数身份。普通和 nullable if 在合流前移交 MoveOnly 结果并
+消费 BranchExit drop，避免同一个 owner 同时进入结果槽和来源绑定槽；循环也在每条出口
+合流前消费 LoopExit drop。仅已发布 ownership plan 的 assertion 参与类型登记。
+class/Box/Rc 已有非空交付、null SIGABRT、error 名称遮蔽和 operand 一次求值的 native 证据；
+每类计数验证 1 次分配、1 次释放，Rc 显式 share 另验证 1 次 retain、2 次 release，以及原 owner
+释放后别名仍可读取。Box 仅验证 owner 交付与释放，未据此证明 payload projection。
+此入口仍拒绝 inline nullable 与非 owned 提取；unit lowering 不由这些单文件证据证明。
+
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 
 ## Compilation-unit planning 与 lowering

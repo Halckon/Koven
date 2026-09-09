@@ -14,7 +14,7 @@
 | 前置 Spec | SPEC-0034、0039、0184、0196、0205、0206 `done` |
 | 前置 ADR | ADR-0017 `accepted` |
 | 阻塞项 | 无 |
-| 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
+| 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；必要的 frontend pending-call drop facts；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 pointer-like lowering |
 
 ## 2. Goal
@@ -62,7 +62,8 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | SSA/LLVM/native 与完成文档 | `feat(codegen): lower non-null assertions (SPEC-0207)` |
+| 1 | 单文件 SSA/LLVM/native 与实际边界 | `feat(codegen): lower single-file non-null assertions (SPEC-0207)` |
+| 2 | compilation-unit 接线、对应验收与完成文档 | `feat(codegen): lower unit non-null assertions (SPEC-0207)` |
 
 ## 9. 未决问题
 
@@ -76,3 +77,26 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap 审计 | 通过 | ADR-0017 已定义 NullableTake，frontend lowerer当前仍确定性拒绝 `NonNullAssert` |
+
+### 实施验收映射
+
+| 契约 | 目标 / 过滤器 | 实际状态 |
+|---|---|---|
+| owned class/Box/Rc 的 proof/take、直接 Abort、无额外分配或 retain | `cargo test -p lang-codegen --lib non_null_assertion -- --nocapture` | 8 项通过；含 6 项 lowering/边界与 2 项 native，真实运行 9 个进程 |
+| temporary、group、Borrow call result、待交付 Value 实参、普通及 nullable if、return/break/continue、不可达 inline | `cargo test -p lang-codegen --lib ssa::lower_frontend_tests -- --nocapture` | 33 项通过；nullable if 操作数先复现 MissingFact，修复后通过 |
+| proof 合法性、跨 owner proof、borrow 参数伪 proof、active view 阻止 drop、既有 nullable if/when 和 LLVM/native | `cargo test -p lang-codegen --lib nullable -- --nocapture` | 19 项通过；覆盖既有 class/Box/Rc native 与 unit nullable 存储回归 |
+| 后续 operand 控制转移清理待交付 Value owner | `cargo test -p lang-frontend --test ownership_checking --test ownership_nullable_when --no-fail-fast`，及新增 `pending_value_argument_cleanup_follows_control_transfer_not_call_return` 定向检查 | 原调用中既有 ownership_checking 28 项、nullable_when 26 项通过；新增用例最初因测试环境缺失 error 声明失败，改为本地 Nothing 函数后单独重跑 1 项通过；新项覆盖 return/break/continue、正常调用和 Nothing 五种场景 |
+| native 非空交付、null 终止、error 遮蔽、operand 一次求值 | `non_null_assertion_pointer_results_and_shadowed_error_run_natively`（包含在首行） | class/Box/Rc 各运行正反例，null 均 SIGABRT；Node/Rc 读取 payload，Box 验证 owner 交付，其 payload projection 仍为既有不支持边界 |
+| 移交后析构与 Rc 显式别名 | `non_null_assertion_transfers_one_allocation_and_preserves_explicit_rc_alias`（包含在首行） | 每类 1 次分配、1 次释放；Rc 另验证 1 次 retain、2 次 release，原 owner 释放后别名仍读取 payload |
+| Rust 静态检查 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| frontend 受影响目标 lint | `cargo clippy -p lang-frontend --lib --test ownership_checking --test ownership_nullable_when -- -D warnings` | 通过 |
+| Architecture 与文档门禁 | `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
+| compilation-unit lowering/native | 待接入 source-qualified assertion facts 并执行定向验收 | 未完成，Spec 保持 in-progress |
+
+单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
+pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
+控制转移的 owner 义务由 frontend 发布；codegen 在分支和循环出口合流前消费已有 drop facts。
+
+未运行 frontend 全量测试；未重复运行已知含既有 lint 的 frontend 全目标 clippy，仅检查受影响
+library 和两个 ownership integration targets。单文件 native 证据不代表 compilation-unit 路径完成，
+后者继续由本 Spec 承接。重复 take/drop 的显式拒绝用例仍需在最终验收核对。

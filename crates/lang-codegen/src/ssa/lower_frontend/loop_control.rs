@@ -31,6 +31,7 @@ pub(super) struct LoopContext {
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_while(
         &mut self,
+        statement: StatementId,
         condition: ExpressionId,
         body: StatementId,
         span: Span,
@@ -78,11 +79,12 @@ impl ExpressionLowerer<'_> {
         self.finish_loop_continues(&context)?;
         let mut exits = context.breaks;
         exits.push(false_exit);
-        self.merge_exits(exits, &baseline, span)
+        self.finish_loop_exits(statement, exits, &baseline, span)
     }
 
     pub(super) fn lower_loop(
         &mut self,
+        statement: StatementId,
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
@@ -95,7 +97,29 @@ impl ExpressionLowerer<'_> {
         }
         let context = self.loops.pop().expect("loop context must be balanced");
         self.finish_loop_continues(&context)?;
-        self.merge_exits(context.breaks, &baseline, span)
+        self.finish_loop_exits(statement, context.breaks, &baseline, span)
+    }
+
+    fn finish_loop_exits(
+        &mut self,
+        statement: StatementId,
+        mut exits: Vec<BranchExit>,
+        baseline: &BTreeMap<SymbolId, LoweredValue>,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        // Different paths may already have consumed an owner; discharge each exit before joining.
+        for exit in &mut exits {
+            self.block = exit.block;
+            self.bindings.clone_from(&exit.bindings);
+            self.temporaries.clone_from(&exit.temporaries);
+            self.pending_call_loans.clone_from(&exit.loans);
+            self.non_null_bindings.clone_from(&exit.views);
+            self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
+                statement,
+            ))?;
+            *exit = self.loop_exit();
+        }
+        self.merge_exits(exits, baseline, span)
     }
 
     fn loop_exit(&self) -> BranchExit {

@@ -217,6 +217,26 @@ fn lower_scalar_file_product(
                 ..
             } => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
+        // Assertion operands can introduce a nullable type used only inside this function body.
+        for assertion in owned
+            .non_null_assertions()
+            .iter()
+            .map(|plan| plan.descriptor())
+            .filter(|assertion| {
+                let operator = assertion.operator_span();
+                operator.source_id() == span.source_id()
+                    && span.start() <= operator.start()
+                    && operator.end() <= span.end()
+            })
+        {
+            let nullable = resolve_concrete_type(
+                typed,
+                assertion.nullable_type(),
+                &instance.substitutions,
+                assertion.operator_span(),
+            )?;
+            type_mapper.intern(module, names, typed, nullable, assertion.operator_span())?;
+        }
         let parameter_symbols = callable
             .parameter_symbols()
             .iter()

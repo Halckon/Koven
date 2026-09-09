@@ -75,3 +75,8 @@ ControlTransfer 结束事实还需 Phase 4 接入。
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其
 `compilation_unit/` 子树。对应覆盖位于 `ownership_checking`、`ownership_structural`、
 `ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。
+
+单文件调用前缀同时保存尚未交付的 MoveOnly Value 实参义务。正常调用提交时移除义务，
+不发布 CallReturn drop；return 或离开当前实参求值范围的 break/continue 发布对应
+`Temporary(argument)` ControlTransfer drop，内层循环跳转保留外层待调用义务。Nothing/Abort
+没有正常 cleanup。该状态与 borrowed temporary 共用既有逆序、作用域和 loop-depth 清理。

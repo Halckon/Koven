@@ -1,3 +1,6 @@
+#[path = "native_non_null_assertion_tests.rs"]
+mod non_null_assertion_tests;
+
 use std::{
     fs,
     path::PathBuf,
