@@ -37,7 +37,14 @@ pub enum OwnershipCheckingError {
         /// 文件局部 symbol 下标。
         symbol: usize,
     },
-    /// typed call locator 未指向对应 source unit 的 call expression。
+    /// validated typed assertion 缺少同一求值身份的类型事实。
+    InvalidUnitNonNullAssertion {
+        /// 规范 source-unit 下标。
+        source_unit: usize,
+        /// assertion expression 下标。
+        expression: usize,
+    },
+    /// typed call locator 未指向对应 call expression。
     InvalidUnitCall {
         /// 规范 source-unit 下标。
         source_unit: usize,
@@ -149,6 +156,13 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "duplicate compilation-unit ownership binding {source_unit}:{symbol}"
             ),
+            Self::InvalidUnitNonNullAssertion {
+                source_unit,
+                expression,
+            } => write!(
+                formatter,
+                "missing or inconsistent non-null assertion descriptor in source unit {source_unit}, expression {expression}"
+            ),
             Self::InvalidUnitCall {
                 source_unit,
                 expression,
@@ -244,6 +258,7 @@ impl Error for OwnershipCheckingError {
             | Self::InvalidUnitSource { .. }
             | Self::InvalidUnitSymbol { .. }
             | Self::DuplicateUnitBinding { .. }
+            | Self::InvalidUnitNonNullAssertion { .. }
             | Self::InvalidUnitCall { .. }
             | Self::InvalidUnitCallArgument { .. }
             | Self::InvalidUnitCallParameter { .. }

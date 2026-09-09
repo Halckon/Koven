@@ -21,11 +21,11 @@ pub use compilation_unit::{
     UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDropFact, UnitDropPoint,
-    UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitOwnershipBindingDescriptor,
-    UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
-    UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
-    ValidatedCompilationUnitOwnership, check_compilation_unit_ownership,
+    UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitNonNullAssertionOwnershipPlan,
+    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, UnitValueDeliveryFact, UnitValueDeliveryKind,
+    UnitValueDeliverySource, ValidatedCompilationUnitOwnership, check_compilation_unit_ownership,
 };
 pub use construction::{
     ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,

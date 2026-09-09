@@ -45,8 +45,8 @@ identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction�
 `CompilationUnitTypes::non_null_assertions` / `non_null_assertion` 发布等价的
 `UnitNonNullAssertionDescriptor`，表达式与类型使用 source-qualified unit identity；来源类别仍不
 授予移动权限。unit descriptor 纳入 `UnitNullableFacts` 的整体 trial 快照，按 canonical source 和
-expression identity 排序。单文件 ownership 已消费对应事实；unit ownership plan 与 SSA/LLVM
-接线仍在后继实施范围。
+expression identity 排序。单文件和 unit ownership 均消费各自描述符；SSA/LLVM 接线仍在后继
+实施范围。
 
 ## Compilation-unit 名称链
 

@@ -5,6 +5,7 @@ mod capture;
 mod construction;
 mod contracts;
 mod dataflow;
+mod non_null_assertion;
 mod receiver;
 
 pub use binding::UnitOwnershipBindingDescriptor;
@@ -13,6 +14,7 @@ pub use construction::{
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation,
 };
+pub use non_null_assertion::UnitNonNullAssertionOwnershipPlan;
 pub use receiver::{
     UnitCallReceiverOwnershipContract, UnitConditionalReceiverDeliveryFact,
     UnitDelegationOwnershipPlan, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
@@ -634,6 +636,7 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
@@ -655,6 +658,22 @@ pub struct CompilationUnitOwnership {
 }
 
 impl CompilationUnitOwnership {
+    /// 返回按 source-qualified assertion identity 排序的合法提取计划。
+    #[must_use]
+    pub fn non_null_assertions(&self) -> &[UnitNonNullAssertionOwnershipPlan] {
+        &self.non_null_assertions
+    }
+    /// 查询仅成功边转移、null 边 Abort 的 ownership plan。
+    #[must_use]
+    pub fn non_null_assertion(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&UnitNonNullAssertionOwnershipPlan> {
+        self.non_null_assertions
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     fn new(
         typed: &CompilationUnitTypes,
         bindings: Vec<UnitOwnershipBindingDescriptor>,
@@ -695,6 +714,7 @@ impl CompilationUnitOwnership {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),
             },
+            non_null_assertions: dataflow.non_null_assertions,
             diagnostics: dataflow.diagnostics,
             bindings,
             call_argument_contracts,
@@ -1002,6 +1022,7 @@ pub fn check_compilation_unit_ownership(
         dataflow.value_deliveries.clear();
         dataflow.rc_effects.clear();
         dataflow.construction_plans.clear();
+        dataflow.non_null_assertions.clear();
         dataflow.drops.clear();
         dataflow.conditional_receiver_drops.clear();
     }

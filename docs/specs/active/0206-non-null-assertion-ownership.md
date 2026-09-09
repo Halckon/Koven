@@ -88,7 +88,7 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 | 后续错误清空先前计划 | `ownership_checking non_null_assertion_plans_are_cleared_after_any_ownership_error` | 单文件套件通过 |
 | 嵌套条件 operand 转移不产生 temporary drop | `ownership_checking non_null_assertion_nested_operand_transfers_without_temporary_drop` | 单文件套件通过 |
 | 不可达、循环与 closure body 的 AST site 登记 | `ownership_checking non_null_assertion_plans_skip_unreachable_and_record_loop_and_closure_bodies` | 单文件套件通过 |
-| unit descriptor/ownership plan | 多文件 source-qualified 对应契约 | 待实施 |
+| unit descriptor/ownership plan | `multifile_ownership_checking unit_non_null_assertion`，覆盖 descriptor、transfer/drop、错误清空、赋值和嵌套条件 | 实现与直接回归通过；合并下游检查中 |
 | 多文件对应契约与 validated gate | `multifile_ownership_checking unit_non_null_assertion_consumption_and_source_restrictions`（7 个场景） | 最终套件通过 |
 
 首次新增测试因保留字和语句分隔语法失败，不作为所有权行为的 red 证据；修正后重新运行。
@@ -175,3 +175,32 @@ Phase 3，不在类型阶段提前报所有权诊断。新增五个定向测试�
   按上文等待 unit ownership consumer 接入后合并执行。
 - `cargo clippy -p lang-frontend --lib --test multifile_type_checking -- -D warnings -A clippy::obfuscated_if_else`：
   通过；只允许上述既有 lint，不等于严格 clippy 通过。
+
+### 多文件 ownership plan（实施中）
+
+`UnitNonNullAssertionOwnershipPlan` 保留 validated unit descriptor、source place、成功 Copy/Consume
+与封闭 null Abort。checker 核对 descriptor 与 operand 身份，缺失时返回内部阶段错误；正常
+continuation 且未新增诊断才登记。所有权错误统一清空；赋值回滚包含新 plan 长度，发布时按
+source-qualified identity 排序和去重。新增 API 先取得 E0599 编译失败证据，再接入实现。
+
+定向证据：`unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop`、
+`unit_non_null_assertion_plans_clear_after_later_assignment_failure`、
+`unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers`，并在既有来源/诊断矩阵
+增加非法来源不发布计划的断言。结果待补。
+
+独立审查确认 descriptor identity 门禁、正常后继/诊断 gate、全局错误清空、赋值第六项 rollback
+与稳定发布均已接齐；未发现新增阻塞问题。nested-if 已由新测试覆盖。
+
+初次两个新计划测试通过。合并 ownership 回归中 single 26 项通过，unit 59 项通过、1 项新测试
+误用容器元素的 `AfterReplacement` 作为局部变量替换点；已按既有局部变量契约改为旧值恰好一次
+析构、提取 source 不再析构，单独重跑 unit suite，复用 single 成功证据。
+
+多文件计划切片最终直接验证：
+
+- `cargo test -p lang-frontend --test multifile_ownership_checking`：60 passed，0 failed/ignored/filtered。
+  与前述 single 26 项共 86 passed；新增 3 项 unit plan 测试及来源矩阵清空断言通过。
+- `cargo clippy -p lang-frontend --lib --test ownership_checking --test multifile_ownership_checking -- -D warnings -A clippy::filter_map_bool_then`：
+  通过；例外仅针对已验证存在于基线的既有 lint，不宣称严格 all-targets clippy 全绿。
+- fmt、diff、336 Markdown 结构检查通过。
+- `cargo check --workspace --all-targets`：已启动，合并验证 unit typed descriptor 与 ownership
+  consumer 的公开 API；仍在运行，不计通过。归档前还需逐项核对第 5 节验收证据。

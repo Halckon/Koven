@@ -7,6 +7,7 @@ mod control;
 mod drop_planner;
 mod flow;
 mod liveness;
+mod non_null_assertion;
 mod places;
 mod rc;
 mod receiver;
@@ -35,9 +36,9 @@ use super::{
     UnitCallReceiverOwnershipContract, UnitClosureCaptureDescriptor, UnitClosureDescriptor,
     UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
     UnitConstructionOwnershipPlan, UnitDropFact, UnitLoanFact, UnitLoanTarget,
-    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget, UnitValueDeliveryFact,
+    UnitNonNullAssertionOwnershipPlan, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,
+    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitValueDeliveryFact,
 };
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
@@ -49,6 +50,7 @@ pub(super) struct Analysis {
     pub(super) conditional_receiver_deliveries: Vec<UnitConditionalReceiverDeliveryFact>,
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
+    pub(super) non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -158,6 +160,7 @@ pub(super) fn analyze(
     let mut conditional_receiver_deliveries = Vec::new();
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
+    let mut non_null_assertions = Vec::new();
     let mut drops = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
@@ -204,6 +207,7 @@ pub(super) fn analyze(
             &mut conditional_receiver_deliveries,
             &mut rc_effects,
             &mut construction_plans,
+            &mut non_null_assertions,
         )?;
         let drop_analysis = checker.run()?;
         drops.extend(drop_analysis.drops);
@@ -219,7 +223,10 @@ pub(super) fn analyze(
     if !deferred.is_empty() {
         conditional_receiver_deliveries.clear();
     }
+    non_null_assertions.sort_by_key(|plan| plan.descriptor().expression());
+    non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     Ok(Analysis {
+        non_null_assertions,
         diagnostics,
         loans,
         value_deliveries,
@@ -311,6 +318,7 @@ struct Checker<'a> {
     conditional_receiver_deliveries: &'a mut Vec<UnitConditionalReceiverDeliveryFact>,
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
+    non_null_assertions: &'a mut Vec<UnitNonNullAssertionOwnershipPlan>,
 }
 
 impl<'a> Checker<'a> {
@@ -336,6 +344,7 @@ impl<'a> Checker<'a> {
         conditional_receiver_deliveries: &'a mut Vec<UnitConditionalReceiverDeliveryFact>,
         rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
         construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
+        non_null_assertions: &'a mut Vec<UnitNonNullAssertionOwnershipPlan>,
     ) -> Result<Self, OwnershipCheckingError> {
         sources.source_text(parsed.source_id())?;
         let resolution = names
@@ -427,6 +436,7 @@ impl<'a> Checker<'a> {
             conditional_receiver_deliveries,
             rc_effects,
             construction_plans,
+            non_null_assertions,
         })
     }
 
@@ -590,6 +600,7 @@ impl<'a> Checker<'a> {
             self.receiver_facts.len(),
             self.rc_effects.len(),
             self.construction_plans.len(),
+            self.non_null_assertions.len(),
         );
         let mut flows = self.check_expression(
             value,
@@ -651,12 +662,13 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
-    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize)) {
+    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize, usize)) {
         self.loans.truncate(lengths.0);
         self.value_deliveries.truncate(lengths.1);
         self.receiver_facts.truncate(lengths.2);
         self.rc_effects.truncate(lengths.3);
         self.construction_plans.truncate(lengths.4);
+        self.non_null_assertions.truncate(lengths.5);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {
