@@ -102,6 +102,7 @@ impl UnitNullComparisonDescriptor {
 /// trial 必须整体快照和回滚的 nullable typed facts。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UnitNullableFacts {
+    pub(crate) non_null_assertions: Vec<super::UnitNonNullAssertionDescriptor>,
     pub(crate) non_null_uses: Vec<UnitNonNullUseDescriptor>,
     pub(crate) null_comparisons: Vec<UnitNullComparisonDescriptor>,
 }

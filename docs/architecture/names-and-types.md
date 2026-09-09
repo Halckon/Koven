@@ -31,7 +31,7 @@ condition 沿未匹配路径传递事实，entry body 独立检查；赋值和�
 这里描述单文件 `TypedFile` 产物；compilation-unit 类型产物尚未发布等价 nullable when descriptor。
 所有权与 lowering 尚未消费这组新计划，不能将类型事实视为 native 能力已经交付。
 
-## 单文件非空断言事实
+## 非空断言事实
 
 `TypedFile::non_null_assertions` / `non_null_assertion` 为 `!!` 发布 assertion 与 operand AST
 身份、operator Span、nullable/inner 类型、place/temporary 与 root/field/element 来源类别。
@@ -42,8 +42,11 @@ Copyability 复用条件能力查询，分别表达复制或整体消费候选�
 descriptor 与 expression/type/category 事实一起参加 overload/lambda trial rollback，并按 AST
 identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction。
 
-本接口属于单文件 Phase 2；compilation-unit 等价事实及 assertion ownership、SSA/LLVM 接线尚未
-交付。
+`CompilationUnitTypes::non_null_assertions` / `non_null_assertion` 发布等价的
+`UnitNonNullAssertionDescriptor`，表达式与类型使用 source-qualified unit identity；来源类别仍不
+授予移动权限。unit descriptor 纳入 `UnitNullableFacts` 的整体 trial 快照，按 canonical source 和
+expression identity 排序。单文件 ownership 已消费对应事实；unit ownership plan 与 SSA/LLVM
+接线仍在后继实施范围。
 
 ## Compilation-unit 名称链
 

@@ -153,3 +153,71 @@ impl BodyChecker<'_> {
         }
     }
 }
+
+impl BodyChecker<'_> {
+    /// 来源能力只描述 typed 候选，合法整体移动仍由 ownership 判断。
+    pub(super) fn non_null_assertion_source_category(
+        &self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+    ) -> Result<crate::type_checking::NullableWhenSubjectCategory, CompilationUnitTypeError> {
+        use crate::{
+            name_resolution::{Namespace, UnitReferenceTarget},
+            type_checking::{
+                NullableWhenSubjectCategory as Category, ParameterMode, UnitAggregateProjectionKind,
+            },
+        };
+        let node = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(crate::type_checking::TypeCheckingError::from)?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.non_null_assertion_source_category(source, *expression);
+        }
+        let key = UnitExpressionId::new(source, expression);
+        if self
+            .parts
+            .element_places
+            .iter()
+            .any(|place| place.expression() == key)
+        {
+            return Ok(Category::ContainerElement);
+        }
+        if self.parts.aggregate_projections.iter().any(|place| {
+            place.expression() == key && place.kind() == UnitAggregateProjectionKind::Field
+        }) {
+            return Ok(Category::OrdinaryField);
+        }
+        let mode = match node.payload() {
+            Expression::Name => match self.reference(source, node.span(), Namespace::Value) {
+                Some(UnitReferenceTarget::Symbol(symbol)) => {
+                    self.parts.parameter_modes.get(symbol).copied().or_else(|| {
+                        self.signatures
+                            .declarations()
+                            .iter()
+                            .flat_map(|declaration| {
+                                declaration.callable().into_iter().chain(
+                                    declaration.nominal().into_iter().flat_map(|nominal| {
+                                        nominal.members().iter().chain(nominal.companion_members())
+                                    }),
+                                )
+                            })
+                            .flat_map(|callable| callable.parameters())
+                            .find(|parameter| parameter.symbol() == Some(*symbol))
+                            .map(|parameter| parameter.mode())
+                    })
+                }
+                _ => return Ok(Category::Temporary),
+            },
+            Expression::This => self.current_receiver_mode,
+            _ => return Ok(Category::Temporary),
+        };
+        Ok(match mode {
+            Some(ParameterMode::Borrow) => Category::BorrowRoot,
+            Some(ParameterMode::Inout) => Category::InoutRoot,
+            _ => Category::OwnedRoot,
+        })
+    }
+}

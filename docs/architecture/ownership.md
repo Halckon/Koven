@@ -39,7 +39,7 @@ Copyable inner 使用 Read，MoveOnly inner 使用 Consume；unit 入口复用�
 单文件 `NonNullAssertionOwnershipPlan` 保留 typed descriptor 的唯一求值身份和来源 place，
 分别发布 non-null Copy/Consume 转移与封闭 null Abort 效果；失败边没有 take、正常后继或 unwind
 cleanup。不可达 assertion 不登记，任意所有权诊断清空全部计划，发布顺序按 AST identity 固定。
-SPEC-0206 尚在实施：unit 对应 descriptor/ownership plan 尚待接入，此处不代表 Phase 4 lowering 支持。
+SPEC-0206 尚在实施：unit descriptor 已发布，对应 ownership plan 尚待接入，此处不代表 Phase 4 lowering 支持。
 
 ## Capture、Transferability 与 drop
 

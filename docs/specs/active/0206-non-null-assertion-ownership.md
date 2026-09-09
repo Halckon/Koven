@@ -15,7 +15,7 @@
 | 前置 ADR | 无 |
 | 关联 ADR | ADR-0017 |
 | 阻塞项 | 无 |
-| 影响范围 | `lang-frontend` ownership/drop facts/tests；Architecture |
+| 影响范围 | `lang-frontend` ownership/drop facts/tests、unit assertion typed descriptor；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.35 ownership 契约 |
 
 ## 2. Goal
@@ -135,4 +135,43 @@ nullable-when 共享契约：合并命令中的 `ownership_nullable_when` 26 项
 - `cargo clippy -p lang-frontend --lib --test ownership_checking --test ownership_nullable_when -- -D warnings`：
   通过，无 lint 豁免。已知 all-targets 既有警告见上一切片，未重复该失败门禁。
 - `cargo fmt --all -- --check`、`git diff --check`：通过。
-- `cargo check --workspace --all-targets`：已启动，结果待补；新增公开产物的下游编译验收尚未结束。
+- `cargo check --workspace --all-targets`：单文件 ownership plan 提交 `3da360f` 状态通过（9m47s）。
+
+### 多文件 descriptor 与 ownership plan 衔接（实施中）
+
+多文件原路径只检查 `!!` 结果类型，没有可供 Phase 3 消费的 assertion descriptor。本切片补充
+source-qualified typed descriptor，并纳入现有 `UnitNullableFacts` 的整体 trial 快照与回滚。
+类型描述符只记录 Copyability 和来源类别，Borrow/Inout/field/element 的 MoveOnly 合法性仍交由
+Phase 3，不在类型阶段提前报所有权诊断。新增五个定向测试覆盖来源矩阵、成员参数/括号/隐式字段、跨文件身份/顺序、
+成功及全部失败的 overload trial 回滚、非 nullable 的 L0085。五项新增测试均通过。
+
+后继 unit ownership plan 完成前不重复 workspace 编译检查；合并验证本次公开产物及直接消费者，
+避免每个相邻切片重复编译全部 targets。
+
+2026-09-09 验证修正：来源矩阵发现普通声明参数模式位于 signature，而 body 参数表只提供 lambda
+模式；已按完整 UnitSymbolId 查询顶层、member、companion callable 签名作为 fallback，并独立复核。
+原定向测试句柄失效，进程核对确认无残留 Cargo 后重新执行套件，不复用缺失的结束状态。
+
+基线对照：将 `3da360f` 用 `git archive` 导出到 `/tmp/koven-0206-baseline-3da360f`，以相同工具链和
+共用 target 串行运行 `multifile_type_checking`，得到 95 passed / 3 failed；以下失败与当前初次
+回归一致，证明不是本切片引入：
+
+- `deferred_explicit_constructor_type_arguments_publish_no_construction_fact`：MissingDeclarationSymbol。
+- `cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join`：既有期望多一个 L0112。
+- `unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary`：既有期望多一个 L0084。
+
+本切片不改这些无关测试或行为；不会把存在上述失败的套件记录为全绿。
+
+最终多文件描述符切片验证：
+
+- `cargo test -p lang-frontend --test multifile_type_checking`：103 项中 100 passed / 3 failed，
+  0 ignored/filtered；5 项新增测试通过，失败集合与上述独立基线一致。
+- 基线共用 target 曾使切回工作区时误用基线库产物，出现新 API 缺失的编译错误；只更新
+  `src/lib.rs` mtime（无内容 diff）触发当前库重新编译后取得上述最终结果。该缓存错误不计行为失败。
+- `cargo clippy -p lang-frontend --lib --test multifile_type_checking -- -D warnings`：未通过；
+  既有测试第 260 行 `obfuscated_if_else` 阻断，`git show 3da360f:...` 已核对原有代码，未改动该处。
+- 独立复核已针对实际发现的 signature 参数 fallback 修正重新检查；没有新增阻塞问题。
+- fmt、diff 与 336 Markdown 结构检查通过；未运行 frontend 全量测试，公开 API 的下游编译
+  按上文等待 unit ownership consumer 接入后合并执行。
+- `cargo clippy -p lang-frontend --lib --test multifile_type_checking -- -D warnings -A clippy::obfuscated_if_else`：
+  通过；只允许上述既有 lint，不等于严格 clippy 通过。

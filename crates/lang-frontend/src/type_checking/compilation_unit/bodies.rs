@@ -20,13 +20,14 @@ use super::{
 mod assignment;
 mod checker;
 mod container;
+mod non_null_assertion;
 mod nullable;
 mod projection;
 mod rc;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
-pub use {assignment::*, container::*, nullable::*, projection::*, rc::*};
+pub use {assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*};
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

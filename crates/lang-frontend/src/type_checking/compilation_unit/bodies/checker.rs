@@ -774,7 +774,9 @@ impl<'a> BodyChecker<'a> {
             Expression::NonNullAssert {
                 operand,
                 operator_span,
-            } => self.check_non_null_assert(source, operand, operator_span, return_type)?,
+            } => {
+                self.check_non_null_assert(source, expression, operand, operator_span, return_type)?
+            }
             Expression::Cast {
                 expression,
                 type_ref,

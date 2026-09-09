@@ -6889,3 +6889,198 @@ fn runtime_field_layouts_are_atomic_on_typed_recovery() {
     assert!(typed.runtime_field_layouts().is_empty());
     assert!(typed.validate().is_err());
 }
+
+#[test]
+fn non_null_assertion_descriptors_are_source_qualified_and_keep_source_capabilities() {
+    use lang_frontend::type_checking::{
+        AssertionFailureEffect, Copyability, NullableWhenSubjectCategory as Category,
+    };
+    let mut sources = SourceMap::new();
+    let (provider_id, provider) = parsed(
+        &mut sources,
+        "assert-provider.ko",
+        "class Resource {}\nclass Holder(val item: Resource?) {}\nfun create(): Resource? = Resource()\nfun first(source: Int?): Int = source!!",
+    );
+    let (consumer_id, consumer) = parsed(
+        &mut sources,
+        "assert-consumer.ko",
+        "fun second(source: Int?): Int = source!!\nfun extract(own source: Resource?): Resource = source!!\nfun borrowedSource(source: Resource?): Resource = source!!\nfun exclusive(inout source: Resource?): Resource = source!!\nfun field(source: Holder): Resource = source.item!!\nfun element(source: Array<Resource?>): Resource = source[0]!!\nfun temporary(): Resource = create()!!",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "assert-provider.ko", provider_id, &provider),
+        SourceUnitInput::new("root", "assert-consumer.ko", consumer_id, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.non_null_assertions().len(), 8);
+    for (source, file, expected) in [
+        (provider_id, &provider, vec![Category::BorrowRoot]),
+        (
+            consumer_id,
+            &consumer,
+            vec![
+                Category::BorrowRoot,
+                Category::OwnedRoot,
+                Category::BorrowRoot,
+                Category::InoutRoot,
+                Category::OrdinaryField,
+                Category::ContainerElement,
+                Category::Temporary,
+            ],
+        ),
+    ] {
+        let source = source_unit(&names, source);
+        let facts = typed
+            .non_null_assertions()
+            .iter()
+            .filter(|fact| fact.expression().source_unit() == source)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            facts
+                .iter()
+                .map(|fact| fact.source_category())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        for fact in facts {
+            assert_eq!(fact.operand().source_unit(), source);
+            assert_eq!(
+                typed.expression_type(fact.operand()),
+                Some(fact.nullable_type())
+            );
+            assert_eq!(
+                typed.expression_type(fact.expression()),
+                Some(fact.inner_type())
+            );
+            assert_eq!(sources.slice(fact.operator_span()).unwrap(), "!!");
+            assert!(
+                matches!(file.ast().expressions().get(fact.expression().expression()).unwrap().payload(), Expression::NonNullAssert { operand, .. } if *operand == fact.operand().expression())
+            );
+            assert_eq!(fact.failure_effect(), AssertionFailureEffect::Abort);
+            assert_eq!(typed.non_null_assertion(fact.expression()), Some(*fact));
+        }
+    }
+    assert_eq!(
+        typed
+            .non_null_assertions()
+            .iter()
+            .filter(|fact| fact.copyability() == Copyability::Copyable)
+            .count(),
+        2
+    );
+    // Reordered inputs keep canonical source-qualified facts, even when local AST ids overlap.
+    let again =
+        check_compilation_unit_types(&sources, &[inputs[1], inputs[0]], &names, &type_environment)
+            .unwrap();
+    assert_eq!(typed.non_null_assertions(), again.non_null_assertions());
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn non_null_assertion_descriptor_trial_keeps_only_the_selected_candidate() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assert-trial.ko",
+        "fun choose(action: () -> Int): Int\nfun choose(action: () -> String): String\nfun selected(input: Int?): Int = choose({ input!! })",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "assert-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.non_null_assertions().len(), 1);
+    assert_eq!(typed.calls().len(), 1);
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn non_null_assertion_descriptor_rejects_non_nullable_operand() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assert-invalid.ko",
+        "fun invalid(input: Int): Int = input!!",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "assert-invalid.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0085"]
+    );
+    assert!(typed.non_null_assertions().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn non_null_assertion_descriptor_failed_trials_leave_no_facts() {
+    // Each candidate reaches !! before its lambda return type is rejected.
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assert-failed-trial.ko",
+        "fun choose(action: () -> Int): Int\nfun choose(action: () -> String): String\nfun rejected(input: Boolean?): Unit { val result = choose({ input!! }) }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "assert-failed-trial.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(!typed.diagnostics().is_empty());
+    assert!(typed.non_null_assertions().is_empty());
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn non_null_assertion_descriptor_member_parameter_group_and_implicit_field() {
+    use lang_frontend::type_checking::NullableWhenSubjectCategory as Category;
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "assert-member.ko",
+        "class Reader(val item: Int?) { fun read(source: Int?): Int = (source)!!\nfun readField(): Int = item!! }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "assert-member.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(
+        typed
+            .non_null_assertions()
+            .iter()
+            .map(|fact| (fact.source_category(), fact.category()))
+            .collect::<Vec<_>>(),
+        [
+            (Category::BorrowRoot, ExpressionCategory::Place),
+            (Category::OrdinaryField, ExpressionCategory::Place)
+        ]
+    );
+}

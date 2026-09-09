@@ -26,13 +26,31 @@ impl BodyChecker<'_> {
     pub(super) fn check_non_null_assert(
         &mut self,
         source: SourceUnitId,
+        expression: ExpressionId,
         operand: ExpressionId,
         operator_span: Span,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let operand = self.check_expression(source, operand, None, None, return_type)?;
-        let ty = match self.signatures.types().get(operand.ty) {
-            Some(UnitTypeKind::Nullable(inner)) => *inner,
+        let checked = self.check_expression(source, operand, None, None, return_type)?;
+        let ty = match self.signatures.types().get(checked.ty) {
+            Some(UnitTypeKind::Nullable(inner)) => {
+                let inner = *inner;
+                let descriptor = crate::type_checking::UnitNonNullAssertionDescriptor {
+                    expression: crate::type_checking::UnitExpressionId::new(source, expression),
+                    operand: crate::type_checking::UnitExpressionId::new(source, operand),
+                    operator_span,
+                    nullable_type: checked.ty,
+                    inner_type: inner,
+                    category: self.expression_category(source, operand),
+                    source_category: self.non_null_assertion_source_category(source, operand)?,
+                    copyability: self.copyability_of(inner),
+                };
+                let facts = &mut self.parts.nullable.non_null_assertions;
+                facts.retain(|fact| fact.expression() != descriptor.expression());
+                facts.push(descriptor);
+                facts.sort_by_key(|fact| fact.expression());
+                inner
+            }
             Some(UnitTypeKind::Error) => self.error_type(),
             Some(UnitTypeKind::Deferred(_)) => self.deferred_type(DeferredReason::MemberAccess),
             _ => {
@@ -46,7 +64,7 @@ impl BodyChecker<'_> {
         };
         Ok(ExpressionCheck {
             ty,
-            falls_through: operand.falls_through,
+            falls_through: checked.falls_through,
         })
     }
 
