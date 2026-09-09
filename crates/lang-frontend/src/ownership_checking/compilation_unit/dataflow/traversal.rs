@@ -2,6 +2,7 @@
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
+    diagnostic::{Diagnostic, Severity},
     parser::{Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
 };
 
@@ -11,6 +12,35 @@ use super::{
 };
 
 impl Checker<'_> {
+    // Only repeating edges require the owner again; exits keep their ordinary flow checks.
+    pub(super) fn check_loop_backedge(
+        &mut self,
+        body: StatementId,
+        flows: &Flows,
+    ) -> Result<(), OwnershipCheckingError> {
+        let live = &self.statement_live_after[body.index()];
+        let mut moved = std::collections::BTreeMap::new();
+        for state in [&flows.next, &flows.continues].into_iter().flatten() {
+            for (&symbol, &origin) in &state.moved {
+                if live.contains(&symbol) {
+                    moved.entry(symbol).or_insert(origin);
+                }
+            }
+        }
+        for origin in moved.into_values() {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.use_after_move,
+                "moved value may be used again on the next loop iteration",
+                origin,
+            )?;
+            diagnostic.add_label(self.sources, origin, "value was moved here")?;
+            self.diagnostics.push(diagnostic);
+        }
+        Ok(())
+    }
+
     pub(super) fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
             Item::Error | Item::Constant { .. } | Item::Function { .. } => {}
@@ -178,11 +208,17 @@ impl Checker<'_> {
                 body,
                 ..
             } => {
+                let errors = self.diagnostics.len();
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(prefix, body)
+                self.check_maybe_loop(prefix, body, errors)
             }
             Statement::Loop { body, .. } => {
+                let errors = self.diagnostics.len();
+                let body_id = body;
                 let body = self.check_statement(body, state)?;
+                if self.diagnostics.len() == errors {
+                    self.check_loop_backedge(body_id, &body)?;
+                }
                 Ok(Flows {
                     next: body.breaks,
                     ..Flows::default()
@@ -215,11 +251,16 @@ impl Checker<'_> {
         &mut self,
         mut prefix: Flows,
         body: StatementId,
+        errors: usize,
     ) -> Result<Flows, OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
         };
+        let body_id = body;
         let body = self.check_statement(body, base.clone())?;
+        if self.diagnostics.len() == errors {
+            self.check_loop_backedge(body_id, &body)?;
+        }
         let mut next = base;
         for state in [body.next, body.breaks, body.continues]
             .into_iter()

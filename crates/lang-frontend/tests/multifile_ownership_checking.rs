@@ -4154,3 +4154,71 @@ fn unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers() {
     );
     assert!(ownership.validate().is_ok());
 }
+
+#[test]
+fn unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges() {
+    // A repeated extraction requires a restored owner; break and return cannot repeat it.
+    for (body, expected) in [
+        ("while (flag) { val item = source!! }", vec!["L0131"]),
+        (
+            "while (flag) { val item = source!!\ncontinue }",
+            vec!["L0131"],
+        ),
+        ("loop { val item = source!! }", vec!["L0131"]),
+        (
+            "for (index in indices) { val item = source!! }",
+            vec!["L0131"],
+        ),
+        ("while (check(source!!)) {}", vec!["L0131"]),
+        ("while (flag) { val item = source!!\nbreak }", vec![]),
+        ("loop { val item = source!!\nreturn 0 }", vec![]),
+        (
+            "while (flag) { val local: Resource? = Resource()\nval item = local!! }",
+            vec![],
+        ),
+        (
+            "var local = source\nwhile (flag) { val item = local!!\n{ local = Resource() } }",
+            vec![],
+        ),
+        (
+            "var local = source\nwhile (flag) { { local = Resource() }\nval item = local!! }",
+            vec![],
+        ),
+        (
+            "var local = source\nloop { { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
+            vec![],
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (provider_id, provider) = parsed(
+            &mut sources,
+            "provider.ko",
+            "class Resource {}\nfun check(item: Resource): Boolean = true",
+        );
+        let text = format!(
+            "fun test(flag: Boolean, indices: Array<Int>, own source: Resource?): Int {{ {body}\nreturn 0 }}"
+        );
+        let (consumer_id, consumer) = parsed(&mut sources, "consumer.ko", &text);
+        let inputs = [
+            SourceUnitInput::new("root", "provider.ko", provider_id, &provider),
+            SourceUnitInput::new("root", "consumer.ko", consumer_id, &consumer),
+        ];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert_eq!(diagnostic_codes(&ownership), expected, "{body}");
+        if !expected.is_empty() {
+            assert_eq!(
+                sources
+                    .slice(ownership.diagnostics()[0].primary_span())
+                    .unwrap(),
+                "source"
+            );
+            assert!(ownership.non_null_assertions().is_empty());
+        }
+        assert_eq!(ownership.validate().is_ok(), expected.is_empty(), "{body}");
+    }
+}

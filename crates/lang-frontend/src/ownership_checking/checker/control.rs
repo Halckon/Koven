@@ -3,11 +3,41 @@
 use super::{Checker, ExpressionUse, Flows, OwnershipCheckingError, State};
 use crate::{
     ast::{ExpressionId, StatementId},
+    diagnostic::{Diagnostic, Severity},
     parser::Statement,
     type_checking::{BuiltinType, TypeKind},
 };
 
 impl Checker<'_> {
+    // Only repeating edges require the owner again; exits keep their ordinary flow checks.
+    pub(super) fn check_loop_backedge(
+        &mut self,
+        body: StatementId,
+        flows: &Flows,
+    ) -> Result<(), OwnershipCheckingError> {
+        let live = &self.statement_live_after[body.index()];
+        let mut moved = std::collections::BTreeMap::new();
+        for state in [&flows.next, &flows.continues].into_iter().flatten() {
+            for (&symbol, &origin) in &state.moved {
+                if live.contains(&symbol) {
+                    moved.entry(symbol).or_insert(origin);
+                }
+            }
+        }
+        for origin in moved.into_values() {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.use_after_move_code,
+                "moved value may be used again on the next loop iteration",
+                origin,
+            )?;
+            diagnostic.add_label(self.sources, origin, "value was moved here")?;
+            self.diagnostics.push(diagnostic);
+        }
+        Ok(())
+    }
+
     pub(super) fn control_result_usage(&self, expression: ExpressionId) -> ExpressionUse {
         if self
             .typed

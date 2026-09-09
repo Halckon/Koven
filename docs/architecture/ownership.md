@@ -44,6 +44,11 @@ cleanup。不可达 assertion 不登记，任意所有权诊断清空全部计�
 全部计划；缺失或不一致的 validated descriptor 返回内部阶段错误。两条路径的结果仍由普通
 drop facts 管理；这不代表 Phase 4 lowering 已接入。
 
+单文件与 unit 在 loop 正常回边和 continue 边检查 moved owner 是否仍在下一轮 live set 中，
+重复消费产生 L0131；break/return 不参与回边检查。显式 `loop` 的 header 从空集求固定点，
+退出后的使用经 break 边传播，允许每轮先重新赋值的 owner。普通 whole-root 赋值无需读取
+已移动旧值，成功后恢复 binding；字段、元素、复合赋值和有效 loan 仍执行原有访问检查。
+
 ## Capture、Transferability 与 drop
 
 closure capture 按 lambda identity 和 source binding 发布。普通 closure 借用 capture；`move` closure

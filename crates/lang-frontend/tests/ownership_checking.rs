@@ -1030,3 +1030,51 @@ fn non_null_assertion_plans_skip_unreachable_and_record_loop_and_closure_bodies(
                 == lang_frontend::ownership_checking::NonNullAssertionTransferKind::Copy)
     );
 }
+
+#[test]
+fn non_null_assertion_rejects_repeated_loop_consumption() {
+    // A backedge can reach the same extraction again, even without a later source-level use.
+    for body in [
+        "while (flag) { val item = source!! }",
+        "while (flag) { val item = source!!\ncontinue }",
+        "loop { val item = source!! }",
+        "for (index in indices) { val item = source!! }",
+        "while (check(source!!)) {}",
+    ] {
+        let text = format!(
+            "class Resource {{}}\nfun check(item: Resource): Boolean = true\nfun test(flag: Boolean, indices: Array<Int>, own source: Resource?): Int {{ {body}\nreturn 0 }}"
+        );
+        let (sources, _, owned) = checked(&text);
+        assert_eq!(codes(owned.diagnostics()), ["L0131"], "{body}");
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .unwrap(),
+            "source"
+        );
+        assert!(owned.non_null_assertions().is_empty());
+    }
+}
+
+#[test]
+fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
+    // Exit edges never repeat, while initialization restores the owner before its next use.
+    for body in [
+        "while (flag) { val item = source!!\nbreak }",
+        "loop { val item = source!!\nreturn 0 }",
+        "while (flag) { val local: Resource? = Resource()\nval item = local!! }",
+        "var local = source\nwhile (flag) { val item = local!!\n{ local = Resource() } }",
+        "var local = source\nwhile (flag) { { local = Resource() }\nval item = local!! }",
+        "var local = source\nloop { { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
+    ] {
+        let text = format!(
+            "class Resource {{}}\nfun test(flag: Boolean, own source: Resource?): Int {{ {body}\nreturn 0 }}"
+        );
+        let (_, _, owned) = checked(&text);
+        assert!(
+            owned.diagnostics().is_empty(),
+            "{body}: {:?}",
+            owned.diagnostics()
+        );
+    }
+}

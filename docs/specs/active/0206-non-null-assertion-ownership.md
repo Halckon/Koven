@@ -69,138 +69,46 @@ loan 与 drop planner；frontend facts不引用 SSA operation。
 
 ## 10. 验证记录
 
-实施前按[分层验收](../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
-记录命中数、结果与未运行原因。同一状态下的有效证据只运行一次，不默认运行 frontend 全量。
+按[分层验收](../../development/testing.md)复用有效证据。下表为本 Spec 的统一验收入口；
+不因文档勾选重复运行 Cargo，不运行 frontend 全量测试。
 
-| 命令 / 检查 | 结果 | 备注 |
+| 验收项 | 测试目标 / 过滤器 | 实际结果 |
 |---|---|---|
-| 2026-08-27 roadmap 审计 | 通过 | checker/drop planner 当前均把 `!!` operand 当 Read，不能证明 MoveOnly extraction |
+| Copyable 源保留；MoveOnly 来源、loan、Span、结果 drop | `ownership_checking non_null_assertion` | 最近运行 12 passed；包括循环正反例 |
+| unit 来源矩阵、descriptor identity、Abort/transfer、错误清空和 nested/assignment drop | `multifile_ownership_checking unit_non_null_assertion` | 本轮 unit 全套 61 passed，含五项 assertion 测试 |
+| 可达循环重复消费；break/return、每轮初始化和重新赋值 | 两端 `non_null_assertion` 循环测试 | single/unit 最小 while red 均实证；修复后两端全部正反例通过 |
+| ownership、nullable、container、closure 共享契约 | `ownership_checking`、`multifile_ownership_checking`、`ownership_nullable_when`、`ownership_containers`、`ownership_closures` | 28 + 61 + 26 + 12 + 13 = 140 passed；0 failed/ignored/filtered |
+| 多文件 typed descriptor 来源、顺序、overload trial rollback | `multifile_type_checking` | 100 passed / 3 既有 failed；新增 5 项通过，基线见下 |
+| 公开 descriptor / ownership API 下游编译 | `cargo check --workspace --all-targets` | `a2909e9` 状态通过，9m03s；循环修复未改变公开 API |
+| lint | frontend lib 与受影响定向 tests | lib 与上述五个 ownership suites 定向通过，仅允许既有 `filter_map_bool_then` |
+| 格式与文档结构 | `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | 通过；336 Markdown，结构检查不替代语义审查 |
 
-### 本次验收映射（实施中）
+### 实现和独立复核
 
-| 契约 | 定向证据 | 状态 |
-|---|---|---|
-| 外层 Borrow 不改变 MoveOnly extraction、后续使用 L0131 | `ownership_checking non_null_assertion_consumes_owned_source_even_for_borrowed_result` | 有效 red 已确认；最终套件通过 |
-| Borrow/Inout/field/element 拒绝及 Span | `ownership_checking non_null_assertion_rejects_borrowed_and_partial_move_sources` | 有效 red 已确认；最终套件通过 |
-| Copyable 保持源可用 | `ownership_checking non_null_assertion_copy_preserves_borrowed_source` | 包括 shared loan 下字段复制，最终套件通过 |
-| active loan、owned/temporary 提取后的 borrowed-result drop | `ownership_checking non_null_assertion` | 最终套件通过 |
-| Copy/Consume、root/temporary、Abort、单次身份与确定性 | `ownership_checking non_null_assertion_plans_bind_success_transfer_and_abort_to_one_evaluation` | 单文件套件通过 |
-| 后续错误清空先前计划 | `ownership_checking non_null_assertion_plans_are_cleared_after_any_ownership_error` | 单文件套件通过 |
-| 嵌套条件 operand 转移不产生 temporary drop | `ownership_checking non_null_assertion_nested_operand_transfers_without_temporary_drop` | 单文件套件通过 |
-| 不可达、循环与 closure body 的 AST site 登记 | `ownership_checking non_null_assertion_plans_skip_unreachable_and_record_loop_and_closure_bodies` | 单文件套件通过 |
-| unit descriptor/ownership plan | `multifile_ownership_checking unit_non_null_assertion`，覆盖 descriptor、transfer/drop、错误清空、赋值和嵌套条件 | 实现与直接回归通过；合并下游检查中 |
-| 多文件对应契约与 validated gate | `multifile_ownership_checking unit_non_null_assertion_consumption_and_source_restrictions`（7 个场景） | 最终套件通过 |
+- `6f8b7dc` 接入 Copy/Consume，修复独立审查发现的 Copyable 字段 shared-loan 误判。
+- `3da360f` 发布单文件 `NonNullAssertionOwnershipPlan`；`446321c` 发布 source-qualified typed
+  descriptor；`a2909e9` 发布 unit ownership plan。失败边固定 Abort，无 take 或 unwind cleanup；
+  validated identity、trial/assignment rollback、全局诊断清空和稳定发布由对应测试覆盖。
+- 完整复核发现循环回边重复消费缺少 L0131，单文件和 unit 最小 while 测试均取得有效 red。
+  修复检查 next/continue 上 moved 与下一轮 live 的交集，排除 break/return；显式 loop 空 header
+  避免每轮先补回的合法程序误报。已有 condition/body 错误时不追加回边级联诊断。
+- unit 正例进一步发现 whole-root 赋值先检查旧值 available，导致移动后无法恢复。已仅对根
+  Mutation 跳过旧值读取；仍检查 mutability/capture/loan，复合赋值先 Read，失败仍回滚。
+- 上述循环及赋值修复均已独立静态复核，未发现新增阻塞；实际运行结论以表中结果为准。
+  `for` 的 owned binder delivery 仍属既有类型 deferred 边界，本次未提前新增该语义。
 
-首次新增测试因保留字和语句分隔语法失败，不作为所有权行为的 red 证据；修正后重新运行。
+### 基线失败与覆盖边界
 
-### 消费入口切片（尚未完成整个 Spec）
-
-六处 checker/liveness/drop 入口已接消费行为；单文件按 0205 descriptor 选择 Copyable Read / MoveOnly
-Consume。独立审查发现 Copyable 字段在 shared loan 下被误当 Move，已修正并增加专门回归。
-字段 L0132 复用既有 field-name primary Span，不把测试期望强行扩展为整个 operand。
-其余 assertion ownership plan、Abort/transfer edge facts 和嵌套控制流仍待实施。
-
-消费入口切片验证：
-
-- `cargo test -p lang-frontend --test ownership_checking --test multifile_ownership_checking --no-fail-fast`：
-  22 + 57 = 79 项通过，0 failed/ignored/filtered；其中新增单文件 6 项、多文件 1 项（7 个来源场景）。
-- `cargo fmt --all -- --check`、`git diff --check`：通过。
-- `python3 scripts/check_docs.py`：336 Markdown 通过；结构检查不证明语义等价。
-- 独立审查先发现 Copyable shared-loan 误判，修复后复核通过；审查为静态审查，运行证据见上。
-- 无公开 API 变化，本切片未追加 workspace check；未运行 frontend 全量。
-- `cargo clippy -p lang-frontend --all-targets -- -D warnings`：未通过；既有
-  `tests/multifile_ownership_checking.rs:1006` 的 `filter_map_bool_then` 阻断，未改动该行。
-- `cargo clippy -p lang-frontend --lib --test ownership_checking --test multifile_ownership_checking -- -D warnings -A clippy::filter_map_bool_then`：
-  通过；显式允许上述一项既有 lint，不等同于严格 all-targets clippy 通过。
-
-### 单文件 ownership plan 切片（实施中）
-
-`NonNullAssertionOwnershipPlan` 复用 0205 descriptor，保留 operand/assertion 身份、source place、
-仅成功边上的 Copy/Consume 与 null Abort。getter 不引入可配置的 null transfer/cleanup，避免构造
-与规范冲突的失败边。任一所有权错误清空全部计划，不可达 expression 不登记，BTreeMap 稳定发布。
-
-
-
-新公开 API 测试先得到缺少接口的编译失败证据；首次运行中的 `move`/`loop` 函数名违反保留字规则，
-已更名，不将该语法错误作为所有权 red 证据。独立静态审查未发现新增阻塞问题；未据此宣称
-循环回边重复消费或 native Abort/transfer 已验证。unit 对应计划仍未实施。
-
-nullable-when 共享契约：合并命令中的 `ownership_nullable_when` 26 项通过，0 failed/ignored/filtered；
-同次 ownership 24 通过、2 项测试问题已修正，单独重跑 ownership，不重复已通过的 nullable suite。
-跨 SourceMap 的 Span 包含 owner identity，确定性测试按既有约定比较稳定的 map-local debug 产物。
-
-最终 `cargo test -p lang-frontend --test ownership_checking`：26 项通过，0 failed/ignored/filtered；
-连同未受测试修正影响的 nullable suite 共 52 项通过。本切片新增 4 项测试。
-
-- `cargo clippy -p lang-frontend --lib --test ownership_checking --test ownership_nullable_when -- -D warnings`：
-  通过，无 lint 豁免。已知 all-targets 既有警告见上一切片，未重复该失败门禁。
-- `cargo fmt --all -- --check`、`git diff --check`：通过。
-- `cargo check --workspace --all-targets`：单文件 ownership plan 提交 `3da360f` 状态通过（9m47s）。
-
-### 多文件 descriptor 与 ownership plan 衔接（实施中）
-
-多文件原路径只检查 `!!` 结果类型，没有可供 Phase 3 消费的 assertion descriptor。本切片补充
-source-qualified typed descriptor，并纳入现有 `UnitNullableFacts` 的整体 trial 快照与回滚。
-类型描述符只记录 Copyability 和来源类别，Borrow/Inout/field/element 的 MoveOnly 合法性仍交由
-Phase 3，不在类型阶段提前报所有权诊断。新增五个定向测试覆盖来源矩阵、成员参数/括号/隐式字段、跨文件身份/顺序、
-成功及全部失败的 overload trial 回滚、非 nullable 的 L0085。五项新增测试均通过。
-
-后继 unit ownership plan 完成前不重复 workspace 编译检查；合并验证本次公开产物及直接消费者，
-避免每个相邻切片重复编译全部 targets。
-
-2026-09-09 验证修正：来源矩阵发现普通声明参数模式位于 signature，而 body 参数表只提供 lambda
-模式；已按完整 UnitSymbolId 查询顶层、member、companion callable 签名作为 fallback，并独立复核。
-原定向测试句柄失效，进程核对确认无残留 Cargo 后重新执行套件，不复用缺失的结束状态。
-
-基线对照：将 `3da360f` 用 `git archive` 导出到 `/tmp/koven-0206-baseline-3da360f`，以相同工具链和
-共用 target 串行运行 `multifile_type_checking`，得到 95 passed / 3 failed；以下失败与当前初次
-回归一致，证明不是本切片引入：
+`multifile_type_checking` 的三个失败在独立导出的 `3da360f` 基线同样出现（95 passed / 3 failed），
+当前新增五项通过，失败集合未变：
 
 - `deferred_explicit_constructor_type_arguments_publish_no_construction_fact`：MissingDeclarationSymbol。
 - `cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join`：既有期望多一个 L0112。
 - `unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary`：既有期望多一个 L0084。
 
-本切片不改这些无关测试或行为；不会把存在上述失败的套件记录为全绿。
+严格 frontend all-targets clippy 曾被既有 `multifile_ownership_checking` 的
+`filter_map_bool_then` 阻断；typed suite 的严格定向 clippy 曾被既有 `obfuscated_if_else` 阻断。
+两者仅在各自定向命令中显式允许该 lint 后通过，不能记录为严格 all-targets 通过。
 
-最终多文件描述符切片验证：
-
-- `cargo test -p lang-frontend --test multifile_type_checking`：103 项中 100 passed / 3 failed，
-  0 ignored/filtered；5 项新增测试通过，失败集合与上述独立基线一致。
-- 基线共用 target 曾使切回工作区时误用基线库产物，出现新 API 缺失的编译错误；只更新
-  `src/lib.rs` mtime（无内容 diff）触发当前库重新编译后取得上述最终结果。该缓存错误不计行为失败。
-- `cargo clippy -p lang-frontend --lib --test multifile_type_checking -- -D warnings`：未通过；
-  既有测试第 260 行 `obfuscated_if_else` 阻断，`git show 3da360f:...` 已核对原有代码，未改动该处。
-- 独立复核已针对实际发现的 signature 参数 fallback 修正重新检查；没有新增阻塞问题。
-- fmt、diff 与 336 Markdown 结构检查通过；未运行 frontend 全量测试，公开 API 的下游编译
-  按上文等待 unit ownership consumer 接入后合并执行。
-- `cargo clippy -p lang-frontend --lib --test multifile_type_checking -- -D warnings -A clippy::obfuscated_if_else`：
-  通过；只允许上述既有 lint，不等于严格 clippy 通过。
-
-### 多文件 ownership plan（实施中）
-
-`UnitNonNullAssertionOwnershipPlan` 保留 validated unit descriptor、source place、成功 Copy/Consume
-与封闭 null Abort。checker 核对 descriptor 与 operand 身份，缺失时返回内部阶段错误；正常
-continuation 且未新增诊断才登记。所有权错误统一清空；赋值回滚包含新 plan 长度，发布时按
-source-qualified identity 排序和去重。新增 API 先取得 E0599 编译失败证据，再接入实现。
-
-定向证据：`unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop`、
-`unit_non_null_assertion_plans_clear_after_later_assignment_failure`、
-`unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers`，并在既有来源/诊断矩阵
-增加非法来源不发布计划的断言。结果待补。
-
-独立审查确认 descriptor identity 门禁、正常后继/诊断 gate、全局错误清空、赋值第六项 rollback
-与稳定发布均已接齐；未发现新增阻塞问题。nested-if 已由新测试覆盖。
-
-初次两个新计划测试通过。合并 ownership 回归中 single 26 项通过，unit 59 项通过、1 项新测试
-误用容器元素的 `AfterReplacement` 作为局部变量替换点；已按既有局部变量契约改为旧值恰好一次
-析构、提取 source 不再析构，单独重跑 unit suite，复用 single 成功证据。
-
-多文件计划切片最终直接验证：
-
-- `cargo test -p lang-frontend --test multifile_ownership_checking`：60 passed，0 failed/ignored/filtered。
-  与前述 single 26 项共 86 passed；新增 3 项 unit plan 测试及来源矩阵清空断言通过。
-- `cargo clippy -p lang-frontend --lib --test ownership_checking --test multifile_ownership_checking -- -D warnings -A clippy::filter_map_bool_then`：
-  通过；例外仅针对已验证存在于基线的既有 lint，不宣称严格 all-targets clippy 全绿。
-- fmt、diff、336 Markdown 结构检查通过。
-- `cargo check --workspace --all-targets`：已启动，合并验证 unit typed descriptor 与 ownership
-  consumer 的公开 API；仍在运行，不计通过。归档前还需逐项核对第 5 节验收证据。
+未运行 frontend 全量测试；Phase 4 SSA/LLVM/native 不属于本 Spec，由 SPEC-0207 承接。
+本轮 140 项共享回归、定向 lint 和独立复核已结束；下一步逐项核对第 5 节并迁移完成状态。

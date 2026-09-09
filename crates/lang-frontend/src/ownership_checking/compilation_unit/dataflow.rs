@@ -863,7 +863,11 @@ impl<'a> Checker<'a> {
         {
             return Ok(false);
         }
-        if !self.ensure_available(place, primary, parameter_span, state)? {
+        // A whole-root assignment restores a moved binding without reading its old value.
+        let requires_existing_value = access != AccessKind::Mutation || !place.is_root();
+        if requires_existing_value
+            && !self.ensure_available(place, primary, parameter_span, state)?
+        {
             return Ok(false);
         }
         if access == AccessKind::Mutation

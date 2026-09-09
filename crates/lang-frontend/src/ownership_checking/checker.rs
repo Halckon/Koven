@@ -440,15 +440,22 @@ impl<'a> Checker<'a> {
             Statement::While {
                 condition, body, ..
             } => {
+                let errors = self.diagnostics.len();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(condition, body)
+                self.check_maybe_loop(condition, body, errors)
             }
             Statement::For { source, body, .. } => {
+                let errors = self.diagnostics.len();
                 let source = self.check_expression(source, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(source, body)
+                self.check_maybe_loop(source, body, errors)
             }
             Statement::Loop { body, .. } => {
+                let errors = self.diagnostics.len();
+                let body_id = body;
                 let body = self.check_statement(body, state)?;
+                if self.diagnostics.len() == errors {
+                    self.check_loop_backedge(body_id, &body)?;
+                }
                 Ok(Flows {
                     next: body.breaks,
                     breaks: None,
@@ -480,11 +487,16 @@ impl<'a> Checker<'a> {
         &mut self,
         mut prefix: Flows,
         body: StatementId,
+        errors: usize,
     ) -> Result<Flows, OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
         };
+        let body_id = body;
         let body = self.check_statement(body, base.clone())?;
+        if self.diagnostics.len() == errors {
+            self.check_loop_backedge(body_id, &body)?;
+        }
         let mut next = base;
         for state in [body.next, body.breaks, body.continues]
             .into_iter()

@@ -176,7 +176,8 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 }
             }
             Statement::Loop { body, .. } => {
-                let mut header = live_after.clone();
+                // Only break edges reach live_after; the backedge may overwrite those owners.
+                let mut header = LiveSet::new();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
                     let next = self.statement(body, header.clone())?;
