@@ -438,16 +438,26 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
 
-        let mut elements = Vec::with_capacity(arguments.len());
+        let pending_start = self.pending_operands.len();
         for argument in arguments {
             let value = match self.lower(argument.value)? {
                 LoweredValue::Value(value) => value,
-                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                LoweredValue::Diverged => {
+                    self.pending_operands.truncate(pending_start);
+                    return Ok(LoweredValue::Diverged);
+                }
                 LoweredValue::Unit => self.materialize_unit_value(argument.value, argument.span)?,
             };
             self.consume_container_delivery(id, argument.value, value, argument.span)?;
-            elements.push(value);
+            self.pending_operands.push(EntityId::Value(value));
         }
+
+        let elements = self.pending_operands[pending_start..]
+            .iter()
+            .copied()
+            .map(|entity| require_value(entity, span))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.pending_operands.truncate(pending_start);
 
         let container = self.expression_ssa_type(expression, span)?;
         let (_, results) = self

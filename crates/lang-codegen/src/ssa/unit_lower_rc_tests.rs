@@ -11,6 +11,195 @@ use super::{
 };
 
 #[test]
+fn unit_non_null_assertion_consumes_cross_file_rc_owner_once() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/assertion.ko",
+        "package p\nfun build(): Rc<Int>? = Rc(37)\nfun unwrap(own owner: Rc<Int>?): Rc<Int> = owner!!",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/assertion.ko",
+        "package q\nfun entry(): Int { val owner = p.unwrap(p.build())\n return owner.value }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/assertion.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/assertion.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("source-qualified assertion facts must lower to verified SSA");
+    let unwrap = function(&program.modules[0], "p.unwrap");
+    assert_eq!(
+        unwrap
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::NullableTake { .. }))
+            .count(),
+        1,
+        "successful extraction transfers the owner once"
+    );
+    assert!(
+        unwrap.blocks.iter().any(|block| block
+            .terminator
+            .as_ref()
+            .is_some_and(|terminator| matches!(terminator.kind, TerminatorKind::Abort))),
+        "null extraction terminates without an ordinary error call"
+    );
+}
+
+#[test]
+fn unit_non_null_assertion_pointer_operand_matrix() {
+    for (declarations, ty, construction) in [
+        ("class Node()", "Node", "Node()"),
+        (
+            "value class Token(val item: Int)",
+            "Box<Token>",
+            "Box(Token(37))",
+        ),
+        ("", "Rc<Int>", "Rc(37)"),
+    ] {
+        for operand in ["owner", "((owner))", "build()", "((build()))"] {
+            let mut sources = SourceMap::new();
+            let text = format!(
+                "package p\n{declarations}\nfun build(): {ty}? = {construction}\nfun unwrap(own owner: {ty}?): {ty} = {operand}!!"
+            );
+            let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
+            let inputs = [SourceUnitInput::new(
+                "root",
+                "p/assertion.ko",
+                source,
+                &file,
+            )];
+            let (name_environment, type_environment) = standard_environments();
+            let (names, typed, owned) =
+                analyze(&sources, &inputs, &name_environment, &type_environment);
+            let (program, _) = lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                declaration(&names, "p", "unwrap"),
+            )
+            .unwrap_or_else(|error| panic!("{ty}: {operand}: {error:?}"));
+            crate::llvm::render_verified_program(&program)
+                .unwrap_or_else(|error| panic!("LLVM {ty}: {operand}: {error:?}"));
+        }
+    }
+}
+
+#[test]
+fn unit_non_null_assertion_preserves_earlier_call_arguments() {
+    for first in ["own first: Rc<Int>", "first: Rc<Int>"] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "package p\nfun take({first}, own second: Rc<Int>): Int = second.value\nfun inspect(own first: Rc<Int>, own second: Rc<Int>?): Int = take(first, second!!)"
+        );
+        let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "p/assertion.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "inspect"),
+        )
+        .unwrap_or_else(|error| panic!("{first}: {error:?}"));
+        crate::llvm::render_verified_program(&program)
+            .expect("earlier owner or loan crosses assertion CFG");
+    }
+}
+
+#[test]
+fn unit_non_null_assertion_preserves_call_receiver_and_callable() {
+    for text in [
+        "package p\nclass Reader(val number: Int) { fun read(item: Rc<Int>): Int = number }\nfun inspect(own item: Rc<Int>?): Int = Reader(3).read(item!!)",
+        "package p\nfun read(own item: Rc<Int>): Int = item.value\nfun inspect(own item: Rc<Int>?): Int { val action: (Int) -> Int = { number -> number }\nreturn action(read(item!!)) }",
+        "package p\nfun take(own first: Rc<Int>, own second: Rc<Int>): Int = second.value\nfun inspect(flag: Boolean, own a: Rc<Int>, own b: Rc<Int>?): Int = if (flag) { take(a, error(\"stop\")) } else { take(a, b!!) }",
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "p/assertion.ko", text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "p/assertion.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "inspect"),
+        )
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+        crate::llvm::render_verified_program(&program)
+            .expect("call target survives argument assertion");
+    }
+}
+
+#[test]
+fn unit_non_null_assertion_preserves_earlier_construction_fields() {
+    for (ty, expression) in [
+        ("Pair", "Pair(a, b!!)"),
+        ("List<Rc<Int>>", "listOf(a, b!!)"),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "package p\nclass Pair(val first: Rc<Int>, val second: Rc<Int>)\nfun inspect(own a: Rc<Int>, own b: Rc<Int>?): {ty} = {expression}"
+        );
+        let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "p/assertion.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "inspect"),
+        )
+        .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
+        crate::llvm::render_verified_program(&program).expect("construction LLVM verifies");
+    }
+}
+
+#[test]
 fn lowers_cross_file_rc_retain_copyable_read_transfer_and_drop_deterministically() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(

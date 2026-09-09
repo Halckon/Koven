@@ -13,7 +13,7 @@ use lang_frontend::{
 use super::{UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityType, Operation, Origin, ValueId},
+    model::{EntityId, EntityType, Operation, Origin, ValueId},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -61,6 +61,7 @@ impl UnitExpressionLowerer<'_> {
         if arguments.len() != plan.deliveries().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let pending_start = self.pending_operands.len();
         let mut fields = vec![None; arguments.len()];
         for (evaluation_index, (argument, delivery)) in
             arguments.into_iter().zip(plan.deliveries()).enumerate()
@@ -126,17 +127,25 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
             }
+            let pending_index = self.pending_operands.len();
+            self.pending_operands.push(EntityId::Value(field));
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if slot.replace(field).is_some() {
+            if slot.replace(pending_index).is_some() {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
-        fields
+        let fields = fields
             .into_iter()
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let fields = fields
+            .into_iter()
+            .map(|index| require_value(self.pending_operands[index], span))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.pending_operands.truncate(pending_start);
+        Ok(fields)
     }
 
     fn validate_construction_root(

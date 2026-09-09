@@ -10,6 +10,7 @@ mod container;
 mod control;
 mod enum_lower;
 mod loop_control;
+mod non_null_assertion;
 mod ownership;
 mod rc;
 mod receiver;
@@ -447,6 +448,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             callable_plans: &callable_plans,
             closure_scope: plan.id,
             temporaries: BTreeMap::new(),
+            pending_operands: Vec::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
         };
@@ -539,6 +541,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
             callable_plans: &callable_plans,
             closure_scope: plan.scope,
             temporaries: BTreeMap::new(),
+            pending_operands: Vec::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
         };
@@ -579,6 +582,8 @@ struct UnitExpressionLowerer<'a> {
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
     closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
+    // Evaluated operands remain live until their call or construction consumes them.
+    pending_operands: Vec<EntityId>,
     loops: Vec<loop_control::LoopContext>,
     return_type: UnitTypeId,
 }
@@ -663,6 +668,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(expression, span),
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
+            Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
             Expression::Call {
                 callee, arguments, ..
             } => self.lower_call(expression, *callee, arguments, span),

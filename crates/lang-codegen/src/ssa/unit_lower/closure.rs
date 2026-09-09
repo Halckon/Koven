@@ -489,13 +489,18 @@ impl UnitExpressionLowerer<'_> {
         };
         let callee_id = UnitExpressionId::new(self.source_unit, callee);
         let call = UnitExpressionId::new(self.source_unit, expression);
+        let callable_index = self.pending_operands.len();
+        self.pending_operands.push(EntityId::Value(callable));
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
         }) = self.lower_call_arguments(call, arguments, descriptor, span)?
         else {
+            self.pending_operands.truncate(callable_index);
             return Ok(LoweredValue::Diverged);
         };
+        let callable = require_value(self.pending_operands[callable_index], span)?;
+        self.pending_operands.truncate(callable_index);
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {

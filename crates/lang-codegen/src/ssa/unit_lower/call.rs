@@ -215,13 +215,50 @@ impl UnitExpressionLowerer<'_> {
                 span,
             )?
         };
+        let mut receiver = receiver;
+        let receiver_start = self.pending_operands.len();
+        if let Some(receiver) = &receiver {
+            self.pending_operands.push(receiver.entity);
+            self.pending_operands.extend(
+                receiver
+                    .created_loans
+                    .iter()
+                    .map(|(loan, _)| EntityId::Loan(*loan)),
+            );
+            if let Some(writeback) = &receiver.writeback {
+                self.pending_operands
+                    .push(EntityId::Value(writeback.original));
+            }
+        }
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
         }) = self.lower_call_arguments(call, arguments, descriptor, span)?
         else {
+            self.pending_operands.truncate(receiver_start);
             return Ok(LoweredValue::Diverged);
         };
+        if let Some(receiver) = &mut receiver {
+            let mut rebound = self.pending_operands[receiver_start..].iter().copied();
+            receiver.entity = rebound
+                .next()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            for (loan, _) in &mut receiver.created_loans {
+                let Some(EntityId::Loan(replacement)) = rebound.next() else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                *loan = replacement;
+            }
+            if let Some(writeback) = &mut receiver.writeback {
+                writeback.original = require_value(
+                    rebound
+                        .next()
+                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
+                    span,
+                )?;
+            }
+        }
+        self.pending_operands.truncate(receiver_start);
         let return_type = resolve_concrete_type(
             self.typed,
             descriptor.return_type(),
@@ -323,6 +360,7 @@ impl UnitExpressionLowerer<'_> {
         if arguments.len() != descriptor.arguments().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let pending_start = self.pending_operands.len();
         let mut ordered = vec![None; descriptor.arguments().len()];
         let mut created_loans = Vec::new();
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -340,7 +378,10 @@ impl UnitExpressionLowerer<'_> {
                         argument.span,
                     )? {
                         LoweredValue::Value(value) => EntityId::Value(value),
-                        LoweredValue::Diverged => return Ok(None),
+                        LoweredValue::Diverged => {
+                            self.pending_operands.truncate(pending_start);
+                            return Ok(None);
+                        }
                         LoweredValue::Unit => {
                             return Err(lowering_error(
                                 LoweringErrorKind::InvalidModel,
@@ -367,7 +408,10 @@ impl UnitExpressionLowerer<'_> {
                     )?;
                     if builtin_type(self.typed, argument_type) == Some(BuiltinType::Nothing) {
                         return match self.lower(argument.value)? {
-                            LoweredValue::Diverged => Ok(None),
+                            LoweredValue::Diverged => {
+                                self.pending_operands.truncate(pending_start);
+                                Ok(None)
+                            }
                             LoweredValue::Value(_) | LoweredValue::Unit => Err(lowering_error(
                                 LoweringErrorKind::InvalidModel,
                                 argument.span,
@@ -392,7 +436,7 @@ impl UnitExpressionLowerer<'_> {
                         span,
                     )?;
                     if created {
-                        created_loans.push((loan, end_span));
+                        created_loans.push((self.pending_operands.len(), end_span));
                     }
                     EntityId::Loan(loan)
                 }
@@ -403,10 +447,12 @@ impl UnitExpressionLowerer<'_> {
                     ));
                 }
             };
+            let pending_index = self.pending_operands.len();
+            self.pending_operands.push(entity);
             let slot = ordered
                 .get_mut(mapping.parameter_index())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
-            if slot.replace(entity).is_some() {
+            if slot.replace(pending_index).is_some() {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
                     argument.span,
@@ -417,6 +463,20 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let arguments = arguments
+            .into_iter()
+            .map(|index| self.pending_operands[index])
+            .collect();
+        let created_loans = created_loans
+            .into_iter()
+            .map(|(index, end_span)| {
+                let EntityId::Loan(loan) = self.pending_operands[index] else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, end_span));
+                };
+                Ok((loan, end_span))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,
             created_loans,

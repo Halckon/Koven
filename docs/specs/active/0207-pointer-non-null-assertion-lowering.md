@@ -63,7 +63,8 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | 单文件 SSA/LLVM/native 与实际边界 | `feat(codegen): lower single-file non-null assertions (SPEC-0207)` |
-| 2 | compilation-unit 接线、对应验收与完成文档 | `feat(codegen): lower unit non-null assertions (SPEC-0207)` |
+| 2 | compilation-unit assertion 接线与待交付实体传递 | `feat(codegen): lower unit non-null assertions (SPEC-0207)` |
+| 3 | compilation-unit 控制流组合、native 与最终拒绝用例验收 | `test(codegen): complete non-null assertion acceptance (SPEC-0207)` |
 
 ## 9. 未决问题
 
@@ -91,7 +92,9 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | Rust 静态检查 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings` | 通过 |
 | frontend 受影响目标 lint | `cargo clippy -p lang-frontend --lib --test ownership_checking --test ownership_nullable_when -- -D warnings` | 通过 |
 | Architecture 与文档门禁 | `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
-| compilation-unit lowering/native | 待接入 source-qualified assertion facts 并执行定向验收 | 未完成，Spec 保持 in-progress |
+| compilation-unit lowering/LLVM | `cargo test -p lang-codegen --lib unit_non_null_assertion -- --nocapture` | 5 项通过，含 class/Box/Rc × root/group/call/group-call 的 12 个场景、跨文件 Rc、前序 Value/Borrow 实参、接收者/callable 与 class/container 构造 |
+| compilation-unit 共享回归与 Diverged 隔离 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture` | 126 项通过，含新增 assertion 测试与终止分支回归；`take(a, error("stop"))` 的兄弟分支执行 `take(a, b!!)`，修复前复现 InvalidSsa，恢复各层 pending 栈后通过 |
+| compilation-unit 控制流组合/native 与最终 verifier 拒绝用例 | 待验收 | 普通 if/when 携带 pending/temporary、unit native、重复 take/drop 显式拒绝用例尚未完成；Spec 保持 in-progress |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
 pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
@@ -100,3 +103,7 @@ pending Value 实参跨分支身份、nullable if 结果别名及不可达 inlin
 未运行 frontend 全量测试；未重复运行已知含既有 lint 的 frontend 全目标 clippy，仅检查受影响
 library 和两个 ownership integration targets。单文件 native 证据不代表 compilation-unit 路径完成，
 后者继续由本 Spec 承接。重复 take/drop 的显式拒绝用例仍需在最终验收核对。
+
+编译单元独立复核发现前序构造字段跨 assertion 分支遗漏，以及 Diverged 分支遗留 pending
+实体污染兄弟分支；均已修复并复核。测试初版自定义 Nothing 函数触及既有 unsupported，
+改用标准 error 后取得上述红绿证据。编译单元切片未新增 native 验证，也未重复 frontend 测试。
