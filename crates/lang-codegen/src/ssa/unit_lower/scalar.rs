@@ -228,8 +228,9 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
-        let carried = self.move_only_carried_bindings(&baseline, span)?;
-        let carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        let mut carried = self.move_only_carried_bindings(&baseline, span)?;
+        let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
         let failure = self.add_carried_control_block(&carried, &carried_loans, span)?;
         let success = self.add_carried_control_block(&carried, &carried_loans, span)?;
         self.function

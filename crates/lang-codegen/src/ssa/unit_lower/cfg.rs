@@ -23,23 +23,46 @@ pub(super) struct BranchExit {
     pub(super) consumed_receiver: Option<super::ConsumedReceiver>,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    pub(super) pending_operands: Vec<EntityId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
 }
 
-#[derive(Clone, Copy)]
+impl BranchExit {
+    fn base_arguments(&self) -> Vec<EntityId> {
+        let mut arguments = match self.result {
+            LoweredValue::Value(value) => vec![EntityId::Value(value)],
+            _ => Vec::new(),
+        };
+        arguments.extend(self.receiver.map(|receiver| receiver.entity));
+        arguments.extend(self.bindings.values().filter_map(|value| match value {
+            LoweredValue::Value(value) => Some(EntityId::Value(*value)),
+            _ => None,
+        }));
+        arguments.extend(
+            self.borrow_bindings
+                .values()
+                .map(|loan| EntityId::Loan(*loan)),
+        );
+        arguments
+    }
+}
+
+#[derive(Clone)]
 pub(super) struct CarriedBinding {
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
     source: ValueId,
     ty: EntityType,
+    pending: Vec<usize>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct CarriedLoan {
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
     source: LoanId,
     ty: EntityType,
+    pending: Vec<usize>,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -88,6 +111,7 @@ impl UnitExpressionLowerer<'_> {
                 receiver: None,
                 source,
                 ty,
+                pending: Vec::new(),
             });
         }
         if let Some(receiver) = self.current_receiver
@@ -103,6 +127,7 @@ impl UnitExpressionLowerer<'_> {
                 receiver: Some(receiver),
                 source,
                 ty,
+                pending: Vec::new(),
             });
         }
         Ok(carried)
@@ -126,6 +151,7 @@ impl UnitExpressionLowerer<'_> {
                     receiver: None,
                     source: *source,
                     ty,
+                    pending: Vec::new(),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -142,9 +168,56 @@ impl UnitExpressionLowerer<'_> {
                 receiver: Some(receiver),
                 source,
                 ty,
+                pending: Vec::new(),
             });
         }
         Ok(carried)
+    }
+
+    /// Pending operands can alias named loans; carry each entity once and retain its slots.
+    pub(super) fn carry_pending_operands(
+        &self,
+        bindings: &mut Vec<CarriedBinding>,
+        loans: &mut Vec<CarriedLoan>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for (index, entity) in self.pending_operands.iter().copied().enumerate() {
+            let ty = self
+                .function
+                .entity(entity)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+                .ty;
+            match entity {
+                EntityId::Value(source) => {
+                    if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == source) {
+                        slot.pending.push(index);
+                    } else {
+                        bindings.push(CarriedBinding {
+                            symbol: None,
+                            receiver: None,
+                            source,
+                            ty,
+                            pending: vec![index],
+                        });
+                    }
+                }
+                EntityId::Loan(source) => {
+                    if let Some(slot) = loans.iter_mut().find(|slot| slot.source == source) {
+                        slot.pending.push(index);
+                    } else {
+                        loans.push(CarriedLoan {
+                            symbol: None,
+                            receiver: None,
+                            source,
+                            ty,
+                            pending: vec![index],
+                        });
+                    }
+                }
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn add_carried_control_block(
@@ -196,13 +269,34 @@ impl UnitExpressionLowerer<'_> {
         loans: &[CarriedLoan],
         span: Span,
     ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
-        self.rebind_carried_prefix(
+        let rebound = self.rebind_carried_prefix(
             baseline,
             block,
             bindings,
             bindings.len() + loans.len(),
             span,
-        )
+        )?;
+        let parameters = &self
+            .function
+            .block(block)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            .parameters;
+        let mut pending = BTreeMap::new();
+        for (indices, parameter) in bindings
+            .iter()
+            .map(|slot| &slot.pending)
+            .chain(loans.iter().map(|slot| &slot.pending))
+            .zip(parameters)
+        {
+            for index in indices {
+                pending.insert(*index, *parameter);
+            }
+        }
+        if pending.keys().copied().ne(0..pending.len()) {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        }
+        self.pending_operands = pending.into_values().collect();
+        Ok(rebound)
     }
 
     fn rebind_carried_prefix(
@@ -228,10 +322,7 @@ impl UnitExpressionLowerer<'_> {
             };
             if let Some(symbol) = slot.symbol {
                 rebound.insert(symbol, LoweredValue::Value(*value));
-            } else {
-                let mut receiver = slot
-                    .receiver
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            } else if let Some(mut receiver) = slot.receiver {
                 receiver.entity = EntityId::Value(*value);
                 self.current_receiver = Some(receiver);
                 self.consumed_receiver = None;
@@ -262,10 +353,7 @@ impl UnitExpressionLowerer<'_> {
             };
             if let Some(symbol) = slot.symbol {
                 rebound.insert(symbol, *loan);
-            } else {
-                let mut receiver = slot
-                    .receiver
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            } else if let Some(mut receiver) = slot.receiver {
                 receiver.entity = EntityId::Loan(*loan);
                 self.current_receiver = Some(receiver);
                 self.consumed_receiver = None;
@@ -286,6 +374,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
             self.temporaries.clear();
+            self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
         }
         if exits.len() == 1 {
@@ -297,6 +386,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
             self.temporaries.clear();
+            self.pending_operands = first.pending_operands.clone();
             return Ok(first.result);
         }
         self.normalize_receiver_exits(&mut exits, span)?;
@@ -403,37 +493,59 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         parameter_types.extend(loan_types);
+        let mut edge_arguments = exits
+            .iter()
+            .map(BranchExit::base_arguments)
+            .collect::<Vec<_>>();
+        if exits
+            .iter()
+            .any(|exit| exit.pending_operands.len() != first.pending_operands.len())
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // An alias is reusable only if the same slot aliases it on every incoming edge.
+        let mut pending_indices = Vec::new();
+        for index in 0..first.pending_operands.len() {
+            let slot = (0..edge_arguments[0].len())
+                .find(|slot| {
+                    exits
+                        .iter()
+                        .zip(&edge_arguments)
+                        .all(|(exit, arguments)| arguments[*slot] == exit.pending_operands[index])
+                })
+                .unwrap_or_else(|| {
+                    let slot = edge_arguments[0].len();
+                    for (exit, arguments) in exits.iter().zip(&mut edge_arguments) {
+                        arguments.push(exit.pending_operands[index]);
+                    }
+                    slot
+                });
+            pending_indices.push(slot);
+        }
+        for entity in &edge_arguments[0][parameter_types.len()..] {
+            parameter_types.push(
+                self.function
+                    .entity(*entity)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+        }
+        for arguments in &edge_arguments {
+            if arguments.len() != parameter_types.len()
+                || arguments.iter().zip(&parameter_types).any(|(entity, ty)| {
+                    self.function
+                        .entity(*entity)
+                        .is_none_or(|entity| entity.ty != *ty)
+                })
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        for exit in &exits {
-            let mut arguments = match exit.result {
-                LoweredValue::Unit => Vec::new(),
-                LoweredValue::Value(value) => vec![EntityId::Value(value)],
-                LoweredValue::Diverged => {
-                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-                }
-            };
-            if let Some(receiver) = exit.receiver {
-                arguments.push(receiver.entity);
-            }
-            arguments.extend(
-                value_symbols
-                    .iter()
-                    .map(|symbol| match exit.bindings[symbol] {
-                        LoweredValue::Value(value) => Ok(EntityId::Value(value)),
-                        LoweredValue::Unit | LoweredValue::Diverged => {
-                            Err(lowering_error(LoweringErrorKind::InvalidModel, span))
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
-            arguments.extend(
-                loan_symbols
-                    .iter()
-                    .map(|symbol| EntityId::Loan(exit.borrow_bindings[symbol])),
-            );
+        for (exit, arguments) in exits.iter().zip(edge_arguments) {
             self.function
                 .set_terminator(
                     exit.block,
@@ -451,6 +563,10 @@ impl UnitExpressionLowerer<'_> {
             .expect("new merge block exists")
             .parameters
             .clone();
+        self.pending_operands = pending_indices
+            .iter()
+            .map(|index| parameters[*index])
+            .collect();
         let mut parameters = parameters.into_iter();
         let result = if result_type.is_some() {
             let EntityId::Value(value) = parameters

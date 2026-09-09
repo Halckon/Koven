@@ -140,6 +140,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: false_bindings,
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
+            pending_operands: self.pending_operands.clone(),
         });
         self.merge_loop_exits(exits, span)?;
         self.emit_loop_exit(statement)?;
@@ -357,5 +358,6 @@ fn branch_exit(jump: LoopJump) -> BranchExit {
         bindings: jump.bindings,
         borrow_bindings: jump.borrow_bindings,
         closure_bindings: jump.closure_bindings,
+        pending_operands: Vec::new(),
     }
 }

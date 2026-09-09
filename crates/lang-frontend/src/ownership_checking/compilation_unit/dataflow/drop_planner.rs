@@ -471,8 +471,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Group { expression } => self.expression(expression, usage, state),
             Expression::String { parts } => {
                 for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        self.expression(expression, DropExpressionUse::Read, state)?;
+                    if let StringPart::Interpolation { expression, .. } = part
+                        && !self.expression(expression, DropExpressionUse::Read, state)?
+                    {
+                        return Ok(false);
                     }
                 }
                 Ok(true)
@@ -780,6 +782,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         }
                                         if state.position(place.root()).is_some() {
                                             borrowed_roots.push(place.root());
+                                            state.pending_borrows.push((id, place.root()));
                                         }
                                     } else {
                                         if !self.expression(
@@ -853,6 +856,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 if state.position(root).is_some() && !borrowed_roots.contains(&root)
                                 {
                                     borrowed_roots.push(root);
+                                    state.pending_borrows.push((id, root));
                                 }
                             } else {
                                 if !self.expression(
@@ -888,6 +892,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if !returns {
                     return Ok(false);
                 }
+                state.pending_borrows.retain(|(call, _)| *call != id);
                 for (temporary, origin) in borrowed_temporaries {
                     self.push_fact(PlannerDropFact::new(
                         PlannerDropPoint::CallReturn(id),
@@ -1024,6 +1029,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
+        if !matches!(point, PlannerDropPoint::ControlTransfer(_))
+            && state
+                .pending_borrows
+                .iter()
+                .any(|(_, root)| *root == symbol)
+        {
+            return;
+        }
         let closure = state.closures.remove(&symbol);
         if let Some(value) = state.remove_value(symbol) {
             let mut shared_sources = Vec::new();
@@ -1085,6 +1098,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_all(&mut self, point: PlannerDropPoint, state: &mut ValueState) {
+        // callable 已退出，不能再由尚未提交的调用前缀阻止 owner 清理。
+        state.pending_borrows.clear();
         while let Some(symbol) = state.values.last().map(|value| value.symbol) {
             self.drop_named(point, symbol, state);
         }

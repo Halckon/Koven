@@ -137,6 +137,128 @@ false -> make() }",
 }
 
 #[test]
+fn unit_non_null_assertion_preserves_pending_arguments_across_control_operand() {
+    for (first, caller_first) in [
+        ("own first: Rc<Int>", "own first: Rc<Int>"),
+        ("first: Rc<Int>", "own first: Rc<Int>"),
+        ("first: Rc<Int>", "first: Rc<Int>"),
+    ] {
+        for operand in [
+            "if (flag) { second } else { make() }",
+            "when (flag) { true -> second; false -> make() }",
+            "when { flag -> second; else -> make() }",
+            "if (flag && flag) { second } else { make() }",
+            "if (flag) { second } else { error(\"stop\") }",
+        ] {
+            let mut sources = SourceMap::new();
+            let text = format!(
+                "package p\nfun make(): Rc<Int>? = Rc(3)\nfun take({first}, own second: Rc<Int>): Int = second.value\nfun inspect({caller_first}, own second: Rc<Int>?, flag: Boolean): Int = take(first, ({operand})!!)"
+            );
+            let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
+            let inputs = [SourceUnitInput::new(
+                "root",
+                "p/assertion.ko",
+                source,
+                &file,
+            )];
+            let (name_environment, type_environment) = standard_environments();
+            let (names, typed, owned) =
+                analyze(&sources, &inputs, &name_environment, &type_environment);
+            let (program, _) = lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                declaration(&names, "p", "inspect"),
+            )
+            .unwrap_or_else(|error| panic!("{first}, {caller_first}, {operand}: {error:?}"));
+            crate::llvm::render_verified_program(&program)
+                .expect("earlier owner or loan crosses assertion CFG");
+        }
+    }
+}
+
+#[test]
+fn unit_pending_arguments_preserve_scalar_identity_across_cfg() {
+    for text in [
+        "package p\nfun take(own first: Int, own second: Int): Int = first\nfun inspect(): Int = take(1, 2 + 3)",
+        "package p\nfun take(own first: Int, own second: Int): Int = first\nfun inspect(first: Int, flag: Boolean): Int = take(first, if (flag) { first } else { 0 })",
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "p/pending.ko", text);
+        let inputs = [SourceUnitInput::new("root", "p/pending.ko", source, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (program, entry) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "inspect"),
+        )
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+        if text.contains("2 + 3") {
+            let function = program
+                .modules
+                .iter()
+                .find_map(|module| module.function(entry))
+                .unwrap();
+            let one = function
+                .instructions
+                .iter()
+                .find(|instruction| {
+                    matches!(
+                        instruction.operation,
+                        Operation::Constant(super::model::ScalarConstant::Integer(1))
+                    )
+                })
+                .unwrap()
+                .results[0];
+            let call = function
+                .instructions
+                .iter()
+                .find(|instruction| matches!(instruction.operation, Operation::DirectCall { .. }))
+                .unwrap();
+            let Operation::DirectCall { arguments, .. } = &call.operation else {
+                unreachable!()
+            };
+            let block = function.block(call.block).unwrap();
+            let index = block
+                .parameters
+                .iter()
+                .position(|parameter| *parameter == arguments[0])
+                .unwrap();
+            let entry_block = function.block(function.entry_block().unwrap()).unwrap();
+            let TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("checked arithmetic branches")
+            };
+            let edge = if when_true.target == call.block {
+                when_true
+            } else {
+                when_false
+            };
+            assert_eq!(edge.target, call.block);
+            assert_eq!(
+                edge.arguments[index], one,
+                "the first argument must remain 1 after evaluating 2 + 3"
+            );
+        }
+        crate::llvm::render_verified_program(&program)
+            .expect("pending scalar arguments survive CFG");
+    }
+}
+
+#[test]
 fn unit_non_null_assertion_preserves_earlier_call_arguments() {
     for first in ["own first: Rc<Int>", "first: Rc<Int>"] {
         let mut sources = SourceMap::new();

@@ -51,8 +51,9 @@ impl UnitExpressionLowerer<'_> {
         let baseline_closures = self.closure_bindings.clone();
         let baseline_receiver = self.current_receiver;
         let baseline_consumed_receiver = self.consumed_receiver;
-        let carried = self.carried_bindings(&baseline, span)?;
-        let carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        let mut carried = self.carried_bindings(&baseline, span)?;
+        let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
         let right_span = self
             .parsed
             .ast()
@@ -109,6 +110,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                pending_operands: self.pending_operands.clone(),
             });
         }
 
@@ -141,6 +143,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
+            pending_operands: self.pending_operands.clone(),
         });
         self.merge_unit_exits(exits, span)
     }
@@ -304,6 +307,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clone(),
             self.borrow_bindings.clone(),
             self.closure_bindings.clone(),
+            self.pending_operands.clone(),
             UnitDropPoint::BranchExit {
                 control: UnitExpressionId::new(self.source_unit, expression),
                 branch: arm.index,
@@ -339,6 +343,7 @@ impl UnitExpressionLowerer<'_> {
             baseline.clone(),
             baseline_borrows,
             baseline_closures,
+            self.pending_operands.clone(),
         ));
         let mut exits = Vec::new();
 
@@ -350,6 +355,7 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_bindings,
                 unmatched_borrows,
                 unmatched_closures,
+                unmatched_pending,
             ) = unmatched
                 .take()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
@@ -362,6 +368,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_bindings,
                     unmatched_borrows,
                     unmatched_closures,
+                    unmatched_pending,
                     UnitDropPoint::BranchExit {
                         control,
                         branch: index,
@@ -382,6 +389,7 @@ impl UnitExpressionLowerer<'_> {
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
             let mut next_closures = unmatched_closures;
+            let mut next_pending = unmatched_pending;
             let mut matches = Vec::new();
             for condition in &entry.conditions {
                 self.block = next_block;
@@ -390,6 +398,7 @@ impl UnitExpressionLowerer<'_> {
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
                 self.closure_bindings = next_closures;
+                self.pending_operands = next_pending;
                 self.temporaries.clear();
                 let condition = self.lower_when_condition(subject, condition, entry.span)?;
                 if !self.temporaries.is_empty() {
@@ -403,8 +412,9 @@ impl UnitExpressionLowerer<'_> {
                 let after_condition_closures = self.closure_bindings.clone();
                 let after_condition_receiver = self.current_receiver;
                 let after_condition_consumed_receiver = self.consumed_receiver;
-                let carried = self.carried_bindings(&after_condition, entry.span)?;
-                let carried_loans = self.carried_loans(&after_condition_borrows, entry.span)?;
+                let mut carried = self.carried_bindings(&after_condition, entry.span)?;
+                let mut carried_loans = self.carried_loans(&after_condition_borrows, entry.span)?;
+                self.carry_pending_operands(&mut carried, &mut carried_loans, entry.span)?;
                 let matched =
                     self.add_carried_control_block(&carried, &carried_loans, entry.span)?;
                 let next = self.add_carried_control_block(&carried, &carried_loans, entry.span)?;
@@ -438,6 +448,7 @@ impl UnitExpressionLowerer<'_> {
                     receiver: self.current_receiver,
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
+                    pending_operands: self.pending_operands.clone(),
                 });
                 next_block = next;
                 self.current_receiver = after_condition_receiver;
@@ -454,6 +465,7 @@ impl UnitExpressionLowerer<'_> {
                 next_receiver = self.current_receiver;
                 next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
+                next_pending = self.pending_operands.clone();
             }
 
             self.merge_unit_exits(matches, entry.span)?;
@@ -465,6 +477,7 @@ impl UnitExpressionLowerer<'_> {
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
                 self.closure_bindings.clone(),
+                self.pending_operands.clone(),
                 UnitDropPoint::BranchExit {
                     control,
                     branch: index,
@@ -480,6 +493,7 @@ impl UnitExpressionLowerer<'_> {
                 next_bindings,
                 next_borrows,
                 next_closures,
+                next_pending,
             ));
         }
 
@@ -490,6 +504,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_bindings,
             unmatched_borrows,
             unmatched_closures,
+            unmatched_pending,
         )) = unmatched
         {
             if result_required {
@@ -512,6 +527,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
             self.closure_bindings = unmatched_closures;
+            self.pending_operands = unmatched_pending;
             self.temporaries.clear();
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
@@ -525,6 +541,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                pending_operands: self.pending_operands.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -721,8 +738,9 @@ impl UnitExpressionLowerer<'_> {
         let baseline_closures = self.closure_bindings.clone();
         let baseline_receiver = self.current_receiver;
         let baseline_consumed_receiver = self.consumed_receiver;
-        let carried = self.carried_bindings(&baseline, span)?;
-        let carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        let mut carried = self.carried_bindings(&baseline, span)?;
+        let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
+        self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
         let then_block = self.add_carried_control_block(
             &carried,
             &carried_loans,
@@ -751,6 +769,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
+        let then_pending = self.pending_operands.clone();
         let then_receiver = self.current_receiver;
         let then_consumed_receiver = self.consumed_receiver;
         self.current_receiver = baseline_receiver;
@@ -759,6 +778,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
+        let else_pending = self.pending_operands.clone();
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
@@ -770,6 +790,7 @@ impl UnitExpressionLowerer<'_> {
             then_baseline,
             then_borrows,
             baseline_closures.clone(),
+            then_pending,
             UnitDropPoint::BranchExit {
                 control,
                 branch: then_index,
@@ -787,6 +808,7 @@ impl UnitExpressionLowerer<'_> {
                 else_baseline,
                 else_borrows,
                 baseline_closures.clone(),
+                else_pending,
                 UnitDropPoint::BranchExit {
                     control,
                     branch: else_index,
@@ -805,6 +827,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
             self.closure_bindings = baseline_closures;
+            self.pending_operands = else_pending;
             self.temporaries.clear();
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
@@ -818,6 +841,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                pending_operands: self.pending_operands.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -833,6 +857,7 @@ impl UnitExpressionLowerer<'_> {
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
+        pending_operands: Vec<EntityId>,
         drop_point: UnitDropPoint,
         result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
@@ -843,6 +868,7 @@ impl UnitExpressionLowerer<'_> {
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = closure_bindings;
+        self.pending_operands = pending_operands;
         self.temporaries.clear();
         let result_expression = result_required
             .then(|| self.control_tail_expression(statement))
@@ -879,6 +905,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
+            pending_operands: self.pending_operands.clone(),
         }))
     }
 

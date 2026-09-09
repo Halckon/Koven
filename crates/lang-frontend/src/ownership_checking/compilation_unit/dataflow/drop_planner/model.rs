@@ -161,6 +161,8 @@ pub(super) struct OwnedThis {
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
     pub(super) values: Vec<OwnedValue>,
+    /// 已求值调用前缀的借用必须跨越后续实参中的分支与嵌套调用。
+    pub(super) pending_borrows: Vec<(ExpressionId, UnitSymbolId)>,
     pub(super) closures: BTreeMap<UnitSymbolId, ExpressionId>,
     pub(super) this: Option<OwnedThis>,
 }

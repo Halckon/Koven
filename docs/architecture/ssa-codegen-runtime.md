@@ -44,7 +44,10 @@ class/Box/Rc 已有非空交付、null SIGABRT、error 名称遮蔽和 operand �
 callable、构造字段和容器元素在求值后续 `!!` 时显式携带并重绑定；同一实体只传递一次。
 该入口已有跨文件 SSA 与 pointer operand matrix 的 verified LLVM 证据，尚无本项 unit native
 证据。普通 if/Boolean when 的 nullable 结果作为 `!!` operand 已通过 SSA/LLVM 验证；
-这些分支与 pending operand 的组合仍待验收，不由独立 operand 测试外推。
+pending Value/Loan 也在普通 if、Boolean/subjectless when、短路条件和 checked 算术边上传递，
+合流仅复用所有入边都保持相同别名关系的参数槽。前序 owned Value、owned root 的借用与
+借用参数搭配后续控制流 assertion operand 已通过 SSA/LLVM 验证；独立 temporary owner
+跨这些普通控制流边的组合仍待验收。
 
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 

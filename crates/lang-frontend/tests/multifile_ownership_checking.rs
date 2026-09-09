@@ -4222,3 +4222,89 @@ fn unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges() {
         assert_eq!(ownership.validate().is_ok(), expected.is_empty(), "{body}");
     }
 }
+
+#[test]
+fn unit_pending_borrow_owner_survives_branches_and_nested_calls() {
+    for operand in [
+        "if (flag) { 1 } else { 2 }",
+        "when (flag) { true -> 1; false -> 2 }",
+        "if (flag) { read(first) } else { read(first) }",
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "class Resource {{}}\nfun read(item: Resource): Int = 1\nfun take(item: Resource, count: Int): Int = count\nfun inspect(own first: Resource, flag: Boolean): Int = take(first, {operand})"
+        );
+        let (source, file) = parsed(&mut sources, "pending.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "pending.ko", source, &file)];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert!(
+            ownership.diagnostics().is_empty(),
+            "{operand}: {:?}",
+            ownership.diagnostics()
+        );
+        let unit = source_unit(&names, source);
+        let first = symbol_named(&ownership, &names, unit, "first");
+        let call = UnitExpressionId::new(
+            unit,
+            expression_with_text(&sources, &file, &format!("take(first, {operand})")),
+        );
+        let drops = ownership
+            .drops()
+            .iter()
+            .filter(|fact| fact.target() == UnitDropTarget::Named(first))
+            .map(|fact| fact.point())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            drops,
+            [UnitDropPoint::CallReturn(call)],
+            "the first argument remains borrowed until the outer call returns: {operand}"
+        );
+        ownership.validate().expect("valid ownership");
+    }
+}
+
+#[test]
+fn unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "pending-abort.ko",
+        r#"
+fun take(item: Rc<Int>, second: Int): Int = second
+fun inspect(own first: Rc<Int>) {
+    "${take(first, error("stop"))}"
+}
+"#,
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "pending-abort.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product terminates");
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    let first = symbol_named(&ownership, &names, source_unit(&names, source), "first");
+    assert!(
+        ownership
+            .drops()
+            .iter()
+            .all(|fact| fact.target() != UnitDropTarget::Named(first)),
+        "abort does not unwind the pending argument owner"
+    );
+    ownership.validate().expect("valid ownership");
+}

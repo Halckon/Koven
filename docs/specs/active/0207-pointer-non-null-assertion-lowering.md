@@ -96,7 +96,10 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | compilation-unit 共享回归与 Diverged 隔离 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture` | 126 项通过，含新增 assertion 测试与终止分支回归；`take(a, error("stop"))` 的兄弟分支执行 `take(a, b!!)`，修复前复现 InvalidSsa，恢复各层 pending 栈后通过 |
 | compilation-unit 控制流结果作为 assertion operand | `cargo test -p lang-codegen --lib unit_non_null_assertion_control_operand -- --nocapture` | 1 项通过，包含普通 if 与 Boolean when；两分支分别返回 owned nullable root 与 call temporary，合流结果通过 SSA/LLVM 验证 |
 | 重复消费的精确 verifier 拒绝 | `cargo test -p lang-codegen --lib nullable_operation_tests -- --nocapture` | 6 项通过；新增 1 项含重复 take、take 后 drop wrapper、inner 重复 drop 三个场景，均断言对应 owner 的 ValueUnavailable，并复用可通过验证的正例图 |
-| compilation-unit pending 控制流组合/native | 待验收 | 普通 if/when 携带 pending/temporary 与 unit native 尚未完成；Spec 保持 in-progress |
+| compilation-unit pending 控制流组合 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture` | 129 项通过；覆盖前序 Value/Loan 与 if、两类 when、短路条件、单边 Diverged 的 15 个组合，以及 checked 算术与部分分支别名 |
+| compilation-unit pending borrow drop facts | `cargo test -p lang-frontend --test multifile_ownership_checking -- --nocapture` | 63 项通过；新增分支/嵌套调用保护与插值 Abort 无正常 drop 两项。Abort 夹具消除重名参数后定向重跑 1 项通过 |
+| pending 切片静态检查 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`cargo clippy -p lang-frontend --lib --test multifile_ownership_checking -- -D warnings` | fmt 与 codegen（含 frontend library）通过；frontend integration lint 被原有第 1006 行 `filter_map_bool_then` 阻塞，该段未修改 |
+| compilation-unit temporary 控制流组合/native | 待验收 | 独立 temporary owner 跨普通控制流与 unit native 尚未完成；Spec 保持 in-progress |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
 pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
@@ -112,3 +115,8 @@ library 和两个 ownership integration targets。单文件 native 证据不代�
 
 本次验收测试切片经过独立自检步骤：正例 SSA 图仍通过，三个反例逐个核对消耗对象，
 控制流操作数用例验证 root 与 temporary 汇合后只有一个可交付结果；没有修改生产逻辑。
+
+后续 pending 控制流切片修复 Value/Loan 的跨边重绑定，并补齐前端具名借用 owner 的调用前缀
+保护。独立复核发现 checked 算术遗漏 pending、合流别名仅在部分入边成立，以及插值无正常
+出口未传播导致清理循环无法前进，均已修复并复核。标量身份断言初版误将默认 Borrow 参数与
+Value 比较，修正为显式 own 参数后重跑。此切片不代表 temporary 控制流或 unit native 已完成。

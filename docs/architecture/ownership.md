@@ -70,6 +70,10 @@ subject 在正常、return、break/continue 边清理，abort 不展开析构。
 这些前端事实不等于 native 支持：当前单文件 lowering 仅消费正常 CallReturn 的 loan end，
 ControlTransfer 结束事实还需 Phase 4 接入。
 
+编译单元 drop planner 按调用身份在 ValueState 保存前序借用的具名 owner，使后续实参中的
+分支与嵌套调用不会提前析构它；正常 CallReturn 只解除当前调用的保护。字符串插值中的
+Nothing 传播无正常出口，callable 退出时清除未提交调用的保护，避免阻止最终 owner 清理。
+
 ## 实现与测试位置
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其
