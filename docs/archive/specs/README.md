@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 202 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 204 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -202,6 +202,8 @@
 - [SPEC-0204](./0204-pointer-nullable-when-lowering.md)：pointer-like nullable when SSA/LLVM/native lowering
 
 ## Phase 4
+
+- [SPEC-0207](./0207-pointer-non-null-assertion-lowering.md)：pointer-like 非空断言 SSA/LLVM/native lowering
 
 - [SPEC-0033](./0033-typed-ssa-ir-verifier.md)：最小 typed SSA IR 与 verifier
 - [SPEC-0034](./0034-scalar-control-flow-llvm-lowering.md)：标量与控制流经 typed SSA lower 到 LLVM IR

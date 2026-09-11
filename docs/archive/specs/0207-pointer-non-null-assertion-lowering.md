@@ -1,12 +1,12 @@
 # SPEC-0207：pointer-like 非空断言 lowering
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 v0.35 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-207` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.35 空安全](../../guide/09-nullability-errors.md)与[阶段边界](../../guide/15-conformance-and-staging.md) |
@@ -38,14 +38,14 @@
 
 ## 5. 验收标准
 
-- [ ] native 覆盖同名 error 遮蔽时 !! 仍 abort，显式 error 调用仍选择源码声明。
+- [x] native 覆盖同名 error 遮蔽时 !! 仍 abort，显式 error 调用仍选择源码声明。
 
-- [ ] SSA/verifier 覆盖合法 take、伪/跨 owner proof、重复 take/drop 与 null-edge direct Abort。
-- [ ] class/Box/Rc 非空结果与 null 进程终止 native 测试通过，operand副作用只发生一次。
-- [ ] Rc retain/release、Box/class free 与 moved binding 后续行为正确，无额外 tag/allocation。
-- [ ] Borrow/Inout/field/element 与 inline nullable 继续确定性 unsupported；既有 nullable if/when
-  的受影响契约回归。
-- [ ] Architecture 同步。
+- [x] SSA/verifier 覆盖合法 take、伪/跨 owner proof、重复 take/drop 与 null-edge direct Abort。
+- [x] class/Box/Rc 非空结果与 null 进程终止 native 测试通过，operand副作用只发生一次。
+- [x] Rc retain/release、Box/class free 与 moved binding 后续行为正确，无额外 tag/allocation。
+- [x] MoveOnly Borrow/Inout、field、element extraction 分别保持 frontend L0133、L0132、L0136；
+  合法 inline nullable assertion 保持 backend UnsupportedNode；既有 nullable if/when 受影响契约回归。
+- [x] Architecture 同步。
 
 ## 6. 技术方案与边界
 
@@ -54,9 +54,9 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 
 ## 7. 实施计划
 
-1. [ ] 接 extraction facts 到 NullableTake/CFG → 验证：lowering/verifier 窄测试。
-2. [ ] 接 LLVM/native class/Box/Rc → 验证：IR 与真实进程正反测试。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+1. [x] 接 extraction facts 到 NullableTake/CFG → 验证：lowering/verifier 窄测试。
+2. [x] 接 LLVM/native class/Box/Rc → 验证：IR 与真实进程正反测试。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -103,6 +103,7 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | temporary 切片静态与文档门禁 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`python3 scripts/check_docs.py`；`git diff --check` | 通过；未修改 frontend，未重跑 frontend 测试 |
 | compilation-unit native 正反例 | `cargo test -p lang-codegen --lib native::unit_tests::non_null_assertion_tests -- --nocapture` | 跨文件正反例 1 项通过，class/Box/Rc 共 6 个进程；同次计数测试因既有 Borrow Rc payload projection unsupported 失败，收窄夹具后定向重跑见下行 |
 | compilation-unit pending temporary native 计数 | `cargo test -p lang-codegen --lib unit_non_null_assertion_pending_temporary_is_freed_after_control_flow_call -- --nocapture` | 1 项通过；七类 operand × 两个 flag，共 14 次调用、28 次分配与 28 次释放，逐个核对 live pointer 身份；不证明借用 Rc payload 读取 |
+| 最终 frontend 拒绝边界与 ownership 回归 | `cargo test -p lang-frontend --test ownership_checking --test multifile_ownership_checking non_null_assertion_ -- --nocapture` | 17 项通过（单文件 12、跨文件 5）；精确覆盖 MoveOnly Borrow/Inout L0133、field L0132、element L0136、active loan 与 Copyable 复制边界 |
 | unit native 切片静态与文档门禁 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`python3 scripts/check_docs.py`；`git diff --check` | 通过；未修改生产代码，未重复 frontend 测试 |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
@@ -110,12 +111,12 @@ pending Value 实参跨分支身份、nullable if 结果别名及不可达 inlin
 控制转移的 owner 义务由 frontend 发布；codegen 在分支和循环出口合流前消费已有 drop facts。
 
 未运行 frontend 全量测试；未重复运行已知含既有 lint 的 frontend 全目标 clippy，仅检查受影响
-library 和两个 ownership integration targets。单文件 native 证据不代表 compilation-unit 路径完成，
-后者继续由本 Spec 承接。重复 take/drop 的显式拒绝证据见上表。
+library 和受影响 ownership integration targets。各切片的单文件与 compilation-unit 证据分别
+列于上表；重复 take/drop 的显式拒绝证据亦见上表。
 
 编译单元独立复核发现前序构造字段跨 assertion 分支遗漏，以及 Diverged 分支遗留 pending
 实体污染兄弟分支；均已修复并复核。测试初版自定义 Nothing 函数触及既有 unsupported，
-改用标准 error 后取得上述红绿证据。编译单元切片未新增 native 验证，也未重复 frontend 测试。
+改用标准 error 后取得上述红绿证据。该早期编译单元切片未新增 native 验证，也未重复 frontend 测试；后续 native 证据见上表。
 
 本次验收测试切片经过独立自检步骤：正例 SSA 图仍通过，三个反例逐个核对消耗对象，
 控制流操作数用例验证 root 与 temporary 汇合后只有一个可交付结果；没有修改生产逻辑。
@@ -123,7 +124,7 @@ library 和两个 ownership integration targets。单文件 native 证据不代�
 后续 pending 控制流切片修复 Value/Loan 的跨边重绑定，并补齐前端具名借用 owner 的调用前缀
 保护。独立复核发现 checked 算术遗漏 pending、合流别名仅在部分入边成立，以及插值无正常
 出口未传播导致清理循环无法前进，均已修复并复核。标量身份断言初版误将默认 Borrow 参数与
-Value 比较，修正为显式 own 参数后重跑。此切片不代表 temporary 控制流或 unit native 已完成。
+Value 比较，修正为显式 own 参数后重跑。该切片当时尚未覆盖 temporary 控制流或 unit native；后续证据见下文。
 
 后续 temporary 切片将临时 owner 与 pending loan 一起跨控制流传递，保留每个正常出口的
 表达式到 owner 映射，合流沿用全入边别名去重；调用返回的原有 temporary drop facts 无需改变。
@@ -134,4 +135,9 @@ Value 比较，修正为显式 own 参数后重跑。此切片不代表 temporar
 首版裸 null 分支缺少 nullable expected type，改为显式 nullable 局部变量后正反例通过。
 计数夹具不扩展既有 Borrow Rc payload projection 边界。独立自检核对正常 stdout、SIGABRT、
 精确分配/释放次数及重复释放不能抵消泄漏的 pointer 跟踪；未修改生产代码。
-Spec 暂不关闭，剩余工作为拒绝边界的最终验收映射与文档归档。
+最终验收按 guide §35.3 区分 frontend 非法 extraction 与 backend 尚未支持的 inline ABI：
+前者由上述 17 项定向测试证明；后者由已通过的
+`rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking` 中 `Int?` assertion
+证明，不将合法 Copyable extraction 误写为 frontend 禁止。所有第 5 节条目已映射到实际证据。
+2026-09-11 完成 SPEC-0207 并归档；未启用的 v0.36/v0.37 草案继续保持阻塞。
+本次仅调整验收描述和文档生命周期，不改变 guide 或生产代码。

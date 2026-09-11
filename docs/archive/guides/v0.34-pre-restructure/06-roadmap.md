@@ -459,7 +459,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0204](../../specs/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
       复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
       SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
-- [ ] **[SPEC-0207](../../../specs/active/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
+- [ ] **[SPEC-0207](../../../archive/specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
 - [ ] **[SPEC-0209](../../../specs/drafts/v0.36/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
