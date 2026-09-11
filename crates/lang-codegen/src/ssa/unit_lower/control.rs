@@ -111,6 +111,7 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 pending_operands: self.pending_operands.clone(),
+                temporaries: self.temporaries.clone(),
             });
         }
 
@@ -144,6 +145,7 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
             pending_operands: self.pending_operands.clone(),
+            temporaries: self.temporaries.clone(),
         });
         self.merge_unit_exits(exits, span)
     }
@@ -294,9 +296,6 @@ impl UnitExpressionLowerer<'_> {
         arm: BooleanWhenArm,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if !self.temporaries.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let result_required = self.control_result_required(expression, span)?;
         self.require_expression_value(subject)?;
         let exit = self.lower_if_branch(
@@ -308,6 +307,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings.clone(),
             self.closure_bindings.clone(),
             self.pending_operands.clone(),
+            self.temporaries.clone(),
             UnitDropPoint::BranchExit {
                 control: UnitExpressionId::new(self.source_unit, expression),
                 branch: arm.index,
@@ -324,9 +324,6 @@ impl UnitExpressionLowerer<'_> {
         entries: &[WhenEntry],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if !self.temporaries.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let result_required = self.control_result_required(expression, span)?;
         let subject = match subject {
             Some((subject, tagged)) => Some((self.require_expression_value(subject)?, tagged)),
@@ -344,6 +341,7 @@ impl UnitExpressionLowerer<'_> {
             baseline_borrows,
             baseline_closures,
             self.pending_operands.clone(),
+            self.temporaries.clone(),
         ));
         let mut exits = Vec::new();
 
@@ -356,6 +354,7 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_borrows,
                 unmatched_closures,
                 unmatched_pending,
+                unmatched_temporaries,
             ) = unmatched
                 .take()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
@@ -369,6 +368,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_borrows,
                     unmatched_closures,
                     unmatched_pending,
+                    unmatched_temporaries,
                     UnitDropPoint::BranchExit {
                         control,
                         branch: index,
@@ -390,6 +390,7 @@ impl UnitExpressionLowerer<'_> {
             let mut next_borrows = unmatched_borrows;
             let mut next_closures = unmatched_closures;
             let mut next_pending = unmatched_pending;
+            let mut next_temporaries = unmatched_temporaries;
             let mut matches = Vec::new();
             for condition in &entry.conditions {
                 self.block = next_block;
@@ -399,9 +400,10 @@ impl UnitExpressionLowerer<'_> {
                 self.borrow_bindings = next_borrows;
                 self.closure_bindings = next_closures;
                 self.pending_operands = next_pending;
-                self.temporaries.clear();
+                let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
+                self.temporaries = next_temporaries;
                 let condition = self.lower_when_condition(subject, condition, entry.span)?;
-                if !self.temporaries.is_empty() {
+                if self.temporaries.keys().copied().ne(entry_temporaries) {
                     return Err(lowering_error(
                         LoweringErrorKind::UnsupportedNode,
                         entry.span,
@@ -449,6 +451,7 @@ impl UnitExpressionLowerer<'_> {
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
                     pending_operands: self.pending_operands.clone(),
+                    temporaries: self.temporaries.clone(),
                 });
                 next_block = next;
                 self.current_receiver = after_condition_receiver;
@@ -466,6 +469,7 @@ impl UnitExpressionLowerer<'_> {
                 next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
                 next_pending = self.pending_operands.clone();
+                next_temporaries = self.temporaries.clone();
             }
 
             self.merge_unit_exits(matches, entry.span)?;
@@ -478,6 +482,7 @@ impl UnitExpressionLowerer<'_> {
                 self.borrow_bindings.clone(),
                 self.closure_bindings.clone(),
                 self.pending_operands.clone(),
+                self.temporaries.clone(),
                 UnitDropPoint::BranchExit {
                     control,
                     branch: index,
@@ -494,6 +499,7 @@ impl UnitExpressionLowerer<'_> {
                 next_borrows,
                 next_closures,
                 next_pending,
+                next_temporaries,
             ));
         }
 
@@ -505,6 +511,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_borrows,
             unmatched_closures,
             unmatched_pending,
+            unmatched_temporaries,
         )) = unmatched
         {
             if result_required {
@@ -528,7 +535,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings = unmatched_borrows;
             self.closure_bindings = unmatched_closures;
             self.pending_operands = unmatched_pending;
-            self.temporaries.clear();
+            self.temporaries = unmatched_temporaries;
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
                 branch: entries.len(),
@@ -542,6 +549,7 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 pending_operands: self.pending_operands.clone(),
+                temporaries: self.temporaries.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -728,9 +736,6 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
-        if !self.temporaries.is_empty() {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let result_required = self.control_result_required(expression, span)?;
         let condition = self.require_expression_value(condition)?;
         let baseline = self.bindings.clone();
@@ -770,6 +775,7 @@ impl UnitExpressionLowerer<'_> {
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
         let then_pending = self.pending_operands.clone();
+        let then_temporaries = self.temporaries.clone();
         let then_receiver = self.current_receiver;
         let then_consumed_receiver = self.consumed_receiver;
         self.current_receiver = baseline_receiver;
@@ -779,6 +785,7 @@ impl UnitExpressionLowerer<'_> {
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
         let else_pending = self.pending_operands.clone();
+        let else_temporaries = self.temporaries.clone();
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
@@ -791,6 +798,7 @@ impl UnitExpressionLowerer<'_> {
             then_borrows,
             baseline_closures.clone(),
             then_pending,
+            then_temporaries,
             UnitDropPoint::BranchExit {
                 control,
                 branch: then_index,
@@ -809,6 +817,7 @@ impl UnitExpressionLowerer<'_> {
                 else_borrows,
                 baseline_closures.clone(),
                 else_pending,
+                else_temporaries,
                 UnitDropPoint::BranchExit {
                     control,
                     branch: else_index,
@@ -828,7 +837,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings = else_borrows;
             self.closure_bindings = baseline_closures;
             self.pending_operands = else_pending;
-            self.temporaries.clear();
+            self.temporaries = else_temporaries;
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
                 branch: else_index,
@@ -842,6 +851,7 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 pending_operands: self.pending_operands.clone(),
+                temporaries: self.temporaries.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
@@ -858,6 +868,7 @@ impl UnitExpressionLowerer<'_> {
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
         pending_operands: Vec<EntityId>,
+        temporaries: BTreeMap<UnitExpressionId, ValueId>,
         drop_point: UnitDropPoint,
         result_required: bool,
     ) -> Result<Option<BranchExit>, LoweringError> {
@@ -869,7 +880,8 @@ impl UnitExpressionLowerer<'_> {
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = closure_bindings;
         self.pending_operands = pending_operands;
-        self.temporaries.clear();
+        let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
+        self.temporaries = temporaries;
         let result_expression = result_required
             .then(|| self.control_tail_expression(statement))
             .transpose()?;
@@ -889,7 +901,7 @@ impl UnitExpressionLowerer<'_> {
         } else {
             result == LoweredValue::Unit
         };
-        if !expected_result || !self.temporaries.is_empty() {
+        if !expected_result || self.temporaries.keys().copied().ne(entry_temporaries) {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 self.statement_span(statement)?,
@@ -906,6 +918,7 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
             pending_operands: self.pending_operands.clone(),
+            temporaries: self.temporaries.clone(),
         }))
     }
 

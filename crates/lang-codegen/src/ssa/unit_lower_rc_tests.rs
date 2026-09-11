@@ -138,21 +138,26 @@ false -> make() }",
 
 #[test]
 fn unit_non_null_assertion_preserves_pending_arguments_across_control_operand() {
-    for (first, caller_first) in [
-        ("own first: Rc<Int>", "own first: Rc<Int>"),
-        ("first: Rc<Int>", "own first: Rc<Int>"),
-        ("first: Rc<Int>", "first: Rc<Int>"),
+    for (first, caller_first, argument) in [
+        ("own first: Rc<Int>", "own first: Rc<Int>", "first"),
+        ("first: Rc<Int>", "own first: Rc<Int>", "first"),
+        ("first: Rc<Int>", "first: Rc<Int>", "first"),
+        ("own first: Rc<Int>", "own first: Rc<Int>", "Rc(11)"),
+        ("first: Rc<Int>", "own first: Rc<Int>", "Rc(11)"),
     ] {
         for operand in [
             "if (flag) { second } else { make() }",
             "when (flag) { true -> second; false -> make() }",
             "when { flag -> second; else -> make() }",
+            "when (flag) { true, false -> second }",
+            "when { flag, flag -> second; else -> make() }",
+            "if (1 + 2 == 3) { second } else { make() }",
             "if (flag && flag) { second } else { make() }",
             "if (flag) { second } else { error(\"stop\") }",
         ] {
             let mut sources = SourceMap::new();
             let text = format!(
-                "package p\nfun make(): Rc<Int>? = Rc(3)\nfun take({first}, own second: Rc<Int>): Int = second.value\nfun inspect({caller_first}, own second: Rc<Int>?, flag: Boolean): Int = take(first, ({operand})!!)"
+                "package p\nfun make(): Rc<Int>? = Rc(3)\nfun take({first}, own second: Rc<Int>): Int = second.value\nfun inspect({caller_first}, own second: Rc<Int>?, flag: Boolean): Int = take({argument}, ({operand})!!)"
             );
             let (source, file) = parsed(&mut sources, "p/assertion.ko", &text);
             let inputs = [SourceUnitInput::new(
@@ -173,7 +178,9 @@ fn unit_non_null_assertion_preserves_pending_arguments_across_control_operand() 
                 &owned,
                 declaration(&names, "p", "inspect"),
             )
-            .unwrap_or_else(|error| panic!("{first}, {caller_first}, {operand}: {error:?}"));
+            .unwrap_or_else(|error| {
+                panic!("{first}, {caller_first}, {argument}, {operand}: {error:?}")
+            });
             crate::llvm::render_verified_program(&program)
                 .expect("earlier owner or loan crosses assertion CFG");
         }

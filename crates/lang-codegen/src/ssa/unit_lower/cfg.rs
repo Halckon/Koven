@@ -24,6 +24,7 @@ pub(super) struct BranchExit {
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     pub(super) pending_operands: Vec<EntityId>,
+    pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
 }
 
@@ -54,6 +55,7 @@ pub(super) struct CarriedBinding {
     source: ValueId,
     ty: EntityType,
     pending: Vec<usize>,
+    temporaries: Vec<UnitExpressionId>,
 }
 
 #[derive(Clone)]
@@ -112,6 +114,7 @@ impl UnitExpressionLowerer<'_> {
                 source,
                 ty,
                 pending: Vec::new(),
+                temporaries: Vec::new(),
             });
         }
         if let Some(receiver) = self.current_receiver
@@ -128,6 +131,7 @@ impl UnitExpressionLowerer<'_> {
                 source,
                 ty,
                 pending: Vec::new(),
+                temporaries: Vec::new(),
             });
         }
         Ok(carried)
@@ -198,6 +202,7 @@ impl UnitExpressionLowerer<'_> {
                             source,
                             ty,
                             pending: vec![index],
+                            temporaries: Vec::new(),
                         });
                     }
                 }
@@ -215,6 +220,26 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
                 _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+        // A pending borrowed temporary needs its owner as well as its loan on each edge.
+        for (expression, source) in &self.temporaries {
+            if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == *source) {
+                slot.temporaries.push(*expression);
+            } else {
+                let ty = self
+                    .function
+                    .entity(EntityId::Value(*source))
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                bindings.push(CarriedBinding {
+                    symbol: None,
+                    receiver: None,
+                    source: *source,
+                    ty,
+                    pending: Vec::new(),
+                    temporaries: vec![*expression],
+                });
             }
         }
         Ok(())
@@ -296,6 +321,15 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         self.pending_operands = pending.into_values().collect();
+        self.temporaries.clear();
+        for (slot, parameter) in bindings.iter().zip(parameters) {
+            let EntityId::Value(value) = parameter else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            for expression in &slot.temporaries {
+                self.temporaries.insert(*expression, *value);
+            }
+        }
         Ok(rebound)
     }
 
@@ -385,7 +419,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
-            self.temporaries.clear();
+            self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
             return Ok(first.result);
         }
@@ -405,6 +439,7 @@ impl UnitExpressionLowerer<'_> {
         if exits.iter().any(|exit| {
             exit.bindings.keys().copied().collect::<Vec<_>>() != symbols
                 || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
+                || exit.temporaries.keys().ne(first.temporaries.keys())
                 || exit.closure_bindings != first.closure_bindings
                 || exit.consumed_receiver != first.consumed_receiver
                 || match (first.receiver, exit.receiver) {
@@ -503,20 +538,30 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let carried_operands = exits
+            .iter()
+            .map(|exit| {
+                exit.pending_operands
+                    .iter()
+                    .copied()
+                    .chain(exit.temporaries.values().copied().map(EntityId::Value))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
         // An alias is reusable only if the same slot aliases it on every incoming edge.
         let mut pending_indices = Vec::new();
-        for index in 0..first.pending_operands.len() {
+        for index in 0..carried_operands[0].len() {
             let slot = (0..edge_arguments[0].len())
                 .find(|slot| {
-                    exits
+                    carried_operands
                         .iter()
                         .zip(&edge_arguments)
-                        .all(|(exit, arguments)| arguments[*slot] == exit.pending_operands[index])
+                        .all(|(operands, arguments)| arguments[*slot] == operands[index])
                 })
                 .unwrap_or_else(|| {
                     let slot = edge_arguments[0].len();
-                    for (exit, arguments) in exits.iter().zip(&mut edge_arguments) {
-                        arguments.push(exit.pending_operands[index]);
+                    for (operands, arguments) in carried_operands.iter().zip(&mut edge_arguments) {
+                        arguments.push(operands[index]);
                     }
                     slot
                 });
@@ -563,10 +608,21 @@ impl UnitExpressionLowerer<'_> {
             .expect("new merge block exists")
             .parameters
             .clone();
-        self.pending_operands = pending_indices
+        self.pending_operands = pending_indices[..first.pending_operands.len()]
             .iter()
             .map(|index| parameters[*index])
             .collect();
+        self.temporaries = first
+            .temporaries
+            .keys()
+            .zip(&pending_indices[first.pending_operands.len()..])
+            .map(|(expression, index)| {
+                let EntityId::Value(value) = parameters[*index] else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                Ok((*expression, value))
+            })
+            .collect::<Result<_, _>>()?;
         let mut parameters = parameters.into_iter();
         let result = if result_type.is_some() {
             let EntityId::Value(value) = parameters
@@ -607,7 +663,6 @@ impl UnitExpressionLowerer<'_> {
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = first.closure_bindings.clone();
-        self.temporaries.clear();
         Ok(result)
     }
 

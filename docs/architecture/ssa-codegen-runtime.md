@@ -46,8 +46,9 @@ callable、构造字段和容器元素在求值后续 `!!` 时显式携带并重
 证据。普通 if/Boolean when 的 nullable 结果作为 `!!` operand 已通过 SSA/LLVM 验证；
 pending Value/Loan 也在普通 if、Boolean/subjectless when、短路条件和 checked 算术边上传递，
 合流仅复用所有入边都保持相同别名关系的参数槽。前序 owned Value、owned root 的借用与
-借用参数搭配后续控制流 assertion operand 已通过 SSA/LLVM 验证；独立 temporary owner
-跨这些普通控制流边的组合仍待验收。
+借用参数搭配后续控制流 assertion operand 已通过 SSA/LLVM 验证。前序借用 temporary
+同时携带 loan 与 owner，分支合流保留表达式到 owner 的映射，调用返回后消费既有 temporary
+drop facts；分支正常出口要求保留入口 temporary 集合，终止出口不产生正常清理。
 
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 

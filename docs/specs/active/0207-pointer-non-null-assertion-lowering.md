@@ -99,7 +99,9 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | compilation-unit pending 控制流组合 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture` | 129 项通过；覆盖前序 Value/Loan 与 if、两类 when、短路条件、单边 Diverged 的 15 个组合，以及 checked 算术与部分分支别名 |
 | compilation-unit pending borrow drop facts | `cargo test -p lang-frontend --test multifile_ownership_checking -- --nocapture` | 63 项通过；新增分支/嵌套调用保护与插值 Abort 无正常 drop 两项。Abort 夹具消除重名参数后定向重跑 1 项通过 |
 | pending 切片静态检查 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`cargo clippy -p lang-frontend --lib --test multifile_ownership_checking -- -D warnings` | fmt 与 codegen（含 frontend library）通过；frontend integration lint 被原有第 1006 行 `filter_map_bool_then` 阻塞，该段未修改 |
-| compilation-unit temporary 控制流组合/native | 待验收 | 独立 temporary owner 跨普通控制流与 unit native 尚未完成；Spec 保持 in-progress |
+| compilation-unit temporary 控制流组合 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture`；`cargo test -p lang-codegen --lib unit_non_null_assertion_preserves_pending_arguments_across_control_operand -- --nocapture` | 129 项通过；矩阵继续加入穷尽单分支 when、多条件 when 与 checked 算术后，定向重跑 1 项、40 个场景通过。修复前 Borrow temporary + if 复现 UnsupportedNode |
+| temporary 切片静态与文档门禁 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`python3 scripts/check_docs.py`；`git diff --check` | 通过；未修改 frontend，未重跑 frontend 测试 |
+| compilation-unit native | 待验收 | unit native 尚未完成；Spec 保持 in-progress |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
 pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
@@ -120,3 +122,8 @@ library 和两个 ownership integration targets。单文件 native 证据不代�
 保护。独立复核发现 checked 算术遗漏 pending、合流别名仅在部分入边成立，以及插值无正常
 出口未传播导致清理循环无法前进，均已修复并复核。标量身份断言初版误将默认 Borrow 参数与
 Value 比较，修正为显式 own 参数后重跑。此切片不代表 temporary 控制流或 unit native 已完成。
+
+后续 temporary 切片将临时 owner 与 pending loan 一起跨控制流传递，保留每个正常出口的
+表达式到 owner 映射，合流沿用全入边别名去重；调用返回的原有 temporary drop facts 无需改变。
+独立只读复核检查正常出口、单出口、alias 去重与 BorrowEnd/CallReturn drop 顺序，未发现新的
+正确性问题；嵌套控制流来自代码路径复核，未新增专门的嵌套测试。
