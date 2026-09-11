@@ -28,6 +28,9 @@ use crate::ssa::{
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
+#[path = "unit_non_null_tests.rs"]
+mod non_null_assertion_tests;
+
 struct UnitAnalysis {
     sources: SourceMap,
     provider_source: SourceId,

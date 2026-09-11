@@ -101,7 +101,9 @@ Abort primitive，不新增 parallel unwrap operation 或后端 AST 模式匹配
 | pending 切片静态检查 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`cargo clippy -p lang-frontend --lib --test multifile_ownership_checking -- -D warnings` | fmt 与 codegen（含 frontend library）通过；frontend integration lint 被原有第 1006 行 `filter_map_bool_then` 阻塞，该段未修改 |
 | compilation-unit temporary 控制流组合 | `cargo test -p lang-codegen --lib ssa::unit_lower -- --nocapture`；`cargo test -p lang-codegen --lib unit_non_null_assertion_preserves_pending_arguments_across_control_operand -- --nocapture` | 129 项通过；矩阵继续加入穷尽单分支 when、多条件 when 与 checked 算术后，定向重跑 1 项、40 个场景通过。修复前 Borrow temporary + if 复现 UnsupportedNode |
 | temporary 切片静态与文档门禁 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`python3 scripts/check_docs.py`；`git diff --check` | 通过；未修改 frontend，未重跑 frontend 测试 |
-| compilation-unit native | 待验收 | unit native 尚未完成；Spec 保持 in-progress |
+| compilation-unit native 正反例 | `cargo test -p lang-codegen --lib native::unit_tests::non_null_assertion_tests -- --nocapture` | 跨文件正反例 1 项通过，class/Box/Rc 共 6 个进程；同次计数测试因既有 Borrow Rc payload projection unsupported 失败，收窄夹具后定向重跑见下行 |
+| compilation-unit pending temporary native 计数 | `cargo test -p lang-codegen --lib unit_non_null_assertion_pending_temporary_is_freed_after_control_flow_call -- --nocapture` | 1 项通过；七类 operand × 两个 flag，共 14 次调用、28 次分配与 28 次释放，逐个核对 live pointer 身份；不证明借用 Rc payload 读取 |
+| unit native 切片静态与文档门禁 | `cargo fmt --all -- --check`；`cargo clippy -p lang-codegen --all-targets -- -D warnings`；`python3 scripts/check_docs.py`；`git diff --check` | 通过；未修改生产代码，未重复 frontend 测试 |
 
 单文件入口复用现有 nullable SSA operations，不新增 Abort ABI。独立复核发现并已修复
 pending Value 实参跨分支身份、nullable if 结果别名及不可达 inline descriptor 类型登记问题。
@@ -127,3 +129,9 @@ Value 比较，修正为显式 own 参数后重跑。此切片不代表 temporar
 表达式到 owner 映射，合流沿用全入边别名去重；调用返回的原有 temporary drop facts 无需改变。
 独立只读复核检查正常出口、单出口、alias 去重与 BorrowEnd/CallReturn drop 顺序，未发现新的
 正确性问题；嵌套控制流来自代码路径复核，未新增专门的嵌套测试。
+
+后续 unit native 切片只增加测试，补齐跨文件 pointer 正反例与 pending temporary 动态释放证据。
+首版裸 null 分支缺少 nullable expected type，改为显式 nullable 局部变量后正反例通过。
+计数夹具不扩展既有 Borrow Rc payload projection 边界。独立自检核对正常 stdout、SIGABRT、
+精确分配/释放次数及重复释放不能抵消泄漏的 pointer 跟踪；未修改生产代码。
+Spec 暂不关闭，剩余工作为拒绝边界的最终验收映射与文档归档。

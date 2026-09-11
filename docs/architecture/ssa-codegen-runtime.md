@@ -42,13 +42,17 @@ class/Box/Rc 已有非空交付、null SIGABRT、error 名称遮蔽和 operand �
 编译单元入口也消费 source-qualified assertion descriptor 与 ownership plan，按同一
 `NullableBranch/Take` 合同提取 owned class/Box/Rc。待交付实参、借用、调用接收者、闭包
 callable、构造字段和容器元素在求值后续 `!!` 时显式携带并重绑定；同一实体只传递一次。
-该入口已有跨文件 SSA 与 pointer operand matrix 的 verified LLVM 证据，尚无本项 unit native
-证据。普通 if/Boolean when 的 nullable 结果作为 `!!` operand 已通过 SSA/LLVM 验证；
+该入口已有跨文件 SSA、pointer operand matrix 的 verified LLVM 与 class/Box/Rc native
+正反例证据：显式源码 error 正常调用，null assertion 仍 SIGABRT，非空 operand 只求值一次。
+普通 if/Boolean when 的 nullable 结果作为 `!!` operand 已通过 SSA/LLVM 验证；
 pending Value/Loan 也在普通 if、Boolean/subjectless when、短路条件和 checked 算术边上传递，
 合流仅复用所有入边都保持相同别名关系的参数槽。前序 owned Value、owned root 的借用与
 借用参数搭配后续控制流 assertion operand 已通过 SSA/LLVM 验证。前序借用 temporary
 同时携带 loan 与 owner，分支合流保留表达式到 owner 的映射，调用返回后消费既有 temporary
 drop facts；分支正常出口要求保留入口 temporary 集合，终止出口不产生正常清理。
+unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、两个 flag 输入：14 次调用
+共 28 次分配与 28 次释放，并核对 live pointer 身份。它验证调用交付与 owner 释放，不包含
+借用 Rc 参数的 payload projection；该路径仍为现有 unsupported 边界。
 
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 
