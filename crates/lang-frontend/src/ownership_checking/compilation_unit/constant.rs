@@ -49,6 +49,12 @@ impl CompilationUnitConstantOwnership {
         self.0.constant_materializations.as_deref()
     }
 
+    /// 错误或 deferred 时为 None；空切片表示没有实际访问的短路表达式。
+    #[must_use]
+    pub fn short_circuits(&self) -> Option<&[UnitShortCircuitPlan]> {
+        self.0.short_circuits.as_deref()
+    }
+
     /// 同一轮 typed 分析的克隆保留身份；相同源码的重新分析不保留身份。
     #[must_use]
     pub fn is_compatible_with(&self, typed: &ConstEnabledTypedUnit) -> bool {
@@ -107,6 +113,24 @@ impl ConstEnabledOwnedUnit {
             .map(|index| &plans[index])
     }
 
+    /// 返回按 source-qualified expression 排序的完整短路计划。
+    #[must_use]
+    pub fn short_circuits(&self) -> &[UnitShortCircuitPlan] {
+        self.0
+            .short_circuits()
+            .expect("constant ownership validates complete short-circuit facts")
+    }
+
+    /// 仅以实际短路 expression identity 查询，不接受操作数 identity。
+    #[must_use]
+    pub fn short_circuit_at(&self, expression: UnitExpressionId) -> Option<&UnitShortCircuitPlan> {
+        let plans = self.short_circuits();
+        plans
+            .binary_search_by_key(&expression, UnitShortCircuitPlan::expression)
+            .ok()
+            .map(|index| &plans[index])
+    }
+
     /// 检查输入是否属于本产物验证时使用的 typed 分析。
     #[must_use]
     pub fn is_compatible_with(&self, typed: &ConstEnabledTypedUnit) -> bool {
@@ -143,36 +167,80 @@ pub fn check_compilation_unit_constant_ownership(
     Ok(CompilationUnitConstantOwnership(owned))
 }
 
-/// RHS execution after the left operand completes; private until the full contract is verified.
+/// 左操作数正常完成后 RHS 的执行条件；该决定不允许跳过左侧求值。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ShortCircuitRhs {
+pub enum UnitShortCircuitRhs {
+    /// 左侧正常完成后必定求值 RHS。
     Always,
+    /// 左侧正常完成后跳过 RHS。
     Never,
+    /// 按左侧运行时 Boolean 值选择 RHS 或 skip 后继。
     Conditional,
 }
 
+/// 同一次 ownership 分析发布的 source-qualified 短路计划；字段不可外部构造。
+///
+/// ```compile_fail,E0451
+/// use lang_frontend::{ownership_checking::{UnitShortCircuitPlan, UnitShortCircuitRhs}, type_checking::UnitExpressionId};
+/// fn forge(id: UnitExpressionId) -> UnitShortCircuitPlan {
+///     UnitShortCircuitPlan { expression: id, left: id, right: id, rhs: UnitShortCircuitRhs::Never, rhs_branch: 0 }
+/// }
+/// ```
+///
+/// ```compile_fail,E0616
+/// use lang_frontend::ownership_checking::{UnitShortCircuitPlan, UnitShortCircuitRhs};
+/// fn change(plan: &mut UnitShortCircuitPlan) { plan.rhs = UnitShortCircuitRhs::Never; }
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct UnitShortCircuitPlan {
-    pub expression: UnitExpressionId,
-    pub left: UnitExpressionId,
-    pub right: UnitExpressionId,
-    pub rhs: ShortCircuitRhs,
+pub struct UnitShortCircuitPlan {
+    pub(super) expression: UnitExpressionId,
+    pub(super) left: UnitExpressionId,
+    pub(super) right: UnitExpressionId,
+    pub(super) rhs: UnitShortCircuitRhs,
     /// Same branch numbering as If: 0=true, 1=false.
-    pub rhs_branch: usize,
+    pub(super) rhs_branch: usize,
+}
+
+impl UnitShortCircuitPlan {
+    /// 短路运算 expression 的 source-qualified identity。
+    #[must_use]
+    pub const fn expression(&self) -> UnitExpressionId {
+        self.expression
+    }
+    /// 始终首先求值的左操作数。
+    #[must_use]
+    pub const fn left(&self) -> UnitExpressionId {
+        self.left
+    }
+    /// 受 rhs 执行条件控制的右操作数。
+    #[must_use]
+    pub const fn right(&self) -> UnitExpressionId {
+        self.right
+    }
+    /// 左侧正常完成后 RHS 的执行条件。
+    #[must_use]
+    pub const fn rhs(&self) -> UnitShortCircuitRhs {
+        self.rhs
+    }
+    /// RHS 的 BranchExit 编号：0=true（AND），1=false（OR）；skip 使用另一编号。
+    #[must_use]
+    pub const fn rhs_branch(&self) -> usize {
+        self.rhs_branch
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::constants_tests::analyze;
-    use super::{CompilationUnitConstantOwnership, ShortCircuitRhs};
+    use super::{CompilationUnitConstantOwnership, UnitShortCircuitRhs};
 
     #[test]
     fn short_circuit_plans_follow_typed_boolean_uses_and_exclude_initializers_and_tails() {
         for (value, operator, rhs) in [
-            ("false", "&&", ShortCircuitRhs::Never),
-            ("true", "||", ShortCircuitRhs::Never),
-            ("true", "&&", ShortCircuitRhs::Always),
-            ("false", "||", ShortCircuitRhs::Always),
+            ("false", "&&", UnitShortCircuitRhs::Never),
+            ("true", "||", UnitShortCircuitRhs::Never),
+            ("true", "&&", UnitShortCircuitRhs::Always),
+            ("false", "||", UnitShortCircuitRhs::Always),
         ] {
             let owned = analyze(&format!(
                 "package a\nconst val FLAG = {value} && true\nconst val TEXT = \"hi\"\nfun view(text: String): Boolean = true\nfun read(): Boolean = (FLAG) {operator} view(TEXT)\nfun dead(): Unit {{ return\nval unused = false && view(TEXT) }}"
@@ -192,7 +260,11 @@ mod tests {
             );
             assert_eq!(
                 owned.constant_materializations.as_ref().unwrap().len(),
-                if rhs == ShortCircuitRhs::Never { 1 } else { 2 }
+                if rhs == UnitShortCircuitRhs::Never {
+                    1
+                } else {
+                    2
+                }
             );
         }
     }

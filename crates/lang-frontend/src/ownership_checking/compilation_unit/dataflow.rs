@@ -44,6 +44,7 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     pub(super) short_circuits: Option<Vec<super::constant::UnitShortCircuitPlan>>,
     pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
     pub(super) diagnostics: Vec<Diagnostic>,
@@ -161,6 +162,7 @@ pub(super) fn analyze(
     let mut diagnostics = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
+    let mut visited_lambdas = std::collections::BTreeSet::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -219,6 +221,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         let drop_analysis = checker.run()?;
         short_circuits.extend(checker.short_circuits.into_values());
+        visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
@@ -238,6 +241,7 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     Ok(Analysis {
+        visited_lambdas,
         short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
         non_null_assertions,
@@ -305,6 +309,7 @@ struct ReceiverContext {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
     short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
     constant_materializations:
@@ -444,6 +449,7 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),
             constant_materializations: BTreeMap::new(),
@@ -504,7 +510,7 @@ impl<'a> Checker<'a> {
         for (item, _) in self.parsed.ast().items().iter() {
             self.collect_mutability(item)?;
         }
-        let liveness = liveness::build(self)?;
+        let liveness = liveness::build(self, false)?;
         self.expression_live_after = liveness.expression_after;
         self.statement_live_after = liveness.statement_after;
         for &root in self.parsed.roots() {

@@ -49,10 +49,10 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 
 - [x] 两文件相同局部 AST ID、正逆 inputs 均产生相同 source-qualified 物化/capture/drop 事实。
 - [x] 全部 11 种闭合常量类型按 typed value 交付；标量无 owner，String 多次 use 的 owner 不共享。
-- [ ] 初始化器依赖及分析已确认不可达的读取不发布物化；动态分支保留条件执行事实；常量读取不新增 namespace capture。
+- [x] 初始化器依赖及分析已确认不可达的读取不发布物化；动态分支保留条件执行事实；常量读取不新增 namespace capture。
 - [x] 声明/namespace 不进入 moved/loan/owner/drop 状态；标量重复交付不移动声明，也不新增 loan/drop。
-- [ ] String temporary/root/drop 绑定具体 use 表达式；每个正常退出路径中，未转移的 owner 恰好清理一次，已转移的 owner 不重复清理。
-- [ ] String 的 Borrow/Value/return、重叠借用、表达式嵌套和控制流退出与对应 literal 行为一致。
+- [x] String temporary/root/drop 绑定具体 use 表达式；每个正常退出路径中，未转移的 owner 恰好清理一次，已转移的 owner 不重复清理。
+- [x] String 的 Borrow/Value/return、重叠借用、表达式嵌套和控制流退出与对应 literal 行为一致。
 - [x] ownership 错误不发布部分物化/可执行事实；混用分析、改动 inputs 或 typed owner 被确定性拒绝。
 - [x] 新旧 capability 不可混用；现有基础 unit ownership 与单文件 constant ownership 最近回归通过。
 - [ ] Architecture、验证记录与完成状态同步；未运行项如实保留。
@@ -70,7 +70,7 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 ## 7. 实施计划
 
 1. [x] 接独立输入/owned capability 和 identity gate → 验证：错配拒绝与基础接口契约。
-2. [ ] 接 runtime constant use、capture 与 String owner/drop → 验证：直接正反例、literal 对照。
+2. [x] 接 runtime constant use、capture 与 String owner/drop → 验证：直接正反例、literal 对照。
 3. [ ] 扩展跨文件/控制流矩阵并同步文档 → 验证：本节与第 5 节逐项关联实际证据。
 
 ## 8. 提交计划
@@ -88,15 +88,15 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 ## 10. 验证记录
 
 按切片复用已验证证据；下表区分历史提交与本次最终检查，不因文档勾选重复启动相同门禁。
-`a6ba8d4` 已开放专用常量 owned capability；`4bf45ed` 补齐插值，`7b1f49b` 修复 String 二元求值/退出清理；`6c126f1` 补齐标量与双 source 否定证据；本次接私有短路控制事实，剩余完整矩阵仍待验收。
+`a6ba8d4` 已开放专用常量 owned capability；`4bf45ed` 补齐插值，`7b1f49b` 修复 String 二元求值/退出清理；`6c126f1` 补齐标量与双 source 否定证据；`66d1a39` 接私有短路控制事实；本次公开查询并修复不可达 lambda 清理，完整矩阵已独立复核，待最终门禁与完成归档。
 
 | 验收项 / 命令 | 实际结果 | 证据边界 |
 |---|---|---|
-| `cargo test -p lang-frontend --test multifile_constant_ownership` | 本次 18 passed，0 failed/ignored | 新增短路静态/动态/empty unit/单边 move/外层 pending 路径；保留全部标量重复交付无 owner/loan/drop 与双 source capture/drop 同局部 ID；保留 binary 常量/literal × 三运算符 × 八种退出（48 例）、nested prefix、left Abort 与 named-left 六例；保留插值双 owner、常量/literal × 5 种控制流、嵌套与 live named 隔离；保留跨文件/Group 两次重叠借用、独立 owner、反向 inputs；空常量 unit 来源；六类错配与重分析身份；错误/deferred 不发布 |
+| `cargo test -p lang-frontend --test multifile_constant_ownership` | 本次 20 passed，0 failed/ignored | 新增公开计划 source/顺序/恢复及不可达 lambda；保留短路静态/动态/empty unit/单边 move/外层 pending 路径；保留全部标量重复交付无 owner/loan/drop 与双 source capture/drop 同局部 ID；保留 binary 常量/literal × 三运算符 × 八种退出（48 例）、nested prefix、left Abort 与 named-left 六例；保留插值双 owner、常量/literal × 5 种控制流、嵌套与 live named 隔离；保留跨文件/Group 两次重叠借用、独立 owner、反向 inputs；空常量 unit 来源；六类错配与重分析身份；错误/deferred 不发布 |
 | `cargo test -p lang-frontend --test ownership_constants` | `7b1f49b`：16 passed，0 failed/ignored | 单文件常量 ownership 回归 |
-| `cargo test -p lang-frontend --doc ownership_checking::compilation_unit::constant` | `a6ba8d4`：2 passed，8 filtered，0 ignored | 基础 typed 不能传入新入口，新 owned 不能转换基础 owned |
+| `cargo test -p lang-frontend --doc ownership_checking::compilation_unit::constant` | 本次 4 passed，8 filtered，0 ignored | 基础 typed/owned 隔离；新增 plan 字段不可伪造和修改的编译拒绝 |
 | `cargo test -p lang-codegen --doc emit_native_unit_object` | `a6ba8d4`：2 passed，0 failed/ignored | 旧 native 入口分别拒绝专用 typed 与 owned |
-| `cargo check --workspace --all-targets` | `a6ba8d4`：通过，6m 45s | 跨 crate API 编译门禁；不运行全量测试 |
+| `cargo check --workspace --all-targets` | 本次通过（7m 21s） | 跨 crate API 编译门禁；不运行全量测试 |
 | `cargo test -p lang-frontend --test multifile_ownership_checking` | 本次 63 passed，0 failed/ignored | 基础 unit 身份、capture/loan/delivery/drop；`adb760b` 重构前后也各 63 passed |
 | `cargo test -p lang-frontend --lib compilation_unit::constants_tests` | `7b1f49b`：5 passed，64 filtered，0 ignored | 基础 owned 出口拒绝、String Name/Group/Member 二元析构、Borrow/Value temporary、无常量 capture |
 | `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::` | 本次 17 passed，54 filtered，0 ignored | 当前 unit ownership 内部契约、常量 flow/物化、pending cleanup 与 Group identity |
@@ -104,13 +104,13 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 | `cargo test -p lang-frontend --lib --test multifile_constant_ownership compilation_unit --no-fail-fast` | `4bf45ed`：lib 21 passed，48 filtered，0 ignored | 15 项 unit ownership 与 6 项 types 内部契约；同命令 integration 零命中不计验收，公开套件另行无过滤运行 |
 | `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::materialization_tests` | `4832f55` 最终：3 passed，60 filtered，0 ignored | 11 类型跨 source 精确 descriptor/类别、同局部 ID、正反 inputs；初始化器/return/Abort 排除、动态分支保留、错误/deferred 原子性 |
 | `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::pending_temporary_tests` | `b3851d4`：5 passed，63 filtered，0 ignored | 常量/literal × Borrow/Value × 6 种退出/正常调用，共 24 例；内层循环保留、命名 Value、精确析构顺序、return operand Abort；`4afb5e2` 也由上述 15 项覆盖 |
-| `cargo test -p lang-codegen --lib ssa::unit_lower_short_circuit_tests` | 本次 2 passed，400 filtered，0 ignored | 基础 AND/OR CFG 与 carried owner、RHS 单边 move 的 MissingFact 拒绝仍成立 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_short_circuit_tests` | `66d1a39`：2 passed，400 filtered，0 ignored | 基础 AND/OR CFG 与 carried owner、RHS 单边 move 的 MissingFact 拒绝仍成立 |
 | `cargo test -p lang-codegen --lib ssa::unit_lower_string_tests` | `7b1f49b`：4 passed，398 filtered，0 ignored | 基础 print/Abort、嵌套 Abort 借用、String concat/equality/Value 消费；不证明插值 native 支持 |
 | `cargo test -p lang-codegen --lib ssa::unit_lower_borrow_tests` | `b3851d4`：2 passed，400 filtered，0 ignored | 最近基础 SSA 借用消费回归，不证明新增常量 native 支持 |
 | `cargo test -p lang-codegen --lib ssa::unit_lower_loop_tests` | `b3851d4`：7 passed，395 filtered，0 ignored | 最近基础 SSA 循环/退出消费回归 |
 | `cargo clippy -p lang-frontend --lib --test multifile_constant_ownership -- -D warnings`、fmt check | 本次通过 | all-targets clippy 的既有测试 lint 未修改，不以 lib 通过替代 |
 | docs check、diff check | 本次通过，353 Markdown | inventory 未变化；合同建立时另有检查器 21 项测试通过 |
-| 独立只读复审 | 各逻辑切片无剩余阻断发现 | 私有 driver 机械迁移、常量 flow/物化门禁、pending cleanup/Abort；`4afb5e2` 复核 Group 归一；`a6ba8d4` 复核公开 API；`4bf45ed` 复核插值；`7b1f49b` 复核 binary/named-left；`6c126f1` 复核身份验收；本次复核显式模式、统一短路决定、动态合流与原子门禁，按建议补外层 pending 八例 |
+| 独立只读复审 | 各逻辑切片无剩余阻断发现 | 私有 driver 机械迁移、常量 flow/物化门禁、pending cleanup/Abort；`4afb5e2` 复核 Group 归一；`a6ba8d4` 复核公开 API；`4bf45ed` 复核插值；`7b1f49b` 复核 binary/named-left；`6c126f1` 复核身份验收；`66d1a39` 复核显式模式、统一短路决定、动态合流与原子门禁；本次复核公开查询与不可达 lambda 的 source-qualified 过滤 |
 
 ### 已交付切片与事实边界
 
@@ -166,13 +166,13 @@ pending 直到右侧完成。独立复审后另复现 named-left 在右 If 的�
 1 个 StringTemporary（0 passed、1 failed、13 filtered）；当时 `true ||` 及后续 loan/drop
 断言未执行。本次同一测试通过，两个分支均确认无 RHS 物化、loan 和 drop。
 
-本次由入口显式开启私有 constant-control 模式，空常量 unit 也启用；基础入口不启用，
+`66d1a39` 由入口显式开启私有 constant-control 模式，空常量 unit 也启用；基础入口不启用，
 不按是否存在常量声明隐式切换。统一主遍历、liveness 与 drop 对 RHS 的执行决定；可靠
 静态来源仅为 Boolean literal、typed Boolean constant、Group，其他保留 Conditional。
 左侧始终求值；动态 RHS 退出不删除 skip 后继，单边 move 只在 skip BranchExit 清理。
 分支编号沿用 If：0=true、1=false，AND RHS 在 0，OR RHS 在 1。实际访问的私有 source-qualified
 计划稳定排序，初始化器/未访问尾部不登记；错误/deferred 原子撤销，validate 不接受仅有
-materializations 而缺少短路事实的产物。计划的公开查询和完整后继验收仍待完成。
+materializations 而缺少短路事实的产物。本次补充公开只读列表与 expression 查询，字段仅内部可写；source/三种 RHS 决定/反向 inputs/恢复视图由公开矩阵验证。
 
 独立复审未发现新增阻断，按建议补 Borrow/Value × AND/OR × return/Abort 的外层 pending
 组合，验证退出分支与 skip 后正常调用分别清理。既有
@@ -182,8 +182,17 @@ materializations 而缺少短路事实的产物。计划的公开查询和完整
 construction；新增命名 Value operand 的 pending cleanup 必须在 SPEC-0227 显式消费，已加入
 该 draft 合同，不将本次 Phase 3 事实描述为 native 支持。
 
-第 5 节现已勾选 source identity、类型/标量边界、声明隔离、失败原子性及新旧 capability；
-短路与完整路径清理仍保持未完成，不以当前通过矩阵替代完整验收。
+第 5 节行为验收已由最终独立复核确认：不可达路径使用 runtime reads、静态/动态短路及不可达 lambda 测试；
+owner identity 与清理使用 Group、双 source、插值、binary、pending prefix 和 skip edge 测试；
+literal 对照使用调用前缀、插值与二元控制流矩阵。结论限于分析明确识别的控制退出及短路，
+不扩展为任意表达式常量折叠。最终门禁与完成归档仍待同步。
 
-未运行 frontend 全量测试或 native build/run。本次为 Phase 3 私有实现，无新增公开 API；单文件路径未变，复用
-`7b1f49b` 的单文件回归及 `a6ba8d4` 编译契约和 workspace 检查；下游定向 SSA 检查不证明常量 native 支持。
+未运行 frontend 全量测试或 native build/run。本次公开查询涉及跨 crate API，追加 workspace 编译检查；单文件路径未变，复用
+`7b1f49b` 的单文件回归及 `a6ba8d4` native 编译契约；下游定向 SSA 检查不证明常量 native 支持。
+
+本次完成审计又复现不可达 lambda 的 orphan drop：`return` 后的 `{ view(TEXT) }` 未登记
+物化，但独立 lambda drop 预扫描仍生成 CallReturn Temporary drop。修复以主遍历实际访问的
+source-qualified lambda 集合约束专用模式的第二次 liveness 预扫描、drop 及 closure/capture
+发布；第一次 liveness 保持完整，基础模式不变。三例覆盖 return 后、Abort 后及静态短路 RHS，
+既有双 source 正例验证可达 lambda 保留。独立复审核对嵌套访问与过滤顺序，无新增明确阻断。
+初版访问集合使用不实现 Ord 的局部 AST ID 导致 E0277，已改用现有 UnitExpressionId，未扩展 AST trait。

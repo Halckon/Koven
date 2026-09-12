@@ -10,7 +10,7 @@
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，
-返回 `CompilationUnitConstantOwnership`；其 `validate` 仅在完整物化事实存在时产生
+返回 `CompilationUnitConstantOwnership`；其 `validate` 仅在完整物化与短路事实存在时产生
 `ConstEnabledOwnedUnit`。`is_compatible_with` 核对 typed 分析的 Arc 身份，等值重新分析不兼容。
 
 私有 driver 已消费 unit typed constant use，跳过常量 initializer 与读取路径的 namespace/
@@ -21,7 +21,7 @@ temporary 类别，只由主 traversal 登记；按 source-qualified expression 
 deferred 时整体不可用。初始化器依赖、return/Abort 后读取不登记，动态分支保留原 expression
 位置；双 source 的 11 类型互相读取与输入顺序稳定性由 driver 测试覆盖。专用产物提供稳定
 列表与按 expression 查询，字段不可外部构造；其 recovery 视图不能转换为基础 validated
-owned。完整表达式/控制流清理矩阵仍由 SPEC-0226 验收；此为 Phase 3 capability，
+owned。表达式/控制流清理矩阵的实际证据记录于 SPEC-0226；此为 Phase 3 capability，
 unit constant native 仍未接通。
 
 unit 常量的 Group 只透传值：loan、Value delivery 和 temporary drop 的 owner 统一指向
@@ -42,8 +42,14 @@ return/break/continue 清理已求值前缀，Abort 不展开。
 `short_circuit_plan` 供主 traversal、liveness、drop 共用：左侧正常完成后，依据 Boolean literal、
 typed 常量值或 Group 确定 RHS Always/Never/Conditional；不另行求值常量 initializer。
 动态路径合并 RHS 与 skip 后继，RHS 退出不抹去 skip；BranchExit 编号仍为 0=true、1=false。
-source-qualified 私有短路计划仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
-保护，专用 validate 同时要求两者完整。计划查询尚未公开，SPEC-0227 尚未消费该事实。
+source-qualified `UnitShortCircuitPlan` 仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
+保护，专用 validate 同时要求两者完整。专用 recovery/owned 提供只读计划列表，owned 还可按
+expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定，字段不可外部构造或修改。
+SPEC-0227 尚未消费该事实。
+
+专用模式由主遍历记录实际访问的 source-qualified lambda 集合；drop 前的 lambda liveness
+预扫描、lambda body 清理及公开 closure/capture 入口均按此集合筛选，避免不可达 lambda
+发布没有物化 owner 的 drop。初次 liveness 仍保留完整预分析，基础模式保持原行为。
 
 两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
 基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生

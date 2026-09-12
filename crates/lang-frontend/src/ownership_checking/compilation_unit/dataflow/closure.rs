@@ -24,6 +24,7 @@ impl Checker<'_> {
         body: crate::ast::StatementId,
         mut state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.visited_lambdas.insert(self.unit_expression(lambda));
         let diagnostic_count = self.diagnostics.len();
         let entry_state = state.clone();
         let lambda_id = self.unit_expression(lambda);

@@ -36,7 +36,10 @@ struct Builder<'a, 'checker> {
     deferred: Vec<UnitExpressionId>,
 }
 
-pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipCheckingError> {
+pub(super) fn build(
+    checker: &Checker<'_>,
+    reachable_only: bool,
+) -> Result<Liveness, OwnershipCheckingError> {
     let mut builder = Builder {
         checker,
         expression_after: vec![LiveSet::new(); checker.parsed.ast().expressions().len()],
@@ -51,7 +54,13 @@ pub(super) fn build(checker: &Checker<'_>) -> Result<Liveness, OwnershipChecking
         builder.item(root)?;
     }
     for (expression, node) in checker.parsed.ast().expressions().iter() {
-        if let Expression::Lambda { body, .. } = node.payload() {
+        if let Expression::Lambda { body, .. } = node.payload()
+            && (!reachable_only
+                || !checker.constant_control
+                || checker
+                    .visited_lambdas
+                    .contains(&checker.unit_expression(expression)))
+        {
             let live_in = builder.statement(*body, LiveSet::new())?;
             builder.lambda_live_in.insert(expression.index(), live_in);
         }
@@ -411,13 +420,13 @@ impl Builder<'_, '_> {
             }
             Expression::Binary { left, right, .. } => {
                 if let Some(plan) = self.checker.short_circuit_plan(id)? {
-                    use super::super::constant::ShortCircuitRhs;
+                    use super::super::constant::UnitShortCircuitRhs;
                     let live = match plan.rhs {
-                        ShortCircuitRhs::Never => live_after,
-                        ShortCircuitRhs::Always => {
+                        UnitShortCircuitRhs::Never => live_after,
+                        UnitShortCircuitRhs::Always => {
                             self.expression(right, ExpressionUse::Read, live_after)?
                         }
-                        ShortCircuitRhs::Conditional => {
+                        UnitShortCircuitRhs::Conditional => {
                             let mut live =
                                 self.expression(right, ExpressionUse::Read, live_after.clone())?;
                             live.extend(live_after);

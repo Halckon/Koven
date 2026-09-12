@@ -26,8 +26,8 @@ pub use compilation_unit::{
     UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitNonNullAssertionOwnershipPlan,
     UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget, UnitValueDeliveryFact, UnitValueDeliveryKind,
-    UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
+    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
     check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use constant::{

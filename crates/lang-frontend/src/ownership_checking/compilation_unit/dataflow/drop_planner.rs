@@ -39,7 +39,7 @@ pub(super) struct Analysis {
 }
 
 pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingError> {
-    let liveness = liveness::build(checker)?;
+    let liveness = liveness::build(checker, true)?;
     let deferred = liveness
         .deferred
         .iter()
@@ -117,6 +117,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             else {
                 continue;
             };
+            if self.checker.constant_control
+                && !self
+                    .checker
+                    .visited_lambdas
+                    .contains(&self.checker.unit_expression(lambda))
+            {
+                continue;
+            }
             let mut effective_parameters = parameters.clone();
             if arrow_span.is_none()
                 && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
@@ -446,16 +454,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             return Ok(true);
         }
         if let Some(plan) = self.checker.short_circuit_plan(id)? {
-            use super::super::constant::ShortCircuitRhs;
+            use super::super::constant::UnitShortCircuitRhs;
             if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
                 return Ok(false);
             }
             return match plan.rhs {
-                ShortCircuitRhs::Never => Ok(true),
-                ShortCircuitRhs::Always => {
+                UnitShortCircuitRhs::Never => Ok(true),
+                UnitShortCircuitRhs::Always => {
                     self.expression(plan.right.expression(), DropExpressionUse::Read, state)
                 }
-                ShortCircuitRhs::Conditional => {
+                UnitShortCircuitRhs::Conditional => {
                     let mut skipped = state.clone();
                     self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
                     let mut branches = vec![skipped];

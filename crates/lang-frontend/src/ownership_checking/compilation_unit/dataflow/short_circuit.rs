@@ -1,5 +1,5 @@
 //! Constant capability control decisions shared by traversal, liveness and drop planning.
-use super::super::constant::{ShortCircuitRhs, UnitShortCircuitPlan};
+use super::super::constant::{UnitShortCircuitPlan, UnitShortCircuitRhs};
 use super::{Checker, ExpressionUse, Flows, OwnershipCheckingError, State};
 use crate::{
     ast::ExpressionId,
@@ -45,9 +45,9 @@ impl Checker<'_> {
             }
         };
         let rhs = match known {
-            Some(value) if value == (rhs_branch == 0) => ShortCircuitRhs::Always,
-            Some(_) => ShortCircuitRhs::Never,
-            None => ShortCircuitRhs::Conditional,
+            Some(value) if value == (rhs_branch == 0) => UnitShortCircuitRhs::Always,
+            Some(_) => UnitShortCircuitRhs::Never,
+            None => UnitShortCircuitRhs::Conditional,
         };
         Ok(Some(UnitShortCircuitPlan {
             expression: self.unit_expression(expression),
@@ -67,11 +67,11 @@ impl Checker<'_> {
         let mut flows =
             self.check_expression(plan.left.expression(), state, ExpressionUse::Read)?;
         match plan.rhs {
-            ShortCircuitRhs::Never => Ok(flows),
-            ShortCircuitRhs::Always => {
+            UnitShortCircuitRhs::Never => Ok(flows),
+            UnitShortCircuitRhs::Always => {
                 self.chain_expression(flows, plan.right.expression(), ExpressionUse::Read)
             }
-            ShortCircuitRhs::Conditional => {
+            UnitShortCircuitRhs::Conditional => {
                 if let Some(next) = flows.next.clone() {
                     flows.merge(self.check_expression(
                         plan.right.expression(),

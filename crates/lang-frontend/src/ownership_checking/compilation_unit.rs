@@ -20,7 +20,7 @@ pub use binding::UnitOwnershipBindingDescriptor;
 pub use capture::{UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor};
 pub use constant::{
     CompilationUnitConstantOwnership, ConstEnabledOwnedUnit, UnitConstantMaterializationPlan,
-    check_compilation_unit_constant_ownership,
+    UnitShortCircuitPlan, UnitShortCircuitRhs, check_compilation_unit_constant_ownership,
 };
 pub use construction::{
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
@@ -697,6 +697,15 @@ impl CompilationUnitOwnership {
         dataflow: dataflow::Analysis,
     ) -> Self {
         let successful = dataflow.diagnostics.is_empty();
+        let mut capture = capture;
+        if dataflow.short_circuits.is_some() {
+            capture
+                .captures
+                .retain(|entry| dataflow.visited_lambdas.contains(&entry.lambda()));
+            capture
+                .closures
+                .retain(|entry| dataflow.visited_lambdas.contains(&entry.expression()));
+        }
         let captures = if successful {
             capture.captures
         } else {

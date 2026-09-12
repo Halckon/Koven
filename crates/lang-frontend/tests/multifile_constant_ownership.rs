@@ -375,6 +375,7 @@ fn errors_and_deferred_ownership_never_publish_constant_owned_capability() {
                     assert!(!recovery.ownership().deferred().is_empty());
                 }
                 assert!(recovery.materializations().is_none());
+                assert!(recovery.short_circuits().is_none());
                 if error {
                     assert!(recovery.ownership().loans().is_empty());
                     assert!(recovery.ownership().value_deliveries().is_empty());
@@ -919,5 +920,89 @@ fn short_circuit_rhs_exit_preserves_outer_pending_operand_on_skip() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn short_circuit_public_plans_preserve_sources_decisions_and_recovery() {
+    use lang_frontend::ownership_checking::UnitShortCircuitRhs;
+    let body = "const val FLAG = false\nconst val TEXT = \"hi\"\nfun view(text: String): Boolean = true\nfun read(flag: Boolean): Boolean { val skipped = (OTHER.FLAG) && view(OTHER.TEXT)\nval evaluated = true && view(OTHER.TEXT)\nreturn flag || view(OTHER.TEXT) }";
+    with_unit(
+        &format!("package a\n{}", body.replace("OTHER", "b")),
+        &format!("package b\n{}", body.replace("OTHER", "a")),
+        |sources, inputs, names, te, typed| {
+            let recovery =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap();
+            assert_eq!(recovery.short_circuits().unwrap().len(), 6);
+            let owned = recovery.validate().unwrap();
+            let plans = owned.short_circuits();
+            assert_eq!(plans.len(), 6);
+            for (index, plan) in plans.iter().enumerate() {
+                assert_eq!(
+                    plan.rhs(),
+                    [
+                        UnitShortCircuitRhs::Never,
+                        UnitShortCircuitRhs::Always,
+                        UnitShortCircuitRhs::Conditional
+                    ][index % 3]
+                );
+                assert_eq!(plan.rhs_branch(), usize::from(index % 3 == 2));
+                assert_eq!(plan.left().source_unit(), plan.expression().source_unit());
+                assert_eq!(plan.right().source_unit(), plan.expression().source_unit());
+                assert_eq!(owned.short_circuit_at(plan.expression()), Some(plan));
+                assert!(owned.short_circuit_at(plan.right()).is_none());
+            }
+            assert_eq!(
+                plans[0].expression().expression(),
+                plans[3].expression().expression()
+            );
+            assert_ne!(plans[0].expression(), plans[3].expression());
+            let reversed = [inputs[1], inputs[0]];
+            let again =
+                check_compilation_unit_constant_ownership(sources, &reversed, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            assert_eq!(plans, again.short_circuits());
+            assert_eq!(
+                owned.clone().into_ownership().short_circuits().unwrap(),
+                plans
+            );
+        },
+    );
+}
+
+#[test]
+fn unreachable_lambda_does_not_publish_orphan_constant_cleanup() {
+    for body in [
+        "return\nval f = { view(TEXT) }",
+        "val stopped = stop()\nval f = { view(TEXT) }",
+        "val skipped = false && invoke({ view(TEXT) })",
+    ] {
+        with_unit(
+            &format!(
+                "package a\nimport b.TEXT\nfun stop(): Nothing = stop()\nfun view(text: String): Boolean = true\nfun invoke(action: () -> Boolean): Boolean = action()\nfun read(): Unit {{ {body} }}"
+            ),
+            "package b\nconst val TEXT = \"hi\"",
+            |sources, inputs, names, te, typed| {
+                let owned =
+                    check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                        .unwrap()
+                        .validate()
+                        .unwrap();
+                assert!(owned.materializations().is_empty(), "{body}");
+                assert!(owned.ownership().loans().is_empty(), "{body}");
+                assert!(
+                    owned.ownership().drops().is_empty(),
+                    "{body}: {:?}",
+                    owned.ownership().drops()
+                );
+                assert!(
+                    owned.ownership().closures().is_empty(),
+                    "no unreachable closure entry"
+                );
+            },
+        );
     }
 }
