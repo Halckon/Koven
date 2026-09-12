@@ -184,6 +184,7 @@ struct FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources> {
     zero_sized_loans: BTreeMap<LoanId, BasicValueEnum<'ctx>>,
     phis: BTreeMap<ValueId, PhiValue<'ctx>>,
     loan_phis: BTreeMap<LoanId, PhiValue<'ctx>>,
+    place_phis: BTreeMap<PlaceId, PhiValue<'ctx>>,
 }
 
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
@@ -213,6 +214,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             zero_sized_loans: BTreeMap::new(),
             phis: BTreeMap::new(),
             loan_phis: BTreeMap::new(),
+            place_phis: BTreeMap::new(),
         }
     }
 
@@ -305,8 +307,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                             .insert(*loan, phi.as_basic_value().into_pointer_value());
                         self.loan_phis.insert(*loan, phi);
                     }
-                    EntityId::Place(_) => {
-                        return Err(unsupported("LLVM block 参数不能是 place"));
+                    EntityId::Place(place) => {
+                        // 跨块传递同一存储地址，不能重新建立 RootPlace 并写入旧值。
+                        let phi = self.builder.build_phi(
+                            self.context.ptr_type(inkwell::AddressSpace::default()),
+                            &format!("p{}", place.index()),
+                        )?;
+                        self.places
+                            .insert(*place, phi.as_basic_value().into_pointer_value());
+                        self.place_phis.insert(*place, phi);
                     }
                 }
             }
@@ -1423,7 +1432,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     })?;
                     phi.add_incoming(&[(&value, source)]);
                 }
-                _ => return Err(unsupported("LLVM edge 不支持 place 或不同 entity kind")),
+                (EntityId::Place(argument), EntityId::Place(parameter)) => {
+                    let value = self.access(PlaceAccess::Place(*argument))?;
+                    let phi = self.place_phis.get(parameter).ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("非 entry place 参数缺少 LLVM PHI".to_owned())
+                    })?;
+                    phi.add_incoming(&[(&value, source)]);
+                }
+                _ => return Err(unsupported("LLVM edge 不支持不同 entity kind")),
             }
         }
         Ok(())

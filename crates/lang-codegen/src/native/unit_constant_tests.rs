@@ -292,3 +292,17 @@ fn value_receiver_commits_only_after_native_arguments_complete() {
         assert!(run.stderr.is_empty(), "{run:?}");
     }
 }
+
+#[test]
+fn inout_receiver_preserves_or_writes_back_the_native_value() {
+    for (flag, expected) in [("true", "old\n"), ("false", "new\n")] {
+        let provider = format!(
+            "package p\nconst val TEXT = \"中文\"\nconst val FLAG = {flag}\nvalue class Host(var item: Int) {{ inout fun update(text: String, own flag: Boolean): Unit {{ item = 2 }}\nfun read(): Int = item }}"
+        );
+        let consumer = "package q\nimport p.Host\nfun entry(): Unit { var host = Host(1)\nloop { val done = host.update(p.TEXT, if (p.FLAG) { break } else { true })\nbreak }\nif (host.read() == 1) { println(\"old\") } else { if (host.read() == 2) { println(\"new\") } else { error(p.TEXT) } } }";
+        let run = run_constant_sources(&provider, consumer);
+        assert!(run.status.success(), "{flag}: {run:?}");
+        assert_eq!(run.stdout, expected.as_bytes());
+        assert!(run.stderr.is_empty(), "{run:?}");
+    }
+}

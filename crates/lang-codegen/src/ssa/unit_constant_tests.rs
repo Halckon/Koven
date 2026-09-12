@@ -639,3 +639,33 @@ fn value_receiver_prefix_handles_this_copyable_values_and_loop_exits() {
         crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
     }
 }
+
+#[test]
+fn inout_receiver_argument_return_ends_the_uncommitted_loan() {
+    let source = "value class Host(val item: Int) { inout fun update(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { var host = Host(1)\nval done = host.update(p.TEXT, if (flag) { return } else { true }) }";
+    crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+}
+
+#[test]
+fn inout_receiver_exits_preserve_inline_and_heap_owners() {
+    for (kind, ty, initial) in [
+        ("class", "Int", "1"),
+        ("value class", "Int", "1"),
+        ("value class", "String", "p.TEXT"),
+    ] {
+        for exit in ["return", "error(p.TEXT)", "break", "continue"] {
+            for mode in ["", "own "] {
+                let source = format!(
+                    "{kind} Host(var item: {ty}) {{ inout fun update({mode}text: String, own flag: Boolean): Unit {{}} }}\nfun entry(own flag: Boolean): Unit {{ loop {{ var host = Host({initial})\nval done = host.update(p.TEXT, if (flag) {{ {exit} }} else {{ true }})\nbreak }} }}"
+                );
+                if ty == "String" {
+                    let error = try_lower_constant_fixture(&source).err().unwrap();
+                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{source}");
+                } else {
+                    crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source))
+                        .unwrap();
+                }
+            }
+        }
+    }
+}

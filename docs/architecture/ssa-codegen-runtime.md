@@ -98,9 +98,12 @@ object 字节已有 native 证据；非法 entry、插值及分析错配在写�
 显式 Value receiver 的 MoveOnly owner 在参数求值期间按 receiver expression 登记 temporary，
 参数完成并重绑定后才撤销该记录；提前退出沿用 frontend drop，Abort 不展开。Copyable
 receiver 不额外登记 owner，Group alias 按同一 ValueId 清除。
-隐式 Value `this`、条件 StaticSelf、Inout receiver 与 function-value 调用的参数控制退出仍保留
-guard，外层 temporary 内求值循环仍受
-既有 loop lowering 限制；这些组合不由当前前缀测试证明。
+Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参数 CFG 传递；非 entry Place
+通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
+Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
+MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回；隐式 Value
+`this`、条件 StaticSelf 与 function-value 的参数控制退出仍保留 guard。外层 temporary 内
+求值循环仍受既有 loop lowering 限制；这些组合不由当前前缀测试证明。
 
 String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
 操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop

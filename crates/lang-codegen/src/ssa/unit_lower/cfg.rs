@@ -59,10 +59,10 @@ pub(super) struct CarriedBinding {
 }
 
 #[derive(Clone)]
-pub(super) struct CarriedLoan {
+pub(super) struct CarriedAccess {
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
-    source: LoanId,
+    source: EntityId,
     ty: EntityType,
     pending: Vec<usize>,
 }
@@ -140,7 +140,7 @@ impl UnitExpressionLowerer<'_> {
         &self,
         loans: &BTreeMap<UnitSymbolId, LoanId>,
         span: Span,
-    ) -> Result<Vec<CarriedLoan>, LoweringError> {
+    ) -> Result<Vec<CarriedAccess>, LoweringError> {
         let mut carried = loans
             .iter()
             .map(|(symbol, source)| {
@@ -149,10 +149,10 @@ impl UnitExpressionLowerer<'_> {
                     .entity(EntityId::Loan(*source))
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                Ok(CarriedLoan {
+                Ok(CarriedAccess {
                     symbol: Some(*symbol),
                     receiver: None,
-                    source: *source,
+                    source: EntityId::Loan(*source),
                     ty,
                     pending: Vec::new(),
                 })
@@ -166,10 +166,10 @@ impl UnitExpressionLowerer<'_> {
                 .entity(receiver.entity)
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedLoan {
+            carried.push(CarriedAccess {
                 symbol: None,
                 receiver: Some(receiver),
-                source,
+                source: EntityId::Loan(source),
                 ty,
                 pending: Vec::new(),
             });
@@ -181,7 +181,7 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn carry_pending_operands(
         &self,
         bindings: &mut Vec<CarriedBinding>,
-        loans: &mut Vec<CarriedLoan>,
+        loans: &mut Vec<CarriedAccess>,
         span: Span,
     ) -> Result<(), LoweringError> {
         for (index, entity) in self.pending_operands.iter().copied().enumerate() {
@@ -205,20 +205,19 @@ impl UnitExpressionLowerer<'_> {
                         });
                     }
                 }
-                EntityId::Loan(source) => {
-                    if let Some(slot) = loans.iter_mut().find(|slot| slot.source == source) {
+                EntityId::Loan(_) | EntityId::Place(_) => {
+                    if let Some(slot) = loans.iter_mut().find(|slot| slot.source == entity) {
                         slot.pending.push(index);
                     } else {
-                        loans.push(CarriedLoan {
+                        loans.push(CarriedAccess {
                             symbol: None,
                             receiver: None,
-                            source,
+                            source: entity,
                             ty,
                             pending: vec![index],
                         });
                     }
                 }
-                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
             }
         }
         // A pending borrowed temporary needs its owner as well as its loan on each edge.
@@ -247,7 +246,7 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn add_carried_control_block(
         &mut self,
         bindings: &[CarriedBinding],
-        loans: &[CarriedLoan],
+        loans: &[CarriedAccess],
         span: Span,
     ) -> Result<BlockId, LoweringError> {
         self.function
@@ -290,7 +289,7 @@ impl UnitExpressionLowerer<'_> {
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         block: BlockId,
         bindings: &[CarriedBinding],
-        loans: &[CarriedLoan],
+        loans: &[CarriedAccess],
         span: Span,
     ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
         let rebound = self.rebind_carried_prefix(
@@ -368,7 +367,7 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         block: BlockId,
         binding_count: usize,
-        loans: &[CarriedLoan],
+        loans: &[CarriedAccess],
         span: Span,
     ) -> Result<BTreeMap<UnitSymbolId, LoanId>, LoweringError> {
         let parameters = &self
@@ -381,6 +380,9 @@ impl UnitExpressionLowerer<'_> {
         }
         let mut rebound = BTreeMap::new();
         for (slot, parameter) in loans.iter().zip(parameters.iter().skip(binding_count)) {
+            if slot.symbol.is_none() && slot.receiver.is_none() {
+                continue;
+            }
             let EntityId::Loan(loan) = parameter else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
@@ -781,14 +783,14 @@ impl UnitExpressionLowerer<'_> {
 pub(super) fn carried_control_edge(
     target: BlockId,
     bindings: &[CarriedBinding],
-    loans: &[CarriedLoan],
+    loans: &[CarriedAccess],
 ) -> Edge {
     Edge {
         target,
         arguments: bindings
             .iter()
             .map(|binding| EntityId::Value(binding.source))
-            .chain(loans.iter().map(|loan| EntityId::Loan(loan.source)))
+            .chain(loans.iter().map(|loan| loan.source))
             .collect(),
     }
 }

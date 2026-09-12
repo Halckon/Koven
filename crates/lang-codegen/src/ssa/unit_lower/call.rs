@@ -89,10 +89,9 @@ impl UnitExpressionLowerer<'_> {
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if (self.constant_owned.is_none()
             || descriptor.receiver().is_some_and(|receiver| {
-                receiver.mode() == ParameterMode::Inout
-                    || (receiver.mode() == ParameterMode::Value
-                        && (matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
-                            || self.owned.conditional_receiver_delivery(call).is_some()))
+                receiver.mode() == ParameterMode::Value
+                    && (matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
+                        || self.owned.conditional_receiver_delivery(call).is_some())
             })
             || function_value)
             && arguments.iter().any(|argument| {
@@ -251,6 +250,7 @@ impl UnitExpressionLowerer<'_> {
             if let Some(writeback) = &receiver.writeback {
                 self.pending_operands
                     .push(EntityId::Value(writeback.original));
+                self.pending_operands.push(EntityId::Place(writeback.place));
             }
         }
         // Receiver 在普通实参帧之前建立；退出时先结束实参 loan，再结束 receiver loan。
@@ -294,6 +294,19 @@ impl UnitExpressionLowerer<'_> {
                         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
                     span,
                 )?;
+                let Some(EntityId::Place(place)) = rebound.next() else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                // RootPlaceTake 尚只验证直接 owner/place；跨块关系留待独立扩展。
+                if place != writeback.place
+                    && matches!(
+                        writeback.kind,
+                        super::receiver::ReceiverWritebackKind::MoveOnly
+                    )
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                writeback.place = place;
             }
         }
         self.pending_operands.truncate(receiver_start);

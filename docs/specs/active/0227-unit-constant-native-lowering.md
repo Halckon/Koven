@@ -80,11 +80,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 191 passed，231 filtered，0 failed/ignored | 显式 Value receiver 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 193 passed，233 filtered，0 failed/ignored | Inout receiver 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 7 passed，416 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 8 passed，418 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -255,3 +255,16 @@ return/break/continue 消费已有 drop facts，Abort 不展开；Copyable 不�
 Inout、function-value 及外层 temporary 跨循环仍待后续。本次无公开 API 变化。
 
 最终 7 项常量 native 通过；没有 CLI 变化，不重复 CLI/workspace 门禁，未运行 frontend 全量测试。
+
+
+Inout receiver 切片：先复现参数 return 的 UnsupportedNode，开放后发现正常写回路径的
+HiddenLinearLiveIn/PlaceUnavailable。writeback 的 original 与 Place 现在同时进入 pending
+槽并重绑定，保持原可写存储；CFG 扩展 carried access，LLVM 非 entry Place 使用 pointer phi。
+不重建 RootPlace，不放宽 verifier，也不开放函数 entry Place ABI。
+新增 heap/Copyable inline × return/Abort/break/continue × Borrow/Value 的 16 个实参
+组合及独立 return 用例；MoveOnly inline 的 8 个组合继续确定性拒绝，因为 RootPlaceTake
+尚只验证直接 RootPlace。native 两次运行检查 Copyable inline 在提前 break 后读到 1、
+正常写回后读到 2。独立代码复核确认存储 identity、退出清理和零尺寸 RootPlace 的 pointer 表示，
+不扩称零尺寸容器派生 place 已获验收。193 项 unit 契约、8 项常量 native 通过。
+MoveOnly inline、隐式 Value this、条件 StaticSelf、function-value 和外层 temporary 跨循环
+仍未完成；不重复 CLI/workspace 门禁，未运行 frontend 全量测试。
