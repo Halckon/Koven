@@ -275,7 +275,22 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
-        if self.is_constant_use(id) {
+        if let Some(descriptor) = self.constant_use(id) {
+            let kind = if matches!(
+                descriptor.value(),
+                crate::type_checking::ConstValue::String(_)
+            ) {
+                crate::ownership_checking::ConstantMaterializationKind::StringTemporary
+            } else {
+                crate::ownership_checking::ConstantMaterializationKind::InlineCopy
+            };
+            self.constant_materializations.insert(
+                self.unit_expression(id),
+                super::super::constant::UnitConstantMaterializationPlan {
+                    descriptor: descriptor.clone(),
+                    kind,
+                },
+            );
             return Ok(Flows::next(state));
         }
         if let Some(descriptor) = self

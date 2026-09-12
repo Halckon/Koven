@@ -14,7 +14,11 @@
 私有 driver 已消费 unit typed constant use，跳过常量 initializer 与读取路径的 namespace/
 declaration flow；String 二元操作数按每次读取的 temporary 生成析构事实。此路径的 recovery
 保留常量来源标记，基础 `validate` 拒绝发布 owned capability。尚未发布 unit constant
-materialization descriptor 或专用公开 ownership 入口；当前证据是私有 driver 定向测试。
+专用公开 ownership 入口。私有 materialization plan 保留 typed use descriptor 和 inline/String
+temporary 类别，只由主 traversal 登记；按 source-qualified expression 去重、排序，错误或
+deferred 时整体不可用。初始化器依赖、return/Abort 后读取不登记，动态分支保留原 expression
+位置；双 source 的 11 类型互相读取与输入顺序稳定性由私有 driver 测试覆盖。尚未发布专用
+owned capability，完整控制流清理仍由 SPEC-0226 验收。
 
 unit 入口重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。只有无所有权
 诊断且不存在阻塞 deferred fact 时，`validate` 才产生 `ValidatedCompilationUnitOwnership`，供

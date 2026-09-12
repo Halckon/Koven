@@ -3,11 +3,14 @@
 mod analysis;
 mod binding;
 mod capture;
+mod constant;
 #[cfg(test)]
 mod constants_tests;
 mod construction;
 mod contracts;
 mod dataflow;
+#[cfg(test)]
+mod materialization_tests;
 mod non_null_assertion;
 mod receiver;
 
@@ -639,6 +642,7 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
@@ -713,6 +717,10 @@ impl CompilationUnitOwnership {
             Vec::new()
         };
         Self {
+            constant_materializations: (successful
+                && dataflow.deferred.is_empty()
+                && typed.constants().is_some())
+            .then_some(dataflow.constant_materializations),
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),

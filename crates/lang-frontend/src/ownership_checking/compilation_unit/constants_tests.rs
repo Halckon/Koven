@@ -8,7 +8,7 @@ use crate::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 
-fn analyze(text: &str) -> CompilationUnitOwnership {
+pub(super) fn analyze(text: &str) -> CompilationUnitOwnership {
     let mut sources = SourceMap::new();
     let source = sources.add_source("a.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();

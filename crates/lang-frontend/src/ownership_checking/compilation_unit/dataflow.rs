@@ -43,6 +43,7 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -154,6 +155,7 @@ pub(super) fn analyze(
     let non_transferable_delivery_code =
         codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
     let mut diagnostics = Vec::new();
+    let mut constant_materializations = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -210,6 +212,7 @@ pub(super) fn analyze(
             &mut non_null_assertions,
         )?;
         let drop_analysis = checker.run()?;
+        constant_materializations.extend(checker.constant_materializations.into_values());
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
@@ -225,7 +228,9 @@ pub(super) fn analyze(
     }
     non_null_assertions.sort_by_key(|plan| plan.descriptor().expression());
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
+    constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     Ok(Analysis {
+        constant_materializations,
         non_null_assertions,
         diagnostics,
         loans,
@@ -291,6 +296,8 @@ struct ReceiverContext {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    constant_materializations:
+        BTreeMap<UnitExpressionId, super::constant::UnitConstantMaterializationPlan>,
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
     source_unit: SourceUnitId,
@@ -324,14 +331,19 @@ struct Checker<'a> {
 impl<'a> Checker<'a> {
     /// Only Phase 2 selected uses are values; their namespace is never evaluated.
     fn is_constant_use(&self, expression: ExpressionId) -> bool {
-        self.typed.constants().is_some_and(|facts| {
-            facts
-                .uses()
-                .binary_search_by_key(&self.unit_expression(expression), |usage| {
-                    usage.expression()
-                })
-                .is_ok()
+        self.constant_use(expression).is_some()
+    }
+
+    fn constant_use(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&crate::type_checking::UnitConstantUseDescriptor> {
+        let uses = self.typed.constants()?.uses();
+        uses.binary_search_by_key(&self.unit_expression(expression), |usage| {
+            usage.expression()
         })
+        .ok()
+        .map(|index| &uses[index])
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -421,6 +433,7 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            constant_materializations: BTreeMap::new(),
             sources,
             parsed,
             source_unit,
