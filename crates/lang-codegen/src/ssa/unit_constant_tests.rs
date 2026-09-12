@@ -361,6 +361,12 @@ fn conditional_move_cleans_only_the_skip_edge() {
 }
 
 fn lower_short_circuit_fixture(consumer: &str) -> super::model::Program {
+    try_lower_constant_fixture(consumer).unwrap_or_else(|error| panic!("{consumer}: {error:?}"))
+}
+
+fn try_lower_constant_fixture(
+    consumer: &str,
+) -> Result<super::model::Program, super::LoweringError> {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(
         &mut sources,
@@ -400,8 +406,29 @@ fn lower_short_circuit_fixture(consumer: &str) -> super::model::Program {
         &owned,
         declaration(&names, "q", "entry"),
     )
-    .unwrap_or_else(|error| panic!("{consumer}: {error:?}"))
-    .0
+    .map(|(program, _)| program)
+}
+
+#[test]
+fn constant_native_lowering_rejects_interpolation_without_a_conversion_protocol() {
+    for literal in [
+        r#""${p.TEXT}""#,
+        r#""prefix ${p.TRUE} suffix""#,
+        r#""${"${p.TEXT}"}""#,
+        r#""${if (flag) { return p.TEXT } else { p.TEXT }}""#,
+        r#""${error(p.TEXT)}""#,
+    ] {
+        let consumer = format!("fun entry(own flag: Boolean): String = {literal}");
+        let source = format!("package q\n{consumer}");
+        for _ in 0..2 {
+            let error = try_lower_constant_fixture(&consumer).err().unwrap();
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{literal}");
+            let span = error
+                .span
+                .expect("rejection identifies the whole interpolation");
+            assert_eq!(&source[span.start()..span.end()], literal);
+        }
+    }
 }
 
 #[test]

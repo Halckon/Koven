@@ -76,7 +76,8 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 常量 Name/Member 不读取声明 binding。专用 Group Value delivery 的 source 归一到已发布
 物化 use，原 call/argument identity 保留。专用短路按 source-qualified 计划消费 Always/Never/Conditional，
 校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
-后继。基础入口原有短路能力边界保持。插值与完整退出矩阵尚未接通，
+后继。基础入口原有短路能力边界保持。String 插值按现行 guide 确定性拒绝，
+包括含常量 use 的插值；完整退出矩阵尚未接通，
 公开 constant native 入口尚未接通。
 
 专用普通同步调用的求值帧记录新建 loan 的 pending 槽位、前缀起点与循环深度；CFG 重绑定后

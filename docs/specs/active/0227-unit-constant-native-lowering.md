@@ -31,8 +31,9 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   同时消费调用前缀 pending temporary：后续实参提前 return/break/continue 时结束借用并清理，
   Abort 不清理，已提交 Value 不重复清理。命名 MoveOnly Value operand 也可能以实参 expression
   为 pending owner；不得只缓存 AST category 为 Temporary 的表达式而漏掉该事实。
-  String 插值还需消费内部输入的 `AfterExpression` 与提前退出清理，嵌套插值按各自位置
-  释放；当前 unit String lowering 仅解码 plain literal，不能将 Phase 3 事实视为已支持插值。
+  String 插值按 [String 最小操作边界](../../guide/13-program-runtime-standard-library.md#封闭的最小操作)
+  确定性拒绝；Phase 3 对插值输入发布清理事实，不代表 Phase 4
+  已获得 operand 转 String 的转换协议，也不授权本 Spec 实现该协议。
 - 短路必须消费专用 owned 的 source-qualified 执行计划：左侧正常完成后 RHS 为
   Always/Never/Conditional；不得通过 AST 猜测缺失计划。分支编号沿用 0=true、1=false，
   AND RHS 为 0、OR RHS 为 1；消费 skip/RHS 的 BranchExit 清理，并保留 RHS 退出后的 skip 后继。
@@ -57,6 +58,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 - [ ] 失败 typed/owned、混合分析及缺失物化事实在写出前被拒绝；失败保留既有输出文件。
 - [ ] 正逆 source inputs、重复构建产生确定性结果；argv entry 与普通 unit 非常量最近回归通过。
 - [ ] 新旧入口 capability 编译契约、native 正反例和必要 CLI 编排验证通过，Architecture/验收同步。
+- [x] 常量参与的 String 插值（含嵌套和提前退出输入）在 lowering 确定性拒绝并保留源码 Span。
 
 ## 5. 实施与提交
 
@@ -76,7 +78,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | 验收项 | 结果 | 原因 |
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
-| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | `f37921b`：4 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路矩阵见下文，完整namespace矩阵待后续 |
+| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
 | `cargo test -p lang-codegen --lib ssa::unit_` | 185 passed，225 filtered，0 failed/ignored | String 二元前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
@@ -165,4 +167,11 @@ String 二元前缀切片：先复现常量左操作数跨右侧普通 if 后的
 与 continue，均通过 SSA/LLVM verifier。新增测试没有逐 owner 断言清理顺序。
 独立复核检查了重绑定、退出传播、嵌套槽截断及基础入口兼容，未发现阻断。
 本切片没有公开跨 crate API 变化；未运行 workspace check、frontend 全量或常量 native。
-插值、receiver/function-value 前缀退出及外层 temporary 内循环仍待后续实现/验收。
+receiver/function-value 前缀退出及外层 temporary 内循环仍待后续实现/验收。
+
+插值边界校正：此前范围把 Phase 3 的插值输入清理事实误写为 Phase 4 实现要求，与现行
+guide 的确定性拒绝要求冲突。以 guide 为准修正此处合同；不启用新的转换/格式化语义。
+现有 `decode_plain` 拒绝插值，生产代码无需修改；专用常量 lowering 增加拒绝契约测试，
+覆盖 String/Boolean 常量、嵌套、return 和 Abort 输入，重复分析检查错误种类及完整插值 Span。
+9 项常量 lowering 测试、clippy、fmt 与 docs/diff 检查通过；独立复核确认合同遵循 guide，
+未发现阻断。Span 断言覆盖源码范围文本，未另断言 SourceId；公开 native 输出原子性仍待验收。
