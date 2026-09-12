@@ -4,7 +4,7 @@
 
 v0.36 已于 2026-09-12 启用；以下按依赖顺序实施，未满足前置者保持 draft：
 
-- [SPEC-0209](../../active/0209-associated-constant-lowering.md)：单文件 native lowering，已批准
+- [SPEC-0209](../../active/0209-associated-constant-lowering.md)：单文件 native lowering，实施中
 - [SPEC-0210](0210-multifile-associated-constants.md)：跨文件集成
 
 现行语义见 [v0.36 常量规则](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)。

@@ -56,6 +56,11 @@ unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、
 
 实现入口：`crates/lang-codegen/src/ssa/model.rs`、`verify*.rs` 和 `render.rs`。
 
+SSA 使用独立 `Char` 类型与 `Char(u32)` 常量；verifier 只接受 Unicode scalar，并拒绝把它与
+UInt32 常量/类型互换。Char 为 Copyable，支持相等/不等而不进入整数算术或排序契约；LLVM
+映射和目标布局使用 i32。`char_constant_tests` 覆盖 scalar 边界、错误类型、Copy/call 返回类型、
+非恒定参数比较和确定 LLVM 输出；这尚不代表 frontend 常量读取或 Char native 入口已接入。
+
 ## Compilation-unit planning 与 lowering
 
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的

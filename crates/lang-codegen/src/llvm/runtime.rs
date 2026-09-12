@@ -1038,7 +1038,13 @@ impl RuntimeRequirements {
                     "shared reference cannot enter owned drop glue collection".to_owned(),
                 ));
             }
-            Some(SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. }) | None => {
+            Some(
+                SsaTypeKind::Unit
+                | SsaTypeKind::Boolean
+                | SsaTypeKind::Char
+                | SsaTypeKind::Integer { .. },
+            )
+            | None => {
                 return Err(LlvmAdapterError::InvalidSsa(
                     "Copyable 或未知类型进入 drop glue 收集".to_owned(),
                 ));

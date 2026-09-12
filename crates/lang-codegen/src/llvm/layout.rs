@@ -153,6 +153,7 @@ impl LayoutCalculator<'_, '_> {
     fn layout(&mut self, ty: SsaTypeId) -> Result<RawLayout, LlvmAdapterError> {
         let layout = match self.module.type_kind(ty) {
             Some(SsaTypeKind::Boolean) => self.llvm_layout(self.context.bool_type().into()),
+            Some(SsaTypeKind::Char) => self.llvm_layout(self.context.i32_type().into()),
             Some(SsaTypeKind::Integer { bits, .. }) => {
                 let integer = match bits {
                     8 => self.context.i8_type(),

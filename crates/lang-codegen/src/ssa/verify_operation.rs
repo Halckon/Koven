@@ -712,6 +712,7 @@ fn constant_contract(module: &Module, constant: &ScalarConstant, results: &[Enti
     match (constant, module.type_kind(result)) {
         (ScalarConstant::Unit, Some(SsaTypeKind::Unit))
         | (ScalarConstant::Boolean(_), Some(SsaTypeKind::Boolean)) => true,
+        (ScalarConstant::Char(value), Some(SsaTypeKind::Char)) => char::from_u32(*value).is_some(),
         (ScalarConstant::Integer(value), Some(SsaTypeKind::Integer { bits, signed })) => {
             integer_fits(*value, *bits, *signed)
         }
@@ -983,6 +984,7 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
         module.type_kind(ty),
         Some(
             SsaTypeKind::Boolean
+                | SsaTypeKind::Char
                 | SsaTypeKind::Integer { .. }
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::TaggedUnion { .. }
@@ -1022,7 +1024,7 @@ fn is_koven_container_index(module: &Module, ty: SsaTypeId) -> bool {
 fn is_scalar(module: &Module, ty: SsaTypeId) -> bool {
     matches!(
         module.type_kind(ty),
-        Some(SsaTypeKind::Boolean | SsaTypeKind::Integer { .. })
+        Some(SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. })
     )
 }
 

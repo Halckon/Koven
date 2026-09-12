@@ -173,9 +173,10 @@ impl Module {
 
     pub(crate) fn type_ownership(&self, id: SsaTypeId) -> Option<Ownership> {
         match self.type_kind(id)? {
-            SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Integer { .. } => {
-                Some(Ownership::Copyable)
-            }
+            SsaTypeKind::Unit
+            | SsaTypeKind::Boolean
+            | SsaTypeKind::Char
+            | SsaTypeKind::Integer { .. } => Some(Ownership::Copyable),
             SsaTypeKind::SharedReference { .. } => Some(Ownership::Copyable),
             SsaTypeKind::Opaque { ownership, .. }
             | SsaTypeKind::ZeroSized { ownership, .. }

@@ -154,6 +154,8 @@ impl SequentialContainerKind {
 pub(crate) enum SsaTypeKind {
     Unit,
     Boolean,
+    /// Unicode scalar, distinct from an unsigned 32-bit integer.
+    Char,
     Integer {
         bits: u16,
         signed: bool,
@@ -268,6 +270,8 @@ pub(crate) struct EntityData {
 pub(crate) enum ScalarConstant {
     Unit,
     Boolean(bool),
+    /// Verifier rejects surrogate and out-of-range codepoints.
+    Char(u32),
     Integer(i128),
 }
 

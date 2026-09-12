@@ -87,3 +87,6 @@ mod nullable_operation_tests;
 mod shared_owner_operation_tests;
 #[cfg(test)]
 mod string_operation_tests;
+
+#[cfg(test)]
+mod char_constant_tests;

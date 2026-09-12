@@ -353,6 +353,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     .int_type(value_type(self.function, *result)?)?;
                 let value = match constant {
                     ScalarConstant::Boolean(value) => ty.const_int(u64::from(*value), false),
+                    ScalarConstant::Char(value) => ty.const_int(u64::from(*value), false),
                     ScalarConstant::Integer(value) => ty.const_int(*value as u64, *value < 0),
                     ScalarConstant::Unit => {
                         return Err(unsupported("Unit constant 不产生 LLVM payload"));

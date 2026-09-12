@@ -4,6 +4,6 @@
 
 2026-09-12 用户启用 v0.36；当前依赖完备的实施项：
 
-- [SPEC-0209](0209-associated-constant-lowering.md)：关联常量 SSA/LLVM 重新物化，approved。
+- [SPEC-0209](0209-associated-constant-lowering.md)：关联常量 SSA/LLVM 重新物化，in-progress。
 
 后续 0210 按 [v0.36 阶段索引](../drafts/v0.36/README.md)在前置完成后迁入。

@@ -48,6 +48,7 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
     match kind {
         SsaTypeKind::Unit => output.write_str("unit"),
         SsaTypeKind::Boolean => output.write_str("bool"),
+        SsaTypeKind::Char => output.write_str("char"),
         SsaTypeKind::Integer { bits, signed } => {
             write!(output, "{}{bits}", if *signed { 'i' } else { 'u' })
         }
@@ -680,6 +681,7 @@ fn write_constant(output: &mut String, constant: &ScalarConstant) -> fmt::Result
     match constant {
         ScalarConstant::Unit => output.write_str("unit"),
         ScalarConstant::Boolean(value) => write!(output, "{value}"),
+        ScalarConstant::Char(value) => write!(output, "U+{value:04X}"),
         ScalarConstant::Integer(value) => write!(output, "{value}"),
     }
 }

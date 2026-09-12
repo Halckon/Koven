@@ -252,6 +252,7 @@ fn verify_type_definition(
         }
         SsaTypeKind::Unit
         | SsaTypeKind::Boolean
+        | SsaTypeKind::Char
         | SsaTypeKind::Integer { .. }
         | SsaTypeKind::Opaque { .. }
         | SsaTypeKind::ZeroSized { .. }

@@ -81,6 +81,7 @@ impl<'ctx> TypeMap<'ctx> {
             };
             let ty = match kind {
                 SsaTypeKind::Boolean => Some(context.bool_type().into()),
+                SsaTypeKind::Char => Some(context.i32_type().into()),
                 SsaTypeKind::Integer { bits, .. } => Some(integer_type(context, *bits)?.into()),
                 SsaTypeKind::Aggregate { .. } => {
                     let aggregate = context.opaque_struct_type(&format!("koven.t{index}"));
