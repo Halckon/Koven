@@ -359,6 +359,9 @@ impl Checker<'_> {
                         .then_some(argument.value)
                     })
                 {
+                    let temporary = self
+                        .constant_temporary_origin(temporary)
+                        .map_or(temporary, |(owner, _)| owner);
                     self.loans.push(LoanFact::new(
                         call,
                         argument.value,

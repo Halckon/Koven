@@ -309,3 +309,131 @@ fn constant_cleanup_matches_literal_on_control_flow_edges() {
         );
     }
 }
+
+#[test]
+fn every_closed_scalar_type_repeats_value_delivery_without_runtime_owners() {
+    for (ty, literal) in [
+        ("Boolean", "true"),
+        ("Byte", "1"),
+        ("Short", "1"),
+        ("Int", "1"),
+        ("Long", "1L"),
+        ("UByte", "1u"),
+        ("UShort", "1u"),
+        ("UInt", "1u"),
+        ("ULong", "1uL"),
+        ("Char", "'文'"),
+    ] {
+        let (_, owned) = checked(&format!(
+            "const val VALUE: {ty} = {literal}\nfun take(own input: {ty}): Unit {{}}\nfun use(): Unit {{\nval first = take(VALUE)\nval second = take((VALUE))\n}}"
+        ));
+        let plans = owned.constant_materializations().unwrap().plans();
+        assert_eq!(plans.len(), 2, "{ty}: group must not rematerialize");
+        assert!(
+            plans
+                .iter()
+                .all(|plan| plan.kind() == ConstantMaterializationKind::InlineCopy),
+            "{ty}"
+        );
+        assert!(owned.loans().is_empty(), "{ty}");
+        assert!(owned.drops().is_empty(), "{ty}");
+        assert!(owned.captures().is_empty(), "{ty}");
+    }
+}
+
+#[test]
+fn deferred_ownership_does_not_publish_constant_capability() {
+    let (_, _, owned) = analyzed(
+        r#"
+const val TEXT = "hi"
+class Holder(val text: String)
+fun use(): String = Holder(TEXT).text
+"#,
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(!owned.deferred().is_empty());
+    assert!(owned.constant_materializations().is_none());
+}
+
+#[test]
+fn aborting_binary_left_has_no_right_or_following_materialization_cleanup() {
+    let (_, owned) = checked(
+        r#"
+const val TEXT = "hi"
+fun stop(): Nothing = stop()
+fun view(text: String): Unit {}
+fun use(): Unit {
+    val stopped = stop() == TEXT
+    val unreachable = TEXT
+}
+"#,
+    );
+    assert!(
+        owned
+            .constant_materializations()
+            .unwrap()
+            .plans()
+            .is_empty()
+    );
+    assert!(owned.loans().is_empty());
+    assert!(owned.loan_ends().is_empty());
+    assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+}
+
+#[test]
+fn grouped_string_reads_keep_the_materialization_owner_identity() {
+    let (_, owned) = checked(
+        r#"
+const val TEXT = "hi"
+fun view(text: String): Unit {}
+fun take(own text: String, own number: Int): Unit {}
+fun use(flag: Boolean): Unit {
+    val first = view((TEXT))
+    val second = take((TEXT), if (flag) { return } else { 0 })
+}
+fun discard(): Unit { (TEXT) }
+"#,
+    );
+    let facts = owned.constant_materializations().unwrap();
+    assert_eq!(facts.plans().len(), 3);
+    assert_eq!(owned.loans().len(), 1);
+    for loan in owned.loans() {
+        if let LoanTarget::Temporary(owner) = loan.target() {
+            assert!(facts.plan_at(*owner).is_some(), "{loan:?}");
+        }
+    }
+    let temporaries = owned
+        .drops()
+        .iter()
+        .filter_map(|drop| match drop.target() {
+            DropTarget::Temporary(owner) => Some(owner),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(temporaries.len(), 3);
+    for owner in temporaries {
+        assert!(facts.plan_at(owner).is_some(), "{owner:?}");
+    }
+}
+
+#[test]
+fn aborting_string_operand_does_not_drop_unevaluated_constants() {
+    let (_, owned) = checked(
+        r#"
+const val TEXT = "hi"
+fun stop(): Nothing = stop()
+fun use(flag: Boolean): Unit {
+    val stopped = "${stop()}" + TEXT
+    val unreachable = TEXT
+}
+"#,
+    );
+    assert!(
+        owned
+            .constant_materializations()
+            .unwrap()
+            .plans()
+            .is_empty()
+    );
+    assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+}

@@ -1027,6 +1027,23 @@ impl<'a> Checker<'a> {
         self.chain_expression(flows, target, ExpressionUse::Read)
     }
 
+    /// Group forwards the checked constant value, without introducing a second temporary owner.
+    fn constant_temporary_origin(
+        &self,
+        mut expression: ExpressionId,
+    ) -> Option<(ExpressionId, Span)> {
+        loop {
+            let node = self.parsed.ast().expressions().get(expression).ok()?;
+            if self.is_constant_use(expression) {
+                return Some((expression, node.span()));
+            }
+            let Expression::Group { expression: inner } = node.payload() else {
+                return None;
+            };
+            expression = *inner;
+        }
+    }
+
     /// Typed constant reads produce values, never runtime declaration places or receivers.
     fn is_constant_use(&self, expression: ExpressionId) -> bool {
         self.typed

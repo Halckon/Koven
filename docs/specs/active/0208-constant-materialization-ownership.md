@@ -130,3 +130,32 @@ continue，drop planner 的显式 loop 仅在 checker 确认 break 出口时继�
 | `cargo check --workspace --all-targets` | passed，8m 05s | 新增公开 ownership 产物的跨 crate 编译兼容性 |
 | `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when -- -D warnings` | passed | 本轮实现和直接/共享测试目标 |
 | `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | passed；文档 351 | 未改变 Spec inventory |
+
+
+### 最终审计补修（尚未结项）
+
+补充全部十种 scalar/Char 的重复 Value 交付与 group 无重复物化、deferred marker 门禁。
+独立审计并用合法源码复现三个缺口：
+
+- `stop() == TEXT` 后的局部常量绑定仍产生不可达 Named drop；通用 Binary 现在传播左侧终止。
+- `view((TEXT))` 的 loan/drop owner 原绑定 Group，无法查询对应物化计划；现在仅对 constant
+  Group 归一到叶 use owner，保留原 call argument/drop point。覆盖 Borrow、Value 提前 return、discard。
+- `"${stop()}" + TEXT` 原产生四条虚假 drop；插值及专用 String operand 现在都传播终止。
+
+以上是 Phase 3 修复；没有新增公开 API，不重复上一切片已通过的 workspace 编译门禁。
+SPEC 仍保持 in-progress；未满足完整验收前不启用 0209。
+
+
+剩余验收缺口（独立静态审计，待失败测试和修复）：`TEXT + "${if (flag) { return } else { 0 }}"`
+中已求值的左 String temporary 只保存在 planner 的局部 pending drop，未进入 ValueState，右侧
+return 的 cleanup 看不到它；break/continue 需同矩阵核验。后续应将左 operand 的存活义务接入
+既有控制转移清理，并验证正常路径恰好一次 drop、Abort 不展开。普通 literal 也有此风险，不能
+仅以 literal parity 证明规范正确。
+
+
+| 本次补修门禁 | 结果 | 范围 |
+|---|---|---|
+| `cargo test -p lang-frontend --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when --no-fail-fast` | 12 + 29 + 13 + 26 = 80 passed；0 failed/ignored | 含新增 scalar/group/deferred、binary abort 与 String interpolation abort 回归 |
+| `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when -- -D warnings` | passed | 本轮内部实现和受影响测试 |
+| `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | passed；文档 351 | 未迁移 inventory |
+| 独立复审 | 已复现缺口修复无新增发现；保留上述 String 左 operand 跨右控制流清理缺口 | 未额外运行 Cargo；未认定完整 Spec 通过 |

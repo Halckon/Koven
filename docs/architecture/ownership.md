@@ -95,3 +95,8 @@ Nothing 传播无正常出口，callable 退出时清除未提交调用的保护
 依赖或不可达尾句。typed constants 缺失、所有权诊断或 deferred 均阻止能力发布，`matches`
 核对同一次 typed analysis identity。局部 initializer 保留终止流，无出口 loop 阻止后续 drop 规划。
 这些行为由 `ownership_constants` 覆盖，不代表 compilation-unit 或 Phase 4 支持。
+
+
+String 常量的 Group 只透传读取：Borrow loan 和 temporary drop 的 owner/value-origin 归一到
+物化 descriptor 的叶表达式，call argument 与 drop point 仍保留原语法身份。通用二元左 operand、
+String interpolation 及专用 String operand 的终止状态向外传播，阻止后续读取及正常 drop 规划。

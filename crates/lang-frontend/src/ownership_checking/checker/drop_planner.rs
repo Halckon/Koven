@@ -435,8 +435,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Group { expression } => self.expression(expression, usage, state),
             Expression::String { parts } => {
                 for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        self.expression(expression, ExpressionUse::Read, state)?;
+                    if let StringPart::Interpolation { expression, .. } = part
+                        && !self.expression(expression, ExpressionUse::Read, state)?
+                    {
+                        return Ok(false);
                     }
                 }
                 Ok(true)
@@ -640,7 +642,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.string_binary(left, right, id, state)
             }
             Expression::Binary { left, right, .. } => {
-                self.expression(left, ExpressionUse::Read, state)?;
+                if !self.expression(left, ExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 self.expression(right, ExpressionUse::Read, state)
             }
             Expression::Assignment {
@@ -857,8 +861,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         binary: ExpressionId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        let left_drop = self.string_view_operand(left, state)?;
-        let right_drop = self.string_view_operand(right, state)?;
+        let (continues, left_drop) = self.string_view_operand(left, state)?;
+        if !continues {
+            return Ok(false);
+        }
+        let (continues, right_drop) = self.string_view_operand(right, state)?;
+        if !continues {
+            return Ok(false);
+        }
         let point = DropPoint::AfterBinaryOperands(binary);
         for pending in [right_drop, left_drop].into_iter().flatten() {
             match pending {
@@ -877,28 +887,37 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         &mut self,
         expression: ExpressionId,
         state: &mut ValueState,
-    ) -> Result<Option<StringOperandDrop>, OwnershipCheckingError> {
+    ) -> Result<(bool, Option<StringOperandDrop>), OwnershipCheckingError> {
         let node = self.checker.parsed.ast().expressions().get(expression)?;
         if self.checker.is_constant_use(expression) {
-            return Ok(Some(StringOperandDrop::Temporary(expression, node.span())));
+            return Ok((
+                true,
+                Some(StringOperandDrop::Temporary(expression, node.span())),
+            ));
         }
         match node.payload() {
             Expression::Group { expression } => self.string_view_operand(*expression, state),
             Expression::Name => {
                 let Some(symbol) = self.checker.reference_symbol(node.span()) else {
-                    return Ok(None);
+                    return Ok((true, None));
                 };
-                Ok(
+                Ok((
+                    true,
                     (!self.liveness.expression_after[expression.index()].contains(&symbol))
                         .then_some(StringOperandDrop::Named(symbol)),
-                )
+                ))
             }
             _ => {
-                self.expression(expression, ExpressionUse::Read, state)?;
-                if !self.is_move_only_temporary(expression) {
-                    return Ok(None);
+                if !self.expression(expression, ExpressionUse::Read, state)? {
+                    return Ok((false, None));
                 }
-                Ok(Some(StringOperandDrop::Temporary(expression, node.span())))
+                if !self.is_move_only_temporary(expression) {
+                    return Ok((true, None));
+                }
+                Ok((
+                    true,
+                    Some(StringOperandDrop::Temporary(expression, node.span())),
+                ))
             }
         }
     }
@@ -1103,7 +1122,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn push_fact(&mut self, fact: DropFact) {
+    fn push_fact(&mut self, mut fact: DropFact) {
+        if let DropTarget::Temporary(expression) = fact.target()
+            && let Some((owner, origin)) = self.checker.constant_temporary_origin(expression)
+        {
+            fact = DropFact::new(fact.point(), DropTarget::Temporary(owner), origin);
+        }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
         }
