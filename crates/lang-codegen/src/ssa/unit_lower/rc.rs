@@ -35,7 +35,7 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Rc,
             arguments: result_arguments,
-        }) = self.typed.types().types().get(descriptor.result_type())
+        }) = self.typed.types().get(descriptor.result_type())
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
@@ -75,12 +75,10 @@ impl UnitExpressionLowerer<'_> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let descriptor = self
             .typed
-            .types()
             .rc_operation(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let mut effects = self
             .owned
-            .ownership()
             .rc_effects()
             .iter()
             .copied()
@@ -96,10 +94,7 @@ impl UnitExpressionLowerer<'_> {
             || effect.receiver() != descriptor.receiver()
             || effect.payload_type() != descriptor.payload_type()
             || effect.kind() != expected
-            || self
-                .typed
-                .types()
-                .expression_category(descriptor.receiver())
+            || self.typed.expression_category(descriptor.receiver())
                 != Some(ExpressionCategory::Place)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -124,9 +119,7 @@ impl UnitExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(require_value(results[0], span)?))
             }
             RcOperationKind::Value => {
-                if self.typed.types().copyability(descriptor.payload_type())
-                    != Copyability::Copyable
-                {
+                if self.typed.copyability(descriptor.payload_type()) != Copyability::Copyable {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 let payload = self.expression_ssa_type(expression, span)?;

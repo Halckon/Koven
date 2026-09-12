@@ -93,6 +93,10 @@ implementation 和 delegation route，不重新按名称或 shape 选择。
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
 concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。
 
+基础入口仍接受 validated typed/owned 并核对完整身份链；入口之后的私有 lowering driver 与
+内部 planner 只读取同一轮 `CompilationUnitTypes` / `CompilationUnitOwnership`，复用已有算法。
+此拆分未提供新的公开 capability 转换，也尚未接入常量专用 native 入口。
+
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
 
 ## LLVM 与 ABI 边界

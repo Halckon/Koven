@@ -172,7 +172,6 @@ impl UnitExpressionLowerer<'_> {
             let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
                 .typed
-                .types()
                 .expression_type(subject_id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let subject_type = resolve_concrete_type(
@@ -192,7 +191,7 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             if is_tagged {
-                if self.typed.types().copyability(subject_type) == Copyability::MoveOnly {
+                if self.typed.copyability(subject_type) == Copyability::MoveOnly {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 return self.lower_when_chain(
@@ -590,7 +589,6 @@ impl UnitExpressionLowerer<'_> {
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
             let case = self
                 .typed
-                .types()
                 .signatures()
                 .declarations()
                 .iter()
@@ -688,7 +686,6 @@ impl UnitExpressionLowerer<'_> {
         let ty = self
             .typed
             .types()
-            .types()
             .builtin(builtin)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         self.type_ids
@@ -704,7 +701,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<bool, LoweringError> {
         let expression_type = self
             .typed
-            .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let concrete_type = resolve_concrete_type(

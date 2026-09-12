@@ -6,8 +6,8 @@ use lang_frontend::{
     name_resolution::UnitSymbolId,
     source::Span,
     type_checking::{
-        BuiltinType, IntrinsicTypeConstructor, NominalKind, UnitTypeId, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
+        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitTypeId,
+        UnitTypeKind,
     },
 };
 
@@ -88,7 +88,7 @@ impl UnitTypeLowering {
     pub(super) fn intern(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
@@ -100,7 +100,7 @@ impl UnitTypeLowering {
     fn intern_inner(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
@@ -108,7 +108,6 @@ impl UnitTypeLowering {
             return Ok(id);
         }
         let kind = typed
-            .types()
             .types()
             .get(ty)
             .cloned()
@@ -169,7 +168,7 @@ impl UnitTypeLowering {
     fn define_pending_owners(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
     ) -> Result<(), LoweringError> {
         while let Some(ty) = self.pending_owners.keys().next().copied() {
             self.define_pending_owner(module, typed, ty)?;
@@ -180,7 +179,7 @@ impl UnitTypeLowering {
     fn define_pending_owner(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
     ) -> Result<(), LoweringError> {
         if let Some(span) = self.active_owner_definitions.get(&ty).copied() {
@@ -295,7 +294,7 @@ impl UnitTypeLowering {
     fn intern_container(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         constructor: IntrinsicTypeConstructor,
         arguments: &[UnitTypeId],
         span: Span,
@@ -318,14 +317,13 @@ impl UnitTypeLowering {
     fn intern_nominal(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         declaration: lang_frontend::name_resolution::DeclarationId,
         arguments: &[UnitTypeId],
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
         let nominal = typed
-            .types()
             .signatures()
             .declaration(declaration)
             .and_then(|signature| signature.nominal())
@@ -407,7 +405,7 @@ impl UnitTypeLowering {
     fn intern_enum(
         &mut self,
         module: &mut Module,
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         declaration: lang_frontend::name_resolution::DeclarationId,
         cases: &[lang_frontend::type_checking::UnitEnumCaseSignature],
@@ -465,11 +463,8 @@ impl UnitTypeLowering {
     }
 }
 
-pub(super) fn is_supported_storage_type(
-    typed: &ValidatedCompilationUnitTypes,
-    ty: UnitTypeId,
-) -> bool {
-    match typed.types().types().get(ty) {
+pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(builtin)) => matches!(
             builtin,
             BuiltinType::Boolean
@@ -504,7 +499,6 @@ pub(super) fn is_supported_storage_type(
             declaration,
             arguments,
         }) => typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -528,8 +522,8 @@ pub(super) fn is_supported_storage_type(
     }
 }
 
-fn is_supported_nullable_inner(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> bool {
-    match typed.types().types().get(ty) {
+fn is_supported_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::Box,
             arguments,
@@ -540,7 +534,6 @@ fn is_supported_nullable_inner(typed: &ValidatedCompilationUnitTypes, ty: UnitTy
             declaration,
             arguments,
         }) => typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())

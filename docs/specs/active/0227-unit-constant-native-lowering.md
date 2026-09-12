@@ -77,7 +77,10 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | 新增 `ssa::unit_constant_tests` | 未实现/未运行 | 专用身份门禁、11 类型物化、namespace 排除、短路计划消费、错误/缺事实拒绝；对照既有 `constant_lowering_tests` |
-| `ssa::unit_lower_string_tests` / `ssa::unit_lower_short_circuit_tests` / `ssa::unit_lower_borrow_tests` | 本 Spec 未运行 | 修改相关共享 lowering 时追加，旧入口能力边界保持 |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 177 passed，225 filtered，0 failed/ignored | driver 拆分后 planner、全部 unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 本次 2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
+| `cargo check -p lang-codegen --lib` | 本次通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
 | 新增 `native::unit_constant_tests` | 未实现/未运行 | 六类 namespace、11 类型、String live-pointer/drop 计数、Abort、argv、正逆 inputs 与重复输出；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | 专用公开入口 compile-fail、`cargo check --workspace --all-targets` | 未实现/未运行 | 新旧 capability 隔离及跨 crate API 编译门禁；新增入口时执行 |
 | 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
@@ -90,8 +93,15 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 
 现有 `native::emit_native_unit_object` 经 `unit_plan::validate_unit_inputs`、
 `unit_lower::lower_scalar_unit_with_entry` 再到 verified LLVM 与 sibling object 原子发布。
-planner/lowerer 的内部 helpers 当前直接接受基础 validated typed/owned；专用入口需要复用
-只读事实，并在边界分别校验完整身份链，不能新增专用到基础 capability 的公开转换。
+planner/lowerer 的内部 helpers 已改为消费只读 typed/owned facts；基础入口仍先校验完整身份链。
+私有 `lower_unit_from_facts` 与内部 `plan_unit_instances_from_facts` 复用既有算法；
+专用入口尚待接入，不能新增专用到基础 capability 的公开转换。
 短路、物化和 cleanup 只消费 SPEC-0226 产物；单文件
 `ssa/lower_frontend/constant.rs` 可复用精确常量到 SSA 的转换逻辑，不能重新求值 AST。
-当前仅完成定位和基线准备，未开放专用 native 入口。
+当前完成内部 driver 拆分，未开放专用 native 入口。
+
+
+内部 driver 切片：入口身份检查与实例上限不变，仅解包只读 facts 并机械移除一层 getter。
+直接调用内部 helper 的 9 处测试参数初次编译报 E0308，已同步为 `.types()` / `.ownership()`；
+这是夹具接口迁移，不是行为失败。独立复核通过机械归一对照，未发现算法漂移、错误顺序变化
+或身份绕过。第一步专用入口尚未接通，实施清单保持未勾选。

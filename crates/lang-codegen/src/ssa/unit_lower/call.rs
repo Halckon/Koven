@@ -54,10 +54,9 @@ impl UnitExpressionLowerer<'_> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let ty = self
             .typed
-            .types()
             .expression_type(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.typed.types().copyability(ty) != Copyability::Copyable {
+        if self.typed.copyability(ty) != Copyability::Copyable {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let ty = self.expression_ssa_type(expression, span)?;
@@ -85,7 +84,6 @@ impl UnitExpressionLowerer<'_> {
         let call = UnitExpressionId::new(self.source_unit, expression);
         let descriptor = self
             .typed
-            .types()
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
@@ -392,11 +390,8 @@ impl UnitExpressionLowerer<'_> {
                 }
                 ParameterMode::Borrow => {
                     let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
-                    let argument_type = self
-                        .typed
-                        .types()
-                        .expression_type(argument_id)
-                        .ok_or_else(|| {
+                    let argument_type =
+                        self.typed.expression_type(argument_id).ok_or_else(|| {
                             lowering_error(LoweringErrorKind::MissingFact, argument.span)
                         })?;
                     let argument_type = resolve_concrete_type(
@@ -498,7 +493,6 @@ impl UnitExpressionLowerer<'_> {
         let argument = UnitExpressionId::new(self.source_unit, argument);
         let mut deliveries = self
             .owned
-            .ownership()
             .value_deliveries()
             .iter()
             .filter(|delivery| delivery.call() == call && delivery.argument() == argument);
@@ -507,12 +501,11 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = self
             .typed
-            .types()
             .expression_type(argument)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let expected = match (
-            self.typed.types().expression_category(argument),
-            self.typed.types().copyability(ty),
+            self.typed.expression_category(argument),
+            self.typed.copyability(ty),
         ) {
             (Some(ExpressionCategory::Temporary), _) => UnitValueDeliveryKind::Temporary,
             (Some(ExpressionCategory::Place), Copyability::Copyable) => UnitValueDeliveryKind::Copy,
@@ -556,7 +549,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             UnitValueDeliveryKind::Temporary => {
-                if !transferred && self.typed.types().copyability(ty) == Copyability::MoveOnly {
+                if !transferred && self.typed.copyability(ty) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, span)?;
                 }
             }
@@ -578,7 +571,6 @@ impl UnitExpressionLowerer<'_> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
         let mut facts = self
             .owned
-            .ownership()
             .loans()
             .iter()
             .filter(|fact| fact.call() == call && fact.argument() == argument_id);

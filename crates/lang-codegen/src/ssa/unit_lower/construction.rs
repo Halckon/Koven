@@ -24,7 +24,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<UnitConstructionDescriptor, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         self.typed
-            .types()
             .construction(id)
             .filter(|descriptor| descriptor.expression() == id)
             .cloned()
@@ -40,7 +39,6 @@ impl UnitExpressionLowerer<'_> {
         let id = descriptor.expression();
         let mut plans = self
             .owned
-            .ownership()
             .construction_plans()
             .iter()
             .filter(|plan| plan.construction() == id);
@@ -50,7 +48,7 @@ impl UnitExpressionLowerer<'_> {
         if plans.next().is_some()
             || plan.target() != descriptor.target()
             || plan.terminating_operand().is_some()
-            || self.typed.types().expression_type(id) != Some(descriptor.result_type())
+            || self.typed.expression_type(id) != Some(descriptor.result_type())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -68,7 +66,7 @@ impl UnitExpressionLowerer<'_> {
         {
             let expected_delivery = match (
                 argument.category(),
-                self.typed.types().copyability(argument.parameter_type()),
+                self.typed.copyability(argument.parameter_type()),
             ) {
                 (ExpressionCategory::Temporary, _) => ConstructionDeliveryKind::DeliverTemporary,
                 (ExpressionCategory::Place, Copyability::Copyable) => {
@@ -88,8 +86,7 @@ impl UnitExpressionLowerer<'_> {
                 || delivery.parameter_symbol() != argument.parameter_symbol()
                 || delivery.evaluation_index() != evaluation_index
                 || delivery.kind() != expected_delivery
-                || self.typed.types().expression_category(argument.argument())
-                    != Some(argument.category())
+                || self.typed.expression_category(argument.argument()) != Some(argument.category())
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
@@ -160,7 +157,6 @@ impl UnitExpressionLowerer<'_> {
             UnitConstructionTarget::EnumCase(_) => ConstructionRootKind::Inline,
             UnitConstructionTarget::Nominal(declaration) => self
                 .typed
-                .types()
                 .signatures()
                 .declaration(declaration)
                 .and_then(|signature| signature.nominal())
@@ -171,10 +167,7 @@ impl UnitExpressionLowerer<'_> {
                 })
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
         };
-        match (
-            self.typed.types().copyability(descriptor.result_type()),
-            actual,
-        ) {
+        match (self.typed.copyability(descriptor.result_type()), actual) {
             (Copyability::Copyable, None) => Ok(()),
             (Copyability::MoveOnly, Some(root))
                 if root.construction() == descriptor.expression()

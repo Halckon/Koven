@@ -51,7 +51,6 @@ impl UnitExpressionLowerer<'_> {
             UnitConstructionTarget::Nominal(declaration) => {
                 let nominal = self
                     .typed
-                    .types()
                     .signatures()
                     .declaration(declaration)
                     .and_then(|signature| signature.nominal())
@@ -129,7 +128,6 @@ impl UnitExpressionLowerer<'_> {
             UnitConstructionTarget::Nominal(declaration) => {
                 let nominal = self
                     .typed
-                    .types()
                     .signatures()
                     .declaration(declaration)
                     .and_then(|signature| signature.nominal())
@@ -137,7 +135,7 @@ impl UnitExpressionLowerer<'_> {
                 let Some(UnitTypeKind::Nominal {
                     declaration: result_declaration,
                     arguments,
-                }) = self.typed.types().types().get(descriptor.result_type())
+                }) = self.typed.types().get(descriptor.result_type())
                 else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
@@ -182,7 +180,7 @@ impl UnitExpressionLowerer<'_> {
                 let Some(UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::Box,
                     arguments,
-                }) = self.typed.types().types().get(descriptor.result_type())
+                }) = self.typed.types().get(descriptor.result_type())
                 else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
@@ -208,12 +206,11 @@ impl UnitExpressionLowerer<'_> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let projection = self
             .typed
-            .types()
             .aggregate_projection(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if projection.kind() != UnitAggregateProjectionKind::Field
-            || self.typed.types().copyability(projection.ty()) != Copyability::Copyable
-            || self.typed.types().expression_type(id) != Some(projection.ty())
+            || self.typed.copyability(projection.ty()) != Copyability::Copyable
+            || self.typed.expression_type(id) != Some(projection.ty())
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -246,12 +243,10 @@ impl UnitExpressionLowerer<'_> {
                 }
                 let receiver_type = self
                     .typed
-                    .types()
                     .expression_type(receiver)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if self.typed.types().expression_category(receiver)
-                    == Some(ExpressionCategory::Temporary)
-                    && self.typed.types().copyability(receiver_type) == Copyability::MoveOnly
+                if self.typed.expression_category(receiver) == Some(ExpressionCategory::Temporary)
+                    && self.typed.copyability(receiver_type) == Copyability::MoveOnly
                 {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
@@ -266,7 +261,7 @@ impl UnitExpressionLowerer<'_> {
             }
         };
         if matches!(
-            self.typed.types().types().get(receiver_type),
+            self.typed.types().get(receiver_type),
             Some(UnitTypeKind::EnumCase { .. })
         ) {
             let Some(receiver) = explicit_receiver else {
@@ -283,13 +278,12 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
-        }) = self.typed.types().types().get(receiver_type)
+        }) = self.typed.types().get(receiver_type)
         else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         let nominal = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -394,7 +388,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<CurrentReceiverField>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
-        let Some(projection) = self.typed.types().aggregate_projection(id) else {
+        let Some(projection) = self.typed.aggregate_projection(id) else {
             return Ok(None);
         };
         if projection.kind() != UnitAggregateProjectionKind::Field {
@@ -413,7 +407,6 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 let receiver_type = self
                     .typed
-                    .types()
                     .expression_type(receiver)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 if resolve_concrete_type(
@@ -436,13 +429,12 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
-        }) = self.typed.types().types().get(current.ty)
+        }) = self.typed.types().get(current.ty)
         else {
             return Ok(None);
         };
         let nominal = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())

@@ -6,7 +6,7 @@ use lang_frontend::{
         WhenCondition,
     },
     source::Span,
-    type_checking::{BuiltinType, UnitExpressionId, UnitTypeId, ValidatedCompilationUnitTypes},
+    type_checking::{BuiltinType, CompilationUnitTypes, UnitExpressionId, UnitTypeId},
 };
 
 use super::{
@@ -21,10 +21,10 @@ pub(super) fn intern_body_scalar_types(
     module: &mut Module,
     parsed: &ParsedFile,
     instance: &UnitPlannedInstance,
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
-    for (&expression, &ty) in typed.types().expression_types() {
+    for (&expression, &ty) in typed.expression_types() {
         if expression.source_unit() != instance.source_unit() {
             continue;
         }
@@ -48,7 +48,6 @@ pub(super) fn intern_body_scalar_types(
             for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
                 let ty = typed
                     .types()
-                    .types()
                     .builtin(builtin)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 types.intern(module, typed, ty, span)?;
@@ -59,7 +58,6 @@ pub(super) fn intern_body_scalar_types(
             .is_some_and(is_integer_builtin)
         {
             let boolean = typed
-                .types()
                 .types()
                 .builtin(BuiltinType::Boolean)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -112,7 +110,7 @@ const fn is_integer_builtin(builtin: BuiltinType) -> bool {
 fn checked_operand_type(
     parsed: &ParsedFile,
     instance: &UnitPlannedInstance,
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     expression: UnitExpressionId,
     expression_type: UnitTypeId,
 ) -> Result<Option<UnitTypeId>, LoweringError> {
@@ -157,7 +155,6 @@ fn checked_operand_type(
             target, operator, ..
         } if *operator != AssignmentOperator::Assign => {
             let target = typed
-                .types()
                 .expression_type(UnitExpressionId::new(expression.source_unit(), *target))
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
             Some(resolve_concrete_type(
@@ -236,7 +233,7 @@ mod tests {
             .module_mut(module_id)
             .expect("new test module exists");
         let mut types = UnitTypeLowering::new();
-        intern_body_scalar_types(module, &provider, keep, &typed, &mut types)
+        intern_body_scalar_types(module, &provider, keep, typed.types(), &mut types)
             .expect("direct T body fact resolves through the String substitution");
 
         assert_eq!(module.types, vec![SsaTypeKind::StringOwner]);

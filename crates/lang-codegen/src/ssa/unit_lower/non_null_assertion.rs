@@ -24,12 +24,10 @@ impl UnitExpressionLowerer<'_> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let descriptor = self
             .typed
-            .types()
             .non_null_assertion(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let plan = self
             .owned
-            .ownership()
             .non_null_assertion(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if plan.descriptor() != &descriptor

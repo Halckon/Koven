@@ -26,19 +26,16 @@ impl UnitExpressionLowerer<'_> {
         concrete: UnitTypeId,
         origin: Span,
     ) -> Result<Span, LoweringError> {
-        let Some(UnitTypeKind::StaticSelf(interface)) =
-            self.typed.types().types().get(receiver_type)
+        let Some(UnitTypeKind::StaticSelf(interface)) = self.typed.types().get(receiver_type)
         else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, origin));
         };
-        let Some(UnitTypeKind::Nominal { declaration, .. }) =
-            self.typed.types().types().get(*interface)
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = self.typed.types().get(*interface)
         else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, origin));
         };
         let interface_kind = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -57,7 +54,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, origin));
         }
         self.owned
-            .ownership()
             .conditional_receiver_drops()
             .iter()
             .find(|fact| {
@@ -78,10 +74,9 @@ impl UnitExpressionLowerer<'_> {
         let expression = UnitExpressionId::new(self.source_unit, expression);
         let ty = self
             .typed
-            .types()
             .expression_type(expression)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.typed.types().copyability(ty) != Copyability::MoveOnly {
+        if self.typed.copyability(ty) != Copyability::MoveOnly {
             return Ok(());
         }
         // 零 payload enum case 保留 member-access 的 Place 类别，但 construction fact 仍表示
@@ -89,7 +84,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(origin) = self.construction_origin(expression.expression(), span)? {
             return self.take_owned_temporary_origin(origin, value, span);
         }
-        match self.typed.types().expression_category(expression) {
+        match self.typed.expression_category(expression) {
             Some(ExpressionCategory::Temporary) => self.take_owned_temporary(value, span),
             Some(ExpressionCategory::Place) => {
                 if self.is_this_expression(expression.expression(), span)? {
@@ -186,7 +181,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<UnitExpressionId>, LoweringError> {
         let origin = UnitExpressionId::new(self.source_unit, expression);
-        if self.typed.types().construction(origin).is_some() {
+        if self.typed.construction(origin).is_some() {
             return Ok(Some(origin));
         }
         let node = self
@@ -204,7 +199,6 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
         let conditional = self
             .owned
-            .ownership()
             .conditional_receiver_drops()
             .iter()
             .copied()
@@ -218,7 +212,6 @@ impl UnitExpressionLowerer<'_> {
         }
         let facts = self
             .owned
-            .ownership()
             .drops()
             .iter()
             .copied()
@@ -322,15 +315,14 @@ impl UnitExpressionLowerer<'_> {
         fact: lang_frontend::ownership_checking::UnitConditionalReceiverDropFact,
     ) -> Result<Option<ValueId>, LoweringError> {
         let Some(UnitTypeKind::StaticSelf(interface)) =
-            self.typed.types().types().get(fact.receiver_type())
+            self.typed.types().get(fact.receiver_type())
         else {
             return Err(lowering_error(
                 LoweringErrorKind::InvalidModel,
                 fact.value_origin(),
             ));
         };
-        let Some(UnitTypeKind::Nominal { declaration, .. }) =
-            self.typed.types().types().get(*interface)
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = self.typed.types().get(*interface)
         else {
             return Err(lowering_error(
                 LoweringErrorKind::InvalidModel,
@@ -339,7 +331,6 @@ impl UnitExpressionLowerer<'_> {
         };
         let interface_kind = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -374,7 +365,7 @@ impl UnitExpressionLowerer<'_> {
             let consumed = self.consumed_receiver.ok_or_else(|| {
                 lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
             })?;
-            if self.typed.types().copyability(concrete) != Copyability::MoveOnly
+            if self.typed.copyability(concrete) != Copyability::MoveOnly
                 || !valid_identity(
                     consumed.owner,
                     consumed.mode,
@@ -408,7 +399,7 @@ impl UnitExpressionLowerer<'_> {
                 fact.value_origin(),
             ));
         };
-        match self.typed.types().copyability(concrete) {
+        match self.typed.copyability(concrete) {
             Copyability::Copyable => Ok(None),
             Copyability::MoveOnly => Ok(Some(owner)),
             Copyability::Unknown | Copyability::Error => Err(lowering_error(
@@ -427,7 +418,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let facts = self
             .owned
-            .ownership()
             .drops()
             .iter()
             .copied()

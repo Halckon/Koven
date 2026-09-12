@@ -40,7 +40,7 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
     ) -> Result<Option<UnitElementPlaceDescriptor>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
-        if let Some(descriptor) = self.typed.types().element_place(id) {
+        if let Some(descriptor) = self.typed.element_place(id) {
             return Ok(Some(descriptor));
         }
         let node = self
@@ -73,7 +73,7 @@ impl UnitExpressionLowerer<'_> {
             self.static_self,
             span,
         )?;
-        if self.typed.types().copyability(element) != Copyability::Copyable
+        if self.typed.copyability(element) != Copyability::Copyable
             || builtin_type(self.typed, element) == Some(BuiltinType::Unit)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -345,7 +345,7 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
     ) -> Result<Option<UnitExpressionId>, LoweringError> {
         let unit = UnitExpressionId::new(self.source_unit, expression);
-        if self.typed.types().expression_category(unit) == Some(ExpressionCategory::Temporary) {
+        if self.typed.expression_category(unit) == Some(ExpressionCategory::Temporary) {
             return Ok(Some(unit));
         }
         let node = self
@@ -395,13 +395,12 @@ impl UnitExpressionLowerer<'_> {
         let expression = UnitExpressionId::new(self.source_unit, expression);
         let facts = self
             .owned
-            .ownership()
             .drops()
             .iter()
             .copied()
             .filter(|fact| fact.point() == UnitDropPoint::AfterReplacement(expression))
             .collect::<Vec<_>>();
-        let expected = self.typed.types().copyability(element) == Copyability::MoveOnly;
+        let expected = self.typed.copyability(element) == Copyability::MoveOnly;
         if (expected
             && matches!(facts.as_slice(), [fact] if fact.target() == UnitDropTarget::ReplacedElement(expression)))
             || (!expected && facts.is_empty())
@@ -419,7 +418,6 @@ impl UnitExpressionLowerer<'_> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let descriptor = self
             .typed
-            .types()
             .container_construction(id)
             .filter(|descriptor| descriptor.expression() == id)
             .cloned()
@@ -489,16 +487,12 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Intrinsic {
             constructor: actual,
             arguments: type_arguments,
-        }) = self.typed.types().types().get(descriptor.container_type())
+        }) = self.typed.types().get(descriptor.container_type())
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        if self.typed.types().expression_type(descriptor.expression())
-            != Some(descriptor.container_type())
-            || self
-                .typed
-                .types()
-                .expression_category(descriptor.expression())
+        if self.typed.expression_type(descriptor.expression()) != Some(descriptor.container_type())
+            || self.typed.expression_category(descriptor.expression())
                 != Some(ExpressionCategory::Temporary)
             || *actual != constructor
             || type_arguments.as_slice() != [descriptor.element_type()]
@@ -558,7 +552,6 @@ impl UnitExpressionLowerer<'_> {
         let argument = UnitExpressionId::new(self.source_unit, argument);
         let mut deliveries = self
             .owned
-            .ownership()
             .value_deliveries()
             .iter()
             .filter(|delivery| delivery.call() == call && delivery.argument() == argument);
@@ -567,12 +560,11 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = self
             .typed
-            .types()
             .expression_type(argument)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let expected = match (
-            self.typed.types().expression_category(argument),
-            self.typed.types().copyability(ty),
+            self.typed.expression_category(argument),
+            self.typed.copyability(ty),
         ) {
             (Some(ExpressionCategory::Temporary), _) => UnitValueDeliveryKind::Temporary,
             (Some(ExpressionCategory::Place), Copyability::Copyable) => UnitValueDeliveryKind::Copy,
@@ -595,7 +587,7 @@ impl UnitExpressionLowerer<'_> {
                 if delivery.source() != &UnitValueDeliverySource::Temporary(argument) {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
-                if self.typed.types().copyability(ty) == Copyability::MoveOnly {
+                if self.typed.copyability(ty) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, span)?;
                 }
                 Ok(())

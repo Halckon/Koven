@@ -275,7 +275,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<BuiltinType>, LoweringError> {
         let ty = self
             .typed
-            .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let concrete =

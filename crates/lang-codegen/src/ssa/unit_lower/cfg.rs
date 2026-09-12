@@ -77,12 +77,11 @@ impl UnitExpressionLowerer<'_> {
         for (symbol, binding) in bindings {
             let ty = self
                 .typed
-                .types()
                 .symbol_type(*symbol)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let ty =
                 resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
-            if self.typed.types().copyability(ty) == Copyability::MoveOnly {
+            if self.typed.copyability(ty) == Copyability::MoveOnly {
                 move_only.insert(*symbol, *binding);
             }
         }
@@ -675,7 +674,7 @@ impl UnitExpressionLowerer<'_> {
             return Ok(());
         };
         if consumed.mode != lang_frontend::type_checking::ParameterMode::Value
-            || self.typed.types().copyability(consumed.ty) != Copyability::MoveOnly
+            || self.typed.copyability(consumed.ty) != Copyability::MoveOnly
             || exits.iter().any(|exit| {
                 (exit.receiver.is_some() && exit.consumed_receiver.is_some())
                     || exit
@@ -766,12 +765,11 @@ impl UnitExpressionLowerer<'_> {
         for symbol in locals {
             let ty = self
                 .typed
-                .types()
                 .body_symbol_types()
                 .get(&symbol)
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if self.typed.types().copyability(ty) != Copyability::Copyable {
+            if self.typed.copyability(ty) != Copyability::Copyable {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             self.bindings.remove(&symbol);

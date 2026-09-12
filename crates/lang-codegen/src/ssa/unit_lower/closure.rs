@@ -63,8 +63,8 @@ pub(super) fn declare(
     parsed_by_source: &[&lang_frontend::parser::ParsedFile],
     plans: &[FunctionPlan],
     names: &ValidatedCompilationUnitNames,
-    typed: &lang_frontend::type_checking::ValidatedCompilationUnitTypes,
-    owned: &lang_frontend::ownership_checking::ValidatedCompilationUnitOwnership,
+    typed: &lang_frontend::type_checking::CompilationUnitTypes,
+    owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
     types: &mut UnitTypeLowering,
 ) -> Result<BTreeMap<CallablePlanKey, CallablePlan>, LoweringError> {
     let mut closures = BTreeMap::new();
@@ -114,11 +114,9 @@ pub(super) fn declare(
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             };
             let descriptor = owned
-                .ownership()
                 .closure(id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let ty = typed
-                .types()
                 .expression_type(id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let UnitTypeKind::Function {
@@ -126,7 +124,6 @@ pub(super) fn declare(
                 parameters: callable_parameters,
                 return_type,
             } = typed
-                .types()
                 .types()
                 .get(ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
@@ -164,8 +161,7 @@ pub(super) fn declare(
                 let supported_value = parameter.mode() == ParameterMode::Value
                     && super::type_lower::is_supported_storage_type(typed, concrete);
                 if parameter.mode() == ParameterMode::Inout
-                    || (!supported_value
-                        && typed.types().copyability(concrete) != Copyability::Copyable)
+                    || (!supported_value && typed.copyability(concrete) != Copyability::Copyable)
                     || (parameter.mode() == ParameterMode::Borrow
                         && builtin_type(typed, concrete) == Some(BuiltinType::Unit))
                 {
@@ -174,9 +170,8 @@ pub(super) fn declare(
                         *parameter_span,
                     ));
                 }
-                if supported_value && typed.types().copyability(concrete) == Copyability::MoveOnly {
+                if supported_value && typed.copyability(concrete) == Copyability::MoveOnly {
                     let symbol = owned
-                        .ownership()
                         .bindings()
                         .iter()
                         .find(|binding| binding.declaration_span() == *parameter_span)
@@ -199,7 +194,7 @@ pub(super) fn declare(
             let result_expression = (builtin_type(typed, return_type) != Some(BuiltinType::Unit))
                 .then(|| lambda_tail_expression(parsed, *body, span))
                 .transpose()?;
-            if typed.types().copyability(return_type) == Copyability::MoveOnly {
+            if typed.copyability(return_type) == Copyability::MoveOnly {
                 let tail = result_expression
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 let tail_node = parsed
@@ -210,7 +205,6 @@ pub(super) fn declare(
                 if !matches!(tail_node.payload(), Expression::Return { .. }) {
                     let tail_id = UnitExpressionId::new(function.instance.source_unit(), tail);
                     let tail_type = typed
-                        .types()
                         .expression_type(tail_id)
                         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                     let tail_type = resolve_concrete_type(
@@ -220,7 +214,7 @@ pub(super) fn declare(
                         function.instance.key().static_self(),
                         span,
                     )?;
-                    let category = typed.types().expression_category(tail_id);
+                    let category = typed.expression_category(tail_id);
                     let parameter_place = category
                         == Some(lang_frontend::type_checking::ExpressionCategory::Place)
                         && direct_reference_symbol(parsed, tail, &references)
@@ -245,7 +239,7 @@ pub(super) fn declare(
             let mut captures = Vec::new();
             let mut environment_fields = Vec::new();
             let mut capture_types = Vec::new();
-            let capture_facts = owned.ownership().captures_of(id).collect::<Vec<_>>();
+            let capture_facts = owned.captures_of(id).collect::<Vec<_>>();
             if !capture_facts.is_empty() && (!descriptor.move_owned() || !*move_only) {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
@@ -719,7 +713,6 @@ pub(super) fn finish_thunk(
     for symbol in lowerer.bindings.keys() {
         let ty = lowerer
             .typed
-            .types()
             .body_symbol_types()
             .get(symbol)
             .copied()
@@ -731,7 +724,7 @@ pub(super) fn finish_thunk(
             plan.static_self,
             plan.span,
         )?;
-        if lowerer.typed.types().copyability(ty) == Copyability::MoveOnly {
+        if lowerer.typed.copyability(ty) == Copyability::MoveOnly {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,
                 plan.span,

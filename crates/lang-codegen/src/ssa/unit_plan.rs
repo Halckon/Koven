@@ -11,20 +11,20 @@ use lang_frontend::{
         DeclarationId, SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,
         index_compilation_unit,
     },
-    ownership_checking::ValidatedCompilationUnitOwnership,
+    ownership_checking::{CompilationUnitOwnership, ValidatedCompilationUnitOwnership},
     parser::{Item, NameMarker, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        IntrinsicTypeConstructor, NominalKind, TypeEnvironment, UnitCallTarget,
-        UnitCallableSignature, UnitCallableTarget, UnitNominalSignature, UnitTypeId, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
+        CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, TypeEnvironment,
+        UnitCallTarget, UnitCallableSignature, UnitCallableTarget, UnitNominalSignature,
+        UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
 use super::{LoweringError, LoweringErrorKind};
 
 /// 防止 unit-wide 泛型实例图被合法但病态的源码无界扩张。
-const MAX_UNIT_GENERIC_INSTANCES: usize = 1024;
+pub(super) const MAX_UNIT_GENERIC_INSTANCES: usize = 1024;
 
 /// 一个 unit-wide 具体函数实例的规范 identity。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -250,6 +250,25 @@ pub(super) fn plan_unit_instances_with_limit(
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
+    plan_unit_instances_from_facts(
+        inputs,
+        names,
+        typed.types(),
+        owned.ownership(),
+        entry,
+        max_generic_instances,
+    )
+}
+
+/// 仅供已通过入口身份校验的 lowering driver 复用；不发布新的 frontend capability。
+pub(super) fn plan_unit_instances_from_facts(
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    entry: DeclarationId,
+    max_generic_instances: usize,
+) -> Result<UnitInstancePlan, LoweringError> {
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let templates = collect_templates(names, typed, &parsed_by_source)?;
     let template_by_target = templates
@@ -342,7 +361,7 @@ pub(super) fn plan_unit_instances_with_limit(
             recipe_root_facts_for_instance(typed, &template.type_parameters, key.type_arguments())?;
 
         for (call_index, span) in &calls_by_template[template_index] {
-            let call = &typed.types().calls()[*call_index];
+            let call = &typed.calls()[*call_index];
             let target = match call.target() {
                 UnitCallTarget::Declaration(declaration) => {
                     UnitCallableTarget::Declaration(declaration)
@@ -447,14 +466,14 @@ pub(super) fn plan_unit_instances_with_limit(
 }
 
 fn dependent_inherited_owner_types(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
     type_arguments: &[UnitTypeId],
     receiver: Option<UnitTypeId>,
     span: Span,
 ) -> Result<BTreeSet<UnitTypeId>, LoweringError> {
     let Some(receiver_declaration) = receiver.and_then(|receiver| {
-        let UnitTypeKind::Nominal { declaration, .. } = typed.types().types().get(receiver)? else {
+        let UnitTypeKind::Nominal { declaration, .. } = typed.types().get(receiver)? else {
             return None;
         };
         Some(*declaration)
@@ -471,14 +490,10 @@ fn dependent_inherited_owner_types(
         .iter()
         .take(owner_arity)
         .filter_map(|&ty| {
-            let UnitTypeKind::Nominal { declaration, .. } = typed.types().types().get(ty)? else {
+            let UnitTypeKind::Nominal { declaration, .. } = typed.types().get(ty)? else {
                 return None;
             };
-            let nominal = typed
-                .types()
-                .signatures()
-                .declaration(*declaration)?
-                .nominal()?;
+            let nominal = typed.signatures().declaration(*declaration)?.nominal()?;
             Some((nominal.symbol(), *declaration, ty))
         })
         .collect::<Vec<_>>();
@@ -489,14 +504,12 @@ fn dependent_inherited_owner_types(
     let mut dependent = BTreeSet::new();
     for (_, declaration, ty) in roots {
         let nominal = typed
-            .types()
             .signatures()
             .declaration(declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if nominal.fields().iter().any(|field| {
             typed
-                .types()
                 .types()
                 .get(field.ty())
                 .is_some_and(|kind| contains_type_parameter(typed, kind))
@@ -565,10 +578,10 @@ fn parsed_by_source_unit<'a>(
 
 fn collect_templates(
     names: &ValidatedCompilationUnitNames,
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     parsed_by_source: &[&ParsedFile],
 ) -> Result<Vec<UnitFunctionTemplate>, LoweringError> {
-    let signatures = typed.types().signatures();
+    let signatures = typed.signatures();
     let mut templates = Vec::new();
     for declaration in names.names().index().declarations() {
         let signature = signatures.declaration(declaration.id()).ok_or_else(|| {
@@ -664,12 +677,12 @@ fn callable_item(
 }
 
 fn index_calls(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     parsed_by_source: &[&ParsedFile],
     templates: &[UnitFunctionTemplate],
 ) -> Result<Vec<Vec<(usize, Span)>>, LoweringError> {
     let mut calls = vec![Vec::new(); templates.len()];
-    for (call_index, call) in typed.types().calls().iter().enumerate() {
+    for (call_index, call) in typed.calls().iter().enumerate() {
         let expression = call.expression();
         let span = parsed_by_source
             .get(expression.source_unit().index())
@@ -719,8 +732,8 @@ fn pending_recipe_frontier(
 }
 
 fn preflight_unit_call_recipes(
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     call_index: usize,
     span: Span,
     context: (
@@ -731,7 +744,7 @@ fn preflight_unit_call_recipes(
     failures: &mut Vec<UnitRecipeFailure>,
 ) -> Result<Option<ResolvedUnitCallInstance>, LoweringError> {
     let (static_self, substitutions, facts) = context;
-    let call = &typed.types().calls()[call_index];
+    let call = &typed.calls()[call_index];
     let target = match call.target() {
         UnitCallTarget::Declaration(declaration) => UnitCallableTarget::Declaration(declaration),
         UnitCallTarget::Symbol(symbol) => UnitCallableTarget::Symbol(symbol),
@@ -757,7 +770,6 @@ fn preflight_unit_call_recipes(
         let failures_before = failures.len();
         let has_unresolved_type = type_arguments.iter().copied().chain(receiver).any(|ty| {
             typed
-                .types()
                 .types()
                 .get(ty)
                 .is_none_or(|kind| contains_type_parameter(typed, kind))
@@ -843,7 +855,7 @@ fn preflight_unit_call_recipes(
 
 /// 只消费 frontend 已选定的 delegation endpoint；local override 不需要 inherited owner recipe。
 fn preflight_delegation_endpoint_owner_recipes(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
     receiver: Option<UnitTypeId>,
     facts: &UnitRecipeRootFacts,
@@ -853,12 +865,11 @@ fn preflight_delegation_endpoint_owner_recipes(
     let Some(UnitTypeKind::Nominal {
         declaration: receiver_declaration,
         arguments: receiver_arguments,
-    }) = receiver.and_then(|receiver| typed.types().types().get(receiver))
+    }) = receiver.and_then(|receiver| typed.types().get(receiver))
     else {
         return Ok(false);
     };
     let receiver_nominal = typed
-        .types()
         .signatures()
         .declaration(*receiver_declaration)
         .and_then(|signature| signature.nominal())
@@ -879,7 +890,6 @@ fn preflight_delegation_endpoint_owner_recipes(
             return Ok(found_route);
         }
         let routes = typed
-            .types()
             .signatures()
             .delegations()
             .iter()
@@ -896,7 +906,6 @@ fn preflight_delegation_endpoint_owner_recipes(
         };
         found_route = true;
         let Some((delegate_declaration, delegate_arguments)) = typed
-            .types()
             .signatures()
             .declaration(current_owner)
             .and_then(|signature| signature.nominal())
@@ -906,7 +915,7 @@ fn preflight_delegation_endpoint_owner_recipes(
                     .iter()
                     .find(|field| field.symbol() == route.target())
             })
-            .and_then(|field| match typed.types().types().get(field.ty()) {
+            .and_then(|field| match typed.types().get(field.ty()) {
                 Some(UnitTypeKind::Nominal {
                     declaration,
                     arguments,
@@ -917,7 +926,6 @@ fn preflight_delegation_endpoint_owner_recipes(
             return Ok(true);
         };
         let delegate_nominal = typed
-            .types()
             .signatures()
             .declaration(delegate_declaration)
             .and_then(|signature| signature.nominal())
@@ -955,8 +963,8 @@ fn preflight_delegation_endpoint_owner_recipes(
 }
 
 fn collect_frontier_unit_recipe_failures(
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     templates: &[UnitFunctionTemplate],
     template_by_target: &BTreeMap<UnitCallableTarget, usize>,
     calls_by_template: &[Vec<(usize, Span)>],
@@ -1005,8 +1013,8 @@ fn collect_frontier_unit_recipe_failures(
 }
 
 fn collect_reachable_unit_recipe_failures(
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     templates: &[UnitFunctionTemplate],
     template_by_target: &BTreeMap<UnitCallableTarget, usize>,
     calls_by_template: &[Vec<(usize, Span)>],
@@ -1085,7 +1093,7 @@ fn stable_recipe_failure(failures: &mut [UnitRecipeFailure]) -> LoweringError {
 }
 
 fn recipe_root_facts_for_instance(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     parameters: &[UnitSymbolId],
     arguments: &[UnitTypeId],
 ) -> Result<UnitRecipeRootFacts, LoweringError> {
@@ -1094,7 +1102,7 @@ fn recipe_root_facts_for_instance(
 }
 
 fn extend_recipe_root_facts(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     parameters: &[UnitSymbolId],
     arguments: &[UnitTypeId],
     facts: &UnitRecipeRootFacts,
@@ -1123,19 +1131,19 @@ fn extend_recipe_root_facts(
 
 /// 只查找 frontend 已发布的 canonical specialization，不创建新的 concrete type。
 fn specialize_preflight_type(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     static_self: Option<UnitTypeId>,
     substitutions: Option<&BTreeMap<UnitSymbolId, UnitTypeId>>,
 ) -> Option<UnitTypeId> {
-    match typed.types().types().get(ty)? {
+    match typed.types().get(ty)? {
         UnitTypeKind::TypeParameter(parameter) => substitutions
             .and_then(|substitutions| substitutions.get(parameter).copied())
             .or(Some(ty)),
         UnitTypeKind::StaticSelf(_) => static_self,
         UnitTypeKind::Nullable(inner) => {
             let inner = specialize_preflight_type(typed, *inner, static_self, substitutions)?;
-            typed.types().types().find(&UnitTypeKind::Nullable(inner))
+            typed.types().find(&UnitTypeKind::Nullable(inner))
         }
         UnitTypeKind::Nominal {
             declaration,
@@ -1147,7 +1155,7 @@ fn specialize_preflight_type(
                     specialize_preflight_type(typed, argument, static_self, substitutions)
                 })
                 .collect::<Option<Vec<_>>>()?;
-            typed.types().types().find(&UnitTypeKind::Nominal {
+            typed.types().find(&UnitTypeKind::Nominal {
                 declaration: *declaration,
                 arguments,
             })
@@ -1162,7 +1170,7 @@ fn specialize_preflight_type(
                     specialize_preflight_type(typed, argument, static_self, substitutions)
                 })
                 .collect::<Option<Vec<_>>>()?;
-            typed.types().types().find(&UnitTypeKind::Intrinsic {
+            typed.types().find(&UnitTypeKind::Intrinsic {
                 constructor: *constructor,
                 arguments,
             })
@@ -1172,13 +1180,13 @@ fn specialize_preflight_type(
 }
 
 pub(crate) fn resolve_concrete_type(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     static_self: Option<UnitTypeId>,
     span: Span,
 ) -> Result<UnitTypeId, LoweringError> {
-    match typed.types().types().get(ty) {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::TypeParameter(parameter)) => substitutions
             .get(parameter)
             .copied()
@@ -1189,7 +1197,6 @@ pub(crate) fn resolve_concrete_type(
         Some(UnitTypeKind::Nullable(inner)) => {
             let inner = resolve_concrete_type(typed, *inner, substitutions, static_self, span)?;
             typed
-                .types()
                 .types()
                 .find(&UnitTypeKind::Nullable(inner))
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
@@ -1206,7 +1213,6 @@ pub(crate) fn resolve_concrete_type(
                 .collect::<Result<Vec<_>, _>>()?;
             typed
                 .types()
-                .types()
                 .find(&UnitTypeKind::Nominal {
                     declaration: *declaration,
                     arguments,
@@ -1222,13 +1228,13 @@ pub(crate) fn resolve_concrete_type(
 }
 
 fn resolve_direct_type_argument(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     static_self: Option<UnitTypeId>,
     span: Span,
 ) -> Result<UnitTypeId, LoweringError> {
-    match typed.types().types().get(ty) {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::TypeParameter(parameter)) => substitutions
             .get(parameter)
             .copied()
@@ -1245,7 +1251,7 @@ fn resolve_direct_type_argument(
 }
 
 pub(crate) fn callable_static_self_receiver(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Result<bool, LoweringError> {
     let callable = unit_callable_signature(typed, target).ok_or(LoweringError {
@@ -1256,15 +1262,15 @@ pub(crate) fn callable_static_self_receiver(
         return Ok(false);
     };
     Ok(matches!(
-        typed.types().types().get(receiver.ty()),
+        typed.types().get(receiver.ty()),
         Some(UnitTypeKind::StaticSelf(_))
     ))
 }
 
 /// 把 typed call target 与 concrete receiver 解析为 planner/lowerer 共用的实例 identity。
 pub(crate) fn resolve_unit_call_instance(
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
@@ -1284,8 +1290,8 @@ pub(crate) fn resolve_unit_call_instance(
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_unit_call_instance_with_recipe_failures(
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
@@ -1322,7 +1328,7 @@ fn resolve_unit_call_instance_with_recipe_failures(
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
-        }) = typed.types().types().get(current_receiver)
+        }) = typed.types().get(current_receiver)
         else {
             return if delegation.is_empty() {
                 direct!()
@@ -1331,13 +1337,11 @@ fn resolve_unit_call_instance_with_recipe_failures(
             };
         };
         let nominal = typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let routes = typed
-            .types()
             .signatures()
             .delegations()
             .iter()
@@ -1359,7 +1363,6 @@ fn resolve_unit_call_instance_with_recipe_failures(
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let ownership_routes = owned
-            .ownership()
             .delegations()
             .iter()
             .filter(|plan| {
@@ -1390,12 +1393,11 @@ fn resolve_unit_call_instance_with_recipe_failures(
         let Some(UnitTypeKind::Nominal {
             declaration: delegate,
             arguments: delegate_arguments,
-        }) = typed.types().types().get(delegate_receiver)
+        }) = typed.types().get(delegate_receiver)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let delegate_nominal = typed
-            .types()
             .signatures()
             .declaration(*delegate)
             .and_then(|signature| signature.nominal())
@@ -1510,14 +1512,13 @@ fn resolve_unit_call_instance_with_recipe_failures(
 }
 
 fn preflight_owner_template_recipes(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner_template: UnitTypeId,
     facts: &UnitRecipeRootFacts,
     failures: &mut Vec<UnitRecipeFailure>,
     span: Span,
 ) -> Result<(), LoweringError> {
-    let Some(UnitTypeKind::Nominal { arguments, .. }) = typed.types().types().get(owner_template)
-    else {
+    let Some(UnitTypeKind::Nominal { arguments, .. }) = typed.types().get(owner_template) else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
     preflight_inherited_owner_recipes_with_facts(typed, arguments, facts, failures)
@@ -1525,7 +1526,7 @@ fn preflight_owner_template_recipes(
 
 #[allow(clippy::too_many_arguments)]
 fn remap_delegation_next_hop_arguments(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     current_target: UnitCallableTarget,
     next_target: UnitCallableTarget,
     current_owner_template: UnitTypeId,
@@ -1575,7 +1576,7 @@ fn remap_delegation_next_hop_arguments(
 }
 
 fn resolve_direct_unit_call_instance(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
@@ -1613,12 +1614,11 @@ fn resolve_direct_unit_call_instance(
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments: owner_arguments,
-    }) = typed.types().types().get(receiver)
+    }) = typed.types().get(receiver)
     else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
     let nominal = typed
-        .types()
         .signatures()
         .declaration(*declaration)
         .and_then(|signature| signature.nominal())
@@ -1692,7 +1692,7 @@ fn resolve_direct_unit_call_instance(
 }
 
 fn preflight_direct_inherited_owner_recipes(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
     type_arguments: &[UnitTypeId],
     receiver: Option<UnitTypeId>,
@@ -1709,7 +1709,7 @@ fn preflight_direct_inherited_owner_recipes(
 }
 
 fn preflight_direct_inherited_owner_recipes_with_facts(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
     type_arguments: &[UnitTypeId],
     receiver: Option<UnitTypeId>,
@@ -1719,7 +1719,7 @@ fn preflight_direct_inherited_owner_recipes_with_facts(
     let Some(UnitTypeKind::Nominal {
         declaration: receiver_declaration,
         ..
-    }) = receiver.and_then(|receiver| typed.types().types().get(receiver))
+    }) = receiver.and_then(|receiver| typed.types().get(receiver))
     else {
         return Ok(());
     };
@@ -1738,17 +1738,15 @@ fn preflight_direct_inherited_owner_recipes_with_facts(
 }
 
 fn unit_callable_signature(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Option<&UnitCallableSignature> {
     match target {
         UnitCallableTarget::Declaration(declaration) => typed
-            .types()
             .signatures()
             .declaration(declaration)
             .and_then(|signature| signature.callable()),
         UnitCallableTarget::Symbol(_) => typed
-            .types()
             .signatures()
             .declarations()
             .iter()
@@ -1759,13 +1757,12 @@ fn unit_callable_signature(
 }
 
 fn unit_callable_owner(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Option<(DeclarationId, usize)> {
     match target {
         UnitCallableTarget::Declaration(_) => None,
         UnitCallableTarget::Symbol(_) => typed
-            .types()
             .signatures()
             .declarations()
             .iter()
@@ -1782,7 +1779,7 @@ fn unit_callable_owner(
 }
 
 fn instantiate_dispatch_owner_arguments(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner_template: UnitTypeId,
     concrete_owner: &UnitNominalSignature,
     concrete_arguments: &[UnitTypeId],
@@ -1791,7 +1788,7 @@ fn instantiate_dispatch_owner_arguments(
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
-    }) = typed.types().types().get(owner_template)
+    }) = typed.types().get(owner_template)
     else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
@@ -1813,7 +1810,7 @@ fn instantiate_dispatch_owner_arguments(
 
 /// 只为 frontend 已选定的 inherited effective implementation 实例化有限 owner recipe。
 fn instantiate_inherited_dispatch_owner_arguments(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner_template: UnitTypeId,
     concrete_owner: &UnitNominalSignature,
     concrete_arguments: &[UnitTypeId],
@@ -1824,7 +1821,7 @@ fn instantiate_inherited_dispatch_owner_arguments(
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
-    }) = typed.types().types().get(owner_template)
+    }) = typed.types().get(owner_template)
     else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
@@ -1860,7 +1857,7 @@ fn instantiate_inherited_dispatch_owner_arguments(
 
 /// 在按 owner slot 实例化前，以稳定 source identity 选择 dependent recipe 的失败 witness。
 fn preflight_inherited_owner_recipes(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     arguments: &[UnitTypeId],
     failures: &mut Vec<UnitRecipeFailure>,
 ) -> Result<(), LoweringError> {
@@ -1873,17 +1870,17 @@ fn preflight_inherited_owner_recipes(
 }
 
 fn recipe_root_declarations_in_types(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     arguments: &[UnitTypeId],
     facts: &UnitRecipeRootFacts,
 ) -> Result<BTreeSet<DeclarationId>, LoweringError> {
     fn collect(
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         facts: &UnitRecipeRootFacts,
         roots: &mut BTreeSet<DeclarationId>,
     ) -> Result<(), LoweringError> {
-        match typed.types().types().get(ty) {
+        match typed.types().get(ty) {
             Some(UnitTypeKind::TypeParameter(parameter)) => {
                 if let Some(substituted) = facts.get(parameter) {
                     roots.extend(substituted);
@@ -1894,7 +1891,6 @@ fn recipe_root_declarations_in_types(
                 arguments,
             }) => {
                 let nominal = typed
-                    .types()
                     .signatures()
                     .declaration(*declaration)
                     .and_then(|signature| signature.nominal())
@@ -1930,7 +1926,7 @@ fn recipe_root_declarations_in_types(
 }
 
 fn preflight_inherited_owner_recipes_with_facts(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     arguments: &[UnitTypeId],
     facts: &UnitRecipeRootFacts,
     failures: &mut Vec<UnitRecipeFailure>,
@@ -1940,7 +1936,6 @@ fn preflight_inherited_owner_recipes_with_facts(
         .into_iter()
         .map(|declaration| {
             typed
-                .types()
                 .signatures()
                 .declaration(declaration)
                 .and_then(|signature| signature.nominal())
@@ -1973,7 +1968,7 @@ enum RecipeTraversal {
 
 /// 只识别 ADR-0024 的 declaration back-edge；unsupported constructor 仍交给正式 resolver。
 fn parameter_growing_recipe_witness(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     nominal: &UnitNominalSignature,
     visiting: &mut BTreeSet<DeclarationId>,
 ) -> Result<RecipeTraversal, LoweringError> {
@@ -1990,14 +1985,13 @@ fn parameter_growing_recipe_witness(
     }
 
     fn in_type(
-        typed: &ValidatedCompilationUnitTypes,
+        typed: &CompilationUnitTypes,
         ty: UnitTypeId,
         owner_parameter: UnitSymbolId,
         span: Span,
         visiting: &mut BTreeSet<DeclarationId>,
     ) -> Result<RecipeTraversal, LoweringError> {
         let kind = typed
-            .types()
             .types()
             .get(ty)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -2028,7 +2022,6 @@ fn parameter_growing_recipe_witness(
                     return Ok(RecipeTraversal::Cycle(span));
                 }
                 let nested = typed
-                    .types()
                     .signatures()
                     .declaration(*declaration)
                     .and_then(|signature| signature.nominal())
@@ -2038,7 +2031,7 @@ fn parameter_growing_recipe_witness(
                     return Ok(result);
                 }
                 if matches!(
-                    typed.types().types().get(*argument),
+                    typed.types().get(*argument),
                     Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
                 ) {
                     Ok(RecipeTraversal::Clean)
@@ -2063,13 +2056,12 @@ fn parameter_growing_recipe_witness(
 }
 
 fn parameter_growing_closed_recipe_witness(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     span: Span,
     visiting: &mut BTreeSet<DeclarationId>,
 ) -> Result<RecipeTraversal, LoweringError> {
     let kind = typed
-        .types()
         .types()
         .get(ty)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -2082,13 +2074,12 @@ fn parameter_growing_closed_recipe_witness(
                 return Ok(RecipeTraversal::Cycle(span));
             }
             let nominal = typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             let concrete_fields = if nominal.kind() != NominalKind::EnumClass
-                && typed.types().runtime_field_layout(ty).is_some()
+                && typed.runtime_field_layout(ty).is_some()
             {
                 match resolve_nominal_runtime_field_types(typed, ty, nominal, arguments) {
                     Ok(fields) => fields
@@ -2175,7 +2166,7 @@ fn parameter_growing_closed_recipe_witness(
 }
 
 pub(super) fn resolve_inherited_dispatch_owner_argument(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     span: Span,
@@ -2185,7 +2176,7 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
     if !visiting.insert(ty) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
-    match typed.types().types().get(ty) {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::TypeParameter(parameter)) => substitutions
             .get(parameter)
             .copied()
@@ -2207,7 +2198,6 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
             )?;
             typed
                 .types()
-                .types()
                 .find(&UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::List,
                     arguments: vec![argument],
@@ -2219,7 +2209,6 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
             arguments,
         }) => {
             let nominal = typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
@@ -2246,7 +2235,6 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
             )?;
             let concrete = typed
                 .types()
-                .types()
                 .find(&UnitTypeKind::Nominal {
                     declaration: *declaration,
                     arguments: vec![argument],
@@ -2254,7 +2242,6 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
             if nominal.fields().iter().any(|field| {
                 typed
-                    .types()
                     .types()
                     .get(field.ty())
                     .is_some_and(|kind| contains_type_parameter(typed, kind))
@@ -2273,7 +2260,7 @@ pub(super) fn resolve_inherited_dispatch_owner_argument(
 
 /// dependent inherited owner 只开放有限、非增长的单参数 ordinary-class field graph。
 fn validate_dependent_inherited_nominal_recipe(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     nominal: &UnitNominalSignature,
     span: Span,
     visiting: &mut BTreeSet<DeclarationId>,
@@ -2299,14 +2286,13 @@ fn validate_dependent_inherited_nominal_recipe(
 }
 
 fn validate_dependent_inherited_field_recipe(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     owner_parameter: UnitSymbolId,
     span: Span,
     visiting: &mut BTreeSet<DeclarationId>,
 ) -> Result<(), LoweringError> {
     let kind = typed
-        .types()
         .types()
         .get(ty)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -2338,7 +2324,6 @@ fn validate_dependent_inherited_field_recipe(
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             };
             let nested = typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
@@ -2347,7 +2332,7 @@ fn validate_dependent_inherited_field_recipe(
             // concrete argument 形状复杂而在更早的边上产生不稳定 witness。
             validate_dependent_inherited_nominal_recipe(typed, nested, span, visiting)?;
             if !matches!(
-                typed.types().types().get(*argument),
+                typed.types().get(*argument),
                 Some(UnitTypeKind::TypeParameter(parameter)) if *parameter == owner_parameter
             ) {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -2361,13 +2346,12 @@ fn validate_dependent_inherited_field_recipe(
 /// 闭合实际参数仍可能把同一 nominal declaration 带回 field graph；这类 SCC 没有
 /// SPEC-0219 的有限 descriptor，不能因为字段不再含 owner parameter 而静默放行。
 fn validate_closed_nominal_recipe_cycles(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     span: Span,
     visiting: &mut BTreeSet<DeclarationId>,
 ) -> Result<(), LoweringError> {
     let kind = typed
-        .types()
         .types()
         .get(ty)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -2380,13 +2364,11 @@ fn validate_closed_nominal_recipe_cycles(
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             let nominal = typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if nominal.kind() != NominalKind::EnumClass
-                && typed.types().runtime_field_layout(ty).is_some()
+            if nominal.kind() != NominalKind::EnumClass && typed.runtime_field_layout(ty).is_some()
             {
                 for (concrete, field) in
                     resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)?
@@ -2446,7 +2428,7 @@ fn validate_closed_nominal_recipe_cycles(
 /// closed recipe 的 SCC 检查需要完整替换容器内参数，但不因此扩张通用 callable
 /// specialization 支持面。
 fn resolve_closed_recipe_type(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     span: Span,
@@ -2458,7 +2440,7 @@ fn resolve_closed_recipe_type(
             .collect::<Result<Vec<_>, _>>()
     };
     let concrete =
-        match typed.types().types().get(ty) {
+        match typed.types().get(ty) {
             Some(UnitTypeKind::TypeParameter(parameter)) => {
                 return substitutions
                     .get(parameter)
@@ -2495,7 +2477,6 @@ fn resolve_closed_recipe_type(
         };
     Ok(typed
         .types()
-        .types()
         .find(&concrete)
         // SCC 检查只依赖 declaration graph；frontend 未 intern 中间 closed
         // constructor 时保留模板 identity，不能把有限 DAG 误报成 missing fact。
@@ -2503,7 +2484,7 @@ fn resolve_closed_recipe_type(
 }
 
 fn instantiate_delegated_dispatch_owner_arguments(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner_template: UnitTypeId,
     concrete_owner: &UnitNominalSignature,
     concrete_arguments: &[UnitTypeId],
@@ -2512,7 +2493,7 @@ fn instantiate_delegated_dispatch_owner_arguments(
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
-    }) = typed.types().types().get(owner_template)
+    }) = typed.types().get(owner_template)
     else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
@@ -2542,7 +2523,7 @@ fn instantiate_delegated_dispatch_owner_arguments(
 
 /// 只在 frontend 已发布的 dispatch owner template 内递归替换现行 runtime recipe。
 pub(super) fn resolve_delegated_dispatch_owner_argument(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     span: Span,
@@ -2551,7 +2532,7 @@ pub(super) fn resolve_delegated_dispatch_owner_argument(
     if !visiting.insert(ty) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
-    match typed.types().types().get(ty) {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::TypeParameter(parameter)) => substitutions
             .get(parameter)
             .copied()
@@ -2572,7 +2553,6 @@ pub(super) fn resolve_delegated_dispatch_owner_argument(
             )?;
             typed
                 .types()
-                .types()
                 .find(&UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::List,
                     arguments: vec![argument],
@@ -2583,7 +2563,6 @@ pub(super) fn resolve_delegated_dispatch_owner_argument(
             declaration,
             arguments,
         }) if typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -2603,7 +2582,6 @@ pub(super) fn resolve_delegated_dispatch_owner_argument(
             )?;
             typed
                 .types()
-                .types()
                 .find(&UnitTypeKind::Nominal {
                     declaration: *declaration,
                     arguments: vec![argument],
@@ -2618,10 +2596,9 @@ pub(super) fn resolve_delegated_dispatch_owner_argument(
     }
 }
 
-fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTypeKind) -> bool {
+fn contains_type_parameter(typed: &CompilationUnitTypes, kind: &UnitTypeKind) -> bool {
     let contains = |ty| {
         typed
-            .types()
             .types()
             .get(ty)
             .is_some_and(|kind| contains_type_parameter(typed, kind))
@@ -2647,7 +2624,7 @@ fn contains_type_parameter(typed: &ValidatedCompilationUnitTypes, kind: &UnitTyp
 }
 
 fn classify_runtime_type_demands(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     parsed_by_source: &[&ParsedFile],
     instances: &[UnitPlannedInstance],
     demands: &mut BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
@@ -2682,7 +2659,7 @@ fn classify_runtime_type_demands(
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })?;
-        for (&expression, &template) in typed.types().expression_types() {
+        for (&expression, &template) in typed.expression_types() {
             if expression.source_unit() != instance.source_unit() {
                 continue;
             }
@@ -2715,7 +2692,7 @@ fn classify_runtime_type_demands(
 }
 
 fn upgrade_runtime_demands(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     concrete: UnitTypeId,
     dependent_types: &[UnitTypeId],
     demands: &mut BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
@@ -2730,7 +2707,7 @@ fn upgrade_runtime_demands(
 }
 
 fn runtime_storage_depends_on(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
     dependent: UnitTypeId,
     visiting: &mut BTreeSet<UnitTypeId>,
@@ -2742,7 +2719,7 @@ fn runtime_storage_depends_on(
     if !visiting.insert(ty) {
         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
     }
-    let result = match typed.types().types().get(ty) {
+    let result = match typed.types().get(ty) {
         Some(UnitTypeKind::Nullable(inner)) | Some(UnitTypeKind::StaticSelf(inner)) => {
             runtime_storage_depends_on(typed, *inner, dependent, visiting, span)
         }
@@ -2771,7 +2748,6 @@ fn runtime_storage_depends_on(
             arguments,
         }) => {
             let nominal = typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
@@ -2815,13 +2791,13 @@ fn runtime_storage_depends_on(
 }
 
 fn require_exact_runtime_field_layout(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     ty: UnitTypeId,
 ) -> Result<(), LoweringError> {
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
-    }) = typed.types().types().get(ty)
+    }) = typed.types().get(ty)
     else {
         return Err(LoweringError {
             kind: LoweringErrorKind::MissingFact,
@@ -2829,7 +2805,6 @@ fn require_exact_runtime_field_layout(
         });
     };
     let nominal = typed
-        .types()
         .signatures()
         .declaration(*declaration)
         .and_then(|signature| signature.nominal())
@@ -2837,7 +2812,7 @@ fn require_exact_runtime_field_layout(
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
-    if typed.types().runtime_field_layout(ty).is_none() {
+    if typed.runtime_field_layout(ty).is_none() {
         return Err(LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: nominal.fields().first().map(|field| field.span()),
@@ -2852,13 +2827,13 @@ fn require_exact_runtime_field_layout(
 /// 优先消费 SPEC-0219 按 exact owner 发布的 descriptor。字段替换中新 intern、未进入 frontend
 /// owner 候选快照的 nested owner 只允许回退到 closed/direct type-parameter 旧规则。
 pub(crate) fn resolve_nominal_runtime_field_types(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner_type: UnitTypeId,
     nominal: &UnitNominalSignature,
     arguments: &[UnitTypeId],
 ) -> Result<Vec<UnitTypeId>, LoweringError> {
     let owner_matches = matches!(
-        typed.types().types().get(owner_type),
+        typed.types().get(owner_type),
         Some(UnitTypeKind::Nominal {
             declaration,
             arguments: owner_arguments,
@@ -2876,7 +2851,7 @@ pub(crate) fn resolve_nominal_runtime_field_types(
             span: None,
         });
     }
-    if let Some(layout) = typed.types().runtime_field_layout(owner_type) {
+    if let Some(layout) = typed.runtime_field_layout(owner_type) {
         if layout.declaration() != nominal.declaration()
             || layout.arguments() != arguments
             || layout.fields().len() != nominal.fields().len()
@@ -2894,7 +2869,7 @@ pub(crate) fn resolve_nominal_runtime_field_types(
                 if actual.symbol() != template.symbol()
                     || actual.template_type() != template.ty()
                     || actual.span() != template.span()
-                    || typed.types().types().get(actual.concrete_type()).is_none()
+                    || typed.types().get(actual.concrete_type()).is_none()
                 {
                     Err(lowering_error(
                         LoweringErrorKind::MissingFact,
@@ -2914,7 +2889,7 @@ pub(crate) fn resolve_nominal_runtime_field_types(
     nominal
         .fields()
         .iter()
-        .map(|field| match typed.types().types().get(field.ty()) {
+        .map(|field| match typed.types().get(field.ty()) {
             Some(UnitTypeKind::TypeParameter(parameter)) => nominal
                 .type_parameters()
                 .iter()
@@ -2934,18 +2909,18 @@ pub(crate) fn resolve_nominal_runtime_field_types(
 /// SPEC-0191 当前只递归接受由 `List`、单参数 ordinary class 与 direct owner parameter 组成的
 /// 有限 recipe；nullable/function/其他 intrinsic 与非 class nominal 继续保持门禁。
 fn supported_nested_runtime_field_recipe(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner: &UnitNominalSignature,
     template: UnitTypeId,
 ) -> bool {
-    if let Some(UnitTypeKind::Nullable(inner)) = typed.types().types().get(template) {
+    if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(template) {
         return direct_owner_type_parameter(typed, owner, *inner);
     }
     supported_nested_runtime_field_recipe_with(typed, owner, template, &mut BTreeSet::new())
 }
 
 fn supported_nested_runtime_field_recipe_with(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner: &UnitNominalSignature,
     template: UnitTypeId,
     visiting: &mut BTreeSet<UnitTypeId>,
@@ -2953,7 +2928,7 @@ fn supported_nested_runtime_field_recipe_with(
     if !visiting.insert(template) {
         return false;
     }
-    let Some(kind) = typed.types().types().get(template) else {
+    let Some(kind) = typed.types().get(template) else {
         return false;
     };
     if !contains_type_parameter(typed, kind) {
@@ -2988,7 +2963,6 @@ fn supported_nested_runtime_field_recipe_with(
                         visiting,
                     )
             ) && typed
-                .types()
                 .signatures()
                 .declaration(*declaration)
                 .and_then(|signature| signature.nominal())
@@ -3010,12 +2984,12 @@ fn supported_nested_runtime_field_recipe_with(
 }
 
 fn direct_owner_type_parameter(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     owner: &UnitNominalSignature,
     ty: UnitTypeId,
 ) -> bool {
     matches!(
-        typed.types().types().get(ty),
+        typed.types().get(ty),
         Some(UnitTypeKind::TypeParameter(parameter))
             if owner.type_parameters().contains(parameter)
     )

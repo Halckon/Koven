@@ -26,16 +26,18 @@ use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{UnitDropPoint, ValidatedCompilationUnitOwnership},
+    ownership_checking::{
+        CompilationUnitOwnership, UnitDropPoint, ValidatedCompilationUnitOwnership,
+    },
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
         Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, Copyability, ExpressionCategory, ParameterMode, TypeEnvironment,
-        UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitStatementId,
-        UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
+        BuiltinType, CompilationUnitTypes, Copyability, ExpressionCategory, ParameterMode,
+        TypeEnvironment, UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId,
+        UnitStatementId, UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
@@ -47,8 +49,9 @@ use super::{
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
     unit_plan::{
-        UnitFunctionInstanceKey, UnitPlannedInstance, UnitRuntimeTypeDemand, plan_unit_instances,
-        resolve_concrete_type,
+        MAX_UNIT_GENERIC_INSTANCES, UnitFunctionInstanceKey, UnitPlannedInstance,
+        UnitRuntimeTypeDemand, plan_unit_instances_from_facts, resolve_concrete_type,
+        validate_unit_inputs,
     },
     verify::verify_program,
 };
@@ -126,8 +129,34 @@ pub(crate) fn lower_scalar_unit_with_entry(
     owned: &ValidatedCompilationUnitOwnership,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
-    let instance_plan =
-        plan_unit_instances(sources, inputs, names, environment, typed, owned, entry)?;
+    validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
+    lower_unit_from_facts(
+        sources,
+        inputs,
+        names,
+        typed.types(),
+        owned.ownership(),
+        entry,
+    )
+}
+
+/// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
+fn lower_unit_from_facts(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    entry: DeclarationId,
+) -> Result<(Program, FunctionId), LoweringError> {
+    let instance_plan = plan_unit_instances_from_facts(
+        inputs,
+        names,
+        typed,
+        owned,
+        entry,
+        MAX_UNIT_GENERIC_INSTANCES,
+    )?;
     let (instances, runtime_type_demands) = instance_plan.into_parts();
     let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let mut program = Program::default();
@@ -560,8 +589,8 @@ struct UnitExpressionLowerer<'a> {
     parsed: &'a lang_frontend::parser::ParsedFile,
     source_unit: SourceUnitId,
     names: &'a ValidatedCompilationUnitNames,
-    typed: &'a ValidatedCompilationUnitTypes,
-    owned: &'a ValidatedCompilationUnitOwnership,
+    typed: &'a CompilationUnitTypes,
+    owned: &'a CompilationUnitOwnership,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
@@ -595,13 +624,12 @@ impl UnitExpressionLowerer<'_> {
         if let LoweredValue::Value(value) = result
             && self
                 .typed
-                .types()
                 .expression_type(unit_expression)
-                .map(|ty| self.typed.types().copyability(ty))
+                .map(|ty| self.typed.copyability(ty))
                 == Some(Copyability::MoveOnly)
-            && (self.typed.types().expression_category(unit_expression)
+            && (self.typed.expression_category(unit_expression)
                 == Some(ExpressionCategory::Temporary)
-                || self.typed.types().construction(unit_expression).is_some())
+                || self.typed.construction(unit_expression).is_some())
         {
             self.temporaries.insert(unit_expression, value);
         }
@@ -626,7 +654,7 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
-        if let Some(construction) = self.typed.types().construction(unit_expression) {
+        if let Some(construction) = self.typed.construction(unit_expression) {
             return match construction.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
                     self.lower_rc_construction(expression, span)
@@ -640,26 +668,16 @@ impl UnitExpressionLowerer<'_> {
                 }
             };
         }
-        if self.typed.types().rc_operation(unit_expression).is_some() {
+        if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
         }
-        if self
-            .typed
-            .types()
-            .container_construction(unit_expression)
-            .is_some()
-        {
+        if self.typed.container_construction(unit_expression).is_some() {
             return self.lower_container_construction(expression, span);
         }
-        if self.typed.types().element_place(unit_expression).is_some() {
+        if self.typed.element_place(unit_expression).is_some() {
             return self.lower_container_index(expression, span);
         }
-        if self
-            .typed
-            .types()
-            .aggregate_projection(unit_expression)
-            .is_some()
-        {
+        if self.typed.aggregate_projection(unit_expression).is_some() {
             return self.lower_aggregate_projection(expression, span);
         }
         match node.payload() {
@@ -918,7 +936,6 @@ impl UnitExpressionLowerer<'_> {
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
         let declared = self
             .typed
-            .types()
             .symbol_type(symbol)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let lowered = match lowered {
@@ -959,7 +976,6 @@ impl UnitExpressionLowerer<'_> {
             })
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         self.typed
-            .types()
             .body_symbol_types()
             .keys()
             .find(|symbol| {
@@ -991,7 +1007,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<SsaTypeId, LoweringError> {
         let ty = self
             .typed
-            .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
@@ -1014,7 +1029,6 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(ValueId, bool), LoweringError> {
         let actual = self
             .typed
-            .types()
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let actual = resolve_concrete_type(
@@ -1034,7 +1048,7 @@ impl UnitExpressionLowerer<'_> {
         if actual == expected {
             return Ok((value, false));
         }
-        let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().types().get(expected) else {
+        let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(expected) else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         if *inner != actual {
@@ -1122,8 +1136,8 @@ fn unwrap_modified(
     }
 }
 
-fn builtin_type(typed: &ValidatedCompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinType> {
-    match typed.types().types().get(ty) {
+fn builtin_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinType> {
+    match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
         _ => None,
     }
@@ -1178,17 +1192,15 @@ fn instance_function_name(
 }
 
 fn unit_callable_signature(
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Option<&UnitCallableSignature> {
     match target {
         UnitCallableTarget::Declaration(declaration) => typed
-            .types()
             .signatures()
             .declaration(declaration)
             .and_then(|signature| signature.callable()),
         UnitCallableTarget::Symbol(symbol) => typed
-            .types()
             .signatures()
             .declarations()
             .iter()

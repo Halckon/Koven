@@ -87,8 +87,8 @@ fn only_member_call_route(
         .expect("call expression")
         .span();
     resolve_unit_call_instance(
-        typed,
-        owned,
+        typed.types(),
+        owned.ownership(),
         target,
         call.instance().type_arguments().to_vec(),
         call.receiver().map(|receiver| receiver.ty()),
@@ -168,7 +168,7 @@ fn nested_runtime_layout_requires_the_exact_frontend_owner_descriptor() {
         })
         .expect("Dependent<Int> is canonical");
 
-    let fields = resolve_nominal_runtime_field_types(&typed, owner, nominal, &[int])
+    let fields = resolve_nominal_runtime_field_types(typed.types(), owner, nominal, &[int])
         .expect("exact owner descriptor resolves nested List<Int>");
     assert!(matches!(
         fields.as_slice(),
@@ -181,7 +181,7 @@ fn nested_runtime_layout_requires_the_exact_frontend_owner_descriptor() {
                 }) if arguments == &[int]
             )
     ));
-    let error = resolve_nominal_runtime_field_types(&typed, owner, nominal, &[string])
+    let error = resolve_nominal_runtime_field_types(typed.types(), owner, nominal, &[string])
         .expect_err("owner arguments cannot be replaced by another global canonical type");
     assert_eq!(error.kind, LoweringErrorKind::MissingFact);
 }
@@ -1136,7 +1136,7 @@ fn delegated_dispatch_owner_recipe_keeps_unsupported_nested_kinds_closed() {
         };
         let substitutions = BTreeMap::from([(*parameter, int)]);
         let error = resolve_delegated_dispatch_owner_argument(
-            &typed,
+            typed.types(),
             field.ty(),
             &substitutions,
             field.span(),
@@ -1235,7 +1235,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
             panic!("{owner_name} has one field");
         };
         let error = resolve_inherited_dispatch_owner_argument(
-            &typed,
+            typed.types(),
             field.ty(),
             &BTreeMap::from([(*parameter, int)]),
             field.span(),
@@ -1292,7 +1292,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         "fixture must not pre-intern List<Long>"
     );
     let error = resolve_inherited_dispatch_owner_argument(
-        &typed,
+        typed.types(),
         field.ty(),
         &BTreeMap::from([(*parameter, long)]),
         field.span(),
@@ -1316,7 +1316,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         panic!("ClosedDagOwner has one field");
     };
     resolve_inherited_dispatch_owner_argument(
-        &typed,
+        typed.types(),
         field.ty(),
         &BTreeMap::from([(*parameter, int)]),
         field.span(),
@@ -1350,7 +1350,7 @@ fn inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_c
         "fixture must not pre-intern Marker<Long>"
     );
     let error = resolve_inherited_dispatch_owner_argument(
-        &typed,
+        typed.types(),
         field.ty(),
         &BTreeMap::from([(*parameter, long)]),
         field.span(),

@@ -34,7 +34,6 @@ impl UnitExpressionLowerer<'_> {
         if operator == AssignmentOperator::Assign
             && self
                 .typed
-                .types()
                 .aggregate_projection(UnitExpressionId::new(self.source_unit, target))
                 .is_some()
         {
@@ -72,7 +71,6 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?;
         let target_type = self
             .typed
-            .types()
             .expression_type(UnitExpressionId::new(self.source_unit, target))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?;
         let target_ssa_type = self.expression_ssa_type(target, target_node.span())?;
@@ -137,7 +135,7 @@ impl UnitExpressionLowerer<'_> {
         {
             self.transfer_owned_expression(value, value_id, span)?;
         }
-        if self.typed.types().copyability(target_type) == Copyability::MoveOnly
+        if self.typed.copyability(target_type) == Copyability::MoveOnly
             && self.bindings.contains_key(&symbol)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -159,10 +157,9 @@ impl UnitExpressionLowerer<'_> {
         let value_id = UnitExpressionId::new(self.source_unit, value);
         let descriptor = self
             .typed
-            .types()
             .assignment(expression_id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let copyability = self.typed.types().copyability(field.ty);
+        let copyability = self.typed.copyability(field.ty);
         if descriptor.expression() != expression_id
             || descriptor.target() != target_id
             || descriptor.value() != value_id
@@ -271,7 +268,6 @@ impl UnitExpressionLowerer<'_> {
         let point = UnitDropPoint::BeforeReplacement(expression);
         let facts = self
             .owned
-            .ownership()
             .drops()
             .iter()
             .copied()

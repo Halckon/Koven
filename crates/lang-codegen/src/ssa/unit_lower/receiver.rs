@@ -61,7 +61,6 @@ impl UnitExpressionLowerer<'_> {
         };
         let fact = self
             .owned
-            .ownership()
             .receiver_fact(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let concrete = resolve_concrete_type(
@@ -138,21 +137,16 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredReceiver>, LoweringError> {
         let Some(receiver) = descriptor.receiver() else {
-            if self.owned.ownership().receiver_fact(call).is_some()
-                || self
-                    .owned
-                    .ownership()
-                    .conditional_receiver_delivery(call)
-                    .is_some()
+            if self.owned.receiver_fact(call).is_some()
+                || self.owned.conditional_receiver_delivery(call).is_some()
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             return Ok(None);
         };
-        let fact = self.owned.ownership().receiver_fact(call);
+        let fact = self.owned.receiver_fact(call);
         let conditional = self
             .owned
-            .ownership()
             .conditional_receiver_deliveries()
             .iter()
             .copied()
@@ -351,7 +345,7 @@ impl UnitExpressionLowerer<'_> {
                         fact.begin_span(),
                     ));
                 }
-                if self.typed.types().copyability(concrete) == Copyability::MoveOnly {
+                if self.typed.copyability(concrete) == Copyability::MoveOnly {
                     self.take_owned_temporary(value, fact.begin_span())?;
                 }
                 Ok(Some(LoweredReceiver {
@@ -380,10 +374,10 @@ impl UnitExpressionLowerer<'_> {
             fact.delivery_span(),
         )?;
         let valid_template = matches!(
-            self.typed.types().types().get(fact.receiver_type()),
+            self.typed.types().get(fact.receiver_type()),
             Some(UnitTypeKind::StaticSelf(interface))
                 if matches!(
-                    self.typed.types().types().get(*interface),
+                    self.typed.types().get(*interface),
                     Some(UnitTypeKind::Nominal { declaration, .. })
                         if *declaration == fact.owner()
                 )
@@ -416,7 +410,7 @@ impl UnitExpressionLowerer<'_> {
                 fact.delivery_span(),
             ));
         };
-        match self.typed.types().copyability(concrete) {
+        match self.typed.copyability(concrete) {
             Copyability::Copyable => {}
             Copyability::MoveOnly => {
                 self.consumed_receiver = Some(current.into());
@@ -449,7 +443,7 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Nominal {
             declaration: type_declaration,
             arguments,
-        }) = self.typed.types().types().get(concrete)
+        }) = self.typed.types().get(concrete)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
@@ -466,7 +460,6 @@ impl UnitExpressionLowerer<'_> {
             )
             && self
                 .typed
-                .types()
                 .signatures()
                 .declaration(*type_declaration)
                 .and_then(|signature| signature.nominal())
@@ -709,14 +702,12 @@ impl UnitExpressionLowerer<'_> {
         value: crate::ssa::model::ValueId,
         span: Span,
     ) -> Result<Option<(UnitSymbolId, ReceiverWritebackKind)>, LoweringError> {
-        let Some(UnitTypeKind::Nominal { declaration, .. }) =
-            self.typed.types().types().get(concrete)
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = self.typed.types().get(concrete)
         else {
             return Ok(None);
         };
         let kind = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
@@ -725,7 +716,7 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(kind, NominalKind::ValueClass | NominalKind::EnumClass) {
             return Ok(None);
         }
-        let kind = match self.typed.types().copyability(concrete) {
+        let kind = match self.typed.copyability(concrete) {
             Copyability::Copyable => ReceiverWritebackKind::Copyable,
             Copyability::MoveOnly => ReceiverWritebackKind::MoveOnly,
             Copyability::Unknown | Copyability::Error => {
@@ -782,7 +773,6 @@ impl UnitExpressionLowerer<'_> {
         let expression = UnitExpressionId::new(self.source_unit, expression);
         let ty = self
             .typed
-            .types()
             .expression_type(expression)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
@@ -792,7 +782,7 @@ impl UnitExpressionLowerer<'_> {
         match receiver.entity {
             EntityId::Value(value) => Ok(LoweredValue::Value(value)),
             EntityId::Loan(loan) => {
-                if self.typed.types().copyability(ty) != Copyability::Copyable {
+                if self.typed.copyability(ty) != Copyability::Copyable {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 let ssa = self

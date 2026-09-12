@@ -65,13 +65,12 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Nominal {
             declaration: result_declaration,
             arguments,
-        }) = self.typed.types().types().get(descriptor.result_type())
+        }) = self.typed.types().get(descriptor.result_type())
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let nominal = self
             .typed
-            .types()
             .signatures()
             .declaration(*result_declaration)
             .and_then(|signature| signature.nominal())
@@ -87,7 +86,7 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::EnumCase {
             case: case_symbol,
             root,
-        }) = self.typed.types().types().get(case.case_type())
+        }) = self.typed.types().get(case.case_type())
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
@@ -128,21 +127,19 @@ impl UnitExpressionLowerer<'_> {
         receiver_type: lang_frontend::type_checking::UnitTypeId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let Some(UnitTypeKind::EnumCase { case, root }) =
-            self.typed.types().types().get(receiver_type)
+        let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(receiver_type)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
-        }) = self.typed.types().types().get(*root)
+        }) = self.typed.types().get(*root)
         else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let nominal = self
             .typed
-            .types()
             .signatures()
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
