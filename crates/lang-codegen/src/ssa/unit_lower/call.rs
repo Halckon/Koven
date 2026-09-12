@@ -87,7 +87,11 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
-        if (self.constant_owned.is_none() || descriptor.receiver().is_some() || function_value)
+        if (self.constant_owned.is_none()
+            || descriptor
+                .receiver()
+                .is_some_and(|receiver| receiver.mode() != ParameterMode::Borrow)
+            || function_value)
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })
@@ -229,10 +233,25 @@ impl UnitExpressionLowerer<'_> {
                     .push(EntityId::Value(writeback.original));
             }
         }
+        // Receiver 在普通实参帧之前建立；退出时先结束实参 loan，再结束 receiver loan。
+        if let Some(receiver) = &receiver {
+            self.pending_call_frames
+                .push(super::call_lifetimes::PendingCallFrame {
+                    loop_depth: self.loops.len(),
+                    pending_start: receiver_start,
+                    created_loans: (receiver_start + 1
+                        ..receiver_start + 1 + receiver.created_loans.len())
+                        .collect(),
+                });
+        }
+        let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);
+        if receiver.is_some() {
+            self.pending_call_frames.pop();
+        }
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
-        }) = self.lower_call_arguments(call, arguments, descriptor, span)?
+        }) = lowered_arguments?
         else {
             self.pending_operands.truncate(receiver_start);
             return Ok(LoweredValue::Diverged);

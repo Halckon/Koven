@@ -555,3 +555,45 @@ fn nested_string_prefixes_preserve_outer_pending_slots() {
             .expect("nested pending operands keep their own slots and cleanup scope");
     }
 }
+
+#[test]
+fn shared_receiver_loan_ends_before_argument_return_cleanup() {
+    for (parameters, setup, receiver, owners) in [
+        ("own flag: Boolean", "val host = Host()\n", "host", 2),
+        ("host: Host, own flag: Boolean", "", "host", 1),
+        ("own flag: Boolean", "", "Host()", 2),
+    ] {
+        for exit in ["return", "error(p.TEXT)"] {
+            let source = format!(
+                "class Host {{ fun view(text: String, own flag: Boolean): Unit {{}} }}\nfun entry({parameters}): Unit {{ {setup}val done = {receiver}.view(p.TEXT, if (flag) {{ {exit} }} else {{ true }}) }}"
+            );
+            let program = lower_short_circuit_fixture(&source);
+            let function = program.modules[0]
+                .functions
+                .iter()
+                .find(|function| function.name.contains("q.entry"))
+                .unwrap();
+            assert_eq!(
+                function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count(),
+                owners * if exit == "return" { 2 } else { 1 },
+                "{source}"
+            );
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+    }
+}
+
+#[test]
+fn shared_receiver_prefix_preserves_nested_calls_and_loop_exit_scopes() {
+    for source in [
+        "class Host { fun check(text: String, own flag: Boolean): Boolean = flag }\nfun entry(own flag: Boolean): Unit { val host = Host()\nval done = p.view_pair(p.TEXT, host.check(p.TEXT, if (flag) { return } else { true })) }",
+        "class Host { fun view(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { loop { val host = Host()\nval done = host.view(p.TEXT, if (flag) { break } else { true }) } }",
+        "class Host { fun view(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { loop { val host = Host()\nval done = host.view(p.TEXT, if (flag) { continue } else { true }) } }",
+    ] {
+        crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+    }
+}

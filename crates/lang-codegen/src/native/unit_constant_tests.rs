@@ -265,3 +265,14 @@ fn run_constant_sources(provider_text: &str, consumer_text: &str) -> std::proces
     assert!(linked.status.success(), "{linked:?}");
     Command::new(&executable).output().unwrap()
 }
+
+#[test]
+fn shared_receiver_argument_return_skips_the_native_call() {
+    let run = run_constant_sources(
+        "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true\nclass Host { fun view(text: String, own flag: Boolean): Unit { println(\"unexpected call\") } }",
+        "package q\nimport p.Host\nfun entry(): Unit { val before = println(\"before\")\nval host = Host()\nval done = host.view(p.TEXT, if (p.FLAG) { return } else { true })\nval after = println(\"unexpected continuation\") }",
+    );
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"before\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}

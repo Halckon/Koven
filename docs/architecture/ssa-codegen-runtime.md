@@ -90,7 +90,12 @@ object 字节已有 native 证据；非法 entry、插值及分析错配在写�
 仍按槽位读取实际 LoanId。return/break/continue 先逆序结束退出帧的新建 loan，再截断 pending
 槽并消费 frontend drop；复用传入 loan 不结束，Abort 不展开。Value 前缀在提交前保留具体
 实参/常量 use 对应的 temporary，正常提交后移除，避免提前退出缺 owner 或重复清理。
-receiver/function-value 调用的参数控制退出仍保留 guard，外层 temporary 内求值循环仍受
+专用共享 Borrow receiver 的求值帧包围普通参数帧，记录实际创建的 receiver loan 槽位。
+参数 return/break/continue 先结束参数 loan，再结束 receiver loan；CFG 后使用重绑定槽，
+借用传入对象的既有 loan 不由本次调用结束，Abort 不展开。命名、借用输入和临时 receiver
+均有 SSA/LLVM 覆盖，嵌套调用及循环退出按现有 scope 深度处理。
+
+Value/Inout receiver 与 function-value 调用的参数控制退出仍保留 guard，外层 temporary 内求值循环仍受
 既有 loop lowering 限制；这些组合不由当前前缀测试证明。
 
 String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
@@ -151,7 +156,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 ## Native object 与发布
 
 `native::emit_native_object` 处理单文件产物；`emit_native_unit_object` 处理 validated
-compilation unit。两者接收显式 entry 与输出路径，生成 sibling temporary object，成功后原子替换目标。
+compilation unit；`emit_native_constant_unit_object` 消费专用常量 capability。它们接收显式 entry 与输出路径，生成 sibling temporary object，成功后原子替换目标。
 backend、link 或 commit 失败由 RAII 清理临时文件并保留旧目标。
 
 CLI 的 linker/runner 是外围编排，不进入 SSA 或 LLVM 语义。标准库源码也作为普通 frontend input
