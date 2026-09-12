@@ -1,10 +1,10 @@
 # SPEC-0226：跨文件常量重新物化与所有权
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施 v0.36 unit 常量 Phase 3 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施 v0.36 unit 常量 Phase 3 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P3-226` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -98,3 +98,21 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 
 合同复核与门禁：独立边界审查通过，已明确动态分支与 owner 转移/清理条件；docs check
 （352 Markdown）、文档检查器 21 项测试与 diff check 通过。未运行 Rust：本提交仅建立合同。
+
+
+### 首切片：私有 unit ownership driver
+
+原公开 `check_compilation_unit_ownership` 继续仅接受基础 validated typed capability，委托私有
+`compilation_unit/analysis.rs` driver。身份校验、binding 收集、contracts/capture/dataflow、
+错误清理与结果构造，以及对应辅助函数机械迁移；没有复制第二套算法或新增公开转换出口。
+
+该切片只完成独立入口复用的前置，不发布 const owned capability，不宣称已有物化/capture/drop
+交付；第 5 节标准保持未完成。独立复审逐字比对迁移主体与辅助函数，确认顺序和可见性不变。
+
+`cargo test -p lang-frontend --test multifile_ownership_checking` 在重构前后均为 63 passed，
+0 failed/ignored，覆盖身份错配、capture/loan/drop 和失败清理。无行为变化，不另写镜像测试。
+
+门禁：`cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check、docs check
+（353 Markdown）与 diff check 通过。未运行 frontend 全量、workspace/native 或单文件回归：
+无公开 API/单文件/下游行为变化。未运行 all-targets clippy；此前记录的既有测试 lint 未修改，
+不以 lib clippy 通过代替全目标结果。

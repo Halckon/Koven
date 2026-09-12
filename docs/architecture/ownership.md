@@ -8,6 +8,9 @@
 `check_compilation_unit_ownership` 消费 validated typed unit 并返回 source-qualified
 `CompilationUnitOwnership`。两条路径共享所有权语义，但使用各自产物的 ID，不能混用。
 
+公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
+清理顺序不变。目前公开 ownership 入口仍只接受基础 validated typed capability。
+
 unit 入口重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。只有无所有权
 诊断且不存在阻塞 deferred fact 时，`validate` 才产生 `ValidatedCompilationUnitOwnership`，供
 codegen 使用。
