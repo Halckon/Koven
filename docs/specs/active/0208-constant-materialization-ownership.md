@@ -100,3 +100,33 @@ return/abort/branch/loop 交付矩阵；第 5 节完整验收项保持未勾选�
 
 失败证据：修复前字符串二元测试只取得 1 条 temporary drop，预期 4 条；实现后通过。
 未运行 frontend 全量、workspace check 或 native：本切片没有新增公开阶段 API，也未接入 Phase 4。
+
+
+### 第二切片：可查询计划与验证能力
+
+`ConstantMaterializationPlan` 绑定 Phase 2 descriptor，区分 InlineCopy/StringTemporary；
+`ValidatedConstantMaterializations` 仅在 typed constants 有效、ownership 无诊断及 deferred 时发布。
+`matches` 拒绝另一轮 typed analysis，`plan_at` 按 expression identity 查询；BTreeMap 去重并固定
+发布顺序，initializer、group 和不可达尾句不会重复物化。
+
+独立审查发现并修复两处控制流缺口：LocalVariable 不再丢弃 initializer 的 return/abort/break/
+continue，drop planner 的显式 loop 仅在 checker 确认 break 出口时继续。修改中的解构 match arm
+遗漏被编译器及复审检出并恢复。回归包含终止 initializer 与无出口 loop 后的不可达读取。
+
+完整 SPEC 验收仍待最终逐项核对；本切片不启用 0209。
+
+
+| 验收项 / 命令 | 实际结果 | 边界 |
+|---|---|---|
+| `cargo test -p lang-frontend --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when --no-fail-fast` | 7 + 29 + 13 + 26 = 75 passed；0 failed/ignored | 物化 identity/查询/确定性、失败清空、不可达排除；String 与 literal 的 Value/Borrow、return/abort、branch/loop cleanup 对照；共享变量、closure、nullable 控制流回归 |
+| 独立复审 | 发现并修复 initializer 终止流及无出口 loop 后的规划缺陷；最终无剩余发现 | 保留 LocalDestructuring 分支，核对变量调用方、closure 状态与嵌套 loop break 消费 |
+
+失败证据：API 新测试先报缺失公开接口；接入后终止 initializer 回归得到 4 个计划而非预期 3 个，
+修复控制流后通过。未运行 frontend 全量或 native；本轮未接入 Phase 4。
+
+
+| 追加门禁 | 结果 | 范围 |
+|---|---|---|
+| `cargo check --workspace --all-targets` | passed，8m 05s | 新增公开 ownership 产物的跨 crate 编译兼容性 |
+| `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when -- -D warnings` | passed | 本轮实现和直接/共享测试目标 |
+| `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | passed；文档 351 | 未改变 Spec inventory |

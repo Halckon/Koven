@@ -90,6 +90,8 @@ pub(super) fn check(
 }
 
 struct Checker<'a> {
+    loop_has_exit: BTreeMap<usize, bool>,
+    constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
     non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
     nullable_whens: BTreeMap<usize, super::NullableWhenOwnershipPlan>,
     sources: &'a SourceMap,
@@ -198,6 +200,8 @@ impl<'a> Checker<'a> {
             cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
+            loop_has_exit: BTreeMap::new(),
+            constant_materializations: BTreeMap::new(),
             nullable_whens: BTreeMap::new(),
             non_null_assertions: BTreeMap::new(),
             diagnostics: Vec::new(),
@@ -262,6 +266,17 @@ impl<'a> Checker<'a> {
             (Vec::new(), Vec::new())
         };
         self.finish_nullable_drops(&drops)?;
+        let constant_materializations = if diagnostics.is_empty()
+            && self.deferred.is_empty()
+            && self.typed.constants().is_some()
+        {
+            Some(super::ValidatedConstantMaterializations {
+                typed_analysis_owner: self.typed.analysis_owner().clone(),
+                plans: self.constant_materializations.into_values().collect(),
+            })
+        } else {
+            None
+        };
         let construction_plans = self.construction.finish(diagnostics.is_empty());
         let non_null_assertions = if diagnostics.is_empty() {
             self.non_null_assertions.into_values().collect()
@@ -284,6 +299,7 @@ impl<'a> Checker<'a> {
             self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
+                constant_materializations,
                 non_null_assertions,
                 nullable_whens,
                 loan_ends,
@@ -339,20 +355,7 @@ impl<'a> Checker<'a> {
             Item::Variable {
                 name, initializer, ..
             } => {
-                let closure = self.closure_origin(initializer, state)?;
-                let moved_closure = self.expression_root_symbol(initializer)?;
-                let flows =
-                    self.check_expression(initializer, state.clone(), ExpressionUse::Consume)?;
-                if let Some(mut next) = flows.next {
-                    self.mark_available(name, &mut next);
-                    if let Some(source) = moved_closure {
-                        next.closures.remove(&source);
-                    }
-                    if let Some(symbol) = self.marker_symbol(name)
-                        && let Some(closure) = closure
-                    {
-                        next.closures.insert(symbol, closure);
-                    }
+                if let Some(next) = self.check_variable(name, initializer, state.clone())?.next {
                     *state = next;
                 }
             }
@@ -379,6 +382,30 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Only a normally completed initializer establishes a binding; preserve all other edges.
+    fn check_variable(
+        &mut self,
+        name: NameMarker,
+        initializer: ExpressionId,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let closure = self.closure_origin(initializer, &state)?;
+        let moved_closure = self.expression_root_symbol(initializer)?;
+        let mut flows = self.check_expression(initializer, state, ExpressionUse::Consume)?;
+        if let Some(next) = flows.next.as_mut() {
+            self.mark_available(name, next);
+            if let Some(source) = moved_closure {
+                next.closures.remove(&source);
+            }
+            if let Some(symbol) = self.marker_symbol(name)
+                && let Some(closure) = closure
+            {
+                next.closures.insert(symbol, closure);
+            }
+        }
+        Ok(flows)
     }
 
     fn check_function(
@@ -415,21 +442,26 @@ impl<'a> Checker<'a> {
             | Statement::LambdaBody { elements }
             | Statement::ControlBody { elements } => self.check_elements(&elements, state),
             Statement::LocalVariable { declaration } => {
-                let mut state = state;
-                self.check_item(declaration, &mut state)?;
-                if let Item::Variable { name, .. } = self
+                let Item::Variable {
+                    name, initializer, ..
+                } = self
                     .parsed
                     .ast()
                     .items()
                     .get(declaration)?
                     .payload()
                     .clone()
+                else {
+                    return Ok(Flows::next(state));
+                };
+                let mut flows = self.check_variable(name, initializer, state)?;
+                if let Some(next) = flows.next.as_mut()
                     && let Some(symbol) = self.marker_symbol(name)
                     && !self.statement_live_after[id.index()].contains(&symbol)
                 {
-                    self.release_closure(symbol, &mut state);
+                    self.release_closure(symbol, next);
                 }
-                Ok(Flows::next(state))
+                Ok(flows)
             }
             Statement::LocalDestructuring { initializer, .. } => {
                 self.check_destructuring(id, initializer, state)
@@ -453,6 +485,7 @@ impl<'a> Checker<'a> {
                 if self.diagnostics.len() == errors {
                     self.check_loop_backedge(body_id, &body)?;
                 }
+                self.loop_has_exit.insert(id.index(), body.breaks.is_some());
                 Ok(Flows {
                     next: body.breaks,
                     breaks: None,
@@ -511,7 +544,26 @@ impl<'a> Checker<'a> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
-        if self.is_constant_use(id) {
+        if let Some(descriptor) = self
+            .typed
+            .constants()
+            .and_then(|constants| constants.use_at(id))
+        {
+            let kind = if matches!(
+                descriptor.value(),
+                crate::type_checking::ConstValue::String(_)
+            ) {
+                super::ConstantMaterializationKind::StringTemporary
+            } else {
+                super::ConstantMaterializationKind::InlineCopy
+            };
+            self.constant_materializations.insert(
+                id.index(),
+                super::ConstantMaterializationPlan {
+                    descriptor: descriptor.clone(),
+                    kind,
+                },
+            );
             return Ok(Flows::next(state));
         }
         if let Some(descriptor) = self.construction.descriptor(id) {

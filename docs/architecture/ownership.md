@@ -89,5 +89,9 @@ Nothing 传播无正常出口，callable 退出时清除未提交调用的保护
 的运行时 flow；常量名称没有 place/root，限定读取不求值 object/companion receiver。String use
 沿既有 temporary loan/drop 路径处理，二元运算的各次读取分别逆序析构。scalar/Char Value
 交付和 String return 不产生常量声明 owner，closure capture 不包含常量或关联命名空间。
-当前这些行为由 `ownership_constants` 覆盖；尚未发布独立物化 ownership plan/validated marker，
-不代表 compilation-unit 或 Phase 4 支持。
+`OwnershipCheckedFile::constant_materializations` 发布 `ValidatedConstantMaterializations`，包含
+按 expression identity 查询的 `ConstantMaterializationPlan`，区分 InlineCopy 和 StringTemporary。
+计划保留 typed descriptor 的值、类型与读取身份；只记录运行时遍历到的 use，不记录 initializer
+依赖或不可达尾句。typed constants 缺失、所有权诊断或 deferred 均阻止能力发布，`matches`
+核对同一次 typed analysis identity。局部 initializer 保留终止流，无出口 loop 阻止后续 drop 规划。
+这些行为由 `ownership_constants` 覆盖，不代表 compilation-unit 或 Phase 4 支持。

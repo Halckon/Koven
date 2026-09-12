@@ -3,6 +3,7 @@
 mod capture;
 mod checker;
 mod compilation_unit;
+mod constant;
 mod construction;
 mod error;
 mod model;
@@ -26,6 +27,9 @@ pub use compilation_unit::{
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
     UnitReceiverOwnershipTarget, UnitValueDeliveryFact, UnitValueDeliveryKind,
     UnitValueDeliverySource, ValidatedCompilationUnitOwnership, check_compilation_unit_ownership,
+};
+pub use constant::{
+    ConstantMaterializationKind, ConstantMaterializationPlan, ValidatedConstantMaterializations,
 };
 pub use construction::{
     ConstructionDeliveryEffect, ConstructionDeliveryKind, ConstructionOwnershipPlan,

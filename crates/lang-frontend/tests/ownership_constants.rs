@@ -3,16 +3,17 @@
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile, check_ownership,
+        ConstantMaterializationKind, DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile,
+        check_ownership,
     },
     source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    type_checking::{TypedFile, check_types, standard_environments},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
+fn analyzed(text: &str) -> (SourceMap, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).expect("source");
     let parsed = parser_test_assertions::parse_file_twice(&sources, source, "constants");
@@ -28,6 +29,11 @@ fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.constants().is_some());
     let ownership = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
+    (sources, typed, ownership)
+}
+
+fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
+    let (sources, typed, ownership) = analyzed(text);
     assert!(
         ownership.diagnostics().is_empty(),
         "{:?}",
@@ -37,6 +43,12 @@ fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
         ownership.deferred().is_empty(),
         "{:?}",
         ownership.deferred()
+    );
+    assert!(
+        ownership
+            .constant_materializations()
+            .expect("validated materializations")
+            .matches(&typed)
     );
     (sources, ownership)
 }
@@ -137,4 +149,163 @@ fun use(): Unit {
     );
     assert!(ownership.captures().is_empty());
     assert!(ownership.loans().is_empty());
+}
+
+#[test]
+fn materialization_plans_exclude_dependencies_and_bind_exact_analysis() {
+    let source = r#"
+const val TEXT = "hi"
+const val COPY = TEXT
+const val NUMBER = 7
+fun stop(): Nothing = stop()
+fun forever(): Unit {
+    loop { continue }
+    val unreachable = view(TEXT)
+}
+fun aborted(): Unit {
+    val stopped = stop()
+    val unreachable = view(TEXT)
+}
+fun view(text: String): Unit {}
+fun use(): Int {
+    val first = view(COPY)
+    val second = view(TEXT)
+    return NUMBER
+    val unreachable = view(TEXT)
+}
+"#;
+    let (sources, typed, owned) = analyzed(source);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let facts = owned.constant_materializations().expect("validated");
+    assert!(facts.matches(&typed));
+    assert_eq!(facts.plans().len(), 3);
+    assert_eq!(owned.drops().len(), 2);
+    let (_, other, repeated) = analyzed(source);
+    assert!(!facts.matches(&other));
+    let snapshot = |owned: &OwnershipCheckedFile| {
+        owned
+            .constant_materializations()
+            .unwrap()
+            .plans()
+            .iter()
+            .map(|plan| {
+                let descriptor = plan.descriptor();
+                (
+                    descriptor.expression().index(),
+                    descriptor.target().index(),
+                    descriptor.value().clone(),
+                    plan.kind(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(snapshot(&owned), snapshot(&repeated));
+    for (plan, kind) in facts.plans().iter().zip([
+        ConstantMaterializationKind::StringTemporary,
+        ConstantMaterializationKind::StringTemporary,
+        ConstantMaterializationKind::InlineCopy,
+    ]) {
+        assert_eq!(plan.kind(), kind);
+        assert_eq!(
+            facts
+                .plan_at(plan.descriptor().expression())
+                .unwrap()
+                .descriptor()
+                .target(),
+            plan.descriptor().target()
+        );
+    }
+    assert_eq!(
+        sources.slice(owned.drops()[0].value_origin()).unwrap(),
+        "COPY"
+    );
+}
+
+#[test]
+fn ownership_failure_clears_materialization_capability() {
+    let (_, _, owned) = analyzed(
+        r#"
+const val TEXT = "hi"
+fun take(own text: String): Unit {}
+fun use(own input: String): Unit {
+    val first = take(TEXT)
+    val second = take(input)
+    val third = take(input)
+}
+"#,
+    );
+    assert!(!owned.diagnostics().is_empty());
+    assert!(owned.constant_materializations().is_none());
+    assert!(owned.drops().is_empty());
+    assert!(owned.loans().is_empty());
+}
+
+#[test]
+fn constant_cleanup_matches_literal_on_control_flow_edges() {
+    for body in [
+        "val result = view(VALUE, if (flag) { return } else { 0 })",
+        "val result = view(VALUE, if (flag) { stop() } else { 0 })",
+        "loop { val result = view(VALUE, if (flag) { break } else { 0 })\nbreak }",
+        "loop { val result = view(VALUE, if (flag) { continue } else { 0 })\nbreak }",
+        "val result = view(if (flag) { VALUE } else { VALUE }, 0)",
+        "val result = take(VALUE, if (flag) { return } else { 0 })",
+        "val result = take(VALUE, if (flag) { stop() } else { 0 })",
+    ] {
+        let source = format!(
+            "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun view(text: String, number: Int): Unit {{}}\nfun take(own text: String, number: Int): Unit {{}}\nfun use(flag: Boolean): Unit {{ {body} }}"
+        );
+        let (constant_sources, constant) = checked(&source.replace("VALUE", "TEXT"));
+        let (literal_sources, literal) = checked(&source.replace("VALUE", "\"hi\""));
+        // Compare actual cleanup boundaries and owner origins, without comparing arena IDs.
+        let drops = |sources: &SourceMap, owned: &OwnershipCheckedFile| {
+            owned
+                .drops()
+                .iter()
+                .map(|drop| {
+                    (
+                        std::mem::discriminant(&drop.point()),
+                        std::mem::discriminant(&drop.target()),
+                        sources
+                            .slice(drop.value_origin())
+                            .unwrap()
+                            .replace("TEXT", "\"hi\""),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            drops(&constant_sources, &constant),
+            drops(&literal_sources, &literal),
+            "{body}"
+        );
+        assert_eq!(constant.loans().len(), literal.loans().len(), "{body}");
+        assert_eq!(
+            constant
+                .loan_ends()
+                .iter()
+                .map(|end| std::mem::discriminant(&end.point()))
+                .collect::<Vec<_>>(),
+            literal
+                .loan_ends()
+                .iter()
+                .map(|end| std::mem::discriminant(&end.point()))
+                .collect::<Vec<_>>(),
+            "{body}"
+        );
+        assert!(
+            !constant
+                .constant_materializations()
+                .unwrap()
+                .plans()
+                .is_empty(),
+            "{body}"
+        );
+        assert!(
+            literal
+                .constant_materializations()
+                .unwrap()
+                .plans()
+                .is_empty()
+        );
+    }
 }

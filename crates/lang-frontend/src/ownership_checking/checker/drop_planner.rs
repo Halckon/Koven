@@ -348,8 +348,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.loop_boundaries.push(self.scope_depth);
                 self.statement(body, &mut body_state)?;
                 self.loop_boundaries.pop();
-                self.drop_loop_exit(id, state);
-                Ok(true)
+                let has_exit = self
+                    .checker
+                    .loop_has_exit
+                    .get(&id.index())
+                    .copied()
+                    .unwrap_or(false);
+                if has_exit {
+                    self.drop_loop_exit(id, state);
+                }
+                Ok(has_exit)
             }
         }
     }

@@ -507,6 +507,7 @@ impl OwnershipDeferredFact {
 /// Phase 3 单文件所有权检查产物。
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
+    constant_materializations: Option<super::ValidatedConstantMaterializations>,
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     loan_ends: Vec<LoanEndFact>,
     nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
@@ -526,6 +527,7 @@ pub struct OwnershipCheckedFile {
 }
 
 pub(crate) struct OwnershipCheckedParts {
+    pub(crate) constant_materializations: Option<super::ValidatedConstantMaterializations>,
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
@@ -541,6 +543,12 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 单文件常量物化能力；失败或 deferred 分析不发布半成品计划。
+    #[must_use]
+    pub fn constant_materializations(&self) -> Option<&super::ValidatedConstantMaterializations> {
+        self.constant_materializations.as_ref()
+    }
+
     /// 返回按 assertion 身份排序、仅在无所有权诊断时发布的提取计划。
     #[must_use]
     pub fn non_null_assertions(&self) -> &[super::NonNullAssertionOwnershipPlan] {
@@ -584,6 +592,7 @@ impl OwnershipCheckedFile {
         Self {
             source_id,
             environment_owner,
+            constant_materializations: parts.constant_materializations,
             nullable_whens: parts.nullable_whens,
             non_null_assertions: parts.non_null_assertions,
             loan_ends: parts.loan_ends,
