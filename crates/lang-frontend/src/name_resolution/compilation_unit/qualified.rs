@@ -145,7 +145,13 @@ impl UnitResolver<'_> {
             member,
             Namespace::Value,
             self.is_object(declaration.id()),
+            true,
         );
+        // Local owner visibility belongs to the type checker; private functions are not missing.
+        if targets.is_empty() {
+            self.replace_qualified_root_with_error(source, spans, 1)?;
+            return Ok(());
+        }
         if let [target] = targets.as_slice()
             && self.local[target.source_unit().index()].symbols()[target.symbol().index()].kind()
                 == crate::name_resolution::SymbolKind::Constant
@@ -330,7 +336,7 @@ impl UnitResolver<'_> {
             let allow_direct = offset == 0
                 && root_declaration.is_some_and(|declaration| self.is_object(declaration));
             let resolved = target.map_or_else(Vec::new, |root| {
-                self.static_members(root, member, member_namespace, allow_direct)
+                self.static_members(root, member, member_namespace, allow_direct, false)
             });
             if resolved.is_empty() || (index + 1 < spans.len() && resolved.len() != 1) {
                 self.replace_qualified_root_with_error(source, spans, index)?;
@@ -358,6 +364,7 @@ impl UnitResolver<'_> {
         name: &str,
         namespace: Namespace,
         allow_direct: bool,
+        include_private: bool,
     ) -> Vec<UnitSymbolId> {
         let resolution = &self.local[root.source_unit().index()];
         if let Some(case) = resolution.enum_cases().iter().find(|case| {
@@ -419,7 +426,7 @@ impl UnitResolver<'_> {
                     && symbol.name() == name
             })
             .map(|symbol| UnitSymbolId::new(root.source_unit(), symbol.id()))
-            .filter(|symbol| self.static_symbol_visible(*symbol))
+            .filter(|symbol| include_private || self.static_symbol_visible(*symbol))
             .collect()
     }
 

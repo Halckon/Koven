@@ -141,3 +141,59 @@ fn parameter_shadowing_does_not_select_the_classifier_constant() {
     let enabled = typed.validate_constants().unwrap();
     assert!(enabled.constants().uses().is_empty());
 }
+
+#[test]
+fn private_owner_functions_keep_their_existing_resolution_path() {
+    for declaration in [
+        "object A { private fun helper(): Int = 1\nfun read(): Int = A.helper() }",
+        "class A { companion object { private fun helper(): Int = 1\nfun read(): Int = A.helper() } }",
+    ] {
+        let typed = analyze(&format!("package a\n{declaration}"));
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    }
+}
+
+#[test]
+fn all_closed_values_publish_their_exact_type_and_payload() {
+    let mut cases = vec![
+        (BuiltinType::Boolean, "true", ConstValue::Boolean(true)),
+        (BuiltinType::Char, "'文'", ConstValue::Char('文')),
+        (
+            BuiltinType::String,
+            "\"中文\"",
+            ConstValue::String("中文".as_bytes().into()),
+        ),
+    ];
+    for (ty, literal) in [
+        (BuiltinType::Byte, "1"),
+        (BuiltinType::Short, "1"),
+        (BuiltinType::Int, "1"),
+        (BuiltinType::Long, "1L"),
+        (BuiltinType::UByte, "1u"),
+        (BuiltinType::UShort, "1u"),
+        (BuiltinType::UInt, "1u"),
+        (BuiltinType::ULong, "1uL"),
+    ] {
+        cases.push((ty, literal, ConstValue::Integer { ty, value: 1 }));
+    }
+    for (ty, literal, expected) in cases {
+        let typed = analyze(&format!(
+            "package a\nobject A {{ const val X: {ty:?} = {literal} }}\nfun read(): {ty:?} = A.X"
+        ));
+        assert!(
+            typed.diagnostics().is_empty(),
+            "{ty:?}: {:?}",
+            typed.diagnostics()
+        );
+        let enabled = typed.validate_constants().unwrap();
+        let facts = enabled.constants();
+        assert_eq!(facts.declarations().len(), 1);
+        assert_eq!(facts.uses().len(), 1);
+        assert_eq!(facts.declarations()[0].value(), &expected);
+        assert_eq!(facts.uses()[0].value(), &expected);
+        assert_eq!(
+            enabled.types().types().get(facts.uses()[0].ty()),
+            Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(ty))
+        );
+    }
+}

@@ -155,6 +155,7 @@ L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成�
 解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。
 
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择，补全 terminal symbol；
+真正不存在的本地静态成员产生 L0080；private 非常量成员继续由原类型路径处理可见性。
 普通值接收者和同名参数遮蔽仍沿既有路径处理。
 
 ## 核心不变量

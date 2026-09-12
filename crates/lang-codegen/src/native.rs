@@ -169,6 +169,19 @@ pub fn emit_native_object(
 ///
 /// 所有 frontend、SSA、target layout 与 LLVM 验证均在 sibling temporary 上完成；只有完整 object
 /// 生成成功后才替换 `output`。失败时既有目标保持不变，临时文件由本函数清理。
+///
+/// 常量专用 typed capability 不能绕过独立 unit constant ownership/native 交接。
+/// ```compile_fail,E0308
+/// use std::path::Path;
+/// use lang_codegen::{emit_native_unit_object, NativeUnitEntry};
+/// use lang_frontend::{source::SourceMap, name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+///     type_checking::{ConstEnabledTypedUnit, TypeEnvironment}, ownership_checking::ValidatedCompilationUnitOwnership};
+/// fn reject(sources: &SourceMap, inputs: &[SourceUnitInput<'_>], names: &ValidatedCompilationUnitNames,
+///     environment: &TypeEnvironment, typed: &ConstEnabledTypedUnit, owned: &ValidatedCompilationUnitOwnership,
+///     entry: NativeUnitEntry, output: &Path) {
+///     emit_native_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
+/// }
+/// ```
 #[allow(clippy::too_many_arguments)]
 pub fn emit_native_unit_object(
     sources: &SourceMap,

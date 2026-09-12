@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 207 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 208 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -162,6 +162,8 @@
 - [SPEC-0197](./0197-multifile-type-checking.md)：跨文件类型检查
 - [SPEC-0218](./0218-compilation-unit-assignment-facts.md)：compilation-unit 普通替换赋值类型事实
 - [SPEC-0219](./0219-compilation-unit-runtime-field-layout-facts.md)：compilation-unit 实例限定 runtime 字段布局事实
+
+- [SPEC-0210](./0210-multifile-associated-constants.md)：跨文件关联常量 typed facts 与独立 capability
 
 ## Phase 2/3/4 纵向切片
 

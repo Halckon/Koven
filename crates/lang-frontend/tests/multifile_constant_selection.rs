@@ -5,7 +5,7 @@ use lang_frontend::{
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        BuiltinType, ExpressionCategory, UnitExpressionId, UnitTypeKind,
+        BuiltinType, ConstValue, ExpressionCategory, UnitExpressionId, UnitTypeKind,
         check_compilation_unit_types, standard_environments,
     },
 };
@@ -112,11 +112,34 @@ fn check(declaration: &str, access: &str, expected_codes: &[&str]) {
                     .iter()
                     .all(|fact| fact.expression() != expression)
             );
+            let enabled = typed.clone().validate_constants().unwrap();
+            let facts = enabled.constants();
+            let usage = facts
+                .uses()
+                .iter()
+                .find(|usage| usage.expression() == expression)
+                .unwrap();
+            let declaration = facts
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.symbol() == usage.target())
+                .unwrap();
+            assert_eq!(usage.ty(), declaration.ty());
+            assert_eq!(
+                usage.value(),
+                &ConstValue::Integer {
+                    ty: BuiltinType::Int,
+                    value: 7
+                }
+            );
+            assert_eq!(usage.value(), declaration.value());
             assert!(
                 typed.validate().is_err(),
                 "selection alone cannot grant base ownership/native capability"
             );
         } else {
+            assert!(typed.constants().is_none());
+            assert!(typed.clone().validate_constants().is_err());
             assert_eq!(
                 sources
                     .slice(typed.diagnostics()[0].primary_span())
@@ -184,5 +207,42 @@ fn associated_member_import_and_invisible_type_keep_name_phase_diagnostics() {
             names.validate().is_err(),
             "invalid imports must stop before unit type checking"
         );
+    }
+}
+
+#[test]
+fn missing_local_constant_member_stops_before_capability_publication() {
+    for declaration in [
+        "object A { const val X = 1 }",
+        "class A { companion object { const val X = 1 } }",
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "a.ko",
+                format!("package a\n{declaration}\nfun read(): Int = A.MISSING"),
+            )
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let inputs = [SourceUnitInput::new("root", "a/source.ko", source, &parsed)];
+        let (ne, _) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne).unwrap();
+        assert_eq!(
+            names
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0080"]
+        );
+        assert_eq!(
+            sources
+                .slice(names.diagnostics()[0].primary_span())
+                .unwrap(),
+            "MISSING"
+        );
+        assert!(names.validate().is_err());
     }
 }

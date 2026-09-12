@@ -1,12 +1,12 @@
 # SPEC-0210：跨文件关联常量集成
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-210` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -44,15 +44,15 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 ## 5. 验收标准
 
-- [ ] `import p.Type`; `Type.CONST`、`p.Type.CONST` 与跨文件 acyclic chain 正确。
+- [x] `import p.Type`; `Type.CONST`、`p.Type.CONST` 与跨文件 acyclic chain 正确。
 - [x] `import p.Type.CONST` 精确产生 L0148；invisible imported Type 使用 L0149，private associated
   const 越界使用 L0154。
-- [ ] 跨文件 self/two-node/multi-node SCC 每个 cycle 一个 L0157，labels 使用稳定 unit/declaration key。
-- [ ] 正逆 source-unit 输入顺序产生相同 facts/diagnostics，单文件 wrapper 行为不变。
-- [ ] invalid unit/import/type facts 不追加 const 级联或半成品 descriptor。
-- [ ] 基础 validated unit 与 const-enabled capability 不可混用；0198/0199 对后者保持确定性拒绝，
+- [x] 跨文件 self/two-node/multi-node SCC 每个 cycle 一个 L0157，labels 使用稳定 unit/declaration key。
+- [x] 正逆 source-unit 输入顺序产生相同 facts/diagnostics，单文件 wrapper 行为不变。
+- [x] invalid unit/import/type facts 不追加 const 级联或半成品 descriptor。
+- [x] 基础 validated unit 与 const-enabled capability 不可混用；0198/0199 对后者保持确定性拒绝，
   直到独立 unit const ownership/native 后继完成。
-- [ ] Architecture 与实现事实同步。
+- [x] Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
 
@@ -61,9 +61,9 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 ## 7. 实施计划
 
-1. [ ] 接 unit declaration/associated target → 验证：visibility/import/qualified 矩阵。
-2. [ ] 接跨文件 dependency/evaluation → 验证：chain/cycle/order矩阵。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+1. [x] 接 unit declaration/associated target → 验证：visibility/import/qualified 矩阵。
+2. [x] 接跨文件 dependency/evaluation → 验证：chain/cycle/order矩阵。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -306,3 +306,35 @@ terminal，复用 static member 事实；普通变量及同名参数不受影响
 定向 clippy（`--lib`、facts/selection/name_resolution 三目标，`-- -D warnings`）、fmt check、
 docs check（351 Markdown）与 diff check 通过。已有 all-targets lint 和三项 unit type 基线失败
 未改动，workspace 编译通过不表示这些测试或 lint 已修复。未运行 frontend 全量测试或 native 全矩阵。
+
+
+### 最终验收：2026-09-12
+
+完成前独立审计发现同文件 `A.MISSING` 漏报；失败测试确认原先无诊断。修复复用 L0080
+出口，并区分真正不存在与 private 非常量成员，保留 owner 内部 private 函数原路径；新增
+负例与 private owner 回归均由失败转为通过，独立复审未再发现具体阻断项。
+
+| 第 5 节标准 | 完成证据 |
+|---|---|
+| import/absolute/acyclic chain | selection 的五类 namespace × 两种路径正逆输入同时核对 capability/value/use；facts 的跨文件 40→42 与 source-qualified依赖/use；qualification 的整数/String 跨文件运算值 |
+| L0148/L0149/L0154 | selection 原有名称拒绝与 private 外部/owner 内部矩阵；错误时 constants=None、capability拒绝 |
+| self/two/multi SCC | dependencies 的 self、二节点与三节点环；每 SCC 单条 L0157、完整稳定 labels、短路 RHS 与非法 operand 失效 |
+| 顺序确定与单文件不变 | 跨文件 facts、selection、dependencies、qualification 主矩阵比较正逆 inputs；共享内核切片单文件 type 24 / ownership 16 与 codegen 8 项证据，后续未改其行为 |
+| 原子失效 | facts 覆盖求值/环/类型/表达式/普通 body/签名错误；成功常量不泄漏部分 facts，非法 imports 无法获得 validated names |
+| capability 隔离 | facts 证明未读取声明及解包后基础 validate 拒绝；真实 ownership/native 两入口的 E0308 compile-fail doctest 均通过 |
+| 当前事实文档 | Architecture 已记录原子 facts、独立 capability 与本地成员选择边界 |
+
+本轮最终直接覆盖：facts 6 项、selection 5 项、name_resolution 10 项，共 21 项通过，0 ignored；
+三目标合并命令先通过 5+5+10，新增 11 种值 payload 后仅以完整测试名定向补跑 1 passed、5 filtered。
+`cargo test -p lang-codegen --doc emit_native_unit_object` 1 passed；真实 ownership compile-fail、
+63 项 ownership 回归与 workspace 全目标编译复用上一切片的有效结果。没有运行 frontend 全量
+测试，也没有把既有三项 type 测试失败和两项 all-targets lint 失败表述为已修复。
+
+SPEC-0210 的 Phase 2 范围至此完成；跨文件常量 ownership/native 仍由独立后继 Spec 实施。
+
+最终门禁：定向 frontend clippy（lib、facts/selection/name_resolution 三目标，`-D warnings`）、
+fmt check、docs check（351 Markdown）与 diff check 通过。归档迁移保留各切片的历史限制记录，
+第 5 节勾选和本最终验收表共同描述完成状态。
+
+归档清单回归：`python3 -m unittest discover -s scripts/tests -p test_check_docs.py`，21 项通过。
+独立文档复核已收窄顺序确定性证据的表述，未发现剩余阻断项。

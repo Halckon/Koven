@@ -337,7 +337,7 @@ Spec 之前，本条限制不变。）
 - [ ] **[SPEC-0026](../../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
       exact-import 边界已由现行 v0.32 勘误封闭，本节点只等待候选 v0.36 启用。
-- [ ] **[SPEC-0210](../../../specs/active/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
+- [ ] **[SPEC-0210](../../specs/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
       完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用

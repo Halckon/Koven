@@ -7,10 +7,10 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
-- [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0210 实施中。
-- [v0.36 阶段路由](drafts/v0.36/README.md)：单文件已完成，跨文件 typed SPEC-0210 实施中。
+- [Active](active/README.md)：`approved` / `in-progress`；当前无 active Spec。
+- [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件 typed 已完成，后继 ownership/native 待独立 Spec。
 - [Draft v0.37](drafts/v0.37/README.md)：借用式顺序迭代，4 份，全部被未启用语义阻塞。
-- [完成 Spec Archive](../archive/specs/README.md)：207 份 `done`/`superseded` 记录，仅在追溯时读取。
+- [完成 Spec Archive](../archive/specs/README.md)：208 份 `done`/`superseded` 记录，仅在追溯时读取。
 
 ## 生命周期
 
