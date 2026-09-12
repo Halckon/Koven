@@ -593,3 +593,137 @@ fn string_binary_named_left_survives_right_branches_calls_and_nested_views() {
         }
     }
 }
+
+#[test]
+fn acceptance_scalar_repeated_delivery_has_no_runtime_owner_loan_or_drop() {
+    for (ty, literal) in [
+        ("Boolean", "true"),
+        ("Byte", "1"),
+        ("Short", "2"),
+        ("Int", "3"),
+        ("Long", "4"),
+        ("UByte", "5u"),
+        ("UShort", "6u"),
+        ("UInt", "7u"),
+        ("ULong", "8uL"),
+        ("Char", "'文'"),
+    ] {
+        with_unit(
+            &format!(
+                "package a\nimport b.VALUE\nfun take(own payload: {ty}): Unit {{}}\nfun read(): Unit {{ val first = take(VALUE)\nval second = take(VALUE) }}"
+            ),
+            &format!("package b\nconst val VALUE: {ty} = {literal}"),
+            |sources, inputs, names, te, typed| {
+                let owned =
+                    check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                        .unwrap()
+                        .validate()
+                        .unwrap();
+                assert_eq!(owned.materializations().len(), 2, "{ty}");
+                assert_eq!(owned.ownership().value_deliveries().len(), 2, "{ty}");
+                for (plan, delivery) in owned
+                    .materializations()
+                    .iter()
+                    .zip(owned.ownership().value_deliveries())
+                {
+                    assert_eq!(plan.kind(), ConstantMaterializationKind::InlineCopy, "{ty}");
+                    assert_eq!(
+                        delivery.source(),
+                        &lang_frontend::ownership_checking::UnitValueDeliverySource::Temporary(
+                            plan.descriptor().expression()
+                        ),
+                        "{ty}: never deliver the declaration place"
+                    );
+                    assert_ne!(
+                        delivery.kind(),
+                        lang_frontend::ownership_checking::UnitValueDeliveryKind::Move,
+                        "{ty}: reading again cannot move the declaration"
+                    );
+                }
+                assert!(owned.ownership().loans().is_empty(), "{ty}");
+                assert!(owned.ownership().drops().is_empty(), "{ty}");
+                assert!(owned.ownership().captures().is_empty(), "{ty}");
+            },
+        );
+    }
+}
+
+#[test]
+fn acceptance_colliding_local_ids_keep_capture_and_drop_sources_stable() {
+    let body = "const val TEXT = \"hi\"\nfun view(text: String): Unit {}\nfun read(own kept: String): Unit { val f = { val first = view(kept)\nval second = view(OTHER.TEXT) }\nf() }";
+    with_unit(
+        &format!("package a\n{}", body.replace("OTHER", "b")),
+        &format!("package b\n{}", body.replace("OTHER", "a")),
+        |sources, inputs, names, te, typed| {
+            let owned =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            let plans = owned.materializations();
+            assert_eq!(plans.len(), 2);
+            assert_eq!(
+                plans[0].descriptor().expression().expression(),
+                plans[1].descriptor().expression().expression()
+            );
+            assert_ne!(
+                plans[0].descriptor().expression(),
+                plans[1].descriptor().expression()
+            );
+            let captures = owned.ownership().captures();
+            assert_eq!(captures.len(), 2, "only kept is captured in each source");
+            for capture in captures {
+                assert_eq!(sources.slice(capture.reference_span()).unwrap(), "kept");
+            }
+            let closures = owned.ownership().closures();
+            assert_eq!(closures.len(), 2);
+            assert_eq!(
+                closures[0].expression().expression(),
+                closures[1].expression().expression()
+            );
+            assert_ne!(closures[0].expression(), closures[1].expression());
+            for closure in closures {
+                let matching = captures
+                    .iter()
+                    .filter(|capture| capture.lambda() == closure.expression())
+                    .collect::<Vec<_>>();
+                assert_eq!(matching.len(), 1);
+                let lang_frontend::ownership_checking::UnitClosureCaptureSource::Symbol(symbol) =
+                    matching[0].source()
+                else {
+                    panic!("kept is a local symbol")
+                };
+                assert_eq!(symbol.source_unit(), closure.expression().source_unit());
+            }
+            for plan in plans {
+                let owner = plan.descriptor().expression();
+                let drops = owned
+                    .ownership()
+                    .drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(owner))
+                    .collect::<Vec<_>>();
+                assert_eq!(drops.len(), 1, "same local ID must not merge source owners");
+                let UnitDropPoint::CallReturn(call) = drops[0].point() else {
+                    panic!("borrowed constant lives until view returns")
+                };
+                assert_eq!(call.source_unit(), owner.source_unit());
+                assert_ne!(
+                    plan.descriptor().target().source_unit(),
+                    owner.source_unit()
+                );
+            }
+            let reversed = [inputs[1], inputs[0]];
+            let again =
+                check_compilation_unit_constant_ownership(sources, &reversed, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            assert_eq!(owned.materializations(), again.materializations());
+            assert_eq!(owned.ownership().captures(), again.ownership().captures());
+            assert_eq!(owned.ownership().closures(), again.ownership().closures());
+            assert_eq!(owned.ownership().loans(), again.ownership().loans());
+            assert_eq!(owned.ownership().drops(), again.ownership().drops());
+        },
+    );
+}
