@@ -1,12 +1,12 @@
 # SPEC-0208：常量重新物化与所有权事实
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-208` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -41,13 +41,13 @@ value，把每个 String const use 视为从编译期 UTF-8 bytes 新建的普�
 
 ## 5. 验收标准
 
-- [ ] scalar/Char const 可重复 Value-deliver 且没有 move/drop/loan；声明永不进入 moved state。
-- [ ] 同一 String const 的重复 use、Borrow call、concat/equality、return 与分支产生独立 owner，
+- [x] scalar/Char const 可重复 Value-deliver 且没有 move/drop/loan；声明永不进入 moved state。
+- [x] 同一 String const 的重复 use、Borrow call、concat/equality、return 与分支产生独立 owner，
   每个正常路径精确 drop 一次。
-- [ ] closure 引用 const 不产生 capture；object/companion 不产生 owner/init/drop facts。
-- [ ] return/abort/branch/loop 下 String temporary 的 liveness/drop 与普通 literal 一致。
-- [ ] validated marker、determinism 与现有 ownership/drop suite 回归。
-- [ ] Architecture 与实现事实同步。
+- [x] closure 引用 const 不产生 capture；object/companion 不产生 owner/init/drop facts。
+- [x] return/abort/branch/loop 下 String temporary 的 liveness/drop 与普通 literal 一致。
+- [x] validated marker、determinism 与现有 ownership/drop suite 回归。
+- [x] Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
 
@@ -56,9 +56,9 @@ temporary/drop 机制；不把 constant symbol伪装成 local variable，也不�
 
 ## 7. 实施计划
 
-1. [ ] 建立 const-use materialization ownership facts → 验证：scalar/String model 测试。
-2. [ ] 接 liveness/drop/capture → 验证：控制流与交付矩阵。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+1. [x] 建立 const-use materialization ownership facts → 验证：scalar/String model 测试。
+2. [x] 接 liveness/drop/capture → 验证：控制流与交付矩阵。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -159,3 +159,34 @@ return 的 cleanup 看不到它；break/continue 需同矩阵核验。后续应�
 | `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_closures --test ownership_nullable_when -- -D warnings` | passed | 本轮内部实现和受影响测试 |
 | `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | passed；文档 351 | 未迁移 inventory |
 | 独立复审 | 已复现缺口修复无新增发现；保留上述 String 左 operand 跨右控制流清理缺口 | 未额外运行 Cargo；未认定完整 Spec 通过 |
+
+
+## 11. 最终验收（2026-09-12）
+
+本节结论取代前述各实施切片当时的未完成状态；保留失败及修复记录供追溯。
+
+最后两处清理遗漏已经修复：String 左 temporary 和插值输入 temporary 均随既有 ValueState
+传递，return/break/continue 清理，Abort 不展开。正常 binary 仍按右左顺序在运算后清理；
+插值输入在外层 String 完成后逆序清理，外层结果 owner 不受影响，也不清理仍 live 的 named owner。
+
+| 第 5 节验收项 | 直接证据（ownership_constants） | 结论 |
+|---|---|---|
+| scalar/Char 重复交付 | `every_closed_scalar_type_repeats_value_delivery_without_runtime_owners`；十种封闭 scalar/Char、group，无 loan/drop/capture | 通过 |
+| String 独立 owner 与正常清理 | `repeated_string_borrows_own_distinct_temporaries_without_declaration_loans`、`string_binary_operands_drop_materializations_in_reverse_order`、`scalar_delivery_and_string_return_do_not_own_constant_declarations`、`grouped_string_reads_keep_the_materialization_owner_identity` | 通过 |
+| namespace/closure 无 owner/capture | `closure_reads_do_not_capture_constant_or_namespace_identity`；checker/drop/liveness 跳过声明 initializer，capture 排除 Constant/ObjectValue/Classifier | 通过 |
+| return/abort/branch/loop | `constant_cleanup_matches_literal_on_control_flow_edges`、`string_left_temporary_cleanup_follows_right_control_transfer`、`nested_string_left_temporaries_cleanup_in_reverse_evaluation_order`、`interpolation_prefix_temporaries_follow_control_transfer_and_abort`；直接清理数量/逆序断言补足 literal 对照 | 通过 |
+| marker、确定性与回归 | `materialization_plans_exclude_dependencies_and_bind_exact_analysis`、`ownership_failure_clears_materialization_capability`、`deferred_ownership_does_not_publish_constant_capability`；typed constants 缺失门禁经独立代码审查 | 通过 |
+| Architecture | ownership.md 已同步计划、owner identity 与清理实现事实 | 通过 |
+
+| 最终检查 | 实际结果 | 复用边界 |
+|---|---|---|
+| `cargo test -p lang-frontend --test ownership_constants --test ownership_checking --test ownership_nullable_when --no-fail-fast` | 16 + 29 + 26 = 71 passed；0 failed/ignored | 最终源码状态；包含两处新增清理修复 |
+| `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_nullable_when -- -D warnings` | passed | 最终实现与受影响测试 |
+| `cargo fmt --all -- --check` | passed | 最终 Rust 源码 |
+| 独立最终复审 | 先前发现均已落实修复，无剩余明确缺口 | 正常逆序、嵌套 control identity、loop-depth、Abort、插值边界与 named-owner 保护 |
+| 公开 API 与其他回归 | 复用第二切片 workspace check 及已记录 closure 回归 | 后续没有新增公开 API 或修改 capture 契约 |
+
+本轮失败证据：String 左 temporary 的 return 清理为 0、预期 1；两个 String const 插值输入 drop
+为 0、预期 2。实现后对应矩阵全部通过。未运行 frontend 全量或 native；Phase 4 由 SPEC-0209 承接。
+
+归档门禁：`python3 scripts/check_docs.py`（351 Markdown）、`python3 -m unittest discover -s scripts/tests -p 'test_check_docs.py'`（21 passed）、`git diff --check` 均通过；inventory 同步为 206 份归档、active 0209、v0.36 draft 0210。

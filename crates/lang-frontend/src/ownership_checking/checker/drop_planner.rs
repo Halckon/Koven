@@ -435,10 +435,45 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Group { expression } => self.expression(expression, usage, state),
             Expression::String { parts } => {
                 for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part
-                        && !self.expression(expression, ExpressionUse::Read, state)?
-                    {
-                        return Ok(false);
+                    if let StringPart::Interpolation { expression, .. } = part {
+                        if !self.expression(expression, ExpressionUse::Read, state)? {
+                            state
+                                .nullable_temporaries
+                                .retain(|temporary| temporary.control != id);
+                            return Ok(false);
+                        }
+                        if self.is_move_only_temporary(expression) {
+                            state.nullable_temporaries.push(NullableTemporary {
+                                transfers_at_call: false,
+                                control: id,
+                                subject: expression,
+                                origin: self
+                                    .checker
+                                    .parsed
+                                    .ast()
+                                    .expressions()
+                                    .get(expression)?
+                                    .span(),
+                                loop_depth: self.loop_boundaries.len(),
+                                prior_symbols: state
+                                    .values
+                                    .iter()
+                                    .map(|value| value.symbol)
+                                    .collect(),
+                            });
+                        }
+                    }
+                }
+                // Interpolation has consumed its inputs; the outer String result remains owned.
+                // This completion must not release named owners that are live after the String.
+                for index in (0..state.nullable_temporaries.len()).rev() {
+                    if state.nullable_temporaries[index].control == id {
+                        let temporary = state.nullable_temporaries.remove(index);
+                        self.push_fact(DropFact::new(
+                            DropPoint::AfterExpression(id),
+                            DropTarget::Temporary(temporary.subject),
+                            temporary.origin,
+                        ));
                     }
                 }
                 Ok(true)
@@ -865,7 +900,24 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if !continues {
             return Ok(false);
         }
+        // The right operand can leave this expression before the operation executes.
+        // Keep the completed left temporary in the existing control-transfer cleanup stack.
+        if let Some(StringOperandDrop::Temporary(subject, origin)) = left_drop {
+            state.nullable_temporaries.push(NullableTemporary {
+                transfers_at_call: false,
+                control: binary,
+                subject,
+                origin,
+                loop_depth: self.loop_boundaries.len(),
+                prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
+            });
+        }
         let (continues, right_drop) = self.string_view_operand(right, state)?;
+        // Normal completion uses AfterBinaryOperands below. A terminated path has either
+        // already cleaned the obligation at its transfer, or aborted without unwinding.
+        state
+            .nullable_temporaries
+            .retain(|temporary| temporary.control != binary);
         if !continues {
             return Ok(false);
         }

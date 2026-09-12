@@ -400,7 +400,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
-- [ ] **[SPEC-0208](../../../specs/active/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
+- [ ] **[SPEC-0208](../../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
       owner，禁止 global owner/capture/init/drop；等待候选启用。
 - [ ] **[SPEC-0211](../../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
@@ -462,7 +462,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0207](../../../archive/specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
-- [ ] **[SPEC-0209](../../../specs/drafts/v0.36/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
+- [ ] **[SPEC-0209](../../../specs/active/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
       把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
       singleton/global/init 或第二套 String runtime。
 - [ ] **[SPEC-0212](../../../specs/drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA

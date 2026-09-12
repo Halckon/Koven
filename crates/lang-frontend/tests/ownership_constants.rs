@@ -437,3 +437,182 @@ fun use(flag: Boolean): Unit {
     );
     assert!(owned.drops().is_empty(), "{:?}", owned.drops());
 }
+
+#[test]
+fn string_left_temporary_cleanup_follows_right_control_transfer() {
+    for (body, transfers, normal) in [
+        (
+            "val result = LEFT + \"${if (flag) { return } else { 0 }}\"",
+            1,
+            1,
+        ),
+        (
+            "loop { val result = LEFT + \"${if (flag) { break } else { 0 }}\"\nbreak }",
+            1,
+            1,
+        ),
+        (
+            "loop { val result = LEFT + \"${if (flag) { continue } else { 0 }}\"\nbreak }",
+            1,
+            1,
+        ),
+        (
+            "val result = LEFT + \"${if (flag) { stop() } else { 0 }}\"",
+            0,
+            1,
+        ),
+        ("val result = LEFT + \"${stop()}\"", 0, 0),
+    ] {
+        for left in ["TEXT", "\"hi\""] {
+            let source = format!(
+                "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {} }}",
+                body.replace("LEFT", left)
+            );
+            let (sources, owned) = checked(&source);
+            let drops = owned
+                .drops()
+                .iter()
+                .filter(|drop| {
+                    matches!(drop.target(), DropTarget::Temporary(_))
+                        && sources.slice(drop.value_origin()).unwrap() == left
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                drops
+                    .iter()
+                    .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
+                    .count(),
+                transfers,
+                "{source}: {drops:?}"
+            );
+            assert_eq!(
+                drops
+                    .iter()
+                    .filter(|drop| matches!(drop.point(), DropPoint::AfterBinaryOperands(_)))
+                    .count(),
+                normal,
+                "{source}: {drops:?}"
+            );
+            assert_eq!(
+                drops.len(),
+                transfers + normal,
+                "{source}: no extra cleanup"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_string_left_temporaries_cleanup_in_reverse_evaluation_order() {
+    let (sources, owned) = checked(
+        r#"
+const val TEXT = "hi"
+fun use(flag: Boolean): Unit {
+    val result = TEXT + (TEXT + "${if (flag) { return } else { 0 }}")
+}
+"#,
+    );
+    let transfers = owned
+        .drops()
+        .iter()
+        .filter(|drop| {
+            matches!(drop.point(), DropPoint::ControlTransfer(_))
+                && sources.slice(drop.value_origin()).unwrap() == "TEXT"
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(transfers.len(), 2);
+    assert_eq!(transfers[0].point(), transfers[1].point());
+    assert!(transfers[0].value_origin().start() > transfers[1].value_origin().start());
+    for transfer in transfers {
+        assert_eq!(
+            owned
+                .drops()
+                .iter()
+                .filter(|drop| {
+                    drop.target() == transfer.target()
+                        && matches!(drop.point(), DropPoint::AfterBinaryOperands(_))
+                })
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn interpolated_string_constants_release_inner_owners_before_returning_outer_string() {
+    let (sources, owned) = checked(
+        r#"
+const val TEXT = "hi"
+fun use(): String = "${TEXT}-${(TEXT)}"
+"#,
+    );
+    let plans = owned.constant_materializations().unwrap().plans();
+    assert_eq!(plans.len(), 2);
+    assert_eq!(owned.drops().len(), 2, "{:?}", owned.drops());
+    assert_eq!(owned.drops()[0].point(), owned.drops()[1].point());
+    assert!(owned.drops()[0].value_origin().start() > owned.drops()[1].value_origin().start());
+    for plan in plans {
+        let owner = plan.descriptor().expression();
+        let drops = owned
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == DropTarget::Temporary(owner))
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1);
+        assert!(matches!(drops[0].point(), DropPoint::AfterExpression(_)));
+        assert_eq!(sources.slice(drops[0].value_origin()).unwrap(), "TEXT");
+    }
+}
+
+#[test]
+fn interpolation_prefix_temporaries_follow_control_transfer_and_abort() {
+    for (body, transfers, normal) in [
+        (
+            "val result = \"${TEXT}-${if (flag) { return } else { 0 }}\"",
+            1,
+            1,
+        ),
+        (
+            "loop { val result = \"${TEXT}-${if (flag) { break } else { 0 }}\"\nbreak }",
+            1,
+            1,
+        ),
+        (
+            "loop { val result = \"${TEXT}-${if (flag) { continue } else { 0 }}\"\nbreak }",
+            1,
+            1,
+        ),
+        (
+            "val result = \"${TEXT}-${if (flag) { stop() } else { 0 }}\"",
+            0,
+            1,
+        ),
+        ("val result = \"${TEXT}-${stop()}\"", 0, 0),
+    ] {
+        let (sources, owned) = checked(&format!(
+            "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {body} }}"
+        ));
+        let drops = owned
+            .drops()
+            .iter()
+            .filter(|drop| sources.slice(drop.value_origin()).unwrap() == "TEXT")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            drops
+                .iter()
+                .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
+                .count(),
+            transfers,
+            "{body}: {drops:?}"
+        );
+        assert_eq!(
+            drops
+                .iter()
+                .filter(|drop| matches!(drop.point(), DropPoint::AfterExpression(_)))
+                .count(),
+            normal,
+            "{body}: {drops:?}"
+        );
+        assert_eq!(drops.len(), transfers + normal);
+    }
+}

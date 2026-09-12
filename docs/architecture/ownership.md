@@ -100,3 +100,8 @@ Nothing 传播无正常出口，callable 退出时清除未提交调用的保护
 String 常量的 Group 只透传读取：Borrow loan 和 temporary drop 的 owner/value-origin 归一到
 物化 descriptor 的叶表达式，call argument 与 drop point 仍保留原语法身份。通用二元左 operand、
 String interpolation 及专用 String operand 的终止状态向外传播，阻止后续读取及正常 drop 规划。
+
+
+String binary 的已完成左 temporary 和各插值输入进入现有 ValueState 清理栈，跨后续操作数的
+return/break/continue 逆序释放，Abort 不展开。正常 binary 仍在 AfterBinaryOperands 按右左清理；
+插值在 AfterExpression(外层 String) 仅清理本次输入 temporary，不释放外层结果或仍 live 的 named owner。
