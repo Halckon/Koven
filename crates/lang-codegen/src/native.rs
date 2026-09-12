@@ -17,13 +17,15 @@ use lang_frontend::{
         DeclarationId, NameResolution, ScopeKind, SourceUnitInput, SymbolId, SymbolKind,
         ValidatedCompilationUnitNames,
     },
-    ownership_checking::{OwnershipCheckedFile, ValidatedCompilationUnitOwnership},
+    ownership_checking::{
+        ConstEnabledOwnedUnit, OwnershipCheckedFile, ValidatedCompilationUnitOwnership,
+    },
     parser::ParsedFile,
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, FunctionParameterType, IntrinsicTypeConstructor, ParameterMode,
-        TypeEnvironment, TypeKind, TypedFile, UnitCallableTarget, UnitTypeKind,
-        ValidatedCompilationUnitTypes,
+        BuiltinType, CompilationUnitTypes, ConstEnabledTypedUnit, FunctionParameterType,
+        IntrinsicTypeConstructor, ParameterMode, TypeEnvironment, TypeKind, TypedFile,
+        UnitCallableTarget, UnitTypeKind, ValidatedCompilationUnitTypes,
     },
 };
 
@@ -208,8 +210,73 @@ pub fn emit_native_unit_object(
     let entry = entry.into();
     validate_unit_inputs(sources, inputs, names, environment, typed, owned)
         .map_err(map_lowering_error)?;
-    validate_unit_entry(names, typed, entry)?;
+    validate_unit_entry(names, typed.types(), entry)?;
     let (program, function) = lower_scalar_unit_with_entry(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed,
+        owned,
+        entry.declaration(),
+    )
+    .map_err(map_lowering_error)?;
+    let plan = native_unit_entry_plan(&program, entry, function)?;
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(&program, sources, plan, temporary.path())
+        .map_err(|error| map_backend_error(sources, &program, error))?;
+    temporary.commit(output)
+}
+
+/// 从同一次常量 typed/owned capability 生成原子发布的 compilation-unit object。
+/// 身份校验及 SSA lowering 在创建临时输出前完成；入口与发布流程复用基础 native 契约。
+///
+/// 基础 typed 或 owned 不能替代常量专用 capability。
+/// ```compile_fail,E0308
+/// use std::path::Path;
+/// use lang_codegen::{emit_native_constant_unit_object, NativeUnitEntry};
+/// use lang_frontend::{source::SourceMap, name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+///     type_checking::{ValidatedCompilationUnitTypes, TypeEnvironment}, ownership_checking::ConstEnabledOwnedUnit};
+/// fn reject(sources: &SourceMap, inputs: &[SourceUnitInput<'_>], names: &ValidatedCompilationUnitNames,
+///     environment: &TypeEnvironment, typed: &ValidatedCompilationUnitTypes, owned: &ConstEnabledOwnedUnit,
+///     entry: NativeUnitEntry, output: &Path) {
+///     emit_native_constant_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
+/// }
+/// ```
+/// ```compile_fail,E0308
+/// use std::path::Path;
+/// use lang_codegen::{emit_native_constant_unit_object, NativeUnitEntry};
+/// use lang_frontend::{source::SourceMap, name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+///     type_checking::{ConstEnabledTypedUnit, TypeEnvironment}, ownership_checking::ValidatedCompilationUnitOwnership};
+/// fn reject(sources: &SourceMap, inputs: &[SourceUnitInput<'_>], names: &ValidatedCompilationUnitNames,
+///     environment: &TypeEnvironment, typed: &ConstEnabledTypedUnit, owned: &ValidatedCompilationUnitOwnership,
+///     entry: NativeUnitEntry, output: &Path) {
+///     emit_native_constant_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
+/// }
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn emit_native_constant_unit_object(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ConstEnabledTypedUnit,
+    owned: &ConstEnabledOwnedUnit,
+    entry: impl Into<NativeUnitEntry>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let entry = entry.into();
+    crate::ssa::unit_lower::constant::validate_constant_unit_inputs(
+        sources,
+        inputs,
+        names,
+        environment,
+        typed,
+        owned,
+    )
+    .map_err(map_lowering_error)?;
+    validate_unit_entry(names, typed.types(), entry)?;
+    let (program, function) = crate::ssa::unit_lower::constant::lower_constant_unit_with_entry(
         sources,
         inputs,
         names,
@@ -284,7 +351,7 @@ fn validate_entry(
 
 fn validate_unit_entry(
     names: &ValidatedCompilationUnitNames,
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
     entry: NativeUnitEntry,
 ) -> Result<(), NativeObjectError> {
     let declaration_id = entry.declaration();
@@ -295,14 +362,13 @@ fn validate_unit_entry(
         .get(declaration_id.index())
         .ok_or_else(|| invalid_entry(None))?;
     let callable = typed
-        .types()
         .signatures()
         .declaration(declaration_id)
         .and_then(|signature| signature.callable())
         .ok_or_else(|| invalid_entry(Some(declaration.name_span())))?;
     if callable.target() != UnitCallableTarget::Declaration(declaration_id)
         || !callable.type_parameters().is_empty()
-        || typed.types().types().get(callable.return_type())
+        || typed.types().get(callable.return_type())
             != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
     {
         return Err(invalid_entry(Some(declaration.name_span())));
@@ -311,12 +377,12 @@ fn validate_unit_entry(
         NativeUnitEntry::NoArguments(_) => callable.parameters().is_empty(),
         NativeUnitEntry::BorrowedArguments(_) => match callable.parameters() {
             [parameter] if parameter.mode() == ParameterMode::Borrow => matches!(
-                typed.types().types().get(parameter.ty()),
+                typed.types().get(parameter.ty()),
                 Some(UnitTypeKind::Intrinsic {
                     constructor: IntrinsicTypeConstructor::Array,
                     arguments,
                 }) if matches!(arguments.as_slice(), [string]
-                    if typed.types().types().get(*string)
+                    if typed.types().get(*string)
                         == Some(&UnitTypeKind::Builtin(BuiltinType::String)))
             ),
             _ => false,

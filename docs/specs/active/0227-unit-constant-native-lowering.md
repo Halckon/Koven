@@ -78,14 +78,14 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | 验收项 | 结果 | 原因 |
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
-| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
+| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
 | `cargo test -p lang-codegen --lib ssa::unit_` | 185 passed，225 filtered，0 failed/ignored | String 二元前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
-| `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
+| `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
-| `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
-| 新增 `native::unit_constant_tests` | 未实现/未运行 | 六类 namespace、11 类型、String live-pointer/drop 计数、Abort、argv、正逆 inputs 与重复输出；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
-| 专用公开入口 compile-fail、`cargo check --workspace --all-targets` | 未实现/未运行 | 新旧 capability 隔离及跨 crate API 编译门禁；新增入口时执行 |
+| `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 1 passed，411 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
 
 合同复核与门禁：独立边界审查通过，已显式补入顶层常量验收；docs check（353 Markdown）、
@@ -98,10 +98,10 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 `unit_lower::lower_scalar_unit_with_entry` 再到 verified LLVM 与 sibling object 原子发布。
 planner/lowerer 的内部 helpers 已改为消费只读 typed/owned facts；基础入口仍先校验完整身份链。
 私有 `lower_unit_from_facts` 与内部 `plan_unit_instances_from_facts` 复用既有算法；
-专用入口尚待接入，不能新增专用到基础 capability 的公开转换。
+公开 `emit_native_constant_unit_object` 已接入专用 typed/owned，未增加到基础 capability 的转换。
 短路、物化和 cleanup 只消费 SPEC-0226 产物；单文件
 `ssa/lower_frontend/constant.rs` 可复用精确常量到 SSA 的转换逻辑，不能重新求值 AST。
-当前完成内部 driver 拆分，未开放专用 native 入口。
+专用入口按身份、entry shape、SSA 的顺序检查，最后原子发布 object。
 
 
 内部 driver 切片：入口身份检查与实例上限不变，仅解包只读 facts 并机械移除一层 getter。
@@ -175,3 +175,16 @@ guide 的确定性拒绝要求冲突。以 guide 为准修正此处合同；不�
 覆盖 String/Boolean 常量、嵌套、return 和 Abort 输入，重复分析检查错误种类及完整插值 Span。
 9 项常量 lowering 测试、clippy、fmt 与 docs/diff 检查通过；独立复核确认合同遵循 guide，
 未发现阻断。Span 断言覆盖源码范围文本，未另断言 SourceId；公开 native 输出原子性仍待验收。
+
+
+公开 native 入口切片：新 API 接受专用 typed/owned，按共享身份门禁、entry shape、SSA lowering、
+LLVM/target 验证、sibling temporary 原子发布的顺序执行；没有到基础 capability 的转换。
+独立复核指出初版先 lower 会让泛型 entry 的 UnsupportedSource 覆盖 InvalidEntry，新增断言
+复现后修正顺序；泛型夹具初次使用错误的参数位置导致 parser 诊断，修为 `fun <T> generic`。
+首批 native 用例实际链接运行 UTF-8 concat/println 与 argv entry shape，逐字节比较正逆输入和
+重复 object，并检查泛型/非 Unit entry、插值及 foreign typed 失败后保留既有 object、无临时泄漏。
+argv 夹具未读取参数内容，不代表 argv 内容传递矩阵已经覆盖。六类 namespace、11 类型、
+动态 owner/drop 计数、完整退出组合与 CLI 接入仍待后续；本 Spec 保持 in-progress。
+
+本次 native 精确错误分类及 9 项常量 SSA 回归通过；独立复核确认顺序修正后无新增阻断。
+4 项公开 API compile-fail、workspace all-target check、codegen clippy、fmt、docs/diff 均通过；未运行 frontend 全量测试。

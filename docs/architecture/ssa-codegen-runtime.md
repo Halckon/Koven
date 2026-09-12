@@ -77,8 +77,11 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 物化 use，原 call/argument identity 保留。专用短路按 source-qualified 计划消费 Always/Never/Conditional，
 校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
 后继。基础入口原有短路能力边界保持。String 插值按现行 guide 确定性拒绝，
-包括含常量 use 的插值；完整退出矩阵尚未接通，
-公开 constant native 入口尚未接通。
+包括含常量 use 的插值；完整退出矩阵尚未接通。
+公开 `emit_native_constant_unit_object` 接受专用 typed/owned capability，按身份校验、共享
+process entry shape、SSA lowering 的顺序检查，再复用 sibling object 原子发布。基础入口
+仍只接受基础 capability。跨文件 String concat/println、argv 入口形状、正逆 inputs 与重复
+object 字节已有 native 证据；非法 entry、插值及分析错配在写出前拒绝并保留既有目标。
 
 专用普通同步调用的求值帧记录新建 loan 的 pending 槽位、前缀起点与循环深度；CFG 重绑定后
 仍按槽位读取实际 LoanId。return/break/continue 先逆序结束退出帧的新建 loan，再截断 pending

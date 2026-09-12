@@ -19,6 +19,27 @@ pub(crate) fn lower_constant_unit_with_entry(
     owned: &ConstEnabledOwnedUnit,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    validate_constant_unit_inputs(sources, inputs, names, environment, typed, owned)?;
+    lower_unit_from_facts(
+        sources,
+        inputs,
+        names,
+        typed.types(),
+        owned.ownership(),
+        Some(owned),
+        entry,
+    )
+}
+
+/// 专用 native 与 SSA 入口共享身份门禁，不转换成基础 capability。
+pub(crate) fn validate_constant_unit_inputs(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ConstEnabledTypedUnit,
+    owned: &ConstEnabledOwnedUnit,
+) -> Result<(), LoweringError> {
     let rebuilt = index_compilation_unit(sources, inputs).map_err(|_| LoweringError {
         kind: LoweringErrorKind::MismatchedSource,
         span: None,
@@ -34,15 +55,7 @@ pub(crate) fn lower_constant_unit_with_entry(
             span: None,
         });
     }
-    lower_unit_from_facts(
-        sources,
-        inputs,
-        names,
-        typed.types(),
-        owned.ownership(),
-        Some(owned),
-        entry,
-    )
+    Ok(())
 }
 
 impl UnitExpressionLowerer<'_> {
