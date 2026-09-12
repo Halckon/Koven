@@ -126,11 +126,11 @@ fn constant_type_gate_applies_inside_object_and_companion_namespaces() {
 #[test]
 fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() {
     for declaration in [
-        "class Config { companion object { const val LIMIT: Int = 7 } }",
-        "value class Config(val item: Int) { companion object { const val LIMIT: Int = 7 } }",
-        "interface Config { companion object { const val LIMIT: Int = 7 } }",
-        "enum class Config { One; companion object { const val LIMIT: Int = 7 } }",
-        "object Config { const val LIMIT: Int = 7 }",
+        "class Config { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "value class Config(val item: Int) { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "interface Config { companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "enum class Config { One; companion object { const val LIMIT = BASE\nconst val BASE: Int = 7 } }",
+        "object Config { const val LIMIT = BASE\nconst val BASE: Int = 7 }",
     ] {
         // Concrete Int facts must be available even if the use precedes the declaration.
         for source in [
@@ -149,6 +149,18 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
                 .iter()
                 .find(|(_, node)| sources.slice(node.span()).unwrap() == "Config.LIMIT")
                 .expect("member expression");
+            let facts = typed
+                .constants()
+                .expect("all classifier kinds publish constants");
+            assert_eq!(
+                facts.use_at(expression).unwrap().value(),
+                &lang_frontend::type_checking::ConstValue::Integer {
+                    ty: BuiltinType::Int,
+                    value: 7
+                }
+            );
+            assert_eq!(facts.declarations().len(), 2);
+            assert_eq!(facts.uses().len(), 2); // bare initializer dependency and qualified runtime use
             assert_eq!(
                 typed.expression_category(expression),
                 Some(ExpressionCategory::Temporary)
@@ -563,4 +575,230 @@ fn invalid_constant_analysis_does_not_publish_partial_facts() {
     assert!(!names.diagnostics().is_empty());
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.constants().is_none());
+}
+
+#[test]
+fn constant_acceptance_infers_exact_reference_types_and_values() {
+    use lang_frontend::type_checking::ConstValue;
+    for (ty, literal, expected) in [
+        (BuiltinType::Boolean, "false", ConstValue::Boolean(false)),
+        (
+            BuiltinType::Byte,
+            "-128",
+            ConstValue::Integer {
+                ty: BuiltinType::Byte,
+                value: -128,
+            },
+        ),
+        (
+            BuiltinType::Short,
+            "-32768",
+            ConstValue::Integer {
+                ty: BuiltinType::Short,
+                value: -32768,
+            },
+        ),
+        (
+            BuiltinType::Int,
+            "2147483647",
+            ConstValue::Integer {
+                ty: BuiltinType::Int,
+                value: 2147483647,
+            },
+        ),
+        (
+            BuiltinType::Long,
+            "9223372036854775807L",
+            ConstValue::Integer {
+                ty: BuiltinType::Long,
+                value: 9223372036854775807,
+            },
+        ),
+        (
+            BuiltinType::UByte,
+            "255u",
+            ConstValue::Integer {
+                ty: BuiltinType::UByte,
+                value: 255,
+            },
+        ),
+        (
+            BuiltinType::UShort,
+            "65535u",
+            ConstValue::Integer {
+                ty: BuiltinType::UShort,
+                value: 65535,
+            },
+        ),
+        (
+            BuiltinType::UInt,
+            "4294967295u",
+            ConstValue::Integer {
+                ty: BuiltinType::UInt,
+                value: 4294967295,
+            },
+        ),
+        (
+            BuiltinType::ULong,
+            "18446744073709551615uL",
+            ConstValue::Integer {
+                ty: BuiltinType::ULong,
+                value: 18446744073709551615,
+            },
+        ),
+        (BuiltinType::Char, "'\\n'", ConstValue::Char('\n')),
+        (
+            BuiltinType::String,
+            "\"中\\n文\"",
+            ConstValue::String(std::sync::Arc::from("中\n文".as_bytes())),
+        ),
+    ] {
+        let source = format!(
+            "const val sample = seed\nconst val seed: {} = {literal}",
+            ty.name()
+        );
+        let (sources, typed) = checked(&source);
+        let facts = typed
+            .constants()
+            .unwrap_or_else(|| panic!("{source}: {:?}", typed.diagnostics()));
+        for declaration in facts.declarations() {
+            assert_eq!(declaration.value(), &expected);
+            assert_eq!(
+                typed.types().get(declaration.ty()),
+                Some(&TypeKind::Builtin(ty))
+            );
+            if sources.slice(declaration.declaration_span()).unwrap() == "sample" {
+                assert_eq!(declaration.dependencies().len(), 1);
+            }
+        }
+        let (_, repeated) = checked(&source);
+        let observable = |typed: &TypedFile| {
+            typed
+                .constants()
+                .unwrap()
+                .declarations()
+                .iter()
+                .map(|declaration| {
+                    (
+                        declaration.symbol(),
+                        declaration.value().clone(),
+                        declaration.dependencies().to_vec(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(observable(&typed), observable(&repeated));
+    }
+}
+
+#[test]
+fn constant_acceptance_evaluates_the_closed_operator_set() {
+    use lang_frontend::type_checking::ConstValue;
+    for (expression, expected) in [
+        ("!false", true),
+        ("true && false", false),
+        ("false || true", true),
+        ("1 < 2", true),
+        ("1 <= 1", true),
+        ("2 > 3", false),
+        ("2 >= 2", true),
+        ("1 == 1", true),
+        ("1 != 1", false),
+        ("\"a\" + \"b\" == \"ab\"", true),
+        ("\"a\" != \"b\"", true),
+    ] {
+        let (_, typed) = checked(&format!("const val sample = {expression}"));
+        assert_eq!(
+            typed.constants().unwrap().declarations()[0].value(),
+            &ConstValue::Boolean(expected),
+            "{expression}"
+        );
+    }
+    for (expression, expected) in [
+        ("+7", 7),
+        ("-7", -7),
+        ("6 + 2", 8),
+        ("6 - 2", 4),
+        ("6 * 2", 12),
+        ("7 / 2", 3),
+        ("-7 % 2", -1),
+    ] {
+        let (_, typed) = checked(&format!("const val sample = {expression}"));
+        assert_eq!(
+            typed.constants().unwrap().declarations()[0].value(),
+            &ConstValue::Integer {
+                ty: BuiltinType::Int,
+                value: expected
+            },
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn constant_acceptance_long_graphs_publish_values_or_complete_ordered_cycle_labels() {
+    use lang_frontend::{diagnostic::DiagnosticDetail, type_checking::ConstValue};
+    for cyclic in [false, true] {
+        let mut source = (0..127)
+            .map(|index| format!("const val c{index}: Int = c{}\n", index + 1))
+            .collect::<String>();
+        source.push_str(if cyclic {
+            "const val c127: Int = c0"
+        } else {
+            "const val c127: Int = 7"
+        });
+        let (sources, typed) = checked(&source);
+        if cyclic {
+            assert_eq!(codes(typed.diagnostics()), ["L0157"]);
+            let diagnostic = &typed.diagnostics()[0];
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), "c0");
+            let labels = diagnostic
+                .details()
+                .iter()
+                .filter_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => {
+                        Some(sources.slice(label.span()).unwrap().to_owned())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                labels,
+                (1..128)
+                    .map(|index| format!("c{index}"))
+                    .collect::<Vec<_>>()
+            );
+        } else {
+            let facts = typed.constants().unwrap();
+            assert_eq!(facts.declarations().len(), 128);
+            assert!(
+                facts
+                    .declarations()
+                    .iter()
+                    .all(|declaration| declaration.value()
+                        == &ConstValue::Integer {
+                            ty: BuiltinType::Int,
+                            value: 7
+                        })
+            );
+        }
+    }
+}
+
+#[test]
+fn constant_acceptance_overload_trials_commit_only_final_constant_reads() {
+    let (_, typed) = checked(
+        "object Limits { const val LIMIT = 7 }\nfun resolve(callback: (Int) -> Int): Int = 1\nfun resolve(callback: (String) -> String): String = \"text\"\nfun intResult(input: Int): Int = input\nfun use(): Unit { val selected = resolve { intResult(it) + Limits.LIMIT } }",
+    );
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.constants().unwrap().uses().len(), 1);
+    assert_eq!(typed.calls().len(), 2);
+    for (body, code) in [("Limits.LIMIT", "L0124"), ("Limits.TEXT", "L0123")] {
+        let (_, typed) = checked(&format!(
+            "object Limits {{ const val LIMIT = 7\nconst val TEXT = \"text\" }}\nfun resolve(callback: (Int) -> Int): Int = 1\nfun resolve(callback: (String) -> Int): Int = 2\nfun use(): Unit {{ val selected = resolve {{ {body} }} }}"
+        ));
+        assert_eq!(codes(typed.diagnostics()), [code]);
+        assert!(typed.constants().is_none());
+        assert!(typed.calls().is_empty());
+    }
 }

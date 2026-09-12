@@ -1,11 +1,10 @@
 # v0.36 分阶段实施
 
-> **性质**：draft Spec 索引 · **状态**：blocked by implementation dependencies · **读取时机**：推进 v0.36 关联常量时 · **唯一真源**：本目录 Spec
+> **性质**：draft Spec 索引 · **状态**：按阶段排队 / 依赖未完备 · **读取时机**：推进 v0.36 关联常量时 · **唯一真源**：本目录 Spec
 
 v0.36 已于 2026-09-12 启用；以下按依赖顺序实施，未满足前置者保持 draft：
 
-- [SPEC-0026](../../active/0026-associated-constant-evaluation.md)：单文件选择与求值
-- [SPEC-0208](0208-constant-materialization-ownership.md)：所有权与重新物化
+- [SPEC-0208](../../active/0208-constant-materialization-ownership.md)：所有权与重新物化，已批准
 - [SPEC-0209](0209-associated-constant-lowering.md)：单文件 native lowering
 - [SPEC-0210](0210-multifile-associated-constants.md)：跨文件集成
 
@@ -18,7 +17,7 @@ v0.36 已完整继承并取代 v0.35；以下排列实施顺序，不省略各 S
 
 | 切片 | Spec / 组内前置 | 交付证据 |
 |---|---|---|
-| Phase 2 | 0026 | 单文件常量选择、求值与错误诊断 |
+| Phase 2 | 0026（done） | 单文件常量选择、求值与错误诊断 |
 | Phase 3 | 0208 ← 0026 | 重新物化的 ownership facts |
 | Phase 4 | 0209 ← 0026/0208 | 单文件常量 native 行为 |
 | Phase 2 跨文件 | 0210 ← 0026 | 跨文件常量 typed facts；不交付 ownership/native |
@@ -28,3 +27,5 @@ v0.36 已完整继承并取代 v0.35；以下排列实施顺序，不省略各 S
 全量测试。Phase 2/3 证据不能替代 Phase 4 native 结果。
 
 跨文件 ownership/native 仍需独立后继 Spec，不能用 SPEC-0210 的完成状态代替。
+
+已完成 Phase 2 的历史证据仅在追溯时读取：[SPEC-0026](../../../archive/specs/0026-associated-constant-evaluation.md)。

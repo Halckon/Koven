@@ -7,10 +7,10 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
-- [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0026 已批准。
-- [Draft v0.36](drafts/v0.36/README.md)：关联常量，3 份，等待实施依赖完成。
+- [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0208 已批准。
+- [Draft v0.36](drafts/v0.36/README.md)：关联常量，2 份，按既定阶段顺序排队或等待前置完成。
 - [Draft v0.37](drafts/v0.37/README.md)：借用式顺序迭代，4 份，全部被未启用语义阻塞。
-- [完成 Spec Archive](../archive/specs/README.md)：204 份 `done` 验收证据，仅在追溯时读取。
+- [完成 Spec Archive](../archive/specs/README.md)：205 份 `done` 验收证据，仅在追溯时读取。
 
 ## 生命周期
 

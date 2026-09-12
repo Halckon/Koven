@@ -11,9 +11,9 @@
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.36 §36](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
 | 批准依据 | 2026-09-12 用户明确启用 v0.36 并要求分阶段实施；依赖未完成者保持 draft |
-| 前置 Spec | SPEC-0034、0039、0185、0189、0192 `done`；SPEC-0026/0208 待完成 |
+| 前置 Spec | SPEC-0026、0034、0039、0185、0189、0192 `done`；SPEC-0208 待完成 |
 | 前置 ADR | ADR-0008、0010、0018 `accepted` |
-| 阻塞项 | SPEC-0026/0208 `done` |
+| 阻塞项 | SPEC-0208 `done` |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.36 single-file native lowering |
 

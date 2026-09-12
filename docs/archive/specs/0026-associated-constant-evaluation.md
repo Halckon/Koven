@@ -1,12 +1,12 @@
 # SPEC-0026：单文件关联常量选择与编译期求值
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：完成 Spec · **状态**：done · **读取时机**：追溯单文件常量 Phase 2 验收时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-026` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -51,14 +51,14 @@ singleton/global storage。
 
 ## 5. 验收标准
 
-- [ ] 顶层/object/class/value/enum/interface companion 常量的 bare/qualified 正例通过。
-- [ ] 显式/推导 Boolean、八整数、Char、plain String 与前向 const chain 产生精确稳定值。
-- [ ] invalid companion context、visibility、type、expression、cycle、overflow/div-zero 分别产生
+- [x] 顶层/object/class/value/enum/interface companion 常量的 bare/qualified 正例通过。
+- [x] 显式/推导 Boolean、八整数、Char、plain String 与前向 const chain 产生精确稳定值。
+- [x] invalid companion context、visibility、type、expression、cycle、overflow/div-zero 分别产生
   L0153–L0158，主 Span/labels 精确且不级联。
-- [ ] short-circuit RHS 的资格/edge/SCC 始终保留，未求值的 overflow/div-zero 不产生 L0158。
-- [ ] object type/value 双身份、companion/instance scope 隔离和 interface 不继承规则稳定。
-- [ ] descriptor/diagnostic 不依赖声明表或 HashMap 遍历顺序，trial rollback 与既有 suite 回归。
-- [ ] Architecture 与实现事实同步。
+- [x] short-circuit RHS 的资格/edge/SCC 始终保留，未求值的 overflow/div-zero 不产生 L0158。
+- [x] object type/value 双身份、companion/instance scope 隔离和 interface 不继承规则稳定。
+- [x] descriptor/diagnostic 不依赖声明表或 HashMap 遍历顺序，trial rollback 与既有 suite 回归。
+- [x] Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
 
@@ -68,9 +68,9 @@ lowering。跨文件后继必须复用同一 evaluator。
 
 ## 7. 实施计划
 
-1. [ ] 建立常量 identity/type/use descriptor → 验证：顶层与关联选择矩阵。
-2. [ ] 建立封闭 evaluator、依赖图和 L0153–L0158 → 验证：值/错误/确定性矩阵。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+1. [x] 建立常量 identity/type/use descriptor → 验证：顶层与关联选择矩阵。
+2. [x] 建立封闭 evaluator、依赖图和 L0153–L0158 → 验证：值/错误/确定性矩阵。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -106,9 +106,10 @@ lowering。跨文件后继必须复用同一 evaluator。
 | 下游分析身份契约 | `cargo test -p lang-frontend --test ownership_checking ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs -- --nocapture` | 1 项通过，28 项过滤 |
 | Companion 上下文与普通名称/常量回归 | `cargo test -p lang-frontend --test name_resolution --test type_constants --no-fail-fast -- --nocapture` | name_resolution 15、type_constants 20 项通过；随后新增 receiver 边界见下一行 |
 | 最终 companion receiver、同名遮蔽与无级联 | `cargo test -p lang-frontend --test name_resolution --test type_constants companion --no-fail-fast -- --nocapture` | 名称 2 项、类型 2 项通过，分别过滤 13/18 项 |
+| 第 5 节最终验收：容器命名空间、精确值、封闭运算、128 节点图/labels、trial 与确定性 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 24 项通过；新增验收直接查询公共 facts，不只断言无诊断 |
 
 类型资格、关联选择、表达式/依赖、求值、公共事实及上下文诊断切片见下文。
-全部验收矩阵仍待最终逐条核对，不能据此将本 Spec 标记完成。
+第 5 节已由最终逐项审计闭合；以下各切片的“尚未实现”描述保留其当时状态，最终结果见文末。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
 Any/Any? 经 Deferred(AnyValueRepresentation) 绕过检查，修复并补测试后复核通过。
@@ -212,3 +213,17 @@ L0158 定位运算符，覆盖溢出、除零、余零及 signed MIN/-1；负 li
 最终定向命中数见验收映射表。`cargo clippy -p lang-frontend --lib --test name_resolution --test type_constants -- -D warnings`、
 `cargo fmt --all -- --check`、文档检查（351 份 Markdown）与 `git diff --check` 通过。
 本切片没有公共类型变更，未重复上一切片的 workspace 编译检查；未运行 frontend 全量。
+
+
+### 最终逐项审计
+
+2026-09-12 完成第 5 节全部验收。各类 classifier/object 的 bare 前向依赖及 qualified runtime
+use 均查询精确值；11 种封闭类型以显式 seed 与推导 reference 对照。封闭运算直接断言值，
+128 节点 acyclic chain 与 cycle 分别验证求值和完整有序 labels，overload trial 验证唯一提交
+与失败不发布；重复分析比较可观察值/依赖。
+
+L0153–L0158 与 Span/无级联复用上表仍有效的命中证据；名称、callable、诊断目录、纯值运算、
+下游身份契约及公共 API workspace check 的结果保留于各切片。独立完整审查逐条核对类型/
+表达式、作用域、依赖/SCC、求值、trial 与 facts，未发现确定缺陷；未扩审本 Spec 的非目标。
+最终新增测试的 Clippy（`--lib --test type_constants -- -D warnings`）通过；文档迁移门禁另见
+本次交付记录。未运行 frontend 全量，Phase 3/4 与跨文件仍由后继 Spec 交付。

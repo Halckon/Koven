@@ -334,7 +334,7 @@ Spec 之前，本条限制不变。）
       nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
 - [ ] **[SPEC-0205](../../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
       operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
-- [ ] **[SPEC-0026](../../../specs/active/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
+- [ ] **[SPEC-0026](../../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
       exact-import 边界已由现行 v0.32 勘误封闭，本节点只等待候选 v0.36 启用。
 - [ ] **[SPEC-0210](../../../specs/drafts/v0.36/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
@@ -400,7 +400,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
 - [ ] **[SPEC-0206](../../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
-- [ ] **[SPEC-0208](../../../specs/drafts/v0.36/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
+- [ ] **[SPEC-0208](../../../specs/active/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
       owner，禁止 global owner/capture/init/drop；等待候选启用。
 - [ ] **[SPEC-0211](../../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为

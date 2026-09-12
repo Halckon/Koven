@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 204 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 205 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -175,6 +175,7 @@
 ## Phase 2（名称解析）
 
 - [SPEC-0025](./0025-multifile-package-import-name-resolution.md)：多文件 package/import 名称解析
+- [SPEC-0026](./0026-associated-constant-evaluation.md)：单文件关联常量选择、封闭求值与 typed facts
 
 ## Phase 3
 
