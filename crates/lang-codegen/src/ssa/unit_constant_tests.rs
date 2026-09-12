@@ -292,3 +292,114 @@ fn string_uses_materialize_independent_owners_with_literal_cleanup() {
         }
     }
 }
+
+#[test]
+fn short_circuit_plans_preserve_static_and_conditional_execution() {
+    for (expression, expected_strings) in [
+        ("(p.FALSE) && p.view(p.TEXT)", 0),
+        ("(p.TRUE) || p.view(p.TEXT)", 0),
+        ("p.TRUE && p.view(p.TEXT)", 1),
+        ("p.FALSE || p.view(p.TEXT)", 1),
+        ("flag && p.view(p.TEXT)", 1),
+        ("flag || p.view(p.TEXT)", 1),
+        (
+            "(if (flag) { error(p.TEXT) } else { p.TRUE }) && p.view(p.TEXT)",
+            2,
+        ),
+        (
+            "(if (flag) { error(p.TEXT) } else { p.FALSE }) || p.view(p.TEXT)",
+            2,
+        ),
+        ("flag && if (flag) { error(p.TEXT) } else { true }", 1),
+        ("flag || if (flag) { error(p.TEXT) } else { false }", 1),
+        (
+            "flag && if (flag) { return true } else { p.view(p.TEXT) }",
+            1,
+        ),
+        (
+            "flag || if (flag) { return false } else { p.view(p.TEXT) }",
+            1,
+        ),
+    ] {
+        let program = lower_short_circuit_fixture(&format!(
+            "fun entry(own flag: Boolean): Boolean = {expression}"
+        ));
+        let count = program.modules[0]
+            .functions
+            .iter()
+            .flat_map(|function| &function.instructions)
+            .filter(|instruction| matches!(instruction.operation, Operation::StringLiteral { .. }))
+            .count();
+        assert_eq!(count, expected_strings, "{expression}");
+        crate::llvm::render_verified_program(&program)
+            .expect("short circuit facts produce verified LLVM");
+    }
+}
+
+#[test]
+fn conditional_move_cleans_only_the_skip_edge() {
+    for operator in ["&&", "||"] {
+        let program = lower_short_circuit_fixture(&format!(
+            "fun entry(own flag: Boolean, own text: String): Boolean = flag {operator} p.consume(text)"
+        ));
+        let function = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains("q.entry"))
+            .unwrap();
+        assert_eq!(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                .count(),
+            1,
+            "only the unconsumed skip owner is dropped"
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+}
+
+fn lower_short_circuit_fixture(consumer: &str) -> super::model::Program {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\nconst val FALSE = false\nconst val TRUE = true\nconst val TEXT = \"value\"\nfun view(text: String): Boolean = true\nfun consume(own text: String): Boolean = true",
+    );
+    let (consumer_source, consumer_file) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        &format!("package q\n{consumer}"),
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer_file),
+    ];
+    let (name_environment, environment) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)
+        .unwrap()
+        .validate_constants()
+        .unwrap();
+    let owned =
+        check_compilation_unit_constant_ownership(&sources, &inputs, &names, &environment, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
+    lower_constant_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .unwrap_or_else(|error| panic!("{consumer}: {error:?}"))
+    .0
+}

@@ -78,14 +78,6 @@ impl UnitExpressionLowerer<'_> {
         expression: UnitExpressionId,
         span: Span,
     ) -> Result<Option<LoweredValue>, LoweringError> {
-        // 仅拒绝实际 lower 到的控制点，不让不可达函数中的短路阻塞当前 entry。
-        if self
-            .constant_owned
-            .and_then(|owned| owned.short_circuit_at(expression))
-            .is_some()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let Some(facts) = self.typed.constants() else {
             return Ok(None);
         };

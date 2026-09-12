@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
-    ownership_checking::UnitDropPoint,
+    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitStatementId},
@@ -45,7 +45,46 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let left = self.require_expression_value(left)?;
+        let control = UnitExpressionId::new(self.source_unit, expression);
+        let plan = self
+            .constant_owned
+            .map(|owned| {
+                owned
+                    .short_circuit_at(control)
+                    .copied()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+            })
+            .transpose()?;
+        if let Some(plan) = plan {
+            let rhs_branch = match operator {
+                lang_frontend::parser::BinaryOperator::LogicalAnd => 0,
+                lang_frontend::parser::BinaryOperator::LogicalOr => 1,
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            };
+            if plan.left() != UnitExpressionId::new(self.source_unit, left)
+                || plan.right() != UnitExpressionId::new(self.source_unit, right)
+                || plan.rhs_branch() != rhs_branch
+            {
+                return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span));
+            }
+        }
+        // 专用计划只决定左侧正常完成后的 RHS；左侧退出必须直接传播。
+        let left = if let Some(plan) = plan {
+            let value = self.lower(left)?;
+            match value {
+                LoweredValue::Diverged => return Ok(value),
+                LoweredValue::Unit => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                LoweredValue::Value(left) => match plan.rhs() {
+                    UnitShortCircuitRhs::Never => return Ok(value),
+                    UnitShortCircuitRhs::Always => return self.lower(right),
+                    UnitShortCircuitRhs::Conditional => left,
+                },
+            }
+        } else {
+            self.require_expression_value(left)?
+        };
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
@@ -102,6 +141,12 @@ impl UnitExpressionLowerer<'_> {
             if !matches!(right_result, LoweredValue::Value(_)) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, right_span));
             }
+            if let Some(plan) = plan {
+                self.emit_drops(UnitDropPoint::BranchExit {
+                    control,
+                    branch: plan.rhs_branch(),
+                })?;
+            }
             exits.push(BranchExit {
                 block: self.block,
                 result: right_result,
@@ -123,6 +168,12 @@ impl UnitExpressionLowerer<'_> {
         self.borrow_bindings =
             self.rebind_carried_loans(short_block, carried.len(), &carried_loans, span)?;
         self.closure_bindings = baseline_closures;
+        if let Some(plan) = plan {
+            self.emit_drops(UnitDropPoint::BranchExit {
+                control,
+                branch: 1 - plan.rhs_branch(),
+            })?;
+        }
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
             .function

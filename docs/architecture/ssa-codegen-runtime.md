@@ -74,7 +74,9 @@ String 计数夹具动态验证 9 literal + 2 concat owner 共 11 次 drop；两
 descriptor 后生成精确 Boolean/整数/Char；unit storage 保留独立 Char 类型。
 String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop；String 二元中的
 常量 Name/Member 不读取声明 binding。专用 Group Value delivery 的 source 归一到已发布
-物化 use，原 call/argument identity 保留。短路仍显式拒绝，插值与完整退出矩阵尚未接通，
+物化 use，原 call/argument identity 保留。专用短路按 source-qualified 计划消费 Always/Never/Conditional，
+校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
+后继。基础入口原有短路能力边界保持。插值与完整退出矩阵尚未接通，
 公开 constant native 入口尚未接通。
 
 ## Compilation-unit planning 与 lowering

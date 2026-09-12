@@ -76,9 +76,9 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | 验收项 | 结果 | 原因 |
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
-| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | `24a5cd7`：1 passed，402 filtered，0 failed/ignored | 十标量精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路及完整namespace矩阵待后续 |
+| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 本次 4 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路矩阵见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 179 passed，225 filtered，0 failed/ignored | String 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 181 passed，225 filtered，0 failed/ignored | 短路切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
@@ -113,7 +113,7 @@ source index、typed 的 inputs/names/environment 及 owned 的 typed 身份，�
 每个 use 按 source-qualified identity 找到 typed descriptor 与 owned materialization，并全字段
 相等后才生成 Boolean/整数/Char constant。unit storage 补独立 Char 类型映射；不从声明
 initializer 重新求值。普通函数和 closure lowerer 均携带专用 owned 引用。
-`24a5cd7` 当时仍拒绝 String 物化和短路；本次接入 String 直接路径，短路尚未消费。
+`24a5cd7` 当时仍拒绝 String 物化和短路；`9341541` 接入 String 直接路径，本次开始消费短路计划。
 不可达函数的短路不阻塞当前 entry。
 新公开 native 入口仍未开放。初次测试因入口缺失 E0432；修复 unsigned 夹具的 `u` 后缀后，
 明确复现 Char 缺少 unit storage mapping 的 UnsupportedNode，再补实现与精确类型断言。
@@ -129,3 +129,14 @@ String Name/Member 二元操作数通过同一 materialization 路径，不查�
 普通 literal/variable 或无常量计划仍使用原来源。独立复核未发现新阻断。
 LLVM 辅助函数初选要求 Unit process entry，已改用不要求 native entry 的 verified program
 检查；这不是生产缺陷。此切片不证明插值、pending 前缀控制退出或常量 native build/run。
+
+
+短路切片：专用路径要求完整 source-qualified 执行计划，核对 left/right 和 RHS branch 编号；
+LHS 始终先求值，退出直接传播。Never 返回 LHS，Always 执行 RHS；Conditional 复用既有
+carried owner/loan CFG，分别消费 RHS 与 skip 的 BranchExit，RHS 退出不删除 skip 后继。
+基础入口没有专用计划，继续保持原有单边 move 的 MissingFact 边界。
+首例静态跳过测试先因 UnsupportedNode 失败；实施后 4 项公开私有入口测试通过，随后补
+左右 Boolean 控制表达式中的 Nothing 退出用例（漏加 stop helper 与直接用 Nothing 作为 Boolean 运算 operand 的 L0085 均为夹具修正）。用户定义 Nothing 返回函数又触及既有 UnsupportedNode，因此最终使用 compiler-bound `error(TEXT)` 的 Boolean 控制表达式验证 Abort；不宣称用户 Nothing callable 已支持。最终 4 项专用 suite 与 181 项 unit 契约均通过。
+独立复核确认 rebind 从 carried 快照重建 pending/temporary；外层 pending String 穿过
+动态短路 return/Abort 仍需后续专门验收，例如 `view(TEXT, flag && if (flag) { return } else { true })`，
+不能以单边 move 通过替代该清理组合，也不将本切片描述为完整常量 native 交付。
