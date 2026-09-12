@@ -182,6 +182,18 @@ pub fn emit_native_object(
 ///     emit_native_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
 /// }
 /// ```
+/// 常量专用 owned capability 也不能进入旧 native 入口。
+/// ```compile_fail,E0308
+/// use std::path::Path;
+/// use lang_codegen::{emit_native_unit_object, NativeUnitEntry};
+/// use lang_frontend::{source::SourceMap, name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+///     type_checking::{ValidatedCompilationUnitTypes, TypeEnvironment}, ownership_checking::ConstEnabledOwnedUnit};
+/// fn reject(sources: &SourceMap, inputs: &[SourceUnitInput<'_>], names: &ValidatedCompilationUnitNames,
+///     environment: &TypeEnvironment, typed: &ValidatedCompilationUnitTypes, owned: &ConstEnabledOwnedUnit,
+///     entry: NativeUnitEntry, output: &Path) {
+///     emit_native_unit_object(sources, inputs, names, environment, typed, owned, entry, output);
+/// }
+/// ```
 #[allow(clippy::too_many_arguments)]
 pub fn emit_native_unit_object(
     sources: &SourceMap,

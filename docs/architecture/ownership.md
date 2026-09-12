@@ -9,24 +9,28 @@
 `CompilationUnitOwnership`。两条路径共享所有权语义，但使用各自产物的 ID，不能混用。
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
-清理顺序不变。目前公开 ownership 入口仍只接受基础 validated typed capability。
+清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，
+返回 `CompilationUnitConstantOwnership`；其 `validate` 仅在完整物化事实存在时产生
+`ConstEnabledOwnedUnit`。`is_compatible_with` 核对 typed 分析的 Arc 身份，等值重新分析不兼容。
 
 私有 driver 已消费 unit typed constant use，跳过常量 initializer 与读取路径的 namespace/
 declaration flow；String 二元操作数按每次读取的 temporary 生成析构事实。此路径的 recovery
-保留常量来源标记，基础 `validate` 拒绝发布 owned capability。尚未发布 unit constant
-专用公开 ownership 入口。私有 materialization plan 保留 typed use descriptor 和 inline/String
+保留专用入口来源标记（即使没有常量声明），基础 `validate` 拒绝发布 owned capability。
+`UnitConstantMaterializationPlan` 保留 typed use descriptor 和 inline/String
 temporary 类别，只由主 traversal 登记；按 source-qualified expression 去重、排序，错误或
 deferred 时整体不可用。初始化器依赖、return/Abort 后读取不登记，动态分支保留原 expression
-位置；双 source 的 11 类型互相读取与输入顺序稳定性由私有 driver 测试覆盖。尚未发布专用
-owned capability，完整控制流清理仍由 SPEC-0226 验收。
+位置；双 source 的 11 类型互相读取与输入顺序稳定性由 driver 测试覆盖。专用产物提供稳定
+列表与按 expression 查询，字段不可外部构造；其 recovery 视图不能转换为基础 validated
+owned。完整表达式/控制流清理矩阵仍由 SPEC-0226 验收；此为 Phase 3 capability，
+unit constant native 仍未接通。
 
 unit 常量的 Group 只透传值：loan、Value delivery 和 temporary drop 的 owner 统一指向
 内部实际常量读取，drop 来源 Span 同步归一；原实参 identity、调用和清理位置保留。普通
 literal/variable/其他 temporary 不通过该常量归一路径。
 
-unit 入口重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。只有无所有权
-诊断且不存在阻塞 deferred fact 时，`validate` 才产生 `ValidatedCompilationUnitOwnership`，供
-codegen 使用。
+两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
+基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生
+`ValidatedCompilationUnitOwnership`，供既有 codegen 使用。
 
 ## Place、binding 与 loan
 

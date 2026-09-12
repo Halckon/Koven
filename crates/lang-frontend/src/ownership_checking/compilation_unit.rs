@@ -18,6 +18,10 @@ mod receiver;
 
 pub use binding::UnitOwnershipBindingDescriptor;
 pub use capture::{UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor};
+pub use constant::{
+    CompilationUnitConstantOwnership, ConstEnabledOwnedUnit, UnitConstantMaterializationPlan,
+    check_compilation_unit_constant_ownership,
+};
 pub use construction::{
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation,
@@ -638,7 +642,7 @@ impl UnitOwnershipDeferredFact {
 struct UnitOwnershipProvenance {
     typed_analysis_owner: Arc<()>,
     analysis_owner: Arc<()>,
-    has_constants: bool,
+    requires_constant_capability: bool,
 }
 
 /// SPEC-0198 的 recovery compilation-unit ownership product。
@@ -726,7 +730,7 @@ impl CompilationUnitOwnership {
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),
-                has_constants: typed
+                requires_constant_capability: typed
                     .constants()
                     .is_some_and(|facts| !facts.declarations().is_empty()),
             },
@@ -950,7 +954,7 @@ impl CompilationUnitOwnership {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_error || !self.deferred.is_empty() || self.provenance.has_constants {
+        if has_error || !self.deferred.is_empty() || self.provenance.requires_constant_capability {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitOwnership(self))

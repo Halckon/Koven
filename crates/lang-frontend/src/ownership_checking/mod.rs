@@ -17,16 +17,18 @@ use crate::{
 };
 
 pub use compilation_unit::{
-    CompilationUnitOwnership, UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind,
-    UnitClosureCaptureDescriptor, UnitClosureCaptureSource, UnitClosureDescriptor,
-    UnitConditionalReceiverDeliveryFact, UnitConditionalReceiverDropFact,
+    CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
+    UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor,
+    UnitClosureCaptureSource, UnitClosureDescriptor, UnitConditionalReceiverDeliveryFact,
+    UnitConditionalReceiverDropFact, UnitConstantMaterializationPlan,
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDropFact, UnitDropPoint,
     UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitNonNullAssertionOwnershipPlan,
     UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
     UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
     UnitReceiverOwnershipTarget, UnitValueDeliveryFact, UnitValueDeliveryKind,
-    UnitValueDeliverySource, ValidatedCompilationUnitOwnership, check_compilation_unit_ownership,
+    UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use constant::{
     ConstantMaterializationKind, ConstantMaterializationPlan, ValidatedConstantMaterializations,
