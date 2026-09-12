@@ -70,7 +70,7 @@ impl BodyChecker<'_> {
         }
         let mut dependencies = BTreeMap::new();
         for (&symbol, input) in &mut inputs {
-            if let Some(syntax) = self.constant_syntax_dependencies(input.expression)? {
+            if let Ok(syntax) = self.constant_syntax_dependencies(input.expression)? {
                 input.expressions = syntax.expressions;
                 dependencies.insert(symbol, syntax.dependencies);
             }
@@ -222,9 +222,22 @@ impl BodyChecker<'_> {
         self.current_owner = previous_owner;
         result?;
         Ok(self.diagnostics.len() == before
-            && self
-                .constant_syntax_dependencies(input.expression)?
-                .is_some())
+            && self.constant_syntax_dependencies(input.expression)?.is_ok())
+    }
+
+    /// Qualification shares the dependency walk, including the unevaluated short-circuit RHS.
+    pub(super) fn check_constant_expression(
+        &mut self,
+        root: UnitExpressionId,
+    ) -> Result<(), CompilationUnitTypeError> {
+        if let Err(span) = self.constant_syntax_dependencies(root)? {
+            self.emit(
+                codes::INVALID_CONSTANT_EXPRESSION,
+                "expression is not permitted in a constant initializer",
+                span,
+            )?;
+        }
+        Ok(())
     }
 
     fn constant_operand_allows(
@@ -248,7 +261,7 @@ impl BodyChecker<'_> {
     fn constant_syntax_dependencies(
         &self,
         root: UnitExpressionId,
-    ) -> Result<Option<SyntaxDependencies>, CompilationUnitTypeError> {
+    ) -> Result<Result<SyntaxDependencies, Span>, CompilationUnitTypeError> {
         let mut pending = vec![root.expression()];
         let mut dependencies = BTreeSet::new();
         let mut expressions = Vec::new();
@@ -274,7 +287,7 @@ impl BodyChecker<'_> {
                         UnitExpressionId::new(root.source_unit(), *operand),
                         |ty| accepts_prefix_operand(*operator, ty),
                     ) {
-                        return Ok(None);
+                        return Ok(Err(node.span()));
                     }
                     pending.push(*operand);
                 }
@@ -295,7 +308,7 @@ impl BodyChecker<'_> {
                             accepts,
                         )
                     {
-                        return Ok(None);
+                        return Ok(Err(node.span()));
                     }
                     pending.push(*right);
                     pending.push(*left);
@@ -306,14 +319,14 @@ impl BodyChecker<'_> {
                         _ => node.span(),
                     };
                     let Some(target) = self.constant_target(root.source_unit(), span) else {
-                        return Ok(None);
+                        return Ok(Err(node.span()));
                     };
                     dependencies.insert(target);
                 }
-                _ => return Ok(None),
+                _ => return Ok(Err(node.span())),
             }
         }
-        Ok(Some(SyntaxDependencies {
+        Ok(Ok(SyntaxDependencies {
             dependencies,
             expressions,
         }))

@@ -7,7 +7,7 @@ use crate::{
     parser::Item,
     source::Span,
     type_checking::{
-        DeferredReason, TypeCheckingError, UnitTypeId, UnitTypeKind,
+        DeferredReason, TypeCheckingError, UnitExpressionId, UnitTypeId, UnitTypeKind,
         constant_value::accepts_constant_type,
     },
 };
@@ -115,6 +115,8 @@ impl BodyChecker<'_> {
                     "constant type must be Boolean, an integer, Char, or String",
                     span,
                 )?;
+            } else {
+                self.check_constant_expression(UnitExpressionId::new(source, initializer))?;
             }
         }
         Ok(())

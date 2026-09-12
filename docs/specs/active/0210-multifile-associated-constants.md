@@ -226,3 +226,25 @@ L0156 表达式资格、ConstValue/use descriptor 与独立 capability 仍待接
 fmt check、docs check（351 Markdown）与 diff check 通过。未运行 frontend 全量、workspace 或
 native 全矩阵；本轮未改公开 API/ownership/codegen。此前记录的全目标 lint 和 unit type 基线失败
 没有修改，不宣称修复。
+
+
+### 第五切片：unit 表达式资格诊断
+
+依赖遍历保留首个非法子表达式 Span，类型检查后的资格 gate 复用同一遍历产生 L0156，
+没有另建 AST 规则表。普通类型诊断与 L0155 优先，签名和嵌套 Error 隔离沿用上一切片；
+短路 RHS 仍参与资格检查。非法表达式先使其依赖者失效，不把相关语法环发布为 L0157。
+
+新增调用初始化器测试修复前实际无诊断，预期 L0156；实现后通过。独立复审核对诊断优先级、
+首个非法 Span、短路 RHS、Deferred 与失效传播，未发现当前切片阻断问题。完整求值与
+ConstValue/use descriptor、const-enabled capability 仍未接入，整项验收不标完成。
+
+| 第五切片验证 | 结果 | 覆盖 |
+|---|---|---|
+| `cargo test -p lang-frontend --test multifile_constant_qualification` | 11 passed | 原类型资格与签名隔离；新增 call/普通变量/Boolean equality/control/短路 RHS、精确非法 Span、前向 operand 普通错误优先、非法表达式依赖不追加 cycle |
+| `multifile_constant_dependencies` / `multifile_constant_selection` | 4 + 4 passed | SCC/chain/input order 与关联可见性回归 |
+
+后三目标最初通过合并定向命令运行（qualification 当时为 9 项）；随后只重跑新增两项后的
+qualification suite，共 19 项，0 failed/ignored。定向 clippy（`--lib` 和这三个 integration target，
+`-- -D warnings`）、fmt check、docs check（351 Markdown）与 diff check 通过。
+未运行 frontend 全量、workspace/native 或单文件全套：未修改单文件、共享运算规则及公开 API。
+此前记录的基线失败未改动，不能将本轮定向结果表述为它们已修复。

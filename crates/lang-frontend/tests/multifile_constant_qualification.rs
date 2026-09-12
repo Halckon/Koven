@@ -181,3 +181,69 @@ fn invalid_signature_dependency_keeps_only_the_upstream_error() {
         None,
     );
 }
+
+#[test]
+fn runtime_expressions_are_rejected_even_in_short_circuit_rhs() {
+    for (expression, span) in [
+        ("compute()", "compute()"),
+        ("false && compute()", "compute()"),
+        ("ordinary", "ordinary"),
+        ("true == false", "true == false"),
+        ("if (true) true else false", "if (true) true else false"),
+    ] {
+        check(
+            [
+                &format!(
+                    "package a\nfun compute(): Boolean = true\nval ordinary: Boolean = true\nobject A {{ const val BAD = {expression} }}"
+                ),
+                "package b\nfun unused(): Unit {}",
+            ],
+            &["L0156"],
+            Some(span),
+        );
+    }
+}
+
+#[test]
+fn expression_qualification_keeps_ordinary_operand_errors() {
+    check(
+        [
+            "package a\nobject A { const val BAD = 1 && true }",
+            "package b\nfun unused(): Unit {}",
+        ],
+        &["L0085"],
+        None,
+    );
+}
+
+#[test]
+fn invalid_expression_dependencies_do_not_seed_cycle_or_duplicate_diagnostics() {
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val BAD: Boolean = false && B.BAD }",
+            "package b\nimport a.A\nfun compute(): Boolean = true\nobject B { const val BAD: Boolean = A.BAD && compute() }",
+        ],
+        &["L0156"],
+        Some("compute()"),
+    );
+}
+
+#[test]
+fn forward_operand_types_precede_expression_qualification() {
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val BAD = B.FLAG == B.FLAG }",
+            "package b\nobject B { const val FLAG = true }",
+        ],
+        &["L0156"],
+        Some("B.FLAG == B.FLAG"),
+    );
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val BAD = B.FLAG == true }",
+            "package b\nobject B { const val FLAG = 1 }",
+        ],
+        &["L0085"],
+        None,
+    );
+}
