@@ -1,5 +1,8 @@
 //! 关联常量声明索引与类型阶段选择；不创建 object receiver 或运行时字段投影。
 
+mod expressions;
+mod graph;
+
 use crate::parser::{ClassifierBody, Expression, VisibilityModifier};
 
 use super::*;

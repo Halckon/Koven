@@ -106,6 +106,11 @@ struct Checker<'a> {
     null_comparisons: Vec<NullComparisonDescriptor>,
     nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
     non_null_assertions: Vec<crate::type_checking::NonNullAssertionDescriptor>,
+    constant_dependencies: BTreeMap<SymbolId, Vec<SymbolId>>,
+    constant_items: BTreeMap<SymbolId, ItemId>,
+    constant_expressions: BTreeMap<SymbolId, Vec<ExpressionId>>,
+    pending_constant_errors: BTreeMap<SymbolId, (Span, bool)>,
+    rechecking_constants: bool,
     associated_constant_uses: BTreeMap<usize, SymbolId>,
     associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
@@ -209,6 +214,9 @@ struct Checker<'a> {
     invalid_container_member_code: DiagnosticCode,
     jump_outside_loop_code: DiagnosticCode,
     invalid_constant_type_code: DiagnosticCode,
+    invalid_constant_expression_code: DiagnosticCode,
+    invalid_constant_context_code: DiagnosticCode,
+    constant_cycle_code: DiagnosticCode,
     invisible_constant_code: DiagnosticCode,
     unresolved_constant_code: DiagnosticCode,
 }
@@ -272,6 +280,11 @@ impl<'a> Checker<'a> {
             null_comparisons: Vec::new(),
             nullable_whens: Vec::new(),
             non_null_assertions: Vec::new(),
+            constant_dependencies: BTreeMap::new(),
+            constant_items: BTreeMap::new(),
+            constant_expressions: BTreeMap::new(),
+            pending_constant_errors: BTreeMap::new(),
+            rechecking_constants: false,
             associated_constant_uses: BTreeMap::new(),
             associated_constants: BTreeMap::new(),
             references,
@@ -390,6 +403,10 @@ impl<'a> Checker<'a> {
             invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
             jump_outside_loop_code: catalog.resolve(codes::JUMP_OUTSIDE_LOOP)?,
             invalid_constant_type_code: catalog.resolve(codes::INVALID_CONSTANT_TYPE)?,
+            invalid_constant_expression_code: catalog
+                .resolve(codes::INVALID_CONSTANT_EXPRESSION)?,
+            invalid_constant_context_code: catalog.resolve(codes::INVALID_CONSTANT_CONTEXT)?,
+            constant_cycle_code: catalog.resolve(codes::CONSTANT_DEPENDENCY_CYCLE)?,
             invisible_constant_code: catalog.resolve(codes::INVISIBLE_ASSOCIATED_CONSTANT)?,
             unresolved_constant_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
         })
@@ -412,6 +429,8 @@ impl<'a> Checker<'a> {
         for &root in self.parsed.roots() {
             self.check_item(root)?;
         }
+        self.recheck_constant_dependencies()?;
+        self.check_constant_cycles()?;
         self.validate_type_argument_bounds()?;
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();

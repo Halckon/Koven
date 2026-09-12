@@ -165,8 +165,12 @@ pub mod codes {
     pub(crate) const AMBIGUOUS_WILDCARD_IMPORT: &str = "L0151";
     pub(crate) const NON_BORROW_DELEGATION_RECEIVER: &str = "L0152";
 
+    pub(crate) const INVALID_CONSTANT_CONTEXT: &str = "L0153";
     pub(crate) const INVISIBLE_ASSOCIATED_CONSTANT: &str = "L0154";
     pub(crate) const INVALID_CONSTANT_TYPE: &str = "L0155";
+
+    pub(crate) const INVALID_CONSTANT_EXPRESSION: &str = "L0156";
+    pub(crate) const CONSTANT_DEPENDENCY_CYCLE: &str = "L0157";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -322,8 +326,11 @@ pub mod codes {
         EXACT_IMPORT_BINDING_CONFLICT,
         AMBIGUOUS_WILDCARD_IMPORT,
         NON_BORROW_DELEGATION_RECEIVER,
+        INVALID_CONSTANT_CONTEXT,
         INVISIBLE_ASSOCIATED_CONSTANT,
         INVALID_CONSTANT_TYPE,
+        INVALID_CONSTANT_EXPRESSION,
+        CONSTANT_DEPENDENCY_CYCLE,
     ];
 
     /// 由集中定义创建生产错误码目录。

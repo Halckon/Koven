@@ -237,3 +237,121 @@ fn associated_constant_inout_is_rejected_after_overload_type_filtering() {
     );
     assert_eq!(codes(typed.diagnostics()), ["L0122"]);
 }
+
+#[test]
+fn constant_expressions_reject_runtime_work_even_in_a_short_circuit_rhs() {
+    for (prefix, expression, invalid) in [
+        ("fun compute(): Int = 7\n", "compute()", "compute()"),
+        ("val ordinary: Int = 7\n", "ordinary + 1", "ordinary"),
+        (
+            "fun probe(): Boolean = true\n",
+            "false && probe()",
+            "probe()",
+        ),
+        (
+            "",
+            "if (true) { 1 } else { 2 }",
+            "if (true) { 1 } else { 2 }",
+        ),
+        ("", "\"answer ${1}\"", "\"answer ${1}\""),
+        ("", "1.0 == 2.0", "1.0 == 2.0"),
+    ] {
+        let (sources, typed) = checked(&format!("{prefix}const val sample = {expression}"));
+        assert_eq!(codes(typed.diagnostics()), ["L0156"], "{expression}");
+        assert_eq!(
+            sources
+                .slice(typed.diagnostics()[0].primary_span())
+                .unwrap(),
+            invalid
+        );
+    }
+}
+
+#[test]
+fn constant_dependency_cycles_include_short_circuit_edges() {
+    for source in [
+        "const val first: Int = first",
+        "const val first: Int = second\nconst val second: Int = first",
+        "const val first = second\nconst val second = first",
+        "const val first: Boolean = false && second\nconst val second: Boolean = first",
+    ] {
+        let (sources, typed) = checked(source);
+        assert_eq!(codes(typed.diagnostics()), ["L0157"], "{source}");
+        assert_eq!(
+            sources
+                .slice(typed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "first"
+        );
+        let (_, repeated) = checked(source);
+        // 独立 analysis owner 不相等；比较完整可观察诊断，而非 owner token。
+        assert_eq!(
+            format!("{:?}", typed.diagnostics()),
+            format!("{:?}", repeated.diagnostics())
+        );
+    }
+}
+
+#[test]
+fn constant_expression_type_errors_and_invalid_dependencies_do_not_cascade() {
+    for (source, expected) in [
+        ("const val sample: Int = true", vec!["L0084"]),
+        (
+            "fun compute(): Int = 1\nconst val first = bad == 1.0\nconst val bad = compute()",
+            vec!["L0156"],
+        ),
+        (
+            "fun compute(): Int = 1\nconst val first: Int = second + compute()\nconst val second: Int = first",
+            vec!["L0156"],
+        ),
+        (
+            "const val first: Int = first\nconst val second: Int = second",
+            vec!["L0157", "L0157"],
+        ),
+    ] {
+        let (_, typed) = checked(source);
+        assert_eq!(codes(typed.diagnostics()), expected, "{source}");
+    }
+    // Eligibility checks both operands but must not eagerly evaluate a short-circuited division.
+    let (_, typed) = checked(
+        "const val first: Boolean = false && (1 / 0 == 0)\nconst val second: Int = 1 + 2 * 3",
+    );
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+}
+
+#[test]
+fn constant_qualification_rechecks_forward_operand_types() {
+    for source in [
+        "const val sample = flag == flag\nconst val flag = true",
+        "const val flag = true\nconst val sample = flag == flag",
+        "const val sample = (other) == (other)\nconst val other = flag\nconst val flag = true",
+    ] {
+        let (_, typed) = checked(source);
+        assert_eq!(codes(typed.diagnostics()), ["L0156"], "{source}");
+    }
+    for source in [
+        "const val sample = flag == true\nconst val flag = 1",
+        "const val flag = 1\nconst val sample = flag == true",
+        "const val sample = flag == 1.0\nconst val flag = 1",
+        "const val flag = 1\nconst val sample = flag == 1.0",
+    ] {
+        let (_, typed) = checked(source);
+        assert_eq!(codes(typed.diagnostics()), ["L0085"], "{source}");
+    }
+}
+
+#[test]
+fn constant_qualification_rejects_companion_this_before_type_cascades() {
+    for annotation in ["", ": Int"] {
+        let (sources, typed) = checked(&format!(
+            "class Config {{ companion object {{ const val sample{annotation} = this }} }}"
+        ));
+        assert_eq!(codes(typed.diagnostics()), ["L0153"]);
+        assert_eq!(
+            sources
+                .slice(typed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "this"
+        );
+    }
+}

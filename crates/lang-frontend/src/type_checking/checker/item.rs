@@ -232,6 +232,12 @@ impl Checker<'_> {
                 initializer,
                 ..
             } => {
+                if is_constant
+                    && let NameMarker::Present(span) = name
+                    && let Some(symbol) = self.symbol_at(span)
+                {
+                    self.constant_items.insert(symbol, id);
+                }
                 let diagnostics_before = self.diagnostics.len();
                 let expected = type_ref
                     .map(|type_ref| self.resolve_type_ref(type_ref))
@@ -248,6 +254,9 @@ impl Checker<'_> {
                         ty,
                         expected_span.unwrap_or(self.ast().expressions().get(initializer)?.span()),
                     )?;
+                    if self.diagnostics.len() == diagnostics_before {
+                        self.record_constant_dependencies(name, initializer)?;
+                    }
                 }
             }
             Item::Function { form, .. } => {

@@ -100,8 +100,8 @@ lowering。跨文件后继必须复用同一 evaluator。
 
 | 常量选择/类型资格、callable 共享路径、enum 名称回归、诊断目录 | `cargo test -p lang-frontend --test type_constants --test type_callable --test name_resolution --test diagnostic_model --no-fail-fast -- --nocapture` | type_constants 9、name_resolution 14、diagnostic_model 9 项通过；type_callable 18 项通过、1 项旧断言失败，修正后的定向证据见下文 |
 
-类型资格已落实；关联选择切片见下文。L0153/L0156–L0158、依赖图、值、对外 use descriptor 与
-validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
+类型资格、关联选择及表达式/依赖切片见下文。完整 L0153 上下文边界、L0158、值、对外 use
+descriptor 与 validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
 Any/Any? 经 Deferred(AnyValueRepresentation) 绕过检查，修复并补测试后复核通过。
@@ -135,3 +135,24 @@ capability 切片仍须处理前向依赖，不能把此处的 recovery 当作 c
 关联选择切片静态门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test type_callable --test name_resolution --test diagnostic_model -- -D warnings`、
 `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`（351 份 Markdown）、`git diff --check` 均通过。
 未运行 frontend 全量；未更改公共产物或跨文件入口，不将此切片当作 evaluator/native 完成证据。
+
+### 表达式资格与语法依赖切片
+
+封闭表达式资格使用 L0156，companion initializer 的 `this` 使用 L0153；短路 RHS 仍进入
+资格与依赖检查。迭代依赖处理传播失效；每个有效 SCC 使用一次 L0157，按声明位置排列
+主 Span 与 labels。值求值和 L0158 尚未实现，短路算术示例仅证明没有提前执行求值。
+
+首轮测试复现普通调用与自引用均无诊断。独立复核后新增前向 Boolean equality 回归，确认
+Deferred 导致声明顺序影响资格结果；按依赖拓扑清除 initializer 类型缓存并复核，操作数
+未定型时延后资格判断。普通函数体读取的旧 Deferred 尚未统一重查，后续常量阶段仍须收口。
+独立分析之间的确定性测试比较完整可观察诊断，避免将独立 analysis owner 的身份差异误报
+为不确定性。本切片不修改公共阶段产物，不作为 ownership/codegen capability 完成证据。
+
+最终 `cargo test -p lang-frontend --test type_constants -- --nocapture` 通过 14 项；诊断目录
+复用本切片同一注册表状态下 `diagnostic_model` 的 9 项通过结果。覆盖短路资格与环、独立
+SCC、类型错误优先、前向操作数、失效依赖及 companion `this`。独立复核发现的前向类型与
+pending 级联问题均已修复并再次复核；失效传播在拓扑重查前后执行，覆盖被环阻塞的后继。
+
+静态门禁 `cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`
+与 `cargo fmt --all -- --check` 通过；文档检查 351 份 Markdown、`git diff --check` 通过。
+未运行 frontend 全量或无公共产物变更所不需要的下游全套测试。
