@@ -208,6 +208,12 @@ impl BodyChecker<'_> {
         safe: bool,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        if !safe && let Some(ty) = self.check_selected_constant(source, expression, name_span)? {
+            return Ok(ExpressionCheck {
+                ty,
+                falls_through: true,
+            });
+        }
         if let Some(UnitReferenceTarget::Declaration(declaration)) =
             self.reference(source, name_span, Namespace::Value)
         {

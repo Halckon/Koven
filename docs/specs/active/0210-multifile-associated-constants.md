@@ -45,7 +45,7 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 ## 5. 验收标准
 
 - [ ] `import p.Type`; `Type.CONST`、`p.Type.CONST` 与跨文件 acyclic chain 正确。
-- [ ] `import p.Type.CONST` 精确产生 L0148；invisible imported Type 使用 L0149，private associated
+- [x] `import p.Type.CONST` 精确产生 L0148；invisible imported Type 使用 L0149，private associated
   const 越界使用 L0154。
 - [ ] 跨文件 self/two-node/multi-node SCC 每个 cycle 一个 L0157，labels 使用稳定 unit/declaration key。
 - [ ] 正逆 source-unit 输入顺序产生相同 facts/diagnostics，单文件 wrapper 行为不变。
@@ -122,3 +122,48 @@ argv entry 与 object 重复性。未运行 frontend 全量、workspace check；
 `tests/multifile_ownership_checking.rs:1006` 触发 `filter_map_bool_then`；已核对两文件与 HEAD 无差异，
 本切片未顺手修改。补跑 `cargo clippy -p lang-frontend --lib --test type_constants --test ownership_constants -- -D warnings`
 通过；不将该定向结果表述为 all-targets 通过。SPEC-0210 仍在进行中。
+
+
+### 第二切片：unit static constant 选择与可见性交接
+
+名称阶段保留已经解析出的 static constant symbol，将 private 检查交给 Phase 2 的 L0154。
+签名收集复用已有 `item_visibility`，记录 source-qualified constant symbol 对应的 owner
+DeclarationId 与 visibility；body 只消费该事实和 `UnitReferenceTarget::Symbol`，不按路径文本
+重新选择目标。读取记录为 Temporary，不创建 field projection；private owner 与当前 callable
+owner 比较。选择记录进入既有完整 trial snapshot，失败候选不会遗留记录。
+
+这些记录仍是 recovery facts：`CompilationUnitTypes::validate()` 拒绝含关联常量选择的产物，
+防止已有 ownership/native 自动接受尚未完成求值与 capability 验证的常量。没有新增公开 API；
+单文件通路不变，完整 const-enabled marker 和求值图仍待后续。
+
+失败复现：新增 `multifile_constant_selection` 两项测试在实现前分别得到 L0080（private 在名称
+阶段被过滤）和 Deferred(MemberAccess)（公开常量读取未选择类型），均非预期。实现后两项通过；
+随后补了 private owner 内部访问及 L0148/L0149 上游边界测试，并扩展最近回归。
+
+本切片只证明已显式声明类型的关联选择，不能据此声称推断类型、跨文件 chain/SCC 或完整
+constant-use descriptor/value 已交付。最终独立审查前指出的 AST visibility 恢复已改为签名事实。
+
+
+| 第二切片验证目标 | 结果 | 覆盖 / 失败边界 |
+|---|---|---|
+| `multifile_constant_selection` | 4 passed | 五类 namespace × import/absolute path × 正逆输入；显式 Int、Temporary、无 field projection、基础 gate 拒绝；private 外部 L0154/内部允许，L0148/L0149 停在名称阶段 |
+| `multifile_name_resolution` | 10 passed | 既有 qualified/static/import 规则 |
+| `multifile_type_signatures` | 8 passed | 签名与 canonical type 图 |
+| `multifile_ownership_checking` | 63 passed | 基础 validated unit 的直接消费者契约 |
+| `multifile_type_checking` | 100 passed，3 failed | 三项失败见下，不宣称全套通过 |
+
+以上合并命令：`cargo test -p lang-frontend --test multifile_constant_selection --test multifile_name_resolution --test multifile_type_signatures --test multifile_type_checking --test multifile_ownership_checking --no-fail-fast`。
+全部 0 ignored。三个失败已在隔离的 **f99554d** Git archive 快照中用同名过滤器重跑，得到完全
+相同的失败，证明不是本轮引入：
+
+- `deferred_explicit_constructor_type_arguments_publish_no_construction_fact`：`MissingDeclarationSymbol`。
+- `cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join`：期望比实际多一个 L0112。
+- `unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary`：期望比实际多一个 L0084。
+
+独立复审确认签名事实、private owner、Temporary、trial rollback 与基础 capability 隔离；首轮
+提出的 visibility 事实来源问题已修正并复审。仍未交付 inferred const types、dependency graph、
+ConstValue/use descriptor 或 const-enabled capability，SPEC-0210 不标完成。
+
+门禁：`cargo clippy -p lang-frontend --lib --test multifile_constant_selection --test multifile_name_resolution --test multifile_type_signatures -- -D warnings` 通过；fmt、docs check（351 Markdown）与 diff check 通过。
+未重跑 frontend 全量、workspace check 或 all-targets clippy：没有新增公开 API；all-targets 在首切片
+记录的两处既有测试 lint 仍未修改，不能用本轮定向结果覆盖该失败状态。

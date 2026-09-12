@@ -1203,6 +1203,7 @@ impl UnitDeclarationSignature {
 /// SPEC-0197 第 1 阶段的 recovery signature product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitSignatures {
+    constant_declarations: BTreeMap<UnitSymbolId, (DeclarationId, DeclarationVisibility)>,
     provenance: SignatureProvenance,
     types: UnitTypeTable,
     declarations: Vec<UnitDeclarationSignature>,
@@ -1216,6 +1217,8 @@ pub struct CompilationUnitSignatures {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CompilationUnitSignatureFacts {
+    pub(crate) constant_declarations:
+        BTreeMap<UnitSymbolId, (DeclarationId, DeclarationVisibility)>,
     pub(crate) declarations: Vec<UnitDeclarationSignature>,
     pub(crate) symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
     pub(crate) type_ref_types: BTreeMap<UnitTypeRefId, UnitTypeId>,
@@ -1259,6 +1262,7 @@ impl CompilationUnitSignatures {
             types,
             declarations: facts.declarations,
             symbol_types: facts.symbol_types,
+            constant_declarations: facts.constant_declarations,
             type_ref_types: facts.type_ref_types,
             type_parameters: facts.type_parameters,
             invalid_inline_nominals: facts.invalid_inline_nominals,
@@ -1319,6 +1323,14 @@ impl CompilationUnitSignatures {
     #[must_use]
     pub fn declaration(&self, id: DeclarationId) -> Option<&UnitDeclarationSignature> {
         self.declarations.get(id.index())
+    }
+
+    /// 已由签名收集阶段确定的关联常量 owner 与可见性。
+    pub(super) fn constant_declaration(
+        &self,
+        symbol: UnitSymbolId,
+    ) -> Option<(DeclarationId, DeclarationVisibility)> {
+        self.constant_declarations.get(&symbol).copied()
     }
 
     /// 查询任一 source unit symbol 的规范类型。

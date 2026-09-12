@@ -85,6 +85,7 @@ struct SignatureCollector<'a> {
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: Vec<BTreeMap<(usize, usize), SymbolId>>,
     symbol_types: BTreeMap<UnitSymbolId, UnitTypeId>,
+    constant_declarations: BTreeMap<UnitSymbolId, (DeclarationId, DeclarationVisibility)>,
     nominal_types: BTreeMap<DeclarationId, UnitTypeId>,
     nominal_by_root: BTreeMap<(SourceUnitId, usize), DeclarationId>,
     nominals: BTreeMap<DeclarationId, UnitNominalSignature>,
@@ -141,6 +142,7 @@ impl<'a> SignatureCollector<'a> {
             references,
             symbols_by_span,
             symbol_types: BTreeMap::new(),
+            constant_declarations: BTreeMap::new(),
             nominal_types: BTreeMap::new(),
             nominal_by_root: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -187,6 +189,7 @@ impl<'a> SignatureCollector<'a> {
             CompilationUnitSignatureFacts {
                 declarations,
                 symbol_types: self.symbol_types,
+                constant_declarations: self.constant_declarations,
                 type_ref_types: self.type_ref_types,
                 type_parameters: self.type_parameters,
                 invalid_inline_nominals: self.invalid_inline_nominals,
@@ -294,7 +297,7 @@ impl<'a> SignatureCollector<'a> {
             let mut members = Vec::new();
             let mut companion_members = Vec::new();
             if let Some(body) = &classifier.body {
-                self.collect_member_constant_types(source, body)?;
+                self.collect_member_constant_types(source, id, body)?;
                 let owner = self
                     .nominals
                     .get(&id)

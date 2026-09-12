@@ -133,6 +133,15 @@ canonical type identity。ordinary class、value class、enum、interface 与 in
 对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、
 `multifile_type_member_graph` 与 `multifile_type_capability_graph` integration suites。
 
+### Unit 关联常量选择
+
+unit resolver 保留 static constant symbol，由类型阶段消费签名记录的 owner DeclarationId 和
+visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L0149 仍在名称阶段处理。
+显式类型关联读取形成 source-qualified Temporary recovery fact，不产生字段 projection；这些
+选择随 overload trial 一起回滚。基础 `CompilationUnitTypes::validate()` 拒绝包含选择记录的
+产物，避免提前授予 ownership/native 能力。推断类型、跨文件封闭求值与独立 const-enabled
+capability 尚未接通。
+
 ## 核心不变量
 
 - TypeRef、call target、member target 和 receiver 选择必须可追溯到唯一源码或显式 external identity。

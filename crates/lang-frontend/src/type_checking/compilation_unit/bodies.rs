@@ -532,6 +532,7 @@ impl UnitDestructuringDescriptor {
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Clone, Default)]
 pub(crate) struct CompilationUnitTypeParts {
+    pub(crate) constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
     pub(crate) expression_falls_through: BTreeMap<UnitExpressionId, bool>,
@@ -561,6 +562,7 @@ struct BodyTypeProvenance {
 /// [`UnitTypeId`] 并且所有源码 identity 都带 [`SourceUnitId`] 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitTypes {
+    constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
     provenance: BodyTypeProvenance,
     signatures: CompilationUnitSignatures,
     expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
@@ -594,6 +596,7 @@ impl CompilationUnitTypes {
         };
         Self {
             provenance,
+            constant_selections: parts.constant_selections,
             signatures,
             expression_types: parts.expression_types,
             expression_categories: parts.expression_categories,
@@ -851,13 +854,15 @@ impl CompilationUnitTypes {
         &self.diagnostics
     }
 
-    /// 只有 signature 与 body 诊断都无 error 时才发布 ownership 可消费的 view。
+    /// signature/body 无 error 且不含待交接的关联常量读取时才发布基础 ownership view。
+    /// 常量读取需要 SPEC-0210 的独立 const-enabled capability，不能借此绕过其验证。
     pub fn validate(self) -> Result<ValidatedCompilationUnitTypes, Box<Self>> {
         let has_error = self
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_error {
+        // Selection is a recovery fact, not the const-enabled capability required by SPEC-0210.
+        if has_error || !self.constant_selections.is_empty() {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitTypes(self))

@@ -366,6 +366,10 @@ impl UnitResolver<'_> {
         let Some(symbol) = resolution.symbols().get(symbol.symbol().index()) else {
             return false;
         };
+        // Constants are selected here, but their classifier visibility belongs to Phase 2 (L0154).
+        if symbol.kind() == crate::name_resolution::SymbolKind::Constant {
+            return true;
+        }
         let ast = self.inputs[source_unit.index()].ast();
         for (_, node) in ast.items().iter() {
             let Item::Modified {

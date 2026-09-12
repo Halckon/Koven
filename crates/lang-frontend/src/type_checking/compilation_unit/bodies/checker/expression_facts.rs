@@ -15,6 +15,13 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> ExpressionCategory {
+        if self
+            .parts
+            .constant_selections
+            .contains_key(&UnitExpressionId::new(source, expression))
+        {
+            return ExpressionCategory::Temporary;
+        }
         if let Ok(node) = self.file(source).ast().expressions().get(expression)
             && let Expression::Group { expression } = node.payload()
         {
