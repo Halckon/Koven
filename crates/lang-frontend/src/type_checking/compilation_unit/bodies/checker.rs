@@ -25,6 +25,7 @@ mod assignment;
 mod bindings;
 mod calls;
 mod constant_dependencies;
+mod constant_evaluation;
 mod constants;
 mod construction;
 mod container;
@@ -94,6 +95,7 @@ pub(super) struct BodyChecker<'a> {
     current_owner: Option<DeclarationId>,
     constant_prechecked: BTreeSet<UnitSymbolId>,
     checking_constants: bool,
+    constant_values: BTreeMap<UnitSymbolId, crate::type_checking::ConstValue>,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -177,6 +179,7 @@ impl<'a> BodyChecker<'a> {
             current_owner: None,
             constant_prechecked: BTreeSet::new(),
             checking_constants: false,
+            constant_values: BTreeMap::new(),
         })
     }
 

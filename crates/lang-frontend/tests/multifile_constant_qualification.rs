@@ -247,3 +247,73 @@ fn forward_operand_types_precede_expression_qualification() {
         None,
     );
 }
+
+#[test]
+fn cross_file_constant_arithmetic_reports_only_evaluated_failures() {
+    for (expression, expected) in [
+        ("B.ZERO + 2147483647 + 1", vec!["L0158"]),
+        ("1 / B.ZERO", vec!["L0158"]),
+        ("false && (1 / B.ZERO == 0)", vec![]),
+    ] {
+        check(
+            [
+                &format!("package a\nimport b.B\nobject A {{ const val RESULT = {expression} }}"),
+                "package b\nobject B { const val ZERO = 0 }",
+            ],
+            &expected,
+            None,
+        );
+    }
+}
+
+#[test]
+fn unit_evaluator_preserves_widths_and_cross_file_values() {
+    for (provider, consumer, expected) in [
+        (
+            "const val X: Byte = 127\nconst val ONE: Byte = 1",
+            "const val RESULT: Byte = B.X + B.ONE",
+            vec!["L0158"],
+        ),
+        (
+            "const val X: Long = -9223372036854775808L",
+            "const val RESULT = B.X / -1L",
+            vec!["L0158"],
+        ),
+        (
+            "const val X = 20 + 22",
+            "const val RESULT = 1 / (B.X - 42)",
+            vec!["L0158"],
+        ),
+        (
+            "const val X = \"中\" + \"文\"",
+            "const val RESULT = (B.X == \"中文\") && (1 / 0 == 0)",
+            vec!["L0158"],
+        ),
+        (
+            "const val X: ULong = 18446744073709551615uL",
+            "const val RESULT = B.X - 1uL",
+            vec![],
+        ),
+    ] {
+        check(
+            [
+                &format!("package a\nimport b.B\nobject A {{ {consumer} }}"),
+                &format!("package b\nobject B {{ {provider} }}"),
+            ],
+            &expected,
+            None,
+        );
+    }
+}
+
+#[test]
+fn failed_constant_evaluation_does_not_cascade_to_dependents() {
+    check(
+        [
+            "package a\nimport b.B\nobject A { const val RESULT = B.BAD + 1 }",
+            "package b\nobject B { const val BAD = 1 / 0 }",
+        ],
+        &["L0158"],
+        Some("/"),
+    );
+}

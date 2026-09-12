@@ -101,11 +101,22 @@ impl BodyChecker<'_> {
             .filter_map(|(&symbol, &count)| (count == 0).then_some(symbol))
             .collect::<VecDeque<_>>();
         while let Some(symbol) = ready.pop_front() {
-            if !invalid.contains(&symbol)
-                && !self.check_constant_initializer(symbol, &inputs[&symbol])?
-            {
-                invalid.insert(symbol);
-                propagate_invalid(&mut invalid, &reverse, [symbol]);
+            if !invalid.contains(&symbol) {
+                let valid = self.check_constant_initializer(symbol, &inputs[&symbol])?;
+                let value = if valid {
+                    crate::type_checking::constant_evaluation::evaluate(
+                        self,
+                        inputs[&symbol].expression,
+                    )?
+                } else {
+                    None
+                };
+                if let Some(value) = value {
+                    self.constant_values.insert(symbol, value);
+                } else {
+                    invalid.insert(symbol);
+                    propagate_invalid(&mut invalid, &reverse, [symbol]);
+                }
             }
             for &dependent in reverse.get(&symbol).into_iter().flatten() {
                 let count = remaining

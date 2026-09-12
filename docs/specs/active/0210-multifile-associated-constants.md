@@ -248,3 +248,29 @@ qualification suite，共 19 项，0 failed/ignored。定向 clippy（`--lib` �
 `-- -D warnings`）、fmt check、docs check（351 Markdown）与 diff check 通过。
 未运行 frontend 全量、workspace/native 或单文件全套：未修改单文件、共享运算规则及公开 API。
 此前记录的基线失败未改动，不能将本轮定向结果表述为它们已修复。
+
+
+### 第六切片：unit 共享求值器适配
+
+无环依赖按 Kahn 顺序完成类型资格后调用已有共享 evaluator。unit adapter 只保留 child 的
+SourceUnitId、通过 selections 查询 source-qualified value，以及使用表达式的精确整数类型；
+短路、解码和算术规则没有复制。负 literal 继续使用 prefix 类型和 operand magnitude，保留
+Long 最小值。求值失败产生 L0158 并通过反向边使依赖者失效；循环只检查类型，不求值。
+
+跨文件溢出测试修复前没有诊断，预期 L0158。独立复审核对 source identity、已选择引用、整数
+宽度、短路、失败传播和 trial 状态边界，未发现阻断问题。值表目前仍为 checker 私有状态，
+尚未发布 value/use descriptor 或 const-enabled capability；第 5 节整体标准仍未完成。
+
+| 第六切片验证 | 结果 | 覆盖 |
+|---|---|---|
+| `multifile_constant_qualification` | 14 项最终通过 | 新增跨文件 overflow/除零/短路、Byte overflow、Long MIN/-1、ULong 最大值、整数/String 引用值和失败不级联；正逆输入诊断一致 |
+| `multifile_constant_dependencies` / `multifile_constant_selection` | 4 + 4 passed | 无环/环与选择、可见性回归 |
+
+三目标先合并运行通过（qualification 当时为 12 项），补测后的 qualification 为 13 passed、
+1 failed：`Byte + 1` 按 unit 既有规则先报 L0085。夹具改用两个显式 Byte 常量后，以完整测试名
+单独复跑宽度/value 测试通过（1 passed、13 filtered）；未改普通数值类型规则。本轮最终有效
+覆盖共 22 项，0 ignored；不将前一次失败命令表述为整套通过。
+
+定向 clippy（`--lib` 和这三个 integration target，`-- -D warnings`）、fmt check、docs check
+（351 Markdown）与 diff check 通过。未运行 frontend 全量、workspace/native 或单文件回归：
+共享 evaluator 未修改，本轮只增加 unit adapter/调度，未新增公开 API。已有基线失败未修复。
