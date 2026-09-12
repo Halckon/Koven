@@ -276,3 +276,19 @@ fn shared_receiver_argument_return_skips_the_native_call() {
     assert_eq!(run.stdout, b"before\n");
     assert!(run.stderr.is_empty(), "{run:?}");
 }
+
+#[test]
+fn value_receiver_commits_only_after_native_arguments_complete() {
+    for (flag, expected) in [("true", "before\n"), ("false", "before\ncall\nafter\n")] {
+        let provider = format!(
+            "package p\nconst val TEXT = \"中文\"\nconst val FLAG = {flag}\nclass Host {{ own fun consume(text: String, own flag: Boolean): Unit {{ println(\"call\") }} }}"
+        );
+        let run = run_constant_sources(
+            &provider,
+            "package q\nimport p.Host\nfun entry(): Unit { val before = println(\"before\")\nval host = Host()\nval done = host.consume(p.TEXT, if (p.FLAG) { return } else { true })\nval after = println(\"after\") }",
+        );
+        assert!(run.status.success(), "{flag}: {run:?}");
+        assert_eq!(run.stdout, expected.as_bytes());
+        assert!(run.stderr.is_empty(), "{run:?}");
+    }
+}

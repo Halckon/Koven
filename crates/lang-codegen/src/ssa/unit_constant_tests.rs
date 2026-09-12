@@ -597,3 +597,45 @@ fn shared_receiver_prefix_preserves_nested_calls_and_loop_exit_scopes() {
         crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
     }
 }
+
+#[test]
+fn value_receiver_is_owned_until_arguments_commit() {
+    for (setup, receiver) in [("val host = Host()\n", "host"), ("", "(Host())")] {
+        for mode in ["", "own "] {
+            for exit in ["return", "error(p.TEXT)"] {
+                let source = format!(
+                    "class Host {{ own fun consume({mode}text: String, own flag: Boolean): Unit {{}} }}\nfun entry(own flag: Boolean): Unit {{ {setup}val done = {receiver}.consume(p.TEXT, if (flag) {{ {exit} }} else {{ true }}) }}"
+                );
+                let program = lower_short_circuit_fixture(&source);
+                let function = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains("q.entry"))
+                    .unwrap();
+                let drops = function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count();
+                assert_eq!(
+                    drops,
+                    usize::from(mode.is_empty()) + if exit == "return" { 2 } else { 0 },
+                    "{source}"
+                );
+                crate::llvm::render_verified_program(&program).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn value_receiver_prefix_handles_this_copyable_values_and_loop_exits() {
+    for source in [
+        "class Host { own fun consume(text: String, own flag: Boolean): Unit {}\nown fun relay(own flag: Boolean): Unit { val done = this.consume(p.TEXT, if (flag) { return } else { true }) } }\nfun entry(own flag: Boolean): Unit { val host = Host()\nval done = host.relay(flag) }",
+        "value class Host(val item: Int) { own fun consume(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { val host = Host(0)\nval done = host.consume(p.TEXT, if (flag) { return } else { true }) }",
+        "class Host { own fun consume(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { loop { val host = Host()\nval done = host.consume(p.TEXT, if (flag) { break } else { true }) } }",
+        "class Host { own fun consume(text: String, own flag: Boolean): Unit {} }\nfun entry(own flag: Boolean): Unit { loop { val host = Host()\nval done = host.consume(p.TEXT, if (flag) { continue } else { true }) } }",
+    ] {
+        crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+    }
+}

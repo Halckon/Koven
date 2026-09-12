@@ -11,7 +11,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
-        UnitCallTarget, UnitCallableTarget, UnitExpressionId,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableTarget, UnitExpressionId,
     },
 };
 
@@ -88,9 +88,12 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
         if (self.constant_owned.is_none()
-            || descriptor
-                .receiver()
-                .is_some_and(|receiver| receiver.mode() != ParameterMode::Borrow)
+            || descriptor.receiver().is_some_and(|receiver| {
+                receiver.mode() == ParameterMode::Inout
+                    || (receiver.mode() == ParameterMode::Value
+                        && (matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
+                            || self.owned.conditional_receiver_delivery(call).is_some()))
+            })
             || function_value)
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
@@ -206,6 +209,18 @@ impl UnitExpressionLowerer<'_> {
             .get(resolved.key())
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let pending_receiver = descriptor.receiver().and_then(|descriptor| {
+            if self.constant_owned.is_some()
+                && descriptor.mode() == ParameterMode::Value
+                && self.owned.conditional_receiver_delivery(call).is_none()
+                && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
+                && let UnitCallReceiverOrigin::Expression(origin) = descriptor.origin()
+            {
+                Some(origin)
+            } else {
+                None
+            }
+        });
         let receiver = self.lower_call_receiver(call, descriptor, span)?;
         let receiver = if resolved.delegation().is_empty() {
             receiver
@@ -219,6 +234,11 @@ impl UnitExpressionLowerer<'_> {
             )?
         };
         let mut receiver = receiver;
+        if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
+            // Value receiver 在实参全部完成前仍由当前调用方持有。
+            self.temporaries
+                .insert(origin, require_value(receiver.entity, span)?);
+        }
         let receiver_start = self.pending_operands.len();
         if let Some(receiver) = &receiver {
             self.pending_operands.push(receiver.entity);
@@ -277,6 +297,9 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.pending_operands.truncate(receiver_start);
+        if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
+            self.take_owned_temporary_origin(origin, require_value(receiver.entity, span)?, span)?;
+        }
         let return_type = resolve_concrete_type(
             self.typed,
             descriptor.return_type(),

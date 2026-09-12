@@ -95,7 +95,11 @@ object 字节已有 native 证据；非法 entry、插值及分析错配在写�
 借用传入对象的既有 loan 不由本次调用结束，Abort 不展开。命名、借用输入和临时 receiver
 均有 SSA/LLVM 覆盖，嵌套调用及循环退出按现有 scope 深度处理。
 
-Value/Inout receiver 与 function-value 调用的参数控制退出仍保留 guard，外层 temporary 内求值循环仍受
+显式 Value receiver 的 MoveOnly owner 在参数求值期间按 receiver expression 登记 temporary，
+参数完成并重绑定后才撤销该记录；提前退出沿用 frontend drop，Abort 不展开。Copyable
+receiver 不额外登记 owner，Group alias 按同一 ValueId 清除。
+隐式 Value `this`、条件 StaticSelf、Inout receiver 与 function-value 调用的参数控制退出仍保留
+guard，外层 temporary 内求值循环仍受
 既有 loop lowering 限制；这些组合不由当前前缀测试证明。
 
 String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。

@@ -159,7 +159,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn take_owned_temporary_origin(
+    pub(super) fn take_owned_temporary_origin(
         &mut self,
         origin: UnitExpressionId,
         value: ValueId,
