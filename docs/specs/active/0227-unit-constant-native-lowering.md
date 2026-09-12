@@ -86,7 +86,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
 | `cargo test -p lang-codegen --lib native::unit_tests::constants` | 5 passed，412 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
-| 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
+| `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
 合同复核与门禁：独立边界审查通过，已显式补入顶层常量验收；docs check（353 Markdown）、
 文档检查器 21 项测试与 diff check 通过。该记录属于 draft 建立时的合同检查。2026-09-13 前置完成，本次迁入 active；Rust/native 验收尚未执行。
@@ -216,3 +216,14 @@ Drop 的 %v0 仍作为两条 edge 参数。原因是 Temporary drop 只移除单
 独立复核确认修复来源匹配不放宽，并补强 return 夹具以排除执行空 callee 的假阳性。
 
 最终 5 项常量 native、187 项 unit SSA/LLVM 契约通过；完整退出组合与 CLI 接入仍待后续。
+
+
+CLI 接入切片：先消费统一 typed diagnostics，基础 validate 成功保持旧路径；否则由
+validate_constants 发布专用能力，继续专用 ownership diagnostics/validate，再选择 entry
+并调用专用 native。私有 entry helper 读取 raw types，但所有调用方都已完成对应 gate。
+首例合法常量 build 曾退出 1 且无诊断，接线后成功构建并运行跨文件 String concat；
+run 的 argv entry 实际通过常量 INDEX 读取 Unicode 参数，stdout 精确匹配。
+非法 Byte 常量在新目标路径返回源码文件诊断且不生成产物；已有目标则先被 CLI 的
+output-exists 规则拒绝并保留原字节。两项证据分开，不把输出前置拒绝称为常量诊断。
+诊断断言锁定来源文件，未锁定具体诊断码。独立复核未发现接线或错误顺序阻断。
+此切片未修改公开跨 crate API，不追加 workspace check；未运行 frontend 全量测试。

@@ -10,6 +10,79 @@ use std::{
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
+#[test]
+fn project_constants_build_run_and_preserve_outputs_on_invalid_constants() {
+    let project = TestProject::create("constants");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/lib/Values.ko",
+        "package lib\nconst val INDEX = 0\nobject Labels { const val TEXT = \"中文\" }",
+    );
+    project.write("src/app/Main.ko", "package app\nimport lib.Labels\nimport lib.INDEX\nfun start(): Unit { println(Labels.TEXT + lib.Labels.TEXT) }\nfun argv(args: Array<String>): Unit { val text = println(Labels.TEXT)\nval arg = println(args[INDEX]) }");
+    let executable = project.join("constant-program");
+    let built = run([
+        OsStr::new("build"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.start"),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    let launched = Command::new(&executable).output().unwrap();
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, "中文中文\n".as_bytes());
+    let executed = run([
+        OsStr::new("run"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.argv"),
+        OsStr::new("--"),
+        OsStr::new("实参"),
+    ]);
+    assert_eq!(executed.status.code(), Some(0), "{executed:?}");
+    assert_eq!(executed.stdout, "中文\n实参\n".as_bytes());
+    let original = fs::read(&executable).unwrap();
+    project.write(
+        "src/lib/Values.ko",
+        "package lib\nconst val INDEX: Byte = 128\nobject Labels { const val TEXT = \"中文\" }",
+    );
+    let failed = run([
+        OsStr::new("build"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.start"),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert!(!failed.status.success(), "{failed:?}");
+    assert!(
+        String::from_utf8_lossy(&failed.stderr).contains("output already exists"),
+        "{failed:?}"
+    );
+    let invalid_output = project.join("invalid-program");
+    let invalid = run([
+        OsStr::new("build"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.start"),
+        OsStr::new("-o"),
+        invalid_output.as_os_str(),
+    ]);
+    assert!(!invalid.status.success(), "{invalid:?}");
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr).contains("src/lib/Values.ko"),
+        "{invalid:?}"
+    );
+    assert!(!invalid_output.exists());
+    assert_eq!(fs::read(&executable).unwrap(), original);
+    assert_no_build_temporaries(project.path());
+}
+
 struct TestProject(PathBuf);
 
 impl TestProject {

@@ -16,7 +16,9 @@
 project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
 file identity，再发布不可变、稳定排序的 source-set snapshot。build 在同一 SourceMap 中运行 unit
 name/type/ownership validation，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
-祖先目录猜 manifest。
+祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
+基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
+`emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
 
 实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`project/`、`project_build.rs` 和
 `project_command.rs`；对应覆盖位于 `native_cli`、`project_cli` 与 `format_cli` integration suites。

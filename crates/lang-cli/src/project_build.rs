@@ -6,7 +6,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use lang_codegen::{NativeObjectError, NativeUnitEntry, emit_native_unit_object};
+use lang_codegen::{
+    NativeObjectError, NativeUnitEntry, emit_native_constant_unit_object, emit_native_unit_object,
+};
 use lang_frontend::{
     ast::AstError,
     diagnostic::Diagnostic,
@@ -16,13 +18,16 @@ use lang_frontend::{
         SourceUnitInput, SymbolKind, UnitDiagnosticOrderError, ValidatedCompilationUnitNames,
         index_compilation_unit, ordered_unit_diagnostics, resolve_compilation_unit_names,
     },
-    ownership_checking::{OwnershipCheckingError, check_compilation_unit_ownership},
+    ownership_checking::{
+        OwnershipCheckingError, check_compilation_unit_constant_ownership,
+        check_compilation_unit_ownership,
+    },
     parser::{FunctionBody, FunctionForm, Item, ParsedFile, ParserInternalError, parse_file},
     source::{SourceError, SourceMap},
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, IntrinsicTypeConstructor, ParameterMode,
-        UnitCallableTarget, UnitTypeKind, ValidatedCompilationUnitTypes,
-        check_compilation_unit_types, standard_environments,
+        BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, IntrinsicTypeConstructor,
+        ParameterMode, UnitCallableTarget, UnitTypeKind, check_compilation_unit_types,
+        standard_environments,
     },
 };
 
@@ -165,11 +170,47 @@ pub(crate) fn emit_project_object(
     let typed = match typed.validate() {
         Ok(typed) => typed,
         Err(typed) => {
-            return Err(frontend_diagnostics(
+            // 基础 capability 拒绝常量；交给 frontend 专用 gate，不从 AST 猜测能力。
+            let typed = match typed.validate_constants() {
+                Ok(typed) => typed,
+                Err(typed) => {
+                    return Err(frontend_diagnostics(
+                        &sources,
+                        names.names().index().source_units(),
+                        typed.diagnostics(),
+                    )?);
+                }
+            };
+            let owned = check_compilation_unit_constant_ownership(
                 &sources,
-                names.names().index().source_units(),
-                typed.diagnostics(),
-            )?);
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+            )
+            .map_err(ProjectBuildError::Ownership)?;
+            if !owned.ownership().diagnostics().is_empty() {
+                return Err(frontend_diagnostics(
+                    &sources,
+                    names.names().index().source_units(),
+                    owned.ownership().diagnostics(),
+                )?);
+            }
+            let owned = owned
+                .validate()
+                .map_err(|_| ProjectBuildError::IncompleteOwnership)?;
+            let entry = select_project_entry(selector, &inputs, &names, typed.types())?;
+            return emit_native_constant_unit_object(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry,
+                object,
+            )
+            .map_err(|error| codegen_error(&sources, names.names().index().source_units(), error));
         }
     };
     let owned =
@@ -186,7 +227,7 @@ pub(crate) fn emit_project_object(
         Ok(owned) => owned,
         Err(_) => return Err(ProjectBuildError::IncompleteOwnership),
     };
-    let entry = select_project_entry(selector, &inputs, &names, &typed)?;
+    let entry = select_project_entry(selector, &inputs, &names, typed.types())?;
     emit_native_unit_object(
         &sources,
         &inputs,
@@ -288,7 +329,7 @@ fn select_project_entry(
     selector: &[String],
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
-    typed: &ValidatedCompilationUnitTypes,
+    typed: &CompilationUnitTypes,
 ) -> Result<NativeUnitEntry, ProjectBuildError> {
     let selector_text = selector.join(".");
     let (name, package_segments) = selector
@@ -332,7 +373,6 @@ fn select_project_entry(
             continue;
         }
         let Some(callable) = typed
-            .types()
             .signatures()
             .declaration(declaration.id())
             .and_then(|signature| signature.callable())
@@ -341,7 +381,7 @@ fn select_project_entry(
         };
         if callable.target() != UnitCallableTarget::Declaration(declaration.id())
             || !callable.type_parameters().is_empty()
-            || typed.types().types().get(callable.return_type())
+            || typed.types().get(callable.return_type())
                 != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
         {
             continue;
@@ -353,12 +393,12 @@ fn select_project_entry(
             [parameter]
                 if parameter.mode() == ParameterMode::Borrow
                     && matches!(
-                        typed.types().types().get(parameter.ty()),
+                        typed.types().get(parameter.ty()),
                         Some(UnitTypeKind::Intrinsic {
                             constructor: IntrinsicTypeConstructor::Array,
                             arguments,
                         }) if matches!(arguments.as_slice(), [string]
-                            if typed.types().types().get(*string)
+                            if typed.types().get(*string)
                                 == Some(&UnitTypeKind::Builtin(BuiltinType::String)))
                     )
         ) {
@@ -494,37 +534,37 @@ mod tests {
             .expect("validated types");
 
         assert!(matches!(
-            select_project_entry(&segments("defaultEntry"), &inputs, &names, &typed),
+            select_project_entry(&segments("defaultEntry"), &inputs, &names, typed.types()),
             Ok(NativeUnitEntry::NoArguments(_))
         ));
         assert!(matches!(
-            select_project_entry(&segments("tools.argv"), &inputs, &names, &typed),
+            select_project_entry(&segments("tools.argv"), &inputs, &names, typed.types()),
             Ok(NativeUnitEntry::BorrowedArguments(_))
         ));
         assert!(matches!(
-            select_project_entry(&segments("mixed"), &inputs, &names, &typed),
+            select_project_entry(&segments("mixed"), &inputs, &names, typed.types()),
             Ok(NativeUnitEntry::NoArguments(_))
         ));
         assert!(matches!(
-            select_project_entry(&segments("secret"), &inputs, &names, &typed),
+            select_project_entry(&segments("secret"), &inputs, &names, typed.types()),
             Err(ProjectBuildError::InaccessibleEntry(_))
         ));
         for selector in ["absent", "invalid", "generic", "notFunction"] {
             assert!(matches!(
-                select_project_entry(&segments(selector), &inputs, &names, &typed),
+                select_project_entry(&segments(selector), &inputs, &names, typed.types()),
                 Err(ProjectBuildError::InvalidEntryShape(_))
             ));
         }
         assert!(matches!(
-            select_project_entry(&segments("missing"), &inputs, &names, &typed),
+            select_project_entry(&segments("missing"), &inputs, &names, typed.types()),
             Err(ProjectBuildError::MissingEntry(_))
         ));
         assert!(matches!(
-            select_project_entry(&segments("unknown.missing"), &inputs, &names, &typed),
+            select_project_entry(&segments("unknown.missing"), &inputs, &names, typed.types()),
             Err(ProjectBuildError::MissingEntry(_))
         ));
         assert!(matches!(
-            select_project_entry(&segments("ambiguous"), &inputs, &names, &typed),
+            select_project_entry(&segments("ambiguous"), &inputs, &names, typed.types()),
             Err(ProjectBuildError::AmbiguousEntry { count: 2, .. })
         ));
     }
