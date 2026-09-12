@@ -102,3 +102,69 @@ fn constants_do_not_capture_declarations_or_namespaces() {
     assert!(owned.captures().is_empty());
     assert_eq!(owned.closures().len(), 1);
 }
+
+#[test]
+fn groups_forward_the_same_materialization_owner_to_loans_deliveries_and_drops() {
+    for value in ["TEXT", "A.TEXT"] {
+        for depth in [1, 3] {
+            let grouped = format!("{}{value}{}", "(".repeat(depth), ")".repeat(depth));
+            let (sources, owned) = analyze_with_sources(&format!(
+                "package a\nconst val TEXT = \"hi\"\nobject A {{ const val TEXT = \"hi\" }}\nfun view(text: String): Unit {{}}\nfun take(own text: String, own number: Int): Unit {{}}\nfun run(flag: Boolean): Unit {{ val first = view({grouped})\nval second = take({grouped}, if (flag) {{ return }} else {{ 0 }}) }}\nfun discard(): Unit {{ {grouped} }}"
+            ));
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty());
+            let plans = owned.constant_materializations.as_ref().unwrap();
+            assert_eq!(plans.len(), 3, "groups do not add materializations");
+            let has_owner = |owner| {
+                plans
+                    .iter()
+                    .any(|plan| plan.descriptor.expression() == owner)
+            };
+            assert_eq!(owned.loans().len(), 1);
+            let UnitLoanTarget::Temporary(owner) = owned.loans()[0].target() else {
+                panic!("constant loan must target a temporary")
+            };
+            assert!(
+                has_owner(*owner),
+                "{grouped}: loan must refer to the materialized owner"
+            );
+            let delivery = owned
+                .value_deliveries()
+                .iter()
+                .find(|delivery| sources.slice(delivery.span()).unwrap() == grouped)
+                .unwrap();
+            let super::UnitValueDeliverySource::Temporary(owner) = delivery.source() else {
+                panic!("constant delivery must use a temporary")
+            };
+            assert!(
+                has_owner(*owner),
+                "{grouped}: delivery must refer to the materialized owner"
+            );
+            let drops = owned
+                .drops()
+                .iter()
+                .filter_map(|drop| {
+                    if let UnitDropTarget::Temporary(owner) = drop.target() {
+                        Some((drop, owner))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                drops.len(),
+                3,
+                "borrow, abandoned Value prefix, discarded expression"
+            );
+            let owners = drops
+                .iter()
+                .map(|(_, owner)| *owner)
+                .collect::<std::collections::BTreeSet<_>>();
+            assert_eq!(owners.len(), 3, "each read retains its own owner");
+            for (drop, owner) in drops {
+                assert!(has_owner(owner), "{grouped}: {drop:?}");
+                assert_eq!(sources.slice(drop.value_origin()).unwrap(), value);
+            }
+        }
+    }
+}

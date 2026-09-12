@@ -17,6 +17,23 @@ use super::{
 };
 
 impl Checker<'_> {
+    /// Group forwards a checked constant value without creating another temporary owner.
+    pub(super) fn constant_temporary_origin(
+        &self,
+        mut expression: ExpressionId,
+    ) -> Option<(UnitExpressionId, crate::source::Span)> {
+        loop {
+            let node = self.parsed.ast().expressions().get(expression).ok()?;
+            if self.is_constant_use(expression) {
+                return Some((self.unit_expression(expression), node.span()));
+            }
+            let Expression::Group { expression: inner } = node.payload() else {
+                return None;
+            };
+            expression = *inner;
+        }
+    }
+
     pub(super) fn value_delivery(
         &mut self,
         contract: UnitCallArgumentOwnershipContract,
@@ -26,7 +43,10 @@ impl Checker<'_> {
         if contract.category() == ExpressionCategory::Temporary {
             return Ok(Some((
                 UnitValueDeliveryKind::Temporary,
-                UnitValueDeliverySource::Temporary(contract.argument()),
+                UnitValueDeliverySource::Temporary(
+                    self.constant_temporary_origin(contract.argument().expression())
+                        .map_or(contract.argument(), |(owner, _)| owner),
+                ),
             )));
         }
         let expression = contract.argument().expression();
@@ -217,6 +237,9 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+        if let Some((owner, _)) = self.constant_temporary_origin(expression) {
+            return Ok(Some(owner));
+        }
         let unit = self.unit_expression(expression);
         if self.typed.expression_category(unit) == Some(ExpressionCategory::Temporary) {
             return Ok(Some(unit));

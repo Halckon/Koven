@@ -52,7 +52,20 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
     let drops = planner
         .facts
         .into_iter()
-        .map(|fact| fact.into_unit(checker.source_unit))
+        .map(|fact| {
+            let fact = fact.into_unit(checker.source_unit);
+            if let crate::ownership_checking::UnitDropTarget::Temporary(expression) = fact.target()
+                && let Some((owner, origin)) =
+                    checker.constant_temporary_origin(expression.expression())
+            {
+                return UnitDropFact::new(
+                    fact.point(),
+                    crate::ownership_checking::UnitDropTarget::Temporary(owner),
+                    origin,
+                );
+            }
+            fact
+        })
         .collect();
     let conditional_receiver_drops = planner
         .conditional_receiver_facts

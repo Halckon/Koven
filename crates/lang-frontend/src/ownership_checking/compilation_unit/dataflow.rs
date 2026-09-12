@@ -559,7 +559,10 @@ impl<'a> Checker<'a> {
                                 expression: contract.argument().expression().index(),
                             });
                         }
-                        UnitLoanTarget::Temporary(contract.argument())
+                        UnitLoanTarget::Temporary(
+                            self.constant_temporary_origin(contract.argument().expression())
+                                .map_or(contract.argument(), |(owner, _)| owner),
+                        )
                     }
                     ExpressionCategory::Place => {
                         if let Some(place) = self.loan_place(contract.argument().expression())? {
