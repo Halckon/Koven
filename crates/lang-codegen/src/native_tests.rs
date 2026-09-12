@@ -1128,3 +1128,25 @@ fn nominal_enum_box_source_emits_links_and_runs() {
         .expect("linked executable must launch");
     assert!(run.status.success(), "{run:?}");
 }
+
+#[test]
+fn associated_constants_reach_native_scalar_char_and_string_operations() {
+    let run = emit_link_and_run(
+        "associated-constants.ko",
+        r#"const val BASE = 40
+        const val TEXT = "中" + "文"
+        object Labels { const val COUNT = BASE + 2 }
+        class Tokens { companion object { const val LETTER: Char = '文' } }
+        fun letter(): Char = Tokens.LETTER
+        fun text(): String = TEXT
+        fun output(): Unit {
+            if (Labels.COUNT == 42 && letter() == Tokens.LETTER) { println(TEXT) }
+            val joined = println(TEXT + TEXT)
+            if (text() == TEXT) { println("equal") }
+        }"#,
+        "output",
+    );
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, "中文\n中文中文\nequal\n".as_bytes());
+    assert!(run.stderr.is_empty(), "{run:?}");
+}

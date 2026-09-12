@@ -610,12 +610,8 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
         assert!(!llvm.contains(declaration), "{llvm}");
     }
 
-    for source in [
-        "object Config {}\nfun entry(): Unit {}",
-        "val state = 1\nfun entry(): Unit {}",
-        "const val STATE: Int = 1\nfun entry(): Unit {}",
-    ] {
-        let rejected = analyze(source);
+    {
+        let rejected = analyze("val state = 1\nfun entry(): Unit {}");
         assert!(rejected.names.diagnostics().is_empty());
         assert!(rejected.typed.diagnostics().is_empty());
         let error = match lower_scalar_file(
@@ -1746,3 +1742,6 @@ fn non_null_assertion_does_not_register_unreachable_inline_types() {
     )
     .expect("unreachable typed facts cannot enable or reject runtime layouts");
 }
+
+#[path = "constant_lowering_tests.rs"]
+mod constant_lowering_tests;

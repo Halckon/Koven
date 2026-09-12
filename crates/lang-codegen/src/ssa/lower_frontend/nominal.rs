@@ -385,6 +385,7 @@ fn intern_builtin(
 ) -> Result<SsaTypeId, LoweringError> {
     let kind = match builtin {
         BuiltinType::Boolean => SsaTypeKind::Boolean,
+        BuiltinType::Char => SsaTypeKind::Char,
         BuiltinType::Byte => SsaTypeKind::Integer {
             bits: 8,
             signed: true,

@@ -22,7 +22,7 @@ use crate::ssa::{
     verify::verify_program,
 };
 
-const LOWERED_BUILTINS: [BuiltinType; 11] = [
+const LOWERED_BUILTINS: [BuiltinType; 12] = [
     BuiltinType::Byte,
     BuiltinType::Short,
     BuiltinType::Int,
@@ -32,6 +32,7 @@ const LOWERED_BUILTINS: [BuiltinType; 11] = [
     BuiltinType::UInt,
     BuiltinType::ULong,
     BuiltinType::Boolean,
+    BuiltinType::Char,
     BuiltinType::String,
     BuiltinType::Unit,
 ];
@@ -484,6 +485,20 @@ fn validate_inputs(
                 .span(),
         ));
     }
+    let constants = typed.constants().ok_or(LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: None,
+    })?;
+    let materializations = owned.constant_materializations().ok_or(LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: None,
+    })?;
+    if !constants.matches(typed) || !materializations.matches(typed) {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::MismatchedAnalysis,
+            span: None,
+        });
+    }
     Ok(())
 }
 
@@ -512,10 +527,12 @@ fn collect_functions(
         }
         let name = match &item {
             Item::Function { name, .. } => name,
+            Item::Constant { .. } => continue,
             Item::Classifier(declaration)
                 if matches!(
                     declaration.kind,
-                    ClassifierKind::Class { .. }
+                    ClassifierKind::Object { .. }
+                        | ClassifierKind::Class { .. }
                         | ClassifierKind::ValueClass { .. }
                         | ClassifierKind::Interface { .. }
                         | ClassifierKind::EnumClass { .. }

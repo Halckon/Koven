@@ -2,6 +2,7 @@
 
 mod aggregate;
 mod call_lifetimes;
+mod constant;
 mod container;
 mod control;
 mod drops;
@@ -141,6 +142,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(value) = self.lower_constant(expression)? {
+            return Ok(value);
+        }
         if let Some(value) = self.lower_nullable_extraction(expression)? {
             return Ok(LoweredValue::Value(value));
         }
@@ -845,6 +849,15 @@ impl ExpressionLowerer<'_> {
     }
 
     fn lower_string_view(&mut self, expression: ExpressionId) -> Result<EntityId, LoweringError> {
+        // A constant name is a fresh temporary, not a local binding or borrowed parameter.
+        if self
+            .typed
+            .constants()
+            .and_then(|facts| facts.use_at(expression))
+            .is_some()
+        {
+            return self.require_value(expression).map(EntityId::Value);
+        }
         let node = self
             .parsed
             .ast()

@@ -60,7 +60,7 @@ literal adapter。声明本身仍由 declarative-root 筛选器忽略，不新�
 
 ## 7. 实施计划
 
-1. [ ] 接 const facts到 scalar/Char/String SSA → 验证：lowering/verifier 窄测试。
+1. [x] 接 const facts到 scalar/Char/String SSA → 验证：lowering/verifier 窄测试。
 2. [ ] 接 LLVM/native 与 declarative roots → 验证：object/link/run、stdout、IR 断言。
 3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
@@ -69,7 +69,8 @@ literal adapter。声明本身仍由 declarative-root 筛选器忽略，不新�
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
 | 1 | Char IR-local type/constant/verifier/LLVM 与定向测试 | `feat(codegen): add distinct Char SSA constants (SPEC-0209)` |
-| 2 | validated const/materialization 接线、native 与完成文档 | `feat(codegen): lower associated constants (SPEC-0209)` |
+| 2 | validated const/materialization 接线、SSA/LLVM 与 native 冒烟 | `feat(codegen): lower validated constant uses (SPEC-0209)` |
+| 3 | 完整 native 矩阵、owner/entry/拒绝边界与完成文档 | `test(codegen): complete constant native acceptance (SPEC-0209)` |
 
 ## 9. 未决问题
 
@@ -106,3 +107,26 @@ String 物化或 Char 调用实参支持；没有新增公开 crate API。第 5 
 接入源码/native 入口。后续切片必须补 const/native 行为，不能以本表代替。
 
 附加门禁：`cargo clippy -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`（351 Markdown）及 `git diff --check` 均通过。
+
+
+### 第二切片：单文件 constant-use 接线
+
+`lower_frontend/constant.rs` 只消费 validated descriptor/materialization；入口验证能力与分析身份，
+每次 use 核对计划的 expression/target/type/value。String 走普通 literal owner 与既有临时值清理，
+String binary view 优先识别 const，避免把常量名当成本地 binding。顶层 const 和 object 声明不进入
+运行时函数图；Char 加入单文件 builtin 映射。没有新增公开 crate API。
+
+| 验收项 / 命令 | 结果 | 证据边界 |
+|---|---|---|
+| 失败复现：`cargo test -p lang-codegen --lib constant_lowering_tests` | 实施前 3 failed，393 filtered | 三组有效源码均被声明 root 拒绝；接线后暴露 String binary view 的 Name 旁路，已修复 |
+| `cargo test -p lang-codegen --lib lower_frontend_tests` | 37 passed，360 filtered | 常量四项、既有 scalar/String/declarative roots、mixed-analysis 与控制流/借用回归 |
+| `cargo test -p lang-codegen --lib -- constant_lowering_tests associated_constants_reach_native_scalar_char_and_string_operations dynamic_strings_cross_borrow_value_and_return_boundaries_with_exact_bytes` | 6 passed，392 filtered | 加强精确 LLVM 返回值断言；五种关联 namespace、八种整数、Boolean/Char、4 次 String literal owner、重复 SSA/LLVM；新增 const native stdout 与既有 dynamic String native 回归 |
+| 独立审查 | 未发现阻断实现缺陷 | facts 来源、initializer 隔离、String temporary/group/drop 路径、Char 类型、声明 roots |
+
+本切片不宣称第 5 节整体完成：完整 namespace/type native 矩阵、parameterized entry、专门的
+owner/drop 计数、const 错配在 object 落盘前拒绝及重复 object 行为仍待后续切片。未运行 frontend
+全量和 workspace check；变更仅涉及 codegen 内部接线，未新增公开 API。
+
+附加门禁：`cargo clippy -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`、
+`python3 scripts/check_docs.py`（351 Markdown）及 `git diff --check` 均通过。补充独立复审确认 native
+测试确实 object/link/run 且核对精确 stdout，标量测试明确断言 LLVM 位宽/值；未扩大计数证据。
