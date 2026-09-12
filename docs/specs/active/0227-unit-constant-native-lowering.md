@@ -76,9 +76,9 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | 验收项 | 结果 | 原因 |
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
-| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 本次 4 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路矩阵见下文，完整namespace矩阵待后续 |
+| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | `f37921b`：4 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路矩阵见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 181 passed，225 filtered，0 failed/ignored | 短路切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 本次待最终结果，0 failed/ignored | pending 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
@@ -140,3 +140,19 @@ carried owner/loan CFG，分别消费 RHS 与 skip 的 BranchExit，RHS 退出�
 独立复核确认 rebind 从 carried 快照重建 pending/temporary；外层 pending String 穿过
 动态短路 return/Abort 仍需后续专门验收，例如 `view(TEXT, flag && if (flag) { return } else { true })`，
 不能以单边 move 通过替代该清理组合，也不将本切片描述为完整常量 native 交付。
+
+
+Pending 同步调用切片：私有求值帧记录前缀起点、loop depth 与实际创建的 loan 槽位，
+只在 return/break/continue 跨出帧时逆序 BorrowEnd；兄弟 CFG 从 carried 快照恢复，帧 metadata
+不随单条终止边改写。先结束 loan，再截断退出帧 pending 槽，随后消费已有 UnitDropFact。
+复用借用参数的 loan 不由 callee 结束，Abort 不清理。专用 Value operand（含命名 MoveOnly）
+在参数求值期间重新登记 temporary owner；只有所有参数完成后才移除该 Value 前缀。
+
+先复现外层 Borrow prefix + 短路 return 的 UnsupportedNode。实现后 Borrow/Value × AND/OR ×
+return/Abort 八例和借用参数、命名 Value、break、continue 四例通过 SSA/LLVM；最终补精确
+BorrowEnd/drop 数量及借用输入不结束断言。Abort 夹具原以局部声明结尾产生 Unit，修为
+直接 `error(TEXT)` 表达式；类型诊断不算生产故障。
+独立复核要求保留 receiver/function-value 控制退出 guard（其前置 loan 尚不在参数帧中），
+已保留；又确认截断先结束所有选中 loan、保持兄弟状态与外层帧索引，无新增阻断。
+外层 pending temporary 内求值循环仍受既有 loop guard 限制，不能由 loop-depth 筛选逻辑
+推断已支持。插值、String 二元前缀退出和上述额外组合仍需后续实现/验收；未运行常量 native。

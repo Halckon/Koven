@@ -87,9 +87,10 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
-        if arguments
-            .iter()
-            .any(|argument| self.argument_contains_control_transfer(argument.value, function_value))
+        if (self.constant_owned.is_none() || descriptor.receiver().is_some() || function_value)
+            && arguments.iter().any(|argument| {
+                self.argument_contains_control_transfer(argument.value, function_value)
+            })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -355,6 +356,24 @@ impl UnitExpressionLowerer<'_> {
         descriptor: &UnitCallDescriptor,
         span: Span,
     ) -> Result<Option<LoweredCallArguments>, LoweringError> {
+        self.pending_call_frames
+            .push(super::call_lifetimes::PendingCallFrame {
+                loop_depth: self.loops.len(),
+                pending_start: self.pending_operands.len(),
+                created_loans: Vec::new(),
+            });
+        let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);
+        self.pending_call_frames.pop();
+        result
+    }
+
+    fn lower_call_arguments_in_frame(
+        &mut self,
+        call: UnitExpressionId,
+        arguments: &[lang_frontend::parser::CallArgument],
+        descriptor: &UnitCallDescriptor,
+        span: Span,
+    ) -> Result<Option<LoweredCallArguments>, LoweringError> {
         if arguments.len() != descriptor.arguments().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -375,7 +394,21 @@ impl UnitExpressionLowerer<'_> {
                         mapping.parameter_type(),
                         argument.span,
                     )? {
-                        LoweredValue::Value(value) => EntityId::Value(value),
+                        LoweredValue::Value(value) => {
+                            let argument_id =
+                                UnitExpressionId::new(self.source_unit, argument.value);
+                            if self.constant_owned.is_some()
+                                && self.typed.expression_type(argument_id).is_some_and(|ty| {
+                                    self.typed.copyability(ty) == Copyability::MoveOnly
+                                })
+                            {
+                                let origin = self
+                                    .constant_materialization_origin(argument_id, argument.span)?
+                                    .unwrap_or(argument_id);
+                                self.temporaries.insert(origin, value);
+                            }
+                            EntityId::Value(value)
+                        }
                         LoweredValue::Diverged => {
                             self.pending_operands.truncate(pending_start);
                             return Ok(None);
@@ -432,6 +465,11 @@ impl UnitExpressionLowerer<'_> {
                     )?;
                     if created {
                         created_loans.push((self.pending_operands.len(), end_span));
+                        self.pending_call_frames
+                            .last_mut()
+                            .expect("call frame is active")
+                            .created_loans
+                            .push(self.pending_operands.len());
                     }
                     EntityId::Loan(loan)
                 }
@@ -461,7 +499,12 @@ impl UnitExpressionLowerer<'_> {
         let arguments = arguments
             .into_iter()
             .map(|index| self.pending_operands[index])
-            .collect();
+            .collect::<Vec<_>>();
+        if self.constant_owned.is_some() {
+            // 正常提交的 Value 实参由 callee 接管；Borrow owner 留到 CallReturn 清理。
+            self.temporaries
+                .retain(|_, value| !arguments.contains(&EntityId::Value(*value)));
+        }
         let created_loans = created_loans
             .into_iter()
             .map(|(index, end_span)| {

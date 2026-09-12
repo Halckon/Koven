@@ -79,6 +79,14 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 后继。基础入口原有短路能力边界保持。插值与完整退出矩阵尚未接通，
 公开 constant native 入口尚未接通。
 
+专用普通同步调用的求值帧记录新建 loan 的 pending 槽位、前缀起点与循环深度；CFG 重绑定后
+仍按槽位读取实际 LoanId。return/break/continue 先逆序结束退出帧的新建 loan，再截断 pending
+槽并消费 frontend drop；复用传入 loan 不结束，Abort 不展开。Value 前缀在提交前保留具体
+实参/常量 use 对应的 temporary，正常提交后移除，避免提前退出缺 owner 或重复清理。
+receiver/function-value 调用的参数控制退出仍保留 guard，外层 temporary 内求值循环仍受
+既有 loop lowering 限制；这些组合不由当前前缀测试证明。
+
+
 ## Compilation-unit planning 与 lowering
 
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的

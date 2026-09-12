@@ -365,7 +365,7 @@ fn lower_short_circuit_fixture(consumer: &str) -> super::model::Program {
     let (provider_source, provider) = parsed(
         &mut sources,
         "p/provider.ko",
-        "package p\nconst val FALSE = false\nconst val TRUE = true\nconst val TEXT = \"value\"\nfun view(text: String): Boolean = true\nfun consume(own text: String): Boolean = true",
+        "package p\nconst val FALSE = false\nconst val TRUE = true\nconst val TEXT = \"value\"\nfun view(text: String): Boolean = true\nfun consume(own text: String): Boolean = true\nfun view_pair(text: String, own flag: Boolean): Unit {}\nfun consume_pair(own text: String, own flag: Boolean): Unit {}",
     );
     let (consumer_source, consumer_file) = parsed(
         &mut sources,
@@ -402,4 +402,81 @@ fn lower_short_circuit_fixture(consumer: &str) -> super::model::Program {
     )
     .unwrap_or_else(|error| panic!("{consumer}: {error:?}"))
     .0
+}
+
+#[test]
+fn pending_string_prefix_survives_short_circuit_exit_edges() {
+    for callee in ["view_pair", "consume_pair"] {
+        for operator in ["&&", "||"] {
+            for exit in ["return", "error(p.TEXT)"] {
+                let program = lower_short_circuit_fixture(&format!(
+                    "fun entry(own flag: Boolean): Unit {{ val done = p.{callee}(p.TEXT, flag {operator} if (flag) {{ {exit} }} else {{ true }}) }}"
+                ));
+                let function = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains("q.entry"))
+                    .unwrap();
+                let borrowed = callee == "view_pair";
+                let returning = exit == "return";
+                let drops = function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count();
+                let endings = function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| {
+                        matches!(instruction.operation, Operation::BorrowEnd { .. })
+                    })
+                    .count();
+                assert_eq!(
+                    drops,
+                    usize::from(borrowed) + usize::from(returning),
+                    "{callee}/{operator}/{exit}"
+                );
+                assert_eq!(
+                    endings,
+                    if borrowed {
+                        1 + usize::from(returning)
+                    } else {
+                        0
+                    },
+                    "{callee}/{operator}/{exit}"
+                );
+                crate::llvm::render_verified_program(&program)
+                    .expect("prefix cleanup is valid on both exit and continuation edges");
+            }
+        }
+    }
+}
+
+#[test]
+fn pending_prefix_preserves_borrowed_inputs_and_cleans_named_values_and_loop_exits() {
+    for source in [
+        "fun entry(text: String, own flag: Boolean): Unit { val done = p.view_pair(text, flag && if (flag) { return } else { true }) }",
+        "fun entry(own flag: Boolean): Unit { val text = p.TEXT
+val done = p.consume_pair(text, flag && if (flag) { return } else { true }) }",
+        "fun entry(own flag: Boolean): Unit { loop { val done = p.view_pair(p.TEXT, if (flag) { break } else { true }) } }",
+        "fun entry(own flag: Boolean): Unit { loop { val done = p.consume_pair(p.TEXT, if (flag) { continue } else { true }) } }",
+    ] {
+        let program = lower_short_circuit_fixture(source);
+        if source.starts_with("fun entry(text:") {
+            let function = program.modules[0]
+                .functions
+                .iter()
+                .find(|function| function.name.contains("q.entry"))
+                .unwrap();
+            assert!(
+                !function.instructions.iter().any(|instruction| matches!(
+                    instruction.operation,
+                    Operation::BorrowEnd { .. } | Operation::Drop { .. }
+                )),
+                "the caller retains its borrowed input"
+            );
+        }
+        crate::llvm::render_verified_program(&program)
+            .expect("pending scope cleanup preserves valid owners and loans");
+    }
 }

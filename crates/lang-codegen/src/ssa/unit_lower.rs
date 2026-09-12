@@ -3,6 +3,7 @@
 mod aggregate;
 mod assignment;
 mod call;
+mod call_lifetimes;
 mod cfg;
 mod closure;
 pub(crate) mod constant;
@@ -483,6 +484,7 @@ fn lower_unit_from_facts(
             closure_scope: plan.id,
             temporaries: BTreeMap::new(),
             pending_operands: Vec::new(),
+            pending_call_frames: Vec::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
         };
@@ -577,6 +579,7 @@ fn lower_unit_from_facts(
             closure_scope: plan.scope,
             temporaries: BTreeMap::new(),
             pending_operands: Vec::new(),
+            pending_call_frames: Vec::new(),
             loops: Vec::new(),
             return_type: plan.return_type,
         };
@@ -620,6 +623,7 @@ struct UnitExpressionLowerer<'a> {
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
     // Evaluated operands remain live until their call or construction consumes them.
     pending_operands: Vec<EntityId>,
+    pending_call_frames: Vec<call_lifetimes::PendingCallFrame>,
     loops: Vec<loop_control::LoopContext>,
     return_type: UnitTypeId,
 }
@@ -823,6 +827,7 @@ impl UnitExpressionLowerer<'_> {
             }
             result = LoweredValue::Value(lowered);
         }
+        self.end_pending_call_loans(0, span)?;
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
