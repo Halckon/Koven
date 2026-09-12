@@ -5,6 +5,7 @@ mod call;
 mod canonical;
 mod checker;
 mod compilation_unit;
+mod constant;
 mod constant_value;
 mod construction;
 mod container;
@@ -29,6 +30,8 @@ pub(crate) use expression_use::{ExpressionUse, collect_expression_uses};
 
 pub use call::*;
 pub use compilation_unit::*;
+pub use constant::*;
+pub use constant_value::ConstValue;
 pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;

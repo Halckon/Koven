@@ -101,9 +101,12 @@ lowering。跨文件后继必须复用同一 evaluator。
 | 内部求值、短路与既有常量/诊断回归 | `cargo test -p lang-frontend --test type_constants --test diagnostic_model --no-fail-fast -- --nocapture` | type_constants 16、diagnostic_model 9 项通过 |
 | 纯值边界与 Unicode/转义 | `cargo test -p lang-frontend --lib constant_value::tests -- --nocapture` | 3 项通过，51 项过滤 |
 | 关联常量精确宽度与 L0158 Span | `cargo test -p lang-frontend --test type_constants constant_evaluation_uses_associated_declared_integer_widths_and_operator_spans -- --nocapture` | 新增 1 项通过，16 项过滤；生产代码与上列回归相同 |
+| 最终常量类型、精确值/依赖/use 与分析身份 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 20 项通过 |
+| 提前常量检查的 callable 共享契约 | `cargo test -p lang-frontend --test type_constants --test type_callable --no-fail-fast -- --nocapture` | type_callable 19 项通过；同次 type_constants 18 项通过，新增公共事实后最终 20 项见上一行 |
+| 下游分析身份契约 | `cargo test -p lang-frontend --test ownership_checking ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs -- --nocapture` | 1 项通过，28 项过滤 |
 
-类型资格、关联选择、表达式/依赖及内部求值切片见下文。完整 L0153 上下文边界、对外 use
-descriptor 与 validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
+类型资格、关联选择、表达式/依赖、求值及公共事实切片见下文。完整 L0153 上下文边界与
+全部验收矩阵仍待收口，不能据此将本 Spec 标记完成。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
 Any/Any? 经 Deferred(AnyValueRepresentation) 绕过检查，修复并补测试后复核通过。
@@ -174,3 +177,21 @@ L0158 定位运算符，覆盖溢出、除零、余零及 signed MIN/-1；负 li
 `cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`、
 `cargo fmt --all -- --check`、文档检查（351 份 Markdown）与 `git diff --check` 通过。
 未运行 frontend 全量；没有公共阶段产物变更，未追加下游全套测试或 workspace check。
+
+
+### 公共事实与检查顺序切片
+
+常量声明在 runtime initializer/function body 前完成类型、依赖与求值，普通 item 遍历不再
+重复检查常量。先复现函数读取前向常量仍是 Deferred(ControlJoin)，调整阶段次序后验证
+精确 Int 类型，并确认 Boolean 常量参与整数加法产生既有 L0085。
+
+`TypedFile::constants()` 发布完整 `ValidatedConstants`；声明含 symbol/type/ConstValue/依赖，
+读取含 expression/target/type/value/Temporary。上游或类型诊断、未完成求值时整体不发布。
+集合携带 typed analysis owner，通过 `matches` 区分同源独立分析；clone 保留身份。
+独立审查确认提前检查、trial 回滚和事实一致性，并在补充 owner 后再次核对身份接线。
+本标记不证明 Phase 3 物化/所有权或 native 能力，跨文件阶段保持独立。
+
+公共产物门禁 `cargo check --workspace --all-targets` 通过（仅编译检查，未运行全量测试）。
+`cargo clippy -p lang-frontend --lib --test type_constants --test type_callable --test ownership_checking -- -D warnings`、
+`cargo fmt --all -- --check`、文档检查（351 份 Markdown）及 `git diff --check` 均通过。
+定向行为结果统一见验收映射表；未运行 frontend 全量。

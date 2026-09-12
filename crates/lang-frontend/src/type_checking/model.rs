@@ -1050,6 +1050,7 @@ impl TypeTable {
 /// Phase 2 的单文件 typed 产物。
 #[derive(Clone, Debug)]
 pub struct TypedFile {
+    constants: Option<super::ValidatedConstants>,
     source_id: SourceId,
     environment_owner: Arc<()>,
     name_analysis_owner: Arc<()>,
@@ -1081,6 +1082,7 @@ pub struct TypedFile {
 }
 
 pub(crate) struct TypedFileParts {
+    pub(crate) constants: Option<super::ValidatedConstants>,
     pub(crate) expression_types: Vec<TypeId>,
     pub(crate) type_ref_types: Vec<TypeId>,
     pub(crate) symbol_types: Vec<TypeId>,
@@ -1118,7 +1120,11 @@ impl TypedFile {
             source_id,
             environment_owner,
             name_analysis_owner,
-            analysis_owner: Arc::new(()),
+            analysis_owner: parts
+                .constants
+                .as_ref()
+                .map_or_else(|| Arc::new(()), |facts| facts.analysis_owner.clone()),
+            constants: parts.constants,
             types,
             expression_types: parts.expression_types,
             type_ref_types: parts.type_ref_types,
@@ -1360,6 +1366,12 @@ impl TypedFile {
 }
 
 impl TypedFile {
+    /// 完整常量事实；上游或类型诊断、未完成求值时不发布半成品。
+    #[must_use]
+    pub fn constants(&self) -> Option<&super::ValidatedConstants> {
+        self.constants.as_ref()
+    }
+
     /// 返回按 when expression identity 排序的 nullable flow plans。
     #[must_use]
     pub fn nullable_whens(&self) -> &[super::NullableWhenDescriptor] {

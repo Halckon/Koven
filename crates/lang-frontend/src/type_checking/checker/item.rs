@@ -200,6 +200,9 @@ impl Checker<'_> {
     pub(super) fn check_item(&mut self, id: ItemId) -> Result<(), TypeCheckingError> {
         let payload = self.ast().items().get(id)?.payload().clone();
         let is_constant = matches!(&payload, Item::Constant { .. });
+        if is_constant && self.constants_checked {
+            return Ok(());
+        }
         match payload {
             Item::Error => {}
             Item::Modified {

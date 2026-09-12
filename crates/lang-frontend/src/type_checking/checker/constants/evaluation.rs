@@ -2,7 +2,7 @@
 
 use super::super::*;
 use crate::parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator, StringPart};
-use crate::type_checking::constant_value::{ConstantValue as Value, decode_text};
+use crate::type_checking::constant_value::{ConstValue as Value, decode_text};
 
 enum Step {
     Enter(ExpressionId),

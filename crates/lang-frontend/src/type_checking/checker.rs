@@ -107,11 +107,13 @@ struct Checker<'a> {
     nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
     non_null_assertions: Vec<crate::type_checking::NonNullAssertionDescriptor>,
     constant_dependencies: BTreeMap<SymbolId, Vec<SymbolId>>,
-    constant_values: BTreeMap<SymbolId, super::constant_value::ConstantValue>,
+    constant_values: BTreeMap<SymbolId, super::constant_value::ConstValue>,
     constant_items: BTreeMap<SymbolId, ItemId>,
     constant_expressions: BTreeMap<SymbolId, Vec<ExpressionId>>,
     pending_constant_errors: BTreeMap<SymbolId, (Span, bool)>,
     rechecking_constants: bool,
+    constants_checked: bool,
+    constant_inputs_valid: bool,
     associated_constant_uses: BTreeMap<usize, SymbolId>,
     associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
@@ -288,6 +290,9 @@ impl<'a> Checker<'a> {
             constant_expressions: BTreeMap::new(),
             pending_constant_errors: BTreeMap::new(),
             rechecking_constants: false,
+            constants_checked: false,
+            constant_inputs_valid: parsed.diagnostics().is_empty()
+                && names.diagnostics().is_empty(),
             associated_constant_uses: BTreeMap::new(),
             associated_constants: BTreeMap::new(),
             references,
@@ -428,15 +433,14 @@ impl<'a> Checker<'a> {
         self.check_inline_layouts()?;
         self.predeclare_signatures()?;
         self.collect_associated_constants()?;
+        self.check_constant_declarations()?;
         self.check_delegations()?;
         self.check_callable_shapes_and_bodies()?;
         for &root in self.parsed.roots() {
             self.check_item(root)?;
         }
-        self.recheck_constant_dependencies()?;
-        self.check_constant_cycles()?;
-        self.evaluate_constants()?;
         self.validate_type_argument_bounds()?;
+        let constants = self.build_constant_facts()?;
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();
         let expression_types = self
@@ -476,6 +480,7 @@ impl<'a> Checker<'a> {
             self.name_analysis_owner,
             self.types,
             TypedFileParts {
+                constants,
                 expression_types,
                 type_ref_types,
                 symbol_types,

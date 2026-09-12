@@ -22,8 +22,8 @@ suites。
 `check_item` 在普通类型检查成功后为 const 声明检查封闭类型集合；非 Boolean/整数/Char/String
 的已知类型使用 L0155，显式类型定位 type-ref，推导类型定位 initializer。Any 的 Deferred 表示
 仍属于已知禁止类型；Error 与其他尚未确定的类型不追加资格诊断。普通变量不进入该门禁。
-对外 use/materialization facts 尚未实现；这些类型检查不表示常量能力
-已可交给 ownership/codegen。直接覆盖位于 `type_constants`，注册表覆盖位于 `diagnostic_model`。
+Phase 3 materialization facts 尚未实现；Phase 2 类型检查不替代 ownership/codegen 验证。
+直接覆盖位于 `type_constants`，注册表覆盖位于 `diagnostic_model`。
 
 ## 单文件关联常量选择
 
@@ -32,7 +32,7 @@ symbol 选择常量，复用预声明类型。object 的 type/value 身份归一
 仍走字段或 callable 路径。private 越界使用 L0154，不存在的关联常量使用 L0080，接口常量不继承。
 Enum 的已声明 companion 常量不再被名称阶段误报为不存在的 case；已有 case 解析路径保留。
 成功选择的内部 use 索引参与 callable trial 回滚，用于将读取分类为 Temporary，而非字段 Place。
-validated constant capability 尚待 SPEC-0026 后续切片；跨文件入口未在此处接线。
+跨文件入口未在此处接线。
 
 ## 单文件常量表达式与依赖
 
@@ -40,14 +40,19 @@ validated constant capability 尚待 SPEC-0026 后续切片；跨文件入口未
 companion initializer 中的 `this` 使用 L0153。普通类型错误优先；短路 RHS 仍参与资格与依赖。
 `graph.rs` 按依赖顺序清除 initializer 类型缓存并复核前向操作数；失效依赖抑制后继环诊断。
 迭代式 SCC 检测对每个环发布一次 L0157，主 Span 与其余 label 按声明位置稳定排序。
-该内部图不对外发布 ConstValue；普通函数体中先前读取的 Deferred
-尚未由此统一重查，不能视为完整的常量阶段能力。
+常量阶段在运行时 initializer/function body 之前完成，后者直接读取最终常量类型；常量声明
+不会在普通 item 遍历中再次检查。
 
 `constant_value.rs` 实现不依赖单文件 symbol 表的纯值运算：整数保留精确 builtin 类型，
 Char 保存 Unicode scalar，String 保存 compiler-owned UTF-8 bytes。
 `constants/evaluation.rs` 按依赖顺序以显式栈求值，除零、余零、溢出与 signed MIN/-1 使用
 L0158 定位运算符；短路 RHS 不进入值求值。失败依赖不发布值，也不追加后继求值诊断。
-这些值目前仅保留在 checker 内部，尚非 ownership/codegen 可消费的公共阶段产物。
+
+`TypedFile::constants()` 在无上游/类型诊断且所有常量均完成求值时发布 `ValidatedConstants`。
+声明包含 symbol/type/ConstValue/语法依赖，bare/qualified use 包含 expression/target/type/value
+与 Temporary 类别。集合携带 typed analysis owner，`matches` 拒绝另一轮分析；克隆同一产物
+保留身份。事实在 trial 完成后统一构建，失败/recovery 不发布半成品；该标记不证明 Phase 3
+所有权、String 物化或 native 能力。
 
 ## 单文件 nullable when 事实
 

@@ -415,3 +415,131 @@ fn constant_evaluation_uses_associated_declared_integer_widths_and_operator_span
         );
     }
 }
+
+#[test]
+fn forward_constants_are_typed_before_runtime_consumers() {
+    let (sources, parsed, typed) =
+        analyzed("fun answer(): Int = FIRST + 1\nconst val FIRST = SECOND\nconst val SECOND = 41");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let (expression, _) = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find(|(_, node)| sources.slice(node.span()).unwrap() == "FIRST + 1")
+        .unwrap();
+    assert_eq!(
+        typed
+            .types()
+            .get(typed.expression_type(expression).unwrap()),
+        Some(&TypeKind::Builtin(BuiltinType::Int))
+    );
+    let (_, typed) = checked("fun answer(): Int = FLAG + 1\nconst val FLAG = true");
+    assert_eq!(codes(typed.diagnostics()), ["L0085"]);
+}
+
+#[test]
+fn constant_facts_publish_exact_values_dependencies_and_runtime_reads() {
+    use lang_frontend::type_checking::ConstValue;
+    let source = "fun answer(): Int = Config.answer\nobject Config { const val answer = seed + 1\nconst val seed = 41 }\nconst val flag = true\nconst val byte: Byte = -128\nconst val short: Short = -32768\nconst val long: Long = -9223372036854775808L\nconst val ubyte: UByte = 255u\nconst val ushort: UShort = 65535u\nconst val uint = 4294967295u\nconst val ulong = 18446744073709551615uL\nconst val character = '中'\nconst val text = \"中\\n\" + \"文\"";
+    let (sources, _, typed) = analyzed(source);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let facts = typed.constants().expect("complete constant capability");
+    assert!(facts.matches(&typed));
+    assert!(facts.matches(&typed.clone()));
+    let (_, other) = checked(source);
+    assert!(!facts.matches(&other));
+    assert_eq!(facts.declarations().len(), 12);
+    for declaration in facts.declarations() {
+        let name = sources.slice(declaration.declaration_span()).unwrap();
+        let expected = match name {
+            "answer" => ConstValue::Integer {
+                ty: BuiltinType::Int,
+                value: 42,
+            },
+            "seed" => ConstValue::Integer {
+                ty: BuiltinType::Int,
+                value: 41,
+            },
+            "flag" => ConstValue::Boolean(true),
+            "byte" => ConstValue::Integer {
+                ty: BuiltinType::Byte,
+                value: -128,
+            },
+            "short" => ConstValue::Integer {
+                ty: BuiltinType::Short,
+                value: -32768,
+            },
+            "long" => ConstValue::Integer {
+                ty: BuiltinType::Long,
+                value: -9223372036854775808,
+            },
+            "ubyte" => ConstValue::Integer {
+                ty: BuiltinType::UByte,
+                value: 255,
+            },
+            "ushort" => ConstValue::Integer {
+                ty: BuiltinType::UShort,
+                value: 65535,
+            },
+            "uint" => ConstValue::Integer {
+                ty: BuiltinType::UInt,
+                value: 4294967295,
+            },
+            "ulong" => ConstValue::Integer {
+                ty: BuiltinType::ULong,
+                value: 18446744073709551615,
+            },
+            "character" => ConstValue::Char('中'),
+            "text" => ConstValue::String(std::sync::Arc::from("中\n文".as_bytes())),
+            _ => panic!("unexpected constant {name}"),
+        };
+        assert_eq!(declaration.value(), &expected, "{name}");
+        assert_eq!(
+            typed.symbol_type(declaration.symbol()),
+            Some(declaration.ty())
+        );
+        if name == "answer" {
+            assert_eq!(declaration.dependencies().len(), 1);
+        } else {
+            assert!(declaration.dependencies().is_empty());
+        }
+    }
+    assert_eq!(facts.uses().len(), 2);
+    for usage in facts.uses() {
+        let declaration = facts
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.symbol() == usage.target())
+            .unwrap();
+        assert_eq!(usage.value(), declaration.value());
+        assert_eq!(typed.expression_type(usage.expression()), Some(usage.ty()));
+        assert_eq!(usage.category(), ExpressionCategory::Temporary);
+        assert_eq!(
+            facts.use_at(usage.expression()).unwrap().target(),
+            usage.target()
+        );
+    }
+}
+
+#[test]
+fn invalid_constant_analysis_does_not_publish_partial_facts() {
+    for source in [
+        "const val good = 1\nconst val bad = 1 / 0",
+        "const val good = 1\nconst val bad: Int = true",
+        "const val good = 1\nconst val bad = bad",
+        "const val good = 1\nval runtime: Int = true",
+    ] {
+        let (_, typed) = checked(source);
+        assert!(typed.constants().is_none(), "{source}");
+    }
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source("unknown.ko", "const val good = 1\nval runtime = unknown")
+        .unwrap();
+    let parsed = parser_test_assertions::parse_file_twice(&sources, source, "upstream error");
+    let (names, types) = standard_environments();
+    let names = resolve_names(&sources, &parsed, &names).unwrap();
+    assert!(!names.diagnostics().is_empty());
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.constants().is_none());
+}

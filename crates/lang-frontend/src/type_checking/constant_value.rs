@@ -5,15 +5,25 @@ use std::sync::Arc;
 use super::BuiltinType;
 use crate::parser::{BinaryOperator as Binary, PrefixOperator as Prefix};
 
+/// 编译器持有的精确常量值；整数类型保留 width/signedness。
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ConstantValue {
+pub enum ConstValue {
+    /// Boolean 编译器值。
     Boolean(bool),
-    Integer { ty: BuiltinType, value: i128 },
+    /// 按声明的整数类型规范化的数学值。
+    Integer {
+        /// 八种整数 builtin 之一，保留精确 width/signedness。
+        ty: BuiltinType,
+        /// 范围已由 checker 验证，i128 能精确容纳全部八种整数。
+        value: i128,
+    },
+    /// Unicode scalar。
     Char(char),
+    /// 编译器持有的 UTF-8 bytes；不表示共享的运行时 String owner。
     String(Arc<[u8]>),
 }
 
-impl ConstantValue {
+impl ConstValue {
     pub(super) fn integer(ty: BuiltinType, value: i128) -> Option<Self> {
         let (min, max) = integer_bounds(ty)?;
         (min <= value && value <= max).then_some(Self::Integer { ty, value })
@@ -136,9 +146,9 @@ mod tests {
             (BuiltinType::UInt, 0, 4294967295),
             (BuiltinType::ULong, 0, 18446744073709551615),
         ] {
-            let one = ConstantValue::integer(ty, 1).unwrap();
-            let low = ConstantValue::integer(ty, min).unwrap();
-            let high = ConstantValue::integer(ty, max).unwrap();
+            let one = ConstValue::integer(ty, 1).unwrap();
+            let low = ConstValue::integer(ty, min).unwrap();
+            let high = ConstValue::integer(ty, max).unwrap();
             assert_eq!(
                 high.clone().binary(Binary::Add, one.clone()),
                 None,
@@ -151,14 +161,14 @@ mod tests {
             );
             assert_eq!(
                 high.clone().binary(Binary::Subtract, one),
-                ConstantValue::integer(ty, max - 1)
+                ConstValue::integer(ty, max - 1)
             );
             assert_eq!(
-                high.binary(Binary::Multiply, ConstantValue::integer(ty, 2).unwrap()),
+                high.binary(Binary::Multiply, ConstValue::integer(ty, 2).unwrap()),
                 None
             );
             if min < 0 {
-                let minus_one = ConstantValue::integer(ty, -1).unwrap();
+                let minus_one = ConstValue::integer(ty, -1).unwrap();
                 assert_eq!(low.clone().binary(Binary::Divide, minus_one.clone()), None);
                 assert_eq!(low.binary(Binary::Remainder, minus_one), None);
             }
@@ -167,7 +177,7 @@ mod tests {
 
     #[test]
     fn signed_division_truncates_toward_zero_and_remainder_keeps_dividend_sign() {
-        let value = |number| ConstantValue::integer(BuiltinType::Int, number).unwrap();
+        let value = |number| ConstValue::integer(BuiltinType::Int, number).unwrap();
         for (left, right, quotient, remainder) in [(-7, 3, -2, -1), (7, -3, -2, 1), (-7, -3, 2, -1)]
         {
             assert_eq!(
@@ -187,14 +197,14 @@ mod tests {
             decode_text(r#"中\n\r\t\0\$\"\'\\"#).as_deref(),
             Some("中\n\r\t\0$\"'\\")
         );
-        let left = ConstantValue::String(Arc::from("中".as_bytes()));
-        let right = ConstantValue::String(Arc::from("文".as_bytes()));
+        let left = ConstValue::String(Arc::from("中".as_bytes()));
+        let right = ConstValue::String(Arc::from("文".as_bytes()));
         let joined = left.binary(Binary::Add, right).unwrap();
-        let expected = ConstantValue::String(Arc::from("中文".as_bytes()));
+        let expected = ConstValue::String(Arc::from("中文".as_bytes()));
         assert_eq!(joined.clone(), expected);
         assert_eq!(
             joined.binary(Binary::Equal, expected),
-            Some(ConstantValue::Boolean(true))
+            Some(ConstValue::Boolean(true))
         );
         assert_eq!(decode_text("\\x"), None);
     }

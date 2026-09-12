@@ -2,6 +2,7 @@
 
 mod evaluation;
 mod expressions;
+mod facts;
 mod graph;
 
 use crate::parser::{ClassifierBody, Expression, VisibilityModifier};
