@@ -277,7 +277,8 @@ impl Checker<'_> {
             0 => self.no_matching_overload(callee),
             1 => {
                 let (candidate, mapping) = mapped.pop().expect("one matching candidate");
-                self.record_call(expression, callee, &arguments, candidate, mapping)
+                // 初始映射只看到语法形态；类型过滤之后仍须检查真实的 inout place。
+                self.finish_unique_call(expression, callee, &arguments, candidate, mapping)
             }
             _ => {
                 let spans = mapped
@@ -971,6 +972,12 @@ impl Checker<'_> {
         expression: ExpressionId,
         ty: TypeId,
     ) -> ExpressionCategory {
+        if self
+            .associated_constant_uses
+            .contains_key(&expression.index())
+        {
+            return ExpressionCategory::Temporary;
+        }
         let Ok(node) = self.ast().expressions().get(expression) else {
             return ExpressionCategory::Temporary;
         };

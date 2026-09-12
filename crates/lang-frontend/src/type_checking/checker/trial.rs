@@ -19,6 +19,7 @@ use super::{Checker, FlowKey};
 /// flow、诊断和所有后续阶段可见 descriptor 必须一起快照，避免失败候选泄漏半成品事实。
 #[derive(Clone)]
 pub(super) struct TrialState {
+    associated_constant_uses: BTreeMap<usize, crate::name_resolution::SymbolId>,
     types: TypeTable,
     expression_types: Vec<Option<TypeId>>,
     type_ref_types: Vec<Option<TypeId>>,
@@ -45,6 +46,7 @@ pub(super) struct TrialState {
 impl Checker<'_> {
     pub(super) fn trial_state(&self) -> TrialState {
         TrialState {
+            associated_constant_uses: self.associated_constant_uses.clone(),
             types: self.types.clone(),
             expression_types: self.expression_types.clone(),
             type_ref_types: self.type_ref_types.clone(),
@@ -70,6 +72,7 @@ impl Checker<'_> {
     }
 
     pub(super) fn restore_trial_state(&mut self, state: TrialState) {
+        self.associated_constant_uses = state.associated_constant_uses;
         self.types = state.types;
         self.expression_types = state.expression_types;
         self.type_ref_types = state.type_ref_types;

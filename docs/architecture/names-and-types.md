@@ -22,8 +22,17 @@ suites。
 `check_item` 在普通类型检查成功后为 const 声明检查封闭类型集合；非 Boolean/整数/Char/String
 的已知类型使用 L0155，显式类型定位 type-ref，推导类型定位 initializer。Any 的 Deferred 表示
 仍属于已知禁止类型；Error 与其他尚未确定的类型不追加资格诊断。普通变量不进入该门禁。
-关联常量选择、编译期值、依赖图与 use/materialization facts 尚未实现；此检查不表示常量能力
+编译期值、依赖图与对外 use/materialization facts 尚未实现；这些类型检查不表示常量能力
 已可交给 ownership/codegen。直接覆盖位于 `type_constants`，注册表覆盖位于 `diagnostic_model`。
+
+## 单文件关联常量选择
+
+`checker/constants.rs` 从 classifier/object/companion 声明建立关联命名空间索引，依据已解析的
+symbol 选择常量，复用预声明类型。object 的 type/value 身份归一到同一声明；普通 value 接收者
+仍走字段或 callable 路径。private 越界使用 L0154，不存在的关联常量使用 L0080，接口常量不继承。
+Enum 的已声明 companion 常量不再被名称阶段误报为不存在的 case；已有 case 解析路径保留。
+成功选择的内部 use 索引参与 callable trial 回滚，用于将读取分类为 Temporary，而非字段 Place。
+值、依赖与 validated constant capability 尚待 SPEC-0026 后续切片；跨文件入口未在此处接线。
 
 ## 单文件 nullable when 事实
 

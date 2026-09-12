@@ -1,5 +1,6 @@
 mod argument_mapping;
 mod callable;
+mod constants;
 mod construction;
 mod container;
 mod copyability;
@@ -105,6 +106,8 @@ struct Checker<'a> {
     null_comparisons: Vec<NullComparisonDescriptor>,
     nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
     non_null_assertions: Vec<crate::type_checking::NonNullAssertionDescriptor>,
+    associated_constant_uses: BTreeMap<usize, SymbolId>,
+    associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
@@ -206,6 +209,8 @@ struct Checker<'a> {
     invalid_container_member_code: DiagnosticCode,
     jump_outside_loop_code: DiagnosticCode,
     invalid_constant_type_code: DiagnosticCode,
+    invisible_constant_code: DiagnosticCode,
+    unresolved_constant_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -267,6 +272,8 @@ impl<'a> Checker<'a> {
             null_comparisons: Vec::new(),
             nullable_whens: Vec::new(),
             non_null_assertions: Vec::new(),
+            associated_constant_uses: BTreeMap::new(),
+            associated_constants: BTreeMap::new(),
             references,
             symbols_by_span,
             symbol_kinds,
@@ -383,6 +390,8 @@ impl<'a> Checker<'a> {
             invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
             jump_outside_loop_code: catalog.resolve(codes::JUMP_OUTSIDE_LOOP)?,
             invalid_constant_type_code: catalog.resolve(codes::INVALID_CONSTANT_TYPE)?,
+            invisible_constant_code: catalog.resolve(codes::INVISIBLE_ASSOCIATED_CONSTANT)?,
+            unresolved_constant_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
         })
     }
 
@@ -397,6 +406,7 @@ impl<'a> Checker<'a> {
         self.compute_interface_closures()?;
         self.check_inline_layouts()?;
         self.predeclare_signatures()?;
+        self.collect_associated_constants()?;
         self.check_delegations()?;
         self.check_callable_shapes_and_bodies()?;
         for &root in self.parsed.roots() {

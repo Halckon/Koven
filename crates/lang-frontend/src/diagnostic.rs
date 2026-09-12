@@ -165,6 +165,7 @@ pub mod codes {
     pub(crate) const AMBIGUOUS_WILDCARD_IMPORT: &str = "L0151";
     pub(crate) const NON_BORROW_DELEGATION_RECEIVER: &str = "L0152";
 
+    pub(crate) const INVISIBLE_ASSOCIATED_CONSTANT: &str = "L0154";
     pub(crate) const INVALID_CONSTANT_TYPE: &str = "L0155";
 
     /// 已发布的生产错误码。
@@ -321,6 +322,7 @@ pub mod codes {
         EXACT_IMPORT_BINDING_CONFLICT,
         AMBIGUOUS_WILDCARD_IMPORT,
         NON_BORROW_DELEGATION_RECEIVER,
+        INVISIBLE_ASSOCIATED_CONSTANT,
         INVALID_CONSTANT_TYPE,
     ];
 

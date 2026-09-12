@@ -802,7 +802,13 @@ fn ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts() {
         .filter(|symbol| symbol.kind() == SymbolKind::LambdaParameter)
     {
         assert_eq!(typed.parameter_mode(parameter.id()), None);
-        assert_eq!(typed.symbol_type(parameter.id()), None);
+        // TypedFile seals missing symbol types as Error; a trial must not retain its candidate type.
+        assert_eq!(
+            typed
+                .symbol_type(parameter.id())
+                .and_then(|ty| typed.types().get(ty)),
+            Some(&TypeKind::Error)
+        );
     }
     for (id, node) in parsed.ast().expressions().iter().filter(|(_, node)| {
         matches!(

@@ -98,7 +98,9 @@ lowering。跨文件后继必须复用同一 evaluator。
 | const 封闭类型集合、L0155 Span 与普通变量隔离 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 4 项通过；覆盖显式/推导、22 个允许 literal 场景、10 种非法类型与普通变量对照、Any/Any?、object/companion、既有 L0084 抑制级联 |
 | 诊断注册表与现有 renderer/model | `cargo test -p lang-frontend --test type_constants --test diagnostic_model --no-fail-fast -- --nocapture` | diagnostic_model 9 项通过；同次旧 type_constants 2 项通过、1 项因误写 L0085 失败，修正为既有 L0084 后定向重跑见上一行 |
 
-先落实 const 类型资格；关联选择、L0153/L0154/L0156–L0158、依赖图、值、use descriptor 与
+| 常量选择/类型资格、callable 共享路径、enum 名称回归、诊断目录 | `cargo test -p lang-frontend --test type_constants --test type_callable --test name_resolution --test diagnostic_model --no-fail-fast -- --nocapture` | type_constants 9、name_resolution 14、diagnostic_model 9 项通过；type_callable 18 项通过、1 项旧断言失败，修正后的定向证据见下文 |
+
+类型资格已落实；关联选择切片见下文。L0153/L0156–L0158、依赖图、值、对外 use descriptor 与
 validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
@@ -110,3 +112,26 @@ capability 切片仍须处理前向依赖，不能把此处的 recovery 当作 c
 静态与文档门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`、
 `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`（351 份 Markdown）与 `git diff --check` 均通过。
 未修改公共阶段产物；未重复无关的全量类型/所有权/下游测试。
+
+### 关联选择切片
+
+单文件按声明身份索引 object/companion 常量；显式类型前向引用复用预声明类型，private 越界
+使用 L0154，缺少关联成员使用 L0080。enum companion 常量在名称阶段保留为类型阶段候选；
+不沿 interface 实现关系继承。成功选择的内部 use 索引参与 trial rollback，将读取分类为 Temporary，
+不创建对象 receiver 或字段 Place。该索引尚非对外 ConstValue/use capability。
+
+先复现关联常量为 Deferred(MemberAccess)、private 越界无 L0154。选择切片两项测试通过后，
+主代理自查补齐 Temporary 分类；独立复核发现非 lambda overload 筛选后的唯一候选绕过 inout
+校验。合法 `mutate(&Config.LIMIT)` 回归复现无诊断，改走 `finish_unique_call` 后进入最终验证。
+用例初版错误使用声明位置的 inout 拼写，修正为调用位置 `&` 后才取得上述行为失败证据。
+独立复核确认最终校验、缓存类型复用、Temporary/Group 分类和 trial 回滚闭合。
+
+共享 callable 回归的旧断言要求 `symbol_type(lambda_parameter)` 为 None，而本轮前的 HEAD 已将
+缺失类型封为 Error。修正为精确断言 TypeKind::Error，保留 parameter mode/call/diagnostic 的
+无泄漏检查；独立只读复核确认没有放松约束。定向命令
+`cargo test -p lang-frontend --test type_callable ambiguous_and_failed_overload_lambda_trials_leak_no_candidate_facts -- --nocapture`
+通过 1 项。该目标其余 18 项复用上表同一生产代码状态下的成功结果，不重复整套运行。
+
+关联选择切片静态门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test type_callable --test name_resolution --test diagnostic_model -- -D warnings`、
+`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`（351 份 Markdown）、`git diff --check` 均通过。
+未运行 frontend 全量；未更改公共产物或跨文件入口，不将此切片当作 evaluator/native 完成证据。

@@ -501,6 +501,11 @@ impl Checker<'_> {
                 falls_through: true,
             });
         }
+        if let Some(result) =
+            self.check_associated_constant(expression, receiver_id, name_span, safe)?
+        {
+            return Ok(result);
+        }
         let receiver = self.check_expression(receiver_id, None, None)?;
         if let Some(ty) =
             self.check_field_projection(expression, receiver_id, receiver.ty, name_span, safe)?

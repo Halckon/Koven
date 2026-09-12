@@ -790,7 +790,7 @@ impl<'a> Resolver<'a> {
                         self.reference_target(receiver_node.span(), Namespace::Type)
                 {
                     let name = self.sources.slice(name_span)?.to_owned();
-                    if let Some(case) = self.enum_case_by_root_name.get(&(root, name)) {
+                    if let Some(case) = self.enum_case_by_root_name.get(&(root, name.clone())) {
                         let symbol = self.enum_cases[case.index()].value_symbol();
                         self.references.push(NameReference::new(
                             name_span,
@@ -798,7 +798,9 @@ impl<'a> Resolver<'a> {
                             Namespace::Value,
                             ReferenceTarget::Symbol(symbol),
                         ));
-                    } else if self.enum_cases.iter().any(|case| case.root() == root) {
+                    } else if self.enum_cases.iter().any(|case| case.root() == root)
+                        && !self.has_companion_constant(root, &name)?
+                    {
                         self.diagnostics.push(Diagnostic::new(
                             self.sources,
                             Severity::Error,
@@ -906,6 +908,54 @@ impl<'a> Resolver<'a> {
                     self.resolve_type(parameter.type_ref, scope)?;
                 }
                 self.resolve_type(return_type, scope)
+            }
+        }
+    }
+
+    /// Enum member syntax can denote a companion constant; defer its selection/visibility
+    /// to Phase 2 instead of publishing an erroneous unresolved-case diagnostic.
+    fn has_companion_constant(
+        &self,
+        root: SymbolId,
+        name: &str,
+    ) -> Result<bool, NameResolutionError> {
+        let root_span = self.symbols[root.index()].span();
+        for (_, node) in self.ast().items().iter() {
+            let Item::Classifier(classifier) = node.payload() else {
+                continue;
+            };
+            if !matches!(classifier.name, NameMarker::Present(span) if span == root_span) {
+                continue;
+            }
+            let Some(body) = &classifier.body else {
+                continue;
+            };
+            for &member in &body.members {
+                let Item::Companion(companion) = self.unwrapped_associated_item(member)? else {
+                    continue;
+                };
+                for &constant in &companion.body.members {
+                    if let Item::Constant {
+                        name: NameMarker::Present(span),
+                        ..
+                    } = self.unwrapped_associated_item(constant)?
+                        && self.sources.slice(*span)? == name
+                    {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn unwrapped_associated_item(&self, mut id: ItemId) -> Result<&Item, NameResolutionError> {
+        loop {
+            let item = self.ast().items().get(id)?.payload();
+            if let Item::Modified { declaration, .. } = item {
+                id = *declaration;
+            } else {
+                return Ok(item);
             }
         }
     }
