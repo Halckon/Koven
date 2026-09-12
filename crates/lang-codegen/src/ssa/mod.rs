@@ -90,3 +90,6 @@ mod string_operation_tests;
 
 #[cfg(test)]
 mod char_constant_tests;
+
+#[cfg(test)]
+mod unit_constant_tests;

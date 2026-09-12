@@ -70,8 +70,9 @@ lowering，未使用的 const/object roots 不产生函数或初始化代码。�
 native 验收另覆盖六种 namespace × 十种 scalar/Char 类型、参数化 argv entry 和重复 object 字节。
 String 计数夹具动态验证 9 literal + 2 concat owner 共 11 次 drop；两个 concat buffer 各分配/释放
 一次，free 逐指针核对 live allocation。literal owner 本身不分配 heap，唯一消费由 SSA verifier
-与动态计数共同证明。常量分析错配与非法 Byte 值在 object 落盘前拒绝。跨文件 constant lowering
-尚未接入。
+与动态计数共同证明。常量分析错配与非法 Byte 值在 object 落盘前拒绝。跨文件常量已有 crate 内专用标量 lowering 入口：逐 use 核对同一 typed/owned
+descriptor 后生成精确 Boolean/整数/Char；unit storage 保留独立 Char 类型。
+String 物化与短路仍显式拒绝，公开 constant native 入口尚未接通。
 
 ## Compilation-unit planning 与 lowering
 
@@ -95,7 +96,8 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 基础入口仍接受 validated typed/owned 并核对完整身份链；入口之后的私有 lowering driver 与
 内部 planner 只读取同一轮 `CompilationUnitTypes` / `CompilationUnitOwnership`，复用已有算法。
-此拆分未提供新的公开 capability 转换，也尚未接入常量专用 native 入口。
+此拆分未提供新的公开 capability 转换；crate 内常量标量入口独立校验身份后复用该 driver，
+公开常量 native 入口尚未接通。
 
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
 

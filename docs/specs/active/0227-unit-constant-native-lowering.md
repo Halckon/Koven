@@ -76,10 +76,10 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | 验收项 | 结果 | 原因 |
 |---|---|---|
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
-| 新增 `ssa::unit_constant_tests` | 未实现/未运行 | 专用身份门禁、11 类型物化、namespace 排除、短路计划消费、错误/缺事实拒绝；对照既有 `constant_lowering_tests` |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 177 passed，225 filtered，0 failed/ignored | driver 拆分后 planner、全部 unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
-| `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 本次 2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
-| `cargo check -p lang-codegen --lib` | 本次通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
+| `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 本次 1 passed，402 filtered，0 failed/ignored | 十标量精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String、短路及完整namespace矩阵待后续 |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 本次 178 passed，225 filtered，0 failed/ignored | 标量切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
+| `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
 | 新增 `native::unit_constant_tests` | 未实现/未运行 | 六类 namespace、11 类型、String live-pointer/drop 计数、Abort、argv、正逆 inputs 与重复输出；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | 专用公开入口 compile-fail、`cargo check --workspace --all-targets` | 未实现/未运行 | 新旧 capability 隔离及跨 crate API 编译门禁；新增入口时执行 |
@@ -105,3 +105,16 @@ planner/lowerer 的内部 helpers 已改为消费只读 typed/owned facts；基�
 直接调用内部 helper 的 9 处测试参数初次编译报 E0308，已同步为 `.types()` / `.ownership()`；
 这是夹具接口迁移，不是行为失败。独立复核通过机械归一对照，未发现算法漂移、错误顺序变化
 或身份绕过。第一步专用入口尚未接通，实施清单保持未勾选。
+
+
+私有标量切片：`unit_lower::constant::lower_constant_unit_with_entry` 仅在 crate 内可见，先核对
+source index、typed 的 inputs/names/environment 及 owned 的 typed 身份，再进入共享 driver。
+每个 use 按 source-qualified identity 找到 typed descriptor 与 owned materialization，并全字段
+相等后才生成 Boolean/整数/Char constant。unit storage 补独立 Char 类型映射；不从声明
+initializer 重新求值。普通函数和 closure lowerer 均携带专用 owned 引用。
+实际访问的 String 物化与短路仍显式拒绝；不可达函数的短路不阻塞当前 entry。
+新公开 native 入口仍未开放。初次测试因入口缺失 E0432；修复 unsigned 夹具的 `u` 后缀后，
+明确复现 Char 缺少 unit storage mapping 的 UnsupportedNode，再补实现与精确类型断言。
+
+本次独立复核再次确认：十标量类型断言、身份门禁与不可达函数隔离无新增阻断。
+未运行常量 native build/run；基础 native 沿用 `28759c5`，没有修改公开 native 编排。

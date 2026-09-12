@@ -113,6 +113,7 @@ impl UnitTypeLowering {
             .cloned()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let id = match kind {
+            UnitTypeKind::Builtin(BuiltinType::Char) => module.intern_type(SsaTypeKind::Char),
             UnitTypeKind::Builtin(BuiltinType::Boolean) => module.intern_type(SsaTypeKind::Boolean),
             UnitTypeKind::Builtin(BuiltinType::Byte) => module.intern_type(integer_type(8, true)),
             UnitTypeKind::Builtin(BuiltinType::UByte) => module.intern_type(integer_type(8, false)),
@@ -468,6 +469,7 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
         Some(UnitTypeKind::Builtin(builtin)) => matches!(
             builtin,
             BuiltinType::Boolean
+                | BuiltinType::Char
                 | BuiltinType::Byte
                 | BuiltinType::UByte
                 | BuiltinType::Short

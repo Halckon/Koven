@@ -5,6 +5,7 @@ mod assignment;
 mod call;
 mod cfg;
 mod closure;
+pub(crate) mod constant;
 mod construction;
 mod container;
 mod control;
@@ -27,7 +28,8 @@ use lang_frontend::{
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        CompilationUnitOwnership, UnitDropPoint, ValidatedCompilationUnitOwnership,
+        CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint,
+        ValidatedCompilationUnitOwnership,
     },
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
@@ -136,6 +138,7 @@ pub(crate) fn lower_scalar_unit_with_entry(
         names,
         typed.types(),
         owned.ownership(),
+        None,
         entry,
     )
 }
@@ -147,6 +150,7 @@ fn lower_unit_from_facts(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
+    constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let instance_plan = plan_unit_instances_from_facts(
@@ -457,6 +461,7 @@ fn lower_unit_from_facts(
             names,
             typed,
             owned,
+            constant_owned,
             function_ids: &function_ids,
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
@@ -550,6 +555,7 @@ fn lower_unit_from_facts(
             names,
             typed,
             owned,
+            constant_owned,
             function_ids: &function_ids,
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
@@ -591,6 +597,7 @@ struct UnitExpressionLowerer<'a> {
     names: &'a ValidatedCompilationUnitNames,
     typed: &'a CompilationUnitTypes,
     owned: &'a CompilationUnitOwnership,
+    constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
@@ -654,6 +661,9 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        if let Some(value) = self.lower_constant(unit_expression, span)? {
+            return Ok(value);
+        }
         if let Some(construction) = self.typed.construction(unit_expression) {
             return match construction.target() {
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {

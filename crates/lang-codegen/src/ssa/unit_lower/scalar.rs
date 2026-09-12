@@ -299,7 +299,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn append_scalar(
+    pub(super) fn append_scalar(
         &mut self,
         operation: Operation,
         ty: SsaTypeId,
