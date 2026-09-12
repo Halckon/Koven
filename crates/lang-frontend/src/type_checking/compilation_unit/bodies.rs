@@ -19,7 +19,9 @@ use super::{
 
 mod assignment;
 mod checker;
+mod constants;
 mod container;
+pub use constants::*;
 mod non_null_assertion;
 mod nullable;
 mod projection;
@@ -532,6 +534,8 @@ impl UnitDestructuringDescriptor {
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Clone, Default)]
 pub(crate) struct CompilationUnitTypeParts {
+    pub(crate) constant_declaration_count: usize,
+    pub(crate) constants: Option<UnitConstantFacts>,
     pub(crate) constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
     pub(crate) expression_types: BTreeMap<UnitExpressionId, UnitTypeId>,
     pub(crate) expression_categories: BTreeMap<UnitExpressionId, ExpressionCategory>,
@@ -562,6 +566,8 @@ struct BodyTypeProvenance {
 /// [`UnitTypeId`] 并且所有源码 identity 都带 [`SourceUnitId`] 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitTypes {
+    constant_declaration_count: usize,
+    constants: Option<UnitConstantFacts>,
     constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
     provenance: BodyTypeProvenance,
     signatures: CompilationUnitSignatures,
@@ -596,6 +602,8 @@ impl CompilationUnitTypes {
         };
         Self {
             provenance,
+            constant_declaration_count: parts.constant_declaration_count,
+            constants: parts.constants,
             constant_selections: parts.constant_selections,
             signatures,
             expression_types: parts.expression_types,
@@ -854,7 +862,26 @@ impl CompilationUnitTypes {
         &self.diagnostics
     }
 
-    /// signature/body 无 error 且不含待交接的关联常量读取时才发布基础 ownership view。
+    /// 返回原子发布的常量事实；错误或未完成求值时为 None。
+    pub const fn constants(&self) -> Option<&UnitConstantFacts> {
+        self.constants.as_ref()
+    }
+
+    /// 发布独立常量能力；不转换成基础 ownership/native 输入。
+    pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
+        if self.constants.is_some()
+            && !self
+                .diagnostics
+                .iter()
+                .any(|d| d.severity() == Severity::Error)
+        {
+            Ok(ConstEnabledTypedUnit(self))
+        } else {
+            Err(Box::new(self))
+        }
+    }
+
+    /// signature/body 无 error 且不含常量声明或读取时才发布基础 ownership view。
     /// 常量读取需要 SPEC-0210 的独立 const-enabled capability，不能借此绕过其验证。
     pub fn validate(self) -> Result<ValidatedCompilationUnitTypes, Box<Self>> {
         let has_error = self
@@ -862,7 +889,8 @@ impl CompilationUnitTypes {
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
         // Selection is a recovery fact, not the const-enabled capability required by SPEC-0210.
-        if has_error || !self.constant_selections.is_empty() {
+        if has_error || self.constant_declaration_count > 0 || !self.constant_selections.is_empty()
+        {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitTypes(self))

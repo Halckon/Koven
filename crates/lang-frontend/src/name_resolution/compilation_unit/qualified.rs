@@ -87,6 +87,7 @@ impl UnitResolver<'_> {
         let source = source_unit_id(source_index);
         for spans in roots {
             if self.has_lexical_root(source, spans[0]) {
+                self.resolve_local_constant_path(source, &spans)?;
                 continue;
             }
             if !self.try_relative_static_path(source, &spans, Namespace::Value)?
@@ -94,6 +95,68 @@ impl UnitResolver<'_> {
             {
                 self.try_absolute_qualified_path(source, &spans, Namespace::Value)?;
             }
+        }
+        Ok(())
+    }
+
+    /// Local classifier roots already have lexical identity; only complete their constant tail.
+    fn resolve_local_constant_path(
+        &mut self,
+        source: SourceUnitId,
+        spans: &[Span],
+    ) -> Result<(), CompilationUnitNameError> {
+        if spans.len() != 2 {
+            return Ok(());
+        }
+        let resolution = &self.local[source.index()];
+        let Some(symbol) = resolution.references().iter().find_map(|reference| {
+            if reference.span() != spans[0] {
+                return None;
+            }
+            let ReferenceTarget::Symbol(symbol) = reference.target() else {
+                return None;
+            };
+            resolution.symbols().get(symbol.index()).filter(|symbol| {
+                matches!(
+                    symbol.kind(),
+                    crate::name_resolution::SymbolKind::Classifier
+                        | crate::name_resolution::SymbolKind::ObjectValue
+                )
+            })
+        }) else {
+            return Ok(());
+        };
+        let Some(declaration) = self.index.declarations().iter().find(|declaration| {
+            declaration.source_unit() == source
+                && declaration.name_span() == symbol.span()
+                && declaration.namespace() == Namespace::Type
+        }) else {
+            return Ok(());
+        };
+        let Some(&root) = self.declaration_symbols.get(&declaration.id()) else {
+            return Ok(());
+        };
+        let member = self
+            .sources
+            .slice(spans[1])
+            .map_err(NameResolutionError::from)?;
+        let targets = self.static_members(
+            root,
+            member,
+            Namespace::Value,
+            self.is_object(declaration.id()),
+        );
+        if let [target] = targets.as_slice()
+            && self.local[target.source_unit().index()].symbols()[target.symbol().index()].kind()
+                == crate::name_resolution::SymbolKind::Constant
+        {
+            self.references.push(UnitNameReference::new(
+                source,
+                spans[1],
+                Some(Namespace::Value),
+                UnitReferenceTarget::Symbol(*target),
+            ));
+            self.suppressed_unresolved[source.index()].insert(span_key(spans[1]));
         }
         Ok(())
     }

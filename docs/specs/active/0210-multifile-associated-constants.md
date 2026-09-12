@@ -274,3 +274,35 @@ Long 最小值。求值失败产生 L0158 并通过反向边使依赖者失效�
 定向 clippy（`--lib` 和这三个 integration target，`-- -D warnings`）、fmt check、docs check
 （351 Markdown）与 diff check 通过。未运行 frontend 全量、workspace/native 或单文件回归：
 共享 evaluator 未修改，本轮只增加 unit adapter/调度，未新增公开 API。已有基线失败未修复。
+
+### 第七切片：原子常量事实与独立 typed capability
+
+`UnitConstantDescriptor` / `UnitConstantUseDescriptor` 保持单文件 shape，identity 改为
+source-qualified symbol/expression，声明包含类型、值与稳定语法依赖。全部普通 bodies 与
+trial 结束后才构造 `UnitConstantFacts`，核对 AST 常量计数、输入/value 完整性、use 类型及
+Temporary category；任何常量或普通 body 错误都不发布部分事实。
+
+`validate_constants()` 构造独立 `ConstEnabledTypedUnit`，外部不能自行构造或替换内部产物；
+解包仅得到 recovery unit，不能转基础 validated unit。基础 gate 现在拒绝所有 const 声明，
+包括没有读取的声明，避免借旧 ownership/native 入口绕过常量交接。
+
+公开事实测试还暴露同文件 `A.X` 的漏选：声明值正确但只发布一条 initializer use，运行时
+读取仍 Deferred。名称阶段现只对已绑定 classifier/object 的两段路径补全唯一 constant
+terminal，复用 static member 事实；普通变量及同名参数不受影响。独立复审已检查 capability
+不可伪造、计数完整性、trial 回滚和局部常量选择/遮蔽边界。
+
+该切片建立公开产物边界，但 SPEC-0210 的最终完整矩阵与下游拒绝验收仍待核对，不自动
+启用 unit const ownership/native，也不据此重开已完成的 0198/0199。
+
+| 第七切片验证 | 结果 | 覆盖 |
+|---|---|---|
+| `multifile_constant_facts` | 4 passed | 精确值/依赖/use、正逆输入、未使用常量的基础拒绝、错误原子失效、同名参数遮蔽 |
+| `multifile_constant_selection` / `multifile_name_resolution` | 4 + 10 passed | 关联可见性与名称规则最近回归 |
+| `multifile_ownership_checking` | 63 passed | 基础 validated unit 的直接消费者回归 |
+| `cargo test -p lang-frontend --doc ConstEnabledTypedUnit` | 1 passed，7 filtered | 新 capability 传入真实旧 ownership 入口必须 E0308 编译失败 |
+| `cargo check --workspace --all-targets` | 通过 | 新公开产物的跨 crate 编译兼容性；仅编译，没有执行 frontend 全量测试 |
+
+四个 integration target 通过同一次 `cargo test -p lang-frontend --test multifile_constant_facts --test multifile_constant_selection --test multifile_name_resolution --test multifile_ownership_checking --no-fail-fast` 运行，81 passed，0 failed/ignored。
+定向 clippy（`--lib`、facts/selection/name_resolution 三目标，`-- -D warnings`）、fmt check、
+docs check（351 Markdown）与 diff check 通过。已有 all-targets lint 和三项 unit type 基线失败
+未改动，workspace 编译通过不表示这些测试或 lint 已修复。未运行 frontend 全量测试或 native 全矩阵。

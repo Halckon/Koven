@@ -75,6 +75,21 @@ impl BodyChecker<'_> {
                 dependencies.insert(symbol, syntax.dependencies);
             }
         }
+        self.constant_inputs = inputs
+            .iter()
+            .map(|(&symbol, input)| {
+                (
+                    symbol,
+                    (
+                        input.name_span,
+                        dependencies
+                            .get(&symbol)
+                            .map(|edges| edges.iter().copied().collect())
+                            .unwrap_or_default(),
+                    ),
+                )
+            })
+            .collect();
         let mut invalid = inputs
             .keys()
             .filter(|symbol| !dependencies.contains_key(symbol))

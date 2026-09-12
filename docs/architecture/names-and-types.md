@@ -138,7 +138,7 @@ canonical type identity。ordinary class、value class、enum、interface 与 in
 unit resolver 保留 static constant symbol，由类型阶段消费签名记录的 owner DeclarationId 和
 visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L0149 仍在名称阶段处理。
 关联常量与裸常量读取形成 source-qualified Temporary recovery fact，不产生字段 projection；这些
-选择随 overload trial 一起回滚。基础 `CompilationUnitTypes::validate()` 拒绝包含选择记录的
+选择随 overload trial 一起回滚。基础 `CompilationUnitTypes::validate()` 拒绝包含任何常量声明或选择记录的
 产物，避免提前授予 ownership/native 能力。
 
 闭合初始化器按 source-qualified symbol 建立语法依赖图，保留短路右侧依赖；无环部分按依赖
@@ -149,8 +149,13 @@ L0157。SCC 使用与单文件相同的显式栈算法，诊断及 labels 按稳
 依赖遍历，以首个非法子表达式的 Span 产生 L0156；普通类型错误与 L0155 先处理，短路 RHS
 仍检查资格。无环节点在类型资格通过后调用共享 evaluator，适配器仅映射 source-qualified
 表达式、已选常量值和整数类型；短路、String/Char 解码及算术仍由共享内核执行。失败产生
-L0158 并使依赖者失效，循环不求值。值表目前只保存在 body checker 内，公开 value/use
-产物与独立 const-enabled capability 尚未接通。
+L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成后，声明计数、值完整性、读取
+类型/category 和诊断共同控制 `UnitConstantFacts` 的原子发布；错误时不保留部分常量事实。
+`validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
+解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。
+
+同文件已绑定 classifier/object 的两段常量路径复用 static member 选择，补全 terminal symbol；
+普通值接收者和同名参数遮蔽仍沿既有路径处理。
 
 ## 核心不变量
 

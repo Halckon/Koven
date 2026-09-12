@@ -26,6 +26,7 @@ mod bindings;
 mod calls;
 mod constant_dependencies;
 mod constant_evaluation;
+mod constant_facts;
 mod constants;
 mod construction;
 mod container;
@@ -95,6 +96,7 @@ pub(super) struct BodyChecker<'a> {
     current_owner: Option<DeclarationId>,
     constant_prechecked: BTreeSet<UnitSymbolId>,
     checking_constants: bool,
+    constant_inputs: super::constants::ConstantInputs,
     constant_values: BTreeMap<UnitSymbolId, crate::type_checking::ConstValue>,
 }
 
@@ -179,11 +181,27 @@ impl<'a> BodyChecker<'a> {
             current_owner: None,
             constant_prechecked: BTreeSet::new(),
             checking_constants: false,
+            constant_inputs: BTreeMap::new(),
             constant_values: BTreeMap::new(),
         })
     }
 
     fn run(mut self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+        self.parts.constant_declaration_count = self
+            .names
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .map(|source| {
+                self.file(source.id())
+                    .ast()
+                    .items()
+                    .iter()
+                    .filter(|(_, node)| matches!(node.payload(), Item::Constant { .. }))
+                    .count()
+            })
+            .sum();
         self.precheck_constant_dependencies()?;
         let declarations = self.names.names().index().declarations().to_vec();
         for declaration in declarations {
@@ -239,6 +257,7 @@ impl<'a> BodyChecker<'a> {
             }
         }
         self.materialize_runtime_field_layouts()?;
+        self.parts.constants = self.build_constant_facts();
         let source_units = self.names.names().index().source_units();
         let body_diagnostics =
             ordered_unit_diagnostics(self.sources, source_units, &self.diagnostics)?
