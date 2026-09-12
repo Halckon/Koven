@@ -1,6 +1,7 @@
 mod control;
 mod lambda;
 mod model;
+mod pending_call;
 
 use std::collections::BTreeMap;
 
@@ -552,8 +553,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(continues)
             }
             Expression::Return { value, .. } => {
-                if let Some(value) = value {
-                    self.expression(value, DropExpressionUse::Consume, state)?;
+                if let Some(value) = value
+                    && !self.expression(value, DropExpressionUse::Consume, state)?
+                {
+                    return Ok(false);
                 }
                 self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
                 Ok(false)
@@ -748,7 +751,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
                 let mut borrowed_roots = Vec::new();
-                let mut borrowed_temporaries = Vec::new();
                 if let Some(contract) = receiver_contract {
                     match contract.source() {
                         UnitCallReceiverOrigin::Expression(receiver) => {
@@ -771,6 +773,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                     };
                                     if !self.expression(receiver, usage, state)? {
                                         return Ok(false);
+                                    }
+                                    if !conditional_static_self {
+                                        self.register_value_argument(id, receiver, state)?;
                                     }
                                 }
                                 UnitCallArgumentOwnershipKind::SharedLoan
@@ -812,7 +817,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                                 .expressions()
                                                 .get(temporary)?
                                                 .span();
-                                            borrowed_temporaries.push((temporary, origin));
+                                            self.register_pending_temporary(
+                                                id, temporary, origin, false, state,
+                                            );
                                         }
                                     }
                                 }
@@ -844,6 +851,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             )? {
                                 return Ok(false);
                             }
+                            self.register_value_argument(id, argument.value, state)?;
                         }
                         UnitCallArgumentOwnershipKind::SharedLoan
                         | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
@@ -886,7 +894,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         .expressions()
                                         .get(temporary)?
                                         .span();
-                                    borrowed_temporaries.push((temporary, origin));
+                                    self.register_pending_temporary(
+                                        id, temporary, origin, false, state,
+                                    );
                                 }
                             }
                         }
@@ -896,13 +906,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(false);
                 }
                 state.pending_borrows.retain(|(call, _)| *call != id);
-                for (temporary, origin) in borrowed_temporaries {
-                    self.push_fact(PlannerDropFact::new(
-                        PlannerDropPoint::CallReturn(id),
-                        PlannerDropTarget::Temporary(temporary),
-                        origin,
-                    ));
-                }
+                self.finish_pending_temporaries(id, state);
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
                         self.drop_named(PlannerDropPoint::CallReturn(id), root, state);
@@ -1103,6 +1107,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn drop_all(&mut self, point: PlannerDropPoint, state: &mut ValueState) {
         // callable 已退出，不能再由尚未提交的调用前缀阻止 owner 清理。
         state.pending_borrows.clear();
+        self.drop_pending_temporaries(point, state, |_| true);
         while let Some(symbol) = state.values.last().map(|value| value.symbol) {
             self.drop_named(point, symbol, state);
         }
@@ -1144,6 +1149,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_deeper_than(&mut self, depth: usize, point: PlannerDropPoint, state: &mut ValueState) {
+        let loop_depth = self.loop_boundaries.len();
+        self.drop_pending_temporaries(point, state, |pending| pending.loop_depth >= loop_depth);
         let mut index = state.values.len();
         while index > 0 {
             index -= 1;

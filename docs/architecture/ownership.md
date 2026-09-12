@@ -86,6 +86,13 @@ ControlTransfer 结束事实还需 Phase 4 接入。
 分支与嵌套调用不会提前析构它；正常 CallReturn 只解除当前调用的保护。字符串插值中的
 Nothing 传播无正常出口，callable 退出时清除未提交调用的保护，避免阻止最终 owner 清理。
 
+unit 调用的 Borrow temporary 与尚未提交的 MoveOnly Value 实参也保存在 ValueState，随分支
+保留。正常提交时 Value 不再清理，Borrow 在 CallReturn 逆序清理；return 和离开调用前缀
+所在循环的 break/continue 先清理后建 local，再逆序清理前缀 owner，最后清理旧 local。
+内层循环跳转保留外层调用 owner，Abort 不展开清理；return operand 自身不继续时也不生成
+return cleanup。此为 Phase 3 事实，unit native 对新增 pending Value operand 的接线仍待
+SPEC-0227 验收。
+
 ## 实现与测试位置
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其

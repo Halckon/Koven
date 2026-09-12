@@ -87,81 +87,53 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 
 ## 10. 验证记录
 
-新增直接目标拟为 `multifile_constant_ownership`；最近共享契约为 `multifile_ownership_checking`
-与 `ownership_constants`，按实际改动选择命中测试。公开阶段产物追加 capability 编译拒绝测试与
-[分层验收](../../development/testing.md)要求的编译检查；不运行 frontend 全量测试。
-每个稳定实现切片只运行一次最小充分验证，后续仅因新增改动、失败或明确缺口扩展。
+按切片复用已验证证据；下表区分历史提交与本次最终检查，不因文档勾选重复启动相同门禁。
+当前尚无公开常量 owned capability，第 5 节完整标准保持未完成。
 
-| 验收项 / 命令 | 结果 | 证据边界 |
+| 验收项 / 命令 | 实际结果 | 证据边界 |
 |---|---|---|
-| Phase 3 实现与 Rust 验收 | 未执行 | 当前仅建立已批准实施合同 |
+| `cargo test -p lang-frontend --test multifile_ownership_checking` | 本次 63 passed，0 failed/ignored | 基础 unit 身份、capture/loan/delivery/drop；`adb760b` 重构前后也各 63 passed |
+| `cargo test -p lang-frontend --lib compilation_unit::constants_tests` | `645c3e1`：4 passed，56 filtered，0 ignored | 基础 owned 出口拒绝、String Name/Group/Member 二元析构、Borrow/Value temporary、无常量 capture |
+| `cargo test -p lang-frontend --lib compilation_unit::` | `4832f55`：15 passed，48 filtered，0 ignored | 当时 7 项常量与命中的 8 项 unit 共享契约；非全量 frontend |
+| `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::materialization_tests` | `4832f55` 最终：3 passed，60 filtered，0 ignored | 11 类型跨 source 精确 descriptor/类别、同局部 ID、正反 inputs；初始化器/return/Abort 排除、动态分支保留、错误/deferred 原子性 |
+| `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::pending_temporary_tests` | 本次 5 passed，63 filtered，0 ignored | 常量/literal × Borrow/Value × 6 种退出/正常调用，共 24 例；内层循环保留、命名 Value、精确析构顺序、return operand Abort |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_borrow_tests` | 本次 2 passed，400 filtered，0 ignored | 最近基础 SSA 借用消费回归，不证明新增常量 native 支持 |
+| `cargo test -p lang-codegen --lib ssa::unit_lower_loop_tests` | 本次 7 passed，395 filtered，0 ignored | 最近基础 SSA 循环/退出消费回归 |
+| `cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check | 本次通过 | all-targets clippy 的既有测试 lint 未修改，不以 lib 通过替代 |
+| docs check、diff check | 本次通过，353 Markdown | inventory 未变化；合同建立时另有检查器 21 项测试通过 |
+| 独立只读复审 | 各逻辑切片无剩余阻断发现 | 私有 driver 机械迁移逐字核对；常量 flow、物化身份/失败门禁；本次按审查建议补命名 Value 与精确顺序，再复核 Abort 修复 |
 
-合同复核与门禁：独立边界审查通过，已明确动态分支与 owner 转移/清理条件；docs check
-（352 Markdown）、文档检查器 21 项测试与 diff check 通过。未运行 Rust：本提交仅建立合同。
+### 已交付切片与事实边界
 
+`adb760b` 将原公开入口主体及 helpers 机械迁入私有 `compilation_unit/analysis.rs`，身份校验、
+binding、contracts/capture/dataflow 和错误清理顺序不变，没有公开强转出口。
 
-### 首切片：私有 unit ownership driver
+`645c3e1` 的私有 runtime traversal 跳过 constant initializer，消费 typed Name/Member use，
+不访问 declaration/namespace；liveness/drop 使用同一识别，String 二元 Name 走 temporary，
+Group 递归保留内部读取 identity。closure root 排除常量，既有 capture 分类已排除常量和
+namespace。provenance 保留常量来源，基础 recovery `validate()` 拒绝该来源。
 
-原公开 `check_compilation_unit_ownership` 继续仅接受基础 validated typed capability，委托私有
-`compilation_unit/analysis.rs` driver。身份校验、binding 收集、contracts/capture/dataflow、
-错误清理与结果构造，以及对应辅助函数机械迁移；没有复制第二套算法或新增公开转换出口。
+`4832f55` 登记实际访问的 typed use descriptor 和 inline/String temporary 类别，按 source-qualified
+expression 去重、合并排序。只有 typed 常量事实完整、ownership 无诊断且无 deferred 才保留
+私有计划。最终矩阵明确断言 expression 与 target 来自不同 source，并保留相同局部 AST ID 对照。
 
-该切片只完成独立入口复用的前置，不发布 const owned capability，不宣称已有物化/capture/drop
-交付；第 5 节标准保持未完成。独立复审逐字比对迁移主体与辅助函数，确认顺序和可见性不变。
+本次将 Borrow temporary 与尚未提交的 MoveOnly Value 实参保存于 ValueState。正常提交时
+Value 不重复析构，Borrow 在 CallReturn 逆序析构；放弃前缀的 return/break/continue 清理
+pending owner，按 loop depth 保留尚未离开的外层调用。prior symbols 保证“后建 local →
+逆序 temporary → 旧 local”。return operand 自身不继续时不生成 return cleanup，Abort 不展开。
 
-`cargo test -p lang-frontend --test multifile_ownership_checking` 在重构前后均为 63 passed，
-0 failed/ignored，覆盖身份错配、capture/loan/drop 和失败清理。无行为变化，不另写镜像测试。
+### 失败证据与待完成项
 
-门禁：`cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check、docs check
-（353 Markdown）与 diff check 通过。未运行 frontend 全量、workspace/native 或单文件回归：
-无公开 API/单文件/下游行为变化。未运行 all-targets clippy；此前记录的既有测试 lint 未修改，
-不以 lib clippy 通过代替全目标结果。
+有效失败证据包括：`S + S` 原 temporary drop 为 0（应为 2）、常量 recovery 原能通过基础
+validate、合法动态分支原无 runtime plans、后续实参提前 return 缺 pending cleanup，以及
+合法非 Unit callable 的 `return stop()` 原错误发布 return cleanup。修复后的结果见表。
+package 路径、保留字/分隔、unsigned literal 后缀、deferred 场景、Unit return-value 与
+value-origin 断言等夹具曾修正；这些诊断不计作生产缺陷。
 
-### 第二切片：私有 constant use flow 与基础出口限制
+专用 constant owned capability 尚未开放，Group owner identity、身份门禁和剩余完整矩阵
+仍需继续。下游静态检查发现 unit SSA 当前 temporary 缓存只覆盖 Temporary category/
+construction；新增命名 Value operand 的 pending cleanup 必须在 SPEC-0227 显式消费，已加入
+该 draft 合同，不将本次 Phase 3 事实描述为 native 支持。
 
-私有 driver 的 runtime traversal 跳过 constant initializer；Name/Member use 按 Phase 2
-descriptor 提前返回，不访问 declaration/namespace。liveness/drop 使用同一识别，String
-二元操作数的 Name 走 temporary，Group 递归保留内部读取 identity。closure root 不返回
-常量声明；既有 capture 分类已排除 Constant、Classifier 和 ObjectValue。
-
-ownership provenance 保留常量来源，recovery 的基础 `validate()` 拒绝该来源。没有增加公开
-入口或 owned wrapper；物化发布、跨文件与完整控制流验收继续留在本 Spec，不能据本切片
-勾选第 5 节完整标准。
-
-失败证据：修正 package 路径、保留字与语句夹具后，`S + S` 的 temporary drop 为 0（应为 2），
-且常量 recovery 能通过基础 validate；修复后四项直接测试通过。最初夹具诊断不算实现失败。
-
-| 验收项 / 命令 | 结果 | 证据边界 |
-|---|---|---|
-| `cargo test -p lang-frontend --lib compilation_unit::constants_tests` | 4 passed，56 filtered，0 ignored | 基础出口拒绝、String Name/Group/Member 二元析构、Borrow/Value temporary、无常量 capture；私有单 source driver |
-| `cargo test -p lang-frontend --test multifile_ownership_checking` | 63 passed，0 failed/ignored | 基础 unit 身份门禁、capture/loan/delivery/drop 共享回归 |
-| `cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check | 通过 | lib lint；不代表 all-targets lint 通过 |
-| docs check、diff check | 通过，353 Markdown | 未变更 inventory，无需重跑检查器测试 |
-| 独立只读复审 | 无阻断发现 | 检查 typed use 短路、temporary 与 Group、基础路径不变和 provenance；不代替 Rust 验证 |
-
-未运行 frontend 全量、单文件或 native：本切片仅修改私有 unit 路径，尚未增加跨 crate API，
-因此未重复 workspace check。all-targets clippy 的既有测试 lint 未修改；本切片使用 lib clippy。
-
-### 第三切片：私有运行时物化记录
-
-主 traversal 在访问 Phase 2 constant use 时登记精确 descriptor 与 inline/String temporary
-类别，按 source-qualified expression 去重；每 source 分析后稳定合并。只有 typed 常量事实
-完整、ownership 无诊断且无 deferred 时，recovery 内部才保留完整计划。未增加公开 getter、
-专用 owned capability 或 native 入口，不能将私有记录等同于本 Spec 完成交付。
-
-直接失败证据是合法动态分支场景没有 runtime plans；接入后通过。unsigned literal 后缀与
-deferred 测试夹具曾修正，夹具失败不算生产缺陷。原先双 source 局部读取矩阵又加强为互相
-跨文件读取，明确断言 expression 与 target 来自不同 source，保留相同局部 AST ID 对照。
-
-| 验收项 / 命令 | 结果 | 证据边界 |
-|---|---|---|
-| `cargo test -p lang-frontend --lib compilation_unit::` | 15 passed，48 filtered，0 ignored | 本次 3 项、此前 4 项常量测试与命中的 8 项 unit 共享契约；非 frontend 全量 |
-| `cargo test -p lang-frontend --lib ownership_checking::compilation_unit::materialization_tests` | 3 passed，60 filtered，0 ignored | 最终 11 类型跨 source 精确 descriptor/类别、同局部 ID 与正反 inputs；初始化器/return/Abort 排除、动态分支保留、错误/deferred 原子性 |
-| `cargo test -p lang-frontend --test multifile_ownership_checking` | 63 passed，0 failed/ignored | 基础 unit 共享回归 |
-| `cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check | 通过 | 未运行带既有测试 lint 的 all-targets clippy |
-| docs check、diff check | 通过，353 Markdown | inventory 未变更 |
-| 独立只读复审 | 无新增阻断发现 | 检查登记入口、source identity、稳定顺序、分支与失败门禁；不代替执行验证 |
-
-公开能力与完整控制流仍未完成：静态检查发现后续实参提前 return 时，前序 pending String
-temporary 的清理义务需要补齐；将在开放专用 owned 验证出口前复现并处理。未运行 frontend
-全量、单文件、workspace/native：本切片未增加跨 crate API。
+未运行 frontend 全量、单文件回归、workspace check 或 native build/run：本次仅修改 unit
+Phase 3 私有实现，无跨 crate API 变更；下游只运行表中最近 SSA 契约。

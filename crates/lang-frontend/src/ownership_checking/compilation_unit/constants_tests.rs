@@ -9,6 +9,10 @@ use crate::{
 };
 
 pub(super) fn analyze(text: &str) -> CompilationUnitOwnership {
+    analyze_with_sources(text).1
+}
+
+pub(super) fn analyze_with_sources(text: &str) -> (SourceMap, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("a.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -28,7 +32,8 @@ pub(super) fn analyze(text: &str) -> CompilationUnitOwnership {
         .unwrap()
         .validate_constants()
         .unwrap();
-    analysis::analyze(&sources, &inputs, &names, &te, typed.types()).unwrap()
+    let owned = analysis::analyze(&sources, &inputs, &names, &te, typed.types()).unwrap();
+    (sources, owned)
 }
 
 #[test]

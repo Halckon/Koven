@@ -12,6 +12,8 @@ mod dataflow;
 #[cfg(test)]
 mod materialization_tests;
 mod non_null_assertion;
+#[cfg(test)]
+mod pending_temporary_tests;
 mod receiver;
 
 pub use binding::UnitOwnershipBindingDescriptor;
