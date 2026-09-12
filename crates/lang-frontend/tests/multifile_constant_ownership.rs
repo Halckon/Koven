@@ -6,7 +6,7 @@ use lang_frontend::{
         resolve_compilation_unit_names,
     },
     ownership_checking::{
-        ConstantMaterializationKind, OwnershipCheckingError,
+        ConstantMaterializationKind, OwnershipCheckingError, UnitDropPoint, UnitDropTarget,
         check_compilation_unit_constant_ownership,
     },
     parser::parse_file,
@@ -49,6 +49,105 @@ fn with_unit(
         .validate_constants()
         .unwrap();
     test(&sources, &inputs, &names, &te, &typed);
+}
+
+#[test]
+fn interpolation_releases_each_inner_owner_before_returning_the_outer_string() {
+    with_unit(
+        "package a\nimport b.Labels\nfun read(): String = \"${Labels.TEXT}-${(Labels.TEXT)}\"",
+        "package b\nobject Labels { const val TEXT = \"hi\" }",
+        |sources, inputs, names, te, typed| {
+            let owned =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            let plans = owned.materializations();
+            let drops = owned.ownership().drops();
+            assert_eq!(plans.len(), 2);
+            assert_eq!(
+                drops.len(),
+                2,
+                "inner owners must be released, outer is returned: {drops:?}"
+            );
+            assert_eq!(drops[0].point(), drops[1].point());
+            assert!(drops[0].value_origin().start() > drops[1].value_origin().start());
+            for plan in plans {
+                let matching = drops
+                    .iter()
+                    .filter(|drop| {
+                        drop.target() == UnitDropTarget::Temporary(plan.descriptor().expression())
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(matching.len(), 1);
+                assert!(matches!(
+                    matching[0].point(),
+                    UnitDropPoint::AfterExpression(_)
+                ));
+                assert_eq!(
+                    sources.slice(matching[0].value_origin()).unwrap(),
+                    "Labels.TEXT"
+                );
+            }
+        },
+    );
+}
+
+#[test]
+fn interpolation_prefix_owners_follow_control_transfer_and_abort_like_literals() {
+    for operand in ["Labels.TEXT", "\"hi\""] {
+        for (tail, transfers, normal) in [
+            ("if (flag) { return } else { 0 }", 1, 1),
+            ("if (flag) { break } else { 0 }", 1, 1),
+            ("if (flag) { continue } else { 0 }", 1, 1),
+            ("if (flag) { stop() } else { 0 }", 0, 1),
+            ("stop()", 0, 0),
+        ] {
+            with_unit(
+                &format!(
+                    "package a\nimport b.Labels\nfun stop(): Nothing = stop()\nfun read(flag: Boolean): Unit {{ loop {{ val result = \"${{{operand}}}-${{{tail}}}\"\nbreak }} }}"
+                ),
+                "package b\nobject Labels { const val TEXT = \"hi\" }",
+                |sources, inputs, names, te, typed| {
+                    let owned = check_compilation_unit_constant_ownership(
+                        sources, inputs, names, te, typed,
+                    )
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+                    let drops = owned
+                        .ownership()
+                        .drops()
+                        .iter()
+                        .filter(|drop| sources.slice(drop.value_origin()).unwrap() == operand)
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        drops
+                            .iter()
+                            .filter(|drop| matches!(
+                                drop.point(),
+                                UnitDropPoint::ControlTransfer(_)
+                            ))
+                            .count(),
+                        transfers,
+                        "{operand}, {tail}: {drops:?}"
+                    );
+                    assert_eq!(
+                        drops
+                            .iter()
+                            .filter(|drop| matches!(
+                                drop.point(),
+                                UnitDropPoint::AfterExpression(_)
+                            ))
+                            .count(),
+                        normal,
+                        "{operand}, {tail}: {drops:?}"
+                    );
+                    assert_eq!(drops.len(), transfers + normal);
+                },
+            );
+        }
+    }
 }
 
 #[test]
@@ -104,6 +203,73 @@ fn constant_owned_capability_preserves_cross_file_plans_and_cannot_reopen_base_v
             assert_eq!(owned.ownership().loans(), again.ownership().loans());
             assert!(owned.clone().into_ownership().validate().is_ok());
             assert!(owned.ownership().clone().validate().is_err());
+        },
+    );
+}
+
+#[test]
+fn nested_interpolation_keeps_outer_inputs_and_live_named_owners_until_their_boundary() {
+    with_unit(
+        r#"package a
+import b.Labels
+fun view(text: String): Unit {}
+fun read(own kept: String): String {
+    val result = "${Labels.TEXT}-${"${Labels.TEXT}-${kept}"}"
+    val observed = view(kept)
+    return result
+}"#,
+        "package b\nobject Labels { const val TEXT = \"hi\" }",
+        |sources, inputs, names, te, typed| {
+            let owned =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            let plans = owned.materializations();
+            assert_eq!(plans.len(), 2);
+            let drops = owned.ownership().drops();
+            assert_eq!(
+                drops.len(),
+                4,
+                "two constants, inner result, and kept: {drops:?}"
+            );
+            let constant_drop = |index: usize| {
+                drops
+                    .iter()
+                    .find(|drop| {
+                        drop.target()
+                            == UnitDropTarget::Temporary(plans[index].descriptor().expression())
+                    })
+                    .unwrap()
+            };
+            let outer = constant_drop(0);
+            let inner = constant_drop(1);
+            assert_ne!(
+                outer.point(),
+                inner.point(),
+                "inner completion must retain the outer prefix"
+            );
+            assert_eq!(&drops[0], inner);
+            assert_eq!(&drops[2], outer);
+            assert_eq!(
+                drops[1].point(),
+                outer.point(),
+                "inner result is released with the outer inputs"
+            );
+            assert!(matches!(outer.point(), UnitDropPoint::AfterExpression(_)));
+            assert!(matches!(inner.point(), UnitDropPoint::AfterExpression(_)));
+            let UnitDropPoint::AfterExpression(inner_expression) = inner.point() else {
+                unreachable!("inner interpolation completion checked above");
+            };
+            assert_eq!(
+                drops[1].target(),
+                UnitDropTarget::Temporary(inner_expression)
+            );
+            assert_eq!(sources.slice(drops[3].value_origin()).unwrap(), "kept");
+            assert!(
+                matches!(drops[3].point(), UnitDropPoint::CallReturn(_)),
+                "kept must survive until its later borrow ends"
+            );
         },
     );
 }

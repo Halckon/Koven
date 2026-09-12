@@ -31,6 +31,8 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   同时消费调用前缀 pending temporary：后续实参提前 return/break/continue 时结束借用并清理，
   Abort 不清理，已提交 Value 不重复清理。命名 MoveOnly Value operand 也可能以实参 expression
   为 pending owner；不得只缓存 AST category 为 Temporary 的表达式而漏掉该事实。
+  String 插值还需消费内部输入的 `AfterExpression` 与提前退出清理，嵌套插值按各自位置
+  释放；当前 unit String lowering 仅解码 plain literal，不能将 Phase 3 事实视为已支持插值。
 - 常量声明及初始化依赖无运行时存储、global/init guard、namespace capture 或退出析构。
   不能为跨文件读取引入 singleton 或稳定常量地址。
 - 使用既有 process entry（含 argv）、object 原子发布与链接/执行流程；必要 CLI 编排仅负责

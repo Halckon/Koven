@@ -28,6 +28,11 @@ unit 常量的 Group 只透传值：loan、Value delivery 和 temporary drop 的
 内部实际常量读取，drop 来源 Span 同步归一；原实参 identity、调用和清理位置保留。普通
 literal/variable/其他 temporary 不通过该常量归一路径。
 
+unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共用的 pending 状态，
+按插值 expression 隔离。正常完成在 `AfterExpression` 逆序释放输入；返回的外层 String 与
+后续仍 live 的 named owner 不在此清理。return/break/continue 复用 pending 退出清理，
+Abort 不展开；常量 Group 的 drop 仍归一到实际读取。
+
 两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
 基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生
 `ValidatedCompilationUnitOwnership`，供既有 codegen 使用。

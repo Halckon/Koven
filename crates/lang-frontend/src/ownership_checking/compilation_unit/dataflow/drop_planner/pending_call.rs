@@ -1,4 +1,4 @@
-//! Evaluated call operands remain owned until the call commits or its prefix is abandoned.
+//! Evaluated call/interpolation operands remain owned until completion or control transfer.
 use super::{
     DropPlanner, OwnershipCheckingError, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
     ValueState,
@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
-    call: ExpressionId,
+    pub(super) control: ExpressionId,
     expression: ExpressionId,
     origin: Span,
     transfers_at_call: bool,
@@ -43,14 +43,14 @@ impl DropPlanner<'_, '_> {
 
     pub(super) fn register_pending_temporary(
         &self,
-        call: ExpressionId,
+        control: ExpressionId,
         expression: ExpressionId,
         origin: Span,
         transfers_at_call: bool,
         state: &mut ValueState,
     ) {
         state.pending_temporaries.push(PendingTemporary {
-            call,
+            control,
             expression,
             origin,
             transfers_at_call,
@@ -61,17 +61,18 @@ impl DropPlanner<'_, '_> {
 
     pub(super) fn finish_pending_temporaries(
         &mut self,
-        call: ExpressionId,
+        control: ExpressionId,
+        point: PlannerDropPoint,
         state: &mut ValueState,
     ) {
         for index in (0..state.pending_temporaries.len()).rev() {
-            if state.pending_temporaries[index].call != call {
+            if state.pending_temporaries[index].control != control {
                 continue;
             }
             let pending = state.pending_temporaries.remove(index);
             if !pending.transfers_at_call {
                 self.push_fact(PlannerDropFact::new(
-                    PlannerDropPoint::CallReturn(call),
+                    point,
                     PlannerDropTarget::Temporary(pending.expression),
                     pending.origin,
                 ));
@@ -90,7 +91,7 @@ impl DropPlanner<'_, '_> {
             !state
                 .pending_temporaries
                 .iter()
-                .any(|pending| pending.call == *call && selected(pending))
+                .any(|pending| pending.control == *call && selected(pending))
         });
         for index in (0..state.pending_temporaries.len()).rev() {
             if !selected(&state.pending_temporaries[index]) {

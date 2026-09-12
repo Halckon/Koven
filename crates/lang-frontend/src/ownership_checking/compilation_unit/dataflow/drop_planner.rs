@@ -488,12 +488,27 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Expression::Group { expression } => self.expression(expression, usage, state),
             Expression::String { parts } => {
                 for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part
-                        && !self.expression(expression, DropExpressionUse::Read, state)?
-                    {
-                        return Ok(false);
+                    if let StringPart::Interpolation { expression, .. } = part {
+                        if !self.expression(expression, DropExpressionUse::Read, state)? {
+                            state
+                                .pending_temporaries
+                                .retain(|pending| pending.control != id);
+                            return Ok(false);
+                        }
+                        if self.is_move_only_temporary(expression) {
+                            let origin = self
+                                .checker
+                                .parsed
+                                .ast()
+                                .expressions()
+                                .get(expression)?
+                                .span();
+                            self.register_pending_temporary(id, expression, origin, false, state);
+                        }
                     }
                 }
+                // Release only interpolation inputs; the outer String and live named owners remain.
+                self.finish_pending_temporaries(id, PlannerDropPoint::AfterExpression(id), state);
                 Ok(true)
             }
             Expression::If {
@@ -919,7 +934,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(false);
                 }
                 state.pending_borrows.retain(|(call, _)| *call != id);
-                self.finish_pending_temporaries(id, state);
+                self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
                         self.drop_named(PlannerDropPoint::CallReturn(id), root, state);
