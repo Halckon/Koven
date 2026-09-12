@@ -1,12 +1,12 @@
 # SPEC-0210：跨文件关联常量集成
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P2-210` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -69,7 +69,9 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | unit const facts、测试与完成文档 | `feat(frontend): integrate multifile constants (SPEC-0210)` |
+| 1 | 抽取可携带 source identity 的共享 evaluator，保持单文件行为 | `refactor(frontend): share constant expression evaluator (SPEC-0210)` |
+| 2 | unit const selection、dependency graph 与 capability | `feat(frontend): integrate multifile constants (SPEC-0210)` |
+| 3 | 跨文件完整矩阵、下游拒绝与完成文档 | `test(frontend): complete unit constant acceptance (SPEC-0210)` |
 
 ## 9. 未决问题
 
@@ -84,3 +86,39 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap 审计 | 通过 | exact-import 冲突不阻塞单文件 0026；跨文件 const 必须等待 0025/0197 |
+
+
+### 首切片：共享 evaluator 内核
+
+`constant_evaluation.rs` 提取既有显式栈遍历、短路、Char/String 解码与纯值运算调用；适配器提供
+source-qualified expression identity、AST child 映射、已选择 reference value、typed integer
+literal 和诊断出口。单文件 Checker 改为该私有契约的适配器，依赖排序与 SCC 仍在原阶段。
+负 literal 继续使用 prefix 表达式的类型和 operand 的 magnitude/span，保留最小有符号整数。
+
+该切片是第 6 节“不复制 evaluator”的实施前置；没有公开 crate API 变化，也尚未接 unit
+selector/dependency/capability。第 5 节不据此勾选跨文件完成。
+
+| 检查 | 结果 | 证据边界 |
+|---|---|---|
+| 重构前 `cargo test -p lang-frontend --test type_constants --test ownership_constants` | 24 + 16 passed | 单文件语义和物化契约基线 |
+| `cargo test -p lang-frontend --lib constant_evaluation_tests` | 2 passed，54 filtered | 两个 AST 复用局部 ExpressionId，正逆读取保持 source/selected value，短路阻止除零，执行失败 Span 仍归属正确 source |
+
+新测试使用受控 source-qualified adapter 验证共享遍历，不代表真实跨文件名称解析或 unit typed
+集成通过。后续必须消费已有 DeclarationId/visibility/package facts，并发布独立 capability。
+
+
+重构后再次运行同一 `type_constants` / `ownership_constants` 选择：24 + 16 passed，0 failed/ignored。
+独立审查逐分支比对旧 evaluator，未发现负 literal、短路、缺值或错误传播的语义变化；所有
+Group/Prefix/Binary child 都通过 context 映射，没有把局部 ExpressionId 当全 unit 身份。
+
+
+直接消费者：`cargo test -p lang-codegen --lib -- constant_lowering_tests native_tests::constant_tests`
+通过 8 项，394 filtered，0 failed/ignored；覆盖既有精确值、String 物化、native matrix、owner 计数、
+argv entry 与 object 重复性。未运行 frontend 全量、workspace check；本切片不新增公开阶段 API。
+
+门禁：fmt、docs check（351 Markdown）与 diff check 通过。
+`cargo clippy -p lang-frontend --all-targets -- -D warnings` **未通过**：未改动的
+`tests/multifile_type_checking.rs:260` 触发 `obfuscated_if_else`，
+`tests/multifile_ownership_checking.rs:1006` 触发 `filter_map_bool_then`；已核对两文件与 HEAD 无差异，
+本切片未顺手修改。补跑 `cargo clippy -p lang-frontend --lib --test type_constants --test ownership_constants -- -D warnings`
+通过；不将该定向结果表述为 all-targets 通过。SPEC-0210 仍在进行中。

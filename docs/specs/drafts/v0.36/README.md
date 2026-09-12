@@ -1,10 +1,10 @@
 # v0.36 分阶段实施
 
-> **性质**：阶段路由 · **状态**：单文件完成 / 跨文件已批准 · **读取时机**：推进 v0.36 关联常量时 · **唯一真源**：各阶段 Spec
+> **性质**：阶段路由 · **状态**：单文件完成 / 跨文件实施中 · **读取时机**：推进 v0.36 关联常量时 · **唯一真源**：各阶段 Spec
 
 v0.36 已于 2026-09-12 启用；以下按依赖顺序实施，未满足前置者保持 draft：
 
-- [SPEC-0210](../../active/0210-multifile-associated-constants.md)：跨文件 typed 集成，approved
+- [SPEC-0210](../../active/0210-multifile-associated-constants.md)：跨文件 typed 集成，in-progress
 
 现行语义见 [v0.36 常量规则](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)。
 

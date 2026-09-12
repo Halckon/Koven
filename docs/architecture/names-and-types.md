@@ -49,7 +49,9 @@ companion initializer 中的 `this` 使用 L0153。普通类型错误优先；�
 
 `constant_value.rs` 实现不依赖单文件 symbol 表的纯值运算：整数保留精确 builtin 类型，
 Char 保存 Unicode scalar，String 保存 compiler-owned UTF-8 bytes。
-`constants/evaluation.rs` 按依赖顺序以显式栈求值，除零、余零、溢出与 signed MIN/-1 使用
+`checker/constants/evaluation.rs` 保持依赖排序并适配共享 `constant_evaluation.rs` 显式栈内核；
+后者通过私有 context 保留 source-qualified child identity，集中处理短路与 Char/String 解码。
+真实 compilation-unit adapter 尚未接线。除零、余零、溢出与 signed MIN/-1 使用
 L0158 定位运算符；短路 RHS 不进入值求值。失败依赖不发布值，也不追加后继求值诊断。
 
 `TypedFile::constants()` 在无上游/类型诊断且所有常量均完成求值时发布 `ValidatedConstants`。
