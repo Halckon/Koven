@@ -106,7 +106,7 @@ impl UnitExpressionLowerer<'_> {
             | BinaryOperator::Greater
             | BinaryOperator::GreaterEqual => operand_type.is_some_and(is_integer_builtin),
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                operand_type == Some(BuiltinType::Boolean)
+                matches!(operand_type, Some(BuiltinType::Boolean | BuiltinType::Char))
                     || operand_type.is_some_and(is_integer_builtin)
             }
             _ => false,

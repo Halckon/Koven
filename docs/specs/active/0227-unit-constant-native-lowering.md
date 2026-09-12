@@ -50,7 +50,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 
 ## 4. 验收标准
 
-- [ ] import 后选择及绝对路径覆盖顶层常量和五类关联 namespace；全部 11 种常量类型 native 输出正确。
+- [x] import 后选择及绝对路径覆盖顶层常量和五类关联 namespace；全部 11 种常量类型 native 输出正确。
 - [ ] 跨文件 chain 与重复 use 保留精确值，短路/control 保持 typed/owned 执行位置。
 - [ ] String 多次读取产生独立临时 owner；借用、转移、返回及 Abort 的清理与 literal 对照一致，
   不重复清理已转移 owner；使用既有 IR 或计数证据核实分配/释放，而非仅检查退出码。
@@ -80,11 +80,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 185 passed，225 filtered，0 failed/ignored | String 二元前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 186 passed，227 filtered，0 failed/ignored | Char equality 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 1 passed，411 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 2 passed，411 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型通过；动态 drop 计数仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
 
@@ -188,3 +188,14 @@ argv 夹具未读取参数内容，不代表 argv 内容传递矩阵已经覆盖
 
 本次 native 精确错误分类及 9 项常量 SSA 回归通过；独立复核确认顺序修正后无新增阻断。
 4 项公开 API compile-fail、workspace all-target check、codegen clippy、fmt、docs/diff 均通过；未运行 frontend 全量测试。
+
+
+跨文件 native 矩阵切片：覆盖顶层、object、class/value class/interface/enum companion，
+每类均检查 import 与绝对路径读取的全部 11 种常量类型，以逐项 marker 验证实际比较结果。
+另检查跨文件 Int 常量依赖链、Char 不等及含 NUL 的 String 输出。Char 精确 Unicode scalar
+由已有 SSA payload 验收补足，native 的 expected 也通过常量物化，不称为独立码点 oracle。
+先复现普通 runtime Char literal 的既有 UnsupportedNode；fixture 改为独立常量对照后，
+再次复现 unit Char equality 的 UnsupportedNode。生产仅把 Char 纳入 equality/not-equal，
+复用已有 SSA/LLVM Compare，未扩展字符算术、排序或普通字符字面量。
+独立复核未发现阻断；完整 namespace/类型矩阵已补齐，动态 owner/drop 计数、剩余退出组合
+及 CLI 编排仍待后续。没有公开 API 变化，本次不重复 workspace 编译或 frontend 全量测试。

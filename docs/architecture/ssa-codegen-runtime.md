@@ -82,6 +82,9 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 process entry shape、SSA lowering 的顺序检查，再复用 sibling object 原子发布。基础入口
 仍只接受基础 capability。跨文件 String concat/println、argv 入口形状、正逆 inputs 与重复
 object 字节已有 native 证据；非法 entry、插值及分析错配在写出前拒绝并保留既有目标。
+跨文件 native 矩阵另覆盖六类 namespace 的全部 11 种常量类型，以 import 和绝对路径读取，
+验证比较 marker、常量依赖链及含 NUL 的 String 输出。unit equality/not-equal 支持独立 Char，
+精确码点另由 SSA payload 检查；普通 Char literal、排序及算术未由该接入扩展。
 
 专用普通同步调用的求值帧记录新建 loan 的 pending 槽位、前缀起点与循环深度；CFG 重绑定后
 仍按槽位读取实际 LoanId。return/break/continue 先逆序结束退出帧的新建 loan，再截断 pending
