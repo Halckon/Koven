@@ -322,6 +322,18 @@ struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
+    /// Only Phase 2 selected uses are values; their namespace is never evaluated.
+    fn is_constant_use(&self, expression: ExpressionId) -> bool {
+        self.typed.constants().is_some_and(|facts| {
+            facts
+                .uses()
+                .binary_search_by_key(&self.unit_expression(expression), |usage| {
+                    usage.expression()
+                })
+                .is_ok()
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         sources: &'a SourceMap,

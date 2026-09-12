@@ -201,6 +201,9 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<crate::name_resolution::UnitSymbolId>, OwnershipCheckingError> {
+        if self.is_constant_use(expression) {
+            return Ok(None);
+        }
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
             Expression::Name => Ok(self.reference_symbol(node.span())),

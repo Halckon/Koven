@@ -240,6 +240,9 @@ impl Builder<'_, '_> {
         live_after: LiveSet,
     ) -> Result<LiveSet, OwnershipCheckingError> {
         self.expression_after[id.index()] = live_after.clone();
+        if self.checker.is_constant_use(id) {
+            return Ok(live_after);
+        }
         if let Some(operation) = self
             .checker
             .typed

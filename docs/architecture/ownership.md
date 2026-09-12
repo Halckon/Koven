@@ -11,6 +11,11 @@
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。目前公开 ownership 入口仍只接受基础 validated typed capability。
 
+私有 driver 已消费 unit typed constant use，跳过常量 initializer 与读取路径的 namespace/
+declaration flow；String 二元操作数按每次读取的 temporary 生成析构事实。此路径的 recovery
+保留常量来源标记，基础 `validate` 拒绝发布 owned capability。尚未发布 unit constant
+materialization descriptor 或专用公开 ownership 入口；当前证据是私有 driver 定向测试。
+
 unit 入口重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。只有无所有权
 诊断且不存在阻塞 deferred fact 时，`validate` 才产生 `ValidatedCompilationUnitOwnership`，供
 codegen 使用。

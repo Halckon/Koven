@@ -116,3 +116,28 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 （353 Markdown）与 diff check 通过。未运行 frontend 全量、workspace/native 或单文件回归：
 无公开 API/单文件/下游行为变化。未运行 all-targets clippy；此前记录的既有测试 lint 未修改，
 不以 lib clippy 通过代替全目标结果。
+
+### 第二切片：私有 constant use flow 与基础出口限制
+
+私有 driver 的 runtime traversal 跳过 constant initializer；Name/Member use 按 Phase 2
+descriptor 提前返回，不访问 declaration/namespace。liveness/drop 使用同一识别，String
+二元操作数的 Name 走 temporary，Group 递归保留内部读取 identity。closure root 不返回
+常量声明；既有 capture 分类已排除 Constant、Classifier 和 ObjectValue。
+
+ownership provenance 保留常量来源，recovery 的基础 `validate()` 拒绝该来源。没有增加公开
+入口或 owned wrapper；物化发布、跨文件与完整控制流验收继续留在本 Spec，不能据本切片
+勾选第 5 节完整标准。
+
+失败证据：修正 package 路径、保留字与语句夹具后，`S + S` 的 temporary drop 为 0（应为 2），
+且常量 recovery 能通过基础 validate；修复后四项直接测试通过。最初夹具诊断不算实现失败。
+
+| 验收项 / 命令 | 结果 | 证据边界 |
+|---|---|---|
+| `cargo test -p lang-frontend --lib compilation_unit::constants_tests` | 4 passed，56 filtered，0 ignored | 基础出口拒绝、String Name/Group/Member 二元析构、Borrow/Value temporary、无常量 capture；私有单 source driver |
+| `cargo test -p lang-frontend --test multifile_ownership_checking` | 63 passed，0 failed/ignored | 基础 unit 身份门禁、capture/loan/delivery/drop 共享回归 |
+| `cargo clippy -p lang-frontend --lib -- -D warnings`、fmt check | 通过 | lib lint；不代表 all-targets lint 通过 |
+| docs check、diff check | 通过，353 Markdown | 未变更 inventory，无需重跑检查器测试 |
+| 独立只读复审 | 无阻断发现 | 检查 typed use 短路、temporary 与 Group、基础路径不变和 provenance；不代替 Rust 验证 |
+
+未运行 frontend 全量、单文件或 native：本切片仅修改私有 unit 路径，尚未增加跨 crate API，
+因此未重复 workspace check。all-targets clippy 的既有测试 lint 未修改；本切片使用 lib clippy。

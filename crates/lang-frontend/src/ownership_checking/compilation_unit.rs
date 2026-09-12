@@ -3,6 +3,8 @@
 mod analysis;
 mod binding;
 mod capture;
+#[cfg(test)]
+mod constants_tests;
 mod construction;
 mod contracts;
 mod dataflow;
@@ -631,6 +633,7 @@ impl UnitOwnershipDeferredFact {
 struct UnitOwnershipProvenance {
     typed_analysis_owner: Arc<()>,
     analysis_owner: Arc<()>,
+    has_constants: bool,
 }
 
 /// SPEC-0198 的 recovery compilation-unit ownership product。
@@ -713,6 +716,9 @@ impl CompilationUnitOwnership {
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),
+                has_constants: typed
+                    .constants()
+                    .is_some_and(|facts| !facts.declarations().is_empty()),
             },
             non_null_assertions: dataflow.non_null_assertions,
             diagnostics: dataflow.diagnostics,
@@ -928,13 +934,13 @@ impl CompilationUnitOwnership {
         &self.deferred
     }
 
-    /// 只有无 ownership error 且 drop plan 完整时才发布 codegen 可消费的 view。
+    /// 无 ownership error、drop plan 完整且不含常量来源时才发布基础 codegen view。
     pub fn validate(self) -> Result<ValidatedCompilationUnitOwnership, Box<Self>> {
         let has_error = self
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_error || !self.deferred.is_empty() {
+        if has_error || !self.deferred.is_empty() || self.provenance.has_constants {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitOwnership(self))

@@ -387,6 +387,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         usage: DropExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if self.checker.is_constant_use(id) {
+            return Ok(true);
+        }
         if let Some(operation) = self
             .checker
             .typed
@@ -1004,7 +1007,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         let node = self.checker.parsed.ast().expressions().get(expression)?;
         match node.payload() {
             Expression::Group { expression } => self.string_view_operand(*expression, state),
-            Expression::Name => {
+            Expression::Name if !self.checker.is_constant_use(expression) => {
                 let Some(symbol) = self.checker.reference_symbol(node.span()) else {
                     return Ok(None);
                 };

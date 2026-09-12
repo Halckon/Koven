@@ -79,12 +79,9 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error => Ok(Flows::next(state)),
+            Item::Error | Item::Constant { .. } => Ok(Flows::next(state)),
             Item::Modified { declaration, .. } => self.check_item(declaration, state),
             Item::Variable {
-                name, initializer, ..
-            }
-            | Item::Constant {
                 name, initializer, ..
             } => {
                 let diagnostic_count = self.diagnostics.len();
@@ -278,6 +275,9 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if self.is_constant_use(id) {
+            return Ok(Flows::next(state));
+        }
         if let Some(descriptor) = self
             .construction_descriptors
             .get(&self.unit_expression(id))
