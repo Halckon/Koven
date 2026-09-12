@@ -33,6 +33,11 @@ unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共
 后续仍 live 的 named owner 不在此清理。return/break/continue 复用 pending 退出清理，
 Abort 不展开；常量 Group 的 drop 仍归一到实际读取。
 
+String 二元表达式在右操作数求值期间保留左 temporary 的 pending 清理义务，以及左 named
+owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，named 是否仍 live 以整个
+binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
+return/break/continue 清理已求值前缀，Abort 不展开。
+
 两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
 基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生
 `ValidatedCompilationUnitOwnership`，供既有 codegen 使用。

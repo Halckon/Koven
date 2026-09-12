@@ -385,3 +385,211 @@ fn errors_and_deferred_ownership_never_publish_constant_owned_capability() {
         );
     }
 }
+
+#[test]
+fn string_binary_prefix_cleanup_matches_literals_on_control_flow_edges() {
+    for operand in ["Labels.TEXT", "\"hi\""] {
+        for operator in ["+", "==", "!="] {
+            for (tail, transfers, normal) in [
+                ("if (flag) { return } else { 0 }", 1, 1),
+                ("if (flag) { break } else { 0 }", 1, 1),
+                ("if (flag) { continue } else { 0 }", 1, 1),
+                ("if (flag) { stop() } else { 0 }", 0, 1),
+                ("stop()", 0, 0),
+                ("return", 1, 0),
+                ("break", 1, 0),
+                ("continue", 1, 0),
+            ] {
+                with_unit(
+                    &format!(
+                        "package a\nimport b.Labels\nfun stop(): Nothing = stop()\nfun read(flag: Boolean): Unit {{ loop {{ val result = {operand} {operator} \"${{{tail}}}\"\nbreak }} }}"
+                    ),
+                    "package b\nobject Labels { const val TEXT = \"hi\" }",
+                    |sources, inputs, names, te, typed| {
+                        let owned = check_compilation_unit_constant_ownership(
+                            sources, inputs, names, te, typed,
+                        )
+                        .unwrap()
+                        .validate()
+                        .unwrap();
+                        let drops = owned
+                            .ownership()
+                            .drops()
+                            .iter()
+                            .filter(|drop| sources.slice(drop.value_origin()).unwrap() == operand)
+                            .collect::<Vec<_>>();
+                        assert_eq!(
+                            drops
+                                .iter()
+                                .filter(|drop| matches!(
+                                    drop.point(),
+                                    UnitDropPoint::ControlTransfer(_)
+                                ))
+                                .count(),
+                            transfers,
+                            "{operand} {operator} {tail}: {drops:?}"
+                        );
+                        assert_eq!(
+                            drops
+                                .iter()
+                                .filter(|drop| matches!(
+                                    drop.point(),
+                                    UnitDropPoint::AfterBinaryOperands(_)
+                                ))
+                                .count(),
+                            normal,
+                            "{operand} {operator} {tail}: {drops:?}"
+                        );
+                        assert_eq!(drops.len(), transfers + normal);
+                        if normal == 0 {
+                            assert_eq!(
+                                owned.ownership().drops().len(),
+                                transfers,
+                                "no right/result owner completes on {tail}"
+                            );
+                        }
+                    },
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn string_binary_nested_prefixes_release_in_reverse_evaluation_order() {
+    with_unit(
+        "package a\nimport b.Labels\nfun read(flag: Boolean): Unit { val result = Labels.TEXT + (Labels.TEXT + \"${if (flag) { return } else { 0 }}\") }",
+        "package b\nobject Labels { const val TEXT = \"hi\" }",
+        |sources, inputs, names, te, typed| {
+            let owned =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            assert_eq!(owned.materializations().len(), 2);
+            let transfers = owned
+                .ownership()
+                .drops()
+                .iter()
+                .filter(|drop| matches!(drop.point(), UnitDropPoint::ControlTransfer(_)))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                transfers.len(),
+                2,
+                "both completed prefixes must unwind: {transfers:?}"
+            );
+            assert_eq!(transfers[0].point(), transfers[1].point());
+            assert!(transfers[0].value_origin().start() > transfers[1].value_origin().start());
+            for (transfer, plan) in transfers.iter().zip(owned.materializations().iter().rev()) {
+                assert_eq!(
+                    transfer.target(),
+                    UnitDropTarget::Temporary(plan.descriptor().expression())
+                );
+                assert_eq!(
+                    sources.slice(transfer.value_origin()).unwrap(),
+                    "Labels.TEXT"
+                );
+                assert_eq!(
+                    owned
+                        .ownership()
+                        .drops()
+                        .iter()
+                        .filter(|drop| drop.target() == transfer.target()
+                            && matches!(drop.point(), UnitDropPoint::AfterBinaryOperands(_)))
+                        .count(),
+                    1
+                );
+            }
+        },
+    );
+}
+
+#[test]
+fn string_binary_aborting_left_does_not_visit_the_right_or_following_read() {
+    for right in ["Labels.TEXT", "7"] {
+        with_unit(
+            &format!(
+                "package a\nimport b.Labels\nfun stop(): Nothing = stop()\nfun read(): Unit {{ val stopped = stop() == {right}\nval unreachable = Labels.TEXT }}"
+            ),
+            "package b\nobject Labels { const val TEXT = \"hi\" }",
+            |sources, inputs, names, te, typed| {
+                let owned =
+                    check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                        .unwrap()
+                        .validate()
+                        .unwrap();
+                assert!(owned.materializations().is_empty());
+                assert!(owned.ownership().loans().is_empty());
+                assert!(
+                    owned.ownership().drops().is_empty(),
+                    "no evaluated owner exists: {:?}",
+                    owned.ownership().drops()
+                );
+            },
+        );
+    }
+}
+
+#[test]
+fn string_binary_named_left_survives_right_branches_calls_and_nested_views() {
+    for right in [
+        "if (flag) { Labels.TEXT } else { Labels.TEXT }",
+        "\"${view(kept)}\"",
+        "(kept + Labels.TEXT)",
+    ] {
+        for later_use in [false, true] {
+            let later = if later_use {
+                "val observed = view(kept)"
+            } else {
+                ""
+            };
+            with_unit(
+                &format!(
+                    "package a\nimport b.Labels\nfun view(text: String): Int = 7\nfun read(own kept: String, flag: Boolean): Unit {{ val result = kept + {right}\n{later} }}"
+                ),
+                "package b\nobject Labels { const val TEXT = \"hi\" }",
+                |sources, inputs, names, te, typed| {
+                    let owned = check_compilation_unit_constant_ownership(
+                        sources, inputs, names, te, typed,
+                    )
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+                    let drops = owned
+                        .ownership()
+                        .drops()
+                        .iter()
+                        .filter(|drop| sources.slice(drop.value_origin()).unwrap() == "kept")
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        drops.len(),
+                        1,
+                        "kept + {right}, later={later_use}: {drops:?}"
+                    );
+                    if later_use {
+                        assert!(
+                            matches!(drops[0].point(), UnitDropPoint::CallReturn(_)),
+                            "the later borrow is still live: {drops:?}"
+                        );
+                    } else {
+                        let UnitDropPoint::AfterBinaryOperands(binary) = drops[0].point() else {
+                            panic!(
+                                "left view is needed until the outer binary finishes: {drops:?}"
+                            );
+                        };
+                        let node = inputs[0]
+                            .parsed()
+                            .ast()
+                            .expressions()
+                            .get(binary.expression())
+                            .unwrap();
+                        assert_eq!(
+                            sources.slice(node.span()).unwrap(),
+                            format!("kept + {right}")
+                        );
+                    }
+                },
+            );
+        }
+    }
+}
