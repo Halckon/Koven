@@ -17,6 +17,14 @@ copyability、destructuring 和 flow facts。错误输入保留 recovery 事实�
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
 suites。
 
+## 单文件常量类型资格
+
+`check_item` 在普通类型检查成功后为 const 声明检查封闭类型集合；非 Boolean/整数/Char/String
+的已知类型使用 L0155，显式类型定位 type-ref，推导类型定位 initializer。Any 的 Deferred 表示
+仍属于已知禁止类型；Error 与其他尚未确定的类型不追加资格诊断。普通变量不进入该门禁。
+关联常量选择、编译期值、依赖图与 use/materialization facts 尚未实现；此检查不表示常量能力
+已可交给 ownership/codegen。直接覆盖位于 `type_constants`，注册表覆盖位于 `diagnostic_model`。
+
 ## 单文件 nullable when 事实
 
 `TypedFile::nullable_whens` / `nullable_when` 发布 expression/subject 身份、来源类别、稳定 symbol、

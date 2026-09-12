@@ -1,12 +1,12 @@
 # SPEC-0026：单文件关联常量选择与编译期求值
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P2-026` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -90,3 +90,23 @@ lowering。跨文件后继必须复用同一 evaluator。
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap 审计 | 通过 | AST/scope/type 壳已存在；当前 Constant 与 Variable 共用普通 initializer 检查且没有 evaluator/associated selector |
+
+### 实施切片与验收映射
+
+| 契约 | 目标 / 过滤器 | 状态 |
+|---|---|---|
+| const 封闭类型集合、L0155 Span 与普通变量隔离 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 4 项通过；覆盖显式/推导、22 个允许 literal 场景、10 种非法类型与普通变量对照、Any/Any?、object/companion、既有 L0084 抑制级联 |
+| 诊断注册表与现有 renderer/model | `cargo test -p lang-frontend --test type_constants --test diagnostic_model --no-fail-fast -- --nocapture` | diagnostic_model 9 项通过；同次旧 type_constants 2 项通过、1 项因误写 L0085 失败，修正为既有 L0084 后定向重跑见上一行 |
+
+先落实 const 类型资格；关联选择、L0153/L0154/L0156–L0158、依赖图、值、use descriptor 与
+validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
+
+类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
+Any/Any? 经 Deferred(AnyValueRepresentation) 绕过检查，修复并补测试后复核通过。
+仅针对已知 const 类型建立资格诊断；Error 和其他 Deferred 不追加诊断，后续求值与 validated
+capability 切片仍须处理前向依赖，不能把此处的 recovery 当作 const 验证成功。
+诊断目录测试同步既有 L0152 与新增 L0155；未运行 frontend 全量。
+
+静态与文档门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`、
+`cargo fmt --all -- --check`、`python3 scripts/check_docs.py`（351 份 Markdown）与 `git diff --check` 均通过。
+未修改公共阶段产物；未重复无关的全量类型/所有权/下游测试。

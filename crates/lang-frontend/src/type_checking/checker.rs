@@ -205,6 +205,7 @@ struct Checker<'a> {
     immutable_container_place_code: DiagnosticCode,
     invalid_container_member_code: DiagnosticCode,
     jump_outside_loop_code: DiagnosticCode,
+    invalid_constant_type_code: DiagnosticCode,
 }
 
 impl<'a> Checker<'a> {
@@ -381,6 +382,7 @@ impl<'a> Checker<'a> {
             immutable_container_place_code: catalog.resolve(codes::IMMUTABLE_CONTAINER_PLACE)?,
             invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
             jump_outside_loop_code: catalog.resolve(codes::JUMP_OUTSIDE_LOOP)?,
+            invalid_constant_type_code: catalog.resolve(codes::INVALID_CONSTANT_TYPE)?,
         })
     }
 

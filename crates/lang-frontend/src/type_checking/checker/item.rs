@@ -169,8 +169,37 @@ impl Checker<'_> {
         Ok(DeclarationModifiers::default())
     }
 
+    /// const 声明不创建运行时 owner；其类型集合独立于普通变量的可用类型。
+    fn check_constant_type(&mut self, ty: TypeId, span: Span) -> Result<(), TypeCheckingError> {
+        match self.kind(ty) {
+            TypeKind::Error => {}
+            // Any 的延后仅涉及运行时表示，其已知类型仍不属于 const 闭合集合。
+            TypeKind::Deferred(reason) if *reason != DeferredReason::AnyValueRepresentation => {}
+            TypeKind::Builtin(
+                BuiltinType::Boolean
+                | BuiltinType::Byte
+                | BuiltinType::Short
+                | BuiltinType::Int
+                | BuiltinType::Long
+                | BuiltinType::UByte
+                | BuiltinType::UShort
+                | BuiltinType::UInt
+                | BuiltinType::ULong
+                | BuiltinType::Char
+                | BuiltinType::String,
+            ) => {}
+            _ => self.emit(
+                self.invalid_constant_type_code,
+                "constant type must be Boolean, an integer, Char, or String",
+                span,
+            )?,
+        }
+        Ok(())
+    }
+
     pub(super) fn check_item(&mut self, id: ItemId) -> Result<(), TypeCheckingError> {
         let payload = self.ast().items().get(id)?.payload().clone();
+        let is_constant = matches!(&payload, Item::Constant { .. });
         match payload {
             Item::Error => {}
             Item::Modified {
@@ -203,6 +232,7 @@ impl Checker<'_> {
                 initializer,
                 ..
             } => {
+                let diagnostics_before = self.diagnostics.len();
                 let expected = type_ref
                     .map(|type_ref| self.resolve_type_ref(type_ref))
                     .transpose()?;
@@ -212,6 +242,13 @@ impl Checker<'_> {
                 let result = self.check_expression(initializer, expected, expected_span)?;
                 let ty = expected.unwrap_or(result.ty);
                 self.set_marker_symbol(name, ty);
+                // 常量类型资格不能覆盖或级联已有的普通类型错误。
+                if is_constant && self.diagnostics.len() == diagnostics_before {
+                    self.check_constant_type(
+                        ty,
+                        expected_span.unwrap_or(self.ast().expressions().get(initializer)?.span()),
+                    )?;
+                }
             }
             Item::Function { form, .. } => {
                 let previous = self.current_receiver_mode;
