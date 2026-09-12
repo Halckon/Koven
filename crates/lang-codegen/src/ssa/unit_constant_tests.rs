@@ -480,3 +480,51 @@ val done = p.consume_pair(text, flag && if (flag) { return } else { true }) }",
             .expect("pending scope cleanup preserves valid owners and loans");
     }
 }
+
+#[test]
+fn string_binary_prefix_uses_rebound_owner_and_cleans_exit_edges() {
+    for operator in ["+", "==", "!="] {
+        for left in ["p.TEXT", "\"value\"", "text"] {
+            for exit in ["p.TEXT", "return", "error(p.TEXT)"] {
+                let source = format!(
+                    "fun entry(own flag: Boolean): Unit {{ val text = p.TEXT\nval result = {left} {operator} (if (flag) {{ {exit} }} else {{ p.TEXT }}) }}"
+                );
+                let program = lower_short_circuit_fixture(&source);
+                let function = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains("q.entry"))
+                    .unwrap();
+                let drops = function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count();
+                assert_eq!(
+                    drops,
+                    2 + usize::from(left != "text")
+                        + usize::from(operator == "+")
+                        + usize::from(exit == "return"),
+                    "{source}: return cleans its prefix; Abort does not unwind"
+                );
+                crate::llvm::render_verified_program(&program)
+                    .expect("String operand owners survive RHS control flow and exit cleanup");
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_string_prefixes_preserve_outer_pending_slots() {
+    for source in [
+        "fun entry(own flag: Boolean): Unit { val result = p.TEXT + (p.TEXT + (if (flag) { return } else { p.TEXT })) }",
+        "fun entry(own flag: Boolean): Unit { val result = (if (flag) { return } else { p.TEXT }) + p.TEXT }",
+        "fun entry(own flag: Boolean): Unit { val result = p.view_pair(p.TEXT, p.TEXT == (if (flag) { return } else { p.TEXT })) }",
+        "fun entry(own flag: Boolean): Unit { loop { val result = p.TEXT + (if (flag) { break } else { p.TEXT }) } }",
+        "fun entry(own flag: Boolean): Unit { loop { val result = p.TEXT + (if (flag) { continue } else { p.TEXT }) } }",
+    ] {
+        let program = lower_short_circuit_fixture(source);
+        crate::llvm::render_verified_program(&program)
+            .expect("nested pending operands keep their own slots and cleanup scope");
+    }
+}

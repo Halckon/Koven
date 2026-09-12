@@ -86,6 +86,10 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 receiver/function-value 调用的参数控制退出仍保留 guard，外层 temporary 内求值循环仍受
 既有 loop lowering 限制；这些组合不由当前前缀测试证明。
 
+String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
+操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop
+事实，Abort 不展开。嵌套二元操作只移除自己的 pending 槽，保留外层调用前缀。
+
 
 ## Compilation-unit planning 与 lowering
 

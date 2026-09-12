@@ -78,7 +78,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | `f37921b`：4 passed，402 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；String 直接矩阵见下行，短路矩阵见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 本次待最终结果，0 failed/ignored | pending 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 185 passed，225 filtered，0 failed/ignored | String 二元前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | `28759c5`：2 passed，400 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前内部 driver 切片门禁；docs 353 Markdown，inventory 未变化 |
@@ -155,4 +155,14 @@ BorrowEnd/drop 数量及借用输入不结束断言。Abort 夹具原以局部�
 独立复核要求保留 receiver/function-value 控制退出 guard（其前置 loan 尚不在参数帧中），
 已保留；又确认截断先结束所有选中 loan、保持兄弟状态与外层帧索引，无新增阻断。
 外层 pending temporary 内求值循环仍受既有 loop guard 限制，不能由 loop-depth 筛选逻辑
-推断已支持。插值、String 二元前缀退出和上述额外组合仍需后续实现/验收；未运行常量 native。
+推断已支持。该切片未覆盖插值、String 二元前缀退出和上述额外组合；未运行常量 native。
+
+String 二元前缀切片：先复现常量左操作数跨右侧普通 if 后的 `InvalidSsa`；此前运算仍使用
+分支前的 ValueId。现在将左 view 放入 pending 槽，并在右侧完成后读取重绑定 entity，再
+移除自身槽位。操作数的 Diverged 向上传播，正常路径继续消费 `AfterBinaryOperands`。
+27 例覆盖常量/literal/命名 String × concat/equal/not-equal × 普通 if/return/Abort，
+断言精确 drop 数量；另外 5 例覆盖嵌套二元、左侧 return 分支、外层 Borrow 调用、break
+与 continue，均通过 SSA/LLVM verifier。新增测试没有逐 owner 断言清理顺序。
+独立复核检查了重绑定、退出传播、嵌套槽截断及基础入口兼容，未发现阻断。
+本切片没有公开跨 crate API 变化；未运行 workspace check、frontend 全量或常量 native。
+插值、receiver/function-value 前缀退出及外层 temporary 内循环仍待后续实现/验收。

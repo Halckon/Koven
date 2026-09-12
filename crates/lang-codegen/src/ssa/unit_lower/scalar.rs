@@ -141,8 +141,19 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let left = self.lower_string_view(left, span)?;
+        let Some(left) = self.lower_string_view(left, span)? else {
+            return Ok(LoweredValue::Diverged);
+        };
+        // RHS 的控制流会重绑定 owner；保留槽位而非跨 edge 复用旧 ValueId。
+        let pending_start = self.pending_operands.len();
+        self.pending_operands.push(left);
         let right = self.lower_string_view(right, span)?;
+        let left = self.pending_operands.get(pending_start).copied();
+        self.pending_operands.truncate(pending_start);
+        let Some(right) = right else {
+            return Ok(LoweredValue::Diverged);
+        };
+        let left = left.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = self.expression_ssa_type(expression, span)?;
         let operation = match operator {
             BinaryOperator::Add => Operation::StringConcat { left, right },
@@ -169,7 +180,7 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<crate::ssa::model::EntityId, LoweringError> {
+    ) -> Result<Option<crate::ssa::model::EntityId>, LoweringError> {
         let node = self
             .parsed
             .ast()
@@ -184,9 +195,7 @@ impl UnitExpressionLowerer<'_> {
             })
             .is_some()
         {
-            return self
-                .lower_required_value(expression, span)
-                .map(crate::ssa::model::EntityId::Value);
+            return self.lower_string_temporary_view(expression, span);
         }
         match node.payload() {
             Expression::Group { expression } => self.lower_string_view(*expression, span),
@@ -197,16 +206,26 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
                 match self.bindings.get(symbol).copied() {
                     Some(LoweredValue::Value(value)) => {
-                        Ok(crate::ssa::model::EntityId::Value(value))
+                        Ok(Some(crate::ssa::model::EntityId::Value(value)))
                     }
                     Some(LoweredValue::Unit | LoweredValue::Diverged) | None => Err(
                         lowering_error(LoweringErrorKind::UnsupportedNode, node.span()),
                     ),
                 }
             }
-            _ => self
-                .lower_required_value(expression, span)
-                .map(crate::ssa::model::EntityId::Value),
+            _ => self.lower_string_temporary_view(expression, span),
+        }
+    }
+
+    fn lower_string_temporary_view(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<crate::ssa::model::EntityId>, LoweringError> {
+        match self.lower(expression)? {
+            LoweredValue::Value(value) => Ok(Some(crate::ssa::model::EntityId::Value(value))),
+            LoweredValue::Diverged => Ok(None),
+            LoweredValue::Unit => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         }
     }
 
