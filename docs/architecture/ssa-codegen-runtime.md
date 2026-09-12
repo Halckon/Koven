@@ -96,6 +96,10 @@ receiver/function-value 调用的参数控制退出仍保留 guard，外层 temp
 String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
 操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop
 事实，Abort 不展开。嵌套二元操作只移除自己的 pending 槽，保留外层调用前缀。
+Temporary drop 与 transfer 共享精确 origin 校验，清除同一 owner 的全部透明 Group alias，
+避免后续 CFG 携带已清理 owner。跨文件 String 动态计数对照验证 11 次 drop、2 次 concat
+分配及逐指针释放；pending concat 的 return 与 Abort 分别验证释放和不展开，结合 SSA
+verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
 
 
 ## Compilation-unit planning 与 lowering

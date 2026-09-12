@@ -80,11 +80,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 186 passed，227 filtered，0 failed/ignored | Char equality 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 187 passed，230 filtered，0 failed/ignored | Group alias cleanup 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 2 passed，411 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型通过；动态 drop 计数仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 5 passed，412 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
 
@@ -199,3 +199,20 @@ argv 夹具未读取参数内容，不代表 argv 内容传递矩阵已经覆盖
 复用已有 SSA/LLVM Compare，未扩展字符算术、排序或普通字符字面量。
 独立复核未发现阻断；完整 namespace/类型矩阵已补齐，动态 owner/drop 计数、剩余退出组合
 及 CLI 编排仍待后续。没有公开 API 变化，本次不重复 workspace 编译或 frontend 全量测试。
+
+
+动态 String cleanup 切片：测试专用 LLVM 注入 malloc/free/drop 计数，再由 clang 链接运行。
+常量与 literal 对照均有 9 个 literal owner、2 个 concat owner，共 11 次 drop；只有两个
+concat buffer 分配，free 逐 live 指针核对，包含跨文件 Borrow、Value 转移及返回。
+聚合 drop 计数结合 SSA verifier 使用，不独立宣称逐 literal identity 的唯一清理。
+return 用例要求 pending concat 的 3 drops、1 alloc/free，callee 输出 marker 必须未出现；
+Abort hook 要求仅 concat 输入已清理（2 drops、1 alloc、0 free），随后 _Exit，正常退出的
+析构检查会拒绝 Abort 用例误走正常路径。此计数不独立证明 Abort message literal 求值。
+
+完整对照先发现 grouped literal 借用完成后接 if 的 InvalidSsa：临时 SSA 诊断明确显示已
+Drop 的 %v0 仍作为两条 edge 参数。原因是 Temporary drop 只移除单个 expression alias。
+现在复用 transfer 的精确 origin 校验与同 ValueId alias 清除，再发出原 Drop；临时诊断
+已移除。新增基础入口三层 Group 后接 CFG 的单 Drop/verified LLVM 回归。
+独立复核确认修复来源匹配不放宽，并补强 return 夹具以排除执行空 callee 的假阳性。
+
+最终 5 项常量 native、187 项 unit SSA/LLVM 契约通过；完整退出组合与 CLI 接入仍待后续。

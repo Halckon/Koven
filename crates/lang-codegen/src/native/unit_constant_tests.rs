@@ -7,6 +7,9 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 
+#[path = "unit_constant_owner_tests.rs"]
+mod owners;
+
 #[test]
 fn constant_object_runs_deterministically_and_preserves_output_on_failure() {
     use super::parsed;

@@ -270,9 +270,12 @@ impl UnitExpressionLowerer<'_> {
                     }
                 },
                 UnitDropTarget::Temporary(expression) => {
-                    self.temporaries.remove(&expression).ok_or_else(|| {
+                    let value = self.temporaries.get(&expression).copied().ok_or_else(|| {
                         lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
-                    })?
+                    })?;
+                    // Drop 与 transfer 一样结束整个 owner，透明 Group alias 不再跨 CFG 携带。
+                    self.take_owned_temporary_origin(expression, value, fact.value_origin())?;
+                    value
                 }
                 UnitDropTarget::Captured { .. } => continue,
                 UnitDropTarget::ReplacedElement(_) | UnitDropTarget::ReplacedField { .. } => {

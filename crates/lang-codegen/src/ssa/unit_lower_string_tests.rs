@@ -10,6 +10,39 @@ use super::{
 };
 
 #[test]
+fn dropped_grouped_literal_is_not_carried_into_later_control_flow() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "test/entry.ko",
+        "package test\nfun entry(own flag: Boolean): Unit { val printed = println(((\"x\")))\nif (flag) {} }",
+    );
+    let inputs = [SourceUnitInput::new("root", "test/entry.ko", source, &file)];
+    let (name_environment, environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+    let (program, entry) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &environment,
+        &typed,
+        &owned,
+        declaration(&names, "test", "entry"),
+    )
+    .expect("all transparent aliases end with the temporary owner");
+    let function = program.modules[0].function(entry).unwrap();
+    assert_eq!(
+        function
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1
+    );
+    crate::llvm::render_verified_program(&program).unwrap();
+}
+
+#[test]
 fn lowers_standard_print_and_abort_calls_in_unit_source() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
