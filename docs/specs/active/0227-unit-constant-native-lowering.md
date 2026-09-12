@@ -75,7 +75,23 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 
 | 验收项 | 结果 | 原因 |
 |---|---|---|
-| Rust / native 实施与验证 | 未执行 | 本次启用并定位消费边界，尚未实现 native |
+| `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
+| 新增 `ssa::unit_constant_tests` | 未实现/未运行 | 专用身份门禁、11 类型物化、namespace 排除、短路计划消费、错误/缺事实拒绝；对照既有 `constant_lowering_tests` |
+| `ssa::unit_lower_string_tests` / `ssa::unit_lower_short_circuit_tests` / `ssa::unit_lower_borrow_tests` | 本 Spec 未运行 | 修改相关共享 lowering 时追加，旧入口能力边界保持 |
+| 新增 `native::unit_constant_tests` | 未实现/未运行 | 六类 namespace、11 类型、String live-pointer/drop 计数、Abort、argv、正逆 inputs 与重复输出；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| 专用公开入口 compile-fail、`cargo check --workspace --all-targets` | 未实现/未运行 | 新旧 capability 隔离及跨 crate API 编译门禁；新增入口时执行 |
+| 必要 CLI build/run | 未运行 | 在实际选择阶段入口的编排发生变化时执行；不以 SSA 通过代替 native |
 
 合同复核与门禁：独立边界审查通过，已显式补入顶层常量验收；docs check（353 Markdown）、
 文档检查器 21 项测试与 diff check 通过。该记录属于 draft 建立时的合同检查。2026-09-13 前置完成，本次迁入 active；Rust/native 验收尚未执行。
+
+
+### 当前接入边界
+
+现有 `native::emit_native_unit_object` 经 `unit_plan::validate_unit_inputs`、
+`unit_lower::lower_scalar_unit_with_entry` 再到 verified LLVM 与 sibling object 原子发布。
+planner/lowerer 的内部 helpers 当前直接接受基础 validated typed/owned；专用入口需要复用
+只读事实，并在边界分别校验完整身份链，不能新增专用到基础 capability 的公开转换。
+短路、物化和 cleanup 只消费 SPEC-0226 产物；单文件
+`ssa/lower_frontend/constant.rs` 可复用精确常量到 SSA 的转换逻辑，不能重新求值 AST。
+当前仅完成定位和基线准备，未开放专用 native 入口。
