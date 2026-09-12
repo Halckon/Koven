@@ -67,8 +67,11 @@ String 二元运算的常量名也通过该物化入口，复用现有 borrow/dr
 lowering，未使用的 const/object roots 不产生函数或初始化代码。五类关联命名空间、八种整数
 精确宽度、Boolean/Char 和重复 String use 已通过 SSA/LLVM 定向测试；native 冒烟验证了 object
 整数、class companion Char 返回与比较、String concat/equality/println/return 的 UTF-8 stdout。
-这些证据不包含完整 namespace/type native 矩阵、参数化 entry 或 runtime owner 计数；跨文件
-constant lowering 尚未接入。
+native 验收另覆盖六种 namespace × 十种 scalar/Char 类型、参数化 argv entry 和重复 object 字节。
+String 计数夹具动态验证 9 literal + 2 concat owner 共 11 次 drop；两个 concat buffer 各分配/释放
+一次，free 逐指针核对 live allocation。literal owner 本身不分配 heap，唯一消费由 SSA verifier
+与动态计数共同证明。常量分析错配与非法 Byte 值在 object 落盘前拒绝。跨文件 constant lowering
+尚未接入。
 
 ## Compilation-unit planning 与 lowering
 

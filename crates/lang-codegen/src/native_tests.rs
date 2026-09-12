@@ -1,3 +1,6 @@
+#[path = "native_constant_tests.rs"]
+mod constant_tests;
+
 #[path = "native_non_null_assertion_tests.rs"]
 mod non_null_assertion_tests;
 
@@ -949,11 +952,13 @@ __attribute__((destructor)) static void verify_counts(void) {
 }
 
 #[test]
-fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsupported() {
+fn declarative_roots_emit_with_scalar_entry_while_runtime_globals_stay_unsupported() {
     let directory = TestDirectory::create();
     let declarative = analyze(
         "declarative.ko",
-        "value class Pair<A, B>(val first: A, val second: B)\n\
+        "object Config { const val UNUSED = 42 }\n\
+         const val UNUSED = 7\n\
+         value class Pair<A, B>(val first: A, val second: B)\n\
          class Holder(val item: Int)\n\
          interface Marker\n\
          enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
@@ -980,14 +985,11 @@ fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsup
     .expect("pure type declarations must not block the scalar entry object");
     assert!(object.is_file());
 
-    let runtime_value = analyze(
-        "object-root.ko",
-        "object Config {}\nfun bootstrap(): Unit {}",
-    );
+    let runtime_value = analyze("global-root.ko", "val state = 1\nfun bootstrap(): Unit {}");
     assert!(runtime_value.names.diagnostics().is_empty());
     assert!(runtime_value.typed.diagnostics().is_empty());
     assert!(runtime_value.owned.diagnostics().is_empty());
-    let rejected = directory.join("object-root.o");
+    let rejected = directory.join("global-root.o");
     let error = emit_native_object(
         &runtime_value.sources,
         &runtime_value.parsed,
@@ -997,7 +999,7 @@ fn declarative_type_roots_emit_with_a_scalar_entry_while_object_root_stays_unsup
         symbol(&runtime_value, "bootstrap", SymbolKind::Function),
         &rejected,
     )
-    .expect_err("object identity still requires an explicit runtime contract");
+    .expect_err("runtime globals still require an explicit runtime contract");
     assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
     assert!(!rejected.exists());
 }

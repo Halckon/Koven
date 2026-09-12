@@ -1,12 +1,12 @@
 # SPEC-0209：关联常量 SSA/LLVM 重新物化
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-209` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -43,14 +43,14 @@ lower 为 scalar/Char constant 或普通 String literal owner，并与声明型 
 
 ## 5. 验收标准
 
-- [ ] top-level/object/class/value/enum/interface companion 的 Boolean/整数/Char const native 正例通过。
+- [x] top-level/object/class/value/enum/interface companion 的 Boolean/整数/Char const native 正例通过。
 - [x] Char verifier 接受 U+0000、U+D7FF、U+E000、U+10FFFF，拒绝 surrogate 与超出 Unicode
   scalar range 的内部 constant；LLVM 使用 `i32` 且 SSA 类型不与 `UInt32` 混同。
-- [ ] String const 多次用于 concat/equality/println/return，stdout 与 drop/owner 计数正确。
-- [ ] const/object declarations 与 scalar/parameterized entry 共存；LLVM 无 singleton/global-init 符号。
-- [ ] SSA/verifier 拒绝错误 constant type/value，lowerer 对缺 validated facts 在落盘前失败。
-- [ ] 两次 SSA/LLVM/object 行为确定，既有 literal/String/declarative-root/native suite 回归。
-- [ ] Architecture 同步。
+- [x] String const 多次用于 concat/equality/println/return，stdout 与 drop/owner 计数正确。
+- [x] const/object declarations 与 scalar/parameterized entry 共存；LLVM 无 singleton/global-init 符号。
+- [x] SSA/verifier 拒绝错误 constant type/value，lowerer 对缺 validated facts 在落盘前失败。
+- [x] 两次 SSA/LLVM/object 行为确定，既有 literal/String/declarative-root/native suite 回归。
+- [x] Architecture 同步。
 
 ## 6. 技术方案与边界
 
@@ -61,8 +61,8 @@ literal adapter。声明本身仍由 declarative-root 筛选器忽略，不新�
 ## 7. 实施计划
 
 1. [x] 接 const facts到 scalar/Char/String SSA → 验证：lowering/verifier 窄测试。
-2. [ ] 接 LLVM/native 与 declarative roots → 验证：object/link/run、stdout、IR 断言。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+2. [x] 接 LLVM/native 与 declarative roots → 验证：object/link/run、stdout、IR 断言。
+3. [x] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -130,3 +130,36 @@ owner/drop 计数、const 错配在 object 落盘前拒绝及重复 object 行�
 附加门禁：`cargo clippy -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`、
 `python3 scripts/check_docs.py`（351 Markdown）及 `git diff --check` 均通过。补充独立复审确认 native
 测试确实 object/link/run 且核对精确 stdout，标量测试明确断言 LLVM 位宽/值；未扩大计数证据。
+
+
+### 第三切片：native 验收闭合
+
+`native_constant_tests` 将第 5 节验收映射到四个真实 native 测试。源码经既有 facade 生成 object，
+由 clang 链接并执行；String 计数测试对 verified LLVM 的 allocator/free 与 String drop 调用插桩，
+再编译执行。未新增生产逻辑、runtime API 或公开 crate API。
+
+| 第 5 节验收 | 测试目标 / 过滤器 | 实际结果与边界 |
+|---|---|---|
+| namespace/type native 正例 | `constant_types_run_in_every_supported_namespace` | 6 namespace × Boolean/8 integer/Char = 60 组合通过；整数与显式类型 literal oracle 比较，Char 覆盖返回/EQ/NE，精确码点由前述 SSA/LLVM 断言共同证明 |
+| String concat/equality/println/return 和 owner | `string_constant_owners_drop_once_without_allocating_literal_buffers` | 精确 UTF-8 stdout；9 literal + 2 concat owner，共 11 次动态 drop；2 malloc/2 free 且逐指针核对 live allocation，无 literal heap allocation |
+| scalar/argv entry、重复 object | `constants_coexist_with_argument_entry_and_repeatable_objects` 及 declarative roots 回归 | 借用 argv 与 const/object 共存，两次 object 字节相同、两次运行 stdout 相同；此前 scalar SSA 测试证明无常量 global/init，String 只复用 ADR-0018 允许的 private constant bytes |
+| 非法值 / facts 隔离 | `constant_analysis_mismatch_and_invalid_values_never_write_objects` | 同 SourceId/SymbolId 的两轮分析不可混用；Byte overflow 抑制两份常量 capability，均在 object 落盘前拒绝；内部 type/value 非法组合由首切片 verifier 测试覆盖 |
+| 确定 SSA/LLVM、最近回归 | 前述 `constant_lowering_tests` 与本切片定向回归 | 复用第二切片重复 SSA/LLVM 证据；旧 object-root 拒绝断言先复现失败，再按 v0.36 改为 const/object 正例，普通运行时全局变量继续拒绝 |
+
+`cargo test -p lang-codegen --lib native_tests::constant_tests`：4 passed，398 filtered，0 failed/ignored。
+初次运行中的整数比较缺少显式类型、非 Unit entry、保留字 `borrow` 与裸表达式序列均为测试夹具
+错误，按既有语法修正；未为通过测试修改生产语义。
+
+独立复审确认了四项测试的执行路径及 9+2 owner 计数推导。动态 drop 是聚合计数，逐 owner
+身份/唯一消费还由 verified SSA 证明；不把聚合计数单独宣称为 literal identity 跟踪。Char 的
+native 比较与精确 LLVM 码点断言构成组合证据，不宣称 raw Char literal lowering 已实现。
+
+
+最近回归：`cargo test -p lang-codegen --lib -- declarative_roots_emit_with_scalar_entry_while_runtime_globals_stay_unsupported char_constant_tests llvm::string_tests dynamic_strings_cross_borrow_value_and_return_boundaries_with_exact_bytes`：8 passed，394 filtered，0 failed/ignored。
+
+第 5 节均已有对应证据；SPEC-0209 完成。没有运行 frontend 全量或 workspace check：本切片仅改
+codegen 测试，不改变公开 API。跨文件 typed 集成继续由 SPEC-0210 承接，整体 v0.36 目标尚未完成。
+
+附加门禁：`cargo clippy -p lang-codegen --all-targets -- -D warnings` 与 `cargo fmt --all -- --check` 通过。
+
+文档门禁：`python3 scripts/check_docs.py`（351 Markdown）、`python3 -m unittest discover -s scripts/tests -p 'test_check_docs.py'`（21 passed）及 `git diff --check` 通过。最终独立逐项审计未发现验收阻断；指出的索引状态/计数已按实际文件更新。

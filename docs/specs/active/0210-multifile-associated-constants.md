@@ -1,19 +1,19 @@
 # SPEC-0210：跨文件关联常量集成
 
-> **性质**：draft Spec · **状态**：draft（queued） · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P2-210` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 现行 [v0.36 §36](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
+| 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
 | 批准依据 | 2026-09-12 用户明确启用 v0.36 并要求分阶段实施；依赖未完成者保持 draft |
 | 前置 Spec | SPEC-0025/0026/0197 `done` |
 | 前置 ADR | ADR-0020 `accepted` |
-| 阻塞项 | 无；按既定顺序排在单文件 ownership/native 之后 |
+| 阻塞项 | 无；SPEC-0208/0209 已完成，按既定顺序进入跨文件 typed 集成 |
 | 影响范围 | `lang-frontend` compilation-unit const selection/evaluation/tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.36 unit integration |
 
@@ -25,7 +25,7 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 ## 3. 范围与需求
 
-- exact import 终端按[现行名称规则](../../../guide/02-names-files-packages.md)只接受顶层声明/函数组；`import p.Type.CONST` 使用 L0148，
+- exact import 终端按[现行名称规则](../../guide/02-names-files-packages.md)只接受顶层声明/函数组；`import p.Type.CONST` 使用 L0148，
   `import p.Type` 后的 `Type.CONST` 才由 associated selector 处理。
 - 可见性和 package-qualified target 只消费 SPEC-0025/0197 validated facts；import target 不可见
   继续使用 L0149，成功选择 Type 后 associated const 越界使用 L0154，不按逻辑路径或源码
@@ -63,7 +63,7 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 1. [ ] 接 unit declaration/associated target → 验证：visibility/import/qualified 矩阵。
 2. [ ] 接跨文件 dependency/evaluation → 验证：chain/cycle/order矩阵。
-3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
+3. [ ] 同步验收与 Architecture → 验证：按[分层验收](../../development/testing.md)选择目标测试与必要下游检查，并记录命中数。
 
 ## 8. 提交计划
 
@@ -78,7 +78,7 @@ SPEC-0026 evaluator，支持跨文件 `import p.Type` 后 `Type.CONST`、绝对 
 
 ## 10. 验证记录
 
-实施前按[分层验收](../../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
+实施前按[分层验收](../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
 记录命中数、结果与未运行原因。同一状态下的有效证据只运行一次，不默认运行 frontend 全量。
 
 | 命令 / 检查 | 结果 | 备注 |

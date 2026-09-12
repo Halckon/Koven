@@ -337,7 +337,7 @@ Spec 之前，本条限制不变。）
 - [ ] **[SPEC-0026](../../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
       选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
       exact-import 边界已由现行 v0.32 勘误封闭，本节点只等待候选 v0.36 启用。
-- [ ] **[SPEC-0210](../../../specs/drafts/v0.36/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
+- [ ] **[SPEC-0210](../../../specs/active/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
       完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
@@ -462,7 +462,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0207](../../../archive/specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
-- [ ] **[SPEC-0209](../../../specs/active/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
+- [ ] **[SPEC-0209](../../specs/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
       把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
       singleton/global/init 或第二套 String runtime。
 - [ ] **[SPEC-0212](../../../specs/drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA
