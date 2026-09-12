@@ -132,7 +132,7 @@ impl Checker<'_> {
         }))
     }
 
-    fn integer_magnitude(
+    pub(super) fn integer_magnitude(
         &self,
         span: Span,
         kind: IntegerLiteralKind,

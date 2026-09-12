@@ -107,6 +107,7 @@ struct Checker<'a> {
     nullable_whens: Vec<crate::type_checking::NullableWhenDescriptor>,
     non_null_assertions: Vec<crate::type_checking::NonNullAssertionDescriptor>,
     constant_dependencies: BTreeMap<SymbolId, Vec<SymbolId>>,
+    constant_values: BTreeMap<SymbolId, super::constant_value::ConstantValue>,
     constant_items: BTreeMap<SymbolId, ItemId>,
     constant_expressions: BTreeMap<SymbolId, Vec<ExpressionId>>,
     pending_constant_errors: BTreeMap<SymbolId, (Span, bool)>,
@@ -217,6 +218,7 @@ struct Checker<'a> {
     invalid_constant_expression_code: DiagnosticCode,
     invalid_constant_context_code: DiagnosticCode,
     constant_cycle_code: DiagnosticCode,
+    constant_evaluation_code: DiagnosticCode,
     invisible_constant_code: DiagnosticCode,
     unresolved_constant_code: DiagnosticCode,
 }
@@ -281,6 +283,7 @@ impl<'a> Checker<'a> {
             nullable_whens: Vec::new(),
             non_null_assertions: Vec::new(),
             constant_dependencies: BTreeMap::new(),
+            constant_values: BTreeMap::new(),
             constant_items: BTreeMap::new(),
             constant_expressions: BTreeMap::new(),
             pending_constant_errors: BTreeMap::new(),
@@ -407,6 +410,7 @@ impl<'a> Checker<'a> {
                 .resolve(codes::INVALID_CONSTANT_EXPRESSION)?,
             invalid_constant_context_code: catalog.resolve(codes::INVALID_CONSTANT_CONTEXT)?,
             constant_cycle_code: catalog.resolve(codes::CONSTANT_DEPENDENCY_CYCLE)?,
+            constant_evaluation_code: catalog.resolve(codes::CONSTANT_EVALUATION_FAILURE)?,
             invisible_constant_code: catalog.resolve(codes::INVISIBLE_ASSOCIATED_CONSTANT)?,
             unresolved_constant_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
         })
@@ -431,6 +435,7 @@ impl<'a> Checker<'a> {
         }
         self.recheck_constant_dependencies()?;
         self.check_constant_cycles()?;
+        self.evaluate_constants()?;
         self.validate_type_argument_bounds()?;
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();

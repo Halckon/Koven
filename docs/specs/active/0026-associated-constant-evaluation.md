@@ -97,10 +97,12 @@ lowering。跨文件后继必须复用同一 evaluator。
 |---|---|---|
 | const 封闭类型集合、L0155 Span 与普通变量隔离 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 4 项通过；覆盖显式/推导、22 个允许 literal 场景、10 种非法类型与普通变量对照、Any/Any?、object/companion、既有 L0084 抑制级联 |
 | 诊断注册表与现有 renderer/model | `cargo test -p lang-frontend --test type_constants --test diagnostic_model --no-fail-fast -- --nocapture` | diagnostic_model 9 项通过；同次旧 type_constants 2 项通过、1 项因误写 L0085 失败，修正为既有 L0084 后定向重跑见上一行 |
-
 | 常量选择/类型资格、callable 共享路径、enum 名称回归、诊断目录 | `cargo test -p lang-frontend --test type_constants --test type_callable --test name_resolution --test diagnostic_model --no-fail-fast -- --nocapture` | type_constants 9、name_resolution 14、diagnostic_model 9 项通过；type_callable 18 项通过、1 项旧断言失败，修正后的定向证据见下文 |
+| 内部求值、短路与既有常量/诊断回归 | `cargo test -p lang-frontend --test type_constants --test diagnostic_model --no-fail-fast -- --nocapture` | type_constants 16、diagnostic_model 9 项通过 |
+| 纯值边界与 Unicode/转义 | `cargo test -p lang-frontend --lib constant_value::tests -- --nocapture` | 3 项通过，51 项过滤 |
+| 关联常量精确宽度与 L0158 Span | `cargo test -p lang-frontend --test type_constants constant_evaluation_uses_associated_declared_integer_widths_and_operator_spans -- --nocapture` | 新增 1 项通过，16 项过滤；生产代码与上列回归相同 |
 
-类型资格、关联选择及表达式/依赖切片见下文。完整 L0153 上下文边界、L0158、值、对外 use
+类型资格、关联选择、表达式/依赖及内部求值切片见下文。完整 L0153 上下文边界、对外 use
 descriptor 与 validated capability 尚待后续切片，不能据此将本 Spec 标记完成。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
@@ -156,3 +158,19 @@ pending 级联问题均已修复并再次复核；失效传播在拓扑重查前
 静态门禁 `cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`
 与 `cargo fmt --all -- --check` 通过；文档检查 351 份 Markdown、`git diff --check` 通过。
 未运行 frontend 全量或无公共产物变更所不需要的下游全套测试。
+
+### 内部求值切片
+
+纯值运算与单文件图适配分离；Boolean、精确整数、Unicode scalar 与 UTF-8 bytes 保存在
+checker 内部。图按依赖顺序求值，表达式使用显式栈；短路只跳过值求值，失败依赖不求值后继。
+L0158 定位运算符，覆盖溢出、除零、余零及 signed MIN/-1；负 literal 复用既有整数解析，
+不将 literal representability 的 L0090 改为求值失败。
+
+红测复现溢出/除零均无诊断；独立只读复核核对整数边界、负 literal、转义集合、短路与失效
+依赖，未发现确定逻辑缺陷。本切片不发布公共 descriptor、use facts 或 validated capability，
+不代表整个 Spec 完成。
+
+结果见本节唯一验收映射表：常量集成累计 17 项、诊断目录 9 项、纯值单元 3 项通过。
+`cargo clippy -p lang-frontend --lib --test type_constants --test diagnostic_model -- -D warnings`、
+`cargo fmt --all -- --check`、文档检查（351 份 Markdown）与 `git diff --check` 通过。
+未运行 frontend 全量；没有公共阶段产物变更，未追加下游全套测试或 workspace check。

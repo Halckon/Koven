@@ -355,3 +355,63 @@ fn constant_qualification_rejects_companion_this_before_type_cascades() {
         );
     }
 }
+
+#[test]
+fn constant_evaluation_reports_checked_arithmetic_failures() {
+    for expression in [
+        "2147483647 + 1",
+        "(-2147483648) - 1",
+        "100000 * 100000",
+        "1 / 0",
+        "1 % 0",
+        "(-2147483648) / -1",
+        "(-2147483648) % -1",
+        "18446744073709551615uL + 1uL",
+        "0u - 1u",
+        "-(-2147483648)",
+    ] {
+        let (_, typed) = checked(&format!("const val sample = {expression}"));
+        assert_eq!(codes(typed.diagnostics()), ["L0158"], "{expression}");
+    }
+}
+
+#[test]
+fn constant_evaluation_keeps_short_circuit_and_invalid_dependency_boundaries() {
+    for source in [
+        "const val sample = false && (1 / 0 == 0)",
+        "const val sample = true || (2147483647 + 1 == 0)",
+        "const val sample = (answer == 42) || (1 / 0 == 0)\nconst val answer = 6 * 7",
+        "const val sample = (\"a\" + \"b\" == \"ab\") || (1 / 0 == 0)",
+    ] {
+        let (_, typed) = checked(source);
+        assert!(
+            typed.diagnostics().is_empty(),
+            "{source}: {:?}",
+            typed.diagnostics()
+        );
+    }
+    let (_, typed) = checked("const val bad = 1 / 0\nconst val dependent = bad + 1");
+    assert_eq!(codes(typed.diagnostics()), ["L0158"]);
+}
+
+#[test]
+fn constant_evaluation_uses_associated_declared_integer_widths_and_operator_spans() {
+    for (ty, max, one) in [
+        ("Byte", "127", "1"),
+        ("Short", "32767", "1"),
+        ("Long", "9223372036854775807L", "1L"),
+        ("UByte", "255u", "1u"),
+        ("UShort", "65535u", "1u"),
+    ] {
+        let (sources, typed) = checked(&format!(
+            "const val sample = Limits.MAX + Limits.ONE\nobject Limits {{ const val MAX: {ty} = {max}\nconst val ONE: {ty} = {one} }}"
+        ));
+        assert_eq!(codes(typed.diagnostics()), ["L0158"], "{ty}");
+        assert_eq!(
+            sources
+                .slice(typed.diagnostics()[0].primary_span())
+                .unwrap(),
+            "+"
+        );
+    }
+}

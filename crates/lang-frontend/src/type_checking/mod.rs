@@ -5,6 +5,7 @@ mod call;
 mod canonical;
 mod checker;
 mod compilation_unit;
+mod constant_value;
 mod construction;
 mod container;
 mod error;
