@@ -60,7 +60,7 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
     )
 )
 EXPECTED_DRAFT_SPEC_IDS = {
-    "v0.36": frozenset(),
+    "v0.36": frozenset({"0227"}),
     "v0.37": frozenset({"0179", "0182", "0211", "0212"}),
 }
 EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0226"})
