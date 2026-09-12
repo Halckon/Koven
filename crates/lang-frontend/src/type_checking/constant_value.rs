@@ -234,3 +234,12 @@ pub(super) fn accepts_binary_operand(operator: Binary, ty: BuiltinType) -> bool 
         _ => false,
     }
 }
+
+/// The enabled constant value domain, shared by single-file and compilation-unit gates.
+pub(super) fn accepts_constant_type(ty: BuiltinType) -> bool {
+    integer_bounds(ty).is_some()
+        || matches!(
+            ty,
+            BuiltinType::Boolean | BuiltinType::Char | BuiltinType::String
+        )
+}

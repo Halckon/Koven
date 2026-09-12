@@ -175,19 +175,8 @@ impl Checker<'_> {
             TypeKind::Error => {}
             // Any 的延后仅涉及运行时表示，其已知类型仍不属于 const 闭合集合。
             TypeKind::Deferred(reason) if *reason != DeferredReason::AnyValueRepresentation => {}
-            TypeKind::Builtin(
-                BuiltinType::Boolean
-                | BuiltinType::Byte
-                | BuiltinType::Short
-                | BuiltinType::Int
-                | BuiltinType::Long
-                | BuiltinType::UByte
-                | BuiltinType::UShort
-                | BuiltinType::UInt
-                | BuiltinType::ULong
-                | BuiltinType::Char
-                | BuiltinType::String,
-            ) => {}
+            TypeKind::Builtin(ty)
+                if crate::type_checking::constant_value::accepts_constant_type(*ty) => {}
             _ => self.emit(
                 self.invalid_constant_type_code,
                 "constant type must be Boolean, an integer, Char, or String",

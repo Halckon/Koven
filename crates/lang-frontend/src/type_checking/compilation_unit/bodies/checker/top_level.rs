@@ -2,10 +2,14 @@
 
 use crate::{
     ast::TypeRefId,
-    name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
+    diagnostic::codes,
+    name_resolution::{DeclarationId, SourceUnitId, SymbolKind, UnitSymbolId},
     parser::Item,
     source::Span,
-    type_checking::TypeCheckingError,
+    type_checking::{
+        DeferredReason, TypeCheckingError, UnitTypeId, UnitTypeKind,
+        constant_value::accepts_constant_type,
+    },
 };
 
 use super::{BodyChecker, CompilationUnitTypeError};
@@ -62,12 +66,90 @@ impl BodyChecker<'_> {
         self.flow_facts.clear();
         self.current_return_span = None;
         let return_type = self.error_type();
+        let before = self.diagnostics.len();
         let result =
             self.check_expression(source, initializer, expected, expected_span, return_type)?;
-        self.parts
-            .symbol_types
-            .insert(symbol, expected.unwrap_or(result.ty));
+        let ty = expected.unwrap_or(result.ty);
+        self.parts.symbol_types.insert(symbol, ty);
+        let constant = self.names.names().source_units()[source.index()]
+            .resolution()
+            .symbols()[symbol.symbol().index()]
+        .kind()
+            == SymbolKind::Constant;
+        // Signature resolution precedes body diagnostics and may wrap Error inside
+        // nullable/container types. Preserve the annotation's original diagnostic.
+        let signature_error = expected_span.is_some_and(|annotation| {
+            self.signatures.diagnostics().iter().any(|diagnostic| {
+                let span = diagnostic.primary_span();
+                span.source_id() == annotation.source_id()
+                    && annotation.start() <= span.start()
+                    && span.end() <= annotation.end()
+            })
+        });
+        if constant
+            && !signature_error
+            && self.diagnostics.len() == before
+            && !self.constant_type_has_error(ty)
+        {
+            let allowed = match self.signatures.types().get(ty) {
+                Some(UnitTypeKind::Error) => true,
+                Some(UnitTypeKind::Deferred(reason)) => {
+                    *reason != DeferredReason::AnyValueRepresentation
+                }
+                Some(UnitTypeKind::Builtin(ty)) => accepts_constant_type(*ty),
+                _ => false,
+            };
+            if !allowed {
+                let span = match expected_span {
+                    Some(span) => span,
+                    None => self
+                        .file(source)
+                        .ast()
+                        .expressions()
+                        .get(initializer)
+                        .map_err(TypeCheckingError::from)?
+                        .span(),
+                };
+                self.emit(
+                    codes::INVALID_CONSTANT_TYPE,
+                    "constant type must be Boolean, an integer, Char, or String",
+                    span,
+                )?;
+            }
+        }
         Ok(())
+    }
+
+    /// Recovery types can carry an upstream Error through a cross-file constant reference.
+    fn constant_type_has_error(&self, root: UnitTypeId) -> bool {
+        let mut pending = vec![root];
+        let mut visited = std::collections::BTreeSet::new();
+        while let Some(ty) = pending.pop() {
+            if !visited.insert(ty) {
+                continue;
+            }
+            match self.signatures.types().get(ty) {
+                Some(UnitTypeKind::Error) | None => return true,
+                Some(UnitTypeKind::Nullable(inner) | UnitTypeKind::StaticSelf(inner)) => {
+                    pending.push(*inner)
+                }
+                Some(
+                    UnitTypeKind::Nominal { arguments, .. }
+                    | UnitTypeKind::Intrinsic { arguments, .. },
+                ) => pending.extend(arguments),
+                Some(UnitTypeKind::Function {
+                    parameters,
+                    return_type,
+                    ..
+                }) => {
+                    pending.push(*return_type);
+                    pending.extend(parameters.iter().map(|parameter| parameter.ty()));
+                }
+                Some(UnitTypeKind::EnumCase { root, .. }) => pending.push(*root),
+                _ => {}
+            }
+        }
+        false
     }
 
     fn top_level_type_ref_span(

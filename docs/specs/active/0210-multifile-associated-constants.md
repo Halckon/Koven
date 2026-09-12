@@ -197,3 +197,32 @@ all-targets clippy 既有失败仍未修改，不将本轮定向通过视为它�
 门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test ownership_constants --test multifile_constant_dependencies --test multifile_constant_selection -- -D warnings`、
 `cargo fmt --all -- --check`、docs check（351 Markdown）与 diff check 通过。未新增公开 API，未运行
 workspace check 或 native 全矩阵；单文件直接 ownership 消费者已定向验证。
+
+
+### 第四切片：unit 常量类型资格
+
+单文件与 unit 共用 `accepts_constant_type`，类型闭合集合不变。unit 在普通初始化器类型检查
+无新错误后执行 L0155 检查：显式声明指向 annotation，推断声明指向 initializer；普通变量不受
+此 gate 限制。签名注解错误及复合类型内部 Error 不追加资格诊断，包括跨文件引用传播。
+
+失败复现与修复：推断 Double 原无诊断；补 gate 后，复合 annotation 和跨文件签名依赖分别
+出现 `[L0155, L0082]`，均应仅保留 L0082。普通非法类型依赖曾出现两条 L0155；移除图的初始
+按 symbol 顺序预检查，先传播已知失效，再以 Kahn 顺序检查无环节点，循环仍使用既有具体类型工作队列。
+
+本切片不改 unit 既有普通类型规则：例如 `Any = 1` 在该通路已有 L0084，不以 L0155 覆盖。
+L0156 表达式资格、ConstValue/use descriptor 与独立 capability 仍待接入，Spec 保持 in-progress。
+
+
+| 第四切片验证 | 结果 | 覆盖 |
+|---|---|---|
+| `cargo test -p lang-frontend --test multifile_constant_qualification` | 7 passed | 显式/推断类型、顶层/object/class companion、11 种允许类型、L0084 优先、普通变量、正逆输入、跨文件非法类型与签名错误隔离 |
+| `multifile_constant_dependencies` / `multifile_constant_selection` | 4 + 4 passed | 调整预检查顺序后的 chain/SCC/visibility 与基础 gate 回归 |
+| `type_constants` | 24 passed | shared type helper 抽取后的单文件语义回归 |
+
+后三项分别随本轮两次合并定向命令运行，后续只重跑修改过的 qualification suite；共 39 项，
+0 failed/ignored。独立审查提出的签名错误与跨文件级联均已修复并复审。
+
+`cargo clippy -p lang-frontend --lib --test type_constants --test multifile_constant_qualification --test multifile_constant_dependencies --test multifile_constant_selection -- -D warnings`、
+fmt check、docs check（351 Markdown）与 diff check 通过。未运行 frontend 全量、workspace 或
+native 全矩阵；本轮未改公开 API/ownership/codegen。此前记录的全目标 lint 和 unit type 基线失败
+没有修改，不宣称修复。

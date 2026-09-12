@@ -86,13 +86,10 @@ impl BodyChecker<'_> {
                 reverse.entry(target).or_default().push(symbol);
             }
         }
-        // Preliminary typing detects invalid annotated cyclic operands before SCC diagnostics.
-        for &symbol in dependencies.keys() {
-            if !self.check_constant_initializer(symbol, &inputs[&symbol])? {
-                invalid.insert(symbol);
-            }
-            self.constant_prechecked.insert(symbol);
-        }
+        // A dependency must establish its type eligibility before consumers are checked.
+        // Cyclic nodes are handled by the concrete-type worklist below.
+        self.constant_prechecked
+            .extend(dependencies.keys().copied());
         let initial_invalid = invalid.iter().copied().collect::<Vec<_>>();
         propagate_invalid(&mut invalid, &reverse, initial_invalid);
         let mut remaining = dependencies
