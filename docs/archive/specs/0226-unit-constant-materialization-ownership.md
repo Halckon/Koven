@@ -1,10 +1,10 @@
 # SPEC-0226：跨文件常量重新物化与所有权
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施 v0.36 unit 常量 Phase 3 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施 v0.36 unit 常量 Phase 3 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-226` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -55,7 +55,7 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 - [x] String 的 Borrow/Value/return、重叠借用、表达式嵌套和控制流退出与对应 literal 行为一致。
 - [x] ownership 错误不发布部分物化/可执行事实；混用分析、改动 inputs 或 typed owner 被确定性拒绝。
 - [x] 新旧 capability 不可混用；现有基础 unit ownership 与单文件 constant ownership 最近回归通过。
-- [ ] Architecture、验证记录与完成状态同步；未运行项如实保留。
+- [x] Architecture、验证记录与完成状态同步；未运行项如实保留。
 
 ## 6. 技术方案与边界
 
@@ -71,7 +71,7 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 
 1. [x] 接独立输入/owned capability 和 identity gate → 验证：错配拒绝与基础接口契约。
 2. [x] 接 runtime constant use、capture 与 String owner/drop → 验证：直接正反例、literal 对照。
-3. [ ] 扩展跨文件/控制流矩阵并同步文档 → 验证：本节与第 5 节逐项关联实际证据。
+3. [x] 扩展跨文件/控制流矩阵并同步文档 → 验证：本节与第 5 节逐项关联实际证据。
 
 ## 8. 提交计划
 
@@ -88,7 +88,7 @@ SPEC-0210 已发布 source-qualified 常量值、依赖与 use；现行 guide �
 ## 10. 验证记录
 
 按切片复用已验证证据；下表区分历史提交与本次最终检查，不因文档勾选重复启动相同门禁。
-`a6ba8d4` 已开放专用常量 owned capability；`4bf45ed` 补齐插值，`7b1f49b` 修复 String 二元求值/退出清理；`6c126f1` 补齐标量与双 source 否定证据；`66d1a39` 接私有短路控制事实；本次公开查询并修复不可达 lambda 清理，完整矩阵已独立复核，待最终门禁与完成归档。
+`a6ba8d4` 已开放专用常量 owned capability；`4bf45ed` 补齐插值，`7b1f49b` 修复 String 二元求值/退出清理；`6c126f1` 补齐标量与双 source 否定证据；`66d1a39` 接私有短路控制事实；本次公开查询并修复不可达 lambda 清理，完整矩阵已独立复核，最终门禁已通过，本次完成归档。
 
 | 验收项 / 命令 | 实际结果 | 证据边界 |
 |---|---|---|
@@ -185,7 +185,7 @@ construction；新增命名 Value operand 的 pending cleanup 必须在 SPEC-022
 第 5 节行为验收已由最终独立复核确认：不可达路径使用 runtime reads、静态/动态短路及不可达 lambda 测试；
 owner identity 与清理使用 Group、双 source、插值、binary、pending prefix 和 skip edge 测试；
 literal 对照使用调用前缀、插值与二元控制流矩阵。结论限于分析明确识别的控制退出及短路，
-不扩展为任意表达式常量折叠。最终门禁与完成归档仍待同步。
+不扩展为任意表达式常量折叠。最终门禁与完成归档已同步。
 
 未运行 frontend 全量测试或 native build/run。本次公开查询涉及跨 crate API，追加 workspace 编译检查；单文件路径未变，复用
 `7b1f49b` 的单文件回归及 `a6ba8d4` native 编译契约；下游定向 SSA 检查不证明常量 native 支持。
@@ -196,3 +196,7 @@ source-qualified lambda 集合约束专用模式的第二次 liveness 预扫描�
 发布；第一次 liveness 保持完整，基础模式不变。三例覆盖 return 后、Abort 后及静态短路 RHS，
 既有双 source 正例验证可达 lambda 保留。独立复审核对嵌套访问与过滤顺序，无新增明确阻断。
 初版访问集合使用不实现 Ord 的局部 AST ID 导致 E0277，已改用现有 UnitExpressionId，未扩展 AST trait。
+
+完成归档：2026-09-13。实现最终提交 `18cb692`；复用其 20 项公开、63 项基础、17 项内部测试、
+4 项编译拒绝测试及 workspace check（7m 21s）、定向 Clippy、fmt 的通过结果。
+本次仅完成生命周期与路由迁移，不重复 Rust 门禁；文档结构、inventory 测试与 diff 检查见本次迁移提交。

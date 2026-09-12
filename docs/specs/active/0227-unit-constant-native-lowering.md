@@ -1,17 +1,17 @@
 # SPEC-0227：跨文件常量 SSA 与 native 交付
 
-> **性质**：实施 Spec · **状态**：draft · **读取时机**：SPEC-0226 完成后接入 unit 常量 native 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：接入 unit 常量 native 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P4-227` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | [v0.36 §36](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
-| 批准依据 | 用户持续授权分阶段实施；前置完成后方可迁入 active |
-| 前置 Spec | SPEC-0198/0199/0208/0209/0210 `done`；SPEC-0226 尚未完成 |
+| 语言规范 | [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
+| 批准依据 | 用户持续授权分阶段实施；2026-09-13 前置完成后迁入 active |
+| 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
-| 阻塞项 | SPEC-0226 完整 unit constant owned capability 与物化/drop 事实 |
+| 阻塞项 | 无；SPEC-0226 已交付完整 owned capability 与物化/drop/短路事实 |
 | 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；Architecture |
 | 语言语义变更 | 否 |
 
@@ -70,12 +70,12 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 
 前置完成后先定位已有 unit lower/native test support；新增直接 constant suite，按影响选
 最近消费者，不重复单文件已稳定验收。公开入口追加编译契约和
-[分层验收](../../../development/testing.md)要求的 workspace 编译检查；不运行 frontend 全量测试。
+[分层验收](../../development/testing.md)要求的 workspace 编译检查；不运行 frontend 全量测试。
 目标工具不可用时明确记录阻塞，不将 IR 或编译通过写成 native 运行通过。
 
 | 验收项 | 结果 | 原因 |
 |---|---|---|
-| Rust / native 实施与验证 | 未执行 | SPEC-0226 尚未完成，本 Spec 保持 draft |
+| Rust / native 实施与验证 | 未执行 | 本次启用并定位消费边界，尚未实现 native |
 
 合同复核与门禁：独立边界审查通过，已显式补入顶层常量验收；docs check（353 Markdown）、
-文档检查器 21 项测试与 diff check 通过。未执行 Rust/native，前置未完成不提前接线。
+文档检查器 21 项测试与 diff check 通过。该记录属于 draft 建立时的合同检查。2026-09-13 前置完成，本次迁入 active；Rust/native 验收尚未执行。

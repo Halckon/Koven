@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 208 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 209 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 ## Phase 0
 
@@ -205,6 +205,8 @@
 - [SPEC-0204](./0204-pointer-nullable-when-lowering.md)：pointer-like nullable when SSA/LLVM/native lowering
 
 - [SPEC-0208](./0208-constant-materialization-ownership.md)：常量重新物化与所有权事实
+
+- [SPEC-0226](./0226-unit-constant-materialization-ownership.md)：跨文件常量重新物化与所有权
 
 ## Phase 4
 
