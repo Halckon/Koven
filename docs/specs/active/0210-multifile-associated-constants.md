@@ -167,3 +167,33 @@ ConstValue/use descriptor 或 const-enabled capability，SPEC-0210 不标完成�
 门禁：`cargo clippy -p lang-frontend --lib --test multifile_constant_selection --test multifile_name_resolution --test multifile_type_signatures -- -D warnings` 通过；fmt、docs check（351 Markdown）与 diff check 通过。
 未重跑 frontend 全量、workspace check 或 all-targets clippy：没有新增公开 API；all-targets 在首切片
 记录的两处既有测试 lint 仍未修改，不能用本轮定向结果覆盖该失败状态。
+
+### 第三切片：unit 依赖排序与 SCC 类型失效隔离
+
+闭合初始化器使用 source-qualified symbol/expression identity 建图，复用抽取出的单文件显式栈
+SCC 算法和操作数资格 helper。裸常量读取也消费既有 declaration target；无环依赖先于普通
+body 检查，重查清除表达式类型、category、falls-through 与 selection 缓存，避免旧 Deferred
+遮蔽前向推断。语法图保留短路 RHS，按稳定 symbol 顺序发布每 SCC 一条 L0157 及成员 labels。
+
+独立审查发现环内间接类型传播可能误报 cycle；回归用例 `A = B && true; B = C; C: Int = A`
+修复前得到 L0157，修复后应为 L0085。SCC 前工作队列传播新具体类型，Deferred reason 变化
+不触发排队；失效只从新增 seed 沿反向边传播，已失效节点不再追加诊断。独立复审已检查
+工作队列终止条件、缓存清理与失效传播，未发现剩余阻断问题。
+
+本切片未接完整 L0155/L0156 资格诊断、ConstValue 求值、use descriptor 或 const-enabled
+capability；第 5 节整体验收仍保持未完成，不能将内部依赖图当作可执行事实。
+
+| 第三切片验证目标 | 结果 | 证据边界 |
+|---|---|---|
+| `cargo test -p lang-frontend --test multifile_constant_dependencies` | 4 passed | Int/String 前向链、自环/二节点/三节点 SCC、短路 RHS、完整有序 labels、环内非法 operand 失效；每例正逆输入比较类型表/表达式事实/诊断 |
+| `multifile_constant_selection` | 4 passed | 既有关联选择、private/import 边界与基础 gate |
+| `type_constants` / `ownership_constants` | 24 + 16 passed | 共享 SCC/helper 抽取后的单文件语义与直接物化消费者回归 |
+
+后三项目标通过同一 `cargo test -p lang-frontend --test multifile_constant_dependencies --test multifile_constant_selection --test type_constants --test ownership_constants --no-fail-fast` 运行；
+该次 dependencies 为 3 passed，随后补充自环/三节点与完整 labels 后单独重跑到 4 passed。
+全部 0 failed/ignored。未运行 frontend 全量；第二切片已确认的三项 unit type 基线失败和两项
+all-targets clippy 既有失败仍未修改，不将本轮定向通过视为它们已修复。
+
+门禁：`cargo clippy -p lang-frontend --lib --test type_constants --test ownership_constants --test multifile_constant_dependencies --test multifile_constant_selection -- -D warnings`、
+`cargo fmt --all -- --check`、docs check（351 Markdown）与 diff check 通过。未新增公开 API，未运行
+workspace check 或 native 全矩阵；单文件直接 ownership 消费者已定向验证。

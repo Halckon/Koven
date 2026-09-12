@@ -1,7 +1,8 @@
 //! Const expression 资格与语法依赖；值求值不得在此处执行或裁掉短路 RHS。
 
 use super::super::*;
-use crate::parser::{BinaryOperator, Expression, LiteralKind, PrefixOperator, StringPart};
+use crate::parser::{Expression, LiteralKind, StringPart};
+use crate::type_checking::constant_value::{accepts_binary_operand, accepts_prefix_operand};
 
 impl Checker<'_> {
     pub(in crate::type_checking::checker) fn record_constant_dependencies(
@@ -60,10 +61,8 @@ impl Checker<'_> {
                 Expression::Prefix {
                     operator, operand, ..
                 } => {
-                    let valid = self.const_operand_allows(*operand, |ty| match operator {
-                        PrefixOperator::Not => ty == BuiltinType::Boolean,
-                        PrefixOperator::Plus | PrefixOperator::Minus => const_integer(ty),
-                    });
+                    let valid = self
+                        .const_operand_allows(*operand, |ty| accepts_prefix_operand(*operator, ty));
                     pending.push(*operand);
                     valid
                 }
@@ -73,31 +72,8 @@ impl Checker<'_> {
                     right,
                     ..
                 } => {
-                    let supported = matches!(
-                        operator,
-                        BinaryOperator::Add
-                            | BinaryOperator::Subtract
-                            | BinaryOperator::Multiply
-                            | BinaryOperator::Divide
-                            | BinaryOperator::Remainder
-                            | BinaryOperator::Less
-                            | BinaryOperator::Greater
-                            | BinaryOperator::LessEqual
-                            | BinaryOperator::GreaterEqual
-                            | BinaryOperator::Equal
-                            | BinaryOperator::NotEqual
-                            | BinaryOperator::LogicalAnd
-                            | BinaryOperator::LogicalOr
-                    );
-                    let accepts = |ty| match operator {
-                        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
-                            ty == BuiltinType::Boolean
-                        }
-                        BinaryOperator::Add | BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                            const_integer(ty) || ty == BuiltinType::String
-                        }
-                        _ => const_integer(ty),
-                    };
+                    let accepts = |ty| accepts_binary_operand(*operator, ty);
+                    let supported = accepts(BuiltinType::Int) || accepts(BuiltinType::Boolean);
                     // 逆序入栈，确保先检查左侧；短路只属于后续值求值。
                     pending.push(*right);
                     pending.push(*left);
@@ -173,18 +149,4 @@ impl Checker<'_> {
             _ => false,
         }
     }
-}
-
-fn const_integer(ty: BuiltinType) -> bool {
-    matches!(
-        ty,
-        BuiltinType::Byte
-            | BuiltinType::Short
-            | BuiltinType::Int
-            | BuiltinType::Long
-            | BuiltinType::UByte
-            | BuiltinType::UShort
-            | BuiltinType::UInt
-            | BuiltinType::ULong
-    )
 }

@@ -9,6 +9,7 @@ mod constant;
 mod constant_evaluation;
 #[cfg(test)]
 mod constant_evaluation_tests;
+mod constant_graph;
 mod constant_value;
 mod construction;
 mod container;

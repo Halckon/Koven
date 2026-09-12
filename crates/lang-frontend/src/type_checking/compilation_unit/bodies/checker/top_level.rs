@@ -45,6 +45,9 @@ impl BodyChecker<'_> {
         type_ref: Option<TypeRefId>,
         initializer: crate::ast::ExpressionId,
     ) -> Result<(), CompilationUnitTypeError> {
+        if !self.checking_constants && self.constant_prechecked.contains(&symbol) {
+            return Ok(());
+        }
         let expected = type_ref
             .map(|_| {
                 self.signatures

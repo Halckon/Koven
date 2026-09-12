@@ -24,6 +24,7 @@ use crate::{
 mod assignment;
 mod bindings;
 mod calls;
+mod constant_dependencies;
 mod constants;
 mod construction;
 mod container;
@@ -91,6 +92,8 @@ pub(super) struct BodyChecker<'a> {
     current_receiver: Option<UnitTypeId>,
     current_receiver_mode: Option<ParameterMode>,
     current_owner: Option<DeclarationId>,
+    constant_prechecked: BTreeSet<UnitSymbolId>,
+    checking_constants: bool,
 }
 
 impl<'a> BodyChecker<'a> {
@@ -172,10 +175,13 @@ impl<'a> BodyChecker<'a> {
             current_receiver: None,
             current_receiver_mode: None,
             current_owner: None,
+            constant_prechecked: BTreeSet::new(),
+            checking_constants: false,
         })
     }
 
     fn run(mut self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+        self.precheck_constant_dependencies()?;
         let declarations = self.names.names().index().declarations().to_vec();
         for declaration in declarations {
             let signature = self.signatures.declaration(declaration.id()).cloned();
@@ -890,6 +896,9 @@ impl<'a> BodyChecker<'a> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+        if let Some(ty) = self.check_selected_constant(source, expression, span)? {
+            return Ok(ty);
+        }
         if let Some(UnitReferenceTarget::Symbol(symbol)) =
             self.reference(source, span, Namespace::Value)
             && let Some(ty) = self.flow_facts.get(&FlowKey::Symbol(*symbol)).copied()
