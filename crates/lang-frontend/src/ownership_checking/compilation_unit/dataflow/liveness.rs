@@ -410,6 +410,22 @@ impl Builder<'_, '_> {
                 self.expression(operand, ExpressionUse::Read, live_after)
             }
             Expression::Binary { left, right, .. } => {
+                if let Some(plan) = self.checker.short_circuit_plan(id)? {
+                    use super::super::constant::ShortCircuitRhs;
+                    let live = match plan.rhs {
+                        ShortCircuitRhs::Never => live_after,
+                        ShortCircuitRhs::Always => {
+                            self.expression(right, ExpressionUse::Read, live_after)?
+                        }
+                        ShortCircuitRhs::Conditional => {
+                            let mut live =
+                                self.expression(right, ExpressionUse::Read, live_after.clone())?;
+                            live.extend(live_after);
+                            live
+                        }
+                    };
+                    return self.expression(left, ExpressionUse::Read, live);
+                }
                 let live = self.expression(right, ExpressionUse::Read, live_after)?;
                 self.expression(left, ExpressionUse::Read, live)
             }

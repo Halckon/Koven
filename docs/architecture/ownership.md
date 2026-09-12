@@ -38,6 +38,13 @@ owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，nam
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
 return/break/continue 清理已求值前缀，Abort 不展开。
 
+专用常量入口显式启用私有短路控制模式（空常量 unit 也启用），基础入口保持旧门禁。
+`short_circuit_plan` 供主 traversal、liveness、drop 共用：左侧正常完成后，依据 Boolean literal、
+typed 常量值或 Group 确定 RHS Always/Never/Conditional；不另行求值常量 initializer。
+动态路径合并 RHS 与 skip 后继，RHS 退出不抹去 skip；BranchExit 编号仍为 0=true、1=false。
+source-qualified 私有短路计划仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
+保护，专用 validate 同时要求两者完整。计划查询尚未公开，SPEC-0227 尚未消费该事实。
+
 两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
 基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生
 `ValidatedCompilationUnitOwnership`，供既有 codegen 使用。

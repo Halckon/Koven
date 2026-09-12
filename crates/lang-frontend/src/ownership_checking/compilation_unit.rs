@@ -648,6 +648,7 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    short_circuits: Option<Vec<constant::UnitShortCircuitPlan>>,
     constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
     provenance: UnitOwnershipProvenance,
@@ -723,6 +724,9 @@ impl CompilationUnitOwnership {
             Vec::new()
         };
         Self {
+            short_circuits: (successful && dataflow.deferred.is_empty())
+                .then_some(dataflow.short_circuits)
+                .flatten(),
             constant_materializations: (successful
                 && dataflow.deferred.is_empty()
                 && typed.constants().is_some())
@@ -995,5 +999,5 @@ pub fn check_compilation_unit_ownership(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
-    analysis::analyze(sources, inputs, names, environment, typed.types())
+    analysis::analyze(sources, inputs, names, environment, typed.types(), false)
 }

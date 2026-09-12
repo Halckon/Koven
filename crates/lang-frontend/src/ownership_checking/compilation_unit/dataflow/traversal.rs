@@ -303,6 +303,9 @@ impl Checker<'_> {
         if let Some(descriptor) = self.typed.rc_operation(self.unit_expression(id)) {
             return self.check_rc_operation(descriptor, state, usage);
         }
+        if let Some(plan) = self.short_circuit_plan(id)? {
+            return self.check_short_circuit(plan, state);
+        }
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {

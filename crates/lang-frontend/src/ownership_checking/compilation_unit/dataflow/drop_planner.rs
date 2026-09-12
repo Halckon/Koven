@@ -445,6 +445,29 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             return Ok(true);
         }
+        if let Some(plan) = self.checker.short_circuit_plan(id)? {
+            use super::super::constant::ShortCircuitRhs;
+            if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
+                return Ok(false);
+            }
+            return match plan.rhs {
+                ShortCircuitRhs::Never => Ok(true),
+                ShortCircuitRhs::Always => {
+                    self.expression(plan.right.expression(), DropExpressionUse::Read, state)
+                }
+                ShortCircuitRhs::Conditional => {
+                    let mut skipped = state.clone();
+                    self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
+                    let mut branches = vec![skipped];
+                    if self.expression(plan.right.expression(), DropExpressionUse::Read, state)? {
+                        self.drop_branch_exit(id, plan.rhs_branch, state);
+                        branches.push(state.clone());
+                    }
+                    *state = merge_value_states(branches);
+                    Ok(true)
+                }
+            };
+        }
         let node = self.checker.parsed.ast().expressions().get(id)?;
         match node.payload().clone() {
             Expression::Error | Expression::Literal(_) | Expression::SuperMember { .. } => Ok(true),

@@ -11,6 +11,7 @@ mod non_null_assertion;
 mod places;
 mod rc;
 mod receiver;
+mod short_circuit;
 mod traversal;
 
 use std::collections::BTreeMap;
@@ -43,6 +44,7 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) short_circuits: Option<Vec<super::constant::UnitShortCircuitPlan>>,
     pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) loans: Vec<UnitLoanFact>,
@@ -113,11 +115,13 @@ enum AccessKind {
 type ConstructionDescriptors =
     BTreeMap<SourceUnitId, BTreeMap<UnitExpressionId, UnitConstructionDescriptor>>;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn analyze(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
+    constant_control: bool,
     bindings: &BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
     call_inputs: CallInputs<'_>,
     closure_inputs: ClosureInputs<'_>,
@@ -156,6 +160,7 @@ pub(super) fn analyze(
         codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
     let mut diagnostics = Vec::new();
     let mut constant_materializations = Vec::new();
+    let mut short_circuits = Vec::new();
     let mut loans = Vec::new();
     let mut value_deliveries = Vec::new();
     let mut receiver_facts = Vec::new();
@@ -211,7 +216,9 @@ pub(super) fn analyze(
             &mut construction_plans,
             &mut non_null_assertions,
         )?;
+        checker.constant_control = constant_control;
         let drop_analysis = checker.run()?;
+        short_circuits.extend(checker.short_circuits.into_values());
         constant_materializations.extend(checker.constant_materializations.into_values());
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
@@ -229,7 +236,9 @@ pub(super) fn analyze(
     non_null_assertions.sort_by_key(|plan| plan.descriptor().expression());
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
+    short_circuits.sort_by_key(|plan| plan.expression);
     Ok(Analysis {
+        short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
         non_null_assertions,
         diagnostics,
@@ -296,6 +305,8 @@ struct ReceiverContext {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    constant_control: bool,
+    short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
     constant_materializations:
         BTreeMap<UnitExpressionId, super::constant::UnitConstantMaterializationPlan>,
     sources: &'a SourceMap,
@@ -433,6 +444,8 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            constant_control: false,
+            short_circuits: BTreeMap::new(),
             constant_materializations: BTreeMap::new(),
             sources,
             parsed,

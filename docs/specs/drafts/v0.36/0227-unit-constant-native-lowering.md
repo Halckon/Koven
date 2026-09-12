@@ -33,6 +33,10 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   为 pending owner；不得只缓存 AST category 为 Temporary 的表达式而漏掉该事实。
   String 插值还需消费内部输入的 `AfterExpression` 与提前退出清理，嵌套插值按各自位置
   释放；当前 unit String lowering 仅解码 plain literal，不能将 Phase 3 事实视为已支持插值。
+- 短路必须消费专用 owned 的 source-qualified 执行计划：左侧正常完成后 RHS 为
+  Always/Never/Conditional；不得通过 AST 猜测缺失计划。分支编号沿用 0=true、1=false，
+  AND RHS 为 0、OR RHS 为 1；消费 skip/RHS 的 BranchExit 清理，并保留 RHS 退出后的 skip 后继。
+  基础入口既有单边 move 的 MissingFact 拒绝不因新入口接入而被隐式解除。
 - 常量声明及初始化依赖无运行时存储、global/init guard、namespace capture 或退出析构。
   不能为跨文件读取引入 singleton 或稳定常量地址。
 - 使用既有 process entry（含 argv）、object 原子发布与链接/执行流程；必要 CLI 编排仅负责

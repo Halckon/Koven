@@ -17,6 +17,7 @@ pub(super) fn analyze(
     names: &ValidatedCompilationUnitNames,
     environment: &TypeEnvironment,
     typed: &CompilationUnitTypes,
+    constant_control: bool,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
     if !typed.is_compatible_with(sources, inputs, names, environment) {
         return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
@@ -49,6 +50,7 @@ pub(super) fn analyze(
         inputs,
         names,
         typed,
+        constant_control,
         &bindings,
         dataflow::CallInputs::new(&call_argument_contracts, &call_receiver_contracts),
         dataflow::ClosureInputs::new(

@@ -56,7 +56,7 @@ fn all_constant_types_keep_exact_values_and_source_qualified_runtime_identity() 
             .unwrap()
             .validate_constants()
             .unwrap();
-        let owned = analysis::analyze(&sources, &inputs, &names, &te, typed.types()).unwrap();
+        let owned = analysis::analyze(&sources, &inputs, &names, &te, typed.types(), true).unwrap();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         let plans = owned
@@ -126,6 +126,10 @@ fn ownership_error_or_deferred_fact_prevents_partial_materialization_publication
     ] {
         let owned = analyze(text);
         assert_eq!(!owned.diagnostics().is_empty(), has_error);
+        assert!(
+            owned.short_circuits.is_none(),
+            "control facts are atomic too"
+        );
         if !has_error {
             assert!(!owned.deferred().is_empty());
         }

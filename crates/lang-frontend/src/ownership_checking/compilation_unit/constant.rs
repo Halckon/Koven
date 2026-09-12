@@ -58,9 +58,9 @@ impl CompilationUnitConstantOwnership {
         )
     }
 
-    /// 仅在主分析已原子发布完整物化事实时验证；不会取得基础 native capability。
+    /// 仅在主分析已原子发布完整物化与短路事实时验证；不会取得基础 native capability。
     pub fn validate(self) -> Result<ConstEnabledOwnedUnit, Box<Self>> {
-        if self.0.constant_materializations.is_some() {
+        if self.0.constant_materializations.is_some() && self.0.short_circuits.is_some() {
             Ok(ConstEnabledOwnedUnit(self))
         } else {
             Err(Box::new(self))
@@ -138,7 +138,76 @@ pub fn check_compilation_unit_constant_ownership(
     environment: &TypeEnvironment,
     typed: &ConstEnabledTypedUnit,
 ) -> Result<CompilationUnitConstantOwnership, OwnershipCheckingError> {
-    let mut owned = analysis::analyze(sources, inputs, names, environment, typed.types())?;
+    let mut owned = analysis::analyze(sources, inputs, names, environment, typed.types(), true)?;
     owned.provenance.requires_constant_capability = true;
     Ok(CompilationUnitConstantOwnership(owned))
+}
+
+/// RHS execution after the left operand completes; private until the full contract is verified.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ShortCircuitRhs {
+    Always,
+    Never,
+    Conditional,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct UnitShortCircuitPlan {
+    pub expression: UnitExpressionId,
+    pub left: UnitExpressionId,
+    pub right: UnitExpressionId,
+    pub rhs: ShortCircuitRhs,
+    /// Same branch numbering as If: 0=true, 1=false.
+    pub rhs_branch: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::constants_tests::analyze;
+    use super::{CompilationUnitConstantOwnership, ShortCircuitRhs};
+
+    #[test]
+    fn short_circuit_plans_follow_typed_boolean_uses_and_exclude_initializers_and_tails() {
+        for (value, operator, rhs) in [
+            ("false", "&&", ShortCircuitRhs::Never),
+            ("true", "||", ShortCircuitRhs::Never),
+            ("true", "&&", ShortCircuitRhs::Always),
+            ("false", "||", ShortCircuitRhs::Always),
+        ] {
+            let owned = analyze(&format!(
+                "package a\nconst val FLAG = {value} && true\nconst val TEXT = \"hi\"\nfun view(text: String): Boolean = true\nfun read(): Boolean = (FLAG) {operator} view(TEXT)\nfun dead(): Unit {{ return\nval unused = false && view(TEXT) }}"
+            ));
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            let plans = owned.short_circuits.as_ref().unwrap();
+            assert_eq!(plans.len(), 1);
+            assert_eq!(plans[0].rhs, rhs);
+            assert_eq!(plans[0].rhs_branch, usize::from(operator == "||"));
+            assert_eq!(
+                plans[0].left.source_unit(),
+                plans[0].expression.source_unit()
+            );
+            assert_eq!(
+                plans[0].right.source_unit(),
+                plans[0].expression.source_unit()
+            );
+            assert_eq!(
+                owned.constant_materializations.as_ref().unwrap().len(),
+                if rhs == ShortCircuitRhs::Never { 1 } else { 2 }
+            );
+        }
+    }
+
+    #[test]
+    fn constant_validation_requires_complete_short_circuit_facts() {
+        let mut recovery = CompilationUnitConstantOwnership(analyze(
+            "package a\nconst val FLAG = false\nfun read(): Boolean = FLAG && true",
+        ));
+        assert!(recovery.clone().validate().is_ok());
+        recovery.0.short_circuits = None;
+        assert!(recovery.0.constant_materializations.is_some());
+        assert!(
+            recovery.validate().is_err(),
+            "materializations alone cannot validate control flow"
+        );
+    }
 }
