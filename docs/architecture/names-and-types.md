@@ -38,6 +38,10 @@ Enum 的已声明 companion 常量不再被名称阶段误报为不存在的 cas
 
 `checker/constants/expressions.rs` 按封闭表达式集合记录语法依赖，非法表达式使用 L0156，
 companion initializer 中的 `this` 使用 L0153。普通类型错误优先；短路 RHS 仍参与资格与依赖。
+名称解析在 companion 常量上下文中识别 `this`，并在正常 lookup 失败后识别被隔离的实例
+字段、方法和外层类型参数（含 `T.member` receiver），使用 L0153 且保留 Unresolved。
+合法外层同名声明仍优先；普通 companion 函数的查询规则不变。声明内已有上游诊断时，
+类型阶段不再追加 const 资格/依赖诊断，但仍检查其他独立声明。
 `graph.rs` 按依赖顺序清除 initializer 类型缓存并复核前向操作数；失效依赖抑制后继环诊断。
 迭代式 SCC 检测对每个环发布一次 L0157，主 Span 与其余 label 按声明位置稳定排序。
 常量阶段在运行时 initializer/function body 之前完成，后者直接读取最终常量类型；常量声明

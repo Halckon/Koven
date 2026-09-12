@@ -114,6 +114,7 @@ struct Checker<'a> {
     rechecking_constants: bool,
     constants_checked: bool,
     constant_inputs_valid: bool,
+    constant_input_error_spans: Vec<Span>,
     associated_constant_uses: BTreeMap<usize, SymbolId>,
     associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
@@ -291,6 +292,12 @@ impl<'a> Checker<'a> {
             pending_constant_errors: BTreeMap::new(),
             rechecking_constants: false,
             constants_checked: false,
+            constant_input_error_spans: parsed
+                .diagnostics()
+                .iter()
+                .chain(names.diagnostics())
+                .map(Diagnostic::primary_span)
+                .collect(),
             constant_inputs_valid: parsed.diagnostics().is_empty()
                 && names.diagnostics().is_empty(),
             associated_constant_uses: BTreeMap::new(),

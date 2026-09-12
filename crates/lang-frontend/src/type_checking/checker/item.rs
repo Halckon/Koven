@@ -252,7 +252,13 @@ impl Checker<'_> {
                 let ty = expected.unwrap_or(result.ty);
                 self.set_marker_symbol(name, ty);
                 // 常量类型资格不能覆盖或级联已有的普通类型错误。
-                if is_constant && self.diagnostics.len() == diagnostics_before {
+                let declaration_span = self.ast().items().get(id)?.span();
+                let upstream_error = is_constant
+                    && self.constant_input_error_spans.iter().any(|span| {
+                        declaration_span.start() <= span.start()
+                            && span.end() <= declaration_span.end()
+                    });
+                if is_constant && !upstream_error && self.diagnostics.len() == diagnostics_before {
                     self.check_constant_type(
                         ty,
                         expected_span.unwrap_or(self.ast().expressions().get(initializer)?.span()),

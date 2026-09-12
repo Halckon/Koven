@@ -104,9 +104,11 @@ lowering。跨文件后继必须复用同一 evaluator。
 | 最终常量类型、精确值/依赖/use 与分析身份 | `cargo test -p lang-frontend --test type_constants -- --nocapture` | 20 项通过 |
 | 提前常量检查的 callable 共享契约 | `cargo test -p lang-frontend --test type_constants --test type_callable --no-fail-fast -- --nocapture` | type_callable 19 项通过；同次 type_constants 18 项通过，新增公共事实后最终 20 项见上一行 |
 | 下游分析身份契约 | `cargo test -p lang-frontend --test ownership_checking ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs -- --nocapture` | 1 项通过，28 项过滤 |
+| Companion 上下文与普通名称/常量回归 | `cargo test -p lang-frontend --test name_resolution --test type_constants --no-fail-fast -- --nocapture` | name_resolution 15、type_constants 20 项通过；随后新增 receiver 边界见下一行 |
+| 最终 companion receiver、同名遮蔽与无级联 | `cargo test -p lang-frontend --test name_resolution --test type_constants companion --no-fail-fast -- --nocapture` | 名称 2 项、类型 2 项通过，分别过滤 13/18 项 |
 
-类型资格、关联选择、表达式/依赖、求值及公共事实切片见下文。完整 L0153 上下文边界与
-全部验收矩阵仍待收口，不能据此将本 Spec 标记完成。
+类型资格、关联选择、表达式/依赖、求值、公共事实及上下文诊断切片见下文。
+全部验收矩阵仍待最终逐条核对，不能据此将本 Spec 标记完成。
 
 类型资格首轮先复现显式/推导 Double 未产生 L0155，再补入门禁。独立只读复核发现
 Any/Any? 经 Deferred(AnyValueRepresentation) 绕过检查，修复并补测试后复核通过。
@@ -195,3 +197,18 @@ L0158 定位运算符，覆盖溢出、除零、余零及 signed MIN/-1；负 li
 `cargo clippy -p lang-frontend --lib --test type_constants --test type_callable --test ownership_checking -- -D warnings`、
 `cargo fmt --all -- --check`、文档检查（351 份 Markdown）及 `git diff --check` 均通过。
 定向行为结果统一见验收映射表；未运行 frontend 全量。
+
+### Companion 上下文诊断切片
+
+名称阶段在 const 上下文识别 `this`，在正常 lookup 失败后诊断被隔离的实例 field/method
+及 enclosing type parameter，保留 Unresolved 而不注入成员作用域。正常外层同名 value/type
+查询仍优先；普通 companion 函数保留原查询规则。声明内上游错误阻止后续 const 资格级联，
+不影响其他独立声明。
+
+红测复现实例字段误报 L0080；修复后第一轮 name_resolution 15 项、type_constants 20 项通过。
+独立复核发现 `T.member` 经 value fallback 漏报，补充 TypeParameter 检测、外层同名 object
+对照及 field/method/type-parameter 的无级联用例后，再次独立复核通过。
+
+最终定向命中数见验收映射表。`cargo clippy -p lang-frontend --lib --test name_resolution --test type_constants -- -D warnings`、
+`cargo fmt --all -- --check`、文档检查（351 份 Markdown）与 `git diff --check` 通过。
+本切片没有公共类型变更，未重复上一切片的 workspace 编译检查；未运行 frontend 全量。

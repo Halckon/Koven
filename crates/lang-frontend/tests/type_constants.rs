@@ -342,17 +342,38 @@ fn constant_qualification_rechecks_forward_operand_types() {
 
 #[test]
 fn constant_qualification_rejects_companion_this_before_type_cascades() {
-    for annotation in ["", ": Int"] {
-        let (sources, typed) = checked(&format!(
-            "class Config {{ companion object {{ const val sample{annotation} = this }} }}"
-        ));
-        assert_eq!(codes(typed.diagnostics()), ["L0153"]);
-        assert_eq!(
-            sources
-                .slice(typed.diagnostics()[0].primary_span())
-                .unwrap(),
-            "this"
+    for declaration in [
+        "const val sample = this",
+        "const val sample: Int = this",
+        "const val sample = this.field",
+        "const val sample = field",
+        "const val sample: T = 1",
+        "const val sample = 1 is T",
+        "const val sample = T.member",
+        "const val sample = this.member()",
+        "const val sample = member()",
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "context.ko",
+                format!(
+                    "class Config<T>(val field: Int) {{ fun member(): Int = field\ncompanion object {{ {declaration} }} }}"
+                ),
+            )
+            .unwrap();
+        let parsed = parser_test_assertions::parse_file_twice(&sources, source, "constant context");
+        assert!(parsed.diagnostics().is_empty());
+        let (names, types) = standard_environments();
+        let names = resolve_names(&sources, &parsed, &names).unwrap();
+        assert_eq!(codes(names.diagnostics()), ["L0153"], "{declaration}");
+        let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+        assert!(
+            typed.diagnostics().is_empty(),
+            "{declaration}: {:?}",
+            typed.diagnostics()
         );
+        assert!(typed.constants().is_none());
     }
 }
 

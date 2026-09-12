@@ -494,3 +494,53 @@ fn checked_in_phase2_pass_and_fail_fixtures_are_executed() {
         assert_eq!(actual, expected, "{path:?}");
     }
 }
+
+#[test]
+fn companion_constants_reject_instance_context_without_importing_its_scope() {
+    for (source, invalid) in [
+        (
+            "class Config<T> { companion object { const val bad = T.member } }",
+            "T",
+        ),
+        (
+            "class Config(val field: Int) { companion object { const val bad = field } }",
+            "field",
+        ),
+        (
+            "class Config { fun member(): Int = 1\ncompanion object { const val bad = member() } }",
+            "member",
+        ),
+        (
+            "class Config<T> { companion object { const val bad: T = 1 } }",
+            "T",
+        ),
+        (
+            "class Config(val field: Int) { companion object { const val bad = this.field } }",
+            "this",
+        ),
+        (
+            "class Config { fun member(): Int = 1\ncompanion object { const val bad = this.member() } }",
+            "this",
+        ),
+    ] {
+        let (sources, parsed) = parsed(source);
+        let resolution = resolve_names(&sources, &parsed, &environment()).unwrap();
+        assert_eq!(codes(resolution.diagnostics()), ["L0153"], "{source}");
+        assert_eq!(span_text(&sources, &resolution.diagnostics()[0]), invalid);
+        for reference in resolution
+            .references()
+            .iter()
+            .filter(|reference| reference.span() == resolution.diagnostics()[0].primary_span())
+        {
+            assert_eq!(reference.target(), &ReferenceTarget::Unresolved);
+        }
+    }
+    for source in [
+        "const val field = 7\nclass Config(val field: Int) { companion object { const val ok = field } }",
+        "object T { const val member = 7 }\nclass Config<T> { companion object { const val ok = T.member } }",
+    ] {
+        let (sources, parsed) = parsed(source);
+        let resolution = resolve_names(&sources, &parsed, &environment()).unwrap();
+        assert!(resolution.diagnostics().is_empty(), "{source}");
+    }
+}

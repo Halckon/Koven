@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+mod constant_context;
+
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
@@ -51,6 +53,9 @@ struct Resolver<'a> {
     duplicate_code: DiagnosticCode,
     unresolved_code: DiagnosticCode,
     before_local_code: DiagnosticCode,
+    constant_context_code: DiagnosticCode,
+    companion_owners: BTreeMap<ScopeId, ScopeId>,
+    constant_owner: Option<ScopeId>,
 }
 
 impl<'a> Resolver<'a> {
@@ -74,6 +79,9 @@ impl<'a> Resolver<'a> {
             diagnostics: Vec::new(),
             duplicate_code: catalog.resolve(codes::DUPLICATE_NAME)?,
             unresolved_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
+            constant_context_code: catalog.resolve(codes::INVALID_CONSTANT_CONTEXT)?,
+            companion_owners: BTreeMap::new(),
+            constant_owner: None,
             before_local_code: catalog.resolve(codes::NAME_USED_BEFORE_LOCAL)?,
         })
     }
@@ -271,6 +279,7 @@ impl<'a> Resolver<'a> {
     fn resolve_item(&mut self, item_id: ItemId, scope: ScopeId) -> Result<(), NameResolutionError> {
         let span = self.ast().items().get(item_id)?.span();
         let item = self.ast().items().get(item_id)?.payload().clone();
+        let is_constant = matches!(&item, Item::Constant { .. });
         match item {
             Item::Error => Ok(()),
             Item::Modified { declaration, .. } => self.resolve_item(declaration, scope),
@@ -284,10 +293,18 @@ impl<'a> Resolver<'a> {
                 initializer,
                 ..
             } => {
-                if let Some(type_ref) = type_ref {
-                    self.resolve_type(type_ref, scope)?;
+                let previous = self.constant_owner;
+                if is_constant {
+                    self.constant_owner = self.companion_owners.get(&scope).copied();
                 }
-                self.resolve_expression(initializer, scope)
+                let result = (|| {
+                    if let Some(type_ref) = type_ref {
+                        self.resolve_type(type_ref, scope)?;
+                    }
+                    self.resolve_expression(initializer, scope)
+                })();
+                self.constant_owner = previous;
+                result
             }
             Item::Function {
                 type_parameters,
@@ -476,6 +493,7 @@ impl<'a> Resolver<'a> {
             ScopeKind::Companion,
             Some(companion.body.left_brace_span),
         );
+        self.companion_owners.insert(scope, classifier_scope);
         for &member in &companion.body.members {
             self.predeclare_item(member, scope)?;
         }
@@ -664,8 +682,8 @@ impl<'a> Resolver<'a> {
         let span = node.span();
         let expression = node.payload().clone();
         match expression {
+            Expression::This => self.check_constant_this(span),
             Expression::Error
-            | Expression::This
             | Expression::Literal(_)
             | Expression::Break { .. }
             | Expression::Continue { .. } => Ok(()),
@@ -1023,23 +1041,11 @@ impl<'a> Resolver<'a> {
                 self.diagnostics.push(diagnostic);
                 ReferenceTarget::LaterLocal(later)
             } else {
-                self.diagnostics.push(Diagnostic::new(
-                    self.sources,
-                    Severity::Error,
-                    self.unresolved_code,
-                    "unresolved name",
-                    span,
-                )?);
+                self.report_unresolved_reference(span, namespace, &name)?;
                 ReferenceTarget::Unresolved
             }
         } else {
-            self.diagnostics.push(Diagnostic::new(
-                self.sources,
-                Severity::Error,
-                self.unresolved_code,
-                "unresolved name",
-                span,
-            )?);
+            self.report_unresolved_reference(span, namespace, &name)?;
             ReferenceTarget::Unresolved
         };
         self.references
