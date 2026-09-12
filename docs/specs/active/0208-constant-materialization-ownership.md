@@ -1,12 +1,12 @@
 # SPEC-0208：常量重新物化与所有权事实
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `in-progress` |
 | Goal ID | `KOV-P3-208` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | 现行 [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
@@ -64,7 +64,8 @@ temporary/drop 机制；不把 constant symbol伪装成 local variable，也不�
 
 | 顺序 | 提交边界 | 建议提交信息 |
 |---|---|---|
-| 1 | ownership facts、测试与完成文档 | `feat(frontend): own constant materialization (SPEC-0208)` |
+| 1 | typed const use 接入既有 temporary/loan/drop 路径与定向测试 | `feat(frontend): treat constant reads as runtime values (SPEC-0208)` |
+| 2 | materialization 计划、validated marker、控制流验收与完成文档 | `feat(frontend): own constant materialization (SPEC-0208)` |
 
 ## 9. 未决问题
 
@@ -78,3 +79,24 @@ temporary/drop 机制；不把 constant symbol伪装成 local variable，也不�
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap 审计 | 通过 | 当前 constant initializer 仍走普通 runtime ownership flow；constant use 也没有 String temporary/materialization facts |
+
+### 首切片：运行时读取与声明隔离
+
+单文件 checker 跳过 constant initializer；expression/place/root/liveness/drop 直接查询已验证的
+Phase 2 constant use，限定读取不再求值命名空间 receiver。String 二元操作的裸名称读取生成
+use-expression temporary，Borrow 调用复用既有 temporary loan 与 CallReturn cleanup。
+
+本切片未发布独立 materialization plan 或 validated ownership marker，也未完成
+return/abort/branch/loop 交付矩阵；第 5 节完整验收项保持未勾选，0209 仍不可启用。
+
+
+| 验收项 / 命令 | 实际结果 | 边界 |
+|---|---|---|
+| `cargo test -p lang-frontend --test ownership_constants` | 4 passed | 重复 Borrow 的独立 temporary/CallReturn drop、concat/equality 逆序 drop、scalar/Char Value 与 String return、普通/move closure 无 const capture |
+| `cargo test -p lang-frontend --test ownership_constants --test ownership_checking --test ownership_closures --no-fail-fast` | ownership_checking 29 passed、ownership_closures 13 passed；当轮 constants 1 passed、3 fixture 语法失败，修正后由上一行重跑 4 passed | 共享 place/root/liveness/drop 调用方回归；没有把初次夹具失败算作通过 |
+| `cargo clippy -p lang-frontend --lib --test ownership_constants --test ownership_checking --test ownership_closures -- -D warnings` | passed | 实现与受影响测试 |
+| `cargo fmt --all -- --check`、`python3 scripts/check_docs.py`、`git diff --check` | passed；文档 351 | 无 inventory 迁移 |
+| 独立代码审查 | 未发现本切片缺陷 | 检查 descriptor/category、place/root、pending-call cleanup、二元逆序 drop 与 capture；未额外运行 Cargo |
+
+失败证据：修复前字符串二元测试只取得 1 条 temporary drop，预期 4 条；实现后通过。
+未运行 frontend 全量、workspace check 或 native：本切片没有新增公开阶段 API，也未接入 Phase 4。

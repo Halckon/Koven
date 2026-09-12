@@ -360,6 +360,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         usage: ExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        if self.checker.is_constant_use(id) {
+            return Ok(true);
+        }
         if let Some(operation) = self.checker.typed.rc_operation(id) {
             if let Some(place) = self.checker.place(operation.receiver())? {
                 let root = place.root();
@@ -868,6 +871,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         state: &mut ValueState,
     ) -> Result<Option<StringOperandDrop>, OwnershipCheckingError> {
         let node = self.checker.parsed.ast().expressions().get(expression)?;
+        if self.checker.is_constant_use(expression) {
+            return Ok(Some(StringOperandDrop::Temporary(expression, node.span())));
+        }
         match node.payload() {
             Expression::Group { expression } => self.string_view_operand(*expression, state),
             Expression::Name => {

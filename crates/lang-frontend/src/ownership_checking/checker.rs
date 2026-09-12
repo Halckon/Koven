@@ -334,12 +334,9 @@ impl<'a> Checker<'a> {
 
     fn check_item(&mut self, id: ItemId, state: &mut State) -> Result<(), OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error => {}
+            Item::Error | Item::Constant { .. } => {}
             Item::Modified { declaration, .. } => self.check_item(declaration, state)?,
             Item::Variable {
-                name, initializer, ..
-            }
-            | Item::Constant {
                 name, initializer, ..
             } => {
                 let closure = self.closure_origin(initializer, state)?;
@@ -514,6 +511,9 @@ impl<'a> Checker<'a> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if self.is_constant_use(id) {
+            return Ok(Flows::next(state));
+        }
         if let Some(descriptor) = self.construction.descriptor(id) {
             return self.check_construction(descriptor, state, usage);
         }
@@ -973,6 +973,13 @@ impl<'a> Checker<'a> {
             return Ok(flows);
         }
         self.chain_expression(flows, target, ExpressionUse::Read)
+    }
+
+    /// Typed constant reads produce values, never runtime declaration places or receivers.
+    fn is_constant_use(&self, expression: ExpressionId) -> bool {
+        self.typed
+            .constants()
+            .is_some_and(|constants| constants.use_at(expression).is_some())
     }
 
     fn use_name(

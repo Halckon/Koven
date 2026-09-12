@@ -84,3 +84,10 @@ Nothing 传播无正常出口，callable 退出时清除未提交调用的保护
 不发布 CallReturn drop；return 或离开当前实参求值范围的 break/continue 发布对应
 `Temporary(argument)` ControlTransfer drop，内层循环跳转保留外层待调用义务。Nothing/Abort
 没有正常 cleanup。该状态与 borrowed temporary 共用既有逆序、作用域和 loop-depth 清理。
+
+单文件常量读取直接消费 Phase 2 `ValidatedConstants` use descriptor，跳过常量声明 initializer
+的运行时 flow；常量名称没有 place/root，限定读取不求值 object/companion receiver。String use
+沿既有 temporary loan/drop 路径处理，二元运算的各次读取分别逆序析构。scalar/Char Value
+交付和 String return 不产生常量声明 owner，closure capture 不包含常量或关联命名空间。
+当前这些行为由 `ownership_constants` 覆盖；尚未发布独立物化 ownership plan/validated marker，
+不代表 compilation-unit 或 Phase 4 支持。

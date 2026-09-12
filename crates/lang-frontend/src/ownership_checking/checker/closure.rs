@@ -174,6 +174,9 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<SymbolId>, OwnershipCheckingError> {
+        if self.is_constant_use(expression) {
+            return Ok(None);
+        }
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
             Expression::Name => Ok(self.reference_symbol(node.span())),
