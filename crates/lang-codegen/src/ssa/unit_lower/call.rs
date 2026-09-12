@@ -530,7 +530,10 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             UnitValueDeliveryKind::Temporary => {
-                if delivery.source() != &UnitValueDeliverySource::Temporary(argument) {
+                let origin = self
+                    .constant_materialization_origin(argument, span)?
+                    .unwrap_or(argument);
+                if delivery.source() != &UnitValueDeliverySource::Temporary(origin) {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 }
             }

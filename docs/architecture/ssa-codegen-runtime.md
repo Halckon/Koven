@@ -72,7 +72,10 @@ String 计数夹具动态验证 9 literal + 2 concat owner 共 11 次 drop；两
 一次，free 逐指针核对 live allocation。literal owner 本身不分配 heap，唯一消费由 SSA verifier
 与动态计数共同证明。常量分析错配与非法 Byte 值在 object 落盘前拒绝。跨文件常量已有 crate 内专用标量 lowering 入口：逐 use 核对同一 typed/owned
 descriptor 后生成精确 Boolean/整数/Char；unit storage 保留独立 Char 类型。
-String 物化与短路仍显式拒绝，公开 constant native 入口尚未接通。
+String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop；String 二元中的
+常量 Name/Member 不读取声明 binding。专用 Group Value delivery 的 source 归一到已发布
+物化 use，原 call/argument identity 保留。短路仍显式拒绝，插值与完整退出矩阵尚未接通，
+公开 constant native 入口尚未接通。
 
 ## Compilation-unit planning 与 lowering
 

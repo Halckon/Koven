@@ -176,6 +176,18 @@ impl UnitExpressionLowerer<'_> {
             .expressions()
             .get(expression)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        // 常量 Name/Member 是逐 use temporary，不从声明的 variable binding 读取。
+        if self
+            .constant_owned
+            .and_then(|owned| {
+                owned.materialization_at(UnitExpressionId::new(self.source_unit, expression))
+            })
+            .is_some()
+        {
+            return self
+                .lower_required_value(expression, span)
+                .map(crate::ssa::model::EntityId::Value);
+        }
         match node.payload() {
             Expression::Group { expression } => self.lower_string_view(*expression, span),
             Expression::Name => {

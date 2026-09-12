@@ -46,6 +46,33 @@ pub(crate) fn lower_constant_unit_with_entry(
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// 与 frontend 一致，只有实际常量物化 use 才穿透透明 Group；不改普通实参来源。
+    pub(super) fn constant_materialization_origin(
+        &self,
+        mut expression: UnitExpressionId,
+        span: Span,
+    ) -> Result<Option<UnitExpressionId>, LoweringError> {
+        let Some(owned) = self.constant_owned else {
+            return Ok(None);
+        };
+        loop {
+            if owned.materialization_at(expression).is_some() {
+                return Ok(Some(expression));
+            }
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if let Expression::Group { expression: inner } = node.payload() {
+                expression = UnitExpressionId::new(expression.source_unit(), *inner);
+            } else {
+                return Ok(None);
+            }
+        }
+    }
+
     pub(super) fn lower_constant(
         &mut self,
         expression: UnitExpressionId,
@@ -76,23 +103,25 @@ impl UnitExpressionLowerer<'_> {
         if plan.descriptor() != descriptor {
             return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span));
         }
-        let scalar = match (plan.kind(), descriptor.value()) {
+        let ty = self.expression_ssa_type(expression.expression(), span)?;
+        let operation = match (plan.kind(), descriptor.value()) {
             (ConstantMaterializationKind::InlineCopy, ConstValue::Boolean(value)) => {
-                ScalarConstant::Boolean(*value)
+                Operation::Constant(ScalarConstant::Boolean(*value))
             }
             (ConstantMaterializationKind::InlineCopy, ConstValue::Integer { value, .. }) => {
-                ScalarConstant::Integer(*value)
+                Operation::Constant(ScalarConstant::Integer(*value))
             }
             (ConstantMaterializationKind::InlineCopy, ConstValue::Char(value)) => {
-                ScalarConstant::Char(u32::from(*value))
+                Operation::Constant(ScalarConstant::Char(u32::from(*value)))
             }
-            (ConstantMaterializationKind::StringTemporary, ConstValue::String(_)) => {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            (ConstantMaterializationKind::StringTemporary, ConstValue::String(bytes)) => {
+                Operation::StringLiteral {
+                    string: ty,
+                    bytes: bytes.to_vec(),
+                }
             }
             _ => return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span)),
         };
-        let ty = self.expression_ssa_type(expression.expression(), span)?;
-        self.append_scalar(Operation::Constant(scalar), ty, span)
-            .map(Some)
+        self.append_scalar(operation, ty, span).map(Some)
     }
 }

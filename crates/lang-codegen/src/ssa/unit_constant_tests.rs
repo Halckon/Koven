@@ -185,3 +185,110 @@ fn scalar_materializations_use_exact_values_and_reject_foreign_analysis() {
         assert_eq!(error.kind, LoweringErrorKind::MismatchedAnalysis);
     }
 }
+
+#[test]
+fn string_uses_materialize_independent_owners_with_literal_cleanup() {
+    for (signature, body, literals, drops) in [
+        ("String", "= TEXT", 1, 0),
+        ("String", "= ((TEXT))", 1, 0),
+        ("Unit", "{ val done = println(TEXT) }", 1, 1),
+        ("Unit", "{ val done = view(TEXT, (TEXT)) }", 2, 2),
+        ("Unit", "{ val done = consume(TEXT) }", 1, 0),
+        ("Unit", "{ val done = consume((TEXT)) }", 1, 0),
+        ("String", "= TEXT + TEXT", 2, 2),
+        ("Boolean", "= (TEXT) == TEXT", 2, 2),
+        ("Boolean", "= TEXT != (TEXT)", 2, 2),
+    ] {
+        for spelling in ["TEXT", "p.TEXT", "\"界\\n\""] {
+            let body = body.replace("TEXT", spelling);
+            let mut sources = SourceMap::new();
+            let (provider_source, provider) = parsed(
+                &mut sources,
+                "p/provider.ko",
+                "package p\nconst val TEXT = \"界\\n\"\nfun view(first: String, second: String): Unit {}\nfun consume(own text: String): Unit {}",
+            );
+            let (consumer_source, consumer) = parsed(
+                &mut sources,
+                "q/consumer.ko",
+                &format!(
+                    "package q\nimport p.TEXT\nimport p.view\nimport p.consume\nfun entry(): {signature} {body}"
+                ),
+            );
+            let inputs = [
+                SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+                SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+            ];
+            let (name_environment, environment) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names =
+                resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)
+                .unwrap()
+                .validate_constants()
+                .unwrap();
+            let owned = check_compilation_unit_constant_ownership(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+            )
+            .unwrap()
+            .validate()
+            .unwrap();
+            let entry = declaration(&names, "q", "entry");
+            let (program, entry) = lower_constant_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                entry,
+            )
+            .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+            let function = program.modules[0].function(entry).unwrap();
+            let owners = function
+                .instructions
+                .iter()
+                .filter_map(|instruction| match &instruction.operation {
+                    Operation::StringLiteral { bytes, .. } => {
+                        assert_eq!(bytes, "界\n".as_bytes());
+                        Some(instruction.results[0])
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(owners.len(), literals, "{body}");
+            assert_eq!(
+                owners
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+                literals,
+                "each use owns a distinct value"
+            );
+            let dropped = function
+                .instructions
+                .iter()
+                .filter_map(|instruction| match instruction.operation {
+                    Operation::Drop { owner } => Some(super::model::EntityId::Value(owner)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(dropped.len(), drops, "{body}");
+            if drops == literals {
+                assert_eq!(
+                    dropped,
+                    owners.iter().copied().rev().collect::<Vec<_>>(),
+                    "{body}"
+                );
+            }
+            crate::llvm::render_verified_program(&program)
+                .expect("String constants produce verified LLVM");
+        }
+    }
+}
