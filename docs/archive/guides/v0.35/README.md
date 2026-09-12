@@ -1,11 +1,11 @@
-# Koven v0.36 语言规范
+# Koven v0.35 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.36） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.35） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.36 -->
+<!-- current-guide: v0.35 -->
 
-本规范定义 Koven v0.36。它不是教程，也不描述某项功能何时完成；当前实现事实见
-[Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
+本规范定义 Koven v0.35。它不是教程，也不描述某项功能何时完成；当前实现事实见
+[Architecture](../../../architecture/README.md)，未来设计见 [Proposals](../../../proposals/README.md)。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 
@@ -31,7 +31,7 @@
 
 ## 版本与边界
 
-- 2026-09-12 用户明确启用 v0.36：完整继承并取代 v0.35，保留其 nullable flow/extraction、
-  owner liveness 与 compiler-bound Abort；新增关联常量选择、封闭求值及逐次物化。
-- v0.37、Map 所有权和 v2 interface value 均未启用，不得作为实现依据。
-- 旧版规范和候选重基记录只在 [Archive](../archive/README.md) 中用于追溯。
+- 2026-09-08 用户明确启用 v0.35，完整继承并取代 v0.34；新增 nullable flow/extraction，
+  明确 named owner liveness、assertion Abort 绑定及内部 proof identity。
+- v0.36–v0.37、Map 所有权和 v2 interface value 均未启用，不得作为实现依据。
+- 旧版规范和重组前快照只在 [Archive](../../README.md) 中用于追溯。

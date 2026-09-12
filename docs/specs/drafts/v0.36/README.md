@@ -1,20 +1,20 @@
-# v0.36 阻塞草案
+# v0.36 分阶段实施
 
-> **性质**：draft Spec 索引 · **状态**：blocked by unapproved guide · **读取时机**：评审 v0.36 关联常量提案时 · **唯一真源**：本目录 Spec
+> **性质**：draft Spec 索引 · **状态**：blocked by implementation dependencies · **读取时机**：推进 v0.36 关联常量时 · **唯一真源**：本目录 Spec
 
-现行语义仍是 v0.35；以下草案均不可实施：
+v0.36 已于 2026-09-12 启用；以下按依赖顺序实施，未满足前置者保持 draft：
 
-- [SPEC-0026](0026-associated-constant-evaluation.md)：单文件选择与求值
+- [SPEC-0026](../../active/0026-associated-constant-evaluation.md)：单文件选择与求值
 - [SPEC-0208](0208-constant-materialization-ownership.md)：所有权与重新物化
 - [SPEC-0209](0209-associated-constant-lowering.md)：单文件 native lowering
 - [SPEC-0210](0210-multifile-associated-constants.md)：跨文件集成
 
-共同语义候选见 [v0.36 proposal](../../../proposals/v0.36-associated-constants.md)。
+现行语义见 [v0.36 常量规则](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)。
 
 ## 启用后的实施切片
 
-以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。先完成对现行 v0.35 的重基、
-明确取代关系并取得 guide 启用；有 ADR 前置时还须 accepted。每次推进一个依赖完备的 Spec。
+v0.36 已完整继承并取代 v0.35；以下排列实施顺序，不省略各 Spec 的完整依赖。
+有 ADR 前置时须 accepted；每次推进一个依赖完备的 Spec。
 
 | 切片 | Spec / 组内前置 | 交付证据 |
 |---|---|---|

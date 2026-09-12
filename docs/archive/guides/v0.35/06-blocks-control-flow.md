@@ -1,8 +1,8 @@
-# Koven v0.36：Block 与控制流
+# Koven v0.35：Block 与控制流
 
-> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.35） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.35 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `when` 穷尽性与 Smart Cast
 
@@ -353,7 +353,7 @@ control_element = block_element ;
   L0061，缺 `in` 用 L0062。Parser 只保存 source、binding 与 body；现行规范尚未启用 typed
   iteration provider、元素交付或 lowering，不能按 `iterator()` / `hasNext()` / `next()` 成员名
   猜测协议。候选设计仅在评审时按需读取
-  [v0.37 顺序迭代提案](../proposals/v0.37-sequential-iteration.md)。
+  [v0.37 顺序迭代提案](../../../proposals/v0.37-sequential-iteration.md)。
 - `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
   边界。Phase 1 建立 jump AST，Phase 2 负责上下文诊断。v1 不提供 loop label。
 

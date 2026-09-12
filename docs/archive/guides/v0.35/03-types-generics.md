@@ -1,8 +1,8 @@
-# Koven v0.36：类型与泛型
+# Koven v0.35：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.35） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.35 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -30,8 +30,8 @@ object Config {
 
 具名 `object` 同时声明一个名义类型和该类型的唯一值。v1 的该值不携带运行时存储状态：
 body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`、初始化块或惰性状态。
-`const val` 的求值与使用遵循
-[常量阶段交接](15-conformance-and-staging.md#const-val-的阶段交接)。成员函数可以执行普通 v1
+v0.35 只启用 `const val` 的声明/Parser 边界，其求值与使用遵循
+[未启用常量阶段](15-conformance-and-staging.md#const-val-的-v035-边界)。成员函数可以执行普通 v1
 运行时代码并可使用 `this`，因为函数代码本身不是 singleton 存储状态。具名 `object` 可以实现
 接口并参与单态化静态分发，但 v1 不把它擦除为裸 interface 或 `dyn`。运行时状态、惰性初始化与
 共享可变 singleton 统一延后到 v2。
@@ -286,10 +286,10 @@ L0101/L0105。独立的另一条合法 interface requirement 仍照常检查，�
 无关诊断。
 
 名义图是 callable、`when`、Copyable/解构和 ownership/codegen 的共享稳定输入。调用表达式、
-构造器与 member access 必须消费 typed identity，不得重解析源码名称。v0.36 保留
+构造器与 member access 必须消费 typed identity，不得重解析源码名称。v0.35 只冻结
 [Companion Object 与关联成员](08-class-family-members.md#companion-object-与关联成员)所述的关联
-命名空间、无 `this` 和声明/Parser 规则；常量阶段的现行范围见
-[一致性与实施边界](15-conformance-and-staging.md#const-val-的阶段交接)。
+命名空间、无 `this` 和声明/Parser 边界；常量阶段的唯一现行范围见
+[一致性与实施边界](15-conformance-and-staging.md#const-val-的-v035-边界)，不得用未启用候选补全。
 
 ---
 

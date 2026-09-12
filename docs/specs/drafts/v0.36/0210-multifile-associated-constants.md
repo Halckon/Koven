@@ -1,6 +1,6 @@
 # SPEC-0210：跨文件关联常量集成
 
-> **性质**：draft Spec · **状态**：draft（blocked by unapproved v0.36 guide） · **读取时机**：评审 v0.36 proposal 或对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：draft Spec · **状态**：draft（blocked by implementation dependencies） · **读取时机**：实施或评审 v0.36 对应 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
@@ -9,11 +9,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-210` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.36 §36](../../../proposals/v0.36-associated-constants.md) |
-| 批准依据 | 无；v0.36 尚未启用，且尚未显式重基到现行 v0.35 |
+| 语言规范 | 现行 [v0.36 §36](../../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
+| 批准依据 | 2026-09-12 用户明确启用 v0.36 并要求分阶段实施；依赖未完成者保持 draft |
 | 前置 Spec | SPEC-0025/0197 `done`；SPEC-0026 待完成 |
 | 前置 ADR | ADR-0020 `accepted` |
-| 阻塞项 | 明确 v0.36 对现行 v0.35 的重基与取代关系；v0.36 启用；SPEC-0026 `done` |
+| 阻塞项 | SPEC-0026 `done` |
 | 影响范围 | `lang-frontend` compilation-unit const selection/evaluation/tests；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.36 unit integration |
 

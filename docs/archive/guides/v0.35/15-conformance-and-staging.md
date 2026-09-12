@@ -1,8 +1,8 @@
-# Koven v0.36：一致性、Phase 与实施边界
+# Koven v0.35：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.35） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.35 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -97,20 +97,19 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.36。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.35。
 
-具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
+具体测试选择与并行方式见 [测试与分层验收](../../../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
 
-## `const val` 的阶段交接
+## `const val` 的 v0.35 边界
 
-Phase 1 保留普通 expression AST；Phase 2 根据[关联常量与封闭求值](05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)
-发布常量选择、依赖图、值和 use facts；Phase 3 发布逐次物化的 ownership/drop/capture facts；
-Phase 4 只消费已验证产物生成 scalar/Char constant 或 String literal owner。
-常量声明没有运行时初始化；缺少对应阶段 facts 的产物不得进入下游。
+v0.35 只启用顶层、具名 object 与 companion 中 `const val` 的声明位置、固定前缀、AST/Span 和
+Parser 恢复。initializer 仍解析为普通 expression，但 v0.35 不定义或授权关联常量选择、封闭表达式
+子集、编译期求值、依赖图、跨文件常量图、运行时重新物化、所有权事实或 lowering。实现不得把
+initializer 当作普通运行时初始化，也不得将仍缺少这些事实的产物送入 ownership/codegen。
 
-单文件与 compilation-unit 产物分别验收。跨文件 typed const capability 不能被既有 unit
-ownership/codegen 自动接受，必须由独立后继 Spec 显式接线。规范启用不表示这些阶段已经实现。
+上述阶段只有在更高版本 guide 明确启用后才成为语言能力；proposal 或 draft Spec 不能补全本页。
 
 ## Nullable 的阶段交接
 
@@ -124,4 +123,4 @@ nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering �
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
-也继续延后。v0.36 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
+也继续延后。v0.35 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。

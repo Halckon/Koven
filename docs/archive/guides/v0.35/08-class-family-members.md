@@ -1,8 +1,8 @@
-# Koven v0.36：Class Family、成员与 Receiver
+# Koven v0.35：Class Family、成员与 Receiver
 
-> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.35） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.35 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Value Class
 
@@ -132,19 +132,19 @@ val p = Point.origin()
   `companion object Name`，也不产生可观察的 `Type.Companion` 值或对象身份；
 - body 只允许 `const val` 与关联函数，不允许普通 `val` / `var`、嵌套类型或初始化块；
 - 关联函数可以执行普通运行时代码、构造对象并返回 `Result`，但没有 `this`，也不能直接读取
-  实例字段；`const val` 遵循[关联常量规则](05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)，不改变关联函数体；
+  实例字段；`const val` 在 v0.35 只具有声明/Parser 边界，不改变关联函数体；
 - companion 不实现接口，不捕获 enclosing 类型参数。泛型关联函数必须自行声明类型参数，
   例如 `fun <T> identity(own value: T): T = value`；这里必须显式取得可能为 MoveOnly 的 `T`
   才能把它作为 owned 返回值交付。这里不使用 `Box<T>` 作为示例，因为
   [内建 `Box` 的实参边界](11-copyability-layout-construction.md#内建-box-身份与实参边界)
   要求实参是具体 `value class`，未约束的 `T` 不能证明这一点；
 - `Type.member` 在名称解析后可以指向关联函数符号；它不分配 singleton、不生成初始化 guard，
-  也没有退出时析构。常量选择与物化见
-  [常量阶段交接](15-conformance-and-staging.md#const-val-的阶段交接)。
+  也没有退出时析构。常量选择与内联不属于 v0.35，见
+  [未启用常量阶段](15-conformance-and-staging.md#const-val-的-v035-边界)。
 
 interface 的固定协议常量同样可以声明在 companion 中，例如
-`interface Http { companion object { const val DEFAULT_PORT: Int = 80 } }`；
-`Http.DEFAULT_PORT` 按关联常量规则选择与求值。该声明不被实现类型继承或 override。要求“每个实现类型各自
+`interface Http { companion object { const val DEFAULT_PORT: Int = 80 } }`；v0.35 尚未启用
+`Http.DEFAULT_PORT` 的选择与求值。该声明不被实现类型继承或 override。要求“每个实现类型各自
 提供一个常量”的 associated-constant contract 是另一项未来能力，v1 不用相同语法悄悄引入。
 
 ## `super` 与默认方法
@@ -261,7 +261,7 @@ exclusive access。手写 override、default 与多 delegate 冲突仍沿用
 Parser/AST 保存 receiver marker；类型检查发布规范化 receiver contract、`this`/member call 与
 Borrow-only delegate forwarder facts；所有权检查据此建立 receiver loan/move/drop、字段冲突与
 capture facts；lowering 使用既有 Value ABI 或
-[Borrow/Inout pointer ABI](../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
+[Borrow/Inout pointer ABI](../../../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
 
 本节不定义 callable reference/绑定 method value、extension method、safe call、borrow-return、
 动态 interface value、反射或 vtable，也不授权尚未启用的迭代设计。具体集合、IO、thread API
@@ -388,8 +388,8 @@ member_separator = trivia_with_line_break | trivia*, ";", trivia* ;
   执行普通 v1 代码、使用 `this` 并实现接口。companion 与它不同：companion 是纯关联命名
   空间，不能作为值、没有 `this`、不实现接口，也不接受名称。
 - companion 可出现在 class/value/enum/interface 中，body 只接受 `const val` 与关联函数。
-  Phase 1 保存 `const val` initializer；Phase 2 的选择、求值与允许类型集合见关联常量规则，
-  该 initializer 不作为普通运行时初始化。关联函数体不受此边界影响。interface companion 常量
+  Phase 1 保存 `const val` initializer；v0.35 不启用其 Phase 2 选择、求值或允许类型集合，且不把
+  该 initializer 当作普通运行时初始化。关联函数体不受此边界影响。interface companion 常量
   不被实现类型继承或 override。
 - parser 复用既有三形态函数节点；Phase 2 要求 class/value/enum/object/companion 的函数必须
   有 expression body 或 block body，只有 interface 函数可以无体。不得把无体 concrete
