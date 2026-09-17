@@ -56,7 +56,7 @@
   `// SAFETY: ...`。
 - 库 crate 不直接打印日志；用户输出由 CLI/LSP 边界统一渲染。
 - 保留用户的未提交改动，不顺手重构、格式化或清理无关代码。
-- 不新增依赖，除非已按 [依赖治理](docs/development/dependencies.md)完成适配、兼容、安全、许可和成本审计。
+- 避免新增依赖，除非已按 [依赖治理](docs/development/dependencies.md)完成适配、兼容、安全、许可和成本审计。
 
 ## 3. 架构硬边界
 
