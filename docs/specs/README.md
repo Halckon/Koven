@@ -12,6 +12,16 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [Draft v0.37](drafts/v0.37/README.md)：借用式顺序迭代，4 份，全部被未启用语义阻塞。
 - [完成 Spec Archive](../archive/specs/README.md)：209 份 `done`/`superseded` 记录，仅在追溯时读取。
 
+### 版本总览
+
+| 版本 | 状态 | 下一项 | 依赖入口 |
+|---|---|---|---|
+| v0.36（已启用） | 单文件与跨文件 ownership done | SPEC-0227 native in-progress | [v0.36 阶段路由](drafts/v0.36/README.md) |
+| v0.37（候选） | 4 份 draft，全部被未启用语义阻塞 | 待 v0.37 语义启用后重基 | [drafts/v0.37](drafts/v0.37/README.md) |
+| v2 interface 值 / Map 所有权（proposal） | 未启用 | 待评审 | [proposals](../proposals/README.md) |
+
+本表是导航摘要，不改变任何 Spec 的批准状态；各版本阶段路由与 Spec 正文仍是唯一真源。
+
 ## 生命周期
 
 ```text
