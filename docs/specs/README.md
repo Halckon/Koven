@@ -11,6 +11,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件 ownership 已完成，native SPEC-0227 实施中。
 - [Draft v0.37](drafts/v0.37/README.md)：借用式顺序迭代，4 份，全部被未启用语义阻塞。
 - [完成 Spec Archive](../archive/specs/README.md)：209 份 `done`/`superseded` 记录，仅在追溯时读取。
+- [Spec 依赖图](dependency-graph.md)：`scripts/gen_spec_dag.py` 生成的拓扑图（SVG 版本
+  [dependency-graph.svg](dependency-graph.svg)），不含验收状态，状态以本页为准。
 
 ### 版本总览
 

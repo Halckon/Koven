@@ -275,7 +275,15 @@ class DocsChecker:
         self.check_stale_paths()
         self.check_migration_ledger()
         self.check_line_budgets()
+        self.check_generated_graph()
         return sorted(set(self.errors))
+
+    def check_generated_graph(self) -> None:
+        """Verify generated dependency-graph artifacts are byte-fresh."""
+        from gen_spec_dag import drift_errors
+
+        for message in drift_errors(self.root):
+            self.error(message)
 
     def check_links(self) -> None:
         for source, links in self.links.items():
