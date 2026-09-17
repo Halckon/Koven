@@ -1,6 +1,6 @@
 # AGENTS.md — lang-frontend
 
-本 crate 负责 LLVM 无关的语言前端。根与 `crates/AGENTS.md` 继续适用。
+本 crate 负责 LLVM 无关的语言前端。根 [AGENTS.md](../../AGENTS.md) 继续适用。
 
 ## 按任务读取
 

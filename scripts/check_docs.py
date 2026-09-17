@@ -701,9 +701,6 @@ class DocsChecker:
                         )
 
     def check_scoped_agents(self) -> None:
-        common = self.root / "crates/AGENTS.md"
-        if not common.is_file():
-            self.error("缺少 scoped AGENTS: crates/AGENTS.md")
         for directory in SCOPED_AGENT_DIRS:
             path = self.root / "crates" / directory / "AGENTS.md"
             if not path.is_file():
@@ -792,7 +789,6 @@ class DocsChecker:
         limits: dict[Path, int] = {
             self.root / "AGENTS.md": 160,
             self.docs / "AGENTS.md": 120,
-            self.root / "crates/AGENTS.md": 120,
             self.docs / "guide/README.md": 160,
             self.docs / "architecture/README.md": 200,
         }

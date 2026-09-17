@@ -158,7 +158,6 @@ class DocsCheckerTests(unittest.TestCase):
                 f"crates/{directory}/AGENTS.md",
                 "# AGENTS\n\n## 必读入口\n\n[入口](../../docs/README.md)\n",
             )
-        self.write("crates/AGENTS.md", "# Shared\n")
         self.write("docs/README.md", "# Docs\n")
         checker = DocsChecker(self.root)
         checker.check_scoped_agents()
