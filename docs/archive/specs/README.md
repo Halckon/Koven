@@ -4,6 +4,10 @@
 
 本目录共 209 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
+全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
+[dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
+由 `scripts/gen_spec_dag.py` 重建；现行拓扑见 [Specs 索引](../../specs/README.md)。
+
 ## Phase 0
 
 - [SPEC-0001](./0001-bootstrap-cargo-workspace.md)：建立可检查的 Cargo workspace

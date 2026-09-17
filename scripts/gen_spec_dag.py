@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Generate the Spec-level dependency graph (Mermaid markdown + SVG).
+"""Generate Spec-level dependency graphs (Mermaid markdown + SVG).
 
-Reads active/draft Spec front matter ("前置 Spec" rows) under docs/specs,
-collapses archived (done) Specs into one aggregate node, and renders:
+Two views are produced from the same parsed model:
 
-- docs/specs/dependency-graph.md  (Mermaid source + node links)
-- docs/specs/dependency-graph.svg (standalone vector image)
+- Current view (docs/specs/dependency-graph.md/.svg): active and draft Specs
+  as real nodes; archived (done) Specs collapsed into one aggregate node.
+- Full view (docs/archive/specs/dependency-graph-full.md/.svg): every numbered
+  Spec including all archived ones, for history tracing.
 
 Both outputs are deterministic (sorted iteration only) so check_docs.py can
-verify freshness by regenerating and comparing bytes. Topology only: the graph
-never encodes per-Spec acceptance status; status lives in specs/README.md.
+verify freshness by regenerating and comparing bytes. Topology only: the
+graphs never encode per-Spec acceptance status; status lives in specs/README.md.
 """
 
 from __future__ import annotations
 
 import html
+import posixpath
 import re
 import sys
 from dataclasses import dataclass
@@ -46,21 +48,34 @@ LANE_FILL = "#f8fafc"
 LANE_STROKE = "#e2e8f0"
 LANE_TEXT = "#64748b"
 
+ARCHIVE = "archive"
+
 
 @dataclass
 class SpecNode:
     """One drawable node: a live Spec or the collapsed archive aggregate."""
 
-    number: str  # "0227" or "archive"
+    number: str  # "0227" or "archive" (synthetic aggregate)
     title: str
     partition: str  # "active" / "drafts/<version>" / "archive"
-    relpath: str  # markdown path relative to docs/specs ("" for archive)
+    repo_path: str  # markdown path relative to repo root ("" for aggregate)
     preds: frozenset[str]
+
+
+@dataclass
+class GraphView:
+    """One renderable snapshot of the Spec dependency graph."""
+
+    nodes: list[SpecNode]
+    edges: dict[str, set[str]]  # source number -> dependents
+    archived: int  # archived Spec count for lane labels
+    synthetic_archive: bool  # True when archive is one collapsed node
+    full: bool
 
 
 def partition_rank(partition: str) -> int:
     """Fixed lane order: archive leftmost, then active, then drafts ascending."""
-    if partition == "archive":
+    if partition == ARCHIVE:
         return 0
     if partition == "active":
         return 1
@@ -94,9 +109,8 @@ def specs_root(root: Path) -> Path:
     return root / "docs/specs"
 
 
-def load_graph(root: Path) -> tuple[list[SpecNode], dict[str, set[str]], int]:
-    """Build visible nodes, edges (source -> target), and archive count."""
-    specs = specs_root(root)
+def collect_live_nodes(specs: Path) -> list[SpecNode]:
+    """Collect active/draft Spec nodes with paths relative to the repo root."""
     nodes: list[SpecNode] = []
     for path in sorted(p for p in specs.rglob("*.md") if NUMBER_RE.match(p.name)):
         parts = path.relative_to(specs).parts
@@ -113,27 +127,61 @@ def load_graph(root: Path) -> tuple[list[SpecNode], dict[str, set[str]], int]:
                 number=number,
                 title=title,
                 partition=partition,
-                relpath=str(path.relative_to(specs).as_posix()),
+                repo_path=str(path.relative_to(specs.parent).as_posix()),
                 preds=preds,
             )
         )
-    nodes.sort(key=lambda node: (partition_rank(node.partition), node.number))
+    return nodes
 
+
+def collect_archive_nodes(archive: Path) -> list[SpecNode]:
+    """Collect archived Spec nodes for the full view."""
+    nodes: list[SpecNode] = []
+    for path in numbered_specs(archive):
+        number, title, preds = parse_spec_file(path)
+        nodes.append(
+            SpecNode(
+                number=number,
+                title=title,
+                partition=ARCHIVE,
+                # 统一为相对 docs/ 的路径，与 live 节点同一坐标系。
+                repo_path=str(path.relative_to(archive.parent.parent).as_posix()),
+                preds=preds,
+            )
+        )
+    return nodes
+
+
+def build_edges(nodes: list[SpecNode]) -> dict[str, set[str]]:
+    """Edges from each Spec to the Specs that depend on it; unknown preds
+    (not present as nodes) collapse into the synthetic "archive" source."""
     by_number = {node.number: node for node in nodes}
     edges: dict[str, set[str]] = {}
     for node in nodes:
         for pred in sorted(node.preds):
-            source = pred if pred in by_number else "archive"
+            source = pred if pred in by_number else ARCHIVE
             edges.setdefault(source, set()).add(node.number)
-
-    archived = len(numbered_specs(root / "docs/archive/specs"))
-    return nodes, edges, archived
+    return edges
 
 
-def compute_levels(nodes: list[SpecNode], edges: dict[str, set[str]]) -> dict[str, int]:
+def load_view(root: Path, full: bool) -> GraphView:
+    """Build one renderable view: current (collapsed archive) or full."""
+    specs = specs_root(root)
+    archive_dir = root / "docs/archive/specs"
+    nodes = collect_live_nodes(specs)
+    archived_specs = numbered_specs(archive_dir)
+    if full:
+        nodes.extend(collect_archive_nodes(archive_dir))
+        nodes.sort(key=lambda node: (partition_rank(node.partition), node.number))
+        return GraphView(nodes, build_edges(nodes), len(archived_specs), False, True)
+    nodes.sort(key=lambda node: (partition_rank(node.partition), node.number))
+    return GraphView(nodes, build_edges(nodes), len(archived_specs), True, False)
+
+
+def compute_levels(view: GraphView) -> dict[str, int]:
     """Longest-path leveling over predecessors; the archive aggregate sits at 0."""
     preds_map: dict[str, set[str]] = {}
-    for source, targets in edges.items():
+    for source, targets in view.edges.items():
         for target in targets:
             preds_map.setdefault(target, set()).add(source)
     depth: dict[str, int] = {}
@@ -145,20 +193,27 @@ def compute_levels(nodes: list[SpecNode], edges: dict[str, set[str]]) -> dict[st
         if number in visiting:
             raise ValueError(f"前置依赖成环: {number}")
         visiting.add(number)
-        level = max((walk(pred) + 1 for pred in sorted(preds_map.get(number, ()))), default=0)
+        level = max(
+            (walk(pred) + 1 for pred in sorted(preds_map.get(number, ()))),
+            default=0,
+        )
         visiting.discard(number)
         depth[number] = level
         return level
 
-    for number in ["archive"] + [node.number for node in nodes]:
+    for number in ([ARCHIVE] if view.synthetic_archive else []) + [
+        node.number for node in view.nodes
+    ]:
         walk(number)
     return depth
 
 
-def partition_label(partition: str, archived: int) -> str:
+def partition_label(partition: str, view: GraphView) -> str:
     """Human-readable lane title."""
-    if partition == "archive":
-        return f"已完成（archive，{archived} 份）"
+    if partition == ARCHIVE:
+        if view.full:
+            return f"已完成（archive，{view.archived} 份）"
+        return f"已完成（archive，{view.archived} 份）"
     if partition == "active":
         return "现行 active"
     return f"{partition.removeprefix('drafts/')}（draft，未启用）"
@@ -166,57 +221,79 @@ def partition_label(partition: str, archived: int) -> str:
 
 def wrap_title(title: str, width: int = 14, max_lines: int = 3) -> list[str]:
     """Wrap a CJK title into fixed-width lines with ellipsis on overflow."""
+    title = title.replace("`", "")
     lines = [title[i : i + width] for i in range(0, len(title), width)][:max_lines]
     if len(title) > max_lines * width:
         lines[-1] = lines[-1][:-1] + "…"
     return lines
 
 
-def node_label(node: SpecNode, archived: int) -> list[str]:
+def node_label(node: SpecNode, view: GraphView) -> list[str]:
     """First line is the Spec id; remaining lines are the wrapped title."""
-    if node.number == "archive":
-        return ["已完成 Spec", f"archive，{archived} 份"]
-    return [f"SPEC-{node.number}"] + wrap_title(node.title.replace("`", ""))
+    if node.number == ARCHIVE:
+        return ["已完成 Spec", f"archive，{view.archived} 份"]
+    return [f"SPEC-{node.number}"] + wrap_title(node.title)
 
 
 def mermaid_id(number: str) -> str:
     """Mermaid-safe node identifier."""
-    return "ARCH" if number == "archive" else f"S{number}"
+    return "ARCH" if number == ARCHIVE else f"S{number}"
 
 
-def render_mermaid(nodes: list[SpecNode], edges: dict[str, set[str]], archived: int) -> str:
+def markdown_link(node: SpecNode, base: str) -> str:
+    """Markdown link target from the output document's directory (docs-relative)."""
+    if node.partition == ARCHIVE and not node.repo_path:
+        target = "archive/specs/README.md"
+    else:
+        target = node.repo_path
+    return posixpath.relpath(target, base)
+
+
+def render_mermaid(view: GraphView) -> str:
     """Render the graph as a Mermaid flowchart for GitHub rendering."""
     lines = ["flowchart TD"]
-    lines.append(f'ARCH(("已完成<br/>archive {archived} 份"))')
-    for partition in sorted({node.partition for node in nodes}, key=partition_rank):
+    if view.synthetic_archive:
+        lines.append(f'ARCH(("已完成<br/>archive {view.archived} 份"))')
+    for partition in sorted({node.partition for node in view.nodes}, key=partition_rank):
         gid = "G" + partition.replace("/", "_").replace(".", "")
-        lines.append(f'subgraph {gid}["{partition_label(partition, archived)}"]')
-        for node in (item for item in nodes if item.partition == partition):
+        lines.append(f'subgraph {gid}["{partition_label(partition, view)}"]')
+        for node in (item for item in view.nodes if item.partition == partition):
             escaped = html.escape(node.title, quote=False).replace("`", "")
             lines.append(
                 f'  {mermaid_id(node.number)}["{mermaid_id(node.number)}<br/>{escaped}"]'
             )
         lines.append("end")
-    for source in sorted(edges):
-        for target in sorted(edges[source]):
+    for source in sorted(view.edges):
+        for target in sorted(view.edges[source]):
             lines.append(f"{mermaid_id(source)} --> {mermaid_id(target)}")
     return "\n".join(lines)
 
 
-def render_markdown(
-    nodes: list[SpecNode], edges: dict[str, set[str]], archived: int
-) -> str:
-    """Render docs/specs/dependency-graph.md."""
+def render_markdown(view: GraphView, base: str) -> str:
+    """Render one dependency-graph markdown page under `base` (posix dir)."""
+    scope = "全量" if view.full else "现行拓扑"
+    header = (
+        "# Spec 全量依赖图"
+        if view.full
+        else "# Spec 依赖图"
+    )
     lines = [
-        "# Spec 依赖图",
+        header,
         "",
-        "> **性质**：生成物（勿手改） · **状态**：current · **读取时机**：查看 Spec 依赖拓扑时 · **唯一真源**：各 Spec 正文",
+        "> **性质**：生成物（勿手改） · **状态**：current · **读取时机**：追溯 Spec 依赖拓扑时 · **唯一真源**：各 Spec 正文",
         "",
-        "由 `scripts/gen_spec_dag.py` 生成；只画拓扑结构，不含验收状态；状态见 [README](README.md)。",
-        "重建时机：guide 版本启用或新增/迁移 draft Spec。SVG 版本：[dependency-graph.svg](dependency-graph.svg)。",
+        "由 `scripts/gen_spec_dag.py` 生成；只画拓扑结构，不含验收状态；状态见"
+        + ("[Specs 索引](../specs/README.md)。" if view.full else "[README](README.md)。"),
+        "重建时机：guide 版本启用或新增/迁移 draft Spec。",
+    ]
+    if not view.full:
+        lines.append("SVG 版本：[dependency-graph.svg](dependency-graph.svg)。")
+    else:
+        lines.append("SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。")
+    lines += [
         "",
         "```mermaid",
-        render_mermaid(nodes, edges, archived),
+        render_mermaid(view),
         "```",
         "",
         "## 节点链接",
@@ -224,31 +301,34 @@ def render_markdown(
         "| 节点 | 分区 | 文档 |",
         "|---|---|---|",
     ]
-    for node in nodes:
+    for node in view.nodes:
         lines.append(
-            f"| SPEC-{node.number} | {node.partition} | [{node.relpath}]({node.relpath}) |"
+            f"| SPEC-{node.number} | {node.partition} "
+            f"| [{posixpath.basename(node.repo_path)}]({markdown_link(node, base)}) |"
         )
-    lines.append(
-        f"| 已完成 Spec（{archived} 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |"
-    )
+    if view.synthetic_archive:
+        lines.append(
+            f"| 已完成 Spec（{view.archived} 份） | archive "
+            f"| [archive/specs/README.md]({posixpath.relpath('archive/specs/README.md', base)}) |"
+        )
     lines.append("")
     return "\n".join(lines)
 
 
-def compute_layout(
-    nodes: list[SpecNode], edges: dict[str, set[str]], archived: int
-) -> tuple[dict[str, tuple[float, float, float, float]], dict[str, int], float, float]:
+def compute_layout(view: GraphView) -> tuple[dict[str, tuple[float, float, float, float]], dict[str, int], float, float]:
     """Compute lane-based positions: one lane per partition, rows by level.
 
     Returns (rects, depth, total_width, total_height); each rect is
-    (x, y, width, height) keyed by Spec number, with the archive aggregate
-    under key "archive".
+    (x, y, width, height) keyed by Spec number; the synthetic archive
+    aggregate (current view only) is keyed "archive".
     """
-    depth = compute_levels(nodes, edges)
-    archive = SpecNode("archive", "", "archive", "", frozenset())
-    drawable = [("archive", archive)] + [(node.number, node) for node in nodes]
+    depth = compute_levels(view)
+    aggregate = SpecNode(ARCHIVE, "", ARCHIVE, "", frozenset())
+    drawable = ([(ARCHIVE, aggregate)] if view.synthetic_archive else []) + [
+        (node.number, node) for node in view.nodes
+    ]
 
-    labels = {number: node_label(node, archived) for number, node in drawable}
+    labels = {number: node_label(node, view) for number, node in drawable}
     heights = {
         number: 2 * PAD_Y + len(lines) * LINE_H for number, lines in labels.items()
     }
@@ -262,7 +342,7 @@ def compute_layout(
         for partition in partitions
     }
 
-    # 泳道宽度：同级节点会横向错开，取最大槽位数决定泳道宽度。
+    # 泳道宽度由同级最大槽位数决定（同级节点横向错开）。
     lane_slots = {
         partition: max(
             (
@@ -277,7 +357,12 @@ def compute_layout(
     cursor = LEFT_MARGIN
     for partition in partitions:
         lane_x[partition] = cursor
-        cursor += 2 * LANE_PAD_X + lane_slots[partition] * (NODE_W + SLOT_GAP_X) - SLOT_GAP_X + LANE_GAP
+        cursor += (
+            2 * LANE_PAD_X
+            + lane_slots[partition] * (NODE_W + SLOT_GAP_X)
+            - SLOT_GAP_X
+            + LANE_GAP
+        )
 
     level_max_h: dict[int, int] = {}
     for number, _ in drawable:
@@ -303,16 +388,17 @@ def compute_layout(
     return rects, depth, total_width, total_height
 
 
-def render_svg(nodes: list[SpecNode], edges: dict[str, set[str]], archived: int) -> str:
+def render_svg(view: GraphView) -> str:
     """Render the graph as a standalone deterministic SVG."""
-    depth = compute_levels(nodes, edges)
-    rects, _, width, height = compute_layout(nodes, edges, archived)
-    partition_of = {node.number: node.partition for node in nodes}
-    partition_of["archive"] = "archive"
-    archive = SpecNode("archive", "", "archive", "", frozenset())
+    rects, _, width, height = compute_layout(view)
+    partition_of = {node.number: node.partition for node in view.nodes}
+    if view.synthetic_archive:
+        partition_of[ARCHIVE] = ARCHIVE
+    aggregate = SpecNode(ARCHIVE, "", ARCHIVE, "", frozenset())
     labels = {
-        number: node_label(node, archived)
-        for number, node in [("archive", archive)] + [(n.number, n) for n in nodes]
+        number: node_label(node, view)
+        for number, node in ([(ARCHIVE, aggregate)] if view.synthetic_archive else [])
+        + [(node.number, node) for node in view.nodes]
     }
 
     out = [
@@ -332,7 +418,9 @@ def render_svg(nodes: list[SpecNode], edges: dict[str, set[str]], archived: int)
     lanes: dict[str, list[tuple[float, float, float, float]]] = {}
     for number, rect in rects.items():
         lanes.setdefault(partition_of[number], []).append(rect)
-    for partition, member_rects in sorted(lanes.items(), key=lambda item: partition_rank(item[0])):
+    for partition, member_rects in sorted(
+        lanes.items(), key=lambda item: partition_rank(item[0])
+    ):
         x0 = min(r[0] for r in member_rects) - LANE_PAD_X
         x1 = max(r[0] + r[2] for r in member_rects) + LANE_PAD_X
         y0 = min(r[1] for r in member_rects) - 34
@@ -343,38 +431,43 @@ def render_svg(nodes: list[SpecNode], edges: dict[str, set[str]], archived: int)
         )
         out.append(
             f'  <text x="{(x0 + x1) / 2:.0f}" y="{y0 + 20:.0f}" text-anchor="middle" '
-            f'font-size="13" fill="{LANE_TEXT}">{html.escape(partition_label(partition, archived))}</text>'
+            f'font-size="13" fill="{LANE_TEXT}">{html.escape(partition_label(partition, view))}</text>'
         )
 
     # 依赖边：同泳道自上而下走中线，跨泳道从侧面进入目标。
-    edge_paths: list[str] = []
-    for source in sorted(edges):
-        for target in sorted(edges[source]):
+    for source in sorted(view.edges):
+        for target in sorted(view.edges[source]):
             sx, sy, sw, sh = rects[source]
-            tx, ty, tw, _th = rects[target]
+            tx, ty, tw, th = rects[target]
             if partition_of[source] == partition_of[target] and sy < ty:
                 x1_, y1_ = sx + sw / 2, sy + sh
                 x2_, y2_ = tx + tw / 2, ty
                 mid1, mid2 = y1_ + LEVEL_GAP / 2, y2_ - LEVEL_GAP / 2
-                path = f"M {x1_:.0f} {y1_:.0f} C {x1_:.0f} {mid1:.0f}, {x2_:.0f} {mid2:.0f}, {x2_:.0f} {y2_:.0f}"
+                path = (
+                    f"M {x1_:.0f} {y1_:.0f} C {x1_:.0f} {mid1:.0f}, "
+                    f"{x2_:.0f} {mid2:.0f}, {x2_:.0f} {y2_:.0f}"
+                )
             else:
                 if sx < tx:
                     x1_, y1_ = sx + sw, sy + sh / 2
-                    x2_, y2_ = tx, ty + _th / 2
+                    x2_, y2_ = tx, ty + th / 2
                 else:
                     x1_, y1_ = sx, sy + sh / 2
-                    x2_, y2_ = tx + tw, ty + _th / 2
+                    x2_, y2_ = tx + tw, ty + th / 2
                 mid = (x1_ + x2_) / 2
-                path = f"M {x1_:.0f} {y1_:.0f} C {mid:.0f} {y1_:.0f}, {mid:.0f} {y2_:.0f}, {x2_:.0f} {y2_:.0f}"
-            edge_paths.append(
-                f'  <path d="{path}" fill="none" stroke="{INK}" stroke-width="1.5" marker-end="url(#arrow)"/>'
+                path = (
+                    f"M {x1_:.0f} {y1_:.0f} C {mid:.0f} {y1_:.0f}, "
+                    f"{mid:.0f} {y2_:.0f}, {x2_:.0f} {y2_:.0f}"
+                )
+            out.append(
+                f'  <path d="{path}" fill="none" stroke="{INK}" stroke-width="1.5" '
+                f'marker-end="url(#arrow)"/>'
             )
-    out.extend(edge_paths)
 
-    # 节点：按编号排序保证确定性
+    # 节点按编号排序保证确定性；archive 节点用灰色标识"已完成"。
     for number in sorted(rects):
         x, y, w, h = rects[number]
-        is_archive = number == "archive"
+        is_archive = partition_of[number] == ARCHIVE
         fill = ARCHIVE_FILL if is_archive else NODE_FILL
         stroke = ARCHIVE_STROKE if is_archive else NODE_STROKE
         out.append(
@@ -392,20 +485,32 @@ def render_svg(nodes: list[SpecNode], edges: dict[str, set[str]], archived: int)
     return "\n".join(out) + "\n"
 
 
+def render_targets(root: Path) -> dict[Path, str]:
+    """Build every generated artifact keyed by its output path."""
+    current = load_view(root, full=False)
+    full = load_view(root, full=True)
+    specs = specs_root(root)
+    archive_specs = root / "docs/archive/specs"
+    return {
+        specs / "dependency-graph.md": render_markdown(current, "specs"),
+        specs / "dependency-graph.svg": render_svg(current),
+        archive_specs / "dependency-graph-full.md": render_markdown(full, "archive/specs"),
+        archive_specs / "dependency-graph-full.svg": render_svg(full),
+    }
+
+
 def drift_errors(root: Path) -> list[str]:
-    """Regenerate both artifacts and report byte drift against on-disk files."""
-    nodes, edges, archived = load_graph(root)
-    if not nodes:
-        return []
+    """Regenerate all artifacts and report byte drift against on-disk files."""
     try:
-        compute_levels(nodes, edges)
+        current = load_view(root, full=False)
+        full = load_view(root, full=True)
+        compute_levels(current)
+        compute_levels(full)
     except ValueError as exc:
         return [f"docs/specs 依赖图: {exc}"]
-    specs = specs_root(root)
-    expected = {
-        specs / "dependency-graph.md": render_markdown(nodes, edges, archived),
-        specs / "dependency-graph.svg": render_svg(nodes, edges, archived),
-    }
+    if not current.nodes and not current.archived:
+        return []
+    expected = render_targets(root)
     problems: list[str] = []
     for path, text in expected.items():
         name = path.relative_to(root).as_posix()
@@ -417,21 +522,23 @@ def drift_errors(root: Path) -> list[str]:
 
 
 def main() -> int:
-    """Write both generated artifacts; print a short summary."""
+    """Write all generated artifacts; print a short summary."""
     try:
-        nodes, edges, archived = load_graph(ROOT)
-        compute_levels(nodes, edges)
+        current = load_view(ROOT, full=False)
+        full = load_view(ROOT, full=True)
+        compute_levels(current)
+        compute_levels(full)
     except ValueError as exc:
         print(f"error: {exc}")
         return 1
-    specs = specs_root(ROOT)
-    (specs / "dependency-graph.md").write_text(
-        render_markdown(nodes, edges, archived), encoding="utf-8"
+    for path, text in render_targets(ROOT).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    print(
+        f"generated: current view ({len(current.nodes)} live + archive {current.archived}), "
+        f"full view ({len(full.nodes)} specs incl. {full.archived} archived) "
+        "-> docs/specs/ + docs/archive/specs/"
     )
-    (specs / "dependency-graph.svg").write_text(
-        render_svg(nodes, edges, archived), encoding="utf-8"
-    )
-    print(f"generated: {len(nodes)} visible specs + archive {archived} -> docs/specs/")
     return 0
 
 
