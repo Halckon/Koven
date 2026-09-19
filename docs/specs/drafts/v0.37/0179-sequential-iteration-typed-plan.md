@@ -9,11 +9,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P2-179` |
 | 所属 Phase | Phase 2 |
-| 语言规范 | 起草基线 v0.32；候选 [v0.37 §37](../../../proposals/v0.37-sequential-iteration.md) |
-| 批准依据 | 无；v0.37 尚未启用，且尚未显式重基到现行 v0.36 |
+| 语言规范 | 重基基线 v0.36；候选 [v0.37 §37](../../../proposals/v0.37-sequential-iteration.md) |
+| 批准依据 | 无；候选已重基到 v0.36，v0.37 尚未启用 |
 | 前置 Spec | SPEC-0016、0018、0019、0020、0022、0023、0178 `done` |
 | 前置 ADR | [ADR-0023](../../../adr/proposed/0023-borrowed-sequential-iteration-provider.md) 待 `accepted` |
-| 阻塞项 | 明确 v0.37 对现行 v0.36 的重基与取代关系；v0.37 启用；ADR-0023 `accepted` |
+| 阻塞项 | v0.37 启用；ADR-0023 `accepted` |
 | 影响范围 | `lang-frontend` for/type facts、L0159–L0160、fixtures；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.37 typed iteration 契约 |
 
@@ -90,3 +90,8 @@
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap/实现审计 | 通过 | Parser/name/jump 已具备；当前 type checker 只检查 source/body，ForBinding 最终无 element type |
+
+
+2026-09-19 候选重基核对：保留现行 v0.36 的 grammar、nullable/Nothing、所有权与常量契约，
+拟议版本取代关系见 proposal。仅更新基线与状态前置，不改变本 Spec 的阶段范围、验收条目或
+批准状态；guide 启用与 ADR 接受仍是实施前置。未运行 Rust 测试（本次仅文档）。

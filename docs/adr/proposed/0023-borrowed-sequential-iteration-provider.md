@@ -21,8 +21,9 @@ element binding 或退出清理。后端明确拒绝 `Statement::For`。
 loan 跨 CFG edge 传递、循环 block parameter 和递归 drop glue。缺少的是一个跨 Phase 一致的
 provider identity、logical length/cursor 契约，以及正常/提前退出时的线性清理顺序。
 
-把 v0.18 的抽象 `iterator()` / `hasNext()` / `next()` 当作普通方法并不可行：instance receiver
-候选尚未启用；泛型 iterator 需要 associated provider 或动态 interface；`next(): T` 还会把
+把历史草案的抽象 `iterator()` / `hasNext()` / `next()` 当作普通方法并不可行：现行普通
+receiver 选择不授予 intrinsic provider 身份；泛型 iterator 需要 associated provider 或动态
+interface；`next(): T` 还会把
 borrowed element 错写成 owned Value delivery。若各 Spec 分别选择 iterator object、索引循环或
 runtime helper，会形成不兼容的 frontend facts 与 SSA/LLVM ABI。
 
@@ -93,7 +94,7 @@ runtime helper，会形成不兼容的 frontend facts 与 SSA/LLVM ABI。
 
 ### 公开 `Iterable<T>` / `Iterator<T>` 与普通方法调用
 
-不采用。它需要尚不存在的 receiver、associated provider/borrow-return 或 dyn/type erasure，并
+不采用。普通 receiver 机制之外仍需 associated provider/borrow-return 或 dyn/type erasure，并
 会让用户同名方法副作用成为可观察语义。它不是当前三种 intrinsic container 的最小闭环。
 
 ### `next(): T` 每轮交付 owned element
@@ -120,7 +121,7 @@ retain。消费式迭代需要取得整个 container owner并定义剩余元素�
 
 收益：
 
-- 三种顺序容器共享一个无分配、静态可验证的 provider，不依赖未启用 receiver 或标准库 API；
+- 三种顺序容器共享一个无分配、静态可验证的 provider，不依赖普通 receiver 选择或标准库迭代 API；
 - MoveOnly element 保持在 container 中，Copyable 与 Borrow 使用沿用现有所有权规则；
 - source loan、element loan、temporary owner 和 jump cleanup 可跨 frontend/SSA/LLVM 逐层验证；
 - 不新增外部/runtime ABI，同时消除 `ContainerLength` 的 Borrow 与 `Int`/`size_t` 漂移。
