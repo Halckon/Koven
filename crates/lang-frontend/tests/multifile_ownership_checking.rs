@@ -755,6 +755,67 @@ fn member_body_receiver_capability_controls_this_and_implicit_calls() {
 }
 
 #[test]
+fn implicit_value_receiver_remains_pending_until_call_commit() {
+    for (exit, expected) in [("return", 1), ("error(\"abort\")", 0), ("true", 0)] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "class Host {{ own fun consume(text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val done = consume(\"prefix\", if (flag) {{ {exit} }} else {{ true }}) }} }}"
+        );
+        let (source, parsed) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+        let (name_environment, environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &environment);
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &environment, &typed)
+                .unwrap()
+                .validate()
+                .unwrap();
+        let call_text = format!("consume(\"prefix\", if (flag) {{ {exit} }} else {{ true }})");
+        let call = UnitExpressionId::new(
+            source_unit(&names, source),
+            expression_with_text(&sources, &parsed, &call_text),
+        );
+        let UnitCallReceiverOrigin::ImplicitThis(relay) =
+            owned.ownership().receiver_fact(call).unwrap().source()
+        else {
+            panic!("implicit receiver required")
+        };
+        let drops = owned
+            .ownership()
+            .drops()
+            .iter()
+            .filter(|fact| {
+                fact.target() == UnitDropTarget::This(relay)
+                    && matches!(fact.point(), UnitDropPoint::ControlTransfer(_))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), expected, "{exit}: {drops:?}");
+        if exit == "return" {
+            let ordered = owned
+                .ownership()
+                .drops()
+                .iter()
+                .filter(|fact| matches!(fact.point(), UnitDropPoint::ControlTransfer(_)))
+                .map(|fact| fact.target())
+                .collect::<Vec<_>>();
+            let prefix = UnitExpressionId::new(
+                source_unit(&names, source),
+                expression_with_text(&sources, &parsed, "\"prefix\""),
+            );
+            assert_eq!(
+                ordered,
+                [
+                    UnitDropTarget::Temporary(prefix),
+                    UnitDropTarget::This(relay)
+                ],
+                "later argument owner must drop before the pending receiver"
+            );
+        }
+    }
+}
+
+#[test]
 fn static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(

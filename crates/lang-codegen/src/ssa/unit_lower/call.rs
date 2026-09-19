@@ -90,8 +90,7 @@ impl UnitExpressionLowerer<'_> {
         if (self.constant_owned.is_none()
             || descriptor.receiver().is_some_and(|receiver| {
                 receiver.mode() == ParameterMode::Value
-                    && (matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
-                        || self.owned.conditional_receiver_delivery(call).is_some())
+                    && self.owned.conditional_receiver_delivery(call).is_some()
             })
             || function_value)
             && arguments.iter().any(|argument| {
@@ -208,6 +207,13 @@ impl UnitExpressionLowerer<'_> {
             .get(resolved.key())
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let pending_this = self.constant_owned.is_some()
+            && self.owned.conditional_receiver_delivery(call).is_none()
+            && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
+            && descriptor.receiver().is_some_and(|receiver| {
+                receiver.mode() == ParameterMode::Value
+                    && matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
+            });
         let pending_receiver = descriptor.receiver().and_then(|descriptor| {
             if self.constant_owned.is_some()
                 && descriptor.mode() == ParameterMode::Value
@@ -312,6 +318,12 @@ impl UnitExpressionLowerer<'_> {
         self.pending_operands.truncate(receiver_start);
         if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
             self.take_owned_temporary_origin(origin, require_value(receiver.entity, span)?, span)?;
+        }
+        if pending_this {
+            let receiver = receiver
+                .as_ref()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            self.take_owned_receiver(require_value(receiver.entity, span)?, span)?;
         }
         let return_type = resolve_concrete_type(
             self.typed,

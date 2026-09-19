@@ -155,3 +155,8 @@ String interpolation 及专用 String operand 的终止状态向外传播，阻�
 String binary 的已完成左 temporary 和各插值输入进入现有 ValueState 清理栈，跨后续操作数的
 return/break/continue 逆序释放，Abort 不展开。正常 binary 仍在 AfterBinaryOperands 按右左清理；
 插值在 AfterExpression(外层 String) 仅清理本次输入 temporary，不释放外层结果或仍 live 的 named owner。
+
+具体 MoveOnly Value receiver 的隐式调用没有表达式 identity；unit planner 将其作为
+`This(owner)` 加入既有 pending 队列。参数提前 return 按实参、receiver 的逆序发布 drop，
+正常提交移除义务，Abort 不展开。沿用既有 source-qualified receiver origin，不伪造
+expression temporary；条件 StaticSelf 的控制退出不由此修复扩展。

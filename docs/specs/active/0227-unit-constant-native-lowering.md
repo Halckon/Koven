@@ -11,8 +11,8 @@
 | 批准依据 | 用户持续授权分阶段实施；2026-09-13 前置完成后迁入 active |
 | 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
-| 阻塞项 | 无外部语义阻塞；隐式 Value `this` 的参数提前退出缺少 pending owner 清理事实，须先修复 Phase 3 产物，详见末尾记录 |
-| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；Architecture |
+| 阻塞项 | 无外部语义阻塞；剩余实现与验收缺口见末尾记录 |
+| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend 隐式 Value receiver 的 pending drop 事实修复；Architecture |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -40,6 +40,9 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   基础入口既有单边 move 的 MissingFact 拒绝不因新入口接入而被隐式解除。
 - 常量声明及初始化依赖无运行时存储、global/init guard、namespace capture 或退出析构。
   不能为跨文件读取引入 singleton 或稳定常量地址。
+- 隐式具体 MoveOnly Value `this` 的调用提交前清理由 Phase 3 发布既有 `This(owner)`
+  drop fact，沿用 pending owner 的逆序和循环边界；Phase 4 保留该 owner 到参数全部完成。
+  此修复不启用条件 StaticSelf 的控制退出，也不从 codegen 猜补缺失事实。
 - 使用既有 process entry（含 argv）、object 原子发布与链接/执行流程；必要 CLI 编排仅负责
   选择正确阶段入口，不承载语义或重新推导事实。
 
@@ -80,11 +83,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 193 passed，233 filtered，0 failed/ignored | Inout receiver 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 195 passed，235 filtered，0 failed/ignored | 隐式 Value this 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
-| `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 9 passed，418 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 严格 clippy 受既有 `items_after_test_module` / `filter_map_bool_then` 阻塞；fmt、docs/diff 通过 | `constant_value.rs` 的 HEAD 已有相同布局；docs 354 Markdown，inventory 未变化；例外检查见末尾 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 10 passed，420 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -290,3 +293,43 @@ oracle 会漏掉错误 return，已增加循环后成功 marker 并完成复核�
 418 filtered、0 failed/ignored；codegen all-targets clippy（`-D warnings`）、fmt、docs
 （354 Markdown）及 diff 检查通过。未运行 frontend 全量及 CLI/workspace 门禁：本次仅新增 native
 验收夹具，无生产代码或公开 API 变化。
+
+
+隐式具体 Value `this` 修复切片：frontend 先复现 return 路径缺失 `This` ControlTransfer
+事实；codegen 先复现同类参数退出的 UnsupportedNode。pending 队列改为保存既有 drop target，
+隐式 receiver 不伪造 expression identity；参数退出先清理后建 String temporary，再清理 This。
+专用 codegen 保留 current receiver 到参数完成，CFG 合并 receiver/pending alias，提交后才移交。
+正常提交与 Abort 不增加 caller receiver drop；基础入口和条件 StaticSelf 边界保持。
+
+前端测试初版误从顶层 declaration 索引找 member，随后又把同类方法的 receiver drop 混合统计；
+最终通过 receiver fact 取 owner 并仅断言 ControlTransfer，明确复现 0/1 差异后再实施。
+独立静态审查核对逆序清理、loan 结束、CFG alias 与提交时机，未发现阻断；按建议增加
+嵌套两个正常分支合流的 MoveOnly/Copyable SSA 用例。本切片不声称支持隐式 receiver 的
+全部循环退出，尤其不允许 MoveOnly this 经 continue 后重新消费。
+
+`cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_constant_ownership --no-fail-fast`
+通过 64 + 20 项，0 failed/ignored/filtered，含 receiver 清理顺序与既有 pending operand 契约。
+
+`cargo test -p lang-codegen --lib ssa::unit_ -- --quiet` 通过 195 项，235 filtered，
+0 failed/ignored；nested Copyable 夹具首次使用空 value class 触发 L0077，改为带 Int 字段后通过。
+
+`cargo test -p lang-codegen --lib native::unit_tests::constants -- --quiet` 通过 10 项，
+420 filtered，0 failed/ignored。新增常量/literal × Borrow/Value × return/正常提交八例，
+receiver 字段与实参分别持有 concat buffer，共两次分配并逐 live 指针释放；return 七次 String
+drop（含 entry 成功 marker），正常提交八次（另含 relay continuation marker）。精确输出
+排除错误提交、错误跳过调用及 continuation。native 夹具初次出现 L0013，改用局部 val 接住
+输出调用后通过；该解析问题没有归为生产 ownership 缺陷。
+
+无公开 API 或 CLI 编排变化，本切片未重复 workspace/CLI 门禁，未运行 frontend 全量测试。
+
+严格双 crate all-targets clippy 在未修改的 `type_checking/constant_value.rs:134` 因
+`items_after_test_module` 失败；已核对 HEAD 在测试模块后声明三个 accepts helper 的相同布局。
+保留原文件，不以功能修复夹带无关重排。fmt、docs（354 Markdown）及 diff 检查通过。
+
+追加 `-A clippy::items_after_test_module` 的诊断性检查仍因既有测试中的
+`filter_map_bool_then` 失败；已核对 HEAD 的同一代码。本次不扩散 lint 豁免，也不宣称
+frontend all-targets 严格 clippy 通过。
+
+补充严格检查通过：`cargo clippy -p lang-frontend --lib -- -D warnings` 与
+`cargo clippy -p lang-codegen --all-targets -- -D warnings`。前者只证明生产库 lint，不代替
+受上述两个既有问题阻塞的 frontend 全目标门禁。Spec 继续保持 in-progress。

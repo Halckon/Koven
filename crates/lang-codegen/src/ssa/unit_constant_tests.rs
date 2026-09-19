@@ -669,3 +669,43 @@ fn inout_receiver_exits_preserve_inline_and_heap_owners() {
         }
     }
 }
+
+#[test]
+fn implicit_value_receiver_is_owned_until_arguments_commit() {
+    for mode in ["", "own "] {
+        for exit in ["return", "error(p.TEXT)"] {
+            let source = format!(
+                "class Host {{ own fun consume({mode}text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val done = consume(p.TEXT, if (flag) {{ {exit} }} else {{ true }}) }} }}\nfun entry(own flag: Boolean): Unit {{ val host = Host()\nval done = host.relay(flag) }}"
+            );
+            let program = lower_short_circuit_fixture(&source);
+            let relay = program.modules[0]
+                .functions
+                .iter()
+                .find(|function| function.name.contains("relay"))
+                .unwrap();
+            assert_eq!(
+                relay
+                    .instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count(),
+                usize::from(mode.is_empty()) + if exit == "return" { 2 } else { 0 },
+                "{source}"
+            );
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+    }
+}
+
+#[test]
+fn implicit_receiver_alias_survives_nested_argument_joins() {
+    for (class, constructor) in [
+        ("class Host", "Host()"),
+        ("value class Host(val item: Int)", "Host(0)"),
+    ] {
+        let source = format!(
+            "{class} {{ own fun consume(text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val done = consume(p.TEXT, if (flag) {{ if (flag) {{ true }} else {{ false }} }} else {{ return }}) }} }}\nfun entry(own flag: Boolean): Unit {{ val host = {constructor}\nval done = host.relay(flag) }}"
+        );
+        crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
+    }
+}

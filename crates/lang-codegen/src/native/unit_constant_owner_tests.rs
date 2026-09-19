@@ -74,6 +74,29 @@ fn loop_exits_clean_value_receiver_and_pending_string_argument() {
     }
 }
 
+#[test]
+fn implicit_receiver_cleanup_matches_call_commit_at_runtime() {
+    for value in ["p.TEXT", "\"中文\""] {
+        for mode in ["", "own "] {
+            for (flag, drops, expected) in [
+                ("true", 7, "done\n"),
+                ("false", 8, "中文中文\ncommitted\ndone\n"),
+            ] {
+                let provider = format!(
+                    "package p\nconst val TEXT = \"中文\"\nvalue class Host(val text: String) {{ own fun consume({mode}argument: String, own flag: Boolean): Unit {{ println(argument) }}\nown fun relay(own flag: Boolean): Unit {{ val pending = consume({value} + {value}, if (flag) {{ return }} else {{ true }})\nval after = println(\"committed\") }} }}"
+                );
+                let consumer = format!(
+                    "package q\nimport p.Host\nfun entry(): Unit {{ val host = Host({value} + {value})\nval done = host.relay({flag})\nval marker = println(\"done\") }}"
+                );
+                let run = run_counted_strings(&provider, &consumer, drops, 2, false);
+                assert!(run.status.success(), "{value}/{mode}/{flag}: {run:?}");
+                assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
+                assert!(run.stderr.is_empty(), "{run:?}");
+            }
+        }
+    }
+}
+
 fn run_counted_strings(
     provider_text: &str,
     consumer_text: &str,

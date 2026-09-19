@@ -97,7 +97,11 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn take_owned_receiver(&mut self, value: ValueId, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn take_owned_receiver(
+        &mut self,
+        value: ValueId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         match self.current_receiver {
             Some(receiver)
                 if receiver.mode == ParameterMode::Value

@@ -890,8 +890,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             if contract.kind() == UnitCallArgumentOwnershipKind::Value
                                 && self.checker.typed.copyability(contract.receiver_type())
                                     == Copyability::MoveOnly
+                                && let Some(receiver) = state.this.take()
                             {
-                                state.this = None;
+                                // 隐式 receiver 没有 expression identity，保留既有 This drop target。
+                                self.register_pending_owner(
+                                    id,
+                                    PlannerDropTarget::This(receiver.owner),
+                                    receiver.origin,
+                                    true,
+                                    state,
+                                );
                             }
                         }
                     }

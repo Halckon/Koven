@@ -10,7 +10,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
     pub(super) control: ExpressionId,
-    expression: ExpressionId,
+    target: PlannerDropTarget,
     origin: Span,
     transfers_at_call: bool,
     pub(super) loop_depth: usize,
@@ -49,9 +49,26 @@ impl DropPlanner<'_, '_> {
         transfers_at_call: bool,
         state: &mut ValueState,
     ) {
+        self.register_pending_owner(
+            control,
+            PlannerDropTarget::Temporary(expression),
+            origin,
+            transfers_at_call,
+            state,
+        );
+    }
+
+    pub(super) fn register_pending_owner(
+        &self,
+        control: ExpressionId,
+        target: PlannerDropTarget,
+        origin: Span,
+        transfers_at_call: bool,
+        state: &mut ValueState,
+    ) {
         state.pending_temporaries.push(PendingTemporary {
             control,
-            expression,
+            target,
             origin,
             transfers_at_call,
             loop_depth: self.loop_boundaries.len(),
@@ -71,11 +88,7 @@ impl DropPlanner<'_, '_> {
             }
             let pending = state.pending_temporaries.remove(index);
             if !pending.transfers_at_call {
-                self.push_fact(PlannerDropFact::new(
-                    point,
-                    PlannerDropTarget::Temporary(pending.expression),
-                    pending.origin,
-                ));
+                self.push_fact(PlannerDropFact::new(point, pending.target, pending.origin));
             }
         }
     }
@@ -107,11 +120,7 @@ impl DropPlanner<'_, '_> {
             for symbol in newer.into_iter().rev() {
                 self.drop_named(point, symbol, state);
             }
-            self.push_fact(PlannerDropFact::new(
-                point,
-                PlannerDropTarget::Temporary(pending.expression),
-                pending.origin,
-            ));
+            self.push_fact(PlannerDropFact::new(point, pending.target, pending.origin));
         }
     }
 }
