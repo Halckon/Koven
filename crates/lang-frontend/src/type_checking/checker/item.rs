@@ -243,7 +243,7 @@ impl Checker<'_> {
                 // 常量类型资格不能覆盖或级联已有的普通类型错误。
                 let declaration_span = self.ast().items().get(id)?.span();
                 let upstream_error = is_constant
-                    && self.constant_input_error_spans.iter().any(|span| {
+                    && self.input_error_spans.iter().any(|span| {
                         declaration_span.start() <= span.start()
                             && span.end() <= declaration_span.end()
                     });
@@ -437,9 +437,13 @@ impl Checker<'_> {
                     falls_through: true,
                 })
             }
-            Statement::For { source, body, .. } => {
-                self.check_expression(source, None, None)?;
-                self.check_loop_body(body)?;
+            Statement::For {
+                binding,
+                source,
+                body,
+                ..
+            } => {
+                self.check_sequential_iteration(id, &binding, source, body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,
@@ -462,7 +466,10 @@ impl Checker<'_> {
         }
     }
 
-    fn check_loop_body(&mut self, body: StatementId) -> Result<StatementCheck, TypeCheckingError> {
+    pub(super) fn check_loop_body(
+        &mut self,
+        body: StatementId,
+    ) -> Result<StatementCheck, TypeCheckingError> {
         self.loop_depth += 1;
         let result = self.check_statement(body);
         self.loop_depth -= 1;

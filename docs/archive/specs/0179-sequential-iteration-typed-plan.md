@@ -1,0 +1,139 @@
+# SPEC-0179：顺序容器借用迭代 typed plan
+
+> **性质**：实施 Spec · **状态**：done · **读取时机**：追溯 SPEC-0179 交付证据时 · **唯一真源**：本 Spec
+
+## 1. 元数据
+
+| 字段 | 值 |
+|---|---|
+| 状态 | `done` |
+| Goal ID | `KOV-P2-179` |
+| 所属 Phase | Phase 2 |
+| 语言规范 | [现行 v0.37 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
+| 批准依据 | 2026-09-19 用户明确启用 v0.37；按持续 Goal 顺序推进 |
+| 前置 Spec | SPEC-0016、0018、0019、0020、0022、0023、0178 `done` |
+| 前置 ADR | [ADR-0023](../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
+| 阻塞项 | 无；前置均已满足，验收完成 |
+| 影响范围 | `lang-frontend` for/type facts、L0159–L0160、fixtures；Architecture |
+| 语言语义变更 | 否；实施启用后的 v0.37 typed iteration 契约 |
+
+## 2. Goal
+
+完成后，单文件 type checker 能为 intrinsic `Array<T>`、`List<T>`、`MutableList<T>` 的 `for`
+发布确定的 sequential borrowed iteration plan，为名称、discard 与 value-class 解构 binding 分配
+精确 element/component 类型，并拒绝没有 compiler-bound provider 的 source。
+
+## 3. 范围与需求
+
+- 以 `StatementId` 为稳定 identity，source 精确检查一次；只有 compiler-bound sequential
+  container identity 才发布 provider kind、source/container/element type 和 shared delivery。
+- 单名称 binding 设置为 element type；单 `_` 发布 `Discard` 且不创建 symbol。所有真实 binding
+  都标记为 loop-scoped Borrow delivery，不在 Phase 2 推导 owned copy/move。
+- 解构只接受 concrete `value class` element，按替换实际类型参数后的主构造器字段顺序发布
+  component projection；`_` component 保留位置但没有 symbol，其他 component 设置精确类型。
+- 解构字段数不等继续使用 L0118；非 value-class/不可结构投影 element 使用 L0160。该 descriptor
+  独立于局部 `val` 的 Copy/Consume `DestructuringDescriptor`，不调用 `componentN()`。
+- 非 intrinsic source 使用 L0159；Error/Deferred 根因不级联。同名用户类型、interface 或方法
+  不取得 provider identity。
+- body 在所有 binding 类型发布后检查；计划、诊断和 component 顺序不依赖 hash/input 顺序，
+  invalid/poisoned `for` 不向 Phase 3 发布半成品 plan。
+
+## 4. 非目标
+
+- 不检查 source/element loan、move、capture、drop 或 jump cleanup；这些属于 SPEC-0211。
+- 不实现 receiver/method selection、runtime provider、SSA/LLVM、Map/range/String/IO、自定义或
+  consuming iteration。
+- 不开放一般 post-index field expression；本 Spec 的 value-class projection 只属于 compiler-owned
+  `for` pattern typed fact。
+
+## 5. 验收标准
+
+- [x] Array/List/MutableList × 名称/`_`/完整 value-class 解构均发布精确、可查询 typed plan。
+- [x] generic element substitution、Copyable/MoveOnly element 与 mixed component 类型均正确；
+  Phase 2 不提前发所有权错误。
+- [x] Boolean、String、普通 class、用户同名 List/Iterable/iterator 方法均在 source Span 产生
+  L0159，poisoned source 不级联。
+- [x] 非 value-class 解构产生 L0160；过少/过多 component 产生 L0118，`_` 不创建 symbol。
+- [x] 原允许 `for (item in flag)` 的占位 fixture 改为 compile-fail；jump-target/parser/name suite
+  不回归。
+- [x] 重复检查与声明/fixture 顺序置换产生相同 descriptor/diagnostics；受影响契约回归通过，
+  Architecture 与实现事实同步。
+
+## 6. 技术方案与边界
+
+在现有 container identity/element extraction 与 value-class field substitution 上增加专用
+`SequentialIterationDescriptor`（或等价产物），包含 statement/source/provider/element/delivery
+及 `Discard | Name | Destructure` binding。它不写回 AST，不伪造普通 call descriptor，也不复用
+局部 owned destructuring mode。后续阶段只消费 validated query，缺 plan 必须 fail loud。
+
+## 7. 实施计划
+
+1. [x] 建立 provider/source/element descriptor 与 L0159 → 验证：三容器/伪造 identity 矩阵。
+2. [x] 接名称/discard/value-class borrowed projection 与 L0118/L0160 → 验证：binding/type 矩阵。
+3. [x] 收口 poisoned/deterministic product 并同步 Architecture → 验证：本 Spec 验收项及下述分层检查。
+
+## 8. 提交计划
+
+| 顺序 | 提交边界 | 建议提交信息 |
+|---|---|---|
+| 1 | typed plan、诊断、测试与完成文档 | `feat(frontend): type sequential iteration (SPEC-0179)` |
+
+## 9. 未决问题
+
+- 无；状态门禁由元数据表达，其他 provider identity 必须由后续 guide 扩展。
+
+## 10. 验证记录
+
+实施前按[分层验收](../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
+记录命中数、结果与未运行原因。同一状态下的有效证据只运行一次，不默认运行 frontend 全量。
+
+| 命令 / 检查 | 结果 | 备注 |
+|---|---|---|
+| 2026-08-27 roadmap/实现审计 | 通过 | Parser/name/jump 已具备；当前 type checker 只检查 source/body，ForBinding 最终无 element type |
+
+
+2026-09-19 候选重基核对：保留现行 v0.36 的 grammar、nullable/Nothing、所有权与常量契约，
+拟议版本取代关系见 proposal。仅更新基线与状态前置，不改变本 Spec 的阶段范围、验收条目或
+批准状态；guide 启用与 ADR 接受仍是实施前置。未运行 Rust 测试（本次仅文档）。
+
+2026-09-19 启用记录：v0.37 已启用、ADR-0023 accepted；temporary source 纳入首轮 native。
+上方重基时的未启用说明是历史记录，不再是当前阻塞项；实现/验收尚未完成。
+
+
+### 2026-09-19 实施验收
+
+先加入 non-provider source 与 binding-before-body 两项测试，旧实现均失败；实现后通过。
+独立审查先后发现后置 bound 错误残留计划、nominal/nullable nominal 诊断缺少声明 label；
+已修复，后者新增 Node?/List<Node?> 回归先复现失败。最终计划参与 trial 回滚，所有后置
+类型检查结束后遇上游或类型诊断统一失效，保留 recovery 类型。
+
+| 验收项 | 测试目标 / 过滤器 | 实际结果 |
+|---|---|---|
+| 三容器、名称/discard/解构与精确类型 | `type_iteration`：three_providers、binding_type、move_only_element | 14 passed；最终 label 修复后整套复验通过 |
+| 非 provider、L0159/L0160/L0118、Error/Deferred | `type_iteration`：non_provider、user_named、invalid_patterns、nominal_rejections、body_errors、deferred_source、upstream_errors、late_generic_bound | 同上；原 nullable label 回归先失败，修复后通过 |
+| trial/source-once、顺序确定性及 source 类别 | `type_iteration`：overload_trials、declaration_and_fixture_order、source_modes | 同上；声明置换按字段/绑定名称归一化 AST 身份比较 |
+| 类型核心、jump 与 pass/fail fixtures | `cargo test -p lang-frontend --test type_checking` | 75 passed；含 10 pass / 11 fail fixtures |
+| parser/name 契约 | `--test parser_control_flow --test name_resolution` | 7 + 15 passed |
+| 直接 ownership 消费者 | `--test ownership_checking` | 29 passed；仅现有消费者回归，不证明 SPEC-0211 |
+| 容器、owned 解构、callable trial 与诊断目录 | `--test type_containers --test type_copyability --test type_callable --test diagnostic_model` | 7 + 8 + 19 + 9 passed；复用上一检查点未受最终 label 修复影响的证据 |
+| 格式 | `cargo fmt --all -- --check` | passed |
+| frontend lint / 跨 crate API 编译 | `cargo clippy -p lang-frontend --all-targets -- -D warnings`；`cargo check --workspace --all-targets` | passed / passed |
+| 文档生命周期 | `python3 scripts/check_docs.py`；`python3 -m unittest discover -s scripts/tests -p 'test_check_docs.py'`；`git diff --check` | 371 Markdown passed；21 tests passed；passed |
+
+本轮五个回归目标以一次 `cargo test -p lang-frontend --test type_iteration --test type_checking
+--test parser_control_flow --test name_resolution --test ownership_checking --no-fail-fast` 串行执行，
+共 140 passed。最后仅调整 iteration 诊断 label，复验整个 `type_iteration`，其余结果按影响复用。
+未运行 frontend 全量和 native 套件：本 Spec 仅单文件 Phase 2，Phase 3/4 属于后续独立 Spec。
+
+
+严格 clippy 首次报告三个既有问题：constant_value 的测试模块位置、multifile_type_checking
+的 obfuscated-if-else、multifile_ownership_checking 的 filter-map-bool-then。三处等价修复经
+独立审查及严格 clippy 验证，以 `a7d780a` 独立提交；最后两个 fixture 分别运行：
+
+- `cargo test -p lang-frontend --test multifile_type_checking inherited_replacements_publish_ancestor_requirement_dispatch`：1 passed，102 filtered。
+- `cargo test -p lang-frontend --test multifile_ownership_checking conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers`：1 passed，65 filtered。
+
+常量文件只移动三个函数的声明位置，逐行内容集合未改变。上述修复未改变 iteration 语义，
+与本 Spec 实现分别提交。
+
+独立审查的三项实质发现均修复并复核；frontend 严格 clippy 和 workspace all-targets check 通过。

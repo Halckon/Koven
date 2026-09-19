@@ -553,7 +553,7 @@ impl Checker<'_> {
         }
     }
 
-    fn container_parts(&self, ty: TypeId) -> Option<(SequentialContainerKind, TypeId)> {
+    pub(super) fn container_parts(&self, ty: TypeId) -> Option<(SequentialContainerKind, TypeId)> {
         let TypeKind::Intrinsic {
             constructor,
             arguments,

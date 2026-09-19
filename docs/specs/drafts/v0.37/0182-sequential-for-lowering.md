@@ -11,9 +11,9 @@
 | 所属 Phase | Phase 4 |
 | 语言规范 | [现行 v0.37 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
 | 批准依据 | 2026-09-19 用户明确启用 v0.37；按持续 Goal 顺序推进 |
-| 前置 Spec | SPEC-0034、0036、0184、0192、0195 `done`；SPEC-0179/0211/0212 待完成 |
+| 前置 Spec | SPEC-0034、0036、0179、0184、0192、0195 `done`；SPEC-0211/0212 待完成 |
 | 前置 ADR | [ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
-| 阻塞项 | SPEC-0179/0211/0212 `done` |
+| 阻塞项 | SPEC-0211/0212 `done` |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
 | 语言语义变更 | 否；实现启用后的 v0.37 executable `for` |
 

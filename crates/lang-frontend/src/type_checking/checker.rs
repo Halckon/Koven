@@ -9,6 +9,7 @@ mod destructuring;
 mod expression;
 mod flow;
 mod item;
+mod iteration;
 mod layout;
 mod literal;
 mod members;
@@ -114,7 +115,7 @@ struct Checker<'a> {
     rechecking_constants: bool,
     constants_checked: bool,
     constant_inputs_valid: bool,
-    constant_input_error_spans: Vec<Span>,
+    input_error_spans: Vec<Span>,
     associated_constant_uses: BTreeMap<usize, SymbolId>,
     associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
@@ -149,6 +150,7 @@ struct Checker<'a> {
     invalid_inline_nominals: BTreeSet<NominalId>,
     external_types: BTreeMap<ExternalSymbolId, TypeId>,
     destructurings: Vec<DestructuringDescriptor>,
+    iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
@@ -210,6 +212,8 @@ struct Checker<'a> {
     invalid_construction_target_code: DiagnosticCode,
     construction_inference_code: DiagnosticCode,
     transferable_type_argument_bound_code: DiagnosticCode,
+    invalid_iteration_source_code: DiagnosticCode,
+    invalid_iteration_pattern_code: DiagnosticCode,
     invalid_container_element_code: DiagnosticCode,
     cannot_infer_container_element_code: DiagnosticCode,
     invalid_container_construction_code: DiagnosticCode,
@@ -292,7 +296,7 @@ impl<'a> Checker<'a> {
             pending_constant_errors: BTreeMap::new(),
             rechecking_constants: false,
             constants_checked: false,
-            constant_input_error_spans: parsed
+            input_error_spans: parsed
                 .diagnostics()
                 .iter()
                 .chain(names.diagnostics())
@@ -338,6 +342,7 @@ impl<'a> Checker<'a> {
             invalid_inline_nominals: BTreeSet::new(),
             external_types: BTreeMap::new(),
             destructurings: Vec::new(),
+            iterations: Vec::new(),
             expression_categories: vec![
                 ExpressionCategory::Temporary;
                 parsed.ast().expressions().len()
@@ -408,6 +413,8 @@ impl<'a> Checker<'a> {
             construction_inference_code: catalog.resolve(codes::CONSTRUCTION_INFERENCE)?,
             transferable_type_argument_bound_code: catalog
                 .resolve(codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND)?,
+            invalid_iteration_source_code: catalog.resolve(codes::INVALID_ITERATION_SOURCE)?,
+            invalid_iteration_pattern_code: catalog.resolve(codes::INVALID_ITERATION_PATTERN)?,
             invalid_container_element_code: catalog.resolve(codes::INVALID_CONTAINER_ELEMENT)?,
             cannot_infer_container_element_code: catalog
                 .resolve(codes::CANNOT_INFER_CONTAINER_ELEMENT)?,
@@ -448,6 +455,11 @@ impl<'a> Checker<'a> {
         }
         self.validate_type_argument_bounds()?;
         let constants = self.build_constant_facts()?;
+        // 后置泛型约束等检查完成后才允许发布阶段计划；recovery 类型仍保留。
+        if !self.diagnostics.is_empty() || !self.input_error_spans.is_empty() {
+            self.iterations.clear();
+        }
+        self.iterations.sort_by_key(|plan| plan.statement().index());
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();
         let expression_types = self
@@ -503,6 +515,7 @@ impl<'a> Checker<'a> {
                 enum_cases: self.enum_cases,
                 copyabilities,
                 destructurings: self.destructurings,
+                iterations: self.iterations,
                 expression_categories: self.expression_categories,
                 calls: self.calls,
                 constructions: self.constructions,

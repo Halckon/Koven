@@ -17,6 +17,15 @@ copyability、destructuring 和 flow facts。错误输入保留 recovery 事实�
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
 suites。
 
+## 单文件顺序迭代类型计划
+
+`TypedFile::sequential_iterations` / `sequential_iteration` 按 StatementId 发布 intrinsic
+Array/List/MutableList provider、唯一 source 表达式、container/element 类型及 Borrow delivery。
+名称 binding 获得 element 类型，discard 不创建 symbol；value-class 解构按字段声明顺序替换
+泛型参数，保留 discard 分量位置。该 projection 独立于局部 owned destructuring。
+计划参与 callable trial 快照；错误输入与最终后置约束失败不发布计划。该入口仅为单文件
+Phase 2 类型事实，尚未接入 compilation-unit、Phase 3 loan 或 native lowering。
+
 ## 单文件常量类型资格
 
 `check_item` 在普通类型检查成功后为 const 声明检查封闭类型集合；非 Boolean/整数/Char/String

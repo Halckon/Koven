@@ -1071,6 +1071,7 @@ pub struct TypedFile {
     enum_cases: Vec<EnumCaseDescriptor>,
     copyabilities: Vec<Copyability>,
     destructurings: Vec<DestructuringDescriptor>,
+    iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
     expression_categories: Vec<ExpressionCategory>,
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
@@ -1098,6 +1099,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) enum_cases: Vec<EnumCaseDescriptor>,
     pub(crate) copyabilities: Vec<Copyability>,
     pub(crate) destructurings: Vec<DestructuringDescriptor>,
+    pub(crate) iterations: Vec<crate::type_checking::SequentialIterationDescriptor>,
     pub(crate) expression_categories: Vec<ExpressionCategory>,
     pub(crate) calls: Vec<CallDescriptor>,
     pub(crate) constructions: Vec<ConstructionDescriptor>,
@@ -1141,6 +1143,7 @@ impl TypedFile {
             enum_cases: parts.enum_cases,
             copyabilities: parts.copyabilities,
             destructurings: parts.destructurings,
+            iterations: parts.iterations,
             expression_categories: parts.expression_categories,
             calls: parts.calls,
             constructions: parts.constructions,
@@ -1275,6 +1278,22 @@ impl TypedFile {
     #[must_use]
     pub fn copyability(&self, id: TypeId) -> Option<Copyability> {
         self.copyabilities.get(id.index()).copied()
+    }
+
+    /// 已完成类型检查的 for 计划，按 StatementId 排序；不授予所有权能力。
+    #[must_use]
+    pub fn sequential_iterations(&self) -> &[crate::type_checking::SequentialIterationDescriptor] {
+        &self.iterations
+    }
+    /// 查询指定 for 的完整计划；非法或 poisoned for 不发布。
+    #[must_use]
+    pub fn sequential_iteration(
+        &self,
+        statement: StatementId,
+    ) -> Option<&crate::type_checking::SequentialIterationDescriptor> {
+        self.iterations
+            .iter()
+            .find(|plan| plan.statement() == statement)
     }
 
     /// 返回源码 statement 顺序的有效 value-class 解构描述符。

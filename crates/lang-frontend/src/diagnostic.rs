@@ -171,6 +171,8 @@ pub mod codes {
 
     pub(crate) const INVALID_CONSTANT_EXPRESSION: &str = "L0156";
     pub(crate) const CONSTANT_DEPENDENCY_CYCLE: &str = "L0157";
+    pub(crate) const INVALID_ITERATION_SOURCE: &str = "L0159";
+    pub(crate) const INVALID_ITERATION_PATTERN: &str = "L0160";
     pub(crate) const CONSTANT_EVALUATION_FAILURE: &str = "L0158";
 
     /// 已发布的生产错误码。
@@ -333,6 +335,8 @@ pub mod codes {
         INVALID_CONSTANT_EXPRESSION,
         CONSTANT_DEPENDENCY_CYCLE,
         CONSTANT_EVALUATION_FAILURE,
+        INVALID_ITERATION_SOURCE,
+        INVALID_ITERATION_PATTERN,
     ];
 
     /// 由集中定义创建生产错误码目录。

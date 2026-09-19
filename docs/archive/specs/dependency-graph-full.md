@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，210 份）"]
+subgraph Garchive["已完成（archive，211 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -175,6 +175,7 @@ subgraph Garchive["已完成（archive，210 份）"]
   S0176["S0176<br/>迁移 borrow-default 参数契约"]
   S0177["S0177<br/>泛型 callable 实例化与实例 identity"]
   S0178["S0178<br/>检查 break / continue 词法目标"]
+  S0179["S0179<br/>顺序容器借用迭代 typed plan"]
   S0180["S0180<br/>instance receiver typed facts"]
   S0181["S0181<br/>instance receiver ownership"]
   S0183["S0183<br/>构造目标、实例化与 typed facts"]
@@ -221,11 +222,10 @@ subgraph Garchive["已完成（archive，210 份）"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
 end
 subgraph Gactive["现行 active"]
-  S0179["S0179<br/>顺序容器借用迭代 typed plan"]
+  S0211["S0211<br/>顺序迭代 source/element loan 与退出清理"]
 end
 subgraph Gdrafts_v037["v0.37（draft）"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0211["S0211<br/>顺序迭代 source/element loan 与退出清理"]
   S0212["S0212<br/>借用式顺序迭代 SSA/LLVM primitives"]
 end
 S0001 --> S0002
@@ -1324,6 +1324,7 @@ S0226 --> S0227
 | SPEC-0176 | archive | [0176-borrow-default-parameter-contracts.md](0176-borrow-default-parameter-contracts.md) |
 | SPEC-0177 | archive | [0177-generic-callable-instantiation.md](0177-generic-callable-instantiation.md) |
 | SPEC-0178 | archive | [0178-jump-target-checking.md](0178-jump-target-checking.md) |
+| SPEC-0179 | archive | [0179-sequential-iteration-typed-plan.md](0179-sequential-iteration-typed-plan.md) |
 | SPEC-0180 | archive | [0180-instance-receiver-typed-facts.md](0180-instance-receiver-typed-facts.md) |
 | SPEC-0181 | archive | [0181-instance-receiver-ownership.md](0181-instance-receiver-ownership.md) |
 | SPEC-0183 | archive | [0183-constructor-typed-facts.md](0183-constructor-typed-facts.md) |
@@ -1368,7 +1369,6 @@ S0226 --> S0227
 | SPEC-0225 | archive | [0225-parameter-growing-runtime-type-cycles.md](0225-parameter-growing-runtime-type-cycles.md) |
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
-| SPEC-0179 | active | [0179-sequential-iteration-typed-plan.md](../../specs/active/0179-sequential-iteration-typed-plan.md) |
+| SPEC-0211 | active | [0211-sequential-iteration-ownership.md](../../specs/active/0211-sequential-iteration-ownership.md) |
 | SPEC-0182 | drafts/v0.37 | [0182-sequential-for-lowering.md](../../specs/drafts/v0.37/0182-sequential-for-lowering.md) |
-| SPEC-0211 | drafts/v0.37 | [0211-sequential-iteration-ownership.md](../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md) |
 | SPEC-0212 | drafts/v0.37 | [0212-borrowed-sequential-iteration-ssa.md](../../specs/drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md) |

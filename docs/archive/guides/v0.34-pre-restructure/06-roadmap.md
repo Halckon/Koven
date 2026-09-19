@@ -239,7 +239,7 @@ fun main(): Unit {
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
       delegate forwarder 以 direct implementation / exact next hop / unresolved 三态保存稳定 target
       与实例化 receiver template；不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
-- [ ] **[SPEC-0179](../../../specs/active/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
+- [ ] **[SPEC-0179](../../specs/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
       只为 intrinsic Array/List/MutableList 发布 provider/element 与名称/discard/value-class
       borrowed projection typed plan；L0159/L0160 拒绝非 provider source/非法结构 binding，
       不按 `Iterable`/`Iterator` 或同名方法猜测；等待候选启用与 ADR-0023 accepted。
@@ -403,7 +403,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [ ] **[SPEC-0208](../../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
       owner，禁止 global owner/capture/init/drop；等待候选启用。
-- [ ] **[SPEC-0211](../../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
+- [ ] **[SPEC-0211](../../../specs/active/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
       named/field/Borrow/Inout/temporary source 建立 whole-loop shared loan、逐轮 element/component
       Borrow binding 与 normal/continue/break/exhaustion/return cleanup；复用 L0131/L0133–L0138，
       等待 v0.37/ADR-0023。

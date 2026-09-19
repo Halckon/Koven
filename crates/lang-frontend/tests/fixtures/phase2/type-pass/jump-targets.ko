@@ -2,7 +2,7 @@ fun loops(flag: Boolean): Unit {
     while (flag) {
         continue
     }
-    for (item in flag) {
+    for (item in listOf(flag)) {
         break
     }
     loop {
