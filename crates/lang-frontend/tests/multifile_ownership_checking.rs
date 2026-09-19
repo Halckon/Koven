@@ -1064,10 +1064,8 @@ fn conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers() {
     let unconditional_origins = ownership
         .drops()
         .iter()
-        .filter_map(|fact| {
-            matches!(fact.target(), UnitDropTarget::This(_))
-                .then(|| sources.slice(fact.value_origin()).expect("receiver origin"))
-        })
+        .filter(|fact| matches!(fact.target(), UnitDropTarget::This(_)))
+        .map(|fact| sources.slice(fact.value_origin()).expect("receiver origin"))
         .collect::<Vec<_>>();
     assert_eq!(unconditional_origins, ["consume"]);
 }

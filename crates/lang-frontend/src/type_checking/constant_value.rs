@@ -130,6 +130,40 @@ pub(super) fn decode_text(text: &str) -> Option<String> {
     Some(output)
 }
 
+pub(super) fn accepts_prefix_operand(operator: Prefix, ty: BuiltinType) -> bool {
+    match operator {
+        Prefix::Not => ty == BuiltinType::Boolean,
+        Prefix::Plus | Prefix::Minus => integer_bounds(ty).is_some(),
+    }
+}
+
+pub(super) fn accepts_binary_operand(operator: Binary, ty: BuiltinType) -> bool {
+    match operator {
+        Binary::LogicalAnd | Binary::LogicalOr => ty == BuiltinType::Boolean,
+        Binary::Add | Binary::Equal | Binary::NotEqual => {
+            integer_bounds(ty).is_some() || ty == BuiltinType::String
+        }
+        Binary::Subtract
+        | Binary::Multiply
+        | Binary::Divide
+        | Binary::Remainder
+        | Binary::Less
+        | Binary::Greater
+        | Binary::LessEqual
+        | Binary::GreaterEqual => integer_bounds(ty).is_some(),
+        _ => false,
+    }
+}
+
+/// The enabled constant value domain, shared by single-file and compilation-unit gates.
+pub(super) fn accepts_constant_type(ty: BuiltinType) -> bool {
+    integer_bounds(ty).is_some()
+        || matches!(
+            ty,
+            BuiltinType::Boolean | BuiltinType::Char | BuiltinType::String
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,38 +242,4 @@ mod tests {
         );
         assert_eq!(decode_text("\\x"), None);
     }
-}
-
-pub(super) fn accepts_prefix_operand(operator: Prefix, ty: BuiltinType) -> bool {
-    match operator {
-        Prefix::Not => ty == BuiltinType::Boolean,
-        Prefix::Plus | Prefix::Minus => integer_bounds(ty).is_some(),
-    }
-}
-
-pub(super) fn accepts_binary_operand(operator: Binary, ty: BuiltinType) -> bool {
-    match operator {
-        Binary::LogicalAnd | Binary::LogicalOr => ty == BuiltinType::Boolean,
-        Binary::Add | Binary::Equal | Binary::NotEqual => {
-            integer_bounds(ty).is_some() || ty == BuiltinType::String
-        }
-        Binary::Subtract
-        | Binary::Multiply
-        | Binary::Divide
-        | Binary::Remainder
-        | Binary::Less
-        | Binary::Greater
-        | Binary::LessEqual
-        | Binary::GreaterEqual => integer_bounds(ty).is_some(),
-        _ => false,
-    }
-}
-
-/// The enabled constant value domain, shared by single-file and compilation-unit gates.
-pub(super) fn accepts_constant_type(ty: BuiltinType) -> bool {
-    integer_bounds(ty).is_some()
-        || matches!(
-            ty,
-            BuiltinType::Boolean | BuiltinType::Char | BuiltinType::String
-        )
 }

@@ -257,9 +257,11 @@ fn inherited_replacements_publish_ancestor_requirement_dispatch() {
              class Child: Derived {{\n\
                  {}\n\
              }}",
-            (expected_owner == "Child")
-                .then_some("override fun read(): Int = 7")
-                .unwrap_or("")
+            if expected_owner == "Child" {
+                "override fun read(): Int = 7"
+            } else {
+                ""
+            }
         );
         let (source, file) = parsed(&mut sources, "p/main.ko", &text);
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &file)];
