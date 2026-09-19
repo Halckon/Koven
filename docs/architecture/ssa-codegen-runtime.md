@@ -106,7 +106,12 @@ MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径
 先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow String 参数
 在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。非 Name callee、
 带捕获的 borrowed closure 和其他 MoveOnly Borrow
-参数仍不支持。外层 temporary 内求值循环仍受既有 loop lowering 限制。
+参数仍不支持。
+常量专用入口允许外层 pending temporary 穿过内层 loop/while；header、回边与 break/false
+出口携带完整 owner/loan/pending 状态，内层跳转仅结束本循环内的调用帧并移除其前缀槽位。
+循环结束保留外层 temporary；return 清理退出帧，Abort 不展开。Copyable 命名变量与已求值
+实参快照在循环入口分开携带，避免循环赋值改写旧实参；MoveOnly owner/loan alias 继续去重。
+while 条件包含 CFG 时从实际条件出口分支。基础入口的 temporary 循环限制仍保留。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
 专用后端保留 current receiver 到实参全部完成再移交。参数 return 先清理后建实参，再清理
 receiver，Abort 不展开；CFG 将 receiver 与 pending 槽的 alias 重绑定到同一实体。

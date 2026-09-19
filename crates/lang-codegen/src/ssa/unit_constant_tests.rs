@@ -878,3 +878,26 @@ fn function_value_prefix_preserves_loop_scope_and_sibling_branches() {
         crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
     }
 }
+
+#[test]
+fn pending_call_prefix_survives_inner_loops() {
+    for mode in ["borrow", "own"] {
+        for inner in [
+            "loop { break }",
+            "var once = true\nloop { if (!once) { break }\nonce = false\ncontinue }",
+            "var once = true\nwhile (once) { once = false }",
+            "var once = true\nwhile (if (flag) { once } else { false }) { once = false }",
+        ] {
+            let source = format!(
+                "fun consume({mode} text: String, own flag: Boolean): Unit {{ val done = println(text) }}\nfun entry(own flag: Boolean): Unit {{ val done = consume(p.TEXT + p.TEXT, if (flag) {{ {inner}\ntrue }} else {{ false }}) }}"
+            );
+            crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
+        }
+    }
+}
+
+#[test]
+fn pending_copyable_argument_keeps_its_pre_loop_snapshot() {
+    let source = "fun consume(own before: Boolean, own after: Boolean): Boolean = before\nfun entry(own flag: Boolean): Unit { var once = true\nval result = consume(once, if (flag) { while (once) { once = false }\ntrue } else { false }) }";
+    crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+}

@@ -243,6 +243,36 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
+    /// A loop may reassign a Copyable local while an earlier argument keeps its old value.
+    pub(super) fn separate_loop_pending_copies(
+        &self,
+        bindings: &mut Vec<CarriedBinding>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let mut snapshots = Vec::new();
+        for slot in bindings.iter_mut() {
+            let Some(symbol) = slot.symbol else { continue };
+            if slot.pending.is_empty() {
+                continue;
+            }
+            let ty = self
+                .typed
+                .symbol_type(symbol)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let ty =
+                resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
+            if self.typed.copyability(ty) == Copyability::Copyable {
+                let mut snapshot = slot.clone();
+                snapshot.symbol = None;
+                snapshot.pending = std::mem::take(&mut slot.pending);
+                snapshot.temporaries = std::mem::take(&mut slot.temporaries);
+                snapshots.push(snapshot);
+            }
+        }
+        bindings.extend(snapshots);
+        Ok(())
+    }
+
     pub(super) fn add_carried_control_block(
         &mut self,
         bindings: &[CarriedBinding],
@@ -259,29 +289,6 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    pub(super) fn add_carried_block(
-        &mut self,
-        carried: &[CarriedBinding],
-        span: Span,
-    ) -> Result<BlockId, LoweringError> {
-        self.function
-            .add_block(
-                carried.iter().map(|binding| binding.ty).collect(),
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    pub(super) fn rebind_carried(
-        &mut self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        block: BlockId,
-        carried: &[CarriedBinding],
-        span: Span,
-    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
-        self.rebind_carried_prefix(baseline, block, carried, carried.len(), span)
     }
 
     pub(super) fn rebind_carried_control(
@@ -715,41 +722,89 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
+    /// Resolve loop edges from the jump snapshot, including pending aliases after CFG joins.
     pub(super) fn carried_edge_from(
         &self,
         target: BlockId,
         carried: &[CarriedBinding],
-        bindings: &BTreeMap<UnitSymbolId, LoweredValue>,
-        receiver: Option<super::ReceiverBinding>,
+        loans: &[CarriedAccess],
+        state: &BranchExit,
         span: Span,
     ) -> Result<Edge, LoweringError> {
-        let arguments = carried
-            .iter()
-            .map(|slot| match slot.symbol {
-                Some(symbol) => match bindings.get(&symbol) {
-                    Some(LoweredValue::Value(value)) => Ok(EntityId::Value(*value)),
-                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
-                        Err(lowering_error(LoweringErrorKind::MissingFact, span))
-                    }
-                },
-                None => match receiver {
-                    Some(receiver)
-                        if slot.receiver.is_some_and(|expected| {
-                            expected.owner == receiver.owner
-                                && expected.mode == receiver.mode
-                                && expected.ty == receiver.ty
-                        }) && self
-                            .function
-                            .entity(receiver.entity)
-                            .map(|entity| entity.ty)
-                            == Some(slot.ty) =>
-                    {
-                        Ok(receiver.entity)
-                    }
-                    Some(_) | None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-                },
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let receiver = |expected: Option<super::ReceiverBinding>| {
+            expected
+                .and_then(|expected| {
+                    state.receiver.filter(|actual| {
+                        expected.owner == actual.owner
+                            && expected.mode == actual.mode
+                            && expected.ty == actual.ty
+                    })
+                })
+                .map(|actual| actual.entity)
+        };
+        let mut arguments = Vec::new();
+        for slot in carried {
+            let entity = if let Some(symbol) = slot.symbol {
+                match state.bindings.get(&symbol) {
+                    Some(LoweredValue::Value(value)) => Some(EntityId::Value(*value)),
+                    _ => None,
+                }
+            } else if slot.receiver.is_some() {
+                receiver(slot.receiver)
+            } else if let Some(index) = slot.pending.first() {
+                state.pending_operands.get(*index).copied()
+            } else {
+                slot.temporaries
+                    .first()
+                    .and_then(|expression| state.temporaries.get(expression))
+                    .copied()
+                    .map(EntityId::Value)
+            }
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if self.function.entity(entity).map(|entity| entity.ty) != Some(slot.ty)
+                || slot
+                    .pending
+                    .iter()
+                    .any(|index| state.pending_operands.get(*index) != Some(&entity))
+                || slot.temporaries.iter().any(|expression| {
+                    state
+                        .temporaries
+                        .get(expression)
+                        .copied()
+                        .map(EntityId::Value)
+                        != Some(entity)
+                })
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            arguments.push(entity);
+        }
+        for slot in loans {
+            let entity = if let Some(symbol) = slot.symbol {
+                state
+                    .borrow_bindings
+                    .get(&symbol)
+                    .copied()
+                    .map(EntityId::Loan)
+            } else if slot.receiver.is_some() {
+                receiver(slot.receiver)
+            } else {
+                slot.pending
+                    .first()
+                    .and_then(|index| state.pending_operands.get(*index))
+                    .copied()
+            }
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if self.function.entity(entity).map(|entity| entity.ty) != Some(slot.ty)
+                || slot
+                    .pending
+                    .iter()
+                    .any(|index| state.pending_operands.get(*index) != Some(&entity))
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            arguments.push(entity);
+        }
         Ok(Edge { target, arguments })
     }
 
@@ -791,16 +846,6 @@ pub(super) fn carried_control_edge(
             .iter()
             .map(|binding| EntityId::Value(binding.source))
             .chain(loans.iter().map(|loan| loan.source))
-            .collect(),
-    }
-}
-
-pub(super) fn carried_edge(target: BlockId, carried: &[CarriedBinding]) -> Edge {
-    Edge {
-        target,
-        arguments: carried
-            .iter()
-            .map(|binding| EntityId::Value(binding.source))
             .collect(),
     }
 }

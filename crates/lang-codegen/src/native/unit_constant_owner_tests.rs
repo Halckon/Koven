@@ -156,6 +156,53 @@ fn function_value_prefix_cleanup_preserves_the_closure_and_its_capture() {
     }
 }
 
+#[test]
+fn inner_loops_preserve_pending_string_owner_and_loan() {
+    for mode in ["borrow", "own"] {
+        for (inner, drops, aborting, expected) in [
+            (
+                "loop { val seen = println(\"tick\")\nbreak }",
+                5,
+                false,
+                "tick\n中文中文\ndone\n",
+            ),
+            (
+                "var once = true\nloop { val seen = println(\"tick\")\nif (!once) { break }\nonce = false\ncontinue }",
+                6,
+                false,
+                "tick\ntick\n中文中文\ndone\n",
+            ),
+            (
+                "var once = true\nwhile (once) { once = false\nval seen = println(\"tick\") }",
+                5,
+                false,
+                "tick\n中文中文\ndone\n",
+            ),
+            ("loop { return }", 4, false, "done\n"),
+            ("loop { val failed = error(TEXT) }", 2, true, ""),
+        ] {
+            let provider = format!(
+                "package p\nconst val TEXT = \"中文\"\nfun consume({mode} text: String, own flag: Boolean): Unit {{ val done = println(text) }}\nfun exercise(own flag: Boolean): Unit {{ val done = consume(TEXT + TEXT, if (flag) {{ {inner}\ntrue }} else {{ false }}) }}"
+            );
+            let consumer = "package q\nfun entry(): Unit { val done = p.exercise(true)\nval marker = println(\"done\") }";
+            let run = run_counted_strings(&provider, consumer, drops, 1, aborting);
+            assert!(run.status.success(), "{mode}/{inner}: {run:?}");
+            assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
+            assert!(run.stderr.is_empty(), "{run:?}");
+        }
+    }
+}
+
+#[test]
+fn pending_copyable_argument_is_a_snapshot_across_loop_assignment() {
+    let provider = "package p\nconst val TEXT = \"中文\"\nfun consume(text: String, own before: Boolean, own after: Boolean): Unit { if (!before) { val failed = error(TEXT) }\nval seen = println(text) }\nfun exercise(own flag: Boolean): Unit { var once = true\nval done = consume(TEXT + TEXT, once, if (flag) { while (once) { once = false }\ntrue } else { false }) }";
+    let consumer = "package q\nfun entry(): Unit { val done = p.exercise(true)\nval marker = println(\"done\") }";
+    let run = run_counted_strings(provider, consumer, 4, 1, false);
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, "中文中文\ndone\n".as_bytes(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
 fn run_counted_strings(
     provider_text: &str,
     consumer_text: &str,

@@ -89,11 +89,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 201 passed，237 filtered，0 failed/ignored | function-value 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 203 passed，239 filtered，0 failed/ignored | 内层循环前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 严格 clippy 受既有 `items_after_test_module` / `filter_map_bool_then` 阻塞；fmt、docs/diff 通过 | `constant_value.rs` 的 HEAD 已有相同布局；docs 354 Markdown，inventory 未变化；例外检查见末尾 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 12 passed，426 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 14 passed，428 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -400,3 +400,31 @@ Abort 六例均通过精确 stdout、String drop 与逐指针分配/释放断言
 fmt、docs（354 Markdown）及 diff 门禁通过。无公开 API 或 CLI 编排变化，未重复 workspace
 check、CLI 集成及 frontend 全量测试；frontend all-targets 的两项已知基线 lint 仍未修改。
 Spec 保持 in-progress，外层 temporary 内循环及完整退出矩阵等剩余项继续按切片验收。
+
+
+内层循环前缀切片：新增测试先复现外层 Borrow concat 前缀中的 `loop { break }` 被
+UnsupportedNode 拒绝。LoopJump 改为保存完整出口快照，循环 header/body/false edge 与回边
+传递 pending owner、loan、place；循环退出保留外层 temporary，内层 jump 不结束外层调用帧。
+while 条件内有 CFG 时终结器写入实际 condition 出口，不固定写入原 header。
+
+独立审查发现 Copyable named var 与已求值实参不可在循环中永久共用槽位；新增用例复现
+赋值后的 MissingFact，循环入口现分离 Copyable 实参快照与变量当前值。首轮 unit 广回归
+201 passed、1 failed：既有 String 二元前缀 break 清理 owner 后仍有 pending alias，跳转现在
+保留入口槽位、截断循环内新增槽位，loan 仍先按调用帧结束，不跳过 owner 事实检查。
+
+修复后 `cargo test -p lang-codegen --lib ssa::unit_ -- --quiet` 为 203 passed、239 filtered，
+0 failed/ignored；新增 Borrow/Value × break/continue/natural while/条件 CFG 八例，以及
+Copyable 前缀快照。独立复审确认 pending 快照分离、内层 jump 槽位截断、loan-end 与 owner
+清理顺序、while 条件出口和完整 loop exit 状态，未发现新的阻断问题。
+
+native 首轮 13 passed、1 failed，失败为 while 夹具的 L0013 解析诊断；将赋值置于输出声明前，
+保持单次输出与原循环次数后，定向十例通过。完整
+`cargo test -p lang-codegen --lib native::unit_tests::constants -- --quiet` 重跑 14 passed、
+428 filtered，0 failed/ignored。新增 Borrow/Value × inner break/continue/natural while/return/Abort
+十例，精确 stdout 区分循环次数和调用是否提交，String drop 与逐指针计数验证 owner 的存活和
+释放；另一个 native 用例让错误覆盖 Copyable 首实参触发 Abort，验证快照保持原值。
+
+`cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs（354 Markdown）和 diff
+检查通过。无公开 API、frontend 或 CLI 变更，未重复 workspace check、frontend 测试及 CLI
+集成。本切片只证明上述普通内层循环路径；完整 receiver/function-value 循环组合与本 Spec
+其他未勾选合同仍待逐项审计，状态保持 in-progress。
