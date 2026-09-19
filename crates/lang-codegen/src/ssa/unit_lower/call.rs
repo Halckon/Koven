@@ -87,12 +87,7 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
-        if (self.constant_owned.is_none()
-            || descriptor.receiver().is_some_and(|receiver| {
-                receiver.mode() == ParameterMode::Value
-                    && self.owned.conditional_receiver_delivery(call).is_some()
-            })
-            || function_value)
+        if (self.constant_owned.is_none() || function_value)
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })
@@ -208,11 +203,11 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let pending_this = self.constant_owned.is_some()
-            && self.owned.conditional_receiver_delivery(call).is_none()
             && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
             && descriptor.receiver().is_some_and(|receiver| {
                 receiver.mode() == ParameterMode::Value
-                    && matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
+                    && (matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_))
+                        || self.owned.conditional_receiver_delivery(call).is_some())
             });
         let pending_receiver = descriptor.receiver().and_then(|descriptor| {
             if self.constant_owned.is_some()

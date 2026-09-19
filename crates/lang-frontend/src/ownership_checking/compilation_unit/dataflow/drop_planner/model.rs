@@ -93,6 +93,7 @@ pub(super) struct PlannerConditionalReceiverDropFact {
     pub(super) owner: DeclarationId,
     pub(super) receiver_type: crate::type_checking::UnitTypeId,
     pub(super) value_origin: Span,
+    pub(super) preceding_drops: usize,
 }
 
 impl PlannerConditionalReceiverDropFact {
@@ -102,11 +103,16 @@ impl PlannerConditionalReceiverDropFact {
             self.owner,
             self.receiver_type,
             self.value_origin,
+            self.preceding_drops,
         )
     }
 }
 
 impl PlannerDropFact {
+    pub(super) const fn point(self) -> PlannerDropPoint {
+        self.point
+    }
+
     pub(super) const fn new(
         point: PlannerDropPoint,
         target: PlannerDropTarget,

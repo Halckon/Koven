@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
 | 阻塞项 | 无外部语义阻塞；剩余实现与验收缺口见末尾记录 |
-| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend 隐式 Value receiver 的 pending drop 事实修复；Architecture |
+| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend 隐式与条件 Value receiver 的 pending drop 事实修复；Architecture |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -42,7 +42,8 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   不能为跨文件读取引入 singleton 或稳定常量地址。
 - 隐式具体 MoveOnly Value `this` 的调用提交前清理由 Phase 3 发布既有 `This(owner)`
   drop fact，沿用 pending owner 的逆序和循环边界；Phase 4 保留该 owner 到参数全部完成。
-  此修复不启用条件 StaticSelf 的控制退出，也不从 codegen 猜补缺失事实。
+  条件 StaticSelf 同样发布 pending receiver 义务及其在普通 drop 序列中的位置；后端按具体
+  Copyable/MoveOnly 实例化消费，不从 codegen 猜补缺失事实或清理顺序。
 - 使用既有 process entry（含 argv）、object 原子发布与链接/执行流程；必要 CLI 编排仅负责
   选择正确阶段入口，不承载语义或重新推导事实。
 
@@ -83,11 +84,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 195 passed，235 filtered，0 failed/ignored | 隐式 Value this 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 198 passed，236 filtered，0 failed/ignored | 条件 StaticSelf 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 严格 clippy 受既有 `items_after_test_module` / `filter_map_bool_then` 阻塞；fmt、docs/diff 通过 | `constant_value.rs` 的 HEAD 已有相同布局；docs 354 Markdown，inventory 未变化；例外检查见末尾 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 10 passed，420 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 11 passed，423 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -333,3 +334,34 @@ frontend all-targets 严格 clippy 通过。
 补充严格检查通过：`cargo clippy -p lang-frontend --lib -- -D warnings` 与
 `cargo clippy -p lang-codegen --all-targets -- -D warnings`。前者只证明生产库 lint，不代替
 受上述两个既有问题阻塞的 frontend 全目标门禁。Spec 继续保持 in-progress。
+
+
+条件 StaticSelf 前缀切片：专用后端先复现参数 return 的 UnsupportedNode；前端新增顺序字段
+后先按旧 planner 复现 `preceding_drops = 3`，而所需顺序为 newer、argument、receiver、older，
+receiver 应位于两条普通 drop 之后。现在 PendingOwner 保存完整 OwnedThis，条件 receiver
+在参数求值期间暂存；正常提交恢复模板义务，退出时发布带位置的 conditional fact。
+专用后端延迟具体 MoveOnly receiver 的移交，按 ordinary fact 索引交错消费条件 drop，
+Copyable 跳过，位置越界拒绝；不按已生成 Drop 指令数推导该位置。
+
+前端初版夹具把 named owner 的 value_origin 误认为 initializer literal，已改为声明名，
+随后确认上述 3/2 顺序差异。SSA 类型矩阵首次误用保留字 value 作字段名触发 L0019，
+已改为 item；这些夹具错误不记为生产清理缺陷。独立审查核对 pending 模板恢复、
+MoveOnly 提交、Copyable 跳过、CFG alias 及 ordinary/conditional 交错，未发现代码阻断；
+指出两处旧 Architecture 描述，已同步修正。
+
+`cargo test -p lang-frontend --test multifile_ownership_checking --test multifile_constant_ownership --no-fail-fast -- --quiet`
+为 65 + 20 passed，0 failed/ignored/filtered。本切片新增公开只读事实字段，因此追加 workspace
+all-targets 编译检查；不以未修改公开函数签名为由跳过消费者检查。
+
+`cargo test -p lang-codegen --lib ssa::unit_ -- --quiet` 为 198 passed、236 filtered；
+`cargo test -p lang-codegen --lib native::unit_tests::constants -- --quiet` 为 11 passed、
+423 filtered，均 0 failed/ignored。SSA 包含显式/隐式 × heap MoveOnly/inline MoveOnly/Copyable
+× return/Abort 十二例、精确四 owner 的 Drop origin 顺序、MoveOnly break、Copyable continue
+及嵌套 this。native 新增显式/隐式 × Borrow/Value × inline MoveOnly/Copyable × return/正常
+提交十六例，用 concat 分配/逐指针释放和精确 String drop 计数验证，stdout 同时区分调用和后续
+代码是否执行。这些证据不等于所有无正常出口的 interface default、所有循环组合已验收。
+
+`cargo check --workspace --all-targets` 通过（9m41s）；frontend `--lib` 和 codegen
+`--all-targets` 的严格 clippy（`-D warnings`）通过。fmt、docs（354 Markdown）及 diff 检查
+通过。frontend all-targets 严格 clippy 的两项既有 lint 仍未修改，本轮不重复已知失败；
+未运行 frontend 全量测试及 CLI 集成测试（无 CLI 编排变化）。Spec 仍为 in-progress。

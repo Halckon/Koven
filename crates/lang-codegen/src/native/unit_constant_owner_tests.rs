@@ -97,6 +97,43 @@ fn implicit_receiver_cleanup_matches_call_commit_at_runtime() {
     }
 }
 
+#[test]
+fn conditional_receiver_cleanup_matches_copyability_and_call_commit() {
+    for receiver in ["consume", "this.consume"] {
+        for (field, constructor, allocations, receiver_drops) in [
+            ("String", "Host(p.TEXT + p.TEXT)", 2, 3),
+            ("Int", "Host(0)", 1, 0),
+        ] {
+            for mode in ["", "own "] {
+                for (flag, extra, expected) in [
+                    ("true", 1, "done\n"),
+                    ("false", 0, "中文中文\nolder\ndone\n"),
+                ] {
+                    let provider = format!(
+                        "package p\nconst val TEXT = \"中文\"\ninterface Relay {{ own fun consume({mode}argument: String, own flag: Boolean): Unit {{ println(argument) }}\nown fun relay(own flag: Boolean): Unit {{ val older = \"older\"\nval pending = {receiver}(p.TEXT + p.TEXT, if (flag) {{ val newer = \"newer\"\nif (flag) {{ return }} else {{ newer == \"newer\" }} }} else {{ true }})\nval used = println(older) }} }}\nvalue class Host(val item: {field}): Relay {{}}"
+                    );
+                    let consumer = format!(
+                        "package q\nimport p.Host\nfun entry(): Unit {{ val host = {constructor}\nval done = host.relay({flag})\nval marker = println(\"done\") }}"
+                    );
+                    let run = run_counted_strings(
+                        &provider,
+                        &consumer,
+                        5 + extra + receiver_drops,
+                        allocations,
+                        false,
+                    );
+                    assert!(
+                        run.status.success(),
+                        "{receiver}/{field}/{mode}/{flag}: {run:?}"
+                    );
+                    assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
+                    assert!(run.stderr.is_empty(), "{run:?}");
+                }
+            }
+        }
+    }
+}
+
 fn run_counted_strings(
     provider_text: &str,
     consumer_text: &str,

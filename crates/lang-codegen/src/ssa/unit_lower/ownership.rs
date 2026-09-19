@@ -231,6 +231,15 @@ impl UnitExpressionLowerer<'_> {
                 conditional[0].value_origin(),
             ));
         }
+        if conditional
+            .first()
+            .is_some_and(|fact| fact.preceding_drops() > facts.len())
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                conditional[0].value_origin(),
+            ));
+        }
         let conditional_drop = conditional
             .first()
             .copied()
@@ -241,7 +250,25 @@ impl UnitExpressionLowerer<'_> {
             .transpose()?
             .flatten();
         self.validate_closure_drop_facts(&facts)?;
-        for fact in facts {
+        // 条件 receiver 按 frontend 发布的位置与无条件 drop 交错，Copyable 仍跳过。
+        for index in 0..=facts.len() {
+            if let Some((fact, owner)) = conditional_drop
+                && fact.preceding_drops() == index
+            {
+                self.consumed_receiver = self.current_receiver.map(Into::into);
+                self.current_receiver = None;
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::Drop { owner },
+                        Vec::new(),
+                        Origin::Source(fact.value_origin()),
+                    )
+                    .map_err(|_| {
+                        lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
+                    })?;
+            }
+            let Some(fact) = facts.get(index) else { break };
             let owner = match fact.target() {
                 UnitDropTarget::This(owner) => match self.current_receiver.take() {
                     Some(receiver)
@@ -289,20 +316,6 @@ impl UnitExpressionLowerer<'_> {
                     ));
                 }
             };
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::Drop { owner },
-                    Vec::new(),
-                    Origin::Source(fact.value_origin()),
-                )
-                .map_err(|_| {
-                    lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
-                })?;
-        }
-        if let Some((fact, owner)) = conditional_drop {
-            self.consumed_receiver = self.current_receiver.map(Into::into);
-            self.current_receiver = None;
             self.function
                 .append_instruction(
                     self.block,

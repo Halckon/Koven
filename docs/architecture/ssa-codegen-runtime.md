@@ -101,14 +101,17 @@ receiver 不额外登记 owner，Group alias 按同一 ValueId 清除。
 Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参数 CFG 传递；非 entry Place
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
-MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回；条件 StaticSelf
-与 function-value 的参数控制退出仍保留 guard。外层 temporary 内求值循环仍受既有 loop
+MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回；function-value
+的参数控制退出仍保留 guard。外层 temporary 内求值循环仍受既有 loop
 lowering 限制；这些组合不由当前前缀测试证明。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
 专用后端保留 current receiver 到实参全部完成再移交。参数 return 先清理后建实参，再清理
 receiver，Abort 不展开；CFG 将 receiver 与 pending 槽的 alias 重绑定到同一实体。
 隐式调用的 return/正常提交已有常量/literal native 对照，使用双 concat 分配、逐指针释放
 与 String drop 计数验证 receiver 字段和前缀实参均正确处理。
+条件 StaticSelf 的显式/隐式 Value receiver 同样延迟到参数完成才移交；conditional drop
+按 frontend 的 `preceding_drops` 与同 point 的普通事实交错，越界位置拒绝，Copyable 跳过
+receiver 析构。该索引计数普通 fact，包含由专用路径处理的 capture fact，不计数 LLVM 指令。
 显式 Value receiver 的循环退出另有常量/literal、
 Borrow/Value 实参对照，通过动态分配/释放、String drop 计数与循环后输出检查清理和跳转。
 

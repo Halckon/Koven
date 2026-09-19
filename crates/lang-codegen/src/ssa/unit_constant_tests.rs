@@ -709,3 +709,125 @@ fn implicit_receiver_alias_survives_nested_argument_joins() {
         crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
     }
 }
+
+#[test]
+fn conditional_receiver_remains_owned_during_argument_control_flow() {
+    for receiver in ["consume", "this.consume"] {
+        for (class, constructor, receiver_drop) in [
+            ("class Host: Relay", "Host()", 1),
+            (
+                "value class Host(val item: String): Relay",
+                "Host(p.TEXT)",
+                1,
+            ),
+            ("value class Host(val item: Int): Relay", "Host(0)", 0),
+        ] {
+            for exit in ["return", "error(p.TEXT)"] {
+                let source = format!(
+                    "interface Relay {{ own fun consume(text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val done = {receiver}(p.TEXT, if (flag) {{ {exit} }} else {{ true }}) }} }}\n{class} {{}}\nfun entry(own flag: Boolean): Unit {{ val host = {constructor}\nval done = host.relay(flag) }}"
+                );
+                let program = lower_short_circuit_fixture(&source);
+                let relay = program.modules[0]
+                    .functions
+                    .iter()
+                    .find(|function| function.name.contains(".relay."))
+                    .unwrap();
+                assert_eq!(
+                    relay
+                        .instructions
+                        .iter()
+                        .filter(|instruction| matches!(
+                            instruction.operation,
+                            Operation::Drop { .. }
+                        ))
+                        .count(),
+                    1 + if exit == "return" {
+                        1 + receiver_drop
+                    } else {
+                        0
+                    },
+                    "{source}"
+                );
+                crate::llvm::render_verified_program(&program).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn conditional_receiver_drop_is_interleaved_at_the_frontend_position() {
+    for receiver in ["consume", "this.consume"] {
+        let source = format!(
+            "interface Relay {{ own fun consume(text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val older = p.TEXT\nval done = {receiver}(p.TEXT, if (flag) {{ val newer = p.TEXT\nif (flag) {{ return }} else {{ newer == p.TEXT }} }} else {{ true }})\nval used = println(older) }} }}\nclass Host: Relay {{}}\nfun entry(own flag: Boolean): Unit {{ val host = Host()\nval done = host.relay(flag) }}"
+        );
+        let text = format!("package q\n{source}");
+        let program = lower_short_circuit_fixture(&source);
+        let relay = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains(".relay."))
+            .unwrap();
+        let exit = relay
+            .blocks
+            .iter()
+            .find(|block| {
+                matches!(
+                    block.terminator.as_ref().map(|terminator| &terminator.kind),
+                    Some(super::model::TerminatorKind::Return { .. })
+                ) && block
+                    .instructions
+                    .iter()
+                    .filter(|id| {
+                        matches!(
+                            relay.instruction(**id).unwrap().operation,
+                            Operation::Drop { .. }
+                        )
+                    })
+                    .count()
+                    == 4
+            })
+            .expect("return must clean new local, pending operand, receiver and older local");
+        let origins = exit
+            .instructions
+            .iter()
+            .filter_map(|id| {
+                let instruction = relay.instruction(*id).unwrap();
+                if !matches!(instruction.operation, Operation::Drop { .. }) {
+                    return None;
+                }
+                let super::model::Origin::Source(span) = instruction.origin else {
+                    panic!("source drop")
+                };
+                Some(&text[span.start()..span.end()])
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(origins, ["newer", "p.TEXT", "relay", "older"]);
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+}
+
+#[test]
+fn conditional_receiver_preserves_loop_and_nested_copyable_calls() {
+    for (class, constructor, body) in [
+        (
+            "class Host: Relay",
+            "Host()",
+            "loop { val done = check(p.TEXT, if (flag) { break } else { true })\nbreak }",
+        ),
+        (
+            "value class Host(val item: Int): Relay",
+            "Host(0)",
+            "var once = true\nloop { if (!once) { break }\nonce = false\nval done = check(p.TEXT, if (flag) { continue } else { true })\nbreak }",
+        ),
+        (
+            "value class Host(val item: Int): Relay",
+            "Host(0)",
+            "val done = check(p.TEXT, check(p.TEXT, if (flag) { return } else { true }))",
+        ),
+    ] {
+        let source = format!(
+            "interface Relay {{ own fun check(text: String, own flag: Boolean): Boolean = flag\nown fun relay(own flag: Boolean): Unit {{ {body} }} }}\n{class} {{}}\nfun entry(own flag: Boolean): Unit {{ val host = {constructor}\nval done = host.relay(flag) }}"
+        );
+        crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
+    }
+}

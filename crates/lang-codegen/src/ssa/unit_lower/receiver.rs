@@ -413,8 +413,10 @@ impl UnitExpressionLowerer<'_> {
         match self.typed.copyability(concrete) {
             Copyability::Copyable => {}
             Copyability::MoveOnly => {
-                self.consumed_receiver = Some(current.into());
-                self.current_receiver = None;
+                if self.constant_owned.is_none() {
+                    self.consumed_receiver = Some(current.into());
+                    self.current_receiver = None;
+                }
             }
             Copyability::Unknown | Copyability::Error => {
                 return Err(lowering_error(

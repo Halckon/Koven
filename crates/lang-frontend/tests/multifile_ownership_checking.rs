@@ -4369,3 +4369,46 @@ fun inspect(own first: Rc<Int>) {
     );
     ownership.validate().expect("valid ownership");
 }
+
+#[test]
+fn conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners() {
+    for receiver in ["consume", "this.consume"] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "interface Relay {{ own fun consume(text: String, own flag: Boolean): Unit {{}}\nown fun relay(own flag: Boolean): Unit {{ val older = \"older\"\nval done = {receiver}(\"prefix\", if (flag) {{ val newer = \"newer\"\nif (flag) {{ return }} else {{ newer == \"newer\" }} }} else {{ true }})\nval used = println(older) }} }}"
+        );
+        let (source, parsed) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+        let (name_environment, environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &environment);
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &environment, &typed)
+                .unwrap()
+                .validate()
+                .unwrap();
+        let point = UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+            source_unit(&names, source),
+            expression_with_text(&sources, &parsed, "return"),
+        ));
+        let fact = owned
+            .ownership()
+            .conditional_receiver_drops()
+            .iter()
+            .find(|fact| fact.point() == point)
+            .unwrap();
+        let origins = owned
+            .ownership()
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == point)
+            .map(|fact| sources.slice(fact.value_origin()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(origins, ["newer", "\"prefix\"", "older"]);
+        assert_eq!(
+            fact.preceding_drops(),
+            2,
+            "new local and later operand precede pending receiver; older local follows it"
+        );
+    }
+}

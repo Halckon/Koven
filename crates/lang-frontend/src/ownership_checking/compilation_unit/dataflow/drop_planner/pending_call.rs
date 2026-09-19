@@ -1,7 +1,7 @@
 //! Evaluated call/interpolation operands remain owned until completion or control transfer.
 use super::{
-    DropPlanner, OwnershipCheckingError, PlannerDropFact, PlannerDropPoint, PlannerDropTarget,
-    ValueState,
+    DropPlanner, OwnedThis, OwnershipCheckingError, PlannerDropFact, PlannerDropPoint,
+    PlannerDropTarget, ValueState,
 };
 use crate::{
     ast::ExpressionId, name_resolution::UnitSymbolId, source::Span, type_checking::Copyability,
@@ -10,11 +10,17 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
     pub(super) control: ExpressionId,
-    target: PlannerDropTarget,
+    target: PendingOwner,
     origin: Span,
     transfers_at_call: bool,
     pub(super) loop_depth: usize,
     prior_symbols: Vec<UnitSymbolId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PendingOwner {
+    Temporary(ExpressionId),
+    This(OwnedThis),
 }
 
 impl DropPlanner<'_, '_> {
@@ -51,17 +57,40 @@ impl DropPlanner<'_, '_> {
     ) {
         self.register_pending_owner(
             control,
-            PlannerDropTarget::Temporary(expression),
+            PendingOwner::Temporary(expression),
             origin,
             transfers_at_call,
             state,
         );
     }
 
-    pub(super) fn register_pending_owner(
+    pub(super) fn register_pending_this(&self, control: ExpressionId, state: &mut ValueState) {
+        if let Some(receiver) = state.this.take() {
+            self.register_pending_owner(
+                control,
+                PendingOwner::This(receiver),
+                receiver.origin,
+                true,
+                state,
+            );
+        }
+    }
+
+    fn push_pending_drop(&mut self, point: PlannerDropPoint, pending: PendingTemporary) {
+        match pending.target {
+            PendingOwner::Temporary(expression) => self.push_fact(PlannerDropFact::new(
+                point,
+                PlannerDropTarget::Temporary(expression),
+                pending.origin,
+            )),
+            PendingOwner::This(receiver) => self.push_this_fact(point, receiver),
+        }
+    }
+
+    fn register_pending_owner(
         &self,
         control: ExpressionId,
-        target: PlannerDropTarget,
+        target: PendingOwner,
         origin: Span,
         transfers_at_call: bool,
         state: &mut ValueState,
@@ -87,8 +116,13 @@ impl DropPlanner<'_, '_> {
                 continue;
             }
             let pending = state.pending_temporaries.remove(index);
-            if !pending.transfers_at_call {
-                self.push_fact(PlannerDropFact::new(point, pending.target, pending.origin));
+            if let PendingOwner::This(receiver) = pending.target
+                && receiver.conditional_type.is_some()
+            {
+                // 模板保留义务，具体 MoveOnly 已交付时由后端跳过；Copyable 不析构。
+                state.this = Some(receiver);
+            } else if !pending.transfers_at_call {
+                self.push_pending_drop(point, pending);
             }
         }
     }
@@ -120,7 +154,7 @@ impl DropPlanner<'_, '_> {
             for symbol in newer.into_iter().rev() {
                 self.drop_named(point, symbol, state);
             }
-            self.push_fact(PlannerDropFact::new(point, pending.target, pending.origin));
+            self.push_pending_drop(point, pending);
         }
     }
 }

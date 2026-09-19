@@ -835,7 +835,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                     if !self.expression(receiver, usage, state)? {
                                         return Ok(false);
                                     }
-                                    if !conditional_static_self {
+                                    if conditional_static_self {
+                                        self.register_pending_this(id, state);
+                                    } else {
                                         self.register_value_argument(id, receiver, state)?;
                                     }
                                 }
@@ -887,19 +889,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                         }
                         UnitCallReceiverOrigin::ImplicitThis(_) => {
-                            if contract.kind() == UnitCallArgumentOwnershipKind::Value
-                                && self.checker.typed.copyability(contract.receiver_type())
-                                    == Copyability::MoveOnly
-                                && let Some(receiver) = state.this.take()
-                            {
-                                // 隐式 receiver 没有 expression identity，保留既有 This drop target。
-                                self.register_pending_owner(
-                                    id,
-                                    PlannerDropTarget::This(receiver.owner),
-                                    receiver.origin,
-                                    true,
-                                    state,
-                                );
+                            if contract.kind() == UnitCallArgumentOwnershipKind::Value {
+                                self.register_pending_this(id, state);
                             }
                         }
                     }
@@ -1218,6 +1209,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 owner: receiver.owner,
                 receiver_type,
                 value_origin: receiver.origin,
+                preceding_drops: self
+                    .facts
+                    .iter()
+                    .filter(|fact| fact.point() == point)
+                    .count(),
             };
             if !self.conditional_receiver_facts.contains(&fact) {
                 self.conditional_receiver_facts.push(fact);

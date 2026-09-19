@@ -539,6 +539,7 @@ pub struct UnitConditionalReceiverDropFact {
     owner: DeclarationId,
     receiver_type: UnitTypeId,
     value_origin: Span,
+    preceding_drops: usize,
 }
 
 impl UnitConditionalReceiverDropFact {
@@ -547,13 +548,21 @@ impl UnitConditionalReceiverDropFact {
         owner: DeclarationId,
         receiver_type: UnitTypeId,
         value_origin: Span,
+        preceding_drops: usize,
     ) -> Self {
         Self {
             point,
             owner,
             receiver_type,
             value_origin,
+            preceding_drops,
         }
+    }
+
+    /// 返回同一 drop point 中必须先消费的无条件 drop fact 数量。
+    #[must_use]
+    pub const fn preceding_drops(self) -> usize {
+        self.preceding_drops
     }
 
     /// 返回与普通 drop fact 相同的 source-qualified 控制流边界。

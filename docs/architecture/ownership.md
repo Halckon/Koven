@@ -159,4 +159,8 @@ return/break/continue 逆序释放，Abort 不展开。正常 binary 仍在 Afte
 具体 MoveOnly Value receiver 的隐式调用没有表达式 identity；unit planner 将其作为
 `This(owner)` 加入既有 pending 队列。参数提前 return 按实参、receiver 的逆序发布 drop，
 正常提交移除义务，Abort 不展开。沿用既有 source-qualified receiver origin，不伪造
-expression temporary；条件 StaticSelf 的控制退出不由此修复扩展。
+expression temporary。
+条件 StaticSelf receiver 也进入该队列，并保留 OwnedThis 的模板类型；正常调用提交后恢复
+模板析构义务，具体 MoveOnly 是否已交付由下游检查。退出时发布条件 drop，并用
+`preceding_drops` 指明同一 point 中先执行的普通 drop 数量，保留后建 local、实参、receiver、
+旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
