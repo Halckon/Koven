@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，209 份）"]
+subgraph Garchive["已完成（archive，210 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -218,8 +218,6 @@ subgraph Garchive["已完成（archive，209 份）"]
   S0224["S0224<br/>dependent inherited owner recipe lowering"]
   S0225["S0225<br/>参数增长型 runtime recipe 策略与 lowering"]
   S0226["S0226<br/>跨文件常量重新物化与所有权"]
-end
-subgraph Gactive["现行 active"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
 end
 subgraph Gdrafts_v037["v0.37（draft，未启用）"]
@@ -1367,7 +1365,7 @@ S0226 --> S0227
 | SPEC-0224 | archive | [0224-dependent-inherited-owner-recipes.md](0224-dependent-inherited-owner-recipes.md) |
 | SPEC-0225 | archive | [0225-parameter-growing-runtime-type-cycles.md](0225-parameter-growing-runtime-type-cycles.md) |
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
-| SPEC-0227 | active | [0227-unit-constant-native-lowering.md](../../specs/active/0227-unit-constant-native-lowering.md) |
+| SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0179 | drafts/v0.37 | [0179-sequential-iteration-typed-plan.md](../../specs/drafts/v0.37/0179-sequential-iteration-typed-plan.md) |
 | SPEC-0182 | drafts/v0.37 | [0182-sequential-for-lowering.md](../../specs/drafts/v0.37/0182-sequential-for-lowering.md) |
 | SPEC-0211 | drafts/v0.37 | [0211-sequential-iteration-ownership.md](../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md) |

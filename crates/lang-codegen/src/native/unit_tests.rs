@@ -1990,8 +1990,8 @@ fn analyze_unit() -> UnitAnalysis {
          fun argvEntry(args: Array<String>): Unit {}\n\
          fun invalidEntry(number: Int): Unit {}\n\
          fun unsupportedBorrow(): Unit {\n\
-             val action: move (borrow String) -> Unit = move { message -> p.inspect(message) }\n\
-             val invoked = action(\"unsupported-borrow\")\n\
+             val action: move (borrow p.Bundle) -> Unit = move { message -> }\n\
+             val invoked = action(p.makeBundle())\n\
          }",
     )
 }

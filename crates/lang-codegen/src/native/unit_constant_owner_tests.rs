@@ -22,18 +22,23 @@ fn constant_and_literal_string_owners_have_matching_runtime_cleanup() {
 
 #[test]
 fn abort_does_not_unwind_a_pending_constant_string_owner() {
-    let run = run_counted_strings(
-        "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true\nfun view_pair(text: String, own flag: Boolean): Unit {}",
-        "package q\nfun entry(): Unit { val pending = p.view_pair(p.TEXT + p.TEXT, if (p.FLAG) { error(p.TEXT) } else { true }) }",
-        2,
-        1,
-        true,
-    );
-    assert!(
-        run.status.success(),
-        "counted Abort must check state before exiting: {run:?}"
-    );
-    assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
+    for value in ["p.TEXT", "\"中文\""] {
+        let consumer = format!(
+            "package q\nfun entry(): Unit {{ val pending = p.view_pair({value} + {value}, if (p.FLAG) {{ error({value}) }} else {{ true }}) }}"
+        );
+        let run = run_counted_strings(
+            "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true\nfun view_pair(text: String, own flag: Boolean): Unit {}",
+            &consumer,
+            2,
+            1,
+            true,
+        );
+        assert!(
+            run.status.success(),
+            "{value}: counted Abort must check state before exiting: {run:?}"
+        );
+        assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
+    }
 }
 
 #[test]
@@ -152,6 +157,26 @@ fn function_value_prefix_cleanup_preserves_the_closure_and_its_capture() {
             assert!(run.status.success(), "{mode}/{flag}/{exit}: {run:?}");
             assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
             assert!(run.stderr.is_empty(), "{run:?}");
+        }
+    }
+}
+
+#[test]
+fn function_value_loop_exits_match_literal_capture_and_argument_cleanup() {
+    for value in ["p.TEXT", "\"中文\""] {
+        for mode in ["borrow", "own"] {
+            for exit in ["break", "continue"] {
+                let provider = "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true";
+                let expected_turns = if exit == "continue" { 2 } else { 1 };
+                // Both the capture and pending argument own distinct allocated buffers.
+                let consumer = format!(
+                    "package q\nfun entry(): Unit {{ var turns = 0\nloop {{ turns = turns + 1\nif (turns == 2) {{ break }}\nval captured = {value} + {value}\nval action: move ({mode} String, own Boolean) -> Unit = move {{ text, accepted -> println(captured) }}\nval pending = action({value} + {value}, if (p.FLAG) {{ {exit} }} else {{ true }})\nval unexpected = println(\"unexpected continuation\")\nbreak }}\nif (turns != {expected_turns}) {{ println(\"wrong loop target\") }}\nprintln(\"done\") }}"
+                );
+                let run = run_counted_strings(provider, &consumer, 7, 2, false);
+                assert!(run.status.success(), "{value}/{mode}/{exit}: {run:?}");
+                assert_eq!(run.stdout, b"done\n", "{value}/{mode}/{exit}: {run:?}");
+                assert!(run.stderr.is_empty(), "{run:?}");
+            }
         }
     }
 }

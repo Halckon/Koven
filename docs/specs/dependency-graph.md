@@ -8,10 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 209 份"))
-subgraph Gactive["现行 active"]
-  S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
-end
+ARCH(("已完成<br/>archive 210 份"))
 subgraph Gdrafts_v037["v0.37（draft，未启用）"]
   S0179["S0179<br/>顺序容器借用迭代 typed plan"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -26,16 +23,14 @@ ARCH --> S0179
 ARCH --> S0182
 ARCH --> S0211
 ARCH --> S0212
-ARCH --> S0227
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0227 | active | [0227-unit-constant-native-lowering.md](active/0227-unit-constant-native-lowering.md) |
 | SPEC-0179 | drafts/v0.37 | [0179-sequential-iteration-typed-plan.md](drafts/v0.37/0179-sequential-iteration-typed-plan.md) |
 | SPEC-0182 | drafts/v0.37 | [0182-sequential-for-lowering.md](drafts/v0.37/0182-sequential-for-lowering.md) |
 | SPEC-0211 | drafts/v0.37 | [0211-sequential-iteration-ownership.md](drafts/v0.37/0211-sequential-iteration-ownership.md) |
 | SPEC-0212 | drafts/v0.37 | [0212-borrowed-sequential-iteration-ssa.md](drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md) |
-| 已完成 Spec（209 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（210 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

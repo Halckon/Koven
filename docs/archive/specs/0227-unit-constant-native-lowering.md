@@ -1,17 +1,17 @@
 # SPEC-0227：跨文件常量 SSA 与 native 交付
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：接入 unit 常量 native 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：接入 unit 常量 native 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-227` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | [v0.36 §36](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
 | 批准依据 | 用户持续授权分阶段实施；2026-09-13 前置完成后迁入 active |
 | 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
-| 阻塞项 | 无外部语义阻塞；剩余实现与验收缺口见末尾记录 |
+| 阻塞项 | 无；合同收口证据见末尾 |
 | 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend receiver/callee/capture 的 pending drop 事实修复；Architecture |
 | 语言语义变更 | 否 |
 
@@ -60,20 +60,20 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 ## 4. 验收标准
 
 - [x] import 后选择及绝对路径覆盖顶层常量和五类关联 namespace；全部 11 种常量类型 native 输出正确。
-- [ ] 跨文件 chain 与重复 use 保留精确值，短路/control 保持 typed/owned 执行位置。
-- [ ] String 多次读取产生独立临时 owner；借用、转移、返回及 Abort 的清理与 literal 对照一致，
+- [x] 跨文件 chain 与重复 use 保留精确值，短路/control 保持 typed/owned 执行位置。
+- [x] String 多次读取产生独立临时 owner；借用、转移、返回及 Abort 的清理与 literal 对照一致，
   不重复清理已转移 owner；使用既有 IR 或计数证据核实分配/释放，而非仅检查退出码。
-- [ ] IR/verifier 不出现常量声明 storage/global/init 或 namespace capture；Char 保持既有 Char 契约。
-- [ ] 失败 typed/owned、混合分析及缺失物化事实在写出前被拒绝；失败保留既有输出文件。
-- [ ] 正逆 source inputs、重复构建产生确定性结果；argv entry 与普通 unit 非常量最近回归通过。
-- [ ] 新旧入口 capability 编译契约、native 正反例和必要 CLI 编排验证通过，Architecture/验收同步。
+- [x] IR/verifier 不出现常量声明 storage/global/init 或 namespace capture；Char 保持既有 Char 契约。
+- [x] 失败 typed/owned、混合分析及缺失物化事实在写出前被拒绝；失败保留既有输出文件。
+- [x] 正逆 source inputs、重复构建产生确定性结果；argv entry 与普通 unit 非常量最近回归通过。
+- [x] 新旧入口 capability 编译契约、native 正反例和必要 CLI 编排验证通过，Architecture/验收同步。
 - [x] 常量参与的 String 插值（含嵌套和提前退出输入）在 lowering 确定性拒绝并保留源码 Span。
 
 ## 5. 实施与提交
 
-1. [ ] 显式消费新 owned capability 并接 unit planner → 验证：身份/缺事实拒绝与现有基础边界。
-2. [ ] 接 scalar/String 物化与 cleanup lowering → 验证：IR/verifier 及 literal 对照。
-3. [ ] 完成 native build/run、argv/确定性/原子输出矩阵 → 验证：上述逐项证据与归档。
+1. [x] 显式消费新 owned capability 并接 unit planner → 验证：身份/缺事实拒绝与现有基础边界。
+2. [x] 接 scalar/String 物化与 cleanup lowering → 验证：IR/verifier 及 literal 对照。
+3. [x] 完成 native build/run、argv/确定性/原子输出矩阵 → 验证：上述逐项证据与归档。
 
 每步形成可构建的独立切片，提交包含 `SPEC-0227`；不要把 SPEC-0226 的实现混入本 Spec 提交。
 
@@ -89,7 +89,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 203 passed，239 filtered，0 failed/ignored | 内层循环前缀切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 204 passed，240 filtered，0 failed/ignored | 合同收口切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 严格 clippy 受既有 `items_after_test_module` / `filter_map_bool_then` 阻塞；fmt、docs/diff 通过 | `constant_value.rs` 的 HEAD 已有相同布局；docs 354 Markdown，inventory 未变化；例外检查见末尾 |
@@ -428,3 +428,56 @@ native 首轮 13 passed、1 failed，失败为 while 夹具的 L0013 解析诊�
 检查通过。无公开 API、frontend 或 CLI 变更，未重复 workspace check、frontend 测试及 CLI
 集成。本切片只证明上述普通内层循环路径；完整 receiver/function-value 循环组合与本 Spec
 其他未勾选合同仍待逐项审计，状态保持 in-progress。
+
+### 合同收口审计
+
+本次逐条核对 §4 的实际断言，不把“未覆盖任意 receiver/循环组合”扩大为新的完成条件。
+独立审查识别并关闭三个具体证据缺口：Abort 的 literal 动态对照、namespace 无运行时
+存储/初始化/capture、缺失物化事实的直接拒绝。
+
+- `constant.rs::tests::namespace_constants_need_no_storage_initializer_or_closure_capture`：
+  六类 namespace × Int/String，const use 位于无捕获 lambda；仅 entry/lambda 两函数，
+  无 ConcreteClosure，SSA 操作白名单排除 storage/initializer，LLVM 仅允许 String literal
+  私有只读字节数据，不允许 ctor/dtor。私有 driver 缺少 constant owned facts 时返回
+  MissingFact，Span 精确指向该 use；没有开放可伪造公共 capability。
+- Abort 测试参数化常量/literal，均要求 2 drop、1 alloc、0 free 和存活 buffer；
+  function-value 循环另有常量/literal × Borrow/Value × break/continue 八例，两个独立
+  concat 分配、7 drop、逐指针释放、循环次数及精确输出共同排除错误提交或错误退出。
+- 新 IR 测试首次编译缺少 SsaTypeKind import，修正后十二例通过；这是测试导入错误，
+  不记为生产缺陷。本轮没有修改生产算法。
+
+| §4 合同 | 直接证据 |
+|---|---|
+| namespace/11 类型、chain/重复 use | `native::unit_tests::constants::all_constant_types_run_across_files_and_namespaces` 精确输出、chain=42 与 import/绝对路径对照 |
+| 短路/control | `ssa::unit_constant_tests` 的静态指令计数、skip-edge 唯一 drop、前缀 loan/drop 顺序与 verified LLVM |
+| 独立 String owner、literal 对照 | `string_uses_materialize_independent_owners_with_literal_cleanup` 的 ValueId/bytes/逆序 drop；native owners 的普通、return、Abort 与循环计数 |
+| 无存储/初始化/capture、Char | 新 namespace IR 测试；`scalar_materializations_use_exact_values_and_reject_foreign_analysis` 的精确 Char scalar/type |
+| 错误/混合分析/缺物化、失败保留输出 | 私有 driver MissingFact 与 Span；native 身份错配/插值拒绝及逐字节目标保留；CLI 非法常量与前端失败/deferred owned gate |
+| 确定性/argv/普通 unit | native 正逆输入/重复 object 字节比较、entry shape；CLI Unicode argv 内容；普通 unit native 回归 |
+| capability/CLI/Architecture | 四个 compile-fail doctest；project/native CLI 实际 build/run；Architecture 删除已失效的“尚未消费”描述 |
+
+`cargo test -p lang-codegen --lib ssa::unit_ -- --quiet`：204 passed、240 filtered，
+0 failed/ignored。独立复核确认新增断言覆盖上述缺口，无新的阻断项。
+
+普通 unit native 收口回归首轮 46 passed、1 failed：旧 `unsupportedBorrow` 夹具仍将已支持的
+Borrow String lambda 当作 UnsupportedSource。替换时误选 Copyable Token 且构造路径未解析，
+导致同一 analysis fixture 的两个测试名称检查失败（45 passed、2 failed）；现改用既有
+MoveOnly Bundle 的 Borrow 参数和 `makeBundle()`，直接验证未开放边界，保留目标字节与
+sibling temporary 断言。以上属于旧负例更新与夹具修正，没有修改生产拒绝规则。
+
+修正后的 `cargo test -p lang-codegen --lib native::unit_tests -- --quiet`：47 passed、
+397 filtered，0 failed/ignored，包含常量 native 15 项与普通 unit native 正反例。
+
+
+### 完成与归档
+
+2026-09-19，§4 每项已按上表完成证据审计，§5 三个实施阶段完成，状态迁为 done。
+`cargo test -p lang-codegen --doc native::emit_native` 4 passed（compile-fail），
+0 failed/ignored/filtered；codegen all-targets 严格 clippy、fmt、文档结构与 diff 检查通过。
+文档检查器 21 项测试通过；迁移同步 active/archive 索引、阶段路由、冻结 inventory 和生成依赖图。
+
+本轮仅补验收测试及文档，不改变生产算法、公开 API 或 CLI 编排；沿用前文已执行的 CLI
+build/run/argv 与 workspace 编译证据，未重复这些门禁，也未运行 frontend 全量测试。
+frontend all-targets 的两个既有 lint 仍作为已披露的基线例外，不宣称全仓 lint 通过。
+本合同完成不表示 v0.37 已启用，也不扩大带捕获 borrowed closure、非 Name callee、
+MoveOnly inline Inout 跨块写回及 String 插值转换协议等既有边界。

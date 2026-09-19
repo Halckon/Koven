@@ -45,7 +45,7 @@ typed 常量值或 Group 确定 RHS Always/Never/Conditional；不另行求值�
 source-qualified `UnitShortCircuitPlan` 仅由实际访问收集，与物化计划一起受错误/deferred 原子门禁
 保护，专用 validate 同时要求两者完整。专用 recovery/owned 提供只读计划列表，owned 还可按
 expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定，字段不可外部构造或修改。
-SPEC-0227 尚未消费该事实。
+专用 unit native 已消费该短路计划；基础 native 入口保持原能力边界。
 
 专用模式由主遍历记录实际访问的 source-qualified lambda 集合；drop 前的 lambda liveness
 预扫描、lambda body 清理及公开 closure/capture 入口均按此集合筛选，避免不可达 lambda
@@ -121,8 +121,8 @@ unit 调用的 Borrow temporary 与尚未提交的 MoveOnly Value 实参也保�
 保留。正常提交时 Value 不再清理，Borrow 在 CallReturn 逆序清理；return 和离开调用前缀
 所在循环的 break/continue 先清理后建 local，再逆序清理前缀 owner，最后清理旧 local。
 内层循环跳转保留外层调用 owner，Abort 不展开清理；return operand 自身不继续时也不生成
-return cleanup。此为 Phase 3 事实，unit native 对新增 pending Value operand 的接线仍待
-SPEC-0227 验收。
+return cleanup。专用 unit native 已消费新增 pending Value operand，按这些事实清理
+未提交 owner；实际 SSA/LLVM 与 native 计数证据见常量交付验收。
 
 ## 实现与测试位置
 
