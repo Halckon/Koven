@@ -87,7 +87,7 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
-        if (self.constant_owned.is_none() || function_value)
+        if self.constant_owned.is_none()
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })

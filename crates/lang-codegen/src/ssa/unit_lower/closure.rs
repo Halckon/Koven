@@ -160,8 +160,12 @@ pub(super) fn declare(
                 )?;
                 let supported_value = parameter.mode() == ParameterMode::Value
                     && super::type_lower::is_supported_storage_type(typed, concrete);
+                let supported_string_borrow = parameter.mode() == ParameterMode::Borrow
+                    && builtin_type(typed, concrete) == Some(BuiltinType::String);
                 if parameter.mode() == ParameterMode::Inout
-                    || (!supported_value && typed.copyability(concrete) != Copyability::Copyable)
+                    || (!supported_value
+                        && !supported_string_borrow
+                        && typed.copyability(concrete) != Copyability::Copyable)
                     || (parameter.mode() == ParameterMode::Borrow
                         && builtin_type(typed, concrete) == Some(BuiltinType::Unit))
                 {
@@ -485,10 +489,19 @@ impl UnitExpressionLowerer<'_> {
         let call = UnitExpressionId::new(self.source_unit, expression);
         let callable_index = self.pending_operands.len();
         self.pending_operands.push(EntityId::Value(callable));
+        // callee 也属于调用前缀；参数退出时须先移除其 pending alias，再消费 owner drop。
+        self.pending_call_frames
+            .push(super::call_lifetimes::PendingCallFrame {
+                loop_depth: self.loops.len(),
+                pending_start: callable_index,
+                created_loans: Vec::new(),
+            });
+        let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);
+        self.pending_call_frames.pop();
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
-        }) = self.lower_call_arguments(call, arguments, descriptor, span)?
+        }) = lowered_arguments?
         else {
             self.pending_operands.truncate(callable_index);
             return Ok(LoweredValue::Diverged);

@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
 | 阻塞项 | 无外部语义阻塞；剩余实现与验收缺口见末尾记录 |
-| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend 隐式与条件 Value receiver 的 pending drop 事实修复；Architecture |
+| 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；frontend receiver/callee/capture 的 pending drop 事实修复；Architecture |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -38,6 +38,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
   Always/Never/Conditional；不得通过 AST 猜测缺失计划。分支编号沿用 0=true、1=false，
   AND RHS 为 0、OR RHS 为 1；消费 skip/RHS 的 BranchExit 清理，并保留 RHS 退出后的 skip 后继。
   基础入口既有单边 move 的 MissingFact 拒绝不因新入口接入而被隐式解除。
+- 前端保持 function-value callee 与 shared capture 来源存活到参数全部完成；已有 native
+  named function-value 路径接入 callee 求值帧。
+  参数退出前先清理 pending alias，再消费 frontend drop。lambda 的 Borrow String 参数
+  复用既有 shared Loan ABI；非 Name callee、带捕获的 borrowed closure、其他 MoveOnly Borrow
+  参数不由此隐式开放。
 - 常量声明及初始化依赖无运行时存储、global/init guard、namespace capture 或退出析构。
   不能为跨文件读取引入 singleton 或稳定常量地址。
 - 隐式具体 MoveOnly Value `this` 的调用提交前清理由 Phase 3 发布既有 `This(owner)`
@@ -84,11 +89,11 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib ssa::unit_plan_tests` | 47 passed，355 filtered，0 failed/ignored | planner 改造前基线；身份/可达性/单态化/确定性契约 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests` | 9 passed，403 filtered，0 failed/ignored | 十标量、27例String、12例短路及AND/OR单边move、调用和二元前缀、5例插值重复拒绝；精确payload/SSA width与signedness/Char，input顺序，未使用initializer/函数排除及重分析/environment/path身份拒绝；各切片说明见下文，完整namespace矩阵待后续 |
 | `cargo test -p lang-codegen --lib ssa::unit_constant_tests::string_uses` | 修复后 1 passed，403 filtered，0 failed/ignored；追加绝对路径矩阵由下行验证通过 | 9 场景 × import Name / 绝对 Member / literal，共 27 例；独立 owner、精确 bytes、逆序 drop、返回/Value 不重复清理、verified LLVM |
-| `cargo test -p lang-codegen --lib ssa::unit_` | 198 passed，236 filtered，0 failed/ignored | 条件 StaticSelf 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
+| `cargo test -p lang-codegen --lib ssa::unit_` | 201 passed，237 filtered，0 failed/ignored | function-value 切片后 planner、unit lowering 与 unit LLVM 契约；含 String/短路/Borrow |
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-frontend -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 严格 clippy 受既有 `items_after_test_module` / `filter_map_bool_then` 阻塞；fmt、docs/diff 通过 | `constant_value.rs` 的 HEAD 已有相同布局；docs 354 Markdown，inventory 未变化；例外检查见末尾 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 11 passed，423 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 12 passed，426 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -365,3 +370,33 @@ all-targets 编译检查；不以未修改公开函数签名为由跳过消费�
 `--all-targets` 的严格 clippy（`-D warnings`）通过。fmt、docs（354 Markdown）及 diff 检查
 通过。frontend all-targets 严格 clippy 的两项既有 lint 仍未修改，本轮不重复已知失败；
 未运行 frontend 全量测试及 CLI 集成测试（无 CLI 编排变化）。Spec 仍为 in-progress。
+
+
+function-value 调用前缀切片：新增测试先复现 lambda Borrow String 参数的 UnsupportedNode，
+接入既有 shared Loan ABI 后再复现专用入口的参数退出 guard。前端测试确认 callee 缺少
+return 路径清理，以及 borrowed closure 的 shared 来源误在 BranchExit 析构。现在保留 callee
+root 到 CallReturn，活 closure 的 shared 来源同样受保护；后端为 callee 增加外层求值帧，
+参数退出先清理 pending alias，再消费 frontend drop，Abort 不展开。
+
+前端定向回归为 66 + 20 passed，0 failed/ignored/filtered。SSA 首次广回归为 200 passed、
+1 failed：旧拒绝矩阵仍把 Borrow String lambda 列为不支持，已换成仍未开放的 Borrow Host
+参数，并保留带 capture borrowed closure、Inout、非 Name callee 等既有边界。此前测试夹具
+还修正了 local symbol 查询与私有 ID 构造；这些夹具错误不计作生产缺陷。
+带捕获的 borrowed closure native 路径仍未开放，本轮 shared 来源保护是前端事实修复。
+
+SSA/LLVM 重跑 201 passed、237 filtered，0 failed/ignored。Borrow String 的参数规划为基础与
+常量入口共用；参数控制退出仅放开常量专用入口。新增覆盖 move capture 与无 capture callee、
+return/Abort、break/continue、兄弟分支及后续重复调用。
+native 首轮 11 passed、1 failed：新增夹具把内联 closure 环境误算为堆分配，实际唯一分配为
+concat。按 ADR-0009 修正分配预期为 1，保留 String drop 正常 5 / Abort 2、逐指针释放和 stdout
+断言；未修改 runtime 或计数器实现。
+
+native 重跑为 12 passed、426 filtered，0 failed/ignored；新增 Borrow/Value × return/正常提交/
+Abort 六例均通过精确 stdout、String drop 与逐指针分配/释放断言。独立复审核对 callee 帧与
+参数帧的退出顺序、CFG 重绑定、shared capture 来源保护、基础入口 guard 和 Borrow String
+边界；修正旧拒绝夹具与内联环境分配预期后复审，无新的阻断问题。
+
+本切片 frontend `--lib`、codegen `--all-targets` 严格 clippy（`-D warnings`）通过；
+fmt、docs（354 Markdown）及 diff 门禁通过。无公开 API 或 CLI 编排变化，未重复 workspace
+check、CLI 集成及 frontend 全量测试；frontend all-targets 的两项已知基线 lint 仍未修改。
+Spec 保持 in-progress，外层 temporary 内循环及完整退出矩阵等剩余项继续按切片验收。

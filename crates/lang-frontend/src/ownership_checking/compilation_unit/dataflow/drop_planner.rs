@@ -894,6 +894,23 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                         }
                     }
+                } else if self
+                    .checker
+                    .typed
+                    .call(self.checker.unit_expression(id))
+                    .is_some_and(|call| {
+                        call.target() == crate::type_checking::UnitCallTarget::FunctionValue
+                    })
+                    && let Some(place) = self.checker.place(callee)?
+                {
+                    if !self.expression(callee, DropExpressionUse::Place, state)? {
+                        return Ok(false);
+                    }
+                    // callee 的最后一次源码读取先于实参，但调用完成前仍需保留其 owner/capture。
+                    if state.position(place.root()).is_some() {
+                        borrowed_roots.push(place.root());
+                        state.pending_borrows.push((id, place.root()));
+                    }
                 } else if !self.expression(callee, DropExpressionUse::Read, state)? {
                     return Ok(false);
                 }
@@ -1123,10 +1140,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         state: &mut ValueState,
     ) {
         if !matches!(point, PlannerDropPoint::ControlTransfer(_))
-            && state
+            && (state
                 .pending_borrows
                 .iter()
                 .any(|(_, root)| *root == symbol)
+                || self.has_live_shared_capture(state, symbol))
         {
             return;
         }
@@ -1160,17 +1178,23 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 value.origin,
             ));
             for source in shared_sources {
-                let still_captured = state.closures.values().any(|&closure| {
-                    self.checker.captures_of(closure).any(|capture| {
-                        capture.mode() == ClosureCaptureMode::Shared
-                            && capture.source() == UnitClosureCaptureSource::Symbol(source)
-                    })
-                });
-                if !still_captured && !self.live_after(point).contains(&source) {
+                if !self.has_live_shared_capture(state, source)
+                    && !self.live_after(point).contains(&source)
+                {
                     self.drop_named(point, source, state);
                 }
             }
         }
+    }
+
+    // A closure can keep its source alive after the last explicit source read.
+    fn has_live_shared_capture(&self, state: &ValueState, symbol: UnitSymbolId) -> bool {
+        state.closures.values().any(|&closure| {
+            self.checker.captures_of(closure).any(|capture| {
+                capture.mode() == ClosureCaptureMode::Shared
+                    && capture.source() == UnitClosureCaptureSource::Symbol(symbol)
+            })
+        })
     }
 
     fn closure_origin(

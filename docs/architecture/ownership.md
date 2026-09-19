@@ -164,3 +164,8 @@ expression temporary。
 模板析构义务，具体 MoveOnly 是否已交付由下游检查。退出时发布条件 drop，并用
 `preceding_drops` 指明同一 point 中先执行的普通 drop 数量，保留后建 local、实参、receiver、
 旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
+
+function-value callee 的命名 root 在实参求值期间登记 pending borrow；最后一次源码读取不再
+提前析构 closure，正常路径在 CallReturn 按活性清理，提前退出沿用 ControlTransfer 事实。
+仍被 live closure shared capture 的来源不会在普通分支退出时析构；最后一个 closure 结束后
+再按来源活性发布清理。此为前端事实，不表示 native 已支持带捕获的 borrowed closure。

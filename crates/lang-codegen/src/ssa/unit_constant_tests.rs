@@ -831,3 +831,50 @@ fn conditional_receiver_preserves_loop_and_nested_copyable_calls() {
         crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
     }
 }
+
+#[test]
+fn function_value_callee_survives_argument_control_transfer() {
+    for exit in ["return", "error(p.TEXT)"] {
+        let source = format!(
+            "fun entry(own flag: Boolean): Unit {{ val captured = p.TEXT\nval action: move (borrow String, own Boolean) -> Unit = move {{ text, accepted -> println(captured) }}\nval done = action(p.TEXT, if (flag) {{ {exit} }} else {{ true }}) }}"
+        );
+        let program = lower_short_circuit_fixture(&source);
+        let entry = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains("q.entry"))
+            .unwrap();
+        assert_eq!(
+            entry
+                .instructions
+                .iter()
+                .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                .count(),
+            if exit == "return" { 4 } else { 2 },
+            "{source}"
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+}
+
+#[test]
+fn function_value_string_borrow_uses_the_existing_loan_abi() {
+    let source = "fun entry(): Unit { val action: (borrow String) -> Unit = { text -> println(text) }\nval done = action(p.TEXT) }";
+    crate::llvm::render_verified_program(&lower_short_circuit_fixture(source)).unwrap();
+}
+
+#[test]
+fn function_value_prefix_preserves_loop_scope_and_sibling_branches() {
+    for (prefix, captured) in [("move ", "captured"), ("", "text")] {
+        for exit in ["break", "continue"] {
+            let source = format!(
+                "fun entry(own flag: Boolean): Unit {{ var once = true\nloop {{ if (!once) {{ break }}\nonce = false\nval captured = p.TEXT\nval action: {prefix}(borrow String, own Boolean) -> Unit = {prefix}{{ text, accepted -> println({captured}) }}\nval done = action(p.TEXT, if (flag) {{ {exit} }} else {{ true }})\nbreak }} }}"
+            );
+            crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
+        }
+        let source = format!(
+            "fun entry(own flag: Boolean): Unit {{ val captured = p.TEXT\nval action: {prefix}(borrow String, own Boolean) -> Unit = {prefix}{{ text, accepted -> println({captured}) }}\nval first = action(p.TEXT, if (flag) {{ if (flag) {{ true }} else {{ false }} }} else {{ return }})\nval second = action(p.TEXT, true) }}"
+        );
+        crate::llvm::render_verified_program(&lower_short_circuit_fixture(&source)).unwrap();
+    }
+}

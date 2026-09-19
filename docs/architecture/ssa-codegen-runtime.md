@@ -101,9 +101,12 @@ receiver 不额外登记 owner，Group alias 按同一 ValueId 清除。
 Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参数 CFG 传递；非 entry Place
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
-MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回；function-value
-的参数控制退出仍保留 guard。外层 temporary 内求值循环仍受既有 loop
-lowering 限制；这些组合不由当前前缀测试证明。
+MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
+常量专用入口的 named function-value callee pending 帧包围参数帧，参数 return/break/continue
+先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow String 参数
+在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。非 Name callee、
+带捕获的 borrowed closure 和其他 MoveOnly Borrow
+参数仍不支持。外层 temporary 内求值循环仍受既有 loop lowering 限制。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
 专用后端保留 current receiver 到实参全部完成再移交。参数 return 先清理后建实参，再清理
 receiver，Abort 不展开；CFG 将 receiver 与 pending 槽的 alias 重绑定到同一实体。

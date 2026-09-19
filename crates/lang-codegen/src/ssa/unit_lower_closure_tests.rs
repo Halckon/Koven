@@ -783,9 +783,9 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
         (
             "test/move-only-borrow-parameter.ko",
             "package test\n\
-             fun inspect(message: String): Unit {}\n\
+             class Host {}\n\
              fun entry(): Unit {\n\
-                 val action: move (borrow String) -> Unit = move { item -> inspect(item) }\n\
+                 val action: move (borrow Host) -> Unit = move { item -> }\n\
              }",
         ),
         (
@@ -872,7 +872,9 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             &owned,
             declaration(&names, "test", "entry"),
         ) {
-            Ok(_) => panic!("unsupported closure surface must fail before publishing a program"),
+            Ok(_) => {
+                panic!("{path}: unsupported closure surface must fail before publishing a program")
+            }
             Err(error) => error,
         };
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");

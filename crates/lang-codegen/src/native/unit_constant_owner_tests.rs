@@ -134,6 +134,28 @@ fn conditional_receiver_cleanup_matches_copyability_and_call_commit() {
     }
 }
 
+#[test]
+fn function_value_prefix_cleanup_preserves_the_closure_and_its_capture() {
+    for mode in ["borrow", "own"] {
+        for (flag, exit, drops, aborting, expected) in [
+            ("true", "return", 5, false, "done\n"),
+            ("false", "return", 5, false, "中文\ndone\n"),
+            ("true", "error(TEXT)", 2, true, ""),
+        ] {
+            let provider = format!(
+                "package p\nconst val TEXT = \"中文\"\nfun exercise(own flag: Boolean): Unit {{ val captured = TEXT\nval action: move ({mode} String, own Boolean) -> Unit = move {{ text, accepted -> println(captured) }}\nval done = action(TEXT + TEXT, if (flag) {{ {exit} }} else {{ true }}) }}"
+            );
+            let consumer = format!(
+                "package q\nfun entry(): Unit {{ val done = p.exercise({flag})\nval marker = println(\"done\") }}"
+            );
+            let run = run_counted_strings(&provider, &consumer, drops, 1, aborting);
+            assert!(run.status.success(), "{mode}/{flag}/{exit}: {run:?}");
+            assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
+            assert!(run.stderr.is_empty(), "{run:?}");
+        }
+    }
+}
+
 fn run_counted_strings(
     provider_text: &str,
     consumer_text: &str,

@@ -4412,3 +4412,91 @@ fn conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_ow
         );
     }
 }
+
+#[test]
+fn function_value_callee_stays_owned_until_call_or_argument_exit() {
+    for prefix in ["move ", ""] {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(
+            &mut sources,
+            "main.ko",
+            &format!(
+                "fun entry(own flag: Boolean): Unit {{ val captured = \"captured\"\nval action: {prefix}(borrow String, own Boolean) -> Unit = {prefix}{{ text, accepted -> println(captured) }}\nval done = action(\"prefix\", if (flag) {{ return }} else {{ true }}) }}"
+            ),
+        );
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+        let (name_environment, environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &environment);
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &environment, &typed)
+                .unwrap()
+                .validate()
+                .unwrap();
+        let ownership = owned.ownership();
+        let unit = source_unit(&names, source);
+        let action = names.names().source_units()[unit.index()]
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "action")
+            .unwrap()
+            .id();
+        let drops = ownership
+            .drops()
+            .iter()
+            .filter(|fact| {
+                matches!(fact.target(), UnitDropTarget::Named(symbol)
+        if symbol.source_unit() == unit && symbol.symbol() == action)
+            })
+            .map(|fact| fact.point())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            drops.len(),
+            2,
+            "callee must be cleaned on both return and successful call"
+        );
+        assert!(
+            drops.contains(&UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                unit,
+                expression_with_text(&sources, &parsed, "return")
+            )))
+        );
+        assert!(
+            drops.contains(&UnitDropPoint::CallReturn(UnitExpressionId::new(
+                unit,
+                expression_with_text(
+                    &sources,
+                    &parsed,
+                    "action(\"prefix\", if (flag) { return } else { true })"
+                )
+            )))
+        );
+        if prefix.is_empty() {
+            let captured = names.names().source_units()[unit.index()]
+                .resolution()
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.name() == "captured")
+                .unwrap()
+                .id();
+            let points = ownership
+                .drops()
+                .iter()
+                .filter(|fact| {
+                    matches!(fact.target(), UnitDropTarget::Named(symbol)
+            if symbol.source_unit() == unit && symbol.symbol() == captured)
+                })
+                .map(|fact| fact.point())
+                .collect::<Vec<_>>();
+            assert_eq!(points.len(), 2);
+            assert!(
+                points.iter().all(|point| matches!(
+                    point,
+                    UnitDropPoint::CallReturn(_) | UnitDropPoint::ControlTransfer(_)
+                )),
+                "shared source must survive every argument branch: {points:?}"
+            );
+        }
+    }
+}
