@@ -52,6 +52,28 @@ fn return_cleans_a_pending_constant_string_owner() {
     assert!(run.stdout.is_empty() && run.stderr.is_empty(), "{run:?}");
 }
 
+#[test]
+fn loop_exits_clean_value_receiver_and_pending_string_argument() {
+    for value in ["p.TEXT", "\"中文\""] {
+        for mode in ["", "own "] {
+            for exit in ["break", "continue"] {
+                let provider = format!(
+                    "package p\nconst val TEXT = \"中文\"\nconst val FLAG = true\nvalue class Host(val text: String) {{ own fun consume({mode}argument: String, own flag: Boolean): Unit {{ println(\"unexpected call\") }} }}"
+                );
+                // Continue 回到有界循环头；receiver 和实参各持有一个实际分配的 concat。
+                let expected_turns = if exit == "continue" { 2 } else { 1 };
+                let consumer = format!(
+                    "package q\nimport p.Host\nfun entry(): Unit {{ var turns = 0\nloop {{ turns = turns + 1\nif (turns == 2) {{ break }}\nval host = Host({value} + {value})\nval pending = host.consume({value} + {value}, if (p.FLAG) {{ {exit} }} else {{ true }})\nval unexpected = println(\"unexpected continuation\")\nbreak }}\nif (turns != {expected_turns}) {{ println(\"wrong loop target\") }}\nprintln(\"done\") }}"
+                );
+                let run = run_counted_strings(&provider, &consumer, 7, 2, false);
+                assert!(run.status.success(), "{value}/{mode}/{exit}: {run:?}");
+                assert_eq!(run.stdout, b"done\n", "{value}/{mode}/{exit}: {run:?}");
+                assert!(run.stderr.is_empty(), "{run:?}");
+            }
+        }
+    }
+}
+
 fn run_counted_strings(
     provider_text: &str,
     consumer_text: &str,

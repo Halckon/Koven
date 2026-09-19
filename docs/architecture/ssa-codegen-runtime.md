@@ -104,6 +104,9 @@ Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接�
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回；隐式 Value
 `this`、条件 StaticSelf 与 function-value 的参数控制退出仍保留 guard。外层 temporary 内
 求值循环仍受既有 loop lowering 限制；这些组合不由当前前缀测试证明。
+隐式 Value `this` 的 frontend drop planner 目前只移除当前 receiver，未登记参数退出所需的
+pending owner；因此后端不能仅解除 guard。显式 Value receiver 的循环退出另有常量/literal、
+Borrow/Value 实参对照，通过动态分配/释放、String drop 计数与循环后输出检查清理和跳转。
 
 String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
 操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop
@@ -136,8 +139,8 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 基础入口仍接受 validated typed/owned 并核对完整身份链；入口之后的私有 lowering driver 与
 内部 planner 只读取同一轮 `CompilationUnitTypes` / `CompilationUnitOwnership`，复用已有算法。
-此拆分未提供新的公开 capability 转换；crate 内常量标量入口独立校验身份后复用该 driver，
-公开常量 native 入口尚未接通。
+此拆分未提供新的公开 capability 转换；常量 lowering 独立校验身份后复用该 driver，
+公开常量 native 入口消费专用 capability 并复用上述身份门禁。
 
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
 

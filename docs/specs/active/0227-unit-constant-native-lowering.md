@@ -11,7 +11,7 @@
 | 批准依据 | 用户持续授权分阶段实施；2026-09-13 前置完成后迁入 active |
 | 前置 Spec | SPEC-0198/0199/0208/0209/0210/0226 `done` |
 | 前置 ADR | ADR-0007/0008/0010/0018/0020 `accepted` |
-| 阻塞项 | 无；SPEC-0226 已交付完整 owned capability 与物化/drop/短路事实 |
+| 阻塞项 | 无外部语义阻塞；隐式 Value `this` 的参数提前退出缺少 pending owner 清理事实，须先修复 Phase 3 产物，详见末尾记录 |
 | 影响范围 | `lang-codegen` unit SSA planning/lowering/verifier/native；必要 CLI 编排与测试；Architecture |
 | 语言语义变更 | 否 |
 
@@ -84,7 +84,7 @@ use 降为标量值或独立 String literal temporary，生成并运行具有精
 | `cargo test -p lang-codegen --lib native::unit_tests::unit_object` | 2 passed，410 filtered，0 failed/ignored | 基础跨 package 实际链接运行/原子替换与失败保留目标；不证明常量 native |
 | `cargo check -p lang-codegen --lib` | `28759c5` 通过 | 生产库编译；没有跨 crate API 变化，不追加 workspace check |
 | `cargo clippy -p lang-codegen --all-targets -- -D warnings`、fmt、docs/diff | 本次通过 | 当前 native 入口切片门禁；docs 353 Markdown，inventory 未变化 |
-| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 8 passed，418 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
+| `cargo test -p lang-codegen --lib native::unit_tests::constants` | 9 passed，418 filtered，0 failed/ignored | 首批 UTF-8 concat/println、argv 入口形状、正逆与重复 object、失败保留通过；六类 namespace、11 类型及动态 drop 计数通过；新增显式 Value receiver 循环退出八例计数，完整退出组合仍待补；复用 `native::unit_tests` 的 sibling temporary/原子输出夹具 |
 | `cargo test -p lang-codegen --doc native::emit_native`、`cargo check --workspace --all-targets` | 4 passed，0 failed/ignored/filtered；workspace check 通过（27.37s） | 新旧 capability 双向隔离及跨 crate API 编译门禁 |
 | `cargo test -p lang-cli --test project_cli --test native_cli`、`--bin kovenc project_build::tests`、build/clippy/fmt | 集成 5+8 passed，entry 1 passed（46 filtered），0 failed/ignored；build/clippy/fmt 通过 | 专用 capability 选择、实际常量 build/run、argv 内容传递；保留基础路径和诊断/输出前置规则 |
 
@@ -268,3 +268,25 @@ HiddenLinearLiveIn/PlaceUnavailable。writeback 的 original 与 Place 现在同
 不扩称零尺寸容器派生 place 已获验收。193 项 unit 契约、8 项常量 native 通过。
 MoveOnly inline、隐式 Value this、条件 StaticSelf、function-value 和外层 temporary 跨循环
 仍未完成；不重复 CLI/workspace 门禁，未运行 frontend 全量测试。
+
+
+显式 Value receiver 循环退出验收切片：新增常量/literal × Borrow/Value 实参 ×
+break/continue 八例 native 动态计数。MoveOnly inline receiver 的 String 字段与 pending
+实参分别持有一个 concat buffer，要求两次分配及逐 live 指针释放；四个 concat 输入、
+两个结果和循环后成功 marker 共七次 String drop。循环次数区分 break 与 continue，
+精确 stdout 同时排除错误提交 callee、执行调用后代码和误生成提前 return。
+本切片不修改生产 lowering；不证明 Inout 写回或隐式 receiver 的支持。
+
+初次 fixture 在调用 initializer 后直接接普通调用触发 L0013 trailing-token；将异常
+marker 改为局部 val initializer，不把该失败记作生产清理缺陷。独立审查发现原空 stdout
+oracle 会漏掉错误 return，已增加循环后成功 marker 并完成复核。
+
+继续实施前确认的 Phase 3 缺口：`drop_planner` 的 `ImplicitThis` Value 分支仅清空
+`state.this`，未登记 pending owner，后续参数退出无法发布该 receiver 的 drop。
+当前 codegen guard 保持拒绝；不得仿照显式 receiver 登记 expression temporary 来猜补事实。
+此缺口应作为后续 frontend 修复切片独立验收，不改写已归档 SPEC-0226 的历史记录。
+
+本切片验证：`cargo test -p lang-codegen --lib native::unit_tests::constants` 为 9 passed、
+418 filtered、0 failed/ignored；codegen all-targets clippy（`-D warnings`）、fmt、docs
+（354 Markdown）及 diff 检查通过。未运行 frontend 全量及 CLI/workspace 门禁：本次仅新增 native
+验收夹具，无生产代码或公开 API 变化。
