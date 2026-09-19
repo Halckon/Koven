@@ -33,7 +33,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.36\s*-->")
+CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.37\s*-->")
 SCOPED_AGENT_DIRS = (
     "lang-frontend",
     "lang-codegen",
@@ -61,13 +61,13 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
 )
 EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
-    "v0.37": frozenset({"0179", "0182", "0211", "0212"}),
+    "v0.37": frozenset({"0182", "0211", "0212"}),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset()
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0179"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
-    {*(f"{number:04d}" for number in range(1, 23)), "0024"}
+    {*(f"{number:04d}" for number in range(1, 25))}
 )
-EXPECTED_PROPOSED_ADR_IDS = frozenset({"0023"})
+EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset()
 EXPECTED_ARCHIVED_ADR_IDS: frozenset[str] = frozenset()
 ROUTE_HEADING_RE = re.compile(
     r"(?:默认入口|当前入口|按任务读取|按实现领域读取|必读入口|读取路由)", re.IGNORECASE

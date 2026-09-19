@@ -1,8 +1,8 @@
-# Koven v0.37：类型与泛型
+# Koven v0.36：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -286,7 +286,7 @@ L0101/L0105。独立的另一条合法 interface requirement 仍照常检查，�
 无关诊断。
 
 名义图是 callable、`when`、Copyable/解构和 ownership/codegen 的共享稳定输入。调用表达式、
-构造器与 member access 必须消费 typed identity，不得重解析源码名称。v0.37 保留
+构造器与 member access 必须消费 typed identity，不得重解析源码名称。v0.36 保留
 [Companion Object 与关联成员](08-class-family-members.md#companion-object-与关联成员)所述的关联
 命名空间、无 `this` 和声明/Parser 规则；常量阶段的现行范围见
 [一致性与实施边界](15-conformance-and-staging.md#const-val-的阶段交接)。

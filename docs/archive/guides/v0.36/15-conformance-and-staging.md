@@ -1,8 +1,8 @@
-# Koven v0.37：一致性、Phase 与实施边界
+# Koven v0.36：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -97,9 +97,9 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.37。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.36。
 
-具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
+具体测试选择与并行方式见 [测试与分层验收](../../../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
 
 ## `const val` 的阶段交接
@@ -124,7 +124,4 @@ nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering �
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
-也继续延后。v0.37 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
-
-
-顺序迭代的 typed/ownership 与首轮 native source 边界见[§37.4](12-collections-destructuring.md#374-irphase-交接与非目标)；规范启用不表示阶段实现已完成。
+也继续延后。v0.36 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。

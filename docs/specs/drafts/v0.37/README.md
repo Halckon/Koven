@@ -1,21 +1,22 @@
-# v0.37 阻塞草案
+# v0.37 分阶段实施
 
-> **性质**：draft Spec 索引 · **状态**：blocked by unapproved guide · **读取时机**：评审 v0.37 借用式迭代提案时 · **唯一真源**：本目录 Spec
+> **性质**：draft Spec 索引 · **状态**：guide 已启用 / typed plan 已批准 · **读取时机**：评审 v0.37 借用式迭代提案时 · **唯一真源**：本目录 Spec
 
-现行语义仍是 v0.36；以下草案均不可实施：
+2026-09-19 用户明确启用 v0.37，temporary source 纳入首轮 native；ADR-0023 已 accepted。
+按依赖顺序推进，SPEC-0179 已进入 active，其余保持 draft：
 
-- [SPEC-0179](0179-sequential-iteration-typed-plan.md)：typed iteration plan
+- [SPEC-0179](../../active/0179-sequential-iteration-typed-plan.md)：typed iteration plan（approved）
 - [SPEC-0211](0211-sequential-iteration-ownership.md)：iteration ownership
 - [SPEC-0212](0212-borrowed-sequential-iteration-ssa.md)：SSA provider primitive
 - [SPEC-0182](0182-sequential-for-lowering.md)：完整 `for` lowering
 
-共同语义候选见 [v0.37 proposal](../../../proposals/v0.37-sequential-iteration.md)；长期 provider 方案仍是
-[proposed ADR-0023](../../../adr/proposed/0023-borrowed-sequential-iteration-provider.md)。
+现行语义见[顺序迭代 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider)；
+内部 provider 边界见[ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md)。
 
 ## 启用后的实施切片
 
-以下只排列实施顺序，不改变各 Spec 的批准状态或完整依赖。候选已完成对现行 v0.36 的文档重基与拟议取代关系，
-仍须明确 temporary source 的首轮 native 范围并取得 guide 的明确启用；有 ADR 前置时还须 accepted。每次推进一个依赖完备的 Spec。
+以下排列实施顺序；每次只启动一个依赖完备的切片，完整前置仍以各 Spec 为准。
+临时 source 的求值一次、延寿及全部退出清理是首轮 native 必须完成的验收。
 
 | 切片 | Spec / 组内前置 | 交付证据 |
 |---|---|---|

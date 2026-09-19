@@ -1,15 +1,17 @@
 # ADR-0023：无分配的借用式顺序迭代 provider
 
-> **性质**：候选架构决策 · **状态**：proposed（未接受） · **读取时机**：评审对应 proposal 时 · **唯一真源**：本 ADR 仅记录候选，不改变 accepted 架构
+> **性质**：架构决策记录 · **状态**：accepted · **读取时机**：实现或评审顺序迭代 provider 时 · **唯一真源**：本 ADR
 
 ## 状态
 
-proposed
+accepted
 
 ## 接受依据
 
-不适用（`proposed`）。本 ADR 依赖尚未启用的 v0.37 §37；只有该 guide 被明确启用后，才能
-依据当前持续 Goal 的站立授权完成接受并解锁相关实现 Spec。
+2026-09-19 用户明确启用 v0.37，并将 temporary source 纳入首轮 native。依据持续 Goal
+“继续实施 guide 和推进分阶段 specs”的站立授权，接受本 ADR；语言契约以
+[现行 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider)为准。
+接受不表示 provider primitives 或真实 for lowering 已实现。
 
 ## 背景
 
@@ -137,8 +139,8 @@ retain。消费式迭代需要取得整个 container owner并定义剩余元素�
 ## 关联
 
 - 相关 Spec：SPEC-0179、SPEC-0211、SPEC-0212、SPEC-0182
-- 相关 ADR：[ADR-0006](../accepted/0006-typed-ssa-block-parameters.md)、
-  [ADR-0008](../accepted/0008-internal-value-and-allocation-abi.md)、
-  [ADR-0016](../accepted/0016-interprocedural-borrow-abi.md)
+- 相关 ADR：[ADR-0006](0006-typed-ssa-block-parameters.md)、
+  [ADR-0008](0008-internal-value-and-allocation-abi.md)、
+  [ADR-0016](0016-interprocedural-borrow-abi.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

@@ -1,8 +1,8 @@
-# Koven v0.37：Class Family、成员与 Receiver
+# Koven v0.36：Class Family、成员与 Receiver
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Value Class
 
@@ -261,7 +261,7 @@ exclusive access。手写 override、default 与多 delegate 冲突仍沿用
 Parser/AST 保存 receiver marker；类型检查发布规范化 receiver contract、`this`/member call 与
 Borrow-only delegate forwarder facts；所有权检查据此建立 receiver loan/move/drop、字段冲突与
 capture facts；lowering 使用既有 Value ABI 或
-[Borrow/Inout pointer ABI](../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
+[Borrow/Inout pointer ABI](../../../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
 
 本节不定义 callable reference/绑定 method value、extension method、safe call、borrow-return、
 动态 interface value、反射或 vtable，也不授权尚未启用的迭代设计。具体集合、IO、thread API

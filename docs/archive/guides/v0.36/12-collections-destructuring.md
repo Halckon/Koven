@@ -1,8 +1,8 @@
-# Koven v0.37：集合、索引与解构
+# Koven v0.36：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 顺序容器的表示与索引语义
 
@@ -189,7 +189,7 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
 
 ### `Map` / `MutableMap` 边界
 
-`Map` / `MutableMap` 不属于 v0.37 的可实施语义；顺序容器规则不得外推到键值容器。仅在评审未来 Map 设计时按需读取[非规范候选](../proposals/map-ownership.md)。
+`Map` / `MutableMap` 不属于 v0.36 的可实施语义；顺序容器规则不得外推到键值容器。仅在评审未来 Map 设计时按需读取[非规范候选](../../../proposals/map-ownership.md)。
 
 ### 分配、禁止的隐式表示与 codegen 优化
 
@@ -360,83 +360,3 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
   完全按这些普通方法的签名与调用规则检查。它不自动复制或消费整个源值，也不获得
   `value class` 的原子聚合拆分能力；若前一个调用的所有权效果使后续调用非法，应产生正常
   所有权诊断。
-
-
-## 37. 借用式顺序容器迭代 provider
-
-### 37.1 compiler-bound provider 与执行顺序
-
-- v1 首轮只有编译器绑定的 `Array<T>`、`List<T>`、`MutableList<T>` identity 提供顺序迭代。
-  用户声明的同名类型、`Iterable` / `Iterator`、`iterator()` / `hasNext()` / `next()` 不取得
-  intrinsic 身份；String、range、Map、IO lines、普通 class/interface 和用户自定义 provider
-  均不是首轮 `for` source。
-- 历史语法中的 `iterator()` / `hasNext()` / `next()` 只保留“取得 provider → 检查下一项 →
-  取得下一项”的抽象执行节奏，不是 AST 脱糖、名称解析结果或用户可观察的普通方法调用。
-  compiler-bound provider 的语义步骤为 `AcquireProvider`、`HasNext`、`NextPlace`、
-  `FinishProvider`；这些步骤不是可引用、存储、返回、捕获或重载的源语言值。
-- source 表达式精确求值一次。provider 在 source 的稳定 shared access 上取得一次长度快照，
-  再按逻辑索引 `0, 1, ... size - 1` 递增访问；空容器不执行 body。整个 provider 生命周期内
-  source 长度和元素地址稳定，因此 `MutableList` 也不能在 body 中增删、重排或替换元素。
-- 顺序容器的逻辑 `size` 与迭代索引均处于非负 `Int` 域。任一有效容器必须保持
-  `size <= 2^31 - 1`；未来增长操作在提交会超过该上限时必须按现行 checked-size/abort
-  边界终止而不能截断。内部 pointer-width header/cursor 不改变该源语言不变量。
-
-source 静态类型不是上述 intrinsic container 时使用 L0159；primary 为完整 source expression，
-可用时 label 指向其类型声明。已有 Error/Deferred 根因不追加 L0159；同名方法或类型不改变结果。
-
-### 37.2 循环 binding 与借用式解构
-
-- 每轮 `NextPlace` 形成当前逻辑 element place 的 shared access；单名称 binding 是只在本轮 body
-  可见的 `Borrow T` binding，不取得或移动容器元素。`T: Copyable` 时普通值使用从该借用读取
-  owned copy；MoveOnly `T` 只能读取或继续 Borrow，向 Value 参数交付或 owned return 使用 L0133，
-  borrowed closure 逃逸使用 L0137，从该 binding 建立 owned/move capture 使用 L0138；不隐式
-  clone、retain、Box 或 Rc。
-- 单名称 `_` 是 `Discard`，不创建 symbol。provider 仍推进一次，但实现可以不建立无消费者的
-  element loan；这不能改变索引顺序、body 执行次数或 source 生命周期。
-- 解构 binding 首轮只接受 concrete `value class` element，按主构造器字段顺序建立 borrowed
-  projection；每个具名分量都是 `Borrow FieldType`，`_` 分量不创建 symbol。Copyable 分量的
-  普通使用可以复制，MoveOnly 分量不能从 element 中移出。分量数量必须完整且精确，继续使用
-  L0118；非 value-class 或不能建立结构投影的 element 使用 L0160，primary 为完整 binding，
-  label 指向 element 类型声明。
-- 该解构不是局部 `val` 解构的 Copy/Consume，也不调用用户 `componentN()`。element owner 始终
-  留在 container；循环 binding 与其派生 closure 均不得活过本轮 element access。
-
-### 37.3 source loan、退出清理与冲突
-
-- owned place source 在 source 求值完成后建立覆盖整个 provider 生命周期的 shared loan；Borrow
-  source 复用或 shared-reborrow 既有能力，Inout source 只建立 shared reborrow。循环正常耗尽、
-  `break` 或 callable `return` 清理时才结束本层 source loan；循环后原 named source 仍可使用。
-- temporary source 先成为 compiler-owned hidden owner，再建立同样的 shared loan。其生命期延长
-  到 `FinishProvider` 与 source loan 结束之后；不得在 source expression 后按普通 temporary
-  规则提前析构。element 的唯一 owner 始终是 container，循环本身不析构 element。
-- source 的 shared loan 覆盖整个 body 和 backedge。整体 move/drop、element replacement、
-  `MutableList` relocation 或任何 exclusive access 使用既有 L0135；不因当前索引已知而放宽。
-  shared read 与嵌套 shared iteration 合法。`&binding` 不是可变 place，继续使用 L0134。
-- 正常 body fallthrough 与 `continue` 都先逆序析构本轮 body-local owner，再结束 element-derived
-  binding/loan，然后推进 cursor 并回到 `HasNext`；source loan 与 temporary source 保持。
-- `break` 与 exhaustion 在本轮 body cleanup 后依次执行 `FinishProvider`、结束 source loan、
-  析构 temporary source，再进入最近 loop exit。嵌套 loop 只清理最近词法 provider。
-- `return expression` 先求值并形成返回交付，再依次逆序析构本轮 body-local owner/结束其派生
-  loan、结束 element/component binding loan、执行 `FinishProvider`、结束本层 source loan、析构
-  hidden temporary source，最后清理外围 scope 并返回；因此在 body 中 `return source` 仍会在
-  active source loan 下尝试移动并产生 L0135，不能为了即将退出而提前结束 loan。Copyable element
-  copy 可以返回，MoveOnly borrowed element owned return 使用 L0133。`error()`/abort 沿用无
-  unwind 契约，不生成清理 edge。
-
-### 37.4 IR/Phase 交接与非目标
-
-- provider 使用无分配的 IR-local 线性状态：shared source loan、一次 length snapshot、hidden
-  cursor 和当前 element access；LLVM 只读取既有 container header、执行 checked element
-  address 与普通 loan/drop，不生成 iterator object、vtable 或 runtime symbol。
-- Phase 2 发布 `StatementId` keyed typed iteration/binding/projection plan；Phase 3 发布 source/
-  element loan、temporary 延寿及正常/`continue`/`break`/`return` cleanup facts。
-- Phase 4 先封闭 borrowed container length、`Int`/header-size bridge 和 provider primitives；
-  AST 到 native 的集成只消费前述 validated facts，不重推 provider 或所有权。
-- typed/ownership 契约包含 owned place、Borrow、Inout、field 与 temporary source；首轮 native
-  必须覆盖 owned named source、Borrow 参数及 temporary source。临时 source 精确求值一次，
-  hidden owner 在正常耗尽、break、return 时按 §37.3 清理，continue 保留，Abort 不展开。
-  Inout/field source 的 native lowering 延后，不得因前端已验证而误报为可执行。
-
-本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、Map/range/String/
-IO provider、用户自定义 iteration、borrow-return/place-return、动态分发或 coroutine generator。
-未来扩展必须另行启用 guide；不能把普通同名方法或某个标准库 class 反向识别为本 intrinsic provider。

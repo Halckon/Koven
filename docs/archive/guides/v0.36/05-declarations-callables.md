@@ -1,8 +1,8 @@
-# Koven v0.37：声明与 Callable
+# Koven v0.36：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -351,7 +351,7 @@ type/value target、visibility 与 companion scope 均由 typed selection 决定
 
 - 按[名称与 import 规则](02-names-files-packages.md)，exact import 的终端只能是
   可见顶层类型、顶层值或同 package 函数 overload set；enum case、companion/object member
-  都不是 import target。v0.37 不改变该既有边界；`import p.Type.CONST` 使用 L0148，应写
+  都不是 import target。v0.36 不改变该既有边界；`import p.Type.CONST` 使用 L0148，应写
   `import p.Type` 后使用 `Type.CONST`，或使用绝对 `p.Type.CONST`。wildcard 同样不导入 member。
 - 单文件 Phase 2 发布 associated target、typed ConstValue、依赖图与 use descriptor；不得
   将跨文件事实伪装成单文件结果。Phase 3 消费这些 facts，发布 scalar inline 与 String temporary

@@ -1,8 +1,8 @@
-# Koven v0.37：程序入口、Runtime 与标准库
+# Koven v0.36：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -175,7 +175,7 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 ```
 
 - `<project.toml>` 必须显式提供并遵守
-  [project source-set loader](../adr/accepted/0022-minimal-project-manifest-source-discovery.md)；CLI
+  [project source-set loader](../../../adr/accepted/0022-minimal-project-manifest-source-discovery.md)；CLI
   不从 cwd、源码路径或祖先目录
   搜索 manifest，也不按参数是文件还是目录猜测模式。现有 `build/run <source.ko> ...` 单文件
   形式及本页的 [conventional `main`](#conventional-main) 行为完全不变。
@@ -199,7 +199,7 @@ fun start(args: Array<String>): Unit { ... }
 ```
 
 - 零参数与参数化 shape 精确复用 [conventional `main`](#conventional-main) 与
-  [参数化 process entry bridge](../adr/accepted/0019-parameterized-process-entry-bridge.md)：返回
+  [参数化 process entry bridge](../../../adr/accepted/0019-parameterized-process-entry-bridge.md)：返回
   `Unit`，参数化形式只有一个默认/shared
   Borrow `Array<String>` 参数；参数名不参与匹配。generic、`own`/`inout`、其他参数或返回类型
   都不是合法 process entry。

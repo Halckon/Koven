@@ -1,11 +1,11 @@
-# Koven v0.37 语言规范
+# Koven v0.36 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.37） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.36） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.37 -->
+<!-- current-guide: v0.36 -->
 
-本规范定义 Koven v0.37。它不是教程，也不描述某项功能何时完成；当前实现事实见
-[Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
+本规范定义 Koven v0.36。它不是教程，也不描述某项功能何时完成；当前实现事实见
+[Architecture](../../../architecture/README.md)，未来设计见 [Proposals](../../../proposals/README.md)。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 
@@ -31,9 +31,7 @@
 
 ## 版本与边界
 
-- 2026-09-19 用户明确启用 v0.37：完整继承并取代 v0.36，保留既有 grammar、nullable
-  flow/extraction、所有权、Abort 与常量契约；新增借用式顺序迭代 provider。
-- 首轮 native 明确包含 temporary source，及 owned named source、Borrow 参数；Inout/field
-  source 的前端契约不代表首轮 native 已支持。
-- Map 所有权、v2 interface value 及其他未启用候选仍不得作为实现依据。
-- 旧版规范和候选重基记录只在 [Archive](../archive/README.md) 中用于追溯。
+- 2026-09-12 用户明确启用 v0.36：完整继承并取代 v0.35，保留其 nullable flow/extraction、
+  owner liveness 与 compiler-bound Abort；新增关联常量选择、封闭求值及逐次物化。
+- v0.37、Map 所有权和 v2 interface value 均未启用，不得作为实现依据。
+- 旧版规范和候选重基记录只在 [Archive](../../README.md) 中用于追溯。

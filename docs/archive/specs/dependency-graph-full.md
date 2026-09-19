@@ -220,8 +220,10 @@ subgraph Garchive["已完成（archive，210 份）"]
   S0226["S0226<br/>跨文件常量重新物化与所有权"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
 end
-subgraph Gdrafts_v037["v0.37（draft，未启用）"]
+subgraph Gactive["现行 active"]
   S0179["S0179<br/>顺序容器借用迭代 typed plan"]
+end
+subgraph Gdrafts_v037["v0.37（draft）"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0211["S0211<br/>顺序迭代 source/element loan 与退出清理"]
   S0212["S0212<br/>借用式顺序迭代 SSA/LLVM primitives"]
@@ -1366,7 +1368,7 @@ S0226 --> S0227
 | SPEC-0225 | archive | [0225-parameter-growing-runtime-type-cycles.md](0225-parameter-growing-runtime-type-cycles.md) |
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
-| SPEC-0179 | drafts/v0.37 | [0179-sequential-iteration-typed-plan.md](../../specs/drafts/v0.37/0179-sequential-iteration-typed-plan.md) |
+| SPEC-0179 | active | [0179-sequential-iteration-typed-plan.md](../../specs/active/0179-sequential-iteration-typed-plan.md) |
 | SPEC-0182 | drafts/v0.37 | [0182-sequential-for-lowering.md](../../specs/drafts/v0.37/0182-sequential-for-lowering.md) |
 | SPEC-0211 | drafts/v0.37 | [0211-sequential-iteration-ownership.md](../../specs/drafts/v0.37/0211-sequential-iteration-ownership.md) |
 | SPEC-0212 | drafts/v0.37 | [0212-borrowed-sequential-iteration-ssa.md](../../specs/drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md) |

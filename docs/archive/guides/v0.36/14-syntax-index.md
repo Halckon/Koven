@@ -1,6 +1,6 @@
-# Koven v0.37：语法索引
+# Koven v0.36：语法索引
 
-> **性质**：规范性导航索引 · **状态**：current（v0.37） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
+> **性质**：规范性导航索引 · **状态**：current（v0.36） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
 
 本页不重复关键字表、产生式或优先级，只提供到唯一规则正文的入口。
 
@@ -41,5 +41,3 @@
 | 集合与解构 | 局部 `val` 解构 | [局部 `val` 解构语法](12-collections-destructuring.md#局部-val-解构语法) |
 | 程序入口 | conventional `main` | [Conventional `main`](13-program-runtime-standard-library.md#conventional-main) |
 | 程序入口 | project selector 与 process entry | [Project 与 Process Entry](13-program-runtime-standard-library.md#project-与-process-entry) |
-
-`for` 的 provider、Borrow binding 与退出清理见[顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)。

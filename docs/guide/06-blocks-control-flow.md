@@ -1,8 +1,8 @@
-# Koven v0.36：Block 与控制流
+# Koven v0.37：Block 与控制流
 
-> **性质**：规范性语言规范 · **状态**：current（v0.36） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.36 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `when` 穷尽性与 Smart Cast
 
@@ -349,11 +349,12 @@ control_element = block_element ;
 - `while`、`for`、`loop` 是 statement，不进入 Pratt 运算符表；三者 body 都必须是普通
   `{ ... }` block，缺 body 使用 L0060。`while` 条件与 `for` source 只解析表达式，类型约束
   留给 Phase 2。
-- `for` 接受一个名称或完整解构 binding；解构中的 `_` 表示丢弃该分量。缺 binding 用
-  L0061，缺 `in` 用 L0062。Parser 只保存 source、binding 与 body；现行规范尚未启用 typed
-  iteration provider、元素交付或 lowering，不能按 `iterator()` / `hasNext()` / `next()` 成员名
-  猜测协议。候选设计仅在评审时按需读取
-  [v0.37 顺序迭代提案](../proposals/v0.37-sequential-iteration.md)。
+- `for` 接受一个名称或完整解构 binding，单名称 `_` 与解构中的 `_` 均为 discard。缺 binding
+  用 L0061，缺 `in` 用 L0062。Parser 保留源码顺序和完整 marker，只保存 source、binding 与 body。
+  provider、Borrow binding 和借用式 value-class projection 由
+  [顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)定义；
+  不新增 call/member AST，不按 `iterator()` / `hasNext()` / `next()` 拼写猜测协议。
+  `for_binding` 不增加 `borrow`、`own`、`&` 或 consuming marker。
 - `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
   边界。Phase 1 建立 jump AST，Phase 2 负责上下文诊断。v1 不提供 loop label。
 

@@ -239,7 +239,7 @@ fun main(): Unit {
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
       delegate forwarder 以 direct implementation / exact next hop / unresolved 三态保存稳定 target
       与实例化 receiver template；不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
-- [ ] **[SPEC-0179](../../../specs/drafts/v0.37/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
+- [ ] **[SPEC-0179](../../../specs/active/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
       只为 intrinsic Array/List/MutableList 发布 provider/element 与名称/discard/value-class
       borrowed projection typed plan；L0159/L0160 拒绝非 provider source/非法结构 binding，
       不按 `Iterable`/`Iterator` 或同名方法猜测；等待候选启用与 ADR-0023 accepted。

@@ -353,7 +353,7 @@ control_element = block_element ;
   L0061，缺 `in` 用 L0062。Parser 只保存 source、binding 与 body；现行规范尚未启用 typed
   iteration provider、元素交付或 lowering，不能按 `iterator()` / `hasNext()` / `next()` 成员名
   猜测协议。候选设计仅在评审时按需读取
-  [v0.37 顺序迭代提案](../../../proposals/v0.37-sequential-iteration.md)。
+  [v0.37 顺序迭代提案](../v0.37-candidate.md)。
 - `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
   边界。Phase 1 建立 jump AST，Phase 2 负责上下文诊断。v1 不提供 loop label。
 

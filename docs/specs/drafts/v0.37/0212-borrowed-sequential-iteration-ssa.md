@@ -1,6 +1,6 @@
 # SPEC-0212：借用式顺序迭代 SSA/LLVM primitives
 
-> **性质**：draft Spec · **状态**：draft（blocked by unapproved v0.37 guide） · **读取时机**：评审 v0.37 proposal 或对应 Goal 时 · **唯一真源**：本 Spec
+> **性质**：draft Spec · **状态**：draft（v0.37 已启用，按依赖排期） · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
@@ -9,11 +9,11 @@
 | 状态 | `draft` |
 | Goal ID | `KOV-P4-212` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | 重基基线 v0.36；候选 [v0.37 §37](../../../proposals/v0.37-sequential-iteration.md) |
-| 批准依据 | 无；候选已重基到 v0.36，v0.37 尚未启用 |
+| 语言规范 | [现行 v0.37 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
+| 批准依据 | 2026-09-19 用户明确启用 v0.37；按持续 Goal 顺序推进 |
 | 前置 Spec | SPEC-0034、0036、0186、0195 `done` |
-| 前置 ADR | [ADR-0023](../../../adr/proposed/0023-borrowed-sequential-iteration-provider.md) 待 `accepted` |
-| 阻塞项 | v0.37 启用；ADR-0023 `accepted` |
+| 前置 ADR | [ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
+| 阻塞项 | 无外部语义阻塞；待当前先行切片完成后启动 |
 | 影响范围 | `lang-codegen` SSA model/verifier/container LLVM adapter/tests；Architecture |
 | 语言语义变更 | 否；实现启用后的 v0.37 provider primitives |
 
@@ -105,3 +105,6 @@ zero-cursor、guarded-place 与 unit-increment 形状，结构测试和后继 lo
 2026-09-19 候选重基核对：保留现行 v0.36 的 grammar、nullable/Nothing、所有权与常量契约，
 拟议版本取代关系见 proposal。仅更新基线与状态前置，不改变本 Spec 的阶段范围、验收条目或
 批准状态；guide 启用与 ADR 接受仍是实施前置。未运行 Rust 测试（本次仅文档）。
+
+2026-09-19 启用记录：v0.37 已启用、ADR-0023 accepted；temporary source 纳入首轮 native。
+上方重基时的未启用说明是历史记录，不再是当前阻塞项；实现/验收尚未完成。

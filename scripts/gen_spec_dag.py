@@ -216,7 +216,7 @@ def partition_label(partition: str, view: GraphView) -> str:
         return f"已完成（archive，{view.archived} 份）"
     if partition == "active":
         return "现行 active"
-    return f"{partition.removeprefix('drafts/')}（draft，未启用）"
+    return f"{partition.removeprefix('drafts/')}（draft）"
 
 
 def wrap_title(title: str, width: int = 14, max_lines: int = 3) -> list[str]:
