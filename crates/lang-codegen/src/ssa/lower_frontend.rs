@@ -119,6 +119,14 @@ struct ExpressionLowerer<'a> {
 }
 
 impl ExpressionLowerer<'_> {
+    // A MoveOnly Value delivery transfers these SSA owners into the new aggregate.
+    fn forget_delivered_owners(&mut self, owners: &[ValueId]) {
+        self.bindings.retain(
+            |_, binding| !matches!(binding, LoweredValue::Value(value) if owners.contains(value)),
+        );
+        self.temporaries.retain(|_, value| !owners.contains(value));
+    }
+
     fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
         let result = self.lower_expression(expression)?;
         if let LoweredValue::Value(value) = result
@@ -275,7 +283,7 @@ impl ExpressionLowerer<'_> {
             let LoweredValue::Value(mut field) = self.lower(argument.argument())? else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            if effect.kind() == ConstructionDeliveryKind::Copy {
+            let pending = if effect.kind() == ConstructionDeliveryKind::Copy {
                 let ty = self.expression_ssa_type(argument.argument(), span)?;
                 let (_, results) = self.append(
                     Operation::Copy { source: field },
@@ -283,11 +291,26 @@ impl ExpressionLowerer<'_> {
                     span,
                 )?;
                 field = value(results[0]);
-            }
+                None
+            } else if self
+                .typed
+                .expression_type(argument.argument())
+                .and_then(|ty| self.typed.copyability(ty))
+                == Some(Copyability::MoveOnly)
+            {
+                // The operand is delivered now; keep only its pending construction slot alive
+                // while later operands may introduce block parameters or exit early.
+                self.forget_delivered_owners(&[field]);
+                let key = argument.argument().index();
+                self.temporaries.insert(key, field);
+                Some(key)
+            } else {
+                None
+            };
             let slot = fields
                 .get_mut(argument.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            if slot.replace(field).is_some() {
+            if slot.replace((field, pending)).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
         }
@@ -297,7 +320,16 @@ impl ExpressionLowerer<'_> {
         let fields = fields
             .into_iter()
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            .into_iter()
+            .map(|(field, pending)| {
+                pending.map_or(Ok(field), |key| {
+                    self.temporaries
+                        .remove(&key)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let result_type = self.expression_ssa_type(expression, span)?;
         let result = match descriptor.target() {
             ConstructionTarget::Nominal(target) => {

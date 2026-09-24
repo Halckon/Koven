@@ -157,11 +157,23 @@ impl ExpressionLowerer<'_> {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
                 let mut elements = Vec::with_capacity(arguments.len());
+                let move_only = self.typed.copyability(descriptor.element_type())
+                    == Some(lang_frontend::type_checking::Copyability::MoveOnly);
                 // AST call arguments retain source order; ContainerConstruct consumes them in that
                 // same order, which is the repeated Value-delivery contract.
                 for argument in arguments {
                     match self.lower(argument.value)? {
-                        LoweredValue::Value(element) => elements.push(element),
+                        LoweredValue::Value(element) => {
+                            let pending = if move_only {
+                                self.forget_delivered_owners(&[element]);
+                                let key = argument.value.index();
+                                self.temporaries.insert(key, element);
+                                Some(key)
+                            } else {
+                                None
+                            };
+                            elements.push((element, pending));
+                        }
                         LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
                         LoweredValue::Unit => {
                             return Err(error(LoweringErrorKind::MissingFact, argument.span));
@@ -169,6 +181,15 @@ impl ExpressionLowerer<'_> {
                     }
                 }
                 elements
+                    .into_iter()
+                    .map(|(element, pending)| {
+                        pending.map_or(Ok(element), |key| {
+                            self.temporaries
+                                .remove(&key)
+                                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
             }
             ContainerConstructionKind::EmptyMutableList => {
                 if !arguments.is_empty()
