@@ -17,7 +17,8 @@
 
 ## Proposed
 
-当前无 proposed ADR。
+[0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为
+native ABI 提议；SPEC-0211 的 Phase 3 事实运输不以其被接受为前提。
 
 新决策使用 [TEMPLATE.md](TEMPLATE.md) 并先放入 `proposed/`。改变 accepted 决定时新增 ADR；旧记录
 进入 archive 并建立双向取代关系。

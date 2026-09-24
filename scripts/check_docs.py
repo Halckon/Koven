@@ -68,7 +68,7 @@ EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0211"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25))}
 )
-EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset()
+EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset({"0025"})
 EXPECTED_ARCHIVED_ADR_IDS: frozenset[str] = frozenset()
 ROUTE_HEADING_RE = re.compile(
     r"(?:默认入口|当前入口|按任务读取|按实现领域读取|必读入口|读取路由)", re.IGNORECASE
