@@ -7,7 +7,10 @@ use std::{
 
 use lang_frontend::source::SourceMap;
 
-use crate::ssa::model::{EntityType, Origin, Program, SsaTypeKind, TerminatorKind};
+use crate::ssa::model::{
+    ComparisonOperator, Edge, EntityId, EntityType, LoanKind, Operation, Origin, Program,
+    ScalarConstant, SequentialContainerKind, SsaTypeKind, TerminatorKind,
+};
 
 use super::{LlvmAdapterError, emit_verified_object, render_verified_program_with_entry};
 
@@ -128,6 +131,184 @@ fn target_machine_emits_arm64_mach_object_with_one_external_main() {
         1
     );
     assert!(!symbols.contains("f0.app"));
+}
+
+#[test]
+fn borrowed_container_length_builds_links_and_runs_with_int_result() {
+    let mut sources = SourceMap::default();
+    let source = sources
+        .add_source("borrowed-length.ko", "fun app() {}")
+        .expect("source");
+    let origin = Origin::Source(sources.span(source, 0, 3).expect("span"));
+    let mut program = Program::default();
+    let module_id = program.add_module("borrowed-length");
+    let module = program.module_mut(module_id).expect("module");
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let boolean = module.intern_type(SsaTypeKind::Boolean);
+    let array = module
+        .add_sequential_container_type(SequentialContainerKind::Array, integer)
+        .expect("array type");
+    let entry = module
+        .add_function("app", vec![], origin.clone())
+        .expect("function");
+    let function = module.function_mut(entry).expect("function");
+    let block = function
+        .add_block(vec![], origin.clone())
+        .expect("entry block");
+    let success = function
+        .add_block(vec![], origin.clone())
+        .expect("success block");
+    let failure = function
+        .add_block(vec![], origin.clone())
+        .expect("failure block");
+    let mut constant = |number| {
+        let (_, results) = function
+            .append_instruction(
+                block,
+                Operation::Constant(ScalarConstant::Integer(number)),
+                vec![EntityType::Value(integer)],
+                origin.clone(),
+            )
+            .expect("constant");
+        let [EntityId::Value(value)] = results.as_slice() else {
+            panic!("constant value")
+        };
+        *value
+    };
+    let first = constant(1);
+    let second = constant(2);
+    let expected = constant(2);
+    let (_, results) = function
+        .append_instruction(
+            block,
+            Operation::ContainerConstruct {
+                container: array,
+                elements: vec![first, second],
+            },
+            vec![EntityType::Value(array)],
+            origin.clone(),
+        )
+        .expect("container");
+    let [EntityId::Value(owner)] = results.as_slice() else {
+        panic!("container owner")
+    };
+    let owner = *owner;
+    let (_, results) = function
+        .append_instruction(
+            block,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(array)],
+            origin.clone(),
+        )
+        .expect("root place");
+    let [EntityId::Place(place)] = results.as_slice() else {
+        panic!("root place result")
+    };
+    let (_, results) = function
+        .append_instruction(
+            block,
+            Operation::BorrowBegin {
+                place: *place,
+                kind: LoanKind::Shared,
+            },
+            vec![EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: array,
+            }],
+            origin.clone(),
+        )
+        .expect("shared loan");
+    let [EntityId::Loan(loan)] = results.as_slice() else {
+        panic!("shared loan result")
+    };
+    let loan = *loan;
+    let (_, results) = function
+        .append_instruction(
+            block,
+            Operation::ContainerLength {
+                owner: EntityId::Loan(loan),
+            },
+            vec![EntityType::Value(integer)],
+            origin.clone(),
+        )
+        .expect("borrowed length");
+    let [EntityId::Value(length)] = results.as_slice() else {
+        panic!("length result")
+    };
+    let length = *length;
+    function
+        .append_instruction(block, Operation::BorrowEnd { loan }, vec![], origin.clone())
+        .expect("loan end");
+    function
+        .append_instruction(block, Operation::Drop { owner }, vec![], origin.clone())
+        .expect("drop");
+    let (_, results) = function
+        .append_instruction(
+            block,
+            Operation::Compare {
+                operator: ComparisonOperator::Equal,
+                left: length,
+                right: expected,
+            },
+            vec![EntityType::Value(boolean)],
+            origin.clone(),
+        )
+        .expect("compare length");
+    let [EntityId::Value(matches)] = results.as_slice() else {
+        panic!("compare result")
+    };
+    function
+        .set_terminator(
+            block,
+            TerminatorKind::Conditional {
+                condition: *matches,
+                when_true: Edge {
+                    target: success,
+                    arguments: vec![],
+                },
+                when_false: Edge {
+                    target: failure,
+                    arguments: vec![],
+                },
+            },
+            origin.clone(),
+        )
+        .expect("length branch");
+    function
+        .append_instruction(
+            success,
+            Operation::PrintLiteral {
+                bytes: b"done\n".to_vec(),
+            },
+            vec![],
+            origin.clone(),
+        )
+        .expect("print");
+    function
+        .set_terminator(
+            success,
+            TerminatorKind::Return { values: vec![] },
+            origin.clone(),
+        )
+        .expect("return");
+    function
+        .set_terminator(failure, TerminatorKind::Abort, origin)
+        .expect("abort");
+
+    let directory = TestDirectory::create();
+    let object = directory.join("borrowed-length.o");
+    let executable = directory.join("borrowed-length");
+    emit_verified_object(&program, &sources, entry, &object).expect("borrowed length object");
+    link(&object, &executable);
+    let run = Command::new(&executable)
+        .output()
+        .expect("executable must run");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
 }
 
 #[test]

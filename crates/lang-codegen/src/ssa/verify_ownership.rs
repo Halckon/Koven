@@ -650,24 +650,36 @@ fn apply_operation(
         Operation::ContainerGenerate { length, .. } => {
             require_value(module, function, *length, state, location, origin, errors);
         }
-        Operation::ContainerLength { owner } => {
-            if require_value(
-                module,
-                function,
-                *owner,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            ) && has_exclusive_value_loan(function, *owner, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                    location,
+        Operation::ContainerLength { owner } => match owner {
+            EntityId::Value(value) => {
+                if require_value(
+                    module,
+                    function,
+                    *value,
+                    state,
+                    location.clone(),
                     origin,
-                ));
+                    errors,
+                ) && has_exclusive_value_loan(function, *value, aliases, state)
+                {
+                    errors.push(error(
+                        VerifyErrorKind::OwnerLoanConflict { value: *value },
+                        location,
+                        origin,
+                    ));
+                }
             }
-        }
+            EntityId::Loan(loan) => {
+                if !state.loans.contains(loan) {
+                    errors.push(error(
+                        VerifyErrorKind::LoanInactive { loan: *loan },
+                        location,
+                        origin,
+                    ));
+                }
+            }
+            EntityId::Place(_) => unreachable!("operation contract rejects a place owner"),
+        },
         Operation::ContainerElementPlace { owner, index } => {
             require_value(
                 module,

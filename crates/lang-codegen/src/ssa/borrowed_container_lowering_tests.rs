@@ -56,22 +56,24 @@ fn source_borrowed_array_string_index_lowers_to_checked_element_loan() {
     let negative = llvm
         .find("icmp slt i32")
         .expect("signed Int negative check");
-    let widen = llvm.find("zext i32").expect("Int to target-size widening");
     let upper = llvm
-        .find("icmp uge i64")
-        .expect("unsigned upper-bound check");
+        .find("icmp sge i32")
+        .expect("signed Int logical upper-bound check");
     let branch = llvm.find("br i1 %p0.invalid").expect("abort branch");
+    let widen = llvm
+        .find("zext i32")
+        .expect("checked Int to target-size widening");
     let address = llvm
-        .find("getelementptr inbounds %koven.string")
+        .find("getelementptr %koven.string")
         .expect("element address");
-    assert!(negative < widen && widen < upper && upper < branch && branch < address);
+    assert!(negative < upper && upper < branch && branch < widen && widen < address);
 }
 
 #[test]
 fn verifier_accepts_active_shared_container_loan_and_rejects_wrong_or_ended_loan() {
     for (bits, kind, end_first, expected_error) in [
         (32, LoanKind::Shared, false, None),
-        (64, LoanKind::Shared, false, None),
+        (64, LoanKind::Shared, false, Some("contract")),
         (32, LoanKind::Exclusive, false, Some("contract")),
         (32, LoanKind::Shared, true, Some("inactive")),
     ] {

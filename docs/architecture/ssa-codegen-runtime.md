@@ -16,6 +16,13 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 
 未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。
 
+顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。
+结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。
+runtime-length 在 `Int` 域拒绝负数再转换；argv 从非负 i32 建立相同边界；目标 `size_t` 高位不再作有符号负数检查。
+元素 place/replace 的索引只接受 signed i32 `Int`；LLVM 先在逻辑 Int 域拒绝负数和 `index >= length`。
+成功边再无损转换为 target index；物理 GEP 不声明 inbounds。物理分配字节数受指针索引位宽的有符号上限约束；ZST 只检查逻辑边界且不形成 GEP。
+provider builder 固定 length 快照、零 cursor 的入口运输、guard 真边 element loan 与固定步长回边；手工 CFG 已验证耗尽/break/提前 return 出口及确定性无分配 LLVM。真实 `for` lowering 尚未接入。
+
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
 交付后移除其源码 binding。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
@@ -130,7 +137,6 @@ Temporary drop 与 transfer 共享精确 origin 校验，清除同一 owner 的�
 避免后续 CFG 携带已清理 owner。跨文件 String 动态计数对照验证 11 次 drop、2 次 concat
 分配及逐指针释放；pending concat 的 return 与 Abort 分别验证释放和不展开，结合 SSA
 verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
-
 
 ## Compilation-unit planning 与 lowering
 

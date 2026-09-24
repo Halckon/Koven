@@ -5,6 +5,9 @@ mod lower_frontend;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 pub(crate) use lower_frontend::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
+// SPEC-0182 将在接入真实 for lowering 时消费本阶段验证的构造器。
+#[allow(dead_code)]
+pub(crate) mod provider;
 mod render;
 mod types;
 pub(crate) mod unit_lower;

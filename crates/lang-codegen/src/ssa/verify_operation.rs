@@ -653,10 +653,18 @@ fn container_generate_contract(
 fn container_length_contract(
     module: &Module,
     function: &Function,
-    owner: ValueId,
+    owner: EntityId,
     results: &[EntityType],
 ) -> bool {
-    value_type(function, owner)
+    let owner_type = match function.entity(owner).map(|entity| entity.ty) {
+        Some(EntityType::Value(ty))
+        | Some(EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: ty,
+        }) => Some(ty),
+        _ => None,
+    };
+    owner_type
         .and_then(|ty| module.sequential_container(ty))
         .is_some()
         && single_value_result(results).is_some_and(|ty| is_koven_int(module, ty))
@@ -682,7 +690,7 @@ fn container_element_place_contract(
     else {
         return false;
     };
-    value_type(function, index).is_some_and(|ty| is_koven_container_index(module, ty))
+    value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && results == [EntityType::Place(element)]
 }
 
@@ -701,7 +709,7 @@ fn container_replace_contract(
     };
     results.is_empty()
         && kind.elements_are_mutable()
-        && value_type(function, index).is_some_and(|ty| is_koven_container_index(module, ty))
+        && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && value_type(function, value) == Some(element)
 }
 
@@ -1005,17 +1013,7 @@ fn is_koven_int(module: &Module, ty: SsaTypeId) -> bool {
     matches!(
         module.type_kind(ty),
         Some(SsaTypeKind::Integer {
-            bits: 64,
-            signed: true
-        })
-    )
-}
-
-fn is_koven_container_index(module: &Module, ty: SsaTypeId) -> bool {
-    matches!(
-        module.type_kind(ty),
-        Some(SsaTypeKind::Integer {
-            bits: 32 | 64,
+            bits: 32,
             signed: true
         })
     )

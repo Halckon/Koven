@@ -466,7 +466,7 @@ pub(crate) enum Operation {
         initializer: FunctionId,
     },
     ContainerLength {
-        owner: ValueId,
+        owner: EntityId,
     },
     ContainerElementPlace {
         owner: EntityId,
@@ -601,7 +601,7 @@ impl Operation {
                 elements.iter().copied().map(EntityId::Value).collect()
             }
             Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
-            Self::ContainerLength { owner } => vec![EntityId::Value(*owner)],
+            Self::ContainerLength { owner } => vec![*owner],
             Self::ContainerElementPlace { owner, index } => {
                 vec![*owner, EntityId::Value(*index)]
             }

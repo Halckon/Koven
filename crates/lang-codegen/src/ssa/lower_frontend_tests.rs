@@ -1518,7 +1518,7 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     .expect("Phase 2 jump diagnostics must gate SSA construction");
     assert_eq!(error.kind, LoweringErrorKind::FrontendDiagnostics);
 
-    let for_loop = analyze("fun iterate(): Unit { for (item in 1) {} }");
+    let for_loop = analyze("fun iterate(): Unit { for (item in listOf(1)) {} }");
     assert!(for_loop.typed.diagnostics().is_empty());
     let error = lower_scalar_file(
         &for_loop.sources,

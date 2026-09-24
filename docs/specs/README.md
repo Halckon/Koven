@@ -9,8 +9,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 - [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0211 approved。
 - [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件常量 Phase 2/3/4 均已完成。
-- [v0.37 阶段路由](drafts/v0.37/README.md)：借用式顺序迭代，1 份 done、1 份 approved、2 份 draft。
-- [完成 Spec Archive](../archive/specs/README.md)：211 份 `done`/`superseded` 记录，仅在追溯时读取。
+- [v0.37 阶段路由](drafts/v0.37/README.md)：借用式顺序迭代，2 份 done、1 份 approved、1 份 draft。
+- [完成 Spec Archive](../archive/specs/README.md)：212 份 `done`/`superseded` 记录，仅在追溯时读取。
 - [Spec 依赖图](dependency-graph.md)：`scripts/gen_spec_dag.py` 生成的拓扑图（SVG 版本
   [dependency-graph.svg](dependency-graph.svg)），不含验收状态，状态以本页为准。
 
@@ -19,7 +19,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 | 版本 | 状态 | 下一项 | 依赖入口 |
 |---|---|---|---|
 | v0.36（已启用） | 常量 Phase 2/3/4 done | 当前阶段链已完成 | [v0.36 阶段路由](drafts/v0.36/README.md) |
-| v0.37（已启用） | 0179 done、0211 approved，其余 2 份 draft | SPEC-0211 ownership | [drafts/v0.37](drafts/v0.37/README.md) |
+| v0.37（已启用） | 0179/0212 done、0211 approved、0182 draft | SPEC-0211 ownership | [drafts/v0.37](drafts/v0.37/README.md) |
 | v2 interface 值 / Map 所有权（proposal） | 未启用 | 待评审 | [proposals](../proposals/README.md) |
 
 本表是导航摘要，不改变任何 Spec 的批准状态；各版本阶段路由与 Spec 正文仍是唯一真源。

@@ -4,7 +4,7 @@
 
 - [SPEC-0211](0211-sequential-iteration-ownership.md)：顺序迭代 source/element loan 与退出清理，approved。
 
-SPEC-0179 typed plan 已完成并归档。
+SPEC-0179 typed plan 与 SPEC-0212 SSA provider primitives 已完成并归档。
 
 SPEC-0210/0226/0227 已完成；阶段依赖和交付证据见 [v0.36 阶段索引](../drafts/v0.36/README.md)。
 

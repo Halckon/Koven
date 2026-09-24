@@ -26,17 +26,17 @@ pub(super) fn construct<'ctx>(
     name: &str,
 ) -> Result<StructValue<'ctx>, LlvmAdapterError> {
     let layout = types.container_layout(container)?;
-    let length = u64::try_from(elements.len())
-        .map_err(|_| LlvmAdapterError::Build("容器元素数量不能由目标 size_t 表示".to_owned()))?;
+    let length = checked_list_length(elements.len(), runtime.size_type().get_bit_width())?;
     let length = runtime.size_type().const_int(length, false);
     let buffer = runtime.allocate_buffer(llvm, builder, function, length, layout.stride, name)?;
     if layout.stride != 0 {
         for (index, element) in elements.iter().enumerate() {
             let index = runtime.size_type().const_int(index as u64, false);
             // SAFETY: allocation size was checked as length * stride, and every source-ordered
-            // index is strictly below that same length. ZST never enters this physical store path.
+            // index is strictly below that same length. Physical bytes already satisfy the
+            // pointer-index bound. ZST skips this physical store path.
             let slot = unsafe {
-                builder.build_in_bounds_gep(
+                builder.build_gep(
                     layout.element,
                     buffer,
                     &[index],
@@ -50,6 +50,26 @@ pub(super) fn construct<'ctx>(
         }
     }
     build_header(builder, layout.header, buffer, length, name)
+}
+
+pub(super) fn checked_list_length(count: usize, size_bits: u32) -> Result<u64, LlvmAdapterError> {
+    let length = u64::try_from(count)
+        .map_err(|_| LlvmAdapterError::Build("容器元素数量不能由目标 size_t 表示".to_owned()))?;
+    if length > max_logical_length(size_bits) {
+        return Err(LlvmAdapterError::Build(
+            "容器元素数量不能由 Koven Int 或目标 size_t 表示".to_owned(),
+        ));
+    }
+    Ok(length)
+}
+
+/// 同一 logical length 上限供静态构造及运行时 Int→size_t 边界使用。
+pub(super) const fn max_logical_length(size_bits: u32) -> u64 {
+    if size_bits >= 31 {
+        i32::MAX as u64
+    } else {
+        (1_u64 << size_bits) - 1
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -66,6 +86,7 @@ pub(super) fn generate<'ctx>(
     name: &str,
 ) -> Result<StructValue<'ctx>, LlvmAdapterError> {
     let layout = types.container_layout(container)?;
+    let length = runtime.container_int_to_size(builder, function, length, name)?;
     let buffer = runtime.allocate_buffer(llvm, builder, function, length, layout.stride, name)?;
     let preheader = builder
         .get_insert_block()
@@ -89,10 +110,19 @@ pub(super) fn generate<'ctx>(
     builder.build_conditional_branch(remains, loop_body, done)?;
 
     builder.position_at_end(loop_body);
+    let initializer_index = match current.get_type().get_bit_width().cmp(&32) {
+        std::cmp::Ordering::Less => {
+            builder.build_int_z_extend(current, context.i32_type(), &format!("{name}.index.int"))?
+        }
+        std::cmp::Ordering::Equal => current,
+        std::cmp::Ordering::Greater => {
+            builder.build_int_truncate(current, context.i32_type(), &format!("{name}.index.int"))?
+        }
+    };
     let element = match builder
         .build_call(
             initializer,
-            &[BasicMetadataValueEnum::from(current)],
+            &[BasicMetadataValueEnum::from(initializer_index)],
             &format!("{name}.element"),
         )?
         .try_as_basic_value()
@@ -106,14 +136,10 @@ pub(super) fn generate<'ctx>(
     };
     if layout.stride != 0 {
         // SAFETY: the loop body is reachable only when index < the checked non-negative length;
-        // allocation used the same length and target-derived stride. ZST skips address formation.
+        // allocation used the same length and target-derived stride, with physical bytes
+        // checked against the pointer-index bound. ZST skips address formation.
         let slot = unsafe {
-            builder.build_in_bounds_gep(
-                layout.element,
-                buffer,
-                &[current],
-                &format!("{name}.slot"),
-            )?
+            builder.build_gep(layout.element, buffer, &[current], &format!("{name}.slot"))?
         };
         builder.build_store(slot, element)?;
     }
@@ -135,11 +161,21 @@ pub(super) fn generate<'ctx>(
 pub(super) fn length<'ctx>(
     builder: &Builder<'ctx>,
     owner: StructValue<'ctx>,
+    int_type: inkwell::types::IntType<'ctx>,
     name: &str,
 ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
-    Ok(builder
-        .build_extract_value(owner, 1, name)?
-        .into_int_value())
+    let header = builder
+        .build_extract_value(owner, 1, &format!("{name}.header"))?
+        .into_int_value();
+    match header
+        .get_type()
+        .get_bit_width()
+        .cmp(&int_type.get_bit_width())
+    {
+        std::cmp::Ordering::Less => Ok(builder.build_int_z_extend(header, int_type, name)?),
+        std::cmp::Ordering::Equal => Ok(header),
+        std::cmp::Ordering::Greater => Ok(builder.build_int_truncate(header, int_type, name)?),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -157,61 +193,47 @@ pub(super) fn element_place<'ctx>(
     let buffer = builder
         .build_extract_value(owner, 0, &format!("{name}.buffer"))?
         .into_pointer_value();
-    let length = builder
-        .build_extract_value(owner, 1, &format!("{name}.length"))?
-        .into_int_value();
+    let logical_length = length(
+        builder,
+        owner,
+        index.get_type(),
+        &format!("{name}.logical_length"),
+    )?;
     let negative = builder.build_int_compare(
         inkwell::IntPredicate::SLT,
         index,
         index.get_type().const_zero(),
         &format!("{name}.negative"),
     )?;
-    let (index, width_invalid) = match index
-        .get_type()
-        .get_bit_width()
-        .cmp(&length.get_type().get_bit_width())
-    {
-        std::cmp::Ordering::Less => (
-            builder.build_int_z_extend(index, length.get_type(), &format!("{name}.index.size"))?,
-            negative.get_type().const_zero(),
-        ),
-        std::cmp::Ordering::Equal => (index, negative.get_type().const_zero()),
-        std::cmp::Ordering::Greater => {
-            let size_bits = length.get_type().get_bit_width();
-            let maximum = index.get_type().const_int((1_u64 << size_bits) - 1, false);
-            let invalid = builder.build_int_compare(
-                inkwell::IntPredicate::UGT,
-                index,
-                maximum,
-                &format!("{name}.index.overflow"),
-            )?;
-            (
-                builder.build_int_truncate(
-                    index,
-                    length.get_type(),
-                    &format!("{name}.index.size"),
-                )?,
-                invalid,
-            )
-        }
-    };
     let beyond = builder.build_int_compare(
-        inkwell::IntPredicate::UGE,
+        inkwell::IntPredicate::SGE,
         index,
-        length,
+        logical_length,
         &format!("{name}.beyond"),
     )?;
-    let invalid = builder.build_or(negative, width_invalid, &format!("{name}.width-invalid"))?;
-    let invalid = builder.build_or(invalid, beyond, &format!("{name}.invalid"))?;
+    let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
     runtime.abort_if(builder, function, invalid, name)?;
+    let size_type = runtime.size_type();
+    let index = match index
+        .get_type()
+        .get_bit_width()
+        .cmp(&size_type.get_bit_width())
+    {
+        std::cmp::Ordering::Less => {
+            builder.build_int_z_extend(index, size_type, &format!("{name}.index.size"))?
+        }
+        std::cmp::Ordering::Equal => index,
+        std::cmp::Ordering::Greater => {
+            builder.build_int_truncate(index, size_type, &format!("{name}.index.size"))?
+        }
+    };
     if layout.stride == 0 {
         return Ok(buffer);
     }
-    // SAFETY: negative and unsigned upper-bound checks dominate this GEP; the buffer was allocated
-    // using the same logical length and target-derived element stride.
-    Ok(unsafe {
-        builder.build_in_bounds_gep(layout.element, buffer, &[index], &format!("{name}.slot"))?
-    })
+    // SAFETY: signed Int bounds checks dominate conversion and this GEP. The header was built
+    // with the same logical length and target-derived element stride. Buffer allocation
+    // already rejected physical sizes beyond the signed pointer-index range.
+    Ok(unsafe { builder.build_gep(layout.element, buffer, &[index], &format!("{name}.slot"))? })
 }
 
 #[allow(clippy::too_many_arguments)]

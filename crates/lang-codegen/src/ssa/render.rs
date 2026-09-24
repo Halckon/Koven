@@ -585,7 +585,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::ContainerLength { owner } => {
             output.write_str("container.length ")?;
-            write_entity_id(output, EntityId::Value(*owner))
+            write_entity_id(output, *owner)
         }
         Operation::ContainerElementPlace { owner, index } => {
             output.write_str("container.element_place ")?;

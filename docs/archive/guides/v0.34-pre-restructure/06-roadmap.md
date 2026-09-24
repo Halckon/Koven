@@ -465,7 +465,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [ ] **[SPEC-0209](../../specs/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
       把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
       singleton/global/init 或第二套 String runtime。
-- [ ] **[SPEC-0212](../../../specs/drafts/v0.37/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA
+- [ ] **[SPEC-0212](../../specs/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA
       把 ContainerLength 扩为 Value/shared Loan、收口真正 `Int` 与 header size_t bridge，并验证
       provider cursor/loan CFG/checked-place/ZST；不读取真实 `for` AST，等待 v0.37/ADR-0023。
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、

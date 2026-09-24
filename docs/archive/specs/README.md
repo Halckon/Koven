@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 211 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 212 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -224,6 +224,7 @@
 - [SPEC-0034](./0034-scalar-control-flow-llvm-lowering.md)：标量与控制流经 typed SSA lower 到 LLVM IR
 - [SPEC-0035](./0035-aggregate-class-allocation-drop.md)：聚合、class 分配与显式 drop/free 后端基元
 - [SPEC-0036](./0036-sequential-container-runtime.md)：顺序容器连续缓冲区与运行时基元
+- [SPEC-0212](./0212-borrowed-sequential-iteration-ssa.md)：借用式顺序迭代 SSA/LLVM primitives
 - [SPEC-0038](./0038-closure-environment-codegen.md)：具体闭包环境与间接调用后端
 - [SPEC-0039](./0039-native-object-entry-link.md)：本机目标文件、显式入口与首个链接链路
 - [SPEC-0040](./0040-dwarf-line-tables-lldb.md)：DWARF 源码行表与首个 LLDB 验收

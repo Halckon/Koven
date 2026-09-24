@@ -797,9 +797,37 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("container length", 1, results.len()));
                 };
+                let owner = match owner {
+                    EntityId::Value(owner) => self.struct_value(*owner)?,
+                    EntityId::Loan(loan) => {
+                        let container_type = self
+                            .function
+                            .entity(*owner)
+                            .ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa(
+                                    "container length owner is missing".to_owned(),
+                                )
+                            })?
+                            .ty
+                            .semantic_type();
+                        self.builder
+                            .build_load(
+                                self.dependencies.type_map.basic_type(container_type)?,
+                                self.access(PlaceAccess::Loan(*loan))?,
+                                &format!("v{}.container", result.index()),
+                            )?
+                            .into_struct_value()
+                    }
+                    EntityId::Place(_) => {
+                        return Err(LlvmAdapterError::InvalidSsa(
+                            "container length owner cannot be a place".to_owned(),
+                        ));
+                    }
+                };
                 let value = container::length(
                     &self.builder,
-                    self.struct_value(*owner)?,
+                    owner,
+                    self.context.i32_type(),
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value.into());

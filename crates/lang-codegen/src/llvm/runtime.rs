@@ -1,4 +1,6 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
+#[cfg(test)]
+mod narrow_tests;
 mod string;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,7 +14,9 @@ use inkwell::{
     module::{Linkage, Module as LlvmModule},
     targets::TargetData,
     types::IntType,
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, ValueKind},
+    values::{
+        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue, ValueKind,
+    },
 };
 
 use crate::ssa::model::{
@@ -20,11 +24,15 @@ use crate::ssa::model::{
     TerminatorKind,
 };
 
-use super::{LlvmAdapterError, entry::NativeEntryPlan, tagged, type_map::TypeMap};
+use super::{
+    LlvmAdapterError, container::max_logical_length, entry::NativeEntryPlan, tagged,
+    type_map::TypeMap,
+};
 
 pub(super) struct RuntimeAbi<'ctx> {
     context: &'ctx Context,
     size_type: IntType<'ctx>,
+    max_buffer_bytes: u64,
     malloc: Option<FunctionValue<'ctx>>,
     abort: Option<FunctionValue<'ctx>>,
     write: Option<FunctionValue<'ctx>>,
@@ -47,6 +55,12 @@ impl<'ctx> RuntimeAbi<'ctx> {
         let requirements = RuntimeRequirements::collect(module, native_entry)?;
         let pointer = context.ptr_type(AddressSpace::default());
         let size_type = context.ptr_sized_int_type(target, None);
+        let index_bits = pointer_index_bits(target)?;
+        let max_buffer_bytes = if index_bits >= 64 {
+            i64::MAX as u64
+        } else {
+            (1_u64 << (index_bits - 1)) - 1
+        };
         let malloc = requirements.needs_allocation.then(|| {
             llvm.add_function("malloc", pointer.fn_type(&[size_type.into()], false), None)
         });
@@ -99,11 +113,21 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 LlvmAdapterError::InvalidSsa("heap owner 缺少已定义 payload".to_owned())
             })?;
             let size = types.aggregate_layout(target, payload)?.store_size.max(1);
+            if size > max_buffer_bytes {
+                return Err(LlvmAdapterError::Unsupported(
+                    "heap allocation exceeds pointer index range".to_owned(),
+                ));
+            }
             allocation_sizes.insert(owner, size);
         }
         let mut shared_allocation_sizes = BTreeMap::new();
         for owner in requirements.shared_allocated_owners {
             let size = types.shared_control_size(owner)?.max(1);
+            if size > max_buffer_bytes {
+                return Err(LlvmAdapterError::Unsupported(
+                    "shared allocation exceeds pointer index range".to_owned(),
+                ));
+            }
             shared_allocation_sizes.insert(owner, size);
         }
 
@@ -121,6 +145,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         let runtime = Self {
             context,
             size_type,
+            max_buffer_bytes,
             malloc,
             abort,
             write,
@@ -347,6 +372,45 @@ impl<'ctx> RuntimeAbi<'ctx> {
         self.size_type
     }
 
+    pub(super) fn container_int_to_size(
+        &self,
+        builder: &Builder<'ctx>,
+        function: FunctionValue<'ctx>,
+        length: IntValue<'ctx>,
+        name: &str,
+    ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
+        let negative = builder.build_int_compare(
+            IntPredicate::SLT,
+            length,
+            length.get_type().const_zero(),
+            &format!("{name}.negative"),
+        )?;
+        self.abort_if(builder, function, negative, name)?;
+        match length
+            .get_type()
+            .get_bit_width()
+            .cmp(&self.size_type.get_bit_width())
+        {
+            std::cmp::Ordering::Less => {
+                Ok(builder.build_int_z_extend(length, self.size_type, &format!("{name}.size"))?)
+            }
+            std::cmp::Ordering::Equal => Ok(length),
+            std::cmp::Ordering::Greater => {
+                let maximum = length
+                    .get_type()
+                    .const_int(max_logical_length(self.size_type.get_bit_width()), false);
+                let too_large = builder.build_int_compare(
+                    IntPredicate::UGT,
+                    length,
+                    maximum,
+                    &format!("{name}.size.overflow"),
+                )?;
+                self.abort_if(builder, function, too_large, name)?;
+                Ok(builder.build_int_truncate(length, self.size_type, &format!("{name}.size"))?)
+            }
+        }
+    }
+
     pub(super) fn allocate_buffer(
         &self,
         llvm: &LlvmModule<'ctx>,
@@ -358,7 +422,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
     ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
         if length.get_type().get_bit_width() != self.size_type.get_bit_width() {
             return Err(LlvmAdapterError::Unsupported(
-                "当前 target 的 size_t 宽度必须与 Koven Int 一致".to_owned(),
+                "buffer length 必须使用目标 size_t".to_owned(),
             ));
         }
         let abort = self
@@ -367,19 +431,20 @@ impl<'ctx> RuntimeAbi<'ctx> {
         let sentinel = self
             .zst_sentinel
             .ok_or_else(|| LlvmAdapterError::Build("容器 sentinel 未声明".to_owned()))?;
+        if stride > self.max_buffer_bytes {
+            return Err(LlvmAdapterError::Unsupported(
+                "container element stride exceeds pointer index range".to_owned(),
+            ));
+        }
         let failed = self
             .context
             .append_basic_block(function, &format!("{name}.abort"));
         let valid = self
             .context
             .append_basic_block(function, &format!("{name}.valid"));
-        let negative = builder.build_int_compare(
-            IntPredicate::SLT,
-            length,
-            length.get_type().const_zero(),
-            &format!("{name}.negative"),
-        )?;
-        builder.build_conditional_branch(negative, failed, valid)?;
+        // The unsigned logical length may use size_t's high bit. Physical storage
+        // is separately bounded by the signed pointer-index maximum below.
+        builder.build_unconditional_branch(valid)?;
 
         builder.position_at_end(failed);
         builder.build_call(abort, &[], "")?;
@@ -426,6 +491,17 @@ impl<'ctx> RuntimeAbi<'ctx> {
         builder.build_conditional_branch(overflow, failed, sized)?;
 
         builder.position_at_end(sized);
+        let too_large = builder.build_int_compare(
+            IntPredicate::UGT,
+            bytes,
+            self.size_type.const_int(self.max_buffer_bytes, false),
+            &format!("{name}.too_large"),
+        )?;
+        let within_index = self
+            .context
+            .append_basic_block(function, &format!("{name}.within_index"));
+        builder.build_conditional_branch(too_large, failed, within_index)?;
+        builder.position_at_end(within_index);
         let no_allocation = self
             .context
             .append_basic_block(function, &format!("{name}.empty"));
@@ -772,9 +848,9 @@ impl<'ctx> RuntimeAbi<'ctx> {
             } else {
                 // SAFETY: remaining is non-zero and starts at logical length; decrementing before
                 // addressing visits exactly length-1 down to zero inside the allocated buffer.
-                let slot = unsafe {
-                    builder.build_in_bounds_gep(layout.element, buffer, &[index], "drop.slot")?
-                };
+                // Non-inbounds GEP uses the allocation-checked physical offset.
+                let slot =
+                    unsafe { builder.build_gep(layout.element, buffer, &[index], "drop.slot")? };
                 builder.build_load(layout.element, slot, "drop.element")?
             };
             self.emit_drop(builder, element, value)?;
@@ -807,6 +883,32 @@ impl<'ctx> RuntimeAbi<'ctx> {
         }
         Ok(())
     }
+}
+
+fn pointer_index_bits(target: &TargetData) -> Result<u32, LlvmAdapterError> {
+    let pointer_bits = target
+        .get_pointer_byte_size(Some(AddressSpace::default()))
+        .checked_mul(8)
+        .ok_or_else(|| LlvmAdapterError::Target("target pointer width overflow".to_owned()))?;
+    let layout = target.get_data_layout();
+    let layout = layout
+        .as_str()
+        .to_str()
+        .map_err(|_| LlvmAdapterError::Target("target DataLayout is not UTF-8".to_owned()))?;
+    let index_bits = layout
+        .split('-')
+        .rfind(|part| part.starts_with("p:") || part.starts_with("p0:"))
+        .and_then(|part| part.split(':').nth(4))
+        .map(str::parse::<u32>)
+        .transpose()
+        .map_err(|_| LlvmAdapterError::Target("invalid pointer index width".to_owned()))?
+        .unwrap_or(pointer_bits);
+    if index_bits == 0 || index_bits > pointer_bits || index_bits > 64 {
+        return Err(LlvmAdapterError::Target(
+            "unsupported pointer index width".to_owned(),
+        ));
+    }
+    Ok(index_bits)
 }
 
 struct RuntimeRequirements {
