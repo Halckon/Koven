@@ -16,7 +16,7 @@ use super::RcOwnershipEffect;
 pub struct OwnershipPlace {
     root: SymbolId,
     fields: Vec<SymbolId>,
-    element: Option<ElementIndexIdentity>,
+    elements: Vec<ElementIndexIdentity>,
 }
 
 impl OwnershipPlace {
@@ -24,24 +24,20 @@ impl OwnershipPlace {
         Self {
             root,
             fields,
-            element: None,
+            elements: Vec::new(),
         }
     }
 
     pub(crate) fn push_field(&mut self, field: SymbolId) -> bool {
-        if self.element.is_some() {
+        if !self.elements.is_empty() {
             return false;
         }
         self.fields.push(field);
         true
     }
 
-    pub(crate) fn push_element(&mut self, element: ElementIndexIdentity) -> bool {
-        if self.element.is_some() {
-            return false;
-        }
-        self.element = Some(element);
-        true
+    pub(crate) fn push_element(&mut self, element: ElementIndexIdentity) {
+        self.elements.push(element);
     }
 
     /// 返回唯一根绑定。
@@ -58,14 +54,20 @@ impl OwnershipPlace {
 
     /// 返回 terminal 顺序容器逻辑索引；非 element place 返回 `None`。
     #[must_use]
-    pub const fn element(&self) -> Option<ElementIndexIdentity> {
-        self.element
+    pub fn element(&self) -> Option<ElementIndexIdentity> {
+        self.elements.last().copied()
+    }
+
+    /// 返回字段路径之后从外到内的完整逻辑索引路径。
+    #[must_use]
+    pub fn elements(&self) -> &[ElementIndexIdentity] {
+        &self.elements
     }
 
     /// 返回该 place 是否精确表示根绑定自身。
     #[must_use]
     pub const fn is_root(&self) -> bool {
-        self.fields.is_empty() && self.element.is_none()
+        self.fields.is_empty() && self.elements.is_empty()
     }
 
     /// 判断两个 place 是否相同或具有 parent/child 前缀关系。
@@ -83,10 +85,10 @@ impl OwnershipPlace {
         if self.fields.len() != other.fields.len() {
             return true;
         }
-        match (self.element, other.element) {
-            (Some(left), Some(right)) => left.may_alias(right),
-            (None, _) | (_, None) => true,
-        }
+        self.elements
+            .iter()
+            .zip(&other.elements)
+            .all(|(&left, &right)| left.may_alias(right))
     }
 }
 
@@ -231,12 +233,16 @@ impl LoanFact {
 /// Phase 4 可消费的析构边界。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DropPoint {
+    /// Lambda 调用入口的未使用 owned 参数。
+    LambdaEntry(ExpressionId),
     /// 最后一次读取或 replacement RHS 完成后。
     AfterExpression(ExpressionId),
     /// 非消费式 binary 已读完全部 operand、但结果仍存活时。
     AfterBinaryOperands(ExpressionId),
     /// 未使用 binding 建立或完整 statement 完成后。
     AfterStatement(StatementId),
+    /// Callee 与全部实参求值完成后、实际调用之前。
+    CallEntry(ExpressionId),
     /// 借用 temporary 在同步 call 返回后。
     CallReturn(ExpressionId),
     /// return / break / continue 控制转移边。
@@ -276,16 +282,27 @@ pub enum DropTarget {
     ReplacedElement(ExpressionId),
     /// `move` closure environment 中一个 owned MoveOnly capture。
     Captured {
+        /// 具体环境值；lambda/source 仅描述其中的捕获槽。
+        owner: super::CleanupOwnerValueId,
         /// 拥有 environment 的 lambda。
         closure: ExpressionId,
         /// 被析构的捕获来源。
         source: ClosureCaptureSource,
+        /// 形成此槽的实际来源，不能在清理时重新读取 source binding。
+        value: super::CleanupCaptureValue,
     },
+    /// 已离开词法 binding、仍由 borrowed closure 保护的 source owner。
+    /// `DropFact::owner` 指向该环境的 source-owner 关系槽。
+    RetainedSource(ClosureCaptureSource),
 }
 
 /// 一个确定的 ASAP 析构事实。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DropFact {
+    owner: Option<super::CleanupOwnerValueId>,
+    capture_slot: Option<super::CleanupCaptureSlotId>,
+    instance_address: Option<super::CleanupInstanceAddressId>,
+    condition: Option<super::CleanupConditionId>,
     point: DropPoint,
     target: DropTarget,
     value_origin: Span,
@@ -445,10 +462,66 @@ impl ClosureDescriptor {
 impl DropFact {
     pub(crate) const fn new(point: DropPoint, target: DropTarget, value_origin: Span) -> Self {
         Self {
+            owner: None,
+            capture_slot: None,
+            instance_address: None,
+            condition: None,
             point,
             target,
             value_origin,
         }
+    }
+
+    /// 该边界内额外需要满足的保存路径条件；None 表示无条件。
+    #[must_use]
+    pub const fn condition(self) -> Option<super::CleanupConditionId> {
+        self.condition
+    }
+
+    /// Named、已运输 pending temporary、迭代 source temporary 或直接 owned capture 的
+    /// 源值定义身份。target 仍定位访问位置；其它 temporary、element 与紧邻环境槽由 target 描述。
+    #[must_use]
+    pub const fn owner(self) -> Option<super::CleanupOwnerValueId> {
+        self.owner
+    }
+
+    /// 已形成 closure 的析构槽；消费时须查询该环境当次实例的槽占用状态。
+    /// 此 ID 仅是静态布局位置；递归/多路径 deferred 尚缺父实例边定位。
+    /// `None` 表示该事实不是已形成环境的槽，或 phi 实例布局尚未提供此关系。
+    #[must_use]
+    pub const fn capture_slot(self) -> Option<super::CleanupCaptureSlotId> {
+        self.capture_slot
+    }
+
+    /// Captured/retained-source drop 所属环境的动态根与捕获路径；
+    /// 被释放的值由 `capture_slot()` 指定。
+    /// `None` 表示此事实尚不可沿已保存环境边定位。
+    #[must_use]
+    pub const fn instance_address(self) -> Option<super::CleanupInstanceAddressId> {
+        self.instance_address
+    }
+
+    pub(crate) const fn with_owner(mut self, owner: super::CleanupOwnerValueId) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    pub(crate) const fn with_capture_slot(mut self, slot: super::CleanupCaptureSlotId) -> Self {
+        self.capture_slot = Some(slot);
+        self
+    }
+
+    pub(crate) const fn with_instance_address(
+        mut self,
+        address: super::CleanupInstanceAddressId,
+    ) -> Self {
+        self.instance_address = Some(address);
+        self
+    }
+
+    pub(crate) const fn with_condition(mut self, condition: super::CleanupConditionId) -> Self {
+        self.condition = Some(condition);
+        self
     }
 
     /// 返回析构发生的控制流边界。
@@ -477,6 +550,12 @@ pub enum OwnershipDeferredReason {
     IndexPlace,
     /// 未具有静态参数契约的 instance member receiver。
     MemberReceiver,
+    /// 循环携带的 closure 递归捕获旧环境，有限 phi 树无法完整运输。
+    RecursiveClosureCapture,
+    /// 循环 phi 尚不能运输紧邻 callable 环境中的捕获实例。
+    EnclosingEnvironmentCapture,
+    /// 不同捕获路径的环境实例可能并存，phi 槽尚缺实例限定或互斥证明。
+    AmbiguousClosureInstanceTransport,
 }
 
 /// 一个可查询的所有权 deferred 边界。
@@ -507,6 +586,9 @@ impl OwnershipDeferredFact {
 /// Phase 3 单文件所有权检查产物。
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
+    cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
+    cleanup_conditions: super::CleanupConditions,
+    iterations: Vec<super::IterationOwnershipPlan>,
     constant_materializations: Option<super::ValidatedConstantMaterializations>,
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     loan_ends: Vec<LoanEndFact>,
@@ -527,6 +609,9 @@ pub struct OwnershipCheckedFile {
 }
 
 pub(crate) struct OwnershipCheckedParts {
+    pub(crate) cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
+    pub(crate) cleanup_conditions: super::CleanupConditions,
+    pub(crate) iterations: Vec<super::IterationOwnershipPlan>,
     pub(crate) constant_materializations: Option<super::ValidatedConstantMaterializations>,
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
@@ -543,6 +628,32 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 按规划顺序发布快照、drop 与 loan end；同一 point 必须保持此顺序。
+    /// 迭代 exit plans 是本序列的关联视图，不得重复执行。
+    #[must_use]
+    pub fn cleanup_steps(&self) -> &[(DropPoint, super::IterationCleanupAction)] {
+        &self.cleanup_steps
+    }
+
+    /// Drop 与 capture loan end 共用的条件表；仅引用保存的动态选择。
+    #[must_use]
+    pub fn cleanup_conditions(&self) -> &super::CleanupConditions {
+        &self.cleanup_conditions
+    }
+
+    /// 已检查的 statement-keyed iteration plans；错误或不完整分析不发布。
+    #[must_use]
+    pub fn iterations(&self) -> &[super::IterationOwnershipPlan] {
+        &self.iterations
+    }
+    /// 查询一个实际可达 provider 的 ownership plan。
+    #[must_use]
+    pub fn iteration(&self, statement: StatementId) -> Option<&super::IterationOwnershipPlan> {
+        self.iterations
+            .iter()
+            .find(|plan| plan.descriptor().statement() == statement)
+    }
+
     /// 单文件常量物化能力；失败或 deferred 分析不发布半成品计划。
     #[must_use]
     pub fn constant_materializations(&self) -> Option<&super::ValidatedConstantMaterializations> {
@@ -593,6 +704,9 @@ impl OwnershipCheckedFile {
             source_id,
             environment_owner,
             constant_materializations: parts.constant_materializations,
+            iterations: parts.iterations,
+            cleanup_conditions: parts.cleanup_conditions,
+            cleanup_steps: parts.cleanup_steps,
             nullable_whens: parts.nullable_whens,
             non_null_assertions: parts.non_null_assertions,
             loan_ends: parts.loan_ends,

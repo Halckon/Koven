@@ -42,6 +42,7 @@ fn checked(text: &str) -> OwnershipCheckedFile {
 
 #[test]
 fn transferred_result_owner_gets_its_own_normal_drop() {
+    use lang_frontend::ownership_checking::{CleanupCondition, CleanupOwnerValue};
     let owned = checked(
         "class Node {}\nfun test(own x: Node?): Unit { val result = when (x) { null -> Node(); else -> x } }",
     );
@@ -54,13 +55,59 @@ fn transferred_result_owner_gets_its_own_normal_drop() {
         .collect();
     assert_eq!(
         result_drops.len(),
-        1,
-        "the transferred result owns exactly one cleanup obligation"
+        2,
+        "the constructed and extracted results have distinct owner definitions"
     );
-    assert!(matches!(
-        result_drops[0].point(),
-        DropPoint::AfterStatement(_)
+    assert_ne!(result_drops[0].owner(), result_drops[1].owner());
+    assert!(
+        result_drops
+            .iter()
+            .all(|fact| matches!(fact.point(), DropPoint::AfterStatement(_)))
+    );
+    assert_eq!(result_drops[0].point(), result_drops[1].point());
+    assert!(result_drops.iter().any(
+        |fact| matches!(owned.cleanup_conditions().owner_value(fact.owner().unwrap()),
+        Some(CleanupOwnerValue::Parameter { symbol, .. }) if *symbol == parameter)
     ));
+    // 本例只有一个 nullable alternative；两个动态出口各有且只有一次析构。
+    let choices = result_drops
+        .iter()
+        .map(|fact| {
+            let CleanupCondition::Choice { selector, branches } = owned
+                .cleanup_conditions()
+                .get(fact.condition().unwrap())
+                .unwrap()
+            else {
+                panic!("each result version must be selected by the nullable test");
+            };
+            (*selector, branches)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(choices[0].0, choices[1].0);
+    for arm in 0..2 {
+        assert_eq!(
+            choices
+                .iter()
+                .filter(|(_, branches)| matches!(
+                    owned.cleanup_conditions().get(branches[arm]),
+                    Some(CleanupCondition::Never)
+                ))
+                .count(),
+            1,
+            "the unselected version must never be destroyed"
+        );
+        assert_eq!(
+            choices
+                .iter()
+                .filter(|(_, branches)| matches!(
+                    owned.cleanup_conditions().get(branches[arm]),
+                    Some(CleanupCondition::Always)
+                ))
+                .count(),
+            1,
+            "the transferred result owns exactly one cleanup obligation on each path"
+        );
+    }
 }
 
 #[test]

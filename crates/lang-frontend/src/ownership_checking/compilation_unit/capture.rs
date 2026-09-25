@@ -11,7 +11,8 @@ use crate::{
     parser::{Expression, ParsedFile},
     source::Span,
     type_checking::{
-        CompilationUnitTypes, Copyability, UnitExpressionId, UnitTransferability, UnitTypeId,
+        CompilationUnitTypes, Copyability, UnitCallReceiverOrigin, UnitExpressionId,
+        UnitTransferability, UnitTypeId,
     },
 };
 
@@ -353,6 +354,30 @@ fn this_candidates(
                 source: UnitClosureCaptureSource::This,
                 ty,
                 span: node.span(),
+            });
+        }
+    }
+    for call in typed.calls() {
+        let expression = call.expression();
+        if expression.source_unit() != source_unit {
+            continue;
+        }
+        let Some(receiver) = call.receiver() else {
+            continue;
+        };
+        if !matches!(receiver.origin(), UnitCallReceiverOrigin::ImplicitThis(_)) {
+            continue;
+        }
+        let span = parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())?
+            .span();
+        if contains(lambda.span, span) {
+            candidates.push(Candidate {
+                source: UnitClosureCaptureSource::This,
+                ty: receiver.ty(),
+                span,
             });
         }
     }

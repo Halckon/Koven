@@ -41,6 +41,13 @@ Phase 4 如何在 native 中承载这些事实。SPEC-0182 首轮 named、Borrow
   缺席来源清空目标。捕获边在形成时固定指向旧实例，后续覆写 binding/phi 不会改写边。
   verifier 拒绝没有环境实例的捕获 closure、重复消费同一实例、以及与已验证 capture facts
   不符的调用或释放。
+- phi 只搬运根 closure 句柄及其选择快照；已形成环境的 owned 子句柄留在该环境的 capture
+  槽中。访问或释放后代时以实际父实例句柄和 capture 位置取子句柄，同一静态 lambda 的
+  两个存活子实例不得因共享图节点或 phi 布局槽而合并。迁移现有按静态来源树展开的
+  captured `DropFact` 时，必须避免它与实例 drop thunk 对同一子环境重复析构；shared
+  capture 的 loan end 与最后借用者判定仍由已验证的实例关系事实驱动。现有静态
+  `EndCaptureLoan`、`TestLastCaptureLoan` 和 captured `DropFact` 目标不足以区分同节点的
+  两个子实例，须由 Phase 3 的可解析实例边事实替换或扩展后才能启用此 ABI。
 - 静态来源图可有环，动态 owned 边只指向形成前已有的实例，因此实际实例图无环。
   Phase 3 必须先发布有限图、实例形成/捕获/转移/释放关系并通过逐实例回放；在此之前
   `RecursiveClosureCapture` 保持 deferred，native lowering 不消费截断事实。

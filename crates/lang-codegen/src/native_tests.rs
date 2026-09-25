@@ -601,6 +601,113 @@ fn string_containers_clean_up_on_normal_path_and_early_return() {
 }
 
 #[test]
+fn int_container_construction_links_and_runs_with_size_t_header() {
+    let run = emit_link_and_run(
+        "int-container-header.ko",
+        "fun containerEntry(): Unit {\n val values = arrayOf<Int>(1, 2)\n val reached = println(\"done\")\n }",
+        "containerEntry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn named_construction_inputs_are_not_forwarded_after_value_delivery() {
+    let run = emit_link_and_run(
+        "named-construction-inputs.ko",
+        r#"class Holder(val text: String)
+        fun hold(early: Boolean): Unit {
+            val field = "field"
+            val holder = Holder(field)
+            val element = "element"
+            val array = arrayOf<String>(element)
+            if (early) return
+            val reached = println("done")
+        }
+        fun entry(): Unit {
+            val early = hold(true)
+            val normal = hold(false)
+        }"#,
+        "entry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn construction_inputs_survive_later_operand_branches() {
+    let run = emit_link_and_run(
+        "construction-input-branch.ko",
+        r#"class Holder(val text: String, val number: Int)
+        fun hold(flag: Boolean): Unit {
+            val text = "field"
+            val holder = Holder(text, if (flag) { 1 } else { 2 })
+            val element = "element"
+            val array = arrayOf<String>(element, if (flag) { "left" } else { "right" })
+            if (holder.number == 0) { error("bad holder") }
+        }
+        fun entry(): Unit {
+            val first = hold(true)
+            val second = hold(false)
+        }"#,
+        "entry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn copyable_construction_result_keeps_its_source_binding() {
+    let run = emit_link_and_run(
+        "copyable-construction-source.ko",
+        r#"class Holder(val number: Int)
+        fun source(flag: Boolean): Int {
+            val number = 7
+            val holder = Holder(if (flag) { number } else { number })
+            return number
+        }
+        fun entry(): Unit {
+            if (source(true) != 7) { error("bad true branch") }
+            if (source(false) != 7) { error("bad false branch") }
+        }"#,
+        "entry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
+fn construction_inputs_drop_when_later_operand_returns() {
+    let run = emit_link_and_run(
+        "construction-input-return.ko",
+        r#"class Holder(val text: String, val number: Int)
+        fun hold(flag: Boolean): Unit {
+            val text = "field"
+            val holder = Holder(text, if (flag) { return } else { 1 })
+            val element = "element"
+            val array = arrayOf<String>(element, if (flag) { return } else { "last" })
+        }
+        fun entry(): Unit {
+            val first = hold(true)
+            val second = hold(false)
+        }"#,
+        "entry",
+    );
+
+    assert!(run.status.success(), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert!(run.stderr.is_empty(), "{run:?}");
+}
+
+#[test]
 fn move_closure_drops_or_invokes_its_owned_string_capture_once() {
     let run = emit_link_and_run(
         "string-move-closure.ko",

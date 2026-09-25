@@ -143,7 +143,7 @@ impl Checker<'_> {
             FunctionForm::Explicit { body, .. } => match body {
                 FunctionBody::Absent => {}
                 FunctionBody::Expression { expression, .. } => {
-                    self.check_expression(
+                    self.check_return_expression(
                         expression,
                         state,
                         ExpressionUse::Consume {
@@ -340,28 +340,33 @@ impl Checker<'_> {
                 ..
             } => {
                 let branch_usage = self.control_result_usage(id)?;
-                self.check_if(condition, then_branch, else_branch, state, branch_usage)
+                self.check_if(
+                    condition,
+                    then_branch,
+                    else_branch,
+                    state,
+                    branch_usage,
+                    false,
+                )
             }
             Expression::When {
                 subject, entries, ..
             } => {
                 let branch_usage = self.control_result_usage(id)?;
-                self.check_when(subject, &entries, state, branch_usage)
+                self.check_when(subject, &entries, state, branch_usage, false)
             }
             Expression::Return { value, .. } => {
-                let mut flows = Flows::next(state);
-                if let Some(value) = value {
-                    if let Some(next) = flows.next.as_ref() {
-                        self.reject_borrowed_closure_escape(value, next)?;
-                    }
-                    flows = self.chain_expression(
-                        flows,
+                let mut flows = if let Some(value) = value {
+                    self.check_return_expression(
                         value,
+                        state,
                         ExpressionUse::Consume {
                             parameter_span: None,
                         },
-                    )?;
-                }
+                    )?
+                } else {
+                    Flows::next(state)
+                };
                 flows.next = None;
                 Ok(flows)
             }

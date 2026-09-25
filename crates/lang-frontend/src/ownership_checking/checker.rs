@@ -5,6 +5,8 @@ mod construction;
 mod container;
 mod control;
 mod drop_planner;
+mod elvis;
+mod iteration;
 mod loan;
 mod nullable_when;
 mod rc;
@@ -14,8 +16,8 @@ use crate::{
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
     parser::{
-        AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
-        Statement, StringPart, VariableKind, WhenCondition,
+        AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
+        NameMarker, ParsedFile, Statement, StringPart, VariableKind,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -33,10 +35,14 @@ use loan::ActiveLoan;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
+    replacements: Vec<SymbolId>,
     nullable_views: BTreeMap<SymbolId, nullable_when::Proof>,
     moved: BTreeMap<SymbolId, Span>,
     loans: Vec<ActiveLoan>,
-    closures: BTreeMap<SymbolId, ExpressionId>,
+    closures: BTreeMap<SymbolId, Vec<ExpressionId>>,
+    closure_captures: BTreeMap<usize, Vec<ExpressionId>>,
+    closure_results: BTreeMap<usize, Vec<ExpressionId>>,
+    pending_closures: BTreeMap<usize, Vec<ExpressionId>>,
     non_owning: BTreeMap<SymbolId, Span>,
     immutable_captures: BTreeMap<SymbolId, Span>,
 }
@@ -90,6 +96,7 @@ pub(super) fn check(
 }
 
 struct Checker<'a> {
+    iterations: BTreeMap<usize, super::IterationOwnershipPlan>,
     loop_has_exit: BTreeMap<usize, bool>,
     constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
     non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
@@ -107,6 +114,7 @@ struct Checker<'a> {
     cross_thread_by_expression: BTreeMap<usize, Vec<bool>>,
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
+    current_receiver_mode: Option<ParameterMode>,
     diagnostics: Vec<Diagnostic>,
     loans: Vec<LoanFact>,
     deferred: Vec<OwnershipDeferredFact>,
@@ -187,6 +195,7 @@ impl<'a> Checker<'a> {
             transferabilities,
         } = capture::analyze(parsed, names, typed)?;
         let mut checker = Self {
+            iterations: BTreeMap::new(),
             sources,
             parsed,
             names,
@@ -200,6 +209,7 @@ impl<'a> Checker<'a> {
             cross_thread_by_expression,
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
+            current_receiver_mode: None,
             loop_has_exit: BTreeMap::new(),
             constant_materializations: BTreeMap::new(),
             nullable_whens: BTreeMap::new(),
@@ -260,11 +270,20 @@ impl<'a> Checker<'a> {
                 OwnershipBindingDescriptor::new(binding.symbol(), kind)
             })
             .collect();
-        let (drops, loan_ends) = if diagnostics.is_empty() {
+        let drop_plan = if diagnostics.is_empty() {
             drop_planner::plan(&self)?
         } else {
-            (Vec::new(), Vec::new())
+            drop_planner::DropPlan::default()
         };
+        let drop_planner::DropPlan {
+            cleanup_steps,
+            cleanup_conditions,
+            drops,
+            loan_ends,
+            iterations,
+            deferred,
+        } = drop_plan;
+        self.deferred.extend(deferred);
         self.finish_nullable_drops(&drops)?;
         let constant_materializations = if diagnostics.is_empty()
             && self.deferred.is_empty()
@@ -299,6 +318,9 @@ impl<'a> Checker<'a> {
             self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
+                cleanup_steps,
+                cleanup_conditions,
+                iterations,
                 constant_materializations,
                 non_null_assertions,
                 nullable_whens,
@@ -360,13 +382,27 @@ impl<'a> Checker<'a> {
                 }
             }
             Item::Function {
-                parameters, form, ..
+                name,
+                parameters,
+                form,
+                ..
             } => {
                 let mut function_state = State::default();
                 for parameter in parameters {
                     self.mark_available(parameter.name, &mut function_state);
                 }
-                self.check_function(form, function_state)?;
+                let receiver_mode = self.marker_symbol(name).and_then(|symbol| {
+                    self.typed
+                        .callables()
+                        .iter()
+                        .find(|callable| callable.symbol() == symbol)
+                        .and_then(|callable| callable.receiver())
+                        .map(|receiver| receiver.mode())
+                });
+                let previous = std::mem::replace(&mut self.current_receiver_mode, receiver_mode);
+                let result = self.check_function(form, function_state);
+                self.current_receiver_mode = previous;
+                result?;
             }
             Item::Classifier(classifier) => {
                 if let Some(body) = classifier.body {
@@ -391,18 +427,18 @@ impl<'a> Checker<'a> {
         initializer: ExpressionId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
-        let closure = self.closure_origin(initializer, &state)?;
         let moved_closure = self.expression_root_symbol(initializer)?;
         let mut flows = self.check_expression(initializer, state, ExpressionUse::Consume)?;
         if let Some(next) = flows.next.as_mut() {
+            let closures = self.closure_origins(initializer, next)?;
             self.mark_available(name, next);
             if let Some(source) = moved_closure {
                 next.closures.remove(&source);
             }
             if let Some(symbol) = self.marker_symbol(name)
-                && let Some(closure) = closure
+                && !closures.is_empty()
             {
-                next.closures.insert(symbol, closure);
+                next.closures.insert(symbol, closures);
             }
         }
         Ok(flows)
@@ -421,7 +457,7 @@ impl<'a> Checker<'a> {
             FunctionForm::Explicit { body, .. } => match body {
                 FunctionBody::Absent => {}
                 FunctionBody::Expression { expression, .. } => {
-                    self.check_expression(expression, state, ExpressionUse::Consume)?;
+                    self.check_return_expression(expression, state, ExpressionUse::Consume)?;
                 }
                 FunctionBody::Block(body) => {
                     self.check_statement(body, state)?;
@@ -471,12 +507,14 @@ impl<'a> Checker<'a> {
             } => {
                 let errors = self.diagnostics.len();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(condition, body, errors)
+                let mut flows = self.check_maybe_loop(condition, body, errors)?;
+                self.release_dead_loop_closures(id, &mut flows);
+                Ok(flows)
             }
             Statement::For { source, body, .. } => {
-                let errors = self.diagnostics.len();
-                let source = self.check_expression(source, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(source, body, errors)
+                let mut flows = self.check_iteration(id, source, body, state)?;
+                self.release_dead_loop_closures(id, &mut flows);
+                Ok(flows)
             }
             Statement::Loop { body, .. } => {
                 let errors = self.diagnostics.len();
@@ -486,11 +524,13 @@ impl<'a> Checker<'a> {
                     self.check_loop_backedge(body_id, &body)?;
                 }
                 self.loop_has_exit.insert(id.index(), body.breaks.is_some());
-                Ok(Flows {
+                let mut flows = Flows {
                     next: body.breaks,
                     breaks: None,
                     continues: None,
-                })
+                };
+                self.release_dead_loop_closures(id, &mut flows);
+                Ok(flows)
             }
             Statement::Expression { expression } => {
                 self.check_expression(expression, state, ExpressionUse::Read)
@@ -609,17 +649,20 @@ impl<'a> Checker<'a> {
                 then_branch,
                 else_branch,
                 ..
-            } => self.check_if(id, condition, then_branch, else_branch, state),
+            } => self.check_if(id, condition, then_branch, else_branch, state, false),
             Expression::When {
                 subject, entries, ..
-            } => self.check_when(id, subject, &entries, state),
+            } => self.check_when(id, subject, &entries, state, false),
             Expression::Return { value, .. } => {
                 let mut flows = Flows::next(state);
-                if let Some(value) = value {
-                    if let Some(next) = flows.next.as_ref() {
-                        self.reject_borrowed_closure_escape(value, next)?;
-                    }
-                    flows = self.chain_expression(flows, value, ExpressionUse::Consume)?;
+                if let Some(value) = value
+                    && let Some(next) = flows.next.take()
+                {
+                    flows.merge(self.check_return_expression(
+                        value,
+                        next,
+                        ExpressionUse::Consume,
+                    )?);
                 }
                 flows.next = None;
                 Ok(flows)
@@ -674,6 +717,12 @@ impl<'a> Checker<'a> {
             | Expression::Propagate { value: operand, .. } => {
                 self.check_expression(operand, state, ExpressionUse::Read)
             }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::Elvis,
+                right,
+                ..
+            } => self.check_elvis(id, left, right, state, false),
             Expression::Binary { left, right, .. } => {
                 let flows = self.check_expression(left, state, ExpressionUse::Read)?;
                 self.chain_expression(flows, right, ExpressionUse::Read)
@@ -688,17 +737,37 @@ impl<'a> Checker<'a> {
                     return self.check_element_assignment(target, operator, value, state);
                 }
                 let diagnostic_count = self.diagnostics.len();
-                if self
+                let root = self
                     .place(target)?
-                    .is_some_and(|place| !place.fields().is_empty())
-                {
-                    self.reject_borrowed_closure_escape(value, &state)?;
+                    .filter(|place| place.is_root())
+                    .map(|place| place.root());
+                let mut state = state;
+                if let Some(root) = root {
+                    state.replacements.push(root);
                 }
-                let flows = self.check_expression(value, state, ExpressionUse::Consume)?;
+                // Inout storage belongs to the caller, so RHS capture loans cannot escape into it.
+                let mut flows = if self.place(target)?.is_some_and(|place| {
+                    !place.is_root()
+                        || self.typed.parameter_mode(place.root()) == Some(ParameterMode::Inout)
+                }) {
+                    self.check_return_expression(value, state, ExpressionUse::Consume)?
+                } else {
+                    self.check_expression(value, state, ExpressionUse::Consume)?
+                };
+                if root.is_some() {
+                    for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
+                        .into_iter()
+                        .flatten()
+                    {
+                        state.replacements.pop();
+                    }
+                }
                 self.finish_assignment(
                     flows,
+                    id,
                     target,
                     operator,
+                    value,
                     self.diagnostics.len() == diagnostic_count,
                 )
             }
@@ -757,7 +826,33 @@ impl<'a> Checker<'a> {
                         };
                         self.check_expression(expression, state, usage)?
                     }
-                    Some(CallReceiverOrigin::ImplicitThis(_)) => Flows::next(state),
+                    Some(CallReceiverOrigin::ImplicitThis(_)) => {
+                        if receiver.is_some_and(|receiver| receiver.mode() == ParameterMode::Inout)
+                            && self.current_receiver_mode != Some(ParameterMode::Inout)
+                        {
+                            self.diagnostics.push(Diagnostic::new(
+                                self.sources,
+                                Severity::Error,
+                                self.immutable_inout_code,
+                                "current this cannot supply an inout receiver",
+                                self.parsed.ast().expressions().get(id)?.span(),
+                            )?);
+                        } else if receiver.is_some_and(|receiver| {
+                            receiver.mode() == ParameterMode::Value
+                                && self.typed.copyability(receiver.ty())
+                                    == Some(Copyability::MoveOnly)
+                        }) && self.current_receiver_mode != Some(ParameterMode::Value)
+                        {
+                            self.diagnostics.push(Diagnostic::new(
+                                self.sources,
+                                Severity::Error,
+                                self.borrowed_move_code,
+                                "cannot move this from a non-owning receiver",
+                                self.parsed.ast().expressions().get(id)?.span(),
+                            )?);
+                        }
+                        Flows::next(state)
+                    }
                     None => self.check_expression(callee, state, ExpressionUse::Read)?,
                 };
                 if let (Some(receiver), Some(expression)) = (receiver, receiver_expression) {
@@ -775,6 +870,7 @@ impl<'a> Checker<'a> {
                         &mut flows,
                     )?;
                 }
+                self.hold_call_closures(id, receiver_expression.unwrap_or(callee), &mut flows)?;
                 let modes = self.calls_by_expression.get(&id.index()).cloned();
                 let cross_thread = self.cross_thread_by_expression.get(&id.index()).cloned();
                 let argument_expressions = arguments
@@ -793,14 +889,13 @@ impl<'a> Checker<'a> {
                         Some(ParameterMode::Borrow | ParameterMode::Inout) => ExpressionUse::Place,
                         None => ExpressionUse::Read,
                     };
-                    if mode == Some(ParameterMode::Value)
-                        && !crosses_thread
-                        && let Some(next) = flows.next.as_ref()
-                    {
-                        self.reject_borrowed_closure_escape(argument.value, next)?;
-                    }
                     let argument_diagnostics = self.diagnostics.len();
-                    flows = self.chain_expression(flows, argument.value, usage)?;
+                    flows = if mode == Some(ParameterMode::Value) && !crosses_thread {
+                        self.chain_escaping_expression(flows, argument.value, usage)?
+                    } else {
+                        self.chain_expression(flows, argument.value, usage)?
+                    };
+                    self.hold_call_closures(id, argument.value, &mut flows)?;
                     if crosses_thread
                         && self.diagnostics.len() == argument_diagnostics
                         && let Some(next) = flows.next.as_ref()
@@ -814,6 +909,7 @@ impl<'a> Checker<'a> {
                     }
                 }
                 self.end_call_loans(id, &mut flows);
+                self.finish_call_closures(id, &mut flows);
                 for expression in receiver_expression
                     .into_iter()
                     .chain(receiver.is_none().then_some(callee))
@@ -859,104 +955,6 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_if(
-        &mut self,
-        id: ExpressionId,
-        condition: ExpressionId,
-        then_branch: StatementId,
-        else_branch: Option<StatementId>,
-        state: State,
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-        let Some(base) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        let usage = self.control_result_usage(id);
-        let mut branches = self.check_control_body(then_branch, base.clone(), usage)?;
-        branches.merge(if let Some(else_branch) = else_branch {
-            self.check_control_body(else_branch, base, usage)?
-        } else {
-            Flows::next(base)
-        });
-        prefix.merge(branches);
-        Ok(prefix)
-    }
-
-    fn check_when(
-        &mut self,
-        id: ExpressionId,
-        subject: Option<ExpressionId>,
-        entries: &[crate::parser::WhenEntry],
-        state: State,
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let mut prefix = Flows::next(state);
-        if let Some(subject) = subject {
-            prefix = self.check_nullable_subject(id, subject, prefix)?;
-        }
-        let plan = self.typed.nullable_when(id).cloned();
-        self.begin_nullable_when(id)?;
-        if let Some(state) = prefix.next.as_mut() {
-            self.register_nullable_subject(id, state)?;
-        }
-        let mut remaining = prefix.next.take();
-        for (entry_index, entry) in entries.iter().enumerate() {
-            let descriptor = plan
-                .as_ref()
-                .and_then(|plan| plan.entries().get(entry_index));
-            let mut matched = None;
-            if entry.else_span.is_some() {
-                matched = remaining.take();
-            }
-            // Only the unmatched edge evaluates the next alternative or entry.
-            for (alternative_index, condition) in entry.conditions.iter().enumerate() {
-                let Some(mut input) = remaining.take() else {
-                    break;
-                };
-                self.enter_nullable_edge(id, entry_index, Some(alternative_index), &mut input);
-                let expression = match condition {
-                    WhenCondition::Expression(expression)
-                    | WhenCondition::Contains { expression, .. } => Some(*expression),
-                    WhenCondition::TypeTest { .. } => None,
-                };
-                let mut flows = if let Some(expression) = expression {
-                    self.check_expression(expression, input, ExpressionUse::Read)?
-                } else {
-                    Flows::next(input)
-                };
-                let mut next = flows.next.take();
-                if let Some(state) = next.as_mut() {
-                    self.enter_nullable_edge(id, entry_index, None, state);
-                }
-                prefix.merge(flows);
-                let alternative =
-                    descriptor.and_then(|entry| entry.alternatives().get(alternative_index));
-                if alternative.is_none_or(|alternative| !alternative.match_domain().is_empty()) {
-                    merge_optional_state(&mut matched, next.clone());
-                }
-                if alternative
-                    .is_none_or(|alternative| !alternative.fallthrough_domain().is_empty())
-                {
-                    remaining = next;
-                }
-            }
-            if let Some(mut matched) = matched {
-                self.enter_nullable_edge(id, entry_index, None, &mut matched);
-                let flows =
-                    self.check_control_body(entry.body, matched, self.control_result_usage(id))?;
-                self.finish_nullable_branch(id, entry_index, &flows);
-                prefix.merge(flows);
-            }
-        }
-        merge_optional_state(&mut prefix.next, remaining);
-        for state in [&mut prefix.next, &mut prefix.breaks, &mut prefix.continues]
-            .into_iter()
-            .flatten()
-        {
-            state.nullable_views.retain(|_, proof| proof.control != id);
-        }
-        Ok(prefix)
-    }
-
     fn chain_expression(
         &mut self,
         mut flows: Flows,
@@ -999,8 +997,10 @@ impl<'a> Checker<'a> {
     fn finish_assignment(
         &mut self,
         flows: Flows,
+        assignment: ExpressionId,
         target: ExpressionId,
         operator: AssignmentOperator,
+        value: ExpressionId,
         value_is_valid: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let target_node = self.parsed.ast().expressions().get(target)?;
@@ -1020,7 +1020,19 @@ impl<'a> Checker<'a> {
                 && operator == AssignmentOperator::Assign
                 && place.is_root()
             {
+                let origins = self.closure_origins(value, state)?;
+                // RHS has completed: replace the environment without ending a transferred loan.
+                self.release_closure_except(place.root(), state, &origins);
+                if let Some(source) = self.expression_root_symbol(value)? {
+                    state.closures.remove(&source);
+                }
+                if !origins.is_empty() {
+                    state.closures.insert(place.root(), origins);
+                }
                 state.moved.remove(&place.root());
+                if !self.expression_live_after[assignment.index()].contains(&place.root()) {
+                    self.release_closure(place.root(), state);
+                }
             }
             return Ok(flows);
         }
@@ -1222,10 +1234,36 @@ fn merge_state(target: &mut State, source: State) {
     target
         .nullable_views
         .retain(|symbol, proof| source.nullable_views.get(symbol) == Some(proof));
-    target.loans.retain(|loan| source.loans.contains(loan));
-    target
-        .closures
-        .retain(|symbol, closure| source.closures.get(symbol) == Some(closure));
+    // A loan active on either incoming edge can conflict after the join.
+    for loan in source.loans {
+        if !target.loans.contains(&loan) {
+            target.loans.push(loan);
+        }
+    }
+    for (symbol, origins) in source.closures {
+        let merged = target.closures.entry(symbol).or_default();
+        merged.extend(origins);
+        merged.sort_by_key(|origin| origin.index());
+        merged.dedup();
+    }
+    for (closure, origins) in source.closure_captures {
+        let merged = target.closure_captures.entry(closure).or_default();
+        merged.extend(origins);
+        merged.sort_by_key(|origin| origin.index());
+        merged.dedup();
+    }
+    for (call, origins) in source.pending_closures {
+        let merged = target.pending_closures.entry(call).or_default();
+        merged.extend(origins);
+        merged.sort_by_key(|origin| origin.index());
+        merged.dedup();
+    }
+    for (expression, origins) in source.closure_results {
+        let merged = target.closure_results.entry(expression).or_default();
+        merged.extend(origins);
+        merged.sort_by_key(|origin| origin.index());
+        merged.dedup();
+    }
     target
         .non_owning
         .retain(|symbol, origin| source.non_owning.get(symbol) == Some(origin));

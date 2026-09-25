@@ -251,7 +251,8 @@ fn construction_roots_transfer_or_drop_once_across_local_branch_loop_and_return_
             DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
             DropTarget::Temporary(_)
             | DropTarget::ReplacedElement(_)
-            | DropTarget::Captured { .. } => None,
+            | DropTarget::Captured { .. }
+            | DropTarget::RetainedSource(_) => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -420,6 +421,45 @@ fn nothing_operand_stops_later_delivery_and_never_establishes_a_root() {
         ),
         Ok("last")
     );
+}
+
+#[test]
+fn construction_value_inputs_remain_cleanup_obligations_until_delivery() {
+    let text = "class Holder(val first: String, val second: Int)
+                fun hold(flag: Boolean): Unit {
+                    val first = \"owned\"
+                    val holder = Holder(first, if (flag) { return } else { 1 })
+                }";
+    let (sources, parsed, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.drops().iter().any(|fact| {
+        matches!(fact.point(), DropPoint::ControlTransfer(_))
+            && matches!(fact.target(), DropTarget::Temporary(expression)
+                if sources.slice(parsed.ast().expressions().get(expression).unwrap().span()) == Ok("first"))
+    }));
+}
+
+#[test]
+fn conditional_construction_input_keeps_distinct_guarded_exit_owners() {
+    let text = "class Holder(val first: String, val second: Int)
+                fun hold(select: Boolean, early: Boolean): Unit {
+                    val holder = Holder(if (select) { \"a\" } else { \"b\" }, if (early) { return } else { 1 })
+                }";
+    let (sources, parsed, owned) = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let guarded = owned
+        .drops()
+        .iter()
+        .filter(|fact| {
+            matches!(fact.point(), DropPoint::ControlTransfer(_))
+                && matches!(fact.target(), DropTarget::Temporary(expression)
+                    if sources.slice(parsed.ast().expressions().get(expression).unwrap().span())
+                        .is_ok_and(|source| source.contains("if (select)")))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(guarded.len(), 2);
+    assert!(guarded.iter().all(|fact| fact.condition().is_some()));
+    assert_ne!(guarded[0].owner(), guarded[1].owner());
 }
 
 #[test]

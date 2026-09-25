@@ -510,7 +510,8 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
             DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
             DropTarget::Temporary(_)
             | DropTarget::ReplacedElement(_)
-            | DropTarget::Captured { .. } => None,
+            | DropTarget::Captured { .. }
+            | DropTarget::RetainedSource(_) => None,
         })
         .collect::<Vec<_>>();
     for expected in [

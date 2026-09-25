@@ -27,6 +27,21 @@ impl Checker<'_> {
             return Ok(flows);
         }
 
+        self.access_element_value(expression, usage, state)?;
+        Ok(flows)
+    }
+
+    /// 检查已完成求值的 element 交付，不重复 receiver/index 的副作用。
+    pub(super) fn access_element_value(
+        &mut self,
+        expression: ExpressionId,
+        usage: ExpressionUse,
+        state: &mut State,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(descriptor) = self.element_place_descriptor(expression)? else {
+            return Ok(());
+        };
+
         let move_only =
             self.typed.copyability(descriptor.element_type()) == Some(Copyability::MoveOnly);
         let primary = self.parsed.ast().expressions().get(expression)?.span();
@@ -37,7 +52,7 @@ impl Checker<'_> {
                 AccessKind::Read
             };
             if !self.access_place(&place, access, move_only, primary, state)? {
-                return Ok(flows);
+                return Ok(());
             }
         }
         if move_only {
@@ -59,7 +74,7 @@ impl Checker<'_> {
             }
             self.diagnostics.push(diagnostic);
         }
-        Ok(flows)
+        Ok(())
     }
 
     pub(super) fn check_element_assignment(
@@ -87,7 +102,8 @@ impl Checker<'_> {
                 state,
             )?;
         }
-        flows = self.chain_expression(flows, value, ExpressionUse::Consume)?;
+        // Element storage transfers ownership to the container, beyond a local capture's lifetime.
+        flows = self.chain_escaping_expression(flows, value, ExpressionUse::Consume)?;
         let Some(state) = flows.next.as_mut() else {
             return Ok(flows);
         };

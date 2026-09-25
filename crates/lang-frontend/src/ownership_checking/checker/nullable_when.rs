@@ -188,6 +188,7 @@ impl Checker<'_> {
                     let span = match fact.point() {
                         DropPoint::AfterExpression(id)
                         | DropPoint::AfterBinaryOperands(id)
+                        | DropPoint::CallEntry(id)
                         | DropPoint::CallReturn(id)
                         | DropPoint::ControlTransfer(id)
                         | DropPoint::AfterReplacement(id)
@@ -198,7 +199,7 @@ impl Checker<'_> {
                         DropPoint::AfterStatement(id) | DropPoint::LoopExit(id) => {
                             Some(self.parsed.ast().statements().get(id)?.span())
                         }
-                        DropPoint::FunctionEntry(_) => None,
+                        DropPoint::FunctionEntry(_) | DropPoint::LambdaEntry(_) => None,
                     };
                     if exact
                         || span.is_some_and(|span| {

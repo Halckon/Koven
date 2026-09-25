@@ -15,6 +15,13 @@ impl ExpressionLowerer<'_> {
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
         for fact in facts {
+            // Conditional cleanup needs its saved choice transported with the owner.
+            if fact.condition().is_some() {
+                return Err(error(
+                    LoweringErrorKind::UnsupportedNode,
+                    fact.value_origin(),
+                ));
+            }
             let owner = match fact.target() {
                 DropTarget::Named(symbol) => {
                     // Loop-exit facts include entry owners consumed on every actual exit.
@@ -52,6 +59,12 @@ impl ExpressionLowerer<'_> {
                 }
                 // The closure owner recursively drops its owned environment slots.
                 DropTarget::Captured { .. } => continue,
+                DropTarget::RetainedSource(_) => {
+                    return Err(error(
+                        LoweringErrorKind::UnsupportedNode,
+                        fact.value_origin(),
+                    ));
+                }
                 DropTarget::ReplacedElement(_) => {
                     return Err(error(
                         LoweringErrorKind::UnsupportedNode,

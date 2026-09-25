@@ -2,10 +2,12 @@
 
 mod capture;
 mod checker;
+mod cleanup_condition;
 mod compilation_unit;
 mod constant;
 mod construction;
 mod error;
+mod iteration;
 mod model;
 mod non_null_assertion;
 mod nullable_when;
@@ -16,6 +18,13 @@ use crate::{
     type_checking::TypedFile,
 };
 
+pub use cleanup_condition::{
+    CleanupCaptureEdge, CleanupCaptureInput, CleanupCaptureSlot, CleanupCaptureSlotId,
+    CleanupCaptureValue, CleanupCondition, CleanupConditionId, CleanupConditions,
+    CleanupInstanceAddress, CleanupInstanceAddressId, CleanupOwnerInput, CleanupOwnerSnapshot,
+    CleanupOwnerValue, CleanupOwnerValueId, CleanupSelection, CleanupSelector, CleanupSelectorCopy,
+    CleanupSelectorId, CleanupSelectorSource,
+};
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
     UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, UnitClosureCaptureDescriptor,
@@ -38,6 +47,14 @@ pub use construction::{
     ConstructionRootDropObligation, ConstructionRootKind,
 };
 pub use error::OwnershipCheckingError;
+pub use iteration::{
+    IterationCaptureGraph, IterationCaptureNode, IterationCaptureSource, IterationCleanupAction,
+    IterationClosureBinding, IterationClosureFlow, IterationClosurePhiBinding,
+    IterationClosurePhiOrigin, IterationClosurePhiSource, IterationExitKind, IterationExitPlan,
+    IterationOwnershipPlan, IterationPhiBoundary, IterationPhiCaptureSlot, IterationPhiIncoming,
+    IterationPhiIncomingBinding, IterationPhiIncomingEnvironment, IterationPhiIncomingKind,
+    IterationPhiIncomingOrigin, IterationPhiIncomingSource, IterationPhiIncomingValue,
+};
 pub use model::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,
     ClosureDescriptor, DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanEndFact,

@@ -5,7 +5,10 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
-    ownership_checking::{DropPoint, OwnershipCheckedFile},
+    ownership_checking::{
+        CleanupCaptureValue, CleanupCondition, ClosureCaptureEffect, ClosureCaptureMode, DropPoint,
+        OwnershipCheckedFile,
+    },
     parser::{ClassifierKind, FunctionBody, FunctionForm, Item, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{BuiltinType, CallableDescriptor, ParameterMode, TypeId, TypedFile},
@@ -104,6 +107,92 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
+    if let Some(root) =
+        owned.cleanup_steps().iter().find_map(|(_, action)| {
+            match action {
+            lang_frontend::ownership_checking::IterationCleanupAction::ReleaseClosureInstances {
+                root,
+                ..
+            } => Some(root),
+            _ => None,
+        }
+        })
+    {
+        return Err(error(
+            LoweringErrorKind::UnsupportedNode,
+            root.value_origin(),
+        ));
+    }
+    if let Some(selector) = owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            lang_frontend::ownership_checking::IterationCleanupAction::TestLastCaptureLoan {
+                selector,
+                ..
+            } => Some(*selector),
+            _ => None,
+        })
+    {
+        return Err(error(
+            LoweringErrorKind::UnsupportedNode,
+            owned
+                .cleanup_conditions()
+                .selector(selector)
+                .expect("published last-loan selector")
+                .origin(),
+        ));
+    }
+    // The narrow String move-closure bridge reads a current symbol directly. It cannot
+    // execute a guarded source choice or read an earlier enclosing environment instance.
+    if let Some(origin) = owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            lang_frontend::ownership_checking::IterationCleanupAction::SaveClosureCapture {
+                input,
+                ..
+            } if input.mode() == ClosureCaptureMode::Owned
+                && input.effect() == ClosureCaptureEffect::Move
+                && (!matches!(input.value(), CleanupCaptureValue::Owner(_))
+                    || !matches!(
+                        owned.cleanup_conditions().get(input.condition()),
+                        Some(CleanupCondition::Always)
+                    )) =>
+            {
+                Some(input.origin())
+            }
+            _ => None,
+        })
+    {
+        return Err(error(LoweringErrorKind::UnsupportedNode, origin));
+    }
+    if let Some(origin) = owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            lang_frontend::ownership_checking::IterationCleanupAction::SaveOwnerSnapshot {
+                owner,
+                ..
+            } => Some(
+                owned
+                    .cleanup_conditions()
+                    .owner_snapshot(*owner)
+                    .expect("published snapshot identity")
+                    .origin(),
+            ),
+            _ => None,
+        })
+    {
+        return Err(error(LoweringErrorKind::UnsupportedNode, origin));
+    }
+    // Saved owner choices have no SSA carrier yet; reject before planning any bindings.
+    if let Some(fact) = owned.drops().iter().find(|fact| fact.condition().is_some()) {
+        return Err(error(
+            LoweringErrorKind::UnsupportedNode,
+            fact.value_origin(),
+        ));
+    }
     let file_anchor = sources
         .span(parsed.source_id(), 0, 0)
         .map_err(|_| LoweringError {

@@ -35,6 +35,54 @@ move closure 可以绑定、return、写入字段或交给 Value 参数。v1 的
 显式/隐式 `this` 或字段；需要先把所需字段复制/移动到 local，再捕获该 local，否则产生 L0138。
 这是现行限制；普通 shared `this` capture 不受影响。
 
+### 捕获方式的选择
+
+两种闭包不是强弱或性能关系，而是两份不同的所有权契约。选择取决于两件事：闭包的 loan 是否
+会活过当前作用域或调用，以及捕获值是否跨越线程边界。
+
+普通闭包用于**立即消费**：callee 在同步调用内用完闭包，loan 不超出当前 callable。
+
+```kotlin
+fun applyTwice(f: (Int) -> Int, x: Int): Int = f(f(x))
+
+fun demo(): Int {
+    val scale = 3
+    return applyTwice({ n -> n * scale }, 7)   // 只读捕获；scale 仍可继续使用
+}
+```
+
+顺序容器运行时长度构造的 `initializer` 参数契约是 `(Int) -> T`，同样只接受立即消费的闭包：
+
+```kotlin
+fun makeSquares(): List<Int> = List<Int>(4, { index -> index * index })
+```
+
+普通闭包形成 shared loan 后，源 owner 在该 loan 存活期间不能被移动或析构（L0135）；捕获名称
+在 lambda 内也不能赋值或按值移出 MoveOnly 值。它仍可绑定与移动，但**不能** return、写入
+字段、交给 `Value` 参数或被 escaping move closure 捕获；这些位置产生 L0137。
+
+```kotlin
+// 错误：借用捕获随闭包逃出 defining callable，L0137
+fun makeMatcher(label: String): () -> Boolean = { label == "report" }
+
+// 正确：需要逃逸时改用 move；捕获源须是 owning binding，因此参数声明为 own
+fun makeMatcher(own label: String): () -> Boolean = move { label == "report" }
+```
+
+move closure 只用于必须把捕获值所有权搬离当前位置的场合：逃逸、跨线程，或把独占资源交给
+延迟执行。捕获 `Copyable` 值时 move 只产生快照，与普通闭包在可观察语义上没有区别；无捕获的
+普通 lambda 没有 loan，可按普通函数值使用。因此 move 不应作为默认写法。
+
+函数类型的 `move` 前缀表达的是对该函数值不含借用捕获的约束：跨线程入口的
+`move (...) -> T` 参数以此限制实参，而不是给闭包值本身打标签。
+
+| 场合 | 捕获方式 | 关键约束 |
+|---|---|---|
+| 同步调用、立即消费 | 普通闭包 | 源变量保持可用；loan 结束后才可移动 / 析构源 |
+| 闭包逃逸（return、写字段、交给 `Value` 参数） | move | 普通闭包逃逸产生 L0137 |
+| 跨线程入口（如 `thread`、`Sender.send`） | move | 入口参数契约为 `move (...) -> T`；每个 owned capture 须满足 `Transferable`，否则 L0139 |
+| 捕获 `String`、顺序容器等 MoveOnly 值并逃逸 | move | 捕获源须是 owned、available binding，否则 L0138 |
+
 ### `Transferable` 与跨线程 Effect
 
 `Transferable` 使用与 `Copyable` 相同的四态查询（满足、不满足、Unknown、Error），但两种

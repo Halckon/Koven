@@ -302,11 +302,7 @@ fn default_and_move_lambdas_publish_borrow_copy_and_move_facts() {
         Transferability::Transferable
     );
     assert!(owned.drops().iter().any(|drop| {
-        drop.target()
-            == DropTarget::Captured {
-                closure: lambdas[1],
-                source: ClosureCaptureSource::Symbol(resource),
-            }
+        matches!(drop.target(), DropTarget::Captured { closure, source: ClosureCaptureSource::Symbol(symbol), .. } if closure == lambdas[1] && symbol == resource)
     }));
     assert!(
         !owned
@@ -416,7 +412,7 @@ fn nested_capture_uses_symbol_identity_and_shadowing_does_not_capture() {
 #[test]
 fn unqualified_field_reference_normalizes_to_this_capture() {
     let text = "class Counter(val count: Int) {\n\
-                    fun reader(): () -> Unit = { val result = count }\n\
+                    fun reader() { val closure: () -> Unit = { val result = count } }\n\
                 }";
     let (_, parsed, _, _, owned) = checked(text);
     let lambda = lambdas(&parsed)[0];
@@ -424,6 +420,9 @@ fn unqualified_field_reference_normalizes_to_this_capture() {
     assert_eq!(captures.len(), 1);
     assert_eq!(captures[0].source(), ClosureCaptureSource::This);
     assert_eq!(captures[0].mode(), ClosureCaptureMode::Shared);
+    let escaping =
+        "class Counter(val count: Int) { fun reader(): () -> Unit = { val result = count } }";
+    assert_eq!(codes(&analyzed(escaping).4), ["L0137"]);
 }
 
 #[test]
@@ -502,6 +501,52 @@ fn move_capture_consumes_owner_and_rejects_borrowed_or_this_sources() {
                         fun invalid(): move () -> Unit = move { val read = count }\n\
                     }";
     assert_eq!(codes(&analyzed(receiver).4), ["L0138"]);
+}
+
+#[test]
+fn shared_capture_cannot_supply_an_exclusive_inout_receiver() {
+    let (_, _, _, _, owned) = analyzed(
+        "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: () -> Unit = { cell.set() } }",
+    );
+    assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
+    assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+
+    let (_, _, _, _, owned) = analyzed(
+        "fun mutate(inout n: Int): Unit { n = 1 }\nfun run(): Unit { var n = 0\nval f: () -> Unit = { mutate(&n) } }",
+    );
+    assert_eq!(owned.diagnostics().len(), 1, "{:?}", owned.diagnostics());
+    assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+
+    let (_, _, _, _, owned) = analyzed(
+        "class Cell(var n: Int) { inout fun set(): Unit { n = 1 } }\nfun run(): Unit { val cell = Cell(0)\nval f: move () -> Unit = move { cell.set() } }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn implicit_member_call_captures_this_instead_of_creating_a_capture_free_closure() {
+    let (_, _, _, _, owned) = checked(
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun keep(): Unit { val f: () -> Unit = { val x = read() } } }",
+    );
+    assert!(owned.captures().iter().any(|capture| {
+        capture.source() == ClosureCaptureSource::This
+            && capture.mode() == ClosureCaptureMode::Shared
+    }));
+
+    let (_, _, _, _, owned) = analyzed(
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Unit = { val x = read() } }",
+    );
+    assert_eq!(codes(&owned), ["L0137"]);
+
+    let (_, _, _, _, owned) = analyzed(
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun bad(): Unit { val f: move () -> Unit = move { val x = read() } } }",
+    );
+    assert_eq!(codes(&owned), ["L0138"]);
+
+    let (_, _, _, _, owned) = analyzed(
+        "class Resource { own fun consume(): Unit {}\nown fun bad(): Unit { val f: () -> Unit = { consume() } } }",
+    );
+    assert_eq!(codes(&owned), ["L0133"]);
 }
 
 #[test]

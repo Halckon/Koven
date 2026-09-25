@@ -4,8 +4,8 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::SymbolId,
     parser::{
-        AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart,
-        WhenCondition,
+        AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
+        Statement, StringPart, WhenCondition,
     },
     type_checking::{DestructuringMode, ParameterMode},
 };
@@ -21,6 +21,8 @@ pub(super) struct Liveness<'a, 'checker> {
     loop_stack: Vec<(LiveSet, LiveSet)>,
     pub(super) skipped_functions: BTreeSet<usize>,
     pub(super) function_live_in: BTreeMap<usize, LiveSet>,
+    pub(super) lambda_live_in: BTreeMap<usize, LiveSet>,
+    pub(super) skipped_lambdas: BTreeSet<usize>,
     saw_drop_deferred: bool,
 }
 
@@ -33,6 +35,8 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
             loop_stack: Vec::new(),
             skipped_functions: BTreeSet::new(),
             function_live_in: BTreeMap::new(),
+            lambda_live_in: BTreeMap::new(),
+            skipped_lambdas: BTreeSet::new(),
             saw_drop_deferred: false,
         };
         for &root in checker.parsed.roots() {
@@ -162,12 +166,17 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 }
             }
             Statement::For { source, body, .. } => {
-                let mut header = live_after.clone();
+                // The hidden provider reads its source again on every backedge.
+                let mut provider_live = live_after.clone();
+                if let Some(place) = self.checker.place(source)? {
+                    provider_live.insert(place.root());
+                }
+                let mut header = provider_live.clone();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
                     let body_in = self.statement(body, header.clone())?;
                     self.loop_stack.pop();
-                    let mut next = live_after.clone();
+                    let mut next = provider_live.clone();
                     next.extend(body_in);
                     if next == header {
                         return self.expression(source, ExpressionUse::Read, next);
@@ -259,7 +268,17 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 }
                 Ok(live)
             }
-            Expression::Lambda { .. } => {
+            Expression::Lambda { body, .. } => {
+                // Lambda 的跳转与 deferred 状态不能污染创建它的 callable。
+                let loops = std::mem::take(&mut self.loop_stack);
+                let deferred = std::mem::replace(&mut self.saw_drop_deferred, false);
+                let body_live = self.statement(body, LiveSet::new())?;
+                self.lambda_live_in.insert(id.index(), body_live);
+                if self.saw_drop_deferred {
+                    self.skipped_lambdas.insert(id.index());
+                }
+                self.loop_stack = loops;
+                self.saw_drop_deferred = deferred;
                 let mut live = live_after;
                 for capture in self.checker.captures_of(id) {
                     if let super::super::super::ClosureCaptureSource::Symbol(symbol) =
@@ -356,6 +375,22 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
             }
             | Expression::Propagate { value: operand, .. } => {
                 self.expression(operand, ExpressionUse::Read, live_after)
+            }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::Elvis,
+                right,
+                ..
+            } => {
+                let mut live = self.expression(
+                    right,
+                    self.checker.control_result_usage(id),
+                    live_after.clone(),
+                )?;
+                if !self.checker.is_only_null(left) {
+                    live.extend(live_after);
+                }
+                self.expression(left, ExpressionUse::Place, live)
             }
             Expression::Binary { left, right, .. } => {
                 let live = self.expression(right, ExpressionUse::Read, live_after)?;

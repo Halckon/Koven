@@ -1501,6 +1501,22 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 
+    let elvis = analyze("fun choose(input: Int?): Int = input ?: 0");
+    assert!(elvis.typed.diagnostics().is_empty());
+    assert!(elvis.owned.diagnostics().is_empty());
+    assert!(elvis.owned.deferred().is_empty());
+    let error = lower_scalar_file(
+        &elvis.sources,
+        &elvis.parsed,
+        &elvis.names,
+        &elvis.typed,
+        &elvis.owned,
+    )
+    .err()
+    .expect("Elvis has valid frontend facts but remains outside native lowering");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert!(error.span.is_some());
+
     let invalid_jump = analyze("fun invalid(): Unit { break }");
     assert_eq!(invalid_jump.typed.diagnostics().len(), 1);
     assert_eq!(
@@ -1520,6 +1536,8 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
 
     let for_loop = analyze("fun iterate(): Unit { for (item in listOf(1)) {} }");
     assert!(for_loop.typed.diagnostics().is_empty());
+    assert!(for_loop.owned.diagnostics().is_empty());
+    assert_eq!(for_loop.owned.iterations().len(), 1);
     let error = lower_scalar_file(
         &for_loop.sources,
         &for_loop.parsed,
@@ -1528,7 +1546,7 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
         &for_loop.owned,
     )
     .err()
-    .expect("for lowering must wait for iterable and binding typed facts");
+    .expect("for native lowering is not implemented by the scalar consumer");
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     assert!(error.span.is_some());
 
@@ -1745,3 +1763,133 @@ fn non_null_assertion_does_not_register_unreachable_inline_types() {
 
 #[path = "constant_lowering_tests.rs"]
 mod constant_lowering_tests;
+
+#[test]
+fn rejects_produced_guarded_cleanup_before_lowering_bindings() {
+    let analysis = analyze(
+        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, own ys: List<Int>, flag: Boolean) { val f: () -> Unit = if (flag) ({ read(xs) }) else ({ read(ys) })\nval used = f() }",
+    );
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    assert!(
+        analysis
+            .owned
+            .drops()
+            .iter()
+            .any(|fact| fact.condition().is_some()),
+        "frontend must produce real guarded cleanup"
+    );
+    let first = analysis
+        .owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            lang_frontend::ownership_checking::IterationCleanupAction::SaveOwnerSnapshot {
+                owner,
+                ..
+            } => analysis.owned.cleanup_conditions().owner_snapshot(*owner),
+            _ => None,
+        })
+        .expect("frontend must publish the saved owner choices");
+    let error = match lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("saved choices require an explicit SSA carrier"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(first.origin()));
+}
+
+#[test]
+fn rejects_conditional_capture_instance_before_narrow_closure_lowering() {
+    use lang_frontend::ownership_checking::{CleanupCondition, IterationCleanupAction};
+
+    let analysis = analyze(
+        "fun run(flag: Boolean) { val text = \"x\"\nif (flag) { val action: move () -> Unit = move { println(text) }\nval used = action() } }",
+    );
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let input = analysis
+        .owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            IterationCleanupAction::SaveClosureCapture { input, .. }
+                if !matches!(
+                    analysis.owned.cleanup_conditions().get(input.condition()),
+                    Some(CleanupCondition::Always)
+                ) =>
+            {
+                Some(*input)
+            }
+            _ => None,
+        })
+        .expect("the branch must publish a guarded capture instance");
+    let error = match lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("the narrow native bridge cannot select a dynamic capture source"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(input.origin()));
+}
+
+#[test]
+fn rejects_loop_carried_last_capture_loan_before_lowering_bindings() {
+    let analysis = analyze(
+        "fun read(xs: List<Int>) {}\nfun run(flags: List<Boolean>) {
+            var f: () -> Unit = {}
+            var g: () -> Unit = {}
+            for (_ in flags) {
+                val xs = listOf(1)
+                { f = ({ read(xs) }) }
+                { g = ({ read(xs) }) }
+                break
+            }
+            val first = f()
+            val second = g()
+        }",
+    );
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    assert!(analysis.owned.cleanup_steps().iter().any(|(_, action)| matches!(
+        action,
+        lang_frontend::ownership_checking::IterationCleanupAction::TestLastCaptureLoan { .. }
+    )));
+    let error = match lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("last capture loan needs an executable runtime selector"),
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(
+        analysis.sources.slice(error.span.unwrap()).unwrap(),
+        "xs",
+        "native must reject the unavailable runtime last-loan choice"
+    );
+}

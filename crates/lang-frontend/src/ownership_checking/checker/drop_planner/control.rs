@@ -19,7 +19,7 @@ impl DropPlanner<'_, '_> {
             .payload()
             .clone();
         let elements = match payload {
-            Statement::ControlBody { elements } => elements,
+            Statement::ControlBody { elements } | Statement::LambdaBody { elements } => elements,
             Statement::Expression { expression } => {
                 return if usage == ExpressionUse::Read {
                     self.statement(id, state)

@@ -1287,6 +1287,159 @@ fn member_body_rejects_receiver_capability_escalation_and_use_after_move() {
 }
 
 #[test]
+fn explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver() {
+    for (mode, expected) in [
+        ("borrow", vec!["L0134"]),
+        ("own", vec!["L0134"]),
+        ("inout", vec![]),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "class Cell(var n: Int) {{ inout fun set(): Unit {{ n = 1 }} }}\nclass Holder(val cell: Cell) {{ {mode} fun test(): Unit {{ this.cell.set() }} }}"
+        );
+        let (source, parsed) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert_eq!(diagnostic_codes(&ownership), expected, "{mode}");
+    }
+}
+
+#[test]
+fn implicit_member_call_in_lambda_captures_this_in_unit_product() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun keep(): Unit { val f: () -> Int = { read() } } }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert!(
+        ownership
+            .captures()
+            .iter()
+            .any(|capture| capture.source() == UnitClosureCaptureSource::This)
+    );
+
+    let mut escape_sources = SourceMap::new();
+    let (escape_source, escape_parsed) = self::parsed(
+        &mut escape_sources,
+        "escape.ko",
+        "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Int = { read() } }",
+    );
+    let escape_inputs = [SourceUnitInput::new(
+        "root",
+        "escape.ko",
+        escape_source,
+        &escape_parsed,
+    )];
+    let escape_names = validated_names(&escape_sources, &escape_inputs, &name_environment);
+    let escape_typed = validated_types(
+        &escape_sources,
+        &escape_inputs,
+        &escape_names,
+        &type_environment,
+    );
+    let escape_ownership = check_compilation_unit_ownership(
+        &escape_sources,
+        &escape_inputs,
+        &escape_names,
+        &type_environment,
+        &escape_typed,
+    )
+    .expect("ownership product");
+    assert_eq!(diagnostic_codes(&escape_ownership), ["L0137"]);
+
+    let mut sources = SourceMap::new();
+    let (source, parsed) = self::parsed(
+        &mut sources,
+        "main.ko",
+        "class Resource { own fun consume(): Unit {}\nown fun bad(): Unit { val f: () -> Unit = { consume() } } }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert_eq!(diagnostic_codes(&ownership), ["L0133"]);
+}
+
+#[test]
+fn static_self_value_call_cannot_move_a_shared_this_capture() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface I { own fun consume(): Unit {}\nown fun bad(): Unit { val f: () -> Unit = { consume() } } }\nclass Resource: I {}",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert_eq!(diagnostic_codes(&ownership), ["L0133"]);
+    assert!(ownership.conditional_receiver_deliveries().is_empty());
+}
+
+#[test]
+fn conditional_expression_body_rejects_borrowed_closure_escape() {
+    for body in [
+        "= if (flag) ({ read(x) }) else ({})",
+        "= when (flag) { true -> ({ read(x) })\nelse -> ({}) }",
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "fun read(x: Int): Unit {{}}\nfun leak(flag: Boolean, x: Int): () -> Unit {body}"
+        );
+        let (source, parsed) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("ownership product");
+        assert_eq!(diagnostic_codes(&ownership), ["L0137"], "{body}");
+    }
+}
+
+#[test]
+fn elvis_expression_body_rejects_borrowed_closure_escape() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "main.ko",
+        "val none: Nothing? = null\nfun read(xs: List<Int>): Unit {}\nfun leak(xs: List<Int>): () -> Unit = none ?: ({ read(xs) })",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &parsed)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("ownership product");
+    assert_eq!(diagnostic_codes(&ownership), ["L0137"]);
+}
+
+#[test]
 fn shared_this_capture_rejects_moved_outer_and_move_from_capture() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
@@ -1308,7 +1461,7 @@ fn shared_this_capture_rejects_moved_outer_and_move_from_capture() {
         check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
             .expect("recovery ownership product");
 
-    assert_eq!(diagnostic_codes(&ownership), ["L0131", "L0133"]);
+    assert_eq!(diagnostic_codes(&ownership), ["L0131", "L0137", "L0133"]);
     assert!(ownership.captures().is_empty());
     assert!(ownership.receiver_facts().is_empty());
     assert!(ownership.loans().is_empty());
@@ -2636,9 +2789,9 @@ fn closure_capture_inputs_use_unit_identity_types_and_stable_transferability() {
              val empty: () -> Unit = {}\n\
          }\n\
          class Holder(val resource: Resource) {\n\
-             fun closure(): () -> Unit = {\n\
+             fun closure(): Unit { val f: () -> Unit = {\n\
                  val captured = inspect(resource)\n\
-             }\n\
+             } }\n\
          }",
     );
     let inputs = [

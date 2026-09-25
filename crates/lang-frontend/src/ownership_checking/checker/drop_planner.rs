@@ -1,8 +1,16 @@
 use std::collections::BTreeMap;
 
+mod capture;
+mod conditional;
 mod control;
+mod elvis;
+mod iteration;
+mod lambda;
 mod liveness;
+mod origins;
 mod pending_call;
+mod snapshot;
+mod source_owner;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -20,18 +28,32 @@ use crate::{
 
 use crate::ownership_checking::{
     ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropFact, DropPoint,
-    DropTarget, LoanEndFact, LoanEndPoint, LoanTarget,
+    DropTarget, IterationCleanupAction, IterationExitKind, IterationExitPlan,
+    IterationOwnershipPlan, LoanEndFact, LoanEndPoint, LoanTarget, OwnershipDeferredFact,
+    OwnershipDeferredReason,
 };
 
 use super::{Checker, ExpressionUse, OwnershipCheckingError};
 
+use self::conditional::ClosureOrigin;
 use self::liveness::Liveness;
+use self::source_owner::OwnerVersion;
+use crate::ownership_checking::{CleanupConditionId, CleanupConditions};
 
-pub(super) fn plan(
-    checker: &Checker<'_>,
-) -> Result<(Vec<DropFact>, Vec<LoanEndFact>), OwnershipCheckingError> {
+#[derive(Default)]
+pub(super) struct DropPlan {
+    pub(super) cleanup_steps: Vec<(DropPoint, IterationCleanupAction)>,
+    pub(super) cleanup_conditions: crate::ownership_checking::CleanupConditions,
+    pub(super) drops: Vec<DropFact>,
+    pub(super) loan_ends: Vec<LoanEndFact>,
+    pub(super) iterations: Vec<IterationOwnershipPlan>,
+    pub(super) deferred: Vec<OwnershipDeferredFact>,
+}
+
+pub(super) fn plan(checker: &Checker<'_>) -> Result<DropPlan, OwnershipCheckingError> {
     let liveness = Liveness::build(checker)?;
-    DropPlanner::new(checker, liveness).run()
+    let (origins, captures) = origins::analyze(checker)?;
+    DropPlanner::new(checker, liveness, origins, captures).run()
 }
 
 pub(super) struct CaptureLiveness {
@@ -49,15 +71,28 @@ pub(super) fn capture_liveness(
     })
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct OwnedValue {
+    versions: Vec<OwnerVersion>,
+    condition: CleanupConditionId,
     symbol: SymbolId,
     origin: Span,
     scope_depth: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RetainedSource {
+    statement: StatementId,
+    owner: crate::ownership_checking::CleanupOwnerValueId,
+    symbol: SymbolId,
+    condition: CleanupConditionId,
+    origin: Span,
+}
+
 #[derive(Clone, Debug)]
 struct NullableTemporary {
+    versions: Vec<OwnerVersion>,
+    closures: Vec<ClosureOrigin>,
     transfers_at_call: bool,
     control: ExpressionId,
     subject: ExpressionId,
@@ -68,10 +103,16 @@ struct NullableTemporary {
 
 #[derive(Clone, Debug, Default)]
 struct ValueState {
+    replacements: Vec<SymbolId>,
+    iterations: Vec<iteration::IterationFrame>,
     nullable_temporaries: Vec<NullableTemporary>,
     pending_calls: Vec<pending_call::PendingCall>,
     values: Vec<OwnedValue>,
-    closures: BTreeMap<SymbolId, ExpressionId>,
+    retained_sources: Vec<RetainedSource>,
+    closures: BTreeMap<SymbolId, Vec<ClosureOrigin>>,
+    result_closures: Vec<ClosureOrigin>,
+    result_owners: Vec<OwnerVersion>,
+    path: CleanupConditionId,
 }
 
 impl ValueState {
@@ -95,9 +136,23 @@ impl ValueState {
 }
 
 struct DropPlanner<'a, 'checker> {
+    loop_origins: BTreeMap<usize, crate::ownership_checking::IterationClosureFlow>,
+    captured_origins: origins::CapturedOrigins,
+    recursive_capture_phi: Option<ExpressionId>,
+    enclosing_capture_phi: Option<ExpressionId>,
+    coexisting_capture_phi: Option<ExpressionId>,
+    conditional_nested_phi: Option<ExpressionId>,
+    temporary_backing_owners: BTreeMap<usize, crate::ownership_checking::CleanupOwnerValueId>,
+    loop_capture_graphs: BTreeMap<usize, crate::ownership_checking::IterationCaptureGraph>,
+    loop_phis: BTreeMap<usize, Vec<crate::ownership_checking::IterationClosurePhiBinding>>,
+    loop_phi_incomings: BTreeMap<usize, Vec<crate::ownership_checking::IterationPhiIncoming>>,
+    current_environment: Option<(crate::ownership_checking::CleanupOwnerValueId, ExpressionId)>,
     checker: &'a Checker<'checker>,
     liveness: Liveness<'a, 'checker>,
+    conditions: CleanupConditions,
     facts: Vec<DropFact>,
+    cleanup: Vec<(DropPoint, IterationCleanupAction)>,
+    iteration_exits: Vec<(StatementId, IterationExitKind, DropPoint)>,
     loan_ends: Vec<LoanEndFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
@@ -105,11 +160,43 @@ struct DropPlanner<'a, 'checker> {
 }
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
-    fn new(checker: &'a Checker<'checker>, liveness: Liveness<'a, 'checker>) -> Self {
+    fn owner_protected_by_context(&self, symbol: SymbolId, state: &ValueState) -> bool {
+        state
+            .iterations
+            .iter()
+            .any(|frame| frame.source_root == Some(symbol))
+            || state.pending_calls.iter().any(|call| {
+                call.callees.contains(&symbol)
+                    || call.loans.iter().any(|loan| {
+                        matches!(loan.target(), LoanTarget::Place(place) if place.root() == symbol)
+                    })
+            })
+    }
+
+    fn new(
+        checker: &'a Checker<'checker>,
+        liveness: Liveness<'a, 'checker>,
+        loop_origins: BTreeMap<usize, crate::ownership_checking::IterationClosureFlow>,
+        captured_origins: origins::CapturedOrigins,
+    ) -> Self {
         Self {
+            loop_origins,
+            captured_origins,
+            recursive_capture_phi: None,
+            enclosing_capture_phi: None,
+            coexisting_capture_phi: None,
+            conditional_nested_phi: None,
+            temporary_backing_owners: BTreeMap::new(),
+            loop_capture_graphs: BTreeMap::new(),
+            loop_phis: BTreeMap::new(),
+            loop_phi_incomings: BTreeMap::new(),
+            current_environment: None,
             checker,
             liveness,
+            conditions: CleanupConditions::default(),
             facts: Vec::new(),
+            cleanup: Vec::new(),
+            iteration_exits: Vec::new(),
             loan_ends: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
@@ -117,11 +204,52 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn run(mut self) -> Result<(Vec<DropFact>, Vec<LoanEndFact>), OwnershipCheckingError> {
+    fn run(mut self) -> Result<DropPlan, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
         }
-        Ok((self.facts, self.loan_ends))
+        if let Some((expression, reason)) = self
+            .recursive_capture_phi
+            .map(|expression| (expression, OwnershipDeferredReason::RecursiveClosureCapture))
+            .or_else(|| {
+                self.enclosing_capture_phi.map(|expression| {
+                    (
+                        expression,
+                        OwnershipDeferredReason::EnclosingEnvironmentCapture,
+                    )
+                })
+            })
+            .or_else(|| {
+                self.coexisting_capture_phi.map(|expression| {
+                    (
+                        expression,
+                        OwnershipDeferredReason::AmbiguousClosureInstanceTransport,
+                    )
+                })
+            })
+            .or_else(|| {
+                self.conditional_nested_phi.map(|expression| {
+                    (
+                        expression,
+                        OwnershipDeferredReason::AmbiguousClosureInstanceTransport,
+                    )
+                })
+            })
+        {
+            return Ok(DropPlan {
+                deferred: vec![OwnershipDeferredFact::new(expression, reason)],
+                ..DropPlan::default()
+            });
+        }
+        let iterations = self.iteration_plans();
+        Ok(DropPlan {
+            cleanup_steps: self.cleanup,
+            cleanup_conditions: self.conditions,
+            drops: self.facts,
+            loan_ends: self.loan_ends,
+            iterations,
+            deferred: Vec::new(),
+        })
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
@@ -140,6 +268,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     {
                         self.binding_depths.insert(symbol, 0);
                         state.insert(OwnedValue {
+                            versions: vec![
+                                self.parameter_owner(symbol, marker_span(parameter.name)),
+                            ],
+                            condition: state.path,
                             symbol,
                             origin: marker_span(parameter.name),
                             scope_depth: 0,
@@ -174,18 +306,21 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 match form {
                     FunctionForm::ImplicitUnitAbsent => {}
                     FunctionForm::ImplicitUnitBlock(body) => {
-                        self.statement(body, &mut state)?;
-                        self.drop_all(DropPoint::AfterStatement(body), &mut state);
+                        if self.statement(body, &mut state)? {
+                            self.drop_all(DropPoint::AfterStatement(body), &mut state);
+                        }
                     }
                     FunctionForm::Explicit { body, .. } => match body {
                         FunctionBody::Absent => {}
                         FunctionBody::Expression { expression, .. } => {
-                            self.expression(expression, ExpressionUse::Consume, &mut state)?;
-                            self.drop_all(DropPoint::ControlTransfer(expression), &mut state);
+                            if self.expression(expression, ExpressionUse::Consume, &mut state)? {
+                                self.drop_all(DropPoint::ControlTransfer(expression), &mut state);
+                            }
                         }
                         FunctionBody::Block(body) => {
-                            self.statement(body, &mut state)?;
-                            self.drop_all(DropPoint::AfterStatement(body), &mut state);
+                            if self.statement(body, &mut state)? {
+                                self.drop_all(DropPoint::AfterStatement(body), &mut state);
+                            }
                         }
                     },
                 }
@@ -251,22 +386,27 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 else {
                     return Ok(true);
                 };
-                let closure = self.closure_origin(initializer, state)?;
                 if !self.expression(initializer, ExpressionUse::Consume, state)? {
                     return Ok(false);
                 }
+                let snapshot = self.save_result_snapshot(initializer, state)?;
+                let closures = std::mem::take(&mut state.result_closures);
                 if let Some(symbol) = self.checker.marker_symbol(name)
                     && self.checker.is_move_only_variable(symbol)
                 {
                     self.binding_depths.insert(symbol, self.scope_depth);
+                    let versions = self.bind_result_owners(marker_span(name), state);
                     state.insert(OwnedValue {
+                        versions,
+                        condition: state.path,
                         symbol,
                         origin: marker_span(name),
                         scope_depth: self.scope_depth,
                     });
-                    if let Some(closure) = closure {
-                        state.closures.insert(symbol, closure);
+                    if !closures.is_empty() {
+                        state.closures.insert(symbol, closures);
                     }
+                    self.commit_snapshot(snapshot, initializer, symbol);
                     if !self.liveness.statement_after[id.index()].contains(&symbol) {
                         self.drop_named(DropPoint::AfterStatement(id), symbol, state);
                     }
@@ -293,6 +433,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             self.binding_depths.insert(symbol, self.scope_depth);
                             let origin = self.checker.names.symbols()[symbol.index()].span();
                             state.insert(OwnedValue {
+                                versions: vec![
+                                    self.component_owner(id, symbol, origin, state.path),
+                                ],
+                                condition: state.path,
                                 symbol,
                                 origin,
                                 scope_depth: self.scope_depth,
@@ -326,7 +470,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             Statement::While {
                 condition, body, ..
             } => {
-                self.expression(condition, ExpressionUse::Read, state)?;
+                if !self.expression(condition, ExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 let mut body_state = state.clone();
                 self.loop_boundaries.push(self.scope_depth);
                 self.statement(body, &mut body_state)?;
@@ -334,15 +480,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.drop_loop_exit(id, state);
                 Ok(true)
             }
-            Statement::For { source, body, .. } => {
-                self.expression(source, ExpressionUse::Read, state)?;
-                let mut body_state = state.clone();
-                self.loop_boundaries.push(self.scope_depth);
-                self.statement(body, &mut body_state)?;
-                self.loop_boundaries.pop();
-                self.drop_loop_exit(id, state);
-                Ok(true)
-            }
+            Statement::For { source, body, .. } => self.iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let mut body_state = state.clone();
                 self.loop_boundaries.push(self.scope_depth);
@@ -362,7 +500,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn expression(
+    fn expression_inner(
         &mut self,
         id: ExpressionId,
         usage: ExpressionUse,
@@ -396,7 +534,18 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 {
                     return Ok(false);
                 }
+                self.register_pending_argument(
+                    id,
+                    argument.argument(),
+                    ParameterMode::Value,
+                    state,
+                )?;
             }
+            // A completed construction takes each pending Value input; an earlier control
+            // transfer instead consumes these obligations through drop_all.
+            state
+                .nullable_temporaries
+                .retain(|temporary| temporary.control != id || !temporary.transfers_at_call);
             return Ok(true);
         }
         let node = self.checker.parsed.ast().expressions().get(id)?;
@@ -444,6 +593,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         if self.is_move_only_temporary(expression) {
                             state.nullable_temporaries.push(NullableTemporary {
+                                versions: Vec::new(),
+                                closures: Vec::new(),
                                 transfers_at_call: false,
                                 control: id,
                                 subject: expression,
@@ -484,10 +635,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 else_branch,
                 ..
             } => {
-                self.expression(condition, ExpressionUse::Read, state)?;
+                if !self.expression(condition, ExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
                 let base = state.clone();
                 let mut branch_states = Vec::new();
                 let mut then_state = base.clone();
+                self.enter_branch(id, 2, 0, &mut then_state)?;
                 let usage = self.checker.control_result_usage(id);
                 if self.control_body(then_branch, usage, &mut then_state)? {
                     self.drop_branch_exit(id, 0, &mut then_state);
@@ -495,17 +649,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
                 if let Some(else_branch) = else_branch {
                     let mut else_state = base;
+                    self.enter_branch(id, 2, 1, &mut else_state)?;
                     if self.control_body(else_branch, usage, &mut else_state)? {
                         self.drop_branch_exit(id, 1, &mut else_state);
                         branch_states.push(else_state);
                     }
                 } else {
                     let mut implicit = base;
+                    self.enter_branch(id, 2, 1, &mut implicit)?;
                     self.drop_branch_exit(id, 1, &mut implicit);
                     branch_states.push(implicit);
                 }
                 let continues = !branch_states.is_empty();
-                *state = merge_value_states(branch_states);
+                *state = self.merge_value_states(branch_states);
                 Ok(continues)
             }
             Expression::When {
@@ -523,6 +679,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     && self.is_move_only_temporary(plan.subject())
                 {
                     state.nullable_temporaries.push(NullableTemporary {
+                        versions: Vec::new(),
+                        closures: Vec::new(),
                         transfers_at_call: false,
                         control: id,
                         subject: plan.subject(),
@@ -558,15 +716,34 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         let alternative = descriptor
                             .and_then(|entry| entry.alternatives().get(alternative_index));
-                        if alternative
-                            .is_none_or(|alternative| !alternative.match_domain().is_empty())
-                        {
-                            matched.push(input.clone());
+                        let can_match = alternative
+                            .is_none_or(|alternative| !alternative.match_domain().is_empty());
+                        let can_continue = alternative
+                            .is_none_or(|alternative| !alternative.fallthrough_domain().is_empty());
+                        if can_match {
+                            let mut success = input.clone();
+                            if can_continue {
+                                self.enter_when_alternative(
+                                    id,
+                                    index,
+                                    alternative_index,
+                                    true,
+                                    &mut success,
+                                )?;
+                            }
+                            matched.push(success);
                             matched_alternatives.push(alternative_index);
                         }
-                        if alternative
-                            .is_none_or(|alternative| !alternative.fallthrough_domain().is_empty())
-                        {
+                        if can_continue {
+                            if can_match {
+                                self.enter_when_alternative(
+                                    id,
+                                    index,
+                                    alternative_index,
+                                    false,
+                                    &mut input,
+                                )?;
+                            }
                             remaining = Some(input);
                         }
                     }
@@ -608,7 +785,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             );
                         }
                     }
-                    let mut branch = merge_value_states(matched);
+                    let mut branch = self.merge_value_states(matched);
                     if self.control_body(
                         entry.body,
                         self.checker.control_result_usage(id),
@@ -623,7 +800,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     branch_states.push(implicit);
                 }
                 let continues = !branch_states.is_empty();
-                *state = merge_value_states(branch_states);
+                *state = self.merge_value_states(branch_states);
                 Ok(continues)
             }
             Expression::Return { value, .. } => {
@@ -637,7 +814,31 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             }
             Expression::Break { .. } | Expression::Continue { .. } => {
                 let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
-                self.drop_deeper_than(boundary, DropPoint::ControlTransfer(id), state);
+                self.drop_deeper_than(
+                    boundary,
+                    self.loop_boundaries.len(),
+                    DropPoint::ControlTransfer(id),
+                    state,
+                );
+                if state
+                    .iterations
+                    .last()
+                    .is_some_and(|frame| frame.loop_depth == self.loop_boundaries.len())
+                {
+                    if matches!(node.payload(), Expression::Break { .. }) {
+                        self.finish_iteration(
+                            DropPoint::ControlTransfer(id),
+                            IterationExitKind::Break(id),
+                            state,
+                        );
+                    } else {
+                        self.end_iteration_element(
+                            DropPoint::ControlTransfer(id),
+                            IterationExitKind::Continue(id),
+                            state,
+                        );
+                    }
+                }
                 Ok(false)
             }
             Expression::NonNullAssert { operand, .. } => {
@@ -654,13 +855,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             } => self.expression(operand, ExpressionUse::Read, state),
             Expression::Propagate { value, .. } => {
                 self.expression(value, ExpressionUse::Read, state)?;
-                for owned in state.values.iter().rev() {
-                    self.push_fact(DropFact::new(
-                        DropPoint::ControlTransfer(id),
-                        DropTarget::Named(owned.symbol),
-                        owned.origin,
-                    ));
-                }
+                // Err 是独立退出边；正常路径继续持有原状态。
+                self.drop_all(DropPoint::ControlTransfer(id), &mut state.clone());
                 Ok(true)
             }
             Expression::Binary {
@@ -676,6 +872,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             {
                 self.string_binary(left, right, id, state)
             }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::Elvis,
+                right,
+                ..
+            } => self.elvis(id, left, right, state),
             Expression::Binary { left, right, .. } => {
                 if !self.expression(left, ExpressionUse::Read, state)? {
                     return Ok(false);
@@ -721,27 +923,55 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     return Ok(true);
                 }
-                if !self.expression(value, ExpressionUse::Consume, state)? {
+                let root = self
+                    .checker
+                    .place(target)?
+                    .filter(|place| place.is_root())
+                    .map(|place| place.root());
+                if let Some(root) = root {
+                    state.replacements.push(root);
+                }
+                let continues = self.expression(value, ExpressionUse::Consume, state)?;
+                if root.is_some() {
+                    state.replacements.pop();
+                }
+                if !continues {
                     return Ok(false);
                 }
                 if let Some(place) = self.checker.place(target)?
                     && place.is_root()
                 {
                     let symbol = place.root();
+                    let snapshot = if self.checker.is_move_only_variable(symbol) {
+                        self.save_result_snapshot(value, state)?
+                    } else {
+                        None
+                    };
                     if operator != AssignmentOperator::Assign {
                         self.expression(target, ExpressionUse::Read, state)?;
                     }
                     let old = state.remove_value(symbol);
-                    state.closures.remove(&symbol);
-                    if let Some(old) = old {
-                        self.push_fact(DropFact::new(
-                            DropPoint::AfterExpression(value),
-                            DropTarget::Named(symbol),
-                            old.origin,
-                        ));
+                    let previous = state.closures.remove(&symbol).unwrap_or_default();
+                    if let Some(old) = &old {
+                        // The RHS result still holds its captures while the old environment drops.
+                        self.drop_closure_owner(
+                            DropFact::new(
+                                DropPoint::AfterExpression(value),
+                                DropTarget::Named(symbol),
+                                old.origin,
+                            ),
+                            old.condition,
+                            &old.versions,
+                            previous,
+                            state,
+                        );
                     }
+                    let closures = std::mem::take(&mut state.result_closures);
                     if self.checker.is_move_only_variable(symbol) {
+                        let versions = self.bind_result_owners(node.span(), state);
                         state.insert(OwnedValue {
+                            versions,
+                            condition: state.path,
                             symbol,
                             origin: node.span(),
                             scope_depth: old
@@ -749,6 +979,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 .or_else(|| self.binding_depths.get(&symbol).copied())
                                 .unwrap_or(self.scope_depth),
                         });
+                        if !closures.is_empty() {
+                            state.closures.insert(symbol, closures);
+                        }
+                        self.commit_snapshot(snapshot, value, symbol);
                         if !self.liveness.expression_after[id.index()].contains(&symbol) {
                             self.drop_named(DropPoint::AfterExpression(id), symbol, state);
                         }
@@ -797,9 +1031,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                     None => {
-                        if !self.expression(callee, ExpressionUse::Read, state)? {
+                        if !self.expression(callee, ExpressionUse::Place, state)? {
                             return Ok(false);
                         }
+                        self.register_pending_callee(id, callee, state)?;
                     }
                 }
                 for (index, argument) in arguments.into_iter().enumerate() {
@@ -817,6 +1052,33 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         return Ok(false);
                     }
                     self.register_pending_argument(id, argument.value, mode, state)?;
+                }
+                if let Some((callee, closure)) = state
+                    .pending_calls
+                    .iter()
+                    .rev()
+                    .find(|frame| frame.call == id)
+                    .and_then(|frame| {
+                        let environment = frame.closure_environment?;
+                        let root = *frame.callees.first()?;
+                        state
+                            .values
+                            .iter()
+                            .find(|value| value.symbol == root)
+                            .filter(|value| {
+                                value.condition == CleanupConditionId::ALWAYS
+                                    && value.versions.iter().any(|version| {
+                                        version.owner == environment.0
+                                            && version.condition == CleanupConditionId::ALWAYS
+                                    })
+                            })
+                            .map(|_| environment)
+                    })
+                {
+                    self.cleanup.push((
+                        DropPoint::CallEntry(id),
+                        IterationCleanupAction::PassClosureEnvironment { callee, closure },
+                    ));
                 }
                 if self.checker.is_nothing_expression(id) {
                     return Ok(false);
@@ -838,8 +1100,30 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Index { receiver, index } => {
-                self.expression(receiver, ExpressionUse::Place, state)?;
-                self.expression(index, ExpressionUse::Read, state)?;
+                if !self.expression(receiver, ExpressionUse::Place, state)? {
+                    return Ok(false);
+                }
+                // Index 求值可能 return/abort；此前已求值的 backing owner 仍有清理义务。
+                if let Some(owner) = self.checker.temporary_element_owner(id)? {
+                    let origin = self.checker.parsed.ast().expressions().get(owner)?.span();
+                    let version = self.temporary_owner_version(owner, origin, state);
+                    state.nullable_temporaries.push(NullableTemporary {
+                        versions: vec![version],
+                        closures: Vec::new(),
+                        transfers_at_call: false,
+                        control: id,
+                        subject: owner,
+                        origin,
+                        loop_depth: self.loop_boundaries.len(),
+                        prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
+                    });
+                }
+                if !self.expression(index, ExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
+                state
+                    .nullable_temporaries
+                    .retain(|temporary| temporary.control != id);
                 if usage != ExpressionUse::Place
                     && let Some(temporary) = self.checker.temporary_element_owner(id)?
                 {
@@ -904,6 +1188,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         // Keep the completed left temporary in the existing control-transfer cleanup stack.
         if let Some(StringOperandDrop::Temporary(subject, origin)) = left_drop {
             state.nullable_temporaries.push(NullableTemporary {
+                versions: Vec::new(),
+                closures: Vec::new(),
                 transfers_at_call: false,
                 control: binary,
                 subject,
@@ -974,80 +1260,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn drop_named(&mut self, point: DropPoint, symbol: SymbolId, state: &mut ValueState) {
-        if state.pending_calls.iter().any(|call| {
-            call.loans.iter().any(
-                |loan| matches!(loan.target(), LoanTarget::Place(place) if place.root() == symbol),
-            )
-        }) {
-            return;
-        }
-        let closure = state.closures.remove(&symbol);
-        if let Some(value) = state.remove_value(symbol) {
-            let mut shared_sources = Vec::new();
-            if let Some(closure) = closure {
-                let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
-                for capture in captures.into_iter().rev() {
-                    if capture.mode() == ClosureCaptureMode::Owned
-                        && capture.effect() == ClosureCaptureEffect::Move
-                    {
-                        self.push_fact(DropFact::new(
-                            point,
-                            DropTarget::Captured {
-                                closure,
-                                source: capture.source(),
-                            },
-                            capture.reference_span(),
-                        ));
-                    } else if capture.mode() == ClosureCaptureMode::Shared
-                        && let ClosureCaptureSource::Symbol(source) = capture.source()
-                    {
-                        shared_sources.push(source);
-                    }
-                }
-            }
-            self.push_fact(DropFact::new(
-                point,
-                DropTarget::Named(symbol),
-                value.origin,
-            ));
-            for source in shared_sources {
-                let still_captured = state.closures.values().any(|&closure| {
-                    self.checker.captures_of(closure).any(|capture| {
-                        capture.mode() == ClosureCaptureMode::Shared
-                            && capture.source() == ClosureCaptureSource::Symbol(source)
-                    })
-                });
-                // Match-edge cleanup must not shorten the lifetime of a shared
-                // capture source that the entry body may still read. Its ordinary
-                // body/branch liveness remains responsible for that source.
-                if !still_captured
-                    && !matches!(point, DropPoint::WhenAlternativeMatch { .. })
-                    && !self.live_after(point).contains(&source)
-                {
-                    self.drop_named(point, source, state);
-                }
-            }
-        }
-    }
-
-    fn closure_origin(
-        &self,
-        expression: ExpressionId,
-        state: &ValueState,
-    ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
-        let node = self.checker.parsed.ast().expressions().get(expression)?;
-        match node.payload() {
-            Expression::Lambda { .. } => Ok(Some(expression)),
-            Expression::Group { expression } => self.closure_origin(*expression, state),
-            Expression::Name => Ok(self
-                .checker
-                .reference_symbol(node.span())
-                .and_then(|symbol| state.closures.get(&symbol).copied())),
-            _ => Ok(None),
-        }
-    }
-
     /// Release inner scopes first, then the subject temporary, then older named owners.
     fn drop_nullable_temporaries(
         &mut self,
@@ -1092,38 +1304,61 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             for symbol in newer {
                 self.drop_named(point, symbol, state);
             }
-            self.push_fact(DropFact::new(
-                point,
-                DropTarget::Temporary(temporary.subject),
-                temporary.origin,
-            ));
+            self.drop_closure_owner(
+                DropFact::new(
+                    point,
+                    DropTarget::Temporary(temporary.subject),
+                    temporary.origin,
+                ),
+                state.path,
+                &temporary.versions,
+                temporary.closures,
+                state,
+            );
         }
     }
 
     fn drop_all(&mut self, point: DropPoint, state: &mut ValueState) {
         if let DropPoint::ControlTransfer(expression) = point {
+            while let Some(frame) = state.iterations.last() {
+                self.drop_deeper_than(frame.scope_depth, frame.loop_depth, point, state);
+                self.finish_iteration(point, IterationExitKind::Return(expression), state);
+            }
             self.end_pending_calls(LoanEndPoint::ControlTransfer(expression), state, |_| true);
         }
         self.drop_nullable_temporaries(point, state, |_| true);
-        while let Some(symbol) = state.values.last().map(|value| value.symbol) {
+        let symbols = state
+            .values
+            .iter()
+            .rev()
+            .map(|value| value.symbol)
+            .collect::<Vec<_>>();
+        for symbol in symbols {
             self.drop_named(point, symbol, state);
         }
     }
 
     fn drop_scope(&mut self, depth: usize, point: DropPoint, state: &mut ValueState) {
-        let mut index = state.values.len();
-        while index > 0 {
-            index -= 1;
-            if state.values[index].scope_depth != depth {
-                continue;
-            }
-            let symbol = state.values[index].symbol;
+        // Dropping a closure may recursively remove an earlier captured source.
+        let symbols = state
+            .values
+            .iter()
+            .rev()
+            .filter(|value| value.scope_depth == depth)
+            .map(|value| value.symbol)
+            .collect::<Vec<_>>();
+        for symbol in symbols {
             self.drop_named(point, symbol, state);
         }
     }
 
-    fn drop_deeper_than(&mut self, depth: usize, point: DropPoint, state: &mut ValueState) {
-        let loop_depth = self.loop_boundaries.len();
+    fn drop_deeper_than(
+        &mut self,
+        depth: usize,
+        loop_depth: usize,
+        point: DropPoint,
+        state: &mut ValueState,
+    ) {
         if let DropPoint::ControlTransfer(expression) = point {
             self.end_pending_calls(LoanEndPoint::ControlTransfer(expression), state, |call| {
                 call.loop_depth >= loop_depth
@@ -1132,13 +1367,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         self.drop_nullable_temporaries(point, state, |temporary| {
             temporary.loop_depth >= loop_depth
         });
-        let mut index = state.values.len();
-        while index > 0 {
-            index -= 1;
-            if state.values[index].scope_depth <= depth {
-                continue;
-            }
-            let symbol = state.values[index].symbol;
+        let symbols = state
+            .values
+            .iter()
+            .rev()
+            .filter(|value| value.scope_depth > depth)
+            .map(|value| value.symbol)
+            .collect::<Vec<_>>();
+        for symbol in symbols {
             self.drop_named(point, symbol, state);
         }
     }
@@ -1162,6 +1398,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_loop_exit(&mut self, statement: StatementId, state: &mut ValueState) {
+        self.drop_loop_exit_at(statement, DropPoint::LoopExit(statement), state);
+    }
+
+    fn drop_loop_exit_at(
+        &mut self,
+        statement: StatementId,
+        point: DropPoint,
+        state: &mut ValueState,
+    ) {
         let live_after = &self.liveness.statement_after[statement.index()];
         let symbols = state
             .values
@@ -1170,7 +1415,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .map(|value| value.symbol)
             .collect::<Vec<_>>();
         for symbol in symbols.into_iter().rev() {
-            self.drop_named(DropPoint::LoopExit(statement), symbol, state);
+            self.drop_named(point, symbol, state);
         }
     }
 
@@ -1178,9 +1423,42 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if let DropTarget::Temporary(expression) = fact.target()
             && let Some((owner, origin)) = self.checker.constant_temporary_origin(expression)
         {
+            let condition = fact.condition();
+            let value = fact.owner();
             fact = DropFact::new(fact.point(), DropTarget::Temporary(owner), origin);
+            if let Some(value) = value {
+                fact = fact.with_owner(value);
+            }
+            if let Some(condition) = condition {
+                fact = fact.with_condition(condition);
+            }
         }
         if !self.facts.contains(&fact) {
+            let action = fact
+                .owner()
+                .and_then(|root_owner| match self.conditions.owner_value(root_owner) {
+                    Some(crate::ownership_checking::CleanupOwnerValue::IterationPhi {
+                        statement,
+                        symbol,
+                        ..
+                    }) if fact.target() == DropTarget::Named(*symbol)
+                        && self.loop_phis.get(&statement.index()).is_some_and(|phis| {
+                            phis.iter().any(|phi| {
+                                phi.owner() == root_owner
+                                    && !phi.root_nodes().is_empty()
+                                    && phi.origins().is_empty()
+                            })
+                        }) =>
+                    {
+                        Some(IterationCleanupAction::ReleaseClosureInstances {
+                            statement: *statement,
+                            root: fact,
+                        })
+                    }
+                    _ => None,
+                })
+                .unwrap_or(IterationCleanupAction::Drop(fact));
+            self.cleanup.push((fact.point(), action));
             self.facts.push(fact);
         }
     }
@@ -1189,6 +1467,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         match point {
             DropPoint::AfterExpression(expression)
             | DropPoint::AfterBinaryOperands(expression)
+            | DropPoint::CallEntry(expression)
             | DropPoint::CallReturn(expression)
             | DropPoint::ControlTransfer(expression)
             | DropPoint::AfterReplacement(expression)
@@ -1204,6 +1483,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 &self.liveness.statement_after[statement.index()]
             }
             DropPoint::FunctionEntry(item) => &self.liveness.function_live_in[&item.index()],
+            DropPoint::LambdaEntry(lambda) => &self.liveness.lambda_live_in[&lambda.index()],
         }
     }
 }
@@ -1218,26 +1498,4 @@ fn marker_span(marker: NameMarker) -> Span {
     match marker {
         NameMarker::Present(span) | NameMarker::Missing(span) | NameMarker::Error(span) => span,
     }
-}
-
-fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
-    let Some(mut merged) = states.pop() else {
-        return ValueState::default();
-    };
-    merged.values.retain(|value| {
-        states
-            .iter()
-            .all(|state| state.position(value.symbol).is_some())
-    });
-    for value in &mut merged.values {
-        for state in &states {
-            if let Some(index) = state.position(value.symbol) {
-                let candidate = state.values[index].origin;
-                if candidate.start() < value.origin.start() {
-                    value.origin = candidate;
-                }
-            }
-        }
-    }
-    merged
 }

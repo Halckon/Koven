@@ -1,7 +1,7 @@
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
-    name_resolution::SymbolKind,
+    name_resolution::{SymbolId, SymbolKind},
     parser::{
         CallArgument, Expression, LiteralKind, ParameterModeMarker, PrefixOperator, VariableKind,
     },
@@ -36,6 +36,8 @@ pub(super) enum ActiveLoanTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActiveLoanOwner {
     Call(ExpressionId),
+    IterationSource(StatementId),
+    IterationElement(StatementId),
     Closure(ExpressionId),
 }
 
@@ -65,7 +67,10 @@ impl Checker<'_> {
                     return Ok(None);
                 };
                 let Some(mut place) = self.place(receiver)? else {
-                    return Ok(None);
+                    // 显式 this.field 与裸字段共用同一字段 owner，不产生 temporary。
+                    return Ok(self
+                        .is_this_receiver(receiver)?
+                        .then(|| OwnershipPlace::new(projection.field(), Vec::new())));
                 };
                 if place.push_field(projection.field()) {
                     Ok(Some(place))
@@ -81,11 +86,8 @@ impl Checker<'_> {
                     return Ok(None);
                 };
                 let index = self.element_index_identity(descriptor.index())?;
-                if place.push_element(index) {
-                    Ok(Some(place))
-                } else {
-                    Ok(None)
-                }
+                place.push_element(index);
+                Ok(Some(place))
             }
             _ => Ok(None),
         }
@@ -102,7 +104,12 @@ impl Checker<'_> {
         let Some(descriptor) = self.element_place_descriptor(expression)? else {
             return Ok(None);
         };
-        self.temporary_expression_origin(descriptor.receiver())
+        if let Some(owner) = self.temporary_expression_origin(descriptor.receiver())? {
+            Ok(Some(owner))
+        } else {
+            // 多层 element view 仍属于最初求值的容器 owner，不取得中间元素的所有权。
+            self.temporary_element_owner(descriptor.receiver())
+        }
     }
 
     pub(super) fn element_place_descriptor(
@@ -195,6 +202,53 @@ impl Checker<'_> {
         primary: Span,
         state: &mut State,
     ) -> Result<bool, OwnershipCheckingError> {
+        // Value delivery copies Copyable places, including member projections.
+        let access = if access == AccessKind::Move && !move_only {
+            AccessKind::Read
+        } else {
+            access
+        };
+        // source 的 provider loan 优先于参数的非 owning 限制；return 也不能先结束它。
+        if matches!(
+            access,
+            AccessKind::Move | AccessKind::Mutation | AccessKind::ExclusiveLoan
+        ) && let Some(loan) = state.loans.iter().find(|loan| {
+            matches!(loan.owner, ActiveLoanOwner::IterationSource(_))
+                && matches!(&loan.target, ActiveLoanTarget::Place(source) if source.overlaps(place))
+        }) {
+            self.emit_loan_conflict(
+                primary,
+                loan.origin,
+                "access conflicts with the active iteration source loan",
+            )?;
+            return Ok(false);
+        }
+
+        if matches!(access, AccessKind::Mutation | AccessKind::ExclusiveLoan)
+            && !self.field_root_can_inout(place.root())
+        {
+            let Some(field) = self.names.symbols().get(place.root().index()) else {
+                return Ok(false);
+            };
+            self.emit_loan_conflict(
+                primary,
+                field.span(),
+                "field access exceeds the current receiver capability",
+            )?;
+            return Ok(false);
+        }
+
+        if access == AccessKind::ExclusiveLoan
+            && let Some(origin) = state.non_owning.get(&place.root()).copied()
+        {
+            self.emit_loan_conflict(
+                primary,
+                origin,
+                "exclusive loan conflicts with a non-owning binding",
+            )?;
+            return Ok(false);
+        }
+
         if access == AccessKind::Move
             && move_only
             && (matches!(
@@ -396,6 +450,7 @@ impl Checker<'_> {
                     && self.expression_nominal_kind(argument.value) == Some(NominalKind::Class)
                     && place.as_ref().is_some_and(|place| {
                         self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow)
+                            && self.field_root_can_inout(place.root())
                     });
                 if !receiver_class_handle && !self.is_mutable_place(argument.value)? {
                     let mut diagnostic = Diagnostic::new(
@@ -465,10 +520,20 @@ impl Checker<'_> {
     fn is_mutable_place(&self, expression: ExpressionId) -> Result<bool, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
+            Expression::This => Ok(self.current_receiver_mode == Some(ParameterMode::Inout)),
             Expression::Name => {
                 let Some(symbol) = self.reference_symbol(node.span()) else {
                     return Ok(false);
                 };
+                if self
+                    .names
+                    .symbols()
+                    .get(symbol.index())
+                    .is_some_and(|symbol| symbol.kind() == SymbolKind::Field)
+                {
+                    return Ok(self.field_kinds.get(&symbol) == Some(&VariableKind::Var)
+                        && self.current_receiver_mode == Some(ParameterMode::Inout));
+                }
                 if self.typed.parameter_mode(symbol) == Some(ParameterMode::Inout) {
                     return Ok(true);
                 }
@@ -488,13 +553,16 @@ impl Checker<'_> {
                 else {
                     return Ok(false);
                 };
+                if self.is_this_receiver(receiver)? {
+                    return Ok(self.current_receiver_mode == Some(ParameterMode::Inout));
+                }
                 if self.expression_nominal_kind(receiver) == Some(NominalKind::Class) {
                     let Some(place) = self.place(receiver)? else {
                         return Ok(false);
                     };
-                    return Ok(
-                        self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow)
-                    );
+                    return Ok(self.typed.parameter_mode(place.root())
+                        != Some(ParameterMode::Borrow)
+                        && self.field_root_can_inout(place.root()));
                 }
                 self.is_mutable_place(receiver)
             }
@@ -508,10 +576,33 @@ impl Checker<'_> {
                 let Some(place) = self.place(expression)? else {
                     return Ok(self.temporary_element_owner(expression)?.is_some());
                 };
-                Ok(self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow))
+                Ok(
+                    self.typed.parameter_mode(place.root()) != Some(ParameterMode::Borrow)
+                        && self.field_root_can_inout(place.root()),
+                )
             }
             _ => Ok(false),
         }
+    }
+
+    fn is_this_receiver(
+        &self,
+        mut expression: ExpressionId,
+    ) -> Result<bool, OwnershipCheckingError> {
+        loop {
+            match self.parsed.ast().expressions().get(expression)?.payload() {
+                Expression::This => return Ok(true),
+                Expression::Group { expression: inner } => expression = *inner,
+                _ => return Ok(false),
+            }
+        }
+    }
+
+    fn field_root_can_inout(&self, root: SymbolId) -> bool {
+        self.names.symbols().get(root.index()).is_none_or(|symbol| {
+            symbol.kind() != SymbolKind::Field
+                || self.current_receiver_mode == Some(ParameterMode::Inout)
+        })
     }
 
     fn expression_nominal_kind(&self, expression: ExpressionId) -> Option<NominalKind> {

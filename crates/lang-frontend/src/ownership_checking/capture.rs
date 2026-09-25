@@ -6,8 +6,9 @@ use crate::{
     parser::{Expression, ParsedFile},
     source::Span,
     type_checking::{
-        BuiltinType, Capability, Copyability, DeferredReason, IntrinsicTypeConstructor, NominalId,
-        NominalKind, TypeId, TypeKind, TypeParameterBound, TypedFile,
+        BuiltinType, CallReceiverOrigin, Capability, Copyability, DeferredReason,
+        IntrinsicTypeConstructor, NominalId, NominalKind, TypeId, TypeKind, TypeParameterBound,
+        TypedFile,
     },
 };
 
@@ -198,6 +199,22 @@ fn this_candidates(
                 source: ClosureCaptureSource::This,
                 ty,
                 span: node.span(),
+            });
+        }
+    }
+    for call in typed.calls() {
+        let Some(receiver) = call.receiver() else {
+            continue;
+        };
+        if !matches!(receiver.origin(), CallReceiverOrigin::ImplicitThis(_)) {
+            continue;
+        }
+        let span = parsed.ast().expressions().get(call.expression())?.span();
+        if contains(lambda.span, span) {
+            candidates.push(Candidate {
+                source: ClosureCaptureSource::This,
+                ty: receiver.ty(),
+                span,
             });
         }
     }

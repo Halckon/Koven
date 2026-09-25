@@ -175,11 +175,9 @@ impl Checker<'_> {
         let mut deliveries = Vec::with_capacity(arguments.len());
 
         for argument in arguments {
-            if let Some(next) = flows.next.as_ref() {
-                self.reject_borrowed_closure_escape(argument.argument(), next)?;
-            }
             let argument_diagnostics = self.diagnostics.len();
-            flows = self.chain_expression(flows, argument.argument(), ExpressionUse::Consume)?;
+            flows =
+                self.chain_escaping_expression(flows, argument.argument(), ExpressionUse::Consume)?;
             self.release_last_closure_use(argument.argument(), &mut flows)?;
 
             if self.is_nothing_expression(argument.argument()) {

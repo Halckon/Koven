@@ -320,16 +320,62 @@ impl Checker<'_> {
                 UnitReceiverOwnershipKind::ExclusiveLoan
             }
             UnitCallArgumentOwnershipKind::Value => {
-                if matches!(
+                let static_self = matches!(
                     self.typed.types().get(contract.receiver_type()),
                     Some(UnitTypeKind::StaticSelf(_))
-                ) {
+                );
+                let copyability = self.typed.copyability(contract.receiver_type());
+                if (static_self || copyability == Copyability::MoveOnly)
+                    && let Some(origin) = state
+                        .loans
+                        .iter()
+                        .find(|loan| {
+                            matches!(loan.target, ActiveLoanTarget::This)
+                                && loan.kind == LoanKind::Shared
+                                && matches!(loan.owner, ActiveLoanOwner::Closure(_))
+                        })
+                        .map(|loan| loan.origin)
+                {
+                    let mut diagnostic = Diagnostic::new(
+                        self.sources,
+                        Severity::Error,
+                        self.codes.borrowed_move,
+                        "cannot deliver this by value from a shared capture",
+                        contract.receiver_span(),
+                    )?;
+                    diagnostic.add_label(
+                        self.sources,
+                        origin,
+                        "shared capture established here",
+                    )?;
+                    self.diagnostics.push(diagnostic);
+                    return Ok(None);
+                }
+                if static_self {
                     self.publish_conditional_receiver_delivery(contract, current, owner)?;
                     return Ok(None);
                 }
-                match self.typed.copyability(contract.receiver_type()) {
-                    Copyability::Copyable => UnitReceiverOwnershipKind::Copy,
+                match copyability {
+                    Copyability::Copyable => {
+                        if !self.access_this_at(
+                            AccessKind::Read,
+                            contract.receiver_span(),
+                            contract.declaration_span(),
+                            state,
+                        )? {
+                            return Ok(None);
+                        }
+                        UnitReceiverOwnershipKind::Copy
+                    }
                     Copyability::MoveOnly => {
+                        if !self.access_this_at(
+                            AccessKind::Move,
+                            contract.receiver_span(),
+                            contract.declaration_span(),
+                            state,
+                        )? {
+                            return Ok(None);
+                        }
                         state.this_moved = Some(contract.receiver_span());
                         UnitReceiverOwnershipKind::Move
                     }
