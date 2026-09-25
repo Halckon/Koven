@@ -2127,3 +2127,26 @@ loan end；`RecursiveClosureCapture` 的公开产物继续原子 deferred，Phas
 初始空 `f0` 不在这条链内，本回放未核对其单独清理。定向 lib 测试 1 passed。
 仍是私有 planner 回放，不改变公开递归 deferred，也未执行生产级递归 release、
 shared loan end 或 native 消费。
+
+2026-09-25 条件 leaf 紧邻环境发布切片：`base = if (flag) (move {}) else (move {})` 被
+`outer` 捕获、body 内 `f = move { base() }` 再跨空 `for` phi 的场景原以
+`EnclosingEnvironmentCapture` 原子 deferred。调试实证根因：exit phi 经 `seed_phi_origin`
+后两个 leaf 候选条件变为 `Choice{phi(Header,slot) presence}` 与各自 presence 的组合，即
+`header_presence ∧ leafA_presence`、`header_presence ∧ leafB_presence`；两个 presence 位
+相互独立，条件表无法证明 `leafA ∧ leafB = NEVER`，形成时由 `flag` 建立的互斥在 phi 转发处
+丢失。门禁恢复基线两个触发意图——父槽仍有 owned 子环境（始终 deferred）与同一
+`input.source` 的多候选——仅在“同源多候选且不能安全读取父实例槽”时 deferred；放行条件
+要求候选互斥且父环境已保存形成时选择（snapshot `source_value` 或 owner 为
+`IterationPhi`）。`mutually_exclusive` 增加结构判定：同一 capture source 的多个候选是同一
+槽位的互斥取值，同时始终执行布尔 `and()` 以保留条件表注册副作用。
+`loop_phi_publishes_conditional_leaf_after_phi_carries_choice` 由失败转为通过，并恢复首版
+提前 `return` 跳过 `and()` 副作用导致的 `loop_phi_preserves_leaf_enclosing_closure_capture`
+等四项回归。定向七组 `ownership_iteration` 176、`multifile_ownership_checking` 71、
+`ownership_checking` 29、`ownership_nullable_when` 26、`ownership_closures` 15、
+`ownership_containers` 12、`ownership_construction` 8，合计 337 passed、0 failed、0 ignored；
+`cargo clippy -p lang-frontend --lib --test ownership_iteration -- -D warnings` 与
+`cargo fmt --all -- --check` 通过。**边界**：目标测试仅断言 `deferred().is_empty()` 与
+iteration/cleanup/drop 非空，尚未独立回放公开计划的 presence 位写入与清理顺序；结构互斥
+判定依赖“单 source 任一时刻只持一个值”的语义假设，待独立评审。未运行 frontend 全量、
+codegen 行为或 native build/run；`RecursiveClosureCapture`、`coexisting_capture_phi`、
+`conditional_nested_phi` 仍原子 deferred。

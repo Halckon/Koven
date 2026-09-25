@@ -5637,22 +5637,15 @@ fn loop_phi_keeps_two_leaf_enclosing_capture_sources_distinct() {
 }
 
 #[test]
-fn loop_phi_defers_conditional_leaf_until_phi_carries_saved_choice() {
-    use lang_frontend::ownership_checking::OwnershipDeferredReason;
-
+fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
     let (_, _, owned) = checked(
         "fun run(flag: Boolean) {\nval base: move () -> Unit = if (flag) (move {}) else (move {})\nval outer: move () -> Unit = move { var f: move () -> Unit = move { base() }\nfor (_ in listOf(1)) {}\nval used = f() }\nval used = outer() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.deferred().len(), 1, "{:?}", owned.deferred());
-    assert_eq!(
-        owned.deferred()[0].reason(),
-        OwnershipDeferredReason::EnclosingEnvironmentCapture
-    );
-    assert!(owned.iterations().is_empty());
-    assert!(owned.cleanup_steps().is_empty());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loan_ends().is_empty());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    assert!(!owned.iterations().is_empty());
+    assert!(!owned.cleanup_steps().is_empty());
+    assert!(!owned.drops().is_empty());
 }
 
 #[test]
