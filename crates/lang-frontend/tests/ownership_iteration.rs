@@ -5638,6 +5638,48 @@ fn loop_phi_keeps_two_leaf_enclosing_capture_sources_distinct() {
 
 #[test]
 fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
+    use std::collections::BTreeMap;
+
+    use lang_frontend::ownership_checking::{
+        CleanupCondition, CleanupConditionId, CleanupConditions, CleanupSelectorId,
+        CleanupSelectorSource, IterationPhiIncomingKind,
+    };
+
+    // 收集条件 DAG 引用的 selector；用于区分“形成时的控制选择”与“循环 presence”。
+    fn referenced_selectors(
+        conditions: &CleanupConditions,
+        condition: CleanupConditionId,
+    ) -> Vec<(CleanupSelectorId, CleanupSelectorSource)> {
+        let mut out = Vec::new();
+        let mut pending = vec![condition];
+        while let Some(condition) = pending.pop() {
+            if let CleanupCondition::Choice { selector, branches } =
+                conditions.get(condition).unwrap()
+            {
+                out.push((*selector, conditions.selector(*selector).unwrap().source()));
+                pending.extend(branches.iter().copied());
+            }
+        }
+        out
+    }
+
+    // 未显式赋值的 selector 视为选中分支 1，只用于隔离出 flag 控制选择的影响。
+    fn selected(
+        conditions: &CleanupConditions,
+        condition: CleanupConditionId,
+        choices: &BTreeMap<CleanupSelectorId, usize>,
+    ) -> bool {
+        match conditions.get(condition).unwrap() {
+            CleanupCondition::Always => true,
+            CleanupCondition::Never => false,
+            CleanupCondition::Choice { selector, branches } => selected(
+                conditions,
+                branches[choices.get(selector).copied().unwrap_or(1)],
+                choices,
+            ),
+        }
+    }
+
     let (_, _, owned) = checked(
         "fun run(flag: Boolean) {\nval base: move () -> Unit = if (flag) (move {}) else (move {})\nval outer: move () -> Unit = move { var f: move () -> Unit = move { base() }\nfor (_ in listOf(1)) {}\nval used = f() }\nval used = outer() }",
     );
@@ -5646,6 +5688,75 @@ fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
     assert!(!owned.iterations().is_empty());
     assert!(!owned.cleanup_steps().is_empty());
     assert!(!owned.drops().is_empty());
+
+    let conditions = owned.cleanup_conditions();
+    let plan = &owned.iterations()[0];
+    let incoming = |kind| {
+        plan.closure_phi_incomings()
+            .iter()
+            .find(|incoming| incoming.kind() == kind)
+            .unwrap()
+    };
+    // 嵌套的 leaf 来源存在位；根 binding origins 自身不直接对应条件分支。
+    let entry_leaves: Vec<_> = incoming(IterationPhiIncomingKind::Entry)
+        .bindings()
+        .iter()
+        .flat_map(|binding| binding.origins())
+        .flat_map(|origin| origin.environments())
+        .flat_map(|environment| environment.sources())
+        .flat_map(|source| source.captured())
+        .collect();
+    assert!(
+        entry_leaves.len() >= 2,
+        "conditional base must expose both leaf presence slots"
+    );
+
+    let flag_selector = entry_leaves
+        .iter()
+        .flat_map(|leaf| referenced_selectors(conditions, leaf.condition()))
+        .find_map(|(id, source)| matches!(source, CleanupSelectorSource::Control(_)).then_some(id))
+        .expect("the conditional leaf depends on a source control selection");
+
+    // Entry 必须把形成时的控制选择写成两个互补的 leaf presence 位。
+    let mut active_target = BTreeMap::new();
+    for flag in [0usize, 1] {
+        let choices = BTreeMap::from([(flag_selector, flag)]);
+        let active: Vec<_> = entry_leaves
+            .iter()
+            .filter(|leaf| selected(conditions, leaf.condition(), &choices))
+            .map(|leaf| leaf.target())
+            .collect();
+        assert_eq!(
+            active.len(),
+            1,
+            "exactly one leaf presence is set for flag branch {flag}: {active:?}"
+        );
+        active_target.insert(flag, active[0]);
+    }
+    assert_ne!(
+        active_target[&0], active_target[&1],
+        "the two flag branches select different leaf presence slots"
+    );
+
+    // Exhaustion 必须从 header phi presence 转发，而不是重新读取源码控制选择。
+    let exhaustion_leaves: Vec<_> = incoming(IterationPhiIncomingKind::Exhaustion)
+        .bindings()
+        .iter()
+        .flat_map(|binding| binding.origins())
+        .flat_map(|origin| origin.environments())
+        .flat_map(|environment| environment.sources())
+        .flat_map(|source| source.captured())
+        .collect();
+    assert_eq!(exhaustion_leaves.len(), entry_leaves.len());
+    for leaf in &exhaustion_leaves {
+        let sources = referenced_selectors(conditions, leaf.condition());
+        assert!(
+            sources
+                .iter()
+                .any(|(_, source)| matches!(source, CleanupSelectorSource::IterationPhi { .. })),
+            "exhaustion presence must be transported from the header phi: {sources:?}"
+        );
+    }
 }
 
 #[test]

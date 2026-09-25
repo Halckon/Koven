@@ -2145,8 +2145,10 @@ shared loan end 或 native 消费。
 `ownership_checking` 29、`ownership_nullable_when` 26、`ownership_closures` 15、
 `ownership_containers` 12、`ownership_construction` 8，合计 337 passed、0 failed、0 ignored；
 `cargo clippy -p lang-frontend --lib --test ownership_iteration -- -D warnings` 与
-`cargo fmt --all -- --check` 通过。**边界**：目标测试仅断言 `deferred().is_empty()` 与
-iteration/cleanup/drop 非空，尚未独立回放公开计划的 presence 位写入与清理顺序；结构互斥
-判定依赖“单 source 任一时刻只持一个值”的语义假设，待独立评审。未运行 frontend 全量、
-codegen 行为或 native build/run；`RecursiveClosureCapture`、`coexisting_capture_phi`、
-`conditional_nested_phi` 仍原子 deferred。
+`cargo fmt --all -- --check` 通过。公开计划已加语义断言：Entry 必须把形成时的控制选择写成
+两个互补的 leaf presence 位（在 `flag` 两个分支下各恰好一个 leaf 存在且指向不同 target），
+Exhaustion 必须从 header phi presence 转发而不是重读源码控制选择；测试不再只断言事实非空。
+**剩余边界**：逐实例清理顺序与“恰好一次析构”的动态回放（零轮/多轮/break/continue/return）
+尚未补齐；结构互斥判定依赖“单 source 任一时刻只持一个值”的语义假设，待独立评审。未运行
+frontend 全量、codegen 行为或 native build/run；`RecursiveClosureCapture`、
+`coexisting_capture_phi`、`conditional_nested_phi` 仍原子 deferred。
