@@ -5760,6 +5760,88 @@ fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
 }
 
 #[test]
+fn loop_phi_transports_conditional_leaf_presence_across_jump_edges() {
+    use lang_frontend::ownership_checking::{
+        CleanupCondition, CleanupConditionId, CleanupConditions, CleanupSelectorSource,
+        IterationPhiIncomingKind,
+    };
+
+    fn referenced_selectors(
+        conditions: &CleanupConditions,
+        condition: CleanupConditionId,
+    ) -> Vec<CleanupSelectorSource> {
+        let mut out = Vec::new();
+        let mut pending = vec![condition];
+        while let Some(condition) = pending.pop() {
+            if let CleanupCondition::Choice { selector, branches } =
+                conditions.get(condition).unwrap()
+            {
+                out.push(conditions.selector(*selector).unwrap().source());
+                pending.extend(branches.iter().copied());
+            }
+        }
+        out
+    }
+
+    for body in ["continue", "break"] {
+        let source = format!(
+            "fun run(flag: Boolean) {{\nval base: move () -> Unit = if (flag) (move {{}}) else (move {{}})\nval outer: move () -> Unit = move {{ var f: move () -> Unit = move {{ base() }}\nfor (_ in listOf(1)) {{ {body} }}\nval used = f() }}\nval used = outer() }}"
+        );
+        let (_, _, owned) = checked(&source);
+        assert!(
+            owned.diagnostics().is_empty(),
+            "body={body}: {:?}",
+            owned.diagnostics()
+        );
+        assert!(
+            owned.deferred().is_empty(),
+            "body={body}: {:?}",
+            owned.deferred()
+        );
+        let conditions = owned.cleanup_conditions();
+        let plan = &owned.iterations()[0];
+        let kinds: Vec<_> = plan
+            .closure_phi_incomings()
+            .iter()
+            .map(|incoming| incoming.kind())
+            .collect();
+        let jump = kinds.iter().any(|kind| {
+            matches!(
+                (body, kind),
+                ("continue", IterationPhiIncomingKind::Continue(_))
+                    | ("break", IterationPhiIncomingKind::Break(_))
+            )
+        });
+        assert!(jump, "body={body} must record its jump edge: {kinds:?}");
+
+        // 除 Entry（形成时写入控制选择）外，每条边都必须从 header phi presence 转发。
+        for incoming in plan.closure_phi_incomings() {
+            if incoming.kind() == IterationPhiIncomingKind::Entry {
+                continue;
+            }
+            let leaves: Vec<_> = incoming
+                .bindings()
+                .iter()
+                .flat_map(|binding| binding.origins())
+                .flat_map(|origin| origin.environments())
+                .flat_map(|environment| environment.sources())
+                .flat_map(|source| source.captured())
+                .collect();
+            for leaf in leaves {
+                let sources = referenced_selectors(conditions, leaf.condition());
+                assert!(
+                    sources
+                        .iter()
+                        .any(|source| matches!(source, CleanupSelectorSource::IterationPhi { .. })),
+                    "body={body} {:?} leaf presence must be transported from the header phi: {sources:?}",
+                    incoming.kind()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn enclosing_leaf_snapshot_locates_formation_choice_in_the_parent_capture() {
     use std::collections::BTreeMap;
 

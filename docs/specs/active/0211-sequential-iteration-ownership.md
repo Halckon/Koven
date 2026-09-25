@@ -2152,3 +2152,9 @@ Exhaustion 必须从 header phi presence 转发而不是重读源码控制选择
 尚未补齐；结构互斥判定依赖“单 source 任一时刻只持一个值”的语义假设，待独立评审。未运行
 frontend 全量、codegen 行为或 native build/run；`RecursiveClosureCapture`、
 `coexisting_capture_phi`、`conditional_nested_phi` 仍原子 deferred。
+
+同日 jump 边补证：同一条件 leaf 场景在 body 置 `continue` 与 `break` 时，公开计划的
+`Continue(_)`/`Break(_)` 入边均已记录；除 `Entry`（由形成时控制选择写入）外，每条入边的
+嵌套 leaf presence 条件都引用 `IterationPhi` selector，即从 header phi 转发而非重读源码
+控制选择。新增 `loop_phi_transports_conditional_leaf_presence_across_jump_edges`；
+`ownership_iteration` 177 passed。此项仍未回放“每个闭包实例恰好一次析构”的动态清理。
