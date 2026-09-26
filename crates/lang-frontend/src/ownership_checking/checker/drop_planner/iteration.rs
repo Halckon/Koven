@@ -300,47 +300,21 @@ fn record_phi_origin(
                 CleanupCaptureValue::Owner(owner) => Some(owner),
                 _ => None,
             };
-            if matches!(input.value, CleanupCaptureValue::Environment { .. }) {
-                // 基线触发一：父槽自身还有**不可展开**的 owned 子环境，无法按实例运输。
-                // 释放端（drop_closure_owner_inner）只能沿静态唯一、直接含 owned move 且
-                // 无 shared 输入的紧邻子来源展开后代实例；其余形状仍须 atomic deferred。
-                let owned_descendant = slot.is_some_and(|slot| {
-                    let nested = slot.captured();
-                    nested.iter().any(|nested| !nested.sources().is_empty())
-                        && !(nested.len() == 1 && descendant_expandable(&nested[0]))
-                });
-                // 基线触发二：同一次捕获出现多个候选来源。
-                let sibling_alternatives = candidate
+            if matches!(input.value, CleanupCaptureValue::Environment { .. })
+                && (slot.is_some_and(|slot| {
+                    slot.captured()
+                        .iter()
+                        .any(|nested| !nested.sources().is_empty())
+                }) || candidate
                     .captured
                     .iter()
                     .filter(|origin| origin.captured_from == Some(input.source))
                     .take(2)
                     .count()
-                    > 1;
-                // 放行条件：候选互斥，且父环境已保存形成时的选择（snapshot 或 phi）。
-                let readable_from_parent = sibling_alternatives
-                    && mutually_exclusive(conditions, &candidate.captured)
-                    && candidate.inputs.iter().any(|candidate_input| {
-                        matches!(
-                            candidate_input.value,
-                            CleanupCaptureValue::Environment { .. }
-                        ) && (conditions
-                            .owner_snapshot(candidate.owner)
-                            .is_some_and(|snapshot| {
-                                snapshot
-                                    .copies()
-                                    .iter()
-                                    .any(|copy| copy.source_value().is_some())
-                            })
-                            || matches!(
-                                conditions.owner_value(candidate.owner),
-                                Some(CleanupOwnerValue::IterationPhi { .. })
-                            ))
-                    });
+                    > 1)
+            {
                 // 内层形成动作若仍读外层形成前的条件，会在外部选择改变后选错子环境。
-                if owned_descendant || (sibling_alternatives && !readable_from_parent) {
-                    enclosing_capture_phi.get_or_insert(layout.closure());
-                }
+                enclosing_capture_phi.get_or_insert(layout.closure());
             }
             let nested_path = capture_slot.map(|slot| {
                 let mut path = capture_path.clone();
@@ -417,39 +391,6 @@ fn omit_coexisting_capture_writes(origins: &mut [IterationPhiIncomingOrigin]) {
             }
         }
     }
-}
-
-/// 释放端只能沿静态唯一、直接含 owned move 且无 shared 输入的紧邻子来源展开后代实例。
-/// 与此同形的后代才能让 phi 计划发布；其余形状继续 atomic deferred。
-fn descendant_expandable(nested: &IterationClosurePhiOrigin) -> bool {
-    nested.sources().iter().any(|source| {
-        source.mode() == ClosureCaptureMode::Owned && source.effect() == ClosureCaptureEffect::Move
-    }) && nested
-        .sources()
-        .iter()
-        .all(|source| source.mode() == ClosureCaptureMode::Owned)
-}
-
-fn mutually_exclusive(conditions: &mut CleanupConditions, origins: &[ClosureOrigin]) -> bool {
-    // 同一 capture source 的多个候选是同一槽位的互斥取值：单个 source 在任一时刻只持有其中一个。
-    // phi 运输后这些候选的 condition 会变成独立 presence 位的组合，静态条件表无法再证明互补。
-    let structural = origins.first().is_some_and(|first| {
-        first.captured_from.is_some()
-            && origins
-                .iter()
-                .all(|origin| origin.captured_from == first.captured_from)
-    });
-    // 无论结构判定如何都执行布尔检查：and() 会注册条件节点，保留该副作用以维持
-    // 条件表编号与 combine() 规范化的确定性。
-    let mut boolean = true;
-    for (index, left) in origins.iter().enumerate() {
-        for right in &origins[index + 1..] {
-            if conditions.and(left.condition, right.condition) != CleanupConditionId::NEVER {
-                boolean = false;
-            }
-        }
-    }
-    structural || boolean
 }
 
 type SeenCaptureInstances =

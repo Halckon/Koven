@@ -2171,3 +2171,16 @@ captured drop 带 `capture_slot` 与 `instance_address`，与既有非循环展�
 339 passed、0 failed、0 ignored；strict frontend Clippy 与 fmt 通过。**边界**：只按静态形状
 放行，尚未逐轮回放该后代实例在零轮/多轮/break/continue/return 下恰好释放一次；共享/
 多候选/更深嵌套后代仍 atomic deferred。未运行 frontend 全量、codegen 行为或 native build/run。
+
+2026-09-25 合同回退：独立只读评审对 3c408d5/92e79a8 的 gate 放宽给出 BLOCK——§9 明文禁止
+“仅删去 `EnclosingEnvironmentCapture` deferred”，要求同时替换树形候选读取与静态释放合同、
+按已保存边释放根实例。两处放宽只对齐了静态形状判据，未改变树形候选/静态释放产物，故与
+合同不一致（评审确认 Phase 4 仍以 `UnsupportedNode` 拒绝 guarded facts，当前无可达 UAF/
+double free，但属潜在风险）。按用户决定回退生产 gate 到基线：`iteration.rs` 恢复原
+`owned_descendant || sibling_alternatives` 触发；条件 leaf 与 owned descendant 重新 atomic
+deferred。相关发布测试以 `#[ignore = "SPEC-0211 §9: iteration instance-transport contract
+pending"]` 保留（4 项），原有 defers 回归恢复。评审的 F2（`readable_from_parent` 用
+`candidate.owner` 而非 `Environment` 自身 owner）、F3（`descendant_expandable` 只看 tracked
+来源）、F4（`coexisting_capture_node` 按地址而非实例）、F5（断言只 `any(...)`）随合同实现
+一并处理。七组套件 337 passed、0 failed、4 ignored；strict Clippy、fmt 与文档结构检查通过。
+未运行 frontend 全量、codegen 行为或 native。下一步：实现 §9 的实例运输与逐实例释放合同。
