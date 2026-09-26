@@ -6282,10 +6282,10 @@ fn loop_phi_defers_known_or_opaque_leaf_enclosing_capture() {
 }
 
 #[test]
-fn loop_phi_defers_enclosing_closure_with_owned_descendant_atomically() {
-    use lang_frontend::ownership_checking::OwnershipDeferredReason;
+fn loop_phi_publishes_enclosing_closure_with_owned_descendant() {
+    use lang_frontend::ownership_checking::{CleanupCaptureValue, DropTarget};
 
-    let (sources, parsed, owned) = checked(
+    let (_, _, owned) = checked(
         "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>) {
             val base: move () -> Unit = move { read(xs) }
             val outer: move () -> Unit = move {
@@ -6297,26 +6297,23 @@ fn loop_phi_defers_enclosing_closure_with_owned_descendant_atomically() {
         }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.deferred().len(), 1);
-    assert_eq!(
-        owned.deferred()[0].reason(),
-        OwnershipDeferredReason::EnclosingEnvironmentCapture
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    assert!(!owned.iterations().is_empty());
+    // 静态唯一、owned move 的紧邻后代必须带捕获槽与实例地址释放。
+    assert!(
+        owned.drops().iter().any(|fact| {
+            matches!(
+                fact.target(),
+                DropTarget::Captured {
+                    value: CleanupCaptureValue::Owner(_),
+                    ..
+                }
+            ) && fact.capture_slot().is_some()
+                && fact.instance_address().is_some()
+        }),
+        "owned descendant must be released by instance: {:?}",
+        owned.drops()
     );
-    assert_eq!(
-        sources.slice(
-            parsed
-                .ast()
-                .expressions()
-                .get(owned.deferred()[0].expression())
-                .unwrap()
-                .span()
-        ),
-        Ok("move { base() }")
-    );
-    assert!(owned.iterations().is_empty());
-    assert!(owned.cleanup_steps().is_empty());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loan_ends().is_empty());
 }
 
 #[test]
@@ -11522,4 +11519,30 @@ fn when_first_alternative_does_not_read_a_skipped_later_alternative() {
             );
         }
     }
+}
+
+#[test]
+fn loop_phi_publishes_statically_unique_owned_descendant() {
+    use lang_frontend::ownership_checking::{CleanupCaptureValue, DropTarget};
+
+    let (_, _, owned) = checked(
+        "fun take(own xs: List<Int>) {}\nfun run(own xs: List<Int>) {\nval base: move () -> Unit = move { take(xs) }\nval outer: move () -> Unit = move { var f: move () -> Unit = move { base() }\nfor (_ in listOf(1)) {}\nval used = f() }\nval used = outer() }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    assert!(!owned.iterations().is_empty());
+    assert!(
+        owned.drops().iter().any(|fact| {
+            matches!(
+                fact.target(),
+                DropTarget::Captured {
+                    value: CleanupCaptureValue::Owner(_),
+                    ..
+                }
+            ) && fact.capture_slot().is_some()
+                && fact.instance_address().is_some()
+        }),
+        "the owned descendant must remain droppable through the phi: {:?}",
+        owned.drops()
+    );
 }

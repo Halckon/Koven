@@ -2158,3 +2158,16 @@ frontend 全量、codegen 行为或 native build/run；`RecursiveClosureCapture`
 嵌套 leaf presence 条件都引用 `IterationPhi` selector，即从 header phi 转发而非重读源码
 控制选择。新增 `loop_phi_transports_conditional_leaf_presence_across_jump_edges`；
 `ownership_iteration` 177 passed。此项仍未回放“每个闭包实例恰好一次析构”的动态清理。
+
+2026-09-25 owned descendant 循环 phi 发布切片：`base = move { take(xs) }`（或 `read(xs)`）
+被 `outer` 捕获、内层 `f` 再从 `outer` 环境槽捕获、跨空 `for` phi 的场景原以
+`EnclosingEnvironmentCapture` atomic deferred。现将 gate 的 `owned_descendant` 与释放端
+`drop_closure_owner_inner` 已能展开的判据对齐：父槽后代只有在**不是**“静态唯一、直接含
+owned move 且无 shared 输入”时才是不可展开的 owned descendant。该形状发布后，后代的
+captured drop 带 `capture_slot` 与 `instance_address`，与既有非循环展开同形。
+`loop_phi_defers_enclosing_closure_with_owned_descendant_atomically` 更名为
+`loop_phi_publishes_enclosing_closure_with_owned_descendant` 并断言发布；新增
+`loop_phi_publishes_statically_unique_owned_descendant` 核对后代实例释放。七组套件共
+339 passed、0 failed、0 ignored；strict frontend Clippy 与 fmt 通过。**边界**：只按静态形状
+放行，尚未逐轮回放该后代实例在零轮/多轮/break/continue/return 下恰好释放一次；共享/
+多候选/更深嵌套后代仍 atomic deferred。未运行 frontend 全量、codegen 行为或 native build/run。

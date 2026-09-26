@@ -301,11 +301,13 @@ fn record_phi_origin(
                 _ => None,
             };
             if matches!(input.value, CleanupCaptureValue::Environment { .. }) {
-                // 基线触发一：父槽自身还有 owned 子环境，无法按实例运输。
+                // 基线触发一：父槽自身还有**不可展开**的 owned 子环境，无法按实例运输。
+                // 释放端（drop_closure_owner_inner）只能沿静态唯一、直接含 owned move 且
+                // 无 shared 输入的紧邻子来源展开后代实例；其余形状仍须 atomic deferred。
                 let owned_descendant = slot.is_some_and(|slot| {
-                    slot.captured()
-                        .iter()
-                        .any(|nested| !nested.sources().is_empty())
+                    let nested = slot.captured();
+                    nested.iter().any(|nested| !nested.sources().is_empty())
+                        && !(nested.len() == 1 && descendant_expandable(&nested[0]))
                 });
                 // 基线触发二：同一次捕获出现多个候选来源。
                 let sibling_alternatives = candidate
@@ -415,6 +417,17 @@ fn omit_coexisting_capture_writes(origins: &mut [IterationPhiIncomingOrigin]) {
             }
         }
     }
+}
+
+/// 释放端只能沿静态唯一、直接含 owned move 且无 shared 输入的紧邻子来源展开后代实例。
+/// 与此同形的后代才能让 phi 计划发布；其余形状继续 atomic deferred。
+fn descendant_expandable(nested: &IterationClosurePhiOrigin) -> bool {
+    nested.sources().iter().any(|source| {
+        source.mode() == ClosureCaptureMode::Owned && source.effect() == ClosureCaptureEffect::Move
+    }) && nested
+        .sources()
+        .iter()
+        .all(|source| source.mode() == ClosureCaptureMode::Owned)
 }
 
 fn mutually_exclusive(conditions: &mut CleanupConditions, origins: &[ClosureOrigin]) -> bool {
