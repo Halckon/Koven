@@ -36,6 +36,118 @@ fn checked(text: &str) -> (SourceMap, ParsedFile, OwnershipCheckedFile) {
 }
 
 #[test]
+fn loop_carried_nullable_closure_can_be_taken_called_and_replaced() {
+    use lang_frontend::ownership_checking::{DropPoint, IterationCleanupAction};
+
+    // flags 为 [true, false] 时：第一轮保存环境；第二轮先形成新环境，
+    // 再调用旧环境并补回 saved。
+    // 不能因为同一静态 lambda 同时存在多个实例而拒绝合法源码。
+    let (sources, parsed, owned) = checked(
+        "fun read(xs: List<Int>) {}
+fun <T> none(): T? { return null }
+fun run(flags: List<Boolean>, xs: List<Int>, ys: List<Int>) {
+    var saved = none<move () -> Unit>()
+    for (flag in flags) {
+        val chosen: () -> Unit = if (flag) ({ read(xs) }) else ({ read(ys) })
+        val current: move () -> Unit = move {
+            val inner: move () -> Unit = move { val used = chosen() }
+            val used = inner()
+        }
+        if (flag) { saved = current } else {
+            val old = saved!!
+            { val used = old() }
+            saved = current
+        }
+    }
+}",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let old_call = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(id, node)| (sources.slice(node.span()) == Ok("old()")).then_some(id))
+        .unwrap();
+    let old_owner = owned
+        .drops()
+        .iter()
+        .find(|fact| {
+            fact.point() == DropPoint::CallReturn(old_call)
+                && fact.owner().is_some()
+                && sources.slice(fact.value_origin()) == Ok("old")
+        })
+        .expect("the extracted old value needs a return-point cleanup")
+        .owner();
+    let old_drops = owned
+        .drops()
+        .iter()
+        .filter(|fact| fact.owner() == old_owner)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        old_drops.len(),
+        1,
+        "the old owner must not also be released before or after its call: {old_drops:?}"
+    );
+    assert!(owned.cleanup_steps().iter().any(|(point, action)| {
+        *point == DropPoint::CallEntry(old_call)
+            && matches!(action, IterationCleanupAction::PassClosureEnvironment { callee, closure: None }
+                if Some(*callee) == old_owner)
+    }), "the stable evaluated old value must provide the called environment");
+}
+
+#[test]
+fn call_entry_transports_owned_opaque_function_without_guessing_a_lambda() {
+    use lang_frontend::ownership_checking::{DropPoint, IterationCleanupAction};
+    for own in ["own ", ""] {
+        let (sources, parsed, owned) = checked(&format!(
+            "fun run({own}cb: move () -> Unit) {{ val used = cb() }}"
+        ));
+        assert!(owned.diagnostics().is_empty());
+        assert!(owned.deferred().is_empty());
+        let call = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(id, node)| (sources.slice(node.span()) == Ok("cb()")).then_some(id))
+            .unwrap();
+        let passes = owned
+            .cleanup_steps()
+            .iter()
+            .filter_map(|(point, action)| match action {
+                IterationCleanupAction::PassClosureEnvironment { callee, closure }
+                    if *point == DropPoint::CallEntry(call) =>
+                {
+                    Some((*callee, *closure))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if own.is_empty() {
+            assert!(
+                passes.is_empty(),
+                "borrowed parameters have no callee-owned value slot"
+            );
+        } else {
+            let [(callee, closure)] = passes.as_slice() else {
+                panic!("one owned callee environment");
+            };
+            assert!(
+                closure.is_none(),
+                "an opaque function is not a known file lambda"
+            );
+            assert!(
+                owned
+                    .drops()
+                    .iter()
+                    .any(|fact| fact.owner() == Some(*callee)
+                        && fact.point() == DropPoint::CallReturn(call))
+            );
+        }
+    }
+}
+
+#[test]
 fn elvis_closure_result_keeps_capture_until_the_selected_call() {
     use lang_frontend::ownership_checking::{ClosureCaptureSource, DropPoint, DropTarget};
     let (sources, parsed, owned) = checked(
@@ -2028,7 +2140,8 @@ fn phi_capture_slots_distinguish_same_source_in_alternative_lambdas() {
 #[test]
 fn nested_phi_capture_drop_uses_the_root_layout_slot() {
     use lang_frontend::ownership_checking::{
-        ClosureCaptureSource, DropPoint, DropTarget, IterationPhiBoundary, IterationPhiIncomingKind,
+        CleanupCondition, ClosureCaptureSource, DropPoint, DropTarget, IterationPhiBoundary,
+        IterationPhiIncomingKind,
     };
     let (sources, parsed, owned) = checked(
         "fun read(xs: List<Int>) {}\nfun run(flags: List<Int>) {
@@ -2085,6 +2198,50 @@ fn nested_phi_capture_drop_uses_the_root_layout_slot() {
         .cleanup_conditions()
         .phi_capture_slot(header.owner(), inner, source)
         .expect("nested forwarding reads the header environment layout");
+    for incoming in plan.closure_phi_incomings() {
+        for binding in incoming.bindings() {
+            let layout = plan
+                .closure_phis()
+                .iter()
+                .find(|layout| layout.owner() == binding.target())
+                .unwrap();
+            assert_eq!(binding.selector_writes().len(), layout.origins().len());
+            for (write, node) in binding.selector_writes().iter().zip(layout.origins()) {
+                assert_eq!(
+                    (write.node(), write.target()),
+                    (node.node(), node.selector())
+                );
+            }
+        }
+    }
+    let entry = plan
+        .closure_phi_incomings()
+        .iter()
+        .find(|incoming| incoming.kind() == IterationPhiIncomingKind::Entry)
+        .unwrap();
+    let header_input = entry
+        .bindings()
+        .iter()
+        .find(|binding| binding.target() == header.owner())
+        .unwrap();
+    let inner_node = header
+        .origins()
+        .iter()
+        .find(|origin| origin.closure() == inner)
+        .unwrap();
+    assert_eq!(header_input.selector_writes().len(), header.origins().len());
+    assert_eq!(
+        owned.cleanup_conditions().get(
+            header_input
+                .selector_writes()
+                .iter()
+                .find(|write| write.node() == inner_node.node())
+                .unwrap()
+                .condition()
+        ),
+        Some(&CleanupCondition::Never),
+        "zero-round entry must clear the not-yet-formed child presence"
+    );
     let incoming_slots = plan
         .closure_phi_incomings()
         .iter()
@@ -2879,9 +3036,14 @@ fn assert_loop_phi_source_replay(transfer: &str) {
                 environment_writes.push((binding.target(), environment));
             }
             let mut selected_environments = Vec::new();
+            for write in binding.selector_writes() {
+                choice_writes.push((
+                    write.target(),
+                    usize::from(selected(table, write.condition(), &before_choices)),
+                ));
+            }
             for origin in binding.origins() {
                 let present = selected(table, origin.condition(), &before_choices);
-                choice_writes.push((origin.target(), usize::from(present)));
                 if !present {
                     continue;
                 }
@@ -3004,6 +3166,16 @@ fn assert_loop_phi_source_replay(transfer: &str) {
             .collect::<Vec<_>>(),
         [fresh_closure],
         "f's saved value must come from the new lambda environment"
+    );
+    assert_eq!(
+        snapshots[2]
+            .3
+            .value_inputs()
+            .iter()
+            .map(|input| input.owner())
+            .collect::<Vec<_>>(),
+        [fresh_closure],
+        "the public snapshot keeps the evaluated RHS owner for handle transport"
     );
     assert_eq!(
         snapshots
@@ -3411,10 +3583,10 @@ fn assert_loop_carried_sibling_release(call_order: [&str; 2]) {
     for binding in break_incoming.bindings() {
         let available = selected(table, binding.available_when(), &before);
         writes.push((binding.availability_selector(), usize::from(available)));
-        for origin in binding.origins() {
+        for write in binding.selector_writes() {
             writes.push((
-                origin.target(),
-                usize::from(selected(table, origin.condition(), &before)),
+                write.target(),
+                usize::from(selected(table, write.condition(), &before)),
             ));
         }
     }
@@ -5234,10 +5406,10 @@ fn sibling_phi_sources_test_last_loan_before_the_next_alias_ends() {
                     binding.availability_selector(),
                     usize::from(selected(table, binding.available_when(), &before)),
                 ));
-                for origin in binding.origins() {
+                for write in binding.selector_writes() {
                     writes.push((
-                        origin.target(),
-                        usize::from(selected(table, origin.condition(), &before)),
+                        write.target(),
+                        usize::from(selected(table, write.condition(), &before)),
                     ));
                 }
             }
@@ -5447,13 +5619,13 @@ fn inner_loop_phi_preserves_nested_outer_element_capture() {
         .iter()
         .find(|source| !source.captured().is_empty())
         .expect("f must carry g's environment");
-    let header_nested = &header_source.captured()[0];
+    let header_nested = &header.origins()[header_source.captured()[0]];
     let exit_source = exit_outer
         .sources()
         .iter()
         .find(|source| source.source() == header_source.source())
         .unwrap();
-    let exit_nested = &exit_source.captured()[0];
+    let exit_nested = &exit.origins()[exit_source.captured()[0]];
     assert_ne!(header_nested.selector(), exit_nested.selector());
     let incoming = |kind| {
         plan.closure_phi_incomings()
@@ -6451,7 +6623,7 @@ fn non_loop_enclosing_capture_keeps_known_and_opaque_drops() {
             && matches!(
                 action,
                 IterationCleanupAction::PassClosureEnvironment { callee, closure: called }
-                    if *callee == environment && *called == closure
+                    if *callee == environment && *called == Some(closure)
             )
     }));
     let base_call = parsed
@@ -6467,6 +6639,57 @@ fn non_loop_enclosing_capture_keeps_known_and_opaque_drops() {
                 IterationCleanupAction::PassClosureEnvironment { .. }
             )
     }));
+}
+
+#[test]
+fn call_entry_passes_unique_environment_on_the_current_continuation_path() {
+    use lang_frontend::ownership_checking::{DropPoint, IterationCleanupAction};
+
+    for body in [
+        "val f: move () -> Unit = move { read(xs) }\nif (flag) { return }\nval used = f()",
+        "if (flag) { val f: move () -> Unit = move { read(xs) }\nval used = f() }",
+    ] {
+        let (sources, parsed, owned) = checked(&format!(
+            "fun read(xs: List<Int>) {{}}\nfun run(flag: Boolean, own xs: List<Int>) {{ {body} }}"
+        ));
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        let expression = |text: &str| {
+            parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find_map(|(id, node)| (sources.slice(node.span()) == Ok(text)).then_some(id))
+                .unwrap()
+        };
+        let call = expression("f()");
+        let closure = expression("move { read(xs) }");
+        let passes = owned
+            .cleanup_steps()
+            .iter()
+            .filter_map(|(point, action)| match action {
+                IterationCleanupAction::PassClosureEnvironment {
+                    callee,
+                    closure: passed,
+                } if *point == DropPoint::CallEntry(call) => Some((*callee, *passed)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            passes.len(),
+            1,
+            "the reachable call must carry its unique environment: {body}"
+        );
+        assert_eq!(passes[0].1, Some(closure));
+        assert!(
+            owned
+                .drops()
+                .iter()
+                .any(|drop| drop.point() == DropPoint::CallReturn(call)
+                    && drop.owner() == Some(passes[0].0)),
+            "the same owner stays live through the call"
+        );
+    }
 }
 
 #[test]
@@ -6851,6 +7074,99 @@ fn recursive_loop_carried_capture_does_not_publish_a_truncated_phi() {
 }
 
 #[test]
+fn recursive_owned_chain_with_shared_child_stays_atomically_deferred() {
+    use lang_frontend::ownership_checking::OwnershipDeferredReason;
+
+    let (_, _, owned) = checked(
+        "fun read(xs: List<Int>) {}\nfun run(xs: List<Int>, flags: List<Int>) {\nvar f: move () -> Unit = move {}\nfor (_ in flags) {\n    val g: () -> Unit = { read(xs) }\n    f = move { val old = f()\nval borrowed = g() }\n}\nval used = f() }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(owned.deferred().len(), 1);
+    assert_eq!(
+        owned.deferred()[0].reason(),
+        OwnershipDeferredReason::RecursiveClosureCapture
+    );
+    assert!(owned.iterations().is_empty());
+    assert!(owned.cleanup_steps().is_empty());
+    assert!(owned.drops().is_empty());
+    assert!(owned.loan_ends().is_empty());
+}
+
+#[test]
+fn recursive_chain_keeps_scoped_shared_source_atomically_deferred() {
+    use lang_frontend::ownership_checking::OwnershipDeferredReason;
+
+    let (_, _, owned) = checked(
+        "fun read(xs: List<Int>) {}\nfun run(first: List<Int>, flags: List<Int>) {
+var f: move () -> Unit = move {}
+{
+    val xs = listOf(1)
+    val borrowed: () -> Unit = { read(xs) }
+    for (_ in first) { f = move { f() } }
+    f = move { val old = f()\nval used = borrowed() }
+}
+for (_ in flags) { f = move { f() } }
+val used = f() }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(
+        owned
+            .deferred()
+            .iter()
+            .any(|deferred| deferred.reason() == OwnershipDeferredReason::RecursiveClosureCapture)
+    );
+    assert!(owned.iterations().is_empty());
+    assert!(owned.cleanup_steps().is_empty());
+    assert!(owned.drops().is_empty());
+    assert!(owned.loan_ends().is_empty());
+}
+
+#[test]
+fn closure_holding_two_recursive_loop_roots_stays_atomically_deferred() {
+    use lang_frontend::ownership_checking::{
+        ClosureCaptureEffect, ClosureCaptureMode, OwnershipDeferredReason,
+    };
+
+    let (sources, _, owned) = checked(
+        "fun run(first: List<Int>, second: List<Int>) {\nvar f: move () -> Unit = move {}\nfor (_ in first) { f = move { f() } }\nvar g: move () -> Unit = move {}\nfor (_ in second) { g = move { g() } }\nval outer: move () -> Unit = move { val x = f()\nval y = g() }\nval used = outer() }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let outer_captures = owned
+        .captures()
+        .iter()
+        .filter(|capture| {
+            owned
+                .captures()
+                .iter()
+                .filter(|other| other.lambda() == capture.lambda())
+                .count()
+                == 2
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outer_captures.len(), 2);
+    assert_eq!(
+        outer_captures
+            .iter()
+            .map(|capture| sources.slice(capture.reference_span()).unwrap())
+            .collect::<Vec<_>>(),
+        ["f", "g"]
+    );
+    assert!(outer_captures.iter().all(|capture| {
+        capture.mode() == ClosureCaptureMode::Owned
+            && capture.effect() == ClosureCaptureEffect::Move
+    }));
+    assert!(
+        owned.deferred().iter().any(|deferred| {
+            deferred.reason() == OwnershipDeferredReason::RecursiveClosureCapture
+        })
+    );
+    assert!(owned.iterations().is_empty());
+    assert!(owned.cleanup_steps().is_empty());
+    assert!(owned.drops().is_empty());
+    assert!(owned.loan_ends().is_empty());
+}
+
+#[test]
 fn mutually_recursive_loop_captures_do_not_publish_a_truncated_phi() {
     use lang_frontend::ownership_checking::OwnershipDeferredReason;
 
@@ -7021,6 +7337,7 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
     fn copy_origin(
         table: &CleanupConditions,
         root: CleanupOwnerValueId,
+        origins: &[IterationClosurePhiOrigin],
         layout: &IterationClosurePhiOrigin,
         origin: &IterationPhiIncomingOrigin,
         before: &ReplayBefore<'_>,
@@ -7028,7 +7345,6 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
     ) {
         assert_eq!(origin.target(), layout.selector());
         let present = selected(table, origin.condition(), before.choices);
-        writes.choices.push((origin.target(), usize::from(present)));
         if !present {
             return;
         }
@@ -7093,9 +7409,10 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
                 let nested_layout = slot
                     .captured()
                     .iter()
+                    .map(|&index| &origins[index])
                     .find(|layout| layout.selector() == nested.target())
                     .unwrap();
-                copy_origin(table, root, nested_layout, nested, before, writes);
+                copy_origin(table, root, origins, nested_layout, nested, before, writes);
             }
         }
     }
@@ -7127,13 +7444,19 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
             writes
                 .choices
                 .push((binding.availability_selector(), usize::from(available)));
+            for write in binding.selector_writes() {
+                writes.choices.push((
+                    write.target(),
+                    usize::from(selected(table, write.condition(), &before_choices)),
+                ));
+            }
             let values = binding
                 .values()
                 .iter()
                 .filter(|value| selected(table, value.condition(), &before_choices))
                 .collect::<Vec<_>>();
             assert_eq!(values.len(), usize::from(available));
-            assert_eq!(target.origins().len(), binding.origins().len());
+            assert_eq!(target.root_origins().count(), binding.origins().len());
             let selected_origins = binding
                 .origins()
                 .iter()
@@ -7155,8 +7478,21 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
                     .owners
                     .push((target.owner(), before_owners[&value.source()]));
             }
-            for (layout, origin) in target.origins().iter().zip(binding.origins()) {
-                copy_origin(table, target.owner(), layout, origin, &before, &mut writes);
+            for origin in binding.origins() {
+                let layout = target
+                    .origins()
+                    .iter()
+                    .find(|layout| layout.selector() == origin.target())
+                    .unwrap();
+                copy_origin(
+                    table,
+                    target.owner(),
+                    target.origins(),
+                    layout,
+                    origin,
+                    &before,
+                    &mut writes,
+                );
             }
         }
         choices.extend(writes.choices);
@@ -7580,8 +7916,7 @@ fn iteration_plan_exposes_finite_owned_capture_graph() {
         let mut seen = std::collections::BTreeSet::new();
         let mut reachable = std::collections::BTreeSet::new();
         let tree_roots = phi
-            .origins()
-            .iter()
+            .root_origins()
             .map(|origin| origin.node())
             .collect::<Vec<_>>();
         assert_eq!(phi.root_nodes(), tree_roots);
@@ -7633,7 +7968,8 @@ fn iteration_plan_exposes_finite_owned_capture_graph() {
                     .iter()
                     .find(|edge| edge.capture().source() == source.source())
                     .unwrap();
-                for nested in source.captured() {
+                for &index in source.captured() {
+                    let nested = &phi.origins()[index];
                     assert!(edge.captured().contains(&nested.node()));
                     assert_eq!(graph.nodes()[nested.node()].closure(), nested.closure());
                 }
@@ -7677,6 +8013,7 @@ fn iteration_plan_exposes_finite_owned_capture_graph() {
                             let target = slot
                                 .captured()
                                 .iter()
+                                .map(|&index| &phi.origins()[index])
                                 .find(|target| target.selector() == nested.target())
                                 .unwrap();
                             assert_eq!(nested.node(), target.node());
@@ -7895,10 +8232,19 @@ fn first_loop_forms_two_instances_before_outer_capture() {
                 .filter(|source| selected(table, source.condition(), &before_choices))
                 .collect::<Vec<_>>();
             assert_eq!(active.len(), usize::from(available));
-            for origin in binding.origins() {
+            let active_roots = binding
+                .root_sources()
+                .iter()
+                .filter(|source| selected(table, source.condition(), &before_choices))
+                .collect::<Vec<_>>();
+            assert_eq!(active_roots.len(), active.len());
+            if let [source] = active.as_slice() {
+                assert_eq!(active_roots[0].source(), source.source());
+            }
+            for write in binding.selector_writes() {
                 selector_writes.push((
-                    origin.target(),
-                    usize::from(selected(table, origin.condition(), &before_choices)),
+                    write.target(),
+                    usize::from(selected(table, write.condition(), &before_choices)),
                 ));
             }
             if let Some(source) = active.first() {
@@ -8083,6 +8429,21 @@ fn first_loop_forms_two_instances_before_outer_capture() {
         panic!("outer captures two bindings")
     };
     let plan = &owned.iterations()[0];
+    for incoming in plan.closure_phi_incomings() {
+        for binding in incoming.bindings() {
+            let layout = plan
+                .closure_phis()
+                .iter()
+                .find(|layout| layout.owner() == binding.target())
+                .unwrap();
+            assert!(
+                binding
+                    .root_sources()
+                    .iter()
+                    .all(|source| layout.root_nodes().contains(&source.node()))
+            );
+        }
+    }
     let phi = |boundary, symbol| {
         plan.closure_phis()
             .iter()
@@ -8234,6 +8595,10 @@ fn first_loop_forms_two_instances_before_outer_capture() {
     );
     let outer_instance = next_instance;
     owners.insert(outer_owner, outer_instance);
+    let outer_positions = outer_captures
+        .iter()
+        .map(|(target, _)| table.capture_slot_value(*target).unwrap().position())
+        .collect::<Vec<_>>();
     for (target, input) in outer_captures {
         assert!(selected(table, input.condition(), &choices));
         let CleanupCaptureValue::Owner(source) = input.value() else {
@@ -8253,6 +8618,94 @@ fn first_loop_forms_two_instances_before_outer_capture() {
     assert_eq!(captures[&(inner_instances[0], 0)], source_instances[0]);
     assert_eq!(captures[&(inner_instances[1], 0)], source_instances[1]);
     assert_ne!(source_instances[0], source_instances[1]);
+
+    let outer_snapshot = owned
+        .cleanup_steps()
+        .iter()
+        .find_map(|(_, action)| match action {
+            Action::SaveOwnerSnapshot { owner, value, .. } if *value == outer => Some(*owner),
+            _ => None,
+        })
+        .expect("the outer binding saves its formed environment");
+    assert_eq!(
+        save_snapshot(table, outer_snapshot, &mut choices, &mut owners),
+        outer_instance
+    );
+    assert!(owned.cleanup_steps().iter().any(|(_, action)| {
+        matches!(action, Action::Drop(fact) if fact.owner() == Some(outer_snapshot))
+    }));
+    let root = owners
+        .remove(&outer_snapshot)
+        .expect("drop consumes the saved root");
+    let captured_drops = owned
+        .cleanup_steps()
+        .iter()
+        .filter_map(|(_, action)| match action {
+            Action::Drop(fact) => fact.instance_address().and_then(|address| {
+                let address = table.instance_address(address)?;
+                (address.root() == outer_snapshot).then_some((address, fact.capture_slot()?))
+            }),
+            _ => None,
+        })
+        .map(|(address, slot)| {
+            let parent = address
+                .capture_path()
+                .iter()
+                .fold(root, |instance, position| captures[&(instance, *position)]);
+            captures[&(parent, table.capture_slot_value(slot).unwrap().position())]
+        })
+        .collect::<Vec<_>>();
+    let mut pending = vec![(root, false)];
+    let mut released = Vec::new();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some((instance, children_done)) = pending.pop() {
+        if children_done {
+            released.push(instance);
+            continue;
+        }
+        assert!(
+            visited.insert(instance),
+            "one owned instance cannot be released twice"
+        );
+        pending.push((instance, true));
+        let positions = if instance == outer_instance {
+            outer_positions.clone()
+        } else {
+            captures
+                .range((instance, 0)..=(instance, usize::MAX))
+                .map(|(&(parent, position), _)| {
+                    assert_eq!(parent, instance);
+                    position
+                })
+                .collect()
+        };
+        for position in positions {
+            let child = captures
+                .remove(&(instance, position))
+                .expect("release consumes the formed edge");
+            pending.push((child, false));
+        }
+    }
+    assert!(
+        captures.is_empty(),
+        "all formed capture edges were consumed"
+    );
+    assert_eq!(
+        captured_drops,
+        released[..4],
+        "drop addresses select actual instances"
+    );
+    assert_eq!(
+        released,
+        [
+            source_instances[0],
+            inner_instances[0],
+            source_instances[1],
+            inner_instances[1],
+            outer_instance,
+        ],
+        "the final drop releases each actual child before its parent, in reverse capture order"
+    );
 }
 
 #[test]
@@ -8691,11 +9144,9 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
         origin: &IterationPhiIncomingOrigin,
         choices: &BTreeMap<CleanupSelectorId, usize>,
         owners: &BTreeMap<CleanupOwnerValueId, u32>,
-        choice_writes: &mut Vec<(CleanupSelectorId, usize)>,
         owner_writes: &mut Vec<(CleanupOwnerValueId, u32)>,
     ) -> Option<u32> {
         let present = selected(table, origin.condition(), choices);
-        choice_writes.push((origin.target(), usize::from(present)));
         if !present {
             return None;
         }
@@ -8717,7 +9168,7 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
                 owner_writes.push((target, owners[&actual]));
             }
             for nested in source.captured() {
-                replay_origin(table, nested, choices, owners, choice_writes, owner_writes);
+                replay_origin(table, nested, choices, owners, owner_writes);
             }
         }
         Some(owners[&environment.owner()])
@@ -8746,6 +9197,12 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
             .collect::<Vec<_>>();
         assert_eq!(values.len(), usize::from(available));
         let mut choice_writes = vec![(binding.availability_selector(), usize::from(available))];
+        for write in binding.selector_writes() {
+            choice_writes.push((
+                write.target(),
+                usize::from(selected(table, write.condition(), &before_choices)),
+            ));
+        }
         let mut owner_writes = Vec::new();
         let selected_origins = binding
             .origins()
@@ -8756,7 +9213,6 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
                     origin,
                     &before_choices,
                     &before_owners,
-                    &mut choice_writes,
                     &mut owner_writes,
                 )
             })
@@ -8814,7 +9270,7 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
     };
     let header_new = new_origin(header).map(|index| &header.origins()[index]);
     let exit_new = &exit.origins()[new_origin(exit).unwrap()];
-    let exit_g = &exit_new.sources()[0].captured()[0];
+    let exit_g = &exit.origins()[exit_new.sources()[0].captured()[0]];
     let edge = |kind| {
         plan.closure_phi_incomings()
             .iter()
@@ -8843,6 +9299,7 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
     } else {
         header_new.expect("a continuing edge carries the body lambda into the header")
     };
+    let body_binding = if transfer == "break" { exit } else { header };
     let body_edge_new = body_edge
         .bindings()
         .iter()
@@ -8899,7 +9356,8 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
         assert_eq!(nested.sources()[0].transport_value(), None);
     }
     let table = owned.cleanup_conditions();
-    let created_g = created(body_origin.sources()[0].captured()[0].closure());
+    let created_g =
+        created(body_binding.origins()[body_origin.sources()[0].captured()[0]].closure());
     let fresh_xs = match table.owner_value(created_g) {
         Some(CleanupOwnerValue::Closure { inputs, .. }) => match inputs[0].value() {
             CleanupCaptureValue::Owner(owner) => owner,
@@ -9044,7 +9502,7 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
     let zero_owners = owners.clone();
     replay(table, exhaustion, exit.owner(), &mut choices, &mut owners);
     assert_eq!(owners[&exit.owner()], 0, "zero rounds keep the entry f");
-    assert!(!choices.contains_key(&exit_g.selector()));
+    assert_eq!(choices[&exit_g.selector()], 0, "zero rounds clear absent g");
     release(
         lang_frontend::ownership_checking::DropPoint::CallReturn(call),
         exit_new.sources()[0].owner(),
@@ -9083,7 +9541,7 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
                     body_origin.closure(),
                 ),
                 header_new.sources()[0].owner(),
-                header_new.sources()[0].captured()[0].sources()[0].owner(),
+                header.origins()[header_new.sources()[0].captured()[0]].sources()[0].owner(),
                 &mut choices,
                 &owners,
                 &captures,
@@ -9094,7 +9552,8 @@ fn assert_nested_loop_phi_replays_distinct_source_instances(transfer: &str) {
         assert_eq!(owners[&body_target], round * 10);
         assert_eq!(owners[&body_origin.sources()[0].owner()], round * 10 + 1);
         assert_eq!(
-            owners[&body_origin.sources()[0].captured()[0].sources()[0].owner()],
+            owners[&body_binding.origins()[body_origin.sources()[0].captured()[0]].sources()[0]
+                .owner()],
             round * 10 + 2
         );
     }
@@ -10611,14 +11070,35 @@ fn loop_carried_branch_choices_release_the_previous_source_after_two_rounds() {
                 .filter(|value| selected(table, value.condition(), &before_choices))
                 .collect::<Vec<_>>();
             assert_eq!(values.len(), usize::from(available));
+            let roots = binding
+                .root_sources()
+                .iter()
+                .filter(|source| selected(table, source.condition(), &before_choices))
+                .collect::<Vec<_>>();
+            assert!(
+                roots
+                    .iter()
+                    .all(|source| layout.root_nodes().contains(&source.node()))
+            );
+            if !layout.root_nodes().is_empty() {
+                assert_eq!(roots.len(), values.len());
+                if let [value] = values.as_slice() {
+                    assert_eq!(roots[0].source(), value.source());
+                }
+            }
             let actual = values.first().map(|value| before_owners[&value.source()]);
             if let Some(actual) = actual {
                 owner_writes.push((binding.target(), actual));
             }
+            for write in binding.selector_writes() {
+                choice_writes.push((
+                    write.target(),
+                    usize::from(selected(table, write.condition(), &before_choices)),
+                ));
+            }
             let mut origins = Vec::new();
             for origin in binding.origins() {
                 let present = selected(table, origin.condition(), &before_choices);
-                choice_writes.push((origin.target(), usize::from(present)));
                 if !present {
                     continue;
                 }
@@ -10898,7 +11378,10 @@ fn loop_carried_branch_choices_release_the_previous_source_after_two_rounds() {
                         .is_some_and(|owner| source_slots.contains(&owner)) =>
             {
                 assert!(
-                    *point == exhaustion.point() || *point == DropPoint::CallReturn(call),
+                    *point == exhaustion.point()
+                        || *point == DropPoint::CallReturn(call)
+                        || (*point == save_point
+                            && matches!(fact.target(), DropTarget::RetainedSource(_))),
                     "either source can be captured in a later round: {point:?} {fact:?}"
                 );
             }
@@ -10912,7 +11395,7 @@ fn loop_carried_branch_choices_release_the_previous_source_after_two_rounds() {
                 );
             }
             Action::TestLastCaptureLoan { owner, .. } if source_slots.contains(owner) => {
-                assert_eq!(*point, DropPoint::CallReturn(call));
+                assert!(*point == save_point || *point == DropPoint::CallReturn(call));
             }
             _ => {}
         }
@@ -11079,6 +11562,38 @@ fn loop_carried_branch_choices_release_the_previous_source_after_two_rounds() {
                 },
                 "replacement releases the preceding round's capture"
             );
+            let mut last_loan_true = choices.clone();
+            for (point, action) in owned.cleanup_steps() {
+                if *point == save_point
+                    && let Action::TestLastCaptureLoan {
+                        condition,
+                        selector,
+                        ..
+                    } = action
+                {
+                    assert!(
+                        condition.is_some_and(|guard| !selected(table, guard, &choices)),
+                        "available named sources must not query retained-source cleanup"
+                    );
+                    choices.insert(*selector, 0);
+                    last_loan_true.insert(*selector, 1);
+                }
+            }
+            for (point, action) in owned.cleanup_steps() {
+                if *point == save_point
+                    && let Action::Drop(fact) = action
+                    && matches!(fact.target(), DropTarget::RetainedSource(_))
+                {
+                    assert!(
+                        fact.condition().is_some_and(|guard| !selected(
+                            table,
+                            guard,
+                            &last_loan_true
+                        )),
+                        "named availability must forbid retained drop even if last-loan were true"
+                    );
+                }
+            }
             owners.insert(snapshot.owner(), 10 + round as u32);
             replay(
                 table,

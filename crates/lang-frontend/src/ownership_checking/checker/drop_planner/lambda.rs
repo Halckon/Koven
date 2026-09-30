@@ -1,7 +1,7 @@
 //! Lambda body 的参数与局部 owner 属于独立 callable，不继承创建点的迭代 frame。
 use super::{
     ClosureOrigin, DropPlanner, DropPoint, ExpressionUse, IterationCleanupAction, OwnedValue,
-    OwnershipCheckingError, ValueState,
+    OwnershipCheckingError, RetainedSource, ValueState,
 };
 use crate::{
     ast::{ExpressionId, StatementId},
@@ -15,6 +15,7 @@ impl DropPlanner<'_, '_> {
         &mut self,
         lambda: ExpressionId,
         environment: &ClosureOrigin,
+        retained_sources: &[RetainedSource],
     ) -> Result<(), OwnershipCheckingError> {
         let Expression::Lambda {
             opener_span,
@@ -46,7 +47,8 @@ impl DropPlanner<'_, '_> {
         let enclosing = self
             .current_environment
             .replace((environment.owner, lambda));
-        let result = self.plan_lambda_body(lambda, &parameters, body, environment);
+        let result =
+            self.plan_lambda_body(lambda, &parameters, body, environment, retained_sources);
         self.current_environment = enclosing;
         result
     }
@@ -57,6 +59,7 @@ impl DropPlanner<'_, '_> {
         parameters: &[Span],
         body: StatementId,
         environment: &ClosureOrigin,
+        retained_sources: &[RetainedSource],
     ) -> Result<(), OwnershipCheckingError> {
         if self.liveness.skipped_lambdas.contains(&lambda.index()) {
             return Ok(());
@@ -64,6 +67,26 @@ impl DropPlanner<'_, '_> {
         let loops = std::mem::take(&mut self.loop_boundaries);
         let depth = std::mem::replace(&mut self.scope_depth, 0);
         let mut state = ValueState::default();
+        // owned 捕获携带其子环境已持有的 retained source 义务；调用内再次移动
+        // 并释放子环境时，须能在实际接收槽结束最后 loan，不能回读已移空的外层槽。
+        let mut pending = vec![environment];
+        while let Some(origin) = pending.pop() {
+            for source in retained_sources {
+                if (origin.inputs.iter().any(|input| {
+                    input.mode == super::ClosureCaptureMode::Shared
+                        && input.value
+                            == crate::ownership_checking::CleanupCaptureValue::Owner(source.owner)
+                }) || origin
+                    .held_sources
+                    .iter()
+                    .any(|held| held.owner == source.owner))
+                    && !state.retained_sources.contains(source)
+                {
+                    state.retained_sources.push(*source);
+                }
+            }
+            pending.extend(&origin.captured);
+        }
         self.cleanup.push((
             DropPoint::LambdaEntry(lambda),
             IterationCleanupAction::BindClosureEnvironment {
@@ -91,6 +114,7 @@ impl DropPlanner<'_, '_> {
                     condition: state.path,
                     symbol,
                     origin,
+                    declaration: origin,
                     scope_depth: 0,
                 });
             }

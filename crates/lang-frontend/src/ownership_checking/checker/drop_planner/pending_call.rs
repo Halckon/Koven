@@ -17,7 +17,7 @@ pub(super) struct PendingCall {
     pub(super) loop_depth: usize,
     pub(super) loans: Vec<LoanFact>,
     pub(super) callees: Vec<SymbolId>,
-    pub(super) closure_environment: Option<(CleanupOwnerValueId, ExpressionId)>,
+    pub(super) closure_environment: Option<(CleanupOwnerValueId, Option<ExpressionId>)>,
 }
 impl PendingCall {
     pub(super) fn new(call: ExpressionId, loop_depth: usize) -> Self {
@@ -33,7 +33,7 @@ impl PendingCall {
 impl DropPlanner<'_, '_> {
     /// Callable owners are held through argument evaluation even without a source-level call loan.
     pub(super) fn register_pending_callee(
-        &self,
+        &mut self,
         call: ExpressionId,
         callee: ExpressionId,
         state: &mut ValueState,
@@ -53,30 +53,32 @@ impl DropPlanner<'_, '_> {
         ) && self.checker.place(callee)?.is_some_and(|place| {
             self.checker.variable_kinds.get(&place.root()) != Some(&VariableKind::Var)
         });
-        let concrete_environment = if self
+        let callee_environment = if self
             .checker
             .typed
             .call(call)
             .is_some_and(|descriptor| descriptor.target() == CallableTarget::FunctionValue)
             && stable_callee
-            && state.path == CleanupConditionId::ALWAYS
+            && state.path != CleanupConditionId::NEVER
         {
-            match (closures.as_slice(), versions.as_slice()) {
+            let closure = match (closures.as_slice(), versions.as_slice()) {
                 ([origin], [version])
                     if origin.owner == version.owner
-                        && origin.condition == CleanupConditionId::ALWAYS
-                        && version.condition == CleanupConditionId::ALWAYS =>
+                        && self.conditions.and(state.path, version.condition) == state.path =>
                 {
                     let definition = match self.conditions.owner_snapshot(version.owner) {
                         Some(snapshot) => match snapshot.capture_inputs() {
-                            [input] if input.condition() == CleanupConditionId::ALWAYS => {
-                                Some(input.owner())
-                            }
+                            [input] => Some((input.owner(), input.condition())),
                             _ => None,
                         },
-                        None => Some(version.owner),
+                        None => Some((version.owner, CleanupConditionId::ALWAYS)),
                     };
+                    // 从唯一值来源证明 lambda 身份；origin 的清理 guard 可能已重绑为
+                    // snapshot selector，不能要求当前控制路径直接蕴含该副本。
+                    // Pass 在可达调用点执行，只要求当前路径保证值及来源可用。
                     definition
+                        .filter(|(_, guard)| self.conditions.and(state.path, *guard) == state.path)
+                        .map(|(owner, _)| owner)
                         .filter(|&owner| owner == origin.layout_owner)
                         .and_then(|owner| {
                             matches!(
@@ -84,15 +86,23 @@ impl DropPlanner<'_, '_> {
                                 Some(CleanupOwnerValue::Closure { expression, .. })
                                     if *expression == origin.closure
                             )
-                            .then_some((version.owner, origin.closure))
+                            .then_some(origin.closure)
                         })
+                }
+                _ => None,
+            };
+            // owner 的可用性与 lambda 的静态身份是两个证明。phi / nullable 提取
+            // 可以保有唯一实际值而没有唯一静态 lambda，此时传值自身的环境。
+            match versions.as_slice() {
+                [version] if self.conditions.and(state.path, version.condition) == state.path => {
+                    Some((version.owner, closure))
                 }
                 _ => None,
             }
         } else {
             None
         };
-        if let Some(environment) = concrete_environment
+        if let Some(environment) = callee_environment
             && let Some(frame) = state
                 .pending_calls
                 .iter_mut()

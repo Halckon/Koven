@@ -50,16 +50,26 @@ pub enum IterationExitKind {
     Exhaustion,
 }
 
+/// 逐实例释放读取静态捕获布局的位置；动态子实例始终从形成时保存的槽读取。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClosureReleaseLayout {
+    /// 循环 phi 的有限 capture 图；节点索引只在该循环内有效。
+    Iteration(StatementId),
+    /// 从当次实例的 closure 身份读取单文件已检查的完整捕获描述符。
+    File,
+}
+
 /// 同一退出点严格按此列表执行；Drop 不得再从普通 drop 列表重复执行。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IterationCleanupAction {
-    /// 调用点从已求值的 callee owner 读取当次 closure 实例，交给匹配的 lambda 入口。
-    /// 仅在来源唯一且已检查为具体 lambda 时发布；调用不消费该实例。
+    /// 调用点从已求值的 callee owner 读取当次函数值的入口与环境。
+    /// 稳定 callee 的唯一 owner 在参数求值后仍可用才发布；调用不消费该实例。
     PassClosureEnvironment {
         /// 保存 callee 当次值的静态 owner，可为快照身份。
         callee: super::CleanupOwnerValueId,
-        /// 已检查的唯一 lambda 来源。
-        closure: ExpressionId,
+        /// 能静态证明时的唯一 lambda；None 从实际函数值选择入口，不能猜选来源，
+        /// 也不保证该入口在本文件有可查询的 lambda ExpressionId。
+        closure: Option<ExpressionId>,
     },
     /// 调用入口把传入 closure 的当次环境实例绑定到 body 的静态环境 owner。
     /// 调用不消费该实例；后续环境槽读取使用这个入口绑定。
@@ -104,19 +114,32 @@ pub enum IterationCleanupAction {
     },
     /// 复用既有 owner drop 身份。
     Drop(DropFact),
-    /// 从根实例沿形成时保存的 owned capture 边释放环境；静态图只提供槽布局，
-    /// 不决定运行时深度。递归计划解除 deferred 前，此动作仅留在 planner 内部。
+    /// 从根实例沿形成时保存的 owned capture 边释放环境；每个实际实例的 shared
+    /// capture 也须从该实例保存的 source 结束 loan，不能另按静态图节点释放一次。
+    /// 静态图只提供槽布局，不决定运行时深度。递归计划解除 deferred 前，此动作
+    /// 仅留在 planner 内部。
+    /// 同点保存本次根的有序 loan-end 批次，未选中根留空批次，供配对动作消费。
     ReleaseClosureInstances {
-        /// 含有限 capture 布局的循环计划。
-        statement: StatementId,
+        /// 取得当次实例完整已检查 capture 布局的来源。
+        layout: ClosureReleaseLayout,
         /// 待释放的根值及其边界条件；不与普通 Drop 重复执行。
+        root: DropFact,
+    },
+    /// 消费同点、同 root 的实例释放产生的有序 loan-end 凭据，恰好一次。
+    /// 仅 last=true 且仍承担 retained 析构义务的实际 source 可以释放；具名或外部
+    /// source 不在此取得析构义务。源若也是 closure，按 File 完整布局释放并继续
+    /// 消费其新产生的凭据。须在整次外层 owner 收尾后执行，不与有限 retained
+    /// TestLastCaptureLoan/Drop 重复；条件未选中的根仍对应一个空批次。
+    ReleaseRetainedClosureSources {
+        /// 配对 ReleaseClosureInstances 的完整根事实；不是新的 owner drop。
         root: DropFact,
     },
     /// 结束本轮未完成调用的派生 loan。
     EndCallLoan(LoanEndFact),
     /// closure owner 释放后结束其 shared capture。
     EndCaptureLoan {
-        /// 所属环境的静态值定义；递归/多路径 deferred 未解除前不充当实例地址。
+        /// 静态环境或捕获来源关系身份；phi 路径可为 `IterationPhiSourceOwner`。
+        /// 实际环境由 `instance_address` 定位，不能从本字段推断当次实例。
         owner: super::CleanupOwnerValueId,
         /// 从当次根值沿已保存捕获边定位这个环境实例。
         instance_address: super::CleanupInstanceAddressId,
@@ -124,14 +147,18 @@ pub enum IterationCleanupAction {
         capture_slot: Option<super::CleanupCaptureSlotId>,
         /// 当前边界额外要求的保存路径条件；None 表示无条件。
         condition: Option<super::CleanupConditionId>,
-        /// 已释放的 closure 身份。
+        /// 候选 closure 布局身份；地址的实际 closure 不匹配时不结束 loan。
+        /// 路径的 owned 槽已由显式 Move/captured drop 清空，且无同点释放边凭据可继续解析时，
+        /// 跳过候选；有同点释放边时仍须沿该边结束 loan。
+        /// 其余路径缺失或匹配布局的槽缺失仍是无效事实，不能作为未选中忽略。
         closure: ExpressionId,
         /// 原 shared capture 的来源。
         source: ClosureCaptureSource,
         /// 此 loan 实际保护的来源值或紧邻环境槽。
         value: super::CleanupCaptureValue,
     },
-    /// 同点 capture loan 全部结束后，按 source 动态实例写入最后借用者选择。
+    /// 读取同点该 capture loan 结束时保存的最后借用者结果。
+    /// 根动作可先结束多条 loan；不能在延后查询时用当前计数把它们都判为最后一个。
     TestLastCaptureLoan {
         /// 来源的静态 owner 身份；实际值须从下方环境地址与槽读取。
         owner: CleanupOwnerValueId,
@@ -139,7 +166,10 @@ pub enum IterationCleanupAction {
         instance_address: super::CleanupInstanceAddressId,
         /// 从该环境实例读取当次 source 值的 capture 槽。
         capture_slot: super::CleanupCaptureSlotId,
-        /// 写入的独立选择；1 表示该实例再无有效 capture loan。
+        /// 写入的独立选择；1 表示结束该 loan 时，其 source 从一个有效 capture loan 变为零。
+        /// 消费端按实际环境实例/槽保存结果和 source 身份，清理点结束后清空凭据。
+        /// condition 不成立、路径槽已被显式消费且无同点释放边凭据、或实际 closure 与
+        /// capture_slot 布局不匹配时写 0，避免沿用旧轮结果。
         selector: CleanupSelectorId,
         /// 此 source 释放路径的额外保护。
         condition: Option<CleanupConditionId>,
@@ -258,6 +288,7 @@ impl IterationCaptureGraph {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IterationCaptureNode {
     pub(crate) closure: ExpressionId,
+    pub(crate) release_captures: Vec<ClosureCaptureDescriptor>,
     pub(crate) sources: Vec<IterationCaptureSource>,
 }
 impl IterationCaptureNode {
@@ -265,6 +296,12 @@ impl IterationCaptureNode {
     #[must_use]
     pub const fn closure(&self) -> ExpressionId {
         self.closure
+    }
+    /// 当次环境的完整已检查捕获布局，顺序即原始捕获位置；包括未进入 phi 来源图的
+    /// Copyable/shared 捕获。逐实例释放必须按此布局处理每个槽和 loan。
+    #[must_use]
+    pub fn release_captures(&self) -> &[ClosureCaptureDescriptor] {
+        &self.release_captures
     }
     /// 按捕获声明顺序排列的已跟踪来源。
     #[must_use]
@@ -279,6 +316,7 @@ pub struct IterationCaptureSource {
     pub(crate) capture: ClosureCaptureDescriptor,
     pub(crate) position: usize,
     pub(crate) captured: Vec<usize>,
+    pub(crate) may_be_opaque: bool,
 }
 impl IterationCaptureSource {
     /// 此边的已检查捕获能力及来源。
@@ -291,10 +329,18 @@ impl IterationCaptureSource {
     pub const fn position(&self) -> usize {
         self.position
     }
-    /// 候选内层环境的节点索引；实际实例由形成时句柄决定。
+    /// owned/Move 捕获的候选内层环境节点；实际实例由形成时句柄决定。
+    /// Shared 来源即使自身是 closure 也不沿此边运输其 owned 子图。
     #[must_use]
     pub fn captured(&self) -> &[usize] {
         &self.captured
+    }
+    /// owned 来源还可能是来源分析未枚举的值（例如函数参数或调用结果）。
+    /// 实际子 closure 不属于 captured 候选时，只在此标记为 true 时按 opaque 边运输；
+    /// 不把它猜成任一已知节点，也不沿其内部值写本图存在位。此标记不提供析构布局。
+    #[must_use]
+    pub const fn may_be_opaque(&self) -> bool {
+        self.may_be_opaque
     }
 }
 
@@ -333,6 +379,7 @@ pub struct IterationClosurePhiBinding {
     pub(crate) capture_layout: Vec<IterationPhiCaptureSlot>,
     pub(crate) availability_selector: CleanupSelectorId,
     pub(crate) availability_condition: CleanupConditionId,
+    pub(crate) instance_presence_required: bool,
     pub(crate) origins: Vec<IterationClosurePhiOrigin>,
 }
 impl IterationClosurePhiBinding {
@@ -371,10 +418,16 @@ impl IterationClosurePhiBinding {
     pub const fn availability_condition(&self) -> CleanupConditionId {
         self.availability_condition
     }
-    /// 有限可能来源；每个 selector 需要实际入边写入存在位。
+    /// 每个可达图节点一份存在位布局；根节点由 `root_nodes` 标识。
     #[must_use]
     pub fn origins(&self) -> &[IterationClosurePhiOrigin] {
         &self.origins
+    }
+    /// 根节点的存在位布局，按有限布局顺序。
+    pub fn root_origins(&self) -> impl Iterator<Item = &IterationClosurePhiOrigin> {
+        self.origins
+            .iter()
+            .filter(|origin| self.root_nodes.contains(&origin.node()))
     }
 }
 
@@ -423,6 +476,9 @@ pub struct IterationPhiIncomingBinding {
     pub(crate) availability_selector: CleanupSelectorId,
     pub(crate) available_when: CleanupConditionId,
     pub(crate) values: Vec<IterationPhiIncomingValue>,
+    pub(crate) root_sources: Vec<IterationPhiRootSource>,
+    pub(crate) presence_source: IterationPhiPresenceSource,
+    pub(crate) selector_writes: Vec<IterationPhiSelectorWrite>,
     pub(crate) origins: Vec<IterationPhiIncomingOrigin>,
 }
 impl IterationPhiIncomingBinding {
@@ -443,6 +499,9 @@ impl IterationPhiIncomingBinding {
         self.availability_selector
     }
     /// 当前边有 owner 的条件；Never 表示明确写入 false。
+    /// 入边须先读取完整旧状态。旧具名 owner 未进入新 binding、但仍有有效 capture
+    /// loan 时，移除其具名映射并把唯一析构义务转为 retained；不复制或立即 drop。
+    /// 后续仅最后 loan 的结束凭据可交付该义务；无有效 loan 的缺席 owner 不能留存。
     #[must_use]
     pub const fn available_when(&self) -> CleanupConditionId {
         self.available_when
@@ -452,10 +511,88 @@ impl IterationPhiIncomingBinding {
     pub fn values(&self) -> &[IterationPhiIncomingValue] {
         &self.values
     }
-    /// 对每个预分配 lambda 来源都写入存在位。
+    /// 已知 lambda 根节点与来源 owner 的候选映射；动态实例须再以来源句柄的
+    /// closure 身份选根，后代存在位不能代替根身份。
+    #[must_use]
+    pub fn root_sources(&self) -> &[IterationPhiRootSource] {
+        &self.root_sources
+    }
+    /// 存在位是否可由静态条件直接写入，或必须读取当次根实例的捕获边。
+    #[must_use]
+    pub const fn presence_source(&self) -> IterationPhiPresenceSource {
+        self.presence_source
+    }
+    /// 每个预分配图节点的静态条件候选，包括缺席时的 false；当
+    /// `presence_source()` 为 `CapturedInstances` 时，不能将候选直接作为实际存在位。
+    #[must_use]
+    pub fn selector_writes(&self) -> &[IterationPhiSelectorWrite] {
+        &self.selector_writes
+    }
+    /// 路径局部的候选环境；不作为 selector 写集使用。
     #[must_use]
     pub fn origins(&self) -> &[IterationPhiIncomingOrigin] {
         &self.origins
+    }
+}
+
+/// 循环入边的节点存在位必须从哪种来源确定。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IterationPhiPresenceSource {
+    /// 静态条件写集精确描述每个节点。
+    StaticConditions,
+    /// 先按 `root_sources` 选择当次根实例，再沿其形成时保存的捕获边遍历有限图；
+    /// 只把实际到达的节点写 true，其余布局节点写 false。
+    CapturedInstances,
+}
+
+/// 根句柄的有限图候选；同一节点可对应不同轮次形成的实例。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IterationPhiRootSource {
+    pub(crate) node: usize,
+    pub(crate) source: CleanupOwnerValueId,
+    pub(crate) condition: CleanupConditionId,
+}
+impl IterationPhiRootSource {
+    /// 目标 phi 的有限捕获图节点。
+    #[must_use]
+    pub const fn node(self) -> usize {
+        self.node
+    }
+    /// 复制前持有根实例句柄的 owner。
+    #[must_use]
+    pub const fn source(self) -> CleanupOwnerValueId {
+        self.source
+    }
+    /// 复制前的候选条件；实例模式下，后代存在可能也使此条件为真，
+    /// 仍须用来源句柄的 closure 身份确认它是当前根。
+    #[must_use]
+    pub const fn condition(self) -> CleanupConditionId {
+        self.condition
+    }
+}
+
+/// 入边在有限图节点上写入的存在位；全部条件从写入前状态读取。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IterationPhiSelectorWrite {
+    pub(crate) node: usize,
+    pub(crate) target: CleanupSelectorId,
+    pub(crate) condition: CleanupConditionId,
+}
+impl IterationPhiSelectorWrite {
+    /// 对应的有限捕获图节点。
+    #[must_use]
+    pub const fn node(self) -> usize {
+        self.node
+    }
+    /// 接收此存在位的选择器。
+    #[must_use]
+    pub const fn target(self) -> CleanupSelectorId {
+        self.target
+    }
+    /// 写入前状态下该图节点存在的条件。
+    #[must_use]
+    pub const fn condition(self) -> CleanupConditionId {
+        self.condition
     }
 }
 
@@ -478,7 +615,7 @@ impl IterationPhiIncomingValue {
     }
 }
 
-/// 目标来源存在位；没有来源的边也必须显式写入 false。
+/// 一条捕获路径的已知来源；缺席时其局部条件为 false，全局位由 selector_writes 合并。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IterationPhiIncomingOrigin {
     pub(crate) node: usize,
@@ -497,7 +634,7 @@ impl IterationPhiIncomingOrigin {
     pub const fn target(&self) -> CleanupSelectorId {
         self.target
     }
-    /// 任一实际环境存在时为真。
+    /// 当前捕获路径的任一实际环境存在时为真。
     #[must_use]
     pub const fn condition(&self) -> CleanupConditionId {
         self.condition
@@ -668,7 +805,7 @@ pub struct IterationClosurePhiSource {
     pub(crate) mode: ClosureCaptureMode,
     pub(crate) effect: ClosureCaptureEffect,
     pub(crate) owner: CleanupOwnerValueId,
-    pub(crate) captured: Vec<IterationClosurePhiOrigin>,
+    pub(crate) captured: Vec<usize>,
 }
 impl IterationClosurePhiSource {
     /// 捕获来源的解析后身份。
@@ -691,9 +828,9 @@ impl IterationClosurePhiSource {
     pub const fn owner(&self) -> CleanupOwnerValueId {
         self.owner
     }
-    /// 此 source 若持有已知 closure，候选内层来源各有独立存在位。
+    /// 此 source 可持有的已知 closure 节点；索引进所属 binding 的有限布局。
     #[must_use]
-    pub fn captured(&self) -> &[IterationClosurePhiOrigin] {
+    pub fn captured(&self) -> &[usize] {
         &self.captured
     }
 }

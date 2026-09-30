@@ -572,6 +572,41 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
 }
 
 #[test]
+fn return_cleanup_preserves_declaration_order_after_rebinding() {
+    for replacement in [
+        "{ first = Resource() }",
+        "if (flag) { first = Resource() } else { first = Resource() }",
+    ] {
+        let text = "class Resource {}
+fun inspect(item: Resource): Unit {}
+fun run(flag: Boolean) {
+    var first = Resource()
+    val second = Resource()
+    REPLACE
+    if (flag) { return }
+    val a = inspect(first)
+    val b = inspect(second)
+}"
+        .replace("REPLACE", replacement);
+        let (sources, _, owned) = checked(&text);
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty());
+        let mut released = owned
+            .drops()
+            .iter()
+            .filter(|fact| {
+                matches!(fact.point(), DropPoint::ControlTransfer(_))
+                    && matches!(fact.target(), DropTarget::Named(_))
+            })
+            .map(|fact| sources.slice(fact.value_origin()).unwrap())
+            .collect::<Vec<_>>();
+        // 重绑 first 改变它的值来源，不能把它移动到 second 之后的声明位置。
+        released.dedup();
+        assert_eq!(released, ["second", "first = Resource()"]);
+    }
+}
+
+#[test]
 fn string_binary_views_drop_operands_only_after_the_operation() {
     let text = "fun compare(own left: String, own right: String): Boolean {\n\
                     val joined = left + \"!\"\n\

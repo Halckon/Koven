@@ -1,4 +1,5 @@
 //! 条件 owner 与 closure 来源共同流动；分支结果在 scope cleanup 前取得持有权。
+mod instance_sources;
 use super::{
     CleanupConditionId, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropFact,
     DropPlanner, DropPoint, DropTarget, Expression, ExpressionId, ExpressionUse,
@@ -9,6 +10,8 @@ use crate::ownership_checking::CleanupOwnerValueId;
 #[derive(Clone, Debug)]
 pub(super) struct ClosureOrigin {
     pub(super) inputs: Vec<crate::ownership_checking::CleanupCaptureInput>,
+    /// 递归 phi 的有限 shared 持有摘要；不是根环境的真实捕获槽。
+    pub(super) held_sources: Vec<OwnerVersion>,
     pub(super) captured: Vec<ClosureOrigin>,
     pub(super) captured_from: Option<ClosureCaptureSource>,
     pub(super) owner: crate::ownership_checking::CleanupOwnerValueId,
@@ -34,9 +37,20 @@ struct ReleaseTraversal<'a> {
 }
 
 impl ClosureOrigin {
+    pub(super) fn holds_recursive_source(&self, owner: CleanupOwnerValueId) -> bool {
+        self.held_sources
+            .iter()
+            .any(|held| held.owner == owner && held.condition != CleanupConditionId::NEVER)
+            || self
+                .captured
+                .iter()
+                .any(|captured| captured.holds_recursive_source(owner))
+    }
+
     pub(super) fn conditions(&self) -> Vec<CleanupConditionId> {
         std::iter::once(self.condition)
             .chain(self.inputs.iter().map(|input| input.condition))
+            .chain(self.held_sources.iter().map(|source| source.condition))
             .chain(self.captured.iter().flat_map(|origin| origin.conditions()))
             .collect()
     }
@@ -44,6 +58,11 @@ impl ClosureOrigin {
     pub(super) fn conditions_mut(&mut self) -> Vec<&mut CleanupConditionId> {
         let mut conditions = vec![&mut self.condition];
         conditions.extend(self.inputs.iter_mut().map(|input| &mut input.condition));
+        conditions.extend(
+            self.held_sources
+                .iter_mut()
+                .map(|source| &mut source.condition),
+        );
         for origin in &mut self.captured {
             conditions.extend(origin.conditions_mut());
         }
@@ -69,7 +88,7 @@ impl DropPlanner<'_, '_> {
                     .captures_of(id)
                     .map(|capture| capture.source())
                     .collect::<Vec<_>>();
-                let captured = self
+                let captured: Vec<ClosureOrigin> = self
                     .checker
                     .captures_of(id)
                     .filter(|capture| {
@@ -98,7 +117,36 @@ impl DropPlanner<'_, '_> {
                     inputs.clone(),
                     &capture_sources,
                 );
+                let release_layouts = inputs
+                    .iter()
+                    .filter(|input| {
+                        input.mode() == ClosureCaptureMode::Owned
+                            && input.effect() == ClosureCaptureEffect::Move
+                    })
+                    .filter_map(|input| self.recursive_capture_layout(input.value()))
+                    .collect::<Vec<_>>();
+                if let Some(&first) = release_layouts.first() {
+                    let layout = match first {
+                        crate::ownership_checking::ClosureReleaseLayout::Iteration(statement)
+                            if release_layouts.iter().all(|candidate| *candidate == first)
+                                && self
+                                    .loop_capture_graphs
+                                    .get(&statement.index())
+                                    .is_some_and(|graph| {
+                                        graph.nodes().iter().any(|node| node.closure() == id)
+                                    }) =>
+                        {
+                            first
+                        }
+                        _ => crate::ownership_checking::ClosureReleaseLayout::File,
+                    };
+                    self.recursive_release_closure_owners.insert(owner, layout);
+                } else if Self::needs_enclosing_instance_release(&inputs, &captured) {
+                    self.recursive_release_closure_owners
+                        .insert(owner, crate::ownership_checking::ClosureReleaseLayout::File);
+                }
                 vec![ClosureOrigin {
+                    held_sources: Vec::new(),
                     inputs,
                     captured,
                     captured_from: None,
@@ -143,7 +191,7 @@ impl DropPlanner<'_, '_> {
         };
         let creates_environment = matches!(payload, Expression::Lambda { .. });
         if creates_environment {
-            self.plan_lambda_expression(id, &direct[0])?;
+            self.plan_lambda_expression(id, &direct[0], &state.retained_sources)?;
         }
         let continues = self.expression_inner(id, usage, state)?;
         if continues && creates_environment {
@@ -262,6 +310,12 @@ impl DropPlanner<'_, '_> {
     ) {
         origin.condition = self.conditions.and(origin.condition, condition);
         self.restrict_capture_inputs(&mut origin.inputs, condition);
+        for held in &mut origin.held_sources {
+            held.condition = self.conditions.and(held.condition, condition);
+        }
+        origin
+            .held_sources
+            .retain(|held| held.condition != CleanupConditionId::NEVER);
         for captured in &mut origin.captured {
             self.restrict_closure_origin(captured, condition);
         }
@@ -280,6 +334,20 @@ impl DropPlanner<'_, '_> {
             }) {
                 prior.condition = self.conditions.or(prior.condition, origin.condition);
                 self.merge_capture_inputs(origin.closure, &mut prior.inputs, origin.inputs);
+                for held in origin.held_sources {
+                    if let Some(existing) = prior
+                        .held_sources
+                        .iter_mut()
+                        .find(|source| source.owner == held.owner)
+                    {
+                        existing.condition = self.conditions.or(existing.condition, held.condition);
+                    } else {
+                        prior.held_sources.push(held);
+                    }
+                }
+                prior
+                    .held_sources
+                    .sort_by_key(|source| source.owner.index());
                 self.merge_origins(&mut prior.captured, origin.captured);
             } else {
                 into.push(origin);
@@ -311,7 +379,7 @@ impl DropPlanner<'_, '_> {
                         prior.origin = value.origin;
                     }
                 } else {
-                    merged.values.push(value);
+                    merged.insert(value);
                 }
             }
             for (symbol, origins) in state.closures {
@@ -340,7 +408,7 @@ impl DropPlanner<'_, '_> {
             }
         }
         // Owners missing from one incoming edge still have a conditional cleanup obligation.
-        merged.values.sort_by_key(|value| value.origin.start());
+        merged.values.sort_by_key(|value| value.declaration.start());
         merged.retained_sources.sort_by_key(|source| source.owner);
         merged
     }
@@ -498,6 +566,12 @@ impl DropPlanner<'_, '_> {
         path: CleanupConditionId,
     ) -> CleanupConditionId {
         let mut held = CleanupConditionId::NEVER;
+        for held_source in &origin.held_sources {
+            if held_source.owner == owner {
+                let selected = self.conditions.and(path, held_source.condition);
+                held = self.conditions.or(held, selected);
+            }
+        }
         for input in &origin.inputs {
             if input.mode == ClosureCaptureMode::Shared
                 && input.value == crate::ownership_checking::CleanupCaptureValue::Owner(owner)
@@ -514,33 +588,6 @@ impl DropPlanner<'_, '_> {
         held
     }
 
-    /// Both named and pending temporary environments release slots/loans before their sources.
-    pub(super) fn drop_closure_owner(
-        &mut self,
-        fact: DropFact,
-        condition: CleanupConditionId,
-        versions: &[OwnerVersion],
-        origins: Vec<ClosureOrigin>,
-        state: &mut ValueState,
-    ) {
-        let point = fact.point();
-        // Sibling captured environments may borrow the same source; release it after all loans.
-        let mut shared_sources = Vec::new();
-        self.drop_closure_owner_inner(
-            fact,
-            condition,
-            versions,
-            origins,
-            state,
-            ReleaseTraversal {
-                root: None,
-                capture_path: &[],
-                shared_sources: &mut shared_sources,
-            },
-        );
-        self.release_shared_sources(point, shared_sources, state);
-    }
-
     fn drop_closure_owner_inner(
         &mut self,
         fact: DropFact,
@@ -548,9 +595,44 @@ impl DropPlanner<'_, '_> {
         versions: &[OwnerVersion],
         origins: Vec<ClosureOrigin>,
         state: &mut ValueState,
-        traversal: ReleaseTraversal<'_>,
+        mut traversal: ReleaseTraversal<'_>,
     ) {
         let point = fact.point();
+        let mut pending = versions.iter().rev().copied().collect::<Vec<_>>();
+        let mut versions = Vec::new();
+        while let Some(version) = pending.pop() {
+            if let Some(sources) = self.recursive_snapshot_sources.get(&version.owner).cloned() {
+                for source in sources.into_iter().rev() {
+                    let condition = self.conditions.and(version.condition, source.condition);
+                    pending.push(OwnerVersion {
+                        owner: source.owner,
+                        condition,
+                        origin: source.origin,
+                    });
+                }
+            } else {
+                versions.push(version);
+            }
+        }
+        // 根实例动作沿已形成的 owned 边释放；每层均抑制该 owner 的树形后代。
+        let instance_release_owners = versions
+            .iter()
+            .filter(|version| self.recursive_release_layout(version.owner).is_some())
+            .map(|version| version.owner)
+            .collect::<Vec<_>>();
+        self.collect_instance_shared_sources(
+            condition,
+            &origins,
+            &instance_release_owners,
+            &mut traversal,
+        );
+        let origins = origins
+            .into_iter()
+            .filter(|origin| {
+                !instance_release_owners.contains(&origin.owner)
+                    && !instance_release_owners.contains(&origin.layout_owner)
+            })
+            .collect::<Vec<_>>();
         for origin in &origins {
             let root = traversal.root.unwrap_or(origin.owner);
             for input in origin.inputs.iter().rev() {
@@ -687,7 +769,7 @@ impl DropPlanner<'_, '_> {
         if versions.is_empty() {
             self.push_guarded(fact, condition, state.path);
         } else {
-            for version in versions {
+            for version in &versions {
                 let selected = self.conditions.and(condition, version.condition);
                 let origin = if matches!(fact.target(), DropTarget::Named(_)) {
                     version.origin
@@ -826,7 +908,23 @@ impl DropPlanner<'_, '_> {
                 } else {
                     retained_releases.push((owner, released));
                 }
-                if let Some(last_loan) = release.last_loan {
+                let last_loan = release.last_loan.or_else(|| {
+                    let (address, slot) = release.source_location?;
+                    let (selector, last_loan) =
+                        self.conditions.last_capture_loan(owner, retained.origin);
+                    self.cleanup.push((
+                        point,
+                        IterationCleanupAction::TestLastCaptureLoan {
+                            owner,
+                            instance_address: address,
+                            capture_slot: slot,
+                            selector,
+                            condition: self.guard(released, state.path),
+                        },
+                    ));
+                    Some(last_loan)
+                });
+                if let Some(last_loan) = last_loan {
                     let Some((address, slot)) = release.source_location else {
                         continue;
                     };

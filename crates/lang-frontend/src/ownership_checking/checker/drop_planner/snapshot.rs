@@ -132,7 +132,21 @@ impl DropPlanner<'_, '_> {
         value: ExpressionId,
         state: &mut ValueState,
     ) -> Result<Option<CleanupOwnerValueId>, OwnershipCheckingError> {
-        if state.result_closures.is_empty() {
+        let source_roots = state
+            .result_owners
+            .iter()
+            .flat_map(|version| {
+                self.phi_root_conditions(version.owner).into_iter().map(
+                    |(closure, source, condition)| (closure, source, version.condition, condition),
+                )
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|(closure, source, available, condition)| {
+                (closure, source, self.conditions.and(available, condition))
+            })
+            .collect::<Vec<_>>();
+        if state.result_closures.is_empty() && source_roots.is_empty() {
             return Ok(None);
         }
         // 值可用性与 capture 持有必须使用同一选择；保留原路径作为分支内快照的可达保护。
@@ -165,6 +179,7 @@ impl DropPlanner<'_, '_> {
                     .flat_map(|origin| origin.conditions())
                     .chain(temporary.versions.iter().map(|version| version.condition))
             }))
+            .chain(source_roots.iter().map(|(_, _, condition)| *condition))
             .collect::<Vec<_>>();
         let owner = self
             .conditions
@@ -214,6 +229,16 @@ impl DropPlanner<'_, '_> {
         {
             return Ok(None);
         }
+        assert!(
+            self.conditions.set_snapshot_value_inputs(
+                owner,
+                &state
+                    .result_owners
+                    .iter()
+                    .map(|version| (version.owner, version.condition))
+                    .collect::<Vec<_>>(),
+            )
+        );
         self.cleanup.push((
             DropPoint::AfterExpression(value),
             IterationCleanupAction::SaveOwnerSnapshot {
@@ -284,8 +309,33 @@ impl DropPlanner<'_, '_> {
                 rebound.next().expect("one condition per state field"),
             );
         }
+        let mapped_roots = source_roots
+            .into_iter()
+            .map(|(closure, source, _)| {
+                (
+                    closure,
+                    source,
+                    self.conditions.and(
+                        state.path,
+                        rebound.next().expect("one condition per phi root"),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(rebound.next().is_none());
+        if !mapped_roots.is_empty() {
+            self.snapshot_phi_roots.insert(owner, mapped_roots);
+        }
         for origin in &mut state.result_closures {
             origin.owner = owner;
+        }
+        if state.result_owners.iter().any(|version| {
+            self.recursive_release_layout(version.owner).is_some()
+                || self.recursive_snapshot_sources.contains_key(&version.owner)
+        }) {
+            // 快照可合流普通 closure 与递归 phi；保留各来源的选择条件供根释放拆分。
+            self.recursive_snapshot_sources
+                .insert(owner, state.result_owners.clone());
         }
         state.result_owners = vec![super::OwnerVersion {
             owner,
@@ -403,6 +453,7 @@ mod tests {
         let saved_selector = leaf_snapshot.copies()[0].target();
         let selected_condition = leaf_snapshot.conditions()[0];
         let selected_leaf = ClosureOrigin {
+            held_sources: Vec::new(),
             inputs: Vec::new(),
             captured: Vec::new(),
             captured_from: Some(source),
@@ -412,6 +463,7 @@ mod tests {
             condition: selected_condition,
         };
         let root = |owner, inputs| ClosureOrigin {
+            held_sources: Vec::new(),
             inputs,
             captured: vec![selected_leaf.clone()],
             captured_from: None,

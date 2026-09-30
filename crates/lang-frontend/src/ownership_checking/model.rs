@@ -281,6 +281,7 @@ pub enum DropTarget {
     /// replacement 前原 element value；payload 是 assignment expression。
     ReplacedElement(ExpressionId),
     /// `move` closure environment 中一个 owned MoveOnly capture。
+    /// 先前显式 Move/清理已清空的槽不再析构；同一清理点重复消费槽仍是无效事实。
     Captured {
         /// 具体环境值；lambda/source 仅描述其中的捕获槽。
         owner: super::CleanupOwnerValueId,

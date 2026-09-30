@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod capture;
 mod conditional;
@@ -77,6 +77,8 @@ struct OwnedValue {
     condition: CleanupConditionId,
     symbol: SymbolId,
     origin: Span,
+    /// 值来源可随赋值变化；scope/return 清理仍按原 binding 声明排序。
+    declaration: Span,
     scope_depth: usize,
 }
 
@@ -131,7 +133,10 @@ impl ValueState {
 
     fn insert(&mut self, value: OwnedValue) {
         self.remove_value(value.symbol);
-        self.values.push(value);
+        let index = self
+            .values
+            .partition_point(|prior| prior.declaration.start() < value.declaration.start());
+        self.values.insert(index, value);
     }
 }
 
@@ -139,6 +144,22 @@ struct DropPlanner<'a, 'checker> {
     loop_origins: BTreeMap<usize, crate::ownership_checking::IterationClosureFlow>,
     captured_origins: origins::CapturedOrigins,
     recursive_capture_phi: Option<ExpressionId>,
+    recursive_phi_bindings: BTreeSet<crate::ownership_checking::CleanupOwnerValueId>,
+    recursive_release_phi_bindings: BTreeSet<crate::ownership_checking::CleanupOwnerValueId>,
+    recursive_release_closure_owners: BTreeMap<
+        crate::ownership_checking::CleanupOwnerValueId,
+        crate::ownership_checking::ClosureReleaseLayout,
+    >,
+    recursive_snapshot_sources:
+        BTreeMap<crate::ownership_checking::CleanupOwnerValueId, Vec<OwnerVersion>>,
+    snapshot_phi_roots: BTreeMap<
+        crate::ownership_checking::CleanupOwnerValueId,
+        Vec<(
+            ExpressionId,
+            crate::ownership_checking::CleanupOwnerValueId,
+            CleanupConditionId,
+        )>,
+    >,
     enclosing_capture_phi: Option<ExpressionId>,
     coexisting_capture_phi: Option<ExpressionId>,
     conditional_nested_phi: Option<ExpressionId>,
@@ -183,6 +204,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loop_origins,
             captured_origins,
             recursive_capture_phi: None,
+            recursive_phi_bindings: BTreeSet::new(),
+            recursive_release_phi_bindings: BTreeSet::new(),
+            recursive_release_closure_owners: BTreeMap::new(),
+            recursive_snapshot_sources: BTreeMap::new(),
+            snapshot_phi_roots: BTreeMap::new(),
             enclosing_capture_phi: None,
             coexisting_capture_phi: None,
             conditional_nested_phi: None,
@@ -241,15 +267,20 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 ..DropPlan::default()
             });
         }
+        Ok(self.into_candidate_facts())
+    }
+
+    /// 组装已检查的候选事实；调用方必须先处理 deferred，不能直接发布。
+    fn into_candidate_facts(self) -> DropPlan {
         let iterations = self.iteration_plans();
-        Ok(DropPlan {
+        DropPlan {
             cleanup_steps: self.cleanup,
             cleanup_conditions: self.conditions,
             drops: self.facts,
             loan_ends: self.loan_ends,
             iterations,
             deferred: Vec::new(),
-        })
+        }
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
@@ -274,6 +305,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             condition: state.path,
                             symbol,
                             origin: marker_span(parameter.name),
+                            declaration: marker_span(parameter.name),
                             scope_depth: 0,
                         });
                     }
@@ -401,6 +433,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         condition: state.path,
                         symbol,
                         origin: marker_span(name),
+                        declaration: marker_span(name),
                         scope_depth: self.scope_depth,
                     });
                     if !closures.is_empty() {
@@ -439,6 +472,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 condition: state.path,
                                 symbol,
                                 origin,
+                                declaration: origin,
                                 scope_depth: self.scope_depth,
                             });
                             if !self.liveness.statement_after[id.index()].contains(&symbol) {
@@ -974,6 +1008,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             condition: state.path,
                             symbol,
                             origin: node.span(),
+                            declaration: self.checker.names.symbols()[symbol.index()].span(),
                             scope_depth: old
                                 .map(|value| value.scope_depth)
                                 .or_else(|| self.binding_depths.get(&symbol).copied())
@@ -1066,10 +1101,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             .iter()
                             .find(|value| value.symbol == root)
                             .filter(|value| {
-                                value.condition == CleanupConditionId::ALWAYS
+                                self.conditions.and(state.path, value.condition) == state.path
                                     && value.versions.iter().any(|version| {
                                         version.owner == environment.0
-                                            && version.condition == CleanupConditionId::ALWAYS
+                                            && self.conditions.and(state.path, version.condition)
+                                                == state.path
                                     })
                             })
                             .map(|_| environment)
@@ -1436,31 +1472,95 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if !self.facts.contains(&fact) {
             let action = fact
                 .owner()
-                .and_then(|root_owner| match self.conditions.owner_value(root_owner) {
-                    Some(crate::ownership_checking::CleanupOwnerValue::IterationPhi {
-                        statement,
-                        symbol,
-                        ..
-                    }) if fact.target() == DropTarget::Named(*symbol)
-                        && self.loop_phis.get(&statement.index()).is_some_and(|phis| {
-                            phis.iter().any(|phi| {
-                                phi.owner() == root_owner
-                                    && !phi.root_nodes().is_empty()
-                                    && phi.origins().is_empty()
-                            })
-                        }) =>
-                    {
-                        Some(IterationCleanupAction::ReleaseClosureInstances {
-                            statement: *statement,
-                            root: fact,
-                        })
-                    }
-                    _ => None,
+                .and_then(|root_owner| self.recursive_release_layout(root_owner))
+                .map(|layout| IterationCleanupAction::ReleaseClosureInstances {
+                    layout,
+                    root: fact,
                 })
                 .unwrap_or(IterationCleanupAction::Drop(fact));
             self.cleanup.push((fact.point(), action));
             self.facts.push(fact);
         }
+    }
+
+    fn recursive_release_layout(
+        &self,
+        root_owner: crate::ownership_checking::CleanupOwnerValueId,
+    ) -> Option<crate::ownership_checking::ClosureReleaseLayout> {
+        if let Some(&layout) = self.recursive_release_closure_owners.get(&root_owner) {
+            return Some(layout);
+        }
+        if self.recursive_snapshot_sources.contains_key(&root_owner) {
+            // A snapshot may choose roots from different loops or an ordinary branch.
+            return Some(crate::ownership_checking::ClosureReleaseLayout::File);
+        }
+        let Some(crate::ownership_checking::CleanupOwnerValue::IterationPhi { statement, .. }) =
+            self.conditions.owner_value(root_owner)
+        else {
+            return None;
+        };
+        (self.recursive_release_phi_bindings.contains(&root_owner)
+            && self.loop_phis.get(&statement.index()).is_some_and(|phis| {
+                phis.iter()
+                    .any(|phi| phi.owner() == root_owner && !phi.root_nodes().is_empty())
+            }))
+        .then_some(crate::ownership_checking::ClosureReleaseLayout::Iteration(
+            *statement,
+        ))
+    }
+
+    fn recursive_capture_layout(
+        &self,
+        value: crate::ownership_checking::CleanupCaptureValue,
+    ) -> Option<crate::ownership_checking::ClosureReleaseLayout> {
+        use crate::ownership_checking::{
+            CleanupCaptureValue, ClosureCaptureEffect, ClosureCaptureMode, ClosureReleaseLayout,
+        };
+
+        let (owner, source, slot) = match value {
+            CleanupCaptureValue::Owner(owner) => return self.recursive_release_layout(owner),
+            CleanupCaptureValue::Place(_) => return None,
+            CleanupCaptureValue::Environment {
+                owner,
+                source,
+                slot,
+            } => (owner, source, slot),
+        };
+        let mut pending = vec![(owner, source, slot)];
+        let mut seen = BTreeSet::new();
+        while let Some((owner, source, slot)) = pending.pop() {
+            if !seen.insert((owner, slot)) {
+                continue;
+            }
+            for edge in self
+                .conditions
+                .closure_capture_edges(owner)
+                .into_iter()
+                .flatten()
+                .filter(|edge| edge.target() == slot && edge.input().source() == source)
+            {
+                let input = edge.input();
+                if input.mode() != ClosureCaptureMode::Owned
+                    || input.effect() != ClosureCaptureEffect::Move
+                {
+                    continue;
+                }
+                match input.value() {
+                    CleanupCaptureValue::Owner(source)
+                        if self.recursive_release_layout(source).is_some() =>
+                    {
+                        return Some(ClosureReleaseLayout::File);
+                    }
+                    CleanupCaptureValue::Environment {
+                        owner,
+                        source,
+                        slot,
+                    } => pending.push((owner, source, slot)),
+                    _ => {}
+                }
+            }
+        }
+        None
     }
 
     fn live_after(&self, point: DropPoint) -> &std::collections::BTreeSet<SymbolId> {

@@ -6,6 +6,38 @@ Proposal 不修改现行 v0.37、不批准 Spec，也不代表实现优先级。
 
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
+- [String Copyable 候选取舍](string-copyability.md)
+- [显式 clone() 候选设计](explicit-clone.md)
+- [受限扩展函数候选设计](restricted-extension-functions.md)
+- [集合算法所有权候选设计](collection-algorithm-ownership.md)
+
+## 候选依赖与推进顺序
+
+六份候选不是彼此独立的，其中"集合算法"依赖一条前置链：
+
+```text
+受限扩展函数  -->  View<T> intrinsic 与构造  -->  集合算法所有权
+  （声明语法）          （类型 + 视图构造）           （filter / consume / 物化）
+                                                       ^
+                                              显式 clone()（物化时调用）
+
+String Copyable  -->  若采纳，则集合算法物化的 clone 成本消失（非前置）
+
+Map 所有权、v2 interface 值  -->  独立，不依赖上述链
+```
+
+| 候选 | 前置 | 当前状态 |
+|---|---|---|
+| 受限扩展函数 | 无；需放宽 15 页 | 授权已获得，实施时生效 |
+| 显式 clone() | 无 | 候选结论待评审 |
+| String Copyable | 无 | 候选结论：保持 `MoveOnly` |
+| 集合算法所有权 | 受限扩展函数、`View<T>` intrinsic、clone() | 候选设计已成形 |
+| Map / MutableMap 所有权 | 无 | 独立候选 |
+| v2 interface 值与动态分发 | 无 | 独立候选 |
+
+推荐推进顺序：受限扩展函数 → `View<T>` intrinsic 与视图构造 → 集合算法表面 → expected type
+物化。`clone()` 与 String Copyable 可与该链并行评审，但集合算法的物化语义需要 `clone()`
+先有结论。
 
 对应阻塞 Spec 从 [Specs](../specs/README.md) 进入；长期架构候选仍遵循 ADR 生命周期。
 

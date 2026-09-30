@@ -48,12 +48,14 @@ pub use construction::{
 };
 pub use error::OwnershipCheckingError;
 pub use iteration::{
-    IterationCaptureGraph, IterationCaptureNode, IterationCaptureSource, IterationCleanupAction,
-    IterationClosureBinding, IterationClosureFlow, IterationClosurePhiBinding,
-    IterationClosurePhiOrigin, IterationClosurePhiSource, IterationExitKind, IterationExitPlan,
-    IterationOwnershipPlan, IterationPhiBoundary, IterationPhiCaptureSlot, IterationPhiIncoming,
-    IterationPhiIncomingBinding, IterationPhiIncomingEnvironment, IterationPhiIncomingKind,
-    IterationPhiIncomingOrigin, IterationPhiIncomingSource, IterationPhiIncomingValue,
+    ClosureReleaseLayout, IterationCaptureGraph, IterationCaptureNode, IterationCaptureSource,
+    IterationCleanupAction, IterationClosureBinding, IterationClosureFlow,
+    IterationClosurePhiBinding, IterationClosurePhiOrigin, IterationClosurePhiSource,
+    IterationExitKind, IterationExitPlan, IterationOwnershipPlan, IterationPhiBoundary,
+    IterationPhiCaptureSlot, IterationPhiIncoming, IterationPhiIncomingBinding,
+    IterationPhiIncomingEnvironment, IterationPhiIncomingKind, IterationPhiIncomingOrigin,
+    IterationPhiIncomingSource, IterationPhiIncomingValue, IterationPhiPresenceSource,
+    IterationPhiRootSource, IterationPhiSelectorWrite,
 };
 pub use model::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,

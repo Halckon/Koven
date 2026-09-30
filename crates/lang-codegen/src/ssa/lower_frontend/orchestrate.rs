@@ -113,7 +113,7 @@ fn lower_scalar_file_product(
             lang_frontend::ownership_checking::IterationCleanupAction::ReleaseClosureInstances {
                 root,
                 ..
-            } => Some(root),
+            } | lang_frontend::ownership_checking::IterationCleanupAction::ReleaseRetainedClosureSources { root } => Some(root),
             _ => None,
         }
         })

@@ -148,6 +148,7 @@ pub struct CleanupOwnerSnapshot {
     origin: Span,
     copies: Vec<CleanupSelectorCopy>,
     capture_inputs: Vec<CleanupOwnerInput>,
+    value_inputs: Vec<CleanupOwnerInput>,
     value: ExpressionId,
     conditions: Vec<CleanupConditionId>,
 }
@@ -175,6 +176,12 @@ impl CleanupOwnerSnapshot {
     #[must_use]
     pub fn capture_inputs(&self) -> &[CleanupOwnerInput] {
         &self.capture_inputs
+    }
+
+    /// 完整 RHS 的已检查 owner 来源；条件读取保存前状态。
+    #[must_use]
+    pub fn value_inputs(&self) -> &[CleanupOwnerInput] {
+        &self.value_inputs
     }
 
     /// 本次已求值的完整 RHS 环境；不能重新求值或读取已移动的源 binding。
@@ -218,6 +225,27 @@ impl CleanupConditions {
             return false;
         };
         copy.source_value = Some(value);
+        true
+    }
+
+    /// 记录完整 RHS 的来源版本；保存动作必须在复制 selector 前读取这些旧条件。
+    pub(crate) fn set_snapshot_value_inputs(
+        &mut self,
+        owner: CleanupOwnerValueId,
+        inputs: &[(CleanupOwnerValueId, CleanupConditionId)],
+    ) -> bool {
+        if inputs.iter().any(|&(source, condition)| {
+            self.owner_value(source).is_none() || self.get(condition).is_none()
+        }) {
+            return false;
+        }
+        let Some(CleanupOwnerValue::Snapshot(snapshot)) = self.owners.get_mut(owner.index()) else {
+            return false;
+        };
+        snapshot.value_inputs = inputs
+            .iter()
+            .map(|&(owner, condition)| CleanupOwnerInput { owner, condition })
+            .collect();
         true
     }
 
@@ -331,6 +359,7 @@ impl CleanupConditions {
                     .iter()
                     .map(|&(owner, condition)| CleanupOwnerInput { owner, condition })
                     .collect(),
+                value_inputs: Vec::new(),
                 conditions,
             }));
         Some(owner)
