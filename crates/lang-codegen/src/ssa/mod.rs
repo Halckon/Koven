@@ -95,4 +95,6 @@ mod string_operation_tests;
 mod char_constant_tests;
 
 #[cfg(test)]
+mod sequential_for_lowering_tests;
+#[cfg(test)]
 mod unit_constant_tests;

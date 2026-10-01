@@ -1,5 +1,4 @@
 //! Owned nullable subject 的一次求值、证明 edge 与显式 extraction。
-use super::control::BranchExit;
 use super::{ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, error, value};
 use crate::ssa::model::{
     Edge, EntityId, EntityType, LoanKind, Operation, Origin, TerminatorKind, ValueId,
@@ -225,14 +224,7 @@ impl ExpressionLowerer<'_> {
                         self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
                     }
 
-                    exits.push(BranchExit {
-                        block: self.block,
-                        result,
-                        bindings: self.bindings.clone(),
-                        temporaries: self.temporaries.clone(),
-                        loans: self.pending_call_loans.clone(),
-                        views: self.non_null_bindings.clone(),
-                    });
+                    exits.push(self.branch_exit(result));
                 }
                 reached = true;
                 break;

@@ -14,32 +14,30 @@ pub(crate) struct ProviderSnapshot {
 }
 
 impl ProviderSnapshot {
-    #[cfg(test)]
     pub(crate) const fn length(&self) -> ValueId {
         self.length
     }
 
-    #[cfg(test)]
     pub(crate) const fn cursor(&self) -> ValueId {
         self.cursor
     }
 }
 
 pub(crate) struct ProviderHeader {
-    block: BlockId,
-    source: LoanId,
-    length: ValueId,
-    cursor: ValueId,
-    source_slot: usize,
-    length_slot: usize,
-    cursor_slot: usize,
-    step: ValueId,
+    pub(crate) block: BlockId,
+    pub(crate) source: LoanId,
+    pub(crate) length: ValueId,
+    pub(crate) cursor: ValueId,
+    pub(crate) source_slot: usize,
+    pub(crate) length_slot: usize,
+    pub(crate) cursor_slot: usize,
+    pub(crate) step: ValueId,
 }
 
 pub(crate) struct ProviderNext {
-    header: BlockId,
-    source: LoanId,
-    value: ValueId,
+    pub(crate) header: BlockId,
+    pub(crate) source: LoanId,
+    pub(crate) value: ValueId,
 }
 
 impl ProviderNext {
@@ -279,21 +277,52 @@ pub(crate) fn guard_and_begin(
     })
 }
 
-pub(crate) fn finish_element_and_advance(
+impl GuardedElement {
+    pub(crate) const fn loan(&self) -> LoanId {
+        self.loan
+    }
+
+    pub(crate) const fn header(&self) -> BlockId {
+        self.header
+    }
+
+    pub(crate) const fn body(&self) -> BlockId {
+        self.body
+    }
+
+    pub(crate) const fn source(&self) -> LoanId {
+        self.source
+    }
+
+    pub(crate) const fn cursor(&self) -> ValueId {
+        self.cursor
+    }
+
+    pub(crate) const fn step(&self) -> ValueId {
+        self.step
+    }
+
+    pub(crate) fn set_loan(&mut self, loan: LoanId) {
+        self.loan = loan;
+    }
+}
+
+pub(crate) fn finish_element_and_advance_in_block(
     function: &mut Function,
-    element: GuardedElement,
+    block: BlockId,
+    element: &GuardedElement,
     int_type: SsaTypeId,
     origin: &Origin,
 ) -> Result<ProviderNext, ModelError> {
     function.append_instruction(
-        element.body,
+        block,
         Operation::BorrowEnd { loan: element.loan },
         Vec::new(),
         origin.clone(),
     )?;
     let value = append_value(
         function,
-        element.body,
+        block,
         Operation::Binary {
             operator: BinaryOperator::Add,
             left: element.cursor,
@@ -307,6 +336,15 @@ pub(crate) fn finish_element_and_advance(
         source: element.source,
         value,
     })
+}
+
+pub(crate) fn finish_element_and_advance(
+    function: &mut Function,
+    element: GuardedElement,
+    int_type: SsaTypeId,
+    origin: &Origin,
+) -> Result<ProviderNext, ModelError> {
+    finish_element_and_advance_in_block(function, element.body, &element, int_type, origin)
 }
 
 fn append_value(

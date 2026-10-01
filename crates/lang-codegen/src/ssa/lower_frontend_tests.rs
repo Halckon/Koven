@@ -1538,17 +1538,15 @@ fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     assert!(for_loop.typed.diagnostics().is_empty());
     assert!(for_loop.owned.diagnostics().is_empty());
     assert_eq!(for_loop.owned.iterations().len(), 1);
-    let error = lower_scalar_file(
+    let program = lower_scalar_file(
         &for_loop.sources,
         &for_loop.parsed,
         &for_loop.names,
         &for_loop.typed,
         &for_loop.owned,
     )
-    .err()
-    .expect("for native lowering is not implemented by the scalar consumer");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    .expect("for loops are now lowered to valid SSA");
+    super::verify::verify_program(&program).expect("for loop SSA must verify");
 
     let string_instance = analyze(
         "fun <T> identity(own input: T): T = input\n\

@@ -26,6 +26,9 @@ pub(super) struct BranchExit {
     pub(super) temporaries: BTreeMap<usize, ValueId>,
     pub(super) loans: BTreeMap<(usize, usize), Option<super::LoanId>>,
     pub(super) views: BTreeMap<SymbolId, super::LoanId>,
+    pub(super) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
+    pub(super) for_sources: BTreeMap<usize, super::LoanId>,
+    pub(super) for_elements: BTreeMap<usize, super::LoanId>,
 }
 
 #[derive(Clone, Copy)]
@@ -35,8 +38,12 @@ enum MergeSlot {
     Temporary(usize),
     PendingLoan((usize, usize)),
     NonNullView(SymbolId),
+    BorrowBinding(SymbolId),
+    ForSource(usize),
+    ForElement(usize),
 }
 
+#[derive(Clone)]
 pub(super) struct LinearBindings {
     pub(super) slots: Vec<LinearBindingSlot>,
     forwarded_loans: Vec<(usize, usize)>,
@@ -49,10 +56,80 @@ pub(super) struct LinearBindingSlot {
     pub(super) temporaries: Vec<usize>,
     pub(super) loans: Vec<(usize, usize)>,
     pub(super) views: Vec<SymbolId>,
+    pub(super) borrow_symbols: Vec<SymbolId>,
+    pub(super) for_sources: Vec<usize>,
+    pub(super) for_elements: Vec<usize>,
     pub(super) ty: EntityType,
 }
 
+impl LinearBindingSlot {
+    pub(super) fn new(symbol: Option<SymbolId>, source: EntityId, ty: EntityType) -> Self {
+        Self {
+            symbol,
+            source,
+            temporaries: Vec::new(),
+            loans: Vec::new(),
+            views: Vec::new(),
+            borrow_symbols: Vec::new(),
+            for_sources: Vec::new(),
+            for_elements: Vec::new(),
+            ty,
+        }
+    }
+}
+
 impl ExpressionLowerer<'_> {
+    pub(super) fn entry_loans(&self) -> Vec<super::LoanId> {
+        self.function
+            .entry_block()
+            .and_then(|entry| self.function.block(entry))
+            .map(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .filter_map(|e| match e {
+                        EntityId::Loan(loan) => Some(*loan),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub(super) fn is_entry_loan(&self, loan: super::LoanId) -> bool {
+        self.entry_loans().contains(&loan)
+    }
+
+    pub(super) fn branch_exit(&self, result: LoweredValue) -> BranchExit {
+        BranchExit {
+            block: self.block,
+            result,
+            bindings: self.bindings.clone(),
+            temporaries: self.temporaries.clone(),
+            loans: self.pending_call_loans.clone(),
+            views: self.non_null_bindings.clone(),
+            borrow_bindings: self.borrow_bindings.clone(),
+            for_sources: self
+                .loops
+                .iter()
+                .filter_map(|c| {
+                    c.for_loop
+                        .as_ref()
+                        .map(|f| (f.statement.index(), f.body_source))
+                })
+                .collect(),
+            for_elements: self
+                .loops
+                .iter()
+                .filter_map(|c| {
+                    c.for_loop
+                        .as_ref()
+                        .map(|f| (f.statement.index(), f.guarded_element.loan()))
+                })
+                .collect(),
+        }
+    }
+
     pub(super) fn lower_if(
         &mut self,
         expression: ExpressionId,
@@ -105,14 +182,7 @@ impl ExpressionLowerer<'_> {
                 control: expression,
                 branch,
             })?;
-            exits.push(BranchExit {
-                block: self.block,
-                result,
-                bindings: self.bindings.clone(),
-                temporaries: self.temporaries.clone(),
-                loans: self.pending_call_loans.clone(),
-                views: self.non_null_bindings.clone(),
-            });
+            exits.push(self.branch_exit(result));
         }
         if self.expression_is_unit(expression, span)? {
             discard_exit_results(&mut exits);
@@ -158,14 +228,11 @@ impl ExpressionLowerer<'_> {
             .iter()
             .any(|slot| slot.source == EntityId::Value(owner))
         {
-            carried.slots.push(LinearBindingSlot {
-                symbol: Some(symbol),
-                source: EntityId::Value(owner),
-                ty: EntityType::Value(nullable),
-                temporaries: Vec::new(),
-                loans: Vec::new(),
-                views: Vec::new(),
-            });
+            carried.slots.push(LinearBindingSlot::new(
+                Some(symbol),
+                EntityId::Value(owner),
+                EntityType::Value(nullable),
+            ));
         }
         let branch_types = |proven| {
             let mut types: Vec<_> = carried.slots.iter().map(|slot| slot.ty).collect();
@@ -255,14 +322,7 @@ impl ExpressionLowerer<'_> {
                 if proven && let Some(view) = self.non_null_bindings.remove(&symbol) {
                     self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
                 }
-                exits.push(BranchExit {
-                    block: self.block,
-                    result,
-                    bindings: self.bindings.clone(),
-                    temporaries: self.temporaries.clone(),
-                    loans: self.pending_call_loans.clone(),
-                    views: self.non_null_bindings.clone(),
-                });
+                exits.push(self.branch_exit(result));
             }
         }
         if self.expression_is_unit(expression, span)? {
@@ -356,14 +416,7 @@ impl ExpressionLowerer<'_> {
             if !matches!(right_result, LoweredValue::Value(_)) {
                 return Err(error(LoweringErrorKind::MissingFact, right_span));
             }
-            exits.push(BranchExit {
-                block: self.block,
-                result: right_result,
-                bindings: self.bindings.clone(),
-                temporaries: self.temporaries.clone(),
-                loans: self.pending_call_loans.clone(),
-                views: self.non_null_bindings.clone(),
-            });
+            exits.push(self.branch_exit(right_result));
         }
 
         self.block = short_block;
@@ -374,14 +427,7 @@ impl ExpressionLowerer<'_> {
             vec![EntityType::Value(ty)],
             span,
         )?;
-        exits.push(BranchExit {
-            block: self.block,
-            result: LoweredValue::Value(value(results[0])),
-            bindings: self.bindings.clone(),
-            temporaries: self.temporaries.clone(),
-            loans: self.pending_call_loans.clone(),
-            views: self.non_null_bindings.clone(),
-        });
+        exits.push(self.branch_exit(LoweredValue::Value(value(results[0]))));
         self.merge_exits(exits, &baseline, span)
     }
 
@@ -485,14 +531,7 @@ impl ExpressionLowerer<'_> {
                         alternative,
                     },
                 )?;
-                matches.push(BranchExit {
-                    block: matched,
-                    result: LoweredValue::Unit,
-                    bindings: self.bindings.clone(),
-                    temporaries: self.temporaries.clone(),
-                    loans: self.pending_call_loans.clone(),
-                    views: self.non_null_bindings.clone(),
-                });
+                matches.push(self.branch_exit(LoweredValue::Unit));
                 unmatched_block = next;
                 unmatched_bindings =
                     self.rebind_linear_bindings(&after_condition, next, &carried, entry.span)?;
@@ -504,14 +543,7 @@ impl ExpressionLowerer<'_> {
             self.merge_exits(matches, &entry_baseline, entry.span)?;
             let result = self.lower_control_body(entry.body)?;
             if !matches!(result, LoweredValue::Diverged) {
-                exits.push(BranchExit {
-                    block: self.block,
-                    result,
-                    bindings: self.bindings.clone(),
-                    temporaries: self.temporaries.clone(),
-                    loans: self.pending_call_loans.clone(),
-                    views: self.non_null_bindings.clone(),
-                });
+                exits.push(self.branch_exit(result));
             }
         }
 
@@ -536,6 +568,25 @@ impl ExpressionLowerer<'_> {
                     temporaries: unmatched_temporaries,
                     loans: unmatched_loans,
                     views: unmatched_views,
+                    borrow_bindings: self.borrow_bindings.clone(),
+                    for_sources: self
+                        .loops
+                        .iter()
+                        .filter_map(|c| {
+                            c.for_loop
+                                .as_ref()
+                                .map(|f| (f.statement.index(), f.body_source))
+                        })
+                        .collect(),
+                    for_elements: self
+                        .loops
+                        .iter()
+                        .filter_map(|c| {
+                            c.for_loop
+                                .as_ref()
+                                .map(|f| (f.statement.index(), f.guarded_element.loan()))
+                        })
+                        .collect(),
                 });
             }
         }
@@ -719,7 +770,7 @@ impl ExpressionLowerer<'_> {
         Ok(value(results[0]))
     }
 
-    fn ssa_builtin(
+    pub(super) fn ssa_builtin(
         &self,
         builtin: lang_frontend::type_checking::BuiltinType,
         span: Span,
@@ -744,14 +795,7 @@ impl ExpressionLowerer<'_> {
         if matches!(result, LoweredValue::Diverged) {
             return Ok(None);
         }
-        Ok(Some(BranchExit {
-            block: self.block,
-            result,
-            bindings: self.bindings.clone(),
-            temporaries: self.temporaries.clone(),
-            loans: self.pending_call_loans.clone(),
-            views: self.non_null_bindings.clone(),
-        }))
+        Ok(Some(self.branch_exit(result)))
     }
 
     pub(super) fn lower_control_body(
@@ -796,6 +840,17 @@ impl ExpressionLowerer<'_> {
             self.temporaries = first.temporaries.clone();
             self.pending_call_loans = first.loans.clone();
             self.non_null_bindings = first.views.clone();
+            self.borrow_bindings = first.borrow_bindings.clone();
+            for context in &mut self.loops {
+                if let Some(ref mut for_data) = context.for_loop {
+                    if let Some(&loan) = first.for_sources.get(&for_data.statement.index()) {
+                        for_data.body_source = loan;
+                    }
+                    if let Some(&loan) = first.for_elements.get(&for_data.statement.index()) {
+                        for_data.guarded_element.set_loan(loan);
+                    }
+                }
+            }
             return Ok(first.result);
         }
 
@@ -863,6 +918,48 @@ impl ExpressionLowerer<'_> {
             slots.push(MergeSlot::NonNullView(symbol));
         }
 
+        let entry_loans = self.entry_loans();
+        let mut borrow_bindings = first.borrow_bindings.clone();
+        borrow_bindings.retain(|key, loan| {
+            !entry_loans.contains(loan)
+                && exits
+                    .iter()
+                    .all(|exit| exit.borrow_bindings.contains_key(key))
+        });
+        for (&symbol, &loan) in &borrow_bindings {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Loan(loan))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::BorrowBinding(symbol));
+        }
+
+        let mut for_sources = first.for_sources.clone();
+        for_sources.retain(|key, _| exits.iter().all(|exit| exit.for_sources.contains_key(key)));
+        for (&stmt, &loan) in &for_sources {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Loan(loan))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::ForSource(stmt));
+        }
+
+        let mut for_elements = first.for_elements.clone();
+        for_elements.retain(|key, _| exits.iter().all(|exit| exit.for_elements.contains_key(key)));
+        for (&stmt, &loan) in &for_elements {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Loan(loan))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::ForElement(stmt));
+        }
+
         // Group 等表达式记录可指向同一实体；所有入边都相同时共享一个参数。
         let mut columns = Vec::new();
         let mut unique_types = Vec::new();
@@ -884,6 +981,11 @@ impl ExpressionLowerer<'_> {
                             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
                         span,
                     ),
+                    MergeSlot::BorrowBinding(symbol) => {
+                        Ok(EntityId::Loan(exit.borrow_bindings[symbol]))
+                    }
+                    MergeSlot::ForSource(stmt) => Ok(EntityId::Loan(exit.for_sources[stmt])),
+                    MergeSlot::ForElement(stmt) => Ok(EntityId::Loan(exit.for_elements[stmt])),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let parameter = if let Some(index) = columns.iter().position(|other| *other == column) {
@@ -947,6 +1049,27 @@ impl ExpressionLowerer<'_> {
                 views.insert(symbol, loan);
                 continue;
             }
+            if let MergeSlot::BorrowBinding(symbol) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                borrow_bindings.insert(symbol, loan);
+                continue;
+            }
+            if let MergeSlot::ForSource(stmt) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                for_sources.insert(stmt, loan);
+                continue;
+            }
+            if let MergeSlot::ForElement(stmt) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                for_elements.insert(stmt, loan);
+                continue;
+            }
             let parameter = LoweredValue::Value(value(parameter));
             match slot {
                 MergeSlot::Result => result = parameter,
@@ -955,7 +1078,11 @@ impl ExpressionLowerer<'_> {
                         temporaries.insert(key, owner);
                     }
                 }
-                MergeSlot::PendingLoan(_) | MergeSlot::NonNullView(_) => {
+                MergeSlot::PendingLoan(_)
+                | MergeSlot::NonNullView(_)
+                | MergeSlot::BorrowBinding(_)
+                | MergeSlot::ForSource(_)
+                | MergeSlot::ForElement(_) => {
                     unreachable!("handled loan parameter")
                 }
                 MergeSlot::Binding(symbol) => {
@@ -968,6 +1095,19 @@ impl ExpressionLowerer<'_> {
         self.temporaries = temporaries;
         self.pending_call_loans = loans;
         self.non_null_bindings = views;
+        self.borrow_bindings
+            .retain(|_, loan| entry_loans.contains(loan));
+        self.borrow_bindings.extend(borrow_bindings);
+        for context in &mut self.loops {
+            if let Some(ref mut for_data) = context.for_loop {
+                if let Some(&loan) = for_sources.get(&for_data.statement.index()) {
+                    for_data.body_source = loan;
+                }
+                if let Some(&loan) = for_elements.get(&for_data.statement.index()) {
+                    for_data.guarded_element.set_loan(loan);
+                }
+            }
+        }
         Ok(result)
     }
 
@@ -1026,14 +1166,11 @@ impl ExpressionLowerer<'_> {
             if !matches!(ty, EntityType::Value(_)) {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
-            carried.push(LinearBindingSlot {
-                symbol: Some(symbol),
-                source: EntityId::Value(source),
+            carried.push(LinearBindingSlot::new(
+                Some(symbol),
+                EntityId::Value(source),
                 ty,
-                temporaries: Vec::new(),
-                loans: Vec::new(),
-                views: Vec::new(),
-            });
+            ));
         }
         for (&key, &owner) in &self.temporaries {
             let source = EntityId::Value(owner);
@@ -1045,14 +1182,9 @@ impl ExpressionLowerer<'_> {
                     .entity(source)
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                     .ty;
-                carried.push(LinearBindingSlot {
-                    symbol: None,
-                    source,
-                    ty,
-                    temporaries: vec![key],
-                    loans: Vec::new(),
-                    views: Vec::new(),
-                });
+                let mut slot = LinearBindingSlot::new(None, source, ty);
+                slot.temporaries.push(key);
+                carried.push(slot);
             }
         }
         for (&key, &loan) in &self.pending_call_loans {
@@ -1068,14 +1200,9 @@ impl ExpressionLowerer<'_> {
                     .entity(source)
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                     .ty;
-                carried.push(LinearBindingSlot {
-                    symbol: None,
-                    source,
-                    ty,
-                    temporaries: Vec::new(),
-                    loans: vec![key],
-                    views: Vec::new(),
-                });
+                let mut slot = LinearBindingSlot::new(None, source, ty);
+                slot.loans.push(key);
+                carried.push(slot);
             }
         }
         for (&symbol, &loan) in &self.non_null_bindings {
@@ -1088,14 +1215,65 @@ impl ExpressionLowerer<'_> {
                     .entity(source)
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                     .ty;
-                carried.push(LinearBindingSlot {
-                    symbol: None,
-                    source,
-                    ty,
-                    temporaries: Vec::new(),
-                    loans: Vec::new(),
-                    views: vec![symbol],
-                });
+                let mut slot = LinearBindingSlot::new(None, source, ty);
+                slot.views.push(symbol);
+                carried.push(slot);
+            }
+        }
+        for (&symbol, &loan) in &self.borrow_bindings {
+            if self.is_entry_loan(loan) {
+                continue;
+            }
+            let source = EntityId::Loan(loan);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                slot.borrow_symbols.push(symbol);
+            } else {
+                let ty = self
+                    .function
+                    .entity(source)
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                let mut slot = LinearBindingSlot::new(None, source, ty);
+                slot.borrow_symbols.push(symbol);
+                carried.push(slot);
+            }
+        }
+        for context in &self.loops {
+            let Some(ref for_data) = context.for_loop else {
+                continue;
+            };
+            let stmt = for_data.statement.index();
+            let body_source_loan = for_data.body_source;
+            if !self.is_entry_loan(body_source_loan) {
+                let source = EntityId::Loan(body_source_loan);
+                if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                    slot.for_sources.push(stmt);
+                } else {
+                    let ty = self
+                        .function
+                        .entity(source)
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                        .ty;
+                    let mut slot = LinearBindingSlot::new(None, source, ty);
+                    slot.for_sources.push(stmt);
+                    carried.push(slot);
+                }
+            }
+            let element_loan = for_data.guarded_element.loan();
+            if !self.is_entry_loan(element_loan) {
+                let source = EntityId::Loan(element_loan);
+                if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                    slot.for_elements.push(stmt);
+                } else {
+                    let ty = self
+                        .function
+                        .entity(source)
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                        .ty;
+                    let mut slot = LinearBindingSlot::new(None, source, ty);
+                    slot.for_elements.push(stmt);
+                    carried.push(slot);
+                }
             }
         }
         Ok(LinearBindings {
@@ -1139,6 +1317,9 @@ impl ExpressionLowerer<'_> {
         // Restore the complete entry state before lowering each sibling branch.
         self.temporaries.clear();
         self.non_null_bindings.clear();
+        let entry_loans = self.entry_loans();
+        self.borrow_bindings
+            .retain(|_, loan| entry_loans.contains(loan));
         self.pending_call_loans = carried
             .forwarded_loans
             .iter()
@@ -1163,6 +1344,36 @@ impl ExpressionLowerer<'_> {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
                 self.pending_call_loans.insert(*key, Some(loan));
+            }
+            for symbol in &slot.borrow_symbols {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                self.borrow_bindings.insert(*symbol, loan);
+            }
+            for &stmt in &slot.for_sources {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                for context in &mut self.loops {
+                    if let Some(ref mut for_data) = context.for_loop {
+                        if for_data.statement.index() == stmt {
+                            for_data.body_source = loan;
+                        }
+                    }
+                }
+            }
+            for &stmt in &slot.for_elements {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                for context in &mut self.loops {
+                    if let Some(ref mut for_data) = context.for_loop {
+                        if for_data.statement.index() == stmt {
+                            for_data.guarded_element.set_loan(loan);
+                        }
+                    }
+                }
             }
         }
         Ok(bindings)

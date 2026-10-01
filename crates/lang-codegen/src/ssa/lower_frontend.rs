@@ -214,12 +214,20 @@ impl ExpressionLowerer<'_> {
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, value, span),
             Expression::Break { .. } => {
-                self.emit_control_transfer_cleanup(expression)?;
-                self.lower_break(span)
+                if self.loops.last().map_or(false, |c| c.for_loop.is_some()) {
+                    self.lower_for_break(expression, span)
+                } else {
+                    self.emit_control_transfer_cleanup(expression)?;
+                    self.lower_break(span)
+                }
             }
             Expression::Continue { .. } => {
-                self.emit_control_transfer_cleanup(expression)?;
-                self.lower_continue(span)
+                if self.loops.last().map_or(false, |c| c.for_loop.is_some()) {
+                    self.lower_for_continue(expression, span)
+                } else {
+                    self.emit_control_transfer_cleanup(expression)?;
+                    self.lower_continue(span)
+                }
             }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
@@ -596,7 +604,7 @@ impl ExpressionLowerer<'_> {
                 condition, body, ..
             } => self.lower_while(statement, condition, body, span),
             Statement::Loop { body, .. } => self.lower_loop(statement, body, span),
-            Statement::For { .. } => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+            Statement::For { source, body, .. } => self.lower_for(statement, source, body, span),
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
@@ -991,7 +999,25 @@ impl ExpressionLowerer<'_> {
         if matches!(result, LoweredValue::Diverged) {
             return Ok(result);
         }
-        self.emit_control_transfer_cleanup(return_expression)?;
+        let for_return_exit = self.loops.iter().rev().find_map(|c| {
+            c.for_loop.as_ref().and_then(|f| {
+                f.plan
+                    .exits()
+                    .iter()
+                    .find(|e| {
+                        matches!(
+                            e.kind(),
+                            lang_frontend::ownership_checking::IterationExitKind::Return(expr) if expr == return_expression
+                        )
+                    })
+                    .cloned()
+            })
+        });
+        if let Some(exit) = for_return_exit {
+            self.emit_iteration_exit_plan(&exit, span)?;
+        } else {
+            self.emit_control_transfer_cleanup(return_expression)?;
+        }
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function
             .set_terminator(
