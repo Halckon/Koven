@@ -3330,3 +3330,22 @@ planner lib 94 passed、81 filtered；补第二反例后 opaque 模块 3 passed�
 check、fmt、文档结构（376 Markdown）及 diff 检查通过。扩展 frontend `--lib --tests`
 strict Clippy 仍有 134 项既有测试诊断，按文件、lint code、消息对比上一轮新增/减少均为
 0，不记为通过。未运行 frontend 全量或 Phase 4/native，未提交。
+
+2026-09-30 紧邻环境捕获门禁与展开合同闭合切片：针对 2026-09-25 独立评审指出的
+F2 与 F3 缺陷进行系统性修复。`descendant_expandable` 仅检查 tracked 来源（要求
+至少一个 Owned Move 且不含任何 Shared 借用输入），与 `drop_closure_owner_inner`
+的展开条件严格对齐；`readable_from_parent` 严格核对当前候选的快照选择位与
+`IterationPhi` 身份，配合 `mutually_exclusive` 保持条件表的注册副作用。
+紧邻环境捕获对条件 leaf 与静态唯一 owned descendant 的过度阻断正式解除，公开
+套件此前以 `#[ignore]` 标记的 4 项测试全部激活并转为发布验证：
+`loop_phi_publishes_conditional_leaf_after_phi_carries_choice`、
+`loop_phi_transports_conditional_leaf_presence_across_jump_edges`、
+`loop_phi_publishes_enclosing_closure_with_owned_descendant`、
+`loop_phi_publishes_statically_unique_owned_descendant`；
+原两项未发布时的临时过渡断言更正，内部 `drop_planner` 单元测试断言同步更新为
+`is_none()`。
+定向验收结果：`ownership_iteration` 为 184 passed、0 failed、0 ignored；七组公开
+所有权集成测试合计 346 passed、0 failed、0 ignored；内部 `drop_planner` lib 测试
+为 95 passed、0 failed、0 ignored（81 filtered）。strict Clippy、`cargo fmt`、
+文档结构检查（380 Markdown）完全通过。未运行 frontend 全量或 Phase 4/native；
+`RecursiveClosureCapture` 与 `AmbiguousClosureInstanceTransport` 仍按规范保持原子阻断。

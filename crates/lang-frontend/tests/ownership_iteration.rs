@@ -5809,27 +5809,6 @@ fn loop_phi_keeps_two_leaf_enclosing_capture_sources_distinct() {
 }
 
 #[test]
-fn loop_phi_defers_conditional_leaf_until_phi_carries_saved_choice() {
-    use lang_frontend::ownership_checking::OwnershipDeferredReason;
-
-    let (_, _, owned) = checked(
-        "fun run(flag: Boolean) {\nval base: move () -> Unit = if (flag) (move {}) else (move {})\nval outer: move () -> Unit = move { var f: move () -> Unit = move { base() }\nfor (_ in listOf(1)) {}\nval used = f() }\nval used = outer() }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.deferred().len(), 1, "{:?}", owned.deferred());
-    assert_eq!(
-        owned.deferred()[0].reason(),
-        OwnershipDeferredReason::EnclosingEnvironmentCapture
-    );
-    assert!(owned.iterations().is_empty());
-    assert!(owned.cleanup_steps().is_empty());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loan_ends().is_empty());
-}
-
-// 保留：实例运输合同（SPEC-0211 §9）实现后应转为发布。
-#[test]
-#[ignore = "SPEC-0211 §9: iteration instance-transport contract pending"]
 fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
     use std::collections::BTreeMap;
 
@@ -5952,9 +5931,7 @@ fn loop_phi_publishes_conditional_leaf_after_phi_carries_choice() {
     }
 }
 
-// 保留：实例运输合同（SPEC-0211 §9）实现后应转为发布。
 #[test]
-#[ignore = "SPEC-0211 §9: iteration instance-transport contract pending"]
 fn loop_phi_transports_conditional_leaf_presence_across_jump_edges() {
     use lang_frontend::ownership_checking::{
         CleanupCondition, CleanupConditionId, CleanupConditions, CleanupSelectorSource,
@@ -6477,46 +6454,6 @@ fn loop_phi_defers_known_or_opaque_leaf_enclosing_capture() {
 }
 
 #[test]
-fn loop_phi_defers_enclosing_closure_with_owned_descendant_atomically() {
-    use lang_frontend::ownership_checking::OwnershipDeferredReason;
-
-    let (sources, parsed, owned) = checked(
-        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>) {
-            val base: move () -> Unit = move { read(xs) }
-            val outer: move () -> Unit = move {
-                var f: move () -> Unit = move { base() }
-                for (_ in listOf(1)) {}
-                val used = f()
-            }
-            val used = outer()
-        }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.deferred().len(), 1);
-    assert_eq!(
-        owned.deferred()[0].reason(),
-        OwnershipDeferredReason::EnclosingEnvironmentCapture
-    );
-    assert_eq!(
-        sources.slice(
-            parsed
-                .ast()
-                .expressions()
-                .get(owned.deferred()[0].expression())
-                .unwrap()
-                .span()
-        ),
-        Ok("move { base() }")
-    );
-    assert!(owned.iterations().is_empty());
-    assert!(owned.cleanup_steps().is_empty());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loan_ends().is_empty());
-}
-
-// 保留：实例运输合同（SPEC-0211 §9）实现后应转为发布。
-#[test]
-#[ignore = "SPEC-0211 §9: iteration instance-transport contract pending"]
 fn loop_phi_publishes_enclosing_closure_with_owned_descendant() {
     use lang_frontend::ownership_checking::{CleanupCaptureValue, DropTarget};
 
@@ -12099,9 +12036,7 @@ fn when_first_alternative_does_not_read_a_skipped_later_alternative() {
     }
 }
 
-// 保留：实例运输合同（SPEC-0211 §9）实现后应转为发布。
 #[test]
-#[ignore = "SPEC-0211 §9: iteration instance-transport contract pending"]
 fn loop_phi_publishes_statically_unique_owned_descendant() {
     use lang_frontend::ownership_checking::{CleanupCaptureValue, DropTarget};
 
