@@ -68,7 +68,7 @@ fn every_parser_consumer_rejects_malformed_lexeme_streams_deterministically() {
 
         let shape_error = ParserInternalError::InvalidLexemeStream;
         assert_internal_error_twice(&shape_error, "strict-call index", case, || {
-            StrictCallTrialIndex::new(&lexed)
+            StrictCallTrialIndex::new(&sources, &lexed)
         });
         assert_internal_error_twice(&shape_error, "lambda-header index", case, || {
             LambdaHeaderIndex::new(&lexed, &[])
@@ -421,7 +421,7 @@ fn recovery_metrics(regions: usize) -> (usize, usize, usize) {
 
     let lexical_recoveries =
         LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {
@@ -486,7 +486,7 @@ fn parse_class_family_metrics(text: &str) -> (usize, usize, usize) {
     validate_lexemes(&sources, &lexed, source.len()).expect("lexer output must be valid");
     let lexical_recoveries =
         LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {
@@ -598,7 +598,7 @@ fn call_recovery_metrics(regions: usize) -> (usize, usize, usize, usize, usize) 
     let lexical_recoveries =
         LexicalRecoveryIndex::new(source, &lexed).expect("recoveries must index");
     let terminal_events = lexical_recoveries.terminal_owner_events.len();
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {
@@ -708,7 +708,7 @@ fn postfix_propagation_metrics(questions: usize) -> (usize, usize) {
     let lexed = lex_test_source_twice(&sources, source_id, "postfix propagation metrics");
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {
@@ -756,7 +756,7 @@ fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
     let lexed = lex_test_source_twice(&sources, source_id, "block dispatch metrics");
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {
@@ -827,7 +827,7 @@ fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
     let lexical_diagnostics = lexed.diagnostics().len();
     let lexical_recoveries =
         LexicalRecoveryIndex::new(&text, &lexed).expect("recoveries must index");
-    let strict_trials = StrictCallTrialIndex::new(&lexed).expect("trials must index");
+    let strict_trials = StrictCallTrialIndex::new(&sources, &lexed).expect("trials must index");
     let lambda_headers = LambdaHeaderIndex::new(&lexed, &lexical_recoveries.terminal_owner_events)
         .expect("headers must index");
     let mut parser = Parser {

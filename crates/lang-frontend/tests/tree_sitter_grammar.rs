@@ -2,7 +2,7 @@
 
 use std::{fs, path::PathBuf};
 
-use lang_frontend::lexer::{Keyword, LexemeKind, TokenKind};
+use lang_frontend::lexer::{LexemeKind, TokenKind};
 
 #[path = "support/frontend_matrix_assertions.rs"]
 mod frontend_matrix_assertions;
@@ -40,7 +40,6 @@ fn external_scanner_word_table_matches_the_complete_production_lexer_contract() 
         "package",
         "typealias",
         "val",
-        "value",
         "var",
         "vararg",
         "break",
@@ -50,14 +49,9 @@ fn external_scanner_word_table_matches_the_complete_production_lexer_contract() 
         "if",
         "in",
         "is",
-        "loop",
         "return",
         "when",
         "while",
-        "borrow",
-        "inout",
-        "move",
-        "own",
         "unsafe",
         "internal",
         "private",
@@ -76,7 +70,7 @@ fn external_scanner_word_table_matches_the_complete_production_lexer_contract() 
         "reify",
     ];
 
-    assert_eq!(HARD_KEYWORDS.len(), 42);
+    assert_eq!(HARD_KEYWORDS.len(), 36);
     assert_eq!(FUTURE_RESERVED_WORDS.len(), 11);
     let expected = HARD_KEYWORDS
         .iter()
@@ -199,8 +193,8 @@ fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() 
         "async"
     );
     assert!(lexed.lexemes().iter().any(|lexeme| {
-        lexeme.kind() == LexemeKind::Token(TokenKind::Keyword(Keyword::Value))
-            && sources.slice(lexeme.span()).expect("keyword span") == "value"
+        lexeme.kind() == LexemeKind::Token(TokenKind::Identifier)
+            && sources.slice(lexeme.span()).expect("identifier span") == "value"
     }));
 
     let parsed = parse_file_twice(&sources, source_id, text.len(), &lexed, context);
@@ -224,8 +218,6 @@ fn reserved_fixture_uses_exact_lexer_diagnostics_and_preserves_following_text() 
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        [
-            "L0018", "L0020", "L0047", "L0066", "L0067", "L0077", "L0017", "L0002"
-        ]
+        ["L0002"]
     );
 }

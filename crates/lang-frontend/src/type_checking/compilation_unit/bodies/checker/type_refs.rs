@@ -484,7 +484,9 @@ impl BodyChecker<'_> {
                 self.signatures
                     .declaration(*declaration)
                     .and_then(|signature| signature.nominal())
-                    .is_some_and(|nominal| nominal.kind() == NominalKind::ValueClass)
+                    .is_some_and(|nominal| {
+                        matches!(nominal.kind(), NominalKind::ValueClass | NominalKind::EnumClass)
+                    })
             }
             (IntrinsicTypeConstructor::Box, _) => false,
             (
@@ -499,7 +501,7 @@ impl BodyChecker<'_> {
             let (code, message) = if constructor == IntrinsicTypeConstructor::Box {
                 (
                     codes::INVALID_BOX_ARGUMENT,
-                    "Box type argument must be a concrete value class instance",
+                    "Box type argument must be a concrete value class or enum class instance",
                 )
             } else {
                 (

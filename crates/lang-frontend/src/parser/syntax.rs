@@ -789,6 +789,18 @@ pub enum BinaryOperator {
     Add,
     /// `-`。
     Subtract,
+    /// `shl`。
+    Shl,
+    /// `shr`。
+    Shr,
+    /// `ushr`。
+    Ushr,
+    /// `and`。
+    BitwiseAnd,
+    /// `xor`。
+    BitwiseXor,
+    /// `or`。
+    BitwiseOr,
     /// `..`。
     InclusiveRange,
     /// `..<`。

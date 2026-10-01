@@ -844,7 +844,7 @@ fn function_block_body_distinguishes_implicit_and_committed_explicit_recovery() 
 
 #[test]
 fn committed_function_body_shape_never_backtracks_into_a_second_body() {
-    let (_, expression) = parsed("fun f(): Unit = x {}");
+    let (_, expression) = parsed("fun f(): Unit = x\n{}");
     let Item::Function {
         form: FunctionForm::Explicit { body, .. },
         ..
@@ -1017,4 +1017,26 @@ fn source_identity_and_declaration_depth_budget_are_internal_boundaries() {
         "declaration nesting budget",
         parse_declaration,
     );
+}
+
+#[test]
+fn contextual_keywords_parse_as_declaration_and_parameter_names() {
+    for text in [
+        "val value = 1",
+        "val loop = 2",
+        "val move = 3",
+        "val borrow = 4",
+        "val inout = 5",
+        "val own = 6",
+        "fun own(): Unit = Unit",
+        "fun loop(): Unit = Unit",
+        "fun value(value: Int, own: Int, borrow: Int, inout: Int): Int = value",
+    ] {
+        let (_, parsed) = parsed(text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{text:?}: {:?}",
+            parsed.diagnostics()
+        );
+    }
 }

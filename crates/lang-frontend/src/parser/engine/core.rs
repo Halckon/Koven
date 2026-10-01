@@ -59,6 +59,13 @@ impl Parser<'_> {
         )
     }
 
+    pub(super) fn peek_is_symbol(&self, ordinal: usize, symbol: Symbol) -> bool {
+        matches!(
+            self.peek(ordinal).map(Lexeme::kind),
+            Some(LexemeKind::Token(TokenKind::Symbol(actual))) if actual == symbol
+        )
+    }
+
     pub(super) fn current_is_keyword(&self, keyword: Keyword) -> bool {
         matches!(
             self.peek(0).map(Lexeme::kind),
@@ -66,9 +73,23 @@ impl Parser<'_> {
         )
     }
 
+    pub(super) fn peek_is_keyword(&self, ordinal: usize, keyword: Keyword) -> bool {
+        matches!(
+            self.peek(ordinal).map(Lexeme::kind),
+            Some(LexemeKind::Token(TokenKind::Keyword(actual))) if actual == keyword
+        )
+    }
+
     pub(super) fn current_is_identifier(&self) -> bool {
         matches!(
             self.peek(0).map(Lexeme::kind),
+            Some(LexemeKind::Token(TokenKind::Identifier))
+        )
+    }
+
+    pub(super) fn peek_is_identifier(&self, ordinal: usize) -> bool {
+        matches!(
+            self.peek(ordinal).map(Lexeme::kind),
             Some(LexemeKind::Token(TokenKind::Identifier))
         )
     }
@@ -81,6 +102,20 @@ impl Parser<'_> {
             return Ok(false);
         }
         Ok(self.sources.slice(self.current()?.span())? == expected)
+    }
+
+    pub(super) fn peek_identifier_is(
+        &self,
+        ordinal: usize,
+        expected: &str,
+    ) -> Result<bool, ParserInternalError> {
+        let Some(lexeme) = self.peek(ordinal) else {
+            return Ok(false);
+        };
+        if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+            return Ok(false);
+        }
+        Ok(self.sources.slice(lexeme.span())? == expected)
     }
 
     pub(super) fn is_poison(&self) -> bool {
@@ -139,19 +174,12 @@ impl Parser<'_> {
         self.validate_context_work(vec![ContextWork::Item(id)])
     }
 
-    pub(super) fn control_expression_line_boundary(
+    pub(super) fn expression_statement_boundary(
         &self,
         id: ExpressionId,
     ) -> Result<bool, ParserInternalError> {
-        if !matches!(
-            self.ast.expressions().get(id)?.payload(),
-            Expression::If { .. }
-                | Expression::When { .. }
-                | Expression::Return { .. }
-                | Expression::Break { .. }
-                | Expression::Continue { .. }
-        ) {
-            return Ok(false);
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
         }
         self.gap_has_line_break(
             self.expression_span(id)?.end(),
@@ -159,15 +187,12 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn lambda_initializer_line_boundary(
+    pub(super) fn initializer_boundary(
         &self,
         id: ExpressionId,
     ) -> Result<bool, ParserInternalError> {
-        if !matches!(
-            self.ast.expressions().get(id)?.payload(),
-            Expression::Lambda { .. }
-        ) {
-            return Ok(false);
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
         }
         self.gap_has_line_break(
             self.expression_span(id)?.end(),

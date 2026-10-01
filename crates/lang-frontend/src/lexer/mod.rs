@@ -140,7 +140,7 @@ pub enum FloatLiteralSuffix {
     Float,
 }
 
-/// 42 个硬关键字。
+/// 36 个硬关键字。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Keyword {
     /// `class`。
@@ -167,8 +167,6 @@ pub enum Keyword {
     Typealias,
     /// `val`。
     Val,
-    /// `value`。
-    Value,
     /// `var`。
     Var,
     /// `vararg`。
@@ -187,22 +185,12 @@ pub enum Keyword {
     In,
     /// `is`。
     Is,
-    /// `loop`。
-    Loop,
     /// `return`。
     Return,
     /// `when`。
     When,
     /// `while`。
     While,
-    /// `borrow`。
-    Borrow,
-    /// `inout`。
-    Inout,
-    /// `move`。
-    Move,
-    /// `own`。
-    Own,
     /// `unsafe`。
     Unsafe,
     /// `internal`。

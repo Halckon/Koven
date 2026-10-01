@@ -3,7 +3,8 @@
 //! 索引只保存识别结果，不构造 AST 或诊断。所有依赖都指向更靠后的 significant lexeme，
 //! 因而可以反向迭代求值，避免 Rust 递归及每个 `<` 候选重复扫描后缀。
 
-use crate::lexer::{Keyword, LexedFile, Lexeme, LexemeKind, Symbol, TokenKind};
+use crate::lexer::{LexedFile, Lexeme, LexemeKind, Symbol, TokenKind};
+use crate::source::SourceMap;
 
 use super::{MAX_RECURSION_DEPTH, ParserInternalError};
 
@@ -49,7 +50,7 @@ pub(super) struct StrictCallTrialIndex {
 
 impl StrictCallTrialIndex {
     /// 以一次线性构建为全部 `<` 候选建立严格识别结果。
-    pub(super) fn new(lexed: &LexedFile) -> Result<Self, ParserInternalError> {
+    pub(super) fn new(sources: &SourceMap, lexed: &LexedFile) -> Result<Self, ParserInternalError> {
         validate_lexeme_shape(lexed)?;
 
         let mut raw_to_significant = vec![None; lexed.lexemes().len()];
@@ -73,7 +74,7 @@ impl StrictCallTrialIndex {
             raw_to_significant[raw] = next_significant;
         }
 
-        let built = TrialBuilder::new(&significant).build()?;
+        let built = TrialBuilder::new(sources, &significant).build()?;
         let trials = built
             .call_trials
             .into_iter()
@@ -207,6 +208,7 @@ struct BuiltTrials {
 }
 
 struct TrialBuilder<'a> {
+    sources: &'a SourceMap,
     lexemes: &'a [Lexeme],
     #[cfg(test)]
     inspections: usize,
@@ -215,8 +217,9 @@ struct TrialBuilder<'a> {
 }
 
 impl<'a> TrialBuilder<'a> {
-    const fn new(lexemes: &'a [Lexeme]) -> Self {
+    const fn new(sources: &'a SourceMap, lexemes: &'a [Lexeme]) -> Self {
         Self {
+            sources,
             lexemes,
             #[cfg(test)]
             inspections: 0,
@@ -225,19 +228,29 @@ impl<'a> TrialBuilder<'a> {
         }
     }
 
+    fn is_identifier_named(&mut self, index: usize, expected: &str) -> bool {
+        #[cfg(test)]
+        {
+            self.inspections += 1;
+        }
+        let Some(lexeme) = self.lexemes.get(index) else {
+            return false;
+        };
+        if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+            return false;
+        }
+        self.sources.slice(lexeme.span()).is_ok_and(|text| text == expected)
+    }
+
     fn build(mut self) -> Result<BuiltTrials, ParserInternalError> {
         let len = self.lexemes.len();
         let mut path_ends = vec![None; len];
         for index in (0..len).rev() {
-            let identifier = self.is_identifier(index);
-            let rc_value_member = index > 0
-                && self.is_keyword(index, Keyword::Value)
-                && self.is_symbol(index - 1, Symbol::Dot);
-            if !identifier && !rc_value_member {
+            if !self.is_identifier(index) {
                 continue;
             }
             let has_member = self.is_symbol(index + 1, Symbol::Dot)
-                && (self.is_identifier(index + 2) || self.is_keyword(index + 2, Keyword::Value));
+                && self.is_identifier(index + 2);
             path_ends[index] = if has_member {
                 path_ends[index + 2]
             } else {
@@ -278,13 +291,15 @@ impl<'a> TrialBuilder<'a> {
 
             self.record_state();
             types[index] = if self.is_identifier(index) {
-                self.parse_qualified(index, &path_ends, &angle_lists)?
+                if self.is_identifier_named(index, "move")
+                    && self.is_symbol(index + 1, Symbol::LeftParen)
+                {
+                    types[index + 1]
+                } else {
+                    self.parse_qualified(index, &path_ends, &angle_lists)?
+                }
             } else if self.is_symbol(index, Symbol::LeftParen) {
                 self.parse_function(index, &paren_lists, &types)?
-            } else if self.is_keyword(index, Keyword::Move)
-                && self.is_symbol(index + 1, Symbol::LeftParen)
-            {
-                types[index + 1]
             } else {
                 ParseTrial::INVALID_TYPE
             };
@@ -319,9 +334,9 @@ impl<'a> TrialBuilder<'a> {
         let mut explored_depth = 0;
         loop {
             if closer == Symbol::RightParen
-                && (self.is_keyword(cursor, Keyword::Own)
-                    || self.is_keyword(cursor, Keyword::Borrow)
-                    || self.is_keyword(cursor, Keyword::Inout))
+                && (self.is_identifier_named(cursor, "own")
+                    || self.is_identifier_named(cursor, "borrow")
+                    || self.is_identifier_named(cursor, "inout"))
             {
                 cursor += 1;
             }
@@ -465,13 +480,6 @@ impl<'a> TrialBuilder<'a> {
         )
     }
 
-    fn is_keyword(&mut self, index: usize, expected: Keyword) -> bool {
-        matches!(
-            self.kind(index),
-            Some(LexemeKind::Token(TokenKind::Keyword(keyword))) if keyword == expected
-        )
-    }
-
     fn is_symbol(&mut self, index: usize, expected: Symbol) -> bool {
         matches!(
             self.kind(index),
@@ -533,7 +541,7 @@ mod tests {
             .add_source("trial.ko", text)
             .expect("test source name must be unique");
         let lexed = lex_test_source_twice(&sources, source_id, "strict call trial");
-        let index = StrictCallTrialIndex::new(&lexed).expect("lexer output must index");
+        let index = StrictCallTrialIndex::new(&sources, &lexed).expect("lexer output must index");
         (lexed, index)
     }
 

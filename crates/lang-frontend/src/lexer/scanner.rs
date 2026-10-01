@@ -239,13 +239,120 @@ impl Scanner<'_> {
 
     fn scan_number(&mut self) -> Result<(), LexerInternalError> {
         let start = self.offset;
-        self.consume_ascii_digits();
+        let rest = &self.text[self.offset..];
+        let is_hex = rest.starts_with("0x") || rest.starts_with("0X");
+        let is_bin = rest.starts_with("0b") || rest.starts_with("0B");
+        if is_hex || is_bin {
+            self.offset += 2;
+            let mut has_digits = false;
+            let mut last_was_digit = false;
+            let mut invalid_underscore = false;
+            while self.offset < self.text.len() {
+                let byte = self.text.as_bytes()[self.offset];
+                let is_digit = if is_hex {
+                    byte.is_ascii_hexdigit()
+                } else {
+                    matches!(byte, b'0' | b'1')
+                };
+                if is_digit {
+                    has_digits = true;
+                    last_was_digit = true;
+                    self.offset += 1;
+                } else if byte == b'_' {
+                    if !last_was_digit {
+                        invalid_underscore = true;
+                    }
+                    last_was_digit = false;
+                    self.offset += 1;
+                } else {
+                    break;
+                }
+            }
+            if !last_was_digit {
+                invalid_underscore = true;
+            }
+
+            let mut valid = has_digits && !invalid_underscore;
+            let suffix = if valid && self.consume_byte_if(|byte| byte == b'L') {
+                IntegerLiteralSuffix::Long
+            } else if valid && self.consume_byte_if(|byte| matches!(byte, b'u' | b'U')) {
+                if self.consume_byte_if(|byte| byte == b'L') {
+                    IntegerLiteralSuffix::UnsignedLong
+                } else {
+                    IntegerLiteralSuffix::Unsigned
+                }
+            } else {
+                IntegerLiteralSuffix::None
+            };
+
+            if self
+                .text
+                .as_bytes()
+                .get(self.offset)
+                .is_some_and(|byte| is_identifier_continue(*byte))
+            {
+                valid = false;
+                self.offset += self.text[self.offset..]
+                    .bytes()
+                    .take_while(|byte| is_identifier_continue(*byte))
+                    .count();
+            }
+
+            if !valid {
+                self.emit_invalid(InvalidKind::InvalidNumericLiteral, start)?;
+                return self.add_diagnostic(LexicalError::InvalidNumericLiteral, start, self.offset);
+            }
+            return self.emit_token(TokenKind::IntegerLiteral(suffix), start);
+        }
+
+        let mut last_was_digit = false;
+        let mut invalid_underscore = false;
+        while self.offset < self.text.len() {
+            let byte = self.text.as_bytes()[self.offset];
+            if byte.is_ascii_digit() {
+                last_was_digit = true;
+                self.offset += 1;
+            } else if byte == b'_' {
+                if !last_was_digit {
+                    invalid_underscore = true;
+                }
+                last_was_digit = false;
+                self.offset += 1;
+            } else {
+                break;
+            }
+        }
+        if !last_was_digit {
+            invalid_underscore = true;
+        }
+
         let mut has_fraction = false;
         let rest = &self.text[self.offset..];
-        if rest.starts_with('.') && rest.as_bytes().get(1).is_some_and(u8::is_ascii_digit) {
-            self.offset += 1;
-            self.consume_ascii_digits();
-            has_fraction = true;
+        if rest.starts_with('.') && !rest.starts_with("..") {
+            let next_byte = rest.as_bytes().get(1).copied();
+            if next_byte.is_some_and(|b| b.is_ascii_digit() || b == b'_') {
+                self.offset += 1;
+                has_fraction = true;
+                let mut frac_last_was_digit = false;
+                while self.offset < self.text.len() {
+                    let byte = self.text.as_bytes()[self.offset];
+                    if byte.is_ascii_digit() {
+                        frac_last_was_digit = true;
+                        self.offset += 1;
+                    } else if byte == b'_' {
+                        if !frac_last_was_digit {
+                            invalid_underscore = true;
+                        }
+                        frac_last_was_digit = false;
+                        self.offset += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if !frac_last_was_digit {
+                    invalid_underscore = true;
+                }
+            }
         }
 
         let kind = if has_fraction {
@@ -270,11 +377,12 @@ impl Scanner<'_> {
             TokenKind::IntegerLiteral(IntegerLiteralSuffix::None)
         };
 
-        if self
-            .text
-            .as_bytes()
-            .get(self.offset)
-            .is_some_and(|byte| is_identifier_continue(*byte))
+        if invalid_underscore
+            || self
+                .text
+                .as_bytes()
+                .get(self.offset)
+                .is_some_and(|byte| is_identifier_continue(*byte))
         {
             self.offset += self.text[self.offset..]
                 .bytes()
@@ -295,13 +403,6 @@ impl Scanner<'_> {
         }
         self.offset += 1;
         true
-    }
-
-    fn consume_ascii_digits(&mut self) {
-        self.offset += self.text[self.offset..]
-            .bytes()
-            .take_while(u8::is_ascii_digit)
-            .count();
     }
 
     fn scan_char(&mut self) -> Result<(), LexerInternalError> {
@@ -609,7 +710,6 @@ fn keyword(word: &str) -> Option<Keyword> {
         "package" => Keyword::Package,
         "typealias" => Keyword::Typealias,
         "val" => Keyword::Val,
-        "value" => Keyword::Value,
         "var" => Keyword::Var,
         "vararg" => Keyword::Vararg,
         "break" => Keyword::Break,
@@ -619,14 +719,9 @@ fn keyword(word: &str) -> Option<Keyword> {
         "if" => Keyword::If,
         "in" => Keyword::In,
         "is" => Keyword::Is,
-        "loop" => Keyword::Loop,
         "return" => Keyword::Return,
         "when" => Keyword::When,
         "while" => Keyword::While,
-        "borrow" => Keyword::Borrow,
-        "inout" => Keyword::Inout,
-        "move" => Keyword::Move,
-        "own" => Keyword::Own,
         "unsafe" => Keyword::Unsafe,
         "internal" => Keyword::Internal,
         "private" => Keyword::Private,

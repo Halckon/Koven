@@ -161,9 +161,7 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(Symbol::QuestionDot))
         );
         let operator_span = operator.span();
-        // `value` remains a hard keyword everywhere else; v0.30 reserves only the
-        // postfix member spelling needed by the compiler-bound `Rc<T>.value` contract.
-        if !self.current_is_identifier() && !self.current_is_keyword(Keyword::Value) {
+        if !self.current_is_identifier() {
             let current = self.current()?;
             let end = if self.is_poison() {
                 self.bump()?.span().end()
@@ -505,7 +503,15 @@ impl Parser<'_> {
     pub(super) fn parse_argument_mode_marker(
         &mut self,
     ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
-        let marker = if self.current_is_keyword(Keyword::Borrow) {
+        let is_borrow_marker = self.current_identifier_is("borrow")?
+            && self.peek(1).is_some_and(|next| {
+                self.can_start_expression(next)
+                    || matches!(
+                        next.kind(),
+                        LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand))
+                    )
+            });
+        let marker = if is_borrow_marker {
             Some(ParameterModeMarker::Borrow(self.bump()?.span()))
         } else if self.current_is_symbol(Symbol::Ampersand) {
             Some(ParameterModeMarker::Inout(self.bump()?.span()))
@@ -515,7 +521,15 @@ impl Parser<'_> {
         if marker.is_none() {
             return Ok(None);
         }
-        while self.current_is_keyword(Keyword::Borrow) || self.current_is_symbol(Symbol::Ampersand)
+        while (self.current_identifier_is("borrow")?
+            && self.peek(1).is_some_and(|next| {
+                self.can_start_expression(next)
+                    || matches!(
+                        next.kind(),
+                        LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand))
+                    )
+            }))
+            || self.current_is_symbol(Symbol::Ampersand)
         {
             let duplicate = self.bump()?.span();
             self.emit(
@@ -528,9 +542,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn can_start_call_argument(&self, lexeme: Lexeme) -> bool {
-        self.can_start_expression(lexeme)
-            || self.current_is_keyword(Keyword::Borrow)
-            || self.current_is_symbol(Symbol::Ampersand)
+        self.can_start_expression(lexeme) || self.current_is_symbol(Symbol::Ampersand)
     }
 
     pub(super) fn call_argument_boundary(&self, lexeme: Lexeme, outer_stops: Stops) -> bool {

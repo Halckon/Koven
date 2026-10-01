@@ -15,7 +15,7 @@ impl Parser<'_> {
         &mut self,
         stops: TypeStops,
     ) -> Result<TypeRefId, ParserInternalError> {
-        if self.current_is_keyword(Keyword::Move) || self.current_is_symbol(Symbol::LeftParen) {
+        if self.current_identifier_is("move")? || self.current_is_symbol(Symbol::LeftParen) {
             return self.parse_function_type(stops);
         }
         let current = self.current()?;
@@ -179,7 +179,7 @@ impl Parser<'_> {
         &mut self,
         outer_stops: TypeStops,
     ) -> Result<TypeRefId, ParserInternalError> {
-        let move_span = if self.current_is_keyword(Keyword::Move) {
+        let move_span = if self.current_identifier_is("move")? {
             Some(self.bump()?.span())
         } else {
             None

@@ -111,6 +111,15 @@ impl Parser<'_> {
             && !outer_stops.contains_hard(self.current()?)
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
+            if self.current_is_symbol(Symbol::RightBrace)
+                || outer_stops.contains_hard(self.current()?)
+                || matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                break;
+            }
             #[cfg(test)]
             {
                 self.block_dispatch_iterations += 1;
@@ -121,6 +130,9 @@ impl Parser<'_> {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             elements.push(element);
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
         }
 
         let end = if self.current_is_symbol(Symbol::RightBrace) {
@@ -155,7 +167,7 @@ impl Parser<'_> {
         }
         if self.current_is_keyword(Keyword::While)
             || self.current_is_keyword(Keyword::For)
-            || self.current_is_keyword(Keyword::Loop)
+            || (self.current_identifier_is("loop")? && self.peek_is_symbol(1, Symbol::LeftBrace))
         {
             return self.parse_loop_statement(outer_stops);
         }
@@ -171,7 +183,7 @@ impl Parser<'_> {
             let span = self.ast.items().get(declaration)?.span();
             return self.add_statement(span, Statement::LocalVariable { declaration });
         }
-        if self.is_unsupported_block_element() {
+        if self.is_unsupported_block_element()? {
             return self.parse_unsupported_block_element();
         }
 
@@ -183,7 +195,7 @@ impl Parser<'_> {
         if self.can_start_expression(current) {
             let stops = Stops::block_expression(outer_stops);
             let expression = self.parse_expression_bp(0, stops)?;
-            let expression = if self.control_expression_line_boundary(expression)? {
+            let expression = if self.expression_statement_boundary(expression)? {
                 expression
             } else {
                 self.consume_expression_tail(expression, stops)?
@@ -222,7 +234,7 @@ impl Parser<'_> {
                 },
             );
         }
-        if self.current_is_keyword(Keyword::Loop) {
+        if self.current_identifier_is("loop")? {
             let keyword_span = self.bump()?.span();
             let body = self.parse_required_loop_body(outer_stops)?;
             let end = self.statement_span(body)?.end();
@@ -347,14 +359,17 @@ impl Parser<'_> {
     pub(super) fn parse_unsupported_block_element(
         &mut self,
     ) -> Result<StatementId, ParserInternalError> {
+        let is_value_class =
+            self.current_identifier_is("value")? && self.peek_is_keyword(1, Keyword::Class);
         let first_lexeme = self.bump()?;
         let first = first_lexeme.span();
         let mut end = first.end();
-        if self.current_is_keyword(Keyword::Val)
-            && matches!(
-                first_lexeme.kind(),
-                LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
-            )
+        if is_value_class
+            || (self.current_is_keyword(Keyword::Val)
+                && matches!(
+                    first_lexeme.kind(),
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+                ))
         {
             end = self.bump()?.span().end();
         }
@@ -367,8 +382,12 @@ impl Parser<'_> {
         self.add_statement(span, Statement::Error)
     }
 
-    pub(super) fn is_unsupported_block_element(&self) -> bool {
-        self.peek(0)
-            .is_some_and(|lexeme| unsupported_block_element_kind(lexeme.kind()))
+    pub(super) fn is_unsupported_block_element(&self) -> Result<bool, ParserInternalError> {
+        if self.current_identifier_is("value")? && self.peek_is_keyword(1, Keyword::Class) {
+            return Ok(true);
+        }
+        Ok(self
+            .peek(0)
+            .is_some_and(|lexeme| unsupported_block_element_kind(lexeme.kind())))
     }
 }

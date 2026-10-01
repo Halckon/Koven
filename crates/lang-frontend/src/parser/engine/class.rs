@@ -2,7 +2,7 @@ use super::*;
 
 impl Parser<'_> {
     pub(super) fn parse_classifier_declaration(&mut self) -> Result<ItemId, ParserInternalError> {
-        let kind = if self.current_is_keyword(Keyword::Value) {
+        let kind = if self.current_identifier_is("value")? {
             let value_span = self.bump()?.span();
             let class_span = if self.current_is_keyword(Keyword::Class) {
                 self.bump()?.span()
@@ -273,12 +273,16 @@ impl Parser<'_> {
         let visibility = modifiers.visibility;
         let current_start = self.current()?.span().start();
         let start = declaration_modifier_start(modifiers).unwrap_or(current_start);
-        if matches!(
-            self.current()?.kind(),
-            LexemeKind::Token(TokenKind::Keyword(
-                Keyword::Borrow | Keyword::Inout | Keyword::Own | Keyword::Vararg
-            ))
-        ) {
+        let is_invalid_mode_modifier = (self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?
+            || self.current_identifier_is("own")?)
+            && (self.peek_is_keyword(1, Keyword::Val) || self.peek_is_keyword(1, Keyword::Var));
+        if is_invalid_mode_modifier
+            || matches!(
+                self.current()?.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Vararg))
+            )
+        {
             let primary = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -580,7 +584,7 @@ impl Parser<'_> {
                 "expected member separator",
                 self.current()?.span(),
             )?;
-            if class_member_start_kind(self.current()?.kind()) {
+            if self.class_member_start()? {
                 continue;
             }
             self.recover_declaration_region(
@@ -663,7 +667,7 @@ impl Parser<'_> {
             };
             let keyword = self.bump()?.span();
             self.parse_variable_declaration(keyword, kind, member_stops)?
-        } else if classifier_declaration_start_kind(self.current()?.kind()) {
+        } else if self.classifier_declaration_start()? {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                 "unsupported class-family form",
@@ -764,7 +768,7 @@ impl Parser<'_> {
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
             if !self.current_is_identifier() {
-                if class_member_start_kind(self.current()?.kind()) {
+                if self.class_member_start()? {
                     self.emit(
                         codes::EXPECTED_ENUM_MEMBER_DELIMITER,
                         "expected enum member delimiter",
@@ -809,7 +813,7 @@ impl Parser<'_> {
             {
                 break;
             }
-            if class_member_start_kind(self.current()?.kind()) {
+            if self.class_member_start()? {
                 self.emit(
                     codes::EXPECTED_ENUM_MEMBER_DELIMITER,
                     "expected enum member delimiter",
@@ -838,7 +842,7 @@ impl Parser<'_> {
                 )?;
             }
             members
-        } else if class_member_start_kind(self.current()?.kind()) {
+        } else if self.class_member_start()? {
             self.parse_classifier_members(ClassMemberContext::Enum)?
         } else {
             Vec::new()
@@ -931,17 +935,18 @@ impl Parser<'_> {
     pub(super) fn parse_enum_variant_parameter(
         &mut self,
     ) -> Result<EnumVariantParameter, ParserInternalError> {
-        if matches!(
-            self.current()?.kind(),
-            LexemeKind::Token(TokenKind::Keyword(
-                Keyword::Val
-                    | Keyword::Var
-                    | Keyword::Borrow
-                    | Keyword::Inout
-                    | Keyword::Own
-                    | Keyword::Vararg
-            ))
-        ) {
+        let is_invalid_mode_modifier = (self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?
+            || self.current_identifier_is("own")?)
+            && self.peek_is_identifier(1);
+        if is_invalid_mode_modifier
+            || matches!(
+                self.current()?.kind(),
+                LexemeKind::Token(TokenKind::Keyword(
+                    Keyword::Val | Keyword::Var | Keyword::Vararg
+                ))
+            )
+        {
             let primary = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,

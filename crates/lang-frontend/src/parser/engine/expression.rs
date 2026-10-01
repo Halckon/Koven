@@ -165,15 +165,7 @@ impl Parser<'_> {
         ) {
             return self.parse_lambda(None, stops);
         }
-        if matches!(
-            current.kind(),
-            LexemeKind::Token(TokenKind::Keyword(Keyword::Move))
-        ) && self.peek(1).is_some_and(|next| {
-            matches!(
-                next.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-            )
-        }) {
+        if self.current_identifier_is("move")? && self.peek_is_symbol(1, Symbol::LeftBrace) {
             let move_span = self.bump()?.span();
             return self.parse_lambda(Some(move_span), stops);
         }
@@ -347,10 +339,22 @@ impl Parser<'_> {
             && !outer_stops.contains_hard(self.current()?)
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
+            if self.current_is_symbol(Symbol::RightBrace)
+                || outer_stops.contains_hard(self.current()?)
+                || matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                break;
+            }
             let before = self.index;
             elements.push(self.parse_block_element(outer_stops)?);
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
+            }
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
             }
         }
         let end = if self.current_is_symbol(Symbol::RightBrace) {
@@ -708,6 +712,15 @@ impl Parser<'_> {
             && !outer_stops.contains_hard(self.current()?)
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
+            if self.current_is_symbol(Symbol::RightBrace)
+                || outer_stops.contains_hard(self.current()?)
+                || matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                break;
+            }
             #[cfg(test)]
             {
                 self.lambda_body_dispatch_iterations += 1;
@@ -724,7 +737,7 @@ impl Parser<'_> {
                 self.parse_unsupported_local_destructuring(expression_stops)?
             } else if self.current_is_keyword(Keyword::While)
                 || self.current_is_keyword(Keyword::For)
-                || self.current_is_keyword(Keyword::Loop)
+                || (self.current_identifier_is("loop")? && self.peek_is_symbol(1, Symbol::LeftBrace))
             {
                 self.parse_loop_statement(outer_stops)?
             } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var)
@@ -739,7 +752,7 @@ impl Parser<'_> {
                     self.parse_local_variable_declaration(keyword.span(), kind, expression_stops)?;
                 let span = self.ast.items().get(declaration)?.span();
                 self.add_statement(span, Statement::LocalVariable { declaration })?
-            } else if self.is_unsupported_block_element() {
+            } else if self.is_unsupported_block_element()? {
                 self.parse_unsupported_lambda_body_form()?
             } else {
                 let current = self.current()?;
@@ -752,7 +765,7 @@ impl Parser<'_> {
                     self.parse_unsupported_lambda_body_form()?
                 } else if self.can_start_expression(current) {
                     let expression = self.parse_expression_bp(0, expression_stops)?;
-                    let expression = if self.control_expression_line_boundary(expression)? {
+                    let expression = if self.expression_statement_boundary(expression)? {
                         expression
                     } else {
                         self.consume_expression_tail(expression, expression_stops)?
@@ -773,6 +786,9 @@ impl Parser<'_> {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             elements.push(element);
+            while self.current_is_symbol(Symbol::Semicolon) {
+                self.bump()?;
+            }
         }
 
         let end = if self.current_is_symbol(Symbol::RightBrace) {

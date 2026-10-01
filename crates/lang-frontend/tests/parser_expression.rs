@@ -865,11 +865,11 @@ fn nested_type_references_and_function_types_parse_without_shift_confusion() {
 }
 
 #[test]
-fn hard_keyword_value_is_allowed_only_as_a_postfix_member_name() {
+fn contextual_keyword_value_is_allowed_in_ordinary_and_postfix_positions() {
     assert_parses("owner.value");
     assert_parses("owner.value.x");
     assert_parses("inspect(owner.value)");
-    assert!(!parse_fingerprints("value").is_empty());
+    assert_parses("value");
 }
 
 #[test]
@@ -992,7 +992,7 @@ fn call_argument_recovery_respects_strings_nested_delimiters_and_eof() {
         assert_eq!(arguments.len(), 2, "{nested:?}");
     }
 
-    for malformed in ["f(name =", "f(borrow", "!+1(name ="] {
+    for malformed in ["f(name =", "f(&", "!+1(name ="] {
         let mut sources = SourceMap::new();
         let source_id = add_source(&mut sources, "argument-eof.ko", malformed);
         let parsed = parse_expression_twice(&sources, source_id, malformed);
@@ -1771,3 +1771,95 @@ fn recursion_budget_prevents_stack_amplification() {
         );
     }
 }
+
+#[test]
+fn contextual_keywords_parse_as_ordinary_expressions_and_members() {
+    for text in [
+        "node.value",
+        "player.move()",
+        "cell.borrow()",
+        "state.inout()",
+        "item.own()",
+        "control.loop()",
+        "value + 1",
+        "loop + 2",
+        "move + 3",
+        "borrow + 4",
+        "inout + 5",
+        "own + 6",
+    ] {
+        assert_parses(text);
+    }
+}
+
+#[test]
+fn named_bitwise_soft_operators_parse_with_correct_precedence_and_associativity() {
+    let cases = [
+        ("a shl b", BinaryOperator::Shl),
+        ("a shr b", BinaryOperator::Shr),
+        ("a ushr b", BinaryOperator::Ushr),
+        ("a and b", BinaryOperator::BitwiseAnd),
+        ("a xor b", BinaryOperator::BitwiseXor),
+        ("a or b", BinaryOperator::BitwiseOr),
+    ];
+    for (text, expected_op) in cases {
+        let (_sources, parsed) = parsed_case(text);
+        let Expression::Binary { operator, .. } = expression(&parsed, parsed.root()) else {
+            panic!("expected binary expression for {text}");
+        };
+        assert_eq!(*operator, expected_op, "operator mismatch for {text}");
+    }
+
+    // Precedence: multiplicative (15) > additive (14) > shift (13) > bitwise_and (12) > bitwise_xor (11) > bitwise_or (10) > range (9) > logical_and (3) > logical_or (2)
+    let precedence_cases = [
+        ("a + b shl c", BinaryOperator::Shl, BinaryOperator::Add),
+        ("a shl b and c", BinaryOperator::BitwiseAnd, BinaryOperator::Shl),
+        ("a and b xor c", BinaryOperator::BitwiseXor, BinaryOperator::BitwiseAnd),
+        ("a xor b or c", BinaryOperator::BitwiseOr, BinaryOperator::BitwiseXor),
+        ("a or b .. c", BinaryOperator::InclusiveRange, BinaryOperator::BitwiseOr),
+        ("a or b && c", BinaryOperator::LogicalAnd, BinaryOperator::BitwiseOr),
+        ("a && b || c", BinaryOperator::LogicalOr, BinaryOperator::LogicalAnd),
+    ];
+    for (text, root_op, left_op) in precedence_cases {
+        let (_sources, parsed) = parsed_case(text);
+        let Expression::Binary { operator, left, .. } = expression(&parsed, parsed.root()) else {
+            panic!("expected binary root for {text}");
+        };
+        assert_eq!(*operator, root_op, "root operator mismatch for {text}");
+        let Expression::Binary { operator: child_op, .. } = expression(&parsed, *left) else {
+            panic!("expected binary left child for {text}");
+        };
+        assert_eq!(*child_op, left_op, "left child operator mismatch for {text}");
+    }
+
+    // Associativity (left-associative)
+    for (text, expected_op) in [
+        ("a shl b shl c", BinaryOperator::Shl),
+        ("a and b and c", BinaryOperator::BitwiseAnd),
+        ("a xor b xor c", BinaryOperator::BitwiseXor),
+        ("a or b or c", BinaryOperator::BitwiseOr),
+    ] {
+        let (_sources, parsed) = parsed_case(text);
+        let Expression::Binary { operator, left, .. } = expression(&parsed, parsed.root()) else {
+            panic!("expected binary root for {text}");
+        };
+        assert_eq!(*operator, expected_op);
+        let Expression::Binary { operator: child_op, .. } = expression(&parsed, *left) else {
+            panic!("expected binary left child for {text}");
+        };
+        assert_eq!(*child_op, expected_op);
+    }
+
+    // Contextual soft operators as ordinary expressions
+    for text in [
+        "shl.foo()",
+        "shr(1, 2)",
+        "ushr = 3",
+        "and.bar",
+        "xor(x)",
+        "or + 1",
+    ] {
+        assert_parses(text);
+    }
+}
+

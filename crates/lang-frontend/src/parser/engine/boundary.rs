@@ -8,8 +8,6 @@ pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
                 | Keyword::Fun
                 | Keyword::For
                 | Keyword::While
-                | Keyword::Loop
-                | Keyword::Value
                 | Keyword::Class
                 | Keyword::Interface
                 | Keyword::Enum
@@ -41,7 +39,6 @@ pub(super) fn simple_declaration_start_kind(kind: LexemeKind) -> bool {
                 | Keyword::Var
                 | Keyword::Const
                 | Keyword::Fun
-                | Keyword::Value
                 | Keyword::Class
                 | Keyword::Interface
                 | Keyword::Enum
@@ -58,7 +55,7 @@ pub(super) fn classifier_declaration_start_kind(kind: LexemeKind) -> bool {
     matches!(
         kind,
         LexemeKind::Token(TokenKind::Keyword(
-            Keyword::Value | Keyword::Class | Keyword::Interface | Keyword::Enum | Keyword::Object
+            Keyword::Class | Keyword::Interface | Keyword::Enum | Keyword::Object
         ))
     )
 }
@@ -91,11 +88,33 @@ pub(super) fn class_member_start_kind(kind: LexemeKind) -> bool {
                     | Keyword::Internal
                     | Keyword::Private
                     | Keyword::Override
-                    | Keyword::Borrow
-                    | Keyword::Inout
-                    | Keyword::Own
             ))
         )
+}
+
+impl Parser<'_> {
+    pub(super) fn classifier_declaration_start(&self) -> Result<bool, ParserInternalError> {
+        if self.current_identifier_is("value")?
+            && (self.peek_is_keyword(1, Keyword::Class) || self.peek_is_identifier(1))
+        {
+            return Ok(true);
+        }
+        Ok(classifier_declaration_start_kind(self.current()?.kind()))
+    }
+
+    pub(super) fn class_member_start(&self) -> Result<bool, ParserInternalError> {
+        if self.classifier_declaration_start()? {
+            return Ok(true);
+        }
+        if (self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?
+            || self.current_identifier_is("own")?)
+            && self.peek_is_keyword(1, Keyword::Fun)
+        {
+            return Ok(true);
+        }
+        Ok(class_member_start_kind(self.current()?.kind()))
+    }
 }
 
 pub(super) fn visibility_span(visibility: VisibilityModifier) -> Span {
@@ -173,13 +192,7 @@ pub(super) fn file_construct_start_kind(kind: LexemeKind) -> bool {
     simple_declaration_start_kind(kind)
         || matches!(
             kind,
-            LexemeKind::Token(TokenKind::Keyword(
-                Keyword::Package
-                    | Keyword::Import
-                    | Keyword::Borrow
-                    | Keyword::Inout
-                    | Keyword::Own
-            ))
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Package | Keyword::Import))
         )
 }
 

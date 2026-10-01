@@ -220,7 +220,8 @@ impl Checker<'_> {
         let valid = match (constructor, self.kind(argument)) {
             (IntrinsicTypeConstructor::Box, TypeKind::Nominal { nominal, .. }) => {
                 self.nominals.iter().any(|descriptor| {
-                    descriptor.id() == *nominal && descriptor.kind() == NominalKind::ValueClass
+                    descriptor.id() == *nominal
+                        && matches!(descriptor.kind(), NominalKind::ValueClass | NominalKind::EnumClass)
                 })
             }
             (IntrinsicTypeConstructor::Box, _) => false,
@@ -236,7 +237,7 @@ impl Checker<'_> {
             let (code, message) = if constructor == IntrinsicTypeConstructor::Box {
                 (
                     self.invalid_box_argument_code,
-                    "Box type argument must be a concrete value class instance",
+                    "Box type argument must be a concrete value class or enum class instance",
                 )
             } else {
                 (

@@ -561,11 +561,11 @@ impl Checker<'_> {
             }
         };
         let valid = matches!(self.kind(element), TypeKind::Nominal { nominal, .. }
-            if self.nominals.iter().any(|item| item.id() == *nominal && item.kind() == NominalKind::ValueClass));
+            if self.nominals.iter().any(|item| item.id() == *nominal && matches!(item.kind(), NominalKind::ValueClass | NominalKind::EnumClass)));
         if !valid {
             self.emit(
                 self.invalid_box_argument_code,
-                "Box type argument must be a concrete value class instance",
+                "Box type argument must be a concrete value class or enum class instance",
                 self.ast().expressions().get(arguments[0].value)?.span(),
             )?;
             return Ok(self.failed_construction());

@@ -53,10 +53,14 @@ const PREC_MEMBERSHIP: u8 = 6;
 const PREC_ELVIS: u8 = 7;
 const PREC_TO: u8 = 8;
 const PREC_RANGE: u8 = 9;
-const PREC_ADDITIVE: u8 = 10;
-const PREC_MULTIPLICATIVE: u8 = 11;
-const PREC_CAST: u8 = 12;
-const PREC_PREFIX: u8 = 13;
+const PREC_BITWISE_OR: u8 = 10;
+const PREC_BITWISE_XOR: u8 = 11;
+const PREC_BITWISE_AND: u8 = 12;
+const PREC_SHIFT: u8 = 13;
+const PREC_ADDITIVE: u8 = 14;
+const PREC_MULTIPLICATIVE: u8 = 15;
+const PREC_CAST: u8 = 16;
+const PREC_PREFIX: u8 = 17;
 
 pub(super) fn parse_file(
     sources: &SourceMap,
@@ -65,7 +69,7 @@ pub(super) fn parse_file(
     let source = sources.source_text(lexed.source_id())?;
     validate_lexemes(sources, lexed, source.len())?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
-    let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let strict_trials = StrictCallTrialIndex::new(sources, lexed)?;
     let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
     let mut parser = Parser {
         sources,
@@ -119,7 +123,7 @@ pub(super) fn parse(
     let source_len = source.len();
     validate_lexemes(sources, lexed, source_len)?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
-    let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let strict_trials = StrictCallTrialIndex::new(sources, lexed)?;
     let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
 
     let mut parser = Parser {
@@ -170,7 +174,7 @@ pub(super) fn parse_declaration(
     let source = sources.source_text(lexed.source_id())?;
     validate_lexemes(sources, lexed, source.len())?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
-    let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let strict_trials = StrictCallTrialIndex::new(sources, lexed)?;
     let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
     let mut parser = Parser {
         sources,
@@ -218,7 +222,7 @@ pub(super) fn parse_block(
     let source = sources.source_text(lexed.source_id())?;
     validate_lexemes(sources, lexed, source.len())?;
     let lexical_recoveries = LexicalRecoveryIndex::new(source, lexed)?;
-    let strict_trials = StrictCallTrialIndex::new(lexed)?;
+    let strict_trials = StrictCallTrialIndex::new(sources, lexed)?;
     let lambda_headers = LambdaHeaderIndex::new(lexed, &lexical_recoveries.terminal_owner_events)?;
     let mut parser = Parser {
         sources,

@@ -96,10 +96,10 @@ impl BodyChecker<'_> {
             .get(operand)
             .map_err(TypeCheckingError::from)?
             .span();
-        if matches!(target, Target::Box) && !self.is_concrete_value_class(payload) {
+        if matches!(target, Target::Box) && !self.is_concrete_boxable(payload) {
             self.emit(
                 codes::INVALID_BOX_ARGUMENT,
-                "Box type argument must be a concrete value class instance",
+                "Box type argument must be a concrete value class or enum class instance",
                 operand_span,
             )?;
             self.check_construction_operands(source, arguments, return_type)?;
@@ -219,7 +219,7 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn is_concrete_value_class(&self, ty: UnitTypeId) -> bool {
+    fn is_concrete_boxable(&self, ty: UnitTypeId) -> bool {
         let Some(UnitTypeKind::Nominal { declaration, .. }) = self.signatures.types().get(ty)
         else {
             return false;
@@ -227,6 +227,8 @@ impl BodyChecker<'_> {
         self.signatures
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
-            .is_some_and(|nominal| nominal.kind() == NominalKind::ValueClass)
+            .is_some_and(|nominal| {
+                matches!(nominal.kind(), NominalKind::ValueClass | NominalKind::EnumClass)
+            })
     }
 }

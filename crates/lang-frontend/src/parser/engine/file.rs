@@ -280,11 +280,12 @@ impl Parser<'_> {
         &mut self,
     ) -> Result<ItemId, ParserInternalError> {
         let declaration_stops = self.root_expression_stops();
-        if self.current_identifier_is("nocopy")?
-            && self
-                .peek(1)
-                .is_some_and(|next| classifier_declaration_start_kind(next.kind()))
-        {
+        let is_nocopy_classifier = self.current_identifier_is("nocopy")?
+            && (self.peek_identifier_is(1, "value")? && self.peek_is_keyword(2, Keyword::Class)
+                || self
+                    .peek(1)
+                    .is_some_and(|next| classifier_declaration_start_kind(next.kind())));
+        if is_nocopy_classifier {
             let primary = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -309,7 +310,7 @@ impl Parser<'_> {
                 self.parse_constant_declaration(declaration_stops)?
             } else if self.current_is_keyword(Keyword::Fun) {
                 self.parse_function_declaration(declaration_stops)?
-            } else if classifier_declaration_start_kind(self.current()?.kind()) {
+            } else if self.classifier_declaration_start()? {
                 self.parse_classifier_declaration()?
             } else {
                 let current = self.current()?;
@@ -380,11 +381,11 @@ impl Parser<'_> {
                 saw_override = true;
                 continue;
             }
-            let receiver = if self.current_is_keyword(Keyword::Borrow) {
+            let receiver = if self.current_identifier_is("borrow")? {
                 Some(ParameterModeMarker::Borrow(self.current()?.span()))
-            } else if self.current_is_keyword(Keyword::Inout) {
+            } else if self.current_identifier_is("inout")? {
                 Some(ParameterModeMarker::Inout(self.current()?.span()))
-            } else if self.current_is_keyword(Keyword::Own) {
+            } else if self.current_identifier_is("own")? {
                 Some(ParameterModeMarker::Own(self.current()?.span()))
             } else {
                 None

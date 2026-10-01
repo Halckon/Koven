@@ -236,14 +236,16 @@ fn complex_inline_component_reports_once_and_suppresses_copyable_cascade() {
 }
 
 #[test]
-fn intrinsic_box_accepts_only_concrete_value_classes_and_breaks_layout_cycles() {
+fn intrinsic_box_accepts_concrete_value_and_enum_classes_and_breaks_layout_cycles() {
     let text = "value class Link(val next: Box<Link>?)\n\
                 value class Point(val x: Int)\n\
                 class Ref\n\
+                class Heap\n\
                 enum class Choice { A }\n\
-                fun valid(a: Box<Point>, recursive: Link): Unit {}\n\
+                enum class Expr { Num(value: Int), Add(left: Box<Expr>, right: Box<Expr>) }\n\
+                fun valid(a: Box<Point>, b: Box<Choice>, recursive: Link, expr: Expr): Unit {}\n\
                 fun <T : Copyable> invalidGeneric(a: Box<T>): Unit {}\n\
-                fun invalid(a: Box<Ref>, b: Box<Choice>, c: Box<Int>, d: Box, e: Box<Point, Point>): Unit {}";
+                fun invalid(a: Box<Ref>, b: Box<Heap>, c: Box<Int>, d: Box, e: Box<Point, Point>): Unit {}";
     let (sources, _, resolution, typed) = checked(text, true);
     assert_eq!(
         codes(typed.diagnostics()),
@@ -255,7 +257,7 @@ fn intrinsic_box_accepts_only_concrete_value_classes_and_breaks_layout_cycles() 
         .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("span"))
         .collect::<Vec<_>>();
     primaries.sort_unstable();
-    assert_eq!(primaries, ["Box", "Box", "Choice", "Int", "Ref", "T"]);
+    assert_eq!(primaries, ["Box", "Box", "Heap", "Int", "Ref", "T"]);
     assert_eq!(
         copyability(&typed, &resolution, "recursive"),
         Copyability::MoveOnly

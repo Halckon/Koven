@@ -124,7 +124,6 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ("package", Keyword::Package),
         ("typealias", Keyword::Typealias),
         ("val", Keyword::Val),
-        ("value", Keyword::Value),
         ("var", Keyword::Var),
         ("vararg", Keyword::Vararg),
         ("break", Keyword::Break),
@@ -134,14 +133,9 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ("if", Keyword::If),
         ("in", Keyword::In),
         ("is", Keyword::Is),
-        ("loop", Keyword::Loop),
         ("return", Keyword::Return),
         ("when", Keyword::When),
         ("while", Keyword::While),
-        ("borrow", Keyword::Borrow),
-        ("inout", Keyword::Inout),
-        ("move", Keyword::Move),
-        ("own", Keyword::Own),
         ("unsafe", Keyword::Unsafe),
         ("internal", Keyword::Internal),
         ("private", Keyword::Private),
@@ -155,7 +149,10 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ("this", Keyword::This),
         ("true", Keyword::True),
     ];
-    let soft = ["to", "infix"];
+    let soft = [
+        "to", "by", "infix", "value", "loop", "borrow", "inout", "move", "own", "and", "or",
+        "xor", "shl", "shr", "ushr",
+    ];
     let reserved = [
         ("async", ReservedWord::Async),
         ("await", ReservedWord::Await),
@@ -179,7 +176,7 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
     let hard_id = add_source(&mut sources, "hard.ko", &hard_text);
     let hard_file = lex_source(&sources, hard_id);
     let hard_tokens = significant_lexemes(&hard_file).collect::<Vec<_>>();
-    assert_eq!(hard_tokens.len(), 42);
+    assert_eq!(hard_tokens.len(), 36);
     assert!(hard_file.diagnostics().is_empty());
     for (lexeme, (expected_text, expected_kind)) in hard_tokens.iter().zip(hard) {
         assert_eq!(lexeme_text(&sources, lexeme), expected_text);
@@ -193,7 +190,7 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
     let soft_id = add_source(&mut sources, "soft.ko", &soft_text);
     let soft_file = lex_source(&sources, soft_id);
     let soft_tokens = significant_lexemes(&soft_file).collect::<Vec<_>>();
-    assert_eq!(soft_tokens.len(), 2);
+    assert_eq!(soft_tokens.len(), 15);
     assert!(soft_file.diagnostics().is_empty());
     for (lexeme, expected) in soft_tokens.iter().zip(soft) {
         assert_eq!(lexeme_text(&sources, lexeme), expected);
@@ -402,7 +399,7 @@ fn block_comments_are_non_nested_and_end_at_the_first_closer() {
 
 #[test]
 fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
-    let text = "0 001 1.0 1L 1u 1U 1uL 1UL 1.0f 1.0F 1f 1F 1..2 1..<2 .5 1. 1e3 1.0e3 0x10 1l 1LU 1Ul 1ul 1.0L 1.0u 1uName 1_0 next";
+    let text = "0 001 1.0 1L 1u 1U 1uL 1UL 1.0f 1.0F 1f 1F 1..2 1..<2 .5 1. 1e3 1.0e3 0x_10 1l 1LU 1Ul 1ul 1.0L 1.0u 1uName 1__0 next";
     let mut sources = SourceMap::new();
     let source_id = add_source(&mut sources, "numbers.ko", text);
     let lexed = lex_source(&sources, source_id);
@@ -457,7 +454,7 @@ fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
             ("symbol", "."),
             ("invalid-number", "1e3"),
             ("invalid-number", "1.0e3"),
-            ("invalid-number", "0x10"),
+            ("invalid-number", "0x_10"),
             ("invalid-number", "1l"),
             ("invalid-number", "1LU"),
             ("invalid-number", "1Ul"),
@@ -465,7 +462,7 @@ fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
             ("invalid-number", "1.0L"),
             ("invalid-number", "1.0u"),
             ("invalid-number", "1uName"),
-            ("invalid-number", "1_0"),
+            ("invalid-number", "1__0"),
             ("identifier", "next"),
         ]
     );
@@ -476,6 +473,35 @@ fn decimal_numbers_ranges_and_invalid_suffixes_have_stable_boundaries() {
         assert_eq!(diagnostic.message(), "invalid numeric literal");
     }
     assert_complete_coverage(&sources, source_id, &lexed);
+}
+
+#[test]
+fn hex_and_binary_and_underscored_numbers_lex_correctly() {
+    let valid_text = "0x10 0X2A 0xFF_AA_00 0x10L 0x10u 0x10uL 0b1010 0B1111 0b1010_0110 0b1010L 0b1010u 0b1010uL 1_000 1_000_000 10_000L 1_000u 1_000uL 1_000.5 1.234_567 1_000.5f 1_000f";
+    let mut sources = SourceMap::new();
+    let source_id = add_source(&mut sources, "valid_numbers.ko", valid_text);
+    let lexed = lex_source(&sources, source_id);
+    assert!(
+        lexed.diagnostics().is_empty(),
+        "expected no diagnostics for valid numbers: {:?}",
+        lexed.diagnostics()
+    );
+    assert_complete_coverage(&sources, source_id, &lexed);
+
+    let invalid_cases = [
+        "1_", "1__0", "0x_1", "0b_1", "0x", "0b", "1_.0", "1._0", "0xFF_", "0b10_",
+    ];
+    for case in invalid_cases {
+        let mut sources = SourceMap::new();
+        let sid = add_source(&mut sources, "invalid.ko", case);
+        let lexed = lex_source(&sources, sid);
+        assert!(!lexed.diagnostics().is_empty(), "expected diagnostic for {case}");
+        assert_eq!(
+            lexed.diagnostics()[0].code().to_string(),
+            "L0008",
+            "expected L0008 for {case}"
+        );
+    }
 }
 
 #[test]

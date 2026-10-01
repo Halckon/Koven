@@ -207,6 +207,14 @@ impl BodyChecker<'_> {
                 && (self.is_numeric(left_result.ty)
                     || self.is_builtin(left_result.ty, BuiltinType::String)))
             .then_some(left_result.ty),
+            BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::Shl
+            | BinaryOperator::Shr
+            | BinaryOperator::Ushr => (left_result.ty == right_result.ty
+                && self.is_integer(left_result.ty))
+            .then_some(left_result.ty),
             BinaryOperator::Less
             | BinaryOperator::Greater
             | BinaryOperator::LessEqual
@@ -365,6 +373,22 @@ impl BodyChecker<'_> {
         )?;
         self.diagnostics.push(diagnostic);
         Ok(())
+    }
+
+    pub(super) fn is_integer(&self, ty: UnitTypeId) -> bool {
+        matches!(
+            self.signatures.types().get(ty),
+            Some(crate::type_checking::UnitTypeKind::Builtin(
+                BuiltinType::Byte
+                    | BuiltinType::Short
+                    | BuiltinType::Int
+                    | BuiltinType::Long
+                    | BuiltinType::UByte
+                    | BuiltinType::UShort
+                    | BuiltinType::UInt
+                    | BuiltinType::ULong
+            ))
+        )
     }
 
     pub(super) fn is_numeric(&self, ty: UnitTypeId) -> bool {

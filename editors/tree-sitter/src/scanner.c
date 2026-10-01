@@ -12,15 +12,14 @@ enum TokenType {
 static const char *const RESERVED_WORDS[] = {
     "class",    "companion", "const",    "enum",     "extern",
     "fun",      "import",    "interface", "object",   "package",
-    "typealias", "val",       "value",    "var",      "vararg",
-    "break",    "continue",  "else",     "for",      "if",
-    "in",       "is",        "loop",     "return",   "when",
-    "while",    "borrow",    "inout",    "move",     "own",
-    "unsafe",   "internal",  "private",  "public",   "as",
-    "false",    "null",      "operator", "override", "super",
-    "this",     "true",      "async",    "await",    "suspend",
-    "actor",    "spawn",     "sealed",   "dyn",      "where",
-    "yield",    "macro",     "reify",
+    "typealias", "val",       "var",      "vararg",   "break",
+    "continue",  "else",     "for",      "if",       "in",
+    "is",        "return",   "when",     "while",    "unsafe",
+    "internal",  "private",  "public",   "as",       "false",
+    "null",      "operator", "override", "super",    "this",
+    "true",      "async",    "await",    "suspend",  "actor",
+    "spawn",     "sealed",   "dyn",      "where",    "yield",
+    "macro",     "reify",
 };
 
 static bool is_identifier_start(int32_t character) {

@@ -345,7 +345,11 @@ impl Parser<'_> {
             }
             if self.can_start_expression(current) {
                 let initializer = self.parse_expression_bp(0, stops)?;
-                let initializer = self.consume_expression_tail(initializer, stops)?;
+                let initializer = if self.initializer_boundary(initializer)? {
+                    initializer
+                } else {
+                    self.consume_expression_tail(initializer, stops)?
+                };
                 return Ok((Some(equals), initializer));
             }
             if self.is_poison() {
@@ -408,7 +412,7 @@ impl Parser<'_> {
         if self.current_is_symbol(Symbol::Equal) {
             let equals = self.bump()?.span();
             let initializer = self.parse_expression_bp(0, stops)?;
-            let initializer = if self.lambda_initializer_line_boundary(initializer)? {
+            let initializer = if self.initializer_boundary(initializer)? {
                 initializer
             } else {
                 self.consume_expression_tail(initializer, stops)?

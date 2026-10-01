@@ -107,9 +107,10 @@ impl Parser<'_> {
         let fun_span = self.bump()?.span();
         // receiver mode 只能位于 `fun` 前；在这里定向消费逆序 token，避免把它恢复成函数名
         // 或拆成后续伪 member。
-        while self.current_is_keyword(Keyword::Borrow)
-            || self.current_is_keyword(Keyword::Inout)
-            || self.current_is_keyword(Keyword::Own)
+        while (self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?
+            || self.current_identifier_is("own")?)
+            && self.peek_is_identifier(1)
         {
             let primary = self.bump()?.span();
             self.emit(
@@ -468,21 +469,26 @@ impl Parser<'_> {
     pub(super) fn parse_parameter_mode_marker(
         &mut self,
     ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
-        let marker = if self.current_is_keyword(Keyword::Own) {
+        let is_mode = (self.current_identifier_is("own")?
+            || self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?)
+            && self.peek_is_identifier(1);
+        if !is_mode {
+            return Ok(None);
+        }
+        let marker = if self.current_identifier_is("own")? {
             Some(ParameterModeMarker::Own(self.bump()?.span()))
-        } else if self.current_is_keyword(Keyword::Borrow) {
+        } else if self.current_identifier_is("borrow")? {
             Some(ParameterModeMarker::Borrow(self.bump()?.span()))
-        } else if self.current_is_keyword(Keyword::Inout) {
+        } else if self.current_identifier_is("inout")? {
             Some(ParameterModeMarker::Inout(self.bump()?.span()))
         } else {
             None
         };
-        if marker.is_none() {
-            return Ok(None);
-        }
-        while self.current_is_keyword(Keyword::Own)
-            || self.current_is_keyword(Keyword::Borrow)
-            || self.current_is_keyword(Keyword::Inout)
+        while (self.current_identifier_is("own")?
+            || self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?)
+            && self.peek_is_identifier(1)
         {
             let duplicate = self.bump()?.span();
             self.emit(

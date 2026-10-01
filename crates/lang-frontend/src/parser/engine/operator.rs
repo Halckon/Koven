@@ -47,7 +47,6 @@ impl Parser<'_> {
                     | Keyword::False
                     | Keyword::Null
                     | Keyword::This
-                    | Keyword::Move
                     | Keyword::If
                     | Keyword::When
                     | Keyword::Return
@@ -70,7 +69,6 @@ impl Parser<'_> {
         matches!(
             lexeme.kind(),
             LexemeKind::Token(TokenKind::Identifier)
-                | LexemeKind::Token(TokenKind::Keyword(Keyword::Move))
                 | LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
         )
     }
@@ -130,10 +128,24 @@ impl Parser<'_> {
                 InfixKind::Binary(BinaryOperator::ExclusiveRange),
                 NonAssociativeGroup::Range,
             ),
-            LexemeKind::Token(TokenKind::Identifier)
-                if self.sources.slice(lexeme.span())? == "to" =>
-            {
-                InfixRule::left(PREC_TO, InfixKind::Binary(BinaryOperator::To))
+            LexemeKind::Token(TokenKind::Identifier) => {
+                let name = self.sources.slice(lexeme.span())?;
+                match name {
+                    "to" => InfixRule::left(PREC_TO, InfixKind::Binary(BinaryOperator::To)),
+                    "shl" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Shl)),
+                    "shr" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Shr)),
+                    "ushr" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Ushr)),
+                    "and" => {
+                        InfixRule::left(PREC_BITWISE_AND, InfixKind::Binary(BinaryOperator::BitwiseAnd))
+                    }
+                    "xor" => {
+                        InfixRule::left(PREC_BITWISE_XOR, InfixKind::Binary(BinaryOperator::BitwiseXor))
+                    }
+                    "or" => {
+                        InfixRule::left(PREC_BITWISE_OR, InfixKind::Binary(BinaryOperator::BitwiseOr))
+                    }
+                    _ => return Ok(None),
+                }
             }
             LexemeKind::Token(TokenKind::Symbol(Symbol::QuestionColon)) => {
                 InfixRule::right(PREC_ELVIS, InfixKind::Binary(BinaryOperator::Elvis))

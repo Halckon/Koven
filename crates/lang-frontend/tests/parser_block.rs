@@ -298,18 +298,10 @@ fn unknown_non_expression_token_uses_expected_element_and_recovers() {
 }
 
 #[test]
-fn semicolon_is_a_parser_error_inside_blocks_not_a_lexer_error_or_separator() {
+fn semicolon_is_accepted_as_a_statement_separator_inside_blocks() {
     let text = "{ ; val y = 2 }";
-    let (_, parsed) = parsed(text);
-    assert_eq!(root_elements(&parsed).len(), 2);
-    assert_eq!(
-        parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| diagnostic.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0029"]
-    );
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 1);
 }
 
 #[test]
@@ -596,4 +588,39 @@ fn source_identity_and_nested_block_budget_are_internal_boundaries() {
         "block nesting budget",
         parse_block,
     );
+}
+
+#[test]
+fn newline_separates_consecutive_expression_statements() {
+    let text = "{\n    println(a)\n    println(b)\n}";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
+}
+
+#[test]
+fn semicolon_separates_expression_statements_on_same_line() {
+    let text = "{ println(a); println(b) }";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
+}
+
+#[test]
+fn semicolon_separates_local_variables_and_expressions() {
+    let text = "{ val x = 1; val y = 2; println(x + y) }";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 3);
+}
+
+#[test]
+fn newline_separates_variable_and_expression() {
+    let text = "{\n    val x = 1\n    println(x)\n}";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
+}
+
+#[test]
+fn optional_trailing_semicolon_is_accepted_in_blocks() {
+    let text = "{\n    val x = 1;\n    println(x);\n}";
+    let (_, parsed) = parsed_ok(text);
+    assert_eq!(root_elements(&parsed).len(), 2);
 }
