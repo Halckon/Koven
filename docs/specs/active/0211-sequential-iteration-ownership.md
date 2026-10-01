@@ -3349,3 +3349,22 @@ F2 与 F3 缺陷进行系统性修复。`descendant_expandable` 仅检查 tracke
 为 95 passed、0 failed、0 ignored（81 filtered）。strict Clippy、`cargo fmt`、
 文档结构检查（380 Markdown）完全通过。未运行 frontend 全量或 Phase 4/native；
 `RecursiveClosureCapture` 与 `AmbiguousClosureInstanceTransport` 仍按规范保持原子阻断。
+
+2026-10-01 S5 预热循环跳转边重放扩展（Warmup Jump Replay）切片：
+在 `instance_replay::retained` 中扩展前置预热循环的控制流重放支持，解决原回放器
+仅假定预热循环单向 fallthrough 耗尽的边界限制。引入 `expression_in` 辅助闭包，
+严格以 statement span 限制表达式节点检索，彻底消除预热循环与后置循环间同构 AST
+文本（如 `"move { f() }"`、`"continue"`、`"break"` 等）的查找歧义。
+统一提取 `replay_scoped_source_with_warmup_tail`，并在预热循环模板中支持 `first_tail`。
+预热循环回放支持登记条件选择、`DropPoint::BranchExit`、`IterationExitKind::Continue`
+与 `IterationExitKind::Break`：非中断路径（fallthrough 与 continue）在轮次结束后发布
+`Exhaustion`；命中 break 的退出路径跳过 Exhaustion，直接衔接循环体后继语句点，并
+验证 source 随递归链完整延寿到外层 scope 结束及后置循环。
+新增 `scoped_source_warmup_jump_matrix` 测试套件，交叉覆盖 3 种 `first_tail`
+（`""`、`"continue"`、`"if (first_stop) { break }"`）× 4 种 `second_tail`（`""`、`"continue"`、
+`"if (stop) { break }"`、`"if (stop) { return }"`）× 3 组轮次组合（0/1/2 轮）× 3 种 source 类型
+（Resource、OwnedClosure、SharedClosure），共 324 个动态回放用例全部通过。
+验收结果：`instance_replay::retained` 7 项测试全部通过（含 3 项故障注入断言）；
+`ownership_iteration` 184 passed、0 failed、0 ignored；`cargo fmt`、`cargo clippy`
+零警告，`python3 scripts/check_docs.py`（380 Markdown）通过。未运行 Phase 4/native。
+

@@ -22,6 +22,37 @@ fn retained_shared_closure_cascade_candidate_matrix() {
 }
 
 #[test]
+fn scoped_source_warmup_jump_matrix() {
+    for first_tail in ["", "continue", "if (first_stop) { break }"] {
+        for second_tail in [
+            "",
+            "continue",
+            "if (stop) { break }",
+            "if (stop) { return }",
+        ] {
+            for first in [0, 1, 2] {
+                for second in [0, 1, 2] {
+                    for kind in [
+                        SourceKind::Resource,
+                        SourceKind::OwnedClosure,
+                        SourceKind::SharedClosure,
+                    ] {
+                        replay_scoped_source_with_warmup_tail(
+                            first_tail,
+                            second_tail,
+                            [first, second],
+                            kind,
+                            false,
+                            Fault::None,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 #[should_panic(expected = "root release needs retained-source completion")]
 fn recursive_retained_source_rejects_missing_completion() {
     replay_scoped_source(
@@ -95,6 +126,17 @@ fn replay_scoped_source(
     siblings: bool,
     fault: Fault,
 ) {
+    replay_scoped_source_with_warmup_tail("", tail, rounds, kind, siblings, fault);
+}
+
+fn replay_scoped_source_with_warmup_tail(
+    first_tail: &str,
+    tail: &str,
+    rounds: [usize; 2],
+    kind: SourceKind,
+    siblings: bool,
+    fault: Fault,
+) {
     let [first_rounds, rounds] = rounds;
     let mut sources = SourceMap::new();
     let holder = if siblings {
@@ -130,6 +172,11 @@ fn replay_scoped_source(
     let borrowed_instance = source_instance + 1;
     let warmup_instance = borrowed_instance + 1 + usize::from(siblings);
     let holder_instance = warmup_instance + first_rounds;
+    let (first_iterator, first_body_tail) = if first_tail.is_empty() {
+        ("_", "")
+    } else {
+        ("first_stop", first_tail)
+    };
     let source = sources
         .add_source(
             "scoped-recursive-source.ko",
@@ -140,7 +187,7 @@ var f: move () -> Unit = move {{}}
     {declarations}
     val borrowed: () -> Unit = {borrowed_text}
     {other_decl}
-    for (_ in first) {{ f = move {{ f() }} }}
+    for ({first_iterator} in first) {{ f = move {{ f() }}\n{first_body_tail} }}
     f = {holder}
 }}
 for (stop in flags) {{ f = move {{ f() }}\n{tail} }}
@@ -200,6 +247,21 @@ val used = f() }}"
             .expressions()
             .iter()
             .filter(|(_, node)| sources.slice(node.span()) == Ok(text))
+            .max_by_key(|(_, node)| node.span().start())
+            .unwrap()
+            .0
+    };
+    let expression_in = |stmt: StatementId, text: &str| {
+        let stmt_span = parsed.ast().statements().get(stmt).unwrap().span();
+        parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, node)| {
+                node.span().start() >= stmt_span.start()
+                    && node.span().end() <= stmt_span.end()
+                    && sources.slice(node.span()) == Ok(text)
+            })
             .max_by_key(|(_, node)| node.span().start())
             .unwrap()
             .0
@@ -367,15 +429,9 @@ val used = f() }}"
             })
             .unwrap()
     };
-    let warmup_closure = parsed
-        .ast()
-        .expressions()
-        .iter()
-        .filter(|(_, node)| sources.slice(node.span()) == Ok("move { f() }"))
-        .min_by_key(|(_, node)| node.span().start())
-        .unwrap()
-        .0;
-    for _ in 0..first_rounds {
+    let warmup_closure = expression_in(warmup_statement, "move { f() }");
+    let mut first_broke = false;
+    for round in 0..first_rounds {
         replay.start_element(warmup_statement);
         replay.point(&facts, DropPoint::AfterExpression(warmup_closure));
         replay.point(
@@ -383,15 +439,71 @@ val used = f() }}"
             DropPoint::AfterExpression(assignment(warmup_closure)),
         );
         complete(&mut replay, assignment(warmup_closure), Some(*warmup_body));
-        replay.exit(&facts, warmup, IterationExitKind::Fallthrough);
-        replay.edge(&facts, warmup, IterationPhiIncomingKind::Fallthrough);
+        if first_tail.starts_with("if") {
+            let control = expression_in(*warmup_body, first_tail);
+            let Expression::If { condition, .. } =
+                parsed.ast().expressions().get(control).unwrap().payload()
+            else {
+                unreachable!()
+            };
+            replay.point(&facts, DropPoint::AfterExpression(*condition));
+            let selector = facts
+                .cleanup_conditions
+                .nodes()
+                .iter()
+                .find_map(|node| match node {
+                    CleanupCondition::Choice { selector, .. }
+                        if facts
+                            .cleanup_conditions
+                            .selector(*selector)
+                            .unwrap()
+                            .source()
+                            == CleanupSelectorSource::Control(control) =>
+                    {
+                        Some(*selector)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            replay
+                .choices
+                .insert(selector, usize::from(round + 1 != first_rounds));
+            if round + 1 != first_rounds {
+                replay.point(&facts, DropPoint::BranchExit { control, branch: 1 });
+                replay.point(&facts, DropPoint::AfterExpression(control));
+                complete(&mut replay, control, Some(*warmup_body));
+            }
+        }
         assert!(
             replay.released.is_empty(),
             "both the old chain and borrowed source stay live"
         );
+        let (exit, edge) = if first_tail == "continue" {
+            let jump = expression_in(*warmup_body, "continue");
+            (
+                IterationExitKind::Continue(jump),
+                IterationPhiIncomingKind::Continue(jump),
+            )
+        } else if first_tail.contains("break") && round + 1 == first_rounds {
+            first_broke = true;
+            let jump = expression_in(*warmup_body, "break");
+            (
+                IterationExitKind::Break(jump),
+                IterationPhiIncomingKind::Break(jump),
+            )
+        } else {
+            (
+                IterationExitKind::Fallthrough,
+                IterationPhiIncomingKind::Fallthrough,
+            )
+        };
+        replay.exit(&facts, warmup, exit);
+        replay.edge(&facts, warmup, edge);
     }
-    replay.exit(&facts, warmup, IterationExitKind::Exhaustion);
-    replay.edge(&facts, warmup, IterationPhiIncomingKind::Exhaustion);
+    if !first_broke {
+        replay.exit(&facts, warmup, IterationExitKind::Exhaustion);
+        replay.edge(&facts, warmup, IterationPhiIncomingKind::Exhaustion);
+    }
     replay.point(&facts, DropPoint::AfterStatement(warmup_statement));
     assert!(
         replay.retained.contains(&source_instance),
@@ -435,7 +547,7 @@ val used = f() }}"
             "shared source itself retains its source"
         );
     }
-    let formed = expression("move { f() }");
+    let formed = expression_in(statement, "move { f() }");
     let mut returned = false;
     let mut broke = false;
     for round in 0..rounds {
@@ -444,7 +556,7 @@ val used = f() }}"
         replay.point(&facts, DropPoint::AfterExpression(assignment(formed)));
         complete(&mut replay, assignment(formed), Some(*body));
         if tail.starts_with("if") {
-            let control = expression(tail);
+            let control = expression_in(*body, tail);
             let Expression::If { condition, .. } =
                 parsed.ast().expressions().get(control).unwrap().payload()
             else {
@@ -486,20 +598,20 @@ val used = f() }}"
             replay.exit(
                 &facts,
                 plan,
-                IterationExitKind::Return(expression("return")),
+                IterationExitKind::Return(expression_in(*body, "return")),
             );
             returned = true;
             break;
         }
         let (exit, edge) = if tail == "continue" {
-            let jump = expression("continue");
+            let jump = expression_in(*body, "continue");
             (
                 IterationExitKind::Continue(jump),
                 IterationPhiIncomingKind::Continue(jump),
             )
         } else if tail.contains("break") && round + 1 == rounds {
             broke = true;
-            let jump = expression("break");
+            let jump = expression_in(*body, "break");
             (
                 IterationExitKind::Break(jump),
                 IterationPhiIncomingKind::Break(jump),
