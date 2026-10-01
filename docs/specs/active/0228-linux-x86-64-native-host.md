@@ -6,13 +6,13 @@
 |---|---|
 | 状态 | `in-progress` |
 | Goal ID | `KOV-P4-228` |
-| 所属 Phase | Phase 4；必要的 CLI Phase 6 编排适配 |
+| 所属 Phase | Phase 4；必要的 CLI Phase 6 编排适配及授权的 Parser Phase 1 基线修复 |
 | 语言规范 | [现行 v0.38](../../guide/README.md)、[Phase 边界](../../guide/15-conformance-and-staging.md#phase-边界) |
 | 批准依据 | 2026-10-01 用户确认修复基线问题，并授权“是的，如果新增一个linux taget不麻烦，可以新增一个” |
 | 前置 Spec | SPEC-0034/0039/0040 `done` |
 | 前置 ADR | ADR-0007/0010/0011/0026 `accepted` |
 | 关联 ADR | [ADR-0026](../../adr/accepted/0026-linux-x86-64-native-host.md) |
-| 阻塞项 | frontend `--lib` 新暴露 2 项 parser 计数失败，另有 5 项既有多文件失败；修复后的 macOS CI 待验证，分支交付未完成 |
+| 阻塞项 | 两项 Parser 计数失败已修复；另有 5 项多文件与 3 项 call-argument 既有失败未纳入本次语义修复；实际远程结果以 PR 对应 head 检查为准，分支交付未完成 |
 | 影响范围 | workspace Inkwell feature、`lang-codegen` LLVM/native 与测试、`lang-cli` linker 与测试、必要基线修复、文档 |
 | 语言语义变更 | 否 |
 
@@ -48,6 +48,9 @@
 - 2026-10-01 用户进一步批准修复阻塞 PR CI 的 139 条严格 Clippy 诊断。仅做等价清理：
   frontend 测试移除冗余引用、合并回放状态参数、简化匹配/迭代/Map 入口和复杂类型；codegen
   简化 Option 判断与嵌套条件。保留全部行为断言、门禁和语言/ABI 边界。
+- 2026-10-01 用户继续批准局部优化 Parser 重复扫描并验证错误恢复，使 CI 往下运行。
+  仅复用 block/lambda dispatch 当前 lexeme、合并分号消费路径；保留阈值、诊断、Span
+  与 hard-stop 优先级，不扩大到软关键字或其他语义修复。
 - README 两语言版本、Architecture、测试前提、Spec/ADR 索引及冻结 inventory 同步。
 
 ## 4. 非目标
@@ -96,7 +99,7 @@ LLVM host 选择及 target 初始化只存在于 `lang-codegen` adapter，fronte
 ## 8. 提交计划
 
 2026-10-01 用户已补充授权本地提交，提交信息必须带 SPEC-0228；随后批准 push 与创建
-[PR #5](https://github.com/Halckon/koven/pull/5)，并批准继续修复 Clippy 使 CI 往下执行。
+[PR #5](https://github.com/Halckon/koven/pull/5)，并先后批准继续修复 Clippy 与 Parser 重复扫描使 CI 往下执行。
 本次沿用 `feature/spec-0228-linux-native`，不合并 `main`，保持 draft。
 Rust 变更保持可构建、可测试，已知严格门禁缺口仍按 §10 报告；最终归档与 frozen inventory
 迁移随交付验收同步完成。
@@ -107,9 +110,10 @@ Rust 变更保持可构建、可测试，已知严格门禁缺口仍按 §10 报
 
 ## 9. 未决问题
 
-无待决定的语言语义或目标范围问题。§10 的五项既有 frontend 多文件测试失败未纳入本次
-Clippy 修复；严格 Clippy 已在本地通过，但 CI 同款 frontend `--lib` 暴露两项 parser 性能计数失败，macOS CI 与最终分支交付仍需实际验证，不能将本
-Spec 标为 `done`。
+本次授权内的两项 Parser 性能计数失败已修复，CI 同款本地命令均通过。§10 登记的五项
+frontend 多文件失败及本轮对照确认的三项 call-argument 既有失败均未纳入本次语义修复；
+它们不在 CI 的 frontend `--lib` 选择内。远程 CI 必须核对 PR 的实际 head，不能把本地通过
+等同于 macOS 通过；当前保持 draft，尚未完成最终分支交付，Spec 不标为 `done`。
 
 ## 10. 验证记录
 
@@ -242,3 +246,51 @@ frontend（编译日志确认来源为基线目录），复用同一 Cargo targe
 `cargo test --locked --manifest-path <baseline>/Cargo.toml --target-dir <shared-target> -p lang-frontend --lib families_stay_linear`：
 1 passed、同样 2 failed、174 filtered、0 ignored，计数及失败位置完全一致。因此两项 parser
 问题在本次 Clippy 修复前已存在，仍待独立修复与所需的 parser 契约回归。
+
+
+### 2026-10-01 Parser dispatch 重复扫描修复
+
+[CI 36843140596](https://github.com/Halckon/koven/actions/runs/36843140596) 在 head
+`6f2fa4ba40727807d2471473ccec47f706b11a9a` 实际通过文档、格式、workspace check 与严格
+Clippy，但 frontend `--lib` 为 175 passed、2 failed，因此 Targeted Tests 与总门禁失败。
+本轮先在该 head 重现相同 2633 / 2777 次 significant raw visits，再做授权内局部修复。
+
+生产改动仅位于 `parser/engine/block.rs` 与 `expression.rs`：每轮只读取一个当前 lexeme
+判断自身 closer、caller hard stop（包含 EOF）与分号，并在 dispatch 的只读判别中复用它；
+消费分号后继续循环，不生成节点，也不增加 dispatch iteration。退出时复用未消费的边界
+lexeme；保留 block/lambda 各自原有的 lexical poison 与 terminal-owner 诊断抑制规则。
+没有修改全局 cursor、公开 AST/API、语义、测试预算、CI 条件或依赖。
+
+新增三项测试覆盖空 body 的连续分号、注释/trivia、真实 closer、EOF 空诊断 Span，以及
+lambda/嵌套 block 遇到外层 `)`、`]` 时不吞 delimiter，body Span 止于最后实际消费分号。
+相关测试通过已有 parse-twice helper 同时验证确定性与公开产物不变量。
+
+以下均在 Rust 1.96.0、LLVM/Clang 21.1.8 的 Linux 宿主串行执行，未并发争用 Cargo target。
+远程结果应核对 [PR #5 检查页](https://github.com/Halckon/koven/pull/5/checks)的实际 head；
+此表记录本地证据，不提前声称 macOS CI 通过。
+
+| 验收项 / 命令 | 实际结果 |
+|---|---|
+| Red：`cargo test --locked -p lang-frontend --lib families_stay_linear`，未改 head `6f2fa4b` | 1 passed、2 failed、174 filtered、0 ignored；同 CI 两项计数失败 |
+| Green：相同 `families_stay_linear` 命令 | 3 passed、0 failed/ignored、174 filtered；原 32 / 34 倍计数预算与增长断言均未修改 |
+| `cargo test --locked -p lang-frontend --test parser_block --test parser_lambda --no-fail-fast semicolon_runs` | 新增 3 passed、44 filtered、0 failed/ignored；block 1、lambda 2 |
+| `cargo test --locked -p lang-frontend --no-fail-fast --test parser_block --test parser_lambda --test parser_control_flow --test parser_local_destructuring --test parser_call_argument --test parser_trailing_lambda` | 98 passed、3 failed、0 ignored/filtered；block 29、lambda 18、control 7、destructuring 14、trailing lambda 5 均通过；call argument 25 passed、3 既有失败 |
+| 干净 `6f2fa4b` archive：`cargo test --locked --manifest-path <baseline>/Cargo.toml --target-dir <shared-target> -p lang-frontend --test parser_call_argument` | 25 passed、同样 3 failed、0 ignored/filtered；强制重编译且日志确认编译来源为 baseline，失败名、诊断与 Span 完全一致 |
+| `cargo test --locked -p lang-frontend --no-fail-fast --test parser_entry_adversarial --test parser_entry_prefix_truncation_matrix --test parser_entry_trivia_invariance_matrix --test parser_entry_line_break_boundary_matrix --test parser_entry_lexical_poison_insertion_matrix --test parser_stress_matrix --test parser_standalone_poison_stress_matrix` | 9 passed、0 failed/ignored/filtered；覆盖所有公开入口的 adversarial、UTF-8 prefix、trivia、换行、poison 插入与 4096 元素合法/错误/poison 流 |
+| CI 原样：`cargo test -p lang-frontend --lib` | 177 passed、0 failed/ignored/filtered |
+| CI 原样：`cargo test -p lang-codegen` | 478 单元 + 4 compile-fail doc-tests passed、0 failed/ignored/filtered；含实际 native/object/runtime 与 Linux DWARF |
+| CI 原样：`cargo test -p lang-cli` | 48 单元 + 3 format + 8 native + 5 project passed、0 failed/ignored/filtered |
+| CI 原样：`cargo test -p lang-lsp` | 26 passed、0 failed/ignored/filtered |
+| `cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、`cargo clippy --workspace --all-targets -- -D warnings` | 全部通过、退出 0；strict Clippy 无 warning |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过；385 Markdown，当前 diff 无 whitespace error |
+
+额外确认的三项 `parser_call_argument` 失败保持原样，留待独立语义任务：
+`call_only_ampersand_is_not_a_prefix_operator_or_lexer_error`（`f(inout input)` 得 L0034，
+原测试预期 L0033）、`l0033_expected_value_preserves_committed_prefix_and_empty_error_value`
+（`f(borrow,)` 得 L0036，原测试预期 L0033）、
+`empty_recovery_children_do_not_extend_parent_spans_across_trivia`（函数类型错误 TypeRef
+Span 为 `(10, 16)`，原测试预期 `(27, 27)`）。这些源码均不经过本次改动的 block/lambda
+循环。未改测试预期，不以性能修复顺带决定软关键字语义。
+
+未运行 frontend 全量与此前五项多文件失败套件；本机未运行 macOS/LLDB。选定契约通过不
+代表 frontend 全量通过，也不改变 Spec 的 `in-progress` 状态或 PR 的 draft 状态。

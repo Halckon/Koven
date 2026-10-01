@@ -723,6 +723,71 @@ fn owner_recovery_keeps_lambda_commas_and_closers_at_the_correct_level() {
 }
 
 #[test]
+fn semicolon_runs_preserve_lambda_body_closer_and_eof_spans() {
+    for text in ["{;;;}", "{ ; /* gap */ ; }\n", "{ ; /* gap */ ; \t"] {
+        let (_, parsed) = parsed_expression(text);
+        let (_, _, _, body) = lambda(&parsed, parsed.root());
+        let body = parsed.ast().statements().get(body).expect("lambda body");
+        assert!(
+            matches!(body.payload(), Statement::LambdaBody { elements } if elements.is_empty())
+        );
+        let end = if let Some(closer) = text.find('}') {
+            assert!(parsed.diagnostics().is_empty(), "{text:?}");
+            closer + 1
+        } else {
+            assert_eq!(
+                fingerprints(parsed.diagnostics()),
+                vec![(
+                    "L0010".to_owned(),
+                    Severity::Error,
+                    "expected closing delimiter".to_owned(),
+                    text.len(),
+                    text.len(),
+                )],
+                "{text:?}"
+            );
+            text.rfind(';').expect("separator") + 1
+        };
+        assert_eq!((body.span().start(), body.span().end()), (0, end));
+    }
+}
+
+#[test]
+fn semicolon_runs_leave_inherited_hard_closers_for_the_caller() {
+    for (text, expected_closers) in [("f({; ; )", 1), ("a[{; ; ]", 1), ("f({{; ; )", 2)] {
+        let (_, parsed) = parsed_expression(text);
+        let boundary = text.len() - 1;
+        assert_eq!(
+            fingerprints(parsed.diagnostics()),
+            vec![
+                (
+                    "L0010".to_owned(),
+                    Severity::Error,
+                    "expected closing delimiter".to_owned(),
+                    boundary,
+                    boundary,
+                );
+                expected_closers
+            ],
+            "{text:?}"
+        );
+        let root = parsed.ast().expressions().get(parsed.root()).expect("root");
+        assert_eq!((root.span().start(), root.span().end()), (0, text.len()));
+        let end = text.rfind(';').expect("separator") + 1;
+        for (_, node) in parsed.ast().statements().iter() {
+            assert_eq!(node.span().end(), end, "{text:?}");
+            match node.payload() {
+                Statement::LambdaBody { elements } => {
+                    assert_eq!(elements.len(), expected_closers - 1, "{text:?}");
+                }
+                Statement::Block { elements } => assert!(elements.is_empty(), "{text:?}"),
+                other => panic!("unexpected statement for {text:?}: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn lambda_is_deterministic_across_source_order_and_preserves_source_identity() {
     fn shape(noise_first: bool) -> (usize, usize, Vec<(String, usize, usize)>) {
         let text = "move { x, y -> ({ -> x })(y) }";

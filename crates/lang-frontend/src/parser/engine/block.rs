@@ -107,18 +107,21 @@ impl Parser<'_> {
         let opener = self.bump()?.span();
         let mut elements = Vec::new();
 
-        while !self.current_is_symbol(Symbol::RightBrace)
-            && !outer_stops.contains_hard(self.current()?)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
-        {
-            while self.current_is_symbol(Symbol::Semicolon) {
-                self.bump()?;
-            }
-            if self.current_is_symbol(Symbol::RightBrace)
-                || outer_stops.contains_hard(self.current()?)
-                || matches!(self.current()?.kind(), LexemeKind::Eof)
+        let current = loop {
+            let current = self.current()?;
+            if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+            ) || outer_stops.contains_hard(current)
             {
-                break;
+                break current;
+            }
+            if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+            ) {
+                self.bump()?;
+                continue;
             }
             #[cfg(test)]
             {
@@ -130,15 +133,14 @@ impl Parser<'_> {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             elements.push(element);
-            while self.current_is_symbol(Symbol::Semicolon) {
-                self.bump()?;
-            }
-        }
+        };
 
-        let end = if self.current_is_symbol(Symbol::RightBrace) {
+        let end = if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+        ) {
             self.bump()?.span().end()
         } else {
-            let current = self.current()?;
             if !self.lexical_recoveries.terminal_error_at_eof {
                 self.emit_closing(self.empty_at(current.span().start())?, opener)?;
             }
@@ -154,7 +156,11 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<StatementId, ParserInternalError> {
-        if self.current_is_symbol(Symbol::LeftBrace) {
+        let current = self.current()?;
+        if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        ) {
             return self.parse_block_statement(outer_stops);
         }
         let expression_stops = Stops::block_expression(outer_stops);
@@ -165,13 +171,17 @@ impl Parser<'_> {
         if self.local_destructuring_start(Keyword::Var) || self.const_local_destructuring_start() {
             return self.parse_unsupported_local_destructuring(expression_stops);
         }
-        if self.current_is_keyword(Keyword::While)
-            || self.current_is_keyword(Keyword::For)
-            || (self.current_identifier_is("loop")? && self.peek_is_symbol(1, Symbol::LeftBrace))
+        if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::While | Keyword::For))
+        ) || (self.current_identifier_is("loop")? && self.peek_is_symbol(1, Symbol::LeftBrace))
         {
             return self.parse_loop_statement(outer_stops);
         }
-        if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var) {
+        if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+        ) {
             let keyword = self.bump()?;
             let kind = match keyword.kind() {
                 LexemeKind::Token(TokenKind::Keyword(Keyword::Val)) => VariableKind::Val,
@@ -187,7 +197,6 @@ impl Parser<'_> {
             return self.parse_unsupported_block_element();
         }
 
-        let current = self.current()?;
         if self.is_poison_kind(current.kind()) {
             let span = self.bump()?.span();
             return self.add_statement(span, Statement::Error);
