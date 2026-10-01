@@ -32,7 +32,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       codegen: ${{ steps.filter.outputs.codegen }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -59,7 +59,7 @@ jobs:
     if: needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -74,7 +74,7 @@ jobs:
     if: needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
@@ -93,7 +93,7 @@ jobs:
       (needs.fmt.result == 'success' || needs.fmt.result == 'skipped')
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install LLVM 21
         run: brew install llvm@21
       - uses: dtolnay/rust-toolchain@stable
@@ -120,7 +120,7 @@ jobs:
       needs.clippy.result == 'success'
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install LLVM 21
         run: brew install llvm@21
       - uses: dtolnay/rust-toolchain@stable
