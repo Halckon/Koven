@@ -4,6 +4,7 @@
 
 - [SPEC-0236](0236-explicit-string-clone.md)：String.clone Phase 2/3/4 端到端，in-progress。
 - [SPEC-0228](0228-linux-x86-64-native-host.md)：Linux x86_64 + glibc 本机目标与基线验收，in-progress。
+- [SPEC-0231](0231-contextual-type-ref-trials.md)：上下文 TypeRef 与严格调用试探一致性，in-progress。
 - [SPEC-0182](0182-sequential-for-lowering.md)：顺序容器 `for` frontend→SSA→native 集成，approved。
 
 SPEC-0179 typed plan、SPEC-0211 iteration ownership 与 SPEC-0212 SSA provider primitives 已完成并归档。

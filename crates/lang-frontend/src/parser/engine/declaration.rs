@@ -468,12 +468,9 @@ impl Parser<'_> {
 
     pub(super) fn parse_parameter_mode_marker(
         &mut self,
+        context: ParameterModeContext,
     ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
-        let is_mode = (self.current_identifier_is("own")?
-            || self.current_identifier_is("borrow")?
-            || self.current_identifier_is("inout")?)
-            && self.peek_is_identifier(1);
-        if !is_mode {
+        if !self.current_is_parameter_mode(context)? {
             return Ok(None);
         }
         let marker = if self.current_identifier_is("own")? {
@@ -485,11 +482,7 @@ impl Parser<'_> {
         } else {
             None
         };
-        while (self.current_identifier_is("own")?
-            || self.current_identifier_is("borrow")?
-            || self.current_identifier_is("inout")?)
-            && self.peek_is_identifier(1)
-        {
+        while self.current_is_parameter_mode(context)? {
             let duplicate = self.bump()?.span();
             self.emit(
                 codes::DUPLICATE_PARAMETER_MODE,
@@ -498,6 +491,18 @@ impl Parser<'_> {
             )?;
         }
         Ok(marker)
+    }
+
+    fn current_is_parameter_mode(
+        &self,
+        context: ParameterModeContext,
+    ) -> Result<bool, ParserInternalError> {
+        Ok((self.current_identifier_is("own")?
+            || self.current_identifier_is("borrow")?
+            || self.current_identifier_is("inout")?)
+            && (self.peek_is_identifier(1)
+                || (matches!(context, ParameterModeContext::FunctionType)
+                    && self.peek_is_symbol(1, Symbol::LeftParen))))
     }
 
     pub(super) fn parse_value_parameters(
@@ -522,7 +527,8 @@ impl Parser<'_> {
                 self.emit(codes::EXPECTED_LIST_ELEMENT, "expected list element", comma)?;
                 continue;
             }
-            let mode_marker = self.parse_parameter_mode_marker()?;
+            let mode_marker =
+                self.parse_parameter_mode_marker(ParameterModeContext::NamedParameter)?;
             let name = self.parse_name_marker(
                 codes::EXPECTED_PARAMETER_NAME,
                 "expected parameter name",

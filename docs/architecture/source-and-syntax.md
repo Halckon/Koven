@@ -37,6 +37,11 @@ trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围�
   recovery 等语法职责拆分；
 - `trial.rs` 与 `lambda_trial.rs` 只做无副作用预索引，正式分支成功后才提交 AST。
 
+TypeRef 的上下文头部由正式解析与 strict call trial 保持一致：`move` 仅在后继 `(` 时是
+函数类型前缀；函数类型参数模式可先于普通或嵌套函数 TypeRef，具名参数仍必须先有名称。
+单独的 own/borrow/inout/move 类型名称不被无条件消费。重复参数模式的恢复只保留首 marker，
+失败 typed-call 候选不提交 TypeRef；共享线性预算与原有递归上限保持。
+
 Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调用实参、receiver、尾 lambda、
 隐式 `it` anchor、control-flow、class-family、package/import、解构和错误传播等源码结构；名称映射、
 类型选择和所有权检查留给后续阶段。

@@ -1278,25 +1278,33 @@ fn parsed_case_with_diagnostics(text: &str) -> (SourceMap, ParsedExpression) {
 }
 
 #[test]
-fn malformed_move_type_consumes_one_error_region_without_trailing_duplication() {
+fn contextual_move_type_name_reports_following_type_as_trailing_input() {
     let text = "x as move T";
-    let (_sources, parsed) = parsed_case_with_diagnostics(text);
-    assert!(
-        !parsed
-            .diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.code().to_string() == "L0013")
-    );
-    let Expression::Cast { type_ref, .. } = expression(&parsed, parsed.root()) else {
-        panic!("cast")
-    };
-    let error = parsed.ast().type_refs().get(*type_ref).expect("error type");
-    assert!(matches!(error.payload(), TypeRef::Error));
-    assert!(!error.span().is_empty());
+    let (sources, parsed) = parsed_case_with_diagnostics(text);
+    assert_eq!(parsed.diagnostics().len(), 1, "{:?}", parsed.diagnostics());
+    assert_eq!(parsed.diagnostics()[0].code().to_string(), "L0013");
     assert_eq!(
-        (error.span().start(), error.span().end()),
-        (text.find("move").unwrap(), text.len())
+        sources
+            .slice(parsed.diagnostics()[0].primary_span())
+            .unwrap(),
+        "T"
     );
+    assert!(matches!(
+        expression(&parsed, parsed.root()),
+        Expression::Error
+    ));
+    let type_ref = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(_, node)| match node.payload() {
+            Expression::Cast { type_ref, .. } => Some(*type_ref),
+            _ => None,
+        })
+        .expect("completed cast remains in the error region");
+    let name = parsed.ast().type_refs().get(type_ref).expect("type name");
+    assert!(matches!(name.payload(), TypeRef::Qualified { .. }));
+    assert_eq!(sources.slice(name.span()).unwrap(), "move");
 }
 
 #[test]
@@ -1568,18 +1576,39 @@ fn invalid_argument_recovery_stops_at_the_owning_call_boundary() {
 }
 
 #[test]
-fn malformed_move_type_error_span_includes_the_consumed_marker() {
-    for text in ["x as move", "x as A<move, B>"] {
-        let (_sources, parsed) = parsed_case_with_diagnostics(text);
+fn malformed_move_function_type_keeps_prefix_span_and_error_return() {
+    // A real move function-type prefix includes the parameter-list opener. Bare `move` is a name.
+    for text in ["x as move ()", "x as A<move (), B>"] {
+        let (sources, parsed) = parsed_case_with_diagnostics(text);
         let move_start = text.find("move").expect("move");
-        let error = parsed.ast().type_refs().iter().find(|(_, node)| {
-            matches!(node.payload(), TypeRef::Error) && node.span().start() == move_start
-        });
-        assert!(
-            error.is_some(),
-            "{text:?} must preserve move in its Error TypeRef: {:?}",
-            parsed.ast().type_refs()
+        let function = parsed
+            .ast()
+            .type_refs()
+            .iter()
+            .find_map(|(_, node)| match node.payload() {
+                TypeRef::Function {
+                    move_span: Some(marker),
+                    return_type,
+                    ..
+                } if node.span().start() == move_start => {
+                    Some((node.span(), *marker, *return_type))
+                }
+                _ => None,
+            })
+            .expect("committed move prefix belongs to the recovered function type");
+        assert_eq!(sources.slice(function.1).unwrap(), "move");
+        assert_eq!(sources.slice(function.0).unwrap(), "move ()");
+        assert!(matches!(
+            parsed.ast().type_refs().get(function.2).unwrap().payload(),
+            TypeRef::Error
+        ));
+        assert_eq!(
+            parsed.diagnostics().len(),
+            1,
+            "{text}: {:?}",
+            parsed.diagnostics()
         );
+        assert_eq!(parsed.diagnostics()[0].code().to_string(), "L0014");
     }
 }
 

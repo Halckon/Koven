@@ -339,6 +339,7 @@ impl<'a> TrialBuilder<'a> {
                 && (self.is_identifier_named(cursor, "own")
                     || self.is_identifier_named(cursor, "borrow")
                     || self.is_identifier_named(cursor, "inout"))
+                && (self.is_identifier(cursor + 1) || self.is_symbol(cursor + 1, Symbol::LeftParen))
             {
                 cursor += 1;
             }

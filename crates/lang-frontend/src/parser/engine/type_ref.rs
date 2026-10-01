@@ -15,7 +15,9 @@ impl Parser<'_> {
         &mut self,
         stops: TypeStops,
     ) -> Result<TypeRefId, ParserInternalError> {
-        if self.current_identifier_is("move")? || self.current_is_symbol(Symbol::LeftParen) {
+        if (self.current_identifier_is("move")? && self.peek_is_symbol(1, Symbol::LeftParen))
+            || self.current_is_symbol(Symbol::LeftParen)
+        {
             return self.parse_function_type(stops);
         }
         let current = self.current()?;
@@ -219,7 +221,8 @@ impl Parser<'_> {
             .with(TypeStops::RIGHT_PAREN);
         if !self.current_is_symbol(Symbol::RightParen) {
             loop {
-                let mode_marker = self.parse_parameter_mode_marker()?;
+                let mode_marker =
+                    self.parse_parameter_mode_marker(ParameterModeContext::FunctionType)?;
                 let parameter_start = mode_marker
                     .map(parameter_mode_span)
                     .map(Span::start)

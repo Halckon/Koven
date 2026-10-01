@@ -314,8 +314,9 @@ explicit_parameter_mode = "own" | "borrow" | "inout" ;
 最多带一个末尾 `?`，因此 `T??` 非法。函数返回类型仍递归使用 `type_ref`，所以
 `() -> T?` 唯一表示“返回 `T?` 的函数”，不表示可空函数值。现行语言不提供可空函数类型的
 写法，也不新增类型分组语法来绕过该边界。v1 不支持 star projection、声明处或使用处型变；
-不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 只可作为函数
-类型前缀；表达式位置的 `move { ... }` lambda 见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)。
+不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 作为上下文关键字
+仅当后继非 trivia token 是函数参数列表的 `(` 时充当前缀；其余位置遵守[普通 Identifier 通则](01-lexical.md#上下文关键字与软关键字)，例如 `move`、`move?`、`move<T>` 均可作为类型名称。
+表达式位置的 `move { ... }` lambda 见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)。
 
 函数类型的每个参数都携带与具名函数 `value_parameter` 相同的三种**语义契约**：无标记或
 显式 `borrow` 都表示 `Borrow`，显式 `own` 表示既有 `ParameterMode::Value`，显式 `inout`
