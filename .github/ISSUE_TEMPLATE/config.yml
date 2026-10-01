@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Koven Language Specification
+    url: https://github.com/Halckon/koven/tree/main/docs/guide
+    about: Read the official normative language specification (v0.38).
+  - name: Architecture Documentation
+    url: https://github.com/Halckon/koven/tree/main/docs/architecture
+    about: Explore the compiler design, SSA model, and codegen pipeline.

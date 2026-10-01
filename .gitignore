@@ -1,4 +1,24 @@
+# Operating System Files
 .DS_Store
+Thumbs.db
+*.tmp
+
+# Cargo Build Artifacts
 /target/
+
+# IDE & Editor Configuration
+.idea/
+.vscode/
+.pi/
+*.swp
+*.swo
+*~
+
+# Python Bytecode & Cache (used by scripts/)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Node Modules & Tree-sitter Build Artifacts
 /editors/tree-sitter/node_modules/
-.idea

@@ -1,5 +1,9 @@
 # Koven
 
+[![CI](https://github.com/Halckon/koven/actions/workflows/ci.yml/badge.svg)](https://github.com/Halckon/koven/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Rust](https://img.shields.io/badge/rust-1.96.0-orange.svg)](rust-toolchain.toml)
+
 [English](README.md) | [简体中文](README_CN.md)
 
 **Koven** is a modern systems programming language designed to blend the elegance, expressiveness, and readability of Kotlin with the bare-metal performance, deterministic resource management, and fearless safety of Rust.
@@ -275,4 +279,6 @@ The repository contains comprehensive documentation organized under [`docs/`](do
 
 ## 📄 License
 
-Koven is licensed under the Apache License 2.0 or MIT License, at your option.
+Koven is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+
+See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE) for details.

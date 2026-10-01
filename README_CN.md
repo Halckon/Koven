@@ -1,5 +1,9 @@
 # Koven
 
+[![CI](https://github.com/Halckon/koven/actions/workflows/ci.yml/badge.svg)](https://github.com/Halckon/koven/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Rust](https://img.shields.io/badge/rust-1.96.0-orange.svg)](rust-toolchain.toml)
+
 [English](README.md) | [简体中文](README_CN.md)
 
 **Koven** 是一门现代系统编程语言，旨在融合 **Kotlin** 的优雅、高表现力与清晰语法，以及 **Rust** 的极致原生性能、确定性资源管理与无畏安全性。
@@ -276,4 +280,7 @@ Hello, World!
 
 ## 📄 许可证
 
-Koven 采用 Apache License 2.0 或 MIT 许可证双重授权。
+Koven 采用双重开源授权，您可以自由选择基于以下任一协议使用：
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) 或 http://www.apache.org/licenses/LICENSE-2.0)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) 或 http://opensource.org/licenses/MIT)
