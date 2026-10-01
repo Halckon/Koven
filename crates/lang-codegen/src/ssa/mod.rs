@@ -9,6 +9,10 @@ pub(crate) mod model;
 #[allow(dead_code)]
 pub(crate) mod provider;
 mod render;
+#[cfg(test)]
+pub(crate) fn render_program(program: &model::Program) -> String {
+    render::render_program(program)
+}
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;

@@ -40,7 +40,7 @@ impl NominalTypeMapper {
             IntrinsicTypeConstructor::MutableList => SequentialContainerKind::MutableList,
             _ => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
-        let element = self.intern(module, names, typed, *element, span)?;
+        let element = self.intern_inner(module, names, typed, *element, span)?;
         module
             .add_sequential_container_type(kind, element)
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))

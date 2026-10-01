@@ -81,7 +81,10 @@ impl Module {
     ) -> Result<(), ModelError> {
         self.check_type_id(id)?;
         self.check_type_id(payload)?;
-        if !matches!(self.type_kind(payload), Some(SsaTypeKind::Aggregate { .. })) {
+        if !matches!(
+            self.type_kind(payload),
+            Some(SsaTypeKind::Aggregate { .. } | SsaTypeKind::TaggedUnion { .. })
+        ) {
             return Err(ModelError::ExpectedAggregate { ty: payload });
         }
         let kind = self

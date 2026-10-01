@@ -136,13 +136,13 @@ fn verify_type_definition(
             if payload.module() != module.id
                 || !matches!(
                     module.type_kind(*payload),
-                    Some(SsaTypeKind::Aggregate { .. })
+                    Some(SsaTypeKind::Aggregate { .. } | SsaTypeKind::TaggedUnion { .. })
                 )
             {
                 push_type_error(
                     errors,
                     id,
-                    "heap owner payload must be a local aggregate type",
+                    "heap owner payload must be a local aggregate or tagged union type",
                 );
             }
         }

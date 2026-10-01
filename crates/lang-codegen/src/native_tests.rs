@@ -13,6 +13,9 @@ mod non_null_assertion_tests;
 #[path = "native_sequential_for_tests.rs"]
 mod sequential_for_tests;
 
+#[path = "native_boxed_enum_tests.rs"]
+pub(crate) mod boxed_enum_tests;
+
 use std::{
     fs,
     path::PathBuf,
