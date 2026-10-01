@@ -7,7 +7,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
-- [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0182 approved、SPEC-0228 in-progress。
+- [Active](active/README.md)：`approved` / `in-progress`；当前 SPEC-0182 approved、SPEC-0228/0229 in-progress。
+- [演进实施账本](evolution-status.md)：13 项计划的实际实现边界与独立基线缺口。
 - [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件常量 Phase 2/3/4 均已完成。
 - [v0.37 阶段路由](drafts/v0.37/README.md)：借用式顺序迭代，3 份 done、1 份 approved。
 - [完成 Spec Archive](../archive/specs/README.md)：213 份 `done`/`superseded` 记录，仅在追溯时读取。

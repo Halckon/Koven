@@ -1,3 +1,6 @@
+#[path = "native_numeric_literal_tests.rs"]
+mod numeric_literal_tests;
+
 #[path = "native_constant_tests.rs"]
 mod constant_tests;
 

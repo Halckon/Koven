@@ -114,14 +114,11 @@ impl Checker<'_> {
         expected_span: Option<Span>,
     ) -> Result<TypeId, TypeCheckingError> {
         let text = self.sources.slice(span)?;
-        let number = match kind {
-            FloatLiteralKind::Double => text,
-            FloatLiteralKind::Float => &text[..text.len() - 1],
-        };
-        let finite = match kind {
-            FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
-            FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
-        };
+        let finite = crate::type_checking::literal_value::float_literal_core(text, kind)
+            .is_some_and(|number| match kind {
+                FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
+                FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
+            });
         if !finite {
             self.numeric_range_error(span, expected_span)?;
             return Ok(self.error_type());
@@ -138,12 +135,7 @@ impl Checker<'_> {
         kind: IntegerLiteralKind,
     ) -> Result<Option<u128>, TypeCheckingError> {
         let text = self.sources.slice(span)?;
-        let suffix_len = match kind {
-            IntegerLiteralKind::Unsuffixed => 0,
-            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => 1,
-            IntegerLiteralKind::UnsignedLong => 2,
-        };
-        Ok(text[..text.len() - suffix_len].parse::<u128>().ok())
+        Ok(crate::type_checking::integer_literal_magnitude(text, kind))
     }
 
     fn numeric_range_error(

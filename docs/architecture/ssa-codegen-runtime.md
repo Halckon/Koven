@@ -66,7 +66,7 @@ unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、
 SSA 使用独立 `Char` 类型与 `Char(u32)` 常量；verifier 只接受 Unicode scalar，并拒绝把它与
 UInt32 常量/类型互换。Char 为 Copyable，支持相等/不等而不进入整数算术或排序契约；LLVM
 映射和目标布局使用 i32。`char_constant_tests` 覆盖 scalar 边界、错误类型、Copy/call 返回类型、
-非恒定参数比较和确定 LLVM 输出。
+非恒定参数比较和确定 LLVM 输出。两入口的整数 lowering 复用[前端精确数值解码](names-and-types.md#数值字面量解码)，通过受检 i128 转换构造 SSA 常量；四条新 native 测试覆盖两入口 runtime/constant，各以 25 组新拼写对照十进制值实际 object/link/run，不扩展浮点或位运算。
 
 单文件 lowering 消费同一分析的 validated constants/materializations，逐 use 核对 descriptor，
 Boolean/整数/Char 生成 typed constant，String bytes 进入普通 `StringLiteral` temporary owner；

@@ -146,12 +146,13 @@ impl Checker<'_> {
     ) -> Result<ElementIndexIdentity, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         let value = match node.payload() {
-            Expression::Literal(LiteralKind::Integer(_)) => self
-                .sources
-                .slice(node.span())?
-                .trim_end_matches(['L', 'l', 'U', 'u'])
-                .parse::<i128>()
-                .ok(),
+            Expression::Literal(LiteralKind::Integer(kind)) => {
+                crate::type_checking::integer_literal_magnitude(
+                    self.sources.slice(node.span())?,
+                    *kind,
+                )
+                .and_then(|value| i128::try_from(value).ok())
+            }
             Expression::Group { expression } => {
                 return self.element_index_identity(*expression);
             }
