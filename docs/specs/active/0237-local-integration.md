@@ -36,6 +36,13 @@
   matrix 为独立本地验收，不声称远端 CI 覆盖这些目标。当前 GitHub 授权不含 workflow scope，
   因此本轮不改 workflow、不扩大权限；门禁提案保留待后续授权。
 
+### 后到的 main 来源
+
+保存 v0.40 检查点 `f6d38ab` 后，合入 main `3be83b5`（PR #6 已合并）。保留其 const
+位运算白名单、Box.value/unbox staged 合同、lambda/Litmus 修改与审计原文；String.clone
+仍采用完整0236合同，空串不分配。冲突与来源见[协调记录](../../archive/migrations/v0.40-upstream-pr6-reconciliation.md)。
+真实v0.39归档不随较晚上游改写；本轮不代替 CI 通过后要求的完整 PR #6 审计。
+
 ## 3. 非目标与遗留
 
 不新造语言规则，不借整合实现 replace/swap native、deinit、Str、两阶段 receiver、unsafe

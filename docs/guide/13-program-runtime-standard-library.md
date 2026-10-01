@@ -155,7 +155,7 @@ U+0000，对外语义不依赖 NUL 终止。
 - 标准 `error(message: String): Nothing` 必须先按普通求值/借用规则形成 message，再进入既有
   abort effect；现行规范不保证 stderr 文本格式或 message 一定被打印。
 
-本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
+除上述核心操作与显式 `clone()` 复制外，本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
 intern、隐式共享或 `toString`/formatting protocol。String interpolation 虽已有 Lexer/Parser/类型
 节点，但 operand 到 String 的转换契约尚未封闭；在后续 guide 定义可打印/转换协议前，native
 lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并假装成完整协议。
@@ -254,8 +254,8 @@ dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI
 为了支持所有权安全流转与链表、状态机等数据结构的高效在位更新，标准库顶层提供经编译器特判的原子置换原语（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）：
 
 ```kotlin
-fun <T> replace(place: Inout T, new: own T): own T
-fun <T> swap(a: Inout T, b: Inout T): Unit
+fun <T> replace(inout place: T, own new: T): own T
+fun <T> swap(inout a: T, inout b: T): Unit
 ```
 
 - `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
@@ -263,10 +263,13 @@ fun <T> swap(a: Inout T, b: Inout T): Unit
 
 ### 静态字符串类型的延后边界
 
-普通字符串字面量继续具有 builtin `String` 类型和唯一 owner obligation；引用静态只读
-字节是 [String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化，
-不使值满足 `Copyable`。独立的静态 `Str` 类型、Str→String 转换与 `toString()` 协议均延后，
-不得从候选设计或底层静态字节表示推导为已启用能力。
+普通字符串字面量与动态字符串统一具有 builtin `String` 类型和唯一 owner obligation，
+均为 MoveOnly 且满足 Transferable。引用静态只读字节是
+[String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化：
+静态字节可随进程存活且不执行 `free`，但 String 值仍遵守普通 owner 生命周期，不因此满足 `Copyable`。
+需要保留源并取得独立 owner 时使用上文[封闭操作](#封闭的最小操作)定义的 `String.clone()`；
+`println` / `error` 继续借用 String。独立静态 `Str`、Str→String 转换与 `toString()` 继续延后，
+不得从后续切片设计或底层静态字节表示推导已启用的类型、ABI 或能力。
 
 ---
 
@@ -298,3 +301,8 @@ Phase 5 要求标准库（`koven/**/*.ko`）以目标语言自身编写并作为
 - **标准库特权**：上述底层能力属于受控特权，仅限在标准库内部模块（`koven.*` 命名空间及指定 runtime 桥接层）中使用。
 - **普通用户代码隔离**：在 v1 阶段，应用层用户源码禁止直接使用 `RawPtr<T>` 或自行定义 `unsafe` 块；编译器对非特权 package 的裸指针访问与未受控外部调用拒绝并报结构化诊断。
 - **安全不变量封装**：标准库通过 RAII、所有权（`own` / `borrow`）与类型系统向外暴露完全安全的高层抽象（如 `Box<T>`、`Array<T>`、`String`），确保 unsafe 实现的边界在标准库内部完全闭合。
+
+### 编译器内建与标准库的职责划界与自举演进
+
+- **短期工程闭环策略**：在编译器自举前阶段，编译器提供部分内建核心容器（如 `Array`、`Vector`、`Map`、`Set`）作为快速交付语言核心语义与端到端运行体验的工程策略；
+- **自举演进与能力下沉目标**：长远来看，编译器的内建 intrinsic 应当收敛到最低限度的底层原子能力——即内存分配/释放（`malloc`/`free`）、原子置换（`replace`/`swap`）与受控裸指针（`RawPtr`）。链表、树、环形结构、动态数组与哈希表等高层数据结构将依托标准库内部的 `unsafe`、`RawPtr` 及对象池/Arena 纯自源（`koven/**/*.ko`）实现，而非作为编译器固有魔法存在。

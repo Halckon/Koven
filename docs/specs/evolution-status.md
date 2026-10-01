@@ -6,6 +6,8 @@
 [Guide v0.40](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
 起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
 八个切片及整合合同均保持 in-progress；已获提交整合 PR 的授权，最终提交与必需 CI 尚待验收。
+后到的 main `3be83b5`（已合并 PR #6）另作[最小协调](../archive/migrations/v0.40-upstream-pr6-reconciliation.md)，
+完整审计按用户要求留到整合 PR CI 通过后；不重写已冻结的真实 v0.39。
 
 ## 八阶段已整合范围
 
@@ -27,10 +29,10 @@
 
 | 项 | 状态 | 已有证据与未闭合边界 |
 |---|---|---|
-| 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与分号/lambda 独立边界未闭环 |
+| 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与独立 lambda 实施仍未闭环；上游 PR #6 已将 lambda 换行/分号尾表达式写入规范 |
 | 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；v0.40 已决定取消调用 Borrow marker，但 Parser 旧路径仍待迁移 |
-| 3. 数值与具名位运算 | 数值端到端已落地 | SPEC-0229 闭合整数；位运算 const/SSA/native 与 inv 未闭合。移位 count 已批准按自身整数位宽屏蔽、两 operand 同型，不再是语义待定 |
-| 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；拆箱、generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
+| 3. 数值与具名位运算 | 数值端到端已落地 | SPEC-0229 闭合整数；位运算 const/SSA/native 与 inv 未闭合；上游 PR #6 已把六个具名中缀操作列入 const 白名单，实现待验收。移位 count 已批准按自身整数位宽屏蔽、两 operand 同型，不再是语义待定 |
+| 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
 | 6. 两阶段 receiver 借用 | 未实现 | receiver 仍直接建立 active exclusive loan；Reserved/Activate 和 callee 存活 Borrow 冲突尚需事实及验证 |
 | 7. deinit 双轨析构 | 语法/类型层已有 | v0.40 已明确 readonly this、body 先于逆序字段清理；drop planner/codegen 仍无资源 lexical lifetime 与执行 deinit 的 native 证据 |
@@ -39,7 +41,7 @@
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
 | 11. 受控 unsafe 与 RawPtr | 未实现 | Parser 无 unsafe/extern 产生式，类型环境无 RawPtr；权限来源与 C ABI 类型矩阵尚未封闭，不从方向性计划补规则 |
 | 12. 双层文档解耦 | 首片已落地 | SPEC-0233 九段工程合同独立真源与检查完成；grammar/诊断/Span/Phase 等保留 Guide，后续按清晰边界渐进迁移 |
-| 13. 十二 Litmus | 示例清单已有 | Guide15 示例没有独立统一自动验收入口；未实现或独立边界仍存在，不能称全套端到端验收 |
+| 13. 十二 Litmus | 示例清单已有 | 上游 PR #6 修订了 Guide15 多处示例，但仍没有独立统一自动验收入口；未实现或独立边界仍存在，不能称全套端到端验收 |
 
 ### 主要代码与测试入口
 

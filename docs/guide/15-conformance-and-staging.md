@@ -110,8 +110,12 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 - Phase 2/3 须分别发布参数契约与 `deinit` receiver/清理事实；Phase 4 只消费已验证事实。
 - 字符串按最新决定改为 clone-first；Str/toString 规范切换延后。既有 `String` 字面量、
   const、拼接、内容比较与 ADR-0018 保持，不要求旧 `String` 字面量源码迁移为 Str。
-- interpolation、nullable 文本 native 表示和此前延后的能力保持原边界；不扩大移位的
-  const 资格、异常展开、资源分类或双轨 drop 规则。clone 实施验收在独立切片中进行。
+- interpolation、nullable 文本 native 表示和此前延后的能力保持原边界；不扩大异常展开、
+  资源分类或双轨 drop 规则。const 的具名位运算资格按[封闭白名单](05-declarations-callables.md#363-封闭-const-expression-与求值失败)
+  判断；规范列入白名单不表示 const evaluator 或 native 已验收。clone 实施验收在独立切片中进行。
+- [Box 投影/拆箱](11-copyability-layout-construction.md#内建-box-身份与实参边界)和
+  [lambda body 分隔](07-calls-lambdas-closures.md#lambda-literal)为规范合同；各自后续实施
+  必须单独验收，不能从递归 Box 构造/析构或 ordinary block 的定向证据推定已支持。
 
 ## `const val` 的阶段交接
 
@@ -208,8 +212,8 @@ fun classify(n: Int): Int {
 package demo.enums
 
 enum class Shape {
-    Circle(val radius: Int),
-    Rectangle(val width: Int, val height: Int),
+    Circle(radius: Int),
+    Rectangle(width: Int, height: Int),
     Point
 }
 
@@ -229,9 +233,7 @@ fun area(s: Shape): Int {
 ```kotlin
 package demo.oop
 
-class Counter(val initial: Int) {
-    var count: Int = initial
-
+class Counter(var count: Int) {
     fun increment(): Unit {
         count = count + 1
     }
@@ -259,7 +261,7 @@ interface Printable {
     fun printSelf(): Unit
 }
 
-class Container<T>(val item: T) : Printable {
+class Container<T : Copyable>(val item: T) : Printable {
     override fun printSelf(): Unit {
         // 单态化实现
     }
@@ -267,7 +269,7 @@ class Container<T>(val item: T) : Printable {
     fun get(): T = item
 }
 
-fun <T> identity(value: T): T = value
+fun <T> identity(own value: T): T = value
 ```
 
 ### Litmus 7: 线性所有权与移动语义
@@ -279,8 +281,8 @@ package demo.ownership
 
 class Resource(val id: Int)
 
-fun consume(r: Resource): Unit {
-    // r 在函数退出时执行析构
+fun consume(own r: Resource): Unit {
+    // r 在所有权转入后，于函数退出时执行析构
 }
 
 fun lifecycle(): Unit {
@@ -319,7 +321,7 @@ fun test(): Unit {
 ```kotlin
 package demo.nullability
 
-fun process(name: String?): Int {
+fun process(own name: String?): Int {
     if (name != null) {
         // 流类型收窄为非空 String
         return 1
@@ -343,21 +345,22 @@ fun applyTwice(x: Int, f: (borrow Int) -> Int): Int {
 
 fun testClosure(): Int {
     val base = 10
-    val addBase = { y: Int -> base + y }
+    val addBase: (borrow Int) -> Int = { y -> base + y }
     return applyTwice(5, addBase)
 }
 ```
 
 ### Litmus 11: 顺序集合遍历与结构解构
 
-演示区间语法 `..`、`for` 迭代遍历与解构绑定：
+演示顺序容器迭代 `for`、借用遍历与解构绑定：
 
 ```kotlin
 package demo.iteration
 
-fun sumRange(): Int {
+fun sumElements(): Int {
+    val numbers: List<Int> = listOf(1, 2, 3, 4, 5)
     var sum = 0
-    for (i in 1..10) {
+    for (i in numbers) {
         sum = sum + i
     }
     return sum
