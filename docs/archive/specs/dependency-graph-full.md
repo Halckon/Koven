@@ -226,6 +226,7 @@ end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0233["S0233<br/>Parser 工程合同的保全文档迁移"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1375,3 +1376,4 @@ S0226 --> S0227
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
+| SPEC-0233 | active | [0233-parser-compiler-contracts.md](../../specs/active/0233-parser-compiler-contracts.md) |

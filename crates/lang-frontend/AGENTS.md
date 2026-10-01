@@ -7,7 +7,7 @@
 | 修改内容 | 必读文档（最多四份） |
 |---|---|
 | Source/Span、Lexer | [词法](../../docs/guide/01-lexical.md)、[前端架构](../../docs/architecture/source-and-syntax.md)、[诊断](../../docs/development/diagnostics.md) |
-| 表达式/声明/控制流 Parser | [guide 索引](../../docs/guide/README.md)、[前端架构](../../docs/architecture/source-and-syntax.md)；从索引只追加一个目标语法页 |
+| 表达式/声明/控制流 Parser | [guide 索引](../../docs/guide/README.md)、[前端架构](../../docs/architecture/source-and-syntax.md)；追加一个目标语法页，再从 [AST 合同](../../docs/compiler-specs/parser-ast.md) / [算法合同](../../docs/compiler-specs/parser-algorithms.md)二选一，总计最多四份 |
 | 名称与类型 | [名称规则](../../docs/guide/02-names-files-packages.md)、[类型规则](../../docs/guide/03-types-generics.md)、[实现事实](../../docs/architecture/names-and-types.md) |
 | move / loan / drop | [所有权](../../docs/guide/10-ownership-borrowing-drop.md)、[所有权架构](../../docs/architecture/ownership.md) |
 | capture / closure | [调用与 Closure](../../docs/guide/07-calls-lambdas-closures.md)、[所有权](../../docs/guide/10-ownership-borrowing-drop.md)、[所有权架构](../../docs/architecture/ownership.md) |

@@ -67,17 +67,7 @@ string / interpolation poison 若没有真实 `:`，不得被猜成显式返回�
 Lexer 根因，不在同一 `Span` 追加 expected explicit return type 或 trailing-token 诊断。
 terminal Lexer 根因抵达 EOF 时同样提交 `ImplicitUnitAbsent`，不得派生 Parser 诊断。
 
-函数 item 的返回来源与 body 必须是同一个封闭状态，至少等价于：
-
-```text
-FunctionForm::ImplicitUnitAbsent
-FunctionForm::ImplicitUnitBlock(StatementId)
-FunctionForm::Explicit {
-    colon_span: Span,
-    type_ref: TypeRefId,
-    body: FunctionBody,
-}
-```
+返回来源与 body 的封闭表示见[函数 AST 工程合同](../compiler-specs/parser-ast.md#函数返回来源与-body-封闭表示)。
 
 两个 implicit variant 都不拥有虚构 TypeRef 或 `:` Span；Phase 2 把它们解析为内建 `Unit`。
 显式 `: Unit` 保持 `Explicit`，以便工具和诊断忠实反映源码。`FunctionBody` 只嵌在显式分支，
@@ -163,12 +153,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 
 ### 声明 AST 与 `Span`
 
-独立入口返回一个带 `SourceId` 的索引式 declaration root。声明中的 initializer / expression
-body 引用现有 expression ID；显式类型标注、显式返回标注、参数类型、泛型上界和调用点
-类型实参都引用现有 TypeRef ID，不得把源码片段或解析后的类型名称复制成另一套无 `Span`
-字符串模型。省略返回标注必须用下文 `FunctionForm` 这类同时封闭返回来源与 body 的状态表示，
-不能伪造 `Unit` TypeRef、冒充存在的 `:`，也不能丢失“显式 `: Unit`”与“省略标注”的源码
-差异。
+索引式 declaration root 与节点引用见[声明 AST 工程合同](../compiler-specs/parser-ast.md#声明-root-与索引引用)。
 
 `ValueParameter` 唯一增加 `mode_marker: Option<ParameterModeMarker>`；使用与函数类型参数
 相同的封闭 marker（`Own` / `Borrow` / `Inout` 三项），不增加新的参数 AST table。marker
@@ -272,10 +257,8 @@ default、initializer 缺 `=` 的兜底、返回类型分隔符兜底及独立�
   `L0004` 结束，扫描随后仍处于它的父 interpolation / string；因此后续逗号或 `)` 只有等到
   所有剩余 owner 正常或终止退出后才可能成为声明 stop。EOF 处已有 `L0004`–`L0006` 根因时
   继续沿用[词法规则](01-lexical.md)的 closer 诊断抑制，不另造 parser 级联。
-- 对一段含 `k` 个 lexeme 的恢复，每个 lexeme 至多检查和消费一次，每个 delimiter / owner
-  只压栈、弹栈一次；terminal event 按 source offset 预索引并用单调 event cursor 读取。
-  因而单段恢复必须是 `O(k)` 时间、`O(d)` 嵌套栈空间，不得从每个 token 重扫诊断、回看
-  opener、重启 lexer/parser 或反复切片源码。lexeme / terminal-owner 关系若违反已验证不变量，
+- 恢复的扫描、terminal event 索引与复杂度见[声明恢复资源合同](../compiler-specs/parser-algorithms.md#声明恢复资源约束)。
+  lexeme / terminal-owner 关系若违反已验证不变量，
   属于 Parser 内部错误，不得降级为用户语法诊断。
 
 上述 list 类别只作用于已提交解析的声明侧 `type_parameter_list` 与 `value_parameter` list。

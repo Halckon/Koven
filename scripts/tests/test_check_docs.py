@@ -258,6 +258,105 @@ class DocsCheckerTests(unittest.TestCase):
         checker.check_default_routes()
         self.assertTrue(any("包含 6 份文档" in error for error in checker.errors), checker.errors)
 
+    def test_compiler_contract_metadata_is_required(self) -> None:
+        self.write("docs/compiler-specs/parser.md", "# Parser\n")
+        checker = DocsChecker(self.root)
+        checker.check_metadata()
+        self.assertTrue(any("compiler-specs/parser.md" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_index_covers_nested_members(self) -> None:
+        self.write("docs/compiler-specs/README.md", "# Contracts\n")
+        self.write("docs/compiler-specs/parser/ast.md", "# AST\n")
+        checker = DocsChecker(self.root)
+        checker.check_indexes()
+        self.assertTrue(any("compiler-specs 索引遗漏" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_current_entry_is_unique_and_fixed(self) -> None:
+        marker = "<!-- current-compiler-contracts -->\n"
+        index = self.write("docs/compiler-specs/README.md", "# Contracts\n" + marker)
+        checker = DocsChecker(self.root)
+        checker.check_current_compiler_contracts()
+        self.assertEqual(checker.errors, [])
+
+        self.write("docs/architecture/duplicate.md", "# Duplicate\n" + marker)
+        checker = DocsChecker(self.root)
+        checker.check_current_compiler_contracts()
+        self.assertTrue(any("实际为 2" in error for error in checker.errors), checker.errors)
+
+        index.write_text("# Contracts\n", encoding="utf-8")
+        checker = DocsChecker(self.root)
+        checker.check_current_compiler_contracts()
+        self.assertTrue(any("必须位于 docs/compiler-specs/README.md" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_missing_current_entry_is_rejected(self) -> None:
+        checker = DocsChecker(self.root)
+        checker.check_current_compiler_contracts()
+        self.assertTrue(any("实际为 0" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_page_must_be_reachable(self) -> None:
+        self.write("docs/README.md", "# Docs\n")
+        self.write("docs/compiler-specs/parser.md", "# Parser\n")
+        checker = DocsChecker(self.root)
+        checker.check_links()
+        checker.check_reachability()
+        self.assertTrue(any("compiler-specs/parser.md" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_routes_keep_five_document_limit(self) -> None:
+        links = "、".join(f"[入口 {number}](../{number}.md)" for number in range(6))
+        self.write(
+            "docs/compiler-specs/README.md",
+            "# Contracts\n\n## 按任务读取\n\n| 任务 | 文档 |\n|---|---|\n| Parser | " + links + " |\n",
+        )
+        checker = DocsChecker(self.root)
+        checker.check_default_routes()
+        self.assertTrue(any("包含 6 份文档" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_routes_reject_archive(self) -> None:
+        self.write(
+            "docs/compiler-specs/README.md",
+            "# Contracts\n\n## 默认入口\n\n- [历史](../archive/README.md)\n",
+        )
+        checker = DocsChecker(self.root)
+        checker.check_default_routes()
+        self.assertTrue(any("不得直接加载 archive/proposals" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_line_budgets_cover_index_and_nested_pages(self) -> None:
+        self.write("docs/compiler-specs/README.md", "# Contracts\n" + "line\n" * 160)
+        self.write("docs/compiler-specs/parser/ast.md", "# AST\n" + "line\n" * 200)
+        checker = DocsChecker(self.root)
+        checker.check_line_budgets()
+        self.assertTrue(any("compiler-specs/README.md: 161 行，超过入口上限 160" in error for error in checker.errors), checker.errors)
+        self.assertTrue(any("compiler-specs/parser/ast.md: 201 行，超过入口上限 200" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_nested_routes_are_checked(self) -> None:
+        self.write(
+            "docs/compiler-specs/parser/ast.md",
+            "# AST\n\n## 默认入口\n\n- [历史](../../archive/README.md)\n",
+        )
+        checker = DocsChecker(self.root)
+        checker.check_default_routes()
+        self.assertTrue(any("不得直接加载 archive/proposals" in error for error in checker.errors), checker.errors)
+
+    def test_compiler_contract_route_accepts_five_documents(self) -> None:
+        links = "、".join(f"[入口 {number}](../{number}.md)" for number in range(5))
+        self.write(
+            "docs/compiler-specs/README.md",
+            "# Contracts\n\n## 按任务读取\n\n| 任务 | 文档 |\n|---|---|\n| Parser | " + links + " |\n",
+        )
+        checker = DocsChecker(self.root)
+        checker.check_default_routes()
+        self.assertEqual(checker.errors, [])
+
+    def test_compiler_contract_links_and_fragments_are_checked(self) -> None:
+        self.write("docs/guide/source.md", "# Source\n")
+        self.write(
+            "docs/compiler-specs/parser.md",
+            "# Parser\n\n[缺页](missing.md) [缺锚点](../guide/source.md#missing)\n",
+        )
+        errors = self.link_errors()
+        self.assertTrue(any("本地链接不存在" in error for error in errors), errors)
+        self.assertTrue(any("fragment 不存在" in error for error in errors), errors)
+
 
 if __name__ == "__main__":
     unittest.main()

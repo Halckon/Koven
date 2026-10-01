@@ -7,8 +7,8 @@
   <rect width="5216" height="6934" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6832" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，213 份）</text>
-  <rect x="4872" y="4590" width="280" height="922" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5012" y="4610" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect x="4872" y="30" width="280" height="5482" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="5012" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 170, 180 202" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 308, 444 340" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 428, 180 460" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1846,4 +1846,8 @@
   <text x="5012" y="4647" text-anchor="middle" font-size="13" font-weight="600">SPEC-0228</text>
   <text x="5012" y="4665" text-anchor="middle" font-size="13">Linux x86_64 本</text>
   <text x="5012" y="4683" text-anchor="middle" font-size="13">机目标与基线验收</text>
+  <rect x="4892" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="5012" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0233</text>
+  <text x="5012" y="105" text-anchor="middle" font-size="13">Parser 工程合同的保全</text>
+  <text x="5012" y="123" text-anchor="middle" font-size="13">文档迁移</text>
 </svg>
