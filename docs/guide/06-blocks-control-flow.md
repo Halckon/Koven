@@ -1,101 +1,8 @@
-# Koven v0.37：Block 与控制流
+# Koven v0.38：Block 与控制流
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
-
-## `when` 穷尽性与 Smart Cast
-
-### Enum Case 的双重身份
-
-- `enum class E { C(...), D }` 中每个 case 同时声明同拼写的值构造器和嵌套 case type；二者
-  共享一个 `EnumCaseId`，分别进入 `E` 的值/类型命名空间。case type 不是可独立实现
-  interface 的普通 classifier，也不能出现在 supertype、泛型实参或公开签名中；只允许作为
-  `is` / `!is` 的目标和 smart-cast 后的内部流类型。其 runtime 公共类型始终是 `E<...>`；
-  其他显式 TypeRef 位置使用 L0114，而不是把 case type 当作 root enum 的别名。
-- enum 本体作用域内可写短名 `C`；外部源码必须写限定名 `E.C`。同一限定拼写在值位置表示
-  case value/constructor，在 `is` / `!is` 的目标位置表示 case type。名称阶段解析完整限定链，
-  不允许把“首段已解析、尾段 deferred”伪装为成功；跨 package 的前缀展开仍后置 跨文件名称规则。
-- case payload 字段属于对应 case type。enum 自身方法内的裸 `radius` 是“隐式 `this` 的
-  case payload 候选”，名称阶段保留候选而不提前报 unresolved；只有当前流事实唯一证明
-  `this` 为声明该字段的 case 时才能取其类型。`this.radius` 遵循相同规则。没有该事实、多个
-  case 同名字段无法唯一选择或在 enum 外裸用时产生 L0113。
-- 普通 class/value class/object/interface 不因此获得继承或 runtime tag；v1 的 `is` 不提供
-  任意 RTTI，也不能用 interface、类型参数或 `Any` 对未知具体类型作动态探测。
-
-### 类型测试与流事实
-
-- 合法 `e is T` / `e !is T` 的结果固定为 `Boolean`。v1 的有效测试关系仅包括：同一 enum
-  root 与其 case、同一已知 nominal 的 nullable/non-null 分离，以及已经静态相同的具体类型；
-  interface、类型参数、无关 nominal 和需要运行时泛型反射的测试使用 L0106。`as` / `as?`
-  仍不属于 when 类型规则。
-- smart-cast key 只表示一次求值的稳定 place：`this`、value parameter、local `val`，以及未被
-  捕获且从事实建立点到使用点没有赋值的 local `var`。对 `var` 的任意赋值先检查右值，再清除
-  该 symbol 的全部事实；捕获进 lambda 的 `var` 不跨 lambda 或调用边界保留事实。普通字段、
-  index、call、任意 member chain 和有副作用表达式不作为稳定 key。
-- `if` 的 then/else 分别接收条件为真/假时的事实；`!` 交换两侧事实，`&&` 的右操作数接收
-  左侧为真的事实，`||` 的右操作数接收左侧为假的事实。分支结束后的事实取所有可 fall-through
-  出口的交集；`Nothing` 出口不参与交集。无法表示的析取事实保守丢弃，不猜测第三套类型。
-- subjectful `when` 的 subject 只求值一次并获得临时 key；若源码 subject 本身是稳定 place，
-  case 事实同时绑定到该 place。一个 entry 用逗号列出多个条件时，body 只获得所有可进入
-  alternative 事实的交集，不能把仅由其中一个条件证明的 payload 字段暴露给整个 body。
-- `when (shape) { is Shape.Circle -> ... }` 是外部作用域的规范写法；enum 自身方法内允许
-  `when (this) { is Circle -> ... }`。无 payload case 也可在普通条件写 `Shape.Point` / `Point`，
-  按 case value 与 subject 做等值比较；有 payload case 的构造器名称本身不是一个 case value。
-- `x != null` / `x == null` 为稳定 nullable key 建立非空/为空事实。事实只能收窄，不能改变
-  声明类型或写回类型；赋值仍按声明类型检查。循环回边、未知 call 的副作用和 lambda 捕获
-  使用保守 kill，不实现完整 SSA 数据流或 NLL。
-
-### `when` 条件、覆盖域与重复
-
-- subjectless `when` 的普通条件必须是 `Boolean`；类型/包含条件仍为语法错误恢复产物，类型
-  阶段使用 L0107。subjectful 普通条件按 `subject == condition` 检查可比较性；`in` / `!in`
-  的协议选择由[class-family 与调用规则](08-class-family-members.md)处理，在此保持专用
-  deferred，不据此证明穷尽。
-- 编译器只对有限且封闭的域证明无 `else` 穷尽：`Boolean` 的 `{true,false}`、enum root 的全部
-  case，以及它们的 nullable 形式（额外包含 `null`）。泛型类型参数、普通 class、整数、
-  String、interface、`Any` 和 subjectless predicate 集合都不是封闭域。
-- enum case 的正 `is` 覆盖该 case，`!is` 覆盖当前有限域的补集；`null`、Boolean literal 和
-  enum 无 payload case 的等值条件可贡献单点覆盖。一个条件对当前剩余域不增加覆盖时产生
-  L0110；poisoned/未知条件不参与覆盖，也不制造后续重复诊断。
-- `else` 最多一次且必须是最后一个 entry；重复使用 L0108，非末尾使用 L0109。即使前面已
-  穷尽，显式末尾 `else` 仍允许，作为未来兼容兜底，不报冗余。
-
-### Value/Statement Context 与分支类型
-
-- initializer、assignment RHS、return value、call argument、表达式体以及另一个 value
-  expression 的嵌套位置都是 value context。value-context `when` 必须有 `else` 或被有限域
-  证明穷尽，否则 L0111；statement element 位置允许非穷尽，结果固定为 `Unit`。
-- checker 必须从 AST owner 显式传递 `ExpressionUse::{Value,Statement}`（或等价封闭状态）：
-  普通 block 中非尾 expression element 是 statement use；control/lambda body 的尾 expression、
-  initializer 与表达式 body 是 value use。`expected == None` 同时可能表示推导和值被丢弃，
-  禁止用它推断上下文。
-- value-context 分支先接受外部 expected type。无 expected type 时按源码顺序求最小公共类型：
-  忽略 `Nothing`；完全相同类型保持不变；`T` 与 `T?` 合并为 `T?`；同一 enum 的 case 流类型
-  合并为 enum root；其他已知类型合并为 `Any`。Error 抑制同根级联，Deferred 只保留其专用
-  reason。分支不满足显式 expected type 时沿用 L0086；无法形成上述 join 时使用 L0112。
-- 穷尽 `when` 只有全部可到达 entry 都不 fall through 时才是 `Nothing`。诊断、typed 结果和
-  coverage 顺序必须只依赖源码顺序；不得用随机 hash 迭代决定遗漏 case 的顺序。
-
-### 诊断
-
-| 错误码 | 含义 | 主范围与关联信息 |
-|---|---|---|
-| L0106 | `is` / `!is` 目标不可运行时判定或与被测类型无合法关系 | primary 为运算符；label 指向目标 TypeRef |
-| L0107 | `when` 条件形态或类型与有/无 subject 规则不匹配 | primary 为条件；label 可指向 subject |
-| L0108 | 同一 `when` 出现多个 `else` | primary 为后出现的 `else`；label 指向第一个 |
-| L0109 | `else` 不是最后一个 entry | primary 为 `else`；label 指向后续首 entry |
-| L0110 | 有限域中的条件不增加任何新覆盖 | primary 为该条件；label 指向首次覆盖来源 |
-| L0111 | value-context `when` 未覆盖封闭域或无法证明穷尽 | primary 为 `when`；labels 按声明顺序列出遗漏 case，非封闭域建议添加 `else` |
-| L0112 | 无 expected type 的可达分支无法形成合法公共类型 | primary 为后出现分支尾值；label 指向首个冲突分支 |
-| L0113 | enum case payload 在当前流事实下不可唯一访问 | primary 为字段名称；labels 指向候选 case 声明 |
-| L0114 | enum case type 出现在 `is` / `!is` 目标之外的显式 TypeRef 位置 | primary 为 case TypeRef；label 指向 root enum 声明 |
-
-L0106/L0107 已使条件 poisoned 后，不追加同条件的 L0110；L0108/L0109 不阻止仍可确定的
-entry body 类型检查；L0111 只产生一条并聚合遗漏项。when 类型规则 不顺带实现一般 member/call
-选择、`as`、包含协议、所有权或跨文件 sealed hierarchy。
-
----
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Block 与函数 Body
 
@@ -140,9 +47,7 @@ implicit_unit_body        = /* empty */
                           | block ;
 ```
 
-产生式中的 `{ block_element }` 重复不是“任意相邻的两个 element 产生式都可自行切开”的
-词法规则；每次重复必须满足下文唯一的最大 element / 显式结构 stop 谓词。尤其普通
-expression-start 不是重复边界，所以 `{ x y }` 不能由该 EBNF 拆成两个 expression element。
+产生式中的 `{ block_element }` 重复由换行（LF / CRLF）或显式分号 `;` 分隔；在不存在换行续行条件时，行末换行自然开启下一个 element。在同一行内连续书写多个 element 时必须显式使用 `;` 分隔。
 
 这里的 `/* empty */` 是 EBNF 记号，不是要求源码包含注释。独立 block 入口一次只解析一个
 block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration` 入口解析，并复用
@@ -156,23 +61,25 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
 - block element 精确包括局部 `val` / `var`、expression（含 `if` / `when` / jump / `super`）、
   嵌套 block 和 `while` / `for` / `loop`。`const val`、局部 `fun` 与 class-family 声明不是
   block element；parser 必须定向拒绝，不能保存为 opaque token 或当作 identifier expression。
-- `;` 只分隔完整文件的顶层声明和 `when` entry；换行和注释在普通 block 内仍是 trivia。因此 block
-  element 不由分号、LF、CRLF 或注释终止。parser 先按适用产生式消费一个**最大合法
-  element**：局部声明的 initializer 和
-  expression statement 都使用既有 Pratt expression。当前 owner 的 `}` 始终是 hard stop；
-  `val`、`var` 和本节 unsupported element 引导关键字在最大 expression 已完整且不在任何
-  expression owner / delimiter 内时是结构 stop，留给 block dispatch 开始下一局部声明或
-  unsupported element。`{` 只有在左侧最大 expression 已完整、parser 不再等待 operand 时才是
-  下一 nested block 的 soft stop；正在等待 primary 时，必须按
+- block element 之间使用**显式分号 `;`** 或**语法换行（LF / CRLF）**进行分隔。换行默认作为
+  当前 element 的终止边界，并允许下一个 expression-start token 开启新的 expression statement。
+  因此，分属不同行的 `println(a)` 与 `println(b)` 是两条合法、连续的 expression statement。
+- **续行规则（Line Continuation）**：换行在以下情形中被视为连续 trivia，不终止当前表达式或声明：
+  1. 行末停在未完成的二元运算符（如 `+`、`-`、`*`、`/`、`%`、`&&`、`||`、`to`、`and`、`or`、`xor`、
+     `shl`、`shr`、`ushr`、`as`、`as?`、`is`、`!is`、`in`、`!in`、`..`、`..<`）、复合赋值操作符、
+     赋值号 `=`、逗号 `,`、类型标注前缀 `:` 或未闭合的分隔符（`(`、`[`、`${`）；
+  2. 下一行首个非 trivia token 只能作为中缀/后缀延续当前表达式（例如 `.`、`?.`、`?:`、`else`、
+     中缀关键字）。
+  在满足上述续行条件时，表达式跨多行完整解析；不满足续行条件时，行末换行结束当前 element。
+- `;` 在块内是合法的显式语句分隔符。同一行内书写多条语句时必须用 `;` 分隔（如 `{ val x = 1; val y = 2 }`
+  或 `{ foo(); bar() }`）；行末的 `;` 也是合法的可选终止符。若同一行内连续出现两个普通
+  expression-start token 且中间既无换行也无分号（如 `{ x y }`），parser 报告缺少语句分隔符诊断，
+  而不是无说明地当作尾随未知 token。
+- parser 先按适用产生式消费当前 element。当前 block owner 的 `}` 始终是 hard stop；
+  在没有续行的情况下，换行、`;`、`val`、`var` 以及循环引导关键字均作为当前 element 的边界，
+  将控制权归还给 block dispatch 开始下一局部声明或语句。`{` 只有在左侧最大 expression 已完整、
+  parser 不再等待 operand 时才是下一 nested block 的 soft stop；正在等待 primary 时，必须按
   [Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)把 `{` 解析为 lambda。
-  例如 `{ val x = 1 val y = 2 }`
-  与把两个声明写在多行的版本具有同一 AST；
-  `{ x - y }` 因 `-` 能继续当前表达式而只有一项。连续两个普通 expression-start token 之间
-  若没有上述显式结构 stop，则**不能**仅凭 trivia 或“第二个 token 也能开始表达式”推断为
-  两项。普通 Identifier、字面量、`this`、`null`、`true`、`false`、`::` 或 prefix opener
-  都不是 element stop；既有 expression 的 trailing-token 恢复消费余下非法区域，
-  `{ x y }` 因而不是两条合法 expression statement。语法边界完全由 token 结构决定，增删
-  trivia 不得改变 element 数量或归属。
 - `{}` 是合法空 block；`{{}}` 是包含一个 nested block statement 的合法 block。block dispatch
   在 element 起点直接看到 `{` 时提交 nested block；只有 expression parser 正在等待 primary
   时，同一个 token 才按 [Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)提交 lambda。每个 `{`
@@ -389,3 +296,96 @@ control_element = block_element ;
 Parser 只保存控制结构、顺序和恢复节点；Boolean 条件、分支公共类型、`Nothing`、jump target、
 `when` 穷尽性 / smart cast、迭代协议绑定和接口默认方法由类型及后续语义检查完成，不得从
 AST 形状提前伪造结论。
+
+---
+
+## `when` 穷尽性与 Smart Cast
+
+### Enum Case 的双重身份
+
+- `enum class E { C(...), D }` 中每个 case 同时声明同拼写的值构造器和嵌套 case type；二者
+  共享一个 `EnumCaseId`，分别进入 `E` 的值/类型命名空间。case type 不是可独立实现
+  interface 的普通 classifier，也不能出现在 supertype、泛型实参或公开签名中；只允许作为
+  `is` / `!is` 的目标和 smart-cast 后的内部流类型。其 runtime 公共类型始终是 `E<...>`；
+  其他显式 TypeRef 位置使用 L0114，而不是把 case type 当作 root enum 的别名。
+- enum 本体作用域内可写短名 `C`；外部源码必须写限定名 `E.C`。同一限定拼写在值位置表示
+  case value/constructor，在 `is` / `!is` 的目标位置表示 case type。名称阶段解析完整限定链，
+  不允许把“首段已解析、尾段 deferred”伪装为成功；跨 package 的前缀展开仍后置 跨文件名称规则。
+- case payload 字段属于对应 case type。enum 自身方法内的裸 `radius` 是“隐式 `this` 的
+  case payload 候选”，名称阶段保留候选而不提前报 unresolved；只有当前流事实唯一证明
+  `this` 为声明该字段的 case 时才能取其类型。`this.radius` 遵循相同规则。没有该事实、多个
+  case 同名字段无法唯一选择或在 enum 外裸用时产生 L0113。
+- 普通 class/value class/object/interface 不因此获得继承或 runtime tag；v1 的 `is` 不提供
+  任意 RTTI，也不能用 interface、类型参数或 `Any` 对未知具体类型作动态探测。
+
+### 类型测试与流事实
+
+- 合法 `e is T` / `e !is T` 的结果固定为 `Boolean`。v1 的有效测试关系仅包括：同一 enum
+  root 与其 case、同一已知 nominal 的 nullable/non-null 分离，以及已经静态相同的具体类型；
+  interface、类型参数、无关 nominal 和需要运行时泛型反射的测试使用 L0106。`as` / `as?`
+  仍不属于 when 类型规则。
+- smart-cast key 只表示一次求值的稳定 place：`this`、value parameter、local `val`，以及未被
+  捕获且从事实建立点到使用点没有赋值的 local `var`。对 `var` 的任意赋值先检查右值，再清除
+  该 symbol 的全部事实；捕获进 lambda 的 `var` 不跨 lambda 或调用边界保留事实。普通字段、
+  index、call、任意 member chain 和有副作用表达式不作为稳定 key。
+- `if` 的 then/else 分别接收条件为真/假时的事实；`!` 交换两侧事实，`&&` 的右操作数接收
+  左侧为真的事实，`||` 的右操作数接收左侧为假的事实。分支结束后的事实取所有可 fall-through
+  出口的交集；`Nothing` 出口不参与交集。无法表示的析取事实保守丢弃，不猜测第三套类型。
+- subjectful `when` 的 subject 只求值一次并获得临时 key；若源码 subject 本身是稳定 place，
+  case 事实同时绑定到该 place。一个 entry 用逗号列出多个条件时，body 只获得所有可进入
+  alternative 事实的交集，不能把仅由其中一个条件证明的 payload 字段暴露给整个 body。
+- `when (shape) { is Shape.Circle -> ... }` 是外部作用域的规范写法；enum 自身方法内允许
+  `when (this) { is Circle -> ... }`。无 payload case 也可在普通条件写 `Shape.Point` / `Point`，
+  按 case value 与 subject 做等值比较；有 payload case 的构造器名称本身不是一个 case value。
+- `x != null` / `x == null` 为稳定 nullable key 建立非空/为空事实。事实只能收窄，不能改变
+  声明类型或写回类型；赋值仍按声明类型检查。循环回边、未知 call 的副作用和 lambda 捕获
+  使用保守 kill，不实现完整 SSA 数据流或 NLL。
+
+### `when` 条件、覆盖域与重复
+
+- subjectless `when` 的普通条件必须是 `Boolean`；类型/包含条件仍为语法错误恢复产物，类型
+  阶段使用 L0107。subjectful 普通条件按 `subject == condition` 检查可比较性；`in` / `!in`
+  的协议选择由[class-family 与调用规则](08-class-family-members.md)处理，在此保持专用
+  deferred，不据此证明穷尽。
+- 编译器只对有限且封闭的域证明无 `else` 穷尽：`Boolean` 的 `{true,false}`、enum root 的全部
+  case，以及它们的 nullable 形式（额外包含 `null`）。泛型类型参数、普通 class、整数、
+  String、interface、`Any` 和 subjectless predicate 集合都不是封闭域。
+- enum case 的正 `is` 覆盖该 case，`!is` 覆盖当前有限域的补集；`null`、Boolean literal 和
+  enum 无 payload case 的等值条件可贡献单点覆盖。一个条件对当前剩余域不增加覆盖时产生
+  L0110；poisoned/未知条件不参与覆盖，也不制造后续重复诊断。
+- `else` 最多一次且必须是最后一个 entry；重复使用 L0108，非末尾使用 L0109。即使前面已
+  穷尽，显式末尾 `else` 仍允许，作为未来兼容兜底，不报冗余。
+
+### Value/Statement Context 与分支类型
+
+- initializer、assignment RHS、return value、call argument、表达式体以及另一个 value
+  expression 的嵌套位置都是 value context。value-context `when` 必须有 `else` 或被有限域
+  证明穷尽，否则 L0111；statement element 位置允许非穷尽，结果固定为 `Unit`。
+- checker 必须从 AST owner 显式传递 `ExpressionUse::{Value,Statement}`（或等价封闭状态）：
+  普通 block 中非尾 expression element 是 statement use；control/lambda body 的尾 expression、
+  initializer 与表达式 body 是 value use。`expected == None` 同时可能表示推导和值被丢弃，
+  禁止用它推断上下文。
+- value-context 分支先接受外部 expected type。无 expected type 时按源码顺序求最小公共类型：
+  忽略 `Nothing`；完全相同类型保持不变；`T` 与 `T?` 合并为 `T?`；同一 enum 的 case 流类型
+  合并为 enum root；其他已知类型合并为 `Any`。Error 抑制同根级联，Deferred 只保留其专用
+  reason。分支不满足显式 expected type 时沿用 L0086；无法形成上述 join 时使用 L0112。
+- 穷尽 `when` 只有全部可到达 entry 都不 fall through 时才是 `Nothing`。诊断、typed 结果和
+  coverage 顺序必须只依赖源码顺序；不得用随机 hash 迭代决定遗漏 case 的顺序。
+
+### 诊断
+
+| 错误码 | 含义 | 主范围与关联信息 |
+|---|---|---|
+| L0106 | `is` / `!is` 目标不可运行时判定或与被测类型无合法关系 | primary 为运算符；label 指向目标 TypeRef |
+| L0107 | `when` 条件形态或类型与有/无 subject 规则不匹配 | primary 为条件；label 指向 subject |
+| L0108 | 同一 `when` 出现多个 `else` | primary 为后出现的 `else`；label 指向第一个 |
+| L0109 | `else` 不是最后一个 entry | primary 为 `else`；label 指向后续首 entry |
+| L0110 | 有限域中的条件不增加任何新覆盖 | primary 为该条件；label 指向首次覆盖来源 |
+| L0111 | value-context `when` 未覆盖封闭域或无法证明穷尽 | primary 为 `when`；labels 按声明顺序列出遗漏 case，非封闭域建议添加 `else` |
+| L0112 | 无 expected type 的可达分支无法形成合法公共类型 | primary 为后出现分支尾值；label 指向首个冲突分支 |
+| L0113 | enum case payload 在当前流事实下不可唯一访问 | primary 为字段名称；labels 指向候选 case 声明 |
+| L0114 | enum case type 出现在 `is` / `!is` 目标之外的显式 TypeRef 位置 | primary 为 case TypeRef；label 指向 root enum 声明 |
+
+L0106/L0107 已使条件 poisoned 后，不追加同条件的 L0110；L0108/L0109 不阻止仍可确定的
+entry body 类型检查；L0111 只产生一条并聚合遗漏项。when 类型规则 不顺带实现一般 member/call
+选择、`as`、包含协议、所有权或跨文件 sealed hierarchy。

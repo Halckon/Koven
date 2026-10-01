@@ -1,8 +1,8 @@
-# Koven v0.37：Copyable、布局、构造与结构移动
+# Koven v0.38：Copyable、布局、构造与结构移动
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 Copyable、Box、有限布局、构造和结构化移动时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 Copyable、Box、有限布局、构造和结构化移动时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `Copyable` 推导与显式 Opt-out 边界
 
@@ -60,15 +60,17 @@ handle 打断的路径再次遇到同一 value/enum 名义声明时，无论类�
 ### 内建 `Box` 身份与实参边界
 
 v1 的 `Box` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor，不按名称字符串
-特判。它精确接受一个类型实参，且该实参必须能静态证明为一个具体 `value class` 名义实例；
-普通 `class`、enum、interface、object、基础类型、函数类型与类型参数均不合法。当前上界
-语言没有“是 value class”这种 kind bound，因此即使 `T : Copyable` 也不足以让 `Box<T>`
-合法；泛型代码必须在具体 value-class 实例已知的位置使用 `Box`。
+特判。它精确接受一个类型实参，且该实参必须能静态证明为一个具体 `value class` 或 `enum class`
+名义实例；普通 `class`、interface、object、基础类型、函数类型与类型参数均不合法。当前上界
+语言没有“是 value class 或 enum”这种 kind bound，因此即使 `T : Copyable` 也不足以让 `Box<T>`
+合法；泛型代码必须在具体 value-class 或 enum-class 实例已知的位置使用 `Box`。
 
-`Box<T>` 自身始终 `MoveOnly`，并打断内联递归。源码中声明 `class Box<T>` 只产生普通名义
-class，不取得 intrinsic 语义；外部环境没有绑定 intrinsic `Box` 时，编译器不得按拼写猜测。
-intrinsic `Box` 的实参数量不是 type-kind 约束：零个或多于一个类型实参沿用 L0091
-`type argument arity`，只有数量为一但 type kind 不合法时才使用 L0117。
+`Box<T>` 自身始终 `MoveOnly`，并打断内联递归。在 `enum class` 的递归定义中（如表达式树
+`enum class Expr { Num(val value: Int), Add(val left: Box<Expr>, val right: Box<Expr>) }`），
+`Box<Expr>` 提供了堆分配的间接 handle，从而天然打破无限内联递归。
+源码中声明 `class Box<T>` 只产生普通名义 class，不取得 intrinsic 语义；外部环境没有绑定
+intrinsic `Box` 时，编译器不得按拼写猜测。intrinsic `Box` 的实参数量不是 type-kind 约束：
+零个或多于一个类型实参沿用 L0091 `type argument arity`，只有数量为一但 type kind 不合法时才使用 L0117。
 
 ### 局部结构化解构
 
@@ -96,7 +98,7 @@ intrinsic `Box` 的实参数量不是 type-kind 约束：零个或多于一个�
 |---|---|---|
 | L0115 | 类型实参不满足内建 `Copyable` 上界 | primary 为实参 TypeRef；label 指向上界声明 |
 | L0116 | 直接或间接形成无限内联布局环 | primary 为闭环字段 / payload TypeRef；labels 按环中声明顺序列出其余边 |
-| L0117 | intrinsic `Box` 的实参不是可证明的具体 `value class` 实例 | primary 为实参 TypeRef；无 intrinsic 绑定时不使用此诊断 |
+| L0117 | intrinsic `Box` 的实参不是可证明的具体 `value class` 或 `enum class` 实例 | primary 为实参 TypeRef；无 intrinsic 绑定时不使用此诊断 |
 | L0118 | `value class` 结构化解构绑定数与字段数不一致 | primary 为解构 pattern；label 指向类型声明并给出期望数量 |
 
 本节不定义一般 callable/member/constructor 选择、独立 `componentN()` 调用、字段投影所有权、

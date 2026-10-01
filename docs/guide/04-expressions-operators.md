@@ -1,8 +1,8 @@
-# Koven v0.37：表达式与运算符
+# Koven v0.38：表达式与运算符
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 整数溢出与除零
 
@@ -124,8 +124,17 @@ multiplicative_expression = cast_expression,
 additive_expression       = multiplicative_expression,
                             { ( "+" | "-" ), multiplicative_expression } ;
 
-range_expression = additive_expression,
-                   [ ( ".." | "..<" ), additive_expression ] ;
+shift_expression          = additive_expression,
+                            { ( "shl" | "shr" | "ushr" ), additive_expression } ;
+bitwise_and_expression    = shift_expression,
+                            { "and", shift_expression } ;
+bitwise_xor_expression    = bitwise_and_expression,
+                            { "xor", bitwise_and_expression } ;
+bitwise_or_expression     = bitwise_xor_expression,
+                            { "or", bitwise_xor_expression } ;
+
+range_expression = bitwise_or_expression,
+                   [ ( ".." | "..<" ), bitwise_or_expression ] ;
 to_expression    = range_expression, { "to", range_expression } ;
 elvis_expression = to_expression, [ "?:", elvis_expression ] ;
 
@@ -155,17 +164,22 @@ assignment_operator   = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 | 3 | `as` `as?` | 左结合 |
 | 4 | `*` `/` `%` | 左结合 |
 | 5 | `+` `-` | 左结合 |
-| 6 | `..` `..<` | 不结合 |
-| 7 | 精确软词 `to` | 左结合 |
-| 8 | `?:` | 右结合 |
-| 9 | `in` `!in` `is` `!is` | 不结合 |
-| 10 | `<` `>` `<=` `>=` | 不结合 |
-| 11 | `==` `!=` | 不结合 |
-| 12 | `&&` | 左结合 |
-| 13 | `\|\|` | 左结合 |
-| 14 | `=` `+=` `-=` `*=` `/=` `%=` | 右结合 |
+| 6 | 移位软词 `shl` `shr` `ushr` | 左结合 |
+| 7 | 按位与软词 `and` | 左结合 |
+| 8 | 按位异或软词 `xor` | 左结合 |
+| 9 | 按位或软词 `or` | 左结合 |
+| 10 | `..` `..<` | 不结合 |
+| 11 | 精确软词 `to` | 左结合 |
+| 12 | `?:` | 右结合 |
+| 13 | `in` `!in` `is` `!is` | 不结合 |
+| 14 | `<` `>` `<=` `>=` | 不结合 |
+| 15 | `==` `!=` | 不结合 |
+| 16 | `&&` | 左结合 |
+| 17 | `\|\|` | 左结合 |
+| 18 | `=` `+=` `-=` `*=` `/=` `%=` | 右结合 |
 
-v1 的中缀运算符集合精确封闭为 identifier 拼写 `to`；不存在“`to` 等”这一开放集合。
+v1 的中缀运算符集合精确封闭为 identifier 拼写 `to`，以及整数具名中缀位运算符 `shl`、`shr`、`ushr`、`and`、`xor`、`or`；不存在其他开放中缀运算符集合。
+按位取反由整数类型上的内建/扩展方法 `x.inv()` 表达，不占用前缀符号。
 `infix` 在表达式中只是普通标识符，不能触发中缀解析；其标准库声明上下文形态延后定义。
 
 `in` / `!in` 的右侧是表达式；`is` / `!is` 的右侧必须是 `type_ref`。四者共享同一

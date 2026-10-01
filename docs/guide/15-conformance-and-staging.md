@@ -1,8 +1,8 @@
-# Koven v0.37：一致性、Phase 与实施边界
+# Koven v0.38：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -48,14 +48,7 @@ TypeRef 节点遵循以下唯一合成规则：
 | type arguments | 从 `<` 起到匹配 `>` 终；若实现不为它单建节点，该范围仍完整纳入所属 qualified type |
 | TypeRef error | 与通用 error 相同：覆盖实际消费的错误区域；只有位于 stop token / delimiter / EOF 且没有可消费 token 时可以为空 |
 
-函数类型 AST 的 `parameters` 唯一改为源码顺序的 `Vec<FunctionTypeParameter>`；每项至少保存
-`span`、`mode_marker: Option<ParameterModeMarker>` 与唯一 `type_ref: TypeRefId`。marker 缺失
-表示 `Borrow`；显式 marker 使用封闭的
-`ParameterModeMarker::{Own(Span), Borrow(Span), Inout(Span)}`，不得用多个独立 `Option`
-制造“有模式无 Span”或“有 Span 无模式”的半状态。语义层唯一映射为
-`None | Some(Borrow) -> ParameterMode::Borrow`、`Some(Own) -> ParameterMode::Value`、
-`Some(Inout) -> ParameterMode::Inout`。参数名不进入函数类型 AST；类型身份比较规范化后的
-语义 mode，而不是比较 `None` 与显式 `Borrow` 的源码形态。
+函数类型 AST 的 `parameters` 保持源码顺序的参数列表；每项至少保存完整 `span`、参数模式标记（`mode_marker`）与唯一类型引用 `type_ref`。模式标记缺失表示默认的 `borrow`；显式模式标记保存 `own`、`borrow` 或 `inout` 及其精确 token `Span`，不得用独立状态制造“有模式无 Span”或“有 Span 无模式”的半状态。语义层统一映射为：默认或显式 `borrow` 对应 `Borrow` 模式，`own` 对应 `Value` 所有权模式，`inout` 对应 `Inout` 可变引用模式。参数名不进入函数类型 AST；类型身份比较规范化后的语义模式，而不是源码写法差异。
 
 所有空 Error TypeRef / Expression 都位于下一 non-trivia boundary token 的起点（EOF 则为
 EOF offset），但**零宽插入范围不扩大父节点**。父函数类型参数、value parameter 或
@@ -80,10 +73,7 @@ duplicate-mode 类别不同。现行语言不为函数类型引入空项、缺 s
 comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径单调前进，单个函数类型保持
 `O(n)`。
 
-调用点类型实参的 strict trial 必须同步识别这里扩展后的 `function_type_parameter`；合法的
-`f<(borrow T) -> R>()`、`f<(own T) -> R>()`、嵌套泛型中的模式函数类型以及对应失败候选，都必须继续满足[TypeRef 规则](03-types-generics.md)
-既有的无副作用、Match / NoMatch 预算传播与整根 `O(n)` 预索引约束。不得在正式 TypeRef parser
-接受参数模式后，让 trial 仍按旧 `Vec<TypeRef>` 语法误回退为比较，也不得为每个 `<` 重新扫描。
+调用点类型实参必须同步支持函数类型参数模式；合法的 `f<(borrow T) -> R>()`、`f<(own T) -> R>()`、嵌套泛型中的模式函数类型以及对应失败候选，都必须按既有无副作用原则与整根 `O(n)` 约束精确解析，不得在正式 TypeRef 语法接受参数模式后因前瞻不足误回退为比较操作符。
 
 ## Phase 边界
 
@@ -97,7 +87,7 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.37。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.38。
 
 具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
@@ -124,7 +114,251 @@ nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering �
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
-也继续延后。v0.37 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
-
+也继续延后。v0.38 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
 
 顺序迭代的 typed/ownership 与首轮 native source 边界见[§37.4](12-collections-destructuring.md#374-irphase-交接与非目标)；规范启用不表示阶段实现已完成。
+
+---
+
+## 规范性 Litmus 程序集
+
+本节定义一组覆盖 Koven v1 核心特性的规范性 Litmus 源码集，作为语言设计一致性、前端检查与端到端编译验收的标准样例。
+
+### Litmus 1: 基础函数与局部变量
+
+演示包声明、导入、表达式体与块级函数、不可变/可变局部变量及基本类型运算：
+
+```kotlin
+package demo.basic
+
+fun add(a: Int, b: Int): Int = a + b
+
+fun compute(x: Int): Int {
+    val factor: Int = 2
+    var result: Int = add(x, factor)
+    result = result + 10
+    return result
+}
+```
+
+### Litmus 2: 换行分句与表达式续行
+
+演示换行敏感的语句边界、行内分号分隔以及二元运算符跨行续行：
+
+```kotlin
+package demo.syntax
+
+fun statements(): Unit {
+    val a = 1
+    val b = 2
+    val c = a +
+        b * 3
+    val d = 10; val e = 20
+}
+```
+
+### Litmus 3: 控制流与循环结构
+
+演示值语境/语句语境 `if-else`、`while` 循环、无条件 `loop` 及 `break` / `continue`：
+
+```kotlin
+package demo.control
+
+fun classify(n: Int): Int {
+    val sign = if (n > 0) 1 else if (n < 0) -1 else 0
+    var count = 0
+    while (count < n) {
+        count = count + 1
+        if (count == 5) break
+    }
+    loop {
+        if (count <= 0) break
+        count = count - 1
+    }
+    return sign
+}
+```
+
+### Litmus 4: 枚举类型与穷尽 when 匹配
+
+演示带有 payload 的 `enum class`、封闭域穷尽 `when` 匹配与自动 smart-cast：
+
+```kotlin
+package demo.enums
+
+enum class Shape {
+    Circle(val radius: Int),
+    Rectangle(val width: Int, val height: Int),
+    Point
+}
+
+fun area(s: Shape): Int {
+    return when (s) {
+        is Shape.Circle -> 3 * s.radius * s.radius
+        is Shape.Rectangle -> s.width * s.height
+        Shape.Point -> 0
+    }
+}
+```
+
+### Litmus 5: 类、值类与伴随对象
+
+演示引用类、内联 `value class`、成员函数与 `companion object` 关联成员：
+
+```kotlin
+package demo.oop
+
+class Counter(val initial: Int) {
+    var count: Int = initial
+
+    fun increment(): Unit {
+        count = count + 1
+    }
+}
+
+value class Meter(val value: Int) {
+    fun toCentimeters(): Int = value * 100
+}
+
+class SystemConfig {
+    companion object {
+        const val TIMEOUT_MS: Int = 5000
+    }
+}
+```
+
+### Litmus 6: 泛型、接口与单态化
+
+演示泛型参数、接口抽象契约、显式覆盖以及编译期静态单态化：
+
+```kotlin
+package demo.generics
+
+interface Printable {
+    fun printSelf(): Unit
+}
+
+class Container<T>(val item: T) : Printable {
+    override fun printSelf(): Unit {
+        // 单态化实现
+    }
+
+    fun get(): T = item
+}
+
+fun <T> identity(value: T): T = value
+```
+
+### Litmus 7: 线性所有权与移动语义
+
+演示默认移动语义、`Box<T>` 堆分配与确定性作用域析构（ASAP drop）：
+
+```kotlin
+package demo.ownership
+
+class Resource(val id: Int)
+
+fun consume(r: Resource): Unit {
+    // r 在函数退出时执行析构
+}
+
+fun lifecycle(): Unit {
+    val r1 = Resource(1)
+    val r2 = r1 // 所有权移动，r1 不再可用
+    consume(r2)
+}
+```
+
+### Litmus 8: 借用检查与在位可变引用
+
+演示只读借用（`borrow`）、显式在位引用（`inout` / `&`）与别名排斥：
+
+```kotlin
+package demo.borrowing
+
+class Node(var value: Int)
+
+fun inspect(borrow n: Node): Int = n.value
+
+fun update(inout n: Node, delta: Int): Unit {
+    n.value = n.value + delta
+}
+
+fun test(): Unit {
+    var node = Node(42)
+    val v = inspect(node)
+    update(&node, 10)
+}
+```
+
+### Litmus 9: 空安全、流类型与非空断言
+
+演示可空类型 `T?`、基于分支的事实收窄（smart-cast）与显式非空断言操作符 `!!`：
+
+```kotlin
+package demo.nullability
+
+fun process(name: String?): Int {
+    if (name != null) {
+        // 流类型收窄为非空 String
+        return 1
+    }
+    val fallback: String? = name
+    val forced: String = fallback!!
+    return 0
+}
+```
+
+### Litmus 10: 函数类型与闭包捕获
+
+演示带有借用模式标注的高阶函数、尾随 lambda 语法与闭包环境：
+
+```kotlin
+package demo.functional
+
+fun applyTwice(x: Int, f: (borrow Int) -> Int): Int {
+    return f(f(x))
+}
+
+fun testClosure(): Int {
+    val base = 10
+    val addBase = { y: Int -> base + y }
+    return applyTwice(5, addBase)
+}
+```
+
+### Litmus 11: 顺序集合遍历与结构解构
+
+演示区间语法 `..`、`for` 迭代遍历与解构绑定：
+
+```kotlin
+package demo.iteration
+
+fun sumRange(): Int {
+    var sum = 0
+    for (i in 1..10) {
+        sum = sum + i
+    }
+    return sum
+}
+```
+
+### Litmus 12: 关联常量与标准库互操作
+
+演示位运算软关键字（`shl`, `and`）、关联常量访问以及标准库 `println` 调用：
+
+```kotlin
+package demo.interop
+
+class BitMasks {
+    companion object {
+        const val READ: Int = 1 shl 0
+        const val WRITE: Int = 1 shl 1
+    }
+}
+
+fun main(): Unit {
+    val mask = BitMasks.READ or BitMasks.WRITE
+    println("Mask initialized")
+}
+```

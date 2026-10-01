@@ -33,7 +33,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.37\s*-->")
+CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.38\s*-->")
 SCOPED_AGENT_DIRS = (
     "lang-frontend",
     "lang-codegen",

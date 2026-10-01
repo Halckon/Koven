@@ -8,7 +8,7 @@
 
 | 区域 | 回答的问题 | 权威性 |
 |---|---|---|
-| `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.37 |
+| `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.38 |
 | `architecture/` | 仓库现在已经实现成什么样 | 当前事实快照 |
 | `development/` | 如何开发、验证与交付 | 工程规则 |
 | `specs/` | 一次变更做什么、依赖与验收是什么 | 变更合同 |
@@ -21,7 +21,7 @@ ADR 不替代 guide，AGENTS 不保存版本实施清单。
 
 ## 2. Guide
 
-- [guide/README.md](guide/README.md) 是唯一 current 入口，当前版本固定为 v0.37。
+- [guide/README.md](guide/README.md) 是唯一 current 入口，当前版本固定为 v0.38。
 - 纯结构、链接或不改变含义的表述修正不提升版本；关键字、语法、类型、所有权、标准库契约或
   强制 Phase 边界变化必须形成新版本并由用户明确启用。
 - 候选规则只能进入 `proposals/`；创建更高版本号或 draft Spec 不会自动取得规范地位。

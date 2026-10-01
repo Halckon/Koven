@@ -1,8 +1,8 @@
-# Koven v0.37：程序入口、Runtime 与标准库
+# Koven v0.38：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.37） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.37 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -234,3 +234,32 @@ fun start(args: Array<String>): Unit { ... }
 dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI 与构建规范。
 
 ---
+
+## 受控底层能力与 Unsafe 边界
+
+Phase 5 要求标准库（`koven/**/*.ko`）以目标语言自身编写并作为自举真源。为满足内存分配、系统调用与底层数据结构（如 `Vector`、`String` 底层 buffer）的实现需求，Koven 定义以下受控底层能力：
+
+### 受控原语与内部边界
+
+1. **`extern "C"` 外部函数声明**：
+   允许在标准库内部声明直接绑定到平台 libc 或 native runtime 的底层函数：
+   ```kotlin
+   extern "C" fun malloc(size: Int): RawPtr<Unit>
+   extern "C" fun free(ptr: RawPtr<Unit>): Unit
+   ```
+   外部函数必须在编译期验证符号与 C ABI 兼容性，不参与普通 Koven 所有权与生命周期自动析构。
+
+2. **`RawPtr<T>` 裸指针**：
+   `RawPtr<T>` 是标准库内部持有的非安全内存地址抽象，不拥有所有权，不保证内存有效性或非空不变性，不执行自动 drop。解引用、偏移运算或地址转换必须在显式 `unsafe` 块内执行。
+
+3. **`unsafe { ... }` 表达式/块**：
+   `unsafe` 块作为危险操作的隔离边界，用于显式标记并确认包含以下操作：
+   - 调用 `extern "C"` 声明的外部符号；
+   - 对 `RawPtr<T>` 进行读取、写入或内存偏移；
+   - 在已验证内存布局上执行类型跨越式在位强制转换。
+
+### 安全封装与权限隔离
+
+- **标准库特权**：上述底层能力属于受控特权，仅限在标准库内部模块（`koven.*` 命名空间及指定 runtime 桥接层）中使用。
+- **普通用户代码隔离**：在 v1 阶段，应用层用户源码禁止直接使用 `RawPtr<T>` 或自行定义 `unsafe` 块；编译器对非特权 package 的裸指针访问与未受控外部调用拒绝并报结构化诊断。
+- **安全不变量封装**：标准库通过 RAII、所有权（`own` / `borrow`）与类型系统向外暴露完全安全的高层抽象（如 `Box<T>`、`Array<T>`、`String`），确保 unsafe 实现的边界在标准库内部完全闭合。
