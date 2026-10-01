@@ -12,6 +12,7 @@ ARCH(("已完成<br/>archive 213 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0230["S0230<br/>递归 Box enum 的 native 构造与析构"]
 end
 ARCH --> S0182
 ARCH --> S0228
@@ -23,4 +24,5 @@ ARCH --> S0228
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](active/0228-linux-x86-64-native-host.md) |
+| SPEC-0230 | active | [0230-recursive-boxed-enum-native.md](active/0230-recursive-boxed-enum-native.md) |
 | 已完成 Spec（213 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -25,6 +25,13 @@ pub(super) struct NominalTypeMapper {
     enum_construction_fields: BTreeMap<(TypeId, EnumCaseId), Vec<TypeId>>,
     enum_payloads: EnumPayloadMap,
     active: BTreeSet<TypeId>,
+    pending_boxes: BTreeMap<TypeId, PendingBoxDefinition>,
+}
+
+struct PendingBoxDefinition {
+    owner: SsaTypeId,
+    payload: TypeId,
+    span: Span,
 }
 
 impl NominalTypeMapper {
@@ -70,6 +77,7 @@ impl NominalTypeMapper {
             enum_construction_fields,
             enum_payloads: BTreeMap::new(),
             active: BTreeSet::new(),
+            pending_boxes: BTreeMap::new(),
         })
     }
 
@@ -78,6 +86,44 @@ impl NominalTypeMapper {
     }
 
     pub(super) fn intern(
+        &mut self,
+        module: &mut Module,
+        names: &NameResolution,
+        typed: &TypedFile,
+        ty: TypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        let mapped = self.intern_inner(module, names, typed, ty, span)?;
+        while let Some(ty) = self.pending_boxes.keys().next().copied() {
+            self.define_pending_box(module, names, typed, ty)?;
+        }
+        Ok(mapped)
+    }
+
+    fn define_pending_box(
+        &mut self,
+        module: &mut Module,
+        names: &NameResolution,
+        typed: &TypedFile,
+        ty: TypeId,
+    ) -> Result<(), LoweringError> {
+        let Some(PendingBoxDefinition {
+            owner,
+            payload,
+            span,
+        }) = self.pending_boxes.remove(&ty)
+        else {
+            return Ok(());
+        };
+        let payload = self.intern_inner(module, names, typed, payload, span)?;
+        module
+            .define_heap_owner(owner, payload)
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.heap_payloads.insert(owner, payload);
+        Ok(())
+    }
+
+    pub(super) fn intern_inner(
         &mut self,
         module: &mut Module,
         names: &NameResolution,
@@ -112,11 +158,16 @@ impl NominalTypeMapper {
                     .declare_heap_owner(format!("Box#t{}", ty.index()))
                     .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
                 self.type_ids.insert(ty, owner);
-                let payload = self.intern(module, names, typed, payload_type, span)?;
-                module
-                    .define_heap_owner(owner, payload)
-                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-                self.heap_payloads.insert(owner, payload);
+                // The pointer identity is sufficient while its containing inline enum is built.
+                // Define the payload after the outer inline type has acquired its SSA identity.
+                self.pending_boxes.insert(
+                    ty,
+                    PendingBoxDefinition {
+                        owner,
+                        payload: payload_type,
+                        span,
+                    },
+                );
                 module.set_type_origin(
                     owner,
                     TypeOrigin {
@@ -138,7 +189,8 @@ impl NominalTypeMapper {
                     .declare_shared_owner(format!("Rc#t{}", ty.index()))
                     .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
                 self.type_ids.insert(ty, owner);
-                let payload = self.intern(module, names, typed, payload_type, span)?;
+                let payload = self.intern_inner(module, names, typed, payload_type, span)?;
+                self.define_pending_box(module, names, typed, payload_type)?;
                 module
                     .define_shared_owner(owner, payload)
                     .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
@@ -152,7 +204,9 @@ impl NominalTypeMapper {
                 owner
             }
             Some(TypeKind::Nullable(inner)) => {
-                let inner = self.intern(module, names, typed, *inner, span)?;
+                let inner_type = *inner;
+                let inner = self.intern_inner(module, names, typed, inner_type, span)?;
+                self.define_pending_box(module, names, typed, inner_type)?;
                 module
                     .add_nullable_handle_type(inner)
                     .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?
@@ -188,7 +242,7 @@ impl NominalTypeMapper {
             let fields = self.field_types(typed, ty, descriptor.fields(), span)?;
             let fields = fields
                 .into_iter()
-                .map(|field| self.intern(module, names, typed, field, span))
+                .map(|field| self.intern_inner(module, names, typed, field, span))
                 .collect::<Result<Vec<_>, _>>()?;
             let payload = module
                 .add_aggregate_type(format!("{base_name}#t{}.payload", ty.index()), fields)
@@ -214,7 +268,7 @@ impl NominalTypeMapper {
         let fields = self.field_types(typed, ty, descriptor.fields(), span)?;
         let fields = fields
             .into_iter()
-            .map(|field| self.intern(module, names, typed, field, span))
+            .map(|field| self.intern_inner(module, names, typed, field, span))
             .collect::<Result<Vec<_>, _>>()?;
         self.active.remove(&ty);
         let aggregate = module
@@ -261,7 +315,7 @@ impl NominalTypeMapper {
                 .unwrap_or_else(|| case.payloads().iter().map(|(_, ty)| *ty).collect());
             let fields = fields
                 .into_iter()
-                .map(|field| self.intern(module, names, typed, field, span))
+                .map(|field| self.intern_inner(module, names, typed, field, span))
                 .collect::<Result<Vec<_>, _>>()?;
             let payload = module
                 .add_aggregate_type(

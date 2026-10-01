@@ -34,6 +34,9 @@ mod non_null_assertion_tests;
 #[path = "unit_constant_tests.rs"]
 mod constants;
 
+#[path = "unit_boxed_enum_tests.rs"]
+mod boxed_enum_tests;
+
 struct UnitAnalysis {
     sources: SourceMap,
     provider_source: SourceId,
