@@ -1356,10 +1356,10 @@ impl ExpressionLowerer<'_> {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
                 for context in &mut self.loops {
-                    if let Some(ref mut for_data) = context.for_loop {
-                        if for_data.statement.index() == stmt {
-                            for_data.body_source = loan;
-                        }
+                    if let Some(ref mut for_data) = context.for_loop
+                        && for_data.statement.index() == stmt
+                    {
+                        for_data.body_source = loan;
                     }
                 }
             }
@@ -1368,10 +1368,10 @@ impl ExpressionLowerer<'_> {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
                 for context in &mut self.loops {
-                    if let Some(ref mut for_data) = context.for_loop {
-                        if for_data.statement.index() == stmt {
-                            for_data.guarded_element.set_loan(loan);
-                        }
+                    if let Some(ref mut for_data) = context.for_loop
+                        && for_data.statement.index() == stmt
+                    {
+                        for_data.guarded_element.set_loan(loan);
                     }
                 }
             }

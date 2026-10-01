@@ -916,10 +916,9 @@ impl ExpressionLowerer<'_> {
                     .rev()
                     .find(|c| c.for_loop.as_ref().is_some_and(|f| f.statement == *stmt))
                     && let Some(ref mut for_data) = context.for_loop
+                    && let Some(loan) = for_data.active_source_loan.take()
                 {
-                    if let Some(loan) = for_data.active_source_loan.take() {
-                        self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
-                    }
+                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
                 }
             }
             Action::EndCallLoan(fact) => {

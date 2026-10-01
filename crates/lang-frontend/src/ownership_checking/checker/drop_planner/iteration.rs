@@ -1994,6 +1994,14 @@ mod tests {
         }
     }
 
+    /// 同一次入边回放读取的 owner 句柄、实例节点和已保存捕获槽。
+    #[derive(Clone, Copy)]
+    struct ReplayInstances<'a> {
+        values: &'a BTreeMap<CleanupOwnerValueId, usize>,
+        nodes: &'a BTreeMap<usize, usize>,
+        captured: &'a BTreeMap<(usize, usize), usize>,
+    }
+
     /// 从旧状态选根句柄，再按实例保存的捕获槽写入实际可达节点。
     fn replay_captured_edge_presence(
         table: &CleanupConditions,
@@ -2001,11 +2009,14 @@ mod tests {
         layout: &IterationClosurePhiBinding,
         edge: &crate::ownership_checking::IterationPhiIncoming,
         target: CleanupOwnerValueId,
-        values: &BTreeMap<CleanupOwnerValueId, usize>,
-        instance_nodes: &BTreeMap<usize, usize>,
-        captured: &BTreeMap<(usize, usize), usize>,
+        instances: ReplayInstances<'_>,
         choices: &mut BTreeMap<crate::ownership_checking::CleanupSelectorId, usize>,
     ) -> (CleanupOwnerValueId, usize) {
+        let ReplayInstances {
+            values,
+            nodes: instance_nodes,
+            captured,
+        } = instances;
         let before = choices.clone();
         assert!(selected(table, edge.condition(), &before));
         let binding = edge
@@ -2091,11 +2102,10 @@ mod tests {
         graph: &IterationCaptureGraph,
         layouts: &[IterationClosurePhiBinding],
         edge: &crate::ownership_checking::IterationPhiIncoming,
-        values: &BTreeMap<CleanupOwnerValueId, usize>,
-        instance_nodes: &BTreeMap<usize, usize>,
-        captured: &BTreeMap<(usize, usize), usize>,
+        instances: ReplayInstances<'_>,
         choices: &mut BTreeMap<crate::ownership_checking::CleanupSelectorId, usize>,
     ) -> BTreeMap<CleanupOwnerValueId, (CleanupOwnerValueId, usize)> {
+        let values = instances.values;
         let before = choices.clone();
         assert!(selected(table, edge.condition(), &before));
         let mut writes = BTreeMap::new();
@@ -2161,9 +2171,7 @@ mod tests {
                         layout,
                         edge,
                         binding.target(),
-                        values,
-                        instance_nodes,
-                        captured,
+                        instances,
                         &mut after,
                     );
                     assert!(transported.insert(binding.target(), source).is_none());
@@ -2913,11 +2921,13 @@ mod tests {
         assert_eq!(entry_binding.values()[0].source(), parent.owner());
         let jump_edge = planner.loop_phi_incomings[&statement.index()]
             .iter()
-            .find(|incoming| match (tail, incoming.kind()) {
-                ("continue", IterationPhiIncomingKind::Continue(_))
-                | ("break", IterationPhiIncomingKind::Break(_))
-                | ("", IterationPhiIncomingKind::Fallthrough) => true,
-                _ => false,
+            .find(|incoming| {
+                matches!(
+                    (tail, incoming.kind()),
+                    ("continue", IterationPhiIncomingKind::Continue(_))
+                        | ("break", IterationPhiIncomingKind::Break(_))
+                        | ("", IterationPhiIncomingKind::Fallthrough)
+                )
             })
             .unwrap();
         let jump_target = if tail == "break" {
@@ -4021,9 +4031,11 @@ mod tests {
                 .find(|incoming| incoming.kind() == IterationPhiIncomingKind::Entry)
                 .unwrap(),
             entry.target(),
-            &values,
-            &instance_nodes,
-            &captured_slots,
+            ReplayInstances {
+                values: &values,
+                nodes: &instance_nodes,
+                captured: &captured_slots,
+            },
             &mut choices,
         );
         assert_eq!(entry_source, entry_root.source());
@@ -4087,9 +4099,11 @@ mod tests {
                     .find(|incoming| incoming.kind() == IterationPhiIncomingKind::Fallthrough)
                     .unwrap(),
                 backedge.target(),
-                &values,
-                &instance_nodes,
-                &captured_slots,
+                ReplayInstances {
+                    values: &values,
+                    nodes: &instance_nodes,
+                    captured: &captured_slots,
+                },
                 &mut choices,
             );
             assert_eq!(source, active[0].source());
@@ -4161,9 +4175,11 @@ mod tests {
             exit,
             exhaustion,
             exit.owner(),
-            &values,
-            &instance_nodes,
-            &captured_slots,
+            ReplayInstances {
+                values: &values,
+                nodes: &instance_nodes,
+                captured: &captured_slots,
+            },
             &mut choices,
         );
         assert_eq!(source, active[0].source());
@@ -4259,9 +4275,11 @@ mod tests {
             exit,
             exhaustion,
             exit.owner(),
-            &zero_round,
-            &instance_nodes,
-            &BTreeMap::new(),
+            ReplayInstances {
+                values: &zero_round,
+                nodes: &instance_nodes,
+                captured: &BTreeMap::new(),
+            },
             &mut zero_choices,
         );
         assert_eq!(source, active[0].source());
@@ -4366,11 +4384,13 @@ mod tests {
         let jump = plan
             .closure_phi_incomings()
             .iter()
-            .find(|edge| match (tail, edge.kind()) {
-                ("", IterationPhiIncomingKind::Fallthrough)
-                | ("continue", IterationPhiIncomingKind::Continue(_))
-                | ("if (stop) { break }", IterationPhiIncomingKind::Break(_)) => true,
-                _ => false,
+            .find(|edge| {
+                matches!(
+                    (tail, edge.kind()),
+                    ("", IterationPhiIncomingKind::Fallthrough)
+                        | ("continue", IterationPhiIncomingKind::Continue(_))
+                        | ("if (stop) { break }", IterationPhiIncomingKind::Break(_))
+                )
             })
             .unwrap();
         let exhaustion = incoming(IterationPhiIncomingKind::Exhaustion);
@@ -4596,7 +4616,7 @@ mod tests {
                 let seed_input = seed_snapshot
                     .capture_inputs()
                     .iter()
-                    .filter(|input| selected(&table, input.condition(), &choices))
+                    .filter(|input| selected(table, input.condition(), &choices))
                     .collect::<Vec<_>>();
                 let [seed_input] = seed_input.as_slice() else {
                     panic!("one branch must form the seed environment")
@@ -4633,7 +4653,7 @@ mod tests {
                                 || fact.target() == DropTarget::Named(header.symbol()))
                                 && fact
                                     .condition()
-                                    .is_none_or(|guard| selected(&table, guard, choices)))
+                                    .is_none_or(|guard| selected(table, guard, choices)))
                             .then_some((instance_release, *fact))
                         })
                         .collect::<Vec<_>>()
@@ -4700,30 +4720,32 @@ mod tests {
                     unreachable!()
                 };
                 assert_eq!(value, seed_snapshot.value());
-                assert!(condition.is_none_or(|guard| { selected(&table, guard, &choices) }));
+                assert!(condition.is_none_or(|guard| { selected(table, guard, &choices) }));
                 let inputs = seed_snapshot
                     .capture_inputs()
                     .iter()
-                    .filter(|input| selected(&table, input.condition(), &choices))
+                    .filter(|input| selected(table, input.condition(), &choices))
                     .collect::<Vec<_>>();
                 assert_eq!(inputs.len(), 1);
                 let formed = owners.remove(&inputs[0].owner()).unwrap();
                 assert!(owners.insert(owner, formed).is_none());
-                replay_snapshot_choices(&table, owner, &mut choices);
+                replay_snapshot_choices(table, owner, &mut choices);
                 assert!(root_actions_at(seed_save.0, &choices).is_empty());
                 executed_points.push((seed_save.0, choices.clone()));
                 let entry_root =
-                    active_root(&table, entry_binding, &owners, &nodes, &choices).unwrap();
+                    active_root(table, entry_binding, &owners, &nodes, &choices).unwrap();
                 assert_eq!(entry_root, (seed_node, entry_value.source()));
                 assert!(root_actions_at(entry.point(), &choices).is_empty());
                 let entry_values = replay_captured_edge(
-                    &table,
+                    table,
                     graph,
                     phis,
                     entry,
-                    &owners,
-                    &nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &owners,
+                        nodes: &nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(entry_values.len(), 1);
@@ -4751,7 +4773,7 @@ mod tests {
                                 input,
                             } => {
                                 assert_eq!(*owner, recursive_owner);
-                                assert!(selected(&table, input.condition(), &choices));
+                                assert!(selected(table, input.condition(), &choices));
                                 assert_eq!(input.effect(), ClosureCaptureEffect::Move);
                                 let CleanupCaptureValue::Owner(source) = input.value() else {
                                     panic!("recursive capture must read the old header")
@@ -4772,18 +4794,18 @@ mod tests {
                                     (recursive_snapshot, recursive_closure)
                                 );
                                 assert!(
-                                    condition.is_none_or(|guard| selected(&table, guard, &choices))
+                                    condition.is_none_or(|guard| selected(table, guard, &choices))
                                 );
                                 let snapshot = table.owner_snapshot(*owner).unwrap();
                                 let inputs = snapshot
                                     .capture_inputs()
                                     .iter()
-                                    .filter(|input| selected(&table, input.condition(), &choices))
+                                    .filter(|input| selected(table, input.condition(), &choices))
                                     .collect::<Vec<_>>();
                                 assert_eq!(inputs.len(), 1);
                                 let formed = owners.remove(&inputs[0].owner()).unwrap();
                                 assert!(owners.insert(*owner, formed).is_none());
-                                replay_snapshot_choices(&table, *owner, &mut choices);
+                                replay_snapshot_choices(table, *owner, &mut choices);
                             }
                             IterationCleanupAction::CommitOwnerSnapshot { owner, target } => {
                                 assert_eq!(
@@ -4816,21 +4838,23 @@ mod tests {
                         );
                         let mut skipped = choices.clone();
                         skipped.insert(*selector, 1);
-                        assert!(!selected(&table, jump.condition(), &skipped));
+                        assert!(!selected(table, jump.condition(), &skipped));
                         choices.insert(*selector, 0);
                     }
                     let jump_root =
-                        active_root(&table, jump_binding, &owners, &nodes, &choices).unwrap();
+                        active_root(table, jump_binding, &owners, &nodes, &choices).unwrap();
                     assert_eq!(jump_root, (recursive_node, recursive_snapshot));
                     assert!(root_actions_at(jump.point(), &choices).is_empty());
                     let jump_values = replay_captured_edge(
-                        &table,
+                        table,
                         graph,
                         phis,
                         jump,
-                        &owners,
-                        &nodes,
-                        &captured,
+                        ReplayInstances {
+                            values: &owners,
+                            nodes: &nodes,
+                            captured: &captured,
+                        },
                         &mut choices,
                     );
                     assert_eq!(jump_values.len(), 1);
@@ -4848,18 +4872,20 @@ mod tests {
                     assert_eq!(owners[&exit.owner()], chain[rounds]);
                 } else {
                     let exit_root =
-                        active_root(&table, exit_binding, &owners, &nodes, &choices).unwrap();
+                        active_root(table, exit_binding, &owners, &nodes, &choices).unwrap();
                     assert_eq!(exit_root.0, *nodes.get(&chain[rounds]).unwrap());
                     assert_eq!(exit_root.1, header.owner());
                     assert!(root_actions_at(exhaustion.point(), &choices).is_empty());
                     let exit_values = replay_captured_edge(
-                        &table,
+                        table,
                         graph,
                         phis,
                         exhaustion,
-                        &owners,
-                        &nodes,
-                        &captured,
+                        ReplayInstances {
+                            values: &owners,
+                            nodes: &nodes,
+                            captured: &captured,
+                        },
                         &mut choices,
                     );
                     assert_eq!(exit_values.len(), 1);
@@ -4872,7 +4898,7 @@ mod tests {
                 assert!(
                     release
                         .condition()
-                        .is_none_or(|guard| { selected(&table, guard, &choices) })
+                        .is_none_or(|guard| { selected(table, guard, &choices) })
                 );
                 assert_eq!(root_actions_at(*point, &choices), [(true, *release)]);
                 executed_points.push((*point, choices.clone()));
@@ -5188,9 +5214,11 @@ mod tests {
             graph,
             phis,
             incoming(IterationPhiIncomingKind::Entry),
-            &owners,
-            &instance_nodes,
-            &captured,
+            ReplayInstances {
+                values: &owners,
+                nodes: &instance_nodes,
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(entry_values.len(), 1);
@@ -5261,9 +5289,11 @@ mod tests {
                 graph,
                 phis,
                 incoming(IterationPhiIncomingKind::Fallthrough),
-                &owners,
-                &instance_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &owners,
+                    nodes: &instance_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(back_values.len(), 1);
@@ -5317,9 +5347,11 @@ mod tests {
                 graph,
                 phis,
                 incoming(IterationPhiIncomingKind::Exhaustion),
-                &owners,
-                nodes,
-                &captured,
+                ReplayInstances {
+                    values: &owners,
+                    nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(exit_values.len(), 1);
@@ -5492,10 +5524,12 @@ mod tests {
             let jump_edge = plan
                 .closure_phi_incomings()
                 .iter()
-                .find(|edge| match (jump, edge.kind()) {
-                    ("continue", IterationPhiIncomingKind::Continue(_))
-                    | ("break", IterationPhiIncomingKind::Break(_)) => true,
-                    _ => false,
+                .find(|edge| {
+                    matches!(
+                        (jump, edge.kind()),
+                        ("continue", IterationPhiIncomingKind::Continue(_))
+                            | ("break", IterationPhiIncomingKind::Break(_))
+                    )
                 })
                 .unwrap();
             assert_eq!(jump_edge.boundary(), boundary, "{jump}");
@@ -5695,7 +5729,7 @@ mod tests {
                     .root_sources()
                     .iter()
                     .filter(|source| {
-                        selected(&table, source.condition(), choices)
+                        selected(table, source.condition(), choices)
                             && nodes[&owners[&source.source()]] == source.node()
                     })
                     .collect::<Vec<_>>();
@@ -5721,7 +5755,7 @@ mod tests {
                             }))
                             && root
                                 .condition()
-                                .is_none_or(|condition| selected(&table, condition, choices)))
+                                .is_none_or(|condition| selected(table, condition, choices)))
                         .then_some((*point, release))
                     })
                     .collect::<Vec<_>>()
@@ -5734,13 +5768,15 @@ mod tests {
             assert_eq!(entry_root.source(), initial_owner);
             assert_eq!(entry_root.node(), initial_node);
             let entry_values = replay_captured_edge(
-                &table,
+                table,
                 graph,
                 phis,
                 entry,
-                &owners,
-                &instance_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &owners,
+                    nodes: &instance_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(entry_values.len(), 1);
@@ -5757,7 +5793,7 @@ mod tests {
             assert!(owners.insert(g_header.owner(), 1).is_none());
             let mut next_instance = 1;
             for round in 0..rounds {
-                assert!(selected(&table, f_input.condition(), &choices));
+                assert!(selected(table, f_input.condition(), &choices));
                 next_instance += 1;
                 let f_instance = next_instance;
                 assert!(instance_nodes.insert(f_instance, f_node).is_none());
@@ -5766,8 +5802,8 @@ mod tests {
                 assert!(captured.insert((f_instance, f_position), prior_g).is_none());
                 assert_eq!(owners.remove(&f_owner), Some(f_instance));
                 assert!(owners.insert(f_snapshot, f_instance).is_none());
-                replay_snapshot_choices(&table, f_snapshot, &mut choices);
-                assert!(selected(&table, g_input.condition(), &choices));
+                replay_snapshot_choices(table, f_snapshot, &mut choices);
+                assert!(selected(table, g_input.condition(), &choices));
                 next_instance += 1;
                 let g_instance = next_instance;
                 assert!(instance_nodes.insert(g_instance, g_node).is_none());
@@ -5776,7 +5812,7 @@ mod tests {
                 assert!(captured.insert((g_instance, g_position), prior_f).is_none());
                 assert_eq!(owners.remove(&g_owner), Some(g_instance));
                 assert!(owners.insert(g_snapshot, g_instance).is_none());
-                replay_snapshot_choices(&table, g_snapshot, &mut choices);
+                replay_snapshot_choices(table, g_snapshot, &mut choices);
                 for owner in [
                     initial_owner,
                     f_header.owner(),
@@ -5805,7 +5841,7 @@ mod tests {
                     );
                     let mut false_choices = choices.clone();
                     false_choices.insert(*selector, 1);
-                    assert!(!selected(&table, jump_edge.condition(), &false_choices));
+                    assert!(!selected(table, jump_edge.condition(), &false_choices));
                     choices.insert(*selector, 0);
                 } else {
                     assert_eq!(jump_edge.condition(), CleanupConditionId::ALWAYS);
@@ -5815,13 +5851,15 @@ mod tests {
                 assert_eq!(jump_root.node(), g_node, "{jump}");
                 assert_eq!(owners[&jump_root.source()], g_instance, "{jump}");
                 let jump_values = replay_captured_edge(
-                    &table,
+                    table,
                     graph,
                     phis,
                     jump_edge,
-                    &owners,
-                    &instance_nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &owners,
+                        nodes: &instance_nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(jump_values.len(), 1);
@@ -5856,13 +5894,15 @@ mod tests {
                 assert_eq!(exhausted_root.source(), g_header.owner());
                 assert_eq!(exhausted_root.node(), g_node);
                 let exit_values = replay_captured_edge(
-                    &table,
+                    table,
                     graph,
                     phis,
                     incoming(IterationPhiIncomingKind::Exhaustion),
-                    &owners,
-                    &instance_nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &owners,
+                        nodes: &instance_nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(exit_values.len(), 1);
@@ -5881,7 +5921,7 @@ mod tests {
                         && root.owner() == Some(g_exit.owner())
                         && root
                             .condition()
-                            .is_none_or(|condition| selected(&table, condition, &choices)) =>
+                            .is_none_or(|condition| selected(table, condition, &choices)) =>
                     {
                         Some((*point, *root))
                     }
@@ -5930,7 +5970,7 @@ mod tests {
                     (from_chain
                         && fact
                             .condition()
-                            .is_none_or(|condition| selected(&table, condition, &choices)))
+                            .is_none_or(|condition| selected(table, condition, &choices)))
                     .then_some((*point, instance_release, *fact))
                 })
                 .collect::<Vec<_>>();
@@ -6091,9 +6131,11 @@ mod tests {
             header,
             entry,
             header.owner(),
-            &owners,
-            &nodes,
-            &captured,
+            ReplayInstances {
+                values: &owners,
+                nodes: &nodes,
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(source, initial.source());
@@ -6332,10 +6374,12 @@ mod tests {
             let edge = plan
                 .closure_phi_incomings()
                 .iter()
-                .find(|incoming| match (jump, incoming.kind()) {
-                    ("continue", IterationPhiIncomingKind::Continue(_))
-                    | ("break", IterationPhiIncomingKind::Break(_)) => true,
-                    _ => false,
+                .find(|incoming| {
+                    matches!(
+                        (jump, incoming.kind()),
+                        ("continue", IterationPhiIncomingKind::Continue(_))
+                            | ("break", IterationPhiIncomingKind::Break(_))
+                    )
                 })
                 .unwrap();
             assert_eq!(edge.boundary(), boundary, "{jump}");
@@ -6407,7 +6451,7 @@ mod tests {
                 let values = binding
                     .values()
                     .iter()
-                    .filter(|value| selected(&table, value.condition(), choices))
+                    .filter(|value| selected(table, value.condition(), choices))
                     .collect::<Vec<_>>();
                 let [value] = values.as_slice() else {
                     panic!("{jump} must carry exactly one owner value")
@@ -6418,7 +6462,7 @@ mod tests {
                     .filter(|root| {
                         root.source() == value.source()
                             && root.node() == nodes[&owners[&value.source()]]
-                            && selected(&table, root.condition(), choices)
+                            && selected(table, root.condition(), choices)
                     })
                     .collect::<Vec<_>>();
                 let [root] = roots.as_slice() else {
@@ -6583,7 +6627,7 @@ mod tests {
                         (from_chain
                             && fact
                                 .condition()
-                                .is_none_or(|guard| selected(&table, guard, choices)))
+                                .is_none_or(|guard| selected(table, guard, choices)))
                         .then_some((*point, instance_release, *fact))
                     })
                     .collect::<Vec<_>>()
@@ -6628,13 +6672,15 @@ mod tests {
                 .find(|incoming| incoming.kind() == IterationPhiIncomingKind::Entry)
                 .unwrap();
             let entry_values = replay_captured_edge(
-                &table,
+                table,
                 graph,
-                &plan.closure_phis(),
+                plan.closure_phis(),
                 entry_edge,
-                &owners,
-                &instance_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &owners,
+                    nodes: &instance_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(entry_values[&entry.target()], (entry_root.source(), 1));
@@ -6649,7 +6695,7 @@ mod tests {
             }
             let rounds = if jump == "continue" { 2 } else { 1 };
             for instance in 2..=rounds + 1 {
-                assert!(selected(&table, capture.2.condition(), &choices));
+                assert!(selected(table, capture.2.condition(), &choices));
                 assert!(
                     instance_closures
                         .insert(instance, formed[&capture.0])
@@ -6675,7 +6721,7 @@ mod tests {
                     .unwrap();
                 owners.insert(snapshot, formed_value);
                 check_before_exit(&choices);
-                replay_snapshot_choices(&table, snapshot, &mut choices);
+                replay_snapshot_choices(table, snapshot, &mut choices);
                 check_before_exit(&choices);
                 let incoming = if instance == rounds + 1 {
                     input
@@ -6697,20 +6743,24 @@ mod tests {
                 let jump_edge = plan
                     .closure_phi_incomings()
                     .iter()
-                    .find(|edge| match (jump, edge.kind()) {
-                        ("continue", IterationPhiIncomingKind::Continue(_))
-                        | ("break", IterationPhiIncomingKind::Break(_)) => true,
-                        _ => false,
+                    .find(|edge| {
+                        matches!(
+                            (jump, edge.kind()),
+                            ("continue", IterationPhiIncomingKind::Continue(_))
+                                | ("break", IterationPhiIncomingKind::Break(_))
+                        )
                     })
                     .unwrap();
                 let jump_values = replay_captured_edge(
-                    &table,
+                    table,
                     graph,
-                    &plan.closure_phis(),
+                    plan.closure_phis(),
                     jump_edge,
-                    &owners,
-                    &instance_nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &owners,
+                        nodes: &instance_nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(jump_values[&incoming.target()], (root.source(), instance));
@@ -6749,13 +6799,15 @@ mod tests {
                     formed[&capture.0]
                 );
                 let exit_values = replay_captured_edge(
-                    &table,
+                    table,
                     graph,
-                    &plan.closure_phis(),
+                    plan.closure_phis(),
                     exhaustion,
-                    &owners,
-                    &instance_nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &owners,
+                        nodes: &instance_nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(
@@ -7463,9 +7515,11 @@ val used = f() }",
             graph,
             phis,
             incoming(IterationPhiIncomingKind::Entry),
-            &values,
-            &instance_nodes,
-            &owned_edges,
+            ReplayInstances {
+                values: &values,
+                nodes: &instance_nodes,
+                captured: &owned_edges,
+            },
             &mut choices,
         );
         assert_eq!(entry_values[&header.owner()], (initial_owner, 1));
@@ -7530,9 +7584,11 @@ val used = f() }",
                 graph,
                 phis,
                 incoming(IterationPhiIncomingKind::Fallthrough),
-                &values,
-                &instance_nodes,
-                &owned_edges,
+                ReplayInstances {
+                    values: &values,
+                    nodes: &instance_nodes,
+                    captured: &owned_edges,
+                },
                 &mut choices,
             );
             assert_eq!(transported[&header.owner()], (source, parent));
@@ -7559,22 +7615,26 @@ val used = f() }",
             EndLoan(usize, usize),
             Finish(usize),
         }
-        let release_checkpoint = |(mut values, nodes, mut edges, mut loans, mut choices): (
+        type ReleaseCheckpoint = (
             BTreeMap<CleanupOwnerValueId, usize>,
             BTreeMap<usize, usize>,
             BTreeMap<(usize, usize), usize>,
             BTreeMap<(usize, usize), CleanupCaptureValue>,
             BTreeMap<crate::ownership_checking::CleanupSelectorId, usize>,
-        )| {
+        );
+        let release_checkpoint = |state: ReleaseCheckpoint| {
+            let (mut values, nodes, mut edges, mut loans, mut choices) = state;
             let source = active_root(exhausted, &choices, &values, &nodes).source();
             let transported = replay_captured_edge(
                 &planner.conditions,
                 graph,
                 phis,
                 incoming(IterationPhiIncomingKind::Exhaustion),
-                &values,
-                &nodes,
-                &edges,
+                ReplayInstances {
+                    values: &values,
+                    nodes: &nodes,
+                    captured: &edges,
+                },
                 &mut choices,
             );
             assert_eq!(transported[&exit.owner()].0, source);
@@ -8154,9 +8214,11 @@ val used = h() }",
             first_graph,
             first_phis,
             first_entry,
-            &handles,
-            &first_nodes(&instances),
-            &captured,
+            ReplayInstances {
+                values: &handles,
+                nodes: &first_nodes(&instances),
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(entry_values.len(), 2);
@@ -8332,9 +8394,11 @@ val used = h() }",
                 first_graph,
                 first_phis,
                 first_backedge,
-                &handles,
-                &first_nodes(&instances),
-                &captured,
+                ReplayInstances {
+                    values: &handles,
+                    nodes: &first_nodes(&instances),
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(transported.len(), 2);
@@ -8351,9 +8415,11 @@ val used = h() }",
             first_graph,
             first_phis,
             first_exhausted,
-            &handles,
-            &first_nodes(&instances),
-            &captured,
+            ReplayInstances {
+                values: &handles,
+                nodes: &first_nodes(&instances),
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(exit_values.len(), 2);
@@ -8473,9 +8539,11 @@ val used = h() }",
                 graph,
                 plans[&statements[1].index()].closure_phis(),
                 edge,
-                &handles,
-                &instances,
-                &captured,
+                ReplayInstances {
+                    values: &handles,
+                    nodes: &instances,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(transported[&second_header.owner()], (snapshot, chosen));
@@ -8504,9 +8572,11 @@ val used = h() }",
                 graph,
                 plans[&statements[1].index()].closure_phis(),
                 exhausted,
-                &handles,
-                &instances,
-                &captured,
+                ReplayInstances {
+                    values: &handles,
+                    nodes: &instances,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -8998,7 +9068,7 @@ val used = h() }",
                 let [source] = snapshot.capture_inputs() else {
                     panic!("entry snapshot needs one formed owner")
                 };
-                assert!(selected(&table, source.condition(), &choices));
+                assert!(selected(table, source.condition(), &choices));
                 source.owner()
             } else {
                 initial.source()
@@ -9041,9 +9111,9 @@ val used = h() }",
             if initial_snapshot.is_some() {
                 let instance = owners.remove(&initial_source).unwrap();
                 assert!(owners.insert(initial.source(), instance).is_none());
-                replay_snapshot_choices(&table, initial.source(), &mut choices);
+                replay_snapshot_choices(table, initial.source(), &mut choices);
             }
-            assert!(selected(&table, initial.condition(), &choices));
+            assert!(selected(table, initial.condition(), &choices));
             for source_binding in edge(IterationPhiIncomingKind::Entry)
                 .bindings()
                 .iter()
@@ -9052,7 +9122,9 @@ val used = h() }",
                 let [source] = source_binding.values() else {
                     panic!("ordinary source needs one entry value")
                 };
-                if !source_instances.contains_key(&source.source()) {
+                if let std::collections::btree_map::Entry::Vacant(entry) =
+                    source_instances.entry(source.source())
+                {
                     let Some(CleanupOwnerValue::Expression { expression, .. }) =
                         table.owner_value(source.source())
                     else {
@@ -9063,11 +9135,7 @@ val used = h() }",
                         Ok("listOf(1)")
                     );
                     next_instance += 1;
-                    assert!(
-                        source_instances
-                            .insert(source.source(), next_instance)
-                            .is_none()
-                    );
+                    entry.insert(next_instance);
                 }
             }
             for (carried_symbol, carried_owner) in &carried_roots {
@@ -9083,16 +9151,18 @@ val used = h() }",
                     panic!("carried root needs one entry source")
                 };
                 assert_eq!(source.source(), *carried_owner);
-                assert!(selected(&table, source.condition(), &choices));
+                assert!(selected(table, source.condition(), &choices));
             }
             let entry_values = replay_captured_edge(
-                &table,
+                table,
                 graph,
                 phis,
                 edge(IterationPhiIncomingKind::Entry),
-                &edge_values(&owners, &source_instances),
-                &instance_nodes,
-                &captures,
+                ReplayInstances {
+                    values: &edge_values(&owners, &source_instances),
+                    nodes: &instance_nodes,
+                    captured: &captures,
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -9146,7 +9216,7 @@ val used = h() }",
                 .unwrap();
             assert_eq!(input.mode(), ClosureCaptureMode::Owned);
             assert_eq!(input.effect(), ClosureCaptureEffect::Move);
-            assert!(selected(&table, input.condition(), &choices));
+            assert!(selected(table, input.condition(), &choices));
             next_instance += 1;
             let new_instance = next_instance;
             assert!(instances.insert(new_instance, recursive_closure).is_none());
@@ -9188,15 +9258,15 @@ val used = h() }",
                 panic!("replacement must save the formed owner")
             };
             assert_eq!(source.owner(), formed);
-            assert!(selected(&table, source.condition(), &choices));
+            assert!(selected(table, source.condition(), &choices));
             let instance = owners.remove(&formed).unwrap();
             assert!(owners.insert(snapshot, instance).is_none());
-            replay_snapshot_choices(&table, snapshot, &mut choices);
+            replay_snapshot_choices(table, snapshot, &mut choices);
             let backedge = binding(IterationPhiIncomingKind::Fallthrough, header.owner());
             let selected_values = backedge
                 .values()
                 .iter()
-                .filter(|value| selected(&table, value.condition(), &choices))
+                .filter(|value| selected(table, value.condition(), &choices))
                 .collect::<Vec<_>>();
             let [back_value] = selected_values.as_slice() else {
                 panic!("one backedge owner value must be selected")
@@ -9207,7 +9277,7 @@ val used = h() }",
                 .filter(|root| {
                     root.source() == back_value.source()
                         && root.node() == instance_nodes[&owners[&back_value.source()]]
-                        && selected(&table, root.condition(), &choices)
+                        && selected(table, root.condition(), &choices)
                 })
                 .collect::<Vec<_>>();
             let [back_root] = selected_roots.as_slice() else {
@@ -9220,7 +9290,7 @@ val used = h() }",
                     panic!("carried root needs one backedge source")
                 };
                 assert_eq!(source.source(), *carried_owner);
-                assert!(selected(&table, source.condition(), &choices));
+                assert!(selected(table, source.condition(), &choices));
                 assert!(phis.iter().any(|phi| {
                     phi.boundary() == IterationPhiBoundary::Header
                         && phi.symbol() == *carried_symbol
@@ -9228,13 +9298,15 @@ val used = h() }",
                 }));
             }
             let back_values = replay_captured_edge(
-                &table,
+                table,
                 graph,
                 phis,
                 edge(IterationPhiIncomingKind::Fallthrough),
-                &edge_values(&owners, &source_instances),
-                &instance_nodes,
-                &captures,
+                ReplayInstances {
+                    values: &edge_values(&owners, &source_instances),
+                    nodes: &instance_nodes,
+                    captured: &captures,
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -9253,7 +9325,7 @@ val used = h() }",
             let selected_values = exhausted
                 .values()
                 .iter()
-                .filter(|value| selected(&table, value.condition(), &choices))
+                .filter(|value| selected(table, value.condition(), &choices))
                 .collect::<Vec<_>>();
             let [exit_value] = selected_values.as_slice() else {
                 panic!("one exhaustion owner value must be selected")
@@ -9264,7 +9336,7 @@ val used = h() }",
                 .filter(|root| {
                     root.source() == exit_value.source()
                         && root.node() == instance_nodes[&owners[&exit_value.source()]]
-                        && selected(&table, root.condition(), &choices)
+                        && selected(table, root.condition(), &choices)
                 })
                 .collect::<Vec<_>>();
             let [exit_root] = selected_roots.as_slice() else {
@@ -9285,16 +9357,18 @@ val used = h() }",
                     panic!("carried root needs one exhaustion source")
                 };
                 assert_eq!(source.source(), *carried_owner);
-                assert!(selected(&table, source.condition(), &choices));
+                assert!(selected(table, source.condition(), &choices));
             }
             let exit_values = replay_captured_edge(
-                &table,
+                table,
                 graph,
                 phis,
                 edge(IterationPhiIncomingKind::Exhaustion),
-                &edge_values(&owners, &source_instances),
-                &instance_nodes,
-                &captures,
+                ReplayInstances {
+                    values: &edge_values(&owners, &source_instances),
+                    nodes: &instance_nodes,
+                    captured: &captures,
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -9340,7 +9414,9 @@ val used = h() }",
                 let CleanupCaptureValue::Owner(source_owner) = input.value() else {
                     panic!("shared capture must read its source owner")
                 };
-                if !source_instances.contains_key(&source_owner) {
+                if let std::collections::btree_map::Entry::Vacant(entry) =
+                    source_instances.entry(source_owner)
+                {
                     let Some(CleanupOwnerValue::Expression { expression, .. }) =
                         table.owner_value(source_owner)
                     else {
@@ -9351,11 +9427,7 @@ val used = h() }",
                         Ok("listOf(1)")
                     );
                     next_instance += 1;
-                    assert!(
-                        source_instances
-                            .insert(source_owner, next_instance)
-                            .is_none()
-                    );
+                    entry.insert(next_instance);
                 }
                 if expect_source_guard_copy {
                     assert_eq!(source_drop.owner(), Some(source_owner));
@@ -9365,7 +9437,7 @@ val used = h() }",
                 let instance = next_instance;
                 assert!(instances.insert(instance, closure).is_none());
                 assert!(owners.insert(owner, instance).is_none());
-                assert!(selected(&table, input.condition(), &choices));
+                assert!(selected(table, input.condition(), &choices));
                 assert!(
                     shared_loans
                         .insert((instance, position), source_instance)
@@ -9375,10 +9447,10 @@ val used = h() }",
                     panic!("borrowed child snapshot must read its formed owner")
                 };
                 assert_eq!(source.owner(), owner);
-                assert!(selected(&table, source.condition(), &choices));
+                assert!(selected(table, source.condition(), &choices));
                 assert_eq!(owners.remove(&owner), Some(instance));
                 assert!(owners.insert(snapshot, instance).is_none());
-                replay_snapshot_choices(&table, snapshot, &mut choices);
+                replay_snapshot_choices(table, snapshot, &mut choices);
                 assert!(steps.iter().any(|(_, action)| matches!(
                     action,
                     IterationCleanupAction::CommitOwnerSnapshot { owner, target }
@@ -9404,7 +9476,7 @@ val used = h() }",
         assert!(instances.insert(parent_instance, closure).is_none());
         assert!(owners.insert(outer, parent_instance).is_none());
         for (target, input) in &parent_saves {
-            assert!(selected(&table, input.condition(), &choices));
+            assert!(selected(table, input.condition(), &choices));
             let CleanupCaptureValue::Owner(source) = input.value() else {
                 panic!("parent must read each loop exit instance")
             };
@@ -9432,7 +9504,7 @@ val used = h() }",
             steps[parent_snapshot_index].0,
             DropPoint::AfterExpression(closure)
         );
-        assert!(parent_snapshot_guard.is_none_or(|guard| selected(&table, guard, &choices)));
+        assert!(parent_snapshot_guard.is_none_or(|guard| selected(table, guard, &choices)));
         let parent_creates = steps
             .iter()
             .enumerate()
@@ -9472,7 +9544,7 @@ val used = h() }",
             panic!("parent snapshot must read the formed environment")
         };
         assert_eq!(source.owner(), outer);
-        assert!(selected(&table, source.condition(), &choices));
+        assert!(selected(table, source.condition(), &choices));
         let instance = owners.remove(&source.owner()).unwrap();
         assert!(owners.insert(parent_snapshot, instance).is_none());
         let source_guard_copy = borrowed_child
@@ -9492,12 +9564,12 @@ val used = h() }",
             });
         assert_eq!(source_guard_copy.is_some(), expect_source_guard_copy);
         let copied_source_value = source_guard_copy.map(|copy| {
-            assert!(selected(&table, copy.when(), &choices));
+            assert!(selected(table, copy.when(), &choices));
             assert!(copy.source_value().is_none());
             assert!(!choices.contains_key(&copy.target()));
             (copy.target(), choices[&copy.source()])
         });
-        replay_snapshot_choices(&table, parent_snapshot, &mut choices);
+        replay_snapshot_choices(table, parent_snapshot, &mut choices);
         if let Some((target, expected)) = copied_source_value {
             assert_eq!(choices[&target], expected);
         }
@@ -9529,7 +9601,7 @@ val used = h() }",
                 root.owner() != Some(owner)
                     || root
                         .condition()
-                        .is_some_and(|condition| !selected(&table, condition, &choices))
+                        .is_some_and(|condition| !selected(table, condition, &choices))
             }));
         }
         for (symbol, owner) in &carried_roots {
@@ -9542,7 +9614,7 @@ val used = h() }",
                 (root.owner() != Some(*owner) && root.target() != DropTarget::Named(*symbol))
                     || root
                         .condition()
-                        .is_some_and(|condition| !selected(&table, condition, &choices))
+                        .is_some_and(|condition| !selected(table, condition, &choices))
             }));
         }
         let [(layout, root)] = outer_actions.as_slice() else {
@@ -9551,7 +9623,7 @@ val used = h() }",
         assert_eq!(*layout, ClosureReleaseLayout::File);
         assert!(
             root.condition()
-                .is_none_or(|guard| selected(&table, guard, &choices))
+                .is_none_or(|guard| selected(table, guard, &choices))
         );
         enum ReleaseStep {
             Enter(usize),
@@ -9624,7 +9696,7 @@ val used = h() }",
             assert!(
                 source_drop
                     .condition()
-                    .is_none_or(|guard| selected(&table, guard, &choices))
+                    .is_none_or(|guard| selected(table, guard, &choices))
             );
             assert!(
                 source_instances
@@ -9811,7 +9883,7 @@ val used = h() }",
             .iterations
             .values()
             .map(|plan| plan.descriptor().statement())
-            .last()
+            .next_back()
             .unwrap();
         let h = names
             .symbols()
@@ -10101,9 +10173,11 @@ val used = h() }",
             first_graph,
             plans[&first.index()].closure_phis(),
             first_entry,
-            &handles,
-            &entry_nodes,
-            &captured,
+            ReplayInstances {
+                values: &handles,
+                nodes: &entry_nodes,
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(entry_transport.len(), paths.len());
@@ -10180,9 +10254,11 @@ val used = h() }",
                 first_graph,
                 plans[&first.index()].closure_phis(),
                 first_backedge,
-                &handles,
-                &old_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &handles,
+                    nodes: &old_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(transported.len(), paths.len());
@@ -10217,9 +10293,11 @@ val used = h() }",
             first_graph,
             plans[&first.index()].closure_phis(),
             first_exhausted,
-            &handles,
-            &old_nodes,
-            &captured,
+            ReplayInstances {
+                values: &handles,
+                nodes: &old_nodes,
+                captured: &captured,
+            },
             &mut choices,
         );
         assert_eq!(transported.len(), paths.len());
@@ -10285,7 +10363,7 @@ val used = h() }",
                 })
                 .collect::<Vec<_>>()
         };
-        for pick in 0..2 {
+        for (pick, expected_root) in expected_roots.iter().enumerate() {
             let mut choices = choices.clone();
             let mut handles = handles.clone();
             let mut captured = captured.clone();
@@ -10298,7 +10376,7 @@ val used = h() }",
             let [chosen] = selected_values.as_slice() else {
                 panic!("one old recursive root must own the evaluated RHS")
             };
-            assert_eq!(chosen.owner(), expected_roots[pick]);
+            assert_eq!(chosen.owner(), *expected_root);
             let unselected = saved
                 .value_inputs()
                 .iter()
@@ -10411,9 +10489,11 @@ val used = h() }",
                 graph,
                 plans[&second.index()].closure_phis(),
                 edge,
-                &handles,
-                &instance_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &handles,
+                    nodes: &instance_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(transported[&h_header.owner()], (snapshot, chosen_instance));
@@ -10553,9 +10633,11 @@ val used = h() }",
                         graph,
                         plans[&second.index()].closure_phis(),
                         second_backedge,
-                        &handles,
-                        &instance_nodes,
-                        &captured,
+                        ReplayInstances {
+                            values: &handles,
+                            nodes: &instance_nodes,
+                            captured: &captured,
+                        },
                         &mut choices,
                     );
                     assert_eq!(transported[&h_header.owner()], (body_snapshot, formed));
@@ -10577,9 +10659,11 @@ val used = h() }",
                     graph,
                     plans[&second.index()].closure_phis(),
                     exhausted,
-                    &handles,
-                    &instance_nodes,
-                    &captured,
+                    ReplayInstances {
+                        values: &handles,
+                        nodes: &instance_nodes,
+                        captured: &captured,
+                    },
                     &mut choices,
                 );
                 assert_eq!(
@@ -11472,12 +11556,12 @@ val second = g() }",
             let roots = binding
                 .root_sources()
                 .iter()
-                .filter(|root| selected(&table, root.condition(), choices))
+                .filter(|root| selected(table, root.condition(), choices))
                 .collect::<Vec<_>>();
             let values = binding
                 .values()
                 .iter()
-                .filter(|value| selected(&table, value.condition(), choices))
+                .filter(|value| selected(table, value.condition(), choices))
                 .collect::<Vec<_>>();
             let ([root], [value]) = (roots.as_slice(), values.as_slice()) else {
                 panic!("a present phi binding must select one root and one value")
@@ -11496,7 +11580,7 @@ val second = g() }",
             );
         }
         replay_edge_presence(
-            &table,
+            table,
             incoming(IterationPhiIncomingKind::Entry),
             &mut choices,
         );
@@ -11674,19 +11758,19 @@ val second = g() }",
             else {
                 unreachable!()
             };
-            assert!(condition.is_none_or(|guard| selected(&table, guard, &choices)));
+            assert!(condition.is_none_or(|guard| selected(table, guard, &choices)));
             let second_inputs = table
                 .owner_snapshot(second_snapshot)
                 .unwrap()
                 .capture_inputs()
                 .iter()
-                .filter(|input| selected(&table, input.condition(), &choices))
+                .filter(|input| selected(table, input.condition(), &choices))
                 .collect::<Vec<_>>();
             let [second_input] = second_inputs.as_slice() else {
                 panic!("round {round} must select one old second input")
             };
             let second_input = second_input.owner();
-            replay_snapshot_choices(&table, second_snapshot, &mut choices);
+            replay_snapshot_choices(table, second_snapshot, &mut choices);
             let moved = values.remove(&second_input).unwrap();
             assert!(values.insert(second_snapshot, moved).is_none());
             let IterationCleanupAction::Drop(old_second) = second_drop else {
@@ -11695,7 +11779,7 @@ val second = g() }",
             assert!(
                 old_second
                     .condition()
-                    .is_none_or(|guard| selected(&table, guard, &choices))
+                    .is_none_or(|guard| selected(table, guard, &choices))
             );
             let old = values.remove(&old_second.owner().unwrap()).unwrap();
             assert!(graph.nodes()[instance_nodes[&old]].sources().is_empty());
@@ -11712,7 +11796,7 @@ val second = g() }",
             };
             assert_eq!(owner, inner_owner);
             assert_eq!((target, input), inner_capture);
-            assert!(selected(&table, input.condition(), &choices));
+            assert!(selected(table, input.condition(), &choices));
             let CleanupCaptureValue::Owner(source) = input.value() else {
                 unreachable!()
             };
@@ -11730,19 +11814,19 @@ val second = g() }",
             else {
                 unreachable!()
             };
-            assert!(condition.is_none_or(|guard| selected(&table, guard, &choices)));
+            assert!(condition.is_none_or(|guard| selected(table, guard, &choices)));
             let first_inputs = table
                 .owner_snapshot(first_snapshot)
                 .unwrap()
                 .capture_inputs()
                 .iter()
-                .filter(|input| selected(&table, input.condition(), &choices))
+                .filter(|input| selected(table, input.condition(), &choices))
                 .collect::<Vec<_>>();
             let [first_input] = first_inputs.as_slice() else {
                 panic!("round {round} must select one new first input")
             };
             let first_input = first_input.owner();
-            replay_snapshot_choices(&table, first_snapshot, &mut choices);
+            replay_snapshot_choices(table, first_snapshot, &mut choices);
             let formed = values.remove(&first_input).unwrap();
             assert_eq!(formed, inner);
             assert!(values.insert(first_snapshot, formed).is_none());
@@ -11753,7 +11837,7 @@ val second = g() }",
                 );
             }
             replay_edge_presence(
-                &table,
+                table,
                 incoming(IterationPhiIncomingKind::Fallthrough),
                 &mut choices,
             );
@@ -11783,7 +11867,7 @@ val second = g() }",
             );
         }
         replay_edge_presence(
-            &table,
+            table,
             incoming(IterationPhiIncomingKind::Exhaustion),
             &mut choices,
         );
@@ -11799,7 +11883,7 @@ val second = g() }",
         let parent_instance = create(parent_create, &mut values, &mut instance_nodes);
         let mut saved_children = BTreeMap::new();
         for (target, input) in &saves {
-            assert!(selected(&table, input.condition(), &choices));
+            assert!(selected(table, input.condition(), &choices));
             let slot = table.capture_slot_value(**target).unwrap();
             let CleanupCaptureValue::Owner(source) = input.value() else {
                 unreachable!()
@@ -11820,11 +11904,11 @@ val second = g() }",
             usize,
         >| {
             let before = choices.clone();
-            assert!(selected(&table, edge.condition(), &before));
+            assert!(selected(table, edge.condition(), &before));
             let [binding] = edge.bindings() else {
                 panic!("the second loop carries one parent binding")
             };
-            assert!(selected(&table, binding.available_when(), &before));
+            assert!(selected(table, binding.available_when(), &before));
             assert_eq!(
                 binding.presence_source(),
                 IterationPhiPresenceSource::CapturedInstances
@@ -11832,7 +11916,7 @@ val second = g() }",
             let roots = binding
                 .root_sources()
                 .iter()
-                .filter(|root| selected(&table, root.condition(), &before))
+                .filter(|root| selected(table, root.condition(), &before))
                 .collect::<Vec<_>>();
             let [root] = roots.as_slice() else {
                 panic!("the parent must have one selected root instance")
@@ -11840,7 +11924,7 @@ val second = g() }",
             let selected_values = binding
                 .values()
                 .iter()
-                .filter(|value| selected(&table, value.condition(), &before))
+                .filter(|value| selected(table, value.condition(), &before))
                 .collect::<Vec<_>>();
             let [value] = selected_values.as_slice() else {
                 panic!("the parent must have one selected value input")
@@ -11891,7 +11975,7 @@ val second = g() }",
             assert_eq!(actual_writes, expected_writes);
             let mut writes = vec![(
                 binding.availability_selector(),
-                usize::from(selected(&table, binding.available_when(), &before)),
+                usize::from(selected(table, binding.available_when(), &before)),
             )];
             writes.extend(
                 binding
@@ -11973,19 +12057,19 @@ val second = g() }",
         else {
             unreachable!()
         };
-        assert!(condition.is_none_or(|guard| selected(&table, guard, &choices)));
+        assert!(condition.is_none_or(|guard| selected(table, guard, &choices)));
         let parent_inputs = table
             .owner_snapshot(parent_snapshot)
             .unwrap()
             .capture_inputs()
             .iter()
-            .filter(|input| selected(&table, input.condition(), &choices))
+            .filter(|input| selected(table, input.condition(), &choices))
             .collect::<Vec<_>>();
         let [parent_input] = parent_inputs.as_slice() else {
             panic!("parent snapshot must select its formed instance")
         };
         assert_eq!(parent_input.owner(), formed);
-        replay_snapshot_choices(&table, parent_snapshot, &mut choices);
+        replay_snapshot_choices(table, parent_snapshot, &mut choices);
         let formed_instance = values.remove(&formed).unwrap();
         assert_eq!(formed_instance, parent_instance);
         assert!(values.insert(parent_snapshot, formed_instance).is_none());
@@ -12089,7 +12173,7 @@ val second = g() }",
         assert!(
             root_drop
                 .condition()
-                .is_none_or(|guard| selected(&table, guard, &choices))
+                .is_none_or(|guard| selected(table, guard, &choices))
         );
         let releases = steps
             .iter()
@@ -12372,7 +12456,7 @@ val second = g() }",
             let roots = binding
                 .root_sources()
                 .iter()
-                .filter(|root| selected(&table, root.condition(), choices))
+                .filter(|root| selected(table, root.condition(), choices))
                 .collect::<Vec<_>>();
             let [root] = roots.as_slice() else {
                 panic!("one formed closure root must reach each shared-loan phi binding")
@@ -12485,13 +12569,15 @@ val second = g() }",
                 .map(|(&owner, &instance)| (owner, instance)),
         );
         let entry_transport = replay_captured_edge(
-            &table,
+            table,
             first_graph,
             first_phis,
             first_edge(IterationPhiIncomingKind::Entry),
-            &edge_values,
-            &first_nodes(&instance_closures),
-            &BTreeMap::new(),
+            ReplayInstances {
+                values: &edge_values,
+                nodes: &first_nodes(&instance_closures),
+                captured: &BTreeMap::new(),
+            },
             &mut choices,
         );
         assert_eq!(
@@ -12664,14 +12750,14 @@ val second = g() }",
         }
         for _ in 0..2 {
             let moved = values.remove(&first_header.owner()).unwrap();
-            replay_snapshot_choices(&table, second_snapshot, &mut choices);
+            replay_snapshot_choices(table, second_snapshot, &mut choices);
             assert!(values.insert(second_snapshot, moved).is_none());
             let old = values.remove(&old_second_drop.owner().unwrap()).unwrap();
             released_old.push(old);
             assert!(
                 early_ends
                     .iter()
-                    .all(|(_, guard)| !selected(&table, guard.unwrap(), &choices)),
+                    .all(|(_, guard)| !selected(table, guard.unwrap(), &choices)),
                 "the replaced second has no shared loan on either executed round"
             );
             assert!(
@@ -12679,7 +12765,7 @@ val second = g() }",
                     *point != old_second_drop.point()
                         || !matches!(action, IterationCleanupAction::Drop(fact)
                         if matches!(fact.target(), DropTarget::RetainedSource(_))
-                            && selected(&table, fact.condition().unwrap(), &choices))
+                            && selected(table, fact.condition().unwrap(), &choices))
                 }),
                 "a live named source must not take the retained cleanup path"
             );
@@ -12694,7 +12780,7 @@ val second = g() }",
             assert!(source_slots.insert((formed, position), source).is_none());
             *live_loans.get_mut(&source).unwrap() += 1;
             let formed = values.remove(&inner_owner).unwrap();
-            replay_snapshot_choices(&table, first_snapshot, &mut choices);
+            replay_snapshot_choices(table, first_snapshot, &mut choices);
             assert!(values.insert(first_snapshot, formed).is_none());
             let writes = [first_back, second_back]
                 .into_iter()
@@ -12715,13 +12801,15 @@ val second = g() }",
                     .map(|(&owner, &instance)| (owner, instance)),
             );
             let back_transport = replay_captured_edge(
-                &table,
+                table,
                 first_graph,
                 first_phis,
                 first_edge(IterationPhiIncomingKind::Fallthrough),
-                &edge_values,
-                &first_nodes(&instance_closures),
-                &BTreeMap::new(),
+                ReplayInstances {
+                    values: &edge_values,
+                    nodes: &first_nodes(&instance_closures),
+                    captured: &BTreeMap::new(),
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -12764,13 +12852,15 @@ val second = g() }",
         );
         let before_exit = choices.clone();
         let exit_transport = replay_captured_edge(
-            &table,
+            table,
             first_graph,
             first_phis,
             first_edge(IterationPhiIncomingKind::Exhaustion),
-            &edge_values,
-            &first_nodes(&instance_closures),
-            &BTreeMap::new(),
+            ReplayInstances {
+                values: &edge_values,
+                nodes: &first_nodes(&instance_closures),
+                captured: &BTreeMap::new(),
+            },
             &mut choices,
         );
         assert_eq!(exit_transport.len(), 2);
@@ -12788,11 +12878,7 @@ val second = g() }",
             panic!("shared source needs one ordinary exit binding")
         };
         assert!(source_exit.values().is_empty());
-        assert!(!selected(
-            &table,
-            source_exit.available_when(),
-            &before_exit
-        ));
+        assert!(!selected(table, source_exit.available_when(), &before_exit));
         assert_eq!(choices[&source_exit.availability_selector()], 0);
         assert!(!exit_transport.contains_key(&source_exit.target()));
         assert_eq!(source_values[&source_owner], source_instance);
@@ -12819,7 +12905,7 @@ val second = g() }",
         assert!(
             named_drop
                 .condition()
-                .is_some_and(|guard| !selected(&table, guard, &choices))
+                .is_some_and(|guard| !selected(table, guard, &choices))
         );
         let parent_create = steps
             .iter()
@@ -12889,7 +12975,7 @@ val second = g() }",
                 .owner(),
             parent_owner
         );
-        replay_snapshot_choices(&table, parent_snapshot, &mut choices);
+        replay_snapshot_choices(table, parent_snapshot, &mut choices);
         let moved = values.remove(&parent_owner).unwrap();
         assert_eq!(moved, parent_instance);
         assert!(values.insert(parent_snapshot, moved).is_none());
@@ -12998,19 +13084,19 @@ val second = g() }",
             for origin in binding
                 .origins()
                 .iter()
-                .filter(|origin| selected(&table, origin.condition(), &choices))
+                .filter(|origin| selected(table, origin.condition(), &choices))
             {
                 for environment in origin
                     .environments()
                     .iter()
-                    .filter(|environment| selected(&table, environment.condition(), &choices))
+                    .filter(|environment| selected(table, environment.condition(), &choices))
                 {
                     assert_eq!(values[&environment.instance_root()], parent_instance);
                     assert!(environment.capture_path().is_empty());
                     for capture in environment
                         .sources()
                         .iter()
-                        .filter(|capture| selected(&table, capture.input().condition(), &choices))
+                        .filter(|capture| selected(table, capture.input().condition(), &choices))
                     {
                         assert!(capture.target().is_none());
                         assert!(capture.capture_slot().is_none());
@@ -13023,9 +13109,9 @@ val second = g() }",
                         let child = children[&position];
                         assert_eq!(instance_closures[&child], inner.closure());
                         assert!(capture.captured().iter().any(|nested| {
-                            selected(&table, nested.condition(), &choices)
+                            selected(table, nested.condition(), &choices)
                                 && nested.environments().iter().any(|nested_environment| {
-                                    selected(&table, nested_environment.condition(), &choices)
+                                    selected(table, nested_environment.condition(), &choices)
                                         && nested_environment.instance_root()
                                             == environment.instance_root()
                                         && nested_environment.capture_path() == [position]
@@ -13048,13 +13134,15 @@ val second = g() }",
                     .map(|(&owner, &instance)| (owner, instance)),
             );
             let transported = replay_captured_edge(
-                &table,
+                table,
                 graph,
-                &plans[&statement].closure_phis(),
+                plans[&statement].closure_phis(),
                 incoming,
-                &edge_values,
-                &instance_nodes,
-                &captured,
+                ReplayInstances {
+                    values: &edge_values,
+                    nodes: &instance_nodes,
+                    captured: &captured,
+                },
                 &mut choices,
             );
             assert_eq!(
@@ -13062,7 +13150,7 @@ val second = g() }",
                 incoming
                     .bindings()
                     .iter()
-                    .filter(|binding| { selected(&table, binding.available_when(), &before) })
+                    .filter(|binding| { selected(table, binding.available_when(), &before) })
                     .count()
             );
             assert_eq!(
@@ -13081,7 +13169,7 @@ val second = g() }",
                         assert!(source_values.insert(ordinary.target(), instance).is_none());
                     }
                 } else {
-                    assert!(!selected(&table, ordinary.available_when(), &before));
+                    assert!(!selected(table, ordinary.available_when(), &before));
                     assert_eq!(choices[&ordinary.availability_selector()], 0);
                 }
             }
@@ -13122,7 +13210,7 @@ val second = g() }",
         assert!(
             second_named_drop
                 .condition()
-                .is_some_and(|guard| !selected(&table, guard, &choices))
+                .is_some_and(|guard| !selected(table, guard, &choices))
         );
         let root = values.remove(&outer_exit.owner()).unwrap();
         assert_eq!(root, parent_instance);
@@ -13148,7 +13236,7 @@ val second = g() }",
                 {
                     if fact
                         .condition()
-                        .is_some_and(|guard| !selected(&table, guard, &choices))
+                        .is_some_and(|guard| !selected(table, guard, &choices))
                     {
                         continue;
                     }
@@ -13174,7 +13262,7 @@ val second = g() }",
                     value,
                     ..
                 } => {
-                    if condition.is_some_and(|guard| !selected(&table, guard, &choices)) {
+                    if condition.is_some_and(|guard| !selected(table, guard, &choices)) {
                         continue;
                     }
                     assert_eq!(captured_source, inner_save.1.source());
@@ -13226,7 +13314,7 @@ val second = g() }",
                     condition,
                     ..
                 } => {
-                    if condition.is_some_and(|guard| !selected(&table, guard, &choices)) {
+                    if condition.is_some_and(|guard| !selected(table, guard, &choices)) {
                         continue;
                     }
                     let address = table.instance_address(instance_address).unwrap();
@@ -13285,10 +13373,10 @@ val second = g() }",
                         }
                     }
                     let guard = fact.condition().unwrap();
-                    assert!(!possible(&table, guard, selector, 0));
-                    assert!(possible(&table, guard, selector, 1));
-                    assert_eq!(selected(&table, guard, &choices), last);
-                    if selected(&table, guard, &choices) {
+                    assert!(!possible(table, guard, selector, 0));
+                    assert!(possible(table, guard, selector, 1));
+                    assert_eq!(selected(table, guard, &choices), last);
+                    if selected(table, guard, &choices) {
                         last_loan_guarded_drop_candidates.push(source);
                     }
                 }
@@ -13297,7 +13385,7 @@ val second = g() }",
                 {
                     if fact
                         .condition()
-                        .is_some_and(|guard| !selected(&table, guard, &choices))
+                        .is_some_and(|guard| !selected(table, guard, &choices))
                     {
                         continue;
                     }
@@ -13336,7 +13424,7 @@ val second = g() }",
                 .iter()
                 .filter(|(_, fact)| fact
                     .condition()
-                    .is_some_and(|guard| selected(&table, guard, &choices)))
+                    .is_some_and(|guard| selected(table, guard, &choices)))
                 .count(),
             1
         );

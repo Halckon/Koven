@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0034/0039/0040 `done` |
 | 前置 ADR | ADR-0007/0010/0011/0026 `accepted` |
 | 关联 ADR | [ADR-0026](../../adr/accepted/0026-linux-x86-64-native-host.md) |
-| 阻塞项 | 严格 Clippy 与 5 项既有 frontend 测试仍失败；macOS 未执行，分支交付未完成 |
+| 阻塞项 | frontend `--lib` 新暴露 2 项 parser 计数失败，另有 5 项既有多文件失败；修复后的 macOS CI 待验证，分支交付未完成 |
 | 影响范围 | workspace Inkwell feature、`lang-codegen` LLVM/native 与测试、`lang-cli` linker 与测试、必要基线修复、文档 |
 | 语言语义变更 | 否 |
 
@@ -41,10 +41,13 @@
   不误用生产 C driver 作为 IR reader。
 - 保留现有 macOS LLDB 源码断点测试；Linux 检查真实 ELF 的 DWARF 行表及 native 运行。
   使用 `LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump` 21.1；明确 Linux 行表证据和调试器断点证据的区别。
-- 仅修复本次已确认的三类基线问题：`parser_declaration.rs` markers match 漏 `Item::Deinit`
+- 最初批准的三类基线修复为：`parser_declaration.rs` markers match 漏 `Item::Deinit`
   导致的 E0004、`ownership_checking/checker.rs` 对 Option 使用 `mem::replace` 的 Clippy
   失败（改用 `Option::replace`），以及 16 个文件的既有格式偏差。具体失败、最小修复和
   重跑结果登记在 §10；不增加 blanket lint allow，不掩盖零命中、跳过或未运行项。
+- 2026-10-01 用户进一步批准修复阻塞 PR CI 的 139 条严格 Clippy 诊断。仅做等价清理：
+  frontend 测试移除冗余引用、合并回放状态参数、简化匹配/迭代/Map 入口和复杂类型；codegen
+  简化 Option 判断与嵌套条件。保留全部行为断言、门禁和语言/ABI 边界。
 - README 两语言版本、Architecture、测试前提、Spec/ADR 索引及冻结 inventory 同步。
 
 ## 4. 非目标
@@ -54,7 +57,7 @@
 - 不改变 Koven v0.38 语言语义、公开 ABI、runtime ownership 规则或依赖版本。
 - 不增加完整变量/类型调试信息，不把 Linux 行表自动测试扩称为 debugger 断点/单步验收。
 - 不以新增 Linux 支持为由重跑 frontend 全量套件或修改无关代码。
-- 本轮本地实现不自动授权 commit、push、PR 或合并；按仓库交付流程另行完成后才可归档。
+- commit、push 与 PR 按后续用户明确授权执行；本次 CI 修复继续现有 draft PR，不包含合并、标记 ready 或扩大语义修复。
 
 ## 5. 验收标准
 
@@ -92,7 +95,9 @@ LLVM host 选择及 target 初始化只存在于 `lang-codegen` adapter，fronte
 
 ## 8. 提交计划
 
-2026-10-01 用户已补充授权本地提交，提交信息必须带 SPEC-0228；不自动 push 或创建 PR。
+2026-10-01 用户已补充授权本地提交，提交信息必须带 SPEC-0228；随后批准 push 与创建
+[PR #5](https://github.com/Halckon/koven/pull/5)，并批准继续修复 Clippy 使 CI 往下执行。
+本次沿用 `feature/spec-0228-linux-native`，不合并 `main`，保持 draft。
 Rust 变更保持可构建、可测试，已知严格门禁缺口仍按 §10 报告；最终归档与 frozen inventory
 迁移随交付验收同步完成。
 
@@ -102,8 +107,9 @@ Rust 变更保持可构建、可测试，已知严格门禁缺口仍按 §10 报
 
 ## 9. 未决问题
 
-无待决定的语言语义或目标范围问题。§10 的既有 frontend 测试失败和严格 Clippy 问题尚未
-扩大修复；macOS 回归与最终分支交付仍待完成，不能将本 Spec 标为 `done`。
+无待决定的语言语义或目标范围问题。§10 的五项既有 frontend 多文件测试失败未纳入本次
+Clippy 修复；严格 Clippy 已在本地通过，但 CI 同款 frontend `--lib` 暴露两项 parser 性能计数失败，macOS CI 与最终分支交付仍需实际验证，不能将本
+Spec 标为 `done`。
 
 ## 10. 验证记录
 
@@ -185,3 +191,54 @@ fmt 0、strict clippy 101、普通 clippy 0、workspace check 0、CLI build 0、
 失败会阻止测试 job。本轮没有运行远程 CI 或 macOS，也未重跑 frontend 全量或此前五项
 `multifile_type_checking` 失败套件；相关 Rust 文件与同步前字节一致，既有失败记录保持，
 不能称为已经修复。当前 Spec 继续保持 `in-progress`。
+
+
+### 2026-10-01 PR 严格 Clippy 修复
+
+原 PR head `ef79a2b9f9b3021f521ee93fb945b3499ff40504` 的
+[CI 36841645711](https://github.com/Halckon/koven/actions/runs/36841645711) 已实际失败：
+文档、格式与 Cargo Check 通过，严格 Clippy 失败，Targeted Tests 被前置失败阻止。
+本次用户明确批准继续修复后，按同一 Rust 1.96.0 工具链复现 139 条诊断：frontend lib-test
+134 条、codegen 5 条（重复目标不重复计数）。
+
+修复限于两份 frontend 测试文件及三份 codegen 文件。frontend 的 121 处冗余引用只移除
+自动解引用产生的额外借用；测试辅助结构 `ReplayInstances` 打包同次入边读取的三张只读
+map，39 个调用保持原数据对应关系与所有断言；Vacant entry 保证原先的“缺席后插入”条件。
+其余为 `matches!`、`next_back`、枚举既有两分支、局部类型别名及 `slice::from_ref`。
+codegen 的 `is_some_and` 和 let-chain 保留短路顺序、loop statement 匹配与 loan 消费时机。
+未改公开接口、生产 frontend 逻辑、语言/ABI、依赖、CI 条件或测试期望，未增加 lint allow。
+
+以下为本次源码的实际串行本地验证；远程修复后结果应以
+[PR #5 检查页](https://github.com/Halckon/koven/pull/5/checks)的对应 head 为准，不将本地通过
+提前等同于 macOS CI 通过。
+
+| 验收项 / 命令 | 实际结果 |
+|---|---|
+| `cargo fmt --all -- --check` | 通过，退出 0 |
+| `cargo check --locked --workspace --all-targets` | 通过，退出 0 |
+| `cargo clippy --locked --workspace --all-targets -- -D warnings` | 通过，退出 0，无 warning |
+| `cargo test --locked -p lang-frontend --lib ownership_checking::checker::drop_planner:: -- --nocapture` | 96 passed、0 failed/ignored、81 filtered；包含改动的 iteration、snapshot 及独立实例回放矩阵 |
+| `cargo test --locked -p lang-codegen --lib sequential_for_lowering_tests` | 7 passed、0 failed/ignored、471 filtered |
+| `cargo test --locked -p lang-codegen --lib lowers_while_loop_break_continue_and_nested_loop_targets` | 1 passed、0 failed/ignored、477 filtered |
+| `cargo test --locked -p lang-frontend --lib` | 175 passed、2 failed、0 ignored/filtered；失败为下述两项未修改 parser 测试 |
+| `cargo test --locked -p lang-codegen -p lang-cli -p lang-lsp --no-fail-fast` | 572 passed、0 failed/ignored/filtered：codegen 478、CLI 64、LSP 26、codegen doc-tests 4 |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过；385 Markdown |
+
+frontend 全量集成测试未运行；五项已登记的 `multifile_type_checking` 既有失败不在 CI 的
+frontend `--lib` 选择内，不能因本次 Clippy 或 CI 通过而称为已经修复。Spec 保持
+`in-progress`，尚未归档。
+
+
+CI 同款 frontend `--lib` 的两项失败为：
+`parser::engine::tests::block_dispatch_legal_error_and_nested_families_stay_linear`
+（2633 > 68 × 32）和
+`parser::engine::tests::lambda_body_legal_unsupported_and_poison_families_stay_linear`
+（2777 > 68 × 34）。失败来自单独 Parser 的 significant raw visits 计数，不是运行耗时阈值。
+本次未修改 parser、放宽计数上限或屏蔽测试；Clippy 通过不等于测试门禁通过。
+
+
+已从未修改的 PR head `ef79a2b` 通过 `git archive` 建立独立基线目录，强制重新编译
+frontend（编译日志确认来源为基线目录），复用同一 Cargo target 串行执行
+`cargo test --locked --manifest-path <baseline>/Cargo.toml --target-dir <shared-target> -p lang-frontend --lib families_stay_linear`：
+1 passed、同样 2 failed、174 filtered、0 ignored，计数及失败位置完全一致。因此两项 parser
+问题在本次 Clippy 修复前已存在，仍待独立修复与所需的 parser 契约回归。
