@@ -708,25 +708,31 @@ impl Parser<'_> {
         let mut elements = Vec::new();
         let expression_stops = Stops::lambda_expression(outer_stops);
 
-        while !self.current_is_symbol(Symbol::RightBrace)
-            && !outer_stops.contains_hard(self.current()?)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
-        {
-            while self.current_is_symbol(Symbol::Semicolon) {
-                self.bump()?;
-            }
-            if self.current_is_symbol(Symbol::RightBrace)
-                || outer_stops.contains_hard(self.current()?)
-                || matches!(self.current()?.kind(), LexemeKind::Eof)
+        let current = loop {
+            let current = self.current()?;
+            if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+            ) || outer_stops.contains_hard(current)
             {
-                break;
+                break current;
+            }
+            if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+            ) {
+                self.bump()?;
+                continue;
             }
             #[cfg(test)]
             {
                 self.lambda_body_dispatch_iterations += 1;
             }
             let before = self.index;
-            let element = if self.current_is_symbol(Symbol::LeftBrace) {
+            let element = if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+            ) {
                 self.parse_block_statement(outer_stops)?
             } else if self.local_destructuring_start(Keyword::Val) {
                 let val_span = self.bump()?.span();
@@ -735,14 +741,17 @@ impl Parser<'_> {
                 || self.const_local_destructuring_start()
             {
                 self.parse_unsupported_local_destructuring(expression_stops)?
-            } else if self.current_is_keyword(Keyword::While)
-                || self.current_is_keyword(Keyword::For)
-                || (self.current_identifier_is("loop")?
-                    && self.peek_is_symbol(1, Symbol::LeftBrace))
+            } else if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::While | Keyword::For))
+            ) || (self.current_identifier_is("loop")?
+                && self.peek_is_symbol(1, Symbol::LeftBrace))
             {
                 self.parse_loop_statement(outer_stops)?
-            } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var)
-            {
+            } else if matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+            ) {
                 let keyword = self.bump()?;
                 let kind = match keyword.kind() {
                     LexemeKind::Token(TokenKind::Keyword(Keyword::Val)) => VariableKind::Val,
@@ -756,13 +765,13 @@ impl Parser<'_> {
             } else if self.is_unsupported_block_element()? {
                 self.parse_unsupported_lambda_body_form()?
             } else {
-                let current = self.current()?;
                 if self.is_poison_kind(current.kind()) {
                     let span = self.bump()?.span();
                     self.add_statement(span, Statement::Error)?
-                } else if self.current_is_symbol(Symbol::Comma)
-                    || self.current_is_symbol(Symbol::Arrow)
-                {
+                } else if matches!(
+                    current.kind(),
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::Arrow))
+                ) {
                     self.parse_unsupported_lambda_body_form()?
                 } else if self.can_start_expression(current) {
                     let expression = self.parse_expression_bp(0, expression_stops)?;
@@ -787,16 +796,17 @@ impl Parser<'_> {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
             elements.push(element);
-            while self.current_is_symbol(Symbol::Semicolon) {
-                self.bump()?;
-            }
-        }
+        };
 
-        let end = if self.current_is_symbol(Symbol::RightBrace) {
+        let end = if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+        ) {
             self.bump()?.span().end()
         } else {
-            let current = self.current()?;
-            if !self.lexical_recoveries.terminal_error_at_eof && !self.is_poison() {
+            if !self.lexical_recoveries.terminal_error_at_eof
+                && !self.is_poison_kind(current.kind())
+            {
                 self.emit_closing(self.empty_at(current.span().start())?, opener)?;
             }
             self.previous_significant_end().max(opener.end())

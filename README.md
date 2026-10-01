@@ -31,7 +31,7 @@ Koven operates with **no garbage collector (GC-free)**, eliminates runtime pause
 - **Explicit Error Handling**
   No hidden exception unwinding or `try`/`catch` overhead. Recoverable errors are represented as `Result<T, E>` with ergonomic `?` propagation, while unrecoverable invariant violations trigger an immediate `error(...)` abort.
 - **Native LLVM Compilation**
-  Emits verified LLVM IR and produces optimized native Mach-O / ELF binaries and standalone executables.
+  Emits verified LLVM IR and native executables for AArch64 macOS (Mach-O) and x86_64 Linux with glibc (ELF64).
 - **First-Class Developer Tooling**
   Includes the `kovenc` CLI orchestrator, a standard Language Server Protocol (`lang-lsp`) implementation, a non-destructive code formatter, and editor support for Tree-sitter and TextMate.
 
@@ -236,8 +236,26 @@ kovenc --message-format=json build main.ko -o my_app
 ### Prerequisites
 
 - **Rust**: MSRV 1.96.0 or later (Rust 2024 edition).
-- **LLVM**: LLVM 21 toolchain with matching headers / development libraries.
-- **System Linker**: `clang` / system C linker (macOS ld64 or Linux lld/gold).
+- **Supported hosts**: AArch64 macOS (`aarch64-apple-darwin`) or x86_64 Linux with glibc (`x86_64-unknown-linux-gnu`). Compilation targets the host; there is no `--target` or cross-compilation support. Linux musl, Linux AArch64, Intel macOS, and Windows are not supported.
+- **LLVM**: LLVM 21.1.x with matching development headers/libraries, `llvm-config`, and the host backend. The workspace uses Inkwell 0.10.0 with AArch64 and X86 target features. Set `LLVM_SYS_211_PREFIX` to the LLVM installation prefix; its shared libraries must be discoverable at build time and runtime.
+- **System C toolchain**: macOS requires Xcode Command Line Tools and `/usr/bin/clang`; Linux requires `/usr/bin/cc`, glibc development files, and a working system linker. LLVM emits the object directly, then this C driver links it.
+- **Native test tools**: Linux LLVM IR instrumentation tests require matching Clang 21, preferably at `LLVM_SYS_211_PREFIX/bin/clang` (otherwise `clang` on PATH). Linux DWARF tests use matching `llvm-dwarfdump`, also prefix-first with a PATH fallback. macOS tests keep `/usr/bin/clang` and `/usr/bin/lldb`. These test tools are separate from the production link driver.
+
+Point to an existing LLVM installation before building. On AArch64 macOS with Homebrew `llvm@21`:
+
+```bash
+export LLVM_SYS_211_PREFIX="$(brew --prefix llvm@21)"
+"$LLVM_SYS_211_PREFIX/bin/llvm-config" --version
+```
+
+On Linux, use the prefix containing your LLVM 21.1.x `bin/llvm-config`; adjust this example to its actual installation path:
+
+```bash
+export LLVM_SYS_211_PREFIX=/usr/lib/llvm-21
+"$LLVM_SYS_211_PREFIX/bin/llvm-config" --version
+```
+
+See the [native target decision](docs/adr/accepted/0026-linux-x86-64-native-host.md) for the support boundary and [testing guide](docs/development/testing.md#本机目标与工具前提) for platform-specific checks.
 
 ### Building Koven from Source
 

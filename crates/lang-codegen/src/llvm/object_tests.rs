@@ -91,7 +91,7 @@ fn abort_entry_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) 
 }
 
 fn link(object: &Path, executable: &Path) {
-    let output = Command::new("/usr/bin/clang")
+    let output = Command::new(crate::test_support::clang())
         .arg(object)
         .arg("-o")
         .arg(executable)
@@ -105,19 +105,21 @@ fn link(object: &Path, executable: &Path) {
 }
 
 #[test]
-fn target_machine_emits_arm64_mach_object_with_one_external_main() {
+fn target_machine_emits_native_object_with_one_external_main() {
     let (sources, program, entry) = unit_entry_program();
     let directory = TestDirectory::create();
     let object = directory.join("entry.o");
     emit_verified_object(&program, &sources, entry, &object).expect("object emission must succeed");
 
     let bytes = fs::read(&object).expect("object must be readable");
-    assert_eq!(&bytes[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
-    assert_eq!(&bytes[4..8], &[0x0c, 0x00, 0x00, 0x01]);
-    assert_eq!(&bytes[12..16], &[0x01, 0x00, 0x00, 0x00]);
+    crate::test_support::assert_native_object(&bytes);
 
     let output = Command::new("/usr/bin/nm")
-        .args(["-g", "-U"])
+        .args(if cfg!(target_os = "macos") {
+            ["-g", "-U"]
+        } else {
+            ["-g", "--defined-only"]
+        })
         .arg(&object)
         .output()
         .expect("system nm must run");
@@ -126,7 +128,9 @@ fn target_machine_emits_arm64_mach_object_with_one_external_main() {
     assert_eq!(
         symbols
             .lines()
-            .filter(|line| line.ends_with(" _main"))
+            .filter(
+                |line| line.split_whitespace().last() == Some(crate::test_support::main_symbol())
+            )
             .count(),
         1
     );

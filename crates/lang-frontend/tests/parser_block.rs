@@ -305,6 +305,33 @@ fn semicolon_is_accepted_as_a_statement_separator_inside_blocks() {
 }
 
 #[test]
+fn semicolon_runs_preserve_empty_block_closer_and_eof_spans() {
+    for text in ["{;;;}", "{ ; /* gap */ ; }\n", "{ ; /* gap */ ; \t"] {
+        let (_, parsed) = parsed(text);
+        assert!(root_elements(&parsed).is_empty(), "{text:?}");
+        let root = parsed.ast().statements().get(parsed.root()).expect("block");
+        let end = if let Some(closer) = text.find('}') {
+            assert!(parsed.diagnostics().is_empty(), "{text:?}");
+            closer + 1
+        } else {
+            assert_eq!(
+                fingerprints(text),
+                vec![(
+                    "L0010".to_owned(),
+                    Severity::Error,
+                    "expected closing delimiter".to_owned(),
+                    text.len(),
+                    text.len(),
+                )],
+                "{text:?}"
+            );
+            text.rfind(';').expect("separator") + 1
+        };
+        assert_eq!((root.span().start(), root.span().end()), (0, end));
+    }
+}
+
+#[test]
 fn local_name_recovery_preserves_the_owner_closer_and_next_declaration() {
     for (text, expected_elements) in [("{ val + }", 1), ("{ val + val y = 2 }", 2)] {
         let (_, parsed) = parsed(text);

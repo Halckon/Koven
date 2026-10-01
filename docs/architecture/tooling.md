@@ -20,6 +20,10 @@ name/type/ownership validation，成功后进入单 object、link 和原子 exec
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
 `emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
 
+CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
+参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
+链接启动失败与进程失败保留现有结构化错误；受支持目标在 codegen 边界先行校验。
+
 实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`project/`、`project_build.rs` 和
 `project_command.rs`；对应覆盖位于 `native_cli`、`project_cli` 与 `format_cli` integration suites。
 

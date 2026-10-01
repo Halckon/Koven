@@ -148,7 +148,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
         )
         .expect("write dynamic ownership counter");
-        let linked = Command::new("/usr/bin/clang")
+        let linked = Command::new(crate::test_support::ir_clang())
             .arg(&ir)
             .arg(&counter)
             .arg(format!("-DEXPECT_SHARED={shared}"))

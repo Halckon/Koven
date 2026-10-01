@@ -3,6 +3,8 @@
 mod native;
 #[cfg(test)]
 mod native_tests;
+#[cfg(test)]
+mod test_support;
 
 pub use native::{
     NativeEntry, NativeObjectError, NativeObjectErrorKind, NativeUnitEntry,

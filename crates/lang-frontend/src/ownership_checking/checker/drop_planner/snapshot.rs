@@ -483,7 +483,7 @@ mod tests {
         assert_eq!(
             located_snapshot_source(
                 &mut probe,
-                &[good.clone()],
+                std::slice::from_ref(&good),
                 saved_selector,
                 CleanupConditionId::ALWAYS,
             ),

@@ -142,7 +142,7 @@ fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output 
         &object,
     )
     .expect("accepted source must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -171,10 +171,7 @@ fn resolved_unit_entry_emits_the_existing_native_wrapper_object() {
     )
     .expect("resolved entry must emit object");
 
-    assert_eq!(
-        &fs::read(&object).expect("object bytes")[..4],
-        b"\xcf\xfa\xed\xfe"
-    );
+    crate::test_support::assert_native_object(&fs::read(&object).expect("object bytes"));
     let symbols = Command::new("/usr/bin/nm")
         .arg("-gj")
         .arg(&object)
@@ -182,7 +179,13 @@ fn resolved_unit_entry_emits_the_existing_native_wrapper_object() {
         .expect("nm must launch");
     assert!(symbols.status.success(), "{symbols:?}");
     let names = String::from_utf8(symbols.stdout).expect("nm output must be UTF-8");
-    assert_eq!(names.lines().filter(|name| *name == "_main").count(), 1);
+    assert_eq!(
+        names
+            .lines()
+            .filter(|name| *name == crate::test_support::main_symbol())
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -209,7 +212,7 @@ fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_bef
         &object,
     )
     .expect("borrowed argv entry object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -294,7 +297,7 @@ fn borrowed_argv_entry_accepts_utf8_boundaries_and_rejects_invalid_sequences_bef
         &observing_object,
     )
     .expect("observing borrowed argv entry object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&observing_object)
         .arg("-o")
         .arg(&observing_executable)
@@ -485,7 +488,7 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
         &object,
     )
     .expect("standard println must emit an object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -761,7 +764,7 @@ fn move_only_rc_payload_borrow_call_links_runs_and_releases_once() {
         &object,
     )
     .expect("MoveOnly Rc payload Borrow must emit an object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -841,7 +844,7 @@ fn nullable_class_box_and_rc_sources_link_run_and_release() {
         &object,
     )
     .expect("nullable class, Box, and Rc source must emit an object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -952,7 +955,7 @@ fun nullableEntry(): Unit {{
             &object,
         )
         .unwrap_or_else(|error| panic!("{inner}: {error:?}"));
-        let linked = Command::new("/usr/bin/clang")
+        let linked = Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
             .arg(&executable)
@@ -1040,7 +1043,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
         )
         .expect("write allocator counter");
-        let linked = Command::new("/usr/bin/clang")
+        let linked = Command::new(crate::test_support::ir_clang())
             .arg(&ir)
             .arg(&counter)
             .arg(format!("-DEXPECT_SHARED={shared}"))
@@ -1228,7 +1231,7 @@ fn nominal_enum_box_source_emits_links_and_runs() {
         &object,
     )
     .expect("nominal source must emit an object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)

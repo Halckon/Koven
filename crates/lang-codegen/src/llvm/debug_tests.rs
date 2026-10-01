@@ -312,6 +312,7 @@ fn foreign_source_map_fails_before_debug_object_is_written() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn macho_line_table_resolves_a_koven_source_breakpoint_in_lldb() {
     let directory = TestDirectory::create();
     let source = directory.join("debug.ko");
@@ -344,7 +345,7 @@ fn macho_line_table_resolves_a_koven_source_breakpoint_in_lldb() {
     );
 
     let link = run(
-        Command::new("/usr/bin/clang")
+        Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
             .arg(&executable),
@@ -378,6 +379,7 @@ fn macho_line_table_resolves_a_koven_source_breakpoint_in_lldb() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 #[ignore = "requires debugserver task-port permission unavailable in ordinary sandbox or CI"]
 fn lldb_hits_a_koven_source_breakpoint_and_reports_the_frame() {
     let directory = TestDirectory::create();
@@ -390,7 +392,7 @@ fn lldb_hits_a_koven_source_breakpoint_and_reports_the_frame() {
     emit_verified_object(&program, &sources, entry, &object).expect("debug object");
 
     let link = run(
-        Command::new("/usr/bin/clang")
+        Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
             .arg(&executable),
@@ -424,4 +426,48 @@ fn lldb_hits_a_koven_source_breakpoint_and_reports_the_frame() {
     );
     assert!(lldb_text.contains("frame #0:"), "{lldb_text}");
     assert!(lldb_text.contains("app at debug.ko:4:5"), "{lldb_text}");
+}
+
+#[test]
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+fn elf_line_table_records_koven_source_locations_and_runs() {
+    let directory = TestDirectory::create();
+    let source = directory.join("debug.ko");
+    let (sources, program, entry) = native_debug_program(source.to_str().unwrap());
+    fs::write(&source, NATIVE_SOURCE).expect("source snapshot write");
+    let object = directory.join("debug.o");
+    let executable = directory.join("debug");
+    emit_verified_object(&program, &sources, entry, &object).expect("debug ELF object");
+    crate::test_support::assert_native_object(&fs::read(&object).unwrap());
+
+    let tool = std::env::var_os("LLVM_SYS_211_PREFIX")
+        .map(PathBuf::from)
+        .map(|prefix| prefix.join("bin/llvm-dwarfdump"))
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("llvm-dwarfdump"));
+    let dwarf = run(
+        Command::new(tool).arg("--debug-line").arg(&object),
+        "llvm-dwarfdump",
+    );
+    assert_success(&dwarf, "llvm-dwarfdump");
+    let text = String::from_utf8_lossy(&dwarf.stdout);
+    assert!(text.contains("debug.ko"), "{text}");
+    assert!(
+        text.lines().any(|line| {
+            let fields = line.split_whitespace().collect::<Vec<_>>();
+            fields.get(1) == Some(&"4") && fields.get(2) == Some(&"5")
+        }),
+        "{text}"
+    );
+
+    let link = run(
+        Command::new("/usr/bin/cc")
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable),
+        "cc link",
+    );
+    assert_success(&link, "cc link");
+    let executed = run(&mut Command::new(&executable), "native ELF executable");
+    assert_eq!(executed.status.code(), Some(0));
 }

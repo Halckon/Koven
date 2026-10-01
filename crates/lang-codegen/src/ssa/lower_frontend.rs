@@ -214,7 +214,7 @@ impl ExpressionLowerer<'_> {
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, value, span),
             Expression::Break { .. } => {
-                if self.loops.last().map_or(false, |c| c.for_loop.is_some()) {
+                if self.loops.last().is_some_and(|c| c.for_loop.is_some()) {
                     self.lower_for_break(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;
@@ -222,7 +222,7 @@ impl ExpressionLowerer<'_> {
                 }
             }
             Expression::Continue { .. } => {
-                if self.loops.last().map_or(false, |c| c.for_loop.is_some()) {
+                if self.loops.last().is_some_and(|c| c.for_loop.is_some()) {
                     self.lower_for_continue(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;

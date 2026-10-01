@@ -44,6 +44,9 @@ Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调�
 错误恢复遵守 lexical owner、delimiter 和声明/block 边界；恢复必须单调前进。递归语法在隔离 worker
 栈和固定递归预算内执行，资源边界以内部错误返回。
 
+Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
+在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
+
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。
 

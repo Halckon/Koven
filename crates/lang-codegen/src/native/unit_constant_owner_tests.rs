@@ -309,7 +309,7 @@ fn run_counted_strings(
         format!("#define EXPECT_ABORT {}\n#define EXPECT_DROPS {expected_drops}\n#define EXPECT_ALLOCATIONS {expected_allocations}\n{}", u8::from(aborting), COUNTER),
     )
     .unwrap();
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::ir_clang())
         .arg(&ir)
         .arg(&counter)
         .arg("-o")

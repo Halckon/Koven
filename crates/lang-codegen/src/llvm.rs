@@ -45,7 +45,8 @@ use lang_frontend::source::SourceMap;
 
 use crate::ssa::model::Program;
 
-const FIRST_TARGET: &str = "aarch64-apple-darwin";
+const MACOS_TARGET: &str = "aarch64-apple-darwin";
+const LINUX_TARGET: &str = "x86_64-unknown-linux-gnu";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum LlvmAdapterError {
@@ -66,7 +67,7 @@ impl From<BuilderError> for LlvmAdapterError {
     }
 }
 
-/// 把已验证的 target-independent SSA 映射为首个 target 的 LLVM IR 文本。
+/// 把已验证的 target-independent SSA 映射为当前受支持宿主的 LLVM IR 文本。
 pub(crate) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, None)
 }
@@ -114,7 +115,7 @@ pub(crate) fn render_verified_program_with_debug(
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。
 pub(crate) fn render_scalar_smoke_module() -> Result<String, LlvmAdapterError> {
-    let (triple, target_machine) = first_target_machine()?;
+    let (triple, target_machine) = native_target_machine()?;
 
     let context = Context::create();
     let module = context.create_module("koven.scalar-smoke");
@@ -148,9 +149,47 @@ pub(crate) fn render_scalar_smoke_module() -> Result<String, LlvmAdapterError> {
     Ok(module.print_to_string().to_string())
 }
 
-fn first_target_machine() -> Result<(TargetTriple, TargetMachine), LlvmAdapterError> {
-    Target::initialize_aarch64(&InitializationConfig::default());
-    let triple = TargetTriple::create(FIRST_TARGET);
+pub(crate) fn native_target_triple() -> Result<&'static str, LlvmAdapterError> {
+    target_for_host(
+        std::env::consts::ARCH,
+        std::env::consts::OS,
+        cfg!(target_env = "gnu"),
+        cfg!(target_pointer_width = "64"),
+    )
+}
+
+fn target_for_host(
+    arch: &str,
+    os: &str,
+    gnu: bool,
+    pointer64: bool,
+) -> Result<&'static str, LlvmAdapterError> {
+    match (arch, os, gnu, pointer64) {
+        ("aarch64", "macos", _, true) => Ok(MACOS_TARGET),
+        ("x86_64", "linux", true, true) => Ok(LINUX_TARGET),
+        _ => Err(LlvmAdapterError::Target(format!(
+            "unsupported native host: {arch}-{os}; supported targets: {MACOS_TARGET}, {LINUX_TARGET}"
+        ))),
+    }
+}
+
+fn native_target_machine() -> Result<(TargetTriple, TargetMachine), LlvmAdapterError> {
+    target_machine_for_triple(native_target_triple()?)
+}
+
+fn target_machine_for_triple(
+    target_triple: &str,
+) -> Result<(TargetTriple, TargetMachine), LlvmAdapterError> {
+    match target_triple {
+        MACOS_TARGET => Target::initialize_aarch64(&InitializationConfig::default()),
+        LINUX_TARGET => Target::initialize_x86(&InitializationConfig::default()),
+        _ => {
+            return Err(LlvmAdapterError::Target(format!(
+                "unsupported native target: {target_triple}"
+            )));
+        }
+    }
+    let triple = TargetTriple::create(target_triple);
     let target = Target::from_triple(&triple)
         .map_err(|error| LlvmAdapterError::Target(error.to_string()))?;
     let target_machine = target
@@ -162,7 +201,9 @@ fn first_target_machine() -> Result<(TargetTriple, TargetMachine), LlvmAdapterEr
             RelocMode::PIC,
             CodeModel::Default,
         )
-        .ok_or_else(|| LlvmAdapterError::Target("无法创建 AArch64 target machine".to_owned()))?;
+        .ok_or_else(|| {
+            LlvmAdapterError::Target(format!("无法创建 {target_triple} target machine"))
+        })?;
     Ok((triple, target_machine))
 }
 
@@ -182,18 +223,61 @@ mod tests {
     };
 
     use super::{
-        FIRST_TARGET, LlvmAdapterError, render_scalar_smoke_module, render_verified_program,
+        LINUX_TARGET, LlvmAdapterError, MACOS_TARGET, native_target_triple,
+        render_scalar_smoke_module, render_verified_program, target_for_host,
+        target_machine_for_triple,
     };
 
     #[test]
-    fn renders_deterministic_verified_aarch64_scalar_module() {
+    #[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+    fn linux_host_renders_x86_64_gnu_target() {
+        let llvm = render_scalar_smoke_module().expect("Linux target must be available");
+        assert!(llvm.contains("target triple = \"x86_64-unknown-linux-gnu\""));
+    }
+
+    #[test]
+    fn renders_deterministic_verified_native_scalar_module() {
         let first = render_scalar_smoke_module().expect("固定 LLVM 21 矩阵应生成合法模块");
         let second = render_scalar_smoke_module().expect("重复生成应保持确定");
 
         assert_eq!(first, second);
-        assert!(first.contains(&format!("target triple = \"{FIRST_TARGET}\"")));
+        let target = native_target_triple().expect("supported native host");
+        assert!(first.contains(&format!("target triple = \"{target}\"")));
         assert!(first.contains("define i32 @add(i32 %0, i32 %1)"));
         assert!(first.contains("%sum = add i32 %0, %1"));
+    }
+
+    #[test]
+    fn native_host_selection_rejects_unsupported_platforms() {
+        assert_eq!(
+            target_for_host("aarch64", "macos", false, true),
+            Ok(MACOS_TARGET)
+        );
+        assert_eq!(
+            target_for_host("x86_64", "linux", true, true),
+            Ok(LINUX_TARGET)
+        );
+        for (arch, os, gnu, pointer64) in [
+            ("x86_64", "linux", false, true),
+            ("aarch64", "linux", true, true),
+            ("x86_64", "macos", false, true),
+            ("x86_64", "windows", true, true),
+            ("x86_64", "linux", true, false),
+        ] {
+            assert!(matches!(
+                target_for_host(arch, os, gnu, pointer64),
+                Err(LlvmAdapterError::Target(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn both_supported_backends_keep_a_64_bit_pointer_layout() {
+        for target in [MACOS_TARGET, LINUX_TARGET] {
+            let (triple, machine) = target_machine_for_triple(target).expect("enabled backend");
+            assert_eq!(triple.as_str().to_str().unwrap(), target);
+            assert_eq!(machine.get_target_data().get_pointer_byte_size(None), 8);
+        }
     }
 
     #[test]

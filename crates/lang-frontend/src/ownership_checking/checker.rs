@@ -417,8 +417,7 @@ impl<'a> Checker<'a> {
                 }
             }
             Item::Deinit { body, .. } => {
-                let previous =
-                    std::mem::replace(&mut self.current_receiver_mode, Some(ParameterMode::Borrow));
+                let previous = self.current_receiver_mode.replace(ParameterMode::Borrow);
                 let result = self.check_statement(body, State::default());
                 self.current_receiver_mode = previous;
                 result?;
