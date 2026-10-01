@@ -181,7 +181,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
   lexical owner；恢复必须复用[声明恢复规则](05-declarations-callables.md)预索引的 `L0004`–`L0006` terminal-owner 关系，不能把
   `InterpolationEnd` 当作 block closer，也不能在每个 block error 处重扫 Lexer 诊断。
 - unsupported / expected element 的最小恢复以“消费确定的错误引导 token 或错误 token”
-  为边界；block 内没有分号或换行分隔可供猜测整个未来结构的结束位置，因此不得按行跳过，也不得越过
+  为边界；block 内按确定的换行敏感边界或分号推进至下一 element，不得越过
   当前 owner `}`。遗留 token 随后按允许的最大合法 element 规则解析；可能产生的独立错误
   必须各有真实根因，不能为同一未消费 token 重复发诊断。
 - 每次循环要么消费至少一个 raw lexeme，要么在 `}` / EOF 结束；诊断顺序按源码位置稳定。

@@ -30,6 +30,12 @@
 > provider primitive 与 source/native integration。候选未启用，不依赖 receiver 或 Phase 5 容器 API。
 > 本文档是拆分后变化最频繁的一份——每验收一个 Spec 就需要勾选对应 checkbox，请优先
 > 到这里确认“现在该做哪一项”。
+>
+> **v0.38 状态追溯核对说明（2026-10-01）**：本文档属于 v0.34 重组期历史归档。随着语言规范演进至
+> v0.38，原作为候选起草的 v0.35（空安全与断言）、v0.36（关联常量与求值）、v0.37（借用式顺序迭代）
+> 均已完成核心 Spec 实施与归档。本次已对其中已落地的 15 项核心条目同步勾选（`- [x]`）并更新状态；
+> 8 项未实现项（MutableList 增删 API 及 relocation 冲突跟踪、静态栈帧/大值复制 warning、Phase 5 集合/IO/
+> 并发/测试框架扩展、Phase 6 project.lock 依赖解析）继续保持未勾选（`- [ ]`）。
 
 ## Phase 0：项目骨架（已完成）
 
@@ -239,12 +245,12 @@ fun main(): Unit {
       instance receiver，并发布 member/`this`/Borrow-only 委托的 type/place/effect facts；
       delegate forwarder 以 direct implementation / exact next hop / unresolved 三态保存稳定 target
       与实例化 receiver template；不从方法名、函数体或字段可变性猜测 Borrow/Inout/Value。
-- [ ] **[SPEC-0179](../../specs/0179-sequential-iteration-typed-plan.md)（draft）**：按 v0.37 候选
+- [x] **[SPEC-0179](../../specs/0179-sequential-iteration-typed-plan.md)（已完成）**：按 v0.37
       只为 intrinsic Array/List/MutableList 发布 provider/element 与名称/discard/value-class
       borrowed projection typed plan；L0159/L0160 拒绝非 provider source/非法结构 binding，
-      不按 `Iterable`/`Iterator` 或同名方法猜测；等待候选启用与 ADR-0023 accepted。
-- [ ] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
-      或 override
+      不按 `Iterable`/`Iterator` 或同名方法猜测；已完成实施与归档。
+- [x] `object` / `companion object` 关联成员与编译期常量检查；接口 companion 常量不参与继承
+      或 override（由 SPEC-0026 及 SPEC-0210 实现完成）
 - [x] 在 SPEC-0064 已建立的委托 AST 上验证 delegate 是同一主构造器的不可变 `val` 字段，
       其静态具体类型满足接口；手写 `override` 优先，拒绝未消歧的多委托冲突
 - [x] **智能类型转换（smart cast）**：`is`/`when` 分支内的类型收窄及其失效规则（变量在收窄后被重新赋值则收窄失效）
@@ -330,14 +336,13 @@ Spec 之前，本条限制不变。）
       layout fact；字段递归替换不依赖 construction/call reachability，冻结候选快照避免参数增长型
       heap 递归无限物化。该节点解除 SPEC-0191 的 `List<T>` / `Wrapper<T>` frontend 前置；`T?`
       storage lowering 仍独立。
-- [ ] **[SPEC-0202](../../specs/0202-nullable-when-flow-facts.md)（draft）**：按 v0.35 候选发布
-      nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan；等待候选启用。
-- [ ] **[SPEC-0205](../../specs/0205-non-null-assertion-facts.md)（draft）**：发布 `!!` 的单次求值、
-      operand category 与 Copy/Consume extraction typed descriptor；等待候选启用。
-- [ ] **[SPEC-0026](../../specs/0026-associated-constant-evaluation.md)（draft）**：按 v0.36 候选
-      选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor；
-      exact-import 边界已由现行 v0.32 勘误封闭，本节点只等待候选 v0.36 启用。
-- [ ] **[SPEC-0210](../../specs/0210-multifile-associated-constants.md)（draft）**：在 0025/0197
+- [x] **[SPEC-0202](../../specs/0202-nullable-when-flow-facts.md)（已完成）**：按 v0.35 发布
+      nullable `when` 的剩余域、alternative 交集与 branch non-null typed plan。
+- [x] **[SPEC-0205](../../specs/0205-non-null-assertion-facts.md)（已完成）**：发布 `!!` 的单次求值、
+      operand category 与 Copy/Consume extraction typed descriptor。
+- [x] **[SPEC-0026](../../specs/0026-associated-constant-evaluation.md)（已完成）**：按 v0.36
+      选择单文件顶层/object/companion const，发布 typed ConstValue、依赖图与 use descriptor。
+- [x] **[SPEC-0210](../../specs/0210-multifile-associated-constants.md)（已完成）**：在 0025/0197
       完成后复用 0026 evaluator，集成跨文件 qualified const、visibility、dependency/cycle；
       不复制 evaluator 或提前生成 native unit。
 Map 与 receiver 各自在门禁解除后形成独立增量验收；const/object 与 `for` 已分别物化为未启用
@@ -382,7 +387,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       第 8 节固定的提交顺序检查替换，并发布旧元素的唯一 drop fact
 - [ ] 在 Phase 5 明确 `MutableList` 增删/重排 API 及其 typed relocation effect 后，跟踪元素
       借用与扩容、缩容、删除、重排的冲突，并验证所有正常 relocation / 析构路径资源恰好
-      析构一次；不得在此之前按成员名猜测 effect
+      析构一次；不得在此之前按成员名猜测 effect（暂未实现；依赖 Phase 5 集合增删 API 定义）
 - [x] **SPEC-0032（v0.27，已实现）**：默认 lambda 建立 shared capture，`move` lambda
       复制 / 移动 owned capture；借用闭包不得逃逸，跨线程 typed effect 只接受可证明满足
       `Transferable` 的值或 closure environment，不从函数名或仅从 `move (...) -> T` 猜测 effect；
@@ -396,17 +401,16 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
       Copy/Move/Temporary delivery、capture/Transferability、return 与 ASAP drop facts；错误 unit 原子
       清空可执行 facts，element-field projection 等显式 deferred 边界不通过 validated ownership gate，
       不新增跨过程所有权分析。
-- [ ] **[SPEC-0203](../../specs/0203-nullable-when-ownership.md)（draft）**：消费 0202，检查
-      non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop；等待候选启用。
-- [ ] **[SPEC-0206](../../specs/0206-non-null-assertion-ownership.md)（draft）**：消费 0205，检查
+- [x] **[SPEC-0203](../../specs/0203-nullable-when-ownership.md)（已完成）**：消费 0202，检查
+      non-owning view、Copy/Consume extraction 与每分支 wrapper/inner drop。
+- [x] **[SPEC-0206](../../specs/0206-non-null-assertion-ownership.md)（已完成）**：消费 0205，检查
       MoveOnly whole-root consumption、Borrow/Inout/部分移动拒绝及 abort/drop 事实。
-- [ ] **[SPEC-0208](../../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
+- [x] **[SPEC-0208](../../specs/0208-constant-materialization-ownership.md)（已完成）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
-      owner，禁止 global owner/capture/init/drop；等待候选启用。
-- [ ] **[SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
+      owner，禁止 global owner/capture/init/drop。
+- [x] **[SPEC-0211](../../specs/0211-sequential-iteration-ownership.md)（已完成）**：消费 0179，为
       named/field/Borrow/Inout/temporary source 建立 whole-loop shared loan、逐轮 element/component
-      Borrow binding 与 normal/continue/break/exhaustion/return cleanup；复用 L0131/L0133–L0138，
-      等待 v0.37/ADR-0023。
+      Borrow binding 与 normal/continue/break/exhaustion/return cleanup；复用 L0131/L0133–L0138。
 
 **当前核心验收标准**：能正确拒绝典型的“移动后使用”和“重复可变借用”错误用例；复制
 `Pair<Int, Int>` 后源值仍可用，复制 `Pair<Sender<Int>, Receiver<Int>>` 被拒绝，后者消费式
@@ -456,18 +460,18 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
       verifier；LLVM 使用单 pointer niche 和 conditional drop。class/Box/Rc 的 null/non-null、Rc
       非空分支 share/read 与 native build/link/run 已验收；inline nullable、nullable `when` 与 `!!`
       消费 lowering 保持确定性 unsupported，等待各自独立 Spec
-- [ ] **[SPEC-0204](../../specs/0204-pointer-nullable-when-lowering.md)（draft）**：消费 0202/0203，
+- [x] **[SPEC-0204](../../specs/0204-pointer-nullable-when-lowering.md)（已完成）**：消费 0202/0203，
       复用 ADR-0017 完成 owned whole-root/temporary class/Box/Rc nullable `when` 的
       SSA/LLVM/native 闭环；nullable loan/place branch 仍等待后继 ADR。
-- [ ] **[SPEC-0207](../../../archive/specs/0207-pointer-non-null-assertion-lowering.md)（draft）**：消费
+- [x] **[SPEC-0207](../../specs/0207-pointer-non-null-assertion-lowering.md)（已完成）**：消费
       0205/0206，复用 `NullableBranch/Take` 与 compiler-bound SSA Abort 完成 owned
       whole-root/temporary pointer-like `!!` native 闭环。
-- [ ] **[SPEC-0209](../../specs/0209-associated-constant-lowering.md)（draft）**：消费 0026/0208，
+- [x] **[SPEC-0209](../../specs/0209-associated-constant-lowering.md)（已完成）**：消费 0026/0208，
       把单文件 scalar/Char/String const use 重新物化到既有 SSA/LLVM/object/link/run；不生成
       singleton/global/init 或第二套 String runtime。
-- [ ] **[SPEC-0212](../../specs/0212-borrowed-sequential-iteration-ssa.md)（draft）**：先以手工 SSA
+- [x] **[SPEC-0212](../../specs/0212-borrowed-sequential-iteration-ssa.md)（已完成）**：先以手工 SSA
       把 ContainerLength 扩为 Value/shared Loan、收口真正 `Int` 与 header size_t bridge，并验证
-      provider cursor/loan CFG/checked-place/ZST；不读取真实 `for` AST，等待 v0.37/ADR-0023。
+      provider cursor/loan CFG/checked-place/ZST；不读取真实 `for` AST。
 - [x] **SPEC-0035（已实现）**：已建立不依赖源码 constructor 选择的 typed SSA/LLVM aggregate、
       class/Box heap owner、target-derived 系统 allocation、heap place 与递归显式 drop/free 后端
       基元；源码 constructor 已由 SPEC-0183/0188 发布 typed 与 ownership facts，并由
@@ -482,11 +486,10 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [ ] **[SPEC-0182](../../../specs/active/0182-sequential-for-lowering.md)（draft）**：只消费 0179/0211/0212
+- [x] **[SPEC-0182](../../../specs/active/0182-sequential-for-lowering.md)（已实现）**：只消费 0179/0211/0212
       validated facts，把真实 `for` 接到无分配 preheader/header/body/exit SSA、LLVM 与 native；
-      覆盖 Borrow binding、value-class projection 和全部 jump/drop，不依赖 0181/0191 或 0046，
-      等待 v0.37/ADR-0023 及前置 Spec 完成。v0.37 typed/ownership 接受 Inout/field source，但
-      首轮 native 只覆盖 owned named source 与 Borrow 参数；其余 source place 等待后继 lowering Spec。
+      覆盖 Borrow binding、value-class projection 和全部 jump/drop；首轮 native 覆盖 owned named source、
+      Borrow 参数与 temporary source（代码与 native 验证已完成，commit 8891bb5）。
 - [x] **SPEC-0184（v0.29，已实现）**：把 nominal/enum/Box construction、
       projection、destructuring 与 drop facts lower 到既有 aggregate/heap-owner SSA；完成
       value class 内联、class heap owner、enum tag/payload 和 Box payload 接线，布局策略与
@@ -510,7 +513,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] 构造和替换保持第 8 节的求值 / 提交 / 析构顺序；正常析构按元素逆序后释放缓冲区，
       ZST 仍按逻辑 `size` 执行 drop；abort 路径不生成异常展开或部分构造 cleanup
 - [ ] 在目标布局确定后估算静态栈帧和实际仍存在的隐式大值复制，以对应 Spec 分配的稳定
-      warning code 报告目标相关阈值超限，不因 warning 自动改变类型或表示
+      warning code 报告目标相关阈值超限，不因 warning 自动改变类型或表示（暂未实现；未接入栈帧及复制 warning 估算）
 - [x] **SPEC-0038（已实现）闭包环境捕获的 codegen**：无捕获 callable 使用裸函数指针；
       concrete closure 使用 `{ptr, inline environment}`，owned capture 按值存储并逆序析构，
       shared capture 保存已有 loan pointer 且依赖随 closure owner/CFG transfer 存续
@@ -577,7 +580,7 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `Hello, World!\n`；一般 String runtime、其他重载和公开 build/run CLI 仍后置
 - [ ] 在预声明的 `Array`、`List`、`MutableList` 及 Phase 4 基元之上，用目标语言实现
       `MutableList` 增删等普通集合方法与算法；不在 `.ko` 中重新声明 `arrayOf`、`listOf`、
-      `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header
+      `mutableListOf`、运行时长度构造、`size` 或 `[]`，也不重新实现容器 header（暂未实现）
 - [x] **SPEC-0044（已实现）**：在唯一 Koven prelude 真源声明 `Pair<A, B>` 与
       `Result<T, E>`；自动解构及按类型实参条件满足 `Copyable` 沿用通用 compiler facts，
       核心 payload 固定为 `Ok(success: T)` / `Err(error: E)`，native 正反路径已验收
@@ -585,16 +588,16 @@ abort 且不生成异常展开。大栈帧 / 大型隐式复制测试必须锁�
       `.share()`、Borrow-only `.value`、ASAP 自动 release 与归零析构；`Rc<T>` 始终 MoveOnly 且
       不满足 Transferable。MoveOnly payload 的通用 Borrow call 已由 SPEC-0195 完成；不引入
       Arc/Weak/Shareable、一般 instance receiver 或源语言 Arena API
-- [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`
+- [ ] 高阶函数支持的集合操作：`map`/`filter`/`reduce`/`forEach`（暂未实现）
 - [x] **[SPEC-0192](../../specs/0192-general-string-runtime.md)（已实现；v0.31）**：一般 UTF-8 `String` owner、plain literal、传参/返回、
       `+`、`==`/`!=`、动态 `println`/`error` 与 drop glue 已接入，并完成 aggregate、Rc、
       顺序容器和 move closure 的 native 正常/提前退出验收
 - [ ] 基础 IO：`File`、`BufferedReader`、标准流；仍等待关联/实例 member、receiver lowering、
-      具体 API guide 与同步 IO runtime ABI ADR
+      具体 API guide 与同步 IO runtime ABI ADR（暂未实现）
 - [ ] 线程/channel API，`thread()` 的 task 参数声明 `own`，类型使用 `move (...) -> Unit`；
       `Sender.send` 的 value 参数同样声明 `own`；具体返回类型、member receiver lowering 与
-      thread/channel runtime ABI 仍是实施门禁
-- [ ] `@Test` 注解 + 断言函数，跑通自身的测试套件
+      thread/channel runtime ABI 仍是实施门禁（暂未实现）
+- [ ] `@Test` 注解 + 断言函数，跑通自身的测试套件（暂未实现）
 
 **验收标准**：标准库自身的测试套件全部用目标语言编写并通过；至少覆盖
 标准 `println("Hello, World!")` 的 UTF-8 stdout 精确字节、空串/Unicode/合法转义与插值拒绝；
@@ -621,7 +624,7 @@ Map 不是本版 Phase 5 验收项；不得为让测试通过而将本版未定�
       `project.toml` 与安全 filesystem discovery 产生 deterministic base source-set snapshot；
       不等待无关的 Stage 2 import/visibility，也不做依赖、entry、build 或 LSP overlay。
 - [ ] SPEC-0053：在独立 dependency/lock ADR 后实现依赖解析与确定性 `project.lock`；每个依赖
-      仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界。
+      仍是独立 compilation unit，不能把依赖源码并入本 unit 来绕过 `internal` 边界（暂未实现；依赖管理与 lockfile 尚未立项）。
 - [x] **[SPEC-0054](../../specs/0054-local-project-build-run.md)（已实现）**：在已完成的 SPEC-0052/0199
       后按 v0.33 §33 编排显式 package-qualified entry 的无依赖本地
       project build/run；不做跨

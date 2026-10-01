@@ -256,11 +256,10 @@ Identifier、参数逗号、最终 `->` 的 token 时立即永久判为 no-heade
 Body 复用[block 与控制流规则](06-blocks-control-flow.md)的三种 element 和最大 element / 显式 stop 规则，但使用独立 lambda-body
 payload，不能复用静态类型固定为 `Unit` 的 `Statement::Block`。若最后一个 element 是
 expression statement，该 expression 是 lambda 的尾值；空 body 或最后一项为局部声明 / nested
-block 时尾值为 `Unit`。这里不创造隐式 statement separator：普通 expression-start 仍不是
-局部声明 initializer 的 stop，所以 `{ val x = 1 x }` 必须作为 initializer 尾随输入报错，不能
-把 `x` 改判为第二项 tail expression。当前阶段若要使用普通 tail expression，它必须是 body
-首项，或位于一个已有真实 `}` 结束的 nested block 之后；不承诺“任意局部声明序列 + tail
-expression”。Parser 只保存该结构；参数类型、捕获、返回类型与 `move` 合法性由后续检查。
+block 时尾值为 `Unit`。Body 内部各 element 遵循 block 的换行与分号 `;` 分隔契约：普通 expression-start
+不是同一行局部声明 initializer 的隐式 stop，因此同行内无分号的 `{ val x = 1 x }` 属于语法错误；
+而在换行或分号分隔下（如 `{ val x = 1 \n x }` 或 `{ val x = 1; x }`），声明之后紧随 tail expression
+是完全合法且标准的写法。Parser 只保存该结构；参数类型、捕获、返回类型与 `move` 合法性由后续检查。
 `return` 可作为 lambda body element，且退出最近 lambda；完整 jump 产生式、
 上下文与恢复规则见[block 与控制流规则](06-blocks-control-flow.md)。
 

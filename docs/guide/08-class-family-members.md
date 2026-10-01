@@ -81,6 +81,8 @@ val owned: Box<Endpoint> = Box(endpoint) // Endpoint 不可复制；这里移动
 // 此后再次使用 endpoint 是移动后使用错误
 ```
 
+`Box<T>` 内部值的访问遵循借用投影 `box.value`（获得只读借用）与显式消费拆箱 `box.unbox()`（消耗 Box 所有权并返还内部值），详见[内建 Box 身份与实参边界](11-copyability-layout-construction.md#内建-box-身份与实参边界)。
+
 ## 可见性与 Enum Class
 
 ```kotlin
