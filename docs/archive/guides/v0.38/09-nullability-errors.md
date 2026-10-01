@@ -1,8 +1,8 @@
-# Koven v0.39：空安全与错误值
+# Koven v0.38：空安全与错误值
 
-> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审 nullable、Nothing、Result、error 与 postfix ? 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 nullable、Nothing、Result、error 与 postfix ? 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `error()` 与空安全运算符
 
@@ -15,8 +15,7 @@ fun divide(a: Int, b: Int): Int {
 }
 ```
 
-- `error` **不是关键字**，而是标准库顶层函数，具有 `Str` / `String` Borrow 重载，
-  完整契约见[标准文本操作](13-program-runtime-standard-library.md#封闭的最小操作)。`Nothing`
+- `error` **不是关键字**，而是标准库顶层函数：`fun error(message: String): Nothing`。`Nothing`
   的 bottom-type 规则适用于所有返回 `Nothing` 的 callable，不按函数名特判。
 - `error()` 不抛出可捕获异常，而是终止进程（abort）。
 - `Nothing` 参与 bottom-type 类型推导：`if` 一个分支返回 `Nothing`，另一分支返回 `T`，整体类型推导为 `T`。

@@ -288,7 +288,7 @@ Hello, World!
 
 The repository contains comprehensive documentation organized under [`docs/`](docs/):
 
-- [**Language Specification (v0.37)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
+- [**Language Specification (v0.39)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
 - [**Compiler Architecture**](docs/architecture/README.md): Detailed snapshots of the compilation pipeline, typed SSA design, and codegen.
 - [**Development & Testing Guide**](docs/development/README.md): Guidelines for testing, layered verification, and code invariants.
 - [**Architecture Decision Records (ADRs)**](docs/adr/README.md): Records of long-term architectural designs and technical rationales.

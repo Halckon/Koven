@@ -33,7 +33,8 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.38\s*-->")
+CURRENT_GUIDE_VERSION = "v0.39"
+CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[0-9]+\.[0-9]+)\s*-->")
 SCOPED_AGENT_DIRS = (
     "lang-frontend",
     "lang-codegen",
@@ -64,7 +65,7 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
     "v0.37": frozenset(),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228", "0235"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25)), "0026"}
 )
@@ -432,15 +433,20 @@ class DocsChecker:
         )
 
     def check_current_guide(self) -> None:
-        live_texts = [
-            path.read_text(encoding="utf-8")
+        markers = [
+            (path, version)
             for path in self.files
-            if "docs/archive/" not in relative(path, self.root)
+            if not relative(path, self.root).startswith("docs/archive/")
+            for version in CURRENT_GUIDE_RE.findall(path.read_text(encoding="utf-8"))
         ]
-        count = sum(len(CURRENT_GUIDE_RE.findall(text)) for text in live_texts)
-        if count != 1:
-            self.error(f"current guide marker 必须恰好一个，实际为 {count}")
+        if len(markers) != 1:
+            self.error(f"current guide marker 必须恰好一个，实际为 {len(markers)}")
         guide = self.docs / "guide"
+        for path, version in markers:
+            if path != guide / "README.md":
+                self.error("current guide marker 只能位于 docs/guide/README.md")
+            if version != CURRENT_GUIDE_VERSION:
+                self.error(f"current guide 版本必须为 {CURRENT_GUIDE_VERSION}，实际为 {version}")
         expected = {guide / "README.md"} | {
             guide / f"{number:02d}-{name}.md"
             for number, name in enumerate(

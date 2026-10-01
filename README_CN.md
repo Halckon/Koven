@@ -289,7 +289,7 @@ Hello, World!
 
 仓库内包含组织在 [`docs/`](docs/) 下的完整文档体系：
 
-- [**语言规范 (v0.37)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
+- [**语言规范 (v0.39)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
 - [**编译器架构快照**](docs/architecture/README.md)：编译流水线、Typed SSA 与代码生成的当前事实说明。
 - [**开发与测试指南**](docs/development/README.md)：分层验证、测试门禁与代码不变式规范。
 - [**架构决策记录 (ADR)**](docs/adr/README.md)：重大架构决策的历史背景、长期考量与技术设计记录。

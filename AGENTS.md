@@ -14,7 +14,7 @@
 | `crates/lang-cli/` | 流水线编排、项目发现、诊断渲染、链接与进程退出；不承载核心算法 |
 | `crates/lang-lsp/` | LSP 协议、位置适配、复用 frontend 诊断；不复制检查器 |
 | `crates/lang-std/` | `koven/**/*.ko` 标准库实现真源；Rust target 只承载 Cargo 边界 |
-| `docs/guide/` | 现行语言语义与强制 Phase 规范；唯一真源，当前 v0.38 |
+| `docs/guide/` | 现行语言语义与强制 Phase 规范；唯一真源，当前 v0.39 |
 | `docs/architecture/` | 当前实现事实快照 |
 | `docs/development/` | 开发、验证与交付规则 |
 | `docs/specs/`、`docs/adr/` | 一次变更的合同；guide 留白处的长期决策记录 |
@@ -29,7 +29,7 @@
 
 1. 用户当前要求决定本次授权范围。
 2. 本文件及作用域更近的 `AGENTS.md` 规定工作方式。
-3. [现行 Koven v0.38 规范](docs/guide/README.md)规定语言语义与强制 Phase 边界。
+3. [现行 Koven v0.39 规范](docs/guide/README.md)规定语言语义与强制 Phase 边界。
 4. 已批准 Spec 规定一次交付；accepted ADR 记录 guide 留白处的长期架构决定。
 5. 代码、测试和 [Architecture](docs/architecture/README.md)证明当前实现事实。
 

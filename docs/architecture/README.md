@@ -26,6 +26,14 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 
+## 规范覆盖边界
+
+本次 Guide v0.39 启用只更新文档，没有改动编译器或标准库实现。当前 Parser 的
+`parser/engine/postfix.rs` 仍能构造调用实参 Borrow marker；`type_checking/model.rs` 的
+builtin 集合只有 String、没有 Str，单文件与 compilation-unit 的字符串 expression 仍定型为
+String，`println` / `error` 的预声明文本签名也仍只接受 String。已通过的旧 String literal
+owner 验收不能视为新 Str 契约的实现证明；本索引不声明四项新规则已完成端到端支持。
+
 ## 按实现领域读取
 
 | 修改内容 | 页面 |

@@ -1,12 +1,12 @@
-# Koven v0.39：类型与泛型
+# Koven v0.38：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
-基础类型命名与含义如下：
+采用与 Kotlin 完全一致的基础类型命名：
 
 | 类型 | 说明 |
 |---|---|
@@ -15,8 +15,7 @@
 | `Float`, `Double` | 32/64 位浮点，默认浮点字面量类型是 `Double` |
 | `Boolean` | 布尔 |
 | `Char` | 单个 Unicode 标量值 |
-| `Str` | 静态只读 UTF-8 文本，`Copyable` |
-| `String` | 不可变 UTF-8 文本，唯一动态 owner，`MoveOnly` |
+| `String` | UTF-8，不可变 |
 | `Unit` | 无返回值 |
 | `Nothing` | 不返回的函数标注，`error()` 的返回类型即为 `Nothing` |
 | `Any` | 所有类型的顶层类型（泛型上界默认约束，非 Java `Object` 那种运行时反射基类） |
@@ -25,7 +24,7 @@
 
 ```kotlin
 object Config {
-    const val VERSION: Str = "1.0"
+    const val VERSION: String = "1.0"
 }
 ```
 
@@ -54,7 +53,7 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   integer-literal constraint、`Error` 与 `Deferred`；相同结构必须确定性规范化，不能依赖
   随机 hash 迭代。`Error` 用于抑制已诊断级联，`Deferred` 精确保留后续阶段责任。
 - 基础类型检查 识别 `Byte`、`Short`、`Int`、`Long`、`UByte`、`UShort`、`UInt`、`ULong`、
-  `Float`、`Double`、`Boolean`、`Char`、`Str`、`String`、`Unit`、`Nothing` 与 `Any` 的环境身份。
+  `Float`、`Double`、`Boolean`、`Char`、`String`、`Unit`、`Nothing` 与 `Any` 的环境身份。
   裸 builtin 不接受类型实参；nullable 后缀形成 `T?`。`Any` 在本阶段只作为后续泛型检查的
   顶层约束，不建立需要运行时擦除的普通 value 表示；把它直接用于 local、参数或返回值时
   暂记 deferred，由 名义类型检查 结合 nominal / 表示规则封闭。
@@ -77,18 +76,14 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
 - 一元负号与紧随的无后缀或 `L` 整数字面量合并做范围判断，使各有符号类型的最小值可表达；
   对无符号字面量应用负号使用 L0085。
 - 无后缀浮点字面量固定为 `Double`；`f` / `F` 后缀固定为 `Float`，包括 `1f`。不把
-  `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、无插值字符串字面量分别固定为
-  `Boolean`、`Char`、`Str`；无 expected nullable type 的独立 `null` 无法推导。
-  `String` expected type 不改变字面量的 `Str` 类型；需要 `String` 的位置必须显式转换，
-  具体转换 API 的未决边界见[字符串规则](13-program-runtime-standard-library.md#静态-str-字面量与动态-string)。
+  `Double` 字面量按 expected type 静默缩窄。`true` / `false`、Char、String 分别固定为
+  `Boolean`、`Char`、`String`；无 expected nullable type 的独立 `null` 无法推导。
 - Byte / Short 没有专用后缀；`D` / `d`、`I` / `i`、小写 `l` 与 Rust 风格完整类型名后缀
   均未定义。类型检查器不得接受词法规范没有定义的拼写补齐这些能力。
 - `!` 只接受 `Boolean`；一元 `+` / `-` 只接受数值 builtin。`* / % -` 与数值 `+` 要求两侧
-  已定型为同一数值类型并返回该类型；文本 `+` 的组合与结果统一见
-  [字符串操作](13-program-runtime-standard-library.md#封闭的最小操作)，不提供隐式 `String + Any`。
-  `< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
-  接受相同类型、`T` 与 `T?` 或任一侧 `Nothing`，另允许非空 `Str` 与 `String` 按内容比较，
-  返回 `Boolean`；`&&` / `||` 只接受
+  已定型为同一数值类型并返回该类型；`String + String` 返回 `String`，不提供隐式
+  `String + Any`。`< > <= >=` 接受同型数值或同型 `Char`，返回 `Boolean`；`==` / `!=`
+  接受相同类型、`T` 与 `T?` 或任一侧 `Nothing`，返回 `Boolean`；`&&` / `||` 只接受
   `Boolean`。不满足操作数契约使用 L0085，primary 为运算符，左右 operand 作为 label。
 - Elvis `left ?: right` 要求左侧为 `T?` 或 `Nothing?`，并以 expected type 检查右侧可适配
   `T`；结果为 `T`。`!!` 要求 nullable operand 并返回非空 `T`。range、`to`、cast/type-test、
@@ -336,8 +331,8 @@ typed contract。
 
 **调用点标注是否强制**是另一个独立问题，由[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)统一定义：`Value` 参数虽然
 必须在声明端写 `own`，调用点仍不写 mode；向它传入 `MoveOnly` place 时无标记调用隐式
-移动，传入 `Copyable` place 时交付 owned copy。`Borrow` 参数在调用点也不写 mode，按
-callee 契约自动借用；调用点不接受 `borrow x`。只有 `Inout` 参数强制要求调用点写符号 `&`（`&x`，不是关键字
+移动，传入 `Copyable` place 时交付 owned copy。`Borrow` 参数同样默认不写 mode，调用点
+仍可选择写 `borrow` 强调；只有 `Inout` 参数强制要求调用点写符号 `&`（`&x`，不是关键字
 `inout`）。调用点 `own x` 不属于语法。这条规则同时适用于具名函数
 调用与函数类型值的调用，详见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)“调用点自动化的设计说明”。
 

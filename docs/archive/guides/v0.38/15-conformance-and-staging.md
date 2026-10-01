@@ -1,8 +1,8 @@
-# Koven v0.39：一致性、Phase 与实施边界
+# Koven v0.38：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -87,39 +87,16 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.39。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.38。
 
-具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
+具体测试选择与并行方式见 [测试与分层验收](../../../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
-
-## v0.39 迁移与未完成边界
-
-本版本只在继承规则上封闭四项已批准选择。语义启用不代表任何阶段已验收；当前实现事实仍以
-[Architecture](../architecture/README.md)为准。旧源码按以下边界迁移：
-
-| 受影响位置 | 迁移与权威入口 |
-|---|---|
-| 调用处 `f(borrow x)` / `f(name = borrow x)` | 删除调用处 marker，使用 `f(x)` / `f(name = x)`；声明处 Borrow 契约不变，见[调用实参](07-calls-lambdas-closures.md#typed-call-argument) |
-| 超界或负移位位数 | 按[移位规则](04-expressions-operators.md#整数具名位运算与移位)核对屏蔽后的结果；两个 operand 的同型整数约束保持，不改为 `Int` count |
-| 用户 `deinit` | 按[成员契约](08-class-family-members.md#deinit-成员语法与资源析构契约)核对 body / 字段清理顺序与只读 `this`；双轨析构时机不变 |
-| 字面量用于 `String` 变量、参数、字段或返回 | 字面量固定为 `Str`，不能隐式适配 `String`；具体显式转换 API 仍待定义，见[文本分层](13-program-runtime-standard-library.md#静态-str-字面量与动态-string) |
-| 旧 `const val TEXT: String = "text"` | 静态文本常量改为 `Str`；既有文本拼接/内容相等的 const 资格随两类文本一致扩充，普通调用仍禁止，见[const 边界](05-declarations-callables.md#363-封闭-const-expression-与求值失败) |
-
-- Phase 1 必须在删除实参 Borrow marker 后仍保留普通 `borrow` Identifier、声明 marker 和
-  `&` 的精确 Span/恢复边界；不能以“语义自动借用”继续接受旧调用语法。
-- Phase 2/3 须分别发布 Str/String 类型/能力、既有参数契约与 `deinit` receiver/清理事实；
-  Phase 4 只消费已验证事实。String 现有 ABI 不自动提供 Str 表示或新的转换/混合操作。
-- 显式转换的具体源码 API 及 Str native ABI 是独立缺口；本页不以示例、
-  既有实现或 Kotlin/Rust 习惯补齐，也不把语义启用视为这些依赖已解决。
-- interpolation、nullable 文本 native 表示和其他此前延后的能力保持原边界；本次不扩大
-  标准库表面、移位的 const 资格、异常展开、资源分类或双轨 drop 规则。
 
 ## `const val` 的阶段交接
 
 Phase 1 保留普通 expression AST；Phase 2 根据[关联常量与封闭求值](05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)
 发布常量选择、依赖图、值和 use facts；Phase 3 发布逐次物化的 ownership/drop/capture facts；
-Phase 4 只消费已验证产物生成 scalar/Char constant、静态 Str 值或已定型 String 常量的
-temporary owner；Str native 路径仍须满足独立 ABI 门禁。
+Phase 4 只消费已验证产物生成 scalar/Char constant 或 String literal owner。
 常量声明没有运行时初始化；缺少对应阶段 facts 的产物不得进入下游。
 
 单文件与 compilation-unit 产物分别验收。跨文件 typed const capability 不能被既有 unit
@@ -135,9 +112,9 @@ Nullable flow 与 extraction 的 frontend facts/ownership 适用于所有已接�
 ADR-0017 已支持、且由 owned whole-root/temporary 承载的普通 class、`Box`、`Rc` pointer-like
 nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering 等待 nullable-place/
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
-scalar/value/enum/Str/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
+scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
-也继续延后。v0.39 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
+也继续延后。v0.38 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
 
 顺序迭代的 typed/ownership 与首轮 native source 边界见[§37.4](12-collections-destructuring.md#374-irphase-交接与非目标)；规范启用不表示阶段实现已完成。
 
@@ -368,22 +345,20 @@ fun sumRange(): Int {
 
 ### Litmus 12: 关联常量与标准库互操作
 
-演示位运算软关键字（`shl`、`or`）、关联常量访问以及标准库 `println` 调用；
-移位留在普通运行时表达式中，不扩张 const-expression 白名单：
+演示位运算软关键字（`shl`, `and`）、关联常量访问以及标准库 `println` 调用：
 
 ```kotlin
 package demo.interop
 
 class BitMasks {
     companion object {
-        const val READ: Int = 1
-        const val WRITE: Int = 2
+        const val READ: Int = 1 shl 0
+        const val WRITE: Int = 1 shl 1
     }
 }
 
 fun main(): Unit {
-    val shifted = BitMasks.READ shl 32
-    val mask = shifted or BitMasks.WRITE
+    val mask = BitMasks.READ or BitMasks.WRITE
     println("Mask initialized")
 }
 ```

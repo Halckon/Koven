@@ -1,11 +1,11 @@
-# Koven v0.39 语言规范
+# Koven v0.38 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.39） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.38） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.39 -->
+<!-- current-guide: v0.38 -->
 
-本规范定义 Koven v0.39。它不是教程，也不描述某项功能何时完成；当前实现事实见
-[Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
+本规范定义 Koven v0.38。它不是教程，也不描述某项功能何时完成；当前实现事实见
+[Architecture](../../../architecture/README.md)，未来设计见 [Proposals](../../../proposals/README.md)。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 
@@ -31,12 +31,6 @@
 
 ## 版本与边界
 
-- 2026-10-01 用户明确同意四项规则后启用 v0.39，继承并取代 v0.38：调用处取消 `borrow`
-  标记、移位位数按整数宽度屏蔽、`deinit` body 先于字段逆序析构且 `this` 只读不可消费、
-  普通字符串字面量固定为 `Str` 且到 `String` 必须显式转换。完整规则分别归属下列领域页，
-  [一致性与实施边界](15-conformance-and-staging.md#v039-迁移与未完成边界)列出迁移和最小缺口；
-  本次启用不表示编译器实现已完成，也不扩展其他未决语义。
-
 - 2026-10-01 用户明确启用 v0.38：继承并取代 v0.37，实施批次 1 语法止血（块内换行敏感与
   分号语句分隔、修饰符上下文软关键字体系、具名中缀位运算与十六进制/二进制/下划线字面量、
   开放 `Box<enum>` 递归结构），并启动语义内核演进。
@@ -45,4 +39,4 @@
 - 首轮 native 明确包含 temporary source，及 owned named source、Borrow 参数；Inout/field
   source 的前端契约不代表首轮 native 已支持。
 - Map 所有权、v2 interface value 及其他未启用候选仍不得作为实现依据。
-- 旧版规范和候选重基记录只在 [Archive](../archive/README.md) 中用于追溯。
+- 旧版规范和候选重基记录只在 [Archive](../../../archive/README.md) 中用于追溯。

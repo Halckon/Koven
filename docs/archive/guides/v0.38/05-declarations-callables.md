@@ -1,8 +1,8 @@
-# Koven v0.39：声明与 Callable
+# Koven v0.38：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -23,8 +23,8 @@ val boundRef = obj::method
 - `ParamTypes` 的每一项使用[类型与泛型规则](03-types-generics.md)与[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的 callable 参数契约：无标记或显式 `borrow` 都是共享借用 `Borrow`；显式 `own`
   映射既有 `ParameterMode::Value`（`Copyable` 则复制、否则移动）；显式 `inout` 是独占可变
   借用。具名函数参数使用同一契约，`(T) -> R` 与 `(borrow T) -> R` 规范化为同一函数类型，
-  `(own T) -> R` 则是不同的 Value contract。**调用点不写 `borrow`，
-  编译器按 callee 已声明的契约自动借用；只有 `Inout` 契约仍要求调用点
+  `(own T) -> R` 则是不同的 Value contract。**调用点是否需要
+  书写 `borrow` 由编译器按 callee 已声明的契约自动判定；只有 `Inout` 契约仍要求调用点
   显式标注，但调用点的拼写是符号 `&` 而不是关键字 `inout`**（`&x` 而非 `inout x`），
   Value 调用也保持无 marker：声明写 `own`，调用仍写 `consume(x)`，不写 `consume(own x)`。
   详见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的完整规则与设计说明。
@@ -39,7 +39,7 @@ val boundRef = obj::method
 interface Shape {
     fun reset()
     fun area(): Double
-    fun describe(): Str = "a shape"   // 接口默认方法实现，保留
+    fun describe(): String = "a shape"   // 接口默认方法实现，保留
 }
 
 fun log(message: String) { println(message) } // block body 省略标注，固定返回 Unit
@@ -316,29 +316,21 @@ type/value target、visibility 与 companion scope 均由 typed selection 决定
 ### 36.2 const 类型、值与重新物化
 
 - v1 首轮 const 类型封闭为 `Boolean`、`Byte`/`Short`/`Int`/`Long`、`UByte`/`UShort`/`UInt`/
-  `ULong`、`Char`、`Str` 与 `String`。整数值按声明类型的精确 width/signedness 规范化，`Char` 是 Unicode
-  scalar；Str/String 常量均保存 compiler-owned UTF-8 bytes，但保留各自不同的类型身份。其他 builtin、nullable、function、nominal、
+  `ULong`、`Char` 与 `String`。整数值按声明类型的精确 width/signedness 规范化，`Char` 是 Unicode
+  scalar，`String` 是 compiler-owned UTF-8 bytes。其他 builtin、nullable、function、nominal、
   enum、value class、Box/Rc/容器或类型参数使用 L0155；Float/Double 等待后继扩展。
 - const declaration 不是普通 variable owner。const initializer 内的依赖只读取 compiler value，
   不产生 runtime value；每个运行时 use 才内联或重新物化：Boolean/整数/Char 直接产生
-  Copyable value；Str use 产生引用静态只读 UTF-8 bytes 的 Copyable 值，不建立 owner/drop
-  obligation；String use 从同一 UTF-8 bytes 重新物化一个 String temporary owner，
+  Copyable value；String use 从同一 UTF-8 bytes 新建一个普通 String literal temporary owner，
   按[所有权规则](10-ownership-borrowing-drop.md)的 Value/Borrow/return/ASAP drop 规则处理。两个运行时 use 不共享 String owner，也不
-  隐式 Rc/retain。这属于已定型 String 常量的值物化，不将源码字面量重新解释为 String。
+  隐式 Rc/retain。
 - constant identity 不进入 closure capture environment、loan graph 或 runtime reachability root。
   引用 object/companion 常量不捕获 object/Type，也不产生 singleton 地址或退出析构。
 
 ### 36.3 封闭 const expression 与求值失败
 
-v0.39 对 Str 字面量作必要的最小常量一致性更新：`Str` 纳入本节的 const 类型与文本
-literal 资格，复用既有 UTF-8 编译期值和封闭文本运算，不开放普通函数执行或通用 CTFE。
-旧 `const val TEXT: String = "text"` 仍因类型不相容而非法；静态文本常量应写
-`const val TEXT: Str = "text"`。`const val TEXT: String = "a" + "b"` 的 initializer 按普通
-拼接规则产生 String，满足本节的封闭文本求值资格；它不把单个 Str 隐式转换为 String。
-
 - initializer 只接受上述类型的 literal、group、其他 const reference（含 `Type.CONST`）、prefix
-  `+`/`-`/`!`、整数 `+ - * / %` 与比较/相等、Boolean `&&`/`||`、[文本规则](13-program-runtime-standard-library.md#封闭的最小操作)定义的
-  Str/String `+`/相等（拼接结果仍为 String）。所有 operand
+  `+`/`-`/`!`、整数 `+ - * / %` 与比较/相等、Boolean `&&`/`||`、String `+`/相等。所有 operand
   仍先按普通 Phase 2 类型规则检查；本列表只决定通过类型检查后是否可在编译期求值。
 - 普通 `val`/参数/field/`this`、call、constructor、lambda、assignment、`if`/`when`、Elvis、
   safe call、`!!`、postfix `?`、range/`to`、container/index 与 String interpolation 均不是 const
@@ -362,7 +354,7 @@ literal 资格，复用既有 UTF-8 编译期值和封闭文本运算，不开�
   都不是 import target。v0.37 不改变该既有边界；`import p.Type.CONST` 使用 L0148，应写
   `import p.Type` 后使用 `Type.CONST`，或使用绝对 `p.Type.CONST`。wildcard 同样不导入 member。
 - 单文件 Phase 2 发布 associated target、typed ConstValue、依赖图与 use descriptor；不得
-  将跨文件事实伪装成单文件结果。Phase 3 消费这些 facts，发布 scalar/Str inline 与 String temporary
+  将跨文件事实伪装成单文件结果。Phase 3 消费这些 facts，发布 scalar inline 与 String temporary
   materialization 的 ownership/liveness/drop/capture facts；Phase 4 再消费已验证产物。
 - compilation-unit Phase 2 使用稳定 DeclarationId 与 visibility/import facts 复用同一 evaluator，
   发布 const-enabled typed capability；既有基础 validated unit 不因此自动取得常量能力。
@@ -370,9 +362,8 @@ literal 资格，复用既有 UTF-8 编译期值和封闭文本运算，不开�
   改写已完成基础阶段的验收含义提前接线。
 
 本节不实现 associated function 调用、object instance method、用户可观察常量地址、runtime
-global/init、序列化 constant object、跨 compilation-unit ABI 或通用 CTFE VM。Boolean、整数
-沿用标量 lowering；String 保留既有 owner lowering 契约；Str 必须在独立 ABI/实现验收后才能进入 native。
-Char 使用独立的 IR-local Char type/constant contract，由 verifier
-验证 Unicode scalar，并映射为 LLVM `i32`，不得擦除成 `UInt32`。Char 的这一表示不新增 runtime/global ABI，
-可复用 ADR-0008 的标量直接传递规则，因此不需要新 ADR；若未来执行用户函数、引入持久
+global/init、序列化 constant object、跨 compilation-unit ABI 或通用 CTFE VM。Boolean、整数和
+String 可复用现有 lowering；Char 必须新增独立的 IR-local Char type/constant contract，由 verifier
+验证 Unicode scalar，并映射为 LLVM `i32`，不得擦除成 `UInt32`。这不新增 runtime/global ABI，
+仍可复用 ADR-0008 的标量直接传递规则，因此不需要新 ADR；若未来执行用户函数、引入持久
 global/init 或稳定跨 object 常量 ABI，则必须另行 guide/ADR。

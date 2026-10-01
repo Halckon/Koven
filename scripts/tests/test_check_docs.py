@@ -91,7 +91,7 @@ class DocsCheckerTests(unittest.TestCase):
         self.assertTrue(any("状态 draft 与目录不一致" in error for error in checker.errors), checker.errors)
 
     def test_multiple_current_guide_markers_are_rejected(self) -> None:
-        marker = "<!-- current-guide: v0.38 -->\n"
+        marker = "<!-- current-guide: v0.39 -->\n"
         self.write("docs/guide/README.md", "# Guide\n" + marker)
         self.write("docs/proposals/accidental.md", "# Proposal\n" + marker)
         checker = DocsChecker(self.root)
@@ -100,6 +100,33 @@ class DocsCheckerTests(unittest.TestCase):
             any("current guide marker 必须恰好一个，实际为 2" in error for error in checker.errors),
             checker.errors,
         )
+
+    def test_stale_current_guide_version_is_rejected(self) -> None:
+        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.38 -->\n")
+        checker = DocsChecker(self.root)
+        checker.check_current_guide()
+        self.assertTrue(any("current guide 版本必须为 v0.39" in error for error in checker.errors), checker.errors)
+
+    def test_different_current_guide_versions_cannot_coexist(self) -> None:
+        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.39 -->\n")
+        self.write("docs/proposals/accidental.md", "# Proposal\n<!-- current-guide: v0.38 -->\n")
+        checker = DocsChecker(self.root)
+        checker.check_current_guide()
+        self.assertTrue(any("current guide marker 必须恰好一个，实际为 2" in error for error in checker.errors), checker.errors)
+
+    def test_current_guide_marker_must_be_in_canonical_index(self) -> None:
+        self.write("docs/guide/README.md", "# Guide\n")
+        self.write("docs/proposals/accidental.md", "# Proposal\n<!-- current-guide: v0.39 -->\n")
+        checker = DocsChecker(self.root)
+        checker.check_current_guide()
+        self.assertTrue(any("current guide marker 只能位于 docs/guide/README.md" in error for error in checker.errors), checker.errors)
+
+    def test_archived_current_markers_do_not_count_as_live(self) -> None:
+        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.39 -->\n")
+        self.write("docs/archive/guides/v0.38/README.md", "# Guide\n<!-- current-guide: v0.38 -->\n")
+        checker = DocsChecker(self.root)
+        checker.check_current_guide()
+        self.assertFalse(any("current guide" in error for error in checker.errors), checker.errors)
 
     def test_archive_cannot_enter_default_route(self) -> None:
         self.write(

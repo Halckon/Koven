@@ -226,6 +226,7 @@ end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0235["S0235<br/>启用四项已批准语言规则"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1375,3 +1376,4 @@ S0226 --> S0227
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
+| SPEC-0235 | active | [0235-approved-language-rules.md](../../specs/active/0235-approved-language-rules.md) |
