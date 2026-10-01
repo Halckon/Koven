@@ -234,7 +234,7 @@ fun area(s: Shape): Int {
 package demo.oop
 
 class Counter(var count: Int) {
-    fun increment(): Unit {
+    inout fun increment(): Unit {
         count = count + 1
     }
 }
@@ -370,21 +370,20 @@ fun sumElements(): Int {
 ### Litmus 12: 关联常量与标准库互操作
 
 演示位运算软关键字（`shl`、`or`）、关联常量访问以及标准库 `println` 调用；
-移位留在普通运行时表达式中，不扩张 const-expression 白名单：
+常量初始化遵循[常量表达式白名单](05-declarations-callables.md#363-封闭-const-expression-与求值失败)中的具名位运算规则：
 
 ```kotlin
 package demo.interop
 
 class BitMasks {
     companion object {
-        const val READ: Int = 1
-        const val WRITE: Int = 2
+        const val READ: Int = 1 shl 0
+        const val WRITE: Int = 1 shl 1
     }
 }
 
 fun main(): Unit {
-    val shifted = BitMasks.READ shl 32
-    val mask = shifted or BitMasks.WRITE
+    val mask = BitMasks.READ or BitMasks.WRITE
     println("Mask initialized")
 }
 ```

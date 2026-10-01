@@ -66,7 +66,7 @@ v1 的 `Box` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor
 合法；泛型代码必须在具体 value-class 或 enum-class 实例已知的位置使用 `Box`。
 
 `Box<T>` 自身始终 `MoveOnly`，并打断内联递归。在 `enum class` 的递归定义中（如表达式树
-`enum class Expr { Num(val value: Int), Add(val left: Box<Expr>, val right: Box<Expr>) }`），
+`enum class Expr { Num(value: Int), Add(left: Box<Expr>, right: Box<Expr>) }`），
 `Box<Expr>` 提供了堆分配的间接 handle，从而天然打破无限内联递归。
 源码中声明 `class Box<T>` 只产生普通名义 class，不取得 intrinsic 语义；外部环境没有绑定
 intrinsic `Box` 时，编译器不得按拼写猜测。intrinsic `Box` 的实参数量不是 type-kind 约束：

@@ -44,5 +44,6 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
+| Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |

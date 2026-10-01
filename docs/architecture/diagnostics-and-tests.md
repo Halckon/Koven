@@ -36,6 +36,12 @@ LSP 使用独立 adapter 将 scalar column 转为 UTF-16 range；它不复用 CL
 
 Cargo 将该 runner 注册为 `fixtures` integration suite。
 
+## Guide 示例门禁
+
+`guide_litmus` 直接从现行 Guide 提取源码，分别运行单文件/unit 前端入口，精确锁定通过、
+应拒绝及已知实现缺口；调用脚本为 `scripts/check_guide_litmus.sh`。覆盖和限制见
+[当前更正账本](guide-conformance.md)，不把诊断门禁视为 native 验收。
+
 ## 测试分层
 
 | 层级 | 位置 | 目的 |

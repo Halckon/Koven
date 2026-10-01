@@ -27,6 +27,14 @@ cargo test -p <affected-crate> --lib <module-or-test-filter>
 跨 crate 检查使用 `cargo check --workspace --all-targets`。不固定要求每个切片运行整个 `--lib`、
 workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
+## 规范示例的分阶段门禁
+
+`bash scripts/check_guide_litmus.sh` 执行文档结构检查及 Guide Litmus、两个相关 ownership
+套件。Litmus 源码直接来自 Guide，known-gap 固定阶段、诊断码和范围，不能用 ignore/skip
+或修改规范要求来取得通过；缺口行为变化时要核验实现，再同步
+[覆盖账本](../architecture/guide-conformance.md)。此门禁不生成或执行 native，不等同于全部
+语言功能或 frontend 全量验收；Linux CI 可复用同一脚本，不另维护源码副本。
+
 ## 控制 frontend 成本
 
 默认不运行 `cargo test -p lang-frontend`、frontend `--tests` 或

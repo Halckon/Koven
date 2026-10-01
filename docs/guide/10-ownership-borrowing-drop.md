@@ -50,7 +50,7 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
    声明端 `own` 的 `Value` 对 `Copyable` 产生 owned copy、对 `MoveOnly` 转移 owner；
    `Borrow` 建立 shared loan；
    `Inout` 建立 exclusive loan。因而较早实参的 loan 在较晚实参及其嵌套调用求值期间已经有效。
-3. 所有成功建立的 loan 持续到同步 callee 返回；返回后同时结束。`Borrow temporary` 合法，
+3. 交付本次 callee 的所有成功建立的 loan 持续到该 callee 返回；返回后同时结束。`Borrow temporary` 合法，
    temporary owner 延长到调用返回后再按本节析构。`Inout temporary` 继续非法。
 4. operand 或 callee 产生 `Nothing` 时，不求值其后的 argument，也不为未求值 argument 建立
    loan。`error()` 是 abort，不做异常展开或沿栈析构。
@@ -68,7 +68,12 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
    - 但**严格禁止**对 `receiver` 进行变异（mutation）、建立新的 exclusive loan 或将其所有权移走（move）。若实参求值引发此类写访问或移动，立即报告借用冲突 `L0135`。
 2. **Activate 阶段**：
    当且仅当所有实参表达式求值完成、控制权即将正式移交给目标方法的前一瞬间，该 exclusive loan 从 Reserved 状态原子转换为 **Active** 状态。
-   - 此时之前建立的所有实参 shared loan 已经随实参表达式求值结束，控制权进入 callee 后，callee 获得完整的独占变异能力。
+   - 仅用于实参求值期间已完成的嵌套调用的 shared loan，在该嵌套调用返回时结束，
+     不延续到外层方法调用；例如读取 `list.size` 得到独立的 `Int` 值不把 list 的借用传给 callee。
+   - 作为 `Borrow` 实参交付目标 callee 的 shared loan 则按上节持续到该 callee 返回，
+     不因实参求值完成而结束。激活时它们不得与 receiver 的 exclusive loan 重叠；
+     如 `receiver.update(receiver)` 将同一对象作为 Borrow 实参时，仍报告 `L0135`。
+     只有不存在存活的重叠 loan 时，callee 才取得 receiver 的完整独占变异能力。
 3. **适用边界**：
    Two-Phase Borrows 仅适用于具名方法调用的 instance receiver 位置；普通实参位置的 `Inout` 借用（如 `foo(&x, x.size)`）仍严格遵循“先求值的实参立即独占生效”规则，不推迟激活。
 
@@ -97,8 +102,8 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
 为了在不打破 `Inout` 借用独占性和所有权完整性的前提下，允许安全地移出并替换 `Inout` 目标处持有的 `MoveOnly` 资源（如链表节点接合、状态机原位转移等），标准库提供经编译器内建特判的原地置换原子原语：
 
 ```kotlin
-fun <T> replace(place: Inout T, new: own T): own T
-fun <T> swap(a: Inout T, b: Inout T): Unit
+fun <T> replace(inout place: T, own new: T): T
+fun <T> swap(inout a: T, inout b: T): Unit
 ```
 
 1. **`replace(&place, new)`**：

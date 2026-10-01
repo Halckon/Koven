@@ -7,7 +7,8 @@
 起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
 八个切片及整合合同均保持 in-progress；已获提交整合 PR 的授权，最终提交与必需 CI 尚待验收。
 后到的 main `3be83b5`（已合并 PR #6）另作[最小协调](../archive/migrations/v0.40-upstream-pr6-reconciliation.md)，
-完整审计按用户要求留到整合 PR CI 通过后；不重写已冻结的真实 v0.39。
+整合 PR CI 后的独立核查与更正见 [SPEC-0238](active/0238-guide-litmus-gate.md)及
+[当前更正账本](../architecture/guide-conformance.md)；不重写已冻结的真实 v0.39。
 
 ## 八阶段已整合范围
 
@@ -41,7 +42,7 @@
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
 | 11. 受控 unsafe 与 RawPtr | 未实现 | Parser 无 unsafe/extern 产生式，类型环境无 RawPtr；权限来源与 C ABI 类型矩阵尚未封闭，不从方向性计划补规则 |
 | 12. 双层文档解耦 | 首片已落地 | SPEC-0233 九段工程合同独立真源与检查完成；grammar/诊断/Span/Phase 等保留 Guide，后续按清晰边界渐进迁移 |
-| 13. 十二 Litmus | 示例清单已有 | 上游 PR #6 修订了 Guide15 多处示例，但仍没有独立统一自动验收入口；未实现或独立边界仍存在，不能称全套端到端验收 |
+| 13. 十二 Litmus | 本地诊断/ownership 门禁已有 | SPEC-0238 直接提取 Guide；10 例诊断/ownership 检查通过但部分 typed 仍有精确快照缺口，4/12 分别锁定 return-when/const 位运算诊断；没有宣称全套 native 验收 |
 
 ### 主要代码与测试入口
 
@@ -78,6 +79,7 @@
 后继实施应按 Guide 验证，不再把它们列为等待用户选择。Str/toString 已明确延后；
 unsafe 与其他未闭合 API/ABI 不能从已有代码或计划措辞推导新规则。
 
-下一步先验证并提交整合 PR，等待最终 CI；通过后再拉取最新 main，审查 PR #6 的 v0.38
-语言审计与文档编辑。该授权不包含自动合并，不在当前整合中提前重写 PR #6 的结论。
+顺序仍为整合 PR CI 后核查最新 main 的 PR #6，再推进下一阶段；审查后本地勘误与
+Litmus 门禁由 SPEC-0238 独立记录，后继 Linux CI 可复用同一脚本。该范围不包含自动合并、
+改写历史审计原文或把诊断门禁通过说成全部实现完成。
 旧失败须保留精确结果，修复时有独立因果与回归证据；不得降低断言、放宽门禁或称 frontend 全量通过。

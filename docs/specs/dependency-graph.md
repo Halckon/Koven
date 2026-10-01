@@ -21,6 +21,7 @@ subgraph Gactive["现行 active"]
   S0235["S0235<br/>三项批准规则在真实 clone-first 基线启用"]
   S0236["S0236<br/>String.clone 显式深拷贝端到端"]
   S0237["S0237<br/>八阶段本地整合与交叉契约验证"]
+  S0238["S0238<br/>Guide 勘误与可执行 Litmus 前端门禁"]
 end
 ARCH --> S0182
 ARCH --> S0228
@@ -42,4 +43,5 @@ ARCH --> S0236
 | SPEC-0235 | active | [0235-approved-language-rules.md](active/0235-approved-language-rules.md) |
 | SPEC-0236 | active | [0236-explicit-string-clone.md](active/0236-explicit-string-clone.md) |
 | SPEC-0237 | active | [0237-local-integration.md](active/0237-local-integration.md) |
+| SPEC-0238 | active | [0238-guide-litmus-gate.md](active/0238-guide-litmus-gate.md) |
 | 已完成 Spec（213 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

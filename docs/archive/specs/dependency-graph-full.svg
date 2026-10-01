@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="6934" viewBox="0 0 7064 6934" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="7328" height="6934" viewBox="0 0 7328 6934" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="7064" height="6934" fill="#ffffff"/>
+  <rect width="7328" height="6934" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6832" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，213 份）</text>
-  <rect x="4872" y="30" width="2128" height="5482" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5936" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect x="4872" y="30" width="2392" height="5482" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="6068" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 170, 180 202" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 308, 444 340" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 428, 180 460" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1880,4 +1880,8 @@
   <rect x="6740" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="6860" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0237</text>
   <text x="6860" y="105" text-anchor="middle" font-size="13">八阶段本地整合与交叉契约验证</text>
+  <rect x="7004" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7124" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0238</text>
+  <text x="7124" y="105" text-anchor="middle" font-size="13">Guide 勘误与可执行 L</text>
+  <text x="7124" y="123" text-anchor="middle" font-size="13">itmus 前端门禁</text>
 </svg>

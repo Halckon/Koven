@@ -7,6 +7,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
+- [SPEC-0238](active/0238-guide-litmus-gate.md)：PR #6 审查后的 Guide 勘误与可执行 Litmus 前端门禁。
 - [演进实施账本](evolution-status.md)：13 项计划的实际实现边界与独立基线缺口。
 
 - [Active](active/README.md)：`approved` / `in-progress`；当前状态与验收见各 Spec。

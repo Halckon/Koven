@@ -24,7 +24,8 @@
 
 [Archive](archive/README.md) 保存旧 guide、完成 Spec、冻结审计和过时教程。只有追溯历史决策、
 旧验收证据或迁移来源时才读取；archive 不参与现行语义优先级。
-[PR #6 的 v0.38 审计原文](<Koven v0.38 语言设计审计.md>)保留历史意见，待整合 CI 后独立审查。
+[PR #6 的 v0.38 审计原文](<Koven v0.38 语言设计审计.md>)保留历史意见；当前核查与更正另见
+[Guide 验证与审计更正账本](architecture/guide-conformance.md)，不回写冻结原文。
 
 ## 文档修改
 

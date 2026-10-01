@@ -254,11 +254,12 @@ dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI
 为了支持所有权安全流转与链表、状态机等数据结构的高效在位更新，标准库顶层提供经编译器特判的原子置换原语（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）：
 
 ```kotlin
-fun <T> replace(inout place: T, own new: T): own T
+fun <T> replace(inout place: T, own new: T): T
 fun <T> swap(inout a: T, inout b: T): Unit
 ```
 
-- `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
+- `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并以 owned 值返回原有旧值，完全避免未初始化空洞；
+  返回类型只写 `T`，`own` 是参数模式，不是返回类型修饰符；
 - `swap(&a, &b)`：在两个互不重叠的可变借用之间原子交换值。
 
 ### 静态字符串类型的延后边界

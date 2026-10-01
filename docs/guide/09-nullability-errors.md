@@ -54,12 +54,12 @@ fun readConfig(path: String): Result<Config, IoError> {
   ```kotlin
   val __tmp = expr
   when (__tmp) {
-      is Ok -> __tmp.value
+      is Ok -> __tmp.success
       is Err -> return __tmp
   }
   ```
 
-  即：`expr` 只求值一次；`Ok` 分支时整个表达式的值是内部的 `value`（按 `Copyable` 规则
+  即：`expr` 只求值一次；`Ok` 分支时整个表达式的值是内部的 `success`（按 `Copyable` 规则
   复制或移动，和[构造与结构移动规则](11-copyability-layout-construction.md)一致）；`Err` 分支时
   从最近 callable `return` 整个 `__tmp`（而不是重新构造一个新 `Err`）。具名函数和 lambda
   都是 callable boundary；lambda 内的 `?` 只退出该 lambda，绝不从外层具名函数非局部返回。
@@ -71,7 +71,7 @@ fun readConfig(path: String): Result<Config, IoError> {
   `Result<T, E>`，失败时是**callable 级别的普通提前返回**，把错误值交还给调用者，不终止进程。
   二者不能混用（不能对 `Result<T, E>` 用 `!!`，也不能对 `T?` 用 `?`）。
 - 与[所有权规则](10-ownership-borrowing-drop.md)的交互：`expr?` 对不满足 `Copyable` 的 `T` 同样成立，`Ok`
-  分支消费 `__tmp` 并移出其 `value`（单一分量的消费式解构，复用[结构移动规则](11-copyability-layout-construction.md)的
+  分支消费 `__tmp` 并移出其 `success`（单一分量的消费式解构，复用[结构移动规则](11-copyability-layout-construction.md)的
   机制）；`Err` 分支整体移动 `__tmp` 用于 `return`。
 
 Parser 只建立 postfix AST，不拥有 callable 返回类型或 `Result` 名称绑定信息，因此在所有
