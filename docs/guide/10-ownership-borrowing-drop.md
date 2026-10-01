@@ -58,6 +58,20 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
 这不是 NLL：loan 不因 callee 内或调用者表达式中的“最后一次实际访问”提前结束，也不跨越
 本次同步调用存储、返回或挂起。调用期 loan 是所有权检查产物，不成为源码可命名的值。
 
+### Two-Phase Borrows（方法接收者两阶段借用）
+
+为了支持诸如 `list.add(list.size)` 等典型的自引方法调用模式，避免接收者过早建立的独占借用与实参求值期间的只读访问产生假性借用冲突，方法调用的 receiver 借用采用两阶段激活模型：
+
+1. **Reserved 阶段**：
+   在方法调用形如 `receiver.method(arg1, arg2)` 中，当 `method` 的 receiver 声明契约为 `Inout` 时，在求值实参列表（`arg1`, `arg2` 等）期间，该 `receiver` 上的 exclusive loan 处于 **Reserved** 状态。
+   - 在 Reserved 状态下，允许对 `receiver` 进行只读访问（读或 shared loan，例如实参表达式中的 `list.size`）；
+   - 但**严格禁止**对 `receiver` 进行变异（mutation）、建立新的 exclusive loan 或将其所有权移走（move）。若实参求值引发此类写访问或移动，立即报告借用冲突 `L0135`。
+2. **Activate 阶段**：
+   当且仅当所有实参表达式求值完成、控制权即将正式移交给目标方法的前一瞬间，该 exclusive loan 从 Reserved 状态原子转换为 **Active** 状态。
+   - 此时之前建立的所有实参 shared loan 已经随实参表达式求值结束，控制权进入 callee 后，callee 获得完整的独占变异能力。
+3. **适用边界**：
+   Two-Phase Borrows 仅适用于具名方法调用的 instance receiver 位置；普通实参位置的 `Inout` 借用（如 `foo(&x, x.size)`）仍严格遵循“先求值的实参立即独占生效”规则，不推迟激活。
+
 ### `Value` / `Borrow` / `Inout` 参数体内能力
 
 - 声明为 `own value: T` 的 `Value T` 参数是普通 owned local：满足 `Copyable` 时可复制，
@@ -77,6 +91,24 @@ v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期�
 闭包捕获会产生超出单次普通调用的环境 owner，仍由 closure capture 与 Transferable 规则封闭；
 本节不借“调用期 loan”提前接受或拒绝捕获。instance member receiver 使用
 [class-family 与成员规则](08-class-family-members.md)的显式/缺省 mode，并复用本节的 loan 能力。
+
+### 原地置换原子原语：replace 与 swap
+
+为了在不打破 `Inout` 借用独占性和所有权完整性的前提下，允许安全地移出并替换 `Inout` 目标处持有的 `MoveOnly` 资源（如链表节点接合、状态机原位转移等），标准库提供经编译器内建特判的原地置换原子原语：
+
+```kotlin
+fun <T> replace(place: Inout T, new: own T): own T
+fun <T> swap(a: Inout T, b: Inout T): Unit
+```
+
+1. **`replace(&place, new)`**：
+   - 必须通过 `&` 传入可变借用 `place`，以及一个拥有所有权的 `new` 值；
+   - 在 exclusive loan 的保护下，原子地将 `new` 存入 `place`，并将 `place` 中原有的旧值作为拥有所有权的返回值返回；
+   - 在整个操作过程中，`place` 始终处于完全初始化状态，不存在任何可观测到未初始化内存或双重释放的空洞，因此合法豁免 `L0133`（从借用中移出）限制；
+   - 允许写出如 `val old = replace(&this.state, State.Closed)` 等经典所有权流转代码。
+2. **`swap(&a, &b)`**：
+   - 接受两个 `Inout` 目标；两个目标经由 Place 重叠检查判定为不重叠时合法；若 `a` 与 `b` 产生重叠借用，报告 `L0135` 冲突；
+   - 原子交换 `a` 与 `b` 处的值，不产生任何临时未初始化状态。
 
 ### Place 重叠与冲突矩阵
 
@@ -112,6 +144,22 @@ index place 的逻辑索引证明、容器重分配冲突与 element replacement
 drop 与 loan 冲突时 primary 指向该访问，label 同样指向 loan 来源。诊断和 label 顺序只按
 源码顺序，不依赖 hash 迭代。
 
+### 双轨析构策略：纯内存与资源类型
+
+Koven 采用兼顾高吞吐堆内存回收与确定性资源清理的**双轨析构模型**（Dual-Track Drop Strategy）：
+
+1. **类型分类**：
+   - **资源类型（Resource Types）**：显式声明了 `deinit(): Unit` 析构成员的普通 `class`（见[class-family 与成员规则](08-class-family-members.md)），以及其字段递归包含资源类型的复合类型；
+   - **纯内存类型（Pure Memory Types）**：未声明 `deinit` 的普通 `class`、`value class`、`enum class`、`Box<T>`、`Array<T>`、`List<T>` 等标准内建容器。
+2. **纯内存类型：ASAP 激进析构**：
+   - 维持既有的 ASAP 规则：在保持所有未来合法读取、借用、移动和赋值不变的前提下，于 owner 不再 live 的最早边界析构仍 `Available` 的 `MoveOnly` 值。如果 owner 从未使用，则在 initializer 完成且绑定建立后立即析构，尽早归还堆内存。
+3. **资源类型：词法作用域逆序析构（Lexical Scope Drop）**：
+   - 资源类型实例（如互斥锁守卫 `MutexGuard`、文件句柄 `File`、网络套接字等）的析构具有可观察的外部副作用；
+   - 资源变量的生命周期**严格绑定到其声明所在的词法作用域块的结束边界**（`}`），或者在显式转移/消费所有权的位置提前结束；
+   - 即使该变量在初始化后不再被后续代码读取，它也绝不会被 ASAP 规则提前析构；
+   - 同一作用域块结束时，所有仍存活的资源变量按其**声明顺序的逆序**依次执行 `deinit()` 析构；
+   - 彻底消除了诸如 `val guard = mutex.lock()` 因未被再次访问而在行尾立刻释放锁的严重并发缺陷。
+
 ### ASAP 析构
 
 “ASAP”精确定义为：对每条正常控制流路径，在保持所有未来合法读取、借用、移动和赋值 RHS
@@ -121,8 +169,8 @@ drop facts；Phase 4 消费这些事实生成 drop/free，不得重新猜测生�
 
 - `MoveOnly` temporary 在所属完整表达式结束时析构；若作为 `Borrow` 实参，则延长到该调用
   返回后；若被声明端 `own` 的 `Value` 参数移走，则源 temporary 不再析构。
-- named owner 在路径上的最后一次合法使用后析构。若 owner 从未使用，则在 initializer 完成
-  且绑定建立后立即析构；initializer 自身仍只求值一次。
+- named owner（纯内存类型）在路径上的最后一次合法使用后析构。若 owner 从未使用，则在 initializer 完成
+  且绑定建立后立即析构；initializer 自身仍只求值一次。资源类型则按上一节规则维持至词法作用域末尾。
 - 普通 `var` 替换先完整求值 RHS；若 RHS 正常返回，再析构旧值并写入新值。RHS 可读取旧值，
   但若已把旧值移动走，则本次赋值不再为旧值生成 drop。
 - `return value` 先求值并交付返回值，再按内层到外层、同层声明逆序析构仍可用的 owner，

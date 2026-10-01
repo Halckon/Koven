@@ -65,8 +65,8 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   移动”的固定分类。
 
 **`Box<T>` 的定位**：既然 `class` 本身已经是堆分配引用类型，v1 的 `Box<T>` **只允许 `T`
-是 `value class`**；`Box<Node>` 这类把普通 `class` 再包一层的类型实例化必须产生类型错误。
-`Box<T>` 是不可复制的独占所有权类型，用于把一个 `value class` 实例显式搬到堆上。装箱
+是具体 `value class` 或 `enum class`**；`Box<Node>` 这类把普通 `class` 再包一层的类型实例化必须产生类型错误。
+`Box<T>` 是不可复制的独占所有权类型，用于把一个 `value class` 或 `enum class` 实例显式搬到堆上。装箱
 取得传入值的所有权；对可复制值交付 owned copy，因此源值仍可用，对不可复制值则发生
 移动。`Box(...)` 的构造参数是声明端 `own` 所映射的 `Value` 契约，调用点不需要写任何标注：
 
@@ -462,7 +462,9 @@ method_modifiers = [ visibility_modifier ], [ "override" ],
                    [ method_receiver_mode ] ;
 
 class_member = method_modifiers, function_declaration
+             | deinit_declaration
              | declaration_modifiers, companion_object ;
+deinit_declaration = "deinit", "(", ")", block ;
 interface_member = [ "public" ], [ method_receiver_mode ],
                    function_declaration
                  | declaration_modifiers, companion_object ;
@@ -483,3 +485,24 @@ enum_member = method_modifiers, function_declaration
 - 本节不改变普通 callable 参数、调用点 argument marker、function type、extension receiver、
   callable reference 或 safe-call grammar；formatter 与 grammar bridge 必须保存原 token，不能
   把省略形式重写成显式 `borrow`。
+
+## `deinit` 成员语法与资源析构契约
+
+为了支持 RAII 确定性资源释放（如关闭文件、释放底层缓冲区、释放锁守卫等），普通 `class` 允许声明显式析构函数 `deinit`：
+
+```kotlin
+class MutexGuard(val mutex: Mutex) {
+    deinit() {
+        this.mutex.rawUnlock()
+    }
+}
+```
+
+1. **产生式与签名约束**：
+   - 仅限普通 `class`（引用类型）声明 `deinit`，不允许在 `value class`、`enum class` 或 `interface` 中声明；
+   - `deinit` 无参数，返回类型固定为 `Unit`；
+   - `deinit` 不允许携带访问修饰符（`public`/`private`/`internal`），不可被外部代码作为普通方法显式调用（用户代码禁止写 `guard.deinit()`，必须由编译器在生命周期终止点自动插入析构调用）；
+   - 每个 class 最多只能声明一个 `deinit` 成员。
+2. **能力与生命周期约束**：
+   - 声明了 `deinit` 的 class 必然是 `MoveOnly` 类型，且不得满足 `Copyable`；
+   - 声明了 `deinit` 的类型属于**资源类型**，在所有权分析中激活**词法作用域逆序析构（Lexical Scope Drop）**，保障其生命周期严格维持至作用域结束（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）。

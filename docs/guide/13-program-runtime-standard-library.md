@@ -235,6 +235,29 @@ dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI
 
 ---
 
+## 标准所有权原语与字符串分层
+
+### 标准原子所有权原语
+
+为了支持所有权安全流转与链表、状态机等数据结构的高效在位更新，标准库顶层提供经编译器特判的原子置换原语（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）：
+
+```kotlin
+fun <T> replace(place: Inout T, new: own T): own T
+fun <T> swap(a: Inout T, b: Inout T): Unit
+```
+
+- `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
+- `swap(&a, &b)`：在两个互不重叠的可变借用之间原子交换值。
+
+### 静态 `Str` 字面量与动态 `String`
+
+Koven 对文本类型进行清晰分层：
+- **静态字符串 `Str`**：由常量区编译期静态字面量（如 `"hello"`）产生，表示指向静态只读内存的 UTF-8 切片；`Str` 不承担析构义务，天然满足 `Copyable` 与 `Transferable`，可零成本跨线程、跨函数自由复制；
+- **动态字符串 `String`**：由字符串拼接、运行时动态构建或 IO 读取产生，拥有独立的堆缓冲区所有权，为 `MoveOnly` 类型；
+- 标准输出函数 `println` 与异常终止 `error` 同时接受 `Str` 与 `String` 借用。
+
+---
+
 ## 受控底层能力与 Unsafe 边界
 
 Phase 5 要求标准库（`koven/**/*.ko`）以目标语言自身编写并作为自举真源。为满足内存分配、系统调用与底层数据结构（如 `Vector`、`String` 底层 buffer）的实现需求，Koven 定义以下受控底层能力：
