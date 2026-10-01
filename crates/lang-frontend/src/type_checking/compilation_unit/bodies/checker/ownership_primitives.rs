@@ -7,10 +7,11 @@ use crate::{
     parser::{CallArgument, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, ExpressionCategory, ExternalTypeBinding,
-        IntrinsicCallable, ParameterMode, TypeCheckingError, UnitCallArgumentDescriptor,
-        UnitCallDescriptor, UnitCallTarget, UnitCallableInstanceKey, UnitExpressionId,
-        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory,
+        ExternalTypeBinding, IntrinsicCallable, OwnershipPrimitiveKind, ParameterMode,
+        TypeCheckingError, UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallTarget,
+        UnitCallableInstanceKey, UnitExpressionId, UnitFunctionParameterType,
+        UnitOwnershipPrimitiveDescriptor, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -171,6 +172,8 @@ impl BodyChecker<'_> {
 
         let t = if let Some(explicit) = explicit_t {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg0_result.ty, explicit)
                     || !self.assignable(explicit, arg0_result.ty))
             {
@@ -208,10 +211,19 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result = self.check_expression(source, arg1.value, Some(t), None, return_type)?;
+        let arg1_result = self.check_expression(
+            source,
+            arg1.value,
+            (!self.is_deferred(t)).then_some(t),
+            None,
+            return_type,
+        )?;
         if self.is_error(arg1_result.ty) {
             valid = false;
-        } else if !self.assignable(arg1_result.ty, t) {
+        } else if !self.is_deferred(arg1_result.ty)
+            && !self.is_deferred(t)
+            && !self.assignable(arg1_result.ty, t)
+        {
             let primary = self
                 .file(source)
                 .ast()
@@ -233,6 +245,15 @@ impl BodyChecker<'_> {
             valid = false;
         }
 
+        if self.is_deferred(t)
+            || self.is_deferred(arg0_result.ty)
+            || self.is_deferred(arg1_result.ty)
+        {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
         if !valid || self.is_error(t) {
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
@@ -283,6 +304,17 @@ impl BodyChecker<'_> {
             aborts: false,
             prints_line: false,
         });
+        self.parts
+            .ownership_primitives
+            .push(UnitOwnershipPrimitiveDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                OwnershipPrimitiveKind::Replace,
+                t,
+                [
+                    UnitExpressionId::new(source, arg0.value),
+                    UnitExpressionId::new(source, arg1.value),
+                ],
+            ));
         Ok(ExpressionCheck {
             ty: t,
             falls_through: true,
@@ -386,6 +418,8 @@ impl BodyChecker<'_> {
 
         let t = if let Some(explicit) = explicit_t {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg0_result.ty, explicit)
                     || !self.assignable(explicit, arg0_result.ty))
             {
@@ -410,6 +444,8 @@ impl BodyChecker<'_> {
                 valid = false;
             }
             if !self.is_error(arg1_result.ty)
+                && !self.is_deferred(arg1_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg1_result.ty, explicit)
                     || !self.assignable(explicit, arg1_result.ty))
             {
@@ -436,7 +472,9 @@ impl BodyChecker<'_> {
             explicit
         } else {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
                 && !self.is_error(arg1_result.ty)
+                && !self.is_deferred(arg1_result.ty)
                 && (!self.assignable(arg1_result.ty, arg0_result.ty)
                     || !self.assignable(arg0_result.ty, arg1_result.ty))
             {
@@ -464,6 +502,15 @@ impl BodyChecker<'_> {
         };
 
         let unit = self.builtin(BuiltinType::Unit);
+        if self.is_deferred(t)
+            || self.is_deferred(arg0_result.ty)
+            || self.is_deferred(arg1_result.ty)
+        {
+            return Ok(ExpressionCheck {
+                ty: self.deferred_type(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
         if !valid || self.is_error(t) {
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
@@ -513,6 +560,17 @@ impl BodyChecker<'_> {
             aborts: false,
             prints_line: false,
         });
+        self.parts
+            .ownership_primitives
+            .push(UnitOwnershipPrimitiveDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                OwnershipPrimitiveKind::Swap,
+                t,
+                [
+                    UnitExpressionId::new(source, arg0.value),
+                    UnitExpressionId::new(source, arg1.value),
+                ],
+            ));
         Ok(ExpressionCheck {
             ty: unit,
             falls_through: true,

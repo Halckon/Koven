@@ -9,6 +9,7 @@
 - [SPEC-0231](0231-contextual-type-ref-trials.md)：上下文 TypeRef 与严格调用试探一致性，in-progress。
 - [SPEC-0229](0229-extended-numeric-literal-values.md)：扩展数值字面量值的端到端闭合，in-progress。
 - [SPEC-0230](0230-recursive-boxed-enum-native.md)：递归 Box enum 的 native 构造、运输与析构，in-progress。
+- [SPEC-0232](0232-ownership-primitive-type-facts.md)：replace/swap 的可信类型事实与事务验证，in-progress。
 - [SPEC-0182](0182-sequential-for-lowering.md)：顺序容器 `for` frontend→SSA→native 集成，approved。
 
 SPEC-0179 typed plan、SPEC-0211 iteration ownership 与 SPEC-0212 SSA provider primitives 已完成并归档。

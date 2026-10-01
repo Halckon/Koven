@@ -24,12 +24,14 @@ mod container;
 pub use constants::*;
 mod non_null_assertion;
 mod nullable;
+mod ownership_primitive;
 mod projection;
 mod rc;
 mod string;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
+pub use ownership_primitive::*;
 pub use {
     assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
     string::*,
@@ -553,6 +555,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) constructions: Vec<UnitConstructionDescriptor>,
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
     pub(crate) runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
+    pub(crate) ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
@@ -587,6 +590,7 @@ pub struct CompilationUnitTypes {
     constructions: Vec<UnitConstructionDescriptor>,
     destructurings: Vec<UnitDestructuringDescriptor>,
     runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
+    ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
     string_operations: Vec<UnitStringOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
@@ -623,6 +627,7 @@ impl CompilationUnitTypes {
             constructions: parts.constructions,
             destructurings: parts.destructurings,
             runtime_field_layouts: parts.runtime_field_layouts,
+            ownership_primitives: parts.ownership_primitives,
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
             container_constructions: parts.container_constructions,
@@ -764,6 +769,24 @@ impl CompilationUnitTypes {
             .find(|operation| operation.expression() == expression)
     }
 
+    /// 返回源码稳定顺序的原子所有权原语静态事实；错误产物不发布此表。
+    #[must_use]
+    pub fn ownership_primitives(&self) -> &[UnitOwnershipPrimitiveDescriptor] {
+        &self.ownership_primitives
+    }
+
+    /// 查询 compiler-bound 原语；普通同名源码调用返回 None。
+    #[must_use]
+    pub fn ownership_primitive(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitOwnershipPrimitiveDescriptor> {
+        self.ownership_primitives
+            .iter()
+            .copied()
+            .find(|fact| fact.expression() == expression)
+    }
+
     /// 返回源码稳定顺序的 intrinsic `Rc<T>` operation facts。
     #[must_use]
     pub fn rc_operations(&self) -> &[UnitRcOperationDescriptor] {
@@ -894,7 +917,8 @@ impl CompilationUnitTypes {
 
     /// 发布独立常量能力；不转换成基础 ownership/native 输入。
     pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
-        if self.constants.is_some()
+        if self.ownership_primitives_are_valid()
+            && self.constants.is_some()
             && !self
                 .diagnostics
                 .iter()
@@ -914,7 +938,10 @@ impl CompilationUnitTypes {
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
         // Selection is a recovery fact, not the const-enabled capability required by SPEC-0210.
-        if has_error || self.constant_declaration_count > 0 || !self.constant_selections.is_empty()
+        if has_error
+            || self.constant_declaration_count > 0
+            || !self.constant_selections.is_empty()
+            || !self.ownership_primitives_are_valid()
         {
             Err(Box::new(self))
         } else {

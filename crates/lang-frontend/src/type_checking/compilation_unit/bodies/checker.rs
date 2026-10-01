@@ -271,7 +271,17 @@ impl<'a> BodyChecker<'a> {
         let diagnostics = ordered_unit_diagnostics(self.sources, source_units, &diagnostics)?
             .into_iter()
             .cloned()
-            .collect();
+            .collect::<Vec<_>>();
+        // 全部签名/body 检查结束后才原子发布 primitive facts；recovery call facts 保留。
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error)
+        {
+            self.parts.ownership_primitives.clear();
+        }
+        self.parts
+            .ownership_primitives
+            .sort_by_key(|fact| fact.expression());
         Ok(CompilationUnitTypes::new(
             self.signatures,
             self.parts,
@@ -1046,27 +1056,7 @@ impl<'a> BodyChecker<'a> {
     }
 
     pub(super) fn assignable(&self, actual: UnitTypeId, expected: UnitTypeId) -> bool {
-        actual == expected
-            || self.is_error(actual)
-            || self.is_error(expected)
-            || self.is_builtin(actual, BuiltinType::Nothing)
-            || matches!(
-                self.signatures.types().get(actual),
-                Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
-            )
-            || matches!(
-                self.signatures.types().get(actual),
-                Some(UnitTypeKind::StaticSelf(interface)) if *interface == expected
-            )
-            || matches!(
-                self.signatures.types().get(expected),
-                Some(UnitTypeKind::Nullable(inner))
-                    if actual == *inner
-                        || matches!(
-                            self.signatures.types().get(actual),
-                            Some(UnitTypeKind::EnumCase { root, .. }) if root == inner
-                        )
-            )
+        unit_assignable(self.signatures.types(), actual, expected)
     }
 
     fn builtin_kind(&self, ty: UnitTypeId) -> Option<BuiltinType> {
@@ -1193,4 +1183,36 @@ fn item_requires_body_check(item: &Item) -> bool {
         Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
         Item::Error | Item::Function { .. } | Item::Companion(_) | Item::Deinit { .. } => false,
     }
+}
+
+/// 与 primitive 结构验证复用同一 unit 类型相容关系。
+pub(super) fn unit_assignable(
+    types: &crate::type_checking::UnitTypeTable,
+    actual: UnitTypeId,
+    expected: UnitTypeId,
+) -> bool {
+    actual == expected
+        || matches!(types.get(actual), Some(UnitTypeKind::Error))
+        || matches!(types.get(expected), Some(UnitTypeKind::Error))
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+        )
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::EnumCase { root, .. }) if *root == expected
+        )
+        || matches!(
+            types.get(actual),
+            Some(UnitTypeKind::StaticSelf(interface)) if *interface == expected
+        )
+        || matches!(
+            types.get(expected),
+            Some(UnitTypeKind::Nullable(inner))
+                if actual == *inner
+                    || matches!(
+                        types.get(actual),
+                        Some(UnitTypeKind::EnumCase { root, .. }) if root == inner
+                    )
+        )
 }

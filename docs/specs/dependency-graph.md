@@ -15,6 +15,7 @@ subgraph Gactive["现行 active"]
   S0229["S0229<br/>扩展数值字面量值的端到端闭合"]
   S0230["S0230<br/>递归 Box enum 的 native 构造与析构"]
   S0231["S0231<br/>上下文 TypeRef 与严格调用试探一致性"]
+  S0232["S0232<br/>原子置换原语的可信类型事实"]
   S0233["S0233<br/>Parser 工程合同的保全文档迁移"]
   S0234["S0234<br/>普通 block 的换行表达式边界"]
   S0236["S0236<br/>String.clone 显式深拷贝端到端"]
@@ -33,6 +34,7 @@ ARCH --> S0236
 | SPEC-0229 | active | [0229-extended-numeric-literal-values.md](active/0229-extended-numeric-literal-values.md) |
 | SPEC-0230 | active | [0230-recursive-boxed-enum-native.md](active/0230-recursive-boxed-enum-native.md) |
 | SPEC-0231 | active | [0231-contextual-type-ref-trials.md](active/0231-contextual-type-ref-trials.md) |
+| SPEC-0232 | active | [0232-ownership-primitive-type-facts.md](active/0232-ownership-primitive-type-facts.md) |
 | SPEC-0233 | active | [0233-parser-compiler-contracts.md](active/0233-parser-compiler-contracts.md) |
 | SPEC-0234 | active | [0234-block-newline-continuation.md](active/0234-block-newline-continuation.md) |
 | SPEC-0236 | active | [0236-explicit-string-clone.md](active/0236-explicit-string-clone.md) |
