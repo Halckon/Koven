@@ -7,6 +7,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
+- [SPEC-0239](active/0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，本地验证通过，远端待授权验证。
+
 - [SPEC-0238](active/0238-guide-litmus-gate.md)：PR #6 审查后的 Guide 勘误与可执行 Litmus 前端门禁。
 - [演进实施账本](evolution-status.md)：13 项计划的实际实现边界与独立基线缺口。
 

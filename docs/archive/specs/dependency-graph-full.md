@@ -236,6 +236,7 @@ subgraph Gactive["现行 active"]
   S0236["S0236<br/>String.clone 显式深拷贝端到端"]
   S0237["S0237<br/>八阶段本地整合与交叉契约验证"]
   S0238["S0238<br/>Guide 勘误与可执行 Litmus 前端门禁"]
+  S0239["S0239<br/>Linux CI 与双宿主定向回归门禁"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1396,3 +1397,4 @@ S0226 --> S0227
 | SPEC-0236 | active | [0236-explicit-string-clone.md](../../specs/active/0236-explicit-string-clone.md) |
 | SPEC-0237 | active | [0237-local-integration.md](../../specs/active/0237-local-integration.md) |
 | SPEC-0238 | active | [0238-guide-litmus-gate.md](../../specs/active/0238-guide-litmus-gate.md) |
+| SPEC-0239 | active | [0239-linux-ci-gates.md](../../specs/active/0239-linux-ci-gates.md) |

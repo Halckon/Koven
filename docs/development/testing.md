@@ -35,6 +35,22 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 [覆盖账本](../architecture/guide-conformance.md)。此门禁不生成或执行 native，不等同于全部
 语言功能或 frontend 全量验收；Linux CI 可复用同一脚本，不另维护源码副本。
 
+## 双宿主 CI
+
+`.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
+clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`；fmt 只运行一次。
+Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
+中的固定 21.1.8 包，macOS 保留 `brew install llvm@21`；版本或工具缺失直接失败。
+
+PR 的普通文档变更仍仅跑文档门禁；Guide10/11/13/15 的 Litmus 输入、门禁脚本、workflow/LLVM action
+变更触发 Rust 门禁。main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
+仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
+
+完整 codegen/CLI 测试保留 ELF、DWARF 行表、真实 link/run 和内存计数边界；macOS 已存在的
+LLDB ignore 不扩大到 Linux。定向 frontend 仍不代表全量通过，known-gap 不代表功能完成。
+本地与远端实际运行情况见 [SPEC-0239](../specs/active/0239-linux-ci-gates.md)，不能由配置存在
+推导 CI 已通过。
+
 ## 控制 frontend 成本
 
 默认不运行 `cargo test -p lang-frontend`、frontend `--tests` 或

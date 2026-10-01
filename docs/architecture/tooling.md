@@ -70,3 +70,10 @@ Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexe
 对应覆盖位于 Tree-sitter 的 Node/corpus tests 与 frontend 的 `tree_sitter_grammar` integration suite。
 
 上述测试的命令与范围选择统一见[开发测试指南](../development/testing.md)。
+
+## CI 工程门禁
+
+当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy、核心测试与两个
+frontend 定向脚本，单次 fmt；LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
+意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
+[SPEC-0239](../specs/active/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。
