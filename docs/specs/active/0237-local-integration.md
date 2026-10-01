@@ -33,8 +33,7 @@
 - 保持统一 Cargo target、串行 Cargo，按直接行为/共享契约/下游风险选择门禁；禁止默认全量 frontend。
 - `scripts/check_stage_integration.sh` 交付49个定向 frontend targets及新增
   `clone_primitive_integration` 的可复现本地门禁。现有 CI 仅运行 frontend lib；integration
-  matrix 为独立本地验收，不声称远端 CI 覆盖这些目标。当前 GitHub 授权不含 workflow scope，
-  因此本轮不改 workflow、不扩大权限；门禁提案保留待后续授权。
+  matrix 为独立本地验收，不声称远端 CI 覆盖这些目标。本轮未修改 workflow。
 
 ### 后到的 main 来源
 
@@ -51,19 +50,42 @@
 
 ## 4. 验收标准
 
-- [ ] 八阶段冲突解决和独立交叉审查无遗漏，提交范围清楚
-- [ ] 所选 frontend、共享 Parser 资源、typed 事务与 drop planner 门禁逐项记录命中数/退出码
-- [ ] codegen/CLI/LSP 下游与新增交叉行为、真实 native 分配析构验证完成
-- [ ] 已知失败精确对照，不降低断言、不扩大忽略集合
-- [ ] fmt、严格 clippy、workspace all-targets check 与文档/历史保全门禁完成
+- [x] 八阶段冲突解决和独立交叉审查无遗漏，提交范围清楚
+- [x] 所选 frontend、共享 Parser 资源、typed 事务与 drop planner 门禁逐项记录命中数/退出码
+- [x] codegen/CLI/LSP 下游与新增交叉行为、真实 native 分配析构验证完成
+- [x] 已知失败精确对照，不降低断言、不扩大忽略集合
+- [x] fmt、严格 clippy、workspace all-targets check 与文档/历史保全门禁完成
 - [ ] 提交整合 PR，最终提交的必需 CI 全绿且无未决状态
 - [ ] CI 通过后获取最新 main，独立审查 PR #6 的 v0.38 审计与文档编辑，再决定下一步
 
 ## 5. 最终整合验证账本
 
-由整合负责人在最终源码状态下补充实际命令、测试命中数、退出码、平台与已知失败。
-各切片旧账本可追溯，但不自动算作本节通过。当前执行中、未运行、filtered/ignored 和失败
-必须分别记录；尚未执行的检查不勾选通过。
+2026-10-01，Linux x86_64 + glibc；Rust 1.96.0 / LLVM 21.1.8 / Clang 21.1.8。
+Cargo 串行、统一 target；以下结果覆盖本次共享 trial 修复后的最终 Rust 状态。
+
+| 验收项 / 命令 | 实际结果 | 边界 |
+|---|---|---|
+| 交叉红测 `cargo test -p lang-frontend --test clone_primitive_integration` | 修正 fixture 身份比较后 2 passed / 2 failed | unit 中错误候选 recovery Deferred 否决成功候选，single 同源码通过；未以删断言避开 |
+| 新增交叉 target（最终5项） | 5 passed / 0 failed | 成功/失败/歧义 trial、候选顺序、single/unit/source identity；无错误 Deferred 候选仍不得过早提交 |
+| `bash scripts/check_stage_integration.sh` | 50 targets，627 passed / 0 failed / 0 ignored / 0 filtered | 366 numeric/typed/ownership/String + 237 Parser普通 + 24资源matrix/stress；不是 frontend 全量 |
+| `cargo test --locked --offline -p lang-frontend --lib` | 180 passed / 0 failed / 0 ignored / 0 filtered | 对齐现有 CI lib；包含 parser28、numeric decoder1、primitive validator2、drop planner96 等 |
+| `cargo test --locked --offline -p lang-codegen -p lang-cli -p lang-lsp --no-fail-fast` | 606 passed / 0 failed / 0 ignored / 0 filtered | codegen510、CLI66、LSP26、codegen compile-fail doc-tests4 |
+| 两项新增 numeric index + clone + Box enum native | 2 passed（包含上行） | 单/跨文件真实执行，UTF-8输出，输入顺序不变，分别4/5次 malloc 与 free 精确匹配 |
+| `cargo test --locked --offline -p lang-frontend --no-fail-fast --test multifile_type_checking --test parser_call_argument` | 124 passed / 8 failed，退出101 | 恰好原99/5与25/3；名称、诊断及Span对照原干净基线，无新增失败、skip或弱化断言 |
+| `cargo check --locked --offline --workspace --all-targets` | 通过，退出0 | 最终所有target编译 |
+| `cargo clippy --locked --offline --workspace --all-targets -- -D warnings` | 通过，退出0 | 无新增lint豁免 |
+| `cargo fmt --all -- --check` | 通过，退出0 | 包含最终新测试与trial修复 |
+| `cargo build --locked --offline -p lang-cli` | 通过，退出0 | 最终真实CLI构建 |
+| 文档检查 / Python检查器测试 / `git diff --check` | 440 Markdown / 37 tests / 通过 | 上游PR6协调完成后复验；结构门禁不代替语义审计 |
+| v0.39历史归档 | 16/16 字节等价（仅声明的链接变换），191标题保留 | 来源 `ed0727f`；稍后进入的PR6不回写已冻结快照 |
+| 远端最终提交CI / macOS | 待PR运行 | 不以Linux本地结果冒充，最终SHA与checks以PR为准 |
+
+本次唯一新增生产修复位于 compilation-unit overload trial：已产生新错误诊断的候选中，
+recovery `Deferred` 不再否决另一完整候选；无错误的真正未定候选仍保留原保守门禁。
+单文件与跨文件 snapshot/restore 同时保留 String 与 ownership primitive facts。
+
+原八项失败的完整名称与最早干净基线入口见[演进账本](../evolution-status.md#已知独立基线失败)。
+本地合计1413个选定测试通过，另有基线套件124通过/8失败；不能把该范围称作frontend全量或全绿。
 
 ## 6. 交付边界
 

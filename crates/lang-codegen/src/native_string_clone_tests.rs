@@ -295,3 +295,35 @@ fn string_clone_owned_result_supports_move_capture_and_early_return() {
     assert!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"capturedcopy\ncapturedcopy\n");
 }
+
+#[test]
+fn integrated_numeric_element_clone_moves_into_boxed_enum_and_drops_once() {
+    use super::{analyze, symbol};
+    use lang_frontend::name_resolution::SymbolKind;
+    let analysis = analyze(
+        "integrated-clone-box.ko",
+        r#"
+        enum class Text { Value(text: String), Empty }
+        fun consume(own value: Box<Text>): Unit { println("boxed") }
+        fun entry(): Unit {
+            val texts = listOf("unused", "界" + "é")
+            val copy = texts[0x0_1].clone()
+            val value = Text.Value(copy)
+            consume(Box(value))
+            println(texts[0b0_1])
+        }
+        "#,
+    );
+    let (program, entry) = crate::ssa::lower_scalar_file_with_entry(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+        symbol(&analysis, "entry", SymbolKind::Function),
+    )
+    .expect("numeric element clone and boxed enum ownership compose");
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let output = super::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    super::boxed_enum_tests::assert_success(&output, "boxed\n界é\n".as_bytes());
+}

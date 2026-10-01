@@ -145,3 +145,51 @@ fn string_clone_unit_borrowed_rc_payload_is_rejected_before_native_emission() {
     .expect("Borrow Rc payload must not reinterpret a handle-slot pointer as a control block");
     assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
 }
+
+#[test]
+fn integrated_numeric_clone_and_boxed_enum_cross_file_facts_reach_native() {
+    let analysis = analyze_sources(
+        r#"package p
+        enum class Text { Value(text: String), Empty }
+        fun boxed(text: String): Box<Text> {
+            val value = Text.Value(text.clone())
+            return Box(value)
+        }
+        fun consume(own value: Box<Text>): Unit { println("boxed") }
+        "#,
+        r#"package q
+        fun entry(): Unit {
+            val texts = listOf("unused", "界" + "é")
+            p.consume(p.boxed(texts[0b0_1]))
+            println(texts[0x0_1].clone())
+            println(texts[1])
+        }
+        "#,
+    );
+    let inputs = analysis.inputs();
+    let lower = |inputs: &[_]| {
+        lower_scalar_unit_with_entry(
+            &analysis.sources,
+            inputs,
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+        )
+        .expect("cross-file numeric clone and boxed enum facts compose")
+    };
+    let (program, entry) = lower(&inputs);
+    let (reversed, reversed_entry) = lower(&[inputs[1], inputs[0]]);
+    assert_eq!(
+        crate::ssa::render_program(&program),
+        crate::ssa::render_program(&reversed)
+    );
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(
+        llvm,
+        crate::llvm::render_verified_program_with_entry(&reversed, reversed_entry).unwrap()
+    );
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+    crate::native_tests::boxed_enum_tests::assert_success(&output, "boxed\n界é\n界é\n".as_bytes());
+}
