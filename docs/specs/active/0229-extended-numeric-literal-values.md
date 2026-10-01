@@ -42,7 +42,7 @@ parser_call_argument 三个与 multifile_type_checking 五个既有失败。
 3. [x] 原始 Span、expected-type label 与非法/溢出诊断保留；索引 Known identity 正反例通过。
 4. [x] 单文件/unit 的 runtime 与 constant native 实际链接运行。
 5. [x] fmt、严格 clippy、跨 crate check、受影响 suites 与文档门禁通过；更新事实与账本。
-6. [ ] 分支发布后的双平台 CI 验证及 Spec 归档；当前仅本机实施与验证完成。
+6. [ ] 分支发布后的远端 CI 验证及 Spec 归档；当前 Rust CI jobs 为 macOS，本机证据为 Linux。
 
 ## 5. 提交计划
 
