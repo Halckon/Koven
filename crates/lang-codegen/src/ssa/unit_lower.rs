@@ -11,6 +11,7 @@ mod construction;
 mod container;
 mod control;
 mod enum_lower;
+mod integer;
 mod loop_control;
 mod non_null_assertion;
 mod ownership;
@@ -682,6 +683,9 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_enum_construction(expression, span)
                 }
             };
+        }
+        if self.typed.integer_operation(unit_expression).is_some() {
+            return self.lower_integer_operation(expression, span);
         }
         if self.typed.string_operation(unit_expression).is_some() {
             return self.lower_string_clone(expression, span);

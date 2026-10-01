@@ -1,3 +1,4 @@
+use crate::type_checking::IntegerOperationDescriptor;
 use std::collections::BTreeMap;
 
 use crate::{
@@ -42,6 +43,7 @@ pub(super) struct TrialState {
     ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
+    integer_operations: Vec<IntegerOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -72,6 +74,7 @@ impl Checker<'_> {
             ownership_primitives: self.ownership_primitives.clone(),
             rc_operations: self.rc_operations.clone(),
             string_operations: self.string_operations.clone(),
+            integer_operations: self.integer_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -101,6 +104,7 @@ impl Checker<'_> {
         self.ownership_primitives = state.ownership_primitives;
         self.rc_operations = state.rc_operations;
         self.string_operations = state.string_operations;
+        self.integer_operations = state.integer_operations;
         self.container_constructions = state.container_constructions;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;

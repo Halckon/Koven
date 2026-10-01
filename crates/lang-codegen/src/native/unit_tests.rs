@@ -2057,3 +2057,6 @@ fn assert_no_sibling_temporary(directory: &Path) {
                 .starts_with(".koven-unit-object-"))
     );
 }
+
+#[path = "unit_bitwise_tests.rs"]
+mod bitwise_tests;

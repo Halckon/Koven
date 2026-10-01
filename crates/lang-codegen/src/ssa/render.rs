@@ -2,9 +2,9 @@ use std::fmt::{self, Write};
 
 use super::model::{
     BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureMode,
-    ClosureCaptureOperand, ComparisonOperator, Edge, EntityId, EntityType, Function, LoanKind,
-    Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, SsaTypeKind,
-    TerminatorKind,
+    ClosureCaptureOperand, ComparisonOperator, Edge, EntityId, EntityType, Function,
+    IntegerBitwiseOperator, LoanKind, Module, Operation, Origin, PlaceAccess, Program,
+    ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
 /// 生成只用于调试和测试的确定性 SSA 文本。
@@ -375,6 +375,20 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
         }
+        Operation::IntegerBitwise {
+            operator,
+            left,
+            right,
+        } => {
+            write!(output, "bitwise.{} ", integer_bitwise_name(*operator))?;
+            write_entity_id(output, EntityId::Value(*left))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*right))
+        }
+        Operation::IntegerNot { operand } => {
+            output.write_str("bitwise.inv ")?;
+            write_entity_id(output, EntityId::Value(*operand))
+        }
         Operation::Compare {
             operator,
             left,
@@ -697,6 +711,17 @@ const fn binary_name(operator: BinaryOperator) -> &'static str {
         BinaryOperator::Multiply => "mul",
         BinaryOperator::Equal => "eq",
         BinaryOperator::LessThan => "lt",
+    }
+}
+
+const fn integer_bitwise_name(operator: IntegerBitwiseOperator) -> &'static str {
+    match operator {
+        IntegerBitwiseOperator::And => "and",
+        IntegerBitwiseOperator::Or => "or",
+        IntegerBitwiseOperator::Xor => "xor",
+        IntegerBitwiseOperator::Shl => "shl",
+        IntegerBitwiseOperator::Shr => "shr",
+        IntegerBitwiseOperator::Ushr => "ushr",
     }
 }
 

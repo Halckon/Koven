@@ -421,6 +421,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if let Some(operation) = self
             .checker
             .typed
+            .integer_operation(self.checker.unit_expression(id))
+        {
+            return self.expression(
+                operation.receiver().expression(),
+                DropExpressionUse::Read,
+                state,
+            );
+        }
+        if let Some(operation) = self
+            .checker
+            .typed
             .string_operation(self.checker.unit_expression(id))
         {
             let receiver = operation.receiver().expression();

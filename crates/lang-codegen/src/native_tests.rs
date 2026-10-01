@@ -1274,3 +1274,6 @@ fn associated_constants_reach_native_scalar_char_and_string_operations() {
     assert_eq!(run.stdout, "中文\n中文中文\nequal\n".as_bytes());
     assert!(run.stderr.is_empty(), "{run:?}");
 }
+
+#[path = "native_bitwise_tests.rs"]
+mod bitwise_tests;

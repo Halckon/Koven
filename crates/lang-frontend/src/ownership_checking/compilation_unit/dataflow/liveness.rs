@@ -258,6 +258,17 @@ impl Builder<'_, '_> {
         if let Some(operation) = self
             .checker
             .typed
+            .integer_operation(self.checker.unit_expression(id))
+        {
+            return self.expression(
+                operation.receiver().expression(),
+                ExpressionUse::Read,
+                live_after,
+            );
+        }
+        if let Some(operation) = self
+            .checker
+            .typed
             .string_operation(self.checker.unit_expression(id))
         {
             let mut receiver_live = live_after;

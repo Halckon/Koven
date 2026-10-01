@@ -1,3 +1,4 @@
+use crate::type_checking::IntegerOperationDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
@@ -1085,6 +1086,7 @@ pub struct TypedFile {
     ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
+    integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -1115,6 +1117,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     pub(crate) rc_operations: Vec<RcOperationDescriptor>,
     pub(crate) string_operations: Vec<StringOperationDescriptor>,
+    pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
@@ -1161,6 +1164,7 @@ impl TypedFile {
             ownership_primitives: parts.ownership_primitives,
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
+            integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             diagnostics,
@@ -1384,6 +1388,24 @@ impl TypedFile {
     #[must_use]
     pub fn string_operation(&self, expression: ExpressionId) -> Option<StringOperationDescriptor> {
         self.string_operations
+            .iter()
+            .copied()
+            .find(|operation| operation.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的 Integer intrinsic 操作。
+    #[must_use]
+    pub fn integer_operations(&self) -> &[IntegerOperationDescriptor] {
+        &self.integer_operations
+    }
+
+    /// 查询已绑定 receiver 的显式 Integer 操作。
+    #[must_use]
+    pub fn integer_operation(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<IntegerOperationDescriptor> {
+        self.integer_operations
             .iter()
             .copied()
             .find(|operation| operation.expression() == expression)

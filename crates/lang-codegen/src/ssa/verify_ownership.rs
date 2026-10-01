@@ -305,6 +305,8 @@ fn apply_operation(
         | Operation::StringLiteral { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
+        | Operation::IntegerBitwise { .. }
+        | Operation::IntegerNot { .. }
         | Operation::Compare { .. }
         | Operation::BooleanNot { .. } => {}
         Operation::StringConcat { left, right } | Operation::StringEqual { left, right } => {

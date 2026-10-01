@@ -330,11 +330,12 @@ litmus!(
         ("sum = sum + i", "Some(Deferred(Assignment))")
     ]
 );
-// TODO: implement Guide05 const named-bitwise evaluation before moving this to the positive set.
 litmus!(
-    litmus_12_const_bitwise_known_gap,
+    litmus_12_const_bitwise_frontend,
     12,
-    [("L0156", "1 shl 0"), ("L0156", "1 shl 1")]
+    [],
+    [("BitMasks", "Some(Error)"), ("BitMasks", "Some(Error)")],
+    [("BitMasks", "None"), ("BitMasks", "None")]
 );
 
 fn replace_once(source: &str, old: &str, new: &str) -> String {
@@ -367,7 +368,7 @@ fn parenthesized_return_when_is_a_distinct_workaround() {
 }
 
 #[test]
-fn runtime_bitwise_does_not_claim_const_evaluation() {
+fn runtime_bitwise_keeps_masked_count_contract() {
     let source = replace_once(
         examples(GUIDE)[11],
         "const val READ: Int = 1 shl 0",
@@ -419,11 +420,11 @@ fn counter_requires_inout_receiver() {
 }
 
 #[test]
-fn const_bitwise_gap_covers_all_six_normative_operators() {
+fn const_bitwise_accepts_all_six_normative_operators() {
     for operator in ["shl", "shr", "ushr", "and", "or", "xor"] {
         let expression = format!("3 {operator} 1");
         let source = format!("const val MASK: Int = {expression}");
-        assert_both(&source, Stage::Types, &[("L0156", &expression)]);
+        assert_both(&source, Stage::Types, &[]);
     }
 }
 

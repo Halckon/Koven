@@ -47,6 +47,16 @@ pub(super) fn verify_operation(
         Operation::CheckedArithmetic { left, right, .. } => {
             checked_arithmetic_contract(module, function, *left, *right, &results)
         }
+        Operation::IntegerBitwise { left, right, .. } => {
+            let left = value_type(function, *left);
+            left == value_type(function, *right)
+                && is_bitwise_integer(module, left)
+                && single_value_result(&results) == left
+        }
+        Operation::IntegerNot { operand } => {
+            let operand = value_type(function, *operand);
+            is_bitwise_integer(module, operand) && single_value_result(&results) == operand
+        }
         Operation::Compare {
             operator,
             left,
@@ -1026,6 +1036,18 @@ fn is_scalar(module: &Module, ty: SsaTypeId) -> bool {
         module.type_kind(ty),
         Some(SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. })
     )
+}
+
+fn is_bitwise_integer(module: &Module, ty: Option<SsaTypeId>) -> bool {
+    ty.is_some_and(|ty| {
+        matches!(
+            module.type_kind(ty),
+            Some(SsaTypeKind::Integer {
+                bits: 8 | 16 | 32 | 64,
+                ..
+            })
+        )
+    })
 }
 
 fn is_integer(module: &Module, ty: Option<SsaTypeId>) -> bool {

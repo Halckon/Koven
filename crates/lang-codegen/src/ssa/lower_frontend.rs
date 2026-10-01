@@ -7,6 +7,7 @@ mod container;
 mod control;
 mod drops;
 mod instances;
+mod integer;
 mod loop_control;
 mod nominal;
 mod non_null_assertion;
@@ -162,6 +163,9 @@ impl ExpressionLowerer<'_> {
         }
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
+        }
+        if self.typed.integer_operation(expression).is_some() {
+            return self.lower_integer_operation(expression);
         }
         if self.typed.string_operation(expression).is_some() {
             return self.lower_string_clone(expression);
@@ -844,6 +848,19 @@ impl ExpressionLowerer<'_> {
         if let Some(operator) = checked_operator(operator) {
             let ty = self.expression_ssa_type(expression, span)?;
             return self.checked(operator, left, right, ty, span);
+        }
+        if let Some(operator) = super::integer::bitwise_operator(operator) {
+            let ty = self.expression_ssa_type(expression, span)?;
+            let (_, results) = self.append(
+                Operation::IntegerBitwise {
+                    operator,
+                    left,
+                    right,
+                },
+                vec![EntityType::Value(ty)],
+                span,
+            )?;
+            return Ok(LoweredValue::Value(value(results[0])));
         }
         let operator = comparison_operator(operator)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
