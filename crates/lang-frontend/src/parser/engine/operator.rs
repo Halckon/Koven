@@ -135,15 +135,18 @@ impl Parser<'_> {
                     "shl" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Shl)),
                     "shr" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Shr)),
                     "ushr" => InfixRule::left(PREC_SHIFT, InfixKind::Binary(BinaryOperator::Ushr)),
-                    "and" => {
-                        InfixRule::left(PREC_BITWISE_AND, InfixKind::Binary(BinaryOperator::BitwiseAnd))
-                    }
-                    "xor" => {
-                        InfixRule::left(PREC_BITWISE_XOR, InfixKind::Binary(BinaryOperator::BitwiseXor))
-                    }
-                    "or" => {
-                        InfixRule::left(PREC_BITWISE_OR, InfixKind::Binary(BinaryOperator::BitwiseOr))
-                    }
+                    "and" => InfixRule::left(
+                        PREC_BITWISE_AND,
+                        InfixKind::Binary(BinaryOperator::BitwiseAnd),
+                    ),
+                    "xor" => InfixRule::left(
+                        PREC_BITWISE_XOR,
+                        InfixKind::Binary(BinaryOperator::BitwiseXor),
+                    ),
+                    "or" => InfixRule::left(
+                        PREC_BITWISE_OR,
+                        InfixKind::Binary(BinaryOperator::BitwiseOr),
+                    ),
                     _ => return Ok(None),
                 }
             }

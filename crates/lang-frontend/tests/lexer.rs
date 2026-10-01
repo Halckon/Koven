@@ -150,8 +150,8 @@ fn all_keywords_soft_words_and_reserved_words_have_distinct_classes() {
         ("true", Keyword::True),
     ];
     let soft = [
-        "to", "by", "infix", "value", "loop", "borrow", "inout", "move", "own", "and", "or",
-        "xor", "shl", "shr", "ushr",
+        "to", "by", "infix", "value", "loop", "borrow", "inout", "move", "own", "and", "or", "xor",
+        "shl", "shr", "ushr",
     ];
     let reserved = [
         ("async", ReservedWord::Async),
@@ -495,7 +495,10 @@ fn hex_and_binary_and_underscored_numbers_lex_correctly() {
         let mut sources = SourceMap::new();
         let sid = add_source(&mut sources, "invalid.ko", case);
         let lexed = lex_source(&sources, sid);
-        assert!(!lexed.diagnostics().is_empty(), "expected diagnostic for {case}");
+        assert!(
+            !lexed.diagnostics().is_empty(),
+            "expected diagnostic for {case}"
+        );
         assert_eq!(
             lexed.diagnostics()[0].code().to_string(),
             "L0008",

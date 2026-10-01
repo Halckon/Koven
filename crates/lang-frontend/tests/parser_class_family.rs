@@ -644,4 +644,3 @@ fn rejects_deinit_with_parameters() {
     let (_, parsed) = declaration(text);
     assert!(codes(parsed.diagnostics()).contains(&"L0077".to_string()));
 }
-

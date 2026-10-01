@@ -737,7 +737,8 @@ impl Parser<'_> {
                 self.parse_unsupported_local_destructuring(expression_stops)?
             } else if self.current_is_keyword(Keyword::While)
                 || self.current_is_keyword(Keyword::For)
-                || (self.current_identifier_is("loop")? && self.peek_is_symbol(1, Symbol::LeftBrace))
+                || (self.current_identifier_is("loop")?
+                    && self.peek_is_symbol(1, Symbol::LeftBrace))
             {
                 self.parse_loop_statement(outer_stops)?
             } else if self.current_is_keyword(Keyword::Val) || self.current_is_keyword(Keyword::Var)

@@ -7113,5 +7113,8 @@ fn compilation_unit_class_with_deinit_records_signature_flag() {
         .iter()
         .find_map(|d| d.nominal())
         .filter(|nominal| nominal.has_deinit());
-    assert!(handle_nominal.is_some(), "FileHandle nominal should have has_deinit = true");
+    assert!(
+        handle_nominal.is_some(),
+        "FileHandle nominal should have has_deinit = true"
+    );
 }

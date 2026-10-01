@@ -221,7 +221,10 @@ impl Checker<'_> {
             (IntrinsicTypeConstructor::Box, TypeKind::Nominal { nominal, .. }) => {
                 self.nominals.iter().any(|descriptor| {
                     descriptor.id() == *nominal
-                        && matches!(descriptor.kind(), NominalKind::ValueClass | NominalKind::EnumClass)
+                        && matches!(
+                            descriptor.kind(),
+                            NominalKind::ValueClass | NominalKind::EnumClass
+                        )
                 })
             }
             (IntrinsicTypeConstructor::Box, _) => false,

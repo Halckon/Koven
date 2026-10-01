@@ -228,7 +228,10 @@ impl BodyChecker<'_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .is_some_and(|nominal| {
-                matches!(nominal.kind(), NominalKind::ValueClass | NominalKind::EnumClass)
+                matches!(
+                    nominal.kind(),
+                    NominalKind::ValueClass | NominalKind::EnumClass
+                )
             })
     }
 }

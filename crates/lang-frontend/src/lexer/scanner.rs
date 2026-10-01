@@ -300,7 +300,11 @@ impl Scanner<'_> {
 
             if !valid {
                 self.emit_invalid(InvalidKind::InvalidNumericLiteral, start)?;
-                return self.add_diagnostic(LexicalError::InvalidNumericLiteral, start, self.offset);
+                return self.add_diagnostic(
+                    LexicalError::InvalidNumericLiteral,
+                    start,
+                    self.offset,
+                );
             }
             return self.emit_token(TokenKind::IntegerLiteral(suffix), start);
         }

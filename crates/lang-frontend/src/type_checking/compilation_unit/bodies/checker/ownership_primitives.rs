@@ -150,8 +150,7 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg0_result =
-            self.check_expression(source, arg0.value, None, None, return_type)?;
+        let arg0_result = self.check_expression(source, arg0.value, None, None, return_type)?;
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -209,8 +208,7 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result =
-            self.check_expression(source, arg1.value, Some(t), None, return_type)?;
+        let arg1_result = self.check_expression(source, arg1.value, Some(t), None, return_type)?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         } else if !self.assignable(arg1_result.ty, t) {
@@ -345,8 +343,7 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg0_result =
-            self.check_expression(source, arg0.value, None, None, return_type)?;
+        let arg0_result = self.check_expression(source, arg0.value, None, None, return_type)?;
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
@@ -368,8 +365,7 @@ impl BodyChecker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result =
-            self.check_expression(source, arg1.value, None, None, return_type)?;
+        let arg1_result = self.check_expression(source, arg1.value, None, None, return_type)?;
         if self.is_error(arg1_result.ty) {
             valid = false;
         }

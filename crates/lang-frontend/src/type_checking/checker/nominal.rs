@@ -258,7 +258,10 @@ impl Checker<'_> {
             let mut deinit_count = 0;
             if let Some(body) = &classifier.body {
                 for &member in &body.members {
-                    if matches!(self.ast().items().get(member)?.payload(), Item::Deinit { .. }) {
+                    if matches!(
+                        self.ast().items().get(member)?.payload(),
+                        Item::Deinit { .. }
+                    ) {
                         deinit_count += 1;
                         if deinit_count > 1 {
                             let span = self.ast().items().get(member)?.span();

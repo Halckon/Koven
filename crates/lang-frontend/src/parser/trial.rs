@@ -239,7 +239,9 @@ impl<'a> TrialBuilder<'a> {
         if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
             return false;
         }
-        self.sources.slice(lexeme.span()).is_ok_and(|text| text == expected)
+        self.sources
+            .slice(lexeme.span())
+            .is_ok_and(|text| text == expected)
     }
 
     fn build(mut self) -> Result<BuiltTrials, ParserInternalError> {
@@ -249,8 +251,8 @@ impl<'a> TrialBuilder<'a> {
             if !self.is_identifier(index) {
                 continue;
             }
-            let has_member = self.is_symbol(index + 1, Symbol::Dot)
-                && self.is_identifier(index + 2);
+            let has_member =
+                self.is_symbol(index + 1, Symbol::Dot) && self.is_identifier(index + 2);
             path_ends[index] = if has_member {
                 path_ends[index + 2]
             } else {

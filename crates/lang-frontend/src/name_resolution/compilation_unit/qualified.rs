@@ -542,7 +542,9 @@ fn item_name_span(item: &Item) -> Option<Span> {
             *name
         }
         Item::Classifier(classifier) => classifier.name,
-        Item::Error | Item::Companion(_) | Item::Modified { .. } | Item::Deinit { .. } => return None,
+        Item::Error | Item::Companion(_) | Item::Modified { .. } | Item::Deinit { .. } => {
+            return None;
+        }
     };
     match marker {
         NameMarker::Present(span) => Some(span),

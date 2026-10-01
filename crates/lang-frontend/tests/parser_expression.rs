@@ -1813,12 +1813,36 @@ fn named_bitwise_soft_operators_parse_with_correct_precedence_and_associativity(
     // Precedence: multiplicative (15) > additive (14) > shift (13) > bitwise_and (12) > bitwise_xor (11) > bitwise_or (10) > range (9) > logical_and (3) > logical_or (2)
     let precedence_cases = [
         ("a + b shl c", BinaryOperator::Shl, BinaryOperator::Add),
-        ("a shl b and c", BinaryOperator::BitwiseAnd, BinaryOperator::Shl),
-        ("a and b xor c", BinaryOperator::BitwiseXor, BinaryOperator::BitwiseAnd),
-        ("a xor b or c", BinaryOperator::BitwiseOr, BinaryOperator::BitwiseXor),
-        ("a or b .. c", BinaryOperator::InclusiveRange, BinaryOperator::BitwiseOr),
-        ("a or b && c", BinaryOperator::LogicalAnd, BinaryOperator::BitwiseOr),
-        ("a && b || c", BinaryOperator::LogicalOr, BinaryOperator::LogicalAnd),
+        (
+            "a shl b and c",
+            BinaryOperator::BitwiseAnd,
+            BinaryOperator::Shl,
+        ),
+        (
+            "a and b xor c",
+            BinaryOperator::BitwiseXor,
+            BinaryOperator::BitwiseAnd,
+        ),
+        (
+            "a xor b or c",
+            BinaryOperator::BitwiseOr,
+            BinaryOperator::BitwiseXor,
+        ),
+        (
+            "a or b .. c",
+            BinaryOperator::InclusiveRange,
+            BinaryOperator::BitwiseOr,
+        ),
+        (
+            "a or b && c",
+            BinaryOperator::LogicalAnd,
+            BinaryOperator::BitwiseOr,
+        ),
+        (
+            "a && b || c",
+            BinaryOperator::LogicalOr,
+            BinaryOperator::LogicalAnd,
+        ),
     ];
     for (text, root_op, left_op) in precedence_cases {
         let (_sources, parsed) = parsed_case(text);
@@ -1826,10 +1850,16 @@ fn named_bitwise_soft_operators_parse_with_correct_precedence_and_associativity(
             panic!("expected binary root for {text}");
         };
         assert_eq!(*operator, root_op, "root operator mismatch for {text}");
-        let Expression::Binary { operator: child_op, .. } = expression(&parsed, *left) else {
+        let Expression::Binary {
+            operator: child_op, ..
+        } = expression(&parsed, *left)
+        else {
             panic!("expected binary left child for {text}");
         };
-        assert_eq!(*child_op, left_op, "left child operator mismatch for {text}");
+        assert_eq!(
+            *child_op, left_op,
+            "left child operator mismatch for {text}"
+        );
     }
 
     // Associativity (left-associative)
@@ -1844,7 +1874,10 @@ fn named_bitwise_soft_operators_parse_with_correct_precedence_and_associativity(
             panic!("expected binary root for {text}");
         };
         assert_eq!(*operator, expected_op);
-        let Expression::Binary { operator: child_op, .. } = expression(&parsed, *left) else {
+        let Expression::Binary {
+            operator: child_op, ..
+        } = expression(&parsed, *left)
+        else {
             panic!("expected binary left child for {text}");
         };
         assert_eq!(*child_op, expected_op);
@@ -1862,4 +1895,3 @@ fn named_bitwise_soft_operators_parse_with_correct_precedence_and_associativity(
         assert_parses(text);
     }
 }
-

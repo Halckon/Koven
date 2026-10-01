@@ -2174,7 +2174,10 @@ fn class_with_deinit_passes_type_checking() {
     let (_, _, _, typed) = checked(text);
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let resource_desc = typed.nominals().iter().find(|d| d.has_deinit());
-    assert!(resource_desc.is_some(), "Resource should have has_deinit = true");
+    assert!(
+        resource_desc.is_some(),
+        "Resource should have has_deinit = true"
+    );
 }
 
 #[test]
