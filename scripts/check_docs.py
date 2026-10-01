@@ -33,7 +33,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_VERSION = "v0.39"
+CURRENT_GUIDE_VERSION = "v0.40"
 CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
 CURRENT_COMPILER_CONTRACTS_RE = re.compile(r"<!--\s*current-compiler-contracts\s*-->")
 SCOPED_AGENT_DIRS = (
@@ -65,8 +65,9 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
 EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
     "v0.37": frozenset(),
+    "v0.40": frozenset(),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228", "0229", "0230", "0231", "0232", "0233", "0234", "0236"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228", "0229", "0230", "0231", "0232", "0233", "0234", "0235", "0236", "0237"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027"}
 )

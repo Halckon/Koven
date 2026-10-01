@@ -2,6 +2,8 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
+- [SPEC-0237](0237-local-integration.md)：八阶段本地整合、交叉契约与验证账本，in-progress。
+- [SPEC-0235](0235-approved-language-rules.md)：真实 clone-first 基线上的 Guide v0.40 启用，in-progress。
 - [SPEC-0236](0236-explicit-string-clone.md)：String.clone Phase 2/3/4 端到端，in-progress。
 - [SPEC-0234](0234-block-newline-continuation.md)：普通 block 换行 Pratt/postfix 边界，in-progress。
 - [SPEC-0233](0233-parser-compiler-contracts.md)：Parser 工程合同的保全文档迁移与治理，in-progress。

@@ -20,9 +20,11 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 | 版本 | 状态 | 下一项 | 依赖入口 |
 |---|---|---|---|
+| v0.40（本地已启用） | SPEC-0235 in-progress，真实 v0.39 已归档 | 三项规则的实现闭环及获准后的 PR CI | [版本路由](drafts/v0.40/README.md) |
 | v0.36（已启用） | 常量 Phase 2/3/4 done | 当前阶段链已完成 | [v0.36 阶段路由](drafts/v0.36/README.md) |
 | v0.37（已启用） | 0179/0211/0212 done、0182 approved | SPEC-0182 for lowering | [drafts/v0.37](drafts/v0.37/README.md) |
-| v0.39（已启用） | SPEC-0236 in-progress | String.clone Phase 2/3/4 端到端 | [SPEC-0236](active/0236-explicit-string-clone.md) |
+| clone-first v0.39（已由 v0.40 继承） | SPEC-0236 in-progress，本地定向验证完成 | 整合回归、获准发布与 PR CI | [SPEC-0236](active/0236-explicit-string-clone.md) |
+| 本地八阶段整合 | SPEC-0237 in-progress | 交叉契约与统一 target 门禁 | [SPEC-0237](active/0237-local-integration.md) |
 | host-native 扩展（已批准） | SPEC-0228 in-progress | Linux x86_64 + glibc 目标与基线验收 | [SPEC-0228](active/0228-linux-x86-64-native-host.md) |
 | v2 interface 值 / Map 所有权（proposal） | 未启用 | 待评审 | [proposals](../proposals/README.md) |
 

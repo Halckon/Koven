@@ -1,8 +1,8 @@
-# Koven v0.40：调用、Lambda 与 Closure
+# Koven v0.39：调用、Lambda 与 Closure
 
-> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Closure Capture 与跨线程转移
 
@@ -248,7 +248,7 @@ trivia token 起严格匹配完整前缀 `[ Identifier { "," Identifier } ] "->"
 成功才提交。任一 token 不匹配就以零状态失败，并从 `{` 后按零参数 body 解析，不得继续搜索
 后方任意顶层 `->`。因此 `{ source as () -> Int }` 中函数类型的箭头绝不会反向把 `source as ()`
 误判为 lambda 参数，`{ x y -> z }` 也不是可恢复 header，而是带非法 body token 的零参数
-lambda。严格前缀的 DFA 与共享索引见[Parser 工程合同](../compiler-specs/parser-algorithms.md#lambda-header-试探-dfa)。
+lambda。严格前缀的 DFA 与共享索引见[Parser 工程合同](../../../compiler-specs/parser-algorithms.md#lambda-header-试探-dfa)。
 
 Body 复用[block 与控制流规则](06-blocks-control-flow.md)的三种 element 和最大 element / 显式 stop 规则，但使用独立 lambda-body
 payload，不能复用静态类型固定为 `Unit` 的 `Statement::Block`。若最后一个 element 是
@@ -280,7 +280,7 @@ lambda body 在最大 expression 已完整、没有子语法等待 token，且 d
 或其他 nested owner 内的 `,` / `->` 不受影响，因此 `{ source as () -> Int }` 仍是单个完整
 尾表达式。
 
-Lambda payload 与 header 状态见[Lambda AST 工程合同](../compiler-specs/parser-ast.md#lambda-payload-字段)。
+Lambda payload 与 header 状态见[Lambda AST 工程合同](../../../compiler-specs/parser-ast.md#lambda-payload-字段)。
 完整 lambda Span 从真实 `move`（若存在）
 或 `{` 起至匹配 `}` 终；缺 `}` 时止于最后实际消费位置。由于 header 只在严格完整匹配后
 提交，参数均为真实 Identifier，不存在 missing / error 参数 marker；header Span 从首参数
@@ -299,7 +299,7 @@ form；普通 token 每次精确消费一个，`const val` 可消费固定前缀
 最内层 lambda / block，不能越过未闭合 lambda 交给父 block；只有局部栈顶为 `)`、`]` 等异形
 frame 时，调用方 `}` 才作为 hard closer 被保留。
 
-Header 的预索引与查询复杂度见[共享预索引合同](../compiler-specs/parser-algorithms.md#lambda-header-共享预索引)。
+Header 的预索引与查询复杂度见[共享预索引合同](../../../compiler-specs/parser-algorithms.md#lambda-header-共享预索引)。
 
 缺 lambda `}` 时，正式 parser 在最早的
 调用方 hard stop 停止，即使预索引的词法范围延伸得更远也不得越界。每轮要么消费 lexeme，
@@ -324,7 +324,7 @@ receiver.consume(1) { item -> item }
 - callee 尚无圆括号 call suffix 时，Parser 建立一个只有该 lambda 的 `Expression::Call`；已有
   `(...)` 时，把 lambda 追加为同一个 call 的最后一个普通 `CallArgument`，并把 call span 扩到
   lambda 的 `}`。不得把 `f() {}` 表示成“先调用 `f()`、再调用其结果”的第二个 call。
-- 尾 lambda 的 `CallArgument` 没有 name 或显式 mode；需要命名或 `&` 标注时仍写在
+- 尾 lambda 的 `CallArgument` 没有 name 或显式 mode；需要命名、`borrow` 或 `&` 标注时仍写在
   圆括号内。每个 call 最多接受一个同行尾 lambda，第二个同行的 `{ ... }` 继续形成
   trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
 - typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
@@ -370,19 +370,19 @@ call_suffix       = "(", [ call_argument,
                             { ",", call_argument } ], ")" ;
 call_argument     = [ named_argument_prefix ], [ argument_mode ], expression ;
 named_argument_prefix = Identifier, "=" ;
-argument_mode     = "&" ;
+argument_mode     = "borrow" | "&" ;
 ```
 
 调用实参的 `argument_mode` 与声明侧 `parameter_mode` 是两套封闭语法：声明侧接受
-`own` / `borrow` / `inout`，调用点只接受 `&`。声明用 `inout` 表示可变借用契约，
-调用点必须用 `&` 交付可变 place；`own`、`borrow`、`inout` 都不是调用点模式标记。
+`own` / `borrow` / `inout`，调用点只接受 `borrow` / `&`。声明用 `inout` 表示可变借用契约，
+调用点必须用 `&` 交付可变 place；`borrow` 在调用点可选，`own` 不属于调用实参。
 
-唯一源码顺序是“可选名称、可选 `&`、表达式”：`f(e)`、`f(name = e)`、`f(&e)` 与
-`f(name = &e)` 均可形成语法 AST。`&` 不是通用一元运算符，只有 call argument 入口可消费。
-`f(borrow x)`、`f(name = borrow x)` 与 `f(own x)` 均非法；旧借用调用迁移为 `f(x)`、
-`f(name = x)`。`borrow(x)`、`f(borrow(x))` 与 `f(borrow)` 中的 `borrow` 是普通 Identifier，
-按普通名称/调用规则解析，不建立显式借用 marker。模式后直接出现顶层 `Identifier =`
-是错误的逆序组合；显式分组的 `&(x = y)` 仍是 assignment expression 为 operand 的模式实参。
+唯一源码顺序是“可选名称、可选模式、表达式”：`f(e)`、`f(name = e)`、`f(borrow e)`、
+`f(&e)`、`f(name = borrow e)` 与 `f(name = &e)` 均可形成语法 AST。模式不是通用一元运算符；
+只有 call argument 入口可消费，且字母表精确为关键字 `borrow` 与符号 `&` 两项。`own`
+只属于声明端，所以 `f(own x)` 仍非法。模式后直接出现顶层
+`Identifier =` 是错误的逆序组合；显式分组的
+`borrow (x = y)` 仍是以 assignment expression 为 operand 的模式实参，`&(x = y)` 同理。
 空列表合法，
 trailing comma 继续非法。Parser 只保留源码顺序和真实 marker；名称映射、参数契约匹配与
 operand 的 place / temporary 分类由后续检查完成，parser 不按 callee 名称或
@@ -393,8 +393,8 @@ operand 形态改变语法。
 callee 的每个值参数具有 `Value`、`Borrow` 或 `Inout` 契约。无标记或声明侧显式 `borrow`
 都是 `Borrow`；声明侧显式 `own` 映射 `Value`；显式 `inout` 映射 `Inout`。`Value` 接收
 完整 owned value，满足 `Copyable` 时复制，否则移动；声明必须写 `own`，调用点却始终不写
-marker。`Borrow` 表示调用期间共享借用，调用点始终无 marker，编译器按 callee 已声明的
-契约自动借用。`Inout` 表示调用期间独占可变借用，
+marker。`Borrow` 表示调用期间共享借用，调用点标注可选——省略时编译器按 callee 已声明的
+契约自动借用，显式写 `borrow` 时效果相同，仅用于强调。`Inout` 表示调用期间独占可变借用，
 调用点**必须**显式标注，但拼写是符号 `&`，不是声明侧使用的关键字 `inout`
 （`mutate(&x)`，不是 `mutate(inout x)`）。默认参数**模式**
 不等于默认参数**值**；v1 继续禁止参数默认值与用户声明 `vararg`。
@@ -407,10 +407,11 @@ place 时才属于 place；其他产生完整值的表达式均为 temporary。
 |---|---|---|---|
 | 无 marker、operand 为 place | 合法，按值复制或移动 | 合法，自动借用，借到同步调用结束 | 非法，缺 `&` |
 | 无 marker、operand 为 temporary | 合法，直接交付 | 合法，自动借用，借到同步调用结束 | 非法，始终要求可变 place |
+| `borrow operand` | 非法 | 合法；与省略标注语义完全相同，纯粹可选 | 非法 |
 | `&operand` | 非法 | 非法 | 仅 operand 为可变 place 时合法 |
 
 `Copyable` 只决定向 `Value` 交付时是复制还是移动，不改变矩阵，也不让 `Inout` place 省略 marker。
-Borrow 参数接受无 marker 的 temporary；显式 `&temporary` 非法。place、可变性、Copyable、移动
+显式 `borrow temporary` 合法；显式 `&temporary` 非法。place、可变性、Copyable、移动
 与借用冲突由 Phase 3 判断，Phase 1 不据此拒绝语法。
 
 调用点 `own operand` 不在矩阵中，因为它不是合法 `argument_mode`。对
@@ -424,8 +425,8 @@ Phase 2 先按源码顺序解析每个 argument 的类型和表达式类别，�
 命名实参是类型诊断。一个参数不能被位置与名称重复填充，同一名称不能出现两次；v1 没有
 默认参数值，所以成功调用必须恰好填充全部参数且没有额外实参。每个重载候选独立应用这套
 映射与契约约束；无 marker 的 place 或 temporary 都可直接与 `Value` 或 `Borrow` 候选兼容，
-显式 `&` 只能与 `Inout` 候选兼容。参数 mode 不参与 overload shape，不能声明只在 mode
-上不同的 overload，也不存在通过调用处 `borrow` 筛选候选的语法。
+显式 `borrow` 只能与 `Borrow` 候选兼容，显式 `&` 只能与 `Inout` 候选兼容。参数 mode 不参与
+overload shape；即使 `borrow` 可以筛掉 Value 候选，也不允许声明只在 mode 上不同的 overload。
 若类型检查后仍有多个候选，使用统一的 overload 歧义诊断，不能通过重排求值或忽略契约
 择一。这里的表达式类别只区分类型层面已经
 建立的 place 与 temporary；Phase 2 不判断 place 此刻能否移动、借用或独占访问，这些动态
@@ -453,13 +454,13 @@ Phase 2 先按源码顺序解析每个 argument 的类型和表达式类别，�
 | `Sender<T>.send(value)` | `Value T`，声明端 `own` |
 
 其中 `(Int) -> T` 的 `Int` 参数无 marker，因此是 `Borrow`；表格中的“声明端 `own`”只解释
-规范签名，不是调用点语法。上表所有 `Value` 与 `Borrow` 参数在调用点都不写 marker。
-`println` 的可打印类型集合、channel / thread 的具体返回类型及普通集合算法由对应 Phase 2 / 5
+规范签名，不是调用点语法。上表所有 `Value` 与 `Borrow` 参数在调用点都不需要标注
+（`Borrow` 位置仍可选择写 `borrow` 强调）。`println` 的可打印类型集合、channel / thread 的具体返回类型及普通集合算法由对应 Phase 2 / 5
 规范确定；这些留白不允许改变上表的模式或让 parser 按名称特判。
 
 具名函数 `ValueParameter`、函数类型参数和 `CallArgument` 共用现行 AST / parser。声明 marker
 为 `Own` / `Borrow` / `Inout`，missing marker 的 typed mode 是 `Borrow`；调用实参的表面
-字母表只有符号 `&`。Span 各自
+字母表仍只有关键字 `borrow` 与符号 `&`。Span 各自
 覆盖源码中实际出现的 token；Phase 2
 实现名称、参数映射、类型与参数契约匹配并标记
 类型层面的 place / temporary 类别，Phase 3 才实现具体 place 的移动能力、可变性、复制 /
@@ -473,8 +474,8 @@ payload，至少保存完整 `span`、`named_prefix: Option<NamedArgumentPrefix>
 只有名称或只有等号的半状态。mode marker 复用
 [AST `Span` 与恢复规则](15-conformance-and-staging.md#ast-span-与恢复一致性)封闭的
 `ParameterModeMarker::{Own(Span), Borrow(Span), Inout(Span)}`，自身封闭真实 kind / Span；
-但 `CallArgument` 的构造不变量只允许 `Inout`，`Own` / `Borrow` 只用于声明 marker；
-parser 不得因表达式中出现 `own` / `borrow` Identifier 就构造相应实参 marker。**在
+但 `CallArgument` 的构造不变量只允许 `Borrow` / `Inout`，`Own` 只允许出现在声明端，parser
+遇到调用点 `own` 必须拒绝而不能构造 `CallArgument` 的 `Own` 半合法状态。**在
 `CallArgument` 里，`Inout(Span)` 变体的 `Span` 覆盖的是符号 `&`
 token，不是关键字 `inout` token**（value_parameter / function_type_parameter 的
 `Inout(Span)` 才覆盖 `inout` 关键字）；两处共享同一枚举变体名是因为语义相同，实现读取
@@ -488,17 +489,19 @@ Span 不变。错误 operand 只覆盖实际消费区域，或在 call / 调用�
 `L0036 unsupported argument trailing comma`、`L0037 invalid argument mode ordering` 与
 `L0038 duplicate argument mode`；固定消息就是各英文类别拼写，主 `Span` 按下表。参数声明 /
 函数类型的 `L0039 duplicate parameter mode` 由上节定义。这六类诊断的触发条件与恢复语义
-继续按下表应用唯一的 `&` marker：`f(& &x)` 是 `duplicate argument mode`，
-`f(&name = x)` 是 `invalid argument mode ordering`；`&x` 单独出现不算“重复”。`f(&&x)` 不落入这一类别——lexer 按
+不因模式字母表从三项收窄为两项而改变——`duplicate argument mode`（如
+`f(borrow &x)`，关键字 `borrow` 后紧跟符号 `&`）与 `invalid argument mode ordering` 关注
+的是模式 token 出现的数量与位置，与具体是哪个模式无关；`&x` 单独出现时 `&` 不算
+“重复”，是本节字母表里合法的唯一 `Inout` 标注写法。`f(&&x)` 不落入这一类别——lexer 按
 最长匹配把 `&&` 识别为单一 token（logical-and 的固定符号），不是两个相邻的 `&`，因此
-parser 在 `argument_mode` 位置看到的是一个不匹配 `"&"` 的 `&&` token，按
+parser 在 `argument_mode` 位置看到的是一个不匹配 `"borrow" | "&"` 的 `&&` token，按
 `expected argument value` 处理；只有写成 `f(& &x)`（中间有 trivia）才会产生两个独立
 `&` token，触发 `duplicate argument mode`。不得复用声明列表 L0024–L0026，`)`
 缺失只复用通用 expected closing delimiter。恢复分支精确如下：
 
-`f(borrow x)`、`f(own x)` 与 `f(inout x)` 中首个名称按普通 Identifier expression 解析，
-后续 `x` 缺少实参 separator，按下表产生 `L0034 expected argument separator`；不得把名称
-重新解释成 marker，也不得仅因普通函数或变量名是 `borrow` / `own` / `inout` 而拒绝。
+`f(own x)` 的 `own` 是不匹配调用点 mode 字母表、也不能开始 expression 的硬关键字，使用
+`L0033 expected argument value` 覆盖该 token 并按下表恢复；不得把它接受为模式，也不得为
+这一既有类别另分配错误码。
 
 | 分支 | 诊断、消费与 AST |
 |---|---|

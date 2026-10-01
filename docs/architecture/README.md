@@ -26,6 +26,14 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 
+## 规范覆盖边界
+
+本地整合已包含 SPEC-0229–0234、0236 的代码或文档切片；各自的实际验证与遗留缺口见
+[演进实施账本](../specs/evolution-status.md)。[String.clone](string-clone.md) 已有单/多文件
+类型、所有权、SSA 与 Linux native 定向证据。builtin 文本类型仍是 MoveOnly String。
+Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读 deinit 顺序合同尚未全部
+闭环：Parser 仍可构造旧实参 Borrow marker；不得由文档启用推断实现或远端 CI 已完成。
+
 ## 按实现领域读取
 
 | 修改内容 | 页面 |

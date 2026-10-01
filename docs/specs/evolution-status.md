@@ -1,42 +1,57 @@
-# v0.38 演进计划实施账本
+# v0.40 演进计划实施账本
 
 > **性质**：变更进度索引 · **状态**：current · **读取时机**：继续演进计划或核对交付范围时 · **唯一真源**：对应 Guide、Spec 与代码测试
 
-本页对照 2026-10-01 用户提供的 13 项演进计划记录实际边界，不替代语言规范，也不以
-已出现类型名、AST 或示例作为端到端完成证明。审计基线为 PR #5 合并后的 `d3e64a4`；
-第一个补全切片为 [SPEC-0229](active/0229-extended-numeric-literal-values.md)。
+本页对照 2026-10-01 的 13 项计划记录当前本地整合事实；语言规则以唯一 current
+[Guide v0.40](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
+起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
+八个切片及整合合同均保持 in-progress；已获提交整合 PR 的授权，最终提交与必需 CI 尚待验收。
+
+## 八阶段已整合范围
+
+| 切片 | 已有本地成果 | 尚未闭环 |
+|---|---|---|
+| [SPEC-0229](active/0229-extended-numeric-literal-values.md) | radix/underscore 统一解码、单/unit 定型与常量、索引 identity、整数 SSA/native | 浮点 native、具名位运算与 inv 不在此切片 |
+| [SPEC-0230](active/0230-recursive-boxed-enum-native.md) | 非泛型递归 Box enum 单/unit 构造、运输、真实分配/递归释放计数 | generic enum、拆箱/解引用、nullable/Rc 递归包装与前向 case 查找保持边界 |
+| [SPEC-0231](active/0231-contextual-type-ref-trials.md) | 上下文 TypeRef、nested 函数模式、strict typed-call trial 与回滚一致 | 调用处取消 Borrow marker 由 v0.40 后继实现；三个旧 call-argument 失败未在此修复 |
+| [SPEC-0232](active/0232-ownership-primitive-type-facts.md) | replace/swap 稳定 intrinsic、交换类型、源码顺序 operand identity、事务与结构验证 | ownership/SSA/native 原子操作尚未接线；无可信 continuation 公开 API |
+| [SPEC-0233](active/0233-parser-compiler-contracts.md) | 九段原文迁入 Compiler Contracts，两页唯一索引、递归门禁与预算 | 渐进拆分首片；混合语义/诊断/Span 段保留 Guide，不声称全部分离 |
+| [SPEC-0234](active/0234-block-newline-continuation.md) | 普通/control/nested block 的 Pratt/postfix 换行边界、for-header delimiter 修复及矩阵 | 同行缺分隔符、前导/重复分号、lambda 顶层尾表达式范围另列 |
+| [SPEC-0236](active/0236-explicit-string-clone.md) | String.clone 单/unit typed→loan/drop→StringClone SSA→Linux native；heap/static/empty 与真实分配释放计数 | Borrow Rc<String>.value.clone、inline-nullable String 和通用 clone 未扩张 |
+| [SPEC-0235](active/0235-approved-language-rules.md) | 真实 v0.39 完整归档；v0.40 唯一入口启用三项批准规则，保留 clone-first | 三项新规则的实现不随文档完成；最终 PR CI 未完成 |
+
+合并后交叉用例、统一 target 的本地门禁、实际命中数及剩余失败统一记录于
+[SPEC-0237](active/0237-local-integration.md)，不把上表各分支旧结果冒充最终整合结果。
 
 ## 十三项实况
 
 | 项 | 状态 | 已有证据与未闭合边界 |
 |---|---|---|
-| 1. 块换行与分号 | 部分 | `parser/engine/block.rs` 已处理分号，`engine/core.rs` 判断换行边界；跨行 call/prefix 和同一行完整分隔合同尚待覆盖，词法页仍有旧禁止条款 |
-| 2. 上下文关键字 | 部分 | Lexer 已产出 Identifier；Parser 已识别 value class、move lambda、loop 与参数模式。move TypeRef、嵌套函数类型模式及旧调用 borrow 标记仍需闭合 |
-| 3. 数值与具名位运算 | 部分 | SPEC-0229 数值定型/const/索引 identity/SSA/native 本机闭环，待 PR CI；Scanner、位运算 AST/precedence/type checking 已有。位运算 const/SSA/native 与 inv 尚未闭合，移位 count 边界未定 |
-| 4. Box enum | 前端已有 | TypeRef、构造与递归布局前端测试已有；既有 Box native 测试装箱 value class，不能证明递归 enum native 能力 |
-| 5. replace/swap | 类型层已有 | 标准环境绑定 intrinsic，单文件与 unit 发布参数/返回契约；缺专用 ownership/SSA/native 原子置换与返回旧 owner 证据 |
-| 6. 两阶段 receiver 借用 | 未实现 | receiver 在实参前直接建立 active exclusive loan；需 Reserved/Activate 与 callee 存活 Borrow loan 冲突检查 |
-| 7. deinit 双轨析构 | 语法/类型层已有 | deinit AST、body 检查与 has_deinit 标志已有；drop planner/codegen 不消费标志，无资源 lexical lifetime 或执行 deinit 的 native 证据 |
-| 8. 静态 Str | 未实现 | BuiltinType 无 Str；当前静态文字仍形成 MoveOnly String owner。Guide 新旧类型规则冲突，转换/混合操作合同待定 |
-| 9. 二等借用与 Escapable | 未实现 | 当前模型仅有 owned 值与调用期 loan，能力只有 Copyable/Transferable；Ref/InoutRef/Span/StringView、来源和逃逸规则需新规范 |
-| 10. inout/once closure | 未实现新增部分 | 现有 ABI 是函数指针加具体 inline 环境；没有 mutable/once callable mode。计划的栈借用/堆逃逸分层需要 Guide 与取代 ADR-0009 的决策 |
-| 11. 受控 unsafe 与 RawPtr | 未实现 | Guide 有总体方向；Parser 无 unsafe/extern 产生式，类型环境无 RawPtr，标准库尚无源码容器实现。权限来源与 C ABI 类型矩阵未封闭 |
-| 12. 双层文档解耦 | 部分 | Guide/Architecture/Spec 已分目录；Guide 仍包含 AST payload、恢复算法、错误码与阶段内部合同 |
-| 13. 十二 Litmus | 示例清单已有 | Guide15 列出十二段示例，没有独立 fixture/自动验收入口；部分例子仍使用未实现或冲突语义，不能宣称全量验收 |
+| 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与分号/lambda 独立边界未闭环 |
+| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；v0.40 已决定取消调用 Borrow marker，但 Parser 旧路径仍待迁移 |
+| 3. 数值与具名位运算 | 数值端到端已落地 | SPEC-0229 闭合整数；位运算 const/SSA/native 与 inv 未闭合。移位 count 已批准按自身整数位宽屏蔽、两 operand 同型，不再是语义待定 |
+| 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；拆箱、generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
+| 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
+| 6. 两阶段 receiver 借用 | 未实现 | receiver 仍直接建立 active exclusive loan；Reserved/Activate 和 callee 存活 Borrow 冲突尚需事实及验证 |
+| 7. deinit 双轨析构 | 语法/类型层已有 | v0.40 已明确 readonly this、body 先于逆序字段清理；drop planner/codegen 仍无资源 lexical lifetime 与执行 deinit 的 native 证据 |
+| 8. 静态 Str | 明确延后 | 字面量/const 仍为 MoveOnly + Transferable String；Str/toString/混合文本操作未启用。先行 String.clone 已有 SPEC-0236 全链路定向证据 |
+| 9. 二等借用与 Escapable | 未实现 | 仍为 owned 值与调用期 loan；Ref/InoutRef/Span/StringView、来源和逃逸需新规范 |
+| 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
+| 11. 受控 unsafe 与 RawPtr | 未实现 | Parser 无 unsafe/extern 产生式，类型环境无 RawPtr；权限来源与 C ABI 类型矩阵尚未封闭，不从方向性计划补规则 |
+| 12. 双层文档解耦 | 首片已落地 | SPEC-0233 九段工程合同独立真源与检查完成；grammar/诊断/Span/Phase 等保留 Guide，后续按清晰边界渐进迁移 |
+| 13. 十二 Litmus | 示例清单已有 | Guide15 示例没有独立统一自动验收入口；未实现或独立边界仍存在，不能称全套端到端验收 |
 
 ### 主要代码与测试入口
 
-- 语法：`crates/lang-frontend/src/lexer/scanner.rs`、`src/parser/engine/`；
-  `tests/lexer.rs`、`tests/parser_block.rs`、`tests/parser_expression.rs`、`tests/parser_call_argument.rs`
-- 数值：`src/type_checking/checker/literal.rs`、`src/type_checking/compilation_unit/bodies/checker/literals.rs`；
-  `tests/numeric_literals.rs`、`tests/type_constants.rs`、`tests/multifile_constant_facts.rs`
-- Box：`tests/type_copyability.rs` 的 `intrinsic_box_accepts_concrete_value_and_enum_classes_and_breaks_layout_cycles`
-- 原子置换/deinit：`src/type_checking/checker/ownership_primitives.rs`、`src/type_checking/checker/nominal.rs`；
-  `tests/type_checking.rs` 的 `intrinsic_replace_*`、`intrinsic_swap_*`、`class_with_*deinit*`
-- receiver/drop：`src/ownership_checking/compilation_unit/dataflow/receiver.rs`、`drop_planner.rs`；
-  后端 `crates/lang-codegen/src/ssa/unit_lower/call.rs`、`native/` 和 `native_tests.rs`
+- Parser：frontend `src/parser/engine/`；`parser_contextual_type_ref`、`parser_block_line_continuation`、
+  `parser_entry_line_break_boundary_matrix`、既有 Parser matrix/资源测试
+- 数值/Box/clone：frontend `numeric_literals`、`string_clone`；codegen 的 numeric literal、boxed enum、
+  string clone SSA/verifier/native 测试；两种入口与分配/释放计数分别留证
+- 原子置换：frontend `type_ownership_primitives` 与 `ownership_primitive::tests`；typed descriptor
+  不代表后续阶段已有原子执行事实
+- 文档：Compiler Contracts、`scripts/check_docs.py`、`scripts/tests/test_check_docs.py`
 
-本节未带 crate 前缀的 `src/`、`tests/` 路径均相对于 `crates/lang-frontend/`。
+上述 suite 名按各 Spec 的完整命令定位；详细实现边界由 [Architecture](../architecture/README.md)维护。
 
 ## 已知独立基线失败
 
@@ -55,11 +70,12 @@
 
 不得通过降低断言、放宽门禁或把定向通过称作 frontend 全量通过来隐藏上述差异。
 
-## 规范待协调项
+## 已批准规则与下一步门禁
 
-用户计划明确的新方向与旧正文冲突包括块内分号、调用 borrow 标记、Str 字面量及 unsafe。
-对计划未确定的边界（移位 count、deinit body 权限和字段析构顺序、Str/String 转换）先取得
-决定，再启用完整一致的 Guide；当前代码实现不反向成为语言规则。
+调用 Borrow marker、移位 count、deinit body 权限与字段析构顺序的语义决定已进入 v0.40；
+后继实施应按 Guide 验证，不再把它们列为等待用户选择。Str/toString 已明确延后；
+unsafe 与其他未闭合 API/ABI 不能从已有代码或计划措辞推导新规则。
 
-后续各独立 Spec 在新分支内保留红测、实现、验证与提交证据。实现状态、远端 CI 和合并状态
-分开记录，不因父 PR 已合并而假定新增切片也已验证或合并。
+下一步先验证并提交整合 PR，等待最终 CI；通过后再拉取最新 main，审查 PR #6 的 v0.38
+语言审计与文档编辑。该授权不包含自动合并，不在当前整合中提前重写 PR #6 的结论。
+旧失败须保留精确结果，修复时有独立因果与回归证据；不得降低断言、放宽门禁或称 frontend 全量通过。

@@ -232,7 +232,9 @@ subgraph Gactive["现行 active"]
   S0232["S0232<br/>原子置换原语的可信类型事实"]
   S0233["S0233<br/>Parser 工程合同的保全文档迁移"]
   S0234["S0234<br/>普通 block 的换行表达式边界"]
+  S0235["S0235<br/>三项批准规则在真实 clone-first 基线启用"]
   S0236["S0236<br/>String.clone 显式深拷贝端到端"]
+  S0237["S0237<br/>八阶段本地整合与交叉契约验证"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1389,4 +1391,6 @@ S0226 --> S0227
 | SPEC-0232 | active | [0232-ownership-primitive-type-facts.md](../../specs/active/0232-ownership-primitive-type-facts.md) |
 | SPEC-0233 | active | [0233-parser-compiler-contracts.md](../../specs/active/0233-parser-compiler-contracts.md) |
 | SPEC-0234 | active | [0234-block-newline-continuation.md](../../specs/active/0234-block-newline-continuation.md) |
+| SPEC-0235 | active | [0235-approved-language-rules.md](../../specs/active/0235-approved-language-rules.md) |
 | SPEC-0236 | active | [0236-explicit-string-clone.md](../../specs/active/0236-explicit-string-clone.md) |
+| SPEC-0237 | active | [0237-local-integration.md](../../specs/active/0237-local-integration.md) |

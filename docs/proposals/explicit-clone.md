@@ -1,10 +1,10 @@
 # 显式 `clone()` 候选设计
 
-> **性质**：非规范候选设计 · **状态**：String 部分已启用；其余候选未启用 · **读取时机**：仅在评审字符串复制能力或显式复制原语时 · **唯一真源**：现行语义仍以 [v0.39 guide](../guide/README.md) 为准
+> **性质**：非规范候选设计 · **状态**：String 部分已启用；其余候选未启用 · **读取时机**：仅在评审字符串复制能力或显式复制原语时 · **唯一真源**：现行语义仍以 [v0.40 guide](../guide/README.md) 为准
 
 本文保留显式复制方案的讨论，不作为规范真源。2026-10-01 用户批准先落地 String.clone()，
 暂缓 Str 和 toString()；仅 builtin String 的 shared Borrow → 独立 owner 切片已进入
-[v0.39 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，由
+[v0.40 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，由
 [SPEC-0236](../specs/active/0236-explicit-string-clone.md) 实施、
 [ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 固定增量 ABI。
 其他类型、泛型复制能力与 nullable 特例仍未启用；本页不批准它们。相关取舍见
@@ -46,7 +46,7 @@
 text.clone(): String
 ```
 
-| 项 | 选中契约（规范以 v0.39 为准） |
+| 项 | 选中契约（规范以 v0.40 为准） |
 |---|---|
 | receiver | **shared `Borrow`**；不消费、不修改源 owner；源 owner 在调用后保持 Available |
 | 返回 | 内容相同（同一 UTF-8 字节序列）、**独立的新 `String` owner** |

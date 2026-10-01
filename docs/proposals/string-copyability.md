@@ -1,10 +1,10 @@
 # String Copyable 候选取舍
 
-> **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审 String 值语义、Copyable 扩展或字符串复制能力时 · **唯一真源**：现行语义仍以 [v0.39 guide](../guide/README.md) 为准
+> **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审 String 值语义、Copyable 扩展或字符串复制能力时 · **唯一真源**：现行语义仍以 [v0.40 guide](../guide/README.md) 为准
 
 本文只整理“是否让 String 满足 Copyable”的候选取舍，仍未启用，也不授权改变 Copyable。
 其中建议的显式 String.clone() 已单独由用户批准进入
-[v0.39 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，实施见
+[v0.40 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，实施见
 [SPEC-0236](../specs/active/0236-explicit-string-clone.md)。String 继续为 MoveOnly + Transferable；
 此项启用不表示本页其他方向、ARC/GC、静态 Str 或 toString() 已获批准。
 
@@ -116,7 +116,7 @@ SSO 让 `String` 小串内联、大串走堆，看起来"常见场景无堆"，�
 | 常量字符串反复使用 | `const val`：声明本身没有运行时地址、owner、init guard 或 drop，每个运行时 use 重新物化（[关联常量](../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)） | ❌ |
 | 只读传递字符串 | 默认参数模式 `Borrow`，零拷贝 | ❌ |
 | 字面量避免堆分配 | 13 页允许实现让 literal 引用静态只读字节 | ❌ |
-| 显式复制字符串 | v0.39 已定义 `String.clone()`：shared Borrow → 独立新 owner | 已由独立切片补齐规范；实现验收见 SPEC-0236 |
+| 显式复制字符串 | v0.40 已定义 `String.clone()`：shared Borrow → 独立新 owner | 已由独立切片补齐规范；实现验收见 SPEC-0236 |
 
 `const val` 的语义是"每次 use 从同一 UTF-8 bytes 新建一个普通 String temporary owner，
 两个 use 不共享 owner"，因此常量可以无限次使用而不受移动语义影响。这覆盖了"字面量像常量
@@ -125,7 +125,7 @@ SSO 让 `String` 小串内联、大串走堆，看起来"常见场景无堆"，�
 ## 9. 候选结论
 
 1. 保持 `String` 为 `MoveOnly` + `Transferable`；
-2. **显式 `clone()` 已进入 v0.39**：借用 receiver、返回新 owner，使复制成本写在代码里可见，并顺带
+2. **显式 `clone()` 已进入 v0.40**：借用 receiver、返回新 owner，使复制成本写在代码里可见，并顺带
    解决 `container[i]` 无法按值取出的问题（`list[0].clone()`）；
 3. 不引入 String 专属的 `Copyable` 特例，也不为此引入 ARC/GC；
 4. 若未来确需"堆值模型"，应以语言级 ARC/GC 决策推进，而不是 `String` 单点开关。

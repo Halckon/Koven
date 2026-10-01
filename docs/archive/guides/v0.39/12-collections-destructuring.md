@@ -1,8 +1,8 @@
-# Koven v0.40：集合、索引与解构
+# Koven v0.39：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
-本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 顺序容器的表示与索引语义
 
@@ -104,7 +104,8 @@ v1 只预声明以下顺序容器构造操作：
   形式：callee contract 将 `size`、`initializer` 都登记为 `Borrow`；`size`
   的类型为 `Int`，`initializer` 的类型为 `(Int) -> T`，其中无标记的索引参数同样是 Borrow；
   随后按 `0` 到 `size - 1` 的升序，
-  以每个索引恰好调用一次。已有 place 或临时表达式作为实参都不写借用模式；
+  以每个索引恰好调用一次。已有 place 或临时表达式作为实参都不需要写参数模式（`borrow`
+  仍可选择显式写在 `initializer` 实参前，纯粹为了可读性）；
 - 空的 `MutableList<T>()` 配合取得元素所有权的 `add` 等 Phase 5 API，从未知数量的运行时
   数据源逐步构造动态容器。
 
@@ -157,8 +158,8 @@ owner 析构时按高索引到低索引的顺序恰好析构每个元素，随�
   `consume(container[i])`（调用点不需要标注），都会从 place 取得 owned copy；
 - `T` 不满足 `Copyable` 时，普通 owned 读取和作为按值调用实参的 `container[i]` 都必须产生
   所有权诊断，不得移出元素、留下未初始化洞，也不得自动改为 `Box<T>`；
-- 在调用实参中，`use(container[i])` 对三种顺序容器都合法（借用由 callee 的 `Borrow` 契约
-  自动确定，调用点无 marker）；`mutate(&container[i])` 只对 `Array<T>` 和
+- 在调用实参中，`use(container[i])` 对三种顺序容器都合法（`Borrow` 契约，标注可选，写作
+  `use(borrow container[i])` 效果相同）；`mutate(&container[i])` 只对 `Array<T>` 和
   `MutableList<T>` 合法，且 `&` 标注仍是必需项（`Inout` 契约的调用点拼写是符号 `&`，
   不是关键字 `inout`）；
 - `container[i] = value` 只对 `Array<T>` 和 `MutableList<T>` 合法，并使用下述唯一替换顺序；
@@ -175,7 +176,7 @@ move / store 是不可失败的提交步骤；旧值的析构即使 abort，容�
 v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?` 表达可空借用，也没有声明
 “仅当 `T: Copyable` 时才出现某成员”的规则；为它添加隐式 clone、条件成员或编译器特判都会
 扩大模型。安全访问必须显式检查 `index in 0..<container.size`，随后在成立分支中复制
-`Copyable` 元素，或把非 `Copyable` 元素 place 作为无 marker 的 Borrow 实参或 `&` 实参。未来若引入
+`Copyable` 元素，或把非 `Copyable` 元素 place 作为 `borrow` / `&` 调用实参。未来若引入
 可空借用或条件 API，再由新 guide 定义安全访问器。
 
 具体越界与可变性规则如下：
@@ -188,7 +189,7 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
 
 ### `Map` / `MutableMap` 边界
 
-`Map` / `MutableMap` 不属于 v0.37 的可实施语义；顺序容器规则不得外推到键值容器。仅在评审未来 Map 设计时按需读取[非规范候选](../proposals/map-ownership.md)。
+`Map` / `MutableMap` 不属于 v0.37 的可实施语义；顺序容器规则不得外推到键值容器。仅在评审未来 Map 设计时按需读取[非规范候选](../../../proposals/map-ownership.md)。
 
 ### 分配、禁止的隐式表示与 codegen 优化
 

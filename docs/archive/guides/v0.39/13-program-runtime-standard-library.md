@@ -1,8 +1,8 @@
-# Koven v0.40：程序入口、Runtime 与标准库
+# Koven v0.39：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -167,8 +167,8 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
   与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
   不得按源码拼写或把 Rust/C 字符串对象直接塞入 Koven value。
 - runtime 的字节指针、长度、存储 provenance、drop glue、concat、clone、equality 与 stdout adapter
-  必须由 [ADR-0018](../adr/accepted/0018-string-owner-runtime-abi.md) 与其
-  [clone 增量 ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
+  必须由 [ADR-0018](../../../adr/accepted/0018-string-owner-runtime-abi.md) 与其
+  [clone 增量 ADR-0027](../../../adr/accepted/0027-explicit-string-clone-abi.md) 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
 - 所有创建边界都必须保证合法 UTF-8。plain literal 由 Lexer/decoder 保证，concat 由两个合法
   operand 闭包保证；argv 入口必须在创建 Koven String 前验证宿主参数，失败作为
   operational failure，不使用替换字符。
@@ -187,7 +187,7 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
 ```
 
 - `<project.toml>` 必须显式提供并遵守
-  [project source-set loader](../adr/accepted/0022-minimal-project-manifest-source-discovery.md)；CLI
+  [project source-set loader](../../../adr/accepted/0022-minimal-project-manifest-source-discovery.md)；CLI
   不从 cwd、源码路径或祖先目录
   搜索 manifest，也不按参数是文件还是目录猜测模式。现有 `build/run <source.ko> ...` 单文件
   形式及本页的 [conventional `main`](#conventional-main) 行为完全不变。
@@ -211,7 +211,7 @@ fun start(args: Array<String>): Unit { ... }
 ```
 
 - 零参数与参数化 shape 精确复用 [conventional `main`](#conventional-main) 与
-  [参数化 process entry bridge](../adr/accepted/0019-parameterized-process-entry-bridge.md)：返回
+  [参数化 process entry bridge](../../../adr/accepted/0019-parameterized-process-entry-bridge.md)：返回
   `Unit`，参数化形式只有一个默认/shared
   Borrow `Array<String>` 参数；参数名不参与匹配。generic、`own`/`inout`、其他参数或返回类型
   都不是合法 process entry。
@@ -264,7 +264,7 @@ fun <T> swap(a: Inout T, b: Inout T): Unit
 ### 静态字符串类型的延后边界
 
 普通字符串字面量继续具有 builtin `String` 类型和唯一 owner obligation；引用静态只读
-字节是 [String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化，
+字节是 [String runtime ABI](../../../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化，
 不使值满足 `Copyable`。独立的静态 `Str` 类型、Str→String 转换与 `toString()` 协议均延后，
 不得从候选设计或底层静态字节表示推导为已启用能力。
 
