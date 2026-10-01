@@ -167,6 +167,8 @@ L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成�
 真正不存在的本地静态成员产生 L0080；private 非常量成员继续由原类型路径处理可见性。
 普通值接收者和同名参数遮蔽仍沿既有路径处理。
 
+String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。
+
 ## 核心不变量
 
 - TypeRef、call target、member target 和 receiver 选择必须可追溯到唯一源码或显式 external identity。

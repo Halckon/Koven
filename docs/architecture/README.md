@@ -35,5 +35,6 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md) |
+| String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |

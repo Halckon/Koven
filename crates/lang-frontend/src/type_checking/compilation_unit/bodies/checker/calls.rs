@@ -98,6 +98,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_string_clone_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_rc_share_call(
             source,
             expression,

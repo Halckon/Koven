@@ -93,6 +93,23 @@ impl Checker<'_> {
         }
     }
 
+    pub(super) fn shared_receiver_place(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<OwnershipPlace>, OwnershipCheckingError> {
+        if let Some(operation) = self.typed.rc_operation(expression)
+            && operation.kind() == crate::type_checking::RcOperationKind::Value
+        {
+            return self.place(operation.receiver());
+        }
+        if let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(expression)?.payload()
+        {
+            return self.shared_receiver_place(*expression);
+        }
+        self.place(expression)
+    }
+
     pub(super) fn temporary_element_owner(
         &self,
         expression: ExpressionId,
@@ -374,16 +391,7 @@ impl Checker<'_> {
         match mode {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
-                let rc_owner_place = self
-                    .typed
-                    .rc_operation(argument.value)
-                    .filter(|operation| {
-                        operation.kind() == crate::type_checking::RcOperationKind::Value
-                    })
-                    .map(|operation| self.place(operation.receiver()))
-                    .transpose()?
-                    .flatten();
-                if let Some(place) = rc_owner_place.or(self.place(argument.value)?) {
+                if let Some(place) = self.shared_receiver_place(argument.value)? {
                     if self.access_place(
                         &place,
                         AccessKind::SharedLoan,

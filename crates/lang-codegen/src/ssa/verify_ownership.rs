@@ -322,6 +322,18 @@ fn apply_operation(
                 module, function, *right, aliases, state, location, origin, errors,
             );
         }
+        Operation::StringClone { source } => {
+            require_string_view(
+                module,
+                function,
+                EntityId::Loan(*source),
+                aliases,
+                state,
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::PrintString { value } => {
             if !state.loans.contains(value) {
                 errors.push(error(

@@ -10,6 +10,7 @@ mod iteration;
 mod loan;
 mod nullable_when;
 mod rc;
+mod string;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -326,9 +327,23 @@ impl<'a> Checker<'a> {
                 nullable_whens,
                 loan_ends,
                 bindings,
-                loans: self.loans,
                 drops,
                 construction_plans,
+                string_effects: self
+                    .typed
+                    .string_operations()
+                    .iter()
+                    .copied()
+                    .filter(|operation| {
+                        self.deferred.is_empty()
+                            && self.loans.iter().any(|loan| {
+                                loan.call() == operation.expression()
+                                    && loan.argument() == operation.receiver()
+                            })
+                    })
+                    .map(super::StringOwnershipEffect::new)
+                    .collect(),
+                loans: self.loans,
                 rc_effects: self.rc_effects,
                 captures,
                 closures: self.closures,
@@ -614,6 +629,9 @@ impl<'a> Checker<'a> {
         }
         if let Some(descriptor) = self.construction.descriptor(id) {
             return self.check_construction(descriptor, state, usage);
+        }
+        if let Some(descriptor) = self.typed.string_operation(id) {
+            return self.check_string_operation(descriptor, state);
         }
         if let Some(descriptor) = self.typed.rc_operation(id) {
             return self.check_rc_operation(descriptor, state, usage);

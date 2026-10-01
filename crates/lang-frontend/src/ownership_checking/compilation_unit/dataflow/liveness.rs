@@ -258,6 +258,21 @@ impl Builder<'_, '_> {
         if let Some(operation) = self
             .checker
             .typed
+            .string_operation(self.checker.unit_expression(id))
+        {
+            let mut receiver_live = live_after;
+            if let Some(place) = self.checker.loan_place(operation.receiver().expression())? {
+                receiver_live.insert(place.root());
+            }
+            return self.expression(
+                operation.receiver().expression(),
+                ExpressionUse::Read,
+                receiver_live,
+            );
+        }
+        if let Some(operation) = self
+            .checker
+            .typed
             .rc_operation(self.checker.unit_expression(id))
         {
             if operation.receiver().source_unit() != self.checker.source_unit {

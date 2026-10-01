@@ -151,7 +151,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择。
 - ordinary/value class、enum、Box、字段投影和字段 replacement；
 - 顺序容器构造、element place/read/replace；
 - closure environment、capture 与 callable thunk；
-- String owner/operation、Rc retain/release/payload loan；
+- String owner/operation（含 [StringClone](string-clone.md)）、Rc retain/release/payload loan；
 - pointer-like nullable handle；
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 

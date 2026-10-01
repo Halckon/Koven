@@ -17,6 +17,7 @@ mod ownership;
 mod rc;
 mod receiver;
 mod scalar;
+mod string_clone;
 mod type_lower;
 mod type_plan;
 
@@ -681,6 +682,9 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_enum_construction(expression, span)
                 }
             };
+        }
+        if self.typed.string_operation(unit_expression).is_some() {
+            return self.lower_string_clone(expression, span);
         }
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);

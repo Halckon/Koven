@@ -1,8 +1,8 @@
-# Koven v0.38：程序入口、Runtime 与标准库
+# Koven v0.39：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -134,6 +134,16 @@ U+0000，对外语义不依赖 NUL 终止。
 - `left + right` 在左到右各求值一次后，以同步 shared-read 方式读取两个 `String` operand，
   产生内容为精确字节拼接的新 `String` owner；不消费具名 operand。长度加法、目标布局或
   allocation size 无法表示时在发布部分结果前 abort。
+- `text.clone(): String` 是仅绑定 builtin String identity 的零参数、零类型实参 intrinsic。
+  receiver 以调用期 shared `Borrow` 求值一次，不消费或修改源；源 owner 在调用后仍可用。
+  结果包含完全相同的 UTF-8 字节，是参与普通 ASAP drop 的独立新 String owner；非空结果
+  深拷贝到独立缓冲区，即使源来自静态 literal 也不与它共享 owner 或 buffer。空串结果可
+  使用 canonical empty storage，但仍有独立的逻辑 owner obligation。
+  clone 不执行 retain、不建立共享 control block，不改变 String 的 MoveOnly/Transferable。
+  String 元素 place（例如 `list[0]`）可以作为 receiver，元素 owner 留在容器中。
+  `String?` 必须先按既有规则获得非空 receiver，不新增 nullable clone 特例；其他 builtin、
+  容器、Box、Rc、用户类型不因此获得 clone 能力。普通源码同名 member 仍按其自身契约处理，
+  不能冒充此 intrinsic。显式 clone 不触发隐式 Copyable 大值复制警告，不是 const 操作。
 - `==` / `!=` 比较 UTF-8 字节长度和全部内容，不执行 Unicode normalization、locale folding
   或 grapheme 处理。由于所有 String 均满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
   相等一致。
@@ -152,11 +162,13 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 运行时和编译阶段边界
 
-- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、
-  Copyable/Transferable 与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
+- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、稳定
+  String clone operation identity、receiver 类型及 Borrow/Value effect、Copyable/Transferable
+  与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
   不得按源码拼写或把 Rust/C 字符串对象直接塞入 Koven value。
-- runtime 的字节指针、长度、存储 provenance、drop glue、concat、equality 与 stdout adapter
-  必须由 accepted ADR 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
+- runtime 的字节指针、长度、存储 provenance、drop glue、concat、clone、equality 与 stdout adapter
+  必须由 [ADR-0018](../adr/accepted/0018-string-owner-runtime-abi.md) 与其
+  [clone 增量 ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
 - 所有创建边界都必须保证合法 UTF-8。plain literal 由 Lexer/decoder 保证，concat 由两个合法
   operand 闭包保证；argv 入口必须在创建 Koven String 前验证宿主参数，失败作为
   operational failure，不使用替换字符。
@@ -249,12 +261,12 @@ fun <T> swap(a: Inout T, b: Inout T): Unit
 - `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
 - `swap(&a, &b)`：在两个互不重叠的可变借用之间原子交换值。
 
-### 静态 `Str` 字面量与动态 `String`
+### 静态字符串类型的延后边界
 
-Koven 对文本类型进行清晰分层：
-- **静态字符串 `Str`**：由常量区编译期静态字面量（如 `"hello"`）产生，表示指向静态只读内存的 UTF-8 切片；`Str` 不承担析构义务，天然满足 `Copyable` 与 `Transferable`，可零成本跨线程、跨函数自由复制；
-- **动态字符串 `String`**：由字符串拼接、运行时动态构建或 IO 读取产生，拥有独立的堆缓冲区所有权，为 `MoveOnly` 类型；
-- 标准输出函数 `println` 与异常终止 `error` 同时接受 `Str` 与 `String` 借用。
+普通字符串字面量继续具有 builtin `String` 类型和唯一 owner obligation；引用静态只读
+字节是 [String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化，
+不使值满足 `Copyable`。独立的静态 `Str` 类型、Str→String 转换与 `toString()` 协议均延后，
+不得从候选设计或底层静态字节表示推导为已启用能力。
 
 ---
 

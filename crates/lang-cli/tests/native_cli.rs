@@ -425,3 +425,36 @@ fn run<const N: usize>(arguments: [&OsStr; N]) -> Output {
         .output()
         .expect("kovenc process must start")
 }
+
+#[test]
+fn string_clone_builds_and_runs_through_public_cli() {
+    let directory = TestDirectory::create();
+    let source = directory.join("clone.ko");
+    let executable = directory.join("clone");
+    fs::write(
+        &source,
+        r#"fun duplicate(text: String): String = text.clone()
+fun main(): Unit {
+    val source = "界\0" + "é"
+    val copy = duplicate(source)
+    println(source)
+    println(copy)
+    println("".clone())
+}"#,
+    )
+    .unwrap();
+    let built = run([
+        OsStr::new("build"),
+        source.as_os_str(),
+        OsStr::new("-o"),
+        executable.as_os_str(),
+    ]);
+    assert!(built.status.success(), "{built:?}");
+    assert!(built.stdout.is_empty() && built.stderr.is_empty());
+    let launched = Command::new(&executable).output().unwrap();
+    assert!(launched.status.success(), "{launched:?}");
+    assert_eq!(launched.stdout, "界\0é\n界\0é\n\n".as_bytes());
+    let executed = run([OsStr::new("run"), source.as_os_str()]);
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(executed.stdout, launched.stdout);
+}

@@ -1,8 +1,8 @@
-# Koven v0.38：Class Family、成员与 Receiver
+# Koven v0.39：Class Family、成员与 Receiver
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Value Class
 

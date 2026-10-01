@@ -421,6 +421,36 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if let Some(operation) = self
             .checker
             .typed
+            .string_operation(self.checker.unit_expression(id))
+        {
+            let receiver = operation.receiver().expression();
+            if !self.expression(receiver, DropExpressionUse::Place, state)? {
+                return Ok(false);
+            }
+            for loan in self.checker.loans.iter().filter(|loan| {
+                loan.call() == operation.expression() && loan.argument() == operation.receiver()
+            }) {
+                match loan.target() {
+                    crate::ownership_checking::UnitLoanTarget::Place(place) => {
+                        if !self.liveness.expression_after[id.index()].contains(&place.root()) {
+                            self.drop_named(PlannerDropPoint::CallReturn(id), place.root(), state);
+                        }
+                    }
+                    crate::ownership_checking::UnitLoanTarget::Temporary(owner) => {
+                        let owner = owner.expression();
+                        self.push_fact(PlannerDropFact::new(
+                            PlannerDropPoint::CallReturn(id),
+                            PlannerDropTarget::Temporary(owner),
+                            self.checker.parsed.ast().expressions().get(owner)?.span(),
+                        ));
+                    }
+                }
+            }
+            return Ok(true);
+        }
+        if let Some(operation) = self
+            .checker
+            .typed
             .rc_operation(self.checker.unit_expression(id))
         {
             if operation.receiver().source_unit() != self.checker.source_unit {

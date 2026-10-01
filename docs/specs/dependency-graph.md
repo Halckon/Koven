@@ -12,9 +12,11 @@ ARCH(("已完成<br/>archive 213 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0236["S0236<br/>String.clone 显式深拷贝端到端"]
 end
 ARCH --> S0182
 ARCH --> S0228
+ARCH --> S0236
 ```
 
 ## 节点链接
@@ -23,4 +25,5 @@ ARCH --> S0228
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](active/0228-linux-x86-64-native-host.md) |
+| SPEC-0236 | active | [0236-explicit-string-clone.md](active/0236-explicit-string-clone.md) |
 | 已完成 Spec（213 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

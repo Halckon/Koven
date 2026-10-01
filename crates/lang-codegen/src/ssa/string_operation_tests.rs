@@ -472,3 +472,165 @@ fn verifier_rejects_value_views_while_an_exclusive_loan_is_active() {
         )
     }));
 }
+
+#[test]
+fn string_clone_requires_active_shared_loan_and_creates_independent_owner() {
+    for drop_source_first in [false, true] {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("clone");
+        let module = program.module_mut(module_id).unwrap();
+        let string = module.add_string_owner_type();
+        let id = module
+            .add_function("clone", Vec::new(), origin.clone())
+            .unwrap();
+        let function = module.function_mut(id).unwrap();
+        let entry = function.add_block(Vec::new(), origin.clone()).unwrap();
+        let source = literal(function, entry, string, "界\0é".as_bytes(), &origin);
+        let view = shared_loan(function, entry, source, string, &origin);
+        let copy = value(
+            append(
+                function,
+                entry,
+                Operation::StringClone { source: view },
+                vec![EntityType::Value(string)],
+                &origin,
+            )[0],
+        );
+        append(
+            function,
+            entry,
+            Operation::BorrowEnd { loan: view },
+            Vec::new(),
+            &origin,
+        );
+        let order = if drop_source_first {
+            [source, copy]
+        } else {
+            [copy, source]
+        };
+        for owner in order {
+            append(
+                function,
+                entry,
+                Operation::Drop { owner },
+                Vec::new(),
+                &origin,
+            );
+        }
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+        verify_program(&program).expect("clone and source have independent owner obligations");
+        let rendered = render_program(&program);
+        assert!(rendered.contains("string.clone"));
+        assert_eq!(rendered, render_program(&program));
+        let llvm = crate::llvm::render_verified_program(&program).unwrap();
+        assert!(llvm.contains("clone.allocate"));
+        assert!(llvm.contains("llvm.memcpy"));
+        assert!(!llvm.contains("strong.next"));
+    }
+}
+
+#[test]
+fn string_clone_verifier_rejects_ended_exclusive_or_nonstring_loans_and_wrong_result() {
+    for invalid in ["ended", "exclusive", "nonstring", "result"] {
+        let origin = origin();
+        let mut program = Program::default();
+        let module_id = program.add_module("clone-invalid");
+        let module = program.module_mut(module_id).unwrap();
+        let string = module.add_string_owner_type();
+        let boolean = module.intern_type(SsaTypeKind::Boolean);
+        let id = module
+            .add_function("clone", Vec::new(), origin.clone())
+            .unwrap();
+        let function = module.function_mut(id).unwrap();
+        let entry = function.add_block(Vec::new(), origin.clone()).unwrap();
+        let owner = literal(function, entry, string, b"value", &origin);
+        let place = append(
+            function,
+            entry,
+            Operation::RootPlace { owner },
+            vec![EntityType::Place(string)],
+            &origin,
+        )[0];
+        let EntityId::Place(place) = place else {
+            panic!("place")
+        };
+        let kind = if invalid == "exclusive" {
+            LoanKind::Exclusive
+        } else {
+            LoanKind::Shared
+        };
+        let target = if invalid == "nonstring" {
+            boolean
+        } else {
+            string
+        };
+        let view = loan(
+            append(
+                function,
+                entry,
+                Operation::BorrowBegin { place, kind },
+                vec![EntityType::Loan { kind, target }],
+                &origin,
+            )[0],
+        );
+        if invalid == "ended" {
+            append(
+                function,
+                entry,
+                Operation::BorrowEnd { loan: view },
+                Vec::new(),
+                &origin,
+            );
+        }
+        let result_type = if invalid == "result" { boolean } else { string };
+        let copy = value(
+            append(
+                function,
+                entry,
+                Operation::StringClone { source: view },
+                vec![EntityType::Value(result_type)],
+                &origin,
+            )[0],
+        );
+        if invalid != "ended" {
+            append(
+                function,
+                entry,
+                Operation::BorrowEnd { loan: view },
+                Vec::new(),
+                &origin,
+            );
+        }
+        if result_type == string {
+            append(
+                function,
+                entry,
+                Operation::Drop { owner: copy },
+                Vec::new(),
+                &origin,
+            );
+        }
+        append(
+            function,
+            entry,
+            Operation::Drop { owner },
+            Vec::new(),
+            &origin,
+        );
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+        let errors = verify_program(&program).expect_err(invalid);
+        assert!(
+            errors.errors.iter().any(|error| if invalid == "ended" {
+                matches!(error.kind, VerifyErrorKind::LoanInactive { loan } if loan == view)
+            } else {
+                matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            }),
+            "{invalid}: {errors:?}"
+        );
+    }
+}

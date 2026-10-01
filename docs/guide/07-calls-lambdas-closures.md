@@ -1,8 +1,8 @@
-# Koven v0.38：调用、Lambda 与 Closure
+# Koven v0.39：调用、Lambda 与 Closure
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.39） · **读取时机**：实现或评审调用匹配、lambda、capture 与 overload trial 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.39 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Closure Capture 与跨线程转移
 

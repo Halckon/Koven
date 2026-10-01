@@ -22,6 +22,7 @@ mod nullable_when;
 mod parameter;
 mod projection;
 mod rc;
+mod string;
 
 use std::{sync::Arc, thread};
 
@@ -47,6 +48,7 @@ pub use nullable_when::*;
 pub use parameter::*;
 pub use projection::*;
 pub use rc::*;
+pub use string::*;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。
 ///

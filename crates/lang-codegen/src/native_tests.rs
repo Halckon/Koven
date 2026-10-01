@@ -1,3 +1,6 @@
+#[path = "native_string_clone_tests.rs"]
+mod string_clone_tests;
+
 #[path = "native_constant_tests.rs"]
 mod constant_tests;
 

@@ -31,6 +31,8 @@ pub(super) fn verify_operation(
         Operation::StringConcat { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, false)
         }
+        Operation::StringClone { source } => shared_string_loan_type(module, function, *source)
+            .is_some_and(|ty| single_value_result(&results) == Some(ty)),
         Operation::StringEqual { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, true)
         }
