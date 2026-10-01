@@ -108,7 +108,7 @@ fun main(args: Array<String>): Unit {
         .expect("constant declarations must coexist with borrowed argv");
         objects.push(fs::read(&object).unwrap());
         let executable = directory.join(&format!("entry-{index}"));
-        let linked = Command::new("/usr/bin/clang")
+        let linked = Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
             .arg(&executable)
@@ -286,7 +286,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
     )
     .unwrap();
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&ir)
         .arg(&counter)
         .arg("-o")

@@ -6,11 +6,12 @@ use crate::ssa::model::{
 };
 
 use super::{
-    LlvmAdapterError, first_target_machine,
+    LlvmAdapterError,
     layout::{
         LayoutFailure, LayoutQuantity, RawLayout, TargetLayoutError, TargetLayoutPlan,
         checked_record,
     },
+    native_target_machine,
     type_map::TypeMap,
 };
 
@@ -78,7 +79,7 @@ fn preflight_matches_the_first_target_for_closed_composite_shapes() {
         .expect("mutable ZST list must be valid");
 
     let context = Context::create();
-    let target = first_target_machine()
+    let target = native_target_machine()
         .expect("first target must exist")
         .1
         .get_target_data();
@@ -152,7 +153,7 @@ fn oversized_recursive_shape_fails_deterministically_before_type_lowering() {
     }
 
     let context = Context::create();
-    let target = first_target_machine()
+    let target = native_target_machine()
         .expect("first target must exist")
         .1
         .get_target_data();
@@ -196,7 +197,7 @@ fn deep_layout_preflight_is_iterative() {
     }
 
     let context = Context::create();
-    let target = first_target_machine()
+    let target = native_target_machine()
         .expect("first target must exist")
         .1
         .get_target_data();

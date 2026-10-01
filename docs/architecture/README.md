@@ -22,7 +22,7 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 | Source、Lexer、Parser | 确定性词法、完整文件组合、表达式/声明/block/lambda/class-family 与恢复路径已接入 |
 | 名称与类型 | 单文件及 compilation-unit package/import、名义/泛型/interface、call/member/container 等事实已接入 |
 | 所有权 | move/loan/drop/capture、结构移动、容器 element place、跨文件所有权与 validated gate 已接入 |
-| SSA / LLVM | owner-aware typed SSA、标量/聚合/容器/closure/String/Rc/nullable/receiver 与多文件 native 路径已接入 |
+| SSA / LLVM | owner-aware typed SSA、标量/聚合/容器/closure/String/Rc/nullable/receiver 与多文件 native 路径已接入；宿主支持 AArch64 macOS 和 x86_64 Linux + glibc |
 | 标准库 | Koven prelude、`error`、`println(String)`、`Pair`/`Result`、String 与 Rc 核心路径已接入 |
 | 工具 | 单文件/本地 project build/run、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter 已接入 |
 

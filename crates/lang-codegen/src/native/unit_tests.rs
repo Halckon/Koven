@@ -129,12 +129,9 @@ fn unit_object_atomically_replaces_links_and_runs_across_packages() {
     )
     .expect("validated compilation unit emits one atomic native object");
 
-    assert_eq!(
-        &fs::read(&object).expect("object bytes")[..4],
-        b"\xcf\xfa\xed\xfe"
-    );
+    crate::test_support::assert_native_object(&fs::read(&object).expect("object bytes"));
     assert_no_sibling_temporary(&directory.0);
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -159,7 +156,7 @@ fn unit_object_atomically_replaces_links_and_runs_across_packages() {
         &argv_object,
     )
     .expect("borrowed Array<String> unit entry emits one native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&argv_object)
         .arg("-o")
         .arg(&argv_executable)
@@ -348,7 +345,7 @@ fn direct_member_receivers_link_run_with_source_order_and_unique_class_drop() {
         &object,
     )
     .expect("direct source member receivers must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -496,7 +493,7 @@ fn inout_class_payload_mutation_is_observed_by_a_later_borrow() {
         &object,
     )
     .expect("Inout payload source must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -545,7 +542,7 @@ fn move_only_class_payload_replacement_links_and_runs() {
         &object,
     )
     .expect("MoveOnly field replacement must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -586,7 +583,7 @@ fn stateless_object_borrow_receiver_links_and_runs_without_runtime_storage() {
         &object,
     )
     .expect("stateless object Borrow receiver must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -638,7 +635,7 @@ fn inline_inout_read_only_receivers_link_and_run() {
         &object,
     )
     .expect("inline Inout receivers must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -685,7 +682,7 @@ fn copyable_inline_inout_mutation_is_observed_after_writeback() {
         &object,
     )
     .expect("Copyable inline Inout write-back must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -730,7 +727,7 @@ fn move_only_inline_inout_takes_the_owner_back_without_double_drop() {
         &object,
     )
     .expect("MoveOnly inline Inout write-back must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -778,7 +775,7 @@ fn move_only_inline_owner_mutates_a_copyable_field_natively() {
         &object,
     )
     .expect("MoveOnly inline owner Copyable field mutation must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -823,7 +820,7 @@ fn move_only_inline_replacement_collects_nested_field_drop_glue() {
         &object,
     )
     .expect("nested MoveOnly inline field replacement must collect recursive drop glue");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -871,7 +868,7 @@ fn interface_default_and_super_static_calls_link_and_run() {
         &object,
     )
     .expect("interface default and super<I> calls must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -920,7 +917,7 @@ fn interface_default_abstract_requirement_override_links_and_runs() {
         &object,
     )
     .expect("abstract requirement must resolve to its concrete override");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -976,7 +973,7 @@ fn inherited_and_unrelated_defaults_satisfy_abstract_requirements_natively() {
         &object,
     )
     .expect("inherited effective defaults must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1024,7 +1021,7 @@ fn list_inherited_owner_recipe_links_and_runs() {
         &object,
     )
     .expect("List inherited owner recipe must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1073,7 +1070,7 @@ fn parameter_independent_class_inherited_owner_recipe_links_and_runs() {
         &object,
     )
     .expect("parameter-independent class inherited owner recipe must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1122,7 +1119,7 @@ fn dependent_class_inherited_owner_recipe_value_roundtrip_links_and_runs() {
         &object,
     )
     .expect("dependent class inherited owner recipe must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1173,7 +1170,7 @@ fn borrow_only_interface_delegation_links_and_runs() {
         &object,
     )
     .expect("bodyful Borrow-only interface delegation must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1227,7 +1224,7 @@ fn same_requirement_delegation_chain_links_and_runs() {
         &object,
     )
     .expect("same-requirement delegation chain must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1281,7 +1278,7 @@ fn identity_changing_delegation_chain_links_and_runs() {
         &object,
     )
     .expect("identity-changing delegation chain must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1341,7 +1338,7 @@ fn generic_interface_owner_and_callable_delegation_links_and_runs() {
         &object,
     )
     .expect("generic interface owner/callable delegation must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1397,7 +1394,7 @@ fn parameter_independent_generic_nominal_delegation_links_and_runs() {
         &object,
     )
     .expect("parameter-independent generic nominal layout must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1453,7 +1450,7 @@ fn nested_generic_nominal_delegation_links_and_runs() {
         &object,
     )
     .expect("nested generic delegation must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1504,7 +1501,7 @@ fn direct_slot_generic_string_replacement_links_and_runs() {
         &object,
     )
     .expect("direct-slot generic String replacement must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1551,7 +1548,7 @@ fn nested_generic_wrapper_replacement_links_and_runs() {
         &object,
     )
     .expect("nested generic Wrapper<T> replacement must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1601,7 +1598,7 @@ fn generic_pointer_nullable_field_replacement_links_and_runs() {
         &object,
     )
     .expect("generic pointer nullable field must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1655,7 +1652,7 @@ fn enum_borrow_and_value_receivers_link_and_run() {
         &object,
     )
     .expect("enum receiver program must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1712,7 +1709,7 @@ fn move_only_empty_enum_case_links_and_runs_with_full_case_drop_glue() {
         &object,
     )
     .expect("MoveOnly empty and Full enum cases must emit one native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1760,7 +1757,7 @@ fn inout_interface_default_links_and_runs() {
         &object,
     )
     .expect("Inout interface default must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)
@@ -1817,7 +1814,7 @@ fn value_interface_default_move_only_and_copyable_specializations_link_and_run()
         &object,
     )
     .expect("MoveOnly and Copyable Value interface defaults must emit a native object");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)

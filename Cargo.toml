@@ -16,7 +16,7 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-inkwell = { version = "0.10.0", default-features = false, features = ["llvm21-1-prefer-dynamic", "target-aarch64", "no-libffi-linking"] }
+inkwell = { version = "0.10.0", default-features = false, features = ["llvm21-1-prefer-dynamic", "target-aarch64", "target-x86", "no-libffi-linking"] }
 lang-codegen = { path = "crates/lang-codegen" }
 lang-frontend = { path = "crates/lang-frontend" }
 lsp-server = "0.10.0"

@@ -31,7 +31,7 @@ Koven 运行于**无垃圾回收（GC-free）**的确定性运行时环境，消
 - **显式无异常错误处理**
   没有隐式的异常栈展开与 `try`/`catch` 运行时包袱。可预期失败通过 `Result<T, E>` 搭配后缀 `?` 运算符优雅传播；不可恢复的不变量破坏直接触发 `error(...)` abort。
 - **LLVM 原生编译**
-  生成经过验证的 typed SSA 与 LLVM IR，编译并链接为高度优化的本地 Mach-O / ELF 原生可执行文件。
+  生成经过验证的 typed SSA 与 LLVM IR，支持 AArch64 macOS（Mach-O）和 x86_64 Linux + glibc（ELF64）本机可执行文件。
 - **开箱即用的工程化工具链**
   包含编译器驱动 `kovenc` CLI、标准 Language Server Protocol (`lang-lsp`) 服务端、无破坏性代码格式化器，以及 Tree-sitter 与 TextMate 编辑器语法支持。
 
@@ -237,8 +237,26 @@ kovenc --message-format=json build main.ko -o my_app
 ### 环境准备
 
 - **Rust 工具链**：MSRV 1.96.0 或更高版本（Rust 2024 edition）。
-- **LLVM**：LLVM 21 工具链及配套开发头文件与库。
-- **系统链接器**：`clang` 或系统 C 链接器（macOS ld64 / Linux lld 或 gold）。
+- **受支持宿主**：AArch64 macOS（`aarch64-apple-darwin`）或 x86_64 Linux + glibc（`x86_64-unknown-linux-gnu`）。编译目标始终是当前宿主，不提供 `--target` 或交叉编译；不支持 Linux musl、Linux AArch64、Intel macOS 或 Windows。
+- **LLVM**：LLVM 21.1.x 及匹配的开发头文件、库、`llvm-config` 和宿主 backend。workspace 使用 Inkwell 0.10.0，启用 AArch64 与 X86 target feature。将 `LLVM_SYS_211_PREFIX` 设置为 LLVM 安装前缀，并确保构建及运行环境可加载其动态库。
+- **系统 C 工具链**：macOS 需要 Xcode Command Line Tools 与 `/usr/bin/clang`；Linux 需要 `/usr/bin/cc`、glibc 开发文件和可用的系统 linker。LLVM 直接生成 object，再由该 C driver 链接。
+- **Native 测试工具**：Linux LLVM IR 插桩测试需要匹配的 Clang 21，优先使用 `LLVM_SYS_211_PREFIX/bin/clang`，否则使用 PATH 中的 `clang`。Linux DWARF 测试使用匹配的 `llvm-dwarfdump`，同样优先 prefix、缺失时回退到 PATH。macOS 测试保留 `/usr/bin/clang` 与 `/usr/bin/lldb`。这些测试工具与生产链接 driver 分开。
+
+构建前指向已有 LLVM 安装并核对版本。AArch64 macOS 已安装 Homebrew `llvm@21` 时：
+
+```bash
+export LLVM_SYS_211_PREFIX="$(brew --prefix llvm@21)"
+"$LLVM_SYS_211_PREFIX/bin/llvm-config" --version
+```
+
+Linux 使用包含 LLVM 21.1.x `bin/llvm-config` 的安装前缀，请按实际安装路径修改示例：
+
+```bash
+export LLVM_SYS_211_PREFIX=/usr/lib/llvm-21
+"$LLVM_SYS_211_PREFIX/bin/llvm-config" --version
+```
+
+支持边界见[本机目标决策](docs/adr/accepted/0026-linux-x86-64-native-host.md)，分平台检查见[测试指南](docs/development/testing.md#本机目标与工具前提)。
 
 ### 源码编译安装
 

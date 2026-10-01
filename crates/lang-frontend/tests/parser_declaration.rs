@@ -232,7 +232,7 @@ fn markers(item: &Item) -> Vec<NameMarker> {
             .chain(parameters.iter().map(|parameter| parameter.name))
             .collect(),
         Item::Classifier(classifier) => vec![classifier.name],
-        Item::Modified { .. } | Item::Companion(_) => Vec::new(),
+        Item::Modified { .. } | Item::Companion(_) | Item::Deinit { .. } => Vec::new(),
     }
 }
 

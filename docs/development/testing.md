@@ -59,3 +59,22 @@ Release 也必须公开所选覆盖范围与缺口，不能把定向结果称为
 同一源码、依赖、feature 和工具链状态下，覆盖相同契约的成功结果可以复用；记录命令、
 目标/过滤器、实际测试数和结果。相关输入变化后重跑对应检查，不按每个文档勾选重复执行。
 报告区分 passed、filtered、ignored、未运行、timeout；未运行项写明原因。
+
+## 本机目标与工具前提
+
+受支持宿主与目标选择以 [ADR-0026](../adr/accepted/0026-linux-x86-64-native-host.md) 为准：
+AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提供交叉编译。
+
+- 先检查 `LLVM_SYS_211_PREFIX/bin/llvm-config --version` 为 21.1.x；LLVM 开发库、动态库
+  和所需 AArch64/X86 backend 必须可用。记录实际工具版本，不以 Rustc 自带 LLVM 替代。
+- 生产与 CLI linker 测试通过宿主 C driver 链接：macOS `/usr/bin/clang`、Linux
+  `/usr/bin/cc`。Linux 需安装 glibc 开发文件和系统 linker；无需固定某一种 `ld` 实现。
+- Linux LLVM IR 插桩/计数测试需要匹配 Clang 21，优先使用 `LLVM_SYS_211_PREFIX/bin/clang`；
+  缺失时 PATH 中的 `clang` 也必须兼容 LLVM 21 IR。不能把 `/usr/bin/cc` 能链接 object
+  当作它能读取 LLVM IR 的证据。macOS native 测试保留系统 `/usr/bin/clang`。
+- Linux DWARF 自动检查使用 `LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump` 21.1（缺失时回退到
+  PATH 中的匹配工具），验证实际 ELF 中的文件和源码行映射，并保留 native 执行断言；macOS 原有 `/usr/bin/lldb --batch`
+  断点/运行验收保持。Linux 行表检查不证明调试器断点、单步或变量查看。
+- 新宿主至少要有目标选择正反例、triple/DataLayout/object machine 一致性、真实 object/link/run、
+  runtime 正反例与失败保留输出的证据。宿主条件过滤后的零命中不算该平台通过；只有 Linux
+  环境时明确登记 macOS 未运行，不把保留 macOS 代码路径表述为完成回归。

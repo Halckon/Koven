@@ -1040,7 +1040,10 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir() {
         render_verified_program(&program).expect("verified SSA must lower to verified LLVM");
     let second = render_verified_program(&program).expect("repeated LLVM lowering must succeed");
     assert_eq!(first, second);
-    assert!(first.contains("target triple = \"aarch64-apple-darwin\""));
+    assert!(first.contains(&format!(
+        "target triple = \"{}\"",
+        crate::llvm::native_target_triple().unwrap()
+    )));
     assert!(first.contains("define internal i8 @f0.byte(ptr %l0)"));
     assert!(first.contains("define internal i16 @f2.short(ptr %l0)"));
     assert!(first.contains("define internal i32 @f4.int(ptr %l0)"));

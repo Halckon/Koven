@@ -10,14 +10,14 @@ use lang_frontend::source::SourceMap;
 use crate::ssa::{model::Program, verify::verify_program};
 
 use super::super::entry::NativeEntryPlan;
-use super::super::{LlvmAdapterError, configure_module, debug, entry, first_target_machine};
+use super::super::{LlvmAdapterError, configure_module, debug, entry, native_target_machine};
 use super::ModuleLowerer;
 
 pub(crate) fn render_verified_program(
     program: &Program,
     native_entry: Option<NativeEntryPlan>,
 ) -> Result<String, LlvmAdapterError> {
-    let (triple, target_machine) = first_target_machine()?;
+    let (triple, target_machine) = native_target_machine()?;
     let context = Context::create();
     let llvm_module = lower_verified_module(
         &context,
@@ -35,7 +35,7 @@ pub(crate) fn render_verified_program_with_debug(
     sources: &SourceMap,
     native_entry: NativeEntryPlan,
 ) -> Result<String, LlvmAdapterError> {
-    let (triple, target_machine) = first_target_machine()?;
+    let (triple, target_machine) = native_target_machine()?;
     let context = Context::create();
     let llvm_module = lower_verified_module(
         &context,
@@ -54,7 +54,7 @@ pub(crate) fn emit_verified_object(
     native_entry: NativeEntryPlan,
     path: &Path,
 ) -> Result<(), LlvmAdapterError> {
-    let (triple, target_machine) = first_target_machine()?;
+    let (triple, target_machine) = native_target_machine()?;
     let context = Context::create();
     let llvm_module = lower_verified_module(
         &context,

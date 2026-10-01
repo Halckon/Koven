@@ -85,7 +85,7 @@ fn constant_object_runs_deterministically_and_preserves_output_on_failure() {
             assert_no_sibling_temporary(&directory.0);
         }
         let executable = directory.join("program");
-        let linked = Command::new("/usr/bin/clang")
+        let linked = Command::new(crate::test_support::clang())
             .arg(&object)
             .arg("-o")
             .arg(&executable)
@@ -256,7 +256,7 @@ fn run_constant_sources(provider_text: &str, consumer_text: &str) -> std::proces
     )
     .unwrap();
     let executable = directory.join("matrix");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&object)
         .arg("-o")
         .arg(&executable)

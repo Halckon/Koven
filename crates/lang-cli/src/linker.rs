@@ -1,4 +1,4 @@
-//! First-target native linker driver boundary.
+//! Host-native linker driver boundary.
 
 use std::{
     io,
@@ -6,7 +6,11 @@ use std::{
     process::Command,
 };
 
-const FIRST_LINK_DRIVER: &str = "/usr/bin/clang";
+const NATIVE_LINK_DRIVER: &str = if cfg!(target_os = "linux") {
+    "/usr/bin/cc"
+} else {
+    "/usr/bin/clang"
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum LinkerError {
@@ -20,9 +24,9 @@ pub(crate) enum LinkerError {
     },
 }
 
-/// Links one caller-owned Mach-O object into one caller-owned executable path.
+/// Links one caller-owned native object into one caller-owned executable path.
 pub(crate) fn link_native_object(object: &Path, executable: &Path) -> Result<(), LinkerError> {
-    link_with_driver(Path::new(FIRST_LINK_DRIVER), object, executable)
+    link_with_driver(Path::new(NATIVE_LINK_DRIVER), object, executable)
 }
 
 fn link_with_driver(driver: &Path, object: &Path, executable: &Path) -> Result<(), LinkerError> {
@@ -54,7 +58,7 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use super::{LinkerError, link_native_object, link_with_driver};
+    use super::{LinkerError, NATIVE_LINK_DRIVER, link_native_object, link_with_driver};
 
     static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -89,7 +93,7 @@ mod tests {
         let object = directory.join("entry.o");
         let executable = directory.join("entry");
         fs::write(&source, "int main(void) { return 0; }").expect("source write");
-        let compile = Command::new("/usr/bin/clang")
+        let compile = Command::new(NATIVE_LINK_DRIVER)
             .args(["-c", "-x", "c"])
             .arg(&source)
             .arg("-o")

@@ -113,3 +113,6 @@ bottle。采用 LLVM 21 与 Inkwell 0.10.0 均无需 Git 依赖，并允许通�
   [Homebrew llvm@21](https://formulae.brew.sh/formula/llvm@21)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
+
+- 被以下 ADR 局部扩展：[ADR-0026](0026-linux-x86-64-native-host.md) 新增 Linux x86_64 + glibc
+  本机目标及其 feature/object/link driver 范围；本 ADR 的其他决定继续生效。

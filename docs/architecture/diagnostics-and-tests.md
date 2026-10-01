@@ -54,3 +54,14 @@ Cargo 将该 runner 注册为 `fixtures` integration suite。
 - 正常用户错误的回归测试重复断言相同 code、Span、detail 和顺序。
 - 测试专用 constructor 可以构造不可能的内部产物，用来验证 fail-loud 边界；生产 API 不公开这些
   constructor。
+
+## 本机平台验收
+
+native 夹具按宿主检查 Mach-O AArch64 或 ELF64 x86_64 object 头及平台入口符号。
+Linux LLVM IR 插桩测试优先从 `LLVM_SYS_211_PREFIX/bin/clang` 取得 Clang，缺失时回退到
+PATH；生产 CLI 链接独立使用 `/usr/bin/cc`。macOS 测试继续使用 `/usr/bin/clang`。
+
+macOS 的 DWARF 调试器测试保留 LLDB 断点/运行断言。Linux 的 DWARF 测试使用匹配的
+`llvm-dwarfdump --debug-line` 检查生成 ELF object 中的 `.ko` 文件、行和列，再经系统 C driver
+链接并实际运行；该测试不声称 Linux 调试器断点或变量查看已通过。工具前提与未运行平台的
+报告规则见[测试指南](../development/testing.md#本机目标与工具前提)。

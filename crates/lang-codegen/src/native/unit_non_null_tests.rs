@@ -50,7 +50,7 @@ val checked = if (explicit == 7) {{ p.observe(p.make({present})!!) }} else {{ pr
                 &object,
             )
             .expect("cross-file assertion must emit a verified object");
-            let linked = Command::new("/usr/bin/clang")
+            let linked = Command::new(crate::test_support::clang())
                 .arg(&object)
                 .arg("-o")
                 .arg(&executable)
@@ -153,7 +153,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
     )
     .expect("write ownership counter");
-    let linked = Command::new("/usr/bin/clang")
+    let linked = Command::new(crate::test_support::clang())
         .arg(&ir)
         .arg(&counter)
         .arg("-o")
