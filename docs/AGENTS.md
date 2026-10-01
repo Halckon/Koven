@@ -9,6 +9,7 @@
 | 区域 | 回答的问题 | 权威性 |
 |---|---|---|
 | `guide/` | 现行语言语义、强制 Phase 与实施边界 | 规范性；当前仅 v0.39 |
+| `compiler-specs/` | 编译器内部表示、算法与资源约束是什么 | 工程合同；从属 Guide 的语言与 Phase 边界 |
 | `architecture/` | 仓库现在已经实现成什么样 | 当前事实快照 |
 | `development/` | 如何开发、验证与交付 | 工程规则 |
 | `specs/` | 一次变更做什么、依赖与验收是什么 | 变更合同 |
@@ -17,7 +18,8 @@
 | `archive/` | 旧规范、完成证据和冻结材料 | 只读历史 |
 
 同一规则只保留一个真源。Guide 不写实现历史，Architecture 不写计划，Spec 不复制完整语义，
-ADR 不替代 guide，AGENTS 不保存版本实施清单。
+ADR 不替代 guide，AGENTS 不保存版本实施清单。Compiler Contracts 不以 current 状态声称
+实现完成，不吸纳未启用语义；当前实现事实继续由代码、测试和 Architecture 证明。
 
 ## 2. Guide
 
@@ -27,7 +29,16 @@ ADR 不替代 guide，AGENTS 不保存版本实施清单。
 - 候选规则只能进入 `proposals/`；创建更高版本号或 draft Spec 不会自动取得规范地位。
 - 规则正文优先于示例；发现冲突时保留原义、登记问题并请求决定，不能自行调和。
 
-## 3. Spec 与 ADR 生命周期
+## 3. Compiler Contracts
+
+- [compiler-specs/README.md](compiler-specs/README.md) 是唯一 current 入口，必须直接索引全部合同页。
+- 仅迁移边界明确的工程段落；grammar、优先级、可观察诊断、语义示例与 Phase 留 Guide。
+- 逐块记录旧章/段落、唯一新归属与原文保全证据；Guide 只保留最小指向，不复制已迁正文。
+- 首片只建立渐进边界，不强行剥离仍与语义交织的段落，不将计划升级为现行语言规则。
+- 入口最多 160 行、合同页最多 200 行；默认任务路由仍最多五份必读，适用相同链接、
+  metadata、索引完整性与可达性检查。
+
+## 4. Spec 与 ADR 生命周期
 
 Spec 编号跨目录全局递增且唯一：
 
@@ -43,16 +54,16 @@ done/superseded    → archive/specs/
 - accepted ADR 不改写原决定；改变方案时新增 ADR 并建立双向取代关系。
 - 增删或迁移 Spec/ADR 时同步更新 `scripts/check_docs.py` 的冻结 inventory；否则结构门禁应失败。
 
-## 4. Archive 与迁移
+## 5. Archive 与迁移
 
 - 历史正文、结论和验收证据不得压缩或重写；允许机械更新本地链接和锚点。
 - live 文档不得把 archive 当作默认必读项；需要追溯时从 `archive/README.md` 进入。
 - 大规模重组先建立标题迁移账本，确保每个旧规则只有一个新归属；Git 历史不是遗漏正文的理由。
 - 旧路径不留跳转页。所有仓库内引用必须在同一变更中更新。
 
-## 5. 页面与交付
+## 6. 页面与交付
 
-- live 的 guide、architecture、development、proposal 和索引页顶部必须标明：性质、状态、读取
+- live 的 guide、compiler-specs、architecture、development、proposal 和索引页顶部必须标明：性质、状态、读取
   时机、唯一真源。
 - 默认任务路由最多列五份必读文档；扩展阅读和历史材料单独列出。
 - 只描述实际运行过的检查；纯 Markdown 不机械运行 Rust 门禁。

@@ -27,6 +27,9 @@ trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围�
 
 ## Parser 入口与模块
 
+语言接受条件见 [Guide](../guide/README.md)，已分离的内部表示与资源要求见
+[Compiler Contracts](../compiler-specs/README.md)；下文只记录代码与测试的当前事实。
+
 `parser::parse_expression`、`parse_declaration`、`parse_block` 和 `parse_file` 都接收同一
 `SourceMap + LexedFile`，并共享 `SyntaxAst`、诊断顺序和资源边界。`parser/mod.rs` 是公开门面：
 

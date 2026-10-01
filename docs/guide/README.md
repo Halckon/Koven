@@ -6,6 +6,8 @@
 
 本规范定义 Koven v0.39。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
+已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
+本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 

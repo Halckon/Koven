@@ -26,9 +26,13 @@
   <text x="524" y="105" text-anchor="middle" font-size="13">上下文 TypeRef 与严</text>
   <text x="524" y="123" text-anchor="middle" font-size="13">格调用试探一致性</text>
   <rect x="668" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="788" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0234</text>
-  <text x="788" y="105" text-anchor="middle" font-size="13">普通 block 的换行表达</text>
-  <text x="788" y="123" text-anchor="middle" font-size="13">式边界</text>
+  <text x="788" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0233</text>
+  <text x="788" y="105" text-anchor="middle" font-size="13">Parser 工程合同的保全</text>
+  <text x="788" y="123" text-anchor="middle" font-size="13">文档迁移</text>
+  <rect x="932" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1052" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0234</text>
+  <text x="1052" y="105" text-anchor="middle" font-size="13">普通 block 的换行表达</text>
+  <text x="1052" y="123" text-anchor="middle" font-size="13">式边界</text>
   <rect x="932" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="1052" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0236</text>
   <text x="1052" y="243" text-anchor="middle" font-size="13">String.clone 显</text>
