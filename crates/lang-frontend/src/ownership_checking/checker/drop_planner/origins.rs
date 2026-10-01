@@ -212,6 +212,9 @@ impl Analysis<'_, '_> {
                     self.item(member)?;
                 }
             }
+            Item::Deinit { body, .. } => {
+                self.statement(body, State::default())?;
+            }
             Item::Error | Item::Variable { .. } | Item::Constant { .. } => {}
         }
         Ok(())

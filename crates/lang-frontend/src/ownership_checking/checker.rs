@@ -340,7 +340,7 @@ impl<'a> Checker<'a> {
 
     fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error | Item::Constant { .. } | Item::Function { .. } => {}
+            Item::Error | Item::Constant { .. } | Item::Function { .. } | Item::Deinit { .. } => {}
             Item::Modified { declaration, .. } => self.collect_mutability(declaration)?,
             Item::Variable { kind, name, .. } => {
                 if let Some(symbol) = self.marker_symbol(name) {
@@ -415,6 +415,12 @@ impl<'a> Checker<'a> {
                 for member in companion.body.members {
                     self.check_item(member, &mut State::default())?;
                 }
+            }
+            Item::Deinit { body, .. } => {
+                let previous = std::mem::replace(&mut self.current_receiver_mode, Some(ParameterMode::Borrow));
+                let result = self.check_statement(body, State::default());
+                self.current_receiver_mode = previous;
+                result?;
             }
         }
         Ok(())

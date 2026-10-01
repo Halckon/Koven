@@ -296,7 +296,32 @@ impl<'a> SignatureCollector<'a> {
             let enum_cases = self.collect_enum_cases(source, classifier, id)?;
             let mut members = Vec::new();
             let mut companion_members = Vec::new();
+            let mut has_deinit = false;
+            let mut deinit_count = 0;
             if let Some(body) = &classifier.body {
+                for &member in &body.members {
+                    if matches!(
+                        unwrapped_item(self.inputs[source.index()].ast(), member)?,
+                        Item::Deinit { .. }
+                    ) {
+                        deinit_count += 1;
+                        if deinit_count > 1 {
+                            let span = self.inputs[source.index()]
+                                .ast()
+                                .items()
+                                .get(member)
+                                .map_err(TypeCheckingError::from)?
+                                .span();
+                            self.emit(
+                                codes::DUPLICATE_CALLABLE_SHAPE,
+                                "class can declare at most one 'deinit' member",
+                                span,
+                            )?;
+                        } else {
+                            has_deinit = true;
+                        }
+                    }
+                }
                 self.collect_member_constant_types(source, id, body)?;
                 let owner = self
                     .nominals
@@ -322,6 +347,7 @@ impl<'a> SignatureCollector<'a> {
             nominal.set_enum_cases(enum_cases);
             nominal.set_members(members);
             nominal.set_companion_members(companion_members);
+            nominal.set_has_deinit(has_deinit);
         }
         Ok(())
     }

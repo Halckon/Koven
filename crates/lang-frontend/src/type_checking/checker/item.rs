@@ -301,6 +301,22 @@ impl Checker<'_> {
                     self.classifiers.push(owner);
                 }
             }
+            Item::Deinit { body, .. } => {
+                let unit = self.types.intern(TypeKind::Builtin(BuiltinType::Unit));
+                self.callables.push(CallableContext {
+                    return_type: unit,
+                    annotation_span: None,
+                    loop_base: self.loop_depth,
+                });
+                let previous = self.current_receiver_mode;
+                if !self.classifiers.is_empty() && self.current_receiver_mode.is_none() {
+                    self.current_receiver_mode = Some(ParameterMode::Borrow);
+                }
+                let result = self.check_statement(body);
+                self.current_receiver_mode = previous;
+                self.callables.pop();
+                result?;
+            }
         }
         Ok(())
     }

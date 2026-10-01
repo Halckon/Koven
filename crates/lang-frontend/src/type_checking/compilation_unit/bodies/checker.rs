@@ -41,6 +41,7 @@ mod literals;
 mod members;
 mod nullable;
 mod operators;
+mod ownership_primitives;
 mod postfix;
 mod rc;
 mod top_level;
@@ -668,19 +669,18 @@ impl<'a> BodyChecker<'a> {
                 type_arguments,
                 arguments,
                 ..
-            } => match self.check_intrinsic_container_call(
-                source,
-                expression,
-                span,
-                callee,
-                &type_arguments,
-                &arguments,
-                expected,
-                expected_span,
-                return_type,
-            )? {
-                Some(result) => result,
-                None => match self.check_source_construction_call(
+            } => {
+                if let Some(result) = self.check_intrinsic_ownership_primitive_call(
+                    source,
+                    expression,
+                    span,
+                    callee,
+                    &type_arguments,
+                    &arguments,
+                    return_type,
+                )? {
+                    result
+                } else if let Some(result) = self.check_intrinsic_container_call(
                     source,
                     expression,
                     span,
@@ -691,17 +691,30 @@ impl<'a> BodyChecker<'a> {
                     expected_span,
                     return_type,
                 )? {
-                    Some(result) => result,
-                    None => self.check_call(
+                    result
+                } else if let Some(result) = self.check_source_construction_call(
+                    source,
+                    expression,
+                    span,
+                    callee,
+                    &type_arguments,
+                    &arguments,
+                    expected,
+                    expected_span,
+                    return_type,
+                )? {
+                    result
+                } else {
+                    self.check_call(
                         source,
                         expression,
                         callee,
                         &type_arguments,
                         &arguments,
                         return_type,
-                    )?,
-                },
-            },
+                    )?
+                }
+            }
             Expression::Return {
                 keyword_span,
                 value,
@@ -1177,6 +1190,6 @@ fn item_requires_body_check(item: &Item) -> bool {
         Item::Variable { .. } | Item::Constant { .. } => true,
         Item::Classifier(_) => false,
         Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),
-        Item::Error | Item::Function { .. } | Item::Companion(_) => false,
+        Item::Error | Item::Function { .. } | Item::Companion(_) | Item::Deinit { .. } => false,
     }
 }

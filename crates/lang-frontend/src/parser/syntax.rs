@@ -510,6 +510,17 @@ pub enum Item {
     Classifier(Box<ClassifierDeclaration>),
     /// `companion object` 关联命名空间。
     Companion(Box<CompanionObject>),
+    /// 析构函数声明：`deinit() { ... }`。
+    Deinit {
+        /// 真实 `deinit` 范围。
+        deinit_span: Span,
+        /// 真实 `(`。
+        left_paren_span: Span,
+        /// 真实 `)`；缺失时为 `None`。
+        right_paren_span: Option<Span>,
+        /// 唯一 block body。
+        body: StatementId,
+    },
 }
 
 /// 具体表达式 payload；子节点只通过 typed ID 连接。

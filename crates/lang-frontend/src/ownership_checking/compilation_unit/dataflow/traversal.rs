@@ -43,7 +43,7 @@ impl Checker<'_> {
 
     pub(super) fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
         match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error | Item::Constant { .. } | Item::Function { .. } => {}
+            Item::Error | Item::Constant { .. } | Item::Function { .. } | Item::Deinit { .. } => {}
             Item::Modified { declaration, .. } => self.collect_mutability(declaration)?,
             Item::Variable { kind, name, .. } => {
                 if let Some(symbol) = self.marker_symbol(name).copied() {
@@ -128,6 +128,12 @@ impl Checker<'_> {
                 for member in companion.body.members {
                     self.check_item(member, State::default())?;
                 }
+                Ok(Flows::next(state))
+            }
+            Item::Deinit { body, .. } => {
+                let previous_receiver = self.current_receiver;
+                self.check_statement(body, State::default())?;
+                self.current_receiver = previous_receiver;
                 Ok(Flows::next(state))
             }
         }

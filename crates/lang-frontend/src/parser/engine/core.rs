@@ -277,6 +277,12 @@ impl Parser<'_> {
                                 work.push(ContextWork::Item(member));
                             }
                         }
+                        Item::Deinit { body, .. } => {
+                            work.push(ContextWork::Statement {
+                                id: body,
+                                expression_is_statement: true,
+                            });
+                        }
                     }
                 }
                 ContextWork::Statement {

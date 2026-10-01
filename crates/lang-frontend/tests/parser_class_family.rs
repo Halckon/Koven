@@ -603,3 +603,45 @@ fun main(): Unit {
     );
     assert_eq!(parsed.roots().len(), 3);
 }
+
+#[test]
+fn parses_class_deinit_member() {
+    let text = "class FileGuard(val fd: Int) {\n    deinit() {\n        close(fd)\n    }\n}";
+    let (_sources, parsed) = declaration(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let cls = classifier(&parsed);
+    let body = cls.body.as_ref().expect("body");
+    assert_eq!(body.members.len(), 1);
+    let member = item(&parsed, body.members[0]);
+    assert!(matches!(member, Item::Deinit { .. }));
+}
+
+#[test]
+fn rejects_deinit_in_value_class_and_interface() {
+    let val_text = "value class Point(val x: Int) {\n    deinit() {}\n}";
+    let (_, parsed) = declaration(val_text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077"]);
+
+    let iface_text = "interface Resource {\n    deinit() {}\n}";
+    let (_, parsed) = declaration(iface_text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0077"]);
+}
+
+#[test]
+fn rejects_deinit_with_modifiers() {
+    let text = "class Resource {\n    public deinit() {}\n}";
+    let (_, parsed) = declaration(text);
+    assert!(codes(parsed.diagnostics()).contains(&"L0076".to_string()));
+}
+
+#[test]
+fn rejects_deinit_with_parameters() {
+    let text = "class Resource {\n    deinit(x: Int) {}\n}";
+    let (_, parsed) = declaration(text);
+    assert!(codes(parsed.diagnostics()).contains(&"L0077".to_string()));
+}
+

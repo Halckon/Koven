@@ -100,6 +100,7 @@ impl BodyChecker<'_> {
                 IntrinsicCallable::ArrayOf => SequentialContainerKind::Array,
                 IntrinsicCallable::ListOf => SequentialContainerKind::List,
                 IntrinsicCallable::MutableListOf => SequentialContainerKind::MutableList,
+                IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
             };
             return Ok(Some(Target::ListForm(kind)));
         }

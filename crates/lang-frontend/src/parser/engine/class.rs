@@ -645,6 +645,28 @@ impl Parser<'_> {
             self.parse_companion_object()?
         } else if self.current_is_keyword(Keyword::Fun) {
             self.parse_function_declaration(member_stops)?
+        } else if self.current_identifier_is("deinit")? {
+            if !context.allows_deinit() {
+                self.emit(
+                    codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                    "unsupported class-family form",
+                    primary,
+                )?;
+            }
+            if modifiers.visibility.is_some()
+                || modifiers.override_span.is_some()
+                || modifiers.receiver_mode.is_some()
+            {
+                let mod_span = declaration_modifier_start(modifiers)
+                    .and_then(|start| self.span(start, primary.start()).ok())
+                    .unwrap_or(primary);
+                self.emit(
+                    codes::INVALID_DECLARATION_MODIFIER,
+                    "invalid declaration modifier",
+                    mod_span,
+                )?;
+            }
+            self.parse_deinit_declaration(member_stops)?
         } else if self.current_is_keyword(Keyword::Const) {
             if !context.allows_constant() {
                 self.emit(
@@ -749,6 +771,71 @@ impl Parser<'_> {
                 object_span,
                 body,
             })),
+        )
+    }
+
+    pub(super) fn parse_deinit_declaration(
+        &mut self,
+        stops: Stops,
+    ) -> Result<ItemId, ParserInternalError> {
+        let deinit_span = self.bump()?.span();
+        let left_paren_span = if self.current_is_symbol(Symbol::LeftParen) {
+            self.bump()?.span()
+        } else {
+            let primary = self.current()?.span();
+            self.emit(
+                codes::EXPECTED_CLOSING_DELIMITER,
+                "expected '(' after deinit",
+                primary,
+            )?;
+            self.empty_at(primary.start())?
+        };
+        let right_paren_span = if self.current_is_symbol(Symbol::RightParen) {
+            Some(self.bump()?.span())
+        } else {
+            let primary = self.current()?.span();
+            self.emit(
+                codes::UNSUPPORTED_CLASS_FAMILY_FORM,
+                "deinit cannot declare parameters",
+                primary,
+            )?;
+            while !self.current_is_symbol(Symbol::RightParen)
+                && !self.current_is_symbol(Symbol::LeftBrace)
+                && !matches!(self.current()?.kind(), LexemeKind::Eof)
+            {
+                self.bump()?;
+            }
+            if self.current_is_symbol(Symbol::RightParen) {
+                Some(self.bump()?.span())
+            } else {
+                None
+            }
+        };
+        let body = if self.current_is_symbol(Symbol::LeftBrace) {
+            self.parse_block_statement(stops)?
+        } else {
+            let primary = self.current()?.span();
+            self.emit(
+                codes::EXPECTED_BLOCK,
+                "expected block body for deinit",
+                primary,
+            )?;
+            self.add_statement(primary, Statement::Error)?
+        };
+        let end = self
+            .ast
+            .statements()
+            .get(body)
+            .map(|st| st.span().end())
+            .unwrap_or(deinit_span.end());
+        self.add_item(
+            self.span(deinit_span.start(), end)?,
+            Item::Deinit {
+                deinit_span,
+                left_paren_span,
+                right_paren_span,
+                body,
+            },
         )
     }
 

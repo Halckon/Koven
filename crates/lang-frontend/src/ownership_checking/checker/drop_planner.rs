@@ -369,6 +369,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     self.item(member)?;
                 }
             }
+            Item::Deinit { body, .. } => {
+                let mut state = ValueState::default();
+                if self.statement(body, &mut state)? {
+                    self.drop_all(DropPoint::AfterStatement(body), &mut state);
+                }
+            }
             Item::Error | Item::Variable { .. } | Item::Constant { .. } => {}
         }
         Ok(())

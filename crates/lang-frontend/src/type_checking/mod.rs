@@ -100,6 +100,8 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("arrayOf", IntrinsicCallable::ArrayOf),
         ("listOf", IntrinsicCallable::ListOf),
         ("mutableListOf", IntrinsicCallable::MutableListOf),
+        ("replace", IntrinsicCallable::Replace),
+        ("swap", IntrinsicCallable::Swap),
     ]
     .map(|(name, callable)| {
         (
@@ -219,6 +221,8 @@ mod tests {
             "arrayOf",
             "listOf",
             "mutableListOf",
+            "replace",
+            "swap",
         ]);
         let actual = first_names
             .symbols()
@@ -279,6 +283,8 @@ mod tests {
             ("arrayOf", IntrinsicCallable::ArrayOf),
             ("listOf", IntrinsicCallable::ListOf),
             ("mutableListOf", IntrinsicCallable::MutableListOf),
+            ("replace", IntrinsicCallable::Replace),
+            ("swap", IntrinsicCallable::Swap),
         ] {
             assert_eq!(
                 binding(name),

@@ -115,6 +115,9 @@ impl Builder<'_, '_> {
                     self.item(member)?;
                 }
             }
+            Item::Deinit { body, .. } => {
+                self.statement(body, LiveSet::new())?;
+            }
             Item::Error | Item::Variable { .. } | Item::Constant { .. } => {}
         }
         Ok(())

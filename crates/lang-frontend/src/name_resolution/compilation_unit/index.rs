@@ -434,7 +434,7 @@ fn collect_declarations(
                     )?;
                 }
             }
-            Item::Error | Item::Companion(_) | Item::Modified { .. } => {}
+            Item::Error | Item::Companion(_) | Item::Modified { .. } | Item::Deinit { .. } => {}
         }
     }
     Ok(())

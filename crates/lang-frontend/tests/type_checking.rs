@@ -105,6 +105,14 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
                 .expect("mutableListOf"),
             IntrinsicCallable::MutableListOf,
         ),
+        (
+            names.declare_function("replace").expect("replace"),
+            IntrinsicCallable::Replace,
+        ),
+        (
+            names.declare_function("swap").expect("swap"),
+            IntrinsicCallable::Swap,
+        ),
     ];
     let mut types = TypeEnvironment::new(&names);
     for (symbol, builtin) in declarations {
@@ -2153,4 +2161,88 @@ fn nullable_when_inout_condition_call_invalidates_subject_binding() {
             .expect("body span"),
         "x"
     );
+}
+
+#[test]
+fn class_with_deinit_passes_type_checking() {
+    let text = "class Resource(val fd: Int) {\n\
+                    deinit() {}\n\
+                }\n\
+                fun use_resource(): Unit {\n\
+                    val r = Resource(42)\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let resource_desc = typed.nominals().iter().find(|d| d.has_deinit());
+    assert!(resource_desc.is_some(), "Resource should have has_deinit = true");
+}
+
+#[test]
+fn class_with_duplicate_deinit_is_rejected() {
+    let text = "class Resource {\n\
+                    deinit() {}\n\
+                    deinit() {}\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0097"]);
+}
+
+#[test]
+fn calling_deinit_as_unqualified_name_is_rejected_as_unresolved() {
+    let text = "class Resource {\n\
+                    deinit() {}\n\
+                    fun test(): Unit {\n\
+                        deinit()\n\
+                    }\n\
+                }";
+    let (sources, parsed) = parse(text);
+    let (names, _) = environments();
+    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
+    assert_eq!(codes(resolution.diagnostics()), ["L0080"]);
+}
+
+#[test]
+fn intrinsic_replace_and_swap_pass_type_checking() {
+    let text = "class Item(val value: Int)\n\
+                fun test_replace_and_swap(): Unit {\n\
+                    var a = Item(1)\n\
+                    var b = Item(2)\n\
+                    val old = replace(&a, Item(3))\n\
+                    swap(&a, &b)\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.calls().len(), 2);
+}
+
+#[test]
+fn intrinsic_replace_rejects_missing_inout_marker() {
+    let text = "class Item(val value: Int)\n\
+                fun test(): Unit {\n\
+                    var a = Item(1)\n\
+                    val old = replace(a, Item(2))\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0122"]);
+}
+
+#[test]
+fn intrinsic_replace_rejects_temporary_place() {
+    let text = "class Item(val value: Int)\n\
+                fun test(): Unit {\n\
+                    val old = replace(&Item(1), Item(2))\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0122"]);
+}
+
+#[test]
+fn intrinsic_swap_rejects_mismatched_types() {
+    let text = "fun test(): Unit {\n\
+                    var a = 1\n\
+                    var b = \"string\"\n\
+                    swap(&a, &b)\n\
+                }";
+    let (_, _, _, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
 }

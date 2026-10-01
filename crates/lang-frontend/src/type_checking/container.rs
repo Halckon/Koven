@@ -11,6 +11,10 @@ pub enum IntrinsicCallable {
     ListOf,
     /// `mutableListOf(...)`.
     MutableListOf,
+    /// `replace(&place, val)`.
+    Replace,
+    /// `swap(&a, &b)`.
+    Swap,
 }
 
 /// v1 封闭的顺序容器种类。

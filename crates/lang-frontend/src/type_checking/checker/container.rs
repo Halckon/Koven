@@ -69,6 +69,7 @@ impl Checker<'_> {
                 IntrinsicCallable::ArrayOf => SequentialContainerKind::Array,
                 IntrinsicCallable::ListOf => SequentialContainerKind::List,
                 IntrinsicCallable::MutableListOf => SequentialContainerKind::MutableList,
+                IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
             };
             return self
                 .check_list_form_construction(call, kind, expected)

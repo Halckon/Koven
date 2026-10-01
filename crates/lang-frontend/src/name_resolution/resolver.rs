@@ -272,7 +272,7 @@ impl<'a> Resolver<'a> {
                 }
                 Ok(())
             }
-            Item::Error | Item::Companion(_) => Ok(()),
+            Item::Error | Item::Companion(_) | Item::Deinit { .. } => Ok(()),
         }
     }
 
@@ -314,6 +314,10 @@ impl<'a> Resolver<'a> {
             } => self.resolve_function(span, scope, &type_parameters, &parameters, form),
             Item::Classifier(classifier) => self.resolve_classifier(span, scope, &classifier),
             Item::Companion(companion) => self.resolve_companion(scope, &companion),
+            Item::Deinit { body, .. } => {
+                let fn_scope = self.add_scope(Some(scope), ScopeKind::Function, Some(span));
+                self.resolve_statement(body, fn_scope)
+            }
         }
     }
 

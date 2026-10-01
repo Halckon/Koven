@@ -113,6 +113,9 @@ impl Parser<'_> {
         {
             return Ok(true);
         }
+        if self.current_identifier_is("deinit")? {
+            return Ok(true);
+        }
         Ok(class_member_start_kind(self.current()?.kind()))
     }
 }
@@ -185,6 +188,10 @@ impl ClassMemberContext {
 
     pub(super) const fn allows_constant(self) -> bool {
         matches!(self, Self::Object | Self::Companion)
+    }
+
+    pub(super) const fn allows_deinit(self) -> bool {
+        matches!(self, Self::Class)
     }
 }
 

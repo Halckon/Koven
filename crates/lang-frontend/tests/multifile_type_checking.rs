@@ -7086,3 +7086,32 @@ fn non_null_assertion_descriptor_member_parameter_group_and_implicit_field() {
         ]
     );
 }
+
+#[test]
+fn compilation_unit_class_with_deinit_records_signature_flag() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "deinit-class.ko",
+        "class FileHandle(val fd: Int) {\n\
+             deinit() {}\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "deinit-class.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let handle_nominal = typed
+        .signatures()
+        .declarations()
+        .iter()
+        .find_map(|d| d.nominal())
+        .filter(|nominal| nominal.has_deinit());
+    assert!(handle_nominal.is_some(), "FileHandle nominal should have has_deinit = true");
+}

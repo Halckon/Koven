@@ -11,10 +11,10 @@ use crate::{
     parser::{ClassifierBody, ClassifierDeclaration, ClassifierKind, Item, NameMarker},
     source::Span,
     type_checking::{
-        DeferredReason, TypeCheckingError, UnitAggregateProjectionDescriptor,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallableSignature,
-        UnitCallableTarget, UnitExpressionId, UnitFieldSignature, UnitNominalSignature, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, DeferredReason, ParameterMode, TypeCheckingError,
+        UnitAggregateProjectionDescriptor, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitCallableSignature, UnitCallableTarget,
+        UnitExpressionId, UnitFieldSignature, UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -162,6 +162,17 @@ impl BodyChecker<'_> {
                 }
                 Item::Companion(companion) if receiver.is_some() => {
                     self.check_member_body(source, &companion.body, nominal, None)?;
+                }
+                Item::Deinit { body, .. } => {
+                    let previous = self.current_receiver;
+                    let previous_mode = self.current_receiver_mode;
+                    self.current_receiver = receiver;
+                    self.current_receiver_mode = Some(ParameterMode::Borrow);
+                    let unit_type = self.builtin(BuiltinType::Unit);
+                    let result = self.check_statement(source, body, unit_type, None);
+                    self.current_receiver = previous;
+                    self.current_receiver_mode = previous_mode;
+                    result?;
                 }
                 Item::Error => {}
                 Item::Modified { .. } => unreachable!("unwrapped_item removes modifiers"),

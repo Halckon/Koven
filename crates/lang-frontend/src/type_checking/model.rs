@@ -59,6 +59,7 @@ pub struct NominalDescriptor {
     pub(crate) fields: Vec<SymbolId>,
     pub(crate) variants: Vec<SymbolId>,
     pub(crate) members: Vec<SymbolId>,
+    pub(crate) has_deinit: bool,
 }
 
 impl NominalDescriptor {
@@ -101,6 +102,11 @@ impl NominalDescriptor {
     #[must_use]
     pub fn members(&self) -> &[SymbolId] {
         &self.members
+    }
+    /// 返回该名义类型是否声明了显式析构函数 `deinit`。
+    #[must_use]
+    pub const fn has_deinit(&self) -> bool {
+        self.has_deinit
     }
 }
 
