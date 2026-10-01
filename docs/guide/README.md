@@ -1,11 +1,13 @@
-# Koven v0.38 语言规范
+# Koven v0.40 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.38） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.40） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.38 -->
+<!-- current-guide: v0.40 -->
 
-本规范定义 Koven v0.38。它不是教程，也不描述某项功能何时完成；当前实现事实见
+本规范定义 Koven v0.40。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
+已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
+本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
 
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 
@@ -30,6 +32,13 @@
 | 权威边界、Phase、门禁和明确非目标 | [一致性与实施边界](15-conformance-and-staging.md) |
 
 ## 版本与边界
+
+- 2026-10-01，本地整合的 v0.40 继承真实 v0.39，并启用用户批准的三项规则：调用点不写
+  `borrow`、整数移位按位宽屏蔽位数、只读 `deinit` body 先于字段逆序析构。
+  [一致性与实施边界](15-conformance-and-staging.md#v040-迁移与未完成边界)规定迁移和阶段验收；
+  文档启用不表示对应编译器功能、PR CI 或 main 合并已完成。
+- v0.39 已按用户批准先引入 `String.clone()`；其完整合同在本版本保留。所有 String literal
+  仍是 MoveOnly、Transferable 的普通 String owner，const 资格保持；`Str` 与 `toString()` 继续延后。
 
 - 2026-10-01 用户明确启用 v0.38：继承并取代 v0.37，实施批次 1 语法止血（块内换行敏感与
   分号语句分隔、修饰符上下文软关键字体系、具名中缀位运算与十六进制/二进制/下划线字面量、

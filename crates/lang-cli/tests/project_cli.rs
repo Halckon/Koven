@@ -409,3 +409,35 @@ fn assert_no_build_temporaries(directory: &Path) {
         "project build must clean all sibling temporaries"
     );
 }
+
+#[test]
+fn string_clone_project_preserves_borrowed_argv_and_cross_file_return() {
+    let project = TestProject::create("string-clone");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/lib/Copy.ko",
+        "package lib\nfun duplicate(text: String): String = text.clone()",
+    );
+    project.write(
+        "src/app/Main.ko",
+        r#"package app
+fun start(args: Array<String>): Unit {
+    val copy = lib.duplicate(args[0])
+    println(args[0])
+    println(copy)
+    println(args[0].clone())
+}"#,
+    );
+    let executed = run([
+        OsStr::new("run"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+        OsStr::new("--entry"),
+        OsStr::new("app.start"),
+        OsStr::new("--"),
+        OsStr::new("克隆"),
+    ]);
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(executed.stdout, "克隆\n克隆\n克隆\n".as_bytes());
+    assert!(executed.stderr.is_empty(), "{executed:?}");
+}

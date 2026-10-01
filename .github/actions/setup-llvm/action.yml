@@ -1,0 +1,36 @@
+name: Set up supported LLVM
+description: Install LLVM 21 and verify the host-native tools used by the tests
+outputs:
+  version:
+    description: Installed LLVM version for the Rust cache key
+    value: ${{ steps.verify.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Install LLVM 21 on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install llvm@21
+        echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> "$GITHUB_ENV"
+    - name: Install pinned LLVM 21.1.8 on Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        bash scripts/install_ci_llvm.sh
+        echo 'LLVM_SYS_211_PREFIX=/usr/lib/llvm-21' >> "$GITHUB_ENV"
+    - name: Verify LLVM, Clang, DWARF tool and host C driver
+      id: verify
+      shell: bash
+      run: |
+        version="$("$LLVM_SYS_211_PREFIX/bin/llvm-config" --version)"
+        [[ "$version" == 21.1.* ]]
+        "$LLVM_SYS_211_PREFIX/bin/llvm-config" --targets-built
+        "$LLVM_SYS_211_PREFIX/bin/llvm-config" --targets-built | grep -qw AArch64
+        "$LLVM_SYS_211_PREFIX/bin/llvm-config" --targets-built | grep -qw X86
+        "$LLVM_SYS_211_PREFIX/bin/clang" --version
+        "$LLVM_SYS_211_PREFIX/bin/clang" --version | grep -Fq 'clang version 21.1.'
+        "$LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump" --version
+        "$LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump" --version | grep -Fq "LLVM version $version"
+        /usr/bin/cc --version
+        echo "version=$version" >> "$GITHUB_OUTPUT"

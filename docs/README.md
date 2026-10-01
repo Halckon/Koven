@@ -9,7 +9,8 @@
 
 | 想回答的问题 | 读取入口 | 权威性 |
 |---|---|---|
-| Koven v0.38 允许什么、语义是什么 | [语言规范](guide/README.md) | 规范性真源 |
+| Koven v0.40 允许什么、语义是什么 | [语言规范](guide/README.md) | 规范性真源 |
+| 编译器内部表示、算法与资源必须遵守什么 | [Compiler Contracts](compiler-specs/README.md) | 工程合同，语言与 Phase 仍以 Guide 为准 |
 | 编译器当前实际如何实现 | [Architecture](architecture/README.md) | 当前事实快照 |
 | 如何开发、测试和交付 | [Development](development/README.md) | 工程流程 |
 | 一次变更做什么、如何验收 | [Specs](specs/README.md) | 变更合同 |
@@ -23,6 +24,8 @@
 
 [Archive](archive/README.md) 保存旧 guide、完成 Spec、冻结审计和过时教程。只有追溯历史决策、
 旧验收证据或迁移来源时才读取；archive 不参与现行语义优先级。
+[PR #6 的 v0.38 审计原文](<Koven v0.38 语言设计审计.md>)保留历史意见；当前核查与更正另见
+[Guide 验证与审计更正账本](architecture/guide-conformance.md)，不回写冻结原文。
 
 ## 文档修改
 

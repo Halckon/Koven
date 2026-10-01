@@ -140,6 +140,7 @@ impl UnitExpressionLowerer<'_> {
                     )
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
             }
+            self.emit_borrow_argument_expression_drops(call)?;
             self.emit_drops(UnitDropPoint::CallReturn(call))?;
             return Ok(LoweredValue::Unit);
         }
@@ -403,12 +404,30 @@ impl UnitExpressionLowerer<'_> {
                     .insert(writeback.symbol, LoweredValue::Value(value));
             }
         }
+        self.emit_borrow_argument_expression_drops(call)?;
         self.emit_drops(UnitDropPoint::CallReturn(call))?;
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),
             _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
         }
+    }
+
+    fn emit_borrow_argument_expression_drops(
+        &mut self,
+        call: UnitExpressionId,
+    ) -> Result<(), LoweringError> {
+        let arguments = self
+            .owned
+            .loans()
+            .iter()
+            .filter(|loan| loan.call() == call)
+            .map(|loan| loan.argument())
+            .collect::<Vec<_>>();
+        for argument in arguments {
+            self.emit_drops(UnitDropPoint::AfterExpression(argument))?;
+        }
+        Ok(())
     }
 
     pub(super) fn lower_call_arguments(
@@ -668,7 +687,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value))
     }
 
-    fn lower_borrow_argument(
+    pub(super) fn lower_borrow_argument(
         &mut self,
         call: UnitExpressionId,
         argument: ExpressionId,
@@ -742,6 +761,39 @@ impl UnitExpressionLowerer<'_> {
         target: SsaTypeId,
         span: Span,
     ) -> Result<PlaceId, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(argument)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.lower_borrow_place(*expression, loan_target, target, span);
+        }
+        if let Some(operation) = self
+            .typed
+            .rc_operation(UnitExpressionId::new(self.source_unit, argument))
+            && operation.kind() == lang_frontend::type_checking::RcOperationKind::Value
+        {
+            let receiver = operation.receiver().expression();
+            let owner = match self.lower(receiver)? {
+                LoweredValue::Value(owner) => EntityId::Value(owner),
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            };
+            let (_, places) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::SharedPayloadPlace { owner },
+                    vec![EntityType::Place(target)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let EntityId::Place(place) = places[0] else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            return Ok(place);
+        }
         if let Some(place) =
             self.lower_borrowed_container_element(argument, loan_target, target, span)?
         {

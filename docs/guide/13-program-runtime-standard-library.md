@@ -1,8 +1,8 @@
-# Koven v0.38：程序入口、Runtime 与标准库
+# Koven v0.40：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -134,10 +134,19 @@ U+0000，对外语义不依赖 NUL 终止。
 - `left + right` 在左到右各求值一次后，以同步 shared-read 方式读取两个 `String` operand，
   产生内容为精确字节拼接的新 `String` owner；不消费具名 operand。长度加法、目标布局或
   allocation size 无法表示时在发布部分结果前 abort。
+- `text.clone(): String` 是仅绑定 builtin String identity 的零参数、零类型实参 intrinsic。
+  receiver 以调用期 shared `Borrow` 求值一次，不消费或修改源；源 owner 在调用后仍可用。
+  结果包含完全相同的 UTF-8 字节，是参与普通 ASAP drop 的独立新 String owner；非空结果
+  深拷贝到独立缓冲区，即使源来自静态 literal 也不与它共享 owner 或 buffer。空串结果可
+  使用 canonical empty storage，但仍有独立的逻辑 owner obligation。
+  clone 不执行 retain、不建立共享 control block，不改变 String 的 MoveOnly/Transferable。
+  String 元素 place（例如 `list[0]`）可以作为 receiver，元素 owner 留在容器中。
+  `String?` 必须先按既有规则获得非空 receiver，不新增 nullable clone 特例；其他 builtin、
+  容器、Box、Rc、用户类型不因此获得 clone 能力。普通源码同名 member 仍按其自身契约处理，
+  不能冒充此 intrinsic。显式 clone 不触发隐式 Copyable 大值复制警告，不是 const 操作。
 - `==` / `!=` 比较 UTF-8 字节长度和全部内容，不执行 Unicode normalization、locale folding
   或 grapheme 处理。由于所有 String 均满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
   相等一致。
-- `clone(borrow self): own String`：显式深复制操作。以 shared-read 方式读取当前 `String` 的全部 UTF-8 字节，分配独立的堆缓冲区并返回拥有独立生命周期的新 `String` owner。这为 MoveOnly 的 `String` 提供了显式复制能力，调用点写作 `s.clone()`。
 - String 可以存入局部变量、作为普通 Value/默认 Borrow 参数、从函数返回、进入 closure
   capture，以及作为已经支持 drop glue 的 aggregate、enum、`Rc` 和顺序容器元素。现有
   ownership、loan、单态化和容器 relocation 规则不获得 String 特例。
@@ -153,11 +162,13 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 运行时和编译阶段边界
 
-- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、
-  Copyable/Transferable 与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
+- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、稳定
+  String clone operation identity、receiver 类型及 Borrow/Value effect、Copyable/Transferable
+  与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
   不得按源码拼写或把 Rust/C 字符串对象直接塞入 Koven value。
-- runtime 的字节指针、长度、存储 provenance、drop glue、concat、equality 与 stdout adapter
-  必须由 accepted ADR 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
+- runtime 的字节指针、长度、存储 provenance、drop glue、concat、clone、equality 与 stdout adapter
+  必须由 [ADR-0018](../adr/accepted/0018-string-owner-runtime-abi.md) 与其
+  [clone 增量 ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
 - 所有创建边界都必须保证合法 UTF-8。plain literal 由 Lexer/decoder 保证，concat 由两个合法
   operand 闭包保证；argv 入口必须在创建 Koven String 前验证宿主参数，失败作为
   operational failure，不使用替换字符。
@@ -243,20 +254,23 @@ dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI
 为了支持所有权安全流转与链表、状态机等数据结构的高效在位更新，标准库顶层提供经编译器特判的原子置换原语（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）：
 
 ```kotlin
-fun <T> replace(inout place: T, own new: T): own T
+fun <T> replace(inout place: T, own new: T): T
 fun <T> swap(inout a: T, inout b: T): Unit
 ```
 
-- `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
+- `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并以 owned 值返回原有旧值，完全避免未初始化空洞；
+  返回类型只写 `T`，`own` 是参数模式，不是返回类型修饰符；
 - `swap(&a, &b)`：在两个互不重叠的可变借用之间原子交换值。
 
-### 字符串所有权与静态切片演进定位
+### 静态字符串类型的延后边界
 
-Koven 的字符串模型以 `String` 作为核心统一表示：
-- **统一的 `String` 类型**：当前阶段所有字符串字面量（如 `"hello"`）与动态字符串（拼接、运行时输入）对外统一呈现为 `String` 类型，均为 `MoveOnly` 且满足 `Transferable`。不可变字面量由 runtime 内部通过静态 provenance 标记确保生命周期与进程相同且不执行 `free`，应用层无需感知存储来源差异；
-- **显式克隆 `String.clone()`**：对于需要保留原字符串并产生独立拥有副本的场景，统一使用 `s.clone()` 显式深复制；
-- **静态切片 `Str`（后续演进项）**：零拷贝静态切片 `Str`（不承担析构义务、天然 `Copyable` 的静态常量引用）作为后续切片机制（Slice）与借用体系完备后的演进设计（延后实施），当前不对外暴露独立的 `Str` ABI，避免在没有完整借用切片机制时引入过早的双类型复杂度；
-- 标准输出函数 `println` 与异常终止 `error` 统一接受 `String` 借用。
+普通字符串字面量与动态字符串统一具有 builtin `String` 类型和唯一 owner obligation，
+均为 MoveOnly 且满足 Transferable。引用静态只读字节是
+[String runtime ABI](../adr/accepted/0018-string-owner-runtime-abi.md) 的存储优化：
+静态字节可随进程存活且不执行 `free`，但 String 值仍遵守普通 owner 生命周期，不因此满足 `Copyable`。
+需要保留源并取得独立 owner 时使用上文[封闭操作](#封闭的最小操作)定义的 `String.clone()`；
+`println` / `error` 继续借用 String。独立静态 `Str`、Str→String 转换与 `toString()` 继续延后，
+不得从后续切片设计或底层静态字节表示推导已启用的类型、ABI 或能力。
 
 ---
 

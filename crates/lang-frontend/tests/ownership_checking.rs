@@ -1166,3 +1166,33 @@ fn pending_value_argument_cleanup_follows_control_transfer_not_call_return() {
         );
     }
 }
+
+#[test]
+fn nested_argument_loan_ends_at_its_own_call_before_outer_inout() {
+    let text = "class Resource {}\n\
+                fun read(item: Resource): Int = 1\n\
+                fun accept(own count: Int, inout item: Resource): Unit {}\n\
+                fun valid(own input: Resource): Unit {\n\
+                    var local = input\n\
+                    val result = accept(read(local), &local)\n\
+                }";
+    let (sources, _, ownership) = checked(text);
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert!(ownership.deferred().is_empty());
+    let loans = ownership.loans();
+    assert_eq!(loans.len(), 2);
+    assert_eq!(loans[0].kind(), LoanKind::Shared);
+    assert_eq!(loans[1].kind(), LoanKind::Exclusive);
+    assert_ne!(loans[0].call(), loans[1].call());
+    assert_eq!(sources.slice(loans[0].end_span()).unwrap(), "read(local)");
+    assert_eq!(
+        sources.slice(loans[1].end_span()).unwrap(),
+        "accept(read(local), &local)"
+    );
+    assert_eq!(ownership.loans_ending_at(loans[0].call()).count(), 1);
+    assert_eq!(ownership.loans_ending_at(loans[1].call()).count(), 1);
+}

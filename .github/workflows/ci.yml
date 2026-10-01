@@ -25,6 +25,9 @@ env:
 jobs:
   changes:
     name: Detect Changed Files
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
@@ -42,11 +45,23 @@ jobs:
               - 'scripts/**'
               - '*.md'
               - 'LICENSE'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/setup-llvm/**'
             rust:
               - 'crates/**'
               - 'Cargo.*'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+              - '.github/actions/setup-llvm/**'
+              - 'scripts/check_stage_integration.sh'
+              - 'scripts/check_guide_litmus.sh'
+              - 'scripts/install_ci_llvm.sh'
+              - 'scripts/check_ci_results.py'
+              - 'scripts/tests/test_check_ci_results.py'
+              - 'docs/guide/10-ownership-borrowing-drop.md'
+              - 'docs/guide/11-copyability-layout-construction.md'
+              - 'docs/guide/13-program-runtime-standard-library.md'
+              - 'docs/guide/15-conformance-and-staging.md'
             frontend:
               - 'crates/lang-frontend/**'
               - 'crates/lang-std/**'
@@ -56,7 +71,7 @@ jobs:
   docs:
     name: Docs & Spec Structural Gate
     needs: changes
-    if: needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,13 +80,15 @@ jobs:
           python-version: '3.12'
       - name: Run check_docs.py
         run: python3 scripts/check_docs.py
+      - name: Test docs and CI gate policies
+        run: python3 -m unittest discover -s scripts/tests -v
       - name: Check git diff whitespace
         run: git diff --check
 
   fmt:
     name: Rust Code Formatting
     needs: changes
-    if: needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -83,77 +100,79 @@ jobs:
         run: cargo fmt --all -- --check
 
   clippy:
-    name: Workspace Check & Clippy
+    name: Workspace Check & Clippy (${{ matrix.os }})
     needs: [changes, docs, fmt]
     if: |
       always() &&
-      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main') &&
-      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') &&
+      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (needs.docs.result == 'success' || needs.docs.result == 'skipped') &&
       (needs.fmt.result == 'success' || needs.fmt.result == 'skipped')
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install LLVM 21
-        run: brew install llvm@21
+      - name: Set up LLVM 21
+        id: llvm
+        uses: ./.github/actions/setup-llvm
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Cargo Check
-        env:
-          LLVM_SYS_211_PREFIX: /opt/homebrew/opt/llvm@21
-        run: cargo check --workspace --all-targets
+        run: cargo check --locked --workspace --all-targets
       - name: Cargo Clippy
-        env:
-          LLVM_SYS_211_PREFIX: /opt/homebrew/opt/llvm@21
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   test:
-    name: Targeted Tests
+    name: Targeted Tests (${{ matrix.os }})
     needs: [changes, clippy]
     if: |
       always() &&
-      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main') &&
-      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') &&
+      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       needs.clippy.result == 'success'
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install LLVM 21
-        run: brew install llvm@21
+      - name: Set up LLVM 21
+        id: llvm
+        uses: ./.github/actions/setup-llvm
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run Core & Targeted Tests
-        env:
-          LLVM_SYS_211_PREFIX: /opt/homebrew/opt/llvm@21
         run: |
-          cargo test -p lang-frontend --lib
-          cargo test -p lang-codegen
-          cargo test -p lang-cli
-          cargo test -p lang-lsp
+          cargo test --locked -p lang-frontend --lib
+          cargo test --locked -p lang-codegen
+          cargo test --locked -p lang-cli
+          cargo test --locked -p lang-lsp
+      - name: Run selected frontend stage integration
+        run: bash scripts/check_stage_integration.sh
+      - name: Run Guide litmus with explicit known gaps
+        run: bash scripts/check_guide_litmus.sh
 
   ci-passed:
     name: CI Passed
-    needs: [docs, fmt, clippy, test]
+    needs: [changes, docs, fmt, clippy, test]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Verify all required jobs succeeded or were legitimately skipped
-        run: |
-          python3 -c "
-          results = {
-              'docs': '${{ needs.docs.result }}',
-              'fmt': '${{ needs.fmt.result }}',
-              'clippy': '${{ needs.clippy.result }}',
-              'test': '${{ needs.test.result }}'
-          }
-          for job, res in results.items():
-              if res not in ('success', 'skipped'):
-                  print(f'Job {job} failed with status: {res}')
-                  exit(1)
-          print('All jobs succeeded or appropriately skipped!')
-          "
+      - uses: actions/checkout@v7
+      - name: Verify required jobs and legitimate skips
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/check_ci_results.py

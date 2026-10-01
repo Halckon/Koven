@@ -1,8 +1,8 @@
-# Koven v0.38：类型与泛型
+# Koven v0.40：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -314,8 +314,9 @@ explicit_parameter_mode = "own" | "borrow" | "inout" ;
 最多带一个末尾 `?`，因此 `T??` 非法。函数返回类型仍递归使用 `type_ref`，所以
 `() -> T?` 唯一表示“返回 `T?` 的函数”，不表示可空函数值。现行语言不提供可空函数类型的
 写法，也不新增类型分组语法来绕过该边界。v1 不支持 star projection、声明处或使用处型变；
-不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 只可作为函数
-类型前缀；表达式位置的 `move { ... }` lambda 见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)。
+不得把 `*`、`in T` 或 `out T` 塞入类型实参。在 `type_ref` 语法中，`move` 作为上下文关键字
+仅当后继非 trivia token 是函数参数列表的 `(` 时充当前缀；其余位置遵守[普通 Identifier 通则](01-lexical.md#上下文关键字与软关键字)，例如 `move`、`move?`、`move<T>` 均可作为类型名称。
+表达式位置的 `move { ... }` lambda 见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)。
 
 函数类型的每个参数都携带与具名函数 `value_parameter` 相同的三种**语义契约**：无标记或
 显式 `borrow` 都表示 `Borrow`，显式 `own` 表示既有 `ParameterMode::Value`，显式 `inout`
@@ -331,8 +332,8 @@ typed contract。
 
 **调用点标注是否强制**是另一个独立问题，由[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)统一定义：`Value` 参数虽然
 必须在声明端写 `own`，调用点仍不写 mode；向它传入 `MoveOnly` place 时无标记调用隐式
-移动，传入 `Copyable` place 时交付 owned copy。`Borrow` 参数同样默认不写 mode，调用点
-仍可选择写 `borrow` 强调；只有 `Inout` 参数强制要求调用点写符号 `&`（`&x`，不是关键字
+移动，传入 `Copyable` place 时交付 owned copy。`Borrow` 参数在调用点也不写 mode，按
+callee 契约自动借用；调用点不接受 `borrow x`。只有 `Inout` 参数强制要求调用点写符号 `&`（`&x`，不是关键字
 `inout`）。调用点 `own x` 不属于语法。这条规则同时适用于具名函数
 调用与函数类型值的调用，详见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)“调用点自动化的设计说明”。
 

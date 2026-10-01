@@ -12,8 +12,8 @@ use crate::{
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerConstructionDescriptor, ElementPlaceDescriptor, ExpressionCategory,
-    FunctionParameterType, IntrinsicCallable, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor,
+    FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
@@ -1082,7 +1082,9 @@ pub struct TypedFile {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
+    string_operations: Vec<StringOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -1110,7 +1112,9 @@ pub(crate) struct TypedFileParts {
     pub(crate) calls: Vec<CallDescriptor>,
     pub(crate) constructions: Vec<ConstructionDescriptor>,
     pub(crate) aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    pub(crate) ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     pub(crate) rc_operations: Vec<RcOperationDescriptor>,
+    pub(crate) string_operations: Vec<StringOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
@@ -1154,7 +1158,9 @@ impl TypedFile {
             calls: parts.calls,
             constructions: parts.constructions,
             aggregate_projections: parts.aggregate_projections,
+            ownership_primitives: parts.ownership_primitives,
             rc_operations: parts.rc_operations,
+            string_operations: parts.string_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             diagnostics,
@@ -1366,6 +1372,39 @@ impl TypedFile {
             .iter()
             .copied()
             .find(|descriptor| descriptor.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的 String intrinsic 操作。
+    #[must_use]
+    pub fn string_operations(&self) -> &[StringOperationDescriptor] {
+        &self.string_operations
+    }
+
+    /// 查询已绑定 receiver 的显式 String 操作。
+    #[must_use]
+    pub fn string_operation(&self, expression: ExpressionId) -> Option<StringOperationDescriptor> {
+        self.string_operations
+            .iter()
+            .copied()
+            .find(|operation| operation.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的原子所有权原语静态事实；错误产物不发布此表。
+    #[must_use]
+    pub fn ownership_primitives(&self) -> &[OwnershipPrimitiveDescriptor] {
+        &self.ownership_primitives
+    }
+
+    /// 查询 compiler-bound 原语；普通同名源码调用返回 None。
+    #[must_use]
+    pub fn ownership_primitive(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<OwnershipPrimitiveDescriptor> {
+        self.ownership_primitives
+            .iter()
+            .copied()
+            .find(|fact| fact.expression() == expression)
     }
 
     /// 返回源码 expression 顺序的 intrinsic `Rc<T>` 操作。

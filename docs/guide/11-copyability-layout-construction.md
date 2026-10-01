@@ -1,8 +1,8 @@
-# Koven v0.38：Copyable、布局、构造与结构移动
+# Koven v0.40：Copyable、布局、构造与结构移动
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 Copyable、Box、有限布局、构造和结构化移动时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 Copyable、Box、有限布局、构造和结构化移动时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `Copyable` 推导与显式 Opt-out 边界
 
@@ -66,7 +66,7 @@ v1 的 `Box` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor
 合法；泛型代码必须在具体 value-class 或 enum-class 实例已知的位置使用 `Box`。
 
 `Box<T>` 自身始终 `MoveOnly`，并打断内联递归。在 `enum class` 的递归定义中（如表达式树
-`enum class Expr { Num(val value: Int), Add(val left: Box<Expr>, val right: Box<Expr>) }`），
+`enum class Expr { Num(value: Int), Add(left: Box<Expr>, right: Box<Expr>) }`），
 `Box<Expr>` 提供了堆分配的间接 handle，从而天然打破无限内联递归。
 源码中声明 `class Box<T>` 只产生普通名义 class，不取得 intrinsic 语义；外部环境没有绑定
 intrinsic `Box` 时，编译器不得按拼写猜测。intrinsic `Box` 的实参数量不是 type-kind 约束：
@@ -176,7 +176,7 @@ move-after-use、drop、容器类型、`Transferable`、companion 或 codegen。
 - 所有构造参数都是 `ParameterMode::Value`：class 字段与 enum payload 沿用
   [天然-owned 声明形态](08-class-family-members.md#声明头构造器字段与修饰符)，intrinsic Box
   只有编译器内建抽象签名；两者调用点都不写
-  `own`。显式 `borrow` / `&` 与 Value 参数不匹配并复用 L0122。operand 按源码顺序各求值
+  `own`。显式 `&` 与 Value 参数不匹配并复用 L0122；调用处 `borrow x` 本身已是语法错误。operand 按源码顺序各求值
   一次，命名映射不改变求值顺序；每个 operand 完成后立即按 `Copyable` 复制或按 MoveOnly
   移动到尚未发布的 construction owner。
 - 成功 typed 产物保存 expression、稳定 target/instance key、结果类型，以及按参数声明顺序的

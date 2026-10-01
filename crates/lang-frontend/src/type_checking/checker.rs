@@ -17,6 +17,7 @@ mod nominal;
 mod ownership_primitives;
 mod projection;
 mod rc;
+mod string;
 mod trial;
 mod type_inference;
 mod type_ref;
@@ -47,9 +48,10 @@ use super::{
     DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor, EnumCaseDescriptor,
     EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
     FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
-    NonNullUseDescriptor, NullComparisonDescriptor, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor, SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId,
-    TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
+    NonNullUseDescriptor, NullComparisonDescriptor, OwnershipPrimitiveDescriptor,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, SequentialContainerKind,
+    StringOperationDescriptor, TypeCheckingError, TypeEnvironment, TypeId, TypeKind,
+    TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
     collect_expression_uses,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
@@ -156,7 +158,9 @@ struct Checker<'a> {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
+    string_operations: Vec<StringOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
@@ -351,7 +355,9 @@ impl<'a> Checker<'a> {
             calls: Vec::new(),
             constructions: Vec::new(),
             aggregate_projections: Vec::new(),
+            ownership_primitives: Vec::new(),
             rc_operations: Vec::new(),
+            string_operations: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
@@ -459,7 +465,10 @@ impl<'a> Checker<'a> {
         // 后置泛型约束等检查完成后才允许发布阶段计划；recovery 类型仍保留。
         if !self.diagnostics.is_empty() || !self.input_error_spans.is_empty() {
             self.iterations.clear();
+            self.ownership_primitives.clear();
         }
+        self.ownership_primitives
+            .sort_by_key(|fact| fact.expression().index());
         self.iterations.sort_by_key(|plan| plan.statement().index());
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();
@@ -521,7 +530,9 @@ impl<'a> Checker<'a> {
                 calls: self.calls,
                 constructions: self.constructions,
                 aggregate_projections: self.aggregate_projections,
+                ownership_primitives: self.ownership_primitives,
                 rc_operations: self.rc_operations,
+                string_operations: self.string_operations,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,
             },

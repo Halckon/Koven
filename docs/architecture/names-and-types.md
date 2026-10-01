@@ -17,6 +17,15 @@ copyability、destructuring 和 flow facts。错误输入保留 recovery 事实�
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
 suites。
 
+## 数值字面量解码
+
+`type_checking::integer_literal_magnitude` 为单文件/unit 类型检查、常量求值、元素索引身份与
+后端整数 lowering 提供同一精确幅值解码。十进制、hex/bin 前缀、数字间下划线和已分类后缀
+在此统一处理；范围/default/expected type 与负号诊断仍由各 checker 保留原有合同和 Span。
+浮点字面量只在 finite 检查前移除数字分隔符，不扩大 native 浮点支持。
+`numeric_literals` integration suite 覆盖两套类型/常量/ownership 入口和源顺序确定性；native
+值证据见 SSA/LLVM/Runtime 页。
+
 ## 单文件顺序迭代类型计划
 
 `TypedFile::sequential_iterations` / `sequential_iteration` 按 StatementId 发布 intrinsic
@@ -100,6 +109,19 @@ identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction�
 expression identity 排序。单文件和 unit ownership 均消费各自描述符；SSA/LLVM 接线仍在后继
 实施范围。
 
+## 原子置换静态类型身份
+
+`TypedFile` 与 `CompilationUnitTypes` 的 `ownership_primitives` / `ownership_primitive`
+发布 compiler-bound replace/swap 的种类、交换类型和源码顺序的两个 operand identity。
+身份来自显式 TypeEnvironment binding，而非名字；普通 call 参数模式契约同时保留。
+unit 使用 source-qualified identity，并在普通及 const-enabled 验证入口交叉核对
+source/type/category/call 关系；精确 AST argument identity 由封闭 producer 绑定，后继
+读取 AST 时仍需比对 operand 顺序。错误输入清空整表，trial 回滚和稳定排序覆盖新事实。
+
+Nothing operand 不删除静态调用结构；Deferred operand 不发布成功原语事实。
+这些产物不授予 ownership commit 或 native 执行权限；普通 unit call 的 flow 失效、
+已收窄 nullable place 的 storage-T 推导、原语 native lowering 仍是独立缺口。
+
 ## Compilation-unit 名称链
 
 多文件路径由 `name_resolution::compilation_unit` 提供，身份链如下：
@@ -166,6 +188,8 @@ L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成�
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择，补全 terminal symbol；
 真正不存在的本地静态成员产生 L0080；private 非常量成员继续由原类型路径处理可见性。
 普通值接收者和同名参数遮蔽仍沿既有路径处理。
+
+String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。
 
 ## 核心不变量
 

@@ -98,6 +98,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_string_clone_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_rc_share_call(
             source,
             expression,
@@ -783,7 +794,12 @@ impl BodyChecker<'_> {
             };
             let trial_deferred =
                 self.is_deferred(result.ty) || self.trial_introduced_deferred(&baseline);
-            has_deferred_trial |= trial_deferred;
+            let trial_has_errors = self.diagnostics[baseline_diagnostics..]
+                .iter()
+                .any(|diagnostic| diagnostic.severity() == Severity::Error);
+            // 已由错误淘汰的候选可能留下 recovery Deferred，不能否决另一完整候选。
+            // 无错误的未定候选仍保留保守门禁，防止过早提交 intrinsic facts。
+            has_deferred_trial |= trial_deferred && !trial_has_errors;
             if self.diagnostics.len() == baseline_diagnostics
                 && !self.is_error(result.ty)
                 && !trial_deferred

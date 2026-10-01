@@ -4651,3 +4651,42 @@ fn function_value_callee_stays_owned_until_call_or_argument_exit() {
         }
     }
 }
+
+#[test]
+fn nested_argument_loan_ends_at_its_own_call_before_outer_inout() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "main.ko",
+        "class Resource {}\n\
+         fun read(item: Resource): Int = 1\n\
+         fun accept(own count: Int, inout item: Resource): Unit {}\n\
+         fun valid(own input: Resource): Unit {\n\
+             var local = input\n\
+             val result = accept(read(local), &local)\n\
+         }",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership");
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert!(ownership.deferred().is_empty());
+    let loans = ownership.loans();
+    assert_eq!(loans.len(), 2);
+    assert_eq!(loans[0].kind(), LoanKind::Shared);
+    assert_eq!(loans[1].kind(), LoanKind::Exclusive);
+    assert_ne!(loans[0].call(), loans[1].call());
+    assert_eq!(sources.slice(loans[0].end_span()).unwrap(), "read(local)");
+    assert_eq!(
+        sources.slice(loans[1].end_span()).unwrap(),
+        "accept(read(local), &local)"
+    );
+}

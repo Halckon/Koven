@@ -12,6 +12,7 @@ mod model;
 mod non_null_assertion;
 mod nullable_when;
 mod rc;
+mod string;
 
 use crate::{
     name_resolution::NameResolution, parser::ParsedFile, source::SourceMap,
@@ -70,6 +71,7 @@ pub use nullable_when::{
     NullableWhenExtractionKind, NullableWhenOwnershipPlan, NullableWhenProofView,
 };
 pub use rc::{RcOwnershipEffect, RcOwnershipEffectKind};
+pub use string::{StringOwnershipEffect, UnitStringOwnershipEffect};
 
 /// 对同一源码的名称、类型产物执行变量所有权检查。
 pub fn check_ownership(

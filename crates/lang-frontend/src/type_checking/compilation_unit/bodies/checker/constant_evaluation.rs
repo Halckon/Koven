@@ -57,14 +57,8 @@ impl ConstantEvaluationContext for BodyChecker<'_> {
             return Ok(None);
         };
         let text = self.text(span)?;
-        let suffix_len = match kind {
-            IntegerLiteralKind::Unsuffixed => 0,
-            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => 1,
-            IntegerLiteralKind::UnsignedLong => 2,
-        };
-        Ok(text
-            .get(..text.len().saturating_sub(suffix_len))
-            .and_then(|text| text.parse::<i128>().ok())
+        Ok(crate::type_checking::integer_literal_magnitude(text, kind)
+            .and_then(|value| i128::try_from(value).ok())
             .and_then(|value| ConstValue::integer(*ty, if negative { -value } else { value })))
     }
 

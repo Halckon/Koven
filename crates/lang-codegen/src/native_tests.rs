@@ -1,3 +1,9 @@
+#[path = "native_string_clone_tests.rs"]
+mod string_clone_tests;
+
+#[path = "native_numeric_literal_tests.rs"]
+mod numeric_literal_tests;
+
 #[path = "native_constant_tests.rs"]
 mod constant_tests;
 
@@ -6,6 +12,9 @@ mod non_null_assertion_tests;
 
 #[path = "native_sequential_for_tests.rs"]
 mod sequential_for_tests;
+
+#[path = "native_boxed_enum_tests.rs"]
+pub(crate) mod boxed_enum_tests;
 
 use std::{
     fs,

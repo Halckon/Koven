@@ -13,3 +13,10 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [v0.34 文档结构迁移账本](migrations/v0.34-document-restructure.md)
 
 - [v0.37 启用迁移账本](migrations/v0.37-enablement.md)
+
+- [v0.39 String.clone 启用迁移账本](migrations/v0.39-enablement.md)
+- [SPEC-0235 首次本地候选记录](migrations/spec-0235-initial-candidate-v0.39.md)
+- [后续字符串延后决定](migrations/v0.39-string-deferral.md)
+- [v0.40 真实前版快照与启用账本](migrations/v0.40-enablement.md)
+- [v0.38 Parser 工程合同迁移账本](migrations/v0.38-parser-compiler-contracts.md)
+- [v0.40 合入上游 PR #6 的协调来源](migrations/v0.40-upstream-pr6-reconciliation.md)

@@ -1,8 +1,8 @@
-# Koven v0.38：一致性、Phase 与实施边界
+# Koven v0.40：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -87,10 +87,35 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.38。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.40。
 
 具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
+
+## v0.40 迁移与未完成边界
+
+本版本在真实 v0.39（已含 String.clone、Parser 澄清及 Compiler Contracts 分离）的本地
+整合基线上启用以下三项已批准规则。完整前版已归档，来源与机械变换见
+[迁移账本](../archive/migrations/v0.40-enablement.md)。本地启用不表示 main 已合并、PR CI
+已通过或以下新规则的编译阶段已经验收。
+
+| 受影响位置 | 迁移与权威入口 |
+|---|---|
+| 调用处 `f(borrow x)` / `f(name = borrow x)` | 删除调用处 marker，使用 `f(x)` / `f(name = x)`；声明处 Borrow 契约不变，见[调用实参](07-calls-lambdas-closures.md#typed-call-argument) |
+| 超界或负移位位数 | 按[移位规则](04-expressions-operators.md#整数具名位运算与移位)核对屏蔽后的结果；两个 operand 的同型整数约束保持，不改为 `Int` count |
+| 用户 `deinit` | 按[成员契约](08-class-family-members.md#deinit-成员语法与资源析构契约)核对 body / 字段清理顺序与只读 `this`；双轨析构时机不变 |
+
+- Phase 1 必须在删除实参 Borrow marker 后保留普通 `borrow` Identifier、声明 marker 和
+  `&` 的精确 Span/恢复边界；不能以“语义自动借用”继续接受旧调用语法。
+- Phase 2/3 须分别发布参数契约与 `deinit` receiver/清理事实；Phase 4 只消费已验证事实。
+- 字符串按最新决定改为 clone-first；Str/toString 规范切换延后。既有 `String` 字面量、
+  const、拼接、内容比较与 ADR-0018 保持，不要求旧 `String` 字面量源码迁移为 Str。
+- interpolation、nullable 文本 native 表示和此前延后的能力保持原边界；不扩大异常展开、
+  资源分类或双轨 drop 规则。const 的具名位运算资格按[封闭白名单](05-declarations-callables.md#363-封闭-const-expression-与求值失败)
+  判断；规范列入白名单不表示 const evaluator 或 native 已验收。clone 实施验收在独立切片中进行。
+- [Box 投影/拆箱](11-copyability-layout-construction.md#内建-box-身份与实参边界)和
+  [lambda body 分隔](07-calls-lambdas-closures.md#lambda-literal)为规范合同；各自后续实施
+  必须单独验收，不能从递归 Box 构造/析构或 ordinary block 的定向证据推定已支持。
 
 ## `const val` 的阶段交接
 
@@ -114,7 +139,7 @@ nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering �
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
-也继续延后。v0.38 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
+也继续延后。v0.40 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
 
 顺序迭代的 typed/ownership 与首轮 native source 边界见[§37.4](12-collections-destructuring.md#374-irphase-交接与非目标)；规范启用不表示阶段实现已完成。
 
@@ -209,7 +234,7 @@ fun area(s: Shape): Int {
 package demo.oop
 
 class Counter(var count: Int) {
-    fun increment(): Unit {
+    inout fun increment(): Unit {
         count = count + 1
     }
 }
@@ -344,7 +369,8 @@ fun sumElements(): Int {
 
 ### Litmus 12: 关联常量与标准库互操作
 
-演示位运算软关键字（`shl`, `and`）、关联常量访问以及标准库 `println` 调用：
+演示位运算软关键字（`shl`、`or`）、关联常量访问以及标准库 `println` 调用；
+常量初始化遵循[常量表达式白名单](05-declarations-callables.md#363-封闭-const-expression-与求值失败)中的具名位运算规则：
 
 ```kotlin
 package demo.interop

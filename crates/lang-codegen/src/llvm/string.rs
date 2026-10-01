@@ -149,6 +149,60 @@ pub(super) fn concat<'ctx>(
     Ok(result.as_basic_value().into_struct_value())
 }
 
+/// Clone always copies non-empty bytes, even when the source uses static storage.
+pub(super) fn clone_owner<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    string_type: inkwell::types::StructType<'ctx>,
+    source: StringView<'ctx>,
+    name: &str,
+) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+    let empty = context.append_basic_block(function, &format!("{name}.clone.empty"));
+    let allocate = context.append_basic_block(function, &format!("{name}.clone.allocate"));
+    let ready = context.append_basic_block(function, &format!("{name}.clone.ready"));
+    let is_empty = builder.build_int_compare(
+        IntPredicate::EQ,
+        source.length,
+        runtime.size_type().const_zero(),
+        &format!("{name}.clone.is_empty"),
+    )?;
+    builder.build_conditional_branch(is_empty, empty, allocate)?;
+
+    builder.position_at_end(empty);
+    let empty_value = build_owner(
+        builder,
+        string_type,
+        context.ptr_type(AddressSpace::default()).const_null(),
+        runtime.size_type().const_zero(),
+        runtime.size_type().const_zero(),
+        &format!("{name}.clone.empty_value"),
+    )?;
+    builder.build_unconditional_branch(ready)?;
+
+    builder.position_at_end(allocate);
+    let allocation = runtime.allocate_string_bytes(builder, function, source.length, name)?;
+    builder.build_memcpy(allocation, 1, source.bytes, 1, source.length)?;
+    let allocated_value = build_owner(
+        builder,
+        string_type,
+        allocation,
+        source.length,
+        source.length,
+        &format!("{name}.clone.allocated_value"),
+    )?;
+    let allocated_block = builder
+        .get_insert_block()
+        .ok_or_else(|| LlvmAdapterError::Build("String clone 缺少 allocated block".to_owned()))?;
+    builder.build_unconditional_branch(ready)?;
+
+    builder.position_at_end(ready);
+    let result = builder.build_phi(string_type, name)?;
+    result.add_incoming(&[(&empty_value, empty), (&allocated_value, allocated_block)]);
+    Ok(result.as_basic_value().into_struct_value())
+}
+
 pub(super) fn equal<'ctx>(
     context: &'ctx Context,
     builder: &Builder<'ctx>,

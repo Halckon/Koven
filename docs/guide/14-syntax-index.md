@@ -1,6 +1,6 @@
-# Koven v0.38：语法索引
+# Koven v0.40：语法索引
 
-> **性质**：规范性导航索引 · **状态**：current（v0.38） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
+> **性质**：规范性导航索引 · **状态**：current（v0.40） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
 
 本页不重复关键字表、产生式或优先级，只提供到唯一规则正文的入口。
 
@@ -29,7 +29,7 @@
 | 调用与 Lambda | lambda literal、header 与 `return` 边界 | [Lambda literal](07-calls-lambdas-closures.md#lambda-literal) |
 | 调用与 Lambda | 尾 lambda | [尾 lambda 调用糖](07-calls-lambdas-closures.md#尾-lambda-调用糖) |
 | 调用与 Lambda | 隐式 `it` | [无显式 header lambda 的隐式 `it`](07-calls-lambdas-closures.md#无显式-header-lambda-的隐式-it) |
-| 调用与 Lambda | named、`borrow`、`&` 调用实参 | [Typed call argument](07-calls-lambdas-closures.md#typed-call-argument) |
+| 调用与 Lambda | named、自动 Borrow、`&` 调用实参 | [Typed call argument](07-calls-lambdas-closures.md#typed-call-argument) |
 | 类型声明 | class/value/interface/enum/object/companion | [Class Family 声明](08-class-family-members.md#class-family-声明) |
 | 类型声明 | instance receiver marker | [Receiver Grammar](08-class-family-members.md#receiver-grammar) |
 | 类型声明 | `Interface by field` | [接口委托边界](08-class-family-members.md#接口委托边界) |

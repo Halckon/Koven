@@ -33,7 +33,9 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.38\s*-->")
+CURRENT_GUIDE_VERSION = "v0.40"
+CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
+CURRENT_COMPILER_CONTRACTS_RE = re.compile(r"<!--\s*current-compiler-contracts\s*-->")
 SCOPED_AGENT_DIRS = (
     "lang-frontend",
     "lang-codegen",
@@ -63,10 +65,11 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
 EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
     "v0.37": frozenset(),
+    "v0.40": frozenset(),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228", "0229", "0230", "0231", "0232", "0233", "0234", "0235", "0236", "0237", "0238", "0239"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
-    {*(f"{number:04d}" for number in range(1, 25)), "0026"}
+    {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027"}
 )
 EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset({"0025"})
 EXPECTED_ARCHIVED_ADR_IDS: frozenset[str] = frozenset()
@@ -268,6 +271,7 @@ class DocsChecker:
         self.check_spec_lifecycle()
         self.check_adr_lifecycle()
         self.check_current_guide()
+        self.check_current_compiler_contracts()
         self.check_metadata()
         self.check_indexes()
         self.check_reachability()
@@ -432,15 +436,22 @@ class DocsChecker:
         )
 
     def check_current_guide(self) -> None:
-        live_texts = [
-            path.read_text(encoding="utf-8")
+        live_markers = [
+            (path, version)
             for path in self.files
             if "docs/archive/" not in relative(path, self.root)
+            for version in CURRENT_GUIDE_RE.findall(path.read_text(encoding="utf-8"))
         ]
-        count = sum(len(CURRENT_GUIDE_RE.findall(text)) for text in live_texts)
+        count = len(live_markers)
         if count != 1:
             self.error(f"current guide marker 必须恰好一个，实际为 {count}")
         guide = self.docs / "guide"
+        for path, version in live_markers:
+            if path != guide / "README.md" or version != CURRENT_GUIDE_VERSION:
+                self.error(
+                    f"{relative(path, self.root)}: current guide marker 必须位于 "
+                    f"docs/guide/README.md 且版本为 {CURRENT_GUIDE_VERSION}，实际为 {version}"
+                )
         expected = {guide / "README.md"} | {
             guide / f"{number:02d}-{name}.md"
             for number, name in enumerate(
@@ -471,6 +482,26 @@ class DocsChecker:
             self.error(f"缺少 guide 页面: {relative(path, self.root)}")
         for path in sorted(extra):
             self.error(f"guide 目录存在非标准页面: {relative(path, self.root)}")
+        for path in sorted(actual & expected):
+            top = "\n".join(path.read_text(encoding="utf-8").splitlines()[:8])
+            if f"current（{CURRENT_GUIDE_VERSION}）" not in top:
+                self.error(
+                    f"{relative(path, self.root)}: guide 状态必须为 "
+                    f"current（{CURRENT_GUIDE_VERSION}）"
+                )
+
+    def check_current_compiler_contracts(self) -> None:
+        expected = self.docs / "compiler-specs/README.md"
+        entries = [
+            path
+            for path in self.files
+            if not relative(path, self.root).startswith("docs/archive/")
+            for _ in CURRENT_COMPILER_CONTRACTS_RE.finditer(path.read_text(encoding="utf-8"))
+        ]
+        if len(entries) != 1:
+            self.error(f"current compiler contracts marker 必须恰好一个，实际为 {len(entries)}")
+        if entries != [expected]:
+            self.error("current compiler contracts marker 必须位于 docs/compiler-specs/README.md")
 
     def live_metadata_files(self) -> list[Path]:
         result: list[Path] = []
@@ -481,6 +512,7 @@ class DocsChecker:
             elif rel.startswith(
                 (
                     "docs/guide/",
+                    "docs/compiler-specs/",
                     "docs/architecture/",
                     "docs/development/",
                     "docs/proposals/",
@@ -530,6 +562,12 @@ class DocsChecker:
         guide = self.docs / "guide"
         self.require_direct_coverage(
             guide / "README.md", set(guide.glob("[0-9][0-9]-*.md")), "guide"
+        )
+        contracts = self.docs / "compiler-specs"
+        self.require_direct_coverage(
+            contracts / "README.md",
+            set(contracts.rglob("*.md")) - {contracts / "README.md"},
+            "compiler-specs",
         )
         architecture = self.docs / "architecture"
         self.require_direct_coverage(
@@ -680,7 +718,9 @@ class DocsChecker:
             self.docs / "guide/README.md",
             self.docs / "architecture/README.md",
             self.docs / "development/README.md",
-        ] + list((self.root / "crates").glob("*/AGENTS.md"))
+        ] + list((self.root / "crates").glob("*/AGENTS.md")) + list(
+            (self.docs / "compiler-specs").rglob("*.md")
+        )
         for path in route_files:
             if not path.is_file():
                 continue
@@ -799,6 +839,7 @@ class DocsChecker:
             self.root / "AGENTS.md": 160,
             self.docs / "AGENTS.md": 120,
             self.docs / "guide/README.md": 160,
+            self.docs / "compiler-specs/README.md": 160,
             self.docs / "architecture/README.md": 200,
         }
         for path in (self.root / "crates").glob("*/AGENTS.md"):
@@ -806,6 +847,8 @@ class DocsChecker:
         for path in (self.docs / "guide").glob("[0-9][0-9]-*.md"):
             limits[path] = 800
         for path in (self.docs / "architecture").glob("*.md"):
+            limits.setdefault(path, 200)
+        for path in (self.docs / "compiler-specs").rglob("*.md"):
             limits.setdefault(path, 200)
         for path, limit in limits.items():
             if not path.is_file():

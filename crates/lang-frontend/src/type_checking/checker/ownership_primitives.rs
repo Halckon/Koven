@@ -6,8 +6,9 @@ use crate::{
     parser::{CallArgument, Expression, ParameterModeMarker},
     source::Span,
     type_checking::{
-        BuiltinType, CallArgumentDescriptor, CallDescriptor, CallableTarget, ExpressionCategory,
-        ExternalTypeBinding, FunctionParameterType, IntrinsicCallable, ParameterMode, TypeKind,
+        BuiltinType, CallArgumentDescriptor, CallDescriptor, CallableTarget, DeferredReason,
+        ExpressionCategory, ExternalTypeBinding, FunctionParameterType, IntrinsicCallable,
+        OwnershipPrimitiveDescriptor, OwnershipPrimitiveKind, ParameterMode, TypeKind,
     },
 };
 
@@ -153,6 +154,8 @@ impl Checker<'_> {
 
         let t = if let Some(explicit) = explicit_t {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg0_result.ty, explicit)
                     || !self.assignable(explicit, arg0_result.ty))
             {
@@ -178,10 +181,14 @@ impl Checker<'_> {
             )?;
             valid = false;
         }
-        let arg1_result = self.check_expression(arg1.value, Some(t), None)?;
+        let arg1_result =
+            self.check_expression(arg1.value, (!self.is_deferred(t)).then_some(t), None)?;
         if self.is_error(arg1_result.ty) {
             valid = false;
-        } else if !self.assignable(arg1_result.ty, t) {
+        } else if !self.is_deferred(arg1_result.ty)
+            && !self.is_deferred(t)
+            && !self.assignable(arg1_result.ty, t)
+        {
             self.mismatch(
                 self.ast().expressions().get(arg1.value)?.span(),
                 None,
@@ -191,6 +198,15 @@ impl Checker<'_> {
             valid = false;
         }
 
+        if self.is_deferred(t)
+            || self.is_deferred(arg0_result.ty)
+            || self.is_deferred(arg1_result.ty)
+        {
+            return Ok(ExprCheck {
+                ty: self.deferred(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
         if !valid || self.is_error(t) {
             return Ok(ExprCheck {
                 ty: self.error_type(),
@@ -241,6 +257,13 @@ impl Checker<'_> {
             false,
             false,
         ));
+        self.ownership_primitives
+            .push(OwnershipPrimitiveDescriptor::new(
+                expression,
+                OwnershipPrimitiveKind::Replace,
+                t,
+                [arg0.value, arg1.value],
+            ));
         Ok(ExprCheck {
             ty: t,
             falls_through: true,
@@ -347,6 +370,8 @@ impl Checker<'_> {
 
         let t = if let Some(explicit) = explicit_t {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg0_result.ty, explicit)
                     || !self.assignable(explicit, arg0_result.ty))
             {
@@ -359,6 +384,8 @@ impl Checker<'_> {
                 valid = false;
             }
             if !self.is_error(arg1_result.ty)
+                && !self.is_deferred(arg1_result.ty)
+                && !self.is_deferred(explicit)
                 && (!self.assignable(arg1_result.ty, explicit)
                     || !self.assignable(explicit, arg1_result.ty))
             {
@@ -373,7 +400,9 @@ impl Checker<'_> {
             explicit
         } else {
             if !self.is_error(arg0_result.ty)
+                && !self.is_deferred(arg0_result.ty)
                 && !self.is_error(arg1_result.ty)
+                && !self.is_deferred(arg1_result.ty)
                 && (!self.assignable(arg1_result.ty, arg0_result.ty)
                     || !self.assignable(arg0_result.ty, arg1_result.ty))
             {
@@ -389,6 +418,15 @@ impl Checker<'_> {
         };
 
         let unit = self.builtin(BuiltinType::Unit);
+        if self.is_deferred(t)
+            || self.is_deferred(arg0_result.ty)
+            || self.is_deferred(arg1_result.ty)
+        {
+            return Ok(ExprCheck {
+                ty: self.deferred(DeferredReason::Call),
+                falls_through: true,
+            });
+        }
         if !valid || self.is_error(t) {
             return Ok(ExprCheck {
                 ty: self.error_type(),
@@ -439,6 +477,13 @@ impl Checker<'_> {
             false,
             false,
         ));
+        self.ownership_primitives
+            .push(OwnershipPrimitiveDescriptor::new(
+                expression,
+                OwnershipPrimitiveKind::Swap,
+                t,
+                [arg0.value, arg1.value],
+            ));
         Ok(ExprCheck {
             ty: unit,
             falls_through: true,

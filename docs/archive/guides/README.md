@@ -16,3 +16,7 @@
 
 - [v0.36 完整规范快照](v0.36/README.md)：由 v0.37 完整继承并取代。
 - [v0.37 启用前候选与重基记录](v0.37-candidate.md)：临时 source 冲突由用户在启用时决定纳入首轮 native。
+
+- [v0.38 完整规范快照](v0.38/README.md)：String.clone 启用前的 main 规范。
+
+- [v0.39 完整规范快照](v0.39/README.md)：七阶段合并后的真实 16 页前版，含 String.clone、Parser 澄清与 Compiler Contracts 指向；仅机械重算链接。

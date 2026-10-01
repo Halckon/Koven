@@ -341,6 +341,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, *right)
         }
+        Operation::StringClone { source } => {
+            output.write_str("string.clone ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
         Operation::StringEqual { left, right } => {
             output.write_str("string.equal ")?;
             write_entity_id(output, *left)?;

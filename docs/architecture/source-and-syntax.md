@@ -27,6 +27,9 @@ trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围�
 
 ## Parser 入口与模块
 
+语言接受条件见 [Guide](../guide/README.md)，已分离的内部表示与资源要求见
+[Compiler Contracts](../compiler-specs/README.md)；下文只记录代码与测试的当前事实。
+
 `parser::parse_expression`、`parse_declaration`、`parse_block` 和 `parse_file` 都接收同一
 `SourceMap + LexedFile`，并共享 `SyntaxAst`、诊断顺序和资源边界。`parser/mod.rs` 是公开门面：
 
@@ -37,6 +40,11 @@ trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围�
   recovery 等语法职责拆分；
 - `trial.rs` 与 `lambda_trial.rs` 只做无副作用预索引，正式分支成功后才提交 AST。
 
+TypeRef 的上下文头部由正式解析与 strict call trial 保持一致：`move` 仅在后继 `(` 时是
+函数类型前缀；函数类型参数模式可先于普通或嵌套函数 TypeRef，具名参数仍必须先有名称。
+单独的 own/borrow/inout/move 类型名称不被无条件消费。重复参数模式的恢复只保留首 marker，
+失败 typed-call 候选不提交 TypeRef；共享线性预算与原有递归上限保持。
+
 Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调用实参、receiver、尾 lambda、
 隐式 `it` anchor、control-flow、class-family、package/import、解构和错误传播等源码结构；名称映射、
 类型选择和所有权检查留给后续阶段。
@@ -46,6 +54,13 @@ Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调�
 
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
+
+普通/control/nested block 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
+时归还 block dispatch；局部 initializer 复用该边界。group/call/index 内的 block soft stop
+已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。
+typed-call 试探、独立 expression 与顶层
+initializer 保持既有入口行为。lambda 顶层 body 保留独立 owner，内嵌普通 block 使用自己的
+换行边界。同行缺分隔符诊断和 lambda 顶层换行仍不属于当前已闭合实现。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。

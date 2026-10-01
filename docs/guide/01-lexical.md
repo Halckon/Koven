@@ -1,8 +1,8 @@
-# Koven v0.38：词法
+# Koven v0.40：词法
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 Lexer、token、字面量、注释与词法恢复时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 Lexer、token、字面量、注释与词法恢复时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 词法错误与 Parser 交接
 
@@ -65,7 +65,7 @@ super       this        true
 > `package` 只在完整文件头产生式中有特殊含义；`module` 是普通 `Identifier`。Koven 不接受
 > Rust 风格的 `mod` / `use`，也不把 `module` 作为它们的同义词。
 
-> `unsafe` 同样是硬关键字，但 v0.38 没有使用它的产生式。
+> `unsafe` 同样是硬关键字，但 v0.40 没有使用它的产生式。
 
 ## 上下文关键字与软关键字
 
@@ -79,7 +79,7 @@ value       loop        own         borrow      inout       move
 
 - `value`：仅在类型声明起始处修饰 `value class` 时作为关键字；在成员名（如 `node.value`、`owner.value`）、函数参数名（如 `println(value: String)`、`Ok(value: T)`）或局部变量名时均为普通 `Identifier`。
 - `loop`：仅在无条件循环语句（`loop { ... }`）起始处识别为控制流关键字；在成员名或变量名处为普通 `Identifier`。
-- `own` / `borrow` / `inout`：仅在具名函数参数模式（如 `own x: T`、`borrow y: T`、`inout z: T`）或函数类型签名（如 `(own T) -> R`）的参数模式位置识别为模式关键字；在方法调用或标识符位置（如 `cell.borrow()`、`own()`）均为普通 `Identifier`。
+- `own` / `borrow` / `inout`：仅在具名函数参数模式（如 `own x: T`、`borrow y: T`、`inout z: T`）、函数类型签名（如 `(own T) -> R`）或实例方法 receiver 声明的模式位置识别为模式关键字；在调用表达式或标识符位置（如 `borrow(x)`、`cell.borrow()`、`own()`）均为普通 `Identifier`。调用处不识别 `borrow` 模式标记。
 - `move`：仅在 lambda 表达式前缀（`move { ... }`）或逃逸函数类型前缀（`move () -> R`）识别为逃逸/移动捕获关键字；在成员名或方法调用位置（如 `player.move()`）均为普通 `Identifier`。
 
 ### 表达式中缀与接口软关键字
@@ -181,6 +181,9 @@ reify
 
 ### `String` 与插值
 
+本节定义字符串 token 与插值词法形态；无插值字面量仍是 `String`，
+类型与运行时契约见[String 规则](13-program-runtime-standard-library.md#string)。
+
 - 常规字符串由双引号包围，不得包含未转义 CR / LF。可用转义与 `Char` 相同，
   并额外允许 `\$`。v1 不支持三引号 / raw / 多行字符串。
 - `${` 开始字符串插值表达式，与它嵌套深度匹配的 `}` 结束插值并返回字符串
@@ -222,17 +225,20 @@ lexer 识别下列固定符号：
   ASCII `[A-Za-z0-9_]` 时才匹配；
   `!inside` 是 `!` 加 identifier `inside`。
 - `(` / `)` 和 `[` / `]` 始终是各自独立的 delimiter token，不是成对复合 token。
-- `inout`、`borrow`、`own`、`move`、`as`、`in`、`is` 的 keyword token 只记录词法分类；它们的
-  合法语法位置由 parser 决定。`own` 只可作为具名值参数或函数类型参数的声明端 mode，
-  不能出现在调用实参或普通表达式中。单字符 `&`
+- `as`、`in`、`is` 是硬关键字；`inout`、`borrow`、`own`、`move` 保持 Identifier，
+  仅在上文指定的声明或 lambda 上下文解释为 marker。`own x`、`borrow x`、`inout x`
+  都不是调用点模式语法；相应名称的普通调用仍按 Identifier 解析。单字符 `&`
   token 同样只记录词法分类，不预设语法位置：v1 唯一接受它的产生式是
   [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的调用实参 `Inout` 标注入口（如 `foo(&x)`），其余位置遇到 `&`
-  一律是语法错误，不是词法错误；Koven 的位运算采用 Kotlin 风格的命名中缀操作符（`and`、`or`、`xor` 等，见[表达式与运算符规则](04-expressions-operators.md)），不使用 `&` 作为按位与运算符。
-- `;` 在完整文件的顶层声明分隔以及 block / lambda 内同行多语句分隔时合法；它不属于
-  expression，独立声明入口仍要求匹配至 EOF。
+  一律是语法错误，不是词法错误；`&` 不具有按位与语义，不出现在通用表达式 prefix
+  或 binary 层级。具名 `and` 等位运算由[表达式规则](04-expressions-operators.md#整数具名位运算与移位)定义。
+- `;` 在完整文件的顶层声明分隔、[block element 分隔](06-blocks-control-flow.md#block-与函数-body)
+  与[lambda body 分隔](07-calls-lambdas-closures.md#lambda-literal)位置合法；它不属于 expression，
+  不扩张为无条件全局 statement terminator，也不改变独立声明入口要求 EOF 的契约。
 - `@` 是为 Phase 5 内建 `@Test` 预留的单字符 token；v1 不因此开放通用注解语法，
   在后续 guide 定义 `@Test` 的语法位置前，parser 应拒绝任何 `@` 用法。
-- v1 不支持把分号用作无条件的全局 statement terminator，也不支持 `++`、`--`、C 风格符号移位/位运算符（`<<`、`>>`、单个 `|`、`^`、`~` 等，Koven 统一使用具名中缀操作符 `shl`、`shr`、`ushr`、`and`、`or`、`xor`）、`#`、shebang 或 `...`；
+- v1 不支持 `++`、`--`、符号形式的 shift / bitwise 运算符 `<<`、`>>`、`|`、`^`、`~`、
+  `#`、shebang 或 `...`；
   它们不得因 Kotlin 或 C/Rust 中存在而被默认接受。若其中字符各自是合法固定符号（如 `++`、
   `--`、`<<`、`...`），lexer 只产生逐个最长合法 token，由 parser 拒绝该组合；没有单字符
   token 的 `#`、单个 `|` 等产生非法字符诊断。

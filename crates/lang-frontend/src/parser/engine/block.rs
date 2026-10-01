@@ -45,6 +45,28 @@ impl Parser<'_> {
         Ok(self.sources.slice(self.span(start, end)?)?.contains('\n'))
     }
 
+    pub(super) fn at_block_expression_line_break(
+        &self,
+        left: ExpressionId,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        // 本切片只处理普通 / control block；lambda 顶层 body 保持自己的 owner 契约。
+        // group、call、index 内部已清除 block soft stops，不受 element 换行边界影响。
+        if !stops.block_elements || stops.delimiters & Stops::LAMBDA_COMMA != 0 {
+            return Ok(false);
+        }
+        let current = self.current()?;
+        if !matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(
+                Symbol::LeftParen | Symbol::Plus | Symbol::Minus
+            ))
+        ) {
+            return Ok(false);
+        }
+        self.gap_has_line_break(self.expression_span(left)?.end(), current.span().start())
+    }
+
     pub(super) fn parse_block_root(&mut self) -> Result<StatementId, ParserInternalError> {
         if !self.current_is_symbol(Symbol::LeftBrace) {
             return self.parse_missing_block_root();
@@ -270,7 +292,12 @@ impl Parser<'_> {
             self.empty_at(self.previous_significant_end())?
         };
         let source = if self.can_start_expression(self.current()?) {
-            self.parse_expression_bp(0, outer_stops.with(Stops::RIGHT_PAREN))?
+            let source_stops = if opener.is_some() {
+                outer_stops.without_lambda_body_soft_stops()
+            } else {
+                outer_stops
+            };
+            self.parse_expression_bp(0, source_stops.with(Stops::RIGHT_PAREN))?
         } else {
             let span = self.boundary_span(self.current()?, outer_stops.with(Stops::RIGHT_PAREN))?;
             self.emit(codes::EXPECTED_CONDITION, "expected condition", span)?;

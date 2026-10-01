@@ -49,7 +49,7 @@ use crate::{
 
 use super::{
     ElementIndexIdentity, LoanKind, OwnershipBindingKind, OwnershipCheckingError,
-    OwnershipDeferredReason, RcOwnershipEffectKind, Transferability,
+    OwnershipDeferredReason, RcOwnershipEffectKind, Transferability, UnitStringOwnershipEffect,
 };
 
 /// typed call argument 在 ownership 阶段采用的规范契约。
@@ -671,6 +671,7 @@ pub struct CompilationUnitOwnership {
     loans: Vec<UnitLoanFact>,
     value_deliveries: Vec<UnitValueDeliveryFact>,
     rc_effects: Vec<UnitRcOwnershipEffect>,
+    string_effects: Vec<UnitStringOwnershipEffect>,
     construction_plans: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
     conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
@@ -764,6 +765,22 @@ impl CompilationUnitOwnership {
             receiver_facts: dataflow.receiver_facts,
             conditional_receiver_deliveries: dataflow.conditional_receiver_deliveries,
             delegations,
+            string_effects: if successful && dataflow.deferred.is_empty() {
+                typed
+                    .string_operations()
+                    .iter()
+                    .copied()
+                    .filter(|operation| {
+                        dataflow.loans.iter().any(|loan| {
+                            loan.call() == operation.expression()
+                                && loan.argument() == operation.receiver()
+                        })
+                    })
+                    .map(UnitStringOwnershipEffect::new)
+                    .collect()
+            } else {
+                Vec::new()
+            },
             loans: dataflow.loans,
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
@@ -901,6 +918,20 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn value_deliveries(&self) -> &[UnitValueDeliveryFact] {
         &self.value_deliveries
+    }
+
+    /// 返回已批准的 String 显式复制效果。
+    #[must_use]
+    pub fn string_effects(&self) -> &[UnitStringOwnershipEffect] {
+        &self.string_effects
+    }
+    /// 查询已批准的 String 显式复制效果。
+    #[must_use]
+    pub fn string_effect(&self, expression: UnitExpressionId) -> Option<UnitStringOwnershipEffect> {
+        self.string_effects
+            .iter()
+            .copied()
+            .find(|effect| effect.expression() == expression)
     }
 
     /// 返回源码顺序稳定的 intrinsic Rc retain/payload-borrow effects。

@@ -1,8 +1,8 @@
-# Koven v0.38：Block 与控制流
+# Koven v0.40：Block 与控制流
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Block 与函数 Body
 
@@ -113,25 +113,8 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
 
 ### Statement AST、Body 表示与 `Span`
 
-block AST 使用有 payload 的 statement table；所有 block element 都以有序
-`StatementId` 保存，不把 element 混入 expression table，也不创建无 `Span` 的源码字符串：
-
-- `Statement::Block { elements: Vec<StatementId> }` 表示独立、嵌套或函数体 block；
-- `Statement::LocalVariable { declaration: ItemId }` 引用按[声明规则](05-declarations-callables.md)构造的 `val` /
-  `var` item，禁止引用 `const val` 或 `fun` item；
-- `Statement::Expression { expression: ExpressionId }` 引用既有 expression；
-- `Statement::Error` 只覆盖本次实际消费的错误区域。
-
-实现可采用可证明同样保持 typed ID、顺序与下述范围的等价枚举命名，但不能把 block 降为
-`Vec<ExpressionId>`。函数 item 必须用一个合并的封闭 sum type 同时保存返回标注来源与 body，
-至少等价于 `ImplicitUnitAbsent | ImplicitUnitBlock(StatementId) | Explicit {
-colon_span: Span, type_ref: TypeRefId, body: FunctionBody }`；其中显式分支的 `FunctionBody` 才可为
-`Absent | Expression { equals_span: Span, expression: ExpressionId } | Block(StatementId)`。
-表达式体必须继续精确保存[声明规则](05-declarations-callables.md)规定的真实 `=` token `Span`。
-不得把返回标注和 body
-暴露为可独立构造的字段，不能制造 `ImplicitUnit + Expression`、“双 body”或“半个显式标注”
-状态，也不得为隐式 `Unit` 伪造 TypeRef / `:` Span。独立 block 入口返回带 `SourceId` 的
-statement root。
+statement table 与函数 body 的封闭表示见[Statement AST 工程合同](../compiler-specs/parser-ast.md#statement-table-与函数-body)；
+以下源码范围规则保持适用。
 
 | 节点 | 合成范围 |
 |---|---|
@@ -181,13 +164,12 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
   lexical owner；恢复必须复用[声明恢复规则](05-declarations-callables.md)预索引的 `L0004`–`L0006` terminal-owner 关系，不能把
   `InterpolationEnd` 当作 block closer，也不能在每个 block error 处重扫 Lexer 诊断。
 - unsupported / expected element 的最小恢复以“消费确定的错误引导 token 或错误 token”
-  为边界；block 内按确定的换行敏感边界或分号推进至下一 element，不得越过
-  当前 owner `}`。遗留 token 随后按允许的最大合法 element 规则解析；可能产生的独立错误
+  为边界；分号和语法换行只在已完成 element 的确定边界生效，按该边界推进下一 element，
+  不能据此猜测错误结构的完整范围。因此不得无条件按行跳过，也不得越过当前 owner `}`。
+  遗留 token 随后按允许的最大合法 element 规则解析；可能产生的独立错误
   必须各有真实根因，不能为同一未消费 token 重复发诊断。
 - 每次循环要么消费至少一个 raw lexeme，要么在 `}` / EOF 结束；诊断顺序按源码位置稳定。
-  对一段 block 输入，每个 lexeme 在 block dispatch 中至多前进一次，嵌套 parser 只处理自己
-  拥有的范围，整体保持 `O(n)` 时间和 `O(d)` owner / delimiter 栈空间，不从每个 element
-  重启 lexer 或扫描到 block 起点。
+  扫描次数与资源边界见[Block dispatch 工程合同](../compiler-specs/parser-algorithms.md#block-dispatch-资源约束)。
 
 缺 block `}` 复用 expected closing delimiter；Lexer 已诊断的未终止 owner 根因继续按[词法规则](01-lexical.md)
 抑制同义 closer 诊断。独立 block 后仍有 token 复用 unexpected trailing token。跨顶层声明、

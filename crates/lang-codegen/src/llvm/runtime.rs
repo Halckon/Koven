@@ -112,7 +112,16 @@ impl<'ctx> RuntimeAbi<'ctx> {
             let payload = module.heap_payload(owner).ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("heap owner 缺少已定义 payload".to_owned())
             })?;
-            let size = types.aggregate_layout(target, payload)?.store_size.max(1);
+            let size = if matches!(
+                module.type_kind(payload),
+                Some(SsaTypeKind::TaggedUnion { .. })
+            ) {
+                // Box<enum> stores the already-validated tagged value, with no extra wrapper.
+                target.get_store_size(&types.basic_type(payload)?)
+            } else {
+                types.aggregate_layout(target, payload)?.store_size
+            }
+            .max(1);
             if size > max_buffer_bytes {
                 return Err(LlvmAdapterError::Unsupported(
                     "heap allocation exceeds pointer index range".to_owned(),
@@ -1006,7 +1015,7 @@ impl RuntimeRequirements {
                         requirements.needs_print = true;
                         requirements.needs_abort = true;
                     }
-                    Operation::StringConcat { .. } => {
+                    Operation::StringConcat { .. } | Operation::StringClone { .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                     }

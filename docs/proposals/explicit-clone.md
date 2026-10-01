@@ -1,15 +1,19 @@
 # 显式 `clone()` 候选设计
 
-> **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审字符串复制能力或显式复制原语时 · **唯一真源**：现行语义仍以 [v0.37 guide](../guide/README.md) 为准
+> **性质**：非规范候选设计 · **状态**：String 部分已启用；其余候选未启用 · **读取时机**：仅在评审字符串复制能力或显式复制原语时 · **唯一真源**：现行语义仍以 [v0.40 guide](../guide/README.md) 为准
 
-本文不修改、取代或启用 Koven v0.37，也不批准 guide、Spec 或 ADR，不授权实现。它整理
-"为 `String` 增加显式 `clone()`"的候选契约与范围边界，供未来版本评审时使用。相关取舍见
+本文保留显式复制方案的讨论，不作为规范真源。2026-10-01 用户批准先落地 String.clone()，
+暂缓 Str 和 toString()；仅 builtin String 的 shared Borrow → 独立 owner 切片已进入
+[v0.40 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，由
+[SPEC-0236](../specs/active/0236-explicit-string-clone.md) 实施、
+[ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 固定增量 ABI。
+其他类型、泛型复制能力与 nullable 特例仍未启用；本页不批准它们。相关取舍见
 [String Copyable 候选取舍](string-copyability.md) 与
 [集合算法所有权候选取舍](collection-algorithm-ownership.md)。
 
-## 1. 问题与动机
+## 1. 启用前的问题与动机
 
-`String` 是 `MoveOnly`，而现行规范为它定义的封闭最小操作只有 `+`、`==` / `!=`、`println`
+`String` 是 `MoveOnly`；v0.38 启用 clone 前的封闭最小操作只有 `+`、`==` / `!=`、`println`
 和 `error`（[程序、Runtime 与标准库](../guide/13-program-runtime-standard-library.md)），
 **没有任何显式复制能力**。由此产生三个具体缺口：
 
@@ -22,7 +26,7 @@
 
 三个缺口的共同根因是同一个：`String` 缺少一个"以借用读入、以 owned 产出"的原语。
 
-## 2. 现行事实
+## 2. 保持不变的现行事实
 
 - 13 页规定 `String` 始终是 `MoveOnly` 且满足 `Transferable`，赋值、返回、Value delivery 与
   move closure capture 都转移唯一 owner，"不得隐式复制字节、retain 或建立共享 control block"。
@@ -36,13 +40,13 @@
   identity、receiver/payload 类型和 Borrow/Value effect；所有权阶段消费这些 facts，backend
   不得按成员名称字符串重新推导语义"。
 
-## 3. 候选契约
+## 3. 已选 String 契约的讨论记录
 
 ```kotlin
 text.clone(): String
 ```
 
-| 项 | 候选规定 |
+| 项 | 选中契约（规范以 v0.40 为准） |
 |---|---|
 | receiver | **shared `Borrow`**；不消费、不修改源 owner；源 owner 在调用后保持 Available |
 | 返回 | 内容相同（同一 UTF-8 字节序列）、**独立的新 `String` owner** |
@@ -111,7 +115,7 @@ fun makeTask(name: String): () -> String {
 
 ## 5. 范围边界
 
-候选倾向是**首轮只给 `String`**，理由：
+已批准切片是**首轮只给 `String`**，理由：
 
 1. `String` 是当前唯一有明确复制需求的 builtin 堆 owner 类型；
 2. 通用复制需要新的 marker 能力（类似 `Cloneable`）+ 泛型约束 + 每个类型的实现，是一次
@@ -127,7 +131,7 @@ fun makeTask(name: String): () -> String {
 | `Box<T>` | 不提供 | 同上 |
 | 普通 `class` | 不提供 | 引用语义，深拷贝语义需独立定义 |
 | `Rc<T>` | 不提供 | `share()` 已覆盖，且语义是共享而非复制 |
-| `String?` | 待决策 | 见 §8 |
+| `String?` | 无专属特例 | 沿用一般 nullable 规则；先获得非空 receiver，native inline-nullable ABI 仍延后 |
 
 后果需要明示：**`list.clone()`（容器深拷贝）在首轮不可用**，`list[0].clone()`（元素复制）
 可用。这是有意的范围收窄。
@@ -146,20 +150,19 @@ fun makeTask(name: String): () -> String {
 - 现行无需新增诊断码：`clone()` 是显式操作，调用点即成本点。
 - **不触发** 12 页已有的"隐式 `Copyable` 大值复制"警告：该警告针对隐式复制，而 `clone()`
   的成本由调用者显式写出。若未来仍希望提示超大副本，应作为独立候选评估。
-- 对 `String` 之外的类型调用 `clone()` 应产生稳定的"成员不存在"诊断，不新增特例。
+- 对没有合法同名 member 的其他类型调用 `clone()`，沿用稳定的"成员不存在"诊断；
+  普通用户同名 member 按原有规则处理，不冒充 String intrinsic。
 
-## 8. 待决策点
+## 8. 已决边界与后续候选
 
-1. **命名**：`clone()`（候选倾向，与既有 `share()` 风格一致、不与 `Copyable` 概念冲突）
-   还是 `copy()` / `dup()`；
-2. **`String?` 支持**：nullable receiver 需要额外规则（`null` 时返回 `null` 还是拒绝）；
-3. **是否同时纳入其他 builtin**：例如 `Array<T>` 的元素级复制是否值得同时提供；
-4. **是否发布泛型复制能力**：若未来引入，需先定义 marker 能力与约束传播规则，不能靠同名
-   成员约定；
-5. **与 `Rc.share()` 的文档一致性**：两者都是"借用 receiver → 新 owner"，但一个是深拷贝、
-   一个是共享计数，需要在 intrinsic 交付契约中明确区分。
+- 已决：名称为 `clone()`，零参数、零类型实参；receiver 为 shared Borrow，结果为独立 String
+  owner；非空含 static literal 均深拷贝，空串使用 canonical storage 但逻辑 owner 独立。
+- 已决：String 保持 immutable、MoveOnly、Transferable；显式 clone 不触发隐式 Copyable
+  大值复制警告，也不进入 const 求值；String? 不增加专属规则。
+- 后续候选：其他 builtin 的元素级复制、泛型复制能力、静态 Str 与 toString() 转换协议。
+  均需独立评审与 guide 启用，不能由本次 String 切片推导。
 
 ## 9. 非目标
 
 本文不提议修改 `Copyable` 定义、不提议引入 `Cloneable` 或泛型复制能力、不提议容器深拷贝、
-不提议 v1 内的 ARC/GC，也不把 `String` 特殊化视为已批准方向。
+不提议 v1 内的 ARC/GC，也不把已选的 String intrinsic 扩展为其他类型或隐式复制的批准。

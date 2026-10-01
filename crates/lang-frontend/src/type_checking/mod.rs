@@ -16,12 +16,15 @@ mod container;
 mod error;
 mod expression_use;
 mod iteration;
+mod literal_value;
 mod model;
 mod non_null_assertion;
 mod nullable_when;
+mod ownership_primitive;
 mod parameter;
 mod projection;
 mod rc;
+mod string;
 
 use std::{sync::Arc, thread};
 
@@ -41,12 +44,15 @@ pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;
 pub use iteration::*;
+pub use literal_value::integer_literal_magnitude;
 pub use model::*;
 pub use non_null_assertion::*;
 pub use nullable_when::*;
+pub use ownership_primitive::*;
 pub use parameter::*;
 pub use projection::*;
 pub use rc::*;
+pub use string::*;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。
 ///

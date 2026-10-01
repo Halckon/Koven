@@ -93,6 +93,23 @@ impl Checker<'_> {
         }
     }
 
+    pub(super) fn shared_receiver_place(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<OwnershipPlace>, OwnershipCheckingError> {
+        if let Some(operation) = self.typed.rc_operation(expression)
+            && operation.kind() == crate::type_checking::RcOperationKind::Value
+        {
+            return self.place(operation.receiver());
+        }
+        if let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(expression)?.payload()
+        {
+            return self.shared_receiver_place(*expression);
+        }
+        self.place(expression)
+    }
+
     pub(super) fn temporary_element_owner(
         &self,
         expression: ExpressionId,
@@ -146,12 +163,13 @@ impl Checker<'_> {
     ) -> Result<ElementIndexIdentity, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         let value = match node.payload() {
-            Expression::Literal(LiteralKind::Integer(_)) => self
-                .sources
-                .slice(node.span())?
-                .trim_end_matches(['L', 'l', 'U', 'u'])
-                .parse::<i128>()
-                .ok(),
+            Expression::Literal(LiteralKind::Integer(kind)) => {
+                crate::type_checking::integer_literal_magnitude(
+                    self.sources.slice(node.span())?,
+                    *kind,
+                )
+                .and_then(|value| i128::try_from(value).ok())
+            }
             Expression::Group { expression } => {
                 return self.element_index_identity(*expression);
             }
@@ -374,16 +392,7 @@ impl Checker<'_> {
         match mode {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
-                let rc_owner_place = self
-                    .typed
-                    .rc_operation(argument.value)
-                    .filter(|operation| {
-                        operation.kind() == crate::type_checking::RcOperationKind::Value
-                    })
-                    .map(|operation| self.place(operation.receiver()))
-                    .transpose()?
-                    .flatten();
-                if let Some(place) = rc_owner_place.or(self.place(argument.value)?) {
+                if let Some(place) = self.shared_receiver_place(argument.value)? {
                     if self.access_place(
                         &place,
                         AccessKind::SharedLoan,

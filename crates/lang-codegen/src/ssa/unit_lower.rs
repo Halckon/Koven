@@ -17,6 +17,7 @@ mod ownership;
 mod rc;
 mod receiver;
 mod scalar;
+mod string_clone;
 mod type_lower;
 mod type_plan;
 
@@ -682,6 +683,9 @@ impl UnitExpressionLowerer<'_> {
                 }
             };
         }
+        if self.typed.string_operation(unit_expression).is_some() {
+            return self.lower_string_clone(expression, span);
+        }
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
         }
@@ -1233,14 +1237,9 @@ fn parse_integer_literal(
     let text = sources
         .slice(span)
         .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
-    let digits = match kind {
-        IntegerLiteralKind::Unsuffixed => text,
-        IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => &text[..text.len() - 1],
-        IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
-    };
-    digits
-        .parse()
-        .map_err(|_| lowering_error(LoweringErrorKind::InvalidLiteral, span))
+    lang_frontend::type_checking::integer_literal_magnitude(text, kind)
+        .and_then(|value| i128::try_from(value).ok())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidLiteral, span))
 }
 
 fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError> {

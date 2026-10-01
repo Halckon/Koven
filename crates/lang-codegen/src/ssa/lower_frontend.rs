@@ -13,6 +13,7 @@ mod non_null_assertion;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod source_closure;
+mod string_clone;
 pub(in crate::ssa) mod string_literal;
 
 use std::collections::BTreeMap;
@@ -161,6 +162,9 @@ impl ExpressionLowerer<'_> {
         }
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
+        }
+        if self.typed.string_operation(expression).is_some() {
+            return self.lower_string_clone(expression);
         }
         if self.typed.rc_operation(expression).is_some() {
             return self.lower_rc_operation(expression);
@@ -1282,6 +1286,14 @@ impl ExpressionLowerer<'_> {
         if let LoanTarget::Place(target) = fact.target()
             && target.is_root()
             && let Some(loan) = self.borrow_bindings.get(&target.root()).copied()
+            && self
+                .function
+                .entity(EntityId::Loan(loan))
+                .map(|data| data.ty)
+                == Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: self.expression_ssa_type(argument, span)?,
+                })
         {
             return Ok((loan, false));
         }
@@ -1310,6 +1322,31 @@ impl ExpressionLowerer<'_> {
         target: &LoanTarget,
         span: Span,
     ) -> Result<PlaceId, LoweringError> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(argument)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        if let Expression::Group { expression } = node.payload() {
+            return self.lower_borrow_place(*expression, target, span);
+        }
+        if let LoanTarget::Temporary(temporary) = target
+            && let Some(element) = self.typed.element_place(argument)
+        {
+            let owner = self.require_value(*temporary)?;
+            let index = self.require_value(element.index())?;
+            let element_type = self.expression_ssa_type(argument, span)?;
+            let (_, results) = self.append(
+                Operation::ContainerElementPlace {
+                    owner: EntityId::Value(owner),
+                    index,
+                },
+                vec![EntityType::Place(element_type)],
+                span,
+            )?;
+            return Ok(place(results[0]));
+        }
         if let LoanTarget::Place(target) = target
             && !target.is_root()
             && let Some(place) = self.lower_borrowed_container_element(argument, target, span)?
@@ -1456,14 +1493,9 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<i128, LoweringError> {
         let text = self.source_slice(span)?;
-        let digits = match kind {
-            IntegerLiteralKind::Unsuffixed => text,
-            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => &text[..text.len() - 1],
-            IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
-        };
-        digits
-            .parse()
-            .map_err(|_| error(LoweringErrorKind::InvalidLiteral, span))
+        lang_frontend::type_checking::integer_literal_magnitude(text, kind)
+            .and_then(|value| i128::try_from(value).ok())
+            .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))
     }
 
     fn expression_ssa_type(

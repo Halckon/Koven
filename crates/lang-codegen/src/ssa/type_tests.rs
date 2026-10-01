@@ -97,6 +97,52 @@ fn heap_owner_declaration_supports_recursive_handles_and_rejects_bad_definitions
 }
 
 #[test]
+fn boxed_enum_payload_definitions_verify_recursive_indirection() {
+    let mut program = Program::default();
+    let module_id = program.add_module("boxed-enum");
+    let module = program.module_mut(module_id).unwrap();
+    let boxed = module.declare_heap_owner("Box<Expr>").unwrap();
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let leaf = module
+        .add_aggregate_type("Expr.Num", vec![integer])
+        .unwrap();
+    let branch = module
+        .add_aggregate_type("Expr.Add", vec![boxed, boxed])
+        .unwrap();
+    let enumeration = module
+        .add_tagged_union_type("Expr", vec![leaf, branch])
+        .unwrap();
+    module
+        .define_heap_owner(boxed, enumeration)
+        .expect("a tagged enum is a valid Box payload");
+    assert_eq!(module.heap_payload(boxed), Some(enumeration));
+    assert_eq!(module.type_ownership(boxed), Some(Ownership::MoveOnly));
+    assert_eq!(
+        module.type_ownership(enumeration),
+        Some(Ownership::MoveOnly)
+    );
+    verify_program(&program).expect("Box handles break the enum's inline cycle");
+    assert_eq!(render_program(&program), render_program(&program));
+
+    let module = program.module_mut(module_id).unwrap();
+    let SsaTypeKind::HeapOwner { payload, .. } = &mut module.types[boxed.index()] else {
+        panic!("heap owner");
+    };
+    *payload = Some(integer);
+    let errors =
+        verify_program(&program).expect_err("forged scalar Box payload must remain invalid");
+    assert!(
+        errors
+            .errors
+            .iter()
+            .any(|error| error.location == VerifyLocation::Type(boxed))
+    );
+}
+
+#[test]
 fn shared_owner_is_move_only_accepts_any_defined_payload_and_renders_stably() {
     let mut program = Program::default();
     let module_id = program.add_module("shared");

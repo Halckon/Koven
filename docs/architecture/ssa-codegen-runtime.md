@@ -66,7 +66,7 @@ unit native 计数覆盖前序 Rc Borrow temporary 与七类控制流 operand、
 SSA 使用独立 `Char` 类型与 `Char(u32)` 常量；verifier 只接受 Unicode scalar，并拒绝把它与
 UInt32 常量/类型互换。Char 为 Copyable，支持相等/不等而不进入整数算术或排序契约；LLVM
 映射和目标布局使用 i32。`char_constant_tests` 覆盖 scalar 边界、错误类型、Copy/call 返回类型、
-非恒定参数比较和确定 LLVM 输出。
+非恒定参数比较和确定 LLVM 输出。两入口的整数 lowering 复用[前端精确数值解码](names-and-types.md#数值字面量解码)，通过受检 i128 转换构造 SSA 常量；四条新 native 测试覆盖两入口 runtime/constant，各以 25 组新拼写对照十进制值实际 object/link/run，不扩展浮点或位运算。
 
 单文件 lowering 消费同一分析的 validated constants/materializations，逐 use 核对 descriptor，
 Boolean/整数/Char 生成 typed constant，String bytes 进入普通 `StringLiteral` temporary owner；
@@ -151,7 +151,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择。
 - ordinary/value class、enum、Box、字段投影和字段 replacement；
 - 顺序容器构造、element place/read/replace；
 - closure environment、capture 与 callable thunk；
-- String owner/operation、Rc retain/release/payload loan；
+- String owner/operation（含 [StringClone](string-clone.md)）、Rc retain/release/payload loan；
 - pointer-like nullable handle；
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 
@@ -175,7 +175,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 - Borrow/Inout 以 pointer-like loan operand 传递，Value 按具体表示传递；instance receiver 位于显式
   argument 之前。
 - ordinary class、Box、Rc 和 String 使用明确的 owner/runtime 表示；value class 和 enum 使用 concrete
-  aggregate/tagged 表示。
+  aggregate/tagged 表示。HeapOwner payload 已接受 tagged union；单文件 Box 延迟定义 payload，与 unit 路径一样打断非 nullable enum 递归。两入口的具体非泛型 Box enum 已验证构造/运输/递归释放：简单 cases 2 次、四层树与 inline root 共 45 次分配/释放，逐指针计数；不证明解引用、generic 或 nullable 递归。
 - drop glue 由 concrete type 递归生成；Rc retain/release、String allocation/free、container buffer、
   abort 和 stdout 通过集中 runtime helper 发出。
 - nullable handle 使用 null niche 和条件 drop；不把所有 nullable 类型统一强制成 pointer。

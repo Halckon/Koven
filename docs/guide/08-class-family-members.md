@@ -1,8 +1,8 @@
-# Koven v0.38：Class Family、成员与 Receiver
+# Koven v0.40：Class Family、成员与 Receiver
 
-> **性质**：规范性语言规范 · **状态**：current（v0.38） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审 class/value/interface/enum/object、成员与 receiver 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.38 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Value Class
 
@@ -44,8 +44,8 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   仍须遵守 callee 的 `Value` / `Borrow` / `Inout` 契约；`Inout` 在调用点仍强制要求显式
   标注，不因类型可复制而省略——**这是唯一强制要求调用点 marker 的契约，调用点写作符号
   `&`（例如 `mutate(&x)`），不是关键字 `inout`；关键字 `inout` 只出现在声明侧**，理由见
-  [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的设计说明。`Value` 与 `Borrow` 均不要求调用点 marker
-  （`borrow` 仍可选择显式写出，纯粹为了可读性）。
+  [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的设计说明。`Value` 与 `Borrow` 均不写调用点 marker；
+  `Borrow` 由 callee 契约自动确定，调用点 `borrow x` 不是合法语法。
   因此若声明是 `fun consume(own value: T)`，`consume(x)` 对 `Copyable` 的 `x` 交付一个
   owned copy，对不可复制的 `x` 则移动
   原值，调用点都不需要额外标注。
@@ -505,6 +505,13 @@ class MutexGuard(val mutex: Mutex) {
    - `deinit` 无参数，返回类型固定为 `Unit`；
    - `deinit` 不允许携带访问修饰符（`public`/`private`/`internal`），不可被外部代码作为普通方法显式调用（用户代码禁止写 `guard.deinit()`，必须由编译器在生命周期终止点自动插入析构调用）；
    - 每个 class 最多只能声明一个 `deinit` 成员。
+   - body 中的 `this` 固定为当前实例的只读 `Borrow`；可读取字段、复制 `Copyable` 字段或
+     建立同步 shared reborrow，但不能变异字段、建立 exclusive loan、移出 `MoveOnly` 字段，
+     也不能把 `this` 再次作为 owned value 消费或显式析构自身。
+   - 一次正常析构先完整执行用户 `deinit` body；body 正常返回后，再按字段声明顺序的逆序
+     递归析构仍由该实例拥有的字段，最后释放实例存储。字段在 body 执行期间保持可读取，
+     不得先析构字段再运行 body，也不得重复析构同一 owner。body 中的 `error()` 仍是 abort，
+     不新增异常展开或保证 abort 后继续字段清理。
 2. **能力与生命周期约束**：
    - 声明了 `deinit` 的 class 必然是 `MoveOnly` 类型，且不得满足 `Copyable`；
    - 声明了 `deinit` 的类型属于**资源类型**，在所有权分析中激活**词法作用域逆序析构（Lexical Scope Drop）**，保障其生命周期严格维持至作用域结束（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）。

@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::ConstructionOwnershipPlan;
-use super::RcOwnershipEffect;
+use super::{RcOwnershipEffect, StringOwnershipEffect};
 
 /// 可由 Phase 3 精确识别的源码 place。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -603,6 +603,7 @@ pub struct OwnershipCheckedFile {
     drops: Vec<DropFact>,
     construction_plans: Vec<ConstructionOwnershipPlan>,
     rc_effects: Vec<RcOwnershipEffect>,
+    string_effects: Vec<StringOwnershipEffect>,
     captures: Vec<ClosureCaptureDescriptor>,
     closures: Vec<ClosureDescriptor>,
     transferabilities: Vec<Transferability>,
@@ -622,6 +623,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) drops: Vec<DropFact>,
     pub(crate) construction_plans: Vec<ConstructionOwnershipPlan>,
     pub(crate) rc_effects: Vec<RcOwnershipEffect>,
+    pub(crate) string_effects: Vec<StringOwnershipEffect>,
     pub(crate) captures: Vec<ClosureCaptureDescriptor>,
     pub(crate) closures: Vec<ClosureDescriptor>,
     pub(crate) transferabilities: Vec<Transferability>,
@@ -718,6 +720,7 @@ impl OwnershipCheckedFile {
             drops: parts.drops,
             construction_plans: parts.construction_plans,
             rc_effects: parts.rc_effects,
+            string_effects: parts.string_effects,
             captures: parts.captures,
             closures: parts.closures,
             transferabilities: parts.transferabilities,
@@ -807,6 +810,20 @@ impl OwnershipCheckedFile {
         self.construction_plans
             .iter()
             .find(|plan| plan.construction() == expression)
+    }
+
+    /// 返回已批准的 String 显式复制效果。
+    #[must_use]
+    pub fn string_effects(&self) -> &[StringOwnershipEffect] {
+        &self.string_effects
+    }
+    /// 查询已批准的 String 显式复制效果。
+    #[must_use]
+    pub fn string_effect(&self, expression: ExpressionId) -> Option<StringOwnershipEffect> {
+        self.string_effects
+            .iter()
+            .copied()
+            .find(|effect| effect.expression() == expression)
     }
 
     /// 返回源码顺序稳定的 intrinsic `Rc<T>` ownership effects。
