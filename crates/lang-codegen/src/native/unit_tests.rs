@@ -1793,8 +1793,8 @@ fn value_interface_default_move_only_and_copyable_specializations_link_and_run()
          value class Counter(val item: Int): Finishable {}\n\
          fun entry(): Unit {\n\
              val counter = Counter(1)\n\
-             val actual = Resource().forward() + counter.forward() + counter.forward()\n\
-                 + Resource().choose(true) + counter.choose(false)\n\
+             val actual = Resource().forward() + counter.forward() + counter.forward() +\n\
+                 Resource().choose(true) + counter.choose(false)\n\
              if (actual == 200) { println(\"value-default\") }\
              else { error(\"wrong Value receiver default\") }\n\
          }",

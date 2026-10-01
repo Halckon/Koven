@@ -7,6 +7,9 @@ impl Parser<'_> {
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         loop {
+            if self.at_block_expression_line_break(receiver, stops)? {
+                break;
+            }
             if matches!(
                 self.ast.expressions().get(receiver)?.payload(),
                 Expression::Error

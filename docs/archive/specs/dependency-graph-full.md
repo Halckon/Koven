@@ -227,6 +227,7 @@ subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
   S0231["S0231<br/>上下文 TypeRef 与严格调用试探一致性"]
+  S0234["S0234<br/>普通 block 的换行表达式边界"]
   S0236["S0236<br/>String.clone 显式深拷贝端到端"]
 end
 S0001 --> S0002
@@ -1379,4 +1380,5 @@ S0226 --> S0227
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
 | SPEC-0231 | active | [0231-contextual-type-ref-trials.md](../../specs/active/0231-contextual-type-ref-trials.md) |
+| SPEC-0234 | active | [0234-block-newline-continuation.md](../../specs/active/0234-block-newline-continuation.md) |
 | SPEC-0236 | active | [0236-explicit-string-clone.md](../../specs/active/0236-explicit-string-clone.md) |

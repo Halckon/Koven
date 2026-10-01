@@ -52,6 +52,13 @@ Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调�
 Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
 在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
 
+普通/control/nested block 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
+时归还 block dispatch；局部 initializer 复用该边界。group/call/index 内的 block soft stop
+已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。
+typed-call 试探、独立 expression 与顶层
+initializer 保持既有入口行为。lambda 顶层 body 保留独立 owner，内嵌普通 block 使用自己的
+换行边界。同行缺分隔符诊断和 lambda 顶层换行仍不属于当前已闭合实现。
+
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。
 

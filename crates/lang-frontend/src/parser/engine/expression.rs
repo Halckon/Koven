@@ -22,7 +22,7 @@ impl Parser<'_> {
 
         loop {
             let current = self.current()?;
-            if stops.contains(current) {
+            if stops.contains(current) || self.at_block_expression_line_break(left, stops)? {
                 break;
             }
             if stops.when_entry_body

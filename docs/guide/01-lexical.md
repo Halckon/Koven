@@ -228,12 +228,12 @@ lexer 识别下列固定符号：
   [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的调用实参 `Inout` 标注入口，其余位置遇到 `&`
   一律是语法错误，不是词法错误；v1 不提供按位与运算符，`&` 不出现在通用表达式 prefix
   或 binary 层级（该用途留给 v2 位运算符设计）。
-- `;` 只在完整文件的顶层声明分隔位置合法；它不属于
-  expression，不分隔 block element，也不改变独立声明入口要求 EOF 的契约。
+- `;` 在完整文件的顶层声明分隔位置和 [block element 分隔](06-blocks-control-flow.md)位置合法；
+  它不属于 expression，也不改变独立声明入口要求 EOF 的契约。
 - `@` 是为 Phase 5 内建 `@Test` 预留的单字符 token；v1 不因此开放通用注解语法，
   在后续 guide 定义 `@Test` 的语法位置前，parser 应拒绝任何 `@` 用法。
-- v1 不支持把分号用作通用 statement terminator，也不支持 `++`、`--`、除 `&` 外的
-  shift / bitwise 运算符、`#`、shebang 或 `...`；
+- v1 不把分号扩展到上述产生式之外；也不支持 `++`、`--`、除 `&` 外的
+  shift / bitwise 符号运算符、`#`、shebang 或 `...`；
   它们不得因 Kotlin 中存在而被默认接受。若其中字符各自是合法固定符号（如 `++`、
   `--`、`<<`、`...`），lexer 只产生逐个最长合法 token，由 parser 拒绝该组合；没有单字符
   token 的 `#`、单个 `|` 等产生非法字符诊断。
