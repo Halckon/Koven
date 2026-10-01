@@ -1,19 +1,19 @@
 # SPEC-0182：顺序容器 `for` frontend→SSA→native 集成
 
-> **性质**：draft Spec · **状态**：draft（v0.37 已启用，按依赖排期） · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `draft` |
+| 状态 | `approved` |
 | Goal ID | `KOV-P4-182` |
 | 所属 Phase | Phase 4 |
-| 语言规范 | [现行 v0.37 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
+| 语言规范 | [现行 v0.37 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
 | 批准依据 | 2026-09-19 用户明确启用 v0.37；按持续 Goal 顺序推进 |
-| 前置 Spec | SPEC-0034、0036、0179、0184、0192、0195、0212 `done`；SPEC-0211 待完成 |
-| 前置 ADR | [ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
-| 阻塞项 | SPEC-0211 `done` |
+| 前置 Spec | SPEC-0034、0036、0179、0184、0192、0195、0211、0212 `done` |
+| 前置 ADR | [ADR-0023](../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
+| 阻塞项 | 无；前置均已满足，当前顺序切片 |
 | 影响范围 | `lang-codegen` frontend lowering/SSA/LLVM/native tests；Architecture |
 | 语言语义变更 | 否；实现启用后的 v0.37 executable `for` |
 
@@ -91,7 +91,7 @@ LLVM adapter 不认识 AST。
 
 ## 10. 验证记录
 
-实施前按[分层验收](../../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
+实施前按[分层验收](../../development/testing.md)将第 5 节各项映射到实际测试目标/过滤器；
 记录命中数、结果与未运行原因。同一状态下的有效证据只运行一次，不默认运行 frontend 全量。
 
 | 命令 / 检查 | 结果 | 备注 |
@@ -105,3 +105,6 @@ LLVM adapter 不认识 AST。
 
 2026-09-19 启用记录：v0.37 已启用、ADR-0023 accepted；temporary source 纳入首轮 native。
 上方重基时的未启用说明是历史记录，不再是当前阻塞项；实现/验收尚未完成。
+
+2026-10-01 前置满足与激活记录：SPEC-0211 已完成全部 Phase 3 验收并归档为 done，阻塞项消除；
+本 Spec 正式激活为 approved 并进入 Phase 4 实施阶段。

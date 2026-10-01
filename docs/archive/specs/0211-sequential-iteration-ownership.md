@@ -1,19 +1,19 @@
 # SPEC-0211：顺序迭代 source/element loan 与退出清理
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：追溯 SPEC-0211 交付证据时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-211` |
 | 所属 Phase | Phase 3 |
 | 语言规范 | [现行 v0.37 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
 | 批准依据 | 2026-09-19 用户明确启用 v0.37；按持续 Goal 顺序推进 |
 | 前置 Spec | SPEC-0029、0030、0032、0179 `done` |
 | 前置 ADR | [ADR-0023](../../adr/accepted/0023-borrowed-sequential-iteration-provider.md) `accepted` |
-| 阻塞项 | 无；前置已满足，当前顺序切片 |
+| 阻塞项 | 无；前置均已满足，验收完成 |
 | 影响范围 | `lang-frontend` iteration ownership/loan/liveness/drop/capture facts、fixtures；Architecture |
 | 语言语义变更 | 否；实施启用后的 v0.37 iteration lifecycle |
 

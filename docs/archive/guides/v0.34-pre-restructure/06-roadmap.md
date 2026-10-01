@@ -403,7 +403,7 @@ v0.27 已封闭 capture / `Transferable` 语义并由 SPEC-0032 完成实施。
 - [ ] **[SPEC-0208](../../specs/0208-constant-materialization-ownership.md)（draft）**：消费 0026，
       把 scalar/Char const use 作为 Copyable inline value、String const use 作为独立 temporary
       owner，禁止 global owner/capture/init/drop；等待候选启用。
-- [ ] **[SPEC-0211](../../../specs/active/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
+- [ ] **[SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)（draft）**：消费 0179，为
       named/field/Borrow/Inout/temporary source 建立 whole-loop shared loan、逐轮 element/component
       Borrow binding 与 normal/continue/break/exhaustion/return cleanup；复用 L0131/L0133–L0138，
       等待 v0.37/ADR-0023。
@@ -482,7 +482,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [ ] **[SPEC-0182](../../../specs/drafts/v0.37/0182-sequential-for-lowering.md)（draft）**：只消费 0179/0211/0212
+- [ ] **[SPEC-0182](../../../specs/active/0182-sequential-for-lowering.md)（draft）**：只消费 0179/0211/0212
       validated facts，把真实 `for` 接到无分配 preheader/header/body/exit SSA、LLVM 与 native；
       覆盖 Borrow binding、value-class projection 和全部 jump/drop，不依赖 0181/0191 或 0046，
       等待 v0.37/ADR-0023 及前置 Spec 完成。v0.37 typed/ownership 接受 Inout/field source，但

@@ -1,14 +1,14 @@
 # v0.37 分阶段实施
 
-> **性质**：分阶段 Spec 索引 · **状态**：guide 已启用 / typed plan 与 SSA primitive 已完成 / ownership 实施中 · **读取时机**：实施 v0.37 借用式迭代时 · **唯一真源**：各 Spec
+> **性质**：分阶段 Spec 索引 · **状态**：guide 已启用 / Phase 2+3 已完成 / Phase 4 实施中 · **读取时机**：实施 v0.37 借用式迭代时 · **唯一真源**：各 Spec
 
 2026-09-19 用户明确启用 v0.37，temporary source 纳入首轮 native；ADR-0023 已 accepted。
-按依赖顺序推进，SPEC-0179/0212 已完成归档，SPEC-0211 仍在 active，SPEC-0182 保持 draft：
+按依赖顺序推进，SPEC-0179/0211/0212 已完成归档，SPEC-0182 进入 active：
 
 - [SPEC-0179](../../../archive/specs/0179-sequential-iteration-typed-plan.md)：typed iteration plan（done）
-- [SPEC-0211](../../active/0211-sequential-iteration-ownership.md)：iteration ownership（in-progress）
+- [SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)：iteration ownership（done）
 - [SPEC-0212](../../../archive/specs/0212-borrowed-sequential-iteration-ssa.md)：SSA provider primitive（done）
-- [SPEC-0182](0182-sequential-for-lowering.md)：完整 `for` lowering
+- [SPEC-0182](../../active/0182-sequential-for-lowering.md)：完整 `for` lowering（approved）
 
 现行语义见[顺序迭代 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider)；
 内部 provider 边界见[ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md)。

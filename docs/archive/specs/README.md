@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 212 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 213 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -198,6 +198,7 @@
 - [SPEC-0181](./0181-instance-receiver-ownership.md)：instance receiver ownership
 - [SPEC-0188](./0188-constructor-ownership-effects.md)：构造 Value delivery 与所有权效果
 - [SPEC-0198](./0198-multifile-ownership-checking.md)：跨文件所有权检查
+- [SPEC-0211](./0211-sequential-iteration-ownership.md)：顺序迭代 source/element loan 与退出清理
 - [SPEC-0215](./0215-lambda-body-result-drop-facts.md)：lambda body 隐式结果析构事实
 - [SPEC-0216](./0216-control-result-drop-facts.md)：MoveOnly control result 析构事实
 - [SPEC-0217](./0217-lambda-value-parameter-drop-facts.md)：lambda Value 参数入口析构事实

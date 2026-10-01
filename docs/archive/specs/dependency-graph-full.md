@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，212 份）"]
+subgraph Garchive["已完成（archive，213 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -205,6 +205,7 @@ subgraph Garchive["已完成（archive，212 份）"]
   S0208["S0208<br/>常量重新物化与所有权事实"]
   S0209["S0209<br/>关联常量 SSA/LLVM 重新物化"]
   S0210["S0210<br/>跨文件关联常量集成"]
+  S0211["S0211<br/>顺序迭代 source/element loan 与退出清理"]
   S0212["S0212<br/>借用式顺序迭代 SSA/LLVM primitives"]
   S0213["S0213<br/>尾 lambda 调用 Parser"]
   S0214["S0214<br/>隐式 it lambda 参数"]
@@ -223,9 +224,6 @@ subgraph Garchive["已完成（archive，212 份）"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
 end
 subgraph Gactive["现行 active"]
-  S0211["S0211<br/>顺序迭代 source/element loan 与退出清理"]
-end
-subgraph Gdrafts_v037["v0.37（draft）"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
 end
 S0001 --> S0002
@@ -1354,6 +1352,7 @@ S0226 --> S0227
 | SPEC-0208 | archive | [0208-constant-materialization-ownership.md](0208-constant-materialization-ownership.md) |
 | SPEC-0209 | archive | [0209-associated-constant-lowering.md](0209-associated-constant-lowering.md) |
 | SPEC-0210 | archive | [0210-multifile-associated-constants.md](0210-multifile-associated-constants.md) |
+| SPEC-0211 | archive | [0211-sequential-iteration-ownership.md](0211-sequential-iteration-ownership.md) |
 | SPEC-0212 | archive | [0212-borrowed-sequential-iteration-ssa.md](0212-borrowed-sequential-iteration-ssa.md) |
 | SPEC-0213 | archive | [0213-trailing-lambda-call-parser.md](0213-trailing-lambda-call-parser.md) |
 | SPEC-0214 | archive | [0214-implicit-it-lambda-parameter.md](0214-implicit-it-lambda-parameter.md) |
@@ -1370,5 +1369,4 @@ S0226 --> S0227
 | SPEC-0225 | archive | [0225-parameter-growing-runtime-type-cycles.md](0225-parameter-growing-runtime-type-cycles.md) |
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
-| SPEC-0211 | active | [0211-sequential-iteration-ownership.md](../../specs/active/0211-sequential-iteration-ownership.md) |
-| SPEC-0182 | drafts/v0.37 | [0182-sequential-for-lowering.md](../../specs/drafts/v0.37/0182-sequential-for-lowering.md) |
+| SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
