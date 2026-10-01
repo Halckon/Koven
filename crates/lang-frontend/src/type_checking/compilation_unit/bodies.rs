@@ -26,10 +26,14 @@ mod non_null_assertion;
 mod nullable;
 mod projection;
 mod rc;
+mod string;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
-pub use {assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*};
+pub use {
+    assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
+    string::*,
+};
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -550,6 +554,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) destructurings: Vec<UnitDestructuringDescriptor>,
     pub(crate) runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
+    pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
     pub(crate) nullable: UnitNullableFacts,
@@ -583,6 +588,7 @@ pub struct CompilationUnitTypes {
     destructurings: Vec<UnitDestructuringDescriptor>,
     runtime_field_layouts: Vec<UnitRuntimeFieldLayoutDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
+    string_operations: Vec<UnitStringOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
     nullable: UnitNullableFacts,
@@ -618,6 +624,7 @@ impl CompilationUnitTypes {
             destructurings: parts.destructurings,
             runtime_field_layouts: parts.runtime_field_layouts,
             rc_operations: parts.rc_operations,
+            string_operations: parts.string_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             nullable: parts.nullable,
@@ -737,6 +744,24 @@ impl CompilationUnitTypes {
             .iter()
             .copied()
             .find(|projection| projection.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的 String intrinsic 操作。
+    #[must_use]
+    pub fn string_operations(&self) -> &[UnitStringOperationDescriptor] {
+        &self.string_operations
+    }
+
+    /// 查询已绑定 receiver 的显式 String 操作。
+    #[must_use]
+    pub fn string_operation(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitStringOperationDescriptor> {
+        self.string_operations
+            .iter()
+            .copied()
+            .find(|operation| operation.expression() == expression)
     }
 
     /// 返回源码稳定顺序的 intrinsic `Rc<T>` operation facts。

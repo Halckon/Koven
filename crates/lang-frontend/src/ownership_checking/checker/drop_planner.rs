@@ -549,6 +549,28 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if self.checker.is_constant_use(id) {
             return Ok(true);
         }
+        if let Some(operation) = self.checker.typed.string_operation(id) {
+            state.pending_calls.push(pending_call::PendingCall::new(
+                id,
+                self.loop_boundaries.len(),
+            ));
+            if !self.expression(operation.receiver(), ExpressionUse::Place, state)? {
+                return Ok(false);
+            }
+            self.register_pending_argument(id, operation.receiver(), ParameterMode::Borrow, state)?;
+            let roots = self.end_pending_calls(LoanEndPoint::CallReturn(id), state, |frame| {
+                frame.call == id
+            });
+            self.drop_nullable_temporaries(DropPoint::CallReturn(id), state, |temporary| {
+                temporary.control == id
+            });
+            for root in roots {
+                if !self.liveness.expression_after[id.index()].contains(&root) {
+                    self.drop_named(DropPoint::CallReturn(id), root, state);
+                }
+            }
+            return Ok(true);
+        }
         if let Some(operation) = self.checker.typed.rc_operation(id) {
             if let Some(place) = self.checker.place(operation.receiver())? {
                 let root = place.root();

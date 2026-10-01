@@ -420,6 +420,24 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, value.into());
             }
+            Operation::StringClone { source } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string clone", 1, results.len()));
+                };
+                let value = string::clone_owner(
+                    self.context,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    self.dependencies
+                        .type_map
+                        .basic_type(value_type(self.function, *result)?)?
+                        .into_struct_type(),
+                    self.string_view(EntityId::Loan(*source))?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
             Operation::StringEqual { left, right } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string equal", 1, results.len()));

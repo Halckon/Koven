@@ -226,6 +226,7 @@ end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0236["S0236<br/>String.clone 显式深拷贝端到端"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1090,6 +1091,7 @@ S0192 --> S0182
 S0192 --> S0194
 S0192 --> S0199
 S0192 --> S0209
+S0192 --> S0236
 S0193 --> S0054
 S0193 --> S0194
 S0194 --> S0054
@@ -1375,3 +1377,4 @@ S0226 --> S0227
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
+| SPEC-0236 | active | [0236-explicit-string-clone.md](../../specs/active/0236-explicit-string-clone.md) |

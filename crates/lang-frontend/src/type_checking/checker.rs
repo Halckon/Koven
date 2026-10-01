@@ -17,6 +17,7 @@ mod nominal;
 mod ownership_primitives;
 mod projection;
 mod rc;
+mod string;
 mod trial;
 mod type_inference;
 mod type_ref;
@@ -48,9 +49,9 @@ use super::{
     EnvironmentFunction, EnvironmentType, ExpressionCategory, ExternalTypeBinding,
     FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor, NominalId, NominalKind,
     NonNullUseDescriptor, NullComparisonDescriptor, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor, SequentialContainerKind, TypeCheckingError, TypeEnvironment, TypeId,
-    TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable, TypedFile, TypedFileParts,
-    collect_expression_uses,
+    RcOperationDescriptor, SequentialContainerKind, StringOperationDescriptor, TypeCheckingError,
+    TypeEnvironment, TypeId, TypeKind, TypeParameterBound, TypeParameterDescriptor, TypeTable,
+    TypedFile, TypedFileParts, collect_expression_uses,
 };
 use argument_mapping::{MappedParameter, MappingError, parameter_mode_span};
 use flow::FlowKey;
@@ -157,6 +158,7 @@ struct Checker<'a> {
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
+    string_operations: Vec<StringOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
@@ -352,6 +354,7 @@ impl<'a> Checker<'a> {
             constructions: Vec::new(),
             aggregate_projections: Vec::new(),
             rc_operations: Vec::new(),
+            string_operations: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
@@ -522,6 +525,7 @@ impl<'a> Checker<'a> {
                 constructions: self.constructions,
                 aggregate_projections: self.aggregate_projections,
                 rc_operations: self.rc_operations,
+                string_operations: self.string_operations,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,
             },

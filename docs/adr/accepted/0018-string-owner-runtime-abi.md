@@ -120,6 +120,8 @@ O(n) 成本，且不能表达 slice 的有效读范围。
 
 ## 关联
 
+- 增量扩展：[ADR-0027 String 显式深拷贝 ABI](0027-explicit-string-clone-abi.md)；本 ADR 原决定继续有效
+
 - 首个实施 Spec：[SPEC-0192](../../archive/specs/0192-general-string-runtime.md)
 - 解锁：SPEC-0194 参数化 main、后续一般 String/IO API
 - 相关 ADR：[ADR-0006](./0006-typed-ssa-block-parameters.md)、

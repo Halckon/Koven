@@ -1006,7 +1006,7 @@ impl RuntimeRequirements {
                         requirements.needs_print = true;
                         requirements.needs_abort = true;
                     }
-                    Operation::StringConcat { .. } => {
+                    Operation::StringConcat { .. } | Operation::StringClone { .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                     }

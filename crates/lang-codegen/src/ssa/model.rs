@@ -332,6 +332,10 @@ pub(crate) enum Operation {
         left: EntityId,
         right: EntityId,
     },
+    /// 深拷贝 active shared String loan，产生独立的唯一 owner。
+    StringClone {
+        source: LoanId,
+    },
     /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
     StringEqual {
         left: EntityId,
@@ -539,6 +543,7 @@ impl Operation {
                 vec![*left, *right]
             }
             Self::PrintString { value } => vec![EntityId::Loan(*value)],
+            Self::StringClone { source } => vec![EntityId::Loan(*source)],
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
             | Self::Compare { left, right, .. } => {

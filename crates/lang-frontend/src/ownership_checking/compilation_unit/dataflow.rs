@@ -12,6 +12,7 @@ mod places;
 mod rc;
 mod receiver;
 mod short_circuit;
+mod string;
 mod traversal;
 
 use std::collections::BTreeMap;

@@ -306,6 +306,9 @@ impl Checker<'_> {
         {
             return self.check_construction(descriptor, state, usage);
         }
+        if let Some(descriptor) = self.typed.string_operation(self.unit_expression(id)) {
+            return self.check_string_operation(descriptor, state);
+        }
         if let Some(descriptor) = self.typed.rc_operation(self.unit_expression(id)) {
             return self.check_rc_operation(descriptor, state, usage);
         }

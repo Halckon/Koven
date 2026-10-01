@@ -7,7 +7,7 @@ use crate::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerConstructionDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
         ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor, ParameterMode,
-        RcOperationDescriptor, TypeId, TypeTable,
+        RcOperationDescriptor, StringOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -39,6 +39,7 @@ pub(super) struct TrialState {
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
+    string_operations: Vec<StringOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
@@ -67,6 +68,7 @@ impl Checker<'_> {
             constructions: self.constructions.clone(),
             aggregate_projections: self.aggregate_projections.clone(),
             rc_operations: self.rc_operations.clone(),
+            string_operations: self.string_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -94,6 +96,7 @@ impl Checker<'_> {
         self.constructions = state.constructions;
         self.aggregate_projections = state.aggregate_projections;
         self.rc_operations = state.rc_operations;
+        self.string_operations = state.string_operations;
         self.container_constructions = state.container_constructions;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;

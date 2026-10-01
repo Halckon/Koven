@@ -13,3 +13,5 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [v0.34 文档结构迁移账本](migrations/v0.34-document-restructure.md)
 
 - [v0.37 启用迁移账本](migrations/v0.37-enablement.md)
+
+- [v0.39 启用迁移账本](migrations/v0.39-enablement.md)

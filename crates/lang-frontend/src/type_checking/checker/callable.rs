@@ -62,6 +62,15 @@ impl Checker<'_> {
         )? {
             return Ok(result);
         }
+        if let Some(result) = self.check_string_clone_call(
+            expression,
+            call_span,
+            callee,
+            &type_arguments,
+            &arguments,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) =
             self.check_rc_share_call(expression, call_span, callee, &type_arguments, &arguments)?
         {

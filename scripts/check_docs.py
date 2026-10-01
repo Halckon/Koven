@@ -33,7 +33,8 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*v0\.38\s*-->")
+CURRENT_GUIDE_VERSION = "v0.39"
+CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
 SCOPED_AGENT_DIRS = (
     "lang-frontend",
     "lang-codegen",
@@ -64,9 +65,9 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
     "v0.37": frozenset(),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0182", "0228", "0236"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
-    {*(f"{number:04d}" for number in range(1, 25)), "0026"}
+    {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027"}
 )
 EXPECTED_PROPOSED_ADR_IDS: frozenset[str] = frozenset({"0025"})
 EXPECTED_ARCHIVED_ADR_IDS: frozenset[str] = frozenset()
@@ -432,15 +433,22 @@ class DocsChecker:
         )
 
     def check_current_guide(self) -> None:
-        live_texts = [
-            path.read_text(encoding="utf-8")
+        live_markers = [
+            (path, version)
             for path in self.files
             if "docs/archive/" not in relative(path, self.root)
+            for version in CURRENT_GUIDE_RE.findall(path.read_text(encoding="utf-8"))
         ]
-        count = sum(len(CURRENT_GUIDE_RE.findall(text)) for text in live_texts)
+        count = len(live_markers)
         if count != 1:
             self.error(f"current guide marker 必须恰好一个，实际为 {count}")
         guide = self.docs / "guide"
+        for path, version in live_markers:
+            if path != guide / "README.md" or version != CURRENT_GUIDE_VERSION:
+                self.error(
+                    f"{relative(path, self.root)}: current guide marker 必须位于 "
+                    f"docs/guide/README.md 且版本为 {CURRENT_GUIDE_VERSION}，实际为 {version}"
+                )
         expected = {guide / "README.md"} | {
             guide / f"{number:02d}-{name}.md"
             for number, name in enumerate(
@@ -471,6 +479,13 @@ class DocsChecker:
             self.error(f"缺少 guide 页面: {relative(path, self.root)}")
         for path in sorted(extra):
             self.error(f"guide 目录存在非标准页面: {relative(path, self.root)}")
+        for path in sorted(actual & expected):
+            top = "\n".join(path.read_text(encoding="utf-8").splitlines()[:8])
+            if f"current（{CURRENT_GUIDE_VERSION}）" not in top:
+                self.error(
+                    f"{relative(path, self.root)}: guide 状态必须为 "
+                    f"current（{CURRENT_GUIDE_VERSION}）"
+                )
 
     def live_metadata_files(self) -> list[Path]:
         result: list[Path] = []

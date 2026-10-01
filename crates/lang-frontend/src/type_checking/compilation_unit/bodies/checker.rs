@@ -44,6 +44,7 @@ mod operators;
 mod ownership_primitives;
 mod postfix;
 mod rc;
+mod string;
 mod top_level;
 mod trial;
 mod type_refs;
