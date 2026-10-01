@@ -138,8 +138,9 @@ reify
   或 `String` 内容中的同一 scalar 重新解释为 trivia 或非法字符。
 - 换行只可写为 LF 或 CRLF，每个序列是一个 newline trivia。裸 CR 产生非法字符诊断，且
   不单独开始新行；这与现行 source / `Span` 位置模型一致。换行不会改写或插入 `;` token，
-  但完整文件 parser 会把顶层声明之间实际出现的 LF / CRLF 识别为声明分隔；其他
-  表达式、独立声明与 block 入口仍按各自产生式处理，不能把每个换行都当作通用语句结束符。
+  但完整文件 parser 会把顶层声明之间实际出现的 LF / CRLF 识别为声明分隔，且 block 内
+  在不存在换行续行条件时由行末换行结束当前 element（见 Block 与控制流）；独立表达式与
+  独立声明入口仍按各自产生式处理。
 - `//` 开始行注释，直到 CR、LF 或 EOF 之前；终止换行不属于注释 token。
 - `/*` 开始块注释，并由遇到的第一个 `*/` 结束；块注释不嵌套。v1 不区分 doc
   comment；`///`、`/** ... */` 与普通注释相同。未终止块注释产生对应词法诊断。
@@ -225,16 +226,14 @@ lexer 识别下列固定符号：
   合法语法位置由 parser 决定。`own` 只可作为具名值参数或函数类型参数的声明端 mode，
   不能出现在调用实参或普通表达式中。单字符 `&`
   token 同样只记录词法分类，不预设语法位置：v1 唯一接受它的产生式是
-  [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的调用实参 `Inout` 标注入口，其余位置遇到 `&`
-  一律是语法错误，不是词法错误；v1 不提供按位与运算符，`&` 不出现在通用表达式 prefix
-  或 binary 层级（该用途留给 v2 位运算符设计）。
-- `;` 只在完整文件的顶层声明分隔位置合法；它不属于
-  expression，不分隔 block element，也不改变独立声明入口要求 EOF 的契约。
+  [调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的调用实参 `Inout` 标注入口（如 `foo(&x)`），其余位置遇到 `&`
+  一律是语法错误，不是词法错误；Koven 的位运算采用 Kotlin 风格的命名中缀操作符（`and`、`or`、`xor` 等，见[表达式与运算符规则](04-expressions-operators.md)），不使用 `&` 作为按位与运算符。
+- `;` 在完整文件的顶层声明分隔以及 block / lambda 内同行多语句分隔时合法；它不属于
+  expression，独立声明入口仍要求匹配至 EOF。
 - `@` 是为 Phase 5 内建 `@Test` 预留的单字符 token；v1 不因此开放通用注解语法，
   在后续 guide 定义 `@Test` 的语法位置前，parser 应拒绝任何 `@` 用法。
-- v1 不支持把分号用作通用 statement terminator，也不支持 `++`、`--`、除 `&` 外的
-  shift / bitwise 运算符、`#`、shebang 或 `...`；
-  它们不得因 Kotlin 中存在而被默认接受。若其中字符各自是合法固定符号（如 `++`、
+- v1 不支持把分号用作无条件的全局 statement terminator，也不支持 `++`、`--`、C 风格符号移位/位运算符（`<<`、`>>`、单个 `|`、`^`、`~` 等，Koven 统一使用具名中缀操作符 `shl`、`shr`、`ushr`、`and`、`or`、`xor`）、`#`、shebang 或 `...`；
+  它们不得因 Kotlin 或 C/Rust 中存在而被默认接受。若其中字符各自是合法固定符号（如 `++`、
   `--`、`<<`、`...`），lexer 只产生逐个最长合法 token，由 parser 拒绝该组合；没有单字符
   token 的 `#`、单个 `|` 等产生非法字符诊断。
 

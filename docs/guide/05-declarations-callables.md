@@ -330,7 +330,7 @@ type/value target、visibility 与 companion scope 均由 typed selection 决定
 ### 36.3 封闭 const expression 与求值失败
 
 - initializer 只接受上述类型的 literal、group、其他 const reference（含 `Type.CONST`）、prefix
-  `+`/`-`/`!`、整数 `+ - * / %` 与比较/相等、Boolean `&&`/`||`、String `+`/相等。所有 operand
+  `+`/`-`/`!`、整数 `+ - * / %`、具名中缀位运算（`shl`, `shr`, `ushr`, `and`, `or`, `xor`）与比较/相等、Boolean `&&`/`||`、String `+`/相等。所有 operand
   仍先按普通 Phase 2 类型规则检查；本列表只决定通过类型检查后是否可在编译期求值。
 - 普通 `val`/参数/field/`this`、call、constructor、lambda、assignment、`if`/`when`、Elvis、
   safe call、`!!`、postfix `?`、range/`to`、container/index 与 String interpolation 均不是 const

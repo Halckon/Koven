@@ -72,6 +72,11 @@ v1 的 `Box` 是由 `TypeEnvironment` 显式绑定的 intrinsic type constructor
 intrinsic `Box` 时，编译器不得按拼写猜测。intrinsic `Box` 的实参数量不是 type-kind 约束：
 零个或多于一个类型实参沿用 L0091 `type argument arity`，只有数量为一但 type kind 不合法时才使用 L0117。
 
+- **`Box<T>` 实例访问与拆箱机制**：
+  - **借用投影**：`box.value` 提供对堆上承载值的只读共享借用（类型为 `borrow T`），不转移内部值的所有权，生命周期受 `box` handle 约束。
+  - **消费拆箱**：`box.unbox(): own T` 消费 `Box<T>` 所有权，释放堆内存并返还内部值的独占所有权 `own T`（若 `T` 为 MoveOnly 则转移，若 `T` 为 Copyable 则复制/取出）。
+  - *工程实施注记*：在当前阶段（Phase 1–4），`Box<T>` 的核心职责是作为递归 enum/数据结构的堆指针断开内联布局图并保证递归数据类型的声明与移动；`unbox()` 与 `.value` 作为规范语义在此确立，其 lower/codegen 与解构展开属于后续容器方法与 lowering 实施演进的计划范围。
+
 ### 局部结构化解构
 
 局部 `val (a, b) = expression` 的 initializer 只类型
@@ -188,8 +193,7 @@ move-after-use、drop、容器类型、`Transferable`、companion 或 codegen。
 
 ### `Result` Payload 与诊断
 
-现行词法规范把 `value` 保持为硬关键字，因此核心 `Result` 声明固定为
-`Ok(success: T), Err(error: E)`，不得使用不可解析的 `Ok(value: T)`。payload 名称不改变
+核心 `Result` 声明固定为 `Ok(success: T), Err(error: E)`（在词法规范中 `value` 已为上下文软关键字，但标准库保持 `Ok(success: T)` 与 `Err(error: E)` 的稳定参数名）。payload 名称不改变
 `Result<T, E>`、postfix `?` 或错误传播语义。
 
 | 错误码 | 稳定含义 | primary / 关联位置 |

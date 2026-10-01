@@ -187,8 +187,8 @@ fun classify(n: Int): Int {
 package demo.enums
 
 enum class Shape {
-    Circle(val radius: Int),
-    Rectangle(val width: Int, val height: Int),
+    Circle(radius: Int),
+    Rectangle(width: Int, height: Int),
     Point
 }
 
@@ -208,9 +208,7 @@ fun area(s: Shape): Int {
 ```kotlin
 package demo.oop
 
-class Counter(val initial: Int) {
-    var count: Int = initial
-
+class Counter(var count: Int) {
     fun increment(): Unit {
         count = count + 1
     }
@@ -238,7 +236,7 @@ interface Printable {
     fun printSelf(): Unit
 }
 
-class Container<T>(val item: T) : Printable {
+class Container<T : Copyable>(val item: T) : Printable {
     override fun printSelf(): Unit {
         // 单态化实现
     }
@@ -246,7 +244,7 @@ class Container<T>(val item: T) : Printable {
     fun get(): T = item
 }
 
-fun <T> identity(value: T): T = value
+fun <T> identity(own value: T): T = value
 ```
 
 ### Litmus 7: 线性所有权与移动语义
@@ -258,8 +256,8 @@ package demo.ownership
 
 class Resource(val id: Int)
 
-fun consume(r: Resource): Unit {
-    // r 在函数退出时执行析构
+fun consume(own r: Resource): Unit {
+    // r 在所有权转入后，于函数退出时执行析构
 }
 
 fun lifecycle(): Unit {
@@ -298,7 +296,7 @@ fun test(): Unit {
 ```kotlin
 package demo.nullability
 
-fun process(name: String?): Int {
+fun process(own name: String?): Int {
     if (name != null) {
         // 流类型收窄为非空 String
         return 1
@@ -322,21 +320,22 @@ fun applyTwice(x: Int, f: (borrow Int) -> Int): Int {
 
 fun testClosure(): Int {
     val base = 10
-    val addBase = { y: Int -> base + y }
+    val addBase: (borrow Int) -> Int = { y -> base + y }
     return applyTwice(5, addBase)
 }
 ```
 
 ### Litmus 11: 顺序集合遍历与结构解构
 
-演示区间语法 `..`、`for` 迭代遍历与解构绑定：
+演示顺序容器迭代 `for`、借用遍历与解构绑定：
 
 ```kotlin
 package demo.iteration
 
-fun sumRange(): Int {
+fun sumElements(): Int {
+    val numbers: List<Int> = listOf(1, 2, 3, 4, 5)
     var sum = 0
-    for (i in 1..10) {
+    for (i in numbers) {
         sum = sum + i
     }
     return sum

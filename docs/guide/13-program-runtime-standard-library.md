@@ -137,6 +137,7 @@ U+0000，对外语义不依赖 NUL 终止。
 - `==` / `!=` 比较 UTF-8 字节长度和全部内容，不执行 Unicode normalization、locale folding
   或 grapheme 处理。由于所有 String 均满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
   相等一致。
+- `clone(borrow self): own String`：显式深复制操作。以 shared-read 方式读取当前 `String` 的全部 UTF-8 字节，分配独立的堆缓冲区并返回拥有独立生命周期的新 `String` owner。这为 MoveOnly 的 `String` 提供了显式复制能力，调用点写作 `s.clone()`。
 - String 可以存入局部变量、作为普通 Value/默认 Borrow 参数、从函数返回、进入 closure
   capture，以及作为已经支持 drop glue 的 aggregate、enum、`Rc` 和顺序容器元素。现有
   ownership、loan、单态化和容器 relocation 规则不获得 String 特例。
@@ -145,7 +146,7 @@ U+0000，对外语义不依赖 NUL 终止。
 - 标准 `error(message: String): Nothing` 必须先按普通求值/借用规则形成 message，再进入既有
   abort effect；现行规范不保证 stderr 文本格式或 message 一定被打印。
 
-本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
+除上述核心操作与显式 `clone()` 复制外，本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
 intern、隐式共享或 `toString`/formatting protocol。String interpolation 虽已有 Lexer/Parser/类型
 节点，但 operand 到 String 的转换契约尚未封闭；在后续 guide 定义可打印/转换协议前，native
 lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并假装成完整协议。
@@ -242,19 +243,20 @@ dependency-aware build 不属于现行语言，必须等待独立 manifest、ABI
 为了支持所有权安全流转与链表、状态机等数据结构的高效在位更新，标准库顶层提供经编译器特判的原子置换原语（见[所有权、借用与析构规则](10-ownership-borrowing-drop.md)）：
 
 ```kotlin
-fun <T> replace(place: Inout T, new: own T): own T
-fun <T> swap(a: Inout T, b: Inout T): Unit
+fun <T> replace(inout place: T, own new: T): own T
+fun <T> swap(inout a: T, inout b: T): Unit
 ```
 
 - `replace(&place, new)`：在独占借用保护下，原子将 `new` 存入 `place` 并返回原有旧值，完全避免未初始化空洞；
 - `swap(&a, &b)`：在两个互不重叠的可变借用之间原子交换值。
 
-### 静态 `Str` 字面量与动态 `String`
+### 字符串所有权与静态切片演进定位
 
-Koven 对文本类型进行清晰分层：
-- **静态字符串 `Str`**：由常量区编译期静态字面量（如 `"hello"`）产生，表示指向静态只读内存的 UTF-8 切片；`Str` 不承担析构义务，天然满足 `Copyable` 与 `Transferable`，可零成本跨线程、跨函数自由复制；
-- **动态字符串 `String`**：由字符串拼接、运行时动态构建或 IO 读取产生，拥有独立的堆缓冲区所有权，为 `MoveOnly` 类型；
-- 标准输出函数 `println` 与异常终止 `error` 同时接受 `Str` 与 `String` 借用。
+Koven 的字符串模型以 `String` 作为核心统一表示：
+- **统一的 `String` 类型**：当前阶段所有字符串字面量（如 `"hello"`）与动态字符串（拼接、运行时输入）对外统一呈现为 `String` 类型，均为 `MoveOnly` 且满足 `Transferable`。不可变字面量由 runtime 内部通过静态 provenance 标记确保生命周期与进程相同且不执行 `free`，应用层无需感知存储来源差异；
+- **显式克隆 `String.clone()`**：对于需要保留原字符串并产生独立拥有副本的场景，统一使用 `s.clone()` 显式深复制；
+- **静态切片 `Str`（后续演进项）**：零拷贝静态切片 `Str`（不承担析构义务、天然 `Copyable` 的静态常量引用）作为后续切片机制（Slice）与借用体系完备后的演进设计（延后实施），当前不对外暴露独立的 `Str` ABI，避免在没有完整借用切片机制时引入过早的双类型复杂度；
+- 标准输出函数 `println` 与异常终止 `error` 统一接受 `String` 借用。
 
 ---
 
@@ -286,3 +288,8 @@ Phase 5 要求标准库（`koven/**/*.ko`）以目标语言自身编写并作为
 - **标准库特权**：上述底层能力属于受控特权，仅限在标准库内部模块（`koven.*` 命名空间及指定 runtime 桥接层）中使用。
 - **普通用户代码隔离**：在 v1 阶段，应用层用户源码禁止直接使用 `RawPtr<T>` 或自行定义 `unsafe` 块；编译器对非特权 package 的裸指针访问与未受控外部调用拒绝并报结构化诊断。
 - **安全不变量封装**：标准库通过 RAII、所有权（`own` / `borrow`）与类型系统向外暴露完全安全的高层抽象（如 `Box<T>`、`Array<T>`、`String`），确保 unsafe 实现的边界在标准库内部完全闭合。
+
+### 编译器内建与标准库的职责划界与自举演进
+
+- **短期工程闭环策略**：在编译器自举前阶段，编译器提供部分内建核心容器（如 `Array`、`Vector`、`Map`、`Set`）作为快速交付语言核心语义与端到端运行体验的工程策略；
+- **自举演进与能力下沉目标**：长远来看，编译器的内建 intrinsic 应当收敛到最低限度的底层原子能力——即内存分配/释放（`malloc`/`free`）、原子置换（`replace`/`swap`）与受控裸指针（`RawPtr`）。链表、树、环形结构、动态数组与哈希表等高层数据结构将依托标准库内部的 `unsafe`、`RawPtr` 及对象池/Arena 纯自源（`koven/**/*.ko`）实现，而非作为编译器固有魔法存在。
