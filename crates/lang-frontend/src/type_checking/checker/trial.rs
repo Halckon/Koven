@@ -6,8 +6,8 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerConstructionDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
-        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor, ParameterMode,
-        RcOperationDescriptor, TypeId, TypeTable,
+        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
+        OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -38,6 +38,7 @@ pub(super) struct TrialState {
     calls: Vec<CallDescriptor>,
     constructions: Vec<ConstructionDescriptor>,
     aggregate_projections: Vec<AggregateProjectionDescriptor>,
+    ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
@@ -66,6 +67,7 @@ impl Checker<'_> {
             calls: self.calls.clone(),
             constructions: self.constructions.clone(),
             aggregate_projections: self.aggregate_projections.clone(),
+            ownership_primitives: self.ownership_primitives.clone(),
             rc_operations: self.rc_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             element_places: self.element_places.clone(),
@@ -93,6 +95,7 @@ impl Checker<'_> {
         self.calls = state.calls;
         self.constructions = state.constructions;
         self.aggregate_projections = state.aggregate_projections;
+        self.ownership_primitives = state.ownership_primitives;
         self.rc_operations = state.rc_operations;
         self.container_constructions = state.container_constructions;
         self.element_places = state.element_places;

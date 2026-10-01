@@ -100,6 +100,19 @@ identity 排序。Error、Deferred 和非 nullable operand 不发布 extraction�
 expression identity 排序。单文件和 unit ownership 均消费各自描述符；SSA/LLVM 接线仍在后继
 实施范围。
 
+## 原子置换静态类型身份
+
+`TypedFile` 与 `CompilationUnitTypes` 的 `ownership_primitives` / `ownership_primitive`
+发布 compiler-bound replace/swap 的种类、交换类型和源码顺序的两个 operand identity。
+身份来自显式 TypeEnvironment binding，而非名字；普通 call 参数模式契约同时保留。
+unit 使用 source-qualified identity，并在普通及 const-enabled 验证入口交叉核对
+source/type/category/call 关系；精确 AST argument identity 由封闭 producer 绑定，后继
+读取 AST 时仍需比对 operand 顺序。错误输入清空整表，trial 回滚和稳定排序覆盖新事实。
+
+Nothing operand 不删除静态调用结构；Deferred operand 不发布成功原语事实。
+这些产物不授予 ownership commit 或 native 执行权限；普通 unit call 的 flow 失效、
+已收窄 nullable place 的 storage-T 推导、原语 native lowering 仍是独立缺口。
+
 ## Compilation-unit 名称链
 
 多文件路径由 `name_resolution::compilation_unit` 提供，身份链如下：
