@@ -286,7 +286,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
     )
     .unwrap();
-    let linked = Command::new(crate::test_support::clang())
+    let linked = Command::new(crate::test_support::ir_clang())
         .arg(&ir)
         .arg(&counter)
         .arg("-o")

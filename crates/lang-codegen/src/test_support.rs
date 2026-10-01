@@ -6,12 +6,18 @@ pub(crate) fn clang() -> PathBuf {
     if cfg!(target_os = "macos") {
         PathBuf::from("/usr/bin/clang")
     } else {
-        std::env::var_os("LLVM_SYS_211_PREFIX")
-            .map(PathBuf::from)
-            .map(|prefix| prefix.join("bin/clang"))
-            .filter(|path| path.is_file())
-            .unwrap_or_else(|| PathBuf::from("clang"))
+        ir_clang()
     }
+}
+
+// Instrumented LLVM IR must be read by the same LLVM major that emitted it.
+// The system macOS driver is still used above when linking existing objects.
+pub(crate) fn ir_clang() -> PathBuf {
+    std::env::var_os("LLVM_SYS_211_PREFIX")
+        .map(PathBuf::from)
+        .map(|prefix| prefix.join("bin/clang"))
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("clang"))
 }
 
 pub(crate) fn assert_native_object(bytes: &[u8]) {

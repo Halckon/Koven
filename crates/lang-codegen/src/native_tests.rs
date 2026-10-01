@@ -1043,7 +1043,7 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
         )
         .expect("write allocator counter");
-        let linked = Command::new(crate::test_support::clang())
+        let linked = Command::new(crate::test_support::ir_clang())
             .arg(&ir)
             .arg(&counter)
             .arg(format!("-DEXPECT_SHARED={shared}"))

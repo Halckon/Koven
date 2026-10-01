@@ -69,9 +69,10 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
   和所需 AArch64/X86 backend 必须可用。记录实际工具版本，不以 Rustc 自带 LLVM 替代。
 - 生产与 CLI linker 测试通过宿主 C driver 链接：macOS `/usr/bin/clang`、Linux
   `/usr/bin/cc`。Linux 需安装 glibc 开发文件和系统 linker；无需固定某一种 `ld` 实现。
-- Linux LLVM IR 插桩/计数测试需要匹配 Clang 21，优先使用 `LLVM_SYS_211_PREFIX/bin/clang`；
-  缺失时 PATH 中的 `clang` 也必须兼容 LLVM 21 IR。不能把 `/usr/bin/cc` 能链接 object
-  当作它能读取 LLVM IR 的证据。macOS native 测试保留系统 `/usr/bin/clang`。
+- 两个平台的 LLVM IR 插桩/计数测试都需要匹配 Clang 21，优先使用
+  `LLVM_SYS_211_PREFIX/bin/clang`；缺失时 PATH 中的 `clang` 也必须兼容 LLVM 21 IR。
+  不能把系统 C driver 能链接 object 当作它能读取 LLVM IR 的证据；macOS 普通 object
+  链接测试仍使用系统 `/usr/bin/clang`。
 - Linux DWARF 自动检查使用 `LLVM_SYS_211_PREFIX/bin/llvm-dwarfdump` 21.1（缺失时回退到
   PATH 中的匹配工具），验证实际 ELF 中的文件和源码行映射，并保留 native 执行断言；macOS 原有 `/usr/bin/lldb --batch`
   断点/运行验收保持。Linux 行表检查不证明调试器断点、单步或变量查看。

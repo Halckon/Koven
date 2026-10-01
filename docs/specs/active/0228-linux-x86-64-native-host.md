@@ -36,7 +36,7 @@
   `target-all`。新增宿主重新执行工具链、模块 verifier 与 object/run 验收。
 - 生产链接保持 LLVM 直接生成 object，再由 CLI 使用系统 C driver：macOS
   `/usr/bin/clang`、Linux `/usr/bin/cc`。保留启动失败/非零退出等结构化错误与原子发布。
-- 测试按宿主断言真实 Mach-O AArch64 或 ELF64 x86_64 产物。Linux 需处理 LLVM IR 的计数/插桩
+- 测试按宿主断言真实 Mach-O AArch64 或 ELF64 x86_64 产物。两个平台需处理 LLVM IR 的计数/插桩
   测试使用 `LLVM_SYS_211_PREFIX/bin/clang`，工具缺失时的 PATH `clang` 也须兼容 LLVM 21 IR，
   不误用生产 C driver 作为 IR reader。
 - 保留现有 macOS LLDB 源码断点测试；Linux 检查真实 ELF 的 DWARF 行表及 native 运行。
@@ -51,6 +51,8 @@
 - 2026-10-01 用户继续批准局部优化 Parser 重复扫描并验证错误恢复，使 CI 往下运行。
   仅复用 block/lambda dispatch 当前 lexeme、合并分号消费路径；保留阈值、诊断、Span
   与 hard-stop 优先级，不扩大到软关键字或其他语义修复。
+- 2026-10-01 用户批准继续修复 PR CI 至通过：五处 LLVM IR 插桩调用统一使用匹配
+  LLVM 21 的 Clang，保留普通 object 链接与生产 CLI driver；不改变测试断言或忽略项。
 - README 两语言版本、Architecture、测试前提、Spec/ADR 索引及冻结 inventory 同步。
 
 ## 4. 非目标
@@ -294,3 +296,29 @@ Span 为 `(10, 16)`，原测试预期 `(27, 27)`）。这些源码均不经过�
 
 未运行 frontend 全量与此前五项多文件失败套件；本机未运行 macOS/LLDB。选定契约通过不
 代表 frontend 全量通过，也不改变 Spec 的 `in-progress` 状态或 PR 的 draft 状态。
+
+### PR CI LLVM IR 工具版本修复（2026-10-01）
+
+[PR run 36844836811](https://github.com/Halckon/koven/actions/runs/36844836811) 针对
+`d8ce3d782680c2400a5a76e4440a652a45026c28` 的 macOS 结果：文档、fmt、workspace check、
+严格 Clippy 与 frontend `--lib` 的 177 项通过；codegen 为 463 passed、14 failed、1 ignored。
+CLI/LSP 因前序命令失败未运行，汇总失败。14 项失败均在五处测试调用中将 LLVM 21 的 `.ll`
+交给系统 `/usr/bin/clang`，其 reader 拒绝 `captures(none)`、GEP `nuw` 或 `memory(none)`。
+本机未重跑 macOS 基线，不将这些日志表述为已完成基线对照。
+
+用户授权继续修复该 PR 至 CI 通过；本轮新增 `test_support::ir_clang`，在两个平台优先选用
+`LLVM_SYS_211_PREFIX/bin/clang`，仅将五处 `.ll` 调用接入它。原 `clang` object helper 在
+macOS 仍选 `/usr/bin/clang`，Linux 的原选择不变；生产 CLI 与所有断言、忽略项保持原样。
+既有 LLDB 测试的 ignore 不算通过。
+
+| 验收项 / 命令 | 实际结果 |
+|---|---|
+| Red：上述 macOS PR CI | 14 项 LLVM IR reader 失败，覆盖全部五处受影响调用 |
+| `cargo fmt --all -- --check` | Linux 通过，退出 0 |
+| `cargo check --workspace --all-targets` | Linux 通过，退出 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Linux 通过，退出 0，无 warning |
+| `cargo test -p lang-codegen` | Linux 478 单元 + 4 compile-fail doc-tests passed；0 failed/ignored/filtered |
+
+本轮 Linux Rust 1.96.0 / LLVM、Clang 21.1.8 的选定 codegen 契约已通过；未再次运行输入
+未变化的 frontend/CLI/LSP 本地测试，复用上一节证据。新 head 的 macOS PR CI 待实际运行，
+不以 Linux 结果或 push 事件的轻量检查代替。
