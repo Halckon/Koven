@@ -1237,14 +1237,9 @@ fn parse_integer_literal(
     let text = sources
         .slice(span)
         .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
-    let digits = match kind {
-        IntegerLiteralKind::Unsuffixed => text,
-        IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => &text[..text.len() - 1],
-        IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
-    };
-    digits
-        .parse()
-        .map_err(|_| lowering_error(LoweringErrorKind::InvalidLiteral, span))
+    lang_frontend::type_checking::integer_literal_magnitude(text, kind)
+        .and_then(|value| i128::try_from(value).ok())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidLiteral, span))
 }
 
 fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError> {

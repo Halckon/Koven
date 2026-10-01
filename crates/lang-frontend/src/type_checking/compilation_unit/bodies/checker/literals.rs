@@ -43,12 +43,7 @@ impl BodyChecker<'_> {
         let selected = match literal {
             LiteralKind::Integer(kind) => {
                 let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;
-                let suffix_len = match kind {
-                    IntegerLiteralKind::Unsuffixed => 0,
-                    IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => 1,
-                    IntegerLiteralKind::UnsignedLong => 2,
-                };
-                let magnitude = text[..text.len() - suffix_len].parse::<u128>().ok();
+                let magnitude = crate::type_checking::integer_literal_magnitude(text, kind);
                 let selected = match kind {
                     IntegerLiteralKind::Unsuffixed => {
                         let expected = expected
@@ -109,14 +104,11 @@ impl BodyChecker<'_> {
             }
             LiteralKind::Float(kind) => {
                 let text = self.sources.slice(span).map_err(TypeCheckingError::from)?;
-                let number = match kind {
-                    FloatLiteralKind::Double => text,
-                    FloatLiteralKind::Float => &text[..text.len() - 1],
-                };
-                let finite = match kind {
-                    FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
-                    FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
-                };
+                let finite = crate::type_checking::literal_value::float_literal_core(text, kind)
+                    .is_some_and(|number| match kind {
+                        FloatLiteralKind::Double => number.parse::<f64>().is_ok_and(f64::is_finite),
+                        FloatLiteralKind::Float => number.parse::<f32>().is_ok_and(f32::is_finite),
+                    });
                 finite.then(|| {
                     self.builtin(match kind {
                         FloatLiteralKind::Double => BuiltinType::Double,

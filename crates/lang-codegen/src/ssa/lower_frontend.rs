@@ -1493,14 +1493,9 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<i128, LoweringError> {
         let text = self.source_slice(span)?;
-        let digits = match kind {
-            IntegerLiteralKind::Unsuffixed => text,
-            IntegerLiteralKind::Long | IntegerLiteralKind::Unsigned => &text[..text.len() - 1],
-            IntegerLiteralKind::UnsignedLong => &text[..text.len() - 2],
-        };
-        digits
-            .parse()
-            .map_err(|_| error(LoweringErrorKind::InvalidLiteral, span))
+        lang_frontend::type_checking::integer_literal_magnitude(text, kind)
+            .and_then(|value| i128::try_from(value).ok())
+            .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))
     }
 
     fn expression_ssa_type(

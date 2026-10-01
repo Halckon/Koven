@@ -226,6 +226,7 @@ end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
+  S0229["S0229<br/>扩展数值字面量值的端到端闭合"]
   S0231["S0231<br/>上下文 TypeRef 与严格调用试探一致性"]
   S0233["S0233<br/>Parser 工程合同的保全文档迁移"]
   S0234["S0234<br/>普通 block 的换行表达式边界"]
@@ -1380,6 +1381,7 @@ S0226 --> S0227
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
+| SPEC-0229 | active | [0229-extended-numeric-literal-values.md](../../specs/active/0229-extended-numeric-literal-values.md) |
 | SPEC-0231 | active | [0231-contextual-type-ref-trials.md](../../specs/active/0231-contextual-type-ref-trials.md) |
 | SPEC-0233 | active | [0233-parser-compiler-contracts.md](../../specs/active/0233-parser-compiler-contracts.md) |
 | SPEC-0234 | active | [0234-block-newline-continuation.md](../../specs/active/0234-block-newline-continuation.md) |

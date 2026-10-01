@@ -17,6 +17,15 @@ copyability、destructuring 和 flow facts。错误输入保留 recovery 事实�
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
 suites。
 
+## 数值字面量解码
+
+`type_checking::integer_literal_magnitude` 为单文件/unit 类型检查、常量求值、元素索引身份与
+后端整数 lowering 提供同一精确幅值解码。十进制、hex/bin 前缀、数字间下划线和已分类后缀
+在此统一处理；范围/default/expected type 与负号诊断仍由各 checker 保留原有合同和 Span。
+浮点字面量只在 finite 检查前移除数字分隔符，不扩大 native 浮点支持。
+`numeric_literals` integration suite 覆盖两套类型/常量/ownership 入口和源顺序确定性；native
+值证据见 SSA/LLVM/Runtime 页。
+
 ## 单文件顺序迭代类型计划
 
 `TypedFile::sequential_iterations` / `sequential_iteration` 按 StatementId 发布 intrinsic
