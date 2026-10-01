@@ -51,18 +51,18 @@
 
 ## 5. 验收标准
 
-- [ ] named/field/Borrow/Inout/temporary source 产生精确 source loan 与 lifetime facts；循环后 named
+- [x] named/field/Borrow/Inout/temporary source 产生精确 source loan 与 lifetime facts；循环后 named
   source 可复用，temporary 不早析构且每条退出路径恰好 drop 一次。
-- [ ] Copyable binding 普通值使用/return 合法；MoveOnly Value/return 为 L0133，`&binding` 为
+- [x] Copyable binding 普通值使用/return 合法；MoveOnly Value/return 为 L0133，`&binding` 为
   L0134，borrow call 合法。
-- [ ] body 内 move/drop/replace source 或 exclusive access 产生 L0135；shared read 与 nested shared
+- [x] body 内 move/drop/replace source 或 exclusive access 产生 L0135；shared read 与 nested shared
   iteration 合法。
-- [ ] 名称与 mixed value-class component borrow、discard、borrowed/owned closure capture 形成正确
+- [x] 名称与 mixed value-class component borrow、discard、borrowed/owned closure capture 形成正确
   L0137/L0138 与无多余 binding/drop。
-- [ ] normal/continue/break/exhaustion/return/nested loop 的 cleanup facts 精确锁定 body-local owner、
+- [x] normal/continue/break/exhaustion/return/nested loop 的 cleanup facts 精确锁定 body-local owner、
   derived loan、element/component loan、provider、source loan、temporary 与外围 scope 的顺序；
   return source 在 operand Span 产生 L0135，abort 不发布 unwind cleanup。
-- [ ] liveness 不再把 provider 使用的 named source 在 source expression 后提前 drop；重复运行
+- [x] liveness 不再把 provider 使用的 named source 在 source expression 后提前 drop；重复运行
   结果确定，受影响契约回归通过，Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
@@ -115,9 +115,9 @@ RHS 完成并保存新快照 → 用旧快照清理旧 owner（RHS 仍保护来�
 
 ## 7. 实施计划
 
-1. [ ] 建立 source/temporary provider lifetime 与冲突 → 验证：source category/L0131/L0135 矩阵。
-2. [ ] 建立 element/component Borrow binding 与 capture → 验证：Copyable/MoveOnly/closure 矩阵。
-3. [ ] 接全部 exit cleanup 与 liveness → 验证：normal/jump/nested/temporary drop 矩阵及受影响的共享契约测试。
+1. [x] 建立 source/temporary provider lifetime 与冲突 → 验证：source category/L0131/L0135 矩阵。
+2. [x] 建立 element/component Borrow binding 与 capture → 验证：Copyable/MoveOnly/closure 矩阵。
+3. [x] 接全部 exit cleanup 与 liveness → 验证：normal/jump/nested/temporary drop 矩阵及受影响的共享契约测试。
 
 ## 8. 提交计划
 
