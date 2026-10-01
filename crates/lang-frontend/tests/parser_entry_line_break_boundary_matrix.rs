@@ -88,10 +88,10 @@ const INVARIANT_CASES: &[InvariantCase] = &[
         codes: &["L0074"],
     },
     InvariantCase {
-        name: "block infix continues",
+        name: "block unfinished operator continues",
         kind: EntryKind::Block,
-        prefix: "{ a",
-        suffix: "+ b }",
+        prefix: "{ a +",
+        suffix: "b }",
         codes: &[],
     },
 ];

@@ -331,8 +331,8 @@ receiver.consume(1) { item -> item }
 
 - `{ ... }` 必须在没有换行的 trivia gap 后紧随可调用 postfix；因此 `f {}` 是尾 lambda，
   `f\n{}` 是 expression statement `f` 后接 nested block。LF、CRLF 或含换行 comment 都形成
-  该边界；这只是尾 lambda 的附着规则，不把换行提升为通用 block statement separator，
-  block 内 `;` 也继续是既有 unsupported element。
+  该边界；尾 lambda 的附着规则与 [block element 分隔及续行规则](06-blocks-control-flow.md)
+  同时适用，不能跨越已经终止的 block element。
 - callee 尚无圆括号 call suffix 时，Parser 建立一个只有该 lambda 的 `Expression::Call`；已有
   `(...)` 时，把 lambda 追加为同一个 call 的最后一个普通 `CallArgument`，并把 call span 扩到
   lambda 的 `}`。不得把 `f() {}` 表示成“先调用 `f()`、再调用其结果”的第二个 call。
