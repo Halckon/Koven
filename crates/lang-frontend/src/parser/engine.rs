@@ -417,6 +417,12 @@ fn parameter_mode_span(marker: ParameterModeMarker) -> Span {
 }
 
 #[derive(Clone, Copy)]
+enum ParameterModeContext {
+    NamedParameter,
+    FunctionType,
+}
+
+#[derive(Clone, Copy)]
 enum RecoveryOwner {
     String { opener: usize },
     Interpolation { opener: usize },
