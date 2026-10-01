@@ -21,7 +21,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 runtime-length 在 `Int` 域拒绝负数再转换；argv 从非负 i32 建立相同边界；目标 `size_t` 高位不再作有符号负数检查。
 元素 place/replace 的索引只接受 signed i32 `Int`；LLVM 先在逻辑 Int 域拒绝负数和 `index >= length`。
 成功边再无损转换为 target index；物理 GEP 不声明 inbounds。物理分配字节数受指针索引位宽的有符号上限约束；ZST 只检查逻辑边界且不形成 GEP。
-provider builder 固定 length 快照、零 cursor 的入口运输、guard 真边 element loan 与固定步长回边；手工 CFG 已验证耗尽/break/提前 return 出口及确定性无分配 LLVM。真实 `for` lowering 尚未接入。
+provider builder 固定 length 快照、零 cursor 的入口运输、guard 真边 element loan 与固定步长回边；真实 `for` lowering 已接入 `lower_frontend`：消费前端 validated sequential iteration provider 与 ownership drop/loan 事实，按 preheader/header/body/continue/exit 展开无分配 CFG，支持 named、borrowed 与 temporary 顺序容器（Array/List/MutableList）、名称/discard/value-class 借用解构及 break/continue/early return/nested 完整 cleanup 闭环，并通过 native object/link/run 运行验证。
 
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
 交付后移除其源码 binding。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费

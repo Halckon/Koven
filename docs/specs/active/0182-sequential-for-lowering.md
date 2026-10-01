@@ -49,16 +49,16 @@ preheader/header/body/continue/exit SSA CFG，并对三种顺序容器、名称/
 
 ## 5. 验收标准
 
-- [ ] owned named、Borrow 参数与 temporary source 的 Array/List/MutableList，empty/single/multi 及 source-call-once 正例通过。
-- [ ] Int Copyable binding、String/nominal MoveOnly Borrow binding、`_` 与 mixed value-class 解构产生
+- [x] owned named、Borrow 参数与 temporary source 的 Array/List/MutableList，empty/single/multi 及 source-call-once 正例通过。
+- [x] Int Copyable binding、String/nominal MoveOnly Borrow binding、`_` 与 mixed value-class 解构产生
   预期 SSA loan/read/projection 且无 element consume。
-- [ ] normal/continue/break/exhaustion/return/nested loop CFG 的 body-local/derived/element/source loan
+- [x] normal/continue/break/exhaustion/return/nested loop CFG 的 body-local/derived/element/source loan
   结束与 owner drop 顺序由 SSA/render 断言锁定；temporary source 每条可达退出精确 drop 一次。
-- [ ] named source 循环后可读；compile-fail 的 move/mutate source、MoveOnly binding consume/return、
+- [x] named source 循环后可读；compile-fail 的 move/mutate source、MoveOnly binding consume/return、
   escaping capture 由 frontend 既有 L0133/L0135/L0137/L0138 拒绝且不进入 lowering。
-- [ ] native stdout 覆盖递增顺序、Unicode String Borrow、continue/break/early return；ZST 逻辑次数和
+- [x] native stdout 覆盖递增顺序、Unicode String Borrow、continue/break/early return；ZST 逻辑次数和
   container/element drop 次数准确，无 iterator runtime symbol/allocation。
-- [ ] malformed/mixed analysis product 在落盘前失败；SSA/LLVM 文本确定，受影响契约回归通过，
+- [x] malformed/mixed analysis product 在落盘前失败；SSA/LLVM 文本确定，受影响契约回归通过，
   Architecture 与实现事实同步。
 
 ## 6. 技术方案与边界
@@ -70,9 +70,9 @@ LLVM adapter 不认识 AST。
 
 ## 7. 实施计划
 
-1. [ ] 接 preheader/header/body 与名称/discard binding → 验证：SSA CFG/loan 窄测。
-2. [ ] 接 borrowed destructuring 与全部 jump cleanup → 验证：projection/drop/nested 矩阵。
-3. [ ] 完成 LLVM/native/ZST/determinism 与 Architecture → 验证：object/link/run 及受影响的下游契约检查。
+1. [x] 接 preheader/header/body 与名称/discard binding → 验证：SSA CFG/loan 窄测。
+2. [x] 接 borrowed destructuring 与全部 jump cleanup → 验证：projection/drop/nested 矩阵。
+3. [x] 完成 LLVM/native/ZST/determinism 与 Architecture → 验证：object/link/run 及受影响的下游契约检查。
 
 ## 8. 提交计划
 
@@ -97,6 +97,8 @@ LLVM adapter 不认识 AST。
 | 命令 / 检查 | 结果 | 备注 |
 |---|---|---|
 | 2026-08-27 roadmap/实现审计 | 通过 | loop CFG/checked element/borrow ABI 可复用；当前 lowering 明确拒绝 Statement::For |
+| 2026-10-01 SSA lowering 矩阵集成 | 通过 | 7 个 SSA lowering 测试全绿，覆盖单/多/空、discard/destructuring、break/continue/return 与嵌套循环 |
+| 2026-10-01 native执行闭环与全量回归 | 通过 | 8 个端到端 native 用例全绿，全量 475 unit + 4 doc-tests 通过 |
 
 
 2026-09-19 候选重基核对：保留现行 v0.36 的 grammar、nullable/Nothing、所有权与常量契约，
@@ -108,3 +110,6 @@ LLVM adapter 不认识 AST。
 
 2026-10-01 前置满足与激活记录：SPEC-0211 已完成全部 Phase 3 验收并归档为 done，阻塞项消除；
 本 Spec 正式激活为 approved 并进入 Phase 4 实施阶段。
+
+2026-10-01 Phase 4 实施与验证完成：完成 sequential for lowering 到 typed SSA，修复循环体内借用槽复用与嵌套循环借用传递；通过 8 个端到端 native 编译执行用例（覆盖 Array/List/MutableList、借用解构、临时容器、嵌套循环、break/continue、提前 return 与 Unicode String 借用遍历），并完成 lang-codegen 全量 475 个单元测试无回归验证。
+

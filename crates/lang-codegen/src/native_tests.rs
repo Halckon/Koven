@@ -4,6 +4,9 @@ mod constant_tests;
 #[path = "native_non_null_assertion_tests.rs"]
 mod non_null_assertion_tests;
 
+#[path = "native_sequential_for_tests.rs"]
+mod sequential_for_tests;
+
 use std::{
     fs,
     path::PathBuf,
