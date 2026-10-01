@@ -28,11 +28,10 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 
 ## 规范覆盖边界
 
-本次 Guide v0.39 启用只更新文档，没有改动编译器或标准库实现。当前 Parser 的
-`parser/engine/postfix.rs` 仍能构造调用实参 Borrow marker；`type_checking/model.rs` 的
-builtin 集合只有 String、没有 Str，单文件与 compilation-unit 的字符串 expression 仍定型为
-String，`println` / `error` 的预声明文本签名也仍只接受 String。已通过的旧 String literal
-owner 验收不能视为新 Str 契约的实现证明；本索引不声明四项新规则已完成端到端支持。
+本工作区只修订未发布的规范候选，没有改动编译器或标准库。当前 Parser 仍能构造调用实参
+Borrow marker；builtin 文本类型是 String，字符串字面量、`println` / `error` 继续使用 String。
+这与恢复后的字符串规范一致。String.clone 的实现由独立切片负责，本索引不宣称它已完成；
+另三项已批准规则的实现状态也不能从本次文档更改推断。
 
 ## 按实现领域读取
 

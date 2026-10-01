@@ -22,7 +22,7 @@ MoveOnly 分量；名称或 lint 约定不能改变类型能力。任何显式 o
 静态类型下没有复制证明、按值使用必须按移动处理；`Unknown` 只保留给尚待后续选择的 deferred
 类型；`Error` 只抑制同根级联。v1 使用以下封闭规则：
 
-- 数值类型、`Boolean`、`Char`、`Str`、`Unit` 和 bottom type `Nothing` 满足 `Copyable`。`Nothing`
+- 数值类型、`Boolean`、`Char`、`Unit` 和 bottom type `Nothing` 满足 `Copyable`。`Nothing`
   没有可构造的有效值，因此是平凡满足；这也使只有 `null` 值域的 `Nothing?` 满足规则。
 - `T?` 当且仅当 `T` 满足 `Copyable`；nullable wrapper 不引入 retain、clone 或唯一析构。
 - `value class C<A...>` 当且仅当按实际类型实参替换后，每个主构造器字段类型都满足

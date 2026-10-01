@@ -24,7 +24,7 @@ class Node(var value: Int, var next: Node?)    // 引用语义：堆分配，遵
   且仅在其全部字段类型都满足 `Copyable` 时，由编译器自动标记为 `Copyable`。泛型
   `value class` 按实际类型实参计算该条件，例如 `Pair<Int, Int>` 可复制，
   `Pair<Sender<Int>, Receiver<Int>>` 不可复制。字段是 `val` 还是 `var` 不参与判定。
-- **v1 的 `Copyable` 是编译器预声明的规范 marker trait**：数值类型、`Boolean`、`Char`、`Str` 和
+- **v1 的 `Copyable` 是编译器预声明的规范 marker trait**：数值类型、`Boolean`、`Char` 和
   `Unit` 满足 `Copyable`；`value class` 按上一条规则递归获得该能力。该规范能力由编译器
   内部标识识别，用户同名声明不能冒充。用户可以把它写成泛型上界，例如
   `<T : Copyable>`，并在该泛型体内把约束作为复制能力的证明；未约束的 `T` 一律不得假设

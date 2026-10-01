@@ -78,7 +78,7 @@ v1 对顺序容器作封闭定义：
 逻辑表示。Phase 2 只判这一与目标无关的 layout kind，不读取 LLVM DataLayout；Phase 4 才对
 具体 target 判断 size / alignment / stride 是否可表示。
 
-- 数值类型、`Boolean`、`Char`、`Unit`、`Str`、`String`、普通 `class` / `Box` / `Rc` handle、有限
+- 数值类型、`Boolean`、`Char`、`Unit`、`String`、普通 `class` / `Box` / `Rc` handle、有限
   `value class` 与有限 `enum class` 在结构上可存储；这不表示它们满足 `Copyable`；
 - 函数值只有在[Callable 规则](05-declarations-callables.md)所述单态化后具体函数指针 / 闭包环境布局已经确定时可存储；
 - `T?` 在 `T` structurally storable 时也 structurally storable，tag / niche 的具体布局由
@@ -367,7 +367,7 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
 
 - v1 首轮只有编译器绑定的 `Array<T>`、`List<T>`、`MutableList<T>` identity 提供顺序迭代。
   用户声明的同名类型、`Iterable` / `Iterator`、`iterator()` / `hasNext()` / `next()` 不取得
-  intrinsic 身份；Str、String、range、Map、IO lines、普通 class/interface 和用户自定义 provider
+  intrinsic 身份；String、range、Map、IO lines、普通 class/interface 和用户自定义 provider
   均不是首轮 `for` source。
 - 历史语法中的 `iterator()` / `hasNext()` / `next()` 只保留“取得 provider → 检查下一项 →
   取得下一项”的抽象执行节奏，不是 AST 脱糖、名称解析结果或用户可观察的普通方法调用。
@@ -436,6 +436,6 @@ source 静态类型不是上述 intrinsic container 时使用 L0159；primary �
   hidden owner 在正常耗尽、break、return 时按 §37.3 清理，continue 保留，Abort 不展开。
   Inout/field source 的 native lowering 延后，不得因前端已验证而误报为可执行。
 
-本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、Map/range/Str/String/
+本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、Map/range/String/
 IO provider、用户自定义 iteration、borrow-return/place-return、动态分发或 coroutine generator。
 未来扩展必须另行启用 guide；不能把普通同名方法或某个标准库 class 反向识别为本 intrinsic provider。

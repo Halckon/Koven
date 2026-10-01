@@ -86,7 +86,7 @@ move closure 只用于必须把捕获值所有权搬离当前位置的场合：�
 ### `Transferable` 与跨线程 Effect
 
 `Transferable` 使用与 `Copyable` 相同的四态查询（满足、不满足、Unknown、Error），但两种
-能力互不蕴含。数值、`Boolean`、`Char`、`Unit`、`Str`、`String`、`Nothing` 满足；nullable、value
+能力互不蕴含。数值、`Boolean`、`Char`、`Unit`、`String`、`Nothing` 满足；nullable、value
 class、有限 enum、普通 class、`Box<T>` 与三种顺序容器按实际字段/payload/元素递归满足。
 `Rc<T>`、具名 object、`Any` 和带 capture 的 borrowed closure 不满足；裸 interface/capability
 与 Error 类型为 Error，deferred 为 Unknown。类型参数只在具有编译器绑定的

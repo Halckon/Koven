@@ -109,8 +109,6 @@ identity 表达这些约束，因此现行标准库不发布 `Arena` API，也�
 
 ## `String`
 
-文本类型的区分与字面量类型只由[静态 Str 与动态 String](#静态-str-字面量与动态-string)定义。
-
 ### 值、所有权与 UTF-8 不变量
 
 `String` 继续使用 `TypeEnvironment` 显式绑定的 builtin identity，不由源码名称或 LLVM 布局
@@ -120,8 +118,9 @@ U+0000，对外语义不依赖 NUL 终止。
 - `String` 始终是 `MoveOnly` 且满足 `Transferable`，不满足 `Copyable`。赋值、返回、Value
   delivery 与 move closure capture 转移唯一 owner；它们不得隐式复制字节、retain 或建立共享
   control block。默认 Borrow 参数只在调用期间读取同一值。
-- 普通无 interpolation 的字符串字面量固定为 `Str`。赋值、参数、返回或其他 expected-type
-  位置要求 `String` 时，必须先显式转换；不能为兼容旧代码把字面量静默视为 String owner。
+- 普通无 interpolation 的 String literal 是一般 `String` 表达式，不再只对 `println`/`error`
+  生效。实现可以让不可变 literal 引用静态只读字节，也可以在不改变可观察语义时消除临时
+  allocation；SSA 类型、MoveOnly 状态与 drop obligation 仍必须与动态 String 保持同一契约。
 - 动态 String 的 live owner 在既有 ASAP drop point 释放自己拥有的存储。静态 literal 不得被
   `free`；动态 owner 必须精确释放一次。具体 provenance/layout 由 String runtime ABI ADR
   决定，frontend 不发布 pointer、capacity 或 allocator 事实。
@@ -132,22 +131,18 @@ U+0000，对外语义不依赖 NUL 终止。
 
 一般 String runtime 只承接以下封闭操作：
 
-- `left + right` 接受 `Str + Str`、`Str + String`、`String + Str` 与 `String + String`；
-  在左到右各求值一次后，以同步 shared-read 方式读取两个 operand，
+- `left + right` 在左到右各求值一次后，以同步 shared-read 方式读取两个 `String` operand，
   产生内容为精确字节拼接的新 `String` owner；不消费具名 operand。长度加法、目标布局或
   allocation size 无法表示时在发布部分结果前 abort。
-- `==` / `!=` 接受两个 `Str`、两个 `String` 或非空 `Str` / `String` 混合 operand，
-  比较 UTF-8 字节长度和全部内容，不比较地址或 owner identity，也不消费具名 operand。
-  不执行 Unicode normalization、locale folding 或 grapheme 处理。由于两类文本都满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
+- `==` / `!=` 比较 UTF-8 字节长度和全部内容，不执行 Unicode normalization、locale folding
+  或 grapheme 处理。由于所有 String 均满足 UTF-8 不变量，字节相等与 Unicode scalar 序列
   相等一致。
 - String 可以存入局部变量、作为普通 Value/默认 Borrow 参数、从函数返回、进入 closure
   capture，以及作为已经支持 drop glue 的 aggregate、enum、`Rc` 和顺序容器元素。现有
   ownership、loan、单态化和容器 relocation 规则不获得 String 特例。
-- 标准 `println(value: Str): Unit` 与 `println(value: String): Unit` 对两类文本 Borrow 写出
-  内容的全部字节，再写一个
+- 标准 `println(value: String): Unit` 对任意 String Borrow 写出内容的全部字节，再写一个
   ASCII LF；内容中的 U+0000 不截断。短写或不可恢复的 stdout 失败沿用现有 abort 边界。
-- 标准 `error(message: Str): Nothing` 与 `error(message: String): Nothing` 必须先按普通
-  求值/借用规则形成 message，再进入既有
+- 标准 `error(message: String): Nothing` 必须先按普通求值/借用规则形成 message，再进入既有
   abort effect；现行规范不保证 stderr 文本格式或 message 一定被打印。
 
 本最小表面不发布 `length`、索引、slice、builder、编码转换、用户构造器、可变 buffer、
@@ -157,13 +152,11 @@ lowering 必须确定性拒绝 interpolation，不能只支持若干 builtin 并
 
 ### 运行时和编译阶段边界
 
-- frontend 只发布 builtin Str/String identity、plain-literal bytes、既有 binary/call identity、
-  Copyable/Transferable 与 ownership facts。对 String，SSA 必须使用专用 owner/type/operation，LLVM
+- frontend 只发布 builtin String identity、plain-literal bytes、既有 binary/call identity、
+  Copyable/Transferable 与 ownership facts。SSA 必须使用专用 String owner/type/operation，LLVM
   不得按源码拼写或把 Rust/C 字符串对象直接塞入 Koven value。
 - runtime 的字节指针、长度、存储 provenance、drop glue、concat、equality 与 stdout adapter
   必须由 accepted ADR 统一；内部 ABI 不承诺公共 C FFI 稳定性，也不得要求新增 workspace crate。
-  ADR-0018 的既有 String owner ABI 不自动成为 Str ABI，也不授权把 Str 当成带 drop obligation
-  的 StringLiteral。Str 表示及新增转换/混合操作的 SSA/ABI 交接须独立封闭后才能进入 native。
 - 所有创建边界都必须保证合法 UTF-8。plain literal 由 Lexer/decoder 保证，concat 由两个合法
   operand 闭包保证；argv 入口必须在创建 Koven String 前验证宿主参数，失败作为
   operational failure，不使用替换字符。
@@ -258,19 +251,13 @@ fun <T> swap(a: Inout T, b: Inout T): Unit
 
 ### 静态 `Str` 字面量与动态 `String`
 
-- 无插值字符串字面量（如 `"hello"`）的类型固定为 **`Str`**，表示指向静态只读内存的
-  UTF-8 文本。它不承担析构义务，满足 `Copyable` 与 `Transferable`，可跨函数或线程复制；
-  在要求 `String` 的位置也不发生 expected-type 重定型或隐式转换。
-- **`String`** 表示拥有独立动态存储的不可变文本，为 `MoveOnly`；拼接及动态构建产生 String
-  owner，复制、传递与析构遵守本页[值与所有权规则](#值所有权与-utf-8-不变量)。
-- `Str` 到 `String` 必须是显式转换。当前仅确定这项边界，尚未定义转换函数/构造器的源码
-  拼写、签名与 compiler-bound identity；不能自行把 `toString()`、`String(...)` 或普通 cast
-  当作已发布 API。缺少该具体契约的转换实现暂不进入后续 Phase。
-- 拼接、内容比较及 `println` / `error` 的两类文本 Borrow 契约统一见[最小操作](#封闭的最小操作)。
-  混合操作自身产生规定结果，不构成一般场景中的隐式 `Str`→`String` 转换，也不扩展 `Any`
-  formatting、文本排序、nullable 混合比较或 interpolation 转换协议。
-- `Str` 是静态只读文本值，不是可借用任意动态 String 的 slice；本次没有新增从 String
-  取得可逃逸 view、切片 API 或 borrow-return 能力。
+这项字符串分层方案已按用户最新决定延后，当前不启用 `Str` builtin、字面量改型、Str const、
+Str/String 混合操作或 `toString()` 转换。普通字符串字面量仍是 MoveOnly `String`，
+const 资格、内容比较、拼接与 `println` / `error` 继续采用本页既有 String 合同及 ADR-0018。
+
+本轮优先实施显式 `String.clone()`，保留原值并得到可独立消费的 String；具体 API 和
+frontend→ownership→SSA→native 合同由独立 clone 切片封闭。本页只记录已批准的方向，
+不宣称此工作区已实现 clone，也不因此启用隐式复制、共享/COW 或通用 formatting protocol。
 
 ---
 

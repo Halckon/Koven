@@ -94,32 +94,29 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 
 ## v0.39 迁移与未完成边界
 
-本版本只在继承规则上封闭四项已批准选择。语义启用不代表任何阶段已验收；当前实现事实仍以
-[Architecture](../architecture/README.md)为准。旧源码按以下边界迁移：
+本目录是 SPEC-0235 的未发布本地候选，不是 main 已集成的新版本。先整合独立 clone 切片的
+v0.39，再将本切片重基到真实 v0.39、升为 v0.40 并归档当时的完整规范；当前不伪造该快照。
+本切片保留以下三项已批准规则；文档修订不代表任何编译阶段已经验收。
 
 | 受影响位置 | 迁移与权威入口 |
 |---|---|
 | 调用处 `f(borrow x)` / `f(name = borrow x)` | 删除调用处 marker，使用 `f(x)` / `f(name = x)`；声明处 Borrow 契约不变，见[调用实参](07-calls-lambdas-closures.md#typed-call-argument) |
 | 超界或负移位位数 | 按[移位规则](04-expressions-operators.md#整数具名位运算与移位)核对屏蔽后的结果；两个 operand 的同型整数约束保持，不改为 `Int` count |
 | 用户 `deinit` | 按[成员契约](08-class-family-members.md#deinit-成员语法与资源析构契约)核对 body / 字段清理顺序与只读 `this`；双轨析构时机不变 |
-| 字面量用于 `String` 变量、参数、字段或返回 | 字面量固定为 `Str`，不能隐式适配 `String`；具体显式转换 API 仍待定义，见[文本分层](13-program-runtime-standard-library.md#静态-str-字面量与动态-string) |
-| 旧 `const val TEXT: String = "text"` | 静态文本常量改为 `Str`；既有文本拼接/内容相等的 const 资格随两类文本一致扩充，普通调用仍禁止，见[const 边界](05-declarations-callables.md#363-封闭-const-expression-与求值失败) |
 
-- Phase 1 必须在删除实参 Borrow marker 后仍保留普通 `borrow` Identifier、声明 marker 和
+- Phase 1 必须在删除实参 Borrow marker 后保留普通 `borrow` Identifier、声明 marker 和
   `&` 的精确 Span/恢复边界；不能以“语义自动借用”继续接受旧调用语法。
-- Phase 2/3 须分别发布 Str/String 类型/能力、既有参数契约与 `deinit` receiver/清理事实；
-  Phase 4 只消费已验证事实。String 现有 ABI 不自动提供 Str 表示或新的转换/混合操作。
-- 显式转换的具体源码 API 及 Str native ABI 是独立缺口；本页不以示例、
-  既有实现或 Kotlin/Rust 习惯补齐，也不把语义启用视为这些依赖已解决。
-- interpolation、nullable 文本 native 表示和其他此前延后的能力保持原边界；本次不扩大
-  标准库表面、移位的 const 资格、异常展开、资源分类或双轨 drop 规则。
+- Phase 2/3 须分别发布参数契约与 `deinit` receiver/清理事实；Phase 4 只消费已验证事实。
+- 字符串按最新决定改为 clone-first；Str/toString 规范切换延后。既有 `String` 字面量、
+  const、拼接、内容比较与 ADR-0018 保持，不要求旧 `String` 字面量源码迁移为 Str。
+- interpolation、nullable 文本 native 表示和此前延后的能力保持原边界；不扩大移位的
+  const 资格、异常展开、资源分类或双轨 drop 规则。clone 实施验收在独立切片中进行。
 
 ## `const val` 的阶段交接
 
 Phase 1 保留普通 expression AST；Phase 2 根据[关联常量与封闭求值](05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值)
 发布常量选择、依赖图、值和 use facts；Phase 3 发布逐次物化的 ownership/drop/capture facts；
-Phase 4 只消费已验证产物生成 scalar/Char constant、静态 Str 值或已定型 String 常量的
-temporary owner；Str native 路径仍须满足独立 ABI 门禁。
+Phase 4 只消费已验证产物生成 scalar/Char constant 或 String literal owner。
 常量声明没有运行时初始化；缺少对应阶段 facts 的产物不得进入下游。
 
 单文件与 compilation-unit 产物分别验收。跨文件 typed const capability 不能被既有 unit
@@ -135,7 +132,7 @@ Nullable flow 与 extraction 的 frontend facts/ownership 适用于所有已接�
 ADR-0017 已支持、且由 owned whole-root/temporary 承载的普通 class、`Box`、`Rc` pointer-like
 nullable。pointer-like Borrow/Inout/field/element subject 的 proof lowering 等待 nullable-place/
 loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定其 frontend 合法性。
-scalar/value/enum/Str/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
+scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、nullable borrow-return 和跨 nullable 的 place-return
 也继续延后。v0.39 不改变这些类型/语法的既有 frontend 接受边界，只禁止后端凭表示猜测接线。
 

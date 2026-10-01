@@ -180,8 +180,8 @@ reify
 
 ### `String` 与插值
 
-本节定义字符串 token 与插值词法形态；无插值字面量的类型固定为 `Str`，不是 `String`，
-类型、转换与运行时契约见[静态 Str 与动态 String](13-program-runtime-standard-library.md#静态-str-字面量与动态-string)。
+本节定义字符串 token 与插值词法形态；无插值字面量仍是 `String`，
+类型与运行时契约见[String 规则](13-program-runtime-standard-library.md#string)。
 
 - 常规字符串由双引号包围，不得包含未转义 CR / LF。可用转义与 `Char` 相同，
   并额外允许 `\$`。v1 不支持三引号 / raw / 多行字符串。

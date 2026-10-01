@@ -349,7 +349,7 @@ AST 形状提前伪造结论。
   deferred，不据此证明穷尽。
 - 编译器只对有限且封闭的域证明无 `else` 穷尽：`Boolean` 的 `{true,false}`、enum root 的全部
   case，以及它们的 nullable 形式（额外包含 `null`）。泛型类型参数、普通 class、整数、
-  Str、String、interface、`Any` 和 subjectless predicate 集合都不是封闭域。
+  String、interface、`Any` 和 subjectless predicate 集合都不是封闭域。
 - enum case 的正 `is` 覆盖该 case，`!is` 覆盖当前有限域的补集；`null`、Boolean literal 和
   enum 无 payload case 的等值条件可贡献单点覆盖。一个条件对当前剩余域不增加覆盖时产生
   L0110；poisoned/未知条件不参与覆盖，也不制造后续重复诊断。

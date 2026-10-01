@@ -15,8 +15,7 @@ fun divide(a: Int, b: Int): Int {
 }
 ```
 
-- `error` **不是关键字**，而是标准库顶层函数，具有 `Str` / `String` Borrow 重载，
-  完整契约见[标准文本操作](13-program-runtime-standard-library.md#封闭的最小操作)。`Nothing`
+- `error` **不是关键字**，而是标准库顶层函数：`fun error(message: String): Nothing`。`Nothing`
   的 bottom-type 规则适用于所有返回 `Nothing` 的 callable，不按函数名特判。
 - `error()` 不抛出可捕获异常，而是终止进程（abort）。
 - `Nothing` 参与 bottom-type 类型推导：`if` 一个分支返回 `Nothing`，另一分支返回 `T`，整体类型推导为 `T`。
