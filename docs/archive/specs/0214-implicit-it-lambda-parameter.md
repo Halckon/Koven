@@ -104,3 +104,8 @@ ownership 只消费 validated typed symbol/mode，不重新猜 expected contract
 | `cargo test -p lang-codegen lowers_move_only_value_lambda_parameters_from_exact_drop_facts --locked --offline` | 通过 | 1 个真实执行用例；headerless unary thunk 参数绑定、drop 与输入置换 |
 | `cargo clippy -p lang-frontend --lib --test type_callable --test multifile_ownership_checking --locked --offline -- -D warnings`；`cargo clippy -p lang-codegen --lib --locked --offline -- -D warnings` | 通过 | 受影响 frontend/codegen 静态检查 |
 | 当前任务验收授权 | 采用受影响 suites + 全测试目标编译 + 定向 Clippy | 用户明确要求避免约一小时的 `lang-frontend` 全量测试；本记录不宣称全量测试通过 |
+
+2026-10-02 P2目录迁移后的当前复跑名为
+`lambdas::cross_file_lambdas_publish_expected_contract_and_callable_boundaries`；
+同一`--test multifile_type_checking`加`-- --exact`实际1 passed / 106 filtered。
+上表旧命令与当时结果保留原义，身份保全见[迁移验收](../../development/multifile-type-test-migration.md)。

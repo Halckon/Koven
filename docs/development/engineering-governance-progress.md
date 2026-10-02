@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26已合并；ownership integration20域本地已验，待review/PR CI | 184项与7 helpers逐字保留，无新例外；CI新增双平台同target定向执行；其余大integration与生产职责仍待后继 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26与ownership integration PR27已合并；multifile type17新域本地已验，待review/PR CI | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -211,3 +211,24 @@ P2仍待大integration分组与独立生产职责拆分；P3/P4/P5没有自动�
 
 P2仍待其他大integration分组与独立生产职责拆分；P3/P4/P5没有自动完成。
 整体完成后外部审计继续排队，不提前开展。
+
+
+## PR27 合并与 multifile type integration分组（2026-10-02）
+
+- [PR27](https://github.com/Halckon/Koven/pull/27)已合并为
+  `b36d5040ef7cafaa86e2b0c6a42cc1d2ab49691d`；本片据此固定新main。
+  上节ownership integration“待review/PR”保留历史快照，不沿用其CI证明本片
+- `tests/multifile_type_checking.rs`7202→160行，104根测试拆17个类型领域，最大732行；
+  原baseline_regressions209行/3项不动，合计107。9共用helpers留入口、4单域helpers随域
+- 120完整块逐字且等于独立同版rustfmt参考；1559 literals、781 asserts、22 support文件保留。
+  107新旧完整名逐项映射、前后无filter各107通过；129 metadata完整相等、187 lib身份不变并实跑
+- policy仅退休原7202行项，其他45 baseline与3既有例外逐值不变；675手写/48超限，无新例外。
+  本target已在双平台stage完整选集，不改CI；仍须核本PR exact-head两平台全部107逐名执行
+- 本地107 target、187 library、两条新exact各1、fmt、frontend all-targets check/严格clippy、
+  普通release check、96 policy、文档和尺寸护栏通过。integration-only compile+link两次/侧、
+  no-op与独立执行三次/侧已采样，预设调查阈值未触发，不据小样本宣称提速
+- [本片验收](multifile-type-test-migration.md)记录领域、完整身份/hash、受控成本及未测项。
+  纯搬迁与文档/policy独立提交；独立review/Draft PR exact-head CI终态留PR，合并由维护者判断
+
+P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，0182仍active。
+整体计划完成后的外部审计继续排队，不提前开展。
