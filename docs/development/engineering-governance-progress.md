@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15与后继PR17均已合并 | PR15归档15项；PR17补齐0236 Span证据后独立归档，当前1 active / 233 archive；0182继续独立补强 |
 | P1b 0182 证据 | 待独立批次 | 保持 active；补真实 for→SSA/native 的次数、顺序、畸形产物与确定性 oracle |
-| P2 测试结构与软上限 | LSP首片 PR16 已合并；尺寸护栏PR18已Draft，新main同步本地重验通过，待新head CI | 49项新main历史baseline、明确base增长检查与例外登记；后续搬迁前补受控时间/RSS样本 |
+| P2 测试结构与软上限 | LSP首片PR16与尺寸护栏PR18已合并；receiver首片本地验收通过，待review/PR CI | 46项拆至七私有领域模块，历史超限49→48；有限warm样本已记录，受控compile/link与预算仍待补 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -115,3 +115,21 @@ PR18首轮head `d2380c6ecc4b885830f7798d0e82b4aca5c2dd96`的
 55695ae；596手写/49历史超限/0生成物）、fmt与diff检查均通过；DAG重生成后无diff，
 live/archive为1/233。相对新main的全部Rust/Cargo文件diff为空，护栏实现、policy与测试
 相对PR18首轮head亦无diff；没有重跑本地Rust行为或macOS，远端新head门禁结果留在PR18。
+
+## PR18 合并与 codegen receiver 首片（2026-10-02）
+
+[PR18](https://github.com/Halckon/Koven/pull/18)已于11:11:28 UTC合并为
+`7318d53e4c5677684630e2b0b9148e9c6ceb1c35`。其最终head
+`89a10905c858332a32b9dd2bdc0c171c024f6a8f`的
+[CI 36998108953](https://github.com/Halckon/Koven/actions/runs/36998108953)为9/9 success；
+新main的[CI 36999639756](https://github.com/Halckon/Koven/actions/runs/36999639756)亦9/9 success，
+双宿主core/stage/Guide实际成功。以上PR18待CI文字保留为当时交付快照。
+
+本批从该main独立拆 `unit_lower_receiver_tests.rs`：3383→34行入口，七个领域模块均≤829行，
+46个完整测试块、原helper/imports逐字保全。完整libtest679项一对一映射、129 targets完整metadata
+不变，旧filter前后各46 passed；生产代码、Cargo、workflow与其他测试不变。
+尺寸policy仅删除该已消除的3383行历史条目，其余baseline/例外/生成物不变；真实超限49→48。
+本地fmt、codegen严格Clippy、workspace all-targets check、普通release check通过；本地完整native
+与macOS未跑。身份映射、实际命令、最小warm三轮时间/RSS及限制见[本片验收](codegen-receiver-test-migration.md)。
+三轮no-op/filter样本不证明冷/热compile/link收益或退化预算；P2整体未完成。后续独立review和
+Draft PR exact-head双宿主CI仍需核验，终态留在PR；不沿用基底CI冒充新head验收。
