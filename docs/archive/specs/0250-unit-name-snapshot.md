@@ -1,10 +1,10 @@
 # SPEC-0250：封闭 unit 名称前缀 owner
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或验收共享 unit 名称前缀时 · **唯一真源**：本 Spec 的有界合同与验收账本
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或验收共享 unit 名称前缀时 · **唯一真源**：本 Spec 的有界合同与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P6-250` |
 | 所属 Phase | Phase 1→2 名称前缀与 Phase 6 CLI 编排；治理 P3b 首片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 基线 / 分支 | main `64ace382c2a634ebf19bab66da928242120930cd` / `feature/spec-0250` |
 | 前置 Spec | SPEC-0025、0249 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md)、[ADR-0022](../../adr/accepted/0022-minimal-project-manifest-source-discovery.md) `accepted` |
-| 阻塞项 | 新接口、parity与本地门禁通过；独立实现评审及Draft PR exact-head双宿主CI尚待执行 |
+| 阻塞项 | 本Goal按§6首轮双宿主证据有界完成；归档文档新head仍须独立窄审和最终CI，不自动合并 |
 | 影响范围 | frontend analysis 的不可变 owner 与工厂、CLI project 前缀、契约及 stage 选择、架构与治理文档 |
 | 语言语义变更 | 否；不改 Guide、长期架构、五 crate 边界、const 或 LSP 行为，不新增 ADR |
 
@@ -77,7 +77,7 @@ frontend 不 read/stat/scan、解析 manifest/URI、选择 entry、渲染消息�
 | A5 CLI 原可观察行为 | 完整 `cargo test --locked -p lang-cli` 与 build；project basic/const 真实stdout/exit、名称/类型/所有权gate先于entry、失败产物/临时文件保全；原native oracle不变 | 旧前缀基线project_cli9/9（含3新gate）先通过；迁移后完整CLI69/69（bin48、format3、native9、project9）及build通过，真实basic/const/argv/String stdout/exit与失败原子性保持 |
 | A6 相邻公开合同 | frontend targets `compilation_unit_index`、`multifile_name_resolution`、`owned_compilation_unit_view`、`owned_unit_view_compile_contracts`、`multifile_type_signature_provenance`；frontend doctests；codegen `native::unit_tests` | 七frontend targets合计42 passed（新7+4、旧index11/names10/view1/compile7/provenance2），均0 failed/ignored/filtered；frontend docs12/12；native unit93 passed/646 filtered/0 failed/ignored，保留既有真实link/run/资源oracle |
 | A7 工程门禁 | fmt、workspace all-targets check、frontend/CLI严格clippy、docs、全Python policy、diff与base64ace38尺寸guard | fmt、最终workspace all-targets check、frontend/CLI严格Clippy、docs472 Markdown、全Python policy98/98、diff均通过；base64ace38尺寸686手写/48历史超限/0生成物且无增长，policy额度未改 |
-| A8 双宿主选择与CI | 两新targets各恰一次未过滤stage选择policy红→绿；Draft exact-head双宿主jobs与逐名输出；归档新head另验 | stage selection policy零命中真红→各恰一次绿，相关policy14/14、全policy98/98；Draft/独立review/精确head双宿主与归档最终CI待执行，不由本地结果替代 |
+| A8 双宿主选择与CI | 两新targets各恰一次未过滤stage选择policy红→绿；Draft exact-head双宿主jobs与逐名输出；归档新head另验 | stage selection policy零命中真红→各恰一次绿，相关policy14/14、全policy98/98；独立实现review通过，PR31首轮精确head双宿主9/9及新targets逐名通过见§6；归档新head最终CI另验，不由首轮替代 |
 
 本地实测 Rust/Cargo1.96.0、LLVM/Clang21.1.8、x86_64 Linux；全部Cargo命令追加`--locked --offline`串行执行，未clean或移除其他artifacts。
 完整 frontend、未迁移LSP、性能/分配测量不在本片验收宣称中；macOS 由远端实际 CI 另验。
@@ -137,3 +137,49 @@ git diff --check
 全部上列命令已通过。未运行frontend全量、全部stage/Guide、完整codegen、LSP行为或本地macOS；
 公开API通过workspace check，未迁LSP没有行为diff。未新增性能/分配计数测量，不声称提速、
 性能等价或index次数减少。P3b后片仍需独立能力/恢复与宿主协议验收。
+
+
+## 6. 首轮精确 head 双宿主验收与有界归档（2026-10-02）
+
+[PR31](https://github.com/Halckon/Koven/pull/31) 保持 Draft，首轮 head
+`83a54d6710a3f86065127676d9fe9c91b6bc0109` 的
+[CI 37062811973](https://github.com/Halckon/Koven/actions/runs/37062811973) 已完成9/9 jobs success。
+双宿主check/严格Clippy、core、ownership iteration、stage、Guide均实际成功；不是feature push
+或selection配置存在的替代证明。源码实现独立review无阻断，另复跑snapshot7/compile4/project9，
+policy14、docs472和尺寸686/48通过；唯一current计数意见在发布前修为2 active/235 archive。
+
+### 本地提交与 GitHub tree / 父链
+
+| 内容 | 本地提交 | GitHub提交 | 完整tree |
+|---|---|---|---|
+| 代码/测试/CI接线 | `a1ac3a93253329009abee95d29ad3755e4cc9608` | `29cd1a131576b6bbd0c073b361524b5ce953b487` | `7ca4df36aaff1ded038f35d0a754687b4ea63024` |
+| Spec/当前事实 | `51856e000b2a3e542d84e9819201fe90481d0969` | `83a54d6710a3f86065127676d9fe9c91b6bc0109` | `1767f1931b7900eb26ac4aa57671e95325ba4986` |
+
+两侧逐提交tree相同，fetch后分别空diff；GitHub父链为固定base64ace38→29cd1a1→83a54d6。
+测试job实际checkout GitHub合成merge `2ae137f5cab8b208ac563ea2cee2d355a2f4ab0e`，其双parent
+恰为base64ace38与head83a54d6；fetch核实完整tree仍为1767f193，和head空diff。
+因此验收覆盖此精确head的内容，不把合成merge SHA误写成head SHA或真实合并记录。
+
+### 双宿主真实执行
+
+| 检查 | Ubuntu 24.04 x86_64 | macOS 14 AArch64 |
+|---|---|---|
+| 新 `unit_name_snapshot` | §5七个完整名各恰一次ok，无ignored/filtered | 同七名各恰一次ok，无ignored/filtered |
+| 新 `unit_name_snapshot_compile_contracts` | §5四个完整名各恰一次ok，无ignored/filtered | 同四名各恰一次ok，无ignored/filtered |
+| 完整 `project_cli` | 原6+新3共9名各恰一次ok | 同9名各恰一次ok |
+| frontend core / LSP / ownership iteration | 187 / 26 / 184 passed | 187 / 26 / 184 passed |
+| codegen core / docs | 739 / 4 passed | 738 passed＋既有LLDB1 ignored / 4 docs passed |
+| 完整CLI | bin48＋format3＋native9＋project9＝69 passed | bin47＋format3＋native9＋project9＝68 passed |
+| stage / Guide steps | 两步success | 两步success |
+
+日志直接来源为[Ubuntu job111024025559](https://github.com/Halckon/Koven/actions/runs/37062811973/job/111024025559)
+和[macOS job111024025570](https://github.com/Halckon/Koven/actions/runs/37062811973/job/111024025570)。
+新两target均各一次真实Running记录，11个新frontend名和完整CLI9名逐一核验，共20个身份/宿主。
+stdout/stderr可能交错，不用相邻Running行猜测summary归属。macOS原LLDB ignore原因仍为CI缺少
+debugserver task-port权限；未扩ignore，也不把ignored当passed。
+
+0250仅完成封闭名称owner与CLI project纯前缀首迁；bootstrap、LSP迁移、const完整owner、
+0182及P2/P3b/P4/P5整体均未自动完成，无性能/分配改善宣称，整体后外部审计次序保持。
+按有界Goal归档后为1 active/236 archive；§4/§5本地未运行与红测原义保留，远端覆盖单列于本节。
+归档仅改文档、inventory与生成图，不改已验收Rust/CI接线；归档新head独立窄review和最终CI
+结果留在PR，不能沿用首轮9/9代替最终验收，不自动转Ready或启用auto-merge。

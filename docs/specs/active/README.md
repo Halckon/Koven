@@ -4,9 +4,8 @@
 
 - [SPEC-0182](0182-sequential-for-lowering.md)：顺序容器 `for` frontend→SSA→native 集成，approved；已有实现，仍需逐项补强集成验收证据
 
-- [SPEC-0250](0250-unit-name-snapshot.md)：封闭 unit 名称前缀 owner，in-progress；CLI project 首迁，保持后段与 LSP 边界
 
-0179/0211/0212、0228–0249 已按各自有界 Goal 完成归档；各项原非目标继续保持。
+0179/0211/0212、0228–0250 已按各自有界 Goal 完成归档；各项原非目标继续保持。
 0182 不因邻层测试或本批文档门禁通过而关闭，详情见[治理执行账本](../../development/engineering-governance-progress.md#0182-的保留边界)。
 
 - [v0.37 阶段路由](../drafts/v0.37/README.md)：借用式顺序迭代的阶段依赖
