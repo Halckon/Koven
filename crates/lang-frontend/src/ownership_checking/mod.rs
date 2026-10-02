@@ -7,6 +7,7 @@ mod compilation_unit;
 mod constant;
 mod construction;
 mod error;
+mod handoff;
 mod iteration;
 mod model;
 mod non_null_assertion;
@@ -49,6 +50,9 @@ pub use construction::{
     ConstructionRootDropObligation, ConstructionRootKind,
 };
 pub use error::OwnershipCheckingError;
+pub use handoff::{
+    OwnedCompilationUnitView, OwnedCompilationUnitViewError, owned_compilation_unit_view,
+};
 pub use iteration::{
     ClosureReleaseLayout, IterationCaptureGraph, IterationCaptureNode, IterationCaptureSource,
     IterationCleanupAction, IterationClosureBinding, IterationClosureFlow,

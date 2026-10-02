@@ -7,7 +7,8 @@ use std::{
 };
 
 use lang_codegen::{
-    NativeObjectError, NativeUnitEntry, emit_native_constant_unit_object, emit_native_unit_object,
+    NativeObjectError, NativeUnitEntry, emit_native_constant_unit_object,
+    emit_native_owned_unit_object,
 };
 use lang_frontend::{
     ast::AstError,
@@ -20,7 +21,7 @@ use lang_frontend::{
     },
     ownership_checking::{
         OwnershipCheckingError, check_compilation_unit_constant_ownership,
-        check_compilation_unit_ownership,
+        check_compilation_unit_ownership, owned_compilation_unit_view,
     },
     parser::{FunctionBody, FunctionForm, Item, ParsedFile, ParserInternalError, parse_file},
     source::{SourceError, SourceMap},
@@ -228,17 +229,13 @@ pub(crate) fn emit_project_object(
         Err(_) => return Err(ProjectBuildError::IncompleteOwnership),
     };
     let entry = select_project_entry(selector, &inputs, &names, typed.types())?;
-    emit_native_unit_object(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        entry,
-        object,
-    )
-    .map_err(|error| codegen_error(&sources, names.names().index().source_units(), error))
+    let unit =
+        owned_compilation_unit_view(&sources, &inputs, &names, &type_environment, &typed, &owned)
+            .map_err(|error| {
+            codegen_error(&sources, names.names().index().source_units(), error.into())
+        })?;
+    emit_native_owned_unit_object(&unit, entry, object)
+        .map_err(|error| codegen_error(&sources, names.names().index().source_units(), error))
 }
 
 fn validate_project_paths(

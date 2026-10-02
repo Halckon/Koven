@@ -13,6 +13,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test numeric_literals --test bitwise_constants --test integer_inv --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
   --test string_clone --test clone_primitive_integration \
   --test type_checking --test type_callable --test type_copyability --test multifile_type_checking \
+  --test owned_compilation_unit_view --test owned_unit_view_compile_contracts \
   --test type_constants --test multifile_constant_facts \
   --test multifile_constant_qualification --test multifile_constant_dependencies \
   --test multifile_constant_selection --test lexer \

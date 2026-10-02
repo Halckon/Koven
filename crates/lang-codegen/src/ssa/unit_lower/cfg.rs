@@ -157,7 +157,7 @@ impl UnitExpressionLowerer<'_> {
                     pending: Vec::new(),
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         if let Some(receiver) = self.current_receiver
             && let EntityId::Loan(source) = receiver.entity
         {
