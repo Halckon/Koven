@@ -244,3 +244,65 @@ frontend 无诊断，但单文件 `lower_scalar_file_with_entry` 在该 arrayOf 
 本片 PR 双宿主 CI 尚未运行；frontend 全量、workspace 全量与性能/RSS 未运行，无生产或
 跨 crate API 变动。其余完整 owned named/Borrow 边界与再读、nominal/mixed projection、
 nested/derived/component cleanup、ZST、真实 for 负例落盘桥接、独立分析链确定性仍未闭合。
+
+### 2026-10-02 conditional break 的 source-loan CFG 修复
+
+本片从 `main 0b1939b471099e8759eb729ea548d7155129403d` 独立建分支，修复现行
+§3 退出清理合同，不改 frontend facts、verifier、LLVM/runtime ABI 或语言语义。本 Spec
+继续保持 active；本节只闭合下述 CFG 身份错误，不重写上方历史验收或宣称全部 §5 完成。
+
+合法最小输入 `fun scan(): Unit { for (value in listOf(1)) { if (value == 1) { break } } }`
+在 frontend 无诊断，修复前 `lower_scalar_file` 返回 `InvalidSsa`。本地临时诊断显示：
+break block 接收重绑定 source loan `%l6`，却对旧 body loan `%l2` 发出 BorrowEnd，产生
+`HiddenLinearLiveIn` / `LoanInactive`，随后 owner drop 与仍有效 `%l6` 冲突。诊断插桩
+已移除；正式代码仍独立运行原 verifier，不把失败降级为允许通过。
+
+根因是 `body_source` 与 `active_source_loan` 在 CFG 后失去一致性。
+`ForLoopData::rebind_source` 在普通 edge 重绑定、单出口恢复和多出口 merge 三个入口同时更新
+二者。active 状态从本层原有 source-loan ownership marker 重建，不能沿用 sibling 的
+`.take()` 后状态；复用的外部 Borrow source 仍不由本层结束。原本的 exhaustion cleanup
+仍使用 exhaustion block 自己接收的 loan。
+
+新增 [source CFG 回归](../../../crates/lang-codegen/src/ssa/sequential_for_lowering_tests/source_cfg_tests.rs)
+包含三项测试：Array/List/MutableList 的最小 conditional break 对实际 edge 参数逐项断言
+`element loan → 本块 source loan → temporary owner`；正常 sibling 只结束 element，回边
+保留 owner/source；九种 if/else、nested if、continue、单/多出口 merge、conditional return 与两个 temporary provider
+组合均通过 SSA 与 verified LLVM；Borrow 参数另明确不生成该 source 类型的 BorrowEnd。
+这些期望直接检查模型实体和手写顺序，不读取 frontend cleanup plan 生成 oracle。
+
+[native cleanup 回归](../../../crates/lang-codegen/src/native_sequential_for_tests/cleanup_tests.rs)
+新增两项，复用已有双 concat String 元素、两个逆序 deinit Guard 和逐指针分配计数 helper。
+第一项 conditional break 首轮退出，固定 stdout 为
+`first\nlater\nearlier\nafter\ndone\n`，5 次分配/释放，含未访问元素的 buffer；第二项
+nested conditional break 在第一轮正常 sibling 后于第二轮退出，固定 stdout 为
+`first\nlater\nearlier\nsecond\nlater\nearlier\nafter\ndone\n`，7 次分配/释放。
+每项均执行 public object/link/run 和 verified LLVM 计数 link/run，核对成功退出、空 stderr、
+精确 stdout 和每个 live pointer 恰好释放一次。不能把这些 buffer/payload 计数解释为全部
+String logical drop、nominal element deinit 或 ZST 验收。
+
+正式修复前，source CFG 选择为 1 passed / 2 failed（Borrow 对照通过，两个 owned/temporary
+测试 InvalidSsa）；native conditional-break 为 1 failed，在 object 发射前被同一 InvalidSsa
+拒绝。修复后原测试不改 expected 转绿。另一个 `own xs: List<Int>` 参数探针在参数建立处
+返回既存 `UnsupportedNode`，尚未进入本次 CFG；未加入拒绝即成功的回归，不扩展实现范围。
+
+以下验收在工作环境重建后重新执行，不以重建前日志抵扣；生产修改和全部五个新增测试
+均使用最终源码，两条 nested temporary provider 用例也在此轮真实执行。Cargo 串行，
+libtest 默认并行，没有 clean、ignore 或平台过滤。
+
+| 恢复后实际命令 / 检查（2026-10-02，正式门禁退出码均为 0） | 结果 |
+|---|---|
+| `cargo test --locked --offline -p lang-codegen --lib sequential_for` | 32 passed / 0 failed / 0 ignored / 664 filtered；原 27 + 新 5，新增两项 native 各实际运行两条路径 |
+| 同上 Cargo 目标，libtest 多过滤器 `ssa::lower_frontend_tests ssa::container_operation_tests ssa::verify_tests ssa::verify_ownership_tests native_tests::entry_shape_and_analysis_identity_fail_before_object_emission` | 99 passed / 0 failed / 0 ignored / 597 filtered；64 CFG/lowering、10 provider/container、8结构 verifier、16 ownership verifier、1 native mixed identity |
+| `cargo fmt --all -- --check` | 通过 |
+| `cargo check --locked --offline -p lang-codegen --all-targets` | 通过 |
+| `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| `python3 scripts/check_rust_sizes.py --base 0b1939b471099e8759eb729ea548d7155129403d` | 606 手写 / 48 历史超限 / 0 生成物；control.rs 1443 行不增长，loop_control.rs 973→983，新增 source_cfg_tests.rs 157 行；无 baseline/exception 修改 |
+| `python3 -m unittest discover -s scripts/tests -v` | 94 passed |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过；Architecture 原有 200 行入口上限保持 |
+
+所有 Cargo test 均外包 `timeout --signal=TERM --kill-after=10s 300s`，check/clippy 为 600s，
+fmt 为 120s。宿主 x86_64 Linux，Rust 1.96.0、LLVM/Clang 21.1.8，共享 Cargo target、
+`CARGO_INCREMENTAL=0`。本片 PR 双宿主 CI 尚未运行；macOS 本地、frontend 全量、
+workspace 全量、性能/RSS 未运行。无跨 crate API 变化；现有 nominal element 构造边界、
+完整 owned named/Borrow 矩阵、ZST、derived/component cleanup、真实 for 负例落盘与
+独立分析链确定性不由本修复的结果证明，保持原合同和各自后续验收范围。
