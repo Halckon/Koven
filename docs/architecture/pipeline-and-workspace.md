@@ -64,7 +64,7 @@ LLVM/layout/object emission→atomic commit；旧 native 的用户 Into 在 fact
 N1 只证明 commit 失败清理，尚未注入真正 LLVM emission 失败；H1/H2 证明 CLI 邻层保护。
 
 [原合同基线](../development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
-实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../specs/active/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。
+实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。
 [动态计数与同期采样](../development/owned-unit-handoff-measurement.md)分别验收；次数减少已实测，耗时噪声不支持性能收益结论。
 
 ## 目标与产物

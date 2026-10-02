@@ -11,11 +11,11 @@
 5. [治理执行账本](engineering-governance-progress.md)记录每批真实进度与下一门禁；没有实施/验收的目标不称当前能力
 
 P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 Span 精确证据由 PR17
-补齐并归档，0182继续active；[0249普通交接](../specs/active/0249-owned-unit-borrowed-handoff.md)已进入in-progress。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
+补齐并归档，0182继续active；[0249普通交接](../archive/specs/0249-owned-unit-borrowed-handoff.md)已按有界合同与PR30首轮双宿主证据归档。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
 已合并的[receiver拆分](codegen-receiver-test-migration.md)与[plan七域拆分](codegen-plan-test-migration.md)之后，
 推进[iteration私有测试18域拆分](drop-iteration-test-migration.md)；
 其余领域、真正冷缓存和分离link性能验收仍待后继，
-P3 先封闭普通 unit 交接、再共享宿主编排。P4 仅在语义/recovery parity 成立时逐域收敛。
+P3a 普通 unit 交接本片已完成；const 后继与 P3b 共享宿主编排仍未完成。P4 仅在语义/recovery parity 成立时逐域收敛。
 P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
 
 ## 当前入口与历史界限

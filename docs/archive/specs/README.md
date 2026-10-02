@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 234 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 235 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -299,3 +299,8 @@
 ## 2026-10-02 String clone 诊断验收补强
 
 - [SPEC-0236](0236-explicit-string-clone.md)：原14项测试补精确code/Span/source slice oracle，新增断言双宿主实际通过；原实现与非目标范围保持
+
+
+## 2026-10-02 普通 owned-unit 封闭交接
+
+- [SPEC-0249](0249-owned-unit-borrowed-handoff.md)：普通六借用工厂与旧入口兼容转接；身份/能力/输出合同、动态计数及首轮双宿主验收完成，性能噪声不支持提速结论

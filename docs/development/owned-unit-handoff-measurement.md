@@ -9,7 +9,7 @@ factory 为1，预建 view 的 native 与独立 lower 各为0。两个固定输�
 [完整计数与全部采样 JSON](evidence/owned-unit-handoff-measurement.json)保留 before/after native、
 独立 lower 的完整符号/计数、104 条原始进程样本、统计、核验结果、fixture manifest 与来源 hash。
 JSON 内原值逐字段保全，可独立复算计数差与采样统计；大型 profile/binary 不进入仓库，
-本页不建立长期 benchmark 框架，也不代替 [SPEC-0249](../specs/active/0249-owned-unit-borrowed-handoff.md) 的行为/CI 验收。
+本页不建立长期 benchmark 框架，也不代替 [SPEC-0249](../archive/specs/0249-owned-unit-borrowed-handoff.md) 的行为/CI 验收。
 
 ## 固定代码与输入
 
@@ -115,3 +115,14 @@ JSON 所有 source JSON hash、完整测量包 manifest hash 与 frozen before b
 本测量未覆盖 macOS、const、失败链计数、真实项目性能、cold-OS 或 alloc/free 差分。
 生产、原始测量及仓内摘要/JSON 的独立窄核均无 finding，本地行为门禁有各自证据；
 Draft PR 及 exact-head 双宿主 CI 尚待完成，不因本页完成而将 Spec 标为 done。
+
+
+## 首轮发布与归档后继
+
+以上测量与“Draft/CI尚待”保留为测量交付时的历史。后继本地 `ffcef525` 与 PR30 首轮
+远端 `410ed04c94608798d66bdebd2b3e6423cdf2b2cf` 完整 tree 相同：
+`192363b74005a9d40f660328b98ca4f65a2c61f4`；[该 head CI](https://github.com/Halckon/Koven/actions/runs/37054717054)
+双宿主9/9 jobs实际成功。测量原值不变，0249按有界 Goal完成归档；
+[归档账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#8-首轮-exact-head-双宿主验收与归档2026-10-02)
+记录逐名合同与非目标。归档文档新 head 的最终 CI 留 [PR30](https://github.com/Halckon/Koven/pull/30)核验，
+不将首轮绿灯当作归档 head 已通过，也不将本片等同于整个治理计划完成。

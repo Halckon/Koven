@@ -1,0 +1,803 @@
+{
+  "head": "410ed04c94608798d66bdebd2b3e6423cdf2b2cf",
+  "tree": "192363b74005a9d40f660328b98ca4f65a2c61f4",
+  "run": 37054717054,
+  "jobs": [
+    {
+      "id": 110996474401,
+      "name": "Detect Changed Files",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run dorny/paths-filter@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        }
+      ]
+    },
+    {
+      "id": 110996474893,
+      "name": "Rust Physical Line Guard",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Test Rust size policy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Check handwritten Rust size growth",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        }
+      ]
+    },
+    {
+      "id": 110996534505,
+      "name": "Rust Code Formatting",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Check formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        }
+      ]
+    },
+    {
+      "id": 110996534611,
+      "name": "Docs & Spec Structural Gate",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run check_docs.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Test docs and CI gate policies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Check git diff whitespace",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    },
+    {
+      "id": 110996658113,
+      "name": "Workspace Check & Clippy (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Set up LLVM 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Cargo Check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Cargo Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        }
+      ]
+    },
+    {
+      "id": 110996658146,
+      "name": "Workspace Check & Clippy (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Set up LLVM 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Cargo Check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Cargo Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        }
+      ]
+    },
+    {
+      "id": 110997395860,
+      "name": "Targeted Tests (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Set up LLVM 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run Core & Targeted Tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Run ownership iteration integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Run selected frontend stage integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Run Guide litmus with explicit known gaps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        }
+      ]
+    },
+    {
+      "id": 110997395941,
+      "name": "Targeted Tests (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Set up LLVM 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run dtolnay/rust-toolchain@stable",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run Core & Targeted Tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Run ownership iteration integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Run selected frontend stage integration",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Run Guide litmus with explicit known gaps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@v2",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        }
+      ]
+    },
+    {
+      "id": 110998560255,
+      "name": "CI Passed",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 37054717054,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Verify required jobs and legitimate skips",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        }
+      ]
+    }
+  ],
+  "macos": [
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_sources_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_changed_inputs_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_fresh_names_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_environment_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_fresh_typed_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_owned_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::accepts_cloned_chain_permuted_inputs_and_rechecked_ownership",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::legacy_entry_conversion_occurs_once_before_identity_validation",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::identity_rejection_never_reserves_sibling_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "owned_view_borrows_the_exact_validated_products",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "factory_and_read_only_getters_keep_distinct_view_and_parsed_lifetimes",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "external_struct_literals_updates_and_field_replacements_are_private",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "const_typed_and_owned_capabilities_cannot_enter_the_basic_factory",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "recovery_names_types_and_ownership_cannot_enter_the_factory",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "view_cannot_escape_any_of_its_six_borrowed_products",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "view_cannot_escape_a_temporary_inputs_slice",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "indexed_signature_compatibility_is_not_an_external_escape_hatch",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::non_null_assertion_tests::unit_non_null_assertion_pending_temporary_is_freed_after_control_flow_call",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::unit_object_failures_preserve_targets_and_cleanup_sibling_temporary",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::unit_object_atomically_replaces_links_and_runs_across_packages",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::constants::constant_object_runs_deterministically_and_preserves_output_on_failure",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::constants::owners::constant_and_literal_string_owners_have_matching_runtime_cleanup",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "project_command::tests::linker_failure_does_not_publish_and_artifact_drop_cleans_siblings",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "project_command::tests::atomic_commit_never_replaces_a_racing_final_output",
+      "pass": 1,
+      "other": []
+    }
+  ],
+  "ubuntu": [
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_sources_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_changed_inputs_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_fresh_names_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_environment_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_fresh_typed_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::rejects_foreign_owned_before_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::accepts_cloned_chain_permuted_inputs_and_rechecked_ownership",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::legacy_entry_conversion_occurs_once_before_identity_validation",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::handoff_contracts::identity_rejection_never_reserves_sibling_output",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "owned_view_borrows_the_exact_validated_products",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "factory_and_read_only_getters_keep_distinct_view_and_parsed_lifetimes",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "external_struct_literals_updates_and_field_replacements_are_private",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "const_typed_and_owned_capabilities_cannot_enter_the_basic_factory",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "recovery_names_types_and_ownership_cannot_enter_the_factory",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "view_cannot_escape_any_of_its_six_borrowed_products",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "view_cannot_escape_a_temporary_inputs_slice",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "indexed_signature_compatibility_is_not_an_external_escape_hatch",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::non_null_assertion_tests::unit_non_null_assertion_pending_temporary_is_freed_after_control_flow_call",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::unit_object_failures_preserve_targets_and_cleanup_sibling_temporary",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::unit_object_atomically_replaces_links_and_runs_across_packages",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::constants::constant_object_runs_deterministically_and_preserves_output_on_failure",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "native::unit_tests::constants::owners::constant_and_literal_string_owners_have_matching_runtime_cleanup",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "project_command::tests::linker_failure_does_not_publish_and_artifact_drop_cleans_siblings",
+      "pass": 1,
+      "other": []
+    },
+    {
+      "name": "project_command::tests::atomic_commit_never_replaces_a_racing_final_output",
+      "pass": 1,
+      "other": []
+    }
+  ]
+}

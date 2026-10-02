@@ -1,10 +1,10 @@
 # SPEC-0249：普通 owned-unit 封闭借用交接
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或验收普通 compilation-unit 的 frontend→codegen 交接时 · **唯一真源**：本 Spec 的有界合同与验收账本
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或验收普通 compilation-unit 的 frontend→codegen 交接时 · **唯一真源**：本 Spec 的有界合同与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-249` |
 | 所属 Phase | Phase 3→4 交接与 Phase 6 CLI 直接消费者；治理 P3a |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 基线 / 分支 | main `7b3ac11fe1770339f2c5170981839477dae8cbf5` / `feature/spec-0249` |
 | 前置 Spec | SPEC-0197、0198、0199 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md) `accepted` |
-| 阻塞项 | 设计无未决语义；实现与验收状态逐项见 §6，不预先宣称通过 |
+| 阻塞项 | 本 Goal 按 §8 首轮双宿主证据有界完成；归档文档 head 的后续 CI 留 PR 核验，不自动合并 |
 | 影响范围 | frontend 普通 owned-unit 工厂与 provenance helper、codegen native/lower/planner 转接、CLI ordinary 分支、契约测试及stage选集、当前架构文档 |
 | 语言语义变更 | 否；不改变 ABI、const 能力、Guide 或长期架构决定，不新建 ADR |
 
@@ -157,3 +157,55 @@ all-targets check、codegen strict Clippy 全过，日志 `final-native-and-gate
 
 无阻断实施的语义或架构决定。生命周期推断、strict clippy/missing_docs、compile-fail错误原因、
 两路细节与计数及性能噪声都是实施验收项，完成前保持上表待测，不以设计审阅代替执行。
+
+
+## 8. 首轮 exact-head 双宿主验收与归档（2026-10-02）
+
+§1–7 的实施合同、API 编译红、oracle/fixture 失败、本地绿测与性能噪声原文全部保留；其中
+“in-progress / Draft 未发布 / CI 待验”是当时快照。本节追加后继证据，不将原未执行项倒填为
+当时已通过，也不以文档归档扩大有界 Goal、语言语义、ABI 或 const 能力。
+
+### 精确发布映射与已执行 CI
+
+[Draft PR30](https://github.com/Halckon/Koven/pull/30) 首轮远端 head 为
+`410ed04c94608798d66bdebd2b3e6423cdf2b2cf`，与本地
+`ffcef525` 的完整 tree 严格相同：`192363b74005a9d40f660328b98ca4f65a2c61f4`。
+本地实现 `f543a28`、文档 `510e012`、测量文档 `ffcef525` 的提交链与远端 API 发布提交 SHA
+不同；通过完整 tree 相等建立发布对应，不把本地 SHA 伪装成远端提交。
+
+该 exact head 的 [CI 37054717054](https://github.com/Halckon/Koven/actions/runs/37054717054)
+9/9 jobs completed/success：变更检测、尺寸、fmt、文档、两宿主 check/Clippy、两宿主
+core/targeted/stage/Guide 与最终汇总都实际通过。完整 jobs/steps 和逐名计数保留在
+[首轮 CI 核验 JSON](../../development/evidence/owned-unit-handoff-initial-ci.json)。
+
+- [macOS 14](https://github.com/Halckon/Koven/actions/runs/37054717054/job/110997395860)：
+  codegen 738 passed/0 failed/1 ignored/0 filtered；既有 LLDB 测试因 debugserver task-port
+  权限保持 ignored，没有扩大忽略范围。codegen docs 4 passed。CLI 为47＋3 format＋9 native＋
+  6 project＝65 passed，各组0 failed/ignored/filtered
+- [Ubuntu 24.04](https://github.com/Halckon/Koven/actions/runs/37054717054/job/110997395941)：
+  codegen 739 passed、docs 4 passed；CLI 为48＋3＋9＋6＝66 passed，各组0 failed/ignored/filtered
+- 两宿主 frontend lib 各187 passed、LSP 各26 passed、ownership iteration 各184 passed；
+  stage 与 Guide steps 均 success。它们是现有选集，不是 frontend/workspace 全量 tests 的声明
+- 本片17项合同（native9＋factory1＋compile-contract7）在每宿主逐名各恰1次 `ok`；原八项
+  native 身份仍保留，新增 Into 与外部 rustc 能力/生命周期合同真实执行
+- 另逐名核 N3/N1/N2/C7/C8/H1/H2 七项，每宿主各恰1次 `ok`，没有其他状态。
+  N3 保留28 alloc/28 free/live-pointer oracle，N1仍只证明 commit 清理，H1/H2仍属宿主邻层
+
+以上“24个重点身份”是17项合同＋7项关键回归，不是 PR29 的原 F/S/N/C/H 24条基线。
+原基线的本地完整 suite 覆盖记录仍在 §6；不能把两个不同的24项集合混写为同一逐名 CI 验收。
+
+### 有界完成与最终文档 head 的边界
+
+A1–A13 的实现、身份/能力/输出/资源合同、本地门禁、独立 review、动态 native/lower/factory
+计数和带噪声限制的性能对照已经留证；A14 的首轮 exact-head 双宿主验收亦已完成。
+本 Spec 因而按普通 owned-unit 封闭借用交接这一 Goal 标为 `done`，从 active 迁入 archive，
+当前为1 active/235 archive。0182继续 active，P2其余职责、P3b共享编排、P4、P5与全部整体
+治理计划没有自动完成；const 迁移及整体计划完成后的外部审计仍按原顺序后继处理。
+
+本次归档只改状态、路径、链接、索引、inventory、生成图与此后继账本，保留生产/测试字节。
+本次归档的本地文档检查471 Markdown、Python policy97、固定main base尺寸护栏
+（682手写/48超限/0生成）与 `git diff --check` 全部通过；没有再运行 Cargo。
+归档文档会产生新 head，其 exact-head CI 尚待实际运行，不能沿用上述首轮9/9冒充新 head绿灯。
+最终状态只记录在 [PR30](https://github.com/Halckon/Koven/pull/30)，不为反复追记外部状态制造
+新的待验提交。本归档不自动改变 PR 的 Draft 状态或启用 auto-merge；
+最终合并遵循现有授权与最终门禁。
