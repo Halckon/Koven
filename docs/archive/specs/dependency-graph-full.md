@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，236 份）"]
+subgraph Garchive["已完成（archive，237 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -245,6 +245,7 @@ subgraph Garchive["已完成（archive，236 份）"]
   S0248["S0248<br/>列表式 Unit 容器的零大小存储"]
   S0249["S0249<br/>普通 owned-unit 封闭借用交接"]
   S0250["S0250<br/>封闭 unit 名称前缀 owner"]
+  S0251["S0251<br/>LSP unit 消费共享名称快照"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -1099,6 +1100,7 @@ S0185 --> S0209
 S0186 --> S0184
 S0186 --> S0212
 S0186 --> S0225
+S0187 --> S0251
 S0188 --> S0044
 S0188 --> S0045
 S0188 --> S0184
@@ -1187,6 +1189,7 @@ S0226 --> S0227
 S0244 --> S0245
 S0244 --> S0246
 S0249 --> S0250
+S0250 --> S0251
 ```
 
 ## 节点链接
@@ -1429,4 +1432,5 @@ S0249 --> S0250
 | SPEC-0248 | archive | [0248-unit-container-storage.md](0248-unit-container-storage.md) |
 | SPEC-0249 | archive | [0249-owned-unit-borrowed-handoff.md](0249-owned-unit-borrowed-handoff.md) |
 | SPEC-0250 | archive | [0250-unit-name-snapshot.md](0250-unit-name-snapshot.md) |
+| SPEC-0251 | archive | [0251-lsp-unit-name-snapshot.md](0251-lsp-unit-name-snapshot.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |

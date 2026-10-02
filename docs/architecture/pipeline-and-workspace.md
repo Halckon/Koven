@@ -54,8 +54,10 @@ inputs Vec，使其 slice 的生命周期覆盖 0249 view。map 中未显式列�
 
 CLI project 首先完成已有 discovery/path 校验与 source 注册，再调用此前缀；同次
 standard_environments 的 type 半边留宿主。其 names 后非空诊断 gate、basic/const 分流、
-ownership/entry/native 后段保持。bootstrap 与两种 LSP 入口尚未迁移；不提供总模式开关。
-对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts` 与 CLI `project_cli`。
+ownership/entry/native 后段保持。LSP unit 同样组合该 owner，但保留 validated_names gate、typed
+recovery、const 无 owned 与 prepare/publish/commit 生命周期；bootstrap 和 legacy LSP 尚未迁移。
+不提供总模式开关。对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts`、
+CLI `project_cli` 与 LSP 私有 `unit_session::tests` / `server::tests::snapshot_lifecycle`。
 
 ## 普通 owned-unit 交接
 

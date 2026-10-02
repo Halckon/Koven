@@ -3,17 +3,17 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
 use lang_frontend::{
+    analysis::{UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names},
     diagnostic::Diagnostic,
-    lexer::{LexerInternalError, lex},
+    lexer::LexerInternalError,
     name_resolution::{
-        CompilationUnitInputError, CompilationUnitNameError, CompilationUnitNames, SourceUnitInput,
-        UnitDiagnosticOrderError, index_compilation_unit, ordered_unit_diagnostics,
-        resolve_compilation_unit_names,
+        CompilationUnitInputError, CompilationUnitNameError, UnitDiagnosticOrderError,
+        ordered_unit_diagnostics,
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipCheckingError, check_compilation_unit_ownership,
     },
-    parser::{ParsedFile, ParserInternalError, parse_file},
+    parser::ParserInternalError,
     source::{SourceError, SourceId, SourceMap},
     type_checking::{
         CompilationUnitTypeError, CompilationUnitTypes, check_compilation_unit_types,
@@ -184,13 +184,11 @@ impl UnitUpdate {
 }
 
 struct UnitSnapshot {
-    sources: SourceMap,
+    // Prefix, recovery products and definition facts are replaced together. All spans remain
+    // bound to the SourceMap owned by this single immutable name snapshot.
+    name_snapshot: UnitNameSnapshot,
     source_ids: Vec<SourceId>,
     diagnostics: Vec<Diagnostic>,
-    // Recovery products and definition facts share this snapshot's SourceMap identity. They must
-    // be replaced together so a request can never observe spans from another analysis generation.
-    _parsed: Vec<ParsedFile>,
-    names: CompilationUnitNames,
     _typed: Option<CompilationUnitTypes>,
     _owned: Option<CompilationUnitOwnership>,
     definitions: UnitDefinitionIndex,
@@ -203,86 +201,75 @@ impl UnitSnapshot {
     ) -> Result<Self, UnitSessionError> {
         let mut sources = SourceMap::new();
         let mut source_ids = Vec::with_capacity(config.sources().len());
-        let mut parsed = Vec::<ParsedFile>::with_capacity(config.sources().len());
+        let mut descriptors = Vec::with_capacity(config.sources().len());
         for source in config.sources() {
             let text = overlays
                 .get(source.uri().as_str())
                 .map_or(source.text(), |overlay| overlay.text.as_str());
             let source_id = sources.add_source(source.uri().as_str(), text)?;
-            let lexed = lex(&sources, source_id)?;
-            parsed.push(parse_file(&sources, &lexed)?);
+            descriptors.push(UnitSourceDescriptor::new(
+                source.root(),
+                source.logical_path(),
+                source_id,
+            ));
             source_ids.push(source_id);
         }
-        let inputs = config
-            .sources()
-            .iter()
-            .zip(source_ids.iter().copied())
-            .zip(parsed.iter())
-            .map(|((source, source_id), parsed)| {
-                SourceUnitInput::new(source.root(), source.logical_path(), source_id, parsed)
-            })
-            .collect::<Vec<_>>();
-        let index = index_compilation_unit(&sources, &inputs)?;
         let (name_environment, type_environment) = standard_environments();
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)?;
-        let mut diagnostics = names.diagnostics().to_vec();
-        let Ok(validated_names) = names.clone().validate() else {
-            return Self::finish(sources, source_ids, parsed, names, None, None, diagnostics);
+        let name_snapshot = analyze_unit_names(sources, descriptors, name_environment)?;
+        let mut diagnostics = name_snapshot.names().diagnostics().to_vec();
+        let (typed, owned) = if let Some(validated_names) = name_snapshot.validated_names() {
+            let inputs = name_snapshot.inputs();
+            let typed = check_compilation_unit_types(
+                name_snapshot.sources(),
+                &inputs,
+                validated_names,
+                &type_environment,
+            )?;
+            diagnostics.extend_from_slice(typed.diagnostics());
+            let owned = if let Ok(validated_typed) = typed.clone().validate() {
+                let owned = check_compilation_unit_ownership(
+                    name_snapshot.sources(),
+                    &inputs,
+                    validated_names,
+                    &type_environment,
+                    &validated_typed,
+                )?;
+                diagnostics.extend_from_slice(owned.diagnostics());
+                Some(owned)
+            } else {
+                None
+            };
+            (Some(typed), owned)
+        } else {
+            (None, None)
         };
-        let typed =
-            check_compilation_unit_types(&sources, &inputs, &validated_names, &type_environment)?;
-        diagnostics.extend_from_slice(typed.diagnostics());
-        let Ok(validated_typed) = typed.clone().validate() else {
-            return Self::finish(
-                sources,
-                source_ids,
-                parsed,
-                names,
-                Some(typed),
-                None,
-                diagnostics,
-            );
-        };
-        let owned = check_compilation_unit_ownership(
-            &sources,
-            &inputs,
-            &validated_names,
-            &type_environment,
-            &validated_typed,
-        )?;
-        diagnostics.extend_from_slice(owned.diagnostics());
-        Self::finish(
-            sources,
-            source_ids,
-            parsed,
-            names,
-            Some(typed),
-            Some(owned),
-            diagnostics,
-        )
+        Self::finish(name_snapshot, source_ids, typed, owned, diagnostics)
     }
 
     fn finish(
-        sources: SourceMap,
+        name_snapshot: UnitNameSnapshot,
         source_ids: Vec<SourceId>,
-        parsed: Vec<ParsedFile>,
-        names: CompilationUnitNames,
         typed: Option<CompilationUnitTypes>,
         owned: Option<CompilationUnitOwnership>,
         diagnostics: Vec<Diagnostic>,
     ) -> Result<Self, UnitSessionError> {
-        let diagnostics =
-            ordered_unit_diagnostics(&sources, names.index().source_units(), &diagnostics)?
-                .into_iter()
-                .cloned()
-                .collect();
-        let definitions = UnitDefinitionIndex::build(&parsed, &names, typed.as_ref())?;
+        let diagnostics = ordered_unit_diagnostics(
+            name_snapshot.sources(),
+            name_snapshot.names().index().source_units(),
+            &diagnostics,
+        )?
+        .into_iter()
+        .cloned()
+        .collect();
+        let definitions = UnitDefinitionIndex::build(
+            name_snapshot.parsed_files(),
+            name_snapshot.names(),
+            typed.as_ref(),
+        )?;
         Ok(Self {
-            sources,
+            name_snapshot,
             source_ids,
             diagnostics,
-            _parsed: parsed,
-            names,
             _typed: typed,
             _owned: owned,
             definitions,
@@ -300,7 +287,8 @@ impl UnitSnapshot {
             .copied()
             .zip(config.sources().iter().map(|source| source.uri().clone()))
             .collect::<Vec<_>>();
-        let diagnostics = convert_unit_diagnostics(&self.sources, &uris, &self.diagnostics)?;
+        let diagnostics =
+            convert_unit_diagnostics(self.name_snapshot.sources(), &uris, &self.diagnostics)?;
         Ok(config
             .sources()
             .iter()
@@ -331,14 +319,15 @@ impl UnitSnapshot {
         };
         let source_id = self.source_ids[source_index];
         let source_unit = self
-            .names
+            .name_snapshot
+            .names()
             .index()
             .source_units()
             .iter()
             .find(|source| source.source_id() == source_id)
             .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
             .id();
-        let Some(offset) = byte_offset(&self.sources, source_id, position)? else {
+        let Some(offset) = byte_offset(self.name_snapshot.sources(), source_id, position)? else {
             return Ok(Vec::new());
         };
         self.definitions
@@ -346,7 +335,8 @@ impl UnitSnapshot {
             .iter()
             .map(|target| {
                 let target_source = self
-                    .names
+                    .name_snapshot
+                    .names()
                     .index()
                     .source_units()
                     .get(target.source_unit.index())
@@ -367,7 +357,7 @@ impl UnitSnapshot {
                     .ok_or(UnitDefinitionQueryError::UnknownSource(
                         target_source.source_id(),
                     ))?;
-                let range = span_range(&self.sources, target.span)?;
+                let range = span_range(self.name_snapshot.sources(), target.span)?;
                 Ok(Location::new(
                     config.sources()[target_index].uri().clone(),
                     range,
@@ -421,6 +411,17 @@ impl fmt::Display for UnitSessionError {
 }
 
 impl Error for UnitSessionError {}
+
+impl From<UnitNameAnalysisError> for UnitSessionError {
+    fn from(error: UnitNameAnalysisError) -> Self {
+        match error {
+            UnitNameAnalysisError::Lexer(error) => Self::Lexer(error),
+            UnitNameAnalysisError::Parser(error) => Self::Parser(error),
+            UnitNameAnalysisError::Input(error) => Self::Input(error),
+            UnitNameAnalysisError::Name(error) => Self::Name(error),
+        }
+    }
+}
 
 macro_rules! unit_session_error_from {
     ($source:ty, $variant:ident) => {
@@ -479,3 +480,6 @@ impl From<PositionMappingError> for UnitDefinitionQueryError {
         Self::Position(error)
     }
 }
+
+#[cfg(test)]
+mod tests;
