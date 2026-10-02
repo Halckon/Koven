@@ -5,6 +5,8 @@ pub(super) struct PendingCallFrame {
     pub(super) loop_depth: usize,
     pub(super) pending_start: usize,
     pub(super) created_loans: Vec<usize>,
+    /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
+    pub(super) exclusive_root_owners: Vec<usize>,
 }
 
 impl UnitExpressionLowerer<'_> {

@@ -49,3 +49,5 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |
+
+- [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界

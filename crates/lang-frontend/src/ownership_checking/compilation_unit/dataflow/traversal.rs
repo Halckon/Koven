@@ -509,6 +509,7 @@ impl Checker<'_> {
         arguments: &[crate::parser::CallArgument],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let diagnostic_count = self.diagnostics.len();
         let call = self.unit_expression(id);
         let contracts = self
             .contracts_by_call
@@ -606,6 +607,9 @@ impl Checker<'_> {
         }
         if let Some(next) = flows.next.as_mut() {
             self.activate_receiver(call, next)?;
+        }
+        if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
+            self.record_ownership_primitive(id, arguments)?;
         }
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()

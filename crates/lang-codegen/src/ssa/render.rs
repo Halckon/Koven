@@ -660,6 +660,30 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Place(*place))
         }
+        Operation::RootReplace {
+            owner,
+            loan,
+            replacement,
+        } => {
+            output.write_str("root_replace ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Loan(*loan))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*replacement))
+        }
+        Operation::RootSwap { owners, loans } => {
+            output.write_str("root_swap ")?;
+            for index in 0..2 {
+                if index != 0 {
+                    output.write_str(", ")?;
+                }
+                write_entity_id(output, EntityId::Value(owners[index]))?;
+                output.write_str(", ")?;
+                write_entity_id(output, EntityId::Loan(loans[index]))?;
+            }
+            Ok(())
+        }
         Operation::BorrowBegin { place, kind } => {
             write!(
                 output,

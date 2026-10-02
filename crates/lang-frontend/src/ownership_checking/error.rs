@@ -109,6 +109,11 @@ pub enum OwnershipCheckingError {
         /// 无效 descriptor 的 expression arena 下标。
         expression: usize,
     },
+    /// typed 原语 descriptor 与实际 AST operand identity 不一致。
+    InvalidOwnershipPrimitive {
+        /// 原语 call expression 下标。
+        expression: usize,
+    },
     /// AST typed ID 不满足 Parser 前置不变量。
     Ast(AstError),
     /// 输入源码或 Span 不满足前置不变量。
@@ -227,6 +232,10 @@ impl fmt::Display for OwnershipCheckingError {
                     "invalid construction descriptor for expression {expression}"
                 )
             }
+            Self::InvalidOwnershipPrimitive { expression } => write!(
+                formatter,
+                "invalid ownership primitive descriptor for expression {expression}"
+            ),
             Self::Ast(error) => write!(formatter, "ownership AST error: {error}"),
             Self::Source(error) => write!(formatter, "ownership source error: {error}"),
             Self::DiagnosticCode(error) => {
@@ -267,7 +276,8 @@ impl Error for OwnershipCheckingError {
             | Self::InvalidUnitConstruction { .. }
             | Self::InvalidUnitContainerConstruction { .. }
             | Self::InvalidUnitClosureCapture { .. }
-            | Self::InvalidConstructionDescriptor { .. } => None,
+            | Self::InvalidConstructionDescriptor { .. }
+            | Self::InvalidOwnershipPrimitive { .. } => None,
         }
     }
 }

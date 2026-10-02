@@ -344,3 +344,6 @@ fn receiver_two_phase_native_early_exit_and_normal_activation() {
         assert!(run.stdout.is_empty(), "{run:?}");
     }
 }
+
+#[path = "unit_root_primitive_tests.rs"]
+mod root_primitive_tests;

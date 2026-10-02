@@ -14,6 +14,7 @@ mod nominal;
 mod non_null_assertion;
 mod nullable_when;
 pub(super) mod orchestrate;
+mod ownership_primitive;
 mod source_closure;
 mod string_clone;
 pub(in crate::ssa) mod string_literal;
@@ -1058,6 +1059,9 @@ impl ExpressionLowerer<'_> {
         arguments: &[lang_frontend::parser::CallArgument],
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.typed.ownership_primitive(expression).is_some() {
+            return self.lower_ownership_primitive(expression, arguments, span);
+        }
         let descriptor = match self.typed.call(expression) {
             Some(descriptor) => descriptor,
             // 尚未封闭的 constructor 等 call family 使用 Error/Deferred 类型占位，但不会伪造

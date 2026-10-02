@@ -12,6 +12,7 @@ mod dataflow;
 #[cfg(test)]
 mod materialization_tests;
 mod non_null_assertion;
+mod ownership_primitive;
 #[cfg(test)]
 mod pending_temporary_tests;
 mod receiver;
@@ -662,6 +663,7 @@ pub struct CompilationUnitOwnership {
     short_circuits: Option<Vec<constant::UnitShortCircuitPlan>>,
     constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    ownership_primitives: Vec<super::UnitOwnershipPrimitiveOwnershipPlan>,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
@@ -684,6 +686,22 @@ pub struct CompilationUnitOwnership {
 }
 
 impl CompilationUnitOwnership {
+    /// 正常执行前缀后已获准的 source-qualified root 原子 commit。
+    #[must_use]
+    pub fn ownership_primitives(&self) -> &[super::UnitOwnershipPrimitiveOwnershipPlan] {
+        &self.ownership_primitives
+    }
+    /// 按调用 identity 查询正常 root commit。
+    #[must_use]
+    pub fn ownership_primitive(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&super::UnitOwnershipPrimitiveOwnershipPlan> {
+        self.ownership_primitives
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     /// 返回按 source-qualified assertion identity 排序的合法提取计划。
     #[must_use]
     pub fn non_null_assertions(&self) -> &[UnitNonNullAssertionOwnershipPlan] {
@@ -760,6 +778,11 @@ impl CompilationUnitOwnership {
                     .is_some_and(|facts| !facts.declarations().is_empty()),
             },
             non_null_assertions: dataflow.non_null_assertions,
+            ownership_primitives: if successful && dataflow.deferred.is_empty() {
+                dataflow.ownership_primitives
+            } else {
+                Vec::new()
+            },
             diagnostics: dataflow.diagnostics,
             bindings,
             call_argument_contracts,
@@ -1009,7 +1032,11 @@ impl CompilationUnitOwnership {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity() == Severity::Error);
-        if has_error || !self.deferred.is_empty() || self.provenance.requires_constant_capability {
+        if has_error
+            || !self.deferred.is_empty()
+            || self.provenance.requires_constant_capability
+            || !self.ownership_primitives_are_valid()
+        {
             Err(Box::new(self))
         } else {
             Ok(ValidatedCompilationUnitOwnership(self))

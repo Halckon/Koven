@@ -1031,6 +1031,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if !returns {
                     return Ok(false);
                 }
+                if let Some(plan) =
+                    self.checker.ownership_primitives.iter().find(|plan| {
+                        plan.descriptor().expression() == self.checker.unit_expression(id)
+                    })
+                {
+                    // Both roots remain initialized. Their old owners are returned/swapped,
+                    // never destroyed by assignment replacement glue.
+                    for place in plan.places() {
+                        if let Some(index) = state.position(place.root()) {
+                            state.values[index].origin = node.span();
+                        }
+                    }
+                }
                 state.pending_borrows.retain(|(call, _)| *call != id);
                 self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
                 for root in borrowed_roots {

@@ -1,3 +1,6 @@
+#[path = "native_root_primitive_tests.rs"]
+mod root_primitive_tests;
+
 #[path = "native_return_control_tests.rs"]
 pub(crate) mod return_control_tests;
 

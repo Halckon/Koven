@@ -293,6 +293,17 @@ pub(super) fn verify_operation(
                     == Some(Ownership::MoveOnly)
                 && single_value_result(&results) == value_type(function, *owner)
         }
+        Operation::RootReplace {
+            owner,
+            loan,
+            replacement,
+        } => {
+            root_exchange_contract(module, function, &[*owner], &[*loan], &results)
+                && value_type(function, *owner) == value_type(function, *replacement)
+        }
+        Operation::RootSwap { owners, loans } => {
+            root_exchange_contract(module, function, owners, loans, &results)
+        }
         Operation::BorrowBegin { place, kind } => {
             let target = entity_type(function, EntityId::Place(*place)).semantic_type();
             results
@@ -323,6 +334,37 @@ pub(super) fn verify_operation(
             origin: Some(instruction.origin.clone()),
         });
     }
+}
+
+fn root_exchange_contract(
+    module: &Module,
+    function: &Function,
+    owners: &[ValueId],
+    loans: &[super::model::LoanId],
+    results: &[EntityType],
+) -> bool {
+    let Some(ty) = owners
+        .first()
+        .and_then(|owner| value_type(function, *owner))
+    else {
+        return false;
+    };
+    (is_first_class(module, ty) || matches!(module.type_kind(ty), Some(SsaTypeKind::Unit)))
+        && !matches!(
+            module.type_kind(ty),
+            Some(SsaTypeKind::ConcreteClosure { .. })
+        )
+        && owners
+            .iter()
+            .all(|owner| value_type(function, *owner) == Some(ty))
+        && loans.iter().all(|loan| {
+            entity_type(function, EntityId::Loan(*loan))
+                == EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target: ty,
+                }
+        })
+        && results == [EntityType::Value(ty); 2]
 }
 
 fn root_place_owner(

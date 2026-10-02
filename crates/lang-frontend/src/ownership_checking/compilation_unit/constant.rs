@@ -66,7 +66,10 @@ impl CompilationUnitConstantOwnership {
 
     /// 仅在主分析已原子发布完整物化与短路事实时验证；不会取得基础 native capability。
     pub fn validate(self) -> Result<ConstEnabledOwnedUnit, Box<Self>> {
-        if self.0.constant_materializations.is_some() && self.0.short_circuits.is_some() {
+        if self.0.constant_materializations.is_some()
+            && self.0.short_circuits.is_some()
+            && self.0.ownership_primitives_are_valid()
+        {
             Ok(ConstEnabledOwnedUnit(self))
         } else {
             Err(Box::new(self))
@@ -281,5 +284,39 @@ mod tests {
             recovery.validate().is_err(),
             "materializations alone cannot validate control flow"
         );
+    }
+}
+
+#[cfg(test)]
+mod primitive_tests {
+    use super::CompilationUnitConstantOwnership;
+    use crate::ownership_checking::OwnershipPrimitiveValueTransfer;
+
+    #[test]
+    fn root_primitive_constant_validation_checks_commit_structure() {
+        let owned = super::super::constants_tests::analyze(
+            "package a\nconst val N = 2\nfun run(): Unit {\nvar a = 1\nreplace(&a, N)\n}",
+        );
+        assert_eq!(owned.ownership_primitives().len(), 1);
+        assert_eq!(
+            owned.ownership_primitives()[0].new_value_transfer(),
+            Some(OwnershipPrimitiveValueTransfer::Temporary)
+        );
+        let valid = CompilationUnitConstantOwnership(owned);
+        assert!(valid.clone().validate().is_ok());
+        let mut invalid = valid;
+        invalid.0.ownership_primitives[0].places.clear();
+        assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn root_primitive_constant_short_circuit_registers_only_reachable_commit() {
+        let owned = super::super::constants_tests::analyze(
+            "package a\nfun run(): Unit {\nvar a = false\nvar b = true\nreplace(&a, true || replace(&b, error(\"stop\")))\n}",
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert_eq!(owned.ownership_primitives().len(), 1);
+        assert_eq!(owned.loans().len(), 1);
+        assert!(CompilationUnitConstantOwnership(owned).validate().is_ok());
     }
 }

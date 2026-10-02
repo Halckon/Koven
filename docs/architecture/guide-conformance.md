@@ -16,7 +16,7 @@
 | 主题 | 当前可核验事实 | 权威或证据 |
 |---|---|---|
 | `deinit`、双轨析构“不存在” | main `3be83b5` 的 Guide08/10 已有合同；当前 v0.40 进一步明确 receiver 和清理顺序。合同已存在不等于资源 lifetime/drop/native 已完成 | [成员规则](../guide/08-class-family-members.md#deinit-成员语法与资源析构契约)、[所有权](ownership.md) |
-| 所有权原语“未动” | main 的 Guide10/13 已有 replace/swap；整合又有 SPEC-0232 可信 typed facts。原子 ownership/SSA/native 仍不能由普通 call 的诊断为空证明 | [SPEC-0232](../specs/active/0232-ownership-primitive-type-facts.md) |
+| 所有权原语“未动” | Guide10/13 的 replace/swap 已有可信 typed facts；owned mutable root 的 ownership/SSA/native 由 SPEC-0244 定向证明，field/index/Inout 参数与 closure 来源运输仍未交付 | [原语边界](root-ownership-primitives.md) |
 | `RawPtr` 字段必然自动 Copyable | 当前标准环境不绑定 `RawPtr`，测试在名称阶段得到 L0080；不能从 unresolved 类型推导 Copyable，更不能把假定的 double-free 当作已复现事实 | `guide_litmus::raw_pointer_name_is_unresolved_not_proven_copyable`；[类型事实](names-and-types.md) |
 | const 位运算 | Guide05 的六个具名中缀操作已由共享值内核完成；单文件/unit const 正向测试覆盖八种整数。Litmus12 保持原始 const 源码，并纳入两条 native 门禁 | [const 合同](../guide/05-declarations-callables.md#363-封闭-const-expression-与求值失败)；`guide_litmus` |
 | `Box<enum>` 与投影/拆箱 | 递归布局/构造/运输的已有证据与 `.value`/`unbox` 的 staged 合同是不同范围；前者不证明后者可执行 | [构造规则](../guide/11-copyability-layout-construction.md#内建-box-身份与实参边界)、[SSA 实现](ssa-codegen-runtime.md) |

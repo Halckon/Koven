@@ -94,6 +94,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if self.typed.ownership_primitive(call).is_some() {
+            return self.lower_ownership_primitive(expression, arguments, descriptor, span);
+        }
         if descriptor.aborts() {
             let Some(lowered) = self.lower_call_arguments(call, arguments, descriptor, span)?
             else {
@@ -261,6 +264,7 @@ impl UnitExpressionLowerer<'_> {
                 .push(super::call_lifetimes::PendingCallFrame {
                     loop_depth: self.loops.len(),
                     pending_start: receiver_start,
+                    exclusive_root_owners: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
                         .collect(),
@@ -417,7 +421,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn emit_borrow_argument_expression_drops(
+    pub(super) fn emit_borrow_argument_expression_drops(
         &mut self,
         call: UnitExpressionId,
     ) -> Result<(), LoweringError> {
@@ -445,6 +449,7 @@ impl UnitExpressionLowerer<'_> {
             .push(super::call_lifetimes::PendingCallFrame {
                 loop_depth: self.loops.len(),
                 pending_start: self.pending_operands.len(),
+                exclusive_root_owners: Vec::new(),
                 created_loans: Vec::new(),
             });
         let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);
@@ -606,7 +611,7 @@ impl UnitExpressionLowerer<'_> {
         }))
     }
 
-    fn lower_value_argument(
+    pub(super) fn lower_value_argument(
         &mut self,
         call: UnitExpressionId,
         argument: ExpressionId,

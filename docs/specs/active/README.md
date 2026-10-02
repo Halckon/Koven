@@ -24,3 +24,5 @@ SPEC-0179 typed plan、SPEC-0211 iteration ownership 与 SPEC-0212 SSA provider 
 SPEC-0210/0226/0227 已完成；阶段依赖和交付证据见 [v0.36 阶段索引](../drafts/v0.36/README.md)。
 
 v0.37 已启用；临时 source 纳入首轮 native，阶段依赖见[v0.37 路由](../drafts/v0.37/README.md)。
+
+- [SPEC-0244：owned mutable root 原子 replace / swap](0244-root-ownership-primitives.md)

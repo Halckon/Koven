@@ -15,6 +15,7 @@ mod integer;
 mod loop_control;
 mod non_null_assertion;
 mod ownership;
+mod ownership_primitive;
 mod rc;
 mod receiver;
 mod scalar;

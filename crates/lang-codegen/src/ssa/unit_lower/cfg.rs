@@ -255,6 +255,16 @@ impl UnitExpressionLowerer<'_> {
             if slot.pending.is_empty() {
                 continue;
             }
+            // 普通 Value 实参保留独立 snapshot；原语 root 已被 exclusive loan 锁定，
+            // 不允许循环改写，必须与其 loan 一起携带同一个 binding/owner identity。
+            if self.pending_call_frames.iter().any(|frame| {
+                frame
+                    .exclusive_root_owners
+                    .iter()
+                    .any(|index| slot.pending.contains(index))
+            }) {
+                continue;
+            }
             let ty = self
                 .typed
                 .symbol_type(symbol)

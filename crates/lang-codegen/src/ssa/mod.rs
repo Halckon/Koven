@@ -110,3 +110,6 @@ mod unit_constant_tests;
 mod bitwise_lowering_tests;
 #[cfg(test)]
 mod bitwise_operation_tests;
+
+#[cfg(test)]
+mod unit_root_primitive_tests;

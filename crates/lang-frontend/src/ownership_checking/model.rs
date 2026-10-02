@@ -574,6 +574,8 @@ impl DropFact {
 /// SPEC-0029 明确保留到后续 Goal 的 place 类别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnershipDeferredReason {
+    /// 原子 root 置换尚不能运输 closure 或包含 closure 的来源图。
+    OwnershipPrimitiveClosureTransport,
     /// 顺序容器 index place 等待 SPEC-0030。
     IndexPlace,
     /// 未具有静态参数契约的 instance member receiver。
@@ -619,6 +621,7 @@ pub struct OwnershipCheckedFile {
     iterations: Vec<super::IterationOwnershipPlan>,
     constant_materializations: Option<super::ValidatedConstantMaterializations>,
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
+    ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
     loan_ends: Vec<LoanEndFact>,
     nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     source_id: SourceId,
@@ -643,6 +646,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) iterations: Vec<super::IterationOwnershipPlan>,
     pub(crate) constant_materializations: Option<super::ValidatedConstantMaterializations>,
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
+    pub(crate) ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
@@ -658,6 +662,22 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 正常执行前缀后已获准的 owned root 原子 commit。
+    #[must_use]
+    pub fn ownership_primitives(&self) -> &[super::OwnershipPrimitiveOwnershipPlan] {
+        &self.ownership_primitives
+    }
+    /// 按调用 identity 查询 root commit；无正常后继或超出支持范围时没有计划。
+    #[must_use]
+    pub fn ownership_primitive(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::OwnershipPrimitiveOwnershipPlan> {
+        self.ownership_primitives
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     /// 按规划顺序发布快照、drop 与 loan end；同一 point 必须保持此顺序。
     /// 迭代 exit plans 是本序列的关联视图，不得重复执行。
     #[must_use]
@@ -739,6 +759,7 @@ impl OwnershipCheckedFile {
             cleanup_steps: parts.cleanup_steps,
             nullable_whens: parts.nullable_whens,
             non_null_assertions: parts.non_null_assertions,
+            ownership_primitives: parts.ownership_primitives,
             loan_ends: parts.loan_ends,
             typed_analysis_owner,
             diagnostics,
