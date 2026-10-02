@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 214 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 215 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -271,3 +271,5 @@
 - [SPEC-0193](./0193-conventional-zero-argument-main.md)：单文件零参数 conventional `main`
 
 - [SPEC-0209](./0209-associated-constant-lowering.md)：单文件关联常量 SSA/LLVM/native 重新物化
+
+- [SPEC-0244](./0244-root-ownership-primitives.md)：owned mutable root replace / swap 的 ownership、SSA/LLVM/native 与双平台 CI 验收

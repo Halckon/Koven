@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，214 份）"]
+subgraph Garchive["已完成（archive，215 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -223,6 +223,7 @@ subgraph Garchive["已完成（archive，214 份）"]
   S0226["S0226<br/>跨文件常量重新物化与所有权"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
   S0243["S0243<br/>Instance receiver 两阶段借用"]
+  S0244["S0244<br/>owned mutable root 原子 replace / swap"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -241,7 +242,6 @@ subgraph Gactive["现行 active"]
   S0240["S0240<br/>整数具名位运算与取反端到端执行"]
   S0241["S0241<br/>Return 控制表达式操作数与单文件 enum 条件"]
   S0242["S0242<br/>调用点自动借用迁移"]
-  S0244["S0244<br/>owned mutable root 原子 replace / swap"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1391,6 +1391,7 @@ S0226 --> S0227
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
 | SPEC-0243 | archive | [0243-receiver-two-phase-borrows.md](0243-receiver-two-phase-borrows.md) |
+| SPEC-0244 | archive | [0244-root-ownership-primitives.md](0244-root-ownership-primitives.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
 | SPEC-0229 | active | [0229-extended-numeric-literal-values.md](../../specs/active/0229-extended-numeric-literal-values.md) |
@@ -1407,4 +1408,3 @@ S0226 --> S0227
 | SPEC-0240 | active | [0240-integer-bitwise-execution.md](../../specs/active/0240-integer-bitwise-execution.md) |
 | SPEC-0241 | active | [0241-return-control-operands.md](../../specs/active/0241-return-control-operands.md) |
 | SPEC-0242 | active | [0242-automatic-borrow-call-migration.md](../../specs/active/0242-automatic-borrow-call-migration.md) |
-| SPEC-0244 | active | [0244-root-ownership-primitives.md](../../specs/active/0244-root-ownership-primitives.md) |

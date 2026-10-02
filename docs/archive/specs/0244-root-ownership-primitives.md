@@ -1,10 +1,10 @@
 # SPEC-0244：owned mutable root 原子 replace / swap
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实现或验收 owned root 原子置换时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实现或验收 owned root 原子置换时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-244` |
 | 所属 Phase | Phase 3 ownership；Phase 4 SSA / LLVM / native |
 | 语言规范 | [所有权与原子置换](../../guide/10-ownership-borrowing-drop.md) |
@@ -35,7 +35,7 @@
 3. [x] 显式 ROOT SSA 交换操作、严格 provenance / loan / consumption verifier。
 4. [x] 两入口按顺序求值与 CFG/提前退出处理，LLVM 交换不析构旧 owner。
 5. [x] 原语 native 输出、源顺序与逐指针分配/释放计数。
-6. [ ] 定向回归、共享门禁、严格 lint、文档和双平台 PR CI。
+6. [x] 定向回归、共享门禁、严格 lint、文档和双平台 PR CI。
 
 ## 3. 验证账本
 
@@ -54,7 +54,7 @@
 | workspace check、严格 clippy、fmt | 首轮均通过 | `--all-targets --locked`、`-D warnings`；无新增 lint 豁免 |
 | 文档 / Python policy / diff | 451 篇 / 45 tests / whitespace check 通过 | 结构不替代语义证明 |
 | 最终 shared-CFG 回归 | codegen 595 + 4 doctests、CLI 66、Guide 201；check / clippy / fmt 全通过 | 内层loop与Unit修复后的最终源码；Linux无ignore |
-| macOS / 本 PR CI | 尚未运行 | 不以已有 PR #9/#10 结果替代本 head |
+| 首轮本 PR 双平台 CI | run 36962330050 completed / success，8/8 jobs success、无job skip | head bedc21ad；不以旧PR结果替代 |
 
 ## 4. 交付
 
@@ -69,3 +69,26 @@
 - 基础 unit 的既有参数控制退出边界未取消；constant-enabled unit 有 native return/break/continue/内层loop证据，通用基础短路分析不在本片重写
 - frontend 全量未运行；SPEC-0242 的五项 multifile type 与五项完整编辑器 corpus 历史失败不修改、不声称通过
 - 本地 checkpoint 为 6c8752e、ab9dc33；合入用户 PR #10 后的基线整合提交为 2409eb3。独立 feature 最终对 main 发 Draft PR，不隐藏堆叠依赖
+
+## 6. 首轮远端完成证据
+
+[Draft PR #11](https://github.com/Halckon/Koven/pull/11) 的实现 head
+`bedc21ad7e82a6f7c152545654a70e701e63ef71` 已完成
+[pull_request run 36962330050](https://github.com/Halckon/Koven/actions/runs/36962330050)，
+2026-10-02 读回 completed / success，全部 8 个 job 成功，无跳过的必需 job。
+远端 tree `b818004a562f0479a97d2708d7e9b4a9971f554a` 与本地 `bce3336` 完全相同，
+59 个 blob SHA 逐一核对，git fetch 再次验证远端树。发布经过同一 GitHub connector，无 force。
+
+| 宿主 | frontend lib | codegen / doctests | CLI / LSP | stage | Guide |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 | 183 | 595 / 4 | 66 / 26 | 60 targets / 756 | 187 frontend + 14 codegen |
+| macOS 14 | 183 | 594 passed、1 既有 ignored / 4 | 65 / 26 | 60 targets / 756 | 187 frontend + 14 codegen |
+
+两平台均实际执行全部新 root 原语 SSA/LLVM/native 测试，包含内层循环与 Unit 提前退出修复。
+macOS 唯一 ignored 仍是既有 `lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`，原因是
+CI 不具备 debugserver task-port 权限；没有新增 ignore，也不计作调试器通过。Guide 的三个
+codegen 过滤分别为 589 / 593 / 589，不能计为测试通过。未运行的 frontend 全量与其他边界不变。
+
+本 Spec 以声明的 owned root 切片验收完成而归档，PR 保持 Draft、由用户决定合并。归档提交
+仅维护 Spec 路径、inventory、索引与生成图；最终 head 的双平台运行在 PR 更新，不继续为
+最后一轮 CI 结果生成循环账本提交。
