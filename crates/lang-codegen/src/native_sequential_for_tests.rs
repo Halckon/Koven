@@ -1,5 +1,9 @@
 #[path = "native_sequential_for_tests/cleanup_tests.rs"]
 mod cleanup_tests;
+#[path = "native_sequential_for_tests/unit_storage_boundary_tests.rs"]
+mod unit_storage_boundary_tests;
+#[path = "native_sequential_for_tests/unit_storage_tests.rs"]
+mod unit_storage_tests;
 
 use super::emit_link_and_run;
 

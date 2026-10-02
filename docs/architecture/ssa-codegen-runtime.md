@@ -181,7 +181,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 - nullable handle 使用 null niche 和条件 drop；不把所有 nullable 类型统一强制成 pointer。
 - 一个 compilation unit 生成一个 LLVM module，并保留多 source DWARF 行映射。
 
-实现位于 `crates/lang-codegen/src/llvm/`；runtime helper 集中在 `llvm/runtime.rs` 与
+[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离。实现位于 `crates/lang-codegen/src/llvm/`；runtime helper 集中在 `llvm/runtime.rs` 与
 `llvm/runtime/` 子模块。
 
 ## Native object 与发布

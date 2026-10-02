@@ -20,6 +20,8 @@ pub(super) struct TypeMap<'ctx> {
     void_type: VoidType<'ctx>,
     pointer_type: PointerType<'ctx>,
     types: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
+    // Unit storage is deliberately absent from the general ABI/aggregate type table.
+    container_unit_storage: BTreeMap<SsaTypeId, BasicTypeEnum<'ctx>>,
     aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
     tagged_layouts: BTreeMap<SsaTypeId, TaggedLayout<'ctx>>,
     container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
@@ -66,6 +68,7 @@ impl<'ctx> TypeMap<'ctx> {
         // oversized layouts out of opaque struct bodies, GEPs, and allocator lowering.
         let layout_plan = TargetLayoutPlan::build(context, module, target)?;
         let mut types = BTreeMap::new();
+        let mut container_unit_storage = BTreeMap::new();
         let mut aggregates = BTreeMap::new();
         let mut containers = BTreeMap::new();
         let mut closures = BTreeMap::new();
@@ -130,7 +133,11 @@ impl<'ctx> TypeMap<'ctx> {
                     closures.insert(id, closure);
                     Some(closure.into())
                 }
-                SsaTypeKind::Unit | SsaTypeKind::Opaque { .. } => None,
+                SsaTypeKind::Unit => {
+                    container_unit_storage.insert(id, context.struct_type(&[], false).into());
+                    None
+                }
+                SsaTypeKind::Opaque { .. } => None,
             };
             if let Some(ty) = ty {
                 types.insert(id, ty);
@@ -239,16 +246,25 @@ impl<'ctx> TypeMap<'ctx> {
             tagged_layouts.insert(id, TaggedLayout { value, payloads });
         }
 
-        let mut container_layouts = BTreeMap::new();
+        let mut result = Self {
+            void_type: context.void_type(),
+            pointer_type: pointer,
+            types,
+            container_unit_storage,
+            aggregates,
+            tagged_layouts,
+            container_layouts: BTreeMap::new(),
+            closure_layouts,
+            shared_controls,
+            shared_control_sizes,
+        };
         for (id, header) in &containers {
             let (_, element) = module.sequential_container(*id).ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("顺序容器类型缺少元素定义".to_owned())
             })?;
             let element_layout = layout_plan.layout(element)?;
-            let element = types.get(&element).copied().ok_or_else(|| {
-                LlvmAdapterError::Unsupported("顺序容器元素不具有 LLVM storage 表示".to_owned())
-            })?;
-            container_layouts.insert(
+            let element = result.container_element_type(element)?;
+            result.container_layouts.insert(
                 *id,
                 ContainerLayout {
                     header: *header,
@@ -259,17 +275,7 @@ impl<'ctx> TypeMap<'ctx> {
             );
         }
 
-        Ok(Self {
-            void_type: context.void_type(),
-            pointer_type: pointer,
-            types,
-            aggregates,
-            tagged_layouts,
-            container_layouts,
-            closure_layouts,
-            shared_controls,
-            shared_control_sizes,
-        })
+        Ok(result)
     }
 
     pub(super) fn shared_control(
@@ -303,6 +309,17 @@ impl<'ctx> TypeMap<'ctx> {
         self.types.get(&ty).copied().ok_or_else(|| {
             LlvmAdapterError::Unsupported("SSA 类型不具有 LLVM first-class 表示".to_owned())
         })
+    }
+
+    /// Storage at a container element boundary, without enabling general Unit value ABI.
+    pub(super) fn container_element_type(
+        &self,
+        ty: SsaTypeId,
+    ) -> Result<BasicTypeEnum<'ctx>, LlvmAdapterError> {
+        self.container_unit_storage
+            .get(&ty)
+            .copied()
+            .map_or_else(|| self.basic_type(ty), Ok)
     }
 
     pub(super) fn int_type(&self, ty: SsaTypeId) -> Result<IntType<'ctx>, LlvmAdapterError> {

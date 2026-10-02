@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，233 份）"]
+subgraph Garchive["已完成（archive，234 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -242,6 +242,7 @@ subgraph Garchive["已完成（archive，233 份）"]
   S0245["S0245<br/>具体普通 class 的资源析构闭环"]
   S0246["S0246<br/>owned local 普通 class 一级字段 replace"]
   S0247["S0247<br/>跨文件类型基线与恢复事实闭合"]
+  S0248["S0248<br/>列表式 Unit 容器的零大小存储"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -620,10 +621,12 @@ S0035 --> S0195
 S0035 --> S0199
 S0035 --> S0220
 S0035 --> S0225
+S0035 --> S0248
 S0036 --> S0182
 S0036 --> S0186
 S0036 --> S0199
 S0036 --> S0212
+S0036 --> S0248
 S0038 --> S0039
 S0038 --> S0186
 S0038 --> S0191
@@ -1162,6 +1165,7 @@ S0210 --> S0226
 S0210 --> S0227
 S0211 --> S0182
 S0212 --> S0182
+S0212 --> S0248
 S0213 --> S0214
 S0215 --> S0216
 S0215 --> S0217
@@ -1415,4 +1419,5 @@ S0244 --> S0246
 | SPEC-0245 | archive | [0245-resource-deinit.md](0245-resource-deinit.md) |
 | SPEC-0246 | archive | [0246-direct-field-replace.md](0246-direct-field-replace.md) |
 | SPEC-0247 | archive | [0247-multifile-baseline.md](0247-multifile-baseline.md) |
+| SPEC-0248 | archive | [0248-unit-container-storage.md](0248-unit-container-storage.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |

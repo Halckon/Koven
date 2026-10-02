@@ -446,3 +446,46 @@ PR22 的独立分析链确定性片已合入 `main a7a92790a49053d110e00655f1745
 conditional continue + break、`total` 累加）永久加入现有 CFG 测试，明确通过 fresh frontend、
 SSA verifier 与 verified LLVM，支持上述精确红例闭合引用。该测试函数另以 `--exact --nocapture`
 单独重跑 1 passed / 698 filtered，再运行同一套整合门禁；函数数不变，sequential_for 仍为 35。
+
+
+### 2026-10-02 Unit 容器存储独立修复的验收衔接
+
+[SPEC-0248](../../archive/specs/0248-unit-container-storage.md) 在独立 `fix/spec-0248` 中实施单文件列表式
+Unit 容器 operand 物化及 container-only storage/layout；它不属于本 Spec 的纯验收补测，
+不改变 §4 的原边界。待该片取得实际结果后，仅在此追加三容器 × 0/1/3 temporary source、
+Copyable Unit named binding/CFG、逻辑次数和共享 bounds 路径的有界证据。
+
+此段只登记关联与待测范围，尚无新增通过结论；本 Spec 保持 active，原 §5、历史记录与
+其余未闭合条款均保留。MoveOnly ZST 的逻辑 drop、nominal element、完整 owned/Borrow
+矩阵和一般 Unit ABI 不由这项修复推定完成。
+
+
+0248 的首轮实施反馈已取得两个独立原始红例不改 expected 转绿；`unit_storage` 过滤器为
+14 passed / 0 failed / 0 ignored / 698 filtered，其中包含三容器 × 0/1/3 native、discard
+与 if 后 Unit Read。这是实施中工作树的部分证据，完整 SSA 身份、bounds、ABI 及最终门禁
+仍待 0248 自己闭合；既有 `MutableList<Unit>()` 空构造另列独立 native 验收，不混入九格。
+本 Spec 仍保持 active，不据此勾选其余未闭合合同，也不把 Copyable Unit 当成 MoveOnly ZST。
+
+
+0248 最终 Linux 本地验收补充：`unit_storage` 32 passed / 0 failed / 0 ignored / 698 filtered
+（31 新增 + 1 旧 Unit root），`sequential_for` 57 passed / 673 filtered；完整 codegen
+730 unit + 4 doctests 全通过，无 ignored/filtered。新增领域源码与精确门禁见
+[0248 账本](../../archive/specs/0248-unit-container-storage.md#7-分层验收账本)，实现边界见
+[Unit 容器存储](../../architecture/unit-container-storage.md)。三容器九格独立 native 固定
+bytes 和 SSA 身份检查、count/if CFG 后 Unit Read、discard、三 provider Diverged、一格
+fresh-chain 文本一致性及独立空 MutableList 构造均已通过；低层 Array bounds 五格保留
+逻辑守卫，CFG-carried loan 的合法零字节 load 不被误判为缺陷。
+
+这些结果只补充本节声明的 Unit temporary-source/正常迭代子集，不扩大原 owned/Borrow、
+projection/cleanup 或 MoveOnly ZST 验收。0248 仍 in-progress、双宿主 CI 待发布；本 Spec
+继续 active，§5 原合同与全部历史不重写。
+
+
+0248 后继完成证据：PR24 实现 head `c77a9aa0a6fc1b0fcf951afcf4ea9ea945778cfd` 的
+[双宿主 CI 37024363674](https://github.com/Halckon/Koven/actions/runs/37024363674)
+已 9/9 jobs success；Ubuntu/macOS 各逐名确认相同 32 项 Unit storage 测试全部 `ok`，
+其中31新增、1旧Unit root，无新增 ignored。完整 codegen 分别为730 passed和729 passed
+加1既有LLDB权限ignored，两宿主各4 doctests通过。0248已按此有界证据归档为done；
+本 Spec 仅获得前述 Copyable Unit temporary-source/正常迭代子集证据，仍保持active，
+不关闭一般 owned/Borrow、projection/cleanup 或 MoveOnly ZST 未决验收。归档后文档head
+的CI/review另行核验，不从本次首轮结果推定；原历史与合同保持不变。

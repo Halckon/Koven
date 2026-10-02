@@ -1,6 +1,8 @@
 mod cleanup_tests;
 mod determinism_tests;
 mod source_cfg_tests;
+mod unit_storage_boundary_tests;
+mod unit_storage_tests;
 
 use lang_frontend::{
     lexer::lex,

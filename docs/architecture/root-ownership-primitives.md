@@ -33,7 +33,7 @@ identity、root place 与新值 Copy / Move / Temporary 交付；temporary 分�
 
 LLVM 先读取旧值再存新值；swap 先完成两个 load 再完成两个 store，无 drop、retain、clone、
 分配或用户调用插入交换中间。“原子”仅表示语言所有权转移，不是 CPU 跨线程原子指令。
-Unit 只为局部操作物化零大小 storage，源码绑定在正常与提前退出边都保持 Unit；物理值随调用前缀运输。函数 / 调用 / Return 的既有 void ABI 保持。
+root 原语对 Unit 仅物化局部零大小 storage（独立的[容器存储](unit-container-storage.md)见专页），源码绑定在正常与提前退出边都保持 Unit；物理值随调用前缀运输。函数 / 调用 / Return 的既有 void ABI 保持。
 Copyable root 的独占前缀运输槽在内层 loop 中保持与 loan 成对的身份，普通 Value 实参快照仍独立复制。
 
 ## 已验收表示与边界

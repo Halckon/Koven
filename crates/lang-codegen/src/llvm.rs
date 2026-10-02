@@ -33,6 +33,8 @@ mod string;
 mod string_tests;
 mod tagged;
 mod type_map;
+#[cfg(test)]
+mod unit_storage_tests;
 
 use inkwell::OptimizationLevel;
 use inkwell::builder::BuilderError;
