@@ -44,6 +44,18 @@ pub(super) fn intern_body_scalar_types(
             instance.key().static_self(),
             span,
         )?;
+        if let Some(primitive) = typed.ownership_primitive(expression) {
+            let value_type = resolve_concrete_type(
+                typed,
+                primitive.value_type(),
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            if builtin_type(typed, value_type) == Some(BuiltinType::Unit) {
+                types.intern(module, typed, value_type, span)?;
+            }
+        }
         if requires_enum_discriminant(parsed, expression)? {
             for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
                 let ty = typed

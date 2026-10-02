@@ -2017,3 +2017,6 @@ fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     }
 }
+
+#[path = "root_primitive_lower_tests.rs"]
+mod root_primitive_tests;

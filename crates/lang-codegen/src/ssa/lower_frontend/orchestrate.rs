@@ -327,6 +327,27 @@ fn lower_scalar_file_product(
             )?;
             type_mapper.intern(module, names, typed, nullable, assertion.operator_span())?;
         }
+        // Root intrinsics can demand storage (notably nullable handles) only in the body.
+        for primitive in typed.ownership_primitives() {
+            let primitive_span = parsed
+                .ast()
+                .expressions()
+                .get(primitive.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if primitive_span.source_id() == span.source_id()
+                && span.start() <= primitive_span.start()
+                && primitive_span.end() <= span.end()
+            {
+                let concrete = resolve_concrete_type(
+                    typed,
+                    primitive.value_type(),
+                    &instance.substitutions,
+                    primitive_span,
+                )?;
+                type_mapper.intern(module, names, typed, concrete, primitive_span)?;
+            }
+        }
         let parameter_symbols = callable
             .parameter_symbols()
             .iter()

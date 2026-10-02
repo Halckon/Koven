@@ -9,6 +9,7 @@ mod elvis;
 mod iteration;
 mod loan;
 mod nullable_when;
+mod ownership_primitive;
 mod rc;
 mod receiver;
 mod string;
@@ -102,6 +103,7 @@ struct Checker<'a> {
     loop_has_exit: BTreeMap<usize, bool>,
     constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
     non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
+    ownership_primitives: BTreeMap<usize, super::OwnershipPrimitiveOwnershipPlan>,
     nullable_whens: BTreeMap<usize, super::NullableWhenOwnershipPlan>,
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
@@ -216,6 +218,7 @@ impl<'a> Checker<'a> {
             constant_materializations: BTreeMap::new(),
             nullable_whens: BTreeMap::new(),
             non_null_assertions: BTreeMap::new(),
+            ownership_primitives: BTreeMap::new(),
             diagnostics: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
@@ -309,6 +312,11 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        let ownership_primitives = if diagnostics.is_empty() && self.deferred.is_empty() {
+            self.ownership_primitives.into_values().collect()
+        } else {
+            Vec::new()
+        };
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
@@ -325,6 +333,7 @@ impl<'a> Checker<'a> {
                 iterations,
                 constant_materializations,
                 non_null_assertions,
+                ownership_primitives,
                 nullable_whens,
                 loan_ends,
                 bindings,
@@ -972,6 +981,9 @@ impl<'a> Checker<'a> {
                 }
                 if self.diagnostics.len() == diagnostic_count {
                     self.activate_receiver(id, &mut flows)?;
+                }
+                if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
+                    self.record_ownership_primitive(id, &argument_expressions)?;
                 }
                 self.end_call_loans(id, &mut flows);
                 self.finish_call_closures(id, &mut flows);

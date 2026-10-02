@@ -3,6 +3,9 @@
 mod callable;
 mod integer;
 mod module_lowering;
+mod root_exchange;
+#[cfg(test)]
+mod root_exchange_tests;
 mod storage;
 
 use std::collections::BTreeMap;
@@ -291,9 +294,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 match entity {
                     EntityId::Value(value) => {
                         let phi = self.builder.build_phi(
-                            self.dependencies
-                                .type_map
-                                .basic_type(value_type(self.function, *value)?)?,
+                            self.local_storage_type(value_type(self.function, *value)?)?,
                             &value_name(*value),
                         )?;
                         self.values.insert(*value, phi.as_basic_value());
@@ -357,19 +358,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("constant", 1, results.len()));
                 };
-                let ty = self
-                    .dependencies
-                    .type_map
-                    .int_type(value_type(self.function, *result)?)?;
-                let value = match constant {
-                    ScalarConstant::Boolean(value) => ty.const_int(u64::from(*value), false),
-                    ScalarConstant::Char(value) => ty.const_int(u64::from(*value), false),
-                    ScalarConstant::Integer(value) => ty.const_int(*value as u64, *value < 0),
-                    ScalarConstant::Unit => {
-                        return Err(unsupported("Unit constant 不产生 LLVM payload"));
-                    }
+                let integer = match constant {
+                    ScalarConstant::Boolean(value) => Some((u64::from(*value), false)),
+                    ScalarConstant::Char(value) => Some((u64::from(*value), false)),
+                    ScalarConstant::Integer(value) => Some((*value as u64, *value < 0)),
+                    ScalarConstant::Unit => None,
                 };
-                self.values.insert(*result, value.into());
+                let value = match integer {
+                    Some((value, signed)) => self
+                        .dependencies
+                        .type_map
+                        .int_type(value_type(self.function, *result)?)?
+                        .const_int(value, signed)
+                        .into(),
+                    None => self.context.struct_type(&[], false).const_zero().into(),
+                };
+                self.values.insert(*result, value);
             }
             Operation::PrintLiteral { bytes } => {
                 if !results.is_empty() {
@@ -1044,9 +1048,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             Operation::RootPlace { owner } => {
                 let result = place_result(instruction)?;
                 let pointer = self.builder.build_alloca(
-                    self.dependencies
-                        .type_map
-                        .basic_type(value_type(self.function, *owner)?)?,
+                    self.local_storage_type(value_type(self.function, *owner)?)?,
                     &format!("p{}", result.index()),
                 )?;
                 self.builder.build_store(pointer, self.value(*owner)?)?;
@@ -1063,6 +1065,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value);
+            }
+            Operation::RootReplace {
+                owner,
+                loan,
+                replacement,
+            } => self.lower_root_replace(*owner, *loan, *replacement, &results)?,
+            Operation::RootSwap { owners, loans } => {
+                self.lower_root_swap(*owners, *loans, &results)?;
             }
             Operation::BorrowBegin { place, .. } => {
                 let result = loan_result(instruction)?;
@@ -1090,7 +1100,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 } else {
                     let source_type = access_type(self.function, *source)?;
                     self.builder.build_load(
-                        self.dependencies.type_map.basic_type(source_type)?,
+                        self.local_storage_type(source_type)?,
                         self.access(*source)?,
                         &value_name(*result),
                     )?

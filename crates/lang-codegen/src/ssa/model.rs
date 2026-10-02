@@ -533,6 +533,19 @@ pub(crate) enum Operation {
         owner: ValueId,
         place: PlaceId,
     },
+    /// Atomically replace an owned root under its active exclusive loan.
+    /// Results are the new root identity followed by the detached old value; the loan ends.
+    RootReplace {
+        owner: ValueId,
+        loan: LoanId,
+        replacement: ValueId,
+    },
+    /// Atomically exchange two disjoint owned roots and end both exclusive loans.
+    /// Results are the new identities in the same order as `owners`.
+    RootSwap {
+        owners: [ValueId; 2],
+        loans: [LoanId; 2],
+    },
     BorrowBegin {
         place: PlaceId,
         kind: LoanKind,
@@ -655,6 +668,21 @@ impl Operation {
             Self::RootPlaceTake { owner, place } => {
                 vec![EntityId::Value(*owner), EntityId::Place(*place)]
             }
+            Self::RootReplace {
+                owner,
+                loan,
+                replacement,
+            } => vec![
+                EntityId::Value(*owner),
+                EntityId::Loan(*loan),
+                EntityId::Value(*replacement),
+            ],
+            Self::RootSwap { owners, loans } => vec![
+                EntityId::Value(owners[0]),
+                EntityId::Loan(loans[0]),
+                EntityId::Value(owners[1]),
+                EntityId::Loan(loans[1]),
+            ],
             Self::BorrowBegin { place, .. } => vec![EntityId::Place(*place)],
             Self::BorrowEnd { loan } => vec![EntityId::Loan(*loan)],
             Self::Read { source } => vec![match source {

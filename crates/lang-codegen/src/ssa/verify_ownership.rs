@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod closure;
+mod root_exchange;
+#[cfg(test)]
+mod root_exchange_tests;
 
 use super::{
     model::{
@@ -841,6 +844,40 @@ fn apply_operation(
             {
                 state.places.remove(place);
             }
+        }
+        Operation::RootReplace {
+            owner,
+            loan,
+            replacement,
+        } => {
+            root_exchange::apply(
+                module,
+                function,
+                root_exchange::Request {
+                    owners: &[*owner],
+                    loans: &[*loan],
+                    replacement: Some(*replacement),
+                },
+                aliases,
+                state,
+                instruction,
+                errors,
+            );
+        }
+        Operation::RootSwap { owners, loans } => {
+            root_exchange::apply(
+                module,
+                function,
+                root_exchange::Request {
+                    owners,
+                    loans,
+                    replacement: None,
+                },
+                aliases,
+                state,
+                instruction,
+                errors,
+            );
         }
         Operation::BorrowBegin { place, kind } => {
             if require_place(*place, state, location.clone(), origin, errors)

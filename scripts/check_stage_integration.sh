@@ -10,7 +10,7 @@ run() { "$@" || status=$?; }
 # Integration contracts touched by SPEC-0229–0237; keep these distinct
 # from the full frontend suite and its documented baseline failures.
 run cargo test --locked -p lang-frontend --no-fail-fast \
-  --test numeric_literals --test bitwise_constants --test integer_inv --test type_ownership_primitives \
+  --test numeric_literals --test bitwise_constants --test integer_inv --test type_ownership_primitives --test ownership_primitives \
   --test string_clone --test clone_primitive_integration \
   --test type_checking --test type_callable --test type_copyability \
   --test type_constants --test multifile_constant_facts \

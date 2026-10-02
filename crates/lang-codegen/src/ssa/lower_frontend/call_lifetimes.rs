@@ -28,6 +28,7 @@ impl ExpressionLowerer<'_> {
             if let Some(loan) = loan {
                 self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
             }
+            self.release_primitive_unit_operand(key.0, key.1);
         }
         // A transfer leaves proofs introduced inside its target scope. Owners may
         // survive a break/continue and must not keep that branch-local view alive.

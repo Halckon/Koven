@@ -8,6 +8,7 @@ mod drop_planner;
 mod flow;
 mod liveness;
 mod non_null_assertion;
+mod ownership_primitive;
 mod places;
 mod rc;
 mod receiver;
@@ -56,6 +57,8 @@ pub(super) struct Analysis {
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    pub(super) ownership_primitives:
+        Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -171,6 +174,7 @@ pub(super) fn analyze(
     let mut rc_effects = Vec::new();
     let mut construction_plans = Vec::new();
     let mut non_null_assertions = Vec::new();
+    let mut ownership_primitives = Vec::new();
     let mut drops = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
@@ -227,6 +231,8 @@ pub(super) fn analyze(
         drops.extend(drop_analysis.drops);
         conditional_receiver_drops.extend(drop_analysis.conditional_receiver_drops);
         deferred.extend(drop_analysis.deferred);
+        deferred.extend(checker.primitive_deferred);
+        ownership_primitives.extend(checker.ownership_primitives);
     }
 
     let diagnostics =
@@ -237,6 +243,8 @@ pub(super) fn analyze(
     if !deferred.is_empty() {
         conditional_receiver_deliveries.clear();
     }
+    ownership_primitives.sort_by_key(|plan| plan.descriptor().expression());
+    ownership_primitives.dedup_by_key(|plan| plan.descriptor().expression());
     non_null_assertions.sort_by_key(|plan| plan.descriptor().expression());
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
@@ -246,6 +254,7 @@ pub(super) fn analyze(
         short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
         non_null_assertions,
+        ownership_primitives,
         diagnostics,
         loans,
         value_deliveries,
@@ -343,6 +352,8 @@ struct Checker<'a> {
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
     non_null_assertions: &'a mut Vec<UnitNonNullAssertionOwnershipPlan>,
+    ownership_primitives: Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
+    primitive_deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
 impl<'a> Checker<'a> {
@@ -482,6 +493,8 @@ impl<'a> Checker<'a> {
             rc_effects,
             construction_plans,
             non_null_assertions,
+            ownership_primitives: Vec::new(),
+            primitive_deferred: Vec::new(),
         })
     }
 
@@ -659,6 +672,7 @@ impl<'a> Checker<'a> {
             self.rc_effects.len(),
             self.construction_plans.len(),
             self.non_null_assertions.len(),
+            self.ownership_primitives.len(),
         );
         let mut flows = self.check_expression(
             value,
@@ -720,13 +734,14 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
-    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize, usize)) {
+    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize, usize, usize)) {
         self.loans.truncate(lengths.0);
         self.value_deliveries.truncate(lengths.1);
         self.receiver_facts.truncate(lengths.2);
         self.rc_effects.truncate(lengths.3);
         self.construction_plans.truncate(lengths.4);
         self.non_null_assertions.truncate(lengths.5);
+        self.ownership_primitives.truncate(lengths.6);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {

@@ -11,6 +11,7 @@ mod iteration;
 mod model;
 mod non_null_assertion;
 mod nullable_when;
+mod ownership_primitive;
 mod rc;
 mod string;
 
@@ -92,3 +93,8 @@ pub fn check_ownership(
     }
     checker::check(sources, parsed, names, typed)
 }
+
+pub use ownership_primitive::{
+    OwnershipPrimitiveOwnershipPlan, OwnershipPrimitiveValueTransfer,
+    UnitOwnershipPrimitiveOwnershipPlan,
+};

@@ -8,6 +8,7 @@ mod iteration;
 mod lambda;
 mod liveness;
 mod origins;
+mod ownership_primitive;
 mod pending_call;
 mod snapshot;
 mod source_owner;
@@ -1154,6 +1155,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if self.checker.is_nothing_expression(id) {
                     return Ok(false);
                 }
+                self.commit_ownership_primitive(id, state)?;
                 let roots = self
                     .end_pending_calls(LoanEndPoint::CallReturn(id), state, |call| call.call == id);
                 // Value parameters now own their arguments; only borrowed temporaries expire here.

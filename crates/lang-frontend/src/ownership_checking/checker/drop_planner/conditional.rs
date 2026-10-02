@@ -163,17 +163,18 @@ impl DropPlanner<'_, '_> {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let forwards = matches!(
-            payload,
-            Expression::Group { .. }
-                | Expression::If { .. }
-                | Expression::When { .. }
-                | Expression::NonNullAssert { .. }
-                | Expression::Binary {
-                    operator: crate::parser::BinaryOperator::Elvis,
-                    ..
-                }
-        );
+        let forwards = self.checker.ownership_primitives.contains_key(&id.index())
+            || matches!(
+                payload,
+                Expression::Group { .. }
+                    | Expression::If { .. }
+                    | Expression::When { .. }
+                    | Expression::NonNullAssert { .. }
+                    | Expression::Binary {
+                        operator: crate::parser::BinaryOperator::Elvis,
+                        ..
+                    }
+            );
         let versions = if matches!(payload, Expression::Name) {
             self.checker
                 .reference_symbol(self.checker.parsed.ast().expressions().get(id)?.span())
