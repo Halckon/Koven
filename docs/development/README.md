@@ -24,6 +24,8 @@
 
 - [P2 ownership iteration integration分组](ownership-iteration-test-migration.md)：184项逐字保全、20域、同target及双平台定向接线
 
+- [P2 multifile type integration分组](multifile-type-test-migration.md)：107项逐字保全、17新域、source-qualified facts与原CI覆盖
+
 - [P3a 普通 unit 交接合同基线](unit-handoff-contract-baseline.md)：六输入独立拒绝、合法clone/重排与隔离reserve计数
 
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。

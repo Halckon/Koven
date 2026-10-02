@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26已合并；ownership integration20域本地已验，待review/PR CI | 184项与7 helpers逐字保留，无新例外；CI新增双平台同target定向执行；其余大integration与生产职责仍待后继 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | 普通unit前置合同测试本地已验，待review/PR CI；生产view与编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -213,6 +213,27 @@ P2仍待其他大integration分组与独立生产职责拆分；P3/P4/P5没有�
 整体完成后外部审计继续排队，不提前开展。
 
 
+## PR27 合并与 multifile type integration分组（2026-10-02）
+
+- [PR27](https://github.com/Halckon/Koven/pull/27)已合并为
+  `b36d5040ef7cafaa86e2b0c6a42cc1d2ab49691d`；本片据此固定新main。
+  上节ownership integration“待review/PR”保留历史快照，不沿用其CI证明本片
+- `tests/multifile_type_checking.rs`7202→160行，104根测试拆17个类型领域，最大732行；
+  原baseline_regressions209行/3项不动，合计107。9共用helpers留入口、4单域helpers随域
+- 120完整块逐字且等于独立同版rustfmt参考；1559 literals、781 asserts、22 support文件保留。
+  107新旧完整名逐项映射、前后无filter各107通过；129 metadata完整相等、187 lib身份不变并实跑
+- policy仅退休原7202行项，其他45 baseline与3既有例外逐值不变；675手写/48超限，无新例外。
+  本target已在双平台stage完整选集，不改CI；仍须核本PR exact-head两平台全部107逐名执行
+- 本地107 target、187 library、两条新exact各1、fmt、frontend all-targets check/严格clippy、
+  普通release check、96 policy、文档和尺寸护栏通过。integration-only compile+link两次/侧、
+  no-op与独立执行三次/侧已采样，预设调查阈值未触发，不据小样本宣称提速
+- [本片验收](multifile-type-test-migration.md)记录领域、完整身份/hash、受控成本及未测项。
+  纯搬迁与文档/policy独立提交；独立review/Draft PR exact-head CI终态留PR，合并由维护者判断
+
+P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，0182仍active。
+整体计划完成后的外部审计继续排队，不提前开展。
+
+
 ## P3a 普通 unit 前置合同测试（2026-10-02）
 
 - 从 `main b36d5040ef7cafaa86e2b0c6a42cc1d2ab49691d` 独立补普通 native 六输入合同，
@@ -229,3 +250,13 @@ P2仍待其他大integration分组与独立生产职责拆分；P3/P4/P5没有�
   独立review、Draft PR与exact-head双宿主CI另验，不将基底CI或配置存在当完成证据
 - 尚未构建封闭view或性能采样。Rust LLVM22与现有coverage21不匹配，未下载/插桩；
   动态index基线与受控无插桩对照留作生产片前置。P3a/P2整体及延后外部审计均未完成
+
+
+### P3a合同片发布前同步PR28
+
+[PR28](https://github.com/Halckon/Koven/pull/28)已合并为
+`34861321d15830dc639e7641edd3a41524d57fc2`。本合同片独立review通过后普通merge新main，
+保留上节PR27/multifile迁移时的历史验收，也保留本片全部合同测试与收紧额度。
+三个codegen测试源逐字不变；索引/账本冲突同时保全双方条目，当前P2摘要标明PR28已合并。
+同步后8项、native92、导入multifile107及必要工程门禁已重跑通过，确切范围见
+[合同基线](unit-handoff-contract-baseline.md#发布前同步-pr28-主干)。发布前窄review与新head双宿主CI另验。

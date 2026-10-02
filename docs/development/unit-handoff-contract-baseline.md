@@ -125,3 +125,17 @@ cargo test --locked --offline -p lang-frontend --doc check_compilation_unit_cons
 - 本地未运行 macOS、frontend 全量或 workspace 全量 tests。新 head 的独立 review、Draft PR
   与 exact-head 双宿主 CI 另行核验，终态留 PR；不能复用基底 CI 冒充本片
 - 整体计划完成后的外部审计继续排队，本片不提前启动
+
+
+## 发布前同步 PR28 主干
+
+独立review在原head `31115b00115d98c411f33fc3cdf129fb022beb08` 完成；随后普通merge
+`main 34861321d15830dc639e7641edd3a41524d57fc2`（PR28），保留双方父链。冲突仅在开发
+索引和治理账本，保全双方导航与完整历史段落；policy保留PR28退休原multifile 7202行项，
+同时保持本片native入口2050额度，不重生baseline。三个codegen测试文件逐字未变。
+
+同步后重跑fmt、workspace all-targets check、codegen严格Clippy、新8项、全部native unit92项
+和导入main的multifile type完整107项，均通过且0 ignored；docs469、96 policy、尺寸护栏
+（677手写/48超限/0生成物）与diff通过。旧24条exact和7项compile-fail的源码、依赖、feature
+与工具链输入均未改变，沿用上节实跑证据，不声称本次再次执行。同步差异另作窄review，
+首次Draft直接使用同步后的head；远端exact-head CI终态留PR，不以同步前结果替代。
