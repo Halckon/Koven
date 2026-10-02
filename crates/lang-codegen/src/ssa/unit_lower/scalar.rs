@@ -101,6 +101,12 @@ impl UnitExpressionLowerer<'_> {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Remainder
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::Shl
+            | BinaryOperator::Shr
+            | BinaryOperator::Ushr
             | BinaryOperator::Less
             | BinaryOperator::LessEqual
             | BinaryOperator::Greater
@@ -119,6 +125,17 @@ impl UnitExpressionLowerer<'_> {
         let ty = self.expression_ssa_type(expression, span)?;
         if let Some(operator) = checked_operator(operator) {
             return self.checked(operator, left, right, ty, span);
+        }
+        if let Some(operator) = crate::ssa::integer::bitwise_operator(operator) {
+            return self.append_scalar(
+                Operation::IntegerBitwise {
+                    operator,
+                    left,
+                    right,
+                },
+                ty,
+                span,
+            );
         }
         let operator = comparison_operator(operator)
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;

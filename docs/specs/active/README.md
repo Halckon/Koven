@@ -2,6 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
+- [SPEC-0240](0240-integer-bitwise-execution.md)：整数具名位运算 const/SSA/native 与 inv 内建身份，in-progress。
 - [SPEC-0239](0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，in-progress。
 - [SPEC-0238](0238-guide-litmus-gate.md)：Guide 勘误、审计更正与可执行 Litmus 前端门禁，in-progress。
 - [SPEC-0237](0237-local-integration.md)：八阶段本地整合、交叉契约与验证账本，in-progress。

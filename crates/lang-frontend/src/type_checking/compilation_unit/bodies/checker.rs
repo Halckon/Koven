@@ -36,6 +36,7 @@ pub(super) mod copyability;
 mod destructuring;
 mod expression_facts;
 mod flow;
+mod integer;
 mod lambda;
 mod literals;
 mod members;
@@ -278,9 +279,13 @@ impl<'a> BodyChecker<'a> {
             .any(|diagnostic| diagnostic.severity() == Severity::Error)
         {
             self.parts.ownership_primitives.clear();
+            self.parts.integer_operations.clear();
         }
         self.parts
             .ownership_primitives
+            .sort_by_key(|fact| fact.expression());
+        self.parts
+            .integer_operations
             .sort_by_key(|fact| fact.expression());
         Ok(CompilationUnitTypes::new(
             self.signatures,

@@ -23,6 +23,7 @@ subgraph Gactive["现行 active"]
   S0237["S0237<br/>八阶段本地整合与交叉契约验证"]
   S0238["S0238<br/>Guide 勘误与可执行 Litmus 前端门禁"]
   S0239["S0239<br/>Linux CI 与双宿主定向回归门禁"]
+  S0240["S0240<br/>整数具名位运算与取反端到端执行"]
 end
 ARCH --> S0182
 ARCH --> S0228
@@ -46,4 +47,5 @@ ARCH --> S0236
 | SPEC-0237 | active | [0237-local-integration.md](active/0237-local-integration.md) |
 | SPEC-0238 | active | [0238-guide-litmus-gate.md](active/0238-guide-litmus-gate.md) |
 | SPEC-0239 | active | [0239-linux-ci-gates.md](active/0239-linux-ci-gates.md) |
+| SPEC-0240 | active | [0240-integer-bitwise-execution.md](active/0240-integer-bitwise-execution.md) |
 | 已完成 Spec（213 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

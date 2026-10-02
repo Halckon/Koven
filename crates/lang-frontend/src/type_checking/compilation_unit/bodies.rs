@@ -22,6 +22,7 @@ mod checker;
 mod constants;
 mod container;
 pub use constants::*;
+mod integer;
 mod non_null_assertion;
 mod nullable;
 mod ownership_primitive;
@@ -31,6 +32,7 @@ mod string;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
+pub use integer::*;
 pub use ownership_primitive::*;
 pub use {
     assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
@@ -558,6 +560,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
+    pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
     pub(crate) nullable: UnitNullableFacts,
@@ -593,6 +596,7 @@ pub struct CompilationUnitTypes {
     ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
     string_operations: Vec<UnitStringOperationDescriptor>,
+    integer_operations: Vec<UnitIntegerOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
     nullable: UnitNullableFacts,
@@ -630,6 +634,7 @@ impl CompilationUnitTypes {
             ownership_primitives: parts.ownership_primitives,
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
+            integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             element_places: parts.element_places,
             nullable: parts.nullable,
@@ -764,6 +769,24 @@ impl CompilationUnitTypes {
         expression: UnitExpressionId,
     ) -> Option<UnitStringOperationDescriptor> {
         self.string_operations
+            .iter()
+            .copied()
+            .find(|operation| operation.expression() == expression)
+    }
+
+    /// 返回源码稳定顺序的 Integer intrinsic 操作。
+    #[must_use]
+    pub fn integer_operations(&self) -> &[UnitIntegerOperationDescriptor] {
+        &self.integer_operations
+    }
+
+    /// 查询已绑定 receiver 的显式 Integer 操作。
+    #[must_use]
+    pub fn integer_operation(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitIntegerOperationDescriptor> {
+        self.integer_operations
             .iter()
             .copied()
             .find(|operation| operation.expression() == expression)
@@ -918,6 +941,7 @@ impl CompilationUnitTypes {
     /// 发布独立常量能力；不转换成基础 ownership/native 输入。
     pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
         if self.ownership_primitives_are_valid()
+            && self.integer_operations_are_valid()
             && self.constants.is_some()
             && !self
                 .diagnostics
@@ -942,6 +966,7 @@ impl CompilationUnitTypes {
             || self.constant_declaration_count > 0
             || !self.constant_selections.is_empty()
             || !self.ownership_primitives_are_valid()
+            || !self.integer_operations_are_valid()
         {
             Err(Box::new(self))
         } else {

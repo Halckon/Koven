@@ -1,6 +1,7 @@
 //! Target-independent typed SSA model、验证与确定性调试表示。
 
 mod closure;
+mod integer;
 mod lower_frontend;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 pub(crate) use lower_frontend::{LoweringError, LoweringErrorKind};
@@ -102,3 +103,8 @@ mod char_constant_tests;
 mod sequential_for_lowering_tests;
 #[cfg(test)]
 mod unit_constant_tests;
+
+#[cfg(test)]
+mod bitwise_lowering_tests;
+#[cfg(test)]
+mod bitwise_operation_tests;

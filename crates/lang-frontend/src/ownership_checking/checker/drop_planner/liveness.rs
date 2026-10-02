@@ -213,6 +213,9 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
         if self.checker.is_constant_use(id) {
             return Ok(live_after);
         }
+        if let Some(operation) = self.checker.typed.integer_operation(id) {
+            return self.expression(operation.receiver(), ExpressionUse::Read, live_after);
+        }
         if let Some(operation) = self.checker.typed.string_operation(id) {
             let mut receiver_live = live_after;
             if let Some(place) = self.checker.shared_receiver_place(operation.receiver())? {
