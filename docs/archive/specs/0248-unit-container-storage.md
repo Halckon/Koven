@@ -1,10 +1,10 @@
 # SPEC-0248：列表式 Unit 容器的零大小存储
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或验收 Unit 列表式容器到 native 的首片时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或验收 Unit 列表式容器到 native 的首片时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-248` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | [现行 v0.40](../../guide/README.md)、[Copyable 与布局](../../guide/11-copyability-layout-construction.md)、[容器与借用迭代](../../guide/12-collections-destructuring.md) |
@@ -12,7 +12,7 @@
 | 基线 / 分支 | main `57a54bf99807389adb5cc865a3104416627ccfb7` / `fix/spec-0248` |
 | 前置 Spec | SPEC-0035、0036、0212 `done` |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md) `accepted` |
-| 阻塞项 | 无新的语义或架构决定；实现与验收尚未完成 |
+| 阻塞项 | 本 Goal 无未决项；归档依据与后继文档 head 的 CI 边界见 §8 |
 | 影响范围 | 单文件 frontend→SSA 列表式容器 lowering、LLVM container element storage/layout、领域测试与事实文档 |
 | 语言语义变更 | 否；不提升 Guide 版本，不新建 ADR |
 
@@ -24,7 +24,7 @@ SSA、LLVM object/link/run；零字节元素仍按逻辑索引迭代并执行 bo
 既有 `EmptyMutableList` lowering 对应的 `MutableList<Unit>()` 自然复用同一 element storage，
 也纳入唯一额外空构造入口；不人为拒绝该既有路径，不推广为所有容器构造形式均获支持。
 
-本片是容器存储能力修复，独立于 [SPEC-0182](0182-sequential-for-lowering.md) 的验收补测。
+本片是容器存储能力修复，独立于 [SPEC-0182](../../specs/active/0182-sequential-for-lowering.md) 的验收补测。
 0182 保持 active，原合同、历史验收及其“不改变 container layout/drop glue”边界不改写；
 本片只向其提供明确有界的 Copyable Unit / temporary-source 正常迭代证据。
 
@@ -129,14 +129,14 @@ SSA 空容器正例的原始红证据，不能让一个断点遮住另一个，�
   Opaque、循环或超限 layout 继续 fail loud，不因 Unit storage fallback 获得空表示。
 - [x] 真正非法 source 保留既有诊断：Unit 带值 return 为 L0087，循环内 replacement source 为
   L0135；能力误配在 object 写出前拒绝，已有输出文件 bytes 保持不变。
-- [ ] 定向、共享契约、完整 codegen 与双宿主 CI 按 §7 留证；新增测试不得 ignored/filtered 而
+- [x] 定向、共享契约、完整 codegen 与双宿主 CI 按 §7 留证；新增测试不得 ignored/filtered 而
   计作通过。Architecture 仅在实现及实测结果确认后更新，0182 只追加部分证据。
 
 ## 6. 实施与提交计划
 
 1. [x] 两个独立原始红例 → 容器 operand / element storage 的最小修复 → 原正例转绿。
 2. [x] 九格与 SSA 身份、CFG 后 Unit Read、discard/Diverged、layout/bounds/ABI 及负向边界闭合。
-3. [ ] 完成下述门禁，补真实验收及 Architecture；独立 PR、最终 head 双宿主 CI 与 Spec 生命周期同步。
+3. [x] 完成下述门禁，补真实验收及 Architecture；独立 PR、最终 head 双宿主 CI 与 Spec 生命周期同步。
 
 建议单一有界提交：`fix(codegen): store Unit container elements (SPEC-0248)`；若分提交，每项
 仍限本 Goal。不提高尺寸 baseline、不增长无关 legacy 入口，不改写 accepted ADR 历史。
@@ -196,3 +196,49 @@ SIGABRT 且 stdout/stderr 为空。CFG-carried loan 的 `load {}` 经真实 Data
 alignment 相符，并由 bounds-success edge 支配；直接 place 的无 load 不能泛化为所有读取。
 L0087 的 primary span 精确为 `unitCall()`，L0135 精确为 `xs[0]`；一般 Unit ABI 的
 Unsupported 测试只锁当前后端边界，不作为合法源码应被语言拒绝的证据。
+
+
+## 8. PR24 双宿主验收与归档（2026-10-02）
+
+前文首轮红绿、本地结果及“in-progress / CI 待发布”是当时实施快照，逐项保留；本节记录
+其后的完成依据，不把旧测试数倒填成最终数，也不改变任何非目标。
+
+[PR #24](https://github.com/Halckon/Koven/pull/24) 的远端实现 head 为
+`c77a9aa0a6fc1b0fcf951afcf4ea9ea945778cfd`，对应本地
+`a9648228f595d64810ef29a626810df5696e2419`；已核两者 tree 均为
+`b27046bec2843c31426648f3468830986d236bba`。
+[CI 37024363674](https://github.com/Halckon/Koven/actions/runs/37024363674)
+为该 head 的 `pull_request` / attempt 1，已 completed/success；9/9 jobs success，
+没有 skipped/missing job。两个宿主的原始测试日志逐名核对如下：
+
+| 实际宿主 | 完整 codegen unit | doctests | `unit_storage` 名称集合 |
+|---|---|---|---|
+| Ubuntu | 730 passed / 0 failed / 0 ignored / 0 filtered | 4 passed | 32/32 均 `ok`：31 新增 + 1 旧 Unit root |
+| macOS | 729 passed / 0 failed / 1 既有 ignored / 0 filtered | 4 passed | 同一 32/32 均 `ok`，无新增 ignored |
+
+32 项包含三容器 native 九格、独立空 MutableList、count/if 后 Read、discard、SSA 九格身份、
+三 provider Diverged、fresh-chain 全文本、目标布局/ABI/sentinel、CFG 零字节 load、低层
+Array bounds 五格、两个 OperationContract、L0087/L0135 精确 span、旧 object 保全及
+container-only accessor/一般 Unit ABI 隔离。按名称核实际执行，不以总通过数替代新增项证据。
+macOS 唯一 ignored 是
+`llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`，
+原因为普通 sandbox/CI 缺 debugserver task-port permission；不计调试器验收通过。
+
+独立 review 对代码/测试提交 `69999f5915213b0141838216a56aa34f6c74e8b9` 无阻塞发现，
+逐字节核对 changed Rust，另直接复跑测试 binary 得 32 passed / 0 failed / 0 ignored /
+698 filtered。发布前文档提交 `a9648228f595d64810ef29a626810df5696e2419` 相比该实现
+仅改 7 份文档，独立 review 无未解决项，check_docs 464 与范围 diff 检查通过。实施中两处
+SSA oracle 曾按实际 StringLiteral→loan→PrintString 及 String cleanup 范围修正，属于测试
+先验校正，没有扩大生产实现或降低 Unit 合同。
+
+本次据以上 exact-head 实现/双宿主证据将有界 Goal 记为 `done`，迁入 archive 并同步
+索引/inventory/DAG；0182 仍 active。归档变更不改 Rust，也不表示 PR 已 Ready 或已合并。
+**归档后的新文档 head 尚未运行或核验 CI，其独立窄 review 也尚未发生**；后继终态在同一
+PR 交付记录中核对，不将本节首轮 CI 冒充后继 head 结果。性能/RSS、一般 Unit ABI、
+MoveOnly ZST 及其他既定非目标均未由本次完成扩张。
+
+本次纯归档文档检查：`python3 scripts/check_docs.py` 464 Markdown 通过；
+`python3 -m unittest discover -s scripts/tests -v` 94 passed；
+`python3 scripts/check_rust_sizes.py --base 57a54bf99807389adb5cc865a3104416627ccfb7`
+为 612 手写 / 48 历史超限 / 0 生成物，无 legacy 增长；`git diff --check` 通过。
+本轮未重跑 Cargo，复用上述已核 tree 的实现/双宿主证据。

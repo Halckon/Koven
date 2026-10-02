@@ -42,7 +42,7 @@ loan 并递增 cursor，耗尽边结束 source loan 后 drop temporary container
 
 ## 直接证据与边界
 
-2026-10-02 Linux 本地测试覆盖：
+2026-10-02 Linux 本地及 PR24 的 Ubuntu/macOS 双宿主测试覆盖：
 
 - 三容器 × 0/1/3 native 固定 bytes，元素 producer 源码顺序一次、source 一次、body/count 精确；
   另有 discard、if 后 Read 和 `MutableList<Unit>()` 零次迭代。
@@ -56,9 +56,13 @@ loan 并递增 cursor，耗尽边结束 source loan 后 drop temporary container
 
 测试位于 `ssa/sequential_for_lowering_tests/unit_storage*_tests.rs`、
 `native_sequential_for_tests/unit_storage*_tests.rs` 和 `llvm/unit_storage_tests.rs`。
-本地完整 codegen 为 730 unit + 4 doctests，通过且无 ignored/filtered；精确命令、其他门禁与
-交付状态见 [SPEC-0248](../specs/active/0248-unit-container-storage.md)。双宿主 CI 尚未运行，
-上述新能力仅有 Linux 本地实测，不将通用 target 代码误称为新增 macOS 运行证据。
+本地完整 codegen 为 730 unit + 4 doctests，通过且无 ignored/filtered。PR24 实现 head
+`c77a9aa0a6fc1b0fcf951afcf4ea9ea945778cfd` 的
+[CI 37024363674](https://github.com/Halckon/Koven/actions/runs/37024363674) 已 9/9 jobs
+success，两宿主逐名核同一 32 项 Unit storage 测试均 `ok`（31 新增 + 1 旧 Unit root）。
+Ubuntu 完整 codegen 730 passed，macOS 729 passed + 1 既有 LLDB 权限 ignored；两宿主各
+4 doctests 通过。ignored 不计调试器通过，性能/RSS 未测；该结果不推定后继文档 head 的 CI。
+原始红绿与精确验收可按需追溯 [SPEC-0248](../archive/specs/0248-unit-container-storage.md)。
 
 Borrow Unit 跨函数读取、一般 Unit call operand / Value ABI、Unit-field value class 构造、
 CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不由此证明。
