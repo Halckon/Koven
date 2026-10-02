@@ -285,8 +285,13 @@ litmus!(
     ],
     []
 );
-// TODO: implement return-when operand parsing; do not parenthesize the normative example to hide it.
-litmus!(litmus_04_return_when_known_gap, 4, [("L0087", "return")]);
+litmus!(
+    litmus_04_return_when_frontend,
+    4,
+    [],
+    [("Shape", "Some(Error)")],
+    [("Shape", "None")]
+);
 litmus!(
     litmus_05_inout_member_frontend,
     5,
@@ -348,7 +353,7 @@ fn replace_once(source: &str, old: &str, new: &str) -> String {
 }
 
 #[test]
-fn parenthesized_return_when_is_a_distinct_workaround() {
+fn parenthesized_return_when_preserves_the_same_frontend_facts() {
     let source = replace_once(
         examples(GUIDE)[3],
         "return when (s) {",
@@ -522,6 +527,33 @@ fn two_phase_receiver_reservation_remains_an_implementation_gap() {
                     start + "worker".len(),
                     "worker".into()
                 )],
+            }),
+            "unit={unit}"
+        );
+    }
+}
+
+#[test]
+fn returned_if_and_nested_when_pass_both_frontend_entry_points() {
+    assert_both(
+        "fun choose(flag: Boolean): Int { return if (flag) { return 7 } else when (flag) { true -> 8; false -> 9 } }",
+        Stage::Types,
+        &[],
+    );
+}
+
+#[test]
+fn return_control_newline_and_missing_else_keep_exact_diagnostics() {
+    let newline = "fun choose(): Int { return\nif (true) 1 else 0 }";
+    assert_both(newline, Stage::Types, &[("L0087", "return")]);
+    let incomplete = "fun choose(): Int { return if (true) 1 }";
+    let end = incomplete.find("1 }").unwrap() + 1;
+    for unit in [false, true] {
+        assert_eq!(
+            check(incomplete, unit, &[]),
+            Some(Failure {
+                stage: Stage::Parse,
+                diagnostics: vec![("L0057".into(), end, end, String::new())],
             }),
             "unit={unit}"
         );

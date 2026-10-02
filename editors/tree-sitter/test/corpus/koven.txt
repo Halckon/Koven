@@ -144,7 +144,7 @@ Calls and lambda
 
 fun use(): Unit {
     val transform: (own Int) -> Int = { input -> input * 2 }
-    val result = receiver?.member<Int>(name = borrow input)[0]!!
+    val result = receiver?.member<Int>(name = input)[0]!!
     val reference = result::next
 }
 
@@ -204,7 +204,6 @@ fun use(): Unit {
                         (call_argument
                           (named_argument_prefix
                             (identifier))
-                          (argument_mode)
                           (expression
                             (identifier))))))
                   (expression
@@ -472,3 +471,113 @@ val asyncTask = 4
     (identifier)
     (expression
       (integer_literal))))
+
+==================
+Ordinary borrow calls
+==================
+
+val direct = borrow(input)
+val spaced = borrow (input)
+val nested = consume(borrow(input))
+val nestedSpaced = consume(borrow (input))
+val ordinary = consume(borrow)
+val mutable = update(&input)
+
+---
+
+(source_file
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (identifier)))))))
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (identifier)))))))
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (call_expression
+                (expression
+                  (identifier))
+                (argument_list
+                  (call_argument
+                    (expression
+                      (identifier)))))))))))
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (call_expression
+                (expression
+                  (identifier))
+                (argument_list
+                  (call_argument
+                    (expression
+                      (identifier)))))))))))
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (identifier)))))))
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (argument_mode)
+            (expression
+              (identifier))))))))
+
+==================
+Removed borrow argument prefix
+==================
+
+val rejected = consume(borrow x)
+
+---
+
+(source_file
+  (variable_declaration
+    (identifier)
+    (expression
+      (call_expression
+        (expression
+          (identifier))
+        (argument_list
+          (call_argument
+            (expression
+              (identifier)))
+          (ERROR
+            (identifier)))))))

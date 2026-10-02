@@ -16,7 +16,7 @@
 |---|---|---|
 | [SPEC-0229](active/0229-extended-numeric-literal-values.md) | radix/underscore 统一解码、单/unit 定型与常量、索引 identity、整数 SSA/native | 浮点 native、具名位运算与 inv 不在此切片 |
 | [SPEC-0230](active/0230-recursive-boxed-enum-native.md) | 非泛型递归 Box enum 单/unit 构造、运输、真实分配/递归释放计数 | generic enum、拆箱/解引用、nullable/Rc 递归包装与前向 case 查找保持边界 |
-| [SPEC-0231](active/0231-contextual-type-ref-trials.md) | 上下文 TypeRef、nested 函数模式、strict typed-call trial 与回滚一致 | 调用处取消 Borrow marker 由 v0.40 后继实现；三个旧 call-argument 失败未在此修复 |
+| [SPEC-0231](active/0231-contextual-type-ref-trials.md) | 上下文 TypeRef、nested 函数模式、strict typed-call trial 与回滚一致 | 调用处取消 Borrow marker 与三个旧 call-argument 失败由 SPEC-0242 后续切片验证，不改写本切片历史验收 |
 | [SPEC-0232](active/0232-ownership-primitive-type-facts.md) | replace/swap 稳定 intrinsic、交换类型、源码顺序 operand identity、事务与结构验证 | ownership/SSA/native 原子操作尚未接线；无可信 continuation 公开 API |
 | [SPEC-0233](active/0233-parser-compiler-contracts.md) | 九段原文迁入 Compiler Contracts，两页唯一索引、递归门禁与预算 | 渐进拆分首片；混合语义/诊断/Span 段保留 Guide，不声称全部分离 |
 | [SPEC-0234](active/0234-block-newline-continuation.md) | 普通/control/nested block 的 Pratt/postfix 换行边界、for-header delimiter 修复及矩阵 | 同行缺分隔符、前导/重复分号、lambda 顶层尾表达式范围另列 |
@@ -31,7 +31,7 @@
 | 项 | 状态 | 已有证据与未闭合边界 |
 |---|---|---|
 | 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与独立 lambda 实施仍未闭环；上游 PR #6 已将 lambda 换行/分号尾表达式写入规范 |
-| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；v0.40 已决定取消调用 Borrow marker，但 Parser 旧路径仍待迁移 |
+| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；共享路径与PR #9初始双平台CI已通过，与0240的最新main组合本地门禁已通过，新head双平台CI待验证 |
 | 3. 数值与具名位运算 | 数值与位运算本地已验收 | SPEC-0229 闭合字面量；[SPEC-0240](active/0240-integer-bitwise-execution.md) 接入六操作 const/SSA/native 与 inv 稳定身份。移位按自身位宽屏蔽且保持两 operand 同型；inv 仍不在 const call 白名单，既有投影边界不扩大 |
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
@@ -42,7 +42,7 @@
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
 | 11. 受控 unsafe 与 RawPtr | 未实现 | Parser 无 unsafe/extern 产生式，类型环境无 RawPtr；权限来源与 C ABI 类型矩阵尚未封闭，不从方向性计划补规则 |
 | 12. 双层文档解耦 | 首片已落地 | SPEC-0233 九段工程合同独立真源与检查完成；grammar/诊断/Span/Phase 等保留 Guide，后续按清晰边界渐进迁移 |
-| 13. 十二 Litmus | 11 例前端正向，Litmus12 双入口 native | SPEC-0238/0240 直接提取 Guide；部分 typed 仍有精确快照缺口，4 保留 return-when 诊断；12 的 const 已接入并原样 native 执行，不宣称其他样例 native 验收 |
+| 13. 十二 Litmus | 12 例前端正向，Litmus4单文件与Litmus12双入口native | SPEC-0238/0240/0241直接提取Guide；部分typed仍有精确快照缺口，4的unit enum condition/direct-case argument仍未支持；不宣称全套native验收 |
 
 ### 主要代码与测试入口
 
@@ -70,6 +70,10 @@
   `unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary`、
   `top_level_initializers_publish_stable_cross_file_symbol_and_expression_types`、
   `companion_constant_initializers_publish_stable_ordinary_typed_facts`。
+
+SPEC-0242 重建后的 `parser_call_argument` 已实际 31 passed / 0 failed，旧三个失败通过现行
+参数模式语法与精确 Span 断言迁移修复；`multifile_type_checking` 的五个历史失败已在本次
+联合回归重现（99 passed / 5 failed，失败名称相同）。上述旧结果保留为历史因果，不视为当前测试执行。
 
 不得通过降低断言、放宽门禁或把定向通过称作 frontend 全量通过来隐藏上述差异。
 

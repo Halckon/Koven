@@ -951,9 +951,9 @@ fn unsupported_operator_combinations_use_the_whole_adjacent_span() {
 fn call_argument_forms_are_contextual_and_grouped_assignment_remains_legal() {
     for text in [
         "f(name = input)",
-        "f(borrow input)",
+        "f(input)",
         "f(&input)",
-        "f(name = borrow input)",
+        "f(name = borrow(input))",
         "f(name = &input)",
         "f((a = b))",
     ] {

@@ -121,7 +121,7 @@ fn fingerprints(parsed: &ParsedExpression) -> Vec<(String, Severity, String, usi
 }
 
 #[test]
-fn six_argument_forms_share_one_payload_and_preserve_exact_spans() {
+fn four_argument_forms_share_one_payload_and_preserve_exact_spans() {
     struct Case {
         text: &'static str,
         argument: (usize, usize),
@@ -146,25 +146,11 @@ fn six_argument_forms_share_one_payload_and_preserve_exact_spans() {
             value: (9, 10),
         },
         Case {
-            text: "f(borrow e)",
-            argument: (2, 10),
-            named: None,
-            mode: Some(("borrow", (2, 8), "borrow")),
-            value: (9, 10),
-        },
-        Case {
             text: "f(&e)",
             argument: (2, 4),
             named: None,
             mode: Some(("inout", (2, 3), "&")),
             value: (3, 4),
-        },
-        Case {
-            text: "f(name = borrow e)",
-            argument: (2, 17),
-            named: Some(((2, 6), (7, 8))),
-            mode: Some(("borrow", (9, 15), "borrow")),
-            value: (16, 17),
         },
         Case {
             text: "f(name = &e)",
@@ -241,7 +227,7 @@ fn basic_typed_member_and_chained_calls_reuse_call_argument_payload() {
         Some(ParameterModeMarker::Inout(_))
     ));
 
-    let (_, member) = parsed_expression_ok("obj.f(borrow input)");
+    let (_, member) = parsed_expression_ok("obj.f(input)");
     let Expression::Call {
         callee, arguments, ..
     } = expression(&member, member.root())
@@ -255,7 +241,7 @@ fn basic_typed_member_and_chained_calls_reuse_call_argument_payload() {
     assert!(matches!(
         arguments.as_slice(),
         [CallArgument {
-            mode_marker: Some(ParameterModeMarker::Borrow(_)),
+            mode_marker: None,
             ..
         }]
     ));
@@ -298,15 +284,12 @@ fn basic_typed_member_and_chained_calls_reuse_call_argument_payload() {
 
 #[test]
 fn grouped_assignments_remain_single_argument_values_with_optional_modes() {
-    let text = "f((a = b), borrow (c = d), &(e = g))";
+    let text = "f((a = b), (c = d), &(e = g))";
     let (sources, parsed) = parsed_expression_ok(text);
     let arguments = root_arguments(&parsed);
     assert_eq!(arguments.len(), 3);
     assert!(arguments[0].mode_marker.is_none());
-    assert!(matches!(
-        arguments[1].mode_marker,
-        Some(ParameterModeMarker::Borrow(_))
-    ));
+    assert!(arguments[1].mode_marker.is_none());
     assert!(matches!(
         arguments[2].mode_marker,
         Some(ParameterModeMarker::Inout(_))
@@ -494,7 +477,7 @@ fn failed_marker_function_type_trial_has_no_public_parser_side_effects() {
 fn l0033_expected_value_preserves_committed_prefix_and_empty_error_value() {
     for (text, boundary, has_name, mode) in [
         ("f(name =)", 8, true, None),
-        ("f(borrow,)", 8, false, Some("borrow")),
+        ("f(&,)", 3, false, Some("inout")),
         ("f(&)", 3, false, Some("inout")),
     ] {
         let (_, parsed) = parsed_expression(text);
@@ -647,7 +630,7 @@ fn l0036_trailing_comma_inserts_one_error_at_the_preserved_closer() {
 
 #[test]
 fn l0037_mode_before_name_discards_the_reversed_prefix_but_keeps_mode_and_value() {
-    let text = "f(borrow name = input)";
+    let text = "f(&name = input)";
     let (_, parsed) = parsed_expression(text);
     assert_eq!(
         fingerprints(&parsed),
@@ -655,8 +638,8 @@ fn l0037_mode_before_name_discards_the_reversed_prefix_but_keeps_mode_and_value(
             "L0037".to_owned(),
             Severity::Error,
             "invalid argument mode ordering".to_owned(),
-            14,
-            15,
+            8,
+            9,
         )]
     );
     let [argument] = root_arguments(&parsed) else {
@@ -665,9 +648,9 @@ fn l0037_mode_before_name_discards_the_reversed_prefix_but_keeps_mode_and_value(
     assert!(argument.named_prefix.is_none());
     assert!(matches!(
         argument.mode_marker,
-        Some(ParameterModeMarker::Borrow(_))
+        Some(ParameterModeMarker::Inout(_))
     ));
-    assert_eq!((argument.span.start(), argument.span.end()), (2, 21));
+    assert_eq!((argument.span.start(), argument.span.end()), (2, 15));
     assert!(matches!(
         expression(&parsed, argument.value),
         Expression::Name
@@ -676,7 +659,7 @@ fn l0037_mode_before_name_discards_the_reversed_prefix_but_keeps_mode_and_value(
 
 #[test]
 fn l0038_reports_each_extra_mode_and_logical_and_is_not_a_mode() {
-    let text = "f(borrow & &input)";
+    let text = "f(& & &input)";
     let (_, parsed) = parsed_expression(text);
     assert_eq!(
         fingerprints(&parsed),
@@ -685,15 +668,15 @@ fn l0038_reports_each_extra_mode_and_logical_and_is_not_a_mode() {
                 "L0038".to_owned(),
                 Severity::Error,
                 "duplicate argument mode".to_owned(),
-                9,
-                10,
+                4,
+                5,
             ),
             (
                 "L0038".to_owned(),
                 Severity::Error,
                 "duplicate argument mode".to_owned(),
-                11,
-                12,
+                6,
+                7,
             ),
         ]
     );
@@ -702,7 +685,7 @@ fn l0038_reports_each_extra_mode_and_logical_and_is_not_a_mode() {
     };
     assert!(matches!(
         argument.mode_marker,
-        Some(ParameterModeMarker::Borrow(_))
+        Some(ParameterModeMarker::Inout(_))
     ));
     assert!(matches!(
         expression(&parsed, argument.value),
@@ -866,7 +849,7 @@ fn l0039_keeps_the_first_parameter_mode_and_recovers_following_parameters() {
 
 #[test]
 fn nested_argument_owners_do_not_split_on_inner_commas_or_closers() {
-    let text = r#"outer(name = inner(a, b), borrow (c = d), &items[index(a, b)], { x -> f(x, y) }, "${f(a, b)}")"#;
+    let text = r#"outer(name = inner(a, b), (c = d), &items[index(a, b)], { x -> f(x, y) }, "${f(a, b)}")"#;
     let (_, parsed) = parsed_expression_ok(text);
     let arguments = root_arguments(&parsed);
     assert_eq!(arguments.len(), 5);
@@ -1229,19 +1212,23 @@ fn call_only_ampersand_is_not_a_prefix_operator_or_lexer_error() {
 
     for text in ["f(inout input)", "f(own input)"] {
         let (_, parsed) = parsed_expression(text);
-        assert!(
-            parsed
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0033"),
-            "{text:?}: {:?}",
-            parsed.diagnostics()
+        let boundary = text.find("input").expect("second identifier");
+        assert_eq!(
+            fingerprints(&parsed),
+            [(
+                "L0034".to_owned(),
+                Severity::Error,
+                "expected argument separator".to_owned(),
+                boundary,
+                boundary
+            )],
+            "{text}"
         );
+        assert_eq!(root_arguments(&parsed).len(), 2);
         assert!(
-            !parsed
-                .diagnostics()
+            root_arguments(&parsed)
                 .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0016")
+                .all(|argument| argument.mode_marker.is_none())
         );
     }
 }
@@ -1292,7 +1279,7 @@ fn empty_recovery_children_do_not_extend_parent_spans_across_trivia() {
     );
 
     let text = "input as (borrow /* gap */ , T) -> R";
-    let (sources, parsed) = parsed_expression(text);
+    let (sources, parsed) = parsed_expression_ok(text);
     let function_parameters = parsed
         .ast()
         .type_refs()
@@ -1312,12 +1299,10 @@ fn empty_recovery_children_do_not_extend_parent_spans_across_trivia() {
         .ast()
         .type_refs()
         .get(function_parameters[0].type_ref)
-        .expect("error type");
-    let boundary = text.find(',').expect("function parameter separator");
-    assert_eq!(
-        (type_ref.span().start(), type_ref.span().end()),
-        (boundary, boundary)
-    );
+        .expect("ordinary borrow type");
+    assert!(function_parameters[0].mode_marker.is_none());
+    assert!(matches!(type_ref.payload(), TypeRef::Qualified { .. }));
+    assert_eq!((type_ref.span().start(), type_ref.span().end()), (10, 16));
 }
 
 #[test]
@@ -1394,5 +1379,134 @@ fn function_type_parameter_type_ids_remain_resolvable_after_marker_parsing() {
             .type_refs()
             .get(parameter.type_ref)
             .expect("function parameter type ID");
+    }
+}
+
+#[test]
+fn ordinary_borrow_calls_keep_whitespace_independent_expression_spans() {
+    for gap in ["", " ", "\t", "\n", " /* gap */ "] {
+        for prefix in ["", "name = "] {
+            let inner = format!("borrow{gap}(input)");
+            let text = format!("f({prefix}{inner}, tail)");
+            let (sources, parsed) = parsed_expression_ok(&text);
+            let arguments = root_arguments(&parsed);
+            assert_eq!(arguments.len(), 2, "{text}");
+            let argument = &arguments[0];
+            assert!(argument.mode_marker.is_none(), "{text}");
+            assert_eq!(argument.named_prefix.is_some(), !prefix.is_empty());
+            assert_eq!(
+                sources.slice(argument.span).unwrap(),
+                format!("{prefix}{inner}")
+            );
+            let value = parsed.ast().expressions().get(argument.value).unwrap();
+            assert_eq!(sources.slice(value.span()).unwrap(), inner);
+            let Expression::Call {
+                callee,
+                arguments: inner_arguments,
+                ..
+            } = value.payload()
+            else {
+                panic!("{text}: ordinary borrow call")
+            };
+            let callee = parsed.ast().expressions().get(*callee).unwrap();
+            assert!(matches!(callee.payload(), Expression::Name));
+            assert_eq!(sources.slice(callee.span()).unwrap(), "borrow");
+            assert_eq!(inner_arguments.len(), 1);
+            assert!(inner_arguments[0].mode_marker.is_none());
+            assert_eq!(sources.slice(inner_arguments[0].span).unwrap(), "input");
+            assert_eq!(sources.slice(arguments[1].span).unwrap(), "tail");
+        }
+        let text = format!("borrow{gap}(input)");
+        let (sources, parsed) = parsed_expression_ok(&text);
+        assert_eq!(root_arguments(&parsed).len(), 1);
+        assert_eq!(
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(parsed.root())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            text
+        );
+    }
+}
+
+#[test]
+fn removed_borrow_prefix_uses_canonical_separator_recovery() {
+    for prefix in ["", "name = "] {
+        let text = format!("f({prefix}borrow input, tail)");
+        let (sources, parsed) = parsed_expression(&text);
+        let boundary = text.find("input").unwrap();
+        assert_eq!(
+            fingerprints(&parsed),
+            [(
+                "L0034".to_owned(),
+                Severity::Error,
+                "expected argument separator".to_owned(),
+                boundary,
+                boundary
+            )],
+            "{text}"
+        );
+        let arguments = root_arguments(&parsed);
+        assert_eq!(arguments.len(), 3, "{text}");
+        assert_eq!(arguments[0].named_prefix.is_some(), !prefix.is_empty());
+        assert_eq!(
+            sources.slice(arguments[0].span).unwrap(),
+            format!("{prefix}borrow")
+        );
+        for (argument, expected) in arguments.iter().zip(["borrow", "input", "tail"]) {
+            assert!(argument.mode_marker.is_none(), "{text}");
+            let value = parsed.ast().expressions().get(argument.value).unwrap();
+            assert!(matches!(value.payload(), Expression::Name));
+            assert_eq!(sources.slice(value.span()).unwrap(), expected);
+        }
+    }
+}
+
+#[test]
+fn ordinary_borrow_names_members_and_lambdas_never_become_markers() {
+    for text in [
+        "f(borrow)",
+        "f(borrow.member)",
+        "f(borrow { input })",
+        "f(borrow<T>(input))",
+        "f(borrow = input)",
+        "f(own(input), inout(input))",
+    ] {
+        let (sources, parsed) = parsed_expression_ok(text);
+        assert!(
+            root_arguments(&parsed)
+                .iter()
+                .all(|argument| argument.mode_marker.is_none()),
+            "{text}"
+        );
+        for (_, node) in parsed.ast().expressions().iter() {
+            if let Expression::Call { arguments, .. } = node.payload() {
+                assert!(
+                    arguments
+                        .iter()
+                        .all(|argument| argument.mode_marker.is_none()),
+                    "{text}"
+                );
+            }
+        }
+        assert_eq!(
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(parsed.root())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            text
+        );
     }
 }

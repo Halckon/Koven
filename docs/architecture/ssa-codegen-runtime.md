@@ -26,7 +26,7 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
 交付后移除其源码 binding。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
-该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。
+该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。 无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
 
 单文件 pointer-like nullable `when` 消费 typed/ownership descriptor，对 owned whole-root 和
 temporary 的 class、Box、Rc 使用 `NullableBranch` proof；消费提取使用 `NullableTake`。

@@ -45,6 +45,11 @@ TypeRef 的上下文头部由正式解析与 strict call trial 保持一致：`m
 单独的 own/borrow/inout/move 类型名称不被无条件消费。重复参数模式的恢复只保留首 marker，
 失败 typed-call 候选不提交 TypeRef；共享线性预算与原有递归上限保持。
 
+调用实参的显式模式只识别 `&`；`borrow(x)`、`borrow (x)`、member/typed call 与尾 lambda
+按普通表达式解析，`borrow` 不再由后继 token 推断成调用 marker。旧 `f(borrow x)` 沿
+L0034 separator 恢复，在 `x` 起点报告空 Span，保留两个值与后继实参的源码身份。
+声明与函数类型的 Borrow 模式不变；对应直接证据为 `parser_call_argument`。
+
 Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调用实参、receiver、尾 lambda、
 隐式 `it` anchor、control-flow、class-family、package/import、解构和错误传播等源码结构；名称映射、
 类型选择和所有权检查留给后续阶段。
@@ -61,6 +66,11 @@ Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、har
 typed-call 试探、独立 expression 与顶层
 initializer 保持既有入口行为。lambda 顶层 body 保留独立 owner，内嵌普通 block 使用自己的
 换行边界。同行缺分隔符诊断和 lambda 顶层换行仍不属于当前已闭合实现。
+
+`return` 的同行操作数起点允许既有 control primary（含 `if` / `when`），不把 block 的
+下一 element soft stop 误用为缺值判断；已开始解析操作数后仍传递原 stops。换行、分号、
+`else`、caller delimiter 与 EOF 保留原 owner 边界，缺 else 的 returned if 仍为 value-context
+L0057。相关结构、范围和资源回归见 `parser_return_control` 与 parser 内部预算测试。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
 边界。测试选择规则见[开发测试指南](../development/testing.md)。

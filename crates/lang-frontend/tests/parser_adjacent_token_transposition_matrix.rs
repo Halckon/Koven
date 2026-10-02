@@ -148,6 +148,6 @@ fn transposing_each_adjacent_token_pair_is_total_and_recovers_non_owner_suffixes
             owner_mutations,
             recoverable_mutations,
         ),
-        (396, 374, 18, 356, 154, 220)
+        (395, 373, 18, 355, 154, 219)
     );
 }

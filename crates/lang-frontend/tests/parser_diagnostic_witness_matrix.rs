@@ -171,7 +171,7 @@ const WITNESSES: &[Witness] = &[
     Witness {
         code: "L0037",
         entry: Entry::Expression,
-        source: "f(borrow name = input)",
+        source: "f(&name = input)",
     },
     Witness {
         code: "L0038",

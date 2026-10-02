@@ -55,5 +55,5 @@ fn every_utf8_prefix_of_representative_complete_files_is_recoverable() {
         }
     }
 
-    assert_eq!(executed, 1_373);
+    assert_eq!(executed, 1_366);
 }

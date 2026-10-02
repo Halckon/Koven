@@ -84,8 +84,8 @@ fn transposing_every_distinct_adjacent_utf8_scalar_pair_of_entry_sources_is_reco
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(candidate_counts, [187, 342, 194]);
-    assert_eq!(noop_counts, [4, 7, 3]);
-    assert_eq!(transposition_counts, [183, 335, 191]);
-    assert_eq!(transposition_counts.into_iter().sum::<usize>(), 709);
+    assert_eq!(candidate_counts, [180, 342, 194]);
+    assert_eq!(noop_counts, [3, 7, 3]);
+    assert_eq!(transposition_counts, [177, 335, 191]);
+    assert_eq!(transposition_counts.into_iter().sum::<usize>(), 703);
 }

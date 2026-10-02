@@ -465,7 +465,7 @@ module.exports = grammar({
 
     named_argument_prefix: ($) => seq(field("name", $.identifier), "="),
 
-    argument_mode: () => choice("borrow", "&"),
+    argument_mode: () => "&",
 
     index_expression: ($) =>
       prec.left(

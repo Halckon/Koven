@@ -216,7 +216,7 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                 fun borrows(own input: Resource): Unit {\n\
                     var local = input\n\
                     val first = inspect(local)\n\
-                    val second = inspect(borrow local)\n\
+                    val second = inspect(local)\n\
                     val third = mutate(&local)\n\
                     val fourth = take(local)\n\
                     val fifth = take(local)\n\
@@ -354,7 +354,7 @@ fn parameter_bindings_and_successful_call_loans_are_queryable() {
                 fun mutate(inout item: Resource): Unit {}\n\
                 fun exercise(own owned: Resource, shared: Resource, inout exclusive: Resource): Unit {\n\
                     val first = inspect(owned)\n\
-                    val second = inspect(borrow shared)\n\
+                    val second = inspect(shared)\n\
                     val third = mutate(&exclusive)\n\
                 }";
     let (_, parsed, checked) = checked(text);

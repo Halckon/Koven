@@ -1,1 +1,1 @@
-f(item, name = borrow shared, target = &slot)
+f(item, name = shared, target = &slot)

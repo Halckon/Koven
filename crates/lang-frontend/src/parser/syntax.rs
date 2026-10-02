@@ -410,7 +410,7 @@ pub struct ValueParameter {
 pub enum ParameterModeMarker {
     /// 声明侧 `own` 关键字范围。
     Own(Span),
-    /// `borrow` 关键字范围。
+    /// 声明侧 `borrow` 关键字范围。
     Borrow(Span),
     /// 声明侧 `inout` 或调用点 `&` 的真实范围。
     Inout(Span),
@@ -443,7 +443,7 @@ pub struct CallArgument {
     pub span: Span,
     /// 可选命名前缀。
     pub named_prefix: Option<NamedArgumentPrefix>,
-    /// 调用点显式模式；缺失表示未标注实参。
+    /// 调用点显式 `&`，只构造 `Inout`；缺失表示未标注实参。
     pub mode_marker: Option<ParameterModeMarker>,
     /// 唯一实参值表达式。
     pub value: ExpressionId,

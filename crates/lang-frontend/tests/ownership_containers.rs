@@ -214,7 +214,7 @@ fn element_loans_publish_logical_indices_and_allow_proven_siblings() {
                 fun inspect(first: Resource, second: Resource): Unit {}\n\
                 fun mutate(inout first: Resource, inout second: Resource): Unit {}\n\
                 fun valid(own list: MutableList<Resource>): Unit {\n\
-                    val shared = inspect(list[0], borrow list[0])\n\
+                    val shared = inspect(list[0], list[0])\n\
                     val exclusive = mutate(&list[0], &list[1])\n\
                 }";
     let (_, _, owned) = checked(text);

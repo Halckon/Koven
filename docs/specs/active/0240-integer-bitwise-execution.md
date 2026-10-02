@@ -12,7 +12,7 @@
 | 基线 / 分支 | main `e22e11b736aab1231209e3403bd0c931b9ddb940` / `feature/spec-0240-bitwise-execution` |
 | 范围 | 六个具名二元位运算的 const/SSA/native、整数 `inv()` 的 typed 身份及两入口执行；Litmus12 正向门禁 |
 | 非目标 | 不扩展 const call 白名单、不改变同类型 operand 规则、不修复 return-when 或其他既有失败、不自动合并 |
-| 交付状态 | 本地实现及验收已完成；尚未发布本切片，远端双平台 CI 与合并未运行 |
+| 交付状态 | PR #8 双平台CI已通过并合入main `8f3e460`；归档状态另行闭环；与0241/0242的新整合验收见下 |
 
 ## 合同与边界
 
@@ -28,6 +28,8 @@ ownership 按整数只读路径处理 receiver，后端不凭成员拼写选择 
 错误类型/参数等独立负例。Guide Litmus12 直接读取规范源码，通过真实 native 后再更正覆盖账本。
 
 ## 验收账本
+
+以下保留PR #8发布前本切片的原始本地快照；后续远端与整合状态见末节，旧限制不覆盖新切片成果。
 
 本地 Debian 13 x86_64 + glibc，Rust 1.96.0、LLVM/Clang 21.1.8；通过工作区 `rust-dev/activate.sh`
 启用工具，`CARGO_TARGET_DIR=/workspace/shared/koven/target`、`CARGO_NET_OFFLINE=true`，Cargo 门禁串行。
@@ -67,3 +69,16 @@ frontend 使用受影响的定向套件，
 - 本地仅 Linux；macOS 未运行，新分支尚未 push/创建 PR，未请求合并或启用自动合并。
 
 保持 in-progress；本地通过不等于 PR CI 或 main 已交付。
+
+## PR发布与后继整合状态
+
+PR #8的最终head `57a181695f4408378140fae1cea40caaa396bfae` 已通过
+[双平台pull_request CI](https://github.com/Halckon/koven/actions/runs/36884583273)，
+8个jobs全部success；2026-10-02核实其已合入main `8f3e460ba2e186a4fbbcb8ea63a671e1c318b7fa`。
+以上旧本地账本中的未发布、未运行macOS及Litmus4缺口属于当时切片快照。
+
+PR #9正在把该main与SPEC-0241/0242合并：保留位运算与inv合同，同时由0241修复
+return-control并执行Litmus4单文件native，由0242移除调用侧Borrow marker。
+原始Litmus4与12现在均为两入口frontend正向检查；native仍分别限定为4的单文件入口
+和12的双入口，不扩张其他typed/native边界。组合后的实际验收统一见
+[SPEC-0241整合账本](0241-return-control-operands.md#最新-main-整合验收)。

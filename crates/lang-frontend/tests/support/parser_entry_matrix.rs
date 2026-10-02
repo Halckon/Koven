@@ -45,7 +45,7 @@ pub(crate) const ENTRY_CASES: &[EntryCase] = &[
     EntryCase {
         name: "expression typed named mode call",
         kind: EntryKind::Expression,
-        source: "service.send<Int>(name = borrow input, &target)",
+        source: "service.send<Int>(name = input, &target)",
     },
     EntryCase {
         name: "expression nested control flow",

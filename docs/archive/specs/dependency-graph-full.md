@@ -238,6 +238,8 @@ subgraph Gactive["现行 active"]
   S0238["S0238<br/>Guide 勘误与可执行 Litmus 前端门禁"]
   S0239["S0239<br/>Linux CI 与双宿主定向回归门禁"]
   S0240["S0240<br/>整数具名位运算与取反端到端执行"]
+  S0241["S0241<br/>Return 控制表达式操作数与单文件 enum 条件"]
+  S0242["S0242<br/>调用点自动借用迁移"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1400,3 +1402,5 @@ S0226 --> S0227
 | SPEC-0238 | active | [0238-guide-litmus-gate.md](../../specs/active/0238-guide-litmus-gate.md) |
 | SPEC-0239 | active | [0239-linux-ci-gates.md](../../specs/active/0239-linux-ci-gates.md) |
 | SPEC-0240 | active | [0240-integer-bitwise-execution.md](../../specs/active/0240-integer-bitwise-execution.md) |
+| SPEC-0241 | active | [0241-return-control-operands.md](../../specs/active/0241-return-control-operands.md) |
+| SPEC-0242 | active | [0242-automatic-borrow-call-migration.md](../../specs/active/0242-automatic-borrow-call-migration.md) |

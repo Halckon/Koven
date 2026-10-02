@@ -91,7 +91,7 @@ fn replacing_each_significant_token_with_lexer_poison_is_total_for_every_entry()
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(mutation_counts, [264, 416, 280]);
-    assert_eq!(poison_counts, [240; 4]);
-    assert_eq!((lexical_mode_mutations, target_code_mutations), (80, 880));
+    assert_eq!(mutation_counts, [260, 416, 280]);
+    assert_eq!(poison_counts, [239; 4]);
+    assert_eq!((lexical_mode_mutations, target_code_mutations), (80, 876));
 }

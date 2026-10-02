@@ -41,6 +41,6 @@ fun compute(inout total: Int): Int {
     loop {
         break
     }
-    update(target = &total, source = borrow right)
+    update(target = &total, source = right)
     return if (total == 10) transform(left) else plus(left, right)
 }

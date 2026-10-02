@@ -71,6 +71,6 @@ fn every_utf8_aligned_interior_deletion_of_entry_sources_is_recoverable() {
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(deletion_counts, [4_453, 15_634, 4_656]);
-    assert_eq!(deletion_counts.into_iter().sum::<usize>(), 24_743);
+    assert_eq!(deletion_counts, [4_159, 15_634, 4_656]);
+    assert_eq!(deletion_counts.into_iter().sum::<usize>(), 24_449);
 }

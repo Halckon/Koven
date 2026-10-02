@@ -73,7 +73,7 @@ fn duplicating_each_significant_token_is_total_and_deterministic_for_every_entry
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(mutation_counts, [66, 104, 70]);
-    assert_eq!((lexical_mode_mutations, exact_relexed_mutations), (20, 220));
-    assert_eq!(lexical_mode_mutations + exact_relexed_mutations, 240);
+    assert_eq!(mutation_counts, [65, 104, 70]);
+    assert_eq!((lexical_mode_mutations, exact_relexed_mutations), (20, 219));
+    assert_eq!(lexical_mode_mutations + exact_relexed_mutations, 239);
 }

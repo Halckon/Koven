@@ -506,34 +506,11 @@ impl Parser<'_> {
     pub(super) fn parse_argument_mode_marker(
         &mut self,
     ) -> Result<Option<ParameterModeMarker>, ParserInternalError> {
-        let is_borrow_marker = self.current_identifier_is("borrow")?
-            && self.peek(1).is_some_and(|next| {
-                self.can_start_expression(next)
-                    || matches!(
-                        next.kind(),
-                        LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand))
-                    )
-            });
-        let marker = if is_borrow_marker {
-            Some(ParameterModeMarker::Borrow(self.bump()?.span()))
-        } else if self.current_is_symbol(Symbol::Ampersand) {
-            Some(ParameterModeMarker::Inout(self.bump()?.span()))
-        } else {
-            None
-        };
-        if marker.is_none() {
+        if !self.current_is_symbol(Symbol::Ampersand) {
             return Ok(None);
         }
-        while (self.current_identifier_is("borrow")?
-            && self.peek(1).is_some_and(|next| {
-                self.can_start_expression(next)
-                    || matches!(
-                        next.kind(),
-                        LexemeKind::Token(TokenKind::Symbol(Symbol::Ampersand))
-                    )
-            }))
-            || self.current_is_symbol(Symbol::Ampersand)
-        {
+        let marker = ParameterModeMarker::Inout(self.bump()?.span());
+        while self.current_is_symbol(Symbol::Ampersand) {
             let duplicate = self.bump()?.span();
             self.emit(
                 codes::DUPLICATE_ARGUMENT_MODE,
@@ -541,7 +518,7 @@ impl Parser<'_> {
                 duplicate,
             )?;
         }
-        Ok(marker)
+        Ok(Some(marker))
     }
 
     pub(super) fn can_start_call_argument(&self, lexeme: Lexeme) -> bool {
