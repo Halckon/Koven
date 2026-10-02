@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 232 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 233 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -294,3 +294,7 @@
 - [SPEC-0241](./0241-return-control-operands.md)：Return 控制表达式操作数与单文件 enum 条件；最终交付证据见正文追加节
 - [SPEC-0242](./0242-automatic-borrow-call-migration.md)：调用点自动借用迁移；最终交付证据见正文追加节
 - [SPEC-0247](./0247-multifile-baseline.md)：跨文件类型基线与恢复事实闭合；最终交付证据见正文追加节
+
+## 2026-10-02 String clone 诊断验收补强
+
+- [SPEC-0236](0236-explicit-string-clone.md)：原14项测试补精确code/Span/source slice oracle，新增断言双宿主实际通过；原实现与非目标范围保持

@@ -23,7 +23,7 @@
 clone 结果进入普通 temporary / binding 的 owner、transfer 和 drop 规划，源不因 clone 移出。
 借用源、容器元素与临时源的清理仍使用既有 drop point；实现位于 `ownership_checking/string.rs`
 及 checker、compilation-unit/dataflow 的 `string.rs`，完整验收账本见
-[SPEC-0236](../specs/active/0236-explicit-string-clone.md)。
+[SPEC-0236](../archive/specs/0236-explicit-string-clone.md)。
 
 ## 显式 StringClone
 
@@ -36,7 +36,7 @@ LLVM adapter 调用 `llvm/string.rs::clone_owner`：非空来源统一通过集�
 字节并 memcpy，结果 capacity 等于 length；空结果使用 canonical null pointer、零 length/
 capacity，不分配。literal 来源仍深拷贝，drop 复用原 String provenance。具体合同见
 [ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md)，定向测试与 CI 状态见
-[SPEC-0236](../specs/active/0236-explicit-string-clone.md)。此路径不扩展 String? native ABI。
+[SPEC-0236](../archive/specs/0236-explicit-string-clone.md)。此路径不扩展 String? native ABI。
 
 
 ## 当前 native 边界

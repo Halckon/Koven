@@ -26,7 +26,7 @@
 - [0229 数值](0229-extended-numeric-literal-values.md)、[0230 Box enum](0230-recursive-boxed-enum-native.md)、
   [0231 TypeRef](0231-contextual-type-ref-trials.md)、[0232 原子原语 typed facts](0232-ownership-primitive-type-facts.md)、
   [0233 Compiler Contracts](0233-parser-compiler-contracts.md)、[0234 block 续行](0234-block-newline-continuation.md)、
-  [0236 String.clone](../../specs/active/0236-explicit-string-clone.md)先形成真实 v0.39（`ed0727f`）。
+  [0236 String.clone](0236-explicit-string-clone.md)先形成真实 v0.39（`ed0727f`）。
 - [0235 三项批准规则](0235-approved-language-rules.md)随后重基式整合为唯一 v0.40；旧 clone
   迁移记录保留原路径，0235 旧候选历史另存；完整前版来源见[v0.40 账本](../migrations/v0.40-enablement.md)。
 - 检查共享 typed/ownership/SSA 与 numeric + clone + Box 组合，不扩大既有功能边界。

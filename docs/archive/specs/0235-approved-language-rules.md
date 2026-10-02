@@ -10,7 +10,7 @@
 | 语言规范 | 已启用 [Guide v0.40](../../guide/README.md) |
 | 批准依据 | 2026-10-01 用户批准调用处取消 borrow、移位屏蔽、deinit 顺序/只读 this；后续明确 clone-first、延后 Str/toString |
 | 前置 Spec | 无新增交付依赖；本地来源是已纳入 clone-first 实现的真实 v0.39，不把其 CI 未完成状态改写为 done |
-| 关联 Spec | [SPEC-0236](../../specs/active/0236-explicit-string-clone.md)、[SPEC-0233](0233-parser-compiler-contracts.md)、[SPEC-0234](0234-block-newline-continuation.md) |
+| 关联 Spec | [SPEC-0236](0236-explicit-string-clone.md)、[SPEC-0233](0233-parser-compiler-contracts.md)、[SPEC-0234](0234-block-newline-continuation.md) |
 | 前置 ADR | 无；本次不改变实现 ABI |
 | 关联 ADR | [ADR-0018](../../adr/accepted/0018-string-owner-runtime-abi.md)、[ADR-0027](../../adr/accepted/0027-explicit-string-clone-abi.md) |
 | 阻塞项 | 本地文档验证进行中；已获整合 PR 发布授权，最终 PR CI 未完成 |
