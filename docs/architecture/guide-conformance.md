@@ -29,7 +29,7 @@ loan 结束于 `read(local)`，outer exclusive loan 结束于 `accept(...)`。�
 loan 的 call identity、种类和 end span。
 
 交付 callee 的 Borrow 不因参数求值结束而结束：`worker.update(worker)` 在 inout receiver
-与 Borrow 实参重叠时仍为 L0135。[SPEC-0243](../specs/active/0243-receiver-two-phase-borrows.md)
+与 Borrow 实参重叠时仍为 L0135。[SPEC-0243](../archive/specs/0243-receiver-two-phase-borrows.md)
 已将两条前端路径改为 receiver reservation、正常 CallEntry activation；规范允许的
 `worker.update(worker.read())` 已转为正向断言，普通 `&` 实参仍立即独占。新的定向 suite
 另验证 this、字段/index overlap、控制转移、phase facts 与 borrow temporary 清理。

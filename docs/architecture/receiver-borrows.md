@@ -4,7 +4,7 @@
 
 ## Instance receiver 的两阶段调用借用
 
-[前端定向验收](../specs/active/0243-receiver-two-phase-borrows.md)为 single `LoanFact` 与
+[前端定向验收](../archive/specs/0243-receiver-two-phase-borrows.md)为 single `LoanFact` 与
 unit `UnitReceiverOwnershipFact` 发布 `is_receiver_reservation()` 及 `activation_point()`。
 只有具名 Inout instance receiver 先预留；read/shared loan 可在实参求值期间存在，
 move、mutation 与新的 exclusive 借用继续冲突。普通 `&` 实参不走预留。
