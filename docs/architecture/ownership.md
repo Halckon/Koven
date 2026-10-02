@@ -6,7 +6,7 @@
 
 `ownership_checking::check_ownership` 提供单文件入口；
 `check_compilation_unit_ownership` 消费 validated typed unit 并返回 source-qualified
-`CompilationUnitOwnership`。两条路径共享所有权语义，但使用各自产物的 ID，不能混用；[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。
+`CompilationUnitOwnership`。两条路径共享所有权语义，但使用各自产物的 ID，不能混用；[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，当前分支仍在验收。
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，

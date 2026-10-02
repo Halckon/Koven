@@ -265,6 +265,7 @@ impl UnitExpressionLowerer<'_> {
                     loop_depth: self.loops.len(),
                     pending_start: receiver_start,
                     exclusive_root_owners: Vec::new(),
+                    field_replace_owner: None,
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
                         .collect(),
@@ -450,6 +451,7 @@ impl UnitExpressionLowerer<'_> {
                 loop_depth: self.loops.len(),
                 pending_start: self.pending_operands.len(),
                 exclusive_root_owners: Vec::new(),
+                field_replace_owner: None,
                 created_loans: Vec::new(),
             });
         let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);

@@ -183,6 +183,13 @@ impl UnitExpressionLowerer<'_> {
             return Ok(loan);
         }
         let owner = self.require_expression_value(expression)?;
+        if self.pending_call_frames.iter().any(|frame| {
+            frame.field_replace_owner.is_some_and(|slot| {
+                self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
+            })
+        }) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let (_, root) = self
             .function
             .append_instruction(

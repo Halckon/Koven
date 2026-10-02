@@ -622,6 +622,7 @@ pub struct OwnershipCheckedFile {
     constant_materializations: Option<super::ValidatedConstantMaterializations>,
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
+    field_replacements: Vec<super::FieldReplaceOwnershipPlan>,
     loan_ends: Vec<LoanEndFact>,
     nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     source_id: SourceId,
@@ -647,6 +648,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) constant_materializations: Option<super::ValidatedConstantMaterializations>,
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
+    pub(crate) field_replacements: Vec<super::FieldReplaceOwnershipPlan>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
@@ -662,6 +664,22 @@ pub(crate) struct OwnershipCheckedParts {
 }
 
 impl OwnershipCheckedFile {
+    /// 已检查的普通 class 一级字段置换；旧字段值由调用结果唯一持有。
+    #[must_use]
+    pub fn field_replacements(&self) -> &[super::FieldReplaceOwnershipPlan] {
+        &self.field_replacements
+    }
+    /// 按调用 identity 查询独立字段提交能力。
+    #[must_use]
+    pub fn field_replacement(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&super::FieldReplaceOwnershipPlan> {
+        self.field_replacements
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     /// 正常执行前缀后已获准的 owned root 原子 commit。
     #[must_use]
     pub fn ownership_primitives(&self) -> &[super::OwnershipPrimitiveOwnershipPlan] {
@@ -760,6 +778,7 @@ impl OwnershipCheckedFile {
             nullable_whens: parts.nullable_whens,
             non_null_assertions: parts.non_null_assertions,
             ownership_primitives: parts.ownership_primitives,
+            field_replacements: parts.field_replacements,
             loan_ends: parts.loan_ends,
             typed_analysis_owner,
             diagnostics,

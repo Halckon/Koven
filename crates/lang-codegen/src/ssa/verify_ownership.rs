@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod closure;
+mod field_exchange;
+#[cfg(test)]
+mod field_exchange_tests;
 mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
@@ -645,6 +648,27 @@ fn apply_operation(
                 &BTreeSet::new(),
                 location,
                 origin,
+                errors,
+            );
+        }
+        Operation::HeapFieldExchange {
+            owner,
+            field,
+            loan,
+            replacement,
+        } => {
+            field_exchange::apply(
+                module,
+                function,
+                field_exchange::Request {
+                    owner: *owner,
+                    field: *field,
+                    loan: *loan,
+                    replacement: *replacement,
+                },
+                aliases,
+                state,
+                instruction,
                 errors,
             );
         }

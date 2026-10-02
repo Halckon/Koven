@@ -51,6 +51,34 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         Ok(())
     }
 
+    pub(super) fn lower_heap_field_exchange(
+        &mut self,
+        loan: LoanId,
+        replacement: ValueId,
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        let [old] = results else {
+            return Err(invalid_result_count(
+                "heap field exchange",
+                1,
+                results.len(),
+            ));
+        };
+        let pointer = self.access(PlaceAccess::Loan(loan))?;
+        let replacement = self.value(replacement)?;
+        let storage = self.local_storage_type(value_type(self.function, *old)?)?;
+        // The verified loan denotes this exact direct field of the still-live parent.
+        // Load before store; never call drop glue or expose an empty field in between.
+        let old_value = self
+            .builder
+            .build_load(storage, pointer, &value_name(*old))?;
+        self.builder.build_store(pointer, replacement)?;
+        self.loans.remove(&loan);
+        self.zero_sized_loans.remove(&loan);
+        self.values.insert(*old, old_value);
+        Ok(())
+    }
+
     pub(super) fn lower_root_swap(
         &mut self,
         owners: [ValueId; 2],

@@ -150,6 +150,16 @@ impl ExpressionLowerer<'_> {
         {
             return Ok(loan);
         }
+        if self.references.get(&super::span_key(node.span())).is_some_and(|symbol| {
+            self.owned.loans().iter().any(|active| {
+                self.pending_call_loans.contains_key(&(active.call().index(), active.argument().index()))
+                    && active.kind() == lang_frontend::ownership_checking::LoanKind::Exclusive
+                    && matches!(active.target(), lang_frontend::ownership_checking::LoanTarget::Place(path)
+                        if !path.is_root() && path.root() == *symbol)
+            })
+        }) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let owner = self.require_value(expression)?;
         let (_, root) = self.append(
             Operation::RootPlace { owner },

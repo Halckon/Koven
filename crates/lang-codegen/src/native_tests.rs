@@ -1,3 +1,6 @@
+#[path = "native_field_replace_tests.rs"]
+mod field_replace_tests;
+
 #[path = "native_root_primitive_tests.rs"]
 mod root_primitive_tests;
 

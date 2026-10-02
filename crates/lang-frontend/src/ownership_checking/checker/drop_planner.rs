@@ -1062,7 +1062,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     let root = place.root();
                     if usage == ExpressionUse::Consume && place.is_root() {
                         state.take(root);
-                    } else if !self.liveness.expression_after[id.index()].contains(&root) {
+                    } else if usage != ExpressionUse::Place
+                        && !self.liveness.expression_after[id.index()].contains(&root)
+                    {
                         self.drop_named(DropPoint::AfterExpression(id), root, state);
                     }
                     Ok(true)

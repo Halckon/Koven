@@ -68,6 +68,7 @@ pub(super) fn analyze(
         dataflow.construction_plans.clear();
         dataflow.non_null_assertions.clear();
         dataflow.ownership_primitives.clear();
+        dataflow.field_replacements.clear();
         dataflow.drops.clear();
         dataflow.conditional_receiver_drops.clear();
     }

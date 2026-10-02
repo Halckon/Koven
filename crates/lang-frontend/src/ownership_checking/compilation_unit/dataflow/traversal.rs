@@ -608,8 +608,10 @@ impl Checker<'_> {
         if let Some(next) = flows.next.as_mut() {
             self.activate_receiver(call, next)?;
         }
-        if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
-            self.record_ownership_primitive(id, arguments)?;
+        if self.diagnostics.len() == diagnostic_count
+            && let Some(next) = flows.next.as_ref()
+        {
+            self.record_ownership_primitive(id, arguments, next)?;
         }
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()

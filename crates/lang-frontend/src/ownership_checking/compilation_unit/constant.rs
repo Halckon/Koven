@@ -69,6 +69,7 @@ impl CompilationUnitConstantOwnership {
         if self.0.constant_materializations.is_some()
             && self.0.short_circuits.is_some()
             && self.0.ownership_primitives_are_valid()
+            && self.0.field_replacements_are_valid()
         {
             Ok(ConstEnabledOwnedUnit(self))
         } else {
@@ -291,6 +292,24 @@ mod tests {
 mod primitive_tests {
     use super::CompilationUnitConstantOwnership;
     use crate::ownership_checking::OwnershipPrimitiveValueTransfer;
+
+    #[test]
+    fn field_replace_constant_validation_checks_commit_structure() {
+        let owned = super::super::constants_tests::analyze(
+            "package a\nconst val N = 2\nclass Holder(var state: Int)\nfun run(): Unit {\nval holder = Holder(1)\nreplace(&holder.state, N)\n}",
+        );
+        assert_eq!(owned.field_replacements().len(), 1);
+        assert!(owned.ownership_primitives().is_empty());
+        assert_eq!(
+            owned.field_replacements()[0].new_value_transfer(),
+            OwnershipPrimitiveValueTransfer::Temporary
+        );
+        let valid = CompilationUnitConstantOwnership(owned);
+        assert!(valid.clone().validate().is_ok());
+        let mut invalid = valid;
+        invalid.0.field_replacement_types.clear();
+        assert!(invalid.validate().is_err());
+    }
 
     #[test]
     fn root_primitive_constant_validation_checks_commit_structure() {

@@ -7,7 +7,10 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
-- SPEC-0243：receiver 两阶段借用与 unit native 有界验收完成并归档；[PR #10](https://github.com/Halckon/Koven/pull/10) 已通过本切片双平台 CI，保持 Draft，由用户决定合并。历史证据从完成 Spec Archive 追溯。
+- [SPEC-0246](active/0246-direct-field-replace.md)：基于 fresh main `8eb2cd3` 实现 owned local 普通 class 一级字段 replace，in-progress；已有直接验证，最终共享门禁与双平台 CI 待验收，不依赖尚未合并的 PR #12 deinit。
+- SPEC-0244：owned mutable root replace / swap 已有 ownership、SSA、LLVM/native 与双平台验收，已归档并进入本片 main 基线；当前边界见 [root 原语专页](../architecture/root-ownership-primitives.md)。
+
+- SPEC-0243：receiver 两阶段借用与 unit native 有界验收完成并归档；[PR #10](https://github.com/Halckon/Koven/pull/10) 已合并并进入本片 main 基线。历史验收从完成 Spec Archive 追溯。
 - [SPEC-0241](active/0241-return-control-operands.md)：return if/when、Litmus4 两入口前端与单文件 native；联合门禁和远端 CI 待完成。
 - [SPEC-0242](active/0242-automatic-borrow-call-migration.md)：调用点自动借用迁移；直接 parser 验证通过，联合回归与远端 CI 待完成。
 - [SPEC-0239](active/0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，本地验证通过，远端待授权验证。
@@ -18,7 +21,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [Active](active/README.md)：`approved` / `in-progress`；当前状态与验收见各 Spec。
 - [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件常量 Phase 2/3/4 均已完成。
 - [v0.37 阶段路由](drafts/v0.37/README.md)：借用式顺序迭代，3 份 done、1 份 approved。
-- [完成 Spec Archive](../archive/specs/README.md)：214 份 `done`/`superseded` 记录，仅在追溯时读取。
+- [完成 Spec Archive](../archive/specs/README.md)：215 份 `done`/`superseded` 记录，仅在追溯时读取。
 - [Spec 依赖图](dependency-graph.md)：`scripts/gen_spec_dag.py` 生成的拓扑图（SVG 版本
   [dependency-graph.svg](dependency-graph.svg)），不含验收状态，状态以本页为准。
 

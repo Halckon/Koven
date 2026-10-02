@@ -685,6 +685,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 }
                 self.builder.build_store(pointer, self.value(*value)?)?;
             }
+            Operation::HeapFieldExchange {
+                loan, replacement, ..
+            } => {
+                self.lower_heap_field_exchange(*loan, *replacement, &results)?;
+            }
             Operation::InlineFieldReplace {
                 receiver,
                 field,

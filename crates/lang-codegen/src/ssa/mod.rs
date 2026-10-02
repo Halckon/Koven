@@ -113,3 +113,6 @@ mod bitwise_operation_tests;
 
 #[cfg(test)]
 mod unit_root_primitive_tests;
+
+#[cfg(test)]
+mod unit_field_replace_tests;

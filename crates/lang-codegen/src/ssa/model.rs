@@ -449,6 +449,15 @@ pub(crate) enum Operation {
         field: usize,
         value: ValueId,
     },
+    /// Exchange one direct payload field under its exact exclusive field loan.
+    /// Consumes the loan and replacement, returns the old field value, and preserves owner.
+    /// No drop or observable uninitialized state occurs during this ownership commit.
+    HeapFieldExchange {
+        owner: ValueId,
+        field: usize,
+        loan: LoanId,
+        replacement: ValueId,
+    },
     /// Replace one field of an inline aggregate through an active exclusive receiver loan.
     /// MoveOnly fields implicitly drop the old value before committing the replacement.
     InlineFieldReplace {
@@ -624,6 +633,16 @@ impl Operation {
             | Self::InlineFieldReplace {
                 receiver, value, ..
             } => vec![EntityId::Loan(*receiver), EntityId::Value(*value)],
+            Self::HeapFieldExchange {
+                owner,
+                loan,
+                replacement,
+                ..
+            } => vec![
+                EntityId::Value(*owner),
+                EntityId::Loan(*loan),
+                EntityId::Value(*replacement),
+            ],
             Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],
             Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
                 vec![EntityId::Value(*owner)]

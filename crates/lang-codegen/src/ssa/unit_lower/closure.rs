@@ -495,6 +495,7 @@ impl UnitExpressionLowerer<'_> {
                 loop_depth: self.loops.len(),
                 pending_start: callable_index,
                 exclusive_root_owners: Vec::new(),
+                field_replace_owner: None,
                 created_loans: Vec::new(),
             });
         let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);

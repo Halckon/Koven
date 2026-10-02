@@ -11,6 +11,7 @@ mod construction;
 mod container;
 mod control;
 mod enum_lower;
+mod field_replace;
 mod integer;
 mod loop_control;
 mod non_null_assertion;

@@ -79,6 +79,29 @@ impl Checker<'_> {
         }
     }
 
+    // A syntactic member can retain Place category for ordinary projection reads,
+    // but replace requires an independently addressable receiver owner.
+    fn primitive_field_has_temporary_receiver(
+        &self,
+        mut expression: ExpressionId,
+    ) -> Result<bool, TypeCheckingError> {
+        let mut field = false;
+        loop {
+            match self.ast().expressions().get(expression)?.payload() {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Member { receiver, .. } => {
+                    field = true;
+                    expression = *receiver;
+                }
+                _ => {
+                    return Ok(field
+                        && self.expression_categories[expression.index()]
+                            == ExpressionCategory::Temporary);
+                }
+            }
+        }
+    }
+
     fn check_intrinsic_replace_call(
         &mut self,
         expression: ExpressionId,
@@ -134,7 +157,8 @@ impl Checker<'_> {
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
-        if self.expression_categories[arg0.value.index()] != ExpressionCategory::Place
+        if self.primitive_field_has_temporary_receiver(arg0.value)?
+            || self.expression_categories[arg0.value.index()] != ExpressionCategory::Place
             || self.is_mutable_element_place(arg0.value) == Some(false)
             || self.is_read_only_container_size(arg0.value)?
         {

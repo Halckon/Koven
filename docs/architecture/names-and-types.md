@@ -119,8 +119,9 @@ source/type/category/call 关系；精确 AST argument identity 由封闭 produc
 读取 AST 时仍需比对 operand 顺序。错误输入清空整表，trial 回滚和稳定排序覆盖新事实。
 
 Nothing operand 不删除静态调用结构；Deferred operand 不发布成功原语事实。
-这些产物不授予 ownership commit 或 native 执行权限；普通 unit call 的 flow 失效、
-已收窄 nullable place 的 storage-T 推导、原语 native lowering 仍是独立缺口。
+这些产物本身不授予 ownership commit 或 native 执行权限。[Owned root 原语](root-ownership-primitives.md)
+已另外消费可信 ownership plan 接通两入口 native；[一级字段 replace](direct-field-replace.md)
+使用独立 field plan，当前仍在验收。普通 unit call 的 flow 失效、已收窄 nullable place 的 storage-T 推导不因 root 或直接字段切片而扩大。
 
 ## Compilation-unit 名称链
 

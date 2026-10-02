@@ -57,6 +57,7 @@ pub(super) struct Analysis {
     pub(super) rc_effects: Vec<UnitRcOwnershipEffect>,
     pub(super) construction_plans: Vec<UnitConstructionOwnershipPlan>,
     pub(super) non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
+    pub(super) field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     pub(super) ownership_primitives:
         Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
     pub(super) drops: Vec<UnitDropFact>,
@@ -175,6 +176,7 @@ pub(super) fn analyze(
     let mut construction_plans = Vec::new();
     let mut non_null_assertions = Vec::new();
     let mut ownership_primitives = Vec::new();
+    let mut field_replacements = Vec::new();
     let mut drops = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
@@ -233,6 +235,7 @@ pub(super) fn analyze(
         deferred.extend(drop_analysis.deferred);
         deferred.extend(checker.primitive_deferred);
         ownership_primitives.extend(checker.ownership_primitives);
+        field_replacements.extend(checker.field_replacements);
     }
 
     let diagnostics =
@@ -243,6 +246,8 @@ pub(super) fn analyze(
     if !deferred.is_empty() {
         conditional_receiver_deliveries.clear();
     }
+    field_replacements.sort_by_key(|plan| plan.descriptor().expression());
+    field_replacements.dedup_by_key(|plan| plan.descriptor().expression());
     ownership_primitives.sort_by_key(|plan| plan.descriptor().expression());
     ownership_primitives.dedup_by_key(|plan| plan.descriptor().expression());
     non_null_assertions.sort_by_key(|plan| plan.descriptor().expression());
@@ -255,6 +260,7 @@ pub(super) fn analyze(
         constant_materializations,
         non_null_assertions,
         ownership_primitives,
+        field_replacements,
         diagnostics,
         loans,
         value_deliveries,
@@ -353,6 +359,7 @@ struct Checker<'a> {
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
     non_null_assertions: &'a mut Vec<UnitNonNullAssertionOwnershipPlan>,
     ownership_primitives: Vec<crate::ownership_checking::UnitOwnershipPrimitiveOwnershipPlan>,
+    field_replacements: Vec<crate::ownership_checking::UnitFieldReplaceOwnershipPlan>,
     primitive_deferred: Vec<UnitOwnershipDeferredFact>,
 }
 
@@ -494,6 +501,7 @@ impl<'a> Checker<'a> {
             construction_plans,
             non_null_assertions,
             ownership_primitives: Vec::new(),
+            field_replacements: Vec::new(),
             primitive_deferred: Vec::new(),
         })
     }
@@ -673,6 +681,7 @@ impl<'a> Checker<'a> {
             self.construction_plans.len(),
             self.non_null_assertions.len(),
             self.ownership_primitives.len(),
+            self.field_replacements.len(),
         );
         let mut flows = self.check_expression(
             value,
@@ -734,7 +743,10 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
-    fn rollback_facts(&mut self, lengths: (usize, usize, usize, usize, usize, usize, usize)) {
+    fn rollback_facts(
+        &mut self,
+        lengths: (usize, usize, usize, usize, usize, usize, usize, usize),
+    ) {
         self.loans.truncate(lengths.0);
         self.value_deliveries.truncate(lengths.1);
         self.receiver_facts.truncate(lengths.2);
@@ -742,6 +754,7 @@ impl<'a> Checker<'a> {
         self.construction_plans.truncate(lengths.4);
         self.non_null_assertions.truncate(lengths.5);
         self.ownership_primitives.truncate(lengths.6);
+        self.field_replacements.truncate(lengths.7);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {

@@ -2020,3 +2020,6 @@ fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
 
 #[path = "root_primitive_lower_tests.rs"]
 mod root_primitive_tests;
+
+#[path = "field_replace_lower_tests.rs"]
+mod field_replace_tests;
