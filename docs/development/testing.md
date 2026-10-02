@@ -39,7 +39,10 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
 `check_stage_integration.sh` 还完整选择普通unit的 `owned_compilation_unit_view` 与
 `owned_unit_view_compile_contracts` 两个integration targets；selection policy要求各出现一次。
-它们分别验证工厂身份/只读事实与外部构造、能力、生命周期边界；接线存在不代表该head已运行。
+它们分别验证工厂身份/只读事实与外部构造、能力、生命周期边界。
+同一脚本也完整选择 `unit_name_snapshot` 与 `unit_name_snapshot_compile_contracts`，selection
+policy要求各恰一次且不带过滤器：前者与旧手工名称前缀比较完整facts/诊断及canonical来源，
+后者以外部rustc正反例验证owner封闭与inputs生命周期；接线存在不代表该head已运行。
 
 ## 双宿主 CI
 

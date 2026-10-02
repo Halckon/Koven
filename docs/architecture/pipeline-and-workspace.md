@@ -8,7 +8,7 @@
 
 | Crate | 当前职责 | 直接 workspace 依赖 |
 |---|---|---|
-| `lang-frontend` | Source/Span、Lexer、Parser/AST、名称、类型、所有权、诊断、formatter | 无 |
+| `lang-frontend` | Source/Span、Lexer、Parser/AST、名称、类型、所有权、纯分析 snapshot、诊断、formatter | 无 |
 | `lang-codegen` | typed SSA、验证、frontend lowering、LLVM、object 生成 | `lang-frontend`、`inkwell` |
 | `lang-cli` | `kovenc` 命令、诊断渲染、project discovery、链接与运行 | `lang-frontend`、`lang-codegen` |
 | `lang-lsp` | stdio LSP、单文档和 source-set 会话、诊断与 definition adapter | `lang-frontend` |
@@ -39,6 +39,23 @@ source-set 与多文件 native 路径使用 compilation-unit 产物。每一阶�
 
 可执行后端只消费 validated compilation-unit gate。普通源码错误留在 recovery 产物中；来源、分析
 环境或阶段身份不匹配属于内部错误，不会伪造成语言诊断。
+
+## 共享 unit 名称前缀
+
+`analysis::analyze_unit_names` 移动宿主提供的原 SourceMap、显式 UnitSourceDescriptor 列表
+及 NameEnvironment，按调用方顺序完整 lex/parse，再复用 index→names。它不做 IO 或后续
+类型检查，也不提前拒绝普通源码诊断；foreign SourceId 的 Lexer(Source) 错误先于 index
+才发现的非法 path，到达 index 后保持原输入校验与诊断排序。
+
+`UnitNameSnapshot` 按值拥有原 map、canonical 配对的 descriptor/ParsedFile Vec、环境及
+names.validate() 的原 Result（validated 或 boxed recovery），没有自引用或 AST clone。
+字段封闭，只读 getter 与 inputs() 的临时借用投影保留 SourceId/Span 身份；调用方拥有
+inputs Vec，使其 slice 的生命周期覆盖 0249 view。map 中未显式列出的源码不进入 unit。
+
+CLI project 首先完成已有 discovery/path 校验与 source 注册，再调用此前缀；同次
+standard_environments 的 type 半边留宿主。其 names 后非空诊断 gate、basic/const 分流、
+ownership/entry/native 后段保持。bootstrap 与两种 LSP 入口尚未迁移；不提供总模式开关。
+对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts` 与 CLI `project_cli`。
 
 ## 普通 owned-unit 交接
 

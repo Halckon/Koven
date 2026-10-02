@@ -11,8 +11,10 @@ flowchart TD
 ARCH(("已完成<br/>archive 235 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0250["S0250<br/>封闭 unit 名称前缀 owner"]
 end
 ARCH --> S0182
+ARCH --> S0250
 ```
 
 ## 节点链接
@@ -20,4 +22,5 @@ ARCH --> S0182
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
+| SPEC-0250 | active | [0250-unit-name-snapshot.md](active/0250-unit-name-snapshot.md) |
 | 已完成 Spec（235 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
