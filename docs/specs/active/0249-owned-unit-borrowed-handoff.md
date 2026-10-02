@@ -123,11 +123,11 @@ target，分别承载运行时身份与外部rustc能力/借用合同；通过�
 | A7 封闭性 compile-fail | 外部literal/update；const typed与owned分别；recovery names/typed/owned分别；临时inputs与引用产物两类逃逸；indexed helper外部调用 | 首轮5 passed/2 failed为E0308诊断lifetime文本oracle失配；修正后完整target 7 passed/0 failed/0 ignored/0 filtered（含各类成功对照），未降低能力拒绝合同 |
 | A8 能力与邻层回归 | 保留旧7项basic/const compile-fail；F7/F8、S1–S3、C1–C8、N1/N2、H1/H2；受影响native unit全部消费者 | 旧7项在frontend12/codegen4 doctests中全部通过；24条基线由对应完整targets、typed bodies5、codegen739与CLI66实际覆盖，未重复逐条启动exact；N1仅证明commit清理 |
 | A9 资源 oracle | N3 exact：28 alloc/28 free及live-pointer身份；不改变原fixture、assertions或ignore | N3在完整codegen739中通过，保留28 alloc/28 free和live-pointer oracle |
-| A10 动态index | 同fixture，扣除setup只测交接窗口：旧native目标4→1、旧lower2→1、factory1、预建view后lower/native增量0 | 待动态实测；目标不是实测结果，源码次数不能代替计数 |
-| A11 受控性能 | 与基底相同fixture/profile/host/toolchain，配对记录原值、噪声、采样限制及退化调查 | 待同协议采样；不得由index次数推导耗时收益 |
+| A10 动态 index | 同 fixture 扣除 setup：旧 native 目标4→1、旧 lower 2→1、factory 1、预建 view 后 lower/native 增量0 | 两 fixture 动态实测：旧 native 4→1、旧 lower 独立2→1、factory 1、预建 view native/lower 各0；入口/构造器双计数一致。native/factory 14 exact及独立lower 16 exact进程全成功；原libtest738/739仅filtered。原值见[测量页](../../development/owned-unit-handoff-measurement.md) |
+| A11 受控性能 | 与基底相同fixture/profile/host/toolchain，配对记录原值、噪声、采样限制及退化调查 | 同期同协议104进程全成功（24 warmup/80 measured）；内部emit中位 small3.154→3.048ms、32文件28.683→28.598ms，配对差值样本范围跨0且setup噪声触发，不能宣称提速/回归/等价；完整原值与限制见[测量页](../../development/owned-unit-handoff-measurement.md) |
 | A12 工程检查 | fmt；workspace all-targets check；frontend/codegen/CLI all-targets strict Clippy；frontend/codegen docs；完整codegen/CLI适用套件和CLI build | fmt/check/三crate strict Clippy通过；frontend9 targets共253、typed bodies5（182 filtered）、frontend docs12；完整codegen739＋docs4、CLI66（48＋3format＋9native＋6project）及CLI build通过，除注明filtered外全0 failed/ignored/filtered |
 | A13 文档与尺寸治理 | `python3 scripts/check_docs.py`；`python3 -m unittest discover -s scripts/tests -v`；尺寸护栏固定真实base；`git diff --check`；architecture与实现一致 | Spec建立时docs470、policy96/96、diff通过；stage接线后policy97/97。三份架构按实现同步；尺寸682手写/48超限/0生成通过，model1435→1404、lower1297→1282、plan3061→3035，仅收紧三额度；metadata131 targets（129＋2）。archive仅生成图变更 |
-| A14 交付 | 独立review、Draft PR exact-head双宿主逐项实际CI、Spec终态和归档路径/inventory一致 | stage已加两个新target，选择policy先红（未接线0命中）后绿；并未本地跑整个stage。review/PR/双宿主CI待执行，Linux不能替代macOS |
+| A14 交付 | 独立review、Draft PR exact-head双宿主逐项实际CI、Spec终态和归档路径/inventory一致 | stage已加两个新target，选择policy先红（未接线0命中）后绿；并未本地跑整个stage。生产、原始测量及仓内摘要/JSON独立窄核均无finding；Draft PR尚未发布，双宿主CI待执行，Linux不能替代macOS |
 
 实现采用本Spec的三个私有职责模块；原typed bodies/const和reserve算法不改。新增From使
 `unit_lower/cfg.rs`的一处collect需要显式 `LoweringError`，只消除类型推断歧义，不改变算法。
@@ -137,6 +137,10 @@ target，分别承载运行时身份与外部rustc能力/借用合同；通过�
 不伪称生产行为 bug 或删除失败记录。fresh-chain 修正后重跑 native 9 项、fmt、workspace
 all-targets check、codegen strict Clippy 全过，日志 `final-native-and-gates-fixed.log`；
 此后其他源码、依赖、feature 与工具链未变的完整 suite 证据按同一合同复用。
+
+动态计数与同期性能的固定 source tree、完整 counts/samples JSON、噪声、产物 hash 和
+独立 lower 补测边界统一记录于[有界测量页](../../development/owned-unit-handoff-measurement.md)。
+本地候选 commit 与远端发布 SHA 可能不同，必须核对 tree/源码映射；不把本地 SHA 冒充远端链接。
 
 本地受支持宿主为x86_64 Linux/glibc；Cargo验收沿用Rust/Cargo1.96.0、LLVM/Clang21.1.8，
 使用 `--locked --offline` 串行执行。选定frontend命令为 `cargo test -p lang-frontend --no-fail-fast`

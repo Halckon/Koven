@@ -269,7 +269,8 @@ P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，01
 [0249](../specs/active/0249-owned-unit-borrowed-handoff.md)限定普通 owned-unit 的封闭六借用工厂、
 旧API转接与CLI ordinary消费者；const、ABI、语言语义和长期架构决定不变，不新建ADR。
 本片验收只记入该Spec唯一账本；当前为in-progress，最小工厂与普通消费者已实现，
-直接工厂1项、compile-contract7项及双路native9项通过，动态index、同协议性能与CI仍待执行。当前2 active / 234 archive。
+直接工厂1项、compile-contract7项及双路native9项通过；native/factory 和独立 lower 动态 index
+及同期性能已测，噪声不能证明耗时改善；仓内摘要/JSON 独立窄核无 finding，Draft/CI 待验。当前2 active / 234 archive。
 
 旧合同片的8项身份、24条exact、7项能力compile-fail及原红/绿历史保留。新增Display/Into、
 两路reserve和same-T0已在9项中执行；compile-contract首轮5过2失败为诊断oracle的lifetime
@@ -282,5 +283,12 @@ P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，01
 docs4、CLI66及build通过。metadata129→131；682手写Rust/48超限/0生成，policy仅收紧
 model/lower/plan 三项历史额度。新增 fresh 链正例曾因 fixture 环境配对错误在类型阶段失败，
 修正后 native 9 项通过，9 组合×双路共 18 组真实 object/link/run；fmt、workspace check 与
-codegen strict Clippy 亦重跑通过。本地未跑整个 stage 或 frontend 全量，动态计数、性能、
-独立 review 和 exact-head CI 继续按 Spec 记账。
+codegen strict Clippy 亦重跑通过。本地未跑整个 stage 或 frontend 全量。
+
+固定 main 与实现 tree 的两 fixture 动态计数已核：旧 native 4→1、旧 lower 独立2→1、
+factory 1、预建 view 的 native/lower 各0；入口与构造器双计数一致。14个 native/factory 与
+16个 lower fresh exact 进程成功，后者没有执行原738/739项 libtest；不把 probe 当完整回归。
+[仓内测量页](owned-unit-handoff-measurement.md)保留完整 counts 和104进程同期性能样本，
+配对差额样本范围跨0且 setup 噪声触发，不能宣称提速、回归或等价。四路 object bytes 相同，
+前后真实 link/run 输出42/248保持。生产、原始测量及仓内摘要/JSON 独立窄核均无 finding，
+Draft PR尚未发布，exact-head双宿主CI未开始，不提前标完成。
