@@ -68,6 +68,32 @@ jobs:
             codegen:
               - 'crates/lang-codegen/**'
 
+  rust-size:
+    name: Rust Physical Line Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Inspect the exact PR head, not GitHub's synthetic merge tree.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Test Rust size policy
+        run: python3 -m unittest discover -s scripts/tests -p test_check_rust_sizes.py -v
+      - name: Check handwritten Rust size growth
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$PR_BASE"
+          if [ -z "$base" ]; then base="$PUSH_BEFORE"; fi
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then base=origin/main; fi
+          # Full history normally has the base; a force-push may need its exact SHA.
+          if ! git cat-file -e "$base^{commit}"; then git fetch --no-tags origin "$base"; fi
+          python3 scripts/check_rust_sizes.py --base "$base"
+
   docs:
     name: Docs & Spec Structural Gate
     needs: changes
@@ -167,7 +193,7 @@ jobs:
 
   ci-passed:
     name: CI Passed
-    needs: [changes, docs, fmt, clippy, test]
+    needs: [changes, rust-size, docs, fmt, clippy, test]
     if: always()
     runs-on: ubuntu-latest
     steps:

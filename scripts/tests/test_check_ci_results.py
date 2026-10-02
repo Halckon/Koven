@@ -15,6 +15,7 @@ SPEC.loader.exec_module(CI)
 def needs(docs_changed="false", rust_changed="false", **results):
     jobs = {name: {"result": results.get(name, "skipped")}
             for name in ("docs", "fmt", "clippy", "test")}
+    jobs["rust-size"] = {"result": results.get("rust-size", "success")}
     jobs["changes"] = {"result": results.get("changes", "success"),
                        "outputs": {"docs": docs_changed, "rust": rust_changed}}
     return jobs
@@ -69,10 +70,33 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         self.assertEqual(2, workflow.count("os: [macos-14, ubuntu-24.04]"))
         self.assertEqual(2, workflow.count("fail-fast: false"))
-        self.assertIn("needs: [changes, docs, fmt, clippy, test]", workflow)
+        self.assertIn("needs: [changes, rust-size, docs, fmt, clippy, test]", workflow)
         for command in ("cargo test --locked -p lang-codegen", "cargo test --locked -p lang-cli",
                         "bash scripts/check_stage_integration.sh", "bash scripts/check_guide_litmus.sh"):
             self.assertIn(command, workflow)
+
+    def test_rust_size_guard_is_always_required(self):
+        for event, ref in (("pull_request", "refs/pull/1/merge"),
+                           ("push", "refs/heads/feature/test"),
+                           ("push", "refs/heads/main"),
+                           ("workflow_dispatch", "refs/heads/fix/test")):
+            for result in ("skipped", "failure", "cancelled", None):
+                jobs = needs("true", "true", docs="success", fmt="success",
+                             clippy="success", test="success", **{"rust-size": result})
+                with self.subTest(event=event, ref=ref, result=result):
+                    self.assertTrue(CI.check_results(jobs, event, ref))
+
+    def test_workflow_runs_size_guard_without_path_filter(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = workflow.split("  rust-size:\n", 1)[1].split("  docs:\n", 1)[0]
+        self.assertNotIn("    if:", job)
+        self.assertIn("fetch-depth: 0", job)
+        self.assertIn("github.event.pull_request.head.sha || github.sha", job)
+        self.assertIn("github.event.pull_request.base.sha", job)
+        self.assertIn("github.event.before", job)
+        self.assertIn('python3 scripts/check_rust_sizes.py --base "$base"', job)
+        self.assertIn("-p test_check_rust_sizes.py", job)
 
     def test_invalid_or_missing_filter_outputs_cannot_pass(self):
         for value in ("", "unknown", None):
