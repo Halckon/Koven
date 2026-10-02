@@ -11,7 +11,7 @@
 5. [治理执行账本](engineering-governance-progress.md)记录每批真实进度与下一门禁；没有实施/验收的目标不称当前能力
 
 P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 Span 精确证据由 PR17
-补齐并归档，当前仅0182保持active。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
+补齐并归档，0182继续active；[0249普通交接](../specs/active/0249-owned-unit-borrowed-handoff.md)已进入in-progress。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
 已合并的[receiver拆分](codegen-receiver-test-migration.md)与[plan七域拆分](codegen-plan-test-migration.md)之后，
 推进[iteration私有测试18域拆分](drop-iteration-test-migration.md)；
 其余领域、真正冷缓存和分离link性能验收仍待后继，

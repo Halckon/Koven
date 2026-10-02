@@ -37,6 +37,10 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 因此需要受支持的 LLVM/Clang；仍不等同于其他 native、全部语言功能或 frontend 全量验收。
 两个 CI 宿主复用同一脚本，不另维护源码副本。
 
+`check_stage_integration.sh` 还完整选择普通unit的 `owned_compilation_unit_view` 与
+`owned_unit_view_compile_contracts` 两个integration targets；selection policy要求各出现一次。
+它们分别验证工厂身份/只读事实与外部构造、能力、生命周期边界；接线存在不代表该head已运行。
+
 ## 双宿主 CI
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格

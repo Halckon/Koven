@@ -26,6 +26,7 @@ SourceMap
   → CompilationUnitIndex / CompilationUnitNames
   → CompilationUnitTypes
   → CompilationUnitOwnership
+  → OwnedCompilationUnitView（普通路径）/ 独立 const gate
   → unit plan / typed SSA Program
   → verified LLVM module
   → object
@@ -39,9 +40,32 @@ source-set 与多文件 native 路径使用 compilation-unit 产物。每一阶�
 可执行后端只消费 validated compilation-unit gate。普通源码错误留在 recovery 产物中；来源、分析
 环境或阶段身份不匹配属于内部错误，不会伪造成语言诊断。
 
-普通 unit 现有 native 入口已由[交接合同测试](../development/unit-handoff-contract-baseline.md)逐维
-覆盖 source/inputs/names/environment/typed/owned 混链、合法clone与输入重排；隔离测试直接
-确认身份失败不调用 sibling reserve。这是旧入口的合同基线，封闭 owned view 尚未实现。
+## 普通 owned-unit 交接
+
+frontend `ownership_checking::owned_compilation_unit_view` 接收 sources、inputs、validated names、
+environment、validated types/ownership，返回 `OwnedCompilationUnitView<'view, 'parsed: 'view>`。
+六字段私有且不可变；五个 getter 只读 sources/inputs/names/types/ownership，环境只保留借用。
+调用方拥有 SourceMap、ParsedFile 和阶段产物，临时 inputs 与 view 在调用栈建立，不复制 AST、
+不存回自引用 snapshot。const 和 recovery 类型不能进入 factory，也没有 unchecked 或 mutable 入口。
+
+工厂一次重建 index，依次核 source/input、names index、signatures 保存的 index/names owners/
+environment owner、owned 对应的 typed body owner，随后丢弃 rebuilt；下游读取 names 既有 index。
+签名 `is_compatible_with_index` 是 frontend crate-private 共享比较；旧 public compatibility 仍自行
+建 index。合法 clone、输入重排及同 T0 重做 ownership 保持有效，fresh T1 与 O0 仍拒绝。
+
+ordinary native 从 view 直接到 view lower、私有 raw-facts driver 和 planner，不回旧校验入口。
+旧 native 保持八参签名，先调用用户 `entry.into()` 恰一次，再 factory 并转新入口；旧 lower/
+planner 保留受限可见性并各自通过 factory。CLI project ordinary 分支在原 entry selection 后建 view，
+const fallback、诊断分流、独立 const capability/gate 和共享 raw-facts driver 保持原边界。
+
+普通 unit 发布顺序保持 factory→entry shape→lower/SSA verify→native entry plan→reserve→
+LLVM/layout/object emission→atomic commit；旧 native 的用户 Into 在 factory 前完成。
+身份、entry、SSA 与 entry plan 失败不 reserve；LLVM/layout 检查仍在 sibling 上执行。
+N1 只证明 commit 失败清理，尚未注入真正 LLVM emission 失败；H1/H2 证明 CLI 邻层保护。
+
+[原合同基线](../development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
+实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../specs/active/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。
+index 动态计数与耗时采样分别验收，不能从静态调用次数推导性能收益。
 
 ## 目标与产物
 

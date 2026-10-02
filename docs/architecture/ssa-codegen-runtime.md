@@ -158,10 +158,10 @@ implementation 和 delegation route，不重新按名称或 shape 选择。
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
 concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。
 
-基础入口仍接受 validated typed/owned 并核对完整身份链；入口之后的私有 lowering driver 与
-内部 planner 只读取同一轮 `CompilationUnitTypes` / `CompilationUnitOwnership`，复用已有算法。
-此拆分未提供新的公开 capability 转换；常量 lowering 独立校验身份后复用该 driver，
-公开常量 native 入口消费专用 capability 并复用上述身份门禁。
+普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
+旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
+两种 view 错误仍映射原 lowering kind 与 None span；不新增公开 SSA/planner API。
+常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
 
@@ -186,12 +186,12 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 ## Native object 与发布
 
-`native::emit_native_object` 处理单文件产物；`emit_native_unit_object` 处理 validated
-compilation unit；`emit_native_constant_unit_object` 消费专用常量 capability。它们接收显式 entry 与输出路径，生成 sibling temporary object，成功后原子替换目标。
-backend、link 或 commit 失败由 RAII 清理临时文件并保留旧目标。
+`emit_native_object` 处理单文件；`emit_native_constant_unit_object` 消费专用常量 capability。
+普通 `emit_native_owned_unit_object` 消费封闭 view；旧八参入口先执行用户 Into，再 factory 并转接。
+普通 unit 的校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)；不据此改写单文件或 const 入口。
 
-CLI 的 linker/runner 是外围编排，不进入 SSA 或 LLVM 语义。标准库源码也作为普通 frontend input
-进入同一 validated 链。
+普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。
+CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作为普通 frontend input 进入同一 validated 链。
 
 ## 测试覆盖位置
 

@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前2 active / 234 archive（新增0249）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | 普通unit前置合同测试本地已验，待review/PR CI；生产view与编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../specs/active/0249-owned-unit-borrowed-handoff.md)普通view实施中，编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -260,3 +260,27 @@ P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，01
 三个codegen测试源逐字不变；索引/账本冲突同时保全双方条目，当前P2摘要标明PR28已合并。
 同步后8项、native92、导入multifile107及必要工程门禁已重跑通过，确切范围见
 [合同基线](unit-handoff-contract-baseline.md#发布前同步-pr28-主干)。发布前窄review与新head双宿主CI另验。
+
+
+## PR29 合并与 SPEC-0249 开始（2026-10-02）
+
+[PR29](https://github.com/Halckon/Koven/pull/29)已合并为
+`7b3ac11fe1770339f2c5170981839477dae8cbf5`；本片从该main建立 `feature/spec-0249`。
+[0249](../specs/active/0249-owned-unit-borrowed-handoff.md)限定普通 owned-unit 的封闭六借用工厂、
+旧API转接与CLI ordinary消费者；const、ABI、语言语义和长期架构决定不变，不新建ADR。
+本片验收只记入该Spec唯一账本；当前为in-progress，最小工厂与普通消费者已实现，
+直接工厂1项、compile-contract7项及双路native9项通过，动态index、同协议性能与CI仍待执行。当前2 active / 234 archive。
+
+旧合同片的8项身份、24条exact、7项能力compile-fail及原红/绿历史保留。新增Display/Into、
+两路reserve和same-T0已在9项中执行；compile-contract首轮5过2失败为诊断oracle的lifetime
+文本不匹配，修正后7项全部通过，保留该失败历史。Architecture随真实实现同步；不提前宣称P3a
+完成、性能改善或整体治理完成。
+
+该实现新增两个frontend integration targets并接入现有双宿主stage选集，selection policy先红
+后绿；全Python policy现97项通过。fmt、workspace all-targets check及frontend/codegen/CLI
+严格Clippy已过；frontend九targets共253、typed bodies5、frontend docs12、完整codegen739＋
+docs4、CLI66及build通过。metadata129→131；682手写Rust/48超限/0生成，policy仅收紧
+model/lower/plan 三项历史额度。新增 fresh 链正例曾因 fixture 环境配对错误在类型阶段失败，
+修正后 native 9 项通过，9 组合×双路共 18 组真实 object/link/run；fmt、workspace check 与
+codegen strict Clippy 亦重跑通过。本地未跑整个 stage 或 frontend 全量，动态计数、性能、
+独立 review 和 exact-head CI 继续按 Spec 记账。

@@ -52,8 +52,8 @@ expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定
 发布没有物化 owner 的 drop。初次 liveness 仍保留完整预分析，基础模式保持原行为。
 
 两个 unit 入口均重新核对 source inputs、names、types 和 `TypeEnvironment` 的 owner identity。
-基础入口只有无所有权诊断、无阻塞 deferred 且不来自常量专用路径时，`validate` 才产生
-`ValidatedCompilationUnitOwnership`，供既有 codegen 使用。
+基础 `validate` 仅在无所有权诊断、无阻塞 deferred 且非常量专用来源时产生 `ValidatedCompilationUnitOwnership`。
+后续 `owned_compilation_unit_view` 核完整链并发布封闭六借用，保留合法 clone 及同 typed 重查；只读 facts、生命周期与 const 隔离见[普通交接](pipeline-and-workspace.md#普通-owned-unit-交接)。
 
 ## Place、binding 与 loan
 
