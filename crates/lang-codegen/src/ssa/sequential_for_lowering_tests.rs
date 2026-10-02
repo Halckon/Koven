@@ -1,3 +1,5 @@
+mod cleanup_tests;
+
 use lang_frontend::{
     lexer::lex,
     name_resolution::resolve_names,
