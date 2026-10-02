@@ -5,6 +5,8 @@
 Architecture 只描述当前仓库已经落地的结构，不保存决策历史或未来计划。长期理由见
 [ADR](../adr/README.md)，未启用方向见 [Proposals](../proposals/README.md)。
 
+资源用户析构的类型/所有权/SSA/native 有界事实见 [deinit 与资源生命周期](resource-deinit.md)。
+
 ## 当前流水线
 
 ```text

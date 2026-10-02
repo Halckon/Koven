@@ -36,7 +36,7 @@
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
 | 6. 两阶段 receiver 借用 | SPEC-0243 有界验收完成并归档 | 两入口发布 reservation/CallEntry activation，保持 callee Borrow 冲突；45 项直接前端与 6 项 SSA/native 正反例通过。PR #10 初始 head 双平台 CI 全绿，各宿主 stage 742 / Guide 201 通过；PR 保持 Draft。single instance receiver、unit field/index native 既有边界不扩大 |
-| 7. deinit 双轨析构 | 语法/类型层已有 | v0.40 已明确 readonly this、body 先于逆序字段清理；drop planner/codegen 仍无资源 lexical lifetime 与执行 deinit 的 native 证据 |
+| 7. deinit 双轨析构 | SPEC-0245 普通 concrete class 首片本地验收 | 两入口 descriptor/递归分类与资源词法清理已接，single/unit native 已验证 body→字段逆序、控制退出和唯一回收；合并PR #11后本地634 codegen、62 targets/793 stage全绿，双平台 CI 待发布验证。资源 wrapper、条件 outer-owner 运输等边界见[实现事实](../architecture/resource-deinit.md) |
 | 8. 静态 Str | 明确延后 | 字面量/const 仍为 MoveOnly + Transferable String；Str/toString/混合文本操作未启用。先行 String.clone 已有 SPEC-0236 全链路定向证据 |
 | 9. 二等借用与 Escapable | 未实现 | 仍为 owned 值与调用期 loan；Ref/InoutRef/Span/StringView、来源和逃逸需新规范 |
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |

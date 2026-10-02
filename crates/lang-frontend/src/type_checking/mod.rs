@@ -25,6 +25,7 @@ mod ownership_primitive;
 mod parameter;
 mod projection;
 mod rc;
+mod resource;
 mod string;
 
 use std::{sync::Arc, thread};
@@ -54,6 +55,7 @@ pub use ownership_primitive::*;
 pub use parameter::*;
 pub use projection::*;
 pub use rc::*;
+pub use resource::*;
 pub use string::*;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。

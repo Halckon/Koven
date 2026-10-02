@@ -53,6 +53,7 @@ pub(super) fn plan_instances(
     parsed: &ParsedFile,
     typed: &TypedFile,
     templates: &[FunctionTemplate],
+    deinit_spans: &[Span],
 ) -> Result<Vec<PlannedInstance>, LoweringError> {
     if let Some(window) = templates.windows(2).find(|window| {
         window[0].span.source_id() != window[1].span.source_id()
@@ -70,6 +71,37 @@ pub(super) fn plan_instances(
         .filter(|template| template.type_parameters.is_empty())
         .map(|template| FunctionInstanceKey::new(template.symbol, Vec::new()))
         .collect::<BTreeSet<_>>();
+    // Destructor bodies are implicit call roots; their generic callees must be planned too.
+    for call in typed.calls() {
+        let span = parsed
+            .ast()
+            .expressions()
+            .get(call.expression())
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        if !deinit_spans.iter().any(|owner| span_contains(*owner, span)) {
+            continue;
+        }
+        let CallableTarget::Source(target) = call.target() else {
+            continue;
+        };
+        let Some(&index) = template_by_symbol.get(&target) else {
+            continue;
+        };
+        let arguments = call
+            .instance()
+            .type_arguments()
+            .iter()
+            .map(|ty| resolve_concrete_type(typed, *ty, &BTreeMap::new(), span))
+            .collect::<Result<Vec<_>, _>>()?;
+        if arguments.len() != templates[index].type_parameters.len() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        pending.insert(FunctionInstanceKey::new(target, arguments));
+    }
     let mut planned: BTreeMap<FunctionInstanceKey, PlannedInstance> = BTreeMap::new();
     let calls_by_template = index_calls(parsed, typed, templates)?;
     let mut generic_instance_count = 0;

@@ -254,14 +254,11 @@ impl Checker<'_> {
             {
                 self.nominal_by_scope.insert(scope, id);
             }
-            let mut has_deinit = false;
+            let mut deinit = None;
             let mut deinit_count = 0;
             if let Some(body) = &classifier.body {
                 for &member in &body.members {
-                    if matches!(
-                        self.ast().items().get(member)?.payload(),
-                        Item::Deinit { .. }
-                    ) {
+                    if let Item::Deinit { body, .. } = self.ast().items().get(member)?.payload() {
                         deinit_count += 1;
                         if deinit_count > 1 {
                             let span = self.ast().items().get(member)?.span();
@@ -271,29 +268,31 @@ impl Checker<'_> {
                                 span,
                             )?;
                         } else {
-                            has_deinit = true;
+                            deinit = Some((member, *body));
                         }
                     }
                 }
             }
+            let arguments = parameters
+                .iter()
+                .map(|parameter| self.types.intern(TypeKind::TypeParameter(*parameter)))
+                .collect();
+            let ty = self.types.intern(TypeKind::Nominal {
+                nominal: id,
+                arguments,
+            });
             self.nominals.push(NominalDescriptor {
                 id,
                 kind,
-                type_parameters: parameters.clone(),
+                type_parameters: parameters,
                 direct_interfaces: Vec::new(),
                 interfaces: Vec::new(),
                 fields,
                 variants,
                 members: Vec::new(),
-                has_deinit,
-            });
-            let arguments = parameters
-                .into_iter()
-                .map(|parameter| self.types.intern(TypeKind::TypeParameter(parameter)))
-                .collect();
-            let ty = self.types.intern(TypeKind::Nominal {
-                nominal: id,
-                arguments,
+                deinit: deinit.map(|(item, body)| {
+                    crate::type_checking::DeinitDescriptor::new(id, item, body, ty)
+                }),
             });
             self.set_symbol(symbol, ty);
         }

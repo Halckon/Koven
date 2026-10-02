@@ -937,6 +937,7 @@
   <path d="M 2556 4008 C 2556 4040, 1764 5390, 1764 5422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 5514 C 2028 5546, 1236 5546, 1236 5578" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 5634 C 1500 5666, 444 5702, 444 5734" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 828 110 C 2860 110, 2860 257, 4892 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -1908,4 +1909,8 @@
   <text x="708" y="105" text-anchor="middle" font-size="13">owned mutable </text>
   <text x="708" y="123" text-anchor="middle" font-size="13">root 原子 replac</text>
   <text x="708" y="141" text-anchor="middle" font-size="13">e / swap</text>
+  <rect x="4892" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="5012" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0245</text>
+  <text x="5012" y="261" text-anchor="middle" font-size="13">具体普通 class 的资源</text>
+  <text x="5012" y="279" text-anchor="middle" font-size="13">析构闭环</text>
 </svg>

@@ -154,6 +154,7 @@ impl PlannerDropFact {
 pub(super) struct OwnedValue {
     pub(super) symbol: UnitSymbolId,
     pub(super) origin: Span,
+    pub(super) declaration: Span,
     pub(super) scope_depth: usize,
 }
 
@@ -190,7 +191,10 @@ impl ValueState {
 
     pub(super) fn insert(&mut self, value: OwnedValue) {
         self.remove_value(value.symbol);
-        self.values.push(value);
+        let index = self
+            .values
+            .partition_point(|prior| prior.declaration.start() < value.declaration.start());
+        self.values.insert(index, value);
     }
 }
 

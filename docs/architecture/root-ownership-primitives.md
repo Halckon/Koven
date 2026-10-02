@@ -45,8 +45,9 @@ payload。LLVM 定向矩阵另覆盖精确标量宽度、Char 与零大小表示
 发布执行计划。
 
 single 与 unit 均保持字段/index和普通 Inout 参数原语 native 明确 unsupported。closure、
-包含 closure 的递归来源运输独立 deferred；不借本片实现 deinit、资源词法析构、raw pointer、
-借用返回、NLL 或跨线程共享。
+包含 closure 的递归来源运输独立 deferred；raw pointer、借用返回、NLL 或跨线程共享未扩展。
+普通具体 class 资源的 deinit 与词法清理已由后继[资源析构](resource-deinit.md)接入，
+root commit 无提前 drop 的合同保持，并有组合 native / 唯一释放证据。
 
 unit 的普通基础入口仍保持既有实参控制退出限制；constant-enabled 入口有真实 native
 return / break / continue 覆盖。基础 ownership 的通用短路精度不在本片重写；未到达可信

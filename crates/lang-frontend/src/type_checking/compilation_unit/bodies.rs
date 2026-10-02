@@ -577,6 +577,10 @@ struct BodyTypeProvenance {
 /// [`UnitTypeId`] 并且所有源码 identity 都带 [`SourceUnitId`] 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitTypes {
+    pub(in crate::type_checking) resource_classifications:
+        crate::type_checking::resource::ResourceCache<
+            crate::type_checking::resource::UnitResourceClassifier,
+        >,
     constant_declaration_count: usize,
     constants: Option<UnitConstantFacts>,
     constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
@@ -615,6 +619,7 @@ impl CompilationUnitTypes {
             analysis_owner: Arc::new(()),
         };
         Self {
+            resource_classifications: crate::type_checking::resource::ResourceCache::new(),
             provenance,
             constant_declaration_count: parts.constant_declaration_count,
             constants: parts.constants,

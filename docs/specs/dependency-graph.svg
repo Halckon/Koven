@@ -12,6 +12,7 @@
   <path d="M 300 92 C 352 92, 352 248, 404 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 484 92, 484 239, 668 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 616 92, 616 239, 932 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 748 92, 748 239, 1196 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="404" y="202" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="524" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0182</text>
   <text x="524" y="243" text-anchor="middle" font-size="13">顺序容器 for front</text>
@@ -73,6 +74,10 @@
   <rect x="3572" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="3692" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0242</text>
   <text x="3692" y="105" text-anchor="middle" font-size="13">调用点自动借用迁移</text>
+  <rect x="1196" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1316" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0245</text>
+  <text x="1316" y="243" text-anchor="middle" font-size="13">具体普通 class 的资源</text>
+  <text x="1316" y="261" text-anchor="middle" font-size="13">析构闭环</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，215 份</text>

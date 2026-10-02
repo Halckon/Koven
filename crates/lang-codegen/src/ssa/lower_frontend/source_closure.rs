@@ -57,6 +57,22 @@ pub(super) fn declare(
         else {
             continue;
         };
+        // Resource capture/instance cleanup inside closures has no supported native recipe
+        // in this slice. Keep it explicit instead of publishing plain closure glue.
+        if parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(expression, child)| {
+                node.span().start() <= child.span().start()
+                    && child.span().end() <= node.span().end()
+                    && typed
+                        .expression_type(expression)
+                        .is_some_and(|ty| typed.is_resource_type(ty) == Some(true))
+            })
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
+        }
         let Some(TypeKind::Function {
             parameters: callable_parameters,
             return_type,

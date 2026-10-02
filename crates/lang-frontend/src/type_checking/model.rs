@@ -60,7 +60,7 @@ pub struct NominalDescriptor {
     pub(crate) fields: Vec<SymbolId>,
     pub(crate) variants: Vec<SymbolId>,
     pub(crate) members: Vec<SymbolId>,
-    pub(crate) has_deinit: bool,
+    pub(crate) deinit: Option<super::DeinitDescriptor>,
 }
 
 impl NominalDescriptor {
@@ -107,7 +107,13 @@ impl NominalDescriptor {
     /// 返回该名义类型是否声明了显式析构函数 `deinit`。
     #[must_use]
     pub const fn has_deinit(&self) -> bool {
-        self.has_deinit
+        self.deinit.is_some()
+    }
+
+    /// 返回编译器隐式调用的析构 body 身份与只读 receiver 契约。
+    #[must_use]
+    pub const fn deinit(&self) -> Option<super::DeinitDescriptor> {
+        self.deinit
     }
 }
 
@@ -1057,6 +1063,8 @@ impl TypeTable {
 /// Phase 2 的单文件 typed 产物。
 #[derive(Clone, Debug)]
 pub struct TypedFile {
+    pub(super) resource_classifications:
+        super::resource::ResourceCache<super::resource::FileResourceClassifier>,
     constants: Option<super::ValidatedConstants>,
     source_id: SourceId,
     environment_owner: Arc<()>,
@@ -1132,6 +1140,7 @@ impl TypedFile {
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         Self {
+            resource_classifications: super::resource::ResourceCache::new(),
             source_id,
             environment_owner,
             name_analysis_owner,

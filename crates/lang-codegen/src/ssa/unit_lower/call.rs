@@ -553,13 +553,19 @@ impl UnitExpressionLowerer<'_> {
                         argument.span,
                         span,
                     )?;
-                    if created {
-                        created_loans.push((self.pending_operands.len(), end_span));
+                    for created in created {
+                        let pending_index = self.pending_operands.len();
+                        // The final loan uses the argument slot appended below; only
+                        // its derived parents need extra pending slots.
+                        if created != loan {
+                            self.pending_operands.push(EntityId::Loan(created));
+                        }
+                        created_loans.push((pending_index, end_span));
                         self.pending_call_frames
                             .last_mut()
                             .expect("call frame is active")
                             .created_loans
-                            .push(self.pending_operands.len());
+                            .push(pending_index);
                     }
                     EntityId::Loan(loan)
                 }
@@ -703,7 +709,7 @@ impl UnitExpressionLowerer<'_> {
         target: SsaTypeId,
         span: Span,
         call_span: Span,
-    ) -> Result<(LoanId, bool, Span), LoweringError> {
+    ) -> Result<(LoanId, Vec<LoanId>, Span), LoweringError> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
         let mut facts = self
             .owned
@@ -719,14 +725,27 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some((loan, created)) =
+            self.lower_this_field_borrow(argument, fact.target(), target, fact.begin_span())?
+        {
+            return Ok((loan, created, fact.end_span()));
+        }
         if let UnitLoanTarget::This(owner) = fact.target() {
-            return self.lower_this_borrow_argument(
-                *owner,
-                argument,
-                target,
-                fact.begin_span(),
-                fact.end_span(),
-            );
+            return self
+                .lower_this_borrow_argument(
+                    *owner,
+                    argument,
+                    target,
+                    fact.begin_span(),
+                    fact.end_span(),
+                )
+                .map(|(loan, created, end_span)| {
+                    (
+                        loan,
+                        if created { vec![loan] } else { Vec::new() },
+                        end_span,
+                    )
+                });
         }
         if let UnitLoanTarget::Place(place) = fact.target()
             && place.is_root()
@@ -745,7 +764,7 @@ impl UnitExpressionLowerer<'_> {
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            return Ok((loan, false, fact.end_span()));
+            return Ok((loan, Vec::new(), fact.end_span()));
         }
         let place = self.lower_borrow_place(argument, fact.target(), target, span)?;
         let (_, results) = self
@@ -769,7 +788,7 @@ impl UnitExpressionLowerer<'_> {
                 fact.begin_span(),
             ));
         };
-        Ok((loan, true, fact.end_span()))
+        Ok((loan, vec![loan], fact.end_span()))
     }
 
     fn lower_borrow_place(

@@ -18,7 +18,7 @@ use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
     instances::{FunctionInstanceKey, FunctionTemplate, plan_instances, resolve_concrete_type},
     nominal::NominalTypeMapper,
-    present_name, return_values, source_closure, span_key,
+    present_name, resource_deinit, return_values, source_closure, span_key,
 };
 use crate::ssa::{
     model::{EntityId, EntityType, FunctionId, Origin, Program, TerminatorKind},
@@ -47,6 +47,7 @@ struct FunctionPlan {
     parameter_symbols: Vec<SymbolId>,
     return_type: TypeId,
     substitutions: BTreeMap<SymbolId, TypeId>,
+    receiver: Option<(lang_frontend::type_checking::NominalId, TypeId)>,
     span: Span,
 }
 
@@ -274,7 +275,12 @@ fn lower_scalar_file_product(
             span: declaration.span,
         })
         .collect::<Vec<_>>();
-    let instances = plan_instances(parsed, typed, &templates)?;
+    let deinitializers = resource_deinit::declare(module, &mut type_mapper, parsed, names, typed)?;
+    let deinit_spans = deinitializers
+        .iter()
+        .map(|plan| plan.span)
+        .collect::<Vec<_>>();
+    let instances = plan_instances(parsed, typed, &templates, &deinit_spans)?;
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
 
@@ -398,9 +404,21 @@ fn lower_scalar_file_product(
             parameter_symbols,
             return_type,
             substitutions: instance.substitutions,
+            receiver: None,
             span,
         });
     }
+
+    plans.extend(deinitializers.into_iter().map(|plan| FunctionPlan {
+        id: plan.id,
+        item_id: plan.descriptor.item(),
+        body: FunctionPlanBody::Block(plan.descriptor.body()),
+        parameter_symbols: Vec::new(),
+        return_type: plan.return_type,
+        substitutions: BTreeMap::new(),
+        receiver: Some((plan.descriptor.owner(), plan.descriptor.receiver_type())),
+        span: plan.span,
+    }));
 
     let source_closures =
         source_closure::declare(module, &mut type_mapper, parsed, names, typed, owned)?;
@@ -433,6 +451,13 @@ fn lower_scalar_file_product(
             .expect("entry block must exist")
             .parameters
             .clone();
+        let deinit_receiver = plan
+            .receiver
+            .map(|(owner, ty)| match parameters.first() {
+                Some(EntityId::Loan(loan)) => Ok((owner, ty, *loan)),
+                _ => Err(error(LoweringErrorKind::InvalidModel, plan.span)),
+            })
+            .transpose()?;
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
         for (symbol, entity) in plan.parameter_symbols.into_iter().zip(parameters) {
@@ -467,6 +492,7 @@ fn lower_scalar_file_product(
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
             return_type: plan.return_type,
+            deinit_receiver,
             loops: Vec::new(),
         };
         lowerer.emit_drops(DropPoint::FunctionEntry(plan.item_id))?;
@@ -521,6 +547,7 @@ fn lower_scalar_file_product(
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
             return_type: unit,
+            deinit_receiver: None,
             loops: Vec::new(),
         };
         lowerer.bind_capture_views(plan)?;

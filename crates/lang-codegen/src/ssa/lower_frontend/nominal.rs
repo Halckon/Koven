@@ -131,6 +131,7 @@ impl NominalTypeMapper {
         ty: TypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
+        super::resource_deinit::validate_type(typed, ty, span)?;
         if let Some(mapped) = self.type_ids.get(&ty).copied() {
             return Ok(mapped);
         }
