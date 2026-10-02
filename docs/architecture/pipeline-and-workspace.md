@@ -39,6 +39,10 @@ source-set 与多文件 native 路径使用 compilation-unit 产物。每一阶�
 可执行后端只消费 validated compilation-unit gate。普通源码错误留在 recovery 产物中；来源、分析
 环境或阶段身份不匹配属于内部错误，不会伪造成语言诊断。
 
+普通 unit 现有 native 入口已由[交接合同测试](../development/unit-handoff-contract-baseline.md)逐维
+覆盖 source/inputs/names/environment/typed/owned 混链、合法clone与输入重排；隔离测试直接
+确认身份失败不调用 sibling reserve。这是旧入口的合同基线，封闭 owned view 尚未实现。
+
 ## 目标与产物
 
 当前 native 路径按编译器宿主选择目标，不提供 `--target` 或交叉编译：

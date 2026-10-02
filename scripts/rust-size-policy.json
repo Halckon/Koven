@@ -4,7 +4,7 @@
     "crates/lang-codegen/src/llvm/adapter.rs": 1611,
     "crates/lang-codegen/src/llvm/container_tests.rs": 1038,
     "crates/lang-codegen/src/llvm/runtime.rs": 1187,
-    "crates/lang-codegen/src/native/unit_tests.rs": 2074,
+    "crates/lang-codegen/src/native/unit_tests.rs": 2050,
     "crates/lang-codegen/src/native_tests.rs": 1297,
     "crates/lang-codegen/src/ssa/aggregate_operation_tests.rs": 1035,
     "crates/lang-codegen/src/ssa/container_operation_tests.rs": 1031,
