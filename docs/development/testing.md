@@ -44,6 +44,12 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 policy要求各恰一次且不带过滤器：前者与旧手工名称前缀比较完整facts/诊断及canonical来源，
 后者以外部rustc正反例验证owner封闭与inputs生命周期；接线存在不代表该head已运行。
 
+同一 stage 完整选择 `basic_unit_ownership` 与 `basic_unit_ownership_compile_contracts`，
+policy要求各恰一次、无过滤器：前者与手工 basic validation/checker 比较完整事实和 provenance，
+后者验证封闭字段、能力错配以及按值 Outcome 跨输入借用期的合法持有；不为其虚构借用限制。
+CLI完整测试自动包含 `project_basic_ownership_cli` 的旧主干 human/JSON 全输出 oracle；
+LSP完整测试保留冻结 manual 链与 publications/UTF-16/raw事实差分，不用新门面循环自证。
+
 ## 双宿主 CI
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
