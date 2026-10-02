@@ -3,7 +3,7 @@
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
 - [SPEC-0182](0182-sequential-for-lowering.md)：顺序容器 `for` frontend→SSA→native 集成，approved；已有实现，仍需逐项补强集成验收证据
-
+- [SPEC-0251](0251-lsp-unit-name-snapshot.md)：LSP unit 消费共享名称快照，in-progress；保持 recovery 与宿主协议
 
 0179/0211/0212、0228–0250 已按各自有界 Goal 完成归档；各项原非目标继续保持。
 0182 不因邻层测试或本批文档门禁通过而关闭，详情见[治理执行账本](../../development/engineering-governance-progress.md#0182-的保留边界)。

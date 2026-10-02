@@ -38,11 +38,14 @@ CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`�
 
 - legacy 单文档：每个打开 URI 独立运行 lex → parse → names → types → ownership；
 - `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，
-  每次候选更新重建共同 compilation-unit snapshot。
+  每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有。
 
-source-set 模式不读取磁盘。成功 snapshot 原子替换诊断和 definition facts；内部分析失败保留 last-good
-snapshot。诊断按 target URI 分组并稳定发布，definition 直接消费已保存的 name/type target，不重新解析
-package/import 或 overload。
+source-set 模式不读取磁盘。`unit_session` 组合唯一名称 owner，后续阶段借其 sources/inputs 与
+validated_names；同次 standard_environments 的 type 半边留宿主。names recovery 保留有效导航，
+typed validation 失败仍向 definition 提供 typed recovery；const 不进入基础 ownership。
+完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
+失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
+发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
 
 `position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和

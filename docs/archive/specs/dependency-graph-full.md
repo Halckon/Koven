@@ -248,6 +248,7 @@ subgraph Garchive["已完成（archive，236 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0251["S0251<br/>LSP unit 消费共享名称快照"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1099,6 +1100,7 @@ S0185 --> S0209
 S0186 --> S0184
 S0186 --> S0212
 S0186 --> S0225
+S0187 --> S0251
 S0188 --> S0044
 S0188 --> S0045
 S0188 --> S0184
@@ -1187,6 +1189,7 @@ S0226 --> S0227
 S0244 --> S0245
 S0244 --> S0246
 S0249 --> S0250
+S0250 --> S0251
 ```
 
 ## 节点链接
@@ -1430,3 +1433,4 @@ S0249 --> S0250
 | SPEC-0249 | archive | [0249-owned-unit-borrowed-handoff.md](0249-owned-unit-borrowed-handoff.md) |
 | SPEC-0250 | archive | [0250-unit-name-snapshot.md](0250-unit-name-snapshot.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
+| SPEC-0251 | active | [0251-lsp-unit-name-snapshot.md](../../specs/active/0251-lsp-unit-name-snapshot.md) |
