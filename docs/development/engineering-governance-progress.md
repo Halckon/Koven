@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25已合并；iteration18域本地已验，待独立review/PR CI | iteration40项保真迁移，3个完整场景新例外；生产1871行另片处理，受控compile+link/执行/RSS未触发预设调查阈值 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26已合并；ownership integration20域本地已验，待review/PR CI | 184项与7 helpers逐字保留，无新例外；CI新增双平台同target定向执行；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -185,3 +185,29 @@ P3/P4/P5未因本片自动完成；全计划完成后的外部审计仍排队，
 
 P2仍待大integration分组与独立生产职责拆分；P3/P4/P5没有自动完成。
 用户要求的整体计划完成后外部审计继续排队，本片不提前插队。
+
+
+## PR26 合并与 ownership iteration integration分组（2026-10-02）
+
+- [PR26](https://github.com/Halckon/Koven/pull/26)已合并为
+  `e30f9af5200b52c2c9fee7b831f5e63209608cb2`；本片固定该main。
+  上节私有iteration“待review/PR”保留当时快照，不沿用其CI证明本片184执行
+- `tests/ownership_iteration.rs`12063→77行，184项按20个真实领域分组，最大868行；
+  checked共用helper留入口，六个完整场景helper留唯一调用域。没有拆case、去重或新增框架
+- 191完整块逐字且等于原块独立同版rustfmt参考；1248 literal、1174 assert及22 support
+  文件逐字保留，184新旧完整名一对一、前后无filter均实跑184；129 targets完整metadata相等
+- policy只退休原12063行baseline，其他baseline和三个既有例外逐值不变；
+  638→658手写Rust、50→49超限，无新例外，不把生产1871行欠账视为解决
+- 该target此前不在stage/Guide执行选集；本片独立CI提交在既有双平台test job加完整target步骤，
+  不加窄路径filter，不扩frontend全量，复用现有Rust PR/main/dispatch触发及fail-closed汇总。
+  新增两项CI policy先红后绿，必须再核本PR两平台184实跑，不以check/clippy或旧CI替代
+- 本地184 target、187 library（含40私有iteration与53 instance_replay）、迁移后exact1、fmt、
+  frontend all-targets check/严格clippy、普通release check、96 policy、docs、尺寸护栏通过。
+  integration-only dependency-warm compile+link两次/侧、no-op和独立执行三次/侧已采样，
+  仅本target nonfresh；预设调查阈值未触发，不据此宣称提速或性能等价
+- [本片验收与固定证据](ownership-iteration-test-migration.md)给出领域、完整身份/hashes、
+  CI接线、采样原值与未测项；0182历史exact命令旁补当前映射，历史结果与未决合同不变。
+  纯移动、CI接线、文档/policy各独立提交，独立review/Draft PR exact-head CI终态留PR
+
+P2仍待其他大integration分组与独立生产职责拆分；P3/P4/P5没有自动完成。
+整体完成后外部审计继续排队，不提前开展。

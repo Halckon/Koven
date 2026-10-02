@@ -75,6 +75,30 @@ class CheckCiResultsTests(unittest.TestCase):
                         "bash scripts/check_stage_integration.sh", "bash scripts/check_guide_litmus.sh"):
             self.assertIn(command, workflow)
 
+    def test_ownership_iteration_runs_unfiltered_in_existing_test_matrix(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        step = job.split("      - name: Run ownership iteration integration\n", 1)[1]
+        step = step.split("      - name:", 1)[0].strip()
+        self.assertEqual(
+            "run: cargo test --locked -p lang-frontend --test ownership_iteration",
+            step,
+            "The complete target must run without a narrower step condition or test filter",
+        )
+
+    def test_ownership_iteration_does_not_expand_frontend_to_all_integrations(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        commands = re.findall(r"cargo test[^\n]+", workflow)
+        frontend = [command.strip() for command in commands if "-p lang-frontend" in command]
+        self.assertEqual([
+            "cargo test --locked -p lang-frontend --lib",
+            "cargo test --locked -p lang-frontend --test ownership_iteration",
+        ], frontend)
+        self.assertFalse(any("--workspace" in command for command in commands))
+
     def test_rust_size_guard_is_always_required(self):
         for event, ref in (("pull_request", "refs/pull/1/merge"),
                            ("push", "refs/heads/feature/test"),

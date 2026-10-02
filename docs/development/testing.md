@@ -41,6 +41,8 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
 clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`；fmt 只运行一次。
+同一双宿主 test job 还独立执行 `cargo test --locked -p lang-frontend --test ownership_iteration`，
+不加测试名过滤器或细分路径条件，随现有Rust PR/main/dispatch门禁执行；不是frontend全量。
 Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
 中的固定 21.1.8 包，macOS 保留 `brew install llvm@21`；版本或工具缺失直接失败。
 

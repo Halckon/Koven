@@ -337,6 +337,12 @@ InvalidSsa 根因。临时定位 harness 捕获各 case 的 panic 以继续报�
 | `python3 -m unittest discover -s scripts/tests -v` | 94 passed |
 | `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
 
+2026-10-02 P2 integration模块化后，上表历史根级exact名称映射为
+`control_exits::iteration_ownership_facts_are_deterministic_across_analyses`；当前复跑使用同一
+`--test ownership_iteration`与新完整名加`-- --exact`，本地实际1 passed / 183 filtered。
+旧命令与结果保留为当时执行记录；[迁移验收](../../development/ownership-iteration-test-migration.md)
+给出全部184项一对一映射，未改变此项确定性断言或关闭0182未决范围。
+
 执行宿主 x86_64 Linux，Rust/Cargo 1.96.0、LLVM/Clang 21.1.8；既有共享 Cargo target，
 `CARGO_INCREMENTAL=0`，Cargo 串行、libtest 默认并行，未 clean。本片 PR 双宿主 CI 尚未运行；
 codegen / frontend / workspace 全量、性能、cold/warm 编译与 RSS 未运行。没有生产或跨 crate API 变动。
