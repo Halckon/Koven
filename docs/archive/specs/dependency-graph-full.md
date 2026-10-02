@@ -245,6 +245,7 @@ subgraph Garchive["已完成（archive，233 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0248["S0248<br/>列表式 Unit 容器的零大小存储"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -620,10 +621,12 @@ S0035 --> S0195
 S0035 --> S0199
 S0035 --> S0220
 S0035 --> S0225
+S0035 --> S0248
 S0036 --> S0182
 S0036 --> S0186
 S0036 --> S0199
 S0036 --> S0212
+S0036 --> S0248
 S0038 --> S0039
 S0038 --> S0186
 S0038 --> S0191
@@ -1162,6 +1165,7 @@ S0210 --> S0226
 S0210 --> S0227
 S0211 --> S0182
 S0212 --> S0182
+S0212 --> S0248
 S0213 --> S0214
 S0215 --> S0216
 S0215 --> S0217
@@ -1416,3 +1420,4 @@ S0244 --> S0246
 | SPEC-0246 | archive | [0246-direct-field-replace.md](0246-direct-field-replace.md) |
 | SPEC-0247 | archive | [0247-multifile-baseline.md](0247-multifile-baseline.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
+| SPEC-0248 | active | [0248-unit-container-storage.md](../../specs/active/0248-unit-container-storage.md) |

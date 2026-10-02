@@ -446,3 +446,15 @@ PR22 的独立分析链确定性片已合入 `main a7a92790a49053d110e00655f1745
 conditional continue + break、`total` 累加）永久加入现有 CFG 测试，明确通过 fresh frontend、
 SSA verifier 与 verified LLVM，支持上述精确红例闭合引用。该测试函数另以 `--exact --nocapture`
 单独重跑 1 passed / 698 filtered，再运行同一套整合门禁；函数数不变，sequential_for 仍为 35。
+
+
+### 2026-10-02 Unit 容器存储独立修复的验收衔接
+
+[SPEC-0248](0248-unit-container-storage.md) 在独立 `fix/spec-0248` 中实施单文件列表式
+Unit 容器 operand 物化及 container-only storage/layout；它不属于本 Spec 的纯验收补测，
+不改变 §4 的原边界。待该片取得实际结果后，仅在此追加三容器 × 0/1/3 temporary source、
+Copyable Unit named binding/CFG、逻辑次数和共享 bounds 路径的有界证据。
+
+此段只登记关联与待测范围，尚无新增通过结论；本 Spec 保持 active，原 §5、历史记录与
+其余未闭合条款均保留。MoveOnly ZST 的逻辑 drop、nominal element、完整 owned/Borrow
+矩阵和一般 Unit ABI 不由这项修复推定完成。

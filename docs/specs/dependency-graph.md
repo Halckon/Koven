@@ -11,8 +11,10 @@ flowchart TD
 ARCH(("已完成<br/>archive 233 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0248["S0248<br/>列表式 Unit 容器的零大小存储"]
 end
 ARCH --> S0182
+ARCH --> S0248
 ```
 
 ## 节点链接
@@ -20,4 +22,5 @@ ARCH --> S0182
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
+| SPEC-0248 | active | [0248-unit-container-storage.md](active/0248-unit-container-storage.md) |
 | 已完成 Spec（233 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

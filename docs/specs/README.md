@@ -3,12 +3,12 @@
 > **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；语言演进进度见演进实施账本
 
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
-此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active。
+此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active；0248独立实施列表式 Unit 容器存储。
 文档归档不代表原 13 项语言演进全部完成，也不扩大已验收的支持范围。
 
 ## 当前入口
 
-- [Active](active/README.md)：1 份：SPEC-0182 `approved` 需补真实 for→SSA/native 验收
+- [Active](active/README.md)：2 份：SPEC-0182 `approved` 补集成验收；SPEC-0248 `in-progress` 修复 Unit 容器存储
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付
