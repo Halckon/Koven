@@ -1,4 +1,4 @@
-//! Compiler-owned values and checked operations, independent of a single-file symbol table.
+//! Compiler-owned values and integer operations, independent of a single-file symbol table.
 
 use std::sync::Arc;
 
@@ -51,6 +51,12 @@ impl ConstValue {
                     Binary::Add => left.checked_add(right)?,
                     Binary::Subtract => left.checked_sub(right)?,
                     Binary::Multiply => left.checked_mul(right)?,
+                    Binary::BitwiseAnd
+                    | Binary::BitwiseOr
+                    | Binary::BitwiseXor
+                    | Binary::Shl
+                    | Binary::Shr
+                    | Binary::Ushr => integer_bitwise(ty, operator, left, right)?,
                     Binary::Divide | Binary::Remainder => {
                         // Remainder must reject MIN/-1 too, even though its mathematical result is zero.
                         if right == 0 || (left == integer_bounds(ty)?.0 && right == -1) {
@@ -106,6 +112,28 @@ fn integer_bounds(ty: BuiltinType) -> Option<(i128, i128)> {
     })
 }
 
+/// Bit-level operations truncate to the declared width; they never use checked arithmetic.
+fn integer_bitwise(ty: BuiltinType, operator: Binary, left: i128, right: i128) -> Option<i128> {
+    let (min, max) = integer_bounds(ty)?;
+    let mask = max - min;
+    let width = mask.count_ones();
+    // Mask the count's bit pattern, including negative and out-of-width counts.
+    let shift = (right & i128::from(width - 1)) as u32;
+    let bits = match operator {
+        Binary::BitwiseAnd => left & right,
+        Binary::BitwiseOr => left | right,
+        Binary::BitwiseXor => left ^ right,
+        // At most 64 operand bits plus 63 shifted bits fit in the i128 intermediate.
+        Binary::Shl => left << shift,
+        // Canonical signed values sign-extend; unsigned values are already nonnegative.
+        Binary::Shr => left >> shift,
+        Binary::Ushr => (left & mask) >> shift,
+        _ => return None,
+    } & mask;
+    // Restore the declared signed interpretation, including zero-count logical shifts.
+    Some(if bits > max { bits - (mask + 1) } else { bits })
+}
+
 /// Decode the lexer-approved escape set without importing a backend or executing user code.
 pub(super) fn decode_text(text: &str) -> Option<String> {
     let mut output = String::new();
@@ -150,7 +178,13 @@ pub(super) fn accepts_binary_operand(operator: Binary, ty: BuiltinType) -> bool 
         | Binary::Less
         | Binary::Greater
         | Binary::LessEqual
-        | Binary::GreaterEqual => integer_bounds(ty).is_some(),
+        | Binary::GreaterEqual
+        | Binary::BitwiseAnd
+        | Binary::BitwiseOr
+        | Binary::BitwiseXor
+        | Binary::Shl
+        | Binary::Shr
+        | Binary::Ushr => integer_bounds(ty).is_some(),
         _ => false,
     }
 }

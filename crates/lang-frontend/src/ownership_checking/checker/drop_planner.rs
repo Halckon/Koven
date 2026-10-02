@@ -549,6 +549,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if self.checker.is_constant_use(id) {
             return Ok(true);
         }
+        if let Some(operation) = self.checker.typed.integer_operation(id) {
+            return self.expression(operation.receiver(), ExpressionUse::Read, state);
+        }
         if let Some(operation) = self.checker.typed.string_operation(id) {
             state.pending_calls.push(pending_call::PendingCall::new(
                 id,

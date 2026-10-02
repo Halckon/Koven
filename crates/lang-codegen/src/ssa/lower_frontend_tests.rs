@@ -1960,3 +1960,60 @@ fn rejects_loop_carried_last_capture_loan_before_lowering_bindings() {
         "native must reject the unavailable runtime last-loan choice"
     );
 }
+
+#[test]
+fn bitwise_inv_retains_the_existing_single_file_integer_index_boundary() {
+    for expression in ["values[0]", "values[0].inv()"] {
+        let analysis = analyze(&format!("fun entry(values: List<Int>): Int = {expression}"));
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+        let error = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .err()
+        .expect("integer index is an existing single-file lowering boundary");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    }
+}
+
+#[test]
+fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
+    for method in ["ordinary", "inv"] {
+        let analysis = analyze(&format!(
+            "class Sample {{ fun {method}(): Int = 7 }}\nfun entry(): Int = Sample().{method}()"
+        ));
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+        assert!(analysis.typed.integer_operations().is_empty());
+        let error = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .err()
+        .expect("source member call retains single-file lowering boundary");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    }
+}

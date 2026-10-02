@@ -8,7 +8,7 @@
   其中“未动”“不存在”等结论不能不经核查就套用到合并后的代码或当前 Guide。
 - 整合基线 `9b83ab2` 使用 Guide v0.40，继承 main 文档及已批准切片；真实 v0.39 历史
   已在较早的 `ed0727f` 冻结。后到的 PR #6 不回写该快照。
-- 本页记录 SPEC-0238 的更正及 SPEC-0241 的当前前端/native 边界，不修改 PR #6 审计原文、既有历史
+- 本页记录 SPEC-0238 的更正及 SPEC-0240/0241 的当前前端/native 边界，不修改 PR #6 审计原文、既有历史
   Guide 或冻结验收结果。PR 发布、CI 与 main 合并状态分别核对，不能由本地门禁推断。
 
 ## 审计结论更正
@@ -18,7 +18,7 @@
 | `deinit`、双轨析构“不存在” | main `3be83b5` 的 Guide08/10 已有合同；当前 v0.40 进一步明确 receiver 和清理顺序。合同已存在不等于资源 lifetime/drop/native 已完成 | [成员规则](../guide/08-class-family-members.md#deinit-成员语法与资源析构契约)、[所有权](ownership.md) |
 | 所有权原语“未动” | main 的 Guide10/13 已有 replace/swap；整合又有 SPEC-0232 可信 typed facts。原子 ownership/SSA/native 仍不能由普通 call 的诊断为空证明 | [SPEC-0232](../specs/active/0232-ownership-primitive-type-facts.md) |
 | `RawPtr` 字段必然自动 Copyable | 当前标准环境不绑定 `RawPtr`，测试在名称阶段得到 L0080；不能从 unresolved 类型推导 Copyable，更不能把假定的 double-free 当作已复现事实 | `guide_litmus::raw_pointer_name_is_unresolved_not_proven_copyable`；[类型事实](names-and-types.md) |
-| const 位运算 | Guide05 已把六个具名中缀操作列入 const 集合；当前单文件/unit 均报 L0156。Litmus12 恢复 const 源码，另测运行时变体，不用改成 literal 来掩盖缺口 | [const 合同](../guide/05-declarations-callables.md#363-封闭-const-expression-与求值失败)；`guide_litmus` |
+| const 位运算 | Guide05 的六个具名中缀操作已由共享值内核完成；单文件/unit const 正向测试覆盖八种整数。Litmus12 保持原始 const 源码，并纳入两条 native 门禁 | [const 合同](../guide/05-declarations-callables.md#363-封闭-const-expression-与求值失败)；`guide_litmus` |
 | `Box<enum>` 与投影/拆箱 | 递归布局/构造/运输的已有证据与 `.value`/`unbox` 的 staged 合同是不同范围；前者不证明后者可执行 | [构造规则](../guide/11-copyability-layout-construction.md#内建-box-身份与实参边界)、[SSA 实现](ssa-codegen-runtime.md) |
 | 文档内语法/命名 | Counter mutator 标明 `inout fun`；replace/swap 使用声明端模式且返回类型为 `T`；enum payload 不写字段 `val`；Result 脱糖用 `success`，与 prelude 一致 | [Guide09](../guide/09-nullability-errors.md)、[Guide10](../guide/10-ownership-borrowing-drop.md)、[Guide11](../guide/11-copyability-layout-construction.md)、[Guide13](../guide/13-program-runtime-standard-library.md)、[Litmus](../guide/15-conformance-and-staging.md#规范性-litmus-程序集) |
 
@@ -53,18 +53,18 @@ Litmus fixtures；源文档变化会触发重新编译。Guide10/13 API 签名�
 | 7、8 | 诊断/ownership 检查通过；Resource/Node 构造目标的非值 expression 是 single Error / unit 无值类型；8 的 single 赋值还为 Deferred(Assignment) | 构造目标占位等于用户源码错误，或全部 typed 产物已闭合 |
 | 11 | 诊断/ownership 检查通过；两入口 listOf callee 为 Deferred(Call)，single 赋值为 Deferred(Assignment)，unit for-body 还有 LoopSource/ControlJoin/Assignment | for-body unit typed 已闭合或 for native 已支持 |
 | 4 | 原始 `return when` 两入口诊断/ownership 通过；Shape 非值 qualifier 保留 single Error / unit 无值类型 | compilation-unit enum expression condition 或直接 case 调用实参已 native 支持 |
-| 12 | Types 两个 L0156，范围为 `1 shl 0` / `1 shl 1`；运行时变体通过 | const 位运算已支持或运行时位运算已 native 验证 |
+| 12 | const/ownership 检查通过；BitMasks 非值 namespace 仍为 single Error / unit 无值类型；两 native 入口执行原始规范源码 | 其他 Litmus 或一般 constructor 占位已经闭合 |
 
-`bash scripts/check_guide_litmus.sh` 是独立可复用门禁，运行文档结构检查和上述新 suite、两个
-相关 ownership suite。23 个 suite 测试包括十二 Litmus、语法校验、回归与 known-gap；其中
-六操作符测试逐个锁定 `shl/shr/ushr/and/or/xor` 的 const 缺口。每个 known-gap 测试通过
-仅表示当前限制与账本一致，不是语言功能验收完成。派生源码每次替换都要求恰好命中
-一次，避免模板漂移后静默失去括号或运行时移位覆盖。
+`bash scripts/check_guide_litmus.sh` 是独立可复用门禁，运行文档结构检查、23个Guide suite
+测试、两个相关ownership suite，以及位运算与inv定向前端suite。十二Litmus的两入口
+诊断/ownership检查均通过，return-when与const位运算已转为正向验证；typed节点仍按
+上表锁定精确快照。派生源码每次替换都要求恰好命中一次，避免模板漂移后静默失去覆盖。
 
-本门禁追加 SPEC-0241 的 3 个单文件 native 与 3 个 SSA 定向回归；不枚举其他未选前端
-套件，也不替代其他语言能力的 native 验证。SPEC-0242 已修复三个旧 call-argument 失败，
-五个 multifile type 既有失败单独复核。历史门禁见 [SPEC-0238](../specs/active/0238-guide-litmus-gate.md)，
-本轮命令、计数与未运行范围见 SPEC-0241/0242。
+本门禁同时执行SPEC-0241的3个单文件native与3个SSA定向回归，以及SPEC-0240的
+`guide_litmus_12`两条native入口。它不枚举其他未选前端套件，也不替代其他语言能力的
+native验证。SPEC-0242已修复三个旧call-argument失败，五个multifile type既有失败仍单独
+记录。历史门禁见[SPEC-0238](../specs/active/0238-guide-litmus-gate.md)，增量范围与验收见
+[SPEC-0240](../specs/active/0240-integer-bitwise-execution.md)、SPEC-0241/0242。
 
 ## Return 控制表达式与 Litmus4 的 native 边界
 

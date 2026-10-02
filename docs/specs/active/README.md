@@ -4,6 +4,7 @@
 
 - [SPEC-0241](0241-return-control-operands.md)：return 控制表达式与 Litmus4 单文件 enum-tag native 验证，in-progress。
 - [SPEC-0242](0242-automatic-borrow-call-migration.md)：调用点自动借用、普通 borrow 名称与编辑器迁移，in-progress。
+- [SPEC-0240](0240-integer-bitwise-execution.md)：整数具名位运算 const/SSA/native 与 inv 内建身份，in-progress。
 - [SPEC-0239](0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，in-progress。
 - [SPEC-0238](0238-guide-litmus-gate.md)：Guide 勘误、审计更正与可执行 Litmus 前端门禁，in-progress。
 - [SPEC-0237](0237-local-integration.md)：八阶段本地整合、交叉契约与验证账本，in-progress。

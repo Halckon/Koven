@@ -95,3 +95,11 @@ return_control/diagnostic_witness、type_callable/type_checking、tree_sitter_gr
 的精确字符/token枚举计数同步调整；首轮旧计数失败后，最终27个matrix目标全部通过，
 没有删除测试、弱化恢复断言或放宽线性预算。双平台PR CI仍待发布后验证，保持in-progress，
 不代表main已交付或已可合并。
+
+## 最新 main 整合状态
+
+初始PR #9 head `9e54af2` 已通过双平台完整CI，随后main合入SPEC-0240。
+本PR正在合入 `8f3e460` 并复验位运算、return-control与自动借用的组合；0240新增夹具
+没有旧调用侧`borrow x`，其inv独占冲突与typed身份断言原样保留。
+初始head通过不替代合并后的验收；最新实际结果统一见
+[SPEC-0241整合账本](0241-return-control-operands.md#最新-main-整合验收)。

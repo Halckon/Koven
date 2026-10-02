@@ -43,6 +43,7 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md) |
+| 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
 | Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |
 | Diagnostic、fixture、矩阵与压力测试 | [诊断与测试](diagnostics-and-tests.md) |

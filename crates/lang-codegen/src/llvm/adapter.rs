@@ -1,6 +1,7 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
 mod callable;
+mod integer;
 mod module_lowering;
 mod storage;
 
@@ -480,12 +481,19 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 left,
                 right,
             } => self.lower_checked(*operator, *left, *right, &results)?,
+            Operation::IntegerBitwise {
+                operator,
+                left,
+                right,
+            } => {
+                self.lower_integer_bitwise(*operator, *left, *right, &results)?;
+            }
             Operation::Compare {
                 operator,
                 left,
                 right,
             } => self.lower_comparison(*operator, *left, *right, &results)?,
-            Operation::BooleanNot { operand } => {
+            Operation::BooleanNot { operand } | Operation::IntegerNot { operand } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("boolean not", 1, results.len()));
                 };

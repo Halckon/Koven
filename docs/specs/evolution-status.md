@@ -5,7 +5,7 @@
 本页对照 2026-10-01 的 13 项计划记录当前本地整合事实；语言规则以唯一 current
 [Guide v0.40](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
 起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
-八个切片及整合合同均保持 in-progress；已获提交整合 PR 的授权，最终提交与必需 CI 尚待验收。
+八个切片及整合合同保留各自验收账本。PR #7 已于 2026-10-01 合并，后继切片基于真实 main `e22e11b`；既有 Spec 生命周期不在本切片中批量改写。
 后到的 main `3be83b5`（已合并 PR #6）另作[最小协调](../archive/migrations/v0.40-upstream-pr6-reconciliation.md)，
 整合 PR CI 后的独立核查与更正见 [SPEC-0238](active/0238-guide-litmus-gate.md)及
 [当前更正账本](../architecture/guide-conformance.md)；不重写已冻结的真实 v0.39。
@@ -31,8 +31,8 @@
 | 项 | 状态 | 已有证据与未闭合边界 |
 |---|---|---|
 | 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与独立 lambda 实施仍未闭环；上游 PR #6 已将 lambda 换行/分号尾表达式写入规范 |
-| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；共享路径与 PR CI 仍待联合验收 |
-| 3. 数值与具名位运算 | 数值端到端已落地 | SPEC-0229 闭合整数；位运算 const/SSA/native 与 inv 未闭合；上游 PR #6 已把六个具名中缀操作列入 const 白名单，实现待验收。移位 count 已批准按自身整数位宽屏蔽、两 operand 同型，不再是语义待定 |
+| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；共享路径与PR #9初始双平台CI已通过，与0240的最新main组合本地门禁已通过，新head双平台CI待验证 |
+| 3. 数值与具名位运算 | 数值与位运算本地已验收 | SPEC-0229 闭合字面量；[SPEC-0240](active/0240-integer-bitwise-execution.md) 接入六操作 const/SSA/native 与 inv 稳定身份。移位按自身位宽屏蔽且保持两 operand 同型；inv 仍不在 const call 白名单，既有投影边界不扩大 |
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
 | 6. 两阶段 receiver 借用 | 未实现 | receiver 仍直接建立 active exclusive loan；Reserved/Activate 和 callee 存活 Borrow 冲突尚需事实及验证 |
@@ -42,7 +42,7 @@
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
 | 11. 受控 unsafe 与 RawPtr | 未实现 | Parser 无 unsafe/extern 产生式，类型环境无 RawPtr；权限来源与 C ABI 类型矩阵尚未封闭，不从方向性计划补规则 |
 | 12. 双层文档解耦 | 首片已落地 | SPEC-0233 九段工程合同独立真源与检查完成；grammar/诊断/Span/Phase 等保留 Guide，后续按清晰边界渐进迁移 |
-| 13. 十二 Litmus | 本地诊断/ownership 门禁已有 | SPEC-0238 直接提取 Guide；SPEC-0241 后 11 例诊断/ownership 检查通过但部分 typed 仍有精确快照缺口；Litmus4 单文件 native 已验，Litmus12 const 位运算缺口保留；没有宣称全套 native 验收 |
+| 13. 十二 Litmus | 12 例前端正向，Litmus4单文件与Litmus12双入口native | SPEC-0238/0240/0241直接提取Guide；部分typed仍有精确快照缺口，4的unit enum condition/direct-case argument仍未支持；不宣称全套native验收 |
 
 ### 主要代码与测试入口
 
@@ -83,7 +83,7 @@ SPEC-0242 重建后的 `parser_call_argument` 已实际 31 passed / 0 failed，�
 后继实施应按 Guide 验证，不再把它们列为等待用户选择。Str/toString 已明确延后；
 unsafe 与其他未闭合 API/ABI 不能从已有代码或计划措辞推导新规则。
 
-顺序仍为整合 PR CI 后核查最新 main 的 PR #6，再推进下一阶段；审查后本地勘误与
-Litmus 门禁由 SPEC-0238 独立记录，后继 Linux CI 可复用同一脚本。该范围不包含自动合并、
+PR #7 合并后的首个执行切片为 SPEC-0240；此前审查勘误与 Litmus 门禁由 SPEC-0238
+记录，SPEC-0239 的 Linux/macOS CI 复用同一脚本。该范围不包含自动合并、
 改写历史审计原文或把诊断门禁通过说成全部实现完成。
 旧失败须保留精确结果，修复时有独立因果与回归证据；不得降低断言、放宽门禁或称 frontend 全量通过。

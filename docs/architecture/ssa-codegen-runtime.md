@@ -14,7 +14,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
 - ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop 与 control-flow 合并。
 
-未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。
+未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。
 
 顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。

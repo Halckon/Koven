@@ -630,6 +630,9 @@ impl<'a> Checker<'a> {
         if let Some(descriptor) = self.construction.descriptor(id) {
             return self.check_construction(descriptor, state, usage);
         }
+        if let Some(descriptor) = self.typed.integer_operation(id) {
+            return self.check_expression(descriptor.receiver(), state, ExpressionUse::Read);
+        }
         if let Some(descriptor) = self.typed.string_operation(id) {
             return self.check_string_operation(descriptor, state);
         }

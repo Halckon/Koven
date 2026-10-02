@@ -32,9 +32,10 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 `bash scripts/check_guide_litmus.sh` 执行文档结构检查及 Guide Litmus、两个相关 ownership
 套件。Litmus 源码直接来自 Guide，known-gap 固定阶段、诊断码和范围，不能用 ignore/skip
 或修改规范要求来取得通过；缺口行为变化时要核验实现，再同步
-[覆盖账本](../architecture/guide-conformance.md)。此门禁还执行 SPEC-0241 的
-Litmus4 单文件 native 与 enum-tag/SSA 定向回归，需要受支持的 LLVM/Clang；仍不等同于
-其他 native、全部语言功能或 frontend 全量验收。两个 CI 宿主复用同一脚本，不另维护源码副本。
+[覆盖账本](../architecture/guide-conformance.md)。此门禁还执行 SPEC-0241 的 Litmus4
+单文件 native 与 enum-tag/SSA 定向回归，以及 SPEC-0240 的 Litmus12 两条 native 入口。
+因此需要受支持的 LLVM/Clang；仍不等同于其他 native、全部语言功能或 frontend 全量验收。
+两个 CI 宿主复用同一脚本，不另维护源码副本。
 
 ## 双宿主 CI
 

@@ -28,8 +28,9 @@ native 执行验证。测试从 Guide 直接提取源码，仅追加调用者与
 EnumCaseId 的身份，再用 enum layout 中的 variant 比较 subject tag；不能按名称或 AST 猜测。
 
 不实现 compilation-unit enum expression condition、直接 case 调用实参、通用 enum 相等、
-payload/grouped case 条件或 MoveOnly 条件。Litmus12 const 位运算缺口仍保留；SPEC-0240
-不在本基线上。借用调用迁移由独立 SPEC-0242 负责。
+payload/grouped case 条件或 MoveOnly 条件。初始发布基线未包含SPEC-0240，故其Litmus12
+const位运算缺口当时保留；最新main整合后已保留0240的正向验证，见末节。借用调用迁移
+由独立SPEC-0242负责。
 
 ## 2. 验收
 
@@ -91,3 +92,28 @@ return_control/diagnostic_witness、type_callable/type_checking、tree_sitter_gr
 的精确字符/token枚举计数同步调整；首轮旧计数失败后，最终27个matrix目标全部通过，
 没有删除测试、弱化恢复断言或放宽线性预算。双平台PR CI仍待发布后验证，保持in-progress，
 不代表main已交付或已可合并。
+
+## 最新 main 整合验收
+
+初始发布head `9e54af2fcd8f39331621306435f154238a18aa3d` 的
+[PR #9完整双平台CI](https://github.com/Halckon/koven/actions/runs/36949600712) 已通过，
+8个jobs全部success、无job skip。Linux实际core793、stage681、Guide132 passed；
+macOS core791、stage681、Guide132 passed，另1项既有LLDB测试因debugserver
+权限限制ignored。Guide定向codegen每个平台另511 filtered，不计为通过。
+
+其后main合入SPEC-0240至 `8f3e460ba2e186a4fbbcb8ea63a671e1c318b7fa`，本PR保留
+原head并合入最新main；10处文档与门禁冲突按两侧合同合并，生产Rust代码自动合并。
+Guide脚本同时运行return-control与Litmus12 native过滤器，所有12项规范例子的诊断/
+ownership检查转为正向，仍保留typed快照与各自native未支持范围。
+
+最新组合的本地验证（Linux x86_64 + glibc、Rust1.96.0、LLVM/Clang21.1.8，共享target串行）：
+
+- fmt、workspace all-targets check、严格clippy通过；无warning豁免。
+- frontend lib180、codegen538+4 doctests、CLI66、LSP26全部passed，0 failed/ignored。
+- stage为57个targets / 697 passed；Guide为142 frontend + 8 codegen passed。
+  两个Guide codegen过滤器分别532与536 filtered，不计为通过；两个原始Litmus的native均实际link/run。
+- 文档447 Markdown、检查器45项、脚本bash -n、git diff --check全部通过。
+- 独立只读整合复核未发现阻断；90个不重叠crate文件与各自来源一致，4个重叠文件保留双方模块、实现和测试。
+
+新head的双平台PR CI仍须在发布后验证；上方初始head绿灯不代替这一组合的远端验收。
+既有multifile/editor失败及未支持native边界不由上述定向结果抹去，未运行frontend全量。

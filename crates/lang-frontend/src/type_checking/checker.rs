@@ -1,3 +1,4 @@
+use crate::type_checking::IntegerOperationDescriptor;
 mod argument_mapping;
 mod callable;
 mod constants;
@@ -8,6 +9,7 @@ mod delegation;
 mod destructuring;
 mod expression;
 mod flow;
+mod integer;
 mod item;
 mod iteration;
 mod layout;
@@ -161,6 +163,7 @@ struct Checker<'a> {
     ownership_primitives: Vec<OwnershipPrimitiveDescriptor>,
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
+    integer_operations: Vec<IntegerOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     callables: Vec<CallableContext>,
@@ -358,6 +361,7 @@ impl<'a> Checker<'a> {
             ownership_primitives: Vec::new(),
             rc_operations: Vec::new(),
             string_operations: Vec::new(),
+            integer_operations: Vec::new(),
             container_constructions: Vec::new(),
             element_places: Vec::new(),
             callables: Vec::new(),
@@ -466,8 +470,11 @@ impl<'a> Checker<'a> {
         if !self.diagnostics.is_empty() || !self.input_error_spans.is_empty() {
             self.iterations.clear();
             self.ownership_primitives.clear();
+            self.integer_operations.clear();
         }
         self.ownership_primitives
+            .sort_by_key(|fact| fact.expression().index());
+        self.integer_operations
             .sort_by_key(|fact| fact.expression().index());
         self.iterations.sort_by_key(|plan| plan.statement().index());
         let copyabilities = self.all_copyabilities();
@@ -533,6 +540,7 @@ impl<'a> Checker<'a> {
                 ownership_primitives: self.ownership_primitives,
                 rc_operations: self.rc_operations,
                 string_operations: self.string_operations,
+                integer_operations: self.integer_operations,
                 container_constructions: self.container_constructions,
                 element_places: self.element_places,
             },

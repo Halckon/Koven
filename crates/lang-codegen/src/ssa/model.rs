@@ -285,6 +285,16 @@ pub(crate) enum BinaryOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum IntegerBitwiseOperator {
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
+    Ushr,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CheckedArithmeticOperator {
     Add,
     Subtract,
@@ -357,6 +367,16 @@ pub(crate) enum Operation {
         operator: CheckedArithmeticOperator,
         left: ValueId,
         right: ValueId,
+    },
+    /// Exact-width integer operations; shift counts are masked by width - 1.
+    IntegerBitwise {
+        operator: IntegerBitwiseOperator,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Bitwise inversion within the integer operand/result width.
+    IntegerNot {
+        operand: ValueId,
     },
     Compare {
         operator: ComparisonOperator,
@@ -546,6 +566,7 @@ impl Operation {
             Self::StringClone { source } => vec![EntityId::Loan(*source)],
             Self::Binary { left, right, .. }
             | Self::CheckedArithmetic { left, right, .. }
+            | Self::IntegerBitwise { left, right, .. }
             | Self::Compare { left, right, .. } => {
                 vec![EntityId::Value(*left), EntityId::Value(*right)]
             }
@@ -624,7 +645,9 @@ impl Operation {
                 vec![EntityId::Loan(*base)]
             }
             Self::SharedReborrow { source } => vec![EntityId::Loan(*source)],
-            Self::BooleanNot { operand } => vec![EntityId::Value(*operand)],
+            Self::BooleanNot { operand } | Self::IntegerNot { operand } => {
+                vec![EntityId::Value(*operand)]
+            }
             Self::Copy { source } => vec![EntityId::Value(*source)],
             Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
                 vec![EntityId::Value(*owner)]
