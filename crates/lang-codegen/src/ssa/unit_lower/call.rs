@@ -255,7 +255,7 @@ impl UnitExpressionLowerer<'_> {
                 self.pending_operands.push(EntityId::Place(writeback.place));
             }
         }
-        // Receiver 在普通实参帧之前建立；退出时先结束实参 loan，再结束 receiver loan。
+        // Receiver 帧先于实参帧；reservation 尚无 loan，提前退出只结束实际建立的 loan。
         if let Some(receiver) = &receiver {
             self.pending_call_frames
                 .push(super::call_lifetimes::PendingCallFrame {
@@ -312,6 +312,10 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.pending_operands.truncate(receiver_start);
+        if let Some(receiver) = &mut receiver {
+            // Borrow 实参仍存活；只有完整实参求值成功后才激活 receiver。
+            self.activate_call_receiver(call, receiver, span)?;
+        }
         if let (Some(origin), Some(receiver)) = (pending_receiver, &receiver) {
             self.take_owned_temporary_origin(origin, require_value(receiver.entity, span)?, span)?;
         }
@@ -710,6 +714,15 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        if let UnitLoanTarget::This(owner) = fact.target() {
+            return self.lower_this_borrow_argument(
+                *owner,
+                argument,
+                target,
+                fact.begin_span(),
+                fact.end_span(),
+            );
+        }
         if let UnitLoanTarget::Place(place) = fact.target()
             && place.is_root()
             && self.direct_name_symbol(argument, span)? == Some(place.root())
@@ -822,7 +835,7 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
             }
-            UnitLoanTarget::Place(_) => {
+            UnitLoanTarget::Place(_) | UnitLoanTarget::This(_) => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };

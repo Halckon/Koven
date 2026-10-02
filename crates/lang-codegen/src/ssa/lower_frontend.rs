@@ -1393,7 +1393,7 @@ impl ExpressionLowerer<'_> {
                 })
                 .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?,
             LoanTarget::Temporary(temporary) => self.require_value(*temporary)?,
-            LoanTarget::Place(_) => {
+            LoanTarget::Place(_) | LoanTarget::This(_) => {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
         };

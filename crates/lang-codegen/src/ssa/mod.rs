@@ -76,6 +76,8 @@ mod unit_lower_type_plan_tests;
 mod unit_lower_when_tests;
 #[cfg(test)]
 mod unit_plan_tests;
+#[cfg(test)]
+mod unit_receiver_two_phase_tests;
 
 #[cfg(test)]
 mod verify_tests;

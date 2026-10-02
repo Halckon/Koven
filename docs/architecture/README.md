@@ -42,6 +42,7 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | Source、Span、Lexer、Parser、AST | [Source 与语法前端](source-and-syntax.md) |
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md) |
+- [Receiver 两阶段借用](receiver-borrows.md)：预留、激活、this 身份与直接 SSA/native 消费
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md) |
 | 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |

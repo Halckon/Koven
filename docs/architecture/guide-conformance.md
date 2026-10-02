@@ -29,9 +29,12 @@ loan 结束于 `read(local)`，outer exclusive loan 结束于 `accept(...)`。�
 loan 的 call identity、种类和 end span。
 
 交付 callee 的 Borrow 不因参数求值结束而结束：`worker.update(worker)` 在 inout receiver
-与 Borrow 实参重叠时仍为 L0135。两条前端路径目前都在求值实参前直接建立 Exclusive loan，
-所以规范允许的 `worker.update(worker.read())` 仍报 L0135；测试将其明确标为 two-phase
-实现缺口。这些结果不表示 Reserved/Activate 已实现，也不引入 NLL 或借用返回类型。
+与 Borrow 实参重叠时仍为 L0135。[SPEC-0243](../archive/specs/0243-receiver-two-phase-borrows.md)
+已将两条前端路径改为 receiver reservation、正常 CallEntry activation；规范允许的
+`worker.update(worker.read())` 已转为正向断言，普通 `&` 实参仍立即独占。新的定向 suite
+另验证 this、字段/index overlap、控制转移、phase facts 与 borrow temporary 清理。
+unit SSA/native 已覆盖 class/value class receiver 与源码顺序；single instance receiver
+native 和 unit 非根字段/index native 仍不在已完成范围。不引入 NLL 或借用返回类型。
 
 ## 直接提取 Guide 的门禁
 
@@ -56,12 +59,12 @@ Litmus fixtures；源文档变化会触发重新编译。Guide10/13 API 签名�
 | 12 | const/ownership 检查通过；BitMasks 非值 namespace 仍为 single Error / unit 无值类型；两 native 入口执行原始规范源码 | 其他 Litmus 或一般 constructor 占位已经闭合 |
 
 `bash scripts/check_guide_litmus.sh` 是独立可复用门禁，运行文档结构检查、23个Guide suite
-测试、两个相关ownership suite，以及位运算与inv定向前端suite。十二Litmus的两入口
+测试、两个相关ownership suite，以及位运算、inv与两阶段借用定向前端suite。十二Litmus的两入口
 诊断/ownership检查均通过，return-when与const位运算已转为正向验证；typed节点仍按
 上表锁定精确快照。派生源码每次替换都要求恰好命中一次，避免模板漂移后静默失去覆盖。
 
 本门禁同时执行SPEC-0241的3个单文件native与3个SSA定向回归，以及SPEC-0240的
-`guide_litmus_12`两条native入口。它不枚举其他未选前端套件，也不替代其他语言能力的
+`guide_litmus_12`两条native入口，并执行 SPEC-0243 的 `receiver_two_phase` 定向 SSA/native。它不枚举其他未选前端套件，也不替代其他语言能力的
 native验证。SPEC-0242已修复三个旧call-argument失败，五个multifile type既有失败仍单独
 记录。历史门禁见[SPEC-0238](../specs/active/0238-guide-litmus-gate.md)，增量范围与验收见
 [SPEC-0240](../specs/active/0240-integer-bitwise-execution.md)、SPEC-0241/0242。

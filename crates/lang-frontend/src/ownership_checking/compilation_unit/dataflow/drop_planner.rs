@@ -447,6 +447,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             self.drop_named(PlannerDropPoint::CallReturn(id), place.root(), state);
                         }
                     }
+                    // A borrowed receiver binding does not introduce another owner.
+                    crate::ownership_checking::UnitLoanTarget::This(_) => {}
                     crate::ownership_checking::UnitLoanTarget::Temporary(owner) => {
                         let owner = owner.expression();
                         self.push_fact(PlannerDropFact::new(

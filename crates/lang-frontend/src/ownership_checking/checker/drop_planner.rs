@@ -1094,6 +1094,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 return Ok(false);
                             }
                             self.register_pending_argument(id, expression, receiver.mode(), state)?;
+                        } else {
+                            // Implicit this has no operand evaluation, but its loan still ends
+                            // on normal call return or on an argument's control-transfer edge.
+                            self.register_pending_argument(id, callee, receiver.mode(), state)?;
                         }
                     }
                     None => {

@@ -166,6 +166,11 @@ impl UnitExpressionLowerer<'_> {
         if fact.source() != receiver.origin()
             || fact.receiver_type() != receiver.ty()
             || !receiver_kind_matches(receiver.mode(), fact.kind())
+            || fact.is_receiver_reservation() != (receiver.mode() == ParameterMode::Inout)
+            || fact
+                .activation_point()
+                .is_some_and(|activation| activation != call)
+            || (receiver.mode() != ParameterMode::Inout && fact.activation_point().is_some())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -625,6 +630,52 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
+    pub(super) fn lower_this_borrow_argument(
+        &mut self,
+        owner: lang_frontend::name_resolution::DeclarationId,
+        argument: ExpressionId,
+        target: SsaTypeId,
+        begin_span: Span,
+        end_span: Span,
+    ) -> Result<(LoanId, bool, Span), LoweringError> {
+        let receiver = self
+            .current_receiver
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, begin_span))?;
+        if owner != receiver.owner
+            || self.type_ids.get(&receiver.ty).copied() != Some(target)
+            || !self.is_this_expression(argument, begin_span)?
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, begin_span));
+        }
+        let lowered = match receiver.entity {
+            EntityId::Value(value) if receiver.mode == ParameterMode::Value => self
+                .begin_receiver_loan(value, target, LoanKind::Shared, begin_span, end_span, None)?,
+            EntityId::Loan(loan) => match self
+                .function
+                .entity(receiver.entity)
+                .map(|entity| entity.ty)
+            {
+                Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: actual,
+                }) if actual == target => return Ok((loan, false, end_span)),
+                Some(EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target: actual,
+                }) if actual == target && receiver.mode == ParameterMode::Inout => {
+                    self.begin_shared_reborrow(loan, target, begin_span, end_span)?
+                }
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, begin_span)),
+            },
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, begin_span)),
+        }
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, begin_span))?;
+        let EntityId::Loan(loan) = lowered.entity else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, begin_span));
+        };
+        Ok((loan, true, end_span))
+    }
+
     fn begin_shared_reborrow(
         &mut self,
         source: LoanId,
@@ -675,6 +726,23 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Place(place) = places[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, end_span));
         };
+        let writeback = writeback.map(|(symbol, kind)| ReceiverWriteback {
+            symbol,
+            place,
+            target,
+            original: value,
+            span: end_span,
+            kind,
+        });
+        if kind == LoanKind::Exclusive {
+            // Phase 3 已保护 reservation；这里只地址化已求值 receiver，不提前建立独占。
+            // Place 与原 owner 经 pending slots 跨参数 CFG，调用入口不会重求值 receiver。
+            return Ok(Some(LoweredReceiver {
+                entity: EntityId::Place(place),
+                created_loans: Vec::new(),
+                writeback,
+            }));
+        }
         let (_, loans) = self
             .function
             .append_instruction(
@@ -690,15 +758,81 @@ impl UnitExpressionLowerer<'_> {
         Ok(Some(LoweredReceiver {
             entity: EntityId::Loan(loan),
             created_loans: vec![(loan, end_span)],
-            writeback: writeback.map(|(symbol, kind)| ReceiverWriteback {
-                symbol,
-                place,
-                target,
-                original: value,
-                span: end_span,
-                kind,
-            }),
+            writeback,
         }))
+    }
+
+    pub(super) fn activate_call_receiver(
+        &mut self,
+        call: UnitExpressionId,
+        receiver: &mut LoweredReceiver,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(fact) = self.owned.receiver_fact(call) else {
+            // Conditional Value receiver 没有普通 receiver fact，也没有 reservation。
+            if matches!(receiver.entity, EntityId::Place(_)) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return Ok(());
+        };
+        if !fact.is_receiver_reservation() {
+            if matches!(receiver.entity, EntityId::Place(_)) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return Ok(());
+        }
+        if fact.kind() != UnitReceiverOwnershipKind::ExclusiveLoan
+            || fact.activation_point() != Some(call)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let EntityId::Place(place) = receiver.entity else {
+            // entry Inout/this 继续传递原有 exclusive capability；不结束调用者的 loan。
+            return match receiver.entity {
+                EntityId::Loan(loan)
+                    if matches!(
+                        self.function
+                            .entity(EntityId::Loan(loan))
+                            .map(|entity| entity.ty),
+                        Some(EntityType::Loan {
+                            kind: LoanKind::Exclusive,
+                            ..
+                        })
+                    ) =>
+                {
+                    Ok(())
+                }
+                _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            };
+        };
+        let Some(EntityType::Place(target)) = self
+            .function
+            .entity(receiver.entity)
+            .map(|entity| entity.ty)
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let (_, loans) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Exclusive,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target,
+                }],
+                Origin::Source(fact.begin_span()),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Loan(loan) = loans[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        receiver.entity = EntityId::Loan(loan);
+        receiver.created_loans.push((loan, fact.end_span()));
+        Ok(())
     }
 
     fn inline_receiver_writeback(

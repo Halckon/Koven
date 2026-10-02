@@ -35,7 +35,7 @@
 | 3. 数值与具名位运算 | 数值与位运算本地已验收 | SPEC-0229 闭合字面量；[SPEC-0240](active/0240-integer-bitwise-execution.md) 接入六操作 const/SSA/native 与 inv 稳定身份。移位按自身位宽屏蔽且保持两 operand 同型；inv 仍不在 const call 白名单，既有投影边界不扩大 |
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
-| 6. 两阶段 receiver 借用 | 未实现 | receiver 仍直接建立 active exclusive loan；Reserved/Activate 和 callee 存活 Borrow 冲突尚需事实及验证 |
+| 6. 两阶段 receiver 借用 | SPEC-0243 有界验收完成并归档 | 两入口发布 reservation/CallEntry activation，保持 callee Borrow 冲突；45 项直接前端与 6 项 SSA/native 正反例通过。PR #10 初始 head 双平台 CI 全绿，各宿主 stage 742 / Guide 201 通过；PR 保持 Draft。single instance receiver、unit field/index native 既有边界不扩大 |
 | 7. deinit 双轨析构 | 语法/类型层已有 | v0.40 已明确 readonly this、body 先于逆序字段清理；drop planner/codegen 仍无资源 lexical lifetime 与执行 deinit 的 native 证据 |
 | 8. 静态 Str | 明确延后 | 字面量/const 仍为 MoveOnly + Transferable String；Str/toString/混合文本操作未启用。先行 String.clone 已有 SPEC-0236 全链路定向证据 |
 | 9. 二等借用与 Escapable | 未实现 | 仍为 owned 值与调用期 loan；Ref/InoutRef/Span/StringView、来源和逃逸需新规范 |

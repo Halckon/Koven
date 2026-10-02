@@ -6,7 +6,7 @@
   </defs>
   <rect width="8384" height="6934" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6832" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，213 份）</text>
+  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，214 份）</text>
   <rect x="4872" y="30" width="3448" height="5482" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="6596" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 170, 180 202" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1899,4 +1899,8 @@
   <rect x="8060" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="8180" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0242</text>
   <text x="8180" y="105" text-anchor="middle" font-size="13">调用点自动借用迁移</text>
+  <rect x="324" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="444" y="87" text-anchor="middle" font-size="13">SPEC-0243</text>
+  <text x="444" y="105" text-anchor="middle" font-size="13">Instance recei</text>
+  <text x="444" y="123" text-anchor="middle" font-size="13">ver 两阶段借用</text>
 </svg>

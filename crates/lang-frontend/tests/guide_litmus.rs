@@ -507,30 +507,13 @@ fn overlapping_borrow_passed_to_callee_conflicts_with_exclusive_receiver() {
 }
 
 #[test]
-fn two_phase_receiver_reservation_remains_an_implementation_gap() {
+fn two_phase_receiver_reservation_allows_completed_nested_reads() {
     let source = "class Worker {\n\
                       fun read(): Int = 1\n\
                       inout fun update(own count: Int): Unit {}\n\
                   }\n\
                   fun example(own worker: Worker): Unit { worker.update(worker.read()) }";
-    // TODO: Reserved/Activate must allow this nested read after its call-scoped loan ends.
-    // Keep the callee-overlap negative above when this known gap becomes a positive test.
-    let start = source.rfind("worker.read").expect("nested read receiver");
-    for unit in [false, true] {
-        assert_eq!(
-            check(source, unit, &[]),
-            Some(Failure {
-                stage: Stage::Ownership,
-                diagnostics: vec![(
-                    "L0135".into(),
-                    start,
-                    start + "worker".len(),
-                    "worker".into()
-                )],
-            }),
-            "unit={unit}"
-        );
-    }
+    assert_both(source, Stage::Ownership, &[]);
 }
 
 #[test]

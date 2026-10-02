@@ -9808,7 +9808,7 @@ fn multi_index_places_preserve_prefix_aliases_and_named_owner_cleanup() {
         .iter()
         .map(|plan| match plan.source() {
             LoanTarget::Place(place) => place,
-            LoanTarget::Temporary(_) => panic!("named source lost its place"),
+            LoanTarget::Temporary(_) | LoanTarget::This(_) => panic!("named source lost its place"),
         })
         .collect::<Vec<_>>();
     assert_eq!(

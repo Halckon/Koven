@@ -113,7 +113,7 @@ impl UnitExpressionLowerer<'_> {
                 Some(place.root())
             }
             UnitLoanTarget::Temporary(owner) if Some(*owner) == temporary_owner => None,
-            UnitLoanTarget::Place(_) | UnitLoanTarget::Temporary(_) => {
+            UnitLoanTarget::Place(_) | UnitLoanTarget::This(_) | UnitLoanTarget::Temporary(_) => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };

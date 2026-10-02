@@ -238,7 +238,9 @@ fn element_loans_publish_logical_indices_and_allow_proven_siblings() {
         .iter()
         .map(|loan| match loan.target() {
             LoanTarget::Place(place) => place.element().expect("element identity"),
-            LoanTarget::Temporary(_) => panic!("named list must publish a stable place"),
+            LoanTarget::Temporary(_) | LoanTarget::This(_) => {
+                panic!("named list must publish a stable place")
+            }
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -252,7 +254,7 @@ fn element_loans_publish_logical_indices_and_allow_proven_siblings() {
     );
     let root = match owned.loans()[0].target() {
         LoanTarget::Place(place) => place.root(),
-        LoanTarget::Temporary(_) => unreachable!(),
+        LoanTarget::Temporary(_) | LoanTarget::This(_) => unreachable!(),
     };
     assert!(owned.drops().iter().any(|fact| {
         fact.target() == DropTarget::Named(root) && matches!(fact.point(), DropPoint::CallReturn(_))

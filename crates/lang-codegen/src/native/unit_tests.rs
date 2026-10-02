@@ -1,6 +1,9 @@
 #[path = "unit_string_clone_tests.rs"]
 mod string_clone_tests;
 
+#[path = "unit_receiver_two_phase_tests.rs"]
+mod receiver_two_phase_tests;
+
 use std::{
     fs,
     path::{Path, PathBuf},

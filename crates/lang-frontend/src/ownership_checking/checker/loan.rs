@@ -36,6 +36,7 @@ pub(super) enum ActiveLoanTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActiveLoanOwner {
     Call(ExpressionId),
+    ReservedReceiver(ExpressionId),
     IterationSource(StatementId),
     IterationElement(StatementId),
     Closure(ExpressionId),
@@ -226,6 +227,29 @@ impl Checker<'_> {
         } else {
             access
         };
+        // Reservation conflicts are diagnosed at the attempted mutation/move, before
+        // non-owning capability errors can obscure the active receiver protection.
+        if matches!(
+            access,
+            AccessKind::Move | AccessKind::Mutation | AccessKind::ExclusiveLoan
+        ) && let Some(loan) = state.loans.iter().find(|loan| {
+            matches!(loan.owner, ActiveLoanOwner::ReservedReceiver(_))
+                && match &loan.target {
+                    ActiveLoanTarget::Place(target) => target.overlaps(place),
+                    ActiveLoanTarget::This => self
+                        .names
+                        .symbols()
+                        .get(place.root().index())
+                        .is_some_and(|symbol| symbol.kind() == SymbolKind::Field),
+                }
+        }) {
+            self.emit_loan_conflict(
+                primary,
+                loan.origin,
+                "access conflicts with a reserved receiver",
+            )?;
+            return Ok(false);
+        }
         // source 的 provider loan 优先于参数的非 owning 限制；return 也不能先结束它。
         if matches!(
             access,
@@ -332,10 +356,9 @@ impl Checker<'_> {
                     .is_some_and(|symbol| symbol.kind() == SymbolKind::Field),
             };
             overlaps
-                && !matches!(
-                    (loan.kind, access),
-                    (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
-                )
+                && !(matches!(access, AccessKind::Read | AccessKind::SharedLoan)
+                    && (loan.kind == LoanKind::Shared
+                        || matches!(loan.owner, ActiveLoanOwner::ReservedReceiver(_))))
         });
         if let Some(conflict) = conflict {
             let message = match access {
@@ -358,7 +381,7 @@ impl Checker<'_> {
         Ok(true)
     }
 
-    fn emit_loan_conflict(
+    pub(super) fn emit_loan_conflict(
         &mut self,
         primary: Span,
         origin: Span,
@@ -384,6 +407,21 @@ impl Checker<'_> {
         is_receiver: bool,
         flows: &mut Flows,
     ) -> Result<(), OwnershipCheckingError> {
+        if self.is_this_receiver(argument.value)?
+            && let Some(nominal) = self
+                .typed
+                .expression_type(argument.value)
+                .and_then(|ty| self.receiver_nominal(ty))
+        {
+            return self.apply_this_contract(
+                call,
+                argument.value,
+                nominal,
+                mode,
+                is_receiver,
+                flows,
+            );
+        }
         let Some(state) = flows.next.as_mut() else {
             return Ok(());
         };
@@ -483,28 +521,42 @@ impl Checker<'_> {
                 }
                 let Some(place) = place else {
                     if let Some(temporary) = self.temporary_element_owner(argument.value)? {
-                        self.loans.push(LoanFact::new(
+                        let fact = LoanFact::new(
                             call,
                             argument.value,
                             LoanTarget::Temporary(temporary),
                             LoanKind::Exclusive,
                             primary,
                             call_span,
-                        ));
+                        );
+                        self.loans.push(if is_receiver {
+                            fact.reserve_receiver()
+                        } else {
+                            fact
+                        });
                     }
                     return Ok(());
                 };
                 if self.access_place(&place, AccessKind::ExclusiveLoan, false, primary, state)? {
-                    self.loans.push(LoanFact::new(
+                    let fact = LoanFact::new(
                         call,
                         argument.value,
                         LoanTarget::Place(place.clone()),
                         LoanKind::Exclusive,
                         primary,
                         call_span,
-                    ));
+                    );
+                    self.loans.push(if is_receiver {
+                        fact.reserve_receiver()
+                    } else {
+                        fact
+                    });
                     state.loans.push(ActiveLoan {
-                        owner: ActiveLoanOwner::Call(call),
+                        owner: if is_receiver {
+                            ActiveLoanOwner::ReservedReceiver(call)
+                        } else {
+                            ActiveLoanOwner::Call(call)
+                        },
                         target: ActiveLoanTarget::Place(place),
                         kind: LoanKind::Exclusive,
                         origin: primary,
@@ -520,9 +572,10 @@ impl Checker<'_> {
             .into_iter()
             .flatten()
         {
-            state
-                .loans
-                .retain(|loan| loan.owner != ActiveLoanOwner::Call(call));
+            state.loans.retain(|loan| {
+                loan.owner != ActiveLoanOwner::Call(call)
+                    && loan.owner != ActiveLoanOwner::ReservedReceiver(call)
+            });
         }
     }
 
@@ -594,7 +647,7 @@ impl Checker<'_> {
         }
     }
 
-    fn is_this_receiver(
+    pub(super) fn is_this_receiver(
         &self,
         mut expression: ExpressionId,
     ) -> Result<bool, OwnershipCheckingError> {

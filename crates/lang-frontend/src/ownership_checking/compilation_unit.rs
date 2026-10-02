@@ -230,6 +230,8 @@ impl UnitOwnershipPlace {
 pub enum UnitLoanTarget {
     /// 名称、字段或 terminal element place。
     Place(UnitOwnershipPlace),
+    /// 当前 callable 的稳定 receiver identity。
+    This(DeclarationId),
     /// 延长到同步调用返回的 temporary。
     Temporary(UnitExpressionId),
 }

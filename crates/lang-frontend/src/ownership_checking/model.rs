@@ -5,7 +5,7 @@ use crate::{
     diagnostic::Diagnostic,
     name_resolution::{NameResolution, SymbolId},
     source::{SourceId, Span},
-    type_checking::{TypeId, TypedFile},
+    type_checking::{NominalId, TypeId, TypedFile},
 };
 
 use super::ConstructionOwnershipPlan;
@@ -161,6 +161,8 @@ pub enum LoanTarget {
     Place(OwnershipPlace),
     /// 延长到调用返回的 MoveOnly temporary。
     Temporary(ExpressionId),
+    /// 当前 instance callable 的唯一 this receiver，以 nominal identity 限定来源。
+    This(NominalId),
 }
 
 /// 一次成功建立的 loan；实际终止路径由 OwnershipCheckedFile::loan_ends 描述。
@@ -172,6 +174,8 @@ pub struct LoanFact {
     kind: LoanKind,
     begin_span: Span,
     end_span: Span,
+    receiver_reservation: bool,
+    activation_point: Option<DropPoint>,
 }
 
 impl LoanFact {
@@ -190,7 +194,30 @@ impl LoanFact {
             kind,
             begin_span,
             end_span,
+            receiver_reservation: false,
+            activation_point: None,
         }
+    }
+
+    pub(crate) fn reserve_receiver(mut self) -> Self {
+        self.receiver_reservation = true;
+        self
+    }
+
+    pub(crate) fn activate_receiver(&mut self) {
+        self.activation_point = Some(DropPoint::CallEntry(self.call));
+    }
+
+    /// 返回该 loan 是否先预留再在方法调用入口激活。
+    #[must_use]
+    pub const fn is_receiver_reservation(&self) -> bool {
+        self.receiver_reservation
+    }
+
+    /// 返回可达的 receiver 激活点；实参提前转移或 abort 时为 None。
+    #[must_use]
+    pub const fn activation_point(&self) -> Option<DropPoint> {
+        self.activation_point
     }
 
     /// 返回所属 call expression。

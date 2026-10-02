@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，213 份）"]
+subgraph Garchive["已完成（archive，214 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -222,6 +222,7 @@ subgraph Garchive["已完成（archive，213 份）"]
   S0225["S0225<br/>参数增长型 runtime recipe 策略与 lowering"]
   S0226["S0226<br/>跨文件常量重新物化与所有权"]
   S0227["S0227<br/>跨文件常量 SSA 与 native 交付"]
+  S0243["S0243<br/>Instance receiver 两阶段借用"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -1388,6 +1389,7 @@ S0226 --> S0227
 | SPEC-0225 | archive | [0225-parameter-growing-runtime-type-cycles.md](0225-parameter-growing-runtime-type-cycles.md) |
 | SPEC-0226 | archive | [0226-unit-constant-materialization-ownership.md](0226-unit-constant-materialization-ownership.md) |
 | SPEC-0227 | archive | [0227-unit-constant-native-lowering.md](0227-unit-constant-native-lowering.md) |
+| SPEC-0243 | archive | [0243-receiver-two-phase-borrows.md](0243-receiver-two-phase-borrows.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
 | SPEC-0229 | active | [0229-extended-numeric-literal-values.md](../../specs/active/0229-extended-numeric-literal-values.md) |
