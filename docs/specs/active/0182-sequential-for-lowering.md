@@ -113,3 +113,61 @@ LLVM adapter 不认识 AST。
 
 2026-10-01 Phase 4 实施与验证完成：完成 sequential for lowering 到 typed SSA，修复循环体内借用槽复用与嵌套循环借用传递；通过 8 个端到端 native 编译执行用例（覆盖 Array/List/MutableList、借用解构、临时容器、嵌套循环、break/continue、提前 return 与 Unicode String 借用遍历），并完成 lang-codegen 全量 475 个单元测试无回归验证。
 
+
+### 2026-10-02 temporary source 边界的部分验收补测
+
+本片基于 `main 7318d53e4c5677684630e2b0b9148e9c6ceb1c35`，测试提交为
+`537586d0cb5529b5558f9fe7b4172ee9ec0f892c`。仅新增测试，不改变生产 lowering、语言语义或
+上方历史记录。本 Spec 继续留在 active；以下证据只补强 §3 / §5 第一项的 temporary source
+子矩阵及其基本 CFG 合同，不将原有勾选或历史全量记录当作其余验收缺口已关闭的证据。
+
+新增测试都属于 `lang-codegen --lib`，无 `ignore` 或平台过滤：
+
+- `native_tests::sequential_for_tests::temporary_array_source_boundaries_run_natively`
+- `native_tests::sequential_for_tests::temporary_list_source_boundaries_run_natively`
+- `native_tests::sequential_for_tests::temporary_mutable_list_source_boundaries_run_natively`
+- `ssa::sequential_for_lowering_tests::temporary_source_boundaries_keep_call_and_length_in_preheader`
+
+前三个测试各执行三格 object/link/run，最后一个表驱动测试独立分析同样九格。每格 ID 为
+`temporary_<provider>_<cardinality>.ko`；provider 为 `Array` / `List` / `MutableList`，
+分别使用 `arrayOf<Int>` / `listOf<Int>` / `mutableListOf<Int>`。精确输入模板及固定表保存在
+[native 测试](../../../crates/lang-codegen/src/native_sequential_for_tests.rs)和
+[SSA 测试](../../../crates/lang-codegen/src/ssa/sequential_for_lowering_tests.rs)，失败输出包含
+case ID 和完整源码。三个 cardinality 的实参与独立、手写 stdout bytes 如下：
+
+| cardinality | 构造实参 | 固定 stdout（`\n` 表示一个 LF） |
+|---|---|---|
+| `empty` | 空实参，显式 `<Int>` | `source\ndone\n` |
+| `single` | `7` | `source\nbody\nseven\ndone\n` |
+| `multi` | `7, 2, 9` | `source\nbody\nseven\nbody\ntwo\nbody\nnine\ndone\n` |
+
+native 九格还逐一要求成功退出、stderr 为空。`source` 锁零次迭代也调用一次工厂，`body`
+锁实际迭代次数，元素 marker 锁非单调顺序 `7,2,9`，`done` 锁正常耗尽后的后继执行；期望值
+不从源码元素表、SSA 或生产 builder 计算。复用既有 `emit_link_and_run`，原八个 native
+和七个 SSA 测试体保持原样。
+
+SSA 九格复用 `analyze` 完成 frontend diagnostics 为空、lowering 与 verifier；按函数名和
+FunctionId 找 `source` / `run`，按 entity、block parameters 与 edge arguments 验证：
+source DirectCall / ContainerLength 各唯一且位于无入边的 entry/preheader，按
+call → RootPlace → shared BorrowBegin → length 顺序使用同一 owner/loan；零 cursor 与唯一
+length 结果运输到 header，`cursor < length` 真边是 body 的唯一入口；唯一 element place
+使用真边运输的 source loan/cursor；正常回边保留 length snapshot/source loan，并将 cursor
+加一。不固定 block 序号，不用生产 provider builder 生成测试期望。
+
+| 实际命令 / 检查（2026-10-02，退出码均为 0） | 结果 |
+|---|---|
+| `timeout --signal=TERM --kill-after=10s 300s cargo test --locked --offline -p lang-codegen --lib sequential_for` | 19 passed / 0 failed / 0 ignored / 664 filtered；原 15 + 新 4，新增 native 9 格及 SSA 9 格均执行 |
+| `timeout --signal=TERM --kill-after=10s 120s cargo fmt --all -- --check` | 通过 |
+| `timeout --signal=TERM --kill-after=10s 600s cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| `python3 scripts/check_rust_sizes.py --base origin/main` | 实际 merge-base 为上述 main；596 手写文件 / 49 历史超限 / 0 生成物，两个修改文件为 290 / 396 行，无新增例外 |
+| `python3 -m unittest discover -s scripts/tests -v` | 94 passed，包含尺寸 policy 47 项 |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
+
+执行宿主为 x86_64 Linux，Rust 1.96.0、LLVM/Clang 21.1.8；使用既有共享 Cargo target、
+`CARGO_INCREMENTAL=0`，Cargo 命令串行，libtest 默认并行，未 clean。首轮定向即通过，
+没有生产红测或修改 expected 迁就实现。macOS 与本片 PR 双宿主 CI 尚未运行；frontend 全量、
+workspace 全量、性能/RSS 未运行，本片无生产或跨 crate API 修改。
+
+尚未关闭：owned named/Borrow 的完整边界矩阵及循环后再读、MoveOnly/mixed projection、
+逐退出 loan/drop 精确顺序与计数、ZST、真实 for 负例落盘桥接、独立分析链 SSA/LLVM 确定性。
+这些条款保持原合同，不能由本片九格或共享 provider 模型的历史测试代替。
