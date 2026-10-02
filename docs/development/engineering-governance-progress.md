@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前2 active / 236 archive（0251 LSP名称前缀实施中）；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 237 archive（0251 LSP名称前缀有界归档）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../specs/active/0251-lsp-unit-name-snapshot.md)LSP unit最小消费本地验收通过 | 独立review/Draft exact-head双宿主CI待验；bootstrap、legacy与const owned owner后续分片，不合并能力边界 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | 归档新head独立窄review和最终CI待验；bootstrap、legacy与const owned owner后续分片，不合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -345,7 +345,7 @@ P3b完整driver/bootstrap/LSP迁移仍未完成；LSP const/recovery和legacy协
 ## SPEC-0251 LSP unit 名称前缀消费（2026-10-02）
 
 从 PR31 merge `08c7b0966115f2f709cbd8a9257a6e8b2d704429` 建立 `feature/spec-0251`。
-[有界合同与唯一验收账本](../specs/active/0251-lsp-unit-name-snapshot.md)限定 unit_session 组合
+[有界合同与唯一验收账本](../archive/specs/0251-lsp-unit-name-snapshot.md)限定 unit_session 组合
 唯一 UnitNameSnapshot，保持 names validation、typed recovery、const 无 owned、URI/UTF16、
 overlay/version/last-good 与全部 send 后 commit；不改变 legacy、CLI 或 frontend API。
 
@@ -356,3 +356,16 @@ overlay/version/last-good 与全部 send 后 commit；不改变 legacy、CLI 或
 
 0251尚未归档；P3b整体、bootstrap/legacy、const完整owner、其余P2/P4/P5仍未完成。
 不宣称性能改善，整体计划之后的外部审计次序保持。
+
+
+### SPEC-0251 首轮双宿主与归档
+
+[PR32](https://github.com/Halckon/Koven/pull/32)首轮head9443e00的
+[CI37068719547](https://github.com/Halckon/Koven/actions/runs/37068719547)9/9成功。
+两宿主原26＋新增11共37个LSP身份各恰一次ok，0 ignored/filtered；双宿主check/Clippy、
+core/stage/Guide实际成功。合成merge c62393e7已fetch核实tree9794ca21与head完全相同。
+完整提交映射、父链、日志链接与有界结论见[0251唯一账本](../archive/specs/0251-lsp-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+
+当前1 active/237 archive；前节未发布、待评审/CI及尚未归档文字保留实施时快照。
+归档新head另行窄review和最终CI，不由首轮替代；终态留PR，合并遵循既有授权与门禁。
+P3b整体和bootstrap/legacy/const后继、其余治理、0182及延期外部审计边界不变。

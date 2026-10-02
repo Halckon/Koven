@@ -1,10 +1,10 @@
 # SPEC-0251：LSP unit 消费共享名称快照
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或验收 LSP unit 名称前缀迁移时 · **唯一真源**：本 Spec 的有界合同与验收账本
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或验收 LSP unit 名称前缀迁移时 · **唯一真源**：本 Spec 的有界合同与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P6-251` |
 | 所属 Phase | Phase 1→2 名称前缀与 Phase 6 LSP 编排；治理 P3b 有界后片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 基线 / 分支 | main `08c7b0966115f2f709cbd8a9257a6e8b2d704429` / `feature/spec-0251` |
 | 前置 Spec | SPEC-0187、0250 `done` |
 | 前置 ADR | [ADR-0021](../../adr/accepted/0021-lsp-explicit-source-set-protocol.md) `accepted` |
-| 阻塞项 | 本地实现与门禁已通过；独立代码评审和精确 head 双宿主 CI 尚未验收 |
+| 阻塞项 | 本Goal按§6首轮双宿主证据有界完成；归档文档新head仍须独立窄审和最终CI，不自动合并 |
 | 影响范围 | LSP 私有 unit_session owner、私有回归及当前工具架构/治理文档 |
 | 语言语义变更 | 否；不改 Guide、frontend 公共 API、长期架构或五 crate 边界 |
 
@@ -64,7 +64,7 @@ adapter、const ownership/fallback、VFS、异步 generation、新依赖及性�
 | A5 错误分类 | 四 variant 与原 Display 完整相等 | owner_contract精确discriminant、Display、Debug及原Error::source(None)全部保持；未新增生产注入入口 |
 | A6 相邻公开合同 | frontend unit_name_snapshot、unit_name_snapshot_compile_contracts 完整 targets | 两完整targets分别7/7与4/4 passed，0 ignored/filtered |
 | A7 工程门禁 | fmt、LSP strict Clippy、workspace all-targets check、docs、全Python policy、尺寸与diff | 全部通过；docs473、policy98/98、尺寸690手写/48历史超限/0生成，旧欠账零增长，policy无改动 |
-| A8 双宿主 | 既有完整lang-lsp选集，exact-head Ubuntu/macOS 新旧测试身份逐名核验 | 待执行；不改CI/target选集 |
+| A8 双宿主 | 既有完整lang-lsp选集，exact-head Ubuntu/macOS 新旧测试身份逐名核验 | PR32首轮head9443e00的CI37068719547为9/9 success；两宿主原26+新增11共37名各恰一次ok，0 ignored/filtered；归档新head最终CI另验，详见§6 |
 
 当前生产无 warning emitter；不虚构 warning 源码或开放封闭构造口，Error-only gate 由原
 validate 合同及调用结构保全。未运行项、失败历史与后继结果将在本账本记录，不以设计评审
@@ -109,3 +109,47 @@ git diff --check
 唯一生产diff在unit_session，frontend/legacy/source-set/position/definition算法/CLI零diff。
 CI已完整选lang-lsp，未添加target或stage规则。完整frontend/CLI/codegen、native执行、
 本地macOS和性能/分配测量未运行且不在本片本地验收宣称中；精确head双宿主远端另验。
+
+
+## 6. 首轮精确 head 双宿主验收与有界归档（2026-10-02）
+
+[PR32](https://github.com/Halckon/Koven/pull/32)保持Draft，首轮head
+`9443e00e95f69b797e48dee986a7ba037f49245b`的
+[CI37068719547](https://github.com/Halckon/Koven/actions/runs/37068719547)已9/9 jobs success。
+双宿主check/严格Clippy、core、ownership iteration、stage、Guide均实际成功。
+独立实现review无阻断，另外从当前worktree复跑完整37、docs473、policy98和尺寸690/48；
+核验Cargo fresh路径/二进制SHA256与当前代码一致、原26身份保全、测试旧链机械等价。
+发送失败测试动态覆盖首send失败；未改的同步循环保证任一send错误不commit，不宣称wire事务。
+
+### 提交内容与父链
+
+| 内容 | 本地提交 | GitHub提交 | 完整tree |
+|---|---|---|---|
+| 代码/测试 | `2be0370f13f6f5aba43f862a7bb9dcffb5a41658` | `94b69b3538e797337f72372591c477260fb7bd57` | `37cd91443fc7e4876d046b4ab43d8eed3ec8e7c4` |
+| Spec/当前事实 | `04852e77d2ec88355c41090adf3592504b6ae489` | `9443e00e95f69b797e48dee986a7ba037f49245b` | `9794ca21162c1254819be4a65ca049fd98b59ab5` |
+
+逐提交tree完全相同，fetch后两对diff均为空。GitHub父链为固定main08c7b096→94b69b3→9443e00。
+两宿主test job实际checkout合成merge `c62393e7ede67d9fe0d57032551346044e814bfd`，fetch核实
+双parent恰为base08c7b096与head9443e00，完整tree9794ca21与head相同、diff为空。
+它是PR测试合成merge，不是真实合并记录；验收覆盖此精确head内容。
+
+### 双宿主实际执行
+
+| 检查 | Ubuntu 24.04 x86_64 | macOS 14 AArch64 |
+|---|---|---|
+| 完整LSP | 原26＋§5新增11，共37名各恰一次ok；37 passed/0 failed/ignored/filtered | 同37个身份各恰一次ok，37 passed/0 failed/ignored/filtered |
+| frontend core / ownership iteration | 187 / 184 passed | 187 / 184 passed |
+| codegen core / docs | 739 / 4 passed | 738 passed＋既有LLDB1 ignored / 4 docs passed |
+| 完整CLI | bin48＋format3＋native9＋project9＝69 passed | bin47＋format3＋native9＋project9＝68 passed |
+| stage / Guide步骤 | 两步success | 两步success |
+
+实际日志为[Ubuntu job111043390469](https://github.com/Halckon/Koven/actions/runs/37068719547/job/111043390469)
+与[macOS job111043390510](https://github.com/Halckon/Koven/actions/runs/37068719547/job/111043390510)。
+以本地旧26与新37完整身份集合逐名核验每宿主恰一次，不凭总数或配置推断；未改target/CI选集。
+macOS原LLDB ignore原因仍为CI缺debugserver task-port权限，未扩ignore，不把ignored计作passed。
+
+本片只完成LSP unit名称前缀消费，归档后当前1 active/237 archive。bootstrap、legacy、const
+完整owner、0182及其余P2/P3b/P4/P5仍未自动完成，不宣称性能改善，外部审计次序保持。
+§4/§5本地命令及未运行记录保留；远端实际覆盖单列本节，不倒填成本地执行。
+归档仅改文档/inventory/生成图，Rust与CI零diff；新head另行窄review及最终CI，终态留PR，
+不能用本节首轮9/9代替最终验收，不自动转Ready或开启auto-merge。

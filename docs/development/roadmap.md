@@ -16,7 +16,7 @@ P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 
 推进[iteration私有测试18域拆分](drop-iteration-test-migration.md)；
 其余领域、真正冷缓存和分离link性能验收仍待后继，
 P3a 普通 unit 交接本片已完成；0250已共享CLI project名称前缀，
-[0251](../specs/active/0251-lsp-unit-name-snapshot.md)正验收LSP unit消费；const后继与P3b整体仍未完成。
+[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)已完成有界LSP unit消费；const后继与P3b整体仍未完成。
 P4 仅在语义/recovery parity 成立时逐域收敛。
 P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
 
