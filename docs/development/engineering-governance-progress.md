@@ -13,7 +13,7 @@
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26已合并；ownership integration20域本地已验，待review/PR CI | 184项与7 helpers逐字保留，无新例外；CI新增双平台同target定向执行；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
+| P3a/P3b 交接与编排 | 普通unit前置合同测试本地已验，待review/PR CI；生产view与编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -211,3 +211,21 @@ P2仍待大integration分组与独立生产职责拆分；P3/P4/P5没有自动�
 
 P2仍待其他大integration分组与独立生产职责拆分；P3/P4/P5没有自动完成。
 整体完成后外部审计继续排队，不提前开展。
+
+
+## P3a 普通 unit 前置合同测试（2026-10-02）
+
+- 从 `main b36d5040ef7cafaa86e2b0c6a42cc1d2ab49691d` 独立补普通 native 六输入合同，
+  不改生产/checker/native公开签名或index次数；[有界验收](unit-handoff-contract-baseline.md)记录逐项身份与限制
+- 新增8项：六维独立替换（inputs含changed-root/duplicate/missing）共40个失败场景，
+  精确kind/span、entry优先级、已有bytes保全、无新输出与目录不变；exact subprocess直接
+  证明40次拒绝reserve0，六次匹配成功各reserve1，不增加生产hook或公开counter
+- names/environment/typed/owned分别及全clone、重建/重排inputs、同T0重做ownership共8个
+  成功组合，facts/verified SSA/object bytes一致，真实stdout/stderr/exit精确核验；
+  owned-only负例必须是fresh T1派生O1，不将合法same-T0重查误判错链
+- TestDirectory及其counter先独立纯搬迁，既有测试体不变；入口2074→2050，新domain525、
+  helper31行，policy仅收紧原额度，无新例外。全部native unit消费者92项通过
+- 已有24条exact逐条运行、basic/const七条compile-fail保持；本地其余门禁结果见有界验收。
+  独立review、Draft PR与exact-head双宿主CI另验，不将基底CI或配置存在当完成证据
+- 尚未构建封闭view或性能采样。Rust LLVM22与现有coverage21不匹配，未下载/插桩；
+  动态index基线与受控无插桩对照留作生产片前置。P3a/P2整体及延后外部审计均未完成
