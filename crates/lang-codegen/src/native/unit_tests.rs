@@ -1,3 +1,6 @@
+#[path = "unit_handoff_contract_tests.rs"]
+mod handoff_contracts;
+
 #[path = "unit_string_clone_tests.rs"]
 mod string_clone_tests;
 
