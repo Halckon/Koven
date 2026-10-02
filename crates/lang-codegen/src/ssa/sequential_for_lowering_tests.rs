@@ -1,4 +1,5 @@
 mod cleanup_tests;
+mod determinism_tests;
 
 use lang_frontend::{
     lexer::lex,
