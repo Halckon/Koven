@@ -309,3 +309,38 @@ fn inout_receiver_preserves_or_writes_back_the_native_value() {
         assert!(run.stderr.is_empty(), "{run:?}");
     }
 }
+
+#[test]
+fn receiver_two_phase_native_early_exit_and_normal_activation() {
+    for kind in ["class", "value class"] {
+        for (flag, expected) in [("true", "old\n"), ("false", "set\nnew\n")] {
+            let provider = format!(
+                "package p\nconst val TEXT = \"text\"\nconst val FLAG = {flag}\n\
+                 {kind} Host(var item: Int) {{\n\
+                 fun read(): Int = item\n\
+                 inout fun update(text: String, own next: Int): Unit {{ println(\"set\")\nitem = next }}\n}}"
+            );
+            let consumer = "package q\nimport p.Host\nfun entry(): Unit {\n\
+                var host = Host(1)\nloop {\n\
+                val done = host.update(p.TEXT + p.TEXT, if (p.FLAG) { break } else { host.read() + 1 })\n\
+                break }\n\
+                if (host.read() == 1) { println(\"old\") } else {\n\
+                if (host.read() == 2) { println(\"new\") } else { error(p.TEXT) } } }";
+            let run = run_constant_sources(&provider, consumer);
+            assert!(run.status.success(), "{kind} {flag}: {run:?}");
+            assert_eq!(run.stdout, expected.as_bytes());
+        }
+        let provider = format!(
+            "package p\nconst val TEXT = \"text\"\n{kind} Host(var item: Int) {{\n\
+             fun read(): Int = item\n\
+             inout fun update(text: String, own next: Int, own flag: Boolean): Unit {{ println(\"unexpected\") }}\n}}"
+        );
+        let run = run_constant_sources(
+            &provider,
+            "package q\nimport p.Host\nfun entry(): Unit { var host = Host(1)\n\
+             val done = host.update(p.TEXT + p.TEXT, host.read(), return)\n}",
+        );
+        assert!(run.status.success(), "{kind}: {run:?}");
+        assert!(run.stdout.is_empty(), "{run:?}");
+    }
+}

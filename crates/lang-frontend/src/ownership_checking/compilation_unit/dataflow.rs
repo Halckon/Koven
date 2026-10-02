@@ -585,7 +585,16 @@ impl<'a> Checker<'a> {
                         )
                     }
                     ExpressionCategory::Place => {
-                        if let Some(place) = self.loan_place(contract.argument().expression())? {
+                        if self.expression_is_this(contract.argument().expression())? {
+                            let Some(target) =
+                                self.apply_this_argument_loan(contract, kind, state)?
+                            else {
+                                return Ok(());
+                            };
+                            target
+                        } else if let Some(place) =
+                            self.loan_place(contract.argument().expression())?
+                        {
                             let access = if kind == LoanKind::Shared {
                                 AccessKind::SharedLoan
                             } else {
@@ -604,6 +613,7 @@ impl<'a> Checker<'a> {
                                 owner: ActiveLoanOwner::Call(contract.call()),
                                 target: ActiveLoanTarget::Place(place.clone()),
                                 kind,
+                                reserved: false,
                                 origin: contract.loan_begin_span(),
                             });
                             UnitLoanTarget::Place(place)
@@ -797,6 +807,20 @@ impl<'a> Checker<'a> {
             }
         };
         if move_only
+            && state.loans.iter().any(|loan| {
+                loan.reserved
+                    && match &loan.target {
+                        ActiveLoanTarget::Place(target) => target.overlaps(place),
+                        ActiveLoanTarget::This => {
+                            self.symbol_kind(place.root()) == Some(SymbolKind::Field)
+                        }
+                    }
+            })
+            && !self.access_place(place, AccessKind::Move, primary, parameter_span, state)?
+        {
+            return Ok(());
+        }
+        if move_only
             && (self
                 .bindings
                 .get(&place.root())
@@ -938,11 +962,7 @@ impl<'a> Checker<'a> {
                 ActiveLoanTarget::Place(target) => target.overlaps(place),
                 ActiveLoanTarget::This => self.symbol_kind(place.root()) == Some(SymbolKind::Field),
             };
-            overlaps
-                && !matches!(
-                    (loan.kind, access),
-                    (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
-                )
+            overlaps && loan.conflicts_with(access)
         });
         if let Some(conflict) = conflict {
             let message = match access {

@@ -207,6 +207,8 @@ pub struct UnitReceiverOwnershipFact {
     source: UnitCallReceiverOrigin,
     target: UnitReceiverOwnershipTarget,
     kind: UnitReceiverOwnershipKind,
+    reservation: bool,
+    activation_point: Option<UnitExpressionId>,
     receiver_type: UnitTypeId,
     begin_span: Span,
     end_span: Span,
@@ -230,6 +232,8 @@ impl UnitReceiverOwnershipFact {
             source,
             target,
             kind,
+            reservation: matches!(kind, UnitReceiverOwnershipKind::ExclusiveLoan),
+            activation_point: None,
             receiver_type,
             begin_span,
             end_span,
@@ -259,6 +263,23 @@ impl UnitReceiverOwnershipFact {
     /// 返回 shared/exclusive loan 或 Value delivery kind。
     pub const fn kind(&self) -> UnitReceiverOwnershipKind {
         self.kind
+    }
+
+    /// 返回该 exclusive receiver loan 是否先以 Reserved 状态建立。
+    #[must_use]
+    pub const fn is_receiver_reservation(&self) -> bool {
+        self.reservation
+    }
+
+    /// 返回 receiver 激活的 CallEntry identity：全部参数求值完成、callee 获得控制权之前。
+    /// 参数提前 return、break、continue 或 Abort 时没有激活点。
+    #[must_use]
+    pub const fn activation_point(&self) -> Option<UnitExpressionId> {
+        self.activation_point
+    }
+
+    pub(super) fn activate(&mut self) {
+        self.activation_point = Some(self.call);
     }
 
     #[must_use]

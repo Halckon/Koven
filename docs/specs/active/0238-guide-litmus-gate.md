@@ -73,8 +73,9 @@ Cargo 串行使用统一 target；未执行 frontend 全量或 native/macOS 验�
   不是规范源码的替代。后继修复须更新原例为正例，并保留失败诊断边界回归。
 - Litmus12：六个具名位运算的 const evaluator 尚未接入（L0156）；后继须验证单/unit 常量
   值、位宽与错误边界，然后另验 SSA/native。不能只把 expect-error 改成 expect-pass。
-- receiver two-phase：Reserved/Activate 仍未实现；嵌套只读例仍 L0135，传入 callee 的
+- receiver two-phase（本 Spec 原验收时）：Reserved/Activate 仍未实现；嵌套只读例仍 L0135，传入 callee 的
   重叠 Borrow 负例必须继续拒绝。现有 nested-loan 正例不证明 receiver reservation 已落地。
+  后继 [SPEC-0243](0243-receiver-two-phase-borrows.md) 单独实现并验证此缺口，不改写本节历史结果。
 - Litmus11 unit for-body 的 LoopSource/ControlJoin/Assignment，以及单文件赋值 typed 延后事实
   仍需后继闭合。构造/type qualifier 不是 runtime value，其占位状态与真实缺口分别维护。
 - RawPtr 名称/权限/capability、deinit 资源执行及原子置换后续阶段维持原边界；此处只记录事实。

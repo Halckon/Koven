@@ -4,14 +4,22 @@ use std::collections::BTreeMap;
 
 use crate::{name_resolution::UnitSymbolId, source::Span, type_checking::UnitExpressionId};
 
-use super::{LoanKind, UnitOwnershipPlace};
+use super::{AccessKind, LoanKind, UnitOwnershipPlace};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ActiveLoan {
     pub(super) owner: ActiveLoanOwner,
     pub(super) target: ActiveLoanTarget,
     pub(super) kind: LoanKind,
+    pub(super) reserved: bool,
     pub(super) origin: Span,
+}
+
+impl ActiveLoan {
+    pub(super) fn conflicts_with(&self, access: AccessKind) -> bool {
+        !((self.kind == LoanKind::Shared || self.reserved)
+            && matches!(access, AccessKind::Read | AccessKind::SharedLoan))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,7 +78,13 @@ pub(super) fn merge_optional_state(target: &mut Option<State>, source: Option<St
 }
 
 pub(super) fn merge_state(target: &mut State, source: State) {
-    target.loans.retain(|loan| source.loans.contains(loan));
+    // A loan live on any reachable incoming edge must still constrain later access.
+    // In particular, a branch-selected closure may retain a shared loan until activation.
+    for loan in source.loans {
+        if !target.loans.contains(&loan) {
+            target.loans.push(loan);
+        }
+    }
     target
         .closures
         .retain(|symbol, closure| source.closures.get(symbol) == Some(closure));

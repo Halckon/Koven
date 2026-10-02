@@ -26,6 +26,7 @@ subgraph Gactive["现行 active"]
   S0240["S0240<br/>整数具名位运算与取反端到端执行"]
   S0241["S0241<br/>Return 控制表达式操作数与单文件 enum 条件"]
   S0242["S0242<br/>调用点自动借用迁移"]
+  S0243["S0243<br/>Instance receiver 两阶段借用"]
 end
 ARCH --> S0182
 ARCH --> S0228
@@ -52,4 +53,5 @@ ARCH --> S0236
 | SPEC-0240 | active | [0240-integer-bitwise-execution.md](active/0240-integer-bitwise-execution.md) |
 | SPEC-0241 | active | [0241-return-control-operands.md](active/0241-return-control-operands.md) |
 | SPEC-0242 | active | [0242-automatic-borrow-call-migration.md](active/0242-automatic-borrow-call-migration.md) |
+| SPEC-0243 | active | [0243-receiver-two-phase-borrows.md](active/0243-receiver-two-phase-borrows.md) |
 | 已完成 Spec（213 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

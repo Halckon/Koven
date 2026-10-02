@@ -604,6 +604,9 @@ impl Checker<'_> {
                 self.apply_contract(contract, next)?;
             }
         }
+        if let Some(next) = flows.next.as_mut() {
+            self.activate_receiver(call, next)?;
+        }
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()

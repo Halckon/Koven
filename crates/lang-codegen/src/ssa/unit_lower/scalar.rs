@@ -15,7 +15,7 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{
-        CheckedArithmeticOperator, ComparisonOperator, EntityType, Operation, Origin,
+        CheckedArithmeticOperator, ComparisonOperator, EntityId, EntityType, Operation, Origin,
         ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
     },
 };
@@ -276,7 +276,16 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
-        let mut carried = self.move_only_carried_bindings(&baseline, span)?;
+        let mut carried = if self
+            .pending_operands
+            .iter()
+            .any(|entity| matches!(entity, EntityId::Place(_)))
+        {
+            // Receiver reservation/writeback 的 Copyable original 也必须与具名 binding 同步重绑。
+            self.carried_bindings(&baseline, span)?
+        } else {
+            self.move_only_carried_bindings(&baseline, span)?
+        };
         let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
         self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
         let failure = self.add_carried_control_block(&carried, &carried_loans, span)?;

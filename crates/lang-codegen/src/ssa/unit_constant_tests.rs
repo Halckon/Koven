@@ -13,6 +13,9 @@ use super::{
     unit_lower_test_support::{declaration, parsed},
 };
 
+#[path = "unit_receiver_two_phase_control_tests.rs"]
+mod receiver_two_phase_control;
+
 #[test]
 fn scalar_materializations_use_exact_values_and_reject_foreign_analysis() {
     for (ty, value, expected) in [

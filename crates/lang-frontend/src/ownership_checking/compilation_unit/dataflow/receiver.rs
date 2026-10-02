@@ -51,6 +51,12 @@ impl Checker<'_> {
             }
             super::ExpressionUse::Place { .. } => {}
             super::ExpressionUse::Consume { parameter_span } => {
+                if self.typed.copyability(receiver.ty) == Copyability::MoveOnly
+                    && self.has_reserved_this_loan(state)
+                    && !self.access_this_at(AccessKind::Move, span, parameter_span, state)?
+                {
+                    return Ok(());
+                }
                 if let Some(capture) = state.loans.iter().find(|loan| {
                     matches!(loan.target, ActiveLoanTarget::This)
                         && loan.kind == LoanKind::Shared
@@ -122,6 +128,46 @@ impl Checker<'_> {
         Ok(())
     }
 
+    /// `this` is a stable non-owning argument binding, including transparent groups.
+    pub(super) fn apply_this_argument_loan(
+        &mut self,
+        contract: super::UnitCallArgumentOwnershipContract,
+        kind: LoanKind,
+        state: &mut State,
+    ) -> Result<Option<super::UnitLoanTarget>, OwnershipCheckingError> {
+        let Some(receiver) = self.current_receiver else {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                source_unit: self.source_unit.index(),
+                expression: contract.argument().expression().index(),
+            });
+        };
+        let access = if kind == LoanKind::Shared {
+            AccessKind::SharedLoan
+        } else {
+            AccessKind::ExclusiveLoan
+        };
+        if !self.ensure_this_available_at(
+            contract.loan_begin_span(),
+            contract.parameter_span(),
+            state,
+        )? || !self.access_this_at(
+            access,
+            contract.loan_begin_span(),
+            contract.parameter_span(),
+            state,
+        )? {
+            return Ok(None);
+        }
+        state.loans.push(ActiveLoan {
+            owner: ActiveLoanOwner::Call(contract.call()),
+            target: ActiveLoanTarget::This,
+            kind,
+            reserved: false,
+            origin: contract.loan_begin_span(),
+        });
+        Ok(Some(super::UnitLoanTarget::This(receiver.owner)))
+    }
+
     pub(super) fn apply_receiver_contract(
         &mut self,
         contract: UnitCallReceiverOwnershipContract,
@@ -154,6 +200,70 @@ impl Checker<'_> {
             contract.call_span(),
             contract.declaration_span(),
         ));
+        Ok(())
+    }
+
+    /// Activate only the receiver reservation; ordinary Inout arguments are already exclusive.
+    pub(super) fn activate_receiver(
+        &mut self,
+        call: crate::type_checking::UnitExpressionId,
+        state: &mut State,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(index) = state
+            .loans
+            .iter()
+            .position(|loan| loan.owner == ActiveLoanOwner::Call(call) && loan.reserved)
+        else {
+            return Ok(());
+        };
+        let reservation = &state.loans[index];
+        let conflict = state
+            .loans
+            .iter()
+            .enumerate()
+            .find_map(|(other_index, loan)| {
+                if other_index == index {
+                    return None;
+                }
+                let overlaps = match (&reservation.target, &loan.target) {
+                    (ActiveLoanTarget::Place(left), ActiveLoanTarget::Place(right)) => {
+                        left.overlaps(right)
+                    }
+                    (ActiveLoanTarget::This, ActiveLoanTarget::This) => true,
+                    (ActiveLoanTarget::This, ActiveLoanTarget::Place(place))
+                    | (ActiveLoanTarget::Place(place), ActiveLoanTarget::This) => {
+                        self.symbol_kind(place.root())
+                            == Some(crate::name_resolution::SymbolKind::Field)
+                    }
+                };
+                overlaps.then_some(loan.origin)
+            });
+        if let Some(primary) = conflict {
+            let mut diagnostic = Diagnostic::new(
+                self.sources,
+                Severity::Error,
+                self.codes.loan_conflict,
+                "argument loan conflicts with receiver activation",
+                primary,
+            )?;
+            diagnostic.add_label(
+                self.sources,
+                reservation.origin,
+                "conflicting loan starts here",
+            )?;
+            self.diagnostics.push(diagnostic);
+            return Ok(());
+        }
+        let fact = self
+            .receiver_facts
+            .iter_mut()
+            .find(|fact| fact.call() == call)
+            .ok_or(OwnershipCheckingError::InvalidUnitCall {
+                source_unit: call.source_unit().index(),
+                expression: call.expression().index(),
+            })?;
+        state.loans[index].reserved = false;
+        fact.activate();
         Ok(())
     }
 
@@ -244,6 +354,7 @@ impl Checker<'_> {
                     owner: ActiveLoanOwner::Call(contract.call()),
                     target: ActiveLoanTarget::Place(place.clone()),
                     kind: loan,
+                    reserved: loan == LoanKind::Exclusive,
                     origin: contract.receiver_span(),
                 });
                 Ok(Some((UnitReceiverOwnershipTarget::Place(place), effect)))
@@ -269,6 +380,18 @@ impl Checker<'_> {
                 expression: contract.call().expression().index(),
             });
         };
+        if contract.kind() == UnitCallArgumentOwnershipKind::Value
+            && self.typed.copyability(contract.receiver_type()) != Copyability::Copyable
+            && self.has_reserved_this_loan(state)
+            && !self.access_this_at(
+                AccessKind::Move,
+                contract.receiver_span(),
+                contract.declaration_span(),
+                state,
+            )?
+        {
+            return Ok(None);
+        }
         match contract.kind() {
             UnitCallArgumentOwnershipKind::ExclusiveLoan
                 if current.mode != ParameterMode::Inout =>
@@ -303,6 +426,7 @@ impl Checker<'_> {
                     owner: ActiveLoanOwner::Call(contract.call()),
                     target: ActiveLoanTarget::This,
                     kind: LoanKind::Shared,
+                    reserved: false,
                     origin: contract.receiver_span(),
                 });
                 UnitReceiverOwnershipKind::SharedLoan
@@ -315,6 +439,7 @@ impl Checker<'_> {
                     owner: ActiveLoanOwner::Call(contract.call()),
                     target: ActiveLoanTarget::This,
                     kind: LoanKind::Exclusive,
+                    reserved: true,
                     origin: contract.receiver_span(),
                 });
                 UnitReceiverOwnershipKind::ExclusiveLoan
@@ -554,6 +679,19 @@ impl Checker<'_> {
         )
     }
 
+    fn has_reserved_this_loan(&self, state: &State) -> bool {
+        state.loans.iter().any(|loan| {
+            loan.reserved
+                && match &loan.target {
+                    ActiveLoanTarget::This => true,
+                    ActiveLoanTarget::Place(place) => {
+                        self.symbol_kind(place.root())
+                            == Some(crate::name_resolution::SymbolKind::Field)
+                    }
+                }
+        })
+    }
+
     pub(super) fn access_this_at(
         &mut self,
         access: AccessKind,
@@ -569,11 +707,7 @@ impl Checker<'_> {
                         == Some(crate::name_resolution::SymbolKind::Field)
                 }
             };
-            overlaps
-                && !matches!(
-                    (loan.kind, access),
-                    (LoanKind::Shared, AccessKind::Read | AccessKind::SharedLoan)
-                )
+            overlaps && loan.conflicts_with(access)
         });
         let Some(conflict) = conflict else {
             return Ok(true);

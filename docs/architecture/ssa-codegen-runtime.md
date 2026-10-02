@@ -1,6 +1,6 @@
 # SSA、LLVM 与 Runtime
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 unit planning、typed SSA、LLVM、ABI 或 native 产物时 · **唯一真源**：`lang-codegen` 代码与测试
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 unit planning、typed SSA、LLVM、ABI 或 native 产物时 · **唯一真源**：`lang-codegen` 代码与测试 · [Receiver 两阶段借用](receiver-borrows.md)
 
 ## Typed SSA 模型
 

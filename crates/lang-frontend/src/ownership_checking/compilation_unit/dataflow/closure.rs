@@ -1,9 +1,9 @@
 //! Source-qualified closure formation、逃逸与跨线程交付。
 
 use crate::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, Severity},
-    parser::Expression,
+    parser::{Expression, Statement},
     type_checking::UnitExpressionId,
 };
 
@@ -44,6 +44,7 @@ impl Checker<'_> {
                             owner: ActiveLoanOwner::Closure(lambda_id),
                             target: ActiveLoanTarget::Place(place),
                             kind: LoanKind::Shared,
+                            reserved: false,
                             origin: capture.reference_span(),
                         });
                     }
@@ -61,6 +62,7 @@ impl Checker<'_> {
                             owner: ActiveLoanOwner::Closure(lambda_id),
                             target: ActiveLoanTarget::This,
                             kind: LoanKind::Shared,
+                            reserved: false,
                             origin: capture.reference_span(),
                         });
                     }
@@ -141,6 +143,7 @@ impl Checker<'_> {
                         owner: ActiveLoanOwner::Closure(lambda_id),
                         target: ActiveLoanTarget::This,
                         kind: LoanKind::Shared,
+                        reserved: false,
                         origin: capture.reference_span(),
                     });
                 }
@@ -244,30 +247,74 @@ impl Checker<'_> {
             {
                 self.release_closure(symbol, state);
             }
-        } else if let Some(closure) = self.direct_closure_origin(expression)? {
+        } else {
+            let mut temporaries = Vec::new();
+            self.direct_closure_origins(expression, &mut temporaries)?;
             for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
                 .into_iter()
                 .flatten()
             {
-                if !state.closures.values().any(|&other| other == closure) {
-                    state
-                        .loans
-                        .retain(|loan| loan.owner != ActiveLoanOwner::Closure(closure));
+                for &closure in &temporaries {
+                    if !state.closures.values().any(|&other| other == closure) {
+                        state
+                            .loans
+                            .retain(|loan| loan.owner != ActiveLoanOwner::Closure(closure));
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    fn direct_closure_origin(
+    /// Only anonymous result temporaries end with this expression's completed use.
+    /// A named branch result keeps its existing owner/capture lifetime.
+    fn direct_closure_origins(
         &self,
         expression: ExpressionId,
-    ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+        origins: &mut Vec<UnitExpressionId>,
+    ) -> Result<(), OwnershipCheckingError> {
         match self.parsed.ast().expressions().get(expression)?.payload() {
-            Expression::Lambda { .. } => Ok(Some(self.unit_expression(expression))),
-            Expression::Group { expression } => self.direct_closure_origin(*expression),
-            _ => Ok(None),
+            Expression::Lambda { .. } => origins.push(self.unit_expression(expression)),
+            Expression::Group { expression } => {
+                self.direct_closure_origins(*expression, origins)?
+            }
+            Expression::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.direct_closure_body_origins(*then_branch, origins)?;
+                if let Some(branch) = else_branch {
+                    self.direct_closure_body_origins(*branch, origins)?;
+                }
+            }
+            Expression::When { entries, .. } => {
+                for entry in entries {
+                    self.direct_closure_body_origins(entry.body, origins)?;
+                }
+            }
+            _ => {}
         }
+        Ok(())
+    }
+
+    fn direct_closure_body_origins(
+        &self,
+        body: StatementId,
+        origins: &mut Vec<UnitExpressionId>,
+    ) -> Result<(), OwnershipCheckingError> {
+        match self.parsed.ast().statements().get(body)?.payload() {
+            Statement::Expression { expression } => {
+                self.direct_closure_origins(*expression, origins)?
+            }
+            Statement::ControlBody { elements } => {
+                if let Some(&tail) = elements.last() {
+                    self.direct_closure_body_origins(tail, origins)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub(super) fn reject_borrowed_closure_escape(

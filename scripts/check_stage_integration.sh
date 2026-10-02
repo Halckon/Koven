@@ -16,6 +16,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test type_constants --test multifile_constant_facts \
   --test multifile_constant_qualification --test multifile_constant_dependencies \
   --test multifile_constant_selection --test lexer \
+  --test ownership_two_phase_borrows --test multifile_two_phase_borrows \
   --test ownership_checking --test ownership_containers \
   --test ownership_construction --test ownership_closures \
   --test ownership_rc --test multifile_ownership_checking

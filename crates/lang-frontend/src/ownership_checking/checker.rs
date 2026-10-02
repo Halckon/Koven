@@ -10,6 +10,7 @@ mod iteration;
 mod loan;
 mod nullable_when;
 mod rc;
+mod receiver;
 mod string;
 
 use crate::{
@@ -642,10 +643,27 @@ impl<'a> Checker<'a> {
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {
-            Expression::Error
-            | Expression::This
-            | Expression::Literal(_)
-            | Expression::SuperMember { .. } => Ok(Flows::next(state)),
+            Expression::This => {
+                let access = match usage {
+                    ExpressionUse::Place => return Ok(Flows::next(state)),
+                    ExpressionUse::Read => AccessKind::Read,
+                    ExpressionUse::Consume
+                        if self
+                            .typed
+                            .expression_type(id)
+                            .and_then(|ty| self.typed.copyability(ty))
+                            == Some(Copyability::MoveOnly) =>
+                    {
+                        AccessKind::Move
+                    }
+                    ExpressionUse::Consume => AccessKind::Read,
+                };
+                self.access_this(access, span, &state)?;
+                Ok(Flows::next(state))
+            }
+            Expression::Error | Expression::Literal(_) | Expression::SuperMember { .. } => {
+                Ok(Flows::next(state))
+            }
             Expression::Name => {
                 let mut state = state;
                 let proof = self
@@ -869,6 +887,11 @@ impl<'a> Checker<'a> {
                                 && self.typed.copyability(receiver.ty())
                                     == Some(Copyability::MoveOnly)
                         }) && self.current_receiver_mode != Some(ParameterMode::Value)
+                            && self.access_this(
+                                AccessKind::Move,
+                                self.parsed.ast().expressions().get(callee)?.span(),
+                                &state,
+                            )?
                         {
                             self.diagnostics.push(Diagnostic::new(
                                 self.sources,
@@ -892,6 +915,18 @@ impl<'a> Checker<'a> {
                             mode_marker: None,
                             value: expression,
                         },
+                        receiver.mode(),
+                        true,
+                        &mut flows,
+                    )?;
+                } else if let Some(receiver) = receiver
+                    && let CallReceiverOrigin::ImplicitThis(nominal) = receiver.origin()
+                    && self.diagnostics.len() == diagnostic_count
+                {
+                    self.apply_this_contract(
+                        id,
+                        callee,
+                        nominal,
                         receiver.mode(),
                         true,
                         &mut flows,
@@ -934,6 +969,9 @@ impl<'a> Checker<'a> {
                     {
                         self.apply_argument_contract(id, argument, mode, false, &mut flows)?;
                     }
+                }
+                if self.diagnostics.len() == diagnostic_count {
+                    self.activate_receiver(id, &mut flows)?;
                 }
                 self.end_call_loans(id, &mut flows);
                 self.finish_call_closures(id, &mut flows);
