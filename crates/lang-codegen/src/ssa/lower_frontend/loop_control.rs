@@ -39,6 +39,16 @@ pub(super) struct ForLoopData {
     pub(super) is_carried_source: bool,
 }
 
+impl ForLoopData {
+    pub(super) fn rebind_source(&mut self, loan: LoanId) {
+        self.body_source = loan;
+        // A sibling may have ended its own source. Restore this path from ownership,
+        // not the previous path's active state; borrowed sources remain caller-owned.
+        self.active_source_loan =
+            (self.new_source_loan.is_some() && !self.is_carried_source).then_some(loan);
+    }
+}
+
 pub(super) struct LoopContext {
     pub(super) entry_views: BTreeMap<SymbolId, super::LoanId>,
     pub(super) header: BlockId,

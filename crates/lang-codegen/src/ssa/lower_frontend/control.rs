@@ -847,7 +847,7 @@ impl ExpressionLowerer<'_> {
             for context in &mut self.loops {
                 if let Some(ref mut for_data) = context.for_loop {
                     if let Some(&loan) = first.for_sources.get(&for_data.statement.index()) {
-                        for_data.body_source = loan;
+                        for_data.rebind_source(loan);
                     }
                     if let Some(&loan) = first.for_elements.get(&for_data.statement.index()) {
                         for_data.guarded_element.set_loan(loan);
@@ -1104,7 +1104,7 @@ impl ExpressionLowerer<'_> {
         for context in &mut self.loops {
             if let Some(ref mut for_data) = context.for_loop {
                 if let Some(&loan) = for_sources.get(&for_data.statement.index()) {
-                    for_data.body_source = loan;
+                    for_data.rebind_source(loan);
                 }
                 if let Some(&loan) = for_elements.get(&for_data.statement.index()) {
                     for_data.guarded_element.set_loan(loan);
@@ -1362,7 +1362,7 @@ impl ExpressionLowerer<'_> {
                     if let Some(ref mut for_data) = context.for_loop
                         && for_data.statement.index() == stmt
                     {
-                        for_data.body_source = loan;
+                        for_data.rebind_source(loan);
                     }
                 }
             }
