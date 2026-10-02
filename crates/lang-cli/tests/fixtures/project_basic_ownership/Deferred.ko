@@ -1,0 +1,6 @@
+package app
+class Resource {}
+class Holder(var payload: Resource)
+fun deferred(holders: List<Holder>): Unit {
+    val projected = holders[0].payload
+}

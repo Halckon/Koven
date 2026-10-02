@@ -1,0 +1,3 @@
+package constants
+const val TEXT = "常量完成"
+const val INDEX = 0

@@ -16,8 +16,9 @@
 project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
 file identity，再发布不可变、稳定排序的 source-set snapshot。build 注册原 SourceMap 后将其移动进
 frontend `analyze_unit_names`，取得拥有源码/语法/环境/名称事实的只读 `UnitNameSnapshot`；
-首个非空诊断 gate 仍在完整 names 前缀后。type/ownership validation 继续留宿主，成功后进入
-单 object、link 和原子 executable 发布。CLI 不从 cwd 或
+首个非空诊断 gate 仍在完整 names 前缀后。typed 非空 gate 留宿主，随后调用
+frontend `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership 推进；宿主继续
+验证 raw ownership，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
 祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
 `emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
@@ -42,7 +43,10 @@ CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`�
 
 source-set 模式不读取磁盘。`unit_session` 组合唯一名称 owner，后续阶段借其 sources/inputs 与
 validated_names；同次 standard_environments 的 type 半边留宿主。names recovery 保留有效导航，
-typed validation 失败仍向 definition 提供 typed recovery；const 不进入基础 ownership。
+typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_ownership`；成功以
+`into_types()` 保存原 typed 而不克隆，NotBasic 取回原 boxed recovery。const（包括仅声明未读）
+不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留。typed recovery
+继续向 definition 提供有效事实。
 完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
 失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
 发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。

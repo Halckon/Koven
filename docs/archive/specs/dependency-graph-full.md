@@ -249,6 +249,7 @@ subgraph Garchive["已完成（archive，237 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0252["S0252<br/>unit 基础所有权共享推进"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1189,7 +1190,10 @@ S0226 --> S0227
 S0244 --> S0245
 S0244 --> S0246
 S0249 --> S0250
+S0249 --> S0252
 S0250 --> S0251
+S0250 --> S0252
+S0251 --> S0252
 ```
 
 ## 节点链接
@@ -1434,3 +1438,4 @@ S0250 --> S0251
 | SPEC-0250 | archive | [0250-unit-name-snapshot.md](0250-unit-name-snapshot.md) |
 | SPEC-0251 | archive | [0251-lsp-unit-name-snapshot.md](0251-lsp-unit-name-snapshot.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
+| SPEC-0252 | active | [0252-basic-unit-ownership-driver.md](../../specs/active/0252-basic-unit-ownership-driver.md) |

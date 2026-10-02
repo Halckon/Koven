@@ -4,6 +4,8 @@
 
 - [SPEC-0182](0182-sequential-for-lowering.md)：顺序容器 `for` frontend→SSA→native 集成，approved；已有实现，仍需逐项补强集成验收证据
 
+- [SPEC-0252](0252-basic-unit-ownership-driver.md)：unit basic ownership纯推进，in-progress；CLI project先迁、LSP unit后迁
+
 0179/0211/0212、0228–0251 已按各自有界 Goal 完成归档；各项原非目标继续保持。
 0182 不因邻层测试或本批文档门禁通过而关闭，详情见[治理执行账本](../../development/engineering-governance-progress.md#0182-的保留边界)。
 

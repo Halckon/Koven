@@ -1,0 +1,4 @@
+error[L0131] aroot/a/Stage.ko:5:18-5:26: use of moved value
+  label aroot/a/Stage.ko:4:17-4:25: value was moved here
+error[L0131] zroot/z/Stage.ko:5:18-5:26: use of moved value
+  label zroot/z/Stage.ko:4:17-4:25: value was moved here

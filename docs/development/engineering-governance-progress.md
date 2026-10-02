@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 237 archive（0251 LSP名称前缀有界归档）；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前2 active / 237 archive（0252 unit基础ownership推进实施中）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | 归档新head独立窄review和最终CI待验；bootstrap、legacy与const owned owner后续分片，不合并能力边界 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR32归档最终与main CI均9/9；0252共享unit基础ownership推进实施中，P3b单文件门面及P3a const交接仍留后片 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -369,3 +369,26 @@ core/stage/Guide实际成功。合成merge c62393e7已fetch核实tree9794ca21与
 当前1 active/237 archive；前节未发布、待评审/CI及尚未归档文字保留实施时快照。
 归档新head另行窄review和最终CI，不由首轮替代；终态留PR，合并遵循既有授权与门禁。
 P3b整体和bootstrap/legacy/const后继、其余治理、0182及延期外部审计边界不变。
+
+
+## SPEC-0252 unit 基础所有权共享推进（2026-10-02）
+
+从 PR32 merge `15dfb13a6d771f66fbcfa21ca8db2fed92e77868` 建立 `feature/spec-0252`。
+[唯一合同与验收账本](../specs/active/0252-basic-unit-ownership-driver.md)限定一个有界PR：
+CLI project先迁、LSP unit后迁，共享typed basic validation→普通ownership；无IO、const或
+宿主诊断策略。Outcome按值，不是完整owner或额外身份证明；LSP消费式恢复typed去除大clone。
+
+旧main完整CLI输出oracle、新LSP差分先冻结；新API编译红后最小实现，保留typed非空gate、
+NotBasic/const分流、raw诊断/deferred、entry优先级及last-good。真实运行结果只进0252账本，
+配置接线不替代新head实跑；独立review进行中、尚未发布或CI，不预称本片完成。
+
+### P3b 有界剩余与退出条件
+
+- 本片完成后，project/unit_session共用名称前缀与基础ownership推进，const差异完整锁定
+- 后续一只有界单文件Spec同时覆盖bootstrap与legacy analysis纯阶段门面，保留各自策略；
+  不追加单文件→unit内核合并、basic/const合并或新整体snapshot作为本阶段必做项
+- 四宿主parity、公开能力/身份合同与exact-head双宿主证据齐全，才可结项P3b
+- const owned交接明确留作P3a剩余，不静默取消、不由P3b结项推定整个P3完成
+
+批准计划正文继续保存原目标与基线；本节是范围收敛和实施状态。0182、P2/P4/P5及全计划后的
+外部审计顺序不变，不据本片扩大完成声明或承诺性能改善。

@@ -11,7 +11,10 @@ use lang_codegen::{
     emit_native_owned_unit_object,
 };
 use lang_frontend::{
-    analysis::{UnitNameAnalysisError, UnitSourceDescriptor, analyze_unit_names},
+    analysis::{
+        UnitNameAnalysisError, UnitSourceDescriptor, analyze_basic_unit_ownership,
+        analyze_unit_names,
+    },
     ast::AstError,
     diagnostic::Diagnostic,
     lexer::LexerInternalError,
@@ -22,7 +25,7 @@ use lang_frontend::{
     },
     ownership_checking::{
         OwnershipCheckingError, check_compilation_unit_constant_ownership,
-        check_compilation_unit_ownership, owned_compilation_unit_view,
+        owned_compilation_unit_view,
     },
     parser::{FunctionBody, FunctionForm, Item, ParserInternalError},
     source::{SourceError, SourceMap},
@@ -178,8 +181,10 @@ pub(crate) fn emit_project_object(
             typed.diagnostics(),
         )?);
     }
-    let typed = match typed.validate() {
-        Ok(typed) => typed,
+    let outcome = analyze_basic_unit_ownership(sources, &inputs, names, &type_environment, typed)
+        .map_err(ProjectBuildError::Ownership)?;
+    let (typed, owned) = match outcome.into_result() {
+        Ok(products) => products,
         Err(typed) => {
             // 基础 capability 拒绝常量；交给 frontend 专用 gate，不从 AST 猜测能力。
             let typed = match typed.validate_constants() {
@@ -224,9 +229,6 @@ pub(crate) fn emit_project_object(
             .map_err(|error| codegen_error(sources, names.names().index().source_units(), error));
         }
     };
-    let owned =
-        check_compilation_unit_ownership(sources, &inputs, names, &type_environment, &typed)
-            .map_err(ProjectBuildError::Ownership)?;
     if !owned.diagnostics().is_empty() {
         return Err(frontend_diagnostics(
             sources,

@@ -15,6 +15,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test type_checking --test type_callable --test type_copyability --test multifile_type_checking \
   --test owned_compilation_unit_view --test owned_unit_view_compile_contracts \
   --test unit_name_snapshot --test unit_name_snapshot_compile_contracts \
+  --test basic_unit_ownership --test basic_unit_ownership_compile_contracts \
   --test type_constants --test multifile_constant_facts \
   --test multifile_constant_qualification --test multifile_constant_dependencies \
   --test multifile_constant_selection --test lexer \

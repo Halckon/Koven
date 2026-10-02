@@ -1,0 +1,2 @@
+error[L0090] aroot/constants/Values.ko:2:27-2:30: numeric literal is outside the representable range
+  label aroot/constants/Values.ko:2:20-2:24: expected type introduced here
