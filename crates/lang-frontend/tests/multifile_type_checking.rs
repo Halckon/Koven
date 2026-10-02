@@ -711,7 +711,7 @@ fn invalid_unit_intrinsic_constructions_reuse_diagnostics_without_partial_facts(
          fun invalidRc(): Unit { Rc<Nothing>(error(\"stop\")) }\n\
          fun rcTypeArity(): Unit { Rc<Int, Long>(1) }\n\
          fun missingOperand(): Unit { Rc() }\n\
-         fun wrongMode(): Unit { Box(borrow 1) }\n\
+         fun wrongMode(): Unit { Box(&1) }\n\
          fun wrongOperand(): Unit { Box<Point>(true) }\n\
          fun wrongResult(): String = Rc(1)",
     );
@@ -901,7 +901,7 @@ fn invalid_cross_file_source_constructions_keep_existing_diagnostics_and_no_fact
          fun invalidEnum(): Unit { Maybe<Int>() }\n\
          fun named(): Unit { Pair(missing = 1, second = 2) }\n\
          fun arity(): Unit { Pair(1) }\n\
-         fun mode(): Unit { Pair(borrow 1, 2) }\n\
+         fun mode(): Unit { Pair(&1, 2) }\n\
          fun typed(): Unit { Pair(true, 2) }\n\
          fun inferredThenTyped(): Unit { Mixed(1, true) }\n\
          fun badResult(): Int = C()\n\
@@ -4686,7 +4686,7 @@ fn intrinsic_container_constructions_publish_stable_unit_facts() {
              val nullable: List<Int?> = listOf(null)\n\
              val explicit = arrayOf<Long>()\n\
              val initializer: (Int) -> Int = { index -> index }\n\
-             val array = Array<Int>(borrow size, borrow initializer)\n\
+             val array = Array<Int>(size, initializer)\n\
              val list = List<Int>(size, initializer)\n\
              val mutable = MutableList<Int>()\n\
          }",
@@ -4796,7 +4796,7 @@ fn invalid_intrinsic_container_constructions_keep_diagnostics_and_no_facts() {
              val wrongMutable = MutableList<Int>(1)\n\
              val tooMany = listOf<Int, Long>()\n\
              val named = listOf(element = 1)\n\
-             val marked = listOf(borrow 1)\n\
+             val marked = listOf(&1)\n\
          }",
     );
     let inputs = [SourceUnitInput::new(

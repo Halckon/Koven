@@ -555,7 +555,8 @@ impl Parser<'_> {
         let current = self.current()?;
         let value = if self.can_start_expression(current)
             && !self.gap_has_line_break(keyword_span.end(), current.span().start())?
-            && !stops.contains(current)
+            // A control primary starts the operand; block soft stops apply only after it.
+            && (!stops.contains(current) || control_expression_start_kind(current.kind()))
         {
             Some(self.parse_expression_bp(0, stops)?)
         } else {

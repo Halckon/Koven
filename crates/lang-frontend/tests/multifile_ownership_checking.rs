@@ -2531,7 +2531,7 @@ fn container_constructions_publish_value_deliveries_borrow_loans_and_stable_iden
          fun build(own resource: Resource, number: Int, initializer: (Int) -> Int): Unit {\n\
              val resources = listOf(resource)\n\
              val numbers = listOf(number, number)\n\
-             val generated = List<Int>(borrow number, initializer)\n\
+             val generated = List<Int>(number, initializer)\n\
              val empty = MutableList<Resource>()\n\
          }",
     );
@@ -2558,7 +2558,7 @@ fn container_constructions_publish_value_deliveries_borrow_loans_and_stable_iden
     );
     let runtime = UnitExpressionId::new(
         consumer_unit,
-        expression_with_text(&sources, &consumer, "List<Int>(borrow number, initializer)"),
+        expression_with_text(&sources, &consumer, "List<Int>(number, initializer)"),
     );
     let empty = UnitExpressionId::new(
         consumer_unit,

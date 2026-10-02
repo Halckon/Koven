@@ -30,7 +30,7 @@ fn lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically() {
         "package q\n\
          fun entry(): Int {\n\
              val owner = p.make()\n\
-             val first = p.inspect(borrow owner)\n\
+             val first = p.inspect(owner)\n\
              val second = p.forward(owner)\n\
              val temporary = p.inspect(p.make())\n\
              val paired = p.pair(right = p.make(), marker = 2, left = owner)\n\

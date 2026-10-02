@@ -790,7 +790,7 @@ fn block_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
 fn block_dispatch_legal_error_and_nested_families_stay_linear() {
     for (make, diagnostics_per_element) in [
         (|count| format!("{{ {} }}", "val x = 1 ".repeat(count)), 0),
-        (|count| format!("{{ {} }}", "return ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
         (
             |count| format!("{}{}", "{".repeat(count), "}".repeat(count)),
@@ -867,7 +867,7 @@ fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
 fn lambda_body_legal_unsupported_and_poison_families_stay_linear() {
     for (make, diagnostics_per_element) in [
         (|count| format!("{{ {} }}", "{} ".repeat(count)), 0),
-        (|count| format!("{{ {} }}", "return ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
     ] as [(fn(usize) -> String, usize); 3]
     {

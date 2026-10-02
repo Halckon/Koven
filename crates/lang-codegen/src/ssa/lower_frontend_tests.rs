@@ -1,3 +1,6 @@
+#[path = "lower_frontend_return_tests.rs"]
+mod return_control_tests;
+
 use lang_frontend::{
     lexer::lex,
     name_resolution::{NameResolution, resolve_names},

@@ -6,6 +6,7 @@ mod constant;
 mod container;
 mod control;
 mod drops;
+mod enum_condition;
 mod instances;
 mod loop_control;
 mod nominal;

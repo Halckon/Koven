@@ -25,7 +25,7 @@ pub(crate) const GRAMMAR_CASES: &[GrammarCase] = &[
     },
     GrammarCase {
         name: "typed named mode call",
-        source: "val result = service.send<Int>(name = borrow input, &target)",
+        source: "val result = service.send<Int>(name = input, &target)",
     },
     GrammarCase {
         name: "move lambda",

@@ -2866,17 +2866,8 @@
       ]
     },
     "argument_mode": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "borrow"
-        },
-        {
-          "type": "STRING",
-          "value": "&"
-        }
-      ]
+      "type": "STRING",
+      "value": "&"
     },
     "index_expression": {
       "type": "PREC_LEFT",

@@ -753,6 +753,9 @@ impl ExpressionLowerer<'_> {
         let WhenCondition::Expression(expression) = condition else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
+        if let Some((owner, Some(tagged))) = subject {
+            return self.lower_copyable_enum_case_condition(owner, tagged, *expression);
+        }
         let candidate = self.require_value(*expression)?;
         let Some((subject, None)) = subject else {
             return Ok(candidate);

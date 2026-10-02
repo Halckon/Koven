@@ -88,7 +88,7 @@ fn inserting_the_fixed_scalar_alphabet_at_every_utf8_boundary_is_recoverable() {
         }
     }
 
-    assert_eq!(boundary_count, 1_373);
-    assert_eq!(insertion_counts, [1_373; 13]);
-    assert_eq!(insertion_counts.into_iter().sum::<usize>(), 17_849);
+    assert_eq!(boundary_count, 1_366);
+    assert_eq!(insertion_counts, [1_366; 13]);
+    assert_eq!(insertion_counts.into_iter().sum::<usize>(), 17_758);
 }

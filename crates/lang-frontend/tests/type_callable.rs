@@ -171,7 +171,7 @@ fn source_member_and_function_value_calls_record_stable_mappings() {
                 class Sample { fun convert(input: Int): Long = 1L }\n\
                 fun use(sample: Sample, callback: (Int) -> Long): Long {\n\
                     val local = 1\n\
-                    val combined = combine(local, second = borrow 2)\n\
+                    val combined = combine(local, second = 2)\n\
                     val converted = sample.convert(3)\n\
                     return callback(4)\n\
                 }";
@@ -222,7 +222,7 @@ fn parameter_modes_accept_only_the_phase2_contract_matrix() {
                 fun use(): Unit {\n\
                     var local = 1\n\
                     val automatic = read(local)\n\
-                    val explicit = read(borrow 2)\n\
+                    val temporaryBorrow = read(2)\n\
                     val consumed = consume(local)\n\
                     val changed = mutate(&local)\n\
                     val temporary = mutate(&3)\n\

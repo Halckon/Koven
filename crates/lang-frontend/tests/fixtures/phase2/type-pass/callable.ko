@@ -11,7 +11,7 @@ class Sample {
 fun use(sample: Sample, callback: (Int) -> Long): Long {
     val local = 1
     val automatic = read(local)
-    val explicit = read(borrow 2)
+    val temporaryBorrow = read(2)
     val consumed = consume(local)
     val member = sample.convert(3)
     val reader: (borrow Int) -> Unit = { item -> read(item) }

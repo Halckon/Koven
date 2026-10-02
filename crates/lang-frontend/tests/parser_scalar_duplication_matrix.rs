@@ -69,5 +69,5 @@ fn duplicating_every_utf8_scalar_of_complete_files_is_recoverable() {
         }
     }
 
-    assert_eq!(executed, 1_351);
+    assert_eq!(executed, 1_344);
 }

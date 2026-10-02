@@ -68,5 +68,5 @@ fn every_utf8_aligned_interior_deletion_of_complete_files_is_recoverable() {
         }
     }
 
-    assert_eq!(executed, 44_969);
+    assert_eq!(executed, 44_584);
 }

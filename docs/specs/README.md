@@ -7,6 +7,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
+- [SPEC-0241](active/0241-return-control-operands.md)：return if/when、Litmus4 两入口前端与单文件 native；联合门禁和远端 CI 待完成。
+- [SPEC-0242](active/0242-automatic-borrow-call-migration.md)：调用点自动借用迁移；直接 parser 验证通过，联合回归与远端 CI 待完成。
 - [SPEC-0239](active/0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，本地验证通过，远端待授权验证。
 
 - [SPEC-0238](active/0238-guide-litmus-gate.md)：PR #6 审查后的 Guide 勘误与可执行 Litmus 前端门禁。

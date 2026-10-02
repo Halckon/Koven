@@ -55,7 +55,7 @@ const GRAMMAR_CASES: &[GrammarCase] = &[
         name: "typed named mode call",
         tokens: &[
             "val", "result", "=", "service", ".", "send", "<", "Int", ">", "(", "name", "=",
-            "borrow", "input", ",", "&", "target", ")",
+            "input", ",", "&", "target", ")",
         ],
     },
     GrammarCase {
@@ -444,5 +444,5 @@ fn non_newline_trivia_preserves_significant_tokens_and_syntax_shape() {
         }
     }
 
-    assert_eq!(executed, 1_175);
+    assert_eq!(executed, 1_172);
 }

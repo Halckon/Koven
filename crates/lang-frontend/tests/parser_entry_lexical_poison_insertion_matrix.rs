@@ -112,9 +112,9 @@ fn inserting_lexer_poison_at_each_token_gap_is_total_for_every_entry() {
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(token_count, 240);
-    assert_eq!(gap_counts, [70, 108, 74]);
-    assert_eq!(mutation_counts, [280, 432, 296]);
-    assert_eq!(poison_counts, [252; 4]);
-    assert_eq!((code_mode_gaps, string_mode_gaps), (239, 13));
+    assert_eq!(token_count, 239);
+    assert_eq!(gap_counts, [69, 108, 74]);
+    assert_eq!(mutation_counts, [276, 432, 296]);
+    assert_eq!(poison_counts, [251; 4]);
+    assert_eq!((code_mode_gaps, string_mode_gaps), (238, 13));
 }

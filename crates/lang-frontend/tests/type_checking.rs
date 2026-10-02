@@ -676,7 +676,7 @@ fn construction_reuses_named_arity_mode_and_type_diagnostics() {
     let text = "class Pair(val first: Int, val second: Int)
                 fun named(): Unit { val result = Pair(missing = 1, second = 2) }
                 fun arity(): Unit { val result = Pair(1) }
-                fun mode(): Unit { val result = Pair(borrow 1, 2) }
+                fun mode(): Unit { val result = Pair(&1, 2) }
                 fun typed(): Unit { val result = Pair(true, 2) }";
     let (sources, _, _, typed) = checked(text);
 

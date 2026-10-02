@@ -21,6 +21,8 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test ownership_rc --test multifile_ownership_checking
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_contextual_type_ref --test parser_class_family \
+  --test parser_call_argument --test parser_diagnostic_witness_matrix \
+  --test parser_return_control --test tree_sitter_grammar --test textmate_grammar \
   --test parser_block_line_continuation --test parser_entry_line_break_boundary_matrix \
   --test parser_block --test parser_expression --test parser_control_flow \
   --test parser_lambda --test parser_local_destructuring --test parser_trailing_lambda \

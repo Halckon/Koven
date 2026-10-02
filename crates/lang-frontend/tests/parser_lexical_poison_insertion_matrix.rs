@@ -139,7 +139,7 @@ fn inserting_lexer_poison_at_each_token_gap_preserves_the_complete_grammar() {
             string_mode_gaps,
             executed,
         ),
-        (396, 418, 409, 9, 1_672)
+        (395, 417, 408, 9, 1_668)
     );
-    assert_eq!(poison_counts, [418; 4]);
+    assert_eq!(poison_counts, [417; 4]);
 }

@@ -102,7 +102,7 @@ fn transposing_each_adjacent_token_pair_is_total_and_deterministic_for_every_ent
     }
 
     assert_eq!(case_counts, [4, 4, 4]);
-    assert_eq!(token_counts, [66, 104, 70]);
-    assert_eq!(mutation_counts, [62, 100, 66]);
-    assert_eq!((lexical_mode_mutations, exact_relexed_mutations), (27, 201));
+    assert_eq!(token_counts, [65, 104, 70]);
+    assert_eq!(mutation_counts, [61, 100, 66]);
+    assert_eq!((lexical_mode_mutations, exact_relexed_mutations), (27, 200));
 }
