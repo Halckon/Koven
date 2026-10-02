@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 235 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 236 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -304,3 +304,8 @@
 ## 2026-10-02 普通 owned-unit 封闭交接
 
 - [SPEC-0249](0249-owned-unit-borrowed-handoff.md)：普通六借用工厂与旧入口兼容转接；身份/能力/输出合同、动态计数及首轮双宿主验收完成，性能噪声不支持提速结论
+
+
+## 2026-10-02 共享 unit 名称前缀首片
+
+- [SPEC-0250](0250-unit-name-snapshot.md)：封闭名称snapshot与CLI project纯前缀首迁；全事实parity、来源/恢复/借用与首轮双宿主验收完成，后续driver与LSP迁移保持独立

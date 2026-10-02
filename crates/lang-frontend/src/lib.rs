@@ -1,5 +1,8 @@
 //! Koven 源码前端的公共 crate 边界。
 
+/// 显式内存源码的纯阶段编排与封闭只读 snapshot。
+pub mod analysis;
+
 /// 保留源码范围的索引式 AST 存储骨架。
 pub mod ast;
 

@@ -11,19 +11,20 @@ use lang_codegen::{
     emit_native_owned_unit_object,
 };
 use lang_frontend::{
+    analysis::{UnitNameAnalysisError, UnitSourceDescriptor, analyze_unit_names},
     ast::AstError,
     diagnostic::Diagnostic,
-    lexer::{LexerInternalError, lex},
+    lexer::LexerInternalError,
     name_resolution::{
         CompilationUnitInputError, CompilationUnitNameError, DeclarationVisibility, SourceUnit,
         SourceUnitInput, SymbolKind, UnitDiagnosticOrderError, ValidatedCompilationUnitNames,
-        index_compilation_unit, ordered_unit_diagnostics, resolve_compilation_unit_names,
+        ordered_unit_diagnostics,
     },
     ownership_checking::{
         OwnershipCheckingError, check_compilation_unit_constant_ownership,
         check_compilation_unit_ownership, owned_compilation_unit_view,
     },
-    parser::{FunctionBody, FunctionForm, Item, ParsedFile, ParserInternalError, parse_file},
+    parser::{FunctionBody, FunctionForm, Item, ParserInternalError},
     source::{SourceError, SourceMap},
     type_checking::{
         BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, IntrinsicTypeConstructor,
@@ -126,44 +127,53 @@ pub(crate) fn emit_project_object(
     let project = load_project_source_set(manifest).map_err(ProjectBuildError::Project)?;
     validate_project_paths(manifest, &project, protected_outputs)?;
     let mut sources = SourceMap::new();
-    let mut source_ids = Vec::with_capacity(project.sources().len());
-    let mut parsed = Vec::with_capacity(project.sources().len());
+    let mut descriptors = Vec::with_capacity(project.sources().len());
     for source in project.sources() {
         let source_name = format!("{}/{}", source.root_identity(), source.logical_path());
         let source_id = sources
             .add_source(source_name, source.text())
             .map_err(ProjectBuildError::Source)?;
-        let lexed = lex(&sources, source_id).map_err(ProjectBuildError::Lexer)?;
-        parsed.push(parse_file(&sources, &lexed).map_err(ProjectBuildError::Parser)?);
-        source_ids.push(source_id);
+        descriptors.push(UnitSourceDescriptor::new(
+            source.root_identity(),
+            source.logical_path(),
+            source_id,
+        ));
     }
-    let inputs = project_inputs(&project, &source_ids, &parsed);
-    let index = index_compilation_unit(&sources, &inputs).map_err(ProjectBuildError::Input)?;
     let (name_environment, type_environment) = standard_environments();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-        .map_err(ProjectBuildError::Name)?;
+    let snapshot =
+        analyze_unit_names(sources, descriptors, name_environment).map_err(
+            |error| match error {
+                UnitNameAnalysisError::Lexer(error) => ProjectBuildError::Lexer(error),
+                UnitNameAnalysisError::Parser(error) => ProjectBuildError::Parser(error),
+                UnitNameAnalysisError::Input(error) => ProjectBuildError::Input(error),
+                UnitNameAnalysisError::Name(error) => ProjectBuildError::Name(error),
+            },
+        )?;
+    let sources = snapshot.sources();
+    let inputs = snapshot.inputs();
+    let names = snapshot.names();
     if !names.diagnostics().is_empty() {
         return Err(frontend_diagnostics(
-            &sources,
+            sources,
             names.index().source_units(),
             names.diagnostics(),
         )?);
     }
-    let names = match names.validate() {
-        Ok(names) => names,
-        Err(names) => {
+    let names = match snapshot.validated_names() {
+        Some(names) => names,
+        None => {
             return Err(frontend_diagnostics(
-                &sources,
+                sources,
                 names.index().source_units(),
                 names.diagnostics(),
             )?);
         }
     };
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+    let typed = check_compilation_unit_types(sources, &inputs, names, &type_environment)
         .map_err(ProjectBuildError::Type)?;
     if !typed.diagnostics().is_empty() {
         return Err(frontend_diagnostics(
-            &sources,
+            sources,
             names.names().index().source_units(),
             typed.diagnostics(),
         )?);
@@ -176,23 +186,23 @@ pub(crate) fn emit_project_object(
                 Ok(typed) => typed,
                 Err(typed) => {
                     return Err(frontend_diagnostics(
-                        &sources,
+                        sources,
                         names.names().index().source_units(),
                         typed.diagnostics(),
                     )?);
                 }
             };
             let owned = check_compilation_unit_constant_ownership(
-                &sources,
+                sources,
                 &inputs,
-                &names,
+                names,
                 &type_environment,
                 &typed,
             )
             .map_err(ProjectBuildError::Ownership)?;
             if !owned.ownership().diagnostics().is_empty() {
                 return Err(frontend_diagnostics(
-                    &sources,
+                    sources,
                     names.names().index().source_units(),
                     owned.ownership().diagnostics(),
                 )?);
@@ -200,26 +210,26 @@ pub(crate) fn emit_project_object(
             let owned = owned
                 .validate()
                 .map_err(|_| ProjectBuildError::IncompleteOwnership)?;
-            let entry = select_project_entry(selector, &inputs, &names, typed.types())?;
+            let entry = select_project_entry(selector, &inputs, names, typed.types())?;
             return emit_native_constant_unit_object(
-                &sources,
+                sources,
                 &inputs,
-                &names,
+                names,
                 &type_environment,
                 &typed,
                 &owned,
                 entry,
                 object,
             )
-            .map_err(|error| codegen_error(&sources, names.names().index().source_units(), error));
+            .map_err(|error| codegen_error(sources, names.names().index().source_units(), error));
         }
     };
     let owned =
-        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+        check_compilation_unit_ownership(sources, &inputs, names, &type_environment, &typed)
             .map_err(ProjectBuildError::Ownership)?;
     if !owned.diagnostics().is_empty() {
         return Err(frontend_diagnostics(
-            &sources,
+            sources,
             names.names().index().source_units(),
             owned.diagnostics(),
         )?);
@@ -228,14 +238,14 @@ pub(crate) fn emit_project_object(
         Ok(owned) => owned,
         Err(_) => return Err(ProjectBuildError::IncompleteOwnership),
     };
-    let entry = select_project_entry(selector, &inputs, &names, typed.types())?;
+    let entry = select_project_entry(selector, &inputs, names, typed.types())?;
     let unit =
-        owned_compilation_unit_view(&sources, &inputs, &names, &type_environment, &typed, &owned)
+        owned_compilation_unit_view(sources, &inputs, names, &type_environment, &typed, &owned)
             .map_err(|error| {
-            codegen_error(&sources, names.names().index().source_units(), error.into())
-        })?;
+                codegen_error(sources, names.names().index().source_units(), error.into())
+            })?;
     emit_native_owned_unit_object(&unit, entry, object)
-        .map_err(|error| codegen_error(&sources, names.names().index().source_units(), error))
+        .map_err(|error| codegen_error(sources, names.names().index().source_units(), error))
 }
 
 fn validate_project_paths(
@@ -299,27 +309,6 @@ fn validate_project_paths(
         }
     }
     Ok(())
-}
-
-fn project_inputs<'a>(
-    project: &'a ProjectSourceSet,
-    source_ids: &'a [lang_frontend::source::SourceId],
-    parsed: &'a [ParsedFile],
-) -> Vec<SourceUnitInput<'a>> {
-    project
-        .sources()
-        .iter()
-        .zip(source_ids.iter().copied())
-        .zip(parsed)
-        .map(|((source, source_id), parsed)| {
-            SourceUnitInput::new(
-                source.root_identity(),
-                source.logical_path(),
-                source_id,
-                parsed,
-            )
-        })
-        .collect()
 }
 
 fn select_project_entry(

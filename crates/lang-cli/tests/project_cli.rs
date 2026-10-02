@@ -308,6 +308,158 @@ fn project_frontend_diagnostics_precede_entry_and_preserve_source_key_order() {
     assert_no_build_temporaries(project.path());
 }
 
+const TYPE_GATE_BODY: &str = "fun typed(): Unit { val item: String = 1 }\n";
+const OWNERSHIP_GATE_BODY: &str = "class Resource()\n\
+    fun moved(own resource: Resource): Unit {\n\
+    val first = resource\n\
+    val second = resource\n\
+    }\n";
+
+#[test]
+fn project_names_gate_aggregates_lex_parse_and_names_without_later_diagnostics() {
+    let project = TestProject::create("names-gate");
+    let manifest = project.manifest(&["zroot", "aroot"]);
+    project.write(
+        "zroot/z/Names.ko",
+        "package z\nfun names(): Unit { missingZ }\n",
+    );
+    project.write(
+        "aroot/a/Prefix.ko",
+        "package a\n#\nfun parsed(): Unit { ) val kept = 1 }\n\
+         fun names(): Unit { missingA }\n",
+    );
+    project.write(
+        "aroot/a/Later.ko",
+        &format!("package a\n{TYPE_GATE_BODY}{OWNERSHIP_GATE_BODY}"),
+    );
+
+    // Lexer/Parser 诊断已由 names 聚合；重复收集或提前 fail-fast 都会改变精确结果。
+    assert_project_gate(
+        &project,
+        &manifest,
+        &[
+            gate_diagnostic("L0001", "aroot/a/Prefix.ko", 10..11, 2, 1),
+            gate_diagnostic("L0029", "aroot/a/Prefix.ko", 33..34, 3, 22),
+            gate_diagnostic("L0080", "aroot/a/Prefix.ko", 70..78, 4, 21),
+            gate_diagnostic("L0080", "zroot/z/Names.ko", 30..38, 2, 21),
+        ],
+    );
+}
+
+#[test]
+fn project_type_gate_precedes_ownership_and_entry_in_source_key_order() {
+    let project = TestProject::create("type-gate");
+    let manifest = project.manifest(&["zroot", "aroot"]);
+    for (source, package) in [("zroot/z/Later.ko", "z"), ("aroot/a/Later.ko", "a")] {
+        project.write(
+            source,
+            &format!("package {package}\n{TYPE_GATE_BODY}{OWNERSHIP_GATE_BODY}"),
+        );
+    }
+
+    // 与 names gate 中相同的后续错误，在无前缀错误时只发布类型诊断。
+    assert_project_gate(
+        &project,
+        &manifest,
+        &[
+            gate_diagnostic("L0084", "aroot/a/Later.ko", 49..50, 2, 40),
+            gate_diagnostic("L0084", "zroot/z/Later.ko", 49..50, 2, 40),
+        ],
+    );
+}
+
+#[test]
+fn project_ownership_gate_precedes_entry_in_source_key_order() {
+    let project = TestProject::create("ownership-gate");
+    let manifest = project.manifest(&["zroot", "aroot"]);
+    for (source, package) in [("zroot/z/Moves.ko", "z"), ("aroot/a/Moves.ko", "a")] {
+        project.write(source, &format!("package {package}\n{OWNERSHIP_GATE_BODY}"));
+    }
+
+    // 同一 move-only fixture 去掉类型错误后，ownership 诊断仍先于缺失 entry。
+    assert_project_gate(
+        &project,
+        &manifest,
+        &[
+            gate_diagnostic("L0131", "aroot/a/Moves.ko", 103..111, 5, 14),
+            gate_diagnostic("L0131", "zroot/z/Moves.ko", 103..111, 5, 14),
+        ],
+    );
+}
+
+fn gate_diagnostic(
+    code: &str,
+    source: &str,
+    bytes: std::ops::Range<usize>,
+    line: usize,
+    column: usize,
+) -> serde_json::Value {
+    // 这些 oracle 的 primary 均是单行 ASCII token；字节宽度等于展示列宽。
+    serde_json::json!({
+        "code": code,
+        "primary": {
+            "source": source,
+            "byte_start": bytes.start,
+            "byte_end": bytes.end,
+            "start": { "line": line, "column": column },
+            "end": { "line": line, "column": column + bytes.len() },
+        },
+    })
+}
+
+fn assert_project_gate(project: &TestProject, manifest: &Path, expected: &[serde_json::Value]) {
+    let human_output = project.join("human");
+    let human = project_build(manifest, "absent.entry", &human_output, None);
+    assert_eq!(human.status.code(), Some(1), "{human:?}");
+    assert!(human.stdout.is_empty(), "{human:?}");
+    let human_text = String::from_utf8(human.stderr).expect("UTF-8 gate diagnostics");
+    assert!(human_text.ends_with('\n'), "{human_text:?}");
+    assert!(!human_text.contains("absent.entry"), "{human_text}");
+    let headers = human_text
+        .lines()
+        .filter(|line| !line.starts_with("  "))
+        .collect::<Vec<_>>();
+    assert_eq!(headers.len(), expected.len(), "{human_text}");
+    for (header, diagnostic) in headers.iter().zip(expected) {
+        let primary = &diagnostic["primary"];
+        let prefix = format!(
+            "error[{}] {}:{}:{}-{}:{}: ",
+            diagnostic["code"].as_str().expect("expected code"),
+            primary["source"].as_str().expect("expected source"),
+            primary["start"]["line"],
+            primary["start"]["column"],
+            primary["end"]["line"],
+            primary["end"]["column"],
+        );
+        assert!(header.starts_with(&prefix), "{human_text}");
+    }
+    assert!(!human_output.exists());
+    assert_no_build_temporaries(project.path());
+
+    let json_output = project.join("json");
+    let json = project_build(manifest, "absent.entry", &json_output, Some("json"));
+    assert_eq!(json.status.code(), Some(1), "{json:?}");
+    assert!(json.stdout.is_empty(), "{json:?}");
+    let json_text = String::from_utf8(json.stderr).expect("JSON Lines gate diagnostics");
+    assert!(json_text.ends_with('\n'), "{json_text:?}");
+    let records = json_text
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("JSON gate diagnostic"))
+        .collect::<Vec<_>>();
+    let actual = records
+        .iter()
+        .map(|record| {
+            assert_eq!(record["schema"], "koven.diagnostic");
+            assert_eq!(record["version"], 1);
+            assert_eq!(record["severity"], "error");
+            serde_json::json!({ "code": record["code"], "primary": record["primary"] })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected, "{records:?}");
+    assert!(!json_output.exists());
+    assert_no_build_temporaries(project.path());
+}
+
 #[test]
 fn project_output_preflight_and_operational_errors_are_non_clobbering() {
     let project = TestProject::create("failures");

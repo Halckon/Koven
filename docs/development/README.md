@@ -27,6 +27,7 @@
 - [P2 multifile type integration分组](multifile-type-test-migration.md)：107项逐字保全、17新域、source-qualified facts与原CI覆盖
 
 - [P3a 普通 unit 交接合同基线](unit-handoff-contract-baseline.md)：六输入独立拒绝、合法clone/重排与隔离reserve计数
+- [SPEC-0250 名称前缀](../archive/specs/0250-unit-name-snapshot.md)：CLI project 首迁、同源全事实 parity 与封闭 owner 合同
 - [SPEC-0249 交接测量](owned-unit-handoff-measurement.md)：动态 native/lower/factory 次数、完整同协议样本与噪声边界
 
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。

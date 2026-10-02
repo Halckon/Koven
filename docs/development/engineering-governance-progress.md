@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 235 archive（0249有界归档）；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 236 archive（0250名称前缀首片有界归档）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30首轮双宿主通过，编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31最终head待CI | 0250仅迁CLI project纯名称前缀；bootstrap、LSP与const owned owner后续分片，不合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -309,3 +309,34 @@ stage/Guide实际通过，完整映射见[归档0249后继账本](../archive/spe
 未自动完成。归档文档新 head CI 仍待实际运行，最终结果留 PR，不反复追加 Git 外部状态；
 本归档不自动改变 PR 的 Draft 状态或启用 auto-merge；最终合并遵循现有授权与最终门禁，
 原外部审计排队次序不变。
+
+
+## SPEC-0250 共享名称前缀首片（2026-10-02）
+
+本片固定 PR30 merge `64ace382c2a634ebf19bab66da928242120930cd`，从刷新后的 main 建立
+`feature/spec-0250`；0250 在 active/drafts/archive 与本地/远端分支均未占用。
+[有界合同与唯一验收账本](../archive/specs/0250-unit-name-snapshot.md)限定 frontend 无 IO 的
+UnitNameSnapshot 与 CLI project 首迁；原 SourceMap 身份、canonical 语法/metadata 配对、
+同次 name/type environment、names首gate及basic/const/ownership/native后段保持。
+
+新增完整名字/索引/诊断 parity 与外部rustc合同，CLI 三个 gate fixture 先在旧前缀基线实跑。
+两新 frontend targets 进入原双宿主 stage 选集，policy红→绿，不新增workspace/dependency，
+不扩 frontend 全量。全部 Cargo 串行，独立实现review、Draft/exact-head双宿主CI仍待核验。
+本地命令、红/绿和未运行项只记录在0250账本，后续状态不能由本段静态实现描述替代。
+
+P3b完整driver/bootstrap/LSP迁移仍未完成；LSP const/recovery和legacy协议本片不改。
+0182、其余P2/P4/P5及整体计划未自动完成，外部审计继续排在整体计划之后。
+
+
+### SPEC-0250 首轮双宿主与归档
+
+[PR31](https://github.com/Halckon/Koven/pull/31)首轮head83a54d6的
+[CI37062811973](https://github.com/Halckon/Koven/actions/runs/37062811973)9/9成功。
+两宿主新snapshot7/compile4及完整project_cli9逐名各恰一次ok；原core、stage、Guide实际成功。
+测试使用合成merge2ae137f，已fetch核实其tree1767f193与head完全相同，未将它描述为真实merge。
+详细父链、提交映射、原日志链接、macOS既有LLDB1 ignored和有界结论见
+[0250最终首轮账本](../archive/specs/0250-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+
+0250归档后当前1 active/236 archive；本节此前“待review/CI”保留为实施时快照。
+只完成CLI project名称前缀，完整P3b/bootstrap/LSP与其余治理未完成；最终归档head另行窄review/CI，
+终态留PR，由维护者决定合并，不自动转Ready或启用auto-merge，外部审计仍延后。

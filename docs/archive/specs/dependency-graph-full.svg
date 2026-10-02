@@ -6,7 +6,7 @@
   </defs>
   <rect width="5216" height="6970" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，235 份）</text>
+  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，236 份）</text>
   <rect x="4872" y="5406" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="5012" y="5426" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -312,6 +312,7 @@
   <path d="M 444 2088 C 444 2120, 2556 4058, 2556 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 2088 C 444 2120, 1236 3764, 1236 3796" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 2088 C 444 2120, 1764 3902, 1764 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 2088 C 444 2120, 708 5720, 708 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2538 C 708 2570, 4668 3296, 4668 3328" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2538 C 708 2570, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2538 C 708 2570, 1764 3902, 1764 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -945,6 +946,7 @@
   <path d="M 1500 5652 C 1500 5684, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1764 5670 C 1764 5702, 708 5720, 708 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -1936,4 +1938,8 @@
   <text x="1764" y="5619" text-anchor="middle" font-size="13">SPEC-0249</text>
   <text x="1764" y="5637" text-anchor="middle" font-size="13">普通 owned-unit </text>
   <text x="1764" y="5655" text-anchor="middle" font-size="13">封闭借用交接</text>
+  <rect x="588" y="5752" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="5775" text-anchor="middle" font-size="13">SPEC-0250</text>
+  <text x="708" y="5793" text-anchor="middle" font-size="13">封闭 unit 名称前缀 o</text>
+  <text x="708" y="5811" text-anchor="middle" font-size="13">wner</text>
 </svg>

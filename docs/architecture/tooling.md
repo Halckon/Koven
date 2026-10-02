@@ -14,8 +14,10 @@
 - 显式 `project.toml` 的本地 project build/run。
 
 project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
-file identity，再发布不可变、稳定排序的 source-set snapshot。build 在同一 SourceMap 中运行 unit
-name/type/ownership validation，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
+file identity，再发布不可变、稳定排序的 source-set snapshot。build 注册原 SourceMap 后将其移动进
+frontend `analyze_unit_names`，取得拥有源码/语法/环境/名称事实的只读 `UnitNameSnapshot`；
+首个非空诊断 gate 仍在完整 names 前缀后。type/ownership validation 继续留宿主，成功后进入
+单 object、link 和原子 executable 发布。CLI 不从 cwd 或
 祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
 `emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
