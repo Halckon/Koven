@@ -5,7 +5,7 @@
 本文保留显式复制方案的讨论，不作为规范真源。2026-10-01 用户批准先落地 String.clone()，
 暂缓 Str 和 toString()；仅 builtin String 的 shared Borrow → 独立 owner 切片已进入
 [v0.40 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，由
-[SPEC-0236](../specs/active/0236-explicit-string-clone.md) 实施、
+[SPEC-0236](../archive/specs/0236-explicit-string-clone.md) 实施、
 [ADR-0027](../adr/accepted/0027-explicit-string-clone-abi.md) 固定增量 ABI。
 其他类型、泛型复制能力与 nullable 特例仍未启用；本页不批准它们。相关取舍见
 [String Copyable 候选取舍](string-copyability.md) 与

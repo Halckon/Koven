@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="5480" height="6970" viewBox="0 0 5480 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="5216" height="6970" viewBox="0 0 5216 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="5480" height="6970" fill="#ffffff"/>
+  <rect width="5216" height="6970" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，232 份）</text>
-  <rect x="4872" y="5406" width="544" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5144" y="5426" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，233 份）</text>
+  <rect x="4872" y="5406" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="5012" y="5426" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -872,7 +872,7 @@
   <path d="M 708 5358 C 708 5390, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5358 C 708 5390, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5358 C 708 5390, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 5321 C 2992 5321, 2992 5477, 5156 5477" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5358 C 708 5390, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5358 C 972 5390, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5358 C 972 5390, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5514 C 444 5546, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1875,10 +1875,10 @@
   <text x="2028" y="87" text-anchor="middle" font-size="13">SPEC-0235</text>
   <text x="2028" y="105" text-anchor="middle" font-size="13">三项批准规则在真实 clon</text>
   <text x="2028" y="123" text-anchor="middle" font-size="13">e-first 基线启用</text>
-  <rect x="5156" y="5440" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="5276" y="5463" text-anchor="middle" font-size="13" font-weight="600">SPEC-0236</text>
-  <text x="5276" y="5481" text-anchor="middle" font-size="13">String.clone 显</text>
-  <text x="5276" y="5499" text-anchor="middle" font-size="13">式深拷贝端到端</text>
+  <rect x="2172" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2292" y="5463" text-anchor="middle" font-size="13">SPEC-0236</text>
+  <text x="2292" y="5481" text-anchor="middle" font-size="13">String.clone 显</text>
+  <text x="2292" y="5499" text-anchor="middle" font-size="13">式深拷贝端到端</text>
   <rect x="2172" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="2292" y="87" text-anchor="middle" font-size="13">SPEC-0237</text>
   <text x="2292" y="105" text-anchor="middle" font-size="13">八阶段本地整合与交叉契约验证</text>

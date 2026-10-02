@@ -65,7 +65,7 @@ String? 的 inline-nullable native ABI 限制保持不变。Str 和 toString() �
 
 ## 关联
 
-- 实施 Spec：[SPEC-0236](../../specs/active/0236-explicit-string-clone.md)
+- 实施 Spec：[SPEC-0236](../../archive/specs/0236-explicit-string-clone.md)
 - 增量扩展：[ADR-0018 String owner ABI](0018-string-owner-runtime-abi.md)；原决定继续有效
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

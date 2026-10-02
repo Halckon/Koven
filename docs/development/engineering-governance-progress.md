@@ -10,9 +10,9 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15 已合并；文档范围 exact-head CI 通过 | 逐项复核 16 候选；15 项归档，0236 因 Span 证据不足保留 active；同步最终账本/索引/inventory/DAG/roadmap |
+| P1a 文档生命周期 | PR15与后继PR17均已合并 | PR15归档15项；PR17补齐0236 Span证据后独立归档，当前1 active / 233 archive；0182继续独立补强 |
 | P1b 0182 证据 | 待独立批次 | 保持 active；补真实 for→SSA/native 的次数、顺序、畸形产物与确定性 oracle |
-| P2 测试结构与软上限 | LSP首片 PR16 已合并；尺寸护栏本批实施，待发布/CI | 49项新main历史baseline、明确base增长检查与例外登记；后续搬迁前补受控时间/RSS样本 |
+| P2 测试结构与软上限 | LSP首片 PR16 已合并；尺寸护栏PR18已Draft，新main同步本地重验通过，待新head CI | 49项新main历史baseline、明确base增长检查与例外登记；后续搬迁前补受控时间/RSS样本 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -39,13 +39,15 @@
 malformed/mixed products 与确定性已具备完整集成 oracle。前端已有事实测试可复用，
 但不替代真实 for→lowering/native 的证据。独立批次先建立逐项映射，再补缺口；当前未证明生产 bug。
 
-## 0236 的新增验收缺口
+## 0236 的验收缺口与后继补齐
 
-[0236](../specs/active/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
+[0236](../archive/specs/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
 直接 `string_clone` suite 的双入口 helper 精确比较诊断 code，但没有 span/primary 断言；
 生产 checker 使用 `name_span` 只是静态实现证据，不能替代回归 oracle。
 因此不按批准计划中的候选数量机械关闭；本批保持 `in-progress`，后继单独补定向测试。
 没有据此判定生产 bug，也不重跑无关全量测试或降低原合同。
+
+后继[PR #17](https://github.com/Halckon/Koven/pull/17)为原14个测试补齐双入口精确Span、source identity与UTF-8 byte offset oracle；[首轮精确head CI](https://github.com/Halckon/Koven/actions/runs/36994788404)双宿主各14/14实际通过，8/8 jobs success，随后独立归档0236。上段保留P1首批识别缺口的历史；归档提交最终CI结果见同一PR，不扩大原语言范围。
 
 ## 持续更新与交付
 
@@ -60,7 +62,7 @@ malformed/mixed products 与确定性已具备完整集成 oracle。前端已有
 - [PR15](https://github.com/Halckon/Koven/pull/15) 于本日合并，merge
   `353667587b46db9bc214730c51f9df8cca7ca748`。head `9b137faae184b14ecfda4ed6fb32b61323df6591`
   的[CI 36989856621](https://github.com/Halckon/Koven/actions/runs/36989856621)为文档范围通过；
-  Rust矩阵合法skipped，不表述为本PR双平台Rust验收。2 active/232 archive事实保持
+  Rust矩阵合法skipped，不表述为本PR双平台Rust验收。2 active/232 archive保留为该批历史快照
 - [PR16](https://github.com/Halckon/Koven/pull/16) 随后合并为
   `4383509dbfb805f774581a29136fc46dd62504a4`。head `3d1c2a24ef92afdf35d1aec3982b58aa0b02fc06`
   的[CI 36991173937](https://github.com/Halckon/Koven/actions/runs/36991173937)双宿主8/8成功；
@@ -88,3 +90,28 @@ malformed/mixed products 与确定性已具备完整集成 oracle。前端已有
 - 本批没有Rust/Cargo源码变化；本地没有重跑Rust行为、native、frontend全量或macOS。
   workflow改动触发PR现有双宿主门禁，Draft PR与精确head结果待发布后记录在PR中
 - 代码/测试/CI与政策/状态文档分成两个提交，可按本批diff回退，不降低既有测试或改写旧验收
+
+## PR17 合并后的 PR18 同步（2026-10-02）
+
+用户已合并[PR17](https://github.com/Halckon/Koven/pull/17)，main更新为
+`55695ae8590c5bb5094496502f2e63010f865197`。归档head
+`6ac644e38a1f344f7f242e0db1e3e4aadf6ff723`的
+[CI 36996248457](https://github.com/Halckon/Koven/actions/runs/36996248457)双宿主8/8成功，
+string_clone在两宿主各14/14实际通过；0236已归档，当前为1 active / 233 archive。
+以上P0、PR15/16和PR18首轮验收保留各自固定基底的历史，不倒填为当时已完成0236。
+
+PR18首轮head `d2380c6ecc4b885830f7798d0e82b4aca5c2dd96`的
+[CI 36995565580](https://github.com/Halckon/Koven/actions/runs/36995565580)已经9/9成功。
+本次从该远端head普通merge新main，保留双方父链，不force改写；唯一文本冲突是roadmap的
+当前进度段落，解法同时保留PR15/16已合并、0236由PR17补齐归档和P2后继职责。
+当前治理摘要同步1/233，原始Spec验收、P0历史及0236缺口发现记录均保全。
+
+尺寸baseline仍以4383509为历史来源；新main实际逐文件重算为596个手写Rust文件与49项
+超限记录，与原baseline完全一致，未重生成或提高额度。本次不新增Rust变化，不把PR17的Span补强归功于护栏。
+新head的本地验证与双宿主CI独立核验，不能沿用首轮9/9；冷/热compile/link、RSS与重复
+性能样本仍未测，0182仍待独立补强。
+
+本次同步实际重跑：完整Python policy 94/94、docs 461 Markdown、尺寸护栏（base明确为
+55695ae；596手写/49历史超限/0生成物）、fmt与diff检查均通过；DAG重生成后无diff，
+live/archive为1/233。相对新main的全部Rust/Cargo文件diff为空，护栏实现、policy与测试
+相对PR18首轮head亦无diff；没有重跑本地Rust行为或macOS，远端新head门禁结果留在PR18。

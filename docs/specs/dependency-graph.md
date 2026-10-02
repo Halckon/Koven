@@ -8,13 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 232 份"))
+ARCH(("已完成<br/>archive 233 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0236["S0236<br/>String.clone 显式深拷贝端到端"]
 end
 ARCH --> S0182
-ARCH --> S0236
 ```
 
 ## 节点链接
@@ -22,5 +20,4 @@ ARCH --> S0236
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
-| SPEC-0236 | active | [0236-explicit-string-clone.md](active/0236-explicit-string-clone.md) |
-| 已完成 Spec（232 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（233 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

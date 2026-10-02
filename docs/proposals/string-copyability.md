@@ -5,7 +5,7 @@
 本文只整理“是否让 String 满足 Copyable”的候选取舍，仍未启用，也不授权改变 Copyable。
 其中建议的显式 String.clone() 已单独由用户批准进入
 [v0.40 String](../guide/13-program-runtime-standard-library.md#封闭的最小操作)，实施见
-[SPEC-0236](../specs/active/0236-explicit-string-clone.md)。String 继续为 MoveOnly + Transferable；
+[SPEC-0236](../archive/specs/0236-explicit-string-clone.md)。String 继续为 MoveOnly + Transferable；
 此项启用不表示本页其他方向、ARC/GC、静态 Str 或 toString() 已获批准。
 
 ## 1. 问题与现行事实

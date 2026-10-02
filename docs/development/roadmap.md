@@ -6,12 +6,12 @@
 
 1. 语言规则与强制 Phase 以 [Guide v0.40](../guide/README.md) 为准
 2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
-3. [Active Specs](../specs/active/README.md)给出当前有界合同；0182 的集成验收与 0236 的诊断 Span 补强独立于本批归档
+3. [Active Specs](../specs/active/README.md)给出当前有界合同；0182 的集成验收继续独立推进；0236诊断Span补强经双宿主验收后归档
 4. [整体架构与工程治理计划](engineering-governance-plan.md)给出获批 P0–P5 顺序、允许依赖与回退边界
 5. [治理执行账本](engineering-governance-progress.md)记录每批真实进度与下一门禁；没有实施/验收的目标不称当前能力
 
-P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0182 集成与 0236 Span 精确证据
-仍独立推进。P2 继续落地[尺寸护栏](rust-size-policy.md)与下一领域的有界搬迁，
+P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 Span 精确证据由 PR17
+补齐并归档，当前仅0182保持active。P2 继续落地[尺寸护栏](rust-size-policy.md)与下一领域的有界搬迁，
 P3 先封闭普通 unit 交接、再共享宿主编排。P4 仅在语义/recovery parity 成立时逐域收敛。
 P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
 

@@ -10,21 +10,60 @@ use lang_frontend::{
         LoanEndPoint, LoanKind, check_compilation_unit_ownership, check_ownership,
     },
     parser::parse_file,
-    source::SourceMap,
+    source::{SourceId, SourceMap},
     type_checking::{
         Copyability, ExpressionCategory, ParameterMode, StringOperationKind,
         check_compilation_unit_types, check_types, standard_environments,
     },
 };
 
-fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
-    diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.code().to_string())
-        .collect()
+// 每个期望使用唯一源码上下文定位，避免相同 token 的错误 occurrence 也通过 slice 断言。
+fn assert_diagnostics(
+    sources: &SourceMap,
+    source: SourceId,
+    diagnostics: &[Diagnostic],
+    expected: &[(&str, &str, &str)],
+    stage: &str,
+) {
+    assert_eq!(
+        diagnostics.len(),
+        expected.len(),
+        "{stage}: {diagnostics:?}"
+    );
+    let text = sources.source_text(source).expect("source text");
+    for (diagnostic, &(code, context, highlighted)) in diagnostics.iter().zip(expected) {
+        assert_eq!(
+            text.matches(context).count(),
+            1,
+            "unique diagnostic context"
+        );
+        assert_eq!(context.matches(highlighted).count(), 1, "unique highlight");
+        let start =
+            text.find(context).expect("context") + context.find(highlighted).expect("highlight");
+        assert!(
+            start > text[..start].chars().count(),
+            "UTF-8 byte offset fixture"
+        );
+        let span = sources
+            .span(source, start, start + highlighted.len())
+            .expect("expected byte span");
+        assert_eq!(diagnostic.code().to_string(), code, "{stage}");
+        assert_eq!(diagnostic.primary_span(), span, "{stage}: {context}");
+        assert_eq!(
+            sources
+                .slice(diagnostic.primary_span())
+                .expect("diagnostic slice"),
+            highlighted,
+            "{stage}"
+        );
+    }
 }
 
-fn check_both(text: &str, type_codes: &[&str], ownership_codes: &[&str]) {
+fn check_both(
+    text: &str,
+    type_diagnostics: &[(&str, &str, &str)],
+    ownership_diagnostics: &[(&str, &str, &str)],
+) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("string-clone.ko", text).expect("source");
     let lexed = lex(&sources, source).expect("lex");
@@ -38,19 +77,27 @@ fn check_both(text: &str, type_codes: &[&str], ownership_codes: &[&str]) {
     let names = resolve_names(&sources, &parsed, &environment).expect("names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
     let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    assert_eq!(codes(typed.diagnostics()), type_codes, "single-file types");
-    if !type_codes.is_empty() {
+    assert_diagnostics(
+        &sources,
+        source,
+        typed.diagnostics(),
+        type_diagnostics,
+        "single-file types",
+    );
+    if !type_diagnostics.is_empty() {
         assert!(typed.string_operations().is_empty());
     }
-    if type_codes.is_empty() {
+    if type_diagnostics.is_empty() {
         let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-        assert_eq!(
-            codes(owned.diagnostics()),
-            ownership_codes,
-            "single-file ownership"
+        assert_diagnostics(
+            &sources,
+            source,
+            owned.diagnostics(),
+            ownership_diagnostics,
+            "single-file ownership",
         );
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-        if ownership_codes.is_empty() {
+        if ownership_diagnostics.is_empty() {
             assert_eq!(
                 typed.string_operations().len(),
                 owned.string_effects().len()
@@ -115,20 +162,28 @@ fn check_both(text: &str, type_codes: &[&str], ownership_codes: &[&str]) {
         .expect("valid unit names");
     let typed =
         check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types");
-    assert_eq!(codes(typed.diagnostics()), type_codes, "unit types");
-    if !type_codes.is_empty() {
+    assert_diagnostics(
+        &sources,
+        source,
+        typed.diagnostics(),
+        type_diagnostics,
+        "unit types",
+    );
+    if !type_diagnostics.is_empty() {
         assert!(typed.string_operations().is_empty());
     }
-    if type_codes.is_empty() {
+    if type_diagnostics.is_empty() {
         let typed = typed.validate().expect("valid unit types");
         let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
             .expect("unit ownership");
-        assert_eq!(
-            codes(owned.diagnostics()),
-            ownership_codes,
-            "unit ownership"
+        assert_diagnostics(
+            &sources,
+            source,
+            owned.diagnostics(),
+            ownership_diagnostics,
+            "unit ownership",
         );
-        if ownership_codes.is_empty() {
+        if ownership_diagnostics.is_empty() {
             assert_eq!(
                 typed.types().string_operations().len(),
                 owned.string_effects().len()
@@ -187,8 +242,11 @@ fn clone_borrows_elements_and_temporary_owners() {
 #[test]
 fn clone_rejects_arguments_and_type_arguments() {
     check_both(
-        "fun bad(text: String): String = text.clone(1)\nfun generic(text: String): String = text.clone<Int>()",
-        &["L0121", "L0091"],
+        "// 中文🙂 byte offsets\nfun bad(text: String): String = text.clone(1)\nfun generic(text: String): String = text.clone<Int>()",
+        &[
+            ("L0121", "text.clone(1)", "1"),
+            ("L0091", "text.clone<Int>()", "clone"),
+        ],
         &[],
     );
 }
@@ -196,9 +254,9 @@ fn clone_rejects_arguments_and_type_arguments() {
 #[test]
 fn clone_does_not_make_string_copyable() {
     check_both(
-        "fun main(): Unit { val source = \"hello\"; val moved = source; val copy = source.clone(); println(moved) }",
+        "// 中文🙂 byte offsets\nfun main(): Unit { val source = \"hello\"; val moved = source; val copy = source.clone(); println(moved) }",
         &[],
-        &["L0131"],
+        &[("L0131", "source.clone()", "source")],
     );
 }
 
@@ -223,8 +281,39 @@ fn clone_from_inout_and_generic_result_inference() {
 #[test]
 fn clone_rejects_non_string_intrinsics_and_nullable_receiver() {
     check_both(
-        "value class Atom(val value: Int)\nfun a(value: Int): Unit { value.clone() }\nfun b(value: List<String>): Unit { value.clone() }\nfun c(value: Array<String>): Unit { value.clone() }\nfun d(value: Rc<String>): Unit { value.clone() }\nfun e(value: Box<Atom>): Unit { value.clone() }\nfun f(value: String?): Unit { value.clone() }",
-        &["L0080", "L0080", "L0080", "L0080", "L0080", "L0080"],
+        "// 中文🙂 byte offsets\nvalue class Atom(val value: Int)\nfun a(value: Int): Unit { value.clone() }\nfun b(value: List<String>): Unit { value.clone() }\nfun c(value: Array<String>): Unit { value.clone() }\nfun d(value: Rc<String>): Unit { value.clone() }\nfun e(value: Box<Atom>): Unit { value.clone() }\nfun f(value: String?): Unit { value.clone() }",
+        &[
+            (
+                "L0080",
+                "fun a(value: Int): Unit { value.clone() }",
+                "clone",
+            ),
+            (
+                "L0080",
+                "fun b(value: List<String>): Unit { value.clone() }",
+                "clone",
+            ),
+            (
+                "L0080",
+                "fun c(value: Array<String>): Unit { value.clone() }",
+                "clone",
+            ),
+            (
+                "L0080",
+                "fun d(value: Rc<String>): Unit { value.clone() }",
+                "clone",
+            ),
+            (
+                "L0080",
+                "fun e(value: Box<Atom>): Unit { value.clone() }",
+                "clone",
+            ),
+            (
+                "L0080",
+                "fun f(value: String?): Unit { value.clone() }",
+                "clone",
+            ),
+        ],
         &[],
     );
 }
@@ -259,8 +348,8 @@ fn clone_holds_field_and_rc_owner_until_return() {
 #[test]
 fn failed_clone_overload_trials_publish_no_intrinsic_fact() {
     check_both(
-        "fun choose(callback: (Int) -> String): Int = 1\nfun choose(callback: (String) -> String): Int = 2\nfun main(): Unit { val source = \"text\"; val ambiguous = choose({ ignored -> source.clone() }) }",
-        &["L0124"],
+        "// 中文🙂 byte offsets\nfun choose(callback: (Int) -> String): Int = 1\nfun choose(callback: (String) -> String): Int = 2\nfun main(): Unit { val source = \"text\"; val ambiguous = choose({ ignored -> source.clone() }) }",
+        &[("L0124", "choose({ ignored -> source.clone() })", "choose")],
         &[],
     );
 }
@@ -291,9 +380,9 @@ fn safe_clone_preserves_the_existing_nullable_deferred_boundary() {
 #[test]
 fn clone_cannot_read_through_an_active_exclusive_loan() {
     check_both(
-        "fun hold(inout text: String, copy: String): Unit {}\nfun main(): Unit { var text = \"source\"; hold(&text, text.clone()) }",
+        "// 中文🙂 byte offsets\nfun hold(inout text: String, copy: String): Unit {}\nfun main(): Unit { var text = \"source\"; hold(&text, text.clone()) }",
         &[],
-        &["L0135"],
+        &[("L0135", "text.clone()", "text")],
     );
 }
 
