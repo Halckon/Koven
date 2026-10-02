@@ -59,7 +59,7 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
         | set(range(183, 200))
         | {201, 202, 203, 204, 205, 206, 207, 208, 209, 210}
         | set(range(213, 228))
-        | {211, 212, 243, 244, 246}
+        | {211, 212, 243, 244, 245, 246}
     )
 )
 EXPECTED_DRAFT_SPEC_IDS = {

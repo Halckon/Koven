@@ -6,7 +6,7 @@
   </defs>
   <rect width="8384" height="6970" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，216 份）</text>
+  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，217 份）</text>
   <rect x="4872" y="30" width="3448" height="5518" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="6596" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -938,6 +938,7 @@
   <path d="M 2028 5532 C 2028 5564, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 5652 C 1500 5684, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 156 C 708 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 156 C 708 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -1909,9 +1910,13 @@
   <text x="708" y="105" text-anchor="middle" font-size="13">owned mutable </text>
   <text x="708" y="123" text-anchor="middle" font-size="13">root 原子 replac</text>
   <text x="708" y="141" text-anchor="middle" font-size="13">e / swap</text>
-  <rect x="324" y="220" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="444" y="243" text-anchor="middle" font-size="13">SPEC-0246</text>
-  <text x="444" y="261" text-anchor="middle" font-size="13">owned local 普通</text>
-  <text x="444" y="279" text-anchor="middle" font-size="13"> class 一级字段 re</text>
-  <text x="444" y="297" text-anchor="middle" font-size="13">place</text>
+  <rect x="324" y="220" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="444" y="243" text-anchor="middle" font-size="13">SPEC-0245</text>
+  <text x="444" y="261" text-anchor="middle" font-size="13">具体普通 class 的资源</text>
+  <text x="444" y="279" text-anchor="middle" font-size="13">析构闭环</text>
+  <rect x="588" y="220" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="243" text-anchor="middle" font-size="13">SPEC-0246</text>
+  <text x="708" y="261" text-anchor="middle" font-size="13">owned local 普通</text>
+  <text x="708" y="279" text-anchor="middle" font-size="13"> class 一级字段 re</text>
+  <text x="708" y="297" text-anchor="middle" font-size="13">place</text>
 </svg>

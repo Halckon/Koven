@@ -80,6 +80,8 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
         native_entry: Option<entry::NativeEntryPlan>,
     ) -> Result<(), LlvmAdapterError> {
         self.declare_functions()?;
+        self.runtime
+            .define_drop_functions(self.ssa, &self.type_map, &self.functions)?;
         for function in &self.ssa.functions {
             let llvm_function = *self
                 .functions

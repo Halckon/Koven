@@ -181,3 +181,35 @@ multifile type 与五项完整编辑器 corpus 历史失败及全部有界实现
 归档变更只同步本 Spec 状态/路径、现行事实、inventory 与生成图，不改变已验证的 Rust 或
 门禁脚本。最终归档 head 发布后还会再验证一次双平台 CI；最终结果只更新 PR，避免为记录
 最后一轮 CI 反复产生账本提交。首轮成功不冒充尚未执行的最终归档 head 结果。
+
+
+## 10. main 整合复验
+
+2026-10-02 06:31:18 UTC，用户合并 [PR #12](https://github.com/Halckon/Koven/pull/12)，
+main 更新为 `e6e1100b8c273fbe3d19180bcc60506559683e5a`，包含 SPEC-0245 普通资源析构。
+本片归档 head `4d84ed5b3272a187a2685958714ac19dd1318723` 发布后与新 main 产生冲突，
+没有触发 `pull_request` CI；仅 push 检查成功不能代替双平台 PR 门禁。上节 head
+`6bd7ede4` / run `36973062892` 的成功只证明当时原基线，不改写、不冒充新组合证据。
+
+本地已安全整合该 main，合并提交 `5413fa3` 同时保留 SPEC-0245 / 0246 的完成记录及
+各自边界。两处 Member drop planner 冲突合并保留 Place 前缀父 owner 保护与资源
+`take_named` / `drop_named_asap` 策略；codegen 自动合并经审阅，不需要生产代码补丁。
+原 direct-field 切片范围不扩大，以下为整合后的实际验证，不复用原基线通过。
+
+| 整合验收项 | 当前状态 | 完成条件 |
+|---|---|---|
+| field/resource 交叉 | frontend 4 项 + single/unit native 8 项 passed | 正常/return/borrow、return/break/continue before-commit 与 Abort；逐 pointer 8/6/5 组计数和 deinit 顺序 |
+| 合并后直接 frontend | 5 suites / 85 passed | 字段 13、root 原语 14、资源 ownership 30、资源 type 11、原语 type 17 |
+| 合并后 core | frontend lib 187；codegen 678 + 4 doctests；CLI 66；LSP 26 passed | Linux 真实 object/link/run；无新增 ignore |
+| 合并后 stage / Guide | 63 targets / 810 passed；Guide 187 + 14 = 201 passed | Guide 另有 2020 filtered，不计作通过，仍非 frontend 全量 |
+| 合并后 fmt / check / clippy | 全通过 | `--locked --workspace --all-targets`，clippy `-D warnings`，统一 target 串行 |
+| 文档 / frozen inventory / 生成图 | 文档 455 篇、policy 45 项与文档范围 diff 检查通过 | 同时保留 0245 与 0246；较原轮新增资源 Spec/架构两页，历史正文不回写旧结论 |
+| 修复 head 双平台 PR CI | 待发布后验证 | exact head、event `pull_request`，所有必需 jobs/steps 完成，无未决必需项 |
+
+首轮交叉中，一项 frontend 夹具误把诊断 binding Span 当作 owner 定义，改用
+`CleanupOwnerValue` 后仍保留原构造 identity 强断言；三个 unit 夹具触发已披露的跨 source
+class mutable-field 边界，将 Holder 留同文件、资源与函数继续跨文件后通过。没有降低
+释放/顺序断言，也没有借整合扩展跨文件 mutability。
+
+只对整合修复 head 再执行最终双平台复验；最终结果更新 PR，不为日志状态再循环提交。
+PR 保持 Draft，不自动合并或改 ready；该状态不影响上节已经完成的原基线历史验收。

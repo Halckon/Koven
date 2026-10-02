@@ -32,6 +32,14 @@ fn write_module(output: &mut String, module: &Module) -> fmt::Result {
         write_type_kind(output, kind)?;
         writeln!(output)?;
     }
+    for (owner, function) in &module.deinits {
+        writeln!(
+            output,
+            "  deinit !t{} = @f{}",
+            owner.index(),
+            function.index()
+        )?;
+    }
     if !module.types.is_empty() && !module.functions.is_empty() {
         writeln!(output)?;
     }

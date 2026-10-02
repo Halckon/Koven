@@ -5,6 +5,8 @@
 Architecture 只描述当前仓库已经落地的结构，不保存决策历史或未来计划。长期理由见
 [ADR](../adr/README.md)，未启用方向见 [Proposals](../proposals/README.md)。
 
+资源用户析构的类型/所有权/SSA/native 有界事实见 [deinit 与资源生命周期](resource-deinit.md)。
+
 ## 当前流水线
 
 ```text
@@ -34,8 +36,9 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 调用处 Borrow marker 已移除；`borrow(...)` 按普通调用解析，旧 `f(borrow x)` 进入诊断恢复。
 位宽移位屏蔽已有 [整数位运算](integer-operations.md) 定向证据。owned root replace / swap
 已有 [原子置换专页](root-ownership-primitives.md)记录的全链路验收。SPEC-0246 的
-[一级字段 replace](direct-field-replace.md)已完成有界本地与首轮双平台 CI 验收，PR #13 保持 Draft；只读 deinit 切片
-PR #12 尚未合入本片基线。不由 Guide 启用或工作分支存在推断已完成支持。
+[一级字段 replace](direct-field-replace.md)在原基线完成有界本地与首轮双平台 CI 验收，PR #13 保持 Draft。
+[资源 deinit](resource-deinit.md) 的 PR #12 已合并进入 main `e6e1100`；字段分支已整合该基线，
+资源交叉与合并后本地门禁已重新通过，修复 head 双平台结果由 PR #13 跟踪。
 
 ## 按实现领域读取
 

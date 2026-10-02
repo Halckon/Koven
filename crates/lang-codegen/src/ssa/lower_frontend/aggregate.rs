@@ -32,6 +32,25 @@ impl ExpressionLowerer<'_> {
                 span: None,
             })?
             .span();
+        if let Some((loan, created)) = self.deinit_view(expression)? {
+            if self.typed.copyability(projection.ty())
+                != Some(lang_frontend::type_checking::Copyability::Copyable)
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let result_type = self.expression_ssa_type(expression, span)?;
+            let (_, results) = self.append(
+                Operation::Read {
+                    source: PlaceAccess::Loan(loan),
+                },
+                vec![EntityType::Value(result_type)],
+                span,
+            )?;
+            for loan in created.into_iter().rev() {
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+            }
+            return Ok(LoweredValue::Value(value(results[0])));
+        }
         let AggregateProjectionReceiver::Expression(receiver_expression) = projection.receiver()
         else {
             // 隐式 `this` 的 native lowering 属于 SPEC-0191；当前必须保持确定性拒绝。

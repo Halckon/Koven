@@ -1052,6 +1052,7 @@ pub(crate) struct Module {
     pub(super) named_type_ids: BTreeMap<String, SsaTypeId>,
     pub(super) type_origins: BTreeMap<SsaTypeId, TypeOrigin>,
     pub(crate) functions: Vec<Function>,
+    pub(super) deinits: BTreeMap<SsaTypeId, FunctionId>,
 }
 
 impl Module {
@@ -1192,6 +1193,7 @@ impl Program {
             named_type_ids: BTreeMap::new(),
             type_origins: BTreeMap::new(),
             functions: Vec::new(),
+            deinits: BTreeMap::new(),
         });
         id
     }
@@ -1228,6 +1230,13 @@ pub(crate) enum ModelError {
     },
     UnknownType {
         ty: SsaTypeId,
+    },
+    InvalidDeinit {
+        owner: SsaTypeId,
+        function: FunctionId,
+    },
+    DeinitAlreadyDefined {
+        owner: SsaTypeId,
     },
     EmptyTypeName,
     DuplicateTypeName {
@@ -1280,6 +1289,13 @@ impl fmt::Display for ModelError {
             }
             Self::UnknownBlock { block } => write!(formatter, "unknown block {block:?}"),
             Self::UnknownType { ty } => write!(formatter, "unknown type {ty:?}"),
+            Self::InvalidDeinit { owner, function } => write!(
+                formatter,
+                "deinit {function:?} must accept only a shared receiver for heap owner {owner:?} and return Unit"
+            ),
+            Self::DeinitAlreadyDefined { owner } => {
+                write!(formatter, "heap owner {owner:?} already has a deinit")
+            }
             Self::EmptyTypeName => write!(formatter, "named SSA type must not be empty"),
             Self::DuplicateTypeName { name } => {
                 write!(formatter, "duplicate named SSA type {name:?}")

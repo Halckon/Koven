@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 216 份"))
+ARCH(("已完成<br/>archive 217 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0228["S0228<br/>Linux x86_64 本机目标与基线验收"]
@@ -52,4 +52,4 @@ ARCH --> S0236
 | SPEC-0240 | active | [0240-integer-bitwise-execution.md](active/0240-integer-bitwise-execution.md) |
 | SPEC-0241 | active | [0241-return-control-operands.md](active/0241-return-control-operands.md) |
 | SPEC-0242 | active | [0242-automatic-borrow-call-migration.md](active/0242-automatic-borrow-call-migration.md) |
-| 已完成 Spec（216 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（217 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

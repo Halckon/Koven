@@ -1286,3 +1286,12 @@ fn associated_constants_reach_native_scalar_char_and_string_operations() {
 
 #[path = "native_bitwise_tests.rs"]
 mod bitwise_tests;
+
+#[path = "native_resource_deinit_tests.rs"]
+mod resource_deinit_tests;
+
+#[path = "native_resource_exchange_tests.rs"]
+mod resource_exchange_tests;
+
+#[path = "native_field_resource_replace_tests.rs"]
+mod field_resource_replace_tests;

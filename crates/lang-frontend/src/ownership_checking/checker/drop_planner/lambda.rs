@@ -129,7 +129,7 @@ impl DropPlanner<'_, '_> {
                 .map(|value| value.symbol)
                 .collect::<Vec<_>>();
             for symbol in unused {
-                self.drop_named(DropPoint::LambdaEntry(lambda), symbol, &mut state);
+                self.drop_named_asap(DropPoint::LambdaEntry(lambda), symbol, &mut state);
             }
         }
         if self.control_body(body, ExpressionUse::Consume, &mut state)? {

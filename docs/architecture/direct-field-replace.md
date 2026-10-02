@@ -4,11 +4,12 @@
 
 ## 当前集成状态
 
-基于 main `8eb2cd3` 的 SPEC-0246 分支已落地两入口 ownership、lowering、显式 SSA 与 LLVM
-字段交换，已有 frontend、verifier 与 single/unit native 定向通过证据。global 与 captured
-receiver 边界已收紧并复验，本地共享门禁与首轮双平台 PR CI 均通过，SPEC-0246 已归档。
-[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft；最终归档 head 复验在 PR
-跟踪，不代表 main 已合入。历史批次与未运行项可从[完成 Spec 索引](../archive/specs/README.md)追溯。
+SPEC-0246 在原 main `8eb2cd3` 上已完成两入口 ownership、lowering、SSA/LLVM 与有界
+frontend/native 验收，global/captured 和 paired target 身份已闭合，首轮双平台 PR CI 通过，
+Spec 已归档。[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft。
+PR #12 deinit 被用户合并后，本分支已整合 main `e6e1100`，资源交叉与全部本地门禁
+通过；修复 head 的双平台 CI 由 PR 跟踪。此前归档 head `4d84ed5b` 因冲突未产生
+PR CI，不能以其 push 检查代替完整验证；字段切片尚未合入 main。历史证据从[完成 Spec 索引](../archive/specs/README.md)追溯。
 已交付的 whole-root replace / swap 仍见[root 专页](root-ownership-primitives.md)。
 
 ## 独立字段事实
@@ -69,17 +70,21 @@ read/clone/嵌套 exchange 在 backend 明确 Unsupported。frontend 继续接�
 replace 提取新值或读取 Copyable `h.id` 证明父对象继续。普通 field 值直接置于复杂 `&&`
 的既有 MissingFact 未扩大；快照在条件前读取到 local 再比较，不声称新增短路支持。
 
-PR #12 deinit 尚未合入本基线，本片不依赖其代码或证据，不声称资源词法析构已交付。
-继承现有 payload ABI，无跨线程原子语义或新语言规则。
+PR #12 的[普通资源 deinit](resource-deinit.md)现已进入 main，当前整合包含该实现。
+资源字段交叉已通过 4 项前端与 8 项 single/unit native：父对象和旧值各自保留词法义务，
+commit 不提前执行 deinit，正常与控制退出按实际 owner 唯一清理，Abort 不 unwind；8/6/5
+组分配/释放逐 pointer 核对。合并后 core、63-target stage 与 Guide 已重跑通过。
+本片原有界范围保持，沿用现有 payload ABI，不新增跨线程原子语义或语言规则。
 
 ## 测试位置
 
 - frontend：`ownership_field_replace`，unit `field_replace_` validation；已纳入 stage 脚本
 - single lowering/native：`field_replace_lower_tests.rs`、`native_field_replace_tests.rs`
 - unit lowering/native：`unit_field_replace_tests.rs`
+- 资源交叉：`ownership_resource_deinit` 的 `direct_field_resource`；两份 `field_resource_replace_tests.rs`
 - verifier：`verify_ownership/field_exchange_tests.rs`
 - LLVM：`llvm/adapter/root_exchange_tests.rs` 内 field exchange 测试
 
 实际批次数不累加为一次执行；13 项字段 integration 与 3 项内部 gate 覆盖最终身份边界。
-两宿主均执行 core、61-target stage 与 201 项 Guide；macOS 仅保留既有 LLDB 权限 ignore。
-最终归档 head 结果在 PR 跟踪；这些有界证据不代表 frontend 全量通过。
+首轮两宿主均执行 core、61-target stage 与 201 项 Guide；macOS 仅保留既有 LLDB 权限 ignore。
+新 main 整合重跑的 stage 为 63 targets / 810，Guide 201；修复 head 双平台结果将在 PR 跟踪；有界证据不代表 frontend 全量通过。

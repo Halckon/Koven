@@ -46,14 +46,16 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
         let ty = self.expression_ssa_type(expression, span)?;
-        let (source, created) = if self.clone_field_projection(receiver)?.is_some() {
+        let (source, created) = if self.clone_field_projection(receiver)?.is_some()
+            && !self.is_this_field_path(receiver, receiver_span)?
+        {
             let mut created = Vec::new();
             let source = self.clone_field_loan(receiver, &mut created, span)?;
             (source, created)
         } else {
             let (source, created, _) =
                 self.lower_borrow_argument(id, receiver, ty, receiver_span, span)?;
-            (source, if created { vec![source] } else { Vec::new() })
+            (source, created)
         };
         let result = self.append_scalar(Operation::StringClone { source }, ty, span)?;
         for loan in created.into_iter().rev() {
