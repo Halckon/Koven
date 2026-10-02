@@ -4,6 +4,7 @@ use serde_json::json;
 
 use super::*;
 
+mod basic_ownership;
 mod manual;
 
 const PROVIDER_URI: &str = "untitled:/z-provider.ko";
@@ -16,9 +17,13 @@ const OWNERSHIP: &str = "package app\r\nclass Resource()\r\nfun take(own resourc
 const CONSTANT: &str = "package app\r\nconst val answer: Int = 42\r\nfun use(): Int = answer";
 
 fn config(consumer: &str, reverse: bool) -> SourceSetConfig {
+    config_with_provider(PROVIDER, consumer, reverse)
+}
+
+fn config_with_provider(provider: &str, consumer: &str, reverse: bool) -> SourceSetConfig {
     let mut roots = vec!["a-provider", "z-consumer"];
     let mut sources = vec![
-        json!({"root": "a-provider", "logicalPath": "lib/api.ko", "uri": PROVIDER_URI, "text": PROVIDER}),
+        json!({"root": "a-provider", "logicalPath": "lib/api.ko", "uri": PROVIDER_URI, "text": provider}),
         json!({"root": "z-consumer", "logicalPath": "app/use.ko", "uri": CONSUMER_URI, "text": consumer}),
     ];
     if reverse {
@@ -83,6 +88,7 @@ fn assert_old_outputs(
     overlays: &BTreeMap<String, Overlay>,
     actual: &UnitSnapshot,
 ) {
+    basic_ownership::assert_raw_products_match_old_pipeline(actual);
     let expected = manual::ManualSnapshot::analyze(config, overlays).unwrap();
     assert_eq!(
         publications(actual.publications(config, overlays).unwrap()),

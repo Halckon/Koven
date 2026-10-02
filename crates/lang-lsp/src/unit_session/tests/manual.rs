@@ -6,7 +6,9 @@ use lang_frontend::{
         CompilationUnitNames, SourceUnitInput, index_compilation_unit,
         resolve_compilation_unit_names,
     },
+    ownership_checking::check_compilation_unit_ownership,
     parser::{ParsedFile, parse_file},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 pub(super) struct ManualSnapshot {

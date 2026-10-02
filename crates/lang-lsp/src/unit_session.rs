@@ -3,16 +3,17 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
 use lang_frontend::{
-    analysis::{UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor, analyze_unit_names},
+    analysis::{
+        UnitNameAnalysisError, UnitNameSnapshot, UnitSourceDescriptor,
+        analyze_basic_unit_ownership, analyze_unit_names,
+    },
     diagnostic::Diagnostic,
     lexer::LexerInternalError,
     name_resolution::{
         CompilationUnitInputError, CompilationUnitNameError, UnitDiagnosticOrderError,
         ordered_unit_diagnostics,
     },
-    ownership_checking::{
-        CompilationUnitOwnership, OwnershipCheckingError, check_compilation_unit_ownership,
-    },
+    ownership_checking::{CompilationUnitOwnership, OwnershipCheckingError},
     parser::ParserInternalError,
     source::{SourceError, SourceId, SourceMap},
     type_checking::{
@@ -226,20 +227,20 @@ impl UnitSnapshot {
                 &type_environment,
             )?;
             diagnostics.extend_from_slice(typed.diagnostics());
-            let owned = if let Ok(validated_typed) = typed.clone().validate() {
-                let owned = check_compilation_unit_ownership(
-                    name_snapshot.sources(),
-                    &inputs,
-                    validated_names,
-                    &type_environment,
-                    &validated_typed,
-                )?;
-                diagnostics.extend_from_slice(owned.diagnostics());
-                Some(owned)
-            } else {
-                None
-            };
-            (Some(typed), owned)
+            let outcome = analyze_basic_unit_ownership(
+                name_snapshot.sources(),
+                &inputs,
+                validated_names,
+                &type_environment,
+                typed,
+            )?;
+            match outcome.into_result() {
+                Ok((typed, owned)) => {
+                    diagnostics.extend_from_slice(owned.diagnostics());
+                    (Some(typed.into_types()), Some(owned))
+                }
+                Err(typed) => (Some(*typed), None),
+            }
         } else {
             (None, None)
         };
