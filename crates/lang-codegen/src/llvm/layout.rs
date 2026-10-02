@@ -85,10 +85,7 @@ impl TargetLayoutPlan {
                 module: module.id,
                 index,
             };
-            if matches!(
-                module.type_kind(ty),
-                Some(SsaTypeKind::Unit | SsaTypeKind::Opaque { .. })
-            ) {
+            if matches!(module.type_kind(ty), Some(SsaTypeKind::Opaque { .. })) {
                 continue;
             }
             let raw = calculator.layout(ty)?;
@@ -152,6 +149,9 @@ struct LayoutCalculator<'a, 'ctx> {
 impl LayoutCalculator<'_, '_> {
     fn layout(&mut self, ty: SsaTypeId) -> Result<RawLayout, LlvmAdapterError> {
         let layout = match self.module.type_kind(ty) {
+            Some(SsaTypeKind::Unit) => {
+                self.llvm_layout(self.context.struct_type(&[], false).into())
+            }
             Some(SsaTypeKind::Boolean) => self.llvm_layout(self.context.bool_type().into()),
             Some(SsaTypeKind::Char) => self.llvm_layout(self.context.i32_type().into()),
             Some(SsaTypeKind::Integer { bits, .. }) => {
@@ -221,7 +221,7 @@ impl LayoutCalculator<'_, '_> {
                 let environment = self.dependency(*environment)?;
                 self.record(ty, &[self.pointer_layout, environment])?
             }
-            Some(SsaTypeKind::Unit | SsaTypeKind::Opaque { .. }) => {
+            Some(SsaTypeKind::Opaque { .. }) => {
                 return Err(LlvmAdapterError::Unsupported(
                     "SSA type does not have target storage".to_owned(),
                 ));

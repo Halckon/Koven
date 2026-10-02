@@ -7,17 +7,18 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        ContainerConstructionKind, IntrinsicTypeConstructor,
+        BuiltinType, ContainerConstructionKind, IntrinsicTypeConstructor,
         SequentialContainerKind as FrontendContainerKind, TypeId, TypedFile,
     },
 };
 
 use super::{
-    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, error,
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
     nominal::NominalTypeMapper, place, span_key, value,
 };
 use crate::ssa::model::{
-    EntityId, EntityType, Module, Operation, PlaceId, SequentialContainerKind, SsaTypeId,
+    EntityId, EntityType, Module, Operation, PlaceId, ScalarConstant, SequentialContainerKind,
+    SsaTypeId,
 };
 
 impl NominalTypeMapper {
@@ -176,7 +177,27 @@ impl ExpressionLowerer<'_> {
                         }
                         LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
                         LoweredValue::Unit => {
-                            return Err(error(LoweringErrorKind::MissingFact, argument.span));
+                            let element = self.resolve_type(descriptor.element_type(), span)?;
+                            let argument_type =
+                                self.typed.expression_type(argument.value).ok_or_else(|| {
+                                    error(LoweringErrorKind::MissingFact, argument.span)
+                                })?;
+                            let argument_type = self.resolve_type(argument_type, argument.span)?;
+                            if argument_type != element
+                                || builtin_type(self.typed, element) != Some(BuiltinType::Unit)
+                            {
+                                return Err(error(LoweringErrorKind::MissingFact, argument.span));
+                            }
+                            // The canonical builtin identity was interned by NominalTypeMapper.
+                            // Materialize storage only after this operand has executed once;
+                            // ordinary calls and returns retain their no-result Unit ABI.
+                            let target = self.expression_ssa_type(argument.value, argument.span)?;
+                            let (_, results) = self.append(
+                                Operation::Constant(ScalarConstant::Unit),
+                                vec![EntityType::Value(target)],
+                                argument.span,
+                            )?;
+                            elements.push((value(results[0]), None));
                         }
                     }
                 }
