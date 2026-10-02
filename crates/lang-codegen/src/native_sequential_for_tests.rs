@@ -198,3 +198,93 @@ fn unicode_string_borrow_iteration_runs_natively() {
     assert_eq!(run.stdout, "hello\n世界\nKoven\n".as_bytes());
     assert!(run.stderr.is_empty(), "{run:?}");
 }
+
+fn run_temporary_source_boundaries(
+    provider: &str,
+    constructor: &str,
+    cases: &[(&str, &str, &[u8])],
+) {
+    for &(cardinality, arguments, expected) in cases {
+        let source_name = format!("temporary_{provider}_{cardinality}.ko");
+        let source = format!(
+            r#"
+                fun source(): {provider}<Int> {{
+                    println("source")
+                    return {constructor}<Int>({arguments})
+                }}
+
+                fun main(): Unit {{
+                    for (x in source()) {{
+                        println("body")
+                        if (x == 7) {{
+                            println("seven")
+                        }}
+                        if (x == 2) {{
+                            println("two")
+                        }}
+                        if (x == 9) {{
+                            println("nine")
+                        }}
+                    }}
+                    println("done")
+                }}
+            "#
+        );
+        eprintln!("{source_name}:\n{source}");
+        let run = emit_link_and_run(&source_name, &source, "main");
+        assert!(run.status.success(), "{source_name}: {run:?}");
+        assert_eq!(run.stdout, expected, "{source_name}: {run:?}");
+        assert!(run.stderr.is_empty(), "{source_name}: {run:?}");
+    }
+}
+
+#[test]
+fn temporary_array_source_boundaries_run_natively() {
+    run_temporary_source_boundaries(
+        "Array",
+        "arrayOf",
+        &[
+            ("empty", "", b"source\ndone\n"),
+            ("single", "7", b"source\nbody\nseven\ndone\n"),
+            (
+                "multi",
+                "7, 2, 9",
+                b"source\nbody\nseven\nbody\ntwo\nbody\nnine\ndone\n",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn temporary_list_source_boundaries_run_natively() {
+    run_temporary_source_boundaries(
+        "List",
+        "listOf",
+        &[
+            ("empty", "", b"source\ndone\n"),
+            ("single", "7", b"source\nbody\nseven\ndone\n"),
+            (
+                "multi",
+                "7, 2, 9",
+                b"source\nbody\nseven\nbody\ntwo\nbody\nnine\ndone\n",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn temporary_mutable_list_source_boundaries_run_natively() {
+    run_temporary_source_boundaries(
+        "MutableList",
+        "mutableListOf",
+        &[
+            ("empty", "", b"source\ndone\n"),
+            ("single", "7", b"source\nbody\nseven\ndone\n"),
+            (
+                "multi",
+                "7, 2, 9",
+                b"source\nbody\nseven\nbody\ntwo\nbody\nnine\ndone\n",
+            ),
+        ],
+    );
+}

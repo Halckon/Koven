@@ -8,7 +8,13 @@ use lang_frontend::{
 };
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file, render::render_program, verify::verify_program,
+    lower_frontend::orchestrate::lower_scalar_file,
+    model::{
+        BinaryOperator, Block, BlockId, ComparisonOperator, Definition, Edge, EntityId, Function,
+        Instruction, LoanKind, Operation, ScalarConstant, TerminatorKind,
+    },
+    render::render_program,
+    verify::verify_program,
 };
 
 fn analyze(source_text: &str) -> super::model::Program {
@@ -166,4 +172,225 @@ fn nested_for_loops_lower_to_verified_ssa() {
     let program = analyze(text);
     let ssa = render_program(&program);
     assert!(ssa.contains("container.length"), "{ssa}");
+}
+
+fn defining_instruction(function: &Function, entity: EntityId) -> &Instruction {
+    let Definition::InstructionResult { instruction, .. } =
+        function.entity(entity).expect("known entity").definition
+    else {
+        panic!("expected instruction result, got {entity:?}");
+    };
+    function
+        .instruction(instruction)
+        .expect("known instruction")
+}
+
+fn incoming_edges(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let edges = match &block.terminator.as_ref().expect("terminator").kind {
+                TerminatorKind::Branch(edge) => vec![edge],
+                TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true, when_false],
+                TerminatorKind::NullableBranch {
+                    when_null,
+                    when_non_null,
+                    ..
+                } => vec![when_null, when_non_null],
+                TerminatorKind::Return { .. } | TerminatorKind::Abort => Vec::new(),
+            };
+            edges.into_iter().map(move |edge| (block.id, edge))
+        })
+        .filter(|(_, edge)| edge.target == target)
+        .collect()
+}
+
+fn parameter_slot(block: &Block, entity: EntityId) -> usize {
+    block
+        .parameters
+        .iter()
+        .position(|parameter| *parameter == entity)
+        .expect("expected block parameter")
+}
+
+#[test]
+fn temporary_source_boundaries_keep_call_and_length_in_preheader() {
+    for (provider, constructor, cardinality, arguments) in [
+        ("Array", "arrayOf", "empty", ""),
+        ("Array", "arrayOf", "single", "7"),
+        ("Array", "arrayOf", "multi", "7, 2, 9"),
+        ("List", "listOf", "empty", ""),
+        ("List", "listOf", "single", "7"),
+        ("List", "listOf", "multi", "7, 2, 9"),
+        ("MutableList", "mutableListOf", "empty", ""),
+        ("MutableList", "mutableListOf", "single", "7"),
+        ("MutableList", "mutableListOf", "multi", "7, 2, 9"),
+    ] {
+        let text = format!(
+            r#"
+                fun source(): {provider}<Int> = {constructor}<Int>({arguments})
+                fun run(): Unit {{
+                    for (x in source()) {{
+                        println("body")
+                    }}
+                }}
+            "#
+        );
+        eprintln!("temporary_{provider}_{cardinality}.ko:\n{text}");
+        let program = analyze(&text);
+        let functions = || program.modules.iter().flat_map(|module| &module.functions);
+        let source = functions().find(|f| f.name == "source").expect("source");
+        let run = functions().find(|f| f.name == "run").expect("run");
+        let calls = run.instructions.iter().filter(|instruction| {
+            matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == source.id)
+        }).collect::<Vec<_>>();
+        let lengths = run
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::ContainerLength { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 1, "source must have exactly one call site");
+        assert_eq!(lengths.len(), 1, "length must have exactly one snapshot");
+        let (call, length) = (calls[0], lengths[0]);
+        let preheader = run
+            .block(run.entry_block().expect("entry"))
+            .expect("preheader");
+        assert_eq!(call.block, preheader.id);
+        assert_eq!(length.block, preheader.id);
+        assert!(incoming_edges(run, preheader.id).is_empty());
+
+        // Follow the actual owner -> place -> shared loan identities, not a rendered snapshot.
+        let Operation::ContainerLength { owner: source_loan } = length.operation else {
+            unreachable!();
+        };
+        assert!(matches!(source_loan, EntityId::Loan(_)));
+        let borrow = defining_instruction(run, source_loan);
+        let Operation::BorrowBegin {
+            place,
+            kind: LoanKind::Shared,
+        } = borrow.operation
+        else {
+            panic!("snapshot must read through a shared source loan");
+        };
+        let root = defining_instruction(run, EntityId::Place(place));
+        let Operation::RootPlace { owner } = root.operation else {
+            panic!("temporary source must have a root place");
+        };
+        assert_eq!(call.results, [EntityId::Value(owner)]);
+        let positions = [call, root, borrow, length].map(|instruction| {
+            assert_eq!(instruction.block, preheader.id);
+            preheader
+                .instructions
+                .iter()
+                .position(|id| *id == instruction.id)
+                .expect("preheader instruction")
+        });
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+
+        let TerminatorKind::Branch(enter) = &preheader.terminator.as_ref().unwrap().kind else {
+            panic!("preheader must enter the loop header");
+        };
+        let header = run.block(enter.target).expect("header");
+        let TerminatorKind::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &header.terminator.as_ref().unwrap().kind
+        else {
+            panic!("header must guard the body");
+        };
+        let guard = defining_instruction(run, EntityId::Value(*condition));
+        assert_eq!(guard.block, header.id);
+        let Operation::Compare {
+            operator: ComparisonOperator::LessThan,
+            left: cursor,
+            right: snapshot,
+        } = guard.operation
+        else {
+            panic!("guard must compare cursor < length");
+        };
+        let cursor_slot = parameter_slot(header, EntityId::Value(cursor));
+        let length_slot = parameter_slot(header, EntityId::Value(snapshot));
+        assert_eq!(length.results, [enter.arguments[length_slot]]);
+        let zero = defining_instruction(run, enter.arguments[cursor_slot]);
+        assert_eq!(zero.block, preheader.id);
+        assert_eq!(
+            zero.operation,
+            Operation::Constant(ScalarConstant::Integer(0))
+        );
+        let source_slot = enter
+            .arguments
+            .iter()
+            .position(|argument| *argument == source_loan)
+            .expect("source transport");
+        let header_source = header.parameters[source_slot];
+        assert!(matches!(header_source, EntityId::Loan(_)));
+
+        let body = run.block(when_true.target).expect("body");
+        assert_ne!(when_true.target, when_false.target);
+        assert_eq!(incoming_edges(run, body.id), [(header.id, when_true)]);
+        let transport = |entity| {
+            let slot = when_true
+                .arguments
+                .iter()
+                .position(|argument| *argument == entity)
+                .expect("body transport");
+            body.parameters[slot]
+        };
+        let body_source = transport(header_source);
+        let body_cursor = transport(EntityId::Value(cursor));
+        let elements = run
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(
+                    instruction.operation,
+                    Operation::ContainerElementPlace { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(elements.len(), 1);
+        let element = elements[0];
+        assert_eq!(element.block, body.id);
+        let Operation::ContainerElementPlace { owner, index } = element.operation else {
+            unreachable!();
+        };
+        assert_eq!(owner, body_source);
+        assert_eq!(EntityId::Value(index), body_cursor);
+
+        let TerminatorKind::Branch(backedge) = &body.terminator.as_ref().unwrap().kind else {
+            panic!("normal body must return to the header");
+        };
+        assert_eq!(backedge.target, header.id);
+        let header_incoming = incoming_edges(run, header.id);
+        assert_eq!(header_incoming.len(), 2);
+        assert!(header_incoming.contains(&(preheader.id, enter)));
+        assert!(header_incoming.contains(&(body.id, backedge)));
+        assert_eq!(backedge.arguments[source_slot], body_source);
+        assert_eq!(backedge.arguments[length_slot], EntityId::Value(snapshot));
+        let advance = defining_instruction(run, backedge.arguments[cursor_slot]);
+        assert_eq!(advance.block, body.id);
+        let Operation::Binary {
+            operator: BinaryOperator::Add,
+            left,
+            right,
+        } = advance.operation
+        else {
+            panic!("backedge cursor must advance by one");
+        };
+        assert_eq!(EntityId::Value(left), body_cursor);
+        let step = defining_instruction(run, EntityId::Value(right));
+        assert_eq!(step.block, preheader.id);
+        assert_eq!(
+            step.operation,
+            Operation::Constant(ScalarConstant::Integer(1))
+        );
+    }
 }
