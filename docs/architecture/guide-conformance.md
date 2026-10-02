@@ -66,8 +66,8 @@ Litmus fixtures；源文档变化会触发重新编译。Guide10/13 API 签名�
 本门禁同时执行SPEC-0241的3个单文件native与3个SSA定向回归，以及SPEC-0240的
 `guide_litmus_12`两条native入口，并执行 SPEC-0243 的 `receiver_two_phase` 定向 SSA/native。它不枚举其他未选前端套件，也不替代其他语言能力的
 native验证。SPEC-0242已修复三个旧call-argument失败，五个multifile type既有失败仍单独
-记录。历史门禁见[SPEC-0238](../specs/active/0238-guide-litmus-gate.md)，增量范围与验收见
-[SPEC-0240](../specs/active/0240-integer-bitwise-execution.md)、SPEC-0241/0242。
+记录。历史门禁见[SPEC-0238](../archive/specs/0238-guide-litmus-gate.md)，增量范围与验收见
+[SPEC-0240](../archive/specs/0240-integer-bitwise-execution.md)、SPEC-0241/0242。
 
 ## Return 控制表达式与 Litmus4 的 native 边界
 
@@ -81,4 +81,4 @@ SPEC-0241 的 native 测试直接提取 Guide15 Litmus4，原 `Shape`/`area` 函
 condition 和 MoveOnly root 不在此切片内。unit 原例仍在 `Shape.Point -> 0` 返回
 UnsupportedNode；single 的直接 case 调用实参仍保留 MissingFact 精确范围回归。
 这些边界不通过忽略测试、增加预算或改写 Guide 消除；实际验收见
-[SPEC-0241](../specs/active/0241-return-control-operands.md)。
+[SPEC-0241](../archive/specs/0241-return-control-operands.md)。

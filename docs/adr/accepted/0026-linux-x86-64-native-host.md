@@ -10,7 +10,7 @@ accepted
 
 2026-10-01，用户在确认修复基线问题时明确授权：“是的，如果新增一个linux taget不麻烦，可以新增一个”。
 本决策将该授权限定为新增 Linux x86_64 + glibc 本机目标，不扩展为任意平台或交叉编译支持。
-实施与验收由 [SPEC-0228](../../specs/active/0228-linux-x86-64-native-host.md) 记录。
+实施与验收由 [SPEC-0228](../../archive/specs/0228-linux-x86-64-native-host.md) 记录。
 
 ## 背景
 
@@ -104,7 +104,7 @@ glibc 链接；Clang 21 的 IR 兼容要求只属于插桩测试，不扩大生�
 
 ## 关联
 
-- 相关 Spec：[SPEC-0228](../../specs/active/0228-linux-x86-64-native-host.md)
+- 相关 Spec：[SPEC-0228](../../archive/specs/0228-linux-x86-64-native-host.md)
 - 局部扩展的 ADR：[ADR-0007](0007-llvm-toolchain-and-first-target.md) 的单宿主/target feature
   范围、[ADR-0010](0010-first-native-object-and-linker-contract.md) 的 object 格式与 link driver
   范围；两份 ADR 的其余决定继续生效，不整份取代或归档

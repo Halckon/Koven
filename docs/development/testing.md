@@ -50,7 +50,7 @@ PR 的普通文档变更仍仅跑文档门禁；Guide10/11/13/15 的 Litmus 输�
 
 完整 codegen/CLI 测试保留 ELF、DWARF 行表、真实 link/run 和内存计数边界；macOS 已存在的
 LLDB ignore 不扩大到 Linux。定向 frontend 仍不代表全量通过，known-gap 不代表功能完成。
-本地与远端实际运行情况见 [SPEC-0239](../specs/active/0239-linux-ci-gates.md)，不能由配置存在
+本地与远端实际运行情况见 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，不能由配置存在
 推导 CI 已通过。
 
 ## 控制 frontend 成本

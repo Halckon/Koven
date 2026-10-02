@@ -1,10 +1,10 @@
 # SPEC-0228: Linux x86_64 本机目标与基线验收
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或验收 Linux 本机目标时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或验收 Linux 本机目标时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-228` |
 | 所属 Phase | Phase 4；必要的 CLI Phase 6 编排适配及授权的 Parser Phase 1 基线修复 |
 | 语言规范 | [现行 v0.38](../../guide/README.md)、[Phase 边界](../../guide/15-conformance-and-staging.md#phase-边界) |
@@ -322,3 +322,48 @@ macOS 仍选 `/usr/bin/clang`，Linux 的原选择不变；生产 CLI 与所有�
 本轮 Linux Rust 1.96.0 / LLVM、Clang 21.1.8 的选定 codegen 契约已通过；未再次运行输入
 未变化的 frontend/CLI/LSP 本地测试，复用上一节证据。新 head 的 macOS PR CI 待实际运行，
 不以 Linux 结果或 push 事件的轻量检查代替。
+
+## 11. 最终交付与关闭验收（2026-10-02）
+
+本节补记最终交付事实；§5、§7–10 的待交付、失败、未运行及平台限制是对应实施时点的
+原始记录，不追改为当时已经通过。关闭依据为下列原 Goal 映射，而非 CI 总绿推定全部测试通过。
+
+### 实现、PR 与精确 CI
+
+- 主实现 `ef79a2b9f9b3021f521ee93fb945b3499ff40504`；严格 Clippy 修复
+  `6f2fa4ba40727807d2471473ccec47f706b11a9a`；Parser dispatch 修复
+  `d8ce3d782680c2400a5a76e4440a652a45026c28`；最终 IR 工具修复及 PR head
+  `53bc552173db3ba2883e6493f11cd94a17a8d91b`。
+- [PR #5](https://github.com/Halckon/Koven/pull/5) 已合并为
+  `d3e64a4dc31d20e960ed21975934ec2a35950665`，已进入本次复核基线
+  `34189046319a8b727285d471596647d5de56996e`。
+- 该最终 head 的 [CI 36846162707](https://github.com/Halckon/Koven/actions/runs/36846162707)
+  为 6/6 jobs success，文档、fmt、workspace check、严格 Clippy 与 Targeted Tests
+  实际通过。当时 Rust job 只在 macOS 运行，不能称为本次 PR 的双宿主 CI。
+- 后继 SPEC-0239 在 PR #7 head `11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 的
+  [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546) 建立并实际通过
+  Ubuntu/macOS 两套 Rust 门禁；复核基线的
+  [主干 CI 36979753900](https://github.com/Halckon/Koven/actions/runs/36979753900)
+  亦为 8/8 jobs success。它们是后继持续回归，不取代 §10 的 Linux 本机原始运行证据。
+
+### 原验收逐项映射
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §5.1 旧目标失败再修复 | §10 的 `linux_host_renders_x86_64_gnu_target` red 为 1 failed，随后同 LLVM 选择 7 passed；旧 Mach-O magic 夹具的 1 failed 与修复后 478 passed 均保留 |
+| §5.2 宿主矩阵与布局 | [LLVM adapter 测试](../../../crates/lang-codegen/src/llvm.rs)的 `native_host_selection_rejects_unsupported_platforms`、`both_supported_backends_keep_a_64_bit_pointer_layout` 明确核对支持/拒绝矩阵与 pointer layout；[object 测试](../../../crates/lang-codegen/src/llvm/object_tests.rs)核对真实宿主 object machine |
+| §5.3 工具链、verifier 与确定性 | §10 的 LLVM 21.1.8 编译/链接实际通过；`renders_deterministic_verified_native_scalar_module` 比较重复输出，`llvm_verifier_rejects_missing_terminator` 与 `adapter_rejects_invalid_ssa_before_constructing_llvm` 保留负例 |
+| §5.4 ELF、链接、运行及失败原子性 | §10 codegen/CLI 全目标、CLI build 和真实 hello 的 ELF64/link/run 记录；[native CLI](../../../crates/lang-cli/tests/native_cli.rs)、[project CLI](../../../crates/lang-cli/tests/project_cli.rs)及 codegen native 测试覆盖 stdout、argv、Abort 与失败保留输出 |
+| §5.5 IR 插桩工具 | 最终 head 的 [ir_clang helper](../../../crates/lang-codegen/src/test_support.rs)将 IR reader 与生产 object driver 分开；§10 保留 macOS 14 项 reader 失败、Linux 478 + 4 通过及最终 PR5 macOS CI 通过的前后链 |
+| §5.6 DWARF 与平台限制 | [debug 测试](../../../crates/lang-codegen/src/llvm/debug_tests.rs)的 `elf_line_table_records_koven_source_locations_and_runs` 检查真实 ELF、源文件和行 4 / 列 5，再链接运行；macOS LLDB 测试保留但既有 ignore 不计通过，未取得 Linux debugger 断点/单步证据 |
+| §5.7 授权基线修复 | §10 的 Deinit marker、139 条 Clippy 与两项 Parser 计数 red/green、三项恢复测试逐项保留；未降低预算、删断言或引入 blanket allow |
+| §5.8 影响面门禁 | §10 串行 Linux fmt、strict clippy、workspace check、codegen/CLI/LSP 与 Parser 选择已有实际结果；最终 PR5 补齐 macOS 对应 CI。所列 filtered、ignore、未运行与失败不因关闭消失 |
+| §5.9 文档与事实 | 原 README/Architecture、ADR-0026、结构检查及 checker tests 结果见 §10；本轮只补交付证据，不更改宿主或 ABI 合同 |
+| §5.10 分支交付 | 最终 PR5 head、成功 CI 与 main merge 已对应；本次文档生命周期收尾据此关闭原有界合同，状态/路径与 inventory 同步执行 |
+
+原 Goal 的两个 host-native 组合已具备真实生成、链接、运行及有边界的调试证据。§7.2 的
+实现与定向验证已由上述结果满足；原语义修复非目标不随本次关闭扩大。五项 multifile 旧失败
+由 [SPEC-0247](0247-multifile-baseline.md) 后继处理，三项调用参数旧失败由
+[SPEC-0242](0242-automatic-borrow-call-migration.md) 的已启用语义迁移处理；这不改写原失败时点。
+交叉编译、musl、Linux AArch64、其他宿主、完整调试信息及 Linux 调试器验收仍不是本合同交付。
+本轮为 docs-only 复核，没有新运行 Cargo、native 或 LLDB，也不声称 frontend 全量通过。

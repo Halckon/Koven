@@ -1,10 +1,10 @@
 # SPEC-0237: 八阶段本地整合与交叉契约验证
 
-> **性质**：整合验收合同 · **状态**：in-progress · **读取时机**：验证或交付八个独立阶段的统一集成时 · **唯一真源**：本 Spec 的整合范围及最终验收
+> **性质**：整合验收合同 · **状态**：done · **读取时机**：验证或交付八个独立阶段的统一集成时 · **唯一真源**：本 Spec 的整合范围及最终验收
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-INT-0237` |
 | 所属 Phase | Phase 1 / 2 / 3 / 4 与文档治理整合 |
 | 语言规范 | [Guide v0.40](../../guide/README.md) |
@@ -26,9 +26,9 @@
 - [0229 数值](0229-extended-numeric-literal-values.md)、[0230 Box enum](0230-recursive-boxed-enum-native.md)、
   [0231 TypeRef](0231-contextual-type-ref-trials.md)、[0232 原子原语 typed facts](0232-ownership-primitive-type-facts.md)、
   [0233 Compiler Contracts](0233-parser-compiler-contracts.md)、[0234 block 续行](0234-block-newline-continuation.md)、
-  [0236 String.clone](0236-explicit-string-clone.md)先形成真实 v0.39（`ed0727f`）。
+  [0236 String.clone](../../specs/active/0236-explicit-string-clone.md)先形成真实 v0.39（`ed0727f`）。
 - [0235 三项批准规则](0235-approved-language-rules.md)随后重基式整合为唯一 v0.40；旧 clone
-  迁移记录保留原路径，0235 旧候选历史另存；完整前版来源见[v0.40 账本](../../archive/migrations/v0.40-enablement.md)。
+  迁移记录保留原路径，0235 旧候选历史另存；完整前版来源见[v0.40 账本](../migrations/v0.40-enablement.md)。
 - 检查共享 typed/ownership/SSA 与 numeric + clone + Box 组合，不扩大既有功能边界。
 - 保持统一 Cargo target、串行 Cargo，按直接行为/共享契约/下游风险选择门禁；禁止默认全量 frontend。
 - `scripts/check_stage_integration.sh` 交付49个定向 frontend targets及新增
@@ -39,7 +39,7 @@
 
 保存 v0.40 检查点 `f6d38ab` 后，合入 main `3be83b5`（PR #6 已合并）。保留其 const
 位运算白名单、Box.value/unbox staged 合同、lambda/Litmus 修改与审计原文；String.clone
-仍采用完整0236合同，空串不分配。冲突与来源见[协调记录](../../archive/migrations/v0.40-upstream-pr6-reconciliation.md)。
+仍采用完整0236合同，空串不分配。冲突与来源见[协调记录](../migrations/v0.40-upstream-pr6-reconciliation.md)。
 真实v0.39归档不随较晚上游改写；本轮不代替 CI 通过后要求的完整 PR #6 审计。
 
 ## 3. 非目标与遗留
@@ -84,10 +84,40 @@ Cargo 串行、统一 target；以下结果覆盖本次共享 trial 修复后的
 recovery `Deferred` 不再否决另一完整候选；无错误的真正未定候选仍保留原保守门禁。
 单文件与跨文件 snapshot/restore 同时保留 String 与 ownership primitive facts。
 
-原八项失败的完整名称与最早干净基线入口见[演进账本](../evolution-status.md#已知独立基线失败)。
+原八项失败的完整名称与最早干净基线入口见[演进账本](../../specs/evolution-status.md#已知独立基线失败)。
 本地合计1413个选定测试通过，另有基线套件124通过/8失败；不能把该范围称作frontend全量或全绿。
 
 ## 6. 交付边界
 
 已获发布整合 PR 授权；不得自动合并、改写 main 或提前归档任何待 CI 的 Spec。
 CI 通过后审查 PR #6 的后续工作仍以用户要求为界，不从审计结果擅自启用新语言规则。
+
+## 7. 最终交付与关闭依据（2026-10-02）
+
+本节补齐第4节末两项。前文“尚待CI”“不代表main”及原8项基线失败均为当时快照，
+保留不改；最终范围按真实合并链与精确提交CI核对，不能使用PR正文的早期head说明。
+
+- 交叉契约实现提交：`9b83ab28544ebc673494f57945d8988faeb020d3`；后继整合
+  `aafccaa5a4679bfa33fe7c5132d67707d044b3e0`（0238）及
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`（0239）。
+- 最终交付：[PR #7](https://github.com/Halckon/Koven/pull/7)，最终head为上述
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`；合入
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。
+- 精确最终head的 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)：
+  8/8 jobs success；两平台 check/Clippy/core/stage/Guide 步骤实际成功。
+  PR正文旧 `9b83ab2` / run `36867583061` 及“远端无stage matrix”不代表最终交付。
+
+| 第4节原验收 | 最终映射 |
+|---|---|
+| 1：八阶段与冲突范围 | 本Spec第2节来源链、`v0.40-enablement.md` 与 `v0.40-upstream-pr6-reconciliation.md` 保留；所有来源已位于最终PR7 ancestry |
+| 2：typed事务、共享parser/drop路径 | `crates/lang-frontend/tests/clone_primitive_integration.rs` 五项：直接调用、候选顺序、失败/歧义不泄漏、跨source身份及真正Deferred仍保守；第5节50targets/627、lib180及后继0238增量分别记录 |
+| 3：真实下游与交叉native | `native_string_clone_tests.rs::integrated_numeric_element_clone_moves_into_boxed_enum_and_drops_once` 和unit对应 `integrated_numeric_clone_and_boxed_enum_cross_file_facts_reach_native`；真实UTF-8输出与4/5次分配释放，最终双宿主core运行 |
+| 4：基线失败与不弱化断言 | 第5节124通过/8失败保留；后继0242修复3项call-argument，0247修复5项multifile，分别独立验收，不倒填成整合时全绿 |
+| 5：工具、文档与历史 | 第5节fmt/check/Clippy、440 Markdown/37 tests；真实v0.39的16页/191标题保全及PR7 Docs job，后到PR6不回写冻结快照 |
+| 6：最终PR CI | 上述最终head的双宿主完整配置成功并已合并；stage始终是有界选择，未运行或未选择的frontend不据此算通过 |
+| 7：CI后审查PR6 | [SPEC-0238](0238-guide-litmus-gate.md)以PR6 main `3be83b5` 和整合 `9b83ab2` 为独立快照完成核查；`docs/architecture/guide-conformance.md`逐项区分历史意见、规范事实和真实阶段缺口，后继提交aafccaa纳入最终PR7 |
+
+原整合 Goal 与要求的后续审查已闭合，可按 `done` 关闭。本轮只复核代码、历史与
+远端证据，没有重跑Cargo；不以本Spec承诺实现replace/swap、deinit、Str、unsafe或
+全部Litmus。当前阶段支持范围继续由各实现Spec与Architecture维护。

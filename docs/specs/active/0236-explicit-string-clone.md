@@ -123,3 +123,39 @@ UnsupportedNode（单/多文件负测），不把 handle-slot pointer 当 contro
 | `python3 scripts/gen_spec_dag.py` | 已生成 | 当前 3 live + 213 archive；全图 216 Specs |
 | v0.38 归档与 SHA-256 账本核对 | 16/16 通过 | 对 main d3e64a4 原页仅机械重写跨目录相对链接；其余 14 个领域页仅 v0.38→v0.39 |
 | PR 必需 CI | 未完成 | 不以本地定向测试替代最终提交 CI |
+
+## 11. 最终交付与关闭依据（2026-10-02）
+
+本节记录最终实现与远端交付；第5节第4项仍有下述证据缺口，不能完成生命周期关闭。
+第9–10节“尚未获发布授权”、Linux本地结果、未运行 macOS/CI 与五项基线失败均保留
+为当时事实；本轮未重跑 Cargo。
+
+- 实现提交：`345f0309f16bac61c9bfe252c4bd82e52c30fa53`。
+- 最终整合：[PR #7](https://github.com/Halckon/Koven/pull/7)，head
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`；合入
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。
+- 精确 head 的 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)：
+  8/8 jobs success，macOS/Ubuntu 的 check、Clippy、core、stage、Guide 实际成功。
+  stage含 `string_clone`，core运行完整 codegen/CLI；不是frontend全量。
+
+| 第5节原验收 | 最终代码、测试与运行证据 |
+|---|---|
+| 1：两入口 intrinsic 身份 | `crates/lang-frontend/tests/string_clone.rs` 的 `check_both`、非法实参/类型实参、普通同名member、成功/失败overload trial，14项直接suite；builtin身份与回滚均独立核对 |
+| 2–3：独立owner、源可用、容器element | 同suite的 Borrow/owned/临时receiver、result move、field/Rc owner与unit call-return drop事实；单/unit `string_clone.rs` lowering消费typed/ownership合同 |
+| 4：错误receiver、moved source、诊断Span | 诊断类别已有 `clone_does_not_make_string_copyable`、错误类型/参数与active exclusive loan负例；但 `check_both`只比较code，未比较primary Span/source slice。本轮未找到clone专项诊断Span回归，此项不能按原勾选直接判定满足 |
+| 5：SSA与loan负例 | `crates/lang-codegen/src/ssa/string_operation_tests.rs` 的 `string_clone_requires_active_shared_loan_and_creates_independent_owner` 与 `string_clone_verifier_rejects_ended_exclusive_or_nonstring_loans_and_wrong_result`；源/副本两种drop顺序及精确拒绝类别 |
+| 6：真实native值与生命周期 | `native_string_clone_tests.rs` 与 `native/unit_string_clone_tests.rs`：UTF-8、NUL、empty、Borrow/container、临时源一次求值、返回/capture；第10节与最终PR7 core实际执行 |
+| 7：精确分配、复制、释放和OOM | `llvm/string.rs`按源length分配并memcpy、空串canonical路径；`string_clone_heap_owners_free_once_and_static_empty_clone_has_exact_allocation_cost`断言4次malloc/4次free且无静态free/重释放；OOM用例在发布结果前abort |
+| 8–9：定向、共享/下游、文档 | 第10节83项frontend、96项drop planner、563项codegen/CLI及文档原始记录；[SPEC-0237](../../archive/specs/0237-local-integration.md)交叉typed与numeric+clone+Box native补充组合证据；Guide/ADR/Architecture保持各自权威 |
+| 10：最终发布/CI | 上述精确PR7 head/run与合并节点满足远端交付条件 |
+
+实现与最终CI已经交付，但本批保留 `active/in-progress`，不把原第5节第4项的勾选
+当作完整验收证据。下一步需在单文件/unit入口为moved source、错误参数/类型实参及
+错误receiver补精确诊断Span/source slice oracle并实际运行，或提供已有等价证据；
+`type_checking/checker/string.rs`与unit对应实现静态可见使用name_span，不能替代该回归要求。
+此缺口不证明生产实现错误，本次docs-only也不新增或运行测试。
+
+Borrow `Rc<String>.value.clone()`、inline-nullable String ABI及safe-call原限制仍保留；
+Str/toString、通用clone、容器整体深拷贝均非目标。第10节失败后未执行的targets、fixture
+修正和原五项multifile失败不重写；后者由SPEC-0247单独验收，不能倒称clone阶段全量通过。

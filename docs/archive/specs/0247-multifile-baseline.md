@@ -1,10 +1,10 @@
 # SPEC-0247：跨文件类型基线与恢复事实闭合
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：修复跨文件类型历史失败或消费恢复布局事实时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：修复跨文件类型历史失败或消费恢复布局事实时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-247` |
 | 所属 Phase | Phase 2，直接 Phase 3/4 消费者回归 |
 | 语言规范 | [类型](../../guide/03-types-generics.md)、[控制流](../../guide/06-blocks-control-flow.md)、[lambda](../../guide/07-calls-lambdas-closures.md)、[常量交接](../../guide/05-declarations-callables.md#364-import分阶段交接与非目标) |
@@ -78,3 +78,53 @@
 新增下游测试通过完整 SSA lowering 核验 Error 字段 fail-closed，未为测试修改 planner 的既有职责。
 复合布局 poison 的六种 source 形态均通过；单/unit 无诊断恢复对照限定 direct Opaque，
 不声称两路径的所有 composite capability recovery 表示已统一。
+
+## 6. 原归档分支的双平台验收与发布记录（历史）
+
+2026-10-02，head `d333e41441dcb2b9b34f58b3ae5251fe75d046a0` 的
+[pull_request CI 36978695764](https://github.com/Halckon/Koven/actions/runs/36978695764)
+实际 completed/success，8/8 jobs 成功，没有必需 job 被跳过。
+
+| 实际宿主 | frontend lib | codegen / doctests | CLI / LSP | stage | Guide |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 | 187 passed | 679 / 4 passed | 66 / 26 passed | 64 targets / 917 passed | 201 passed |
+| macOS 14 | 187 passed | 678 passed、1 既有 ignored / 4 passed | 65 / 26 passed | 64 targets / 917 passed | 201 passed |
+
+两平台日志都实际包含完整 multifile 107/0、三项新回归及完整 SSA fail-closed 负测通过。
+macOS 唯一 ignored 仍为既有 LLDB source-breakpoint，CI 缺 debugserver task-port 权限；
+未新增 ignore，不计调试器通过。Guide 每宿主另有 2023 filtered，不计通过。
+
+15 个新 blob 上传后逐项核 SHA，完整远端 tree `6e090801b57e87d541563d1ecaa0e0ea463760aa`
+与本地验证提交 `0b1f17ac0b879e39f6cba89e08e0b42f7eff1d97` 一致，fetch 后 diff 为空。
+本地完整 bundle 已验证；本地提交身份为 halckon <halckon0@hotmail.com>，远端 connector
+使用已连接 Halckon 账户身份。该差异不改变已核验 tree。
+
+本次仅依据以上实现、验收和实际 CI 证据归档有界切片。归档提交只同步 Spec/inventory，
+最终 head 仍需重跑双平台 CI，其结果更新同一个 PR，避免为重复日志不断追加账本提交。
+PR 保持 Draft，不自动合并或转 Ready；editor 五项历史失败及 frontend 全量未运行边界保持。
+
+## 7. 2026-10-02 主干归档闭环
+
+PR #14 实际合并的 head 为 `d333e41441dcb2b9b34f58b3ae5251fe75d046a0`，
+merge 为 `34189046319a8b727285d471596647d5de56996e`；上节是当时归档分支的真实账本，
+其中“保持 Draft / 最终 head 待验证”不代表当前 PR 状态。
+归档提交 `3c06e37a2932aed7b2db6cffe26c3ab8ee5c6202`（本地 `043e919`）未进入该次 merge，
+因此主干仍留下 active 路径。本批复用其最终验收正文，按最新 main 重算索引/inventory/DAG；
+没有重放旧索引，也没有重做或更改 Rust 实现。
+
+2026-10-02 再核验 [PR #14](https://github.com/Halckon/koven/pull/14) 已 merged；上述 exact-head
+[CI 36978695764](https://github.com/Halckon/koven/actions/runs/36978695764) 与主干
+[CI 36979753900](https://github.com/Halckon/koven/actions/runs/36979753900) 均 8/8 jobs success，
+Ubuntu/macOS check、Clippy、core、stage、Guide 步骤均实际 success。
+
+| 原 Goal / 验收项 | 最终证据与判定 |
+|---|---|
+| 五项失败逐一因果闭合 | §2、§3 保留原 99/5、2 failed 红测、最终完整 suite 107/0/0 及四项现行合同的强断言映射 |
+| 恢复 layout 不发布不完整事实，保留正确 owner | 布局六种复合 poison、source-qualified identity、同本地 SymbolId 与输入置换；§5 保留单/unit 对照边界 |
+| 下游拒绝不可执行恢复产物 | `recovery_owner_without_a_layout_cannot_become_executable_ssa` 实际完整 lowering 返回 UnsupportedNode；无 codegen 生产更改 |
+| 直接消费者与持续门禁 | 11 suites、frontend lib、完整 codegen/CLI/LSP、stage 与 Guide 的原本地结果及 §6 双宿主日志 |
+| 独立 PR、CI 与归档 | 实现已合并且 exact-head CI 成功；本批完成遗漏路径迁移、索引与 inventory 闭环 |
+
+原有界 Goal 记为 `done`。§3/§4 的“待发布”是当时快照，不倒填其原始结果；本节记录后继事实。
+独立 editor 五项历史失败、frontend 全量未运行、基本/const 能力隔离和 composite recovery
+表示边界保持。归档文档 PR 按现行 docs-only 过滤；若 Rust job 合法 skip，不称双宿主重新执行。

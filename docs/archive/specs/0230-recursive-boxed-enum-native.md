@@ -1,10 +1,10 @@
 # SPEC-0230：递归 Box enum 的 native 构造与析构
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实现或验证递归 Box enum 存储时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实现或验证递归 Box enum 存储时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-230` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | [v0.38 Box enum 与递归布局](../../guide/11-copyability-layout-construction.md#内建-box-身份与实参边界) |
@@ -74,3 +74,29 @@ case 解析不属于 type mapping 修复，独立缺口保留，不把这一变�
 
 无新增语言语义选择。若已有前端事实不足或 native 范围超出上述边界，记录具体缺口并新建
 后继 Spec，不从 AST 或类型名称猜测缺失合同。
+
+## 7. 最终交付与关闭验收（2026-10-02）
+
+实现提交 `4653ed0a99d7e76ea1c105fad6274c973dea6112` 最终经
+[PR #7](https://github.com/Halckon/Koven/pull/7) head
+`11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 合并为
+`e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核基线
+`34189046319a8b727285d471596647d5de56996e`。
+该 head 的 [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+8/8 jobs success；Ubuntu/macOS 的 check、strict clippy、core、stage 与 Guide 步骤均成功，
+core 的完整 `lang-codegen` 覆盖本 Spec 的八项 native、model/verifier 与两项 signature-only
+SSA 回归。此为原 Linux 本地证据之外的最终双宿主验证；§3、§5 的旧“未运行”不追改。
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §3.1 red | §5 原 `boxed_enum` 9 failed → 同选择 9 passed；构造器 tagged payload 与递归 mapping 原失败保持可追溯 |
+| §3.2 mapping 与既有 gate | [SSA 测试](../../../crates/lang-codegen/src/ssa/lower_frontend_tests.rs)的 `boxed_enum_signature_only_storage_accepts_box_or_enum_first` 在没有 construction demand 的情况下真实切换首参数 `Box<Expr>` / `Expr`，并验证 LLVM；`boxed_enum_mapper_preserves_nonrecursive_value_wrappers` 保留普通包装回归；[type model 测试](../../../crates/lang-codegen/src/ssa/type_tests.rs)的 `boxed_enum_payload_definitions_verify_recursive_indirection` 保留合法间接边及非法 scalar payload 拒绝 |
+| §3.3 构造、运输与精确递归释放 | [single native](../../../crates/lang-codegen/src/native_boxed_enum_tests.rs)及 [unit native](../../../crates/lang-codegen/src/native/unit_boxed_enum_tests.rs)各四项：无 payload/scalar cases、跨调用/文件 own 返回、递归树与 inline root；计数由真实生成代码执行，分别精确为 2 / 45 次 malloc/free，每个 free 必须匹配当前 live pointer，结束无 live pointer，inline root 不增加第 46 次分配 |
+| §3.3 确定性 | single helper 比较重复 SSA/LLVM；unit helper 将两输入反序并比较 SSA/LLVM；两种签名顺序均进入实际 native 与计数循环，不将“可编译”替代资源 oracle |
+| §3.4 门禁 | §5 最终 codegen lib 489 passed、fmt/strict clippy/workspace check 与文档门禁保留；最终 PR7 双宿主 core 实际再次运行 codegen，未改变原断言、预算或 ignore |
+| §3.5 交付 | 最终 PR7、精确 CI 与 main merge 相互对应，已满足非泛型递归 Box enum 的有界 Goal；文档状态/路径与 inventory 随生命周期收尾同步 |
+
+本轮只核对代码、历史账本和交付证据，未重跑 Cargo/native。关闭不包含 generic enum ABI、
+nullable/Rc 包裹的递归 payload、任意声明顺序的前向 enum case、Box value/unbox、field move
+或新的 borrowed return。§5 原前向 case L0080 / unit facts 失败与调整原因全部保留；普通
+非递归包装通过不推广为递归 nullable/Rc 支持。deinit 的后继交付不改变本合同的原非目标。

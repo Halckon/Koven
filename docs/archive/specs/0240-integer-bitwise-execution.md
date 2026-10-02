@@ -1,10 +1,10 @@
 # SPEC-0240：整数具名位运算与取反端到端执行
 
-> **性质**：实施与验证 Spec · **状态**：in-progress · **读取时机**：实施或核验整数位运算时 · **唯一真源**：本 Spec 的范围、验收与交付限制
+> **性质**：实施与验证 Spec · **状态**：done · **读取时机**：实施或核验整数位运算时 · **唯一真源**：本 Spec 的范围、验收与交付限制
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-BITWISE-0240` |
 | 所属 Phase | Phase 2 常量与类型、Phase 3 receiver 读取、Phase 4 SSA/LLVM/native |
 | 语言规范 | [Guide v0.40](../../guide/README.md)，不启用新语义 |
@@ -82,3 +82,32 @@ return-control并执行Litmus4单文件native，由0242移除调用侧Borrow mar
 原始Litmus4与12现在均为两入口frontend正向检查；native仍分别限定为4的单文件入口
 和12的双入口，不扩张其他typed/native边界。组合后的实际验收统一见
 [SPEC-0241整合账本](0241-return-control-operands.md#最新-main-整合验收)。
+
+## 最终交付与关闭依据（2026-10-02）
+
+本节接续“PR发布与后继整合状态”，把其中“PR9正在整合”更新为已完成的组合交付事实。
+原红测、本地未发布/macOS未运行、Litmus4缺口等历史记录继续保留；本轮未重跑Cargo。
+
+- 实现提交及[PR #8](https://github.com/Halckon/Koven/pull/8)最终head：
+  `57a181695f4408378140fae1cea40caaa396bfae`；合入
+  `8f3e460ba2e186a4fbbcb8ea63a671e1c318b7fa`；精确head的
+  [CI run 36884583273](https://github.com/Halckon/Koven/actions/runs/36884583273)为8/8 jobs success。
+- 与0241/0242的最终组合：[PR #9](https://github.com/Halckon/Koven/pull/9)，head
+  `99e63d51854dbade0304dd8c86339183031dae06`；精确head的
+  [CI run 36952398650](https://github.com/Halckon/Koven/actions/runs/36952398650)为8/8 jobs success，
+  两平台check/Clippy/core/stage/Guide实际成功；已合入
+  `2ad6967aebdbf91d18817d23b9cae1a8e1981d56`，并包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。不复用PR9早期9e54af2绿灯代替此组合。
+
+| 原合同 / 验收主题 | 最终映射 |
+|---|---|
+| 六操作const、八整数类型与masked shift | `crates/lang-frontend/tests/bitwise_constants.rs`两入口各236个整数结果、跨文件依赖/反转输入、错误operand/const资格与cycle；原6项suite在stage/Guide选择内 |
+| inv稳定身份、回滚与只读receiver | `tests/integer_inv.rs`10项：八类型、非法参数/类型实参/receiver、ordinary同名member、trial回滚、exclusive loan冲突与跨source局部ID碰撞；两入口消费typed facts |
+| SSA/verifier/LLVM与非poison移位 | `crates/lang-codegen/src/ssa/bitwise_lowering_tests.rs`、`bitwise_operation_tests.rs`及LLVM位操作实现；位数在LLVM shift前mask，checked算术合同不变 |
+| runtime边界、顺序与独立oracle | `native_bitwise_tests.rs`、`native/unit_bitwise_tests.rs`和共享`bitwise_test_support.rs`：各入口304个二元结果、六operator eager次序、40个inv结果/一次receiver求值、48个const/runtime独立十进制oracle对照 |
+| 原始Litmus12 | 两native入口直接提取Guide15 const源码、真实link/run并核对`Mask initialized`；Guide脚本执行`guide_litmus_12`，最终PR8/PR9两平台Guide步骤成功 |
+| 严格门禁、文档与最终组合 | 原本地账本所有实际计数保留；最终PR8及PR9精确head门禁与已合并链如上；组合本地证据仍见[SPEC-0241](0241-return-control-operands.md#最新-main-整合验收) |
+
+有界整数位运算与inv Goal已满足，可按 `done` 关闭。`inv()`仍不进入const call白名单；
+同类型operand约束、单文件通用integer index/source member、临时对象投影及未支持native
+边界不因关闭扩大。Litmus4由0241单独验收；其他typed/native、deinit/drop时序不由此证明。

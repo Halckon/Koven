@@ -1,16 +1,16 @@
 # SPEC-0235: 三项批准规则在真实 clone-first 基线启用
 
-> **性质**：Guide-first 变更合同 · **状态**：in-progress · **读取时机**：实施或验收 v0.40 规范整合时 · **唯一真源**：本 Spec 的范围与验收；语言语义仍由 Guide 定义
+> **性质**：Guide-first 变更合同 · **状态**：done · **读取时机**：实施或验收 v0.40 规范整合时 · **唯一真源**：本 Spec 的范围与验收；语言语义仍由 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-DOC-0235` |
 | 所属 Phase | 文档规范启用；先于相关 Phase 1–5 实现 |
 | 语言规范 | 已启用 [Guide v0.40](../../guide/README.md) |
 | 批准依据 | 2026-10-01 用户批准调用处取消 borrow、移位屏蔽、deinit 顺序/只读 this；后续明确 clone-first、延后 Str/toString |
 | 前置 Spec | 无新增交付依赖；本地来源是已纳入 clone-first 实现的真实 v0.39，不把其 CI 未完成状态改写为 done |
-| 关联 Spec | [SPEC-0236](0236-explicit-string-clone.md)、[SPEC-0233](0233-parser-compiler-contracts.md)、[SPEC-0234](0234-block-newline-continuation.md) |
+| 关联 Spec | [SPEC-0236](../../specs/active/0236-explicit-string-clone.md)、[SPEC-0233](0233-parser-compiler-contracts.md)、[SPEC-0234](0234-block-newline-continuation.md) |
 | 前置 ADR | 无；本次不改变实现 ABI |
 | 关联 ADR | [ADR-0018](../../adr/accepted/0018-string-owner-runtime-abi.md)、[ADR-0027](../../adr/accepted/0027-explicit-string-clone-abi.md) |
 | 阻塞项 | 本地文档验证进行中；已获整合 PR 发布授权，最终 PR CI 未完成 |
@@ -27,9 +27,9 @@ Contracts 成果；规范启用、实现证据与 PR CI 三者分别记录，不
 首次本地候选 `8181a97` 从 main `d3e64a4` 的 v0.38 出发；`929746d` 按用户最新决定撤回
 Str/toString 切换，并暂退 draft 等待 clone-first。本次来源改为七阶段合并提交
 `ed0727f93e72c2a795093faaa57b9a3f7e0531cf` 的真实 v0.39，重开 active/in-progress。
-原 [clone 启用记录](../../archive/migrations/v0.39-enablement.md)保留原路径；
-[0235 旧候选记录](../../archive/migrations/spec-0235-initial-candidate-v0.39.md)与
-[字符串纠正记录](../../archive/migrations/v0.39-string-deferral.md)不改写旧结论。
+原 [clone 启用记录](../migrations/v0.39-enablement.md)保留原路径；
+[0235 旧候选记录](../migrations/spec-0235-initial-candidate-v0.39.md)与
+[字符串纠正记录](../migrations/v0.39-string-deferral.md)不改写旧结论。
 
 ## 3. 范围与需求
 
@@ -39,7 +39,7 @@ Str/toString 切换，并暂退 draft 等待 clone-first。本次来源改为七
 - 完整保留 String.clone 的 shared Borrow、独立 owner、typed/ownership/SSA/native 合同；
   String 继续 MoveOnly + Transferable，旧 literal、const、拼接和比较保持，Str/toString 延后。
 - 完整归档真实 v0.39 的索引和 15 个领域页，仅机械重算链接；逐页 SHA-256 与 191 个二/三级
-  标题归属见 [v0.40 迁移账本](../../archive/migrations/v0.40-enablement.md)。
+  标题归属见 [v0.40 迁移账本](../migrations/v0.40-enablement.md)。
 - 保留 SPEC-0233 Compiler Contracts 的九段迁移和全部检查；保留 SPEC-0234 Guide06/07 续行规则。
 - 同步唯一 current 标记、页元数据、冻结 inventory、索引及 DAG，不放宽行数/路由预算。
 
@@ -103,3 +103,33 @@ SPEC-0229–0234、0236 的实现与本地集成验收由 [SPEC-0237](0237-local
 | `python3 scripts/check_docs.py`、25 项检查器测试、`git diff --check` | 通过，405 Markdown / 25 tests | 2026-10-01；仅文档修正 |
 | v0.38 快照与非字符串三项规则 | 16/16 页与 main `d3e64a4` 等价；三项规则未变 | 仅逆向声明的机械链接变换；复核纠正 diff |
 | Rust / native / clone | 未运行 | 由独立 clone 切片负责 |
+
+## 10. 最终交付与关闭依据（2026-10-02）
+
+本节承接第5节的最终交付项，保留第6–9节各时点的未运行、暂退 draft、授权与 CI
+限制原义。被取代的是早期候选及旧版 Guide；本合同实际履行的是在真实 clone-first
+基线上启用 v0.40，最终关闭结论为 `done`，不是把整份 Spec 标成 `superseded`。
+
+- 最终规范整合提交：`f6d38ab3718f8b1c043618514e402fc538d5b5b2`，来源仍为
+  `ed0727f93e72c2a795093faaa57b9a3f7e0531cf` 的真实 v0.39。
+- 最终交付：[PR #7](https://github.com/Halckon/Koven/pull/7)，head
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`，合并节点
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`；已包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。
+- 精确 head 的 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+  为8/8 jobs success，含 Docs & Spec Structural Gate；双平台 Rust 门禁属于组合交付证据，
+  不能反向证明本次 Guide 启用已实现所有新规范。
+
+| 第5节原验收 | 最终证据与关闭范围 |
+|---|---|
+| 1：真实 clone-first、唯一 current v0.40 | `docs/guide/README.md` 与 `scripts/check_docs.py` 的版本/入口约束；当前 Guide 保留0236合同，三项规则仅按已批准范围启用 |
+| 2：16页、191标题与两条历史线 | `docs/archive/migrations/v0.40-enablement.md` 的逐页摘要/标题账本；本轮将16页归档只逆向声明的相对链接前缀变换，再与 `ed0727f` 原页逐字比较：16/16相等、191个二/三级标题同页同序 |
+| 2–3：纠正顺序、String 合同与三规则 | `v0.39-enablement.md`、`spec-0235-initial-candidate-v0.39.md`、`v0.39-string-deferral.md` 保留独立来源；Guide07/04/08分别承载自动借用、位宽屏蔽、deinit顺序，Guide13保留clone与MoveOnly/Transferable |
+| 4：Compiler Contracts 与续行 | 0233九段迁移账本与 `docs/compiler-specs/` 保留；Guide06/07 的0234规则继续存在，未被版本切换覆盖 |
+| 5：结构、Python、快照与差异 | 第6节438 Markdown、37 tests及快照原始结果；最终 PR7 的文档 job 成功，当前生命周期变更另由本批文档门禁验证 |
+| 6：独立审查、发布与最终 CI | 最终 PR7 已合并；[SPEC-0238](0238-guide-litmus-gate.md)承接 CI 后 PR6 独立核查及更正，保持历史审计和冻结快照 |
+
+本轮未运行 Cargo；此 Spec 从未以 Cargo 作为文档启用的替代验收。调用迁移、位运算执行、
+资源析构分别由 SPEC-0242、0240、0245 的实现合同承担；Str/toString、borrow-return
+及其他非目标不因本次关闭变成已实现。旧候选8181a97、撤回929746d、真实v0.39、v0.40
+四个阶段继续可追溯，不合并或改写其原结论。

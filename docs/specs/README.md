@@ -1,45 +1,26 @@
 # Koven Specs
 
-> **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文
+> **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；语言演进进度见演进实施账本
 
-Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。先从本页定位当前状态，
-不要默认读取完成历史。
+Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
+本分支按各合同的最终证据关闭 0228–0235、0237–0242 与 0247，0182/0236 保留 active。
+文档归档不代表原 13 项语言演进全部完成，也不扩大已验收的支持范围。
 
-## 当前状态
+## 当前入口
 
-- [SPEC-0247](active/0247-multifile-baseline.md)：五项跨文件类型历史失败的恢复修复与现行合同迁移，in-progress。
+- [Active](active/README.md)：2 份：SPEC-0182 `approved` 需补真实 for→SSA/native 验收，SPEC-0236 `in-progress` 需补诊断 Span 回归证据
+- [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
+- [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
+- [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付
+- [Spec 依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成的当前拓扑
 
-- SPEC-0246：owned local 普通 class 一级字段 replace 在原 main `8eb2cd3` 上完成有界本地与首轮双平台 CI 验收，已归档；[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft。归档 head 遇新 main 冲突，没有产生 PR CI；已整合含 deinit 的 main `e6e1100`，交叉资源测试与全部本地门禁重新通过，修复 head 双平台 CI 由 PR 跟踪。当前边界见[一级字段专页](../architecture/direct-field-replace.md)。
-- SPEC-0245：普通 concrete class 资源析构有界验收完成并归档；[PR #12](https://github.com/Halckon/Koven/pull/12) 于 2026-10-02 06:31:18 UTC 被用户合并，main 为 `e6e1100b8c273fbe3d19180bcc60506559683e5a`。当前实现见[资源析构专页](../architecture/resource-deinit.md)。
-- SPEC-0244：owned mutable root replace / swap 已有 ownership、SSA、LLVM/native 与双平台验收，已归档并进入 main；当前边界见 [root 原语专页](../architecture/root-ownership-primitives.md)。
-- SPEC-0243：receiver 两阶段借用与 unit native 有界验收完成并归档；[PR #10](https://github.com/Halckon/Koven/pull/10) 已合并进入 main。历史验收从完成 Spec Archive 追溯。
-- [SPEC-0241](active/0241-return-control-operands.md)：return if/when、Litmus4 两入口前端与单文件 native；联合门禁和远端 CI 待完成。
-- [SPEC-0242](active/0242-automatic-borrow-call-migration.md)：调用点自动借用迁移；直接 parser 验证通过，联合回归与远端 CI 待完成。
-- [SPEC-0239](active/0239-linux-ci-gates.md)：Linux/macOS CI 与定向整合门禁，本地验证通过，远端待授权验证。
+## 版本与历史导航
 
-- [SPEC-0238](active/0238-guide-litmus-gate.md)：PR #6 审查后的 Guide 勘误与可执行 Litmus 前端门禁。
-- [演进实施账本](evolution-status.md)：13 项计划的实际实现边界与独立基线缺口。
-
-- [Active](active/README.md)：`approved` / `in-progress`；当前状态与验收见各 Spec。
-- [v0.36 阶段路由](drafts/v0.36/README.md)：单文件与跨文件常量 Phase 2/3/4 均已完成。
-- [v0.37 阶段路由](drafts/v0.37/README.md)：借用式顺序迭代，3 份 done、1 份 approved。
-- [完成 Spec Archive](../archive/specs/README.md)：217 份 `done`/`superseded` 记录，仅在追溯时读取。
-- [Spec 依赖图](dependency-graph.md)：`scripts/gen_spec_dag.py` 生成的拓扑图（SVG 版本
-  [dependency-graph.svg](dependency-graph.svg)），不含验收状态，状态以本页为准。
-
-### 版本总览
-
-| 版本 | 状态 | 下一项 | 依赖入口 |
-|---|---|---|---|
-| v0.40（本地已启用） | SPEC-0235 in-progress，真实 v0.39 已归档 | 三项规则的实现闭环及获准后的 PR CI | [版本路由](drafts/v0.40/README.md) |
-| v0.36（已启用） | 常量 Phase 2/3/4 done | 当前阶段链已完成 | [v0.36 阶段路由](drafts/v0.36/README.md) |
-| v0.37（已启用） | 0179/0211/0212 done、0182 approved | SPEC-0182 for lowering | [drafts/v0.37](drafts/v0.37/README.md) |
-| clone-first v0.39（已由 v0.40 继承） | SPEC-0236 in-progress，本地定向验证完成 | 整合回归、获准发布与 PR CI | [SPEC-0236](active/0236-explicit-string-clone.md) |
-| 本地八阶段整合 | SPEC-0237 in-progress | 交叉契约与统一 target 门禁 | [SPEC-0237](active/0237-local-integration.md) |
-| host-native 扩展（已批准） | SPEC-0228 in-progress | Linux x86_64 + glibc 目标与基线验收 | [SPEC-0228](active/0228-linux-x86-64-native-host.md) |
-| v2 interface 值 / Map 所有权（proposal） | 未启用 | 待评审 | [proposals](../proposals/README.md) |
-
-本表是导航摘要，不改变任何 Spec 的批准状态；各版本阶段路由与 Spec 正文仍是唯一真源。
+- [v0.40](drafts/v0.40/README.md)：现行 Guide 启用及三项规则的实施入口
+- [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
+- [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档，0182 验收补强单独进行
+- [完成 Spec Archive](../archive/specs/README.md)：232 份 `done`/`superseded`，只在追溯时读取
+- [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期
 
@@ -49,9 +30,10 @@ draft → approved → in-progress → done
   └─ blocked 时保持 draft
 ```
 
-- 编号在 active、drafts 和 archive 间全局唯一且不复用。
-- 前置 Spec 必须 `done`、前置 ADR 必须 `accepted`、语义 guide 必须已启用，才能进入 active。
-- `done` 前逐条勾选验收并记录实际命令；未执行项必须写明原因。
-- 一个 Spec 只定义一个 Goal；长期架构理由写 ADR，完整语义链接 guide，不在 Spec 复制。
+- 编号在 active、drafts 和 archive 间全局唯一且不复用
+- 前置 Spec 必须 `done`、前置 ADR 必须 `accepted`、语义 Guide 必须已启用，才能进入 active
+- `done` 前逐条记录验收及实际命令；未执行、失败、filtered、ignored 与后继修复分别留证
+- 状态迁移、路径迁移、索引与冻结 inventory 同批更新；原验收历史不重写
+- 一个 Spec 只定义一个 Goal；长期架构理由写 ADR，完整语义链接 Guide
 
-新建草案使用 [TEMPLATE.md](TEMPLATE.md)，并放入 `drafts/` 或对应未启用版本子目录。
+新建草案使用 [TEMPLATE.md](TEMPLATE.md)，放入 `drafts/` 或对应未启用版本子目录。
