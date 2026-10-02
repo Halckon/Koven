@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19已合并；plan七域拆分本地已验，待独立review/PR CI | plan 48项逐字保全，历史超限48→47；受控compile+link、独立执行/RSS已采样，真正冷缓存与分离link仍未测 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25已合并；iteration18域本地已验，待独立review/PR CI | iteration40项保真迁移，3个完整场景新例外；生产1871行另片处理，受控compile+link/执行/RSS未触发预设调查阈值 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -160,3 +160,28 @@ Draft PR exact-head双宿主CI仍需核验，终态留在PR；不沿用基底CI�
 
 P2后继仍按批准顺序推进iteration私有测试、大integration分组及独立生产职责拆分。
 P3/P4/P5未因本片自动完成；全计划完成后的外部审计仍排队，未提前开展。
+
+
+## PR25 合并与 iteration 私有测试首片（2026-10-02）
+
+- [PR25](https://github.com/Halckon/Koven/pull/25)已合并为
+  `9f9ee5230b6bc0affd2b7af727294c7f1bbc328b`；本片据此固定基线。
+  上节plan“待review/PR”是当时快照，不再表示当前状态；不沿用基底CI证明本片
+- iteration.rs14688→1876，生产1871行逐字不变；40项拆18私有领域，8共用helper留371行入口，
+  3场景helper留其唯一调用领域。instance_replay独立树、12063行integration及Cargo目标不动
+- 187项libtest中40项一对一映射、147项身份不变，旧filter前后40/40；完整metadata仍129 targets。
+  51完整块等于从原文独立生成的同版rustfmt参考；448个literal逐字、1488处assert保全。
+  169条super路径逐项解析同一目标，13块42处格式token编辑完整列账，不宣称测试块逐字未变
+- baseline14688→1876，仅收紧原路径；conditional_leaf1155、file_parent1143、
+  sibling_shared_loans1145登记新有限例外，不借旧baseline授权。实际619→638手写文件，
+  47→50超千行含3新例外；生产欠账没有消失，没有压行/拆断言/include拼接
+- 本地40 targeted、53 instance_replay、184 ownership_iteration、fmt、frontend all-targets
+  check/严格clippy、普通release check、94 policy、文档和尺寸护栏通过。
+  dependency-warm强制frontend compile+link两轮/侧，no-op与独立执行三轮/侧，
+  预设调查阈值未触发；真正冷缓存、分离link及二进制大小未测，不宣称提速或性能等价
+- [本片验收与可复现证据](drop-iteration-test-migration.md)记录精确身份、helper、路径、
+  格式差分、全部测量值及未运行项。纯搬迁与文档/policy分commit；独立review和Draft PR
+  exact-head双宿主CI仍待后继，终态留PR；合并由维护者判断
+
+P2仍待大integration分组与独立生产职责拆分；P3/P4/P5没有自动完成。
+用户要求的整体计划完成后外部审计继续排队，本片不提前插队。
