@@ -10,9 +10,9 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15与后继PR17均已合并 | PR15归档15项；PR17补齐0236 Span证据后独立归档，当前1 active / 233 archive；0182继续独立补强 |
-| P1b 0182 证据 | 待独立批次 | 保持 active；补真实 for→SSA/native 的次数、顺序、畸形产物与确定性 oracle |
-| P2 测试结构与软上限 | LSP首片PR16与尺寸护栏PR18已合并；receiver首片本地验收通过，待review/PR CI | 46项拆至七私有领域模块，历史超限49→48；有限warm样本已记录，受控compile/link与预算仍待补 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
+| P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19已合并；plan七域拆分本地已验，待独立review/PR CI | plan 48项逐字保全，历史超限48→47；受控compile+link、独立执行/RSS已采样，真正冷缓存与分离link仍未测 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -133,3 +133,30 @@ live/archive为1/233。相对新main的全部Rust/Cargo文件diff为空，护栏
 与macOS未跑。身份映射、实际命令、最小warm三轮时间/RSS及限制见[本片验收](codegen-receiver-test-migration.md)。
 三轮no-op/filter样本不证明冷/热compile/link收益或退化预算；P2整体未完成。后续独立review和
 Draft PR exact-head双宿主CI仍需核验，终态留在PR；不沿用基底CI冒充新head验收。
+
+
+## PR19/24 合并与 plan 七域首片（2026-10-02）
+
+- [PR19](https://github.com/Halckon/Koven/pull/19)已合并为
+  `f395dbccac1da6044476a4c5cb949b31880d0542`；head
+  `20d588c73b6bc03cdfbbd81f0fc812018a8e8e6a` 的
+  [CI 37001669457](https://github.com/Halckon/Koven/actions/runs/37001669457)为9/9 success，
+  两宿主receiver46/46逐名通过。上节“待review/PR”保留当时快照，不再作为当前状态
+- [PR24](https://github.com/Halckon/Koven/pull/24)已合并为
+  `5e9a2954536055e674eed515709d34a65b354e21`。最终归档head
+  `83e4693c88793bccf9b0358973c334837d149681` 的
+  [CI 37026403861](https://github.com/Halckon/Koven/actions/runs/37026403861)为9/9 success；
+  [0248](../archive/specs/0248-unit-container-storage.md)仅按其有界Unit存储合同完成，当前1 active/234 archive。
+  0182的完整合同仍active；不可由Copyable Unit子集推定MoveOnly ZST等未决能力已完成
+- 本片固定上述新main，`unit_plan_tests.rs` 3091→140行，48项拆成七私有领域模块，最大742行。
+  730项libtest中48项一对一迁移、682项身份不变；原filter前后实际48/48，129 targets完整metadata相等。
+  5 helpers、136处assert及48完整测试块逐字保全；只追加测试parent私有alias维持一个相对路径
+- `unit_plan.rs`生产3061行、Cargo/依赖/其他测试/平台ignore不变。尺寸policy仅退休原3091行项，
+  其余47项逐值不变；实际619手写/47超限。纯搬迁与文档/policy分commit，未重生历史baseline
+- 本地fmt、codegen严格clippy、普通release check、48项执行、94 policy、docs和尺寸门禁通过。
+  同一worktree的dependency-warm强制codegen compile+link两轮/侧、no-op和独立执行三轮/侧
+  已记录时间/RSS，预设复查阈值未触发；不据小样本宣称提速。方法、原值和未测范围见
+  [本片验收](codegen-plan-test-migration.md)。独立review、Draft PR及exact-head双宿主CI终态留在PR
+
+P2后继仍按批准顺序推进iteration私有测试、大integration分组及独立生产职责拆分。
+P3/P4/P5未因本片自动完成；全计划完成后的外部审计仍排队，未提前开展。
