@@ -20,8 +20,8 @@ use inkwell::{
 };
 
 use crate::ssa::model::{
-    ClosureCaptureMode, EntityId, EntityType, Module, Operation, Ownership, SsaTypeId, SsaTypeKind,
-    TerminatorKind,
+    ClosureCaptureMode, EntityId, EntityType, FunctionId, Module, Operation, Ownership, SsaTypeId,
+    SsaTypeKind, TerminatorKind,
 };
 
 use super::{
@@ -164,7 +164,6 @@ impl<'ctx> RuntimeAbi<'ctx> {
             zst_sentinel,
             drop_functions,
         };
-        runtime.define_drop_functions(module, types)?;
         Ok(runtime)
     }
 
@@ -594,10 +593,11 @@ impl<'ctx> RuntimeAbi<'ctx> {
         Ok(())
     }
 
-    fn define_drop_functions(
+    pub(super) fn define_drop_functions(
         &self,
         module: &Module,
         types: &TypeMap<'ctx>,
+        functions: &BTreeMap<FunctionId, FunctionValue<'ctx>>,
     ) -> Result<(), LlvmAdapterError> {
         for (ty, function) in &self.drop_functions {
             let entry = self.context.append_basic_block(*function, "entry");
@@ -662,6 +662,17 @@ impl<'ctx> RuntimeAbi<'ctx> {
                     builder.position_at_end(done);
                 }
                 Some(SsaTypeKind::HeapOwner { payload, .. }) => {
+                    if let Some(deinit) = module.deinit(*ty) {
+                        let deinit = functions.get(&deinit).copied().ok_or_else(|| {
+                            LlvmAdapterError::InvalidSsa("deinit body is not declared".to_owned())
+                        })?;
+                        // The existing Borrow ABI passes a pointer to the owner handle, not
+                        // its payload. The readonly body returns before any field is released.
+                        let receiver =
+                            builder.build_alloca(types.basic_type(*ty)?, "deinit.receiver")?;
+                        builder.build_store(receiver, value)?;
+                        builder.build_call(deinit, &[receiver.into()], "")?;
+                    }
                     let payload = payload.ok_or_else(|| {
                         LlvmAdapterError::InvalidSsa(
                             "drop glue 的 heap owner 尚未定义 payload".to_owned(),

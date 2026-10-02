@@ -39,6 +39,21 @@ impl Checker<'_> {
             )?;
             return Ok(false);
         }
+        if access == AccessKind::Move
+            && matches!(
+                self.current_receiver_mode,
+                Some(ParameterMode::Borrow | ParameterMode::Inout)
+            )
+        {
+            self.diagnostics.push(crate::diagnostic::Diagnostic::new(
+                self.sources,
+                crate::diagnostic::Severity::Error,
+                self.borrowed_move_code,
+                "cannot move a non-Copyable this receiver from a non-owning body",
+                primary,
+            )?);
+            return Ok(false);
+        }
         Ok(true)
     }
 

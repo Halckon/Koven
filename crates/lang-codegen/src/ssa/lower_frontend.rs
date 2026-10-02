@@ -15,6 +15,7 @@ mod non_null_assertion;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod ownership_primitive;
+mod resource_deinit;
 mod source_closure;
 mod string_clone;
 pub(in crate::ssa) mod string_literal;
@@ -119,6 +120,7 @@ struct ExpressionLowerer<'a> {
     temporaries: BTreeMap<usize, ValueId>,
     pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
     return_type: TypeId,
+    deinit_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
     loops: Vec<loop_control::LoopContext>,
 }
 
@@ -1304,6 +1306,14 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         if fact.kind() != lang_frontend::ownership_checking::LoanKind::Shared {
             return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if let Some((loan, created)) = self.deinit_view(argument)? {
+            // The current call carrier stores one pending loan. Deeper borrowed projections
+            // need an ancestor-loan carrier across argument CFG and remain fail-closed.
+            if created.len() > 1 {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            return Ok((loan, !created.is_empty()));
         }
         if let LoanTarget::Place(target) = fact.target()
             && target.is_root()

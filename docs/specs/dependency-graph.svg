@@ -6,7 +6,7 @@
   </defs>
   <rect width="3896" height="382" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，215 份）</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，216 份）</text>
   <rect x="384" y="30" width="3448" height="280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2108" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 300 92 C 352 92, 352 248, 404 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -75,5 +75,5 @@
   <text x="3692" y="105" text-anchor="middle" font-size="13">调用点自动借用迁移</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，215 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，216 份</text>
 </svg>

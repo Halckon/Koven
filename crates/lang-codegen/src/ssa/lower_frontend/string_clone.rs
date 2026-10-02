@@ -90,6 +90,11 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::type_checking::{AggregateProjectionReceiver, NominalKind, TypeKind};
         let span = self.expression_span(expression)?;
         let target = self.expression_ssa_type(expression, span)?;
+        if let Some((loan, loans)) = self.deinit_view(expression)? {
+            created.extend(loans);
+            return Ok(loan);
+        }
+
         if let Some(projection) = self.clone_field_projection(expression)? {
             let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));

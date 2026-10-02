@@ -1,5 +1,7 @@
 //! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。
 
+mod deinit;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     ops::Deref,
@@ -32,6 +34,8 @@ pub(crate) struct UnitFunctionInstanceKey {
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     static_self: Option<UnitTypeId>,
+    /// Hidden deinit uses its nominal declaration as identity, never a source callable.
+    deinit: bool,
 }
 
 /// 一个已解析的 Borrow-only delegation receiver 投影。
@@ -145,6 +149,23 @@ impl UnitFunctionInstanceKey {
             target,
             type_arguments,
             static_self,
+            deinit: false,
+        }
+    }
+
+    fn for_deinit(owner: DeclarationId) -> Self {
+        Self {
+            target: UnitCallableTarget::Declaration(owner),
+            type_arguments: Vec::new(),
+            static_self: None,
+            deinit: true,
+        }
+    }
+
+    pub(crate) const fn deinit_owner(&self) -> Option<DeclarationId> {
+        match (self.deinit, self.target) {
+            (true, UnitCallableTarget::Declaration(owner)) => Some(owner),
+            _ => None,
         }
     }
 
@@ -214,6 +235,7 @@ struct UnitFunctionTemplate {
     type_parameters: Vec<UnitSymbolId>,
     owner: Option<DeclarationId>,
     span: Span,
+    deinit: bool,
 }
 
 /// 从显式 entry 建立仅含可达函数的 unit-wide 具体实例计划。
@@ -294,7 +316,7 @@ pub(super) fn plan_unit_instances_from_facts(
                 .get(entry.index())
                 .map(|declaration| declaration.name_span()),
         })?;
-    if !templates[entry_template].type_parameters.is_empty() {
+    if templates[entry_template].deinit || !templates[entry_template].type_parameters.is_empty() {
         return Err(lowering_error(
             LoweringErrorKind::UnsupportedNode,
             templates[entry_template].span,
@@ -326,7 +348,14 @@ pub(super) fn plan_unit_instances_from_facts(
                 template.span,
             ));
         }
-        let requires_static_self = callable_static_self_receiver(typed, key.target())?;
+        if key.deinit != template.deinit {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                template.span,
+            ));
+        }
+        let requires_static_self =
+            !key.deinit && callable_static_self_receiver(typed, key.target())?;
         if requires_static_self != key.static_self().is_some() {
             return Err(lowering_error(
                 LoweringErrorKind::MissingFact,
@@ -435,6 +464,16 @@ pub(super) fn plan_unit_instances_from_facts(
             }
             pending.insert(target_key.key);
         }
+
+        deinit::plan_instance_deinits(
+            typed,
+            names,
+            parsed_by_source[template.source_unit.index()],
+            template,
+            &key,
+            &substitutions,
+            &mut pending,
+        )?;
 
         if key.is_specialized() {
             generic_instance_count += 1;
@@ -617,6 +656,7 @@ fn collect_templates(
                 type_parameters: callable.type_parameters().to_vec(),
                 owner: None,
                 span,
+                deinit: false,
             });
         }
         let Some(nominal) = signature.nominal() else {
@@ -629,6 +669,9 @@ fn collect_templates(
                 kind: LoweringErrorKind::MissingFact,
                 span: None,
             })?;
+        if let Some(template) = deinit::template(nominal, parsed)? {
+            templates.push(template);
+        }
         for member in nominal.members() {
             let UnitCallableTarget::Symbol(symbol) = member.target() else {
                 return Err(lowering_error(
@@ -652,6 +695,7 @@ fn collect_templates(
                 type_parameters,
                 owner: Some(declaration.id()),
                 span,
+                deinit: false,
             });
         }
     }
@@ -2634,14 +2678,22 @@ fn classify_runtime_type_demands(
     }
     let dependent_types = demands.keys().copied().collect::<Vec<_>>();
     for instance in instances {
-        let callable = unit_callable_signature(typed, instance.key().target())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
-        for (template, span) in callable
-            .parameters()
-            .iter()
-            .map(|parameter| (parameter.ty(), parameter.span()))
-            .chain(std::iter::once((callable.return_type(), instance.span())))
-        {
+        let callable = if instance.key().deinit_owner().is_some() {
+            None
+        } else {
+            Some(
+                unit_callable_signature(typed, instance.key().target()).ok_or_else(|| {
+                    lowering_error(LoweringErrorKind::MissingFact, instance.span())
+                })?,
+            )
+        };
+        for (template, span) in callable.into_iter().flat_map(|callable| {
+            callable
+                .parameters()
+                .iter()
+                .map(|parameter| (parameter.ty(), parameter.span()))
+                .chain(std::iter::once((callable.return_type(), instance.span())))
+        }) {
             let concrete = resolve_concrete_type(
                 typed,
                 template,

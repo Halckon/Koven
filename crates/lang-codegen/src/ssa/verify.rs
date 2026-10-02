@@ -153,6 +153,7 @@ pub(crate) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
 
 fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
     super::verify_types::verify_types(module, errors);
+    super::deinit::verify_deinits(module, errors);
 
     for (function_index, function) in module.functions.iter().enumerate() {
         if function.id.module() != module.id || function.id.index() != function_index {

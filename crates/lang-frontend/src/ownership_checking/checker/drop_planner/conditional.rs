@@ -969,7 +969,7 @@ impl DropPlanner<'_, '_> {
             if !matches!(point, DropPoint::WhenAlternativeMatch { .. })
                 && !self.live_after(point).contains(&source)
             {
-                self.drop_named(point, source, state);
+                self.drop_named_asap(point, source, state);
             }
         }
     }

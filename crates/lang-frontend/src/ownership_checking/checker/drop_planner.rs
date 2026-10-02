@@ -10,6 +10,7 @@ mod liveness;
 mod origins;
 mod ownership_primitive;
 mod pending_call;
+mod resource;
 mod snapshot;
 mod source_owner;
 
@@ -142,6 +143,7 @@ impl ValueState {
 }
 
 struct DropPlanner<'a, 'checker> {
+    resource_lifetime: Option<ExpressionId>,
     loop_origins: BTreeMap<usize, crate::ownership_checking::IterationClosureFlow>,
     captured_origins: origins::CapturedOrigins,
     recursive_capture_phi: Option<ExpressionId>,
@@ -202,6 +204,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         captured_origins: origins::CapturedOrigins,
     ) -> Self {
         Self {
+            resource_lifetime: None,
             loop_origins,
             captured_origins,
             recursive_capture_phi: None,
@@ -234,6 +237,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn run(mut self) -> Result<DropPlan, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
+        }
+        if let Some(expression) = self.resource_lifetime {
+            return Ok(DropPlan {
+                deferred: vec![OwnershipDeferredFact::new(
+                    expression,
+                    OwnershipDeferredReason::ResourceLifetime,
+                )],
+                ..DropPlan::default()
+            });
         }
         if let Some((expression, reason)) = self
             .recursive_capture_phi
@@ -333,7 +345,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         .map(|value| value.symbol)
                         .collect::<Vec<_>>();
                     for symbol in unused_parameters.into_iter().rev() {
-                        self.drop_named(DropPoint::FunctionEntry(id), symbol, &mut state);
+                        self.drop_named_asap(DropPoint::FunctionEntry(id), symbol, &mut state);
                     }
                 }
                 match form {
@@ -448,7 +460,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     self.commit_snapshot(snapshot, initializer, symbol);
                     if !self.liveness.statement_after[id.index()].contains(&symbol) {
-                        self.drop_named(DropPoint::AfterStatement(id), symbol, state);
+                        self.drop_named_asap(DropPoint::AfterStatement(id), symbol, state);
                     }
                 }
                 Ok(true)
@@ -483,7 +495,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 scope_depth: self.scope_depth,
                             });
                             if !self.liveness.statement_after[id.index()].contains(&symbol) {
-                                self.drop_named(DropPoint::AfterStatement(id), symbol, state);
+                                self.drop_named_asap(DropPoint::AfterStatement(id), symbol, state);
                             }
                         }
                     }
@@ -570,7 +582,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             });
             for root in roots {
                 if !self.liveness.expression_after[id.index()].contains(&root) {
-                    self.drop_named(DropPoint::CallReturn(id), root, state);
+                    self.drop_named_asap(DropPoint::CallReturn(id), root, state);
                 }
             }
             return Ok(true);
@@ -579,7 +591,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if let Some(place) = self.checker.place(operation.receiver())? {
                 let root = place.root();
                 if !self.liveness.expression_after[id.index()].contains(&root) {
-                    self.drop_named(DropPoint::AfterExpression(id), root, state);
+                    self.drop_named_asap(DropPoint::AfterExpression(id), root, state);
                 }
                 return Ok(true);
             }
@@ -626,7 +638,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         && capture.effect() == ClosureCaptureEffect::Move
                         && let ClosureCaptureSource::Symbol(symbol) = capture.source()
                     {
-                        state.take(symbol);
+                        self.take_named(id, symbol, state);
                     }
                 }
                 Ok(true)
@@ -635,11 +647,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(symbol) = self.checker.reference_symbol(node.span()) {
                     match usage {
                         ExpressionUse::Consume => {
-                            state.take(symbol);
+                            self.take_named(id, symbol, state);
                         }
                         ExpressionUse::Read => {
                             if !self.liveness.expression_after[id.index()].contains(&symbol) {
-                                self.drop_named(DropPoint::AfterExpression(id), symbol, state);
+                                self.drop_named_asap(DropPoint::AfterExpression(id), symbol, state);
                             }
                         }
                         ExpressionUse::Place => {}
@@ -840,7 +852,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             .map(|value| value.symbol)
                             .collect::<Vec<_>>();
                         for symbol in exclusive {
-                            self.drop_named(
+                            self.drop_named_asap(
                                 DropPoint::WhenAlternativeMatch {
                                     control: id,
                                     entry: index,
@@ -985,7 +997,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     } else if let Some(place) = self.checker.place(target)?
                         && !self.liveness.expression_after[id.index()].contains(&place.root())
                     {
-                        self.drop_named(DropPoint::AfterExpression(id), place.root(), state);
+                        self.drop_named_asap(DropPoint::AfterExpression(id), place.root(), state);
                     }
                     return Ok(true);
                 }
@@ -1051,7 +1063,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         self.commit_snapshot(snapshot, value, symbol);
                         if !self.liveness.expression_after[id.index()].contains(&symbol) {
-                            self.drop_named(DropPoint::AfterExpression(id), symbol, state);
+                            self.drop_named_asap(DropPoint::AfterExpression(id), symbol, state);
                         }
                     }
                 }
@@ -1061,9 +1073,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 if let Some(place) = self.checker.place(id)? {
                     let root = place.root();
                     if usage == ExpressionUse::Consume && place.is_root() {
-                        state.take(root);
+                        self.take_named(id, root, state);
                     } else if !self.liveness.expression_after[id.index()].contains(&root) {
-                        self.drop_named(DropPoint::AfterExpression(id), root, state);
+                        self.drop_named_asap(DropPoint::AfterExpression(id), root, state);
                     }
                     Ok(true)
                 } else {
@@ -1167,7 +1179,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 });
                 for root in roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
-                        self.drop_named(DropPoint::CallReturn(id), root, state);
+                        self.drop_named_asap(DropPoint::CallReturn(id), root, state);
                     }
                 }
                 Ok(true)
@@ -1214,7 +1226,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     && let Some(place) = self.checker.place(id)?
                     && !self.liveness.expression_after[id.index()].contains(&place.root())
                 {
-                    self.drop_named(DropPoint::AfterExpression(id), place.root(), state);
+                    self.drop_named_asap(DropPoint::AfterExpression(id), place.root(), state);
                 }
                 Ok(true)
             }
@@ -1283,7 +1295,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         let point = DropPoint::AfterBinaryOperands(binary);
         for pending in [right_drop, left_drop].into_iter().flatten() {
             match pending {
-                StringOperandDrop::Named(symbol) => self.drop_named(point, symbol, state),
+                StringOperandDrop::Named(symbol) => self.drop_named_asap(point, symbol, state),
                 StringOperandDrop::Temporary(expression, origin) => self.push_fact(DropFact::new(
                     point,
                     DropTarget::Temporary(expression),
@@ -1370,7 +1382,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         _ => true,
                     };
-                    newer && leaving
+                    newer
+                        && leaving
+                        && (matches!(point, DropPoint::ControlTransfer(_))
+                            || self.is_asap_owner(value.symbol, state))
                 })
                 .map(|value| value.symbol)
                 .collect::<Vec<_>>();
@@ -1466,7 +1481,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .map(|value| value.symbol)
             .collect::<Vec<_>>();
         for symbol in symbols.into_iter().rev() {
-            self.drop_named(DropPoint::BranchExit { control, branch }, symbol, state);
+            self.drop_named_asap(DropPoint::BranchExit { control, branch }, symbol, state);
         }
     }
 
@@ -1488,7 +1503,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             .map(|value| value.symbol)
             .collect::<Vec<_>>();
         for symbol in symbols.into_iter().rev() {
-            self.drop_named(point, symbol, state);
+            self.drop_named_asap(point, symbol, state);
         }
     }
 

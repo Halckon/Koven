@@ -1,3 +1,6 @@
+#[path = "lower_frontend_resource_deinit_tests.rs"]
+mod resource_deinit_tests;
+
 #[path = "lower_frontend_return_tests.rs"]
 mod return_control_tests;
 

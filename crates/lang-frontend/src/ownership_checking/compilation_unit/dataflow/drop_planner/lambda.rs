@@ -51,6 +51,7 @@ impl DropPlanner<'_, '_> {
                 state.insert(OwnedValue {
                     symbol,
                     origin: parameter,
+                    declaration: parameter,
                     scope_depth: frame,
                 });
             }
@@ -68,7 +69,7 @@ impl DropPlanner<'_, '_> {
             .map(|value| value.symbol)
             .collect::<Vec<_>>();
         for symbol in unused_parameters.into_iter().rev() {
-            self.drop_named(PlannerDropPoint::LambdaEntry(lambda), symbol, &mut state);
+            self.drop_named_asap(PlannerDropPoint::LambdaEntry(lambda), symbol, &mut state);
         }
         let Some((&tail, prefix)) = elements.split_last() else {
             self.scope_depth -= 1;

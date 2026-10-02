@@ -296,14 +296,13 @@ impl<'a> SignatureCollector<'a> {
             let enum_cases = self.collect_enum_cases(source, classifier, id)?;
             let mut members = Vec::new();
             let mut companion_members = Vec::new();
-            let mut has_deinit = false;
+            let mut deinit = None;
             let mut deinit_count = 0;
             if let Some(body) = &classifier.body {
                 for &member in &body.members {
-                    if matches!(
-                        unwrapped_item(self.inputs[source.index()].ast(), member)?,
-                        Item::Deinit { .. }
-                    ) {
+                    if let Item::Deinit { body, .. } =
+                        unwrapped_item(self.inputs[source.index()].ast(), member)?
+                    {
                         deinit_count += 1;
                         if deinit_count > 1 {
                             let span = self.inputs[source.index()]
@@ -318,7 +317,7 @@ impl<'a> SignatureCollector<'a> {
                                 span,
                             )?;
                         } else {
-                            has_deinit = true;
+                            deinit = Some((member, *body));
                         }
                     }
                 }
@@ -347,7 +346,14 @@ impl<'a> SignatureCollector<'a> {
             nominal.set_enum_cases(enum_cases);
             nominal.set_members(members);
             nominal.set_companion_members(companion_members);
-            nominal.set_has_deinit(has_deinit);
+            nominal.set_deinit(deinit.map(|(item, body)| {
+                crate::type_checking::UnitDeinitDescriptor::new(
+                    id,
+                    super::UnitItemId::new(source, item),
+                    super::UnitStatementId::new(source, body),
+                    nominal.ty(),
+                )
+            }));
         }
         Ok(())
     }

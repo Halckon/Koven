@@ -131,9 +131,27 @@ impl Checker<'_> {
                 Ok(Flows::next(state))
             }
             Item::Deinit { body, .. } => {
-                let previous_receiver = self.current_receiver;
-                self.check_statement(body, State::default())?;
+                let declaration_span = self.parsed.ast().items().get(id)?.span();
+                let receiver = self
+                    .typed
+                    .signatures()
+                    .declarations()
+                    .iter()
+                    .filter_map(|declaration| declaration.nominal())
+                    .filter_map(|nominal| nominal.deinit())
+                    .find(|deinit| {
+                        deinit.item() == crate::type_checking::UnitItemId::new(self.source_unit, id)
+                    })
+                    .map(|deinit| super::ReceiverContext {
+                        owner: deinit.owner(),
+                        mode: deinit.receiver_mode(),
+                        ty: deinit.receiver_type(),
+                        declaration_span,
+                    });
+                let previous_receiver = std::mem::replace(&mut self.current_receiver, receiver);
+                let result = self.check_statement(body, State::default());
                 self.current_receiver = previous_receiver;
+                result?;
                 Ok(Flows::next(state))
             }
         }

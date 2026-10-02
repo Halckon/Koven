@@ -954,7 +954,7 @@ pub struct UnitNominalSignature {
     members: Vec<UnitCallableSignature>,
     companion_members: Vec<UnitCallableSignature>,
     static_dispatch_overrides: Vec<UnitStaticDispatchOverride>,
-    has_deinit: bool,
+    deinit: Option<crate::type_checking::UnitDeinitDescriptor>,
 }
 
 /// concrete classifier 对一个非委托 abstract requirement 的静态 effective implementation。
@@ -1027,7 +1027,7 @@ impl UnitNominalSignature {
             members: Vec::new(),
             companion_members: Vec::new(),
             static_dispatch_overrides: Vec::new(),
-            has_deinit: false,
+            deinit: None,
         }
     }
 
@@ -1137,11 +1137,20 @@ impl UnitNominalSignature {
     /// 返回该 nominal 类型是否声明显式析构函数 `deinit`。
     #[must_use]
     pub const fn has_deinit(&self) -> bool {
-        self.has_deinit
+        self.deinit.is_some()
     }
 
-    pub(crate) fn set_has_deinit(&mut self, has_deinit: bool) {
-        self.has_deinit = has_deinit;
+    /// 返回 source-qualified 析构 body 身份与只读 receiver 契约。
+    #[must_use]
+    pub const fn deinit(&self) -> Option<crate::type_checking::UnitDeinitDescriptor> {
+        self.deinit
+    }
+
+    pub(crate) fn set_deinit(
+        &mut self,
+        deinit: Option<crate::type_checking::UnitDeinitDescriptor>,
+    ) {
+        self.deinit = deinit;
     }
 }
 

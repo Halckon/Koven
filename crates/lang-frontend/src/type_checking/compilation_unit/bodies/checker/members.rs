@@ -169,7 +169,13 @@ impl BodyChecker<'_> {
                     self.current_receiver = receiver;
                     self.current_receiver_mode = Some(ParameterMode::Borrow);
                     let unit_type = self.builtin(BuiltinType::Unit);
+                    let previous_return_span = self.current_return_span.take();
+                    let previous_flow = std::mem::take(&mut self.flow_facts);
+                    self.callable_loop_bases.push(self.loop_depth);
                     let result = self.check_statement(source, body, unit_type, None);
+                    self.callable_loop_bases.pop();
+                    self.flow_facts = previous_flow;
+                    self.current_return_span = previous_return_span;
                     self.current_receiver = previous;
                     self.current_receiver_mode = previous_mode;
                     result?;
@@ -524,5 +530,58 @@ impl BodyChecker<'_> {
         }
         self.diagnostics.push(diagnostic);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod deinit_context_tests {
+    use super::BodyChecker;
+    use crate::{
+        lexer::lex,
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        parser::parse_file,
+        source::SourceMap,
+        type_checking::{collect_compilation_unit_signatures, standard_environments},
+    };
+
+    #[test]
+    fn deinit_cannot_target_an_enclosing_checker_loop() {
+        for jump in ["break", "continue"] {
+            let mut sources = SourceMap::new();
+            let source = sources
+                .add_source(
+                    "deinit.ko",
+                    format!("class Resource {{ deinit() {{ {jump} }} }}"),
+                )
+                .unwrap();
+            let lexed = lex(&sources, source).unwrap();
+            let file = parse_file(&sources, &lexed).unwrap();
+            assert!(file.diagnostics().is_empty());
+            let inputs = [SourceUnitInput::new("root", "deinit.ko", source, &file)];
+            let (names, types) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let signatures =
+                collect_compilation_unit_signatures(&sources, &inputs, &names, &types).unwrap();
+            let mut checker =
+                BodyChecker::new(&sources, &inputs, &names, &types, signatures).unwrap();
+            // Exercise the callable boundary independently of currently unsupported local classifiers.
+            checker.loop_depth = 1;
+            checker.callable_loop_bases.push(0);
+            let typed = checker.run().unwrap();
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0142"]
+            );
+        }
     }
 }

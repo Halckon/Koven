@@ -10,6 +10,8 @@ pub(crate) mod constant;
 mod construction;
 mod container;
 mod control;
+mod deinit;
+mod deinit_borrow;
 mod enum_lower;
 mod integer;
 mod loop_control;
@@ -177,6 +179,19 @@ fn lower_unit_from_facts(
     let mut plans = Vec::new();
 
     for instance in instances {
+        if instance.key().deinit_owner().is_some() {
+            let plan = deinit::declare(
+                module,
+                &parsed_by_source,
+                names,
+                typed,
+                &mut types,
+                instance,
+            )?;
+            function_ids.insert(plan.instance.key().clone(), plan.id);
+            plans.push(plan);
+            continue;
+        }
         let callable = unit_callable_signature(typed, instance.key().target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
         let parsed = parsed_by_source
@@ -1196,7 +1211,9 @@ fn instance_function_name(
     }
     name.push('.');
     name.push_str(declaration.name());
-    if matches!(instance.key().target(), UnitCallableTarget::Symbol(_)) {
+    if instance.key().deinit_owner().is_some() {
+        name.push_str(".deinit.d");
+    } else if matches!(instance.key().target(), UnitCallableTarget::Symbol(_)) {
         name.push('.');
         name.push_str(callable_name);
         name.push_str(".s");
@@ -1273,3 +1290,7 @@ const fn lowering_error(kind: LoweringErrorKind, span: Span) -> LoweringError {
         span: Some(span),
     }
 }
+
+#[cfg(test)]
+#[path = "unit_lower_deinit_tests.rs"]
+mod deinit_tests;
