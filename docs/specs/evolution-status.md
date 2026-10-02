@@ -74,8 +74,13 @@
   `companion_constant_initializers_publish_stable_ordinary_typed_facts`。
 
 SPEC-0242 重建后的 `parser_call_argument` 已实际 31 passed / 0 failed，旧三个失败通过现行
-参数模式语法与精确 Span 断言迁移修复；`multifile_type_checking` 的五个历史失败已在本次
-联合回归重现（99 passed / 5 failed，失败名称相同）。上述旧结果保留为历史因果，不视为当前测试执行。
+参数模式语法与精确 Span 断言迁移修复。上述旧结果保留为历史因果，不视为当前测试执行。
+
+2026-10-02 [SPEC-0247](active/0247-multifile-baseline.md) 在 PR #13 合并后 main `efc52b6`
+再次重现 `multifile_type_checking` 的 99 passed / 5 failed；现已修复 layout recovery 内部错误，
+另四项按 Guide 的 Any join、隐式 it、独立 const capability 迁移并加强 facts/负向断言。
+同一完整 suite 当前实际 107 passed / 0 failed，无 ignored，已纳入 stage/双平台 CI 脚本。
+本地扩展门禁及远端 CI 状态以该 Spec 为准；不代表 frontend 全量通过。
 
 完整编辑器 corpus 的五项历史失败仍为 `File header and declarations`、`Calls and lambda`、
 `Own remains declaration-only`、`Control flow`、`Reserved words are not identifiers`；

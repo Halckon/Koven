@@ -12,7 +12,7 @@ use lang_frontend::{
     parser::{AssignmentOperator, Expression, ParsedFile, Statement, parse_file},
     source::{SourceId, SourceMap},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ContainerConstructionKind, DeferredReason,
+        BuiltinType, CompilationUnitTypes, ConstValue, ContainerConstructionKind, DeferredReason,
         DestructuringMode, EnvironmentFunction, EnvironmentFunctionEffect, EnvironmentParameter,
         EnvironmentType, ExpressionCategory, IntrinsicTypeConstructor, ParameterMode,
         RcOperationKind, SequentialContainerKind, TypeEnvironment, UnitAggregateProjectionKind,
@@ -2599,7 +2599,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
              true -> 1\n\
              else -> 2\n\
          }\n\
-         fun branchConflict(flag: Boolean, inout number: Int): Unit {\n\
+         fun branchJoin(flag: Boolean, inout number: Int): Unit {\n\
              val result = when (flag) {\n\
                  true -> number = number\n\
                  false -> 0\n\
@@ -2629,9 +2629,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        [
-            "L0111", "L0107", "L0111", "L0110", "L0109", "L0108", "L0112",
-        ]
+        ["L0111", "L0107", "L0111", "L0110", "L0109", "L0108",]
     );
     assert_eq!(
         forward
@@ -2641,7 +2639,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["when", "1", "when", "true", "else", "else", "0"]
+        ["when", "1", "when", "true", "else", "else"]
     );
     let missing_case = forward.body_diagnostics()[0]
         .details()
@@ -2652,6 +2650,22 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
         })
         .expect("enum non-exhaustiveness labels the missing case");
     assert_eq!(missing_case, "Point");
+    // Guide06: other known branch types join as Any; Unit and Int are not a conflict.
+    let uses_unit = source_unit(&forward_names, uses_source);
+    let joined = symbol_named(&forward, &forward_names, uses_unit, "result");
+    assert_eq!(
+        forward.types().get(forward.symbol_type(joined).unwrap()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Any))
+    );
+    let joined_when = *when_expressions(&uses).last().unwrap();
+    assert_eq!(
+        forward.types().get(
+            forward
+                .expression_type(UnitExpressionId::new(uses_unit, joined_when))
+                .unwrap()
+        ),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Any))
+    );
     assert!(forward.validate().is_err());
 }
 
@@ -2891,7 +2905,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
          fun takes(callback: (borrow Int) -> Int): Unit\n\
          fun invalid(): Unit {\n\
              val wrongMove: (Int) -> Int = move { item -> item }\n\
-             val wrongArity: (Int) -> Int = { 1 }\n\
+             val wrongArity: (Int) -> Int = { -> 1 }\n\
              val uninferred = { unknown -> unknown }\n\
              loop {\n\
                  val nested: () -> Unit = { break }\n\
@@ -2931,7 +2945,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["->", "{ 1 }", "->", "break", "1", "1", "true"]
+        ["->", "->", "->", "break", "1", "1", "true"]
     );
     assert!(
         typed.body_diagnostics()[5]
@@ -5590,7 +5604,38 @@ fn top_level_initializers_publish_stable_cross_file_symbol_and_expression_types(
                 .is_some()
         );
     }
-    assert!(typed.validate().is_ok());
+    // Guide05 §36.4: ordinary facts do not grant the separate constant capability.
+    assert!(typed.clone().validate().is_err());
+    assert!(reverse.clone().validate().is_err());
+    let enabled = typed
+        .validate_constants()
+        .expect("complete constant capability");
+    let reverse = reverse
+        .validate_constants()
+        .expect("reversed constant capability");
+    assert_eq!(enabled.constants(), reverse.constants());
+    let facts = enabled.constants();
+    assert_eq!(facts.declarations().len(), 1);
+    assert_eq!(facts.uses().len(), 1);
+    let declaration = &facts.declarations()[0];
+    assert_eq!(
+        declaration.value(),
+        &ConstValue::String(std::sync::Arc::from(&b"ready"[..]))
+    );
+    let usage = &facts.uses()[0];
+    assert_eq!(usage.target(), declaration.symbol());
+    assert_eq!(usage.ty(), declaration.ty());
+    assert_eq!(usage.value(), declaration.value());
+    assert!(declaration.dependencies().is_empty());
+    assert_eq!(
+        enabled.types().expression_type(usage.expression()),
+        Some(usage.ty())
+    );
+    assert_eq!(
+        enabled.types().expression_category(usage.expression()),
+        Some(ExpressionCategory::Temporary)
+    );
+    assert!(enabled.into_types().validate().is_err());
 }
 
 #[test]
@@ -5800,7 +5845,41 @@ fn companion_constant_initializers_publish_stable_ordinary_typed_facts() {
             .target(),
         UnitCallTarget::Symbol(_)
     ));
-    assert!(typed.validate().is_ok());
+    // Guide05 §36.4: ordinary facts do not grant the separate constant capability.
+    assert!(typed.clone().validate().is_err());
+    assert!(reverse.clone().validate().is_err());
+    let enabled = typed
+        .validate_constants()
+        .expect("complete constant capability");
+    let reverse = reverse
+        .validate_constants()
+        .expect("reversed constant capability");
+    assert_eq!(enabled.constants(), reverse.constants());
+    let facts = enabled.constants();
+    assert_eq!(facts.declarations().len(), 1);
+    assert_eq!(facts.uses().len(), 1);
+    let declaration = &facts.declarations()[0];
+    assert_eq!(
+        declaration.value(),
+        &ConstValue::Integer {
+            ty: BuiltinType::Int,
+            value: 7
+        }
+    );
+    let usage = &facts.uses()[0];
+    assert_eq!(usage.target(), declaration.symbol());
+    assert_eq!(usage.ty(), declaration.ty());
+    assert_eq!(usage.value(), declaration.value());
+    assert!(declaration.dependencies().is_empty());
+    assert_eq!(
+        enabled.types().expression_type(usage.expression()),
+        Some(usage.ty())
+    );
+    assert_eq!(
+        enabled.types().expression_category(usage.expression()),
+        Some(ExpressionCategory::Temporary)
+    );
+    assert!(enabled.into_types().validate().is_err());
 }
 
 #[test]
@@ -7118,3 +7197,6 @@ fn compilation_unit_class_with_deinit_records_signature_flag() {
         "FileHandle nominal should have has_deinit = true"
     );
 }
+
+#[path = "multifile_type_checking/baseline_regressions.rs"]
+mod baseline_regressions;

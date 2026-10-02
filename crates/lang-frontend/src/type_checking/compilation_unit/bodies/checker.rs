@@ -309,7 +309,7 @@ impl<'a> BodyChecker<'a> {
         // 冻结候选 owner 集合，避免 Grow<T> -> Grow<List<T>> 一类合法 heap 递归无限扩张。
         let owner_count = self.signatures.types().len();
         let mut index = 0;
-        while index < owner_count {
+        'owners: while index < owner_count {
             let owner_type = UnitTypeId::new(index);
             index += 1;
             let Some(UnitTypeKind::Nominal {
@@ -345,22 +345,21 @@ impl<'a> BodyChecker<'a> {
                 .copied()
                 .zip(arguments.iter().copied())
                 .collect::<BTreeMap<_, _>>();
-            let fields = nominal
-                .fields()
-                .iter()
-                .map(|field| {
-                    let concrete_type = self.substitute_type(field.ty(), &substitutions)?;
-                    if !self.type_is_concrete_runtime_recipe(concrete_type, &mut BTreeSet::new())? {
-                        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
-                    }
-                    Ok(UnitRuntimeFieldLayoutField::new(
-                        field.symbol(),
-                        field.ty(),
-                        concrete_type,
-                        field.span(),
-                    ))
-                })
-                .collect::<Result<Vec<_>, CompilationUnitTypeError>>()?;
+            let mut fields = Vec::with_capacity(nominal.fields().len());
+            for field in nominal.fields() {
+                let concrete_type = self.substitute_type(field.ty(), &substitutions)?;
+                if !self.type_is_concrete_runtime_recipe(concrete_type, &mut BTreeSet::new())? {
+                    // A valid name can still have an unbound/recovery field type. Omit the
+                    // entire owner recipe rather than publishing a prefix or an internal error.
+                    continue 'owners;
+                }
+                fields.push(UnitRuntimeFieldLayoutField::new(
+                    field.symbol(),
+                    field.ty(),
+                    concrete_type,
+                    field.span(),
+                ));
+            }
             self.parts
                 .runtime_field_layouts
                 .push(UnitRuntimeFieldLayoutDescriptor::new(

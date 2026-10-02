@@ -3057,3 +3057,35 @@ fn rejects_non_callable_entries_and_foreign_ownership_products() {
     assert_eq!(error.kind, LoweringErrorKind::MismatchedAnalysis);
     assert!(error.span.is_none());
 }
+
+#[test]
+fn recovery_owner_without_a_layout_cannot_become_executable_ssa() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/recovery.ko",
+        "package p\nclass Broken(val prefix: Int, val poison: Opaque)\nfun entry(input: Broken): Unit {}",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "p/recovery.ko",
+        source,
+        &parsed,
+    )];
+    let (mut name_environment, type_environment) = standard_environments();
+    name_environment.declare_type("Opaque").unwrap();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    assert!(typed.types().runtime_field_layouts().is_empty());
+    let error = super::unit_lower::lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "entry"),
+    )
+    .err()
+    .expect("typed recovery does not authorize lowering a poisoned field");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+}
