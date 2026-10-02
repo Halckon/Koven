@@ -195,6 +195,6 @@ CLI 的 linker/runner 是外围编排，不进入 SSA 或 LLVM 语义。标准�
 
 ## 测试覆盖位置
 
-SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；native
-公共路径另由 `lang-cli` integration tests 覆盖。命令与扩大范围规则见
+SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../development/codegen-receiver-test-migration.md)。
+native公共路径另由 `lang-cli` integration tests 覆盖。命令与扩大范围规则见
 [开发测试指南](../development/testing.md)。

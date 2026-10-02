@@ -11,7 +11,8 @@
 5. [治理执行账本](engineering-governance-progress.md)记录每批真实进度与下一门禁；没有实施/验收的目标不称当前能力
 
 P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 Span 精确证据由 PR17
-补齐并归档，当前仅0182保持active。P2 继续落地[尺寸护栏](rust-size-policy.md)与下一领域的有界搬迁，
+补齐并归档，当前仅0182保持active。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
+[codegen receiver 有界拆分](codegen-receiver-test-migration.md)，其余领域与受控性能验收待后继，
 P3 先封闭普通 unit 交接、再共享宿主编排。P4 仅在语义/recovery parity 成立时逐域收敛。
 P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
 
