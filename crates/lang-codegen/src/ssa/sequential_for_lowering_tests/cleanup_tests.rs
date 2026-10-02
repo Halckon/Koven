@@ -16,14 +16,14 @@ enum Exit {
     Return,
 }
 
-fn value(entity: EntityId) -> ValueId {
+pub(super) fn value(entity: EntityId) -> ValueId {
     let EntityId::Value(value) = entity else {
         panic!("expected value: {entity:?}")
     };
     value
 }
 
-fn loan(entity: EntityId) -> LoanId {
+pub(super) fn loan(entity: EntityId) -> LoanId {
     let EntityId::Loan(loan) = entity else {
         panic!("expected loan: {entity:?}")
     };
@@ -47,7 +47,7 @@ fn call(function: &Function, callee: FunctionId) -> &Instruction {
     )
 }
 
-fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
+pub(super) fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
     let slots = edge
         .arguments
         .iter()
@@ -59,7 +59,7 @@ fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
     function.block(edge.target).unwrap().parameters[slots[0]]
 }
 
-fn cleanup(function: &Function, block: &Block) -> Vec<Operation> {
+pub(super) fn cleanup(function: &Function, block: &Block) -> Vec<Operation> {
     block
         .instructions
         .iter()

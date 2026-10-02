@@ -1,4 +1,5 @@
 mod cleanup_tests;
+mod source_cfg_tests;
 
 use lang_frontend::{
     lexer::lex,

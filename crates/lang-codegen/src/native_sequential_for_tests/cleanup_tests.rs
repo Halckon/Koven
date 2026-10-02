@@ -90,3 +90,23 @@ fn return_operand_runs_before_guards_and_source_cleanup() {
         5,
     );
 }
+
+#[test]
+fn conditional_break_rebinds_source_and_drops_unvisited_buffer_once() {
+    run_cleanup(
+        "conditional_break",
+        "println(item); if (item == \"first\") { break } else { continue }",
+        b"first\nlater\nearlier\nafter\ndone\n",
+        5,
+    );
+}
+
+#[test]
+fn nested_conditional_break_keeps_source_across_normal_sibling() {
+    run_cleanup(
+        "nested_conditional_break",
+        "println(item); if (item == \"second\") { if (item == \"second\") { break } }",
+        b"first\nlater\nearlier\nsecond\nlater\nearlier\nafter\ndone\n",
+        7,
+    );
+}
