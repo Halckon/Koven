@@ -20,7 +20,7 @@ def check_results(needs, event, ref):
     force = ref == "refs/heads/main" or event == "workflow_dispatch"
     rust = outputs["rust"] == "true" or force
     full = rust and (event in ("pull_request", "workflow_dispatch") or ref == "refs/heads/main")
-    required = {"docs": outputs["docs"] == "true" or force, "fmt": rust,
+    required = {"rust-size": True, "docs": outputs["docs"] == "true" or force, "fmt": rust,
                 "clippy": full, "test": full}
     for name, must_run in required.items():
         expected = "success" if must_run else "skipped"

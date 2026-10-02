@@ -48,6 +48,9 @@ PR 的普通文档变更仍仅跑文档门禁；Guide10/11/13/15 的 Litmus 输�
 变更触发 Rust 门禁。main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
 仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
 
+独立的[手写 Rust 尺寸护栏](rust-size-policy.md)在所有上述事件运行，包含policy测试和基于
+明确Git base的增长检查；纯文档PR也不能跳过它。其失败/取消/缺失/跳过均使汇总失败。
+
 完整 codegen/CLI 测试保留 ELF、DWARF 行表、真实 link/run 和内存计数边界；macOS 已存在的
 LLDB ignore 不扩大到 Linux。定向 frontend 仍不代表全量通过，known-gap 不代表功能完成。
 本地与远端实际运行情况见 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，不能由配置存在

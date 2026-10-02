@@ -16,6 +16,7 @@
 
 ## 有界迁移验收
 
+- [手写 Rust 尺寸护栏](rust-size-policy.md)：真实base增长比较、历史baseline、例外与生成物登记
 - [P2 LSP server 测试首片](lsp-test-migration.md)：私有边界、身份映射、实际验证及未测项
 
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。

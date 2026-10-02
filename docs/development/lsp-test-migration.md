@@ -1,6 +1,6 @@
 # P2 首片：LSP server 私有测试搬迁验收
 
-> **性质**：有界测试搬迁验收记录 · **状态**：本地结构与正确性已验；待 PR/CI，P2 整体未完成 · **读取时机**：评审、复现或回退 LSP 测试首片时 · **唯一真源**：本页记录本片身份映射与实测；整体阶段账本由后续合并批次统一更新
+> **性质**：有界测试搬迁验收记录 · **状态**：PR16 已合并；结构与正确性已验，性能与 P2 整体未完成 · **读取时机**：评审、复现或回退 LSP 测试首片时 · **唯一真源**：本页记录本片身份映射与实测；整体阶段账本由后续合并批次统一更新
 
 ## 范围与固定源码
 
@@ -114,3 +114,16 @@ server窄测libtest报告0.10s；完整LSP报告0.11s。暂存后的 `git diff -
   正式发布前先与父任务协调main基底和docs批次，重核任何源码变更后的验证
 - 可按纯搬迁commit单独回退六个Rust文件；执行账本与本记录单独维护。
   不用降低assert、增加ignore、改变target集合或生产API来绕过检查
+
+## 合并后的交付核验（2026-10-02）
+
+以上“待PR/CI”和本地未测项保留为发布前快照，不倒填为当时已运行。
+[PR16](https://github.com/Halckon/Koven/pull/16) 最终head为
+`3d1c2a24ef92afdf35d1aec3982b58aa0b02fc06`，tree与本地docs head
+`9ec0bc51b323c0bf96f084d76b9bb5d5723105fe`一致。
+[exact-head CI 36991173937](https://github.com/Halckon/Koven/actions/runs/36991173937)
+8/8 jobs success，两宿主check、严格Clippy、core、stage及Guide步骤实际成功，
+两宿主完整LSP均26 passed/0 failed/0 ignored/0 filtered，迁移的11项逐名核对一致。
+用户随后合并PR，merge为`4383509dbfb805f774581a29136fc46dd62504a4`；
+[该main CI 36993317772](https://github.com/Halckon/Koven/actions/runs/36993317772)
+亦8/8 jobs success。以上不替代冷/热compile/link、RSS、重复性能样本或frontend全量验收。
