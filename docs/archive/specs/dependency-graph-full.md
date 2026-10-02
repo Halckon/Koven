@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，232 份）"]
+subgraph Garchive["已完成（archive，233 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -230,6 +230,7 @@ subgraph Garchive["已完成（archive，232 份）"]
   S0233["S0233<br/>Parser 工程合同的保全文档迁移"]
   S0234["S0234<br/>普通 block 的换行表达式边界"]
   S0235["S0235<br/>三项批准规则在真实 clone-first 基线启用"]
+  S0236["S0236<br/>String.clone 显式深拷贝端到端"]
   S0237["S0237<br/>八阶段本地整合与交叉契约验证"]
   S0238["S0238<br/>Guide 勘误与可执行 Litmus 前端门禁"]
   S0239["S0239<br/>Linux CI 与双宿主定向回归门禁"]
@@ -244,7 +245,6 @@ subgraph Garchive["已完成（archive，232 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0236["S0236<br/>String.clone 显式深拷贝端到端"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1403,6 +1403,7 @@ S0244 --> S0246
 | SPEC-0233 | archive | [0233-parser-compiler-contracts.md](0233-parser-compiler-contracts.md) |
 | SPEC-0234 | archive | [0234-block-newline-continuation.md](0234-block-newline-continuation.md) |
 | SPEC-0235 | archive | [0235-approved-language-rules.md](0235-approved-language-rules.md) |
+| SPEC-0236 | archive | [0236-explicit-string-clone.md](0236-explicit-string-clone.md) |
 | SPEC-0237 | archive | [0237-local-integration.md](0237-local-integration.md) |
 | SPEC-0238 | archive | [0238-guide-litmus-gate.md](0238-guide-litmus-gate.md) |
 | SPEC-0239 | archive | [0239-linux-ci-gates.md](0239-linux-ci-gates.md) |
@@ -1415,4 +1416,3 @@ S0244 --> S0246
 | SPEC-0246 | archive | [0246-direct-field-replace.md](0246-direct-field-replace.md) |
 | SPEC-0247 | archive | [0247-multifile-baseline.md](0247-multifile-baseline.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
-| SPEC-0236 | active | [0236-explicit-string-clone.md](../../specs/active/0236-explicit-string-clone.md) |

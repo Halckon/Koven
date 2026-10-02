@@ -41,11 +41,13 @@ malformed/mixed products 与确定性已具备完整集成 oracle。前端已有
 
 ## 0236 的新增验收缺口
 
-[0236](../specs/active/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
+[0236](../archive/specs/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
 直接 `string_clone` suite 的双入口 helper 精确比较诊断 code，但没有 span/primary 断言；
 生产 checker 使用 `name_span` 只是静态实现证据，不能替代回归 oracle。
 因此不按批准计划中的候选数量机械关闭；本批保持 `in-progress`，后继单独补定向测试。
 没有据此判定生产 bug，也不重跑无关全量测试或降低原合同。
+
+后继[PR #17](https://github.com/Halckon/Koven/pull/17)为原14个测试补齐双入口精确Span、source identity与UTF-8 byte offset oracle；[首轮精确head CI](https://github.com/Halckon/Koven/actions/runs/36994788404)双宿主各14/14实际通过，8/8 jobs success，随后独立归档0236。上段保留P1首批识别缺口的历史；归档提交最终CI结果见同一PR，不扩大原语言范围。
 
 ## 持续更新与交付
 
