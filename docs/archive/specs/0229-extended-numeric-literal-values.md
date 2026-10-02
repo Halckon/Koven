@@ -1,10 +1,10 @@
 # SPEC-0229：扩展数值字面量值的端到端闭合
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审扩展数值字面量时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审扩展数值字面量时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-229` |
 | 所属 Phase | Phase 2 / Phase 3 / Phase 4 |
 | 语言规范 | [v0.38 数值字面量](../../guide/01-lexical.md#整数与浮点)、[类型规则](../../guide/03-types-generics.md) |
@@ -86,3 +86,34 @@ cargo test -p lang-frontend --test numeric_literals --test type_checking \
 ## 7. 未决问题
 
 无。本 Spec 仅实现已确定的字面量数值，不替其他计划项作语义决定。
+
+## 8. 最终交付与关闭验收（2026-10-02）
+
+本节补记最终结果，保留 §4、§6 原时点的待发布、未运行和失败记录。实现提交为
+`73a4570a9a204a2e99e78e62692575637a2bcda4`，平台账本补充为
+`181f801febb75810277b23b69588e6c8b22d1fc0`；最终经
+[PR #7](https://github.com/Halckon/Koven/pull/7) head
+`11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 合并为
+`e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核基线
+`34189046319a8b727285d471596647d5de56996e`。
+
+该精确 head 的 [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+8/8 jobs success；Ubuntu/macOS 的 workspace check、严格 Clippy、core、selected frontend
+stage integration 与 Guide litmus 步骤均实际成功。该 head 的 stage 脚本明确选择
+`numeric_literals`，core 明确执行完整 `lang-codegen`；不以汇总绿灯替代 suite 选择或声称
+frontend 全量通过，也不复用 PR 正文中的早期 `9b83ab2` CI 作为最终 head 证明。
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §4.1 red | §6 的两项 L0090、索引 L0135 及 single/unit runtime InvalidLiteral red 均保留，并有同一选择的 green |
+| §4.2 精确值与类型 | [numeric_literals](../../../crates/lang-frontend/tests/numeric_literals.rs)的 `radix_and_separator_constants_preserve_exact_values_and_types`、`radix_and_separator_runtime_literals_keep_expected_and_default_types` 对 single/unit 核对精确常量及 expected/default type；`extended_constants_are_exact_across_files_and_source_order` 核对跨文件反序 facts 一致 |
+| §4.3 诊断、Span 与索引 identity | 同 suite 的 overflow/source-span、expected-type-label、negative-unsigned、malformed 四项保持 L0090/L0085/L0008 与原始位置；`extended_indices_preserve_proven_disjoint_places_and_same_value_aliasing` 同时覆盖异值不重叠与同值别名，不能仅以合法解析代替 |
+| §4.4 native 两入口 | [single native](../../../crates/lang-codegen/src/native_numeric_literal_tests.rs)与 [unit native](../../../crates/lang-codegen/src/native/unit_numeric_literal_tests.rs)共四项 runtime/constant 测试；每项 25 组扩展拼写对十进制 oracle，真实 object/link/run，精确 stdout、成功退出及空 stderr，常量另核对派生值 |
+| §4.5 门禁与下游 | §6 本地 246 项 frontend 定向、482 项 codegen、fmt/strict clippy/workspace check 与文档结果保留；最终双宿主 CI 实际执行上述目标，补齐原平台缺口 |
+| §4.6 交付 | 最终 PR7 head、CI 和 main merge 相互对应，原有界 Goal 已有关闭证据；文档状态、路径和 inventory 随生命周期收尾同步 |
+
+§6 的八项 frontend 与四项 native 名称及断言在复核基线仍保留；本轮未重跑 Cargo。
+整数的 radix/underscore 链已闭合；浮点仅包含前端分隔符规范化，不包含浮点 native。
+具名位运算由后继 [SPEC-0240](0240-integer-bitwise-execution.md) 交付，不是本合同关闭前置。
+原三项 parser 与五项 multifile 失败分别由后继 SPEC-0242 / SPEC-0247 处理，原失败记录不改写，
+本 Spec 不扩展常量表达式集合或任何调用/语句语义。

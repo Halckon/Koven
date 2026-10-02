@@ -1,10 +1,10 @@
 # SPEC-0232：原子置换原语的可信类型事实
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实现或消费 replace/swap 的 typed 身份时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实现或消费 replace/swap 的 typed 身份时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-232` |
 | 所属 Phase | Phase 2 |
 | 语言规范 | [所有权与原子置换](../../guide/10-ownership-borrowing-drop.md)、[标准库原语](../../guide/13-program-runtime-standard-library.md) |
@@ -91,3 +91,31 @@ unit suite 的五项既有失败为 `companion_constant_initializers_publish_sta
 `top_level_initializers_publish_stable_cross_file_symbol_and_expression_types`、
 `unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary`。
 不删除或弱化这些测试，本阶段不声称 unit suite 全绿。
+
+## 8. 最终交付与关闭验收（2026-10-02）
+
+实现提交 `668473e41ff6c9123058e4d4f4c0cff993603354` 最终经
+[PR #7](https://github.com/Halckon/Koven/pull/7) head
+`11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 合并为
+`e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核基线
+`34189046319a8b727285d471596647d5de56996e`。
+该 head 的 [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+8/8 jobs success，Ubuntu/macOS 的 check、strict clippy、core、stage 与 Guide 步骤均实际成功。
+该版本 stage 明确选择 `type_ownership_primitives` 与相关受影响 suites，core 执行 frontend
+lib 的结构 validation 测试及完整 codegen；不宣称原语 native 或 frontend 全量已因此通过。
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §4.1 red、来源与 rollback | §5 保留 24 处 API 缺失编译 red、两项结构损坏 red 和 deferred operand 的 L0084 red；[17 项 integration](../../../crates/lang-frontend/tests/type_ownership_primitives.rs)的 source-function/imported-alias 负例、explicit-environment binding、invalid/failed-overload 与成功 trial-once 明确核对绑定来源及事务提交 |
+| §4.2 descriptor 与查询 | [single descriptor](../../../crates/lang-frontend/src/type_checking/ownership_primitive.rs)只有 crate 内构造器；integration 的 single/unit 精确核对 Replace/Swap、交换类型、call contract、两个源码顺序 operand，unit 保留 source-qualified identity 及输入反序稳定性 |
+| §4.2 validation | [unit validation](../../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/ownership_primitive.rs)中 `primitive_validation_rejects_inconsistent_source_type_operand_and_call_facts` 与 `constant_enabled_validation_also_checks_primitive_structure` 覆盖原账本的 14 种损坏及 basic/const 两入口；仍不把它称为从 AST 独立重建 operand 映射 |
+| §4.3 Nothing 与静态边界 | integration 的 divergent replace/place-prefix、closure-body、short-circuit、if-condition 测试保留真实静态 identity，deferred/error cases 不发布成功表；descriptor 未发布 continuation 布尔值，不把静态 call 当作 ownership 原子 commit 许可 |
+| §4.4 定向与下游门禁 | §5 251 项定向、2 项 validation、478 项 codegen 与 fmt/strict clippy/workspace check 的本地结果保留；最终双宿主 CI 实际覆盖对应 suite/core，未新增本 Spec 的 native 能力声明 |
+| §4.5 交付 | 最终 PR7、精确 CI 与 main merge 相互对应，已满足可信 typed 身份的原 Goal；文档状态/路径与 inventory 随生命周期收尾同步 |
+
+§5、§7 的待发布与未运行是历史记录；本轮 docs-only 没有新运行 Cargo。原五项 multifile
+失败由后继 [SPEC-0247](0247-multifile-baseline.md) 单独修复，本合同不以 CI 绿灯追溯改写。
+后继 [SPEC-0244](0244-root-ownership-primitives.md) 交付 owned root，
+[SPEC-0246](0246-direct-field-replace.md) 交付有界 direct field replace。
+这些下游成果不扩大本 Spec 的 Phase 2 交付；nested/index place、字段 swap、普通 Inout ABI、
+通用 continuation 与 closure/provenance 转移仍须按各自合同验收，不能用 typed descriptor 代替。

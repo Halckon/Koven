@@ -1,10 +1,10 @@
 # SPEC-0239：Linux CI 与双宿主定向回归门禁
 
-> **性质**：实施与验证 Spec · **状态**：in-progress · **读取时机**：维护 Linux/macOS CI 或核验本切片交付时 · **唯一真源**：本 Spec 的范围、验收与交付限制
+> **性质**：实施与验证 Spec · **状态**：done · **读取时机**：维护 Linux/macOS CI 或核验本切片交付时 · **唯一真源**：本 Spec 的范围、验收与交付限制
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-CI-0239` |
 | 所属 Phase | 工程验证，覆盖现有 Phase 1–4 实现 |
 | 语言规范 | [Guide v0.40](../../guide/README.md) |
@@ -85,3 +85,32 @@ Ubuntu 24.04 的 apt 安装流程及 GitHub Actions 的真实调度必须在获�
   PR REST 文件列表需要 `pull-requests: read`，仅在 changes job 授予。
 - [rust-cache 官方缓存说明](https://github.com/Swatinem/rust-cache#cache-details)：
   显式补充 LLVM 与宿主 key，避免依赖默认环境过滤。
+
+## 5. 最终交付与关闭依据（2026-10-02）
+
+第2节的Debian本地验证、Ubuntu安装未运行及未获发布权限属于当时快照，继续保留。
+以下远端精确head运行另行补齐第3节交付条件，不由本地Linux结果推导hosted结果。
+
+- 实现与最终整合head：`11051e200441a21cdf6dee6a6d153d2e9ffe26c6`。
+- [PR #7](https://github.com/Halckon/Koven/pull/7)已合入
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`；该实现包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。
+- 对应 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+  的8个jobs全部success：changes、docs、fmt、双平台check/Clippy、双平台test、CI Passed。
+  macOS-14与ubuntu-24.04的工具安装/验证、Cargo Check、Cargo Clippy、Core、stage、
+  Guide步骤实际成功，Ubuntu固定LLVM安装已由真实hosted运行验证。
+
+| 第1节合同 / 第3节交付条件 | 最终映射 |
+|---|---|
+| 两平台全配置、fail-fast false、fmt一次 | `.github/workflows/ci.yml`两个矩阵与单一fmt job；上述run的两平台必需步骤实际success，不只是汇总绿灯 |
+| 固定Rust/locked依赖、固定Linux LLVM包与签名 | workflow固定1.96.0及`--locked`；`scripts/install_ci_llvm.sh`核验单key/fingerprint并绑定完整21.1.8包版本，不匹配即失败；真实Ubuntu安装成功 |
+| macOS工具、driver与cache隔离 | `.github/actions/setup-llvm/action.yml`验证LLVM/Clang/DWARF/AArch64/X86和host cc；cache包含OS/架构/Rust/实际LLVM/lock与安装脚本 |
+| docs-only/push/Guide输入过滤 | `scripts/tests/test_check_ci_results.py`8项策略测试与workflow路径事实；合法docs-only跳过Rust仍保留，不能把本轮docs-only Rust skip写成重新运行Rust |
+| main/manual强制完整、拒绝意外skip | `scripts/check_ci_results.py::check_results`先要求changes成功，再按事件/路径判定必需job；第2节旧汇总器红测及失败/取消/缺失/意外skip回归保留 |
+| codegen/CLI真实native与两脚本 | workflow完整运行codegen、CLI、frontend lib、LSP及stage/Guide；第2节510+4 codegen、66 CLI等本地范围不与最终远端数量混用 |
+| 发布、双宿主验收、合并闭环 | 上述最终head/run与合并节点补齐第3节后三项；工作流发布已实际发生，原权限/远端未运行描述不再是当前阻塞 |
+
+双宿主CI合同已满足，可按 `done` 关闭。本轮没有安装工具、运行Cargo或改变workflow。
+既有macOS LLDB/debugserver权限测试若为ignored，仍按ignored记录，不算通过；job
+success也不意味着全部测试无ignore。frontend全量、其他平台/交叉编译、known-gap功能
+实现仍非目标；不得把合法docs-only免跑与异常skip混为一谈。

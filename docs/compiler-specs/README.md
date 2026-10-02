@@ -26,7 +26,7 @@
 
 首片仅包含上述明确内部合同。尚与 grammar、诊断或阶段规则交织的 AST/恢复文字仍保留在
 Guide，不以删除实现噪声为由改写语义；具体保留范围与验收见
-[SPEC-0233](../specs/active/0233-parser-compiler-contracts.md)。
+[SPEC-0233](../archive/specs/0233-parser-compiler-contracts.md)。
 
 后续迁移必须逐段登记来源与唯一新归属，正文保全，仅机械修正相对链接；Guide 以最小链接
 转交已迁合同，不再保留该段正文。历史迁移证据从 [Archive](../archive/README.md) 按需查阅。

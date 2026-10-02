@@ -1,10 +1,10 @@
 # SPEC-0241：Return 控制表达式操作数与单文件 enum 条件
 
-> **性质**：实施与验证 Spec · **状态**：in-progress · **读取时机**：核对 return 控制表达式与 Litmus4 的实际覆盖时 · **唯一真源**：本 Spec 的范围、验收及剩余交付
+> **性质**：实施与验证 Spec · **状态**：done · **读取时机**：核对 return 控制表达式与 Litmus4 的实际覆盖时 · **唯一真源**：本 Spec 的范围、验收及剩余交付
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-0241` |
 | 所属 Phase | Phase 1；Litmus4 所需的窄 Phase 4 闭合 |
 | 语言规范 | [Guide v0.40 控制流](../../guide/06-blocks-control-flow.md)、[构造](../../guide/11-copyability-layout-construction.md) |
@@ -117,3 +117,32 @@ ownership检查转为正向，仍保留typed快照与各自native未支持范围
 
 新head的双平台PR CI仍须在发布后验证；上方初始head绿灯不代替这一组合的远端验收。
 既有multifile/editor失败及未支持native边界不由上述定向结果抹去，未运行frontend全量。
+
+## 最终交付与关闭依据（2026-10-02）
+
+本节补齐第2节末项，并接续“最新main整合验收”末尾仍待新head CI的历史说明。
+原丢失提交、重新实现、依赖缓存、错误fixture、未运行及基线失败等记录均保留原义。
+
+- 当前可追溯实现检查点：`9e54af2fcd8f39331621306435f154238a18aa3d`；与0240
+  最新main整合后的最终head为 `99e63d51854dbade0304dd8c86339183031dae06`。
+- [PR #9](https://github.com/Halckon/Koven/pull/9)的精确最终head
+  [CI run 36952398650](https://github.com/Halckon/Koven/actions/runs/36952398650)：
+  8/8 jobs success，两平台check/Clippy/core/stage/Guide实际成功；早期
+  run36949600712只证明9e54af2，不替代最终组合。
+- PR9已合入 main `2ad6967aebdbf91d18817d23b9cae1a8e1981d56`，并包含于复核基线
+  `34189046319a8b727285d471596647d5de56996e`。
+
+| 第2节原验收 | 最终映射 |
+|---|---|
+| 1：parser/Guide/native先红后绿 | 第4节parser3/7、Guide4 L0087及修正fixture后backend2/4红测完整保留；新实现与最终CI对应上述可取Git对象，不声称恢复d18ae187原字节 |
+| 2：return operand、Span/owner与预算 | `crates/lang-frontend/tests/parser_return_control.rs`11项覆盖if/when、nested/lambda、newline/comment、分号/closer/else/caller delimiter和递归上限；共享parser矩阵预算未放宽 |
+| 3：精确Guide4两前端/单native | `tests/guide_litmus.rs`直接提取原例并检查两入口；`native_return_control_tests.rs::guide_litmus_04_return_when_runs_natively_without_rewriting_the_guide`只追加调用者和显式Shape变量，核对stdout `12\n20\n0\n` |
+| 4：身份、顺序、SSA及拒绝边界 | `payloadless_enum_conditions_use_case_identity_and_declaration_order`反向case声明与同名case；return_control SSA回归核对general/payload/grouped/MoveOnly拒绝、direct case MissingFact与unit原例精确UnsupportedNode |
+| 5：定向/下游/工具 | 原账本与最终组合本地lib180、codegen538+4、CLI66、LSP26、stage57targets/697及Guide142+8分别记录；最终PR9两平台必需步骤成功，不将filtered或既有LLDB ignored算通过 |
+| 6：文档与独立复核 | 原447 Markdown/45 tests、90个非重叠crate文件来源一致及4个重叠文件双方内容保全；当前Architecture继续区分single/unit支持边界 |
+| 7：发布/远端闭环 | 最终99e63d5对应run36952398650及合并节点补齐，未用早期head或仅本地结果替代 |
+
+原Goal已满足，可按 `done` 关闭；本轮未运行Cargo。compilation-unit enum expression
+condition、直接case实参、通用enum相等、payload/grouped/MoveOnly condition仍是原非目标。
+Litmus12由0240两入口native验收，Litmus4仍仅承诺本Spec的单文件native；原multifile/editor
+失败和全部frontend未运行不因CI绿灯消失，后继修复另有合同。

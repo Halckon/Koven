@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 217 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 232 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -276,3 +276,21 @@
 
 - [SPEC-0245](./0245-resource-deinit.md)：普通 concrete class 用户 deinit、资源词法清理与 root 原语组合的双平台验收
 - [SPEC-0246](./0246-direct-field-replace.md)：owned local 普通 class 一级字段 replace 的独立事实、SSA/LLVM/native 与首轮双平台 CI 验收
+
+## 2026-10-02 文档闭环
+
+- [SPEC-0228](./0228-linux-x86-64-native-host.md)：# SPEC-0228: Linux x86_64 本机目标与基线验收；最终交付证据见正文追加节
+- [SPEC-0229](./0229-extended-numeric-literal-values.md)：扩展数值字面量值的端到端闭合；最终交付证据见正文追加节
+- [SPEC-0230](./0230-recursive-boxed-enum-native.md)：递归 Box enum 的 native 构造与析构；最终交付证据见正文追加节
+- [SPEC-0231](./0231-contextual-type-ref-trials.md)：上下文 TypeRef 与严格调用试探一致性；最终交付证据见正文追加节
+- [SPEC-0232](./0232-ownership-primitive-type-facts.md)：原子置换原语的可信类型事实；最终交付证据见正文追加节
+- [SPEC-0233](./0233-parser-compiler-contracts.md)：# SPEC-0233: Parser 工程合同的保全文档迁移；最终交付证据见正文追加节
+- [SPEC-0234](./0234-block-newline-continuation.md)：普通 block 的换行表达式边界；最终交付证据见正文追加节
+- [SPEC-0235](./0235-approved-language-rules.md)：# SPEC-0235: 三项批准规则在真实 clone-first 基线启用；最终交付证据见正文追加节
+- [SPEC-0237](./0237-local-integration.md)：# SPEC-0237: 八阶段本地整合与交叉契约验证；最终交付证据见正文追加节
+- [SPEC-0238](./0238-guide-litmus-gate.md)：Guide 勘误与可执行 Litmus 前端门禁；最终交付证据见正文追加节
+- [SPEC-0239](./0239-linux-ci-gates.md)：Linux CI 与双宿主定向回归门禁；最终交付证据见正文追加节
+- [SPEC-0240](./0240-integer-bitwise-execution.md)：整数具名位运算与取反端到端执行；最终交付证据见正文追加节
+- [SPEC-0241](./0241-return-control-operands.md)：Return 控制表达式操作数与单文件 enum 条件；最终交付证据见正文追加节
+- [SPEC-0242](./0242-automatic-borrow-call-migration.md)：调用点自动借用迁移；最终交付证据见正文追加节
+- [SPEC-0247](./0247-multifile-baseline.md)：跨文件类型基线与恢复事实闭合；最终交付证据见正文追加节

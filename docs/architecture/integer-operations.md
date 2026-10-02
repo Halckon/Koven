@@ -29,7 +29,7 @@ LLVM shift 先对 count 与 W-1 相与；signed shr 使用算术右移，unsigne
 
 ## 验证与既有边界
 
-验收账本见 [SPEC-0240](../specs/active/0240-integer-bitwise-execution.md)。该切片不改变 const call 白名单、同类型操作数约束或 checked 算术。
+验收账本见 [SPEC-0240](../archive/specs/0240-integer-bitwise-execution.md)。该切片不改变 const call 白名单、同类型操作数约束或 checked 算术。
 单文件普通整数索引 value lowering 与 source member call 尚未支持，裸索引/普通方法与 inv 的对照负例固定这些边界；unit 入口保留借用/命名 List 元素取反及普通源码 inv 方法正例。
 
 两 native 入口各以 304 个二元、40 个取反边界检查结果，六组 eager operand 验证顺序与一次求值；48 组三方对照核验 const/runtime 与独立十进制 oracle。Guide Litmus12 原样提取并通过两 native 入口运行。

@@ -1,9 +1,9 @@
 # v0.37 分阶段实施
 
-> **性质**：分阶段 Spec 索引 · **状态**：guide 已启用 / Phase 2+3 已完成 / Phase 4 实施中 · **读取时机**：实施 v0.37 借用式迭代时 · **唯一真源**：各 Spec
+> **性质**：分阶段 Spec 索引 · **状态**：guide 已启用 / Phase 2+3 已完成 / Phase 4 集成验收补强中 · **读取时机**：实施 v0.37 借用式迭代时 · **唯一真源**：各 Spec
 
 2026-09-19 用户明确启用 v0.37，temporary source 纳入首轮 native；ADR-0023 已 accepted。
-按依赖顺序推进，SPEC-0179/0211/0212 已完成归档，SPEC-0182 进入 active：
+按依赖顺序推进，SPEC-0179/0211/0212 已完成归档，SPEC-0182 保留 active，已有实现，需补齐精确集成验收映射：
 
 - [SPEC-0179](../../../archive/specs/0179-sequential-iteration-typed-plan.md)：typed iteration plan（done）
 - [SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)：iteration ownership（done）

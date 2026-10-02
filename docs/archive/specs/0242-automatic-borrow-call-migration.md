@@ -1,10 +1,10 @@
 # SPEC-0242：调用点自动借用迁移
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：落实 v0.40 调用点自动借用与普通 borrow 名称时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：落实 v0.40 调用点自动借用与普通 borrow 名称时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-242` |
 | 所属 Phase | Phase 1；Phase 2/3 与 native/CLI 回归 |
 | 语言规范 | [调用实参](../../guide/07-calls-lambdas-closures.md#typed-call-argument)、[v0.40 迁移](../../guide/15-conformance-and-staging.md#v040-迁移与未完成边界) |
@@ -103,3 +103,31 @@ return_control/diagnostic_witness、type_callable/type_checking、tree_sitter_gr
 没有旧调用侧`borrow x`，其inv独占冲突与typed身份断言原样保留。
 初始head通过不替代合并后的验收；最新实际结果统一见
 [SPEC-0241整合账本](0241-return-control-operands.md#最新-main-整合验收)。
+
+## 最终交付与关闭依据（2026-10-02）
+
+本节补齐第4节第4项，接续联合分支及“最新main整合状态”的历史快照；不改写曾经
+未发布、未运行macOS、5项multifile失败或完整tree-sitter corpus失败的事实。
+
+- 可追溯实现检查点：`9e54af2fcd8f39331621306435f154238a18aa3d`；与0240
+  最新main整合后的[PR #9](https://github.com/Halckon/Koven/pull/9)最终head为
+  `99e63d51854dbade0304dd8c86339183031dae06`。
+- 对应精确head的 [CI run 36952398650](https://github.com/Halckon/Koven/actions/runs/36952398650)
+  为8/8 jobs success，两平台check/Clippy/core/stage/Guide实际成功；不复用早期9e54af2
+  或run36949600712来证明合入0240后的组合。
+- 已合入 main `2ad6967aebdbf91d18817d23b9cae1a8e1981d56`，包含于复核基线
+  `34189046319a8b727285d471596647d5de56996e`。
+
+| 原Goal / 第4节交付项 | 最终映射 |
+|---|---|
+| 只认调用`&`，borrow/own/inout为普通expression名 | `crates/lang-frontend/src/parser/engine/postfix.rs::parse_argument_mode_marker`只处理首个/重复Ampersand；`parser_call_argument.rs::ordinary_borrow_names_members_and_lambdas_never_become_markers`覆盖member、typed call、尾lambda、具名及own/inout普通调用 |
+| 空白/comment/newline不改变普通borrow调用身份 | `ordinary_borrow_calls_keep_whitespace_independent_expression_spans`遍历无空白、空格、Tab、换行、comment及具名前缀，核对AST/mode/完整Span |
+| 移除旧prefix的L0034/空Span/恢复次序 | `removed_borrow_prefix_uses_canonical_separator_recovery`用真实`input`核对诊断类别、后一个名称起点空Span及borrow/input/tail三个值的身份和顺序；31项suite实际通过 |
+| 既有typed/ownership及声明Borrow/`&`不变 | 第2节逐类fixture迁移；负例继续用`&`核对L0122及不发布部分facts，L0033/L0037/L0038与声明/函数类型marker回归保留；14项直接suite和shared corpus、native/CLI结果见原账本 |
+| 资源预算/共享消费者与编辑器 | 19项parser内部、27targets/29项矩阵，字符/token枚举随合法语料机械同步且预算不降；tree-sitter两新增corpus与三个生成物SHA256一致，完整corpus仍5通过/5失败，TextMate80项原测试通过 |
+| 发布前披露及最终CI | 第3节与联合检查点逐名公开multifile/editor失败和未运行frontend全量；最终PR9的99e63d5/run36952398650补齐远端验收，组合计数见[SPEC-0241](0241-return-control-operands.md#最新-main-整合验收) |
+
+原调用点自动借用迁移Goal已满足，可按 `done` 关闭；本轮未运行Cargo或重新生成编辑器。
+完整tree-sitter五项失败和`input`词法近似仍是独立遗留，两个corpus通过不证明编辑器与
+编译器全面一致。五项multifile由SPEC-0247另行修复，不改写本阶段99通过/5失败。
+不新增借用规则、兼容语法、IR、移位/deinit能力，也不把声明Borrow或调用`&`移除。

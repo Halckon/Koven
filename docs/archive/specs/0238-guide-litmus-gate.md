@@ -1,10 +1,10 @@
 # SPEC-0238：Guide 勘误与可执行 Litmus 前端门禁
 
-> **性质**：实施与验证 Spec · **状态**：in-progress · **读取时机**：修正 PR #6 审查问题或复用 Litmus 门禁时 · **唯一真源**：本 Spec 的范围、验收及剩余交付
+> **性质**：实施与验证 Spec · **状态**：done · **读取时机**：修正 PR #6 审查问题或复用 Litmus 门禁时 · **唯一真源**：本 Spec 的范围、验收及剩余交付
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-DOC-0238` |
 | 所属 Phase | 文档治理与 Phase 1/2/3 验证 |
 | 语言规范 | [Guide v0.40](../../guide/README.md) |
@@ -75,8 +75,36 @@ Cargo 串行使用统一 target；未执行 frontend 全量或 native/macOS 验�
   值、位宽与错误边界，然后另验 SSA/native。不能只把 expect-error 改成 expect-pass。
 - receiver two-phase（本 Spec 原验收时）：Reserved/Activate 仍未实现；嵌套只读例仍 L0135，传入 callee 的
   重叠 Borrow 负例必须继续拒绝。现有 nested-loan 正例不证明 receiver reservation 已落地。
-  后继 [SPEC-0243](../../archive/specs/0243-receiver-two-phase-borrows.md) 单独实现并验证此缺口，不改写本节历史结果。
+  后继 [SPEC-0243](0243-receiver-two-phase-borrows.md) 单独实现并验证此缺口，不改写本节历史结果。
 - Litmus11 unit for-body 的 LoopSource/ControlJoin/Assignment，以及单文件赋值 typed 延后事实
   仍需后继闭合。构造/type qualifier 不是 runtime value，其占位状态与真实缺口分别维护。
 - RawPtr 名称/权限/capability、deinit 资源执行及原子置换后续阶段维持原边界；此处只记录事实。
 - Linux CI 接线是后继独立切片，复用 `scripts/check_guide_litmus.sh`；当前 workflow 原样保留。
+
+## 6. 最终交付与关闭依据（2026-10-02）
+
+本节补齐第3节末项；此前“本地提交、不改workflow、远端未运行”及L0087/L0156等
+known-gap均保留为原验收时点的事实，不把后继功能倒填进本次勘误。
+
+- 实现提交：`aafccaa5a4679bfa33fe7c5132d67707d044b3e0`。
+- 最终整合：[PR #7](https://github.com/Halckon/Koven/pull/7)，head
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`；合并节点
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核 main
+  `34189046319a8b727285d471596647d5de56996e`。
+- 精确 head 的 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+  为8/8 jobs success；后继0239接入双宿主stage/Guide，Guide步骤实际成功。
+  这证明勘误与缺口门禁交付，不表示当时12例已全功能或全native通过。
+
+| 第3节原验收 | 最终证据与范围 |
+|---|---|
+| 1：先红测后勘误 | 第4节实际14通过/2失败；Litmus5非法示例及被改成runtime的Litmus12分别被捕获，规范const源码保留 |
+| 2：直接提取与精确阶段状态 | `crates/lang-frontend/tests/guide_litmus.rs`直接读取Guide15并校验12例/连续ID/每节唯一源码；两入口有序诊断、UTF-8 Span及typed Deferred/Error/缺失节点分别核验；原21项运行记录保留 |
+| 3：nested loan正反例 | `ownership_checking`、`multifile_ownership_checking`中的调用身份、loan kind/end span；交付外层callee的重叠Borrow仍有负例，不混同已经结束的嵌套read |
+| 4：定向及下游门禁 | 第4节124项相关frontend、fmt/check/Clippy和442 Markdown/37 tests；`scripts/check_guide_litmus.sh`独立可复用，最终PR7两宿主实际运行 |
+| 5：审查与历史 | `docs/architecture/guide-conformance.md`区分PR6的3be83b5、整合9b83ab2、真实v0.39的ed0727f；审计原文、冻结Guide与迁移记录没有因勘误被替换 |
+| 6：发布与精确CI | 最终PR7 head/run与合并节点如上，替代“尚未获发布”的当前阻塞，但不修改旧限制原文 |
+
+有界 Goal 是规范勘误及准确暴露缺口，已满足，可按 `done` 关闭。后继SPEC-0241
+处理Litmus4、0240处理Litmus12、0243处理receiver two-phase；当前typed/native剩余
+边界见[当前更正账本](../../architecture/guide-conformance.md)。本轮未运行Cargo，
+不把结构门禁或known-gap测试成功算作未实现能力，也不将此关闭扩大为全部Litmus native验收。

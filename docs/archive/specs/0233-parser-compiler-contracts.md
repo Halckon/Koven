@@ -1,10 +1,10 @@
 # SPEC-0233: Parser 工程合同的保全文档迁移
 
-> **性质**：文档治理变更合同 · **状态**：in-progress · **读取时机**：实施或验收 Guide 与 Parser 工程合同的首片分离时 · **唯一真源**：本 Spec 的范围与验收记录
+> **性质**：文档治理变更合同 · **状态**：done · **读取时机**：实施或验收 Guide 与 Parser 工程合同的首片分离时 · **唯一真源**：本 Spec 的范围与验收记录
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | `done` |
 | Goal ID | `KOV-DOC-0233` |
 | 所属 Phase | 文档治理；不改变任何 Phase |
 | 语言规范 | 已启用 [v0.38 Guide](../../guide/README.md) |
@@ -48,7 +48,7 @@ Guide 迁出边界明确的九段工程文字；现行语言语义、诊断、�
 - [x] 文档门禁、完整检查器单元测试、迁移核对与 diff whitespace 检查通过并登记结果。
 - [ ] 独立提交、PR CI 通过后按仓库生命周期归档；由负责交付的主任务执行。
 
-原文保全证据见 [迁移账本](../../archive/migrations/v0.38-parser-compiler-contracts.md)。
+原文保全证据见 [迁移账本](../migrations/v0.38-parser-compiler-contracts.md)。
 Architecture 只补充语义/合同入口导航，现有实现事实没有改变，因而不新增代码完成声明。
 
 ## 5. 提交计划
@@ -72,3 +72,27 @@ Architecture 只补充语义/合同入口导航，现有实现事实没有改变
 | `git diff --check` | 通过，退出 0 | 不执行 git 写操作 |
 | Cargo / native / frontend 测试 | 未运行 | 本次没有 Rust 或语言行为变更，按文档验收规则不适用 |
 | PR CI / push | 未执行 | 等待发布授权；本 Spec 保持 in-progress |
+
+## 7. 最终交付与关闭验收（2026-10-02）
+
+实现提交 `e3b403890e4a72bd03fe371016ca6e6c8df77d0b` 最终经
+[PR #7](https://github.com/Halckon/Koven/pull/7) head
+`11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 合并为
+`e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核基线
+`34189046319a8b727285d471596647d5de56996e`。
+该 head 的 [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+8/8 jobs success，文档结构与 policy tests 实际通过。其 Rust 双宿主结果属于整合交付的
+附加回归，不是文档原文保全的证明；本 Spec 的直接证据仍为逐块字节比较及治理门禁。
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §4.1 current 入口与权威 | [Compiler Contracts](../../compiler-specs/README.md)唯一 marker，直接导航 [AST](../../compiler-specs/parser-ast.md)与[算法/资源](../../compiler-specs/parser-algorithms.md)两页；Guide 保留转交链接，语义/诊断/Phase 权威未迁移，current 不宣称实现完成 |
+| §4.2 九块原文保全 | [迁移账本](../migrations/v0.38-parser-compiler-contracts.md)逐项记录旧基线 `d3e64a4dc31d20e960ed21975934ec2a35950665`、精确片段与 SHA-256；本轮重新提取九个基线片段、还原目标的机械相对链接并逐字/哈希核对，9/9 相等，共 4,667 UTF-8 字节；每段在当前目标出现一次、Guide 无原段重复 |
+| §4.3 检查器 red/green | §6 的 29 项 red、32 项补充 red 与最终 32 passed 原样保留；[检查器测试](../../../scripts/tests/test_check_docs.py)中 `test_compiler_contract_*` 明确覆盖 metadata、nested inventory、唯一 current、reachability、五份路由、archive 禁入、页预算、子目录路由与链接/锚点，不放宽旧门禁 |
+| §4.4 文档、迁移及 whitespace | §6 原 390 Markdown、32 项 checker、保留 Guide 正文比较及 diff-check 结果保留；本轮九块比较再次通过，整体结构/policy/diff 检查随本批 docs-only 收尾统一执行并登记，不把结构通过冒充语义等价 |
+| §4.5 分支交付 | 最终 PR7 head、精确成功 CI 与 main merge 相互对应；独立实现提交已存在，文档状态/路径与 inventory/DAG 作为生命周期收尾同步 |
+
+原 Goal 仅为九段明确工程文字的首片保全迁移，现已具备关闭证据；不要求把所有混合工程
+文字移出 Guide。§3 的 strict TypeRef/call trial、诊断/Span/Phase、语义示例和其他未迁段落
+保持原权威，后继 Guide v0.40 启用也不重写本次 v0.38 迁移历史。本轮没有运行 Cargo、native
+或 frontend 测试；§6 的原未运行/待发布记录保持其时点含义。

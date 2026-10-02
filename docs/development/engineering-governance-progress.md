@@ -10,7 +10,7 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | 本分支实施，待 Draft PR 与 exact-head CI | 逐项复核 0228–0242/0247、最终账本、归档、索引/inventory/DAG 与 current roadmap |
+| P1a 文档生命周期 | 本分支实施，待 Draft PR 与 exact-head CI | 逐项复核 16 候选；15 项归档，0236 因 Span 证据不足保留 active；同步最终账本/索引/inventory/DAG/roadmap |
 | P1b 0182 证据 | 待独立批次 | 保持 active；补真实 for→SSA/native 的次数、顺序、畸形产物与确定性 oracle |
 | P2 测试结构与软上限 | 未开始 | LSP server 私有测试试点，再按批准顺序推进；先冻结身份/断言/target 与时间/RSS 样本 |
 | P3a/P3b 交接与编排 | 未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
@@ -24,7 +24,7 @@
 | 源码 | `main 34189046319a8b727285d471596647d5de56996e`；2026-10-02 刷新远端，与批准计划一致 |
 | 实现交付 | PR5、7、8、9、13、14 均已合并；逐份 Spec 追加最终 head、merge 与 CI 证据 |
 | 主干 CI | [36979753900](https://github.com/Halckon/koven/actions/runs/36979753900)：8/8 jobs success；Ubuntu/macOS check、Clippy、core、stage、Guide 步骤实际 success |
-| 原生命周期 | 17 active / 217 archive；只在逐项验收成立后迁移 16 项，0182 保留 |
+| 原生命周期 | 17 active / 217 archive；复核后迁移 15 项，0182 与 0236 保留，结果 2 active / 232 archive |
 | 工具链声明 | `rust-toolchain.toml` 固定 Rust 1.96.0；同一云工作区启用既有工具链后实测 rustc/cargo 1.96.0、LLVM/Clang 21.1.8，host x86_64-unknown-linux-gnu；默认 PATH 未找到不代表工具未安装 |
 | P0 实测 target 清单 | 固定同一 main 执行 `cargo metadata --locked --offline --no-deps --format-version 1`：129 targets；frontend 122（lib1 + integration121）、codegen lib1、CLI bin1 + integration3、LSP bin1、std lib1 |
 | P0 LSP 试点基线 | `cargo test --locked --offline -p lang-lsp --bin lang-lsp -- --list` 列出26项；随后 `cargo test --locked --offline -p lang-lsp --bin lang-lsp server::tests` 实跑11 passed/0 failed/0 ignored/15 filtered；未实跑其余15项 |
@@ -38,6 +38,14 @@
 其原勾选不能单独证明 empty/single/source-call-once、逐 CFG 清理、ZST/精确资源次数、
 malformed/mixed products 与确定性已具备完整集成 oracle。前端已有事实测试可复用，
 但不替代真实 for→lowering/native 的证据。独立批次先建立逐项映射，再补缺口；当前未证明生产 bug。
+
+## 0236 的新增验收缺口
+
+[0236](../specs/active/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
+直接 `string_clone` suite 的双入口 helper 精确比较诊断 code，但没有 span/primary 断言；
+生产 checker 使用 `name_span` 只是静态实现证据，不能替代回归 oracle。
+因此不按批准计划中的候选数量机械关闭；本批保持 `in-progress`，后继单独补定向测试。
+没有据此判定生产 bug，也不重跑无关全量测试或降低原合同。
 
 ## 持续更新与交付
 

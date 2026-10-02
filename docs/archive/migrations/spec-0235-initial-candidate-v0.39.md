@@ -52,5 +52,5 @@ Borrow marker、移位、deinit 和 Str/String 规则及其直接一致性文本
 
 ## 验证归属
 
-实际命令、计数与未运行项记录于 [SPEC-0235](../../specs/active/0235-approved-language-rules.md)。
+实际命令、计数与未运行项记录于 [SPEC-0235](../specs/0235-approved-language-rules.md)。
 快照摘要只证明完整来源保存；文档结构检查不能代替四项规则的一致性审查，也不能证明编译器支持。

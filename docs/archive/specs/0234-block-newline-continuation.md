@@ -1,10 +1,10 @@
 # SPEC-0234：普通 block 的换行表达式边界
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：修改 block 顶层 Pratt 续行边界时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：修改 block 顶层 Pratt 续行边界时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-234` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | [block element 与续行](../../guide/06-blocks-control-flow.md) |
@@ -85,3 +85,29 @@ call-argument 的既有失败保持为 `call_only_ampersand_is_not_a_prefix_oper
 首次下游 native 477 通过、1 失败：旧 fixture 将完整 initializer 后的 `+` 放在下一行，
 在新规则下会开启新语句。仅把该 `+` 移至上一行末以保留五项求和，值为 200、退出状态、
 stdout 与 stderr 的全部原断言保持；未修改 codegen 生产逻辑，也未降低验证强度。
+
+## 7. 最终交付与关闭依据（2026-10-02）
+
+本节补齐第4节第5项的远端交付证据；此前红测、旧失败、未获发布授权及 macOS/CI
+未运行均保留为当时快照，不回写成当时已通过。本轮仅复核文档、代码与已有运行证据，未运行 Cargo。
+
+- 实现提交：`bf51d586ff0f8350c966c464ff13450d511c46fd`。
+- 最终整合：[PR #7](https://github.com/Halckon/Koven/pull/7)，head
+  `11051e200441a21cdf6dee6a6d153d2e9ffe26c6`；已合入 main
+  `e22e11b736aab1231209e3403bd0c931b9ddb940`，并包含于复核基线
+  `34189046319a8b727285d471596647d5de56996e`。
+- 精确 head 的 [CI run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)：
+  8/8 jobs success，双宿主 workspace check、严格 Clippy、core、stage、Guide 步骤实际成功。
+  不能以 PR 正文旧 `9b83ab2`/旧 run 或当时“仅 frontend lib”的说明替代这一最终记录。
+
+| 原验收 / Goal | 最终证据与关闭范围 |
+|---|---|
+| 第4节1：AST/Span、LF/CRLF/comment carrier | `crates/lang-frontend/tests/parser_block_line_continuation.rs` 的 `structural_breaks_separate_group_and_unary_starts_with_exact_spans`、`whitespace_and_bare_cr_comments_keep_call_and_binary_continuations`；11项 suite 纳入 stage gate |
+| 第4节2：完整左式停止，未完成表达式继续 | `parser/engine/postfix.rs` 的 `at_block_expression_line_break` 与同 suite 的 initializer、nested/control、unfinished operators/delimiters、for-header 测试；group/call/index 的真实 opener 隔离 soft stop |
+| 第4节2–3：owner/typed-call/lambda 与资源回归 | 同 suite 的 missing closer、lambda scope、standalone/top-level 对照；`parser_entry_line_break_boundary_matrix` 与共享资源矩阵由 `scripts/check_stage_integration.sh` 选择，结合第5节205+10+19项实际结果 |
+| 第4节3–4：下游及事实同步 | 第5节 Linux codegen478、fmt/check/Clippy 与文档门禁；最终 PR7 双宿主 core/stage/Guide；实现事实见 `docs/architecture/source-and-syntax.md` |
+| 第4节5：发布/最终 CI | 上述 PR、精确 head/run 与已合并节点补齐；不以文档结构检查替代语义行为证明 |
+
+有界 Goal 已满足，可按 `done` 关闭。同行缺分隔诊断、前导/重复分号、独立 lambda
+body grammar 仍是原非目标；旧三个 call-argument 失败由后继 SPEC-0242 处理，不抹去
+本 Spec 的25通过/3失败历史。首次 native477通过/1失败及仅调整 fixture 行尾加号的记录完整保留。

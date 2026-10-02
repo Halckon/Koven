@@ -150,7 +150,7 @@ Cargo 共用一个 target 且串行，`CARGO_INCREMENTAL=0`。workspace check �
 
 SPEC-0242 的五项 `multifile_type_checking` 和五项完整编辑器 corpus 历史失败原样保留，
 名称与证据见[演进实施账本](../../specs/evolution-status.md#已知独立基线失败)及
-[编辑器精确边界](../../specs/active/0242-automatic-borrow-call-migration.md#编辑器精确边界)。这些历史结果
+[编辑器精确边界](0242-automatic-borrow-call-migration.md#编辑器精确边界)。这些历史结果
 不算本片重跑；未运行 frontend 全量，不新增 ignore、不降低断言或放宽门禁。
 
 

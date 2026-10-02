@@ -1,15 +1,17 @@
 # Owned local 普通 class 一级字段 replace
 
-> **性质**：当前分支实现事实 · **状态**：current · **读取时机**：修改直接字段 replace 的事实或后端边界时 · **唯一真源**：frontend / codegen 代码、测试与实际验收记录
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改直接字段 replace 的事实或后端边界时 · **唯一真源**：frontend / codegen 代码、测试与实际验收记录
 
 ## 当前集成状态
 
 SPEC-0246 在原 main `8eb2cd3` 上已完成两入口 ownership、lowering、SSA/LLVM 与有界
 frontend/native 验收，global/captured 和 paired target 身份已闭合，首轮双平台 PR CI 通过，
-Spec 已归档。[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft。
-PR #12 deinit 被用户合并后，本分支已整合 main `e6e1100`，资源交叉与全部本地门禁
-通过；修复 head 的双平台 CI 由 PR 跟踪。此前归档 head `4d84ed5b` 因冲突未产生
-PR CI，不能以其 push 检查代替完整验证；字段切片尚未合入 main。历史证据从[完成 Spec 索引](../archive/specs/README.md)追溯。
+Spec 已归档。[PR #13](https://github.com/Halckon/Koven/pull/13) 最终 head
+`c5507a51e0a630bb888a95b2f30247e09e1f60c5` 整合 PR #12 deinit 的 main `e6e1100` 后，
+资源交叉与全部本地门禁、[双宿主 CI 36975900096](https://github.com/Halckon/koven/actions/runs/36975900096)
+均通过，已合入 main `efc52b6993b60c0bdf5072ef1283c145479f7531`。
+此前归档 head `4d84ed5b` 因冲突未产生 PR CI 是历史事件，不能以其 push 检查代替最终验证。
+历史证据从[完成 Spec 索引](../archive/specs/README.md)追溯。
 已交付的 whole-root replace / swap 仍见[root 专页](root-ownership-primitives.md)。
 
 ## 独立字段事实
@@ -87,4 +89,4 @@ commit 不提前执行 deinit，正常与控制退出按实际 owner 唯一清�
 
 实际批次数不累加为一次执行；13 项字段 integration 与 3 项内部 gate 覆盖最终身份边界。
 首轮两宿主均执行 core、61-target stage 与 201 项 Guide；macOS 仅保留既有 LLDB 权限 ignore。
-新 main 整合重跑的 stage 为 63 targets / 810，Guide 201；修复 head 双平台结果将在 PR 跟踪；有界证据不代表 frontend 全量通过。
+新 main 整合重跑的 stage 为 63 targets / 810，Guide 201；上述最终 head 的双宿主结果已实际通过；有界证据不代表 frontend 全量通过。

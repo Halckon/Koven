@@ -1,10 +1,10 @@
 # SPEC-0231：上下文 TypeRef 与严格调用试探一致性
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：修复上下文词的 TypeRef 解析时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：修复上下文词的 TypeRef 解析时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P1-231` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | [上下文关键词](../../guide/01-lexical.md#上下文关键字与软关键字)、[TypeRef EBNF](../../guide/03-types-generics.md#typeref-与函数类型语法) |
@@ -79,3 +79,29 @@ matrix 目标：`parser_prefix_truncation_matrix`、`parser_suffix_truncation_ma
 ## 6. 提交计划
 
 `fix(parser): align contextual type reference trials (SPEC-0231)`，提交包含完整实际验证记录。
+
+## 7. 最终交付与关闭验收（2026-10-02）
+
+实现提交 `772b1f7f45d059c051bdaa748b767fedac49dc89` 最终经
+[PR #7](https://github.com/Halckon/Koven/pull/7) head
+`11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 合并为
+`e22e11b736aab1231209e3403bd0c931b9ddb940`，包含于复核基线
+`34189046319a8b727285d471596647d5de56996e`。
+该 head 的 [CI 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)
+8/8 jobs success，Ubuntu/macOS 的 workspace check、strict clippy、core、stage 与 Guide
+步骤均实际成功。该版本 stage 明确选择 `parser_contextual_type_ref`、相关直接 suites 和
+§5 所列八个 matrix；core 执行 frontend lib 和完整 codegen。它不是 frontend 全量门禁，
+当时 stage 尚不选择 `parser_call_argument`，不能用绿灯抹去其原三项失败。
+
+| 原验收项 | 直接证据与关闭判断 |
+|---|---|
+| §4.1 red 与 AST/Span | §5 原 1 passed / 6 failed 与最终 9 passed 保留；[contextual suite](../../../crates/lang-frontend/tests/parser_contextual_type_ref.rs)比较 casts/typed-calls 的嵌套函数 TypeRef、参数模式及真实 Span，证明原 InvalidLexemeStream 的修复 |
+| §4.2 上下文与恢复 | 同 suite 的 `mode_words_at_type_boundaries_remain_ordinary_type_names`、`move_is_a_type_name_unless_followed_by_a_function_parameter_list` 核对普通名称；named-parameter 两项和 duplicate-mode 测试核对首模式、L0039/Span 及后续恢复；不把函数 TypeRef 的 `(` 规则扩到具名参数 |
+| §4.2 strict trial 一致与回滚 | `malformed_contextual_type_trials_never_commit_partial_type_nodes` 断言失败 trial 无 TypeRef 泄漏；`nested_mode_type_trials_keep_cursor_and_structure_across_trivia` 核对 1/8/32 层节点数与消费终点；`contextual_type_heads_ignore_trivia_at_the_decision_gap` 对 cast/call 入口和换行/comment gap 同时验证 |
+| §4.3 预算、下游与门禁 | §5 Parser lib 28 项含线性计数/资源预算，八个 matrix 12 项、直接 suites 157 项与 codegen 478 项均保持历史结果；最终双宿主对应选择补齐平台证据，没有放宽预算或声称所有 frontend targets 均执行 |
+| §4.4 交付 | 最终 PR7 head、成功 CI 与 main merge 相互对应，原正式 Parser/strict trial Goal 已有关闭证据；文档状态、路径与 inventory 随生命周期收尾同步 |
+
+§5 “borrow 兼容策略尚待确认”是实施时点快照。后续已启用 v0.40 并由
+[SPEC-0242](0242-automatic-borrow-call-migration.md) 迁移调用参数语法和相应测试；本 Spec
+没有越过授权替该决策作选择，原三项失败及未运行记录继续保留。本轮 docs-only 未重跑 Cargo。
+调用 marker、inout/once callable、一般换行与类型检查不因本次关闭扩入原 Goal。
