@@ -2,7 +2,6 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [SPEC-0246](0246-direct-field-replace.md)：owned local 普通非泛型 class 一级 `var` 字段 replace，in-progress；独立于 root 与 deinit 切片，已有直接验证、最终门禁待验收。
 - [SPEC-0241](0241-return-control-operands.md)：return 控制表达式与 Litmus4 单文件 enum-tag native 验证，in-progress。
 - [SPEC-0242](0242-automatic-borrow-call-migration.md)：调用点自动借用、普通 borrow 名称与编辑器迁移，in-progress。
 - [SPEC-0240](0240-integer-bitwise-execution.md)：整数具名位运算 const/SSA/native 与 inv 内建身份，in-progress。

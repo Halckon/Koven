@@ -45,7 +45,7 @@ payload。LLVM 定向矩阵另覆盖精确标量宽度、Char 与零大小表示
 发布执行计划。
 
 本页的 root 专用路径继续拒绝字段、index 与普通 Inout 参数原语 native。独立的
-[一级字段 replace](direct-field-replace.md)已在 SPEC-0246 分支落地并通过直接验证，最终门禁待验收，
+[一级字段 replace](direct-field-replace.md)已在 SPEC-0246 完成有界本地与首轮双平台 CI 验收，
 不放宽 root 操作的 exact direct-root 合同。closure、
 包含 closure 的递归来源运输独立 deferred；不借本片实现 deinit、资源词法析构、raw pointer、
 借用返回、NLL 或跨线程共享。

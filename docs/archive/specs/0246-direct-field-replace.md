@@ -1,10 +1,10 @@
 # SPEC-0246：owned local 普通 class 一级字段 replace
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实现或验收有界一级字段 replace 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实现或验收有界一级字段 replace 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-246` |
 | 所属 Phase | Phase 3 ownership；Phase 4 SSA / LLVM / native |
 | 语言规范 | [Guide10 所有权与原子置换](../../guide/10-ownership-borrowing-drop.md#原地置换原子原语replace-与-swap) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0244（done）的 owned root 原语与既有 typed intrinsic 身份链 |
 | 前置 ADR | ADR-0006、ADR-0008（均 accepted） |
 | 关联 ADR | 无新增 ADR；复用 typed SSA、block parameters 与现有 class payload ABI |
-| 阻塞项 | 无新的语义批准阻塞；global receiver 排除修复、最终共享门禁与远端 CI 待完成 |
+| 阻塞项 | 无；有界本地验收与首轮本 PR 双平台 CI 完成；归档 head 复验由 PR 跟踪 |
 | 影响范围 | `lang-frontend` ownership；`lang-codegen` 两入口 lowering、SSA verifier、LLVM/native；当前文档 |
 | 语言语义变更 | 否 |
 
@@ -104,7 +104,7 @@ payload 布局和内部 ABI；“原子”不是跨线程 CPU 原子指令。
 - [x] 分配/释放插桩逐 pointer 检查新旧字段和父对象恰好释放一次，不能只比较总计数。
 - [x] 定向 frontend、codegen/native 及按共享路径选择的回归、workspace check、严格 clippy、fmt。
 - [x] 文档结构、inventory/生成图、diff 检查与当前 Architecture 同步。
-- [ ] 一个 Draft PR 发布至 main，macOS/Ubuntu 本 PR 实际 CI 完成；未执行/filtered/ignored 单列。
+- [x] 一个 Draft PR 发布至 main，macOS/Ubuntu 本 PR 实际 CI 完成；未执行/filtered/ignored 单列。
 
 ## 6. 实施与交付
 
@@ -112,7 +112,7 @@ payload 布局和内部 ABI；“原子”不是跨线程 CPU 原子指令。
 2. [x] 独立 ownership capability、两入口降低与 SSA/LLVM 已落地且直接验证通过；
    global/captured receiver 与 paired target 变异均有实际红绿证据。
 3. [x] 完成有界本地验收，补齐下表与 Architecture，保存可恢复的独立提交/bundle。
-4. [ ] 发布 Draft PR 并跟进双平台 CI；所有必需验收完成后才归档，不自动合并或改 ready。
+4. [x] 发布 Draft PR 并完成首轮双平台 CI；按有界验收归档，不自动合并或改 ready。
 
 已保存初始 checkpoint `dc5040b`、完整实现 `a4ae359` 及验证过的完整 bundle；不将恢复点
 当作最终验收通过。提交不混入 PR #12，最终修复、门禁与发布记录继续留在本分支。
@@ -140,7 +140,7 @@ payload 布局和内部 ABI；“原子”不是跨线程 CPU 原子指令。
 | `python3 scripts/check_docs.py` | 453 篇 Markdown 通过 | 最终实现与 inventory/四份生成图同步；仅结构验收 |
 | `python3 -m unittest discover -s scripts/tests -v` | 45 passed | 最终文档/CI policy 脚本测试 |
 | `git diff --check` | 通过 | 最终实现与验收文档 |
-| 本 PR macOS / Ubuntu CI | 未运行 | PR 尚未发布，不复用其他 PR 结果 |
+| 首轮本 PR macOS / Ubuntu CI | run 36973062892 completed / success，8/8 jobs success，无 skip | exact head `6bd7ede4`；两宿主 core/stage/Guide 全部成功，明细见下节 |
 
 全部本地命令使用 Rust 1.96.0、LLVM/Clang 21.1.8、Linux x86_64/glibc；
 Cargo 共用一个 target 且串行，`CARGO_INCREMENTAL=0`。workspace check 与 clippy 均为
@@ -149,6 +149,35 @@ Cargo 共用一个 target 且串行，`CARGO_INCREMENTAL=0`。workspace check �
 ## 8. 历史失败与保留边界
 
 SPEC-0242 的五项 `multifile_type_checking` 和五项完整编辑器 corpus 历史失败原样保留，
-名称与证据见[演进实施账本](../evolution-status.md#已知独立基线失败)及
-[编辑器精确边界](0242-automatic-borrow-call-migration.md#编辑器精确边界)。这些历史结果
+名称与证据见[演进实施账本](../../specs/evolution-status.md#已知独立基线失败)及
+[编辑器精确边界](../../specs/active/0242-automatic-borrow-call-migration.md#编辑器精确边界)。这些历史结果
 不算本片重跑；未运行 frontend 全量，不新增 ignore、不降低断言或放宽门禁。
+
+
+## 9. 首轮远端完成证据与归档
+
+[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 的首轮发布 head
+`6bd7ede462a1f6b964ad5b872583d4a31e88b299` 已完成
+[pull_request run 36973062892](https://github.com/Halckon/Koven/actions/runs/36973062892)。
+2026-10-02 读回 exact head、event `pull_request`、status `completed`、conclusion `success`；
+全部 8 个 job 成功，无跳过的必需 job，两宿主 core、stage、Guide step 均为 success。
+
+remote tree `ec48532bdd58f2cf16589fee6ef006d672692bb9` 与本地已验证提交
+`f029f8cbcd0fbf04ace8adda18c58a9d3d94bc79` 完全一致；62 个 blob 逐一核对，并经
+`git fetch` 后的 tree/diff 再验证。该证据不借用其他 PR，基线 main `8eb2cd3` 仍未包含
+PR #12 deinit；本片保持独立。
+
+| 宿主 | frontend lib | codegen / doctests | CLI / LSP | stage | Guide |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 | 186 | 631 / 4 | 66 / 26 | 61 targets / 769 | 187 frontend + 14 codegen = 201 |
+| macOS 14 | 186 | 630 passed、1 既有 ignored / 4 | 65 / 26 | 61 targets / 769 | 187 frontend + 14 codegen = 201 |
+
+每个平台 Guide 另有 1879 filtered，不计入通过数。macOS 唯一 ignored 是既有
+`lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`，原因是 CI 缺少 debugserver
+/task-port 权限；它不算调试器通过，没有新增 ignore。未运行的 frontend 全量、五项
+multifile type 与五项完整编辑器 corpus 历史失败及全部有界实现限制保持。
+
+本 Spec 按声明的 direct-field replace 切片完成验收并归档，PR 保持 Draft、合并由用户决定。
+归档变更只同步本 Spec 状态/路径、现行事实、inventory 与生成图，不改变已验证的 Rust 或
+门禁脚本。最终归档 head 发布后还会再验证一次双平台 CI；最终结果只更新 PR，避免为记录
+最后一轮 CI 反复产生账本提交。首轮成功不冒充尚未执行的最终归档 head 结果。

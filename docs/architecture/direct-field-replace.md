@@ -6,8 +6,9 @@
 
 基于 main `8eb2cd3` 的 SPEC-0246 分支已落地两入口 ownership、lowering、显式 SSA 与 LLVM
 字段交换，已有 frontend、verifier 与 single/unit native 定向通过证据。global 与 captured
-receiver 边界已收紧并复验，本地共享门禁通过，双平台 PR CI 待记录，不代表 main 已支持。
-[本片验收账本](../specs/active/0246-direct-field-replace.md)记录实际批次与未运行项。
+receiver 边界已收紧并复验，本地共享门禁与首轮双平台 PR CI 均通过，SPEC-0246 已归档。
+[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft；最终归档 head 复验在 PR
+跟踪，不代表 main 已合入。历史批次与未运行项可从[完成 Spec 索引](../archive/specs/README.md)追溯。
 已交付的 whole-root replace / swap 仍见[root 专页](root-ownership-primitives.md)。
 
 ## 独立字段事实
@@ -80,4 +81,5 @@ PR #12 deinit 尚未合入本基线，本片不依赖其代码或证据，不声
 - LLVM：`llvm/adapter/root_exchange_tests.rs` 内 field exchange 测试
 
 实际批次数不累加为一次执行；13 项字段 integration 与 3 项内部 gate 覆盖最终身份边界。
-最终共享回归与 PR CI 以验收账本为准，定向证据不代表 frontend 全量通过。
+两宿主均执行 core、61-target stage 与 201 项 Guide；macOS 仅保留既有 LLDB 权限 ignore。
+最终归档 head 结果在 PR 跟踪；这些有界证据不代表 frontend 全量通过。
