@@ -1,3 +1,6 @@
+#[path = "native_sequential_for_tests/cleanup_tests.rs"]
+mod cleanup_tests;
+
 use super::emit_link_and_run;
 
 #[test]

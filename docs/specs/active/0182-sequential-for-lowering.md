@@ -171,3 +171,76 @@ workspace 全量、性能/RSS 未运行，本片无生产或跨 crate API 修改
 尚未关闭：owned named/Borrow 的完整边界矩阵及循环后再读、MoveOnly/mixed projection、
 逐退出 loan/drop 精确顺序与计数、ZST、真实 for 负例落盘桥接、独立分析链 SSA/LLVM 确定性。
 这些条款保持原合同，不能由本片九格或共享 provider 模型的历史测试代替。
+
+### 2026-10-02 temporary source 四类退出的部分验收补测
+
+本片基于合并 PR19/20 后的 `main 295b9ef32bbb6d3147d370f35e6e83908564ad2a`；
+本地测试提交 `0d7f389641a365454f50ee06ded79d3afa24982a`。仅增加两个领域测试子模块与小入口，
+原 19 项 `sequential_for` 测试保持不变，不修改 production lowering、语言语义或 §5 合同。
+本 Spec 保持 active；这里只补强一个 temporary provider 的 normal/continue/break/return，
+不将八个新增测试解释为完整三容器、nested 或 derived/component loan 矩阵已经完成。
+
+新增测试均属于 `lang-codegen --lib`，无平台过滤或 `ignore`。两个前缀分别是
+`ssa::sequential_for_lowering_tests::cleanup_tests::` 与
+`native_tests::sequential_for_tests::cleanup_tests::`：
+
+| 退出 case | SSA 测试（前缀见上） | native 测试（前缀见上） |
+|---|---|---|
+| normal → exhaustion | `normal_exit_keeps_source_until_exhaustion` | `normal_exit_drops_body_guards_and_temporary_buffers_once` |
+| continue → exhaustion | `continue_exit_keeps_source_until_exhaustion` | `continue_exit_preserves_temporary_buffers_until_exhaustion` |
+| break | `break_exit_cleans_source_before_join` | `break_exit_drops_unvisited_element_buffer_too` |
+| return | `return_exit_copies_operand_before_cleanup` | `return_operand_runs_before_guards_and_source_cleanup` |
+
+[SSA 精确 oracle](../../../crates/lang-codegen/src/ssa/sequential_for_lowering_tests/cleanup_tests.rs)
+独立分析四份以 `arrayOf(7, 2)` 构造 `Array<Int>` 的 source 工厂输入，
+每个 body 依次建立两个带 `deinit` 的 scope-bound Guard。按 named factory 的 FunctionId、
+结果 entity 和 edge arguments 跟踪 owner/source loan 到 header/body/exhaustion，不固定 block
+编号或读取 frontend cleanup plan 生成期望。逐块比较完整 Drop/BorrowEnd 子序列：
+`later Guard → earlier Guard → element loan`；break/return 随后为 `source loan → temporary owner`；
+exhaustion 只有本层 `source loan → temporary owner`。其他 block 不得有这些 cleanup，也没有
+Consume。normal/continue 回边保留同一 owner/loan/length，element loan 结束后 cursor 加一；
+break 与 exhaustion 汇合到无 provider 参数、无重复 cleanup 的返回块；return 的终结值必须
+来自当前 element loan 的 Copyable Read，且 Read 先于所有 body-local cleanup。SSA verifier
+仍独立运行。这是各路径的结构/身份/顺序证明，不以渲染 contains 或静态 drop 总数替代。
+
+[native 精确 oracle](../../../crates/lang-codegen/src/native_sequential_for_tests/cleanup_tests.rs)
+改用当前可执行的 `Array<String>` 两个非空动态 concat 元素 `"fi" + "rst"`、`"sec" + "ond"`，
+每轮依次创建 `Guard("earlier")`、`Guard("later")`。固定手写 stdout bytes 验证访问顺序、
+两 Guard 逆序 deinit、break 不进入第二轮，以及 return operand 的输出先于 Guard deinit。
+normal/continue 固定输出为 `first\nlater\nearlier\nsecond\nlater\nearlier\nafter\ndone\n`；
+break 为 `first\nlater\nearlier\nafter\ndone\n`；return 为
+`first\nlater\nearlier\nreturned\ndone\n`。每格分别运行公开 object/link/run 与 verified LLVM
+计数 link/run，均要求成功退出和 stderr 为空。
+
+计数复用 `boxed_enum_tests::run_counted_allocations`，没有新 runtime/hook 框架：normal/continue
+各 7 次，break/return 各 5 次 allocation/release，预算独立来自两个 concat buffer、一个容器
+buffer、每个实际 body 的两个非零 Guard payload。既有 helper 核验每个 free 对应 live pointer，
+拒绝未知/重复 free，并在程序结束要求无 live pointer；libc stdout 内部分配不计入。该证据
+证明这些实际 buffer/payload 唯一释放，包括 break/return 未访问元素的 buffer；不把分配计数
+等同于全部 String logical drop、nominal element deinit 或 ZST logical drop 的验收。
+
+能力探针还保留一个未关闭的正例红证据：
+`class Leaf(val name: String) { deinit() { println(this.name) } }` 配合
+`fun source(): Array<Leaf> = arrayOf(Leaf("first"), Leaf("second"))`，在真实 `for` 中使用时，
+frontend 无诊断，但单文件 `lower_scalar_file_with_entry` 在该 arrayOf 调用返回
+`LoweringErrorKind::UnsupportedNode`，尚未到 LLVM/native。本片不修改生产实现，不把拒绝写成
+预期成功测试，也不删除原 §5 的 nominal MoveOnly / element drop 要求；这是后续需闭合的
+具体能力缺口。原探针运行退出码 101（1 SSA 探针通过、1 native 探针失败）；其后支持子集
+的探针和下列正式测试通过，不把两者报告为同一红绿修复。
+
+| 实际命令 / 检查（2026-10-02，正式检查退出码均为 0） | 结果 |
+|---|---|
+| `timeout --signal=TERM --kill-after=10s 300s cargo test --locked --offline -p lang-codegen --lib sequential_for` | 27 passed / 0 failed / 0 ignored / 664 filtered；原 19 + 新 8，新增 native 4 格各运行两条 native 路径 |
+| 同上 Cargo 参数，filter `ssa::container_operation_tests` | 10 passed / 681 filtered |
+| 同上 Cargo 参数，filter `resource_deinit` | 26 passed / 665 filtered；包含单文件、unit 与 native 资源回归 |
+| `timeout --signal=TERM --kill-after=10s 120s cargo fmt --all -- --check` | 通过 |
+| `timeout --signal=TERM --kill-after=10s 600s cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| `python3 scripts/check_rust_sizes.py --base origin/main` | merge-base 为上述 main；605 手写 / 48 历史超限 / 0 生成物，新模块 364 / 92 行；无新增例外、无 legacy 超限增长 |
+| `python3 -m unittest discover -s scripts/tests -v` | 94 passed |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
+
+宿主 x86_64 Linux，Rust 1.96.0、LLVM/Clang 21.1.8；既有共享 Cargo target，
+`CARGO_INCREMENTAL=0`，Cargo 串行、libtest 默认并行，未 clean。代码定向正式首轮通过。
+本片 PR 双宿主 CI 尚未运行；frontend 全量、workspace 全量与性能/RSS 未运行，无生产或
+跨 crate API 变动。其余完整 owned named/Borrow 边界与再读、nominal/mixed projection、
+nested/derived/component cleanup、ZST、真实 for 负例落盘桥接、独立分析链确定性仍未闭合。
