@@ -22,6 +22,8 @@
 - [P2 codegen plan 测试拆分](codegen-plan-test-migration.md)：48项逐字保全、七域映射及受控compile/link与运行样本
 - [P2 iteration 私有测试拆分](drop-iteration-test-migration.md)：40项映射、18域、逐项格式/路径证据及3个完整场景例外
 
+- [P2 ownership iteration integration分组](ownership-iteration-test-migration.md)：184项逐字保全、20域、同target及双平台定向接线
+
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。
 
 ## 计划与进度
