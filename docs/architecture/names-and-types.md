@@ -145,22 +145,22 @@ environment 会在遍历前返回内部错误。
 对应覆盖位于 `compilation_unit_index` 与 `multifile_name_resolution` integration suites。
 
 ## Compilation-unit 类型链
-
 `type_checking::compilation_unit` 先冻结全 unit 签名图，再检查 body：
-
 1. 收集 classifier、type parameter、field、variant、top-level/member/companion callable 与常量签名；
 2. 建立 canonical unit type table、能力图和 owner/callable generic 参数环境；
 3. 按稳定 source/declaration 顺序检查 initializer 和 callable body；
 4. 发布 source-qualified call、construction、projection、container、Rc、nullable、assignment、lambda、
    receiver 和 control-flow facts；
 5. 无类型诊断且无阻塞 deferred fact 时产生 validated typed unit。
-
 callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不按名称重新选择 target。名义类型、
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
 canonical type identity。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分。
 
 单文件与 unit checker 共享语义模型，但 unit facts 使用 source-qualified ID，不能拿单文件 ID 拼接成
 多文件结果。
+
+unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
+不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
 
 对应覆盖位于 `multifile_type_signatures`、`multifile_type_checking`、
 `multifile_type_member_graph` 与 `multifile_type_capability_graph` integration suites。

@@ -7,6 +7,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前状态
 
+- [SPEC-0247](active/0247-multifile-baseline.md)：五项跨文件类型历史失败的恢复修复与现行合同迁移，in-progress。
+
 - SPEC-0246：owned local 普通 class 一级字段 replace 在原 main `8eb2cd3` 上完成有界本地与首轮双平台 CI 验收，已归档；[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 保持 Draft。归档 head 遇新 main 冲突，没有产生 PR CI；已整合含 deinit 的 main `e6e1100`，交叉资源测试与全部本地门禁重新通过，修复 head 双平台 CI 由 PR 跟踪。当前边界见[一级字段专页](../architecture/direct-field-replace.md)。
 - SPEC-0245：普通 concrete class 资源析构有界验收完成并归档；[PR #12](https://github.com/Halckon/Koven/pull/12) 于 2026-10-02 06:31:18 UTC 被用户合并，main 为 `e6e1100b8c273fbe3d19180bcc60506559683e5a`。当前实现见[资源析构专页](../architecture/resource-deinit.md)。
 - SPEC-0244：owned mutable root replace / swap 已有 ownership、SSA、LLVM/native 与双平台验收，已归档并进入 main；当前边界见 [root 原语专页](../architecture/root-ownership-primitives.md)。
